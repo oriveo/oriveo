@@ -296,8 +296,6 @@ fun SettingsScreen(
                 Column(verticalArrangement = Arrangement.spacedBy(OriveoTheme.spacing.sm)) {
                     FlatSectionHeader(title = stringResource(R.string.about))
 
-                    
-                    
                     FlatGroup {
                         Row(
                             modifier = Modifier
@@ -348,9 +346,10 @@ fun SettingsScreen(
                                 modifier = Modifier.size(18.dp),
                             )
                         }
+                    }
 
-                        InsetHairline()
-
+                    // The legal links are a light footer: centred small grey text with a
+                    // separator dot. They sit outside the card, so no hairline above them.
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(OriveoTheme.spacing.sm, Alignment.CenterHorizontally),
@@ -385,7 +384,6 @@ fun SettingsScreen(
                 }
 
                 Spacer(modifier = Modifier.height(OriveoTheme.spacing.xxl))
-            }
         }
     }
 
