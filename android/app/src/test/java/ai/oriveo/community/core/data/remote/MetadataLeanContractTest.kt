@@ -8,6 +8,8 @@ import java.io.File
 import java.net.HttpURLConnection
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -179,6 +181,49 @@ class MetadataLeanContractTest {
         assertEquals(null, client.modelFacts(ProviderKind.OpenAI, "gpt-out-of-catalog"))
         assertTrue(reports.isEmpty())
         assertFalse(client.encodedCachePayloadForTesting().orEmpty().contains("artifactHash"))
+    }
+
+    /**
+     * runtimeConfig carries policy blocks this client does not consume, and the server is free to
+     * add more. Declaring one of them with the wrong type fails the whole payload, not just that
+     * field, which empties the catalog for every provider.
+     */
+    @Test
+    fun `structured runtime policy the client does not consume still parses`() {
+        val root = Json.parseToJsonElement(contractFixture()).jsonObject
+        val data = root.getValue("leanResponse").jsonObject.getValue("data").jsonObject
+        val payload = buildJsonObject {
+            put(
+                "data",
+                buildJsonObject {
+                    data.forEach { (key, value) -> put(key, value) }
+                    put(
+                        "runtimeConfig",
+                        buildJsonObject {
+                            put("featureFlags", buildJsonObject { put("someFlag", JsonPrimitive(true)) })
+                            put(
+                                "reviewPrompt",
+                                buildJsonObject {
+                                    put("enabled", JsonPrimitive(false))
+                                    put("policyVersion", JsonPrimitive(1))
+                                    put(
+                                        "platforms",
+                                        buildJsonObject {
+                                            put("android", buildJsonObject { put("enabled", JsonPrimitive(true)) })
+                                        },
+                                    )
+                                },
+                            )
+                        },
+                    )
+                },
+            )
+        }.toString()
+        val client = MetadataClient()
+
+        client.loadNetworkPayloadForTesting(payload, "etag-runtime-policy")
+
+        assertNotNull(client.resolveCatalogModel("gpt-fixture", ProviderKind.OpenAI))
     }
 
     private fun contractFixture(): String {

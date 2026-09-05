@@ -748,7 +748,6 @@ class MetadataClient internal constructor(
     private data class RuntimeConfig(
         val featureFlags: Map<String, Boolean>? = null,
         val selfHealPatterns: List<SelfHealPattern> = emptyList(),
-        val reviewPrompt: String? = null,
     )
 
     
@@ -1776,9 +1775,6 @@ class MetadataClient internal constructor(
     
     fun selfHealPatterns(): List<SelfHealPattern> =
         table?.runtimeConfig?.selfHealPatterns.orEmpty()
-
-    /** Missing or malformed runtime policy is intentionally disabled (fail closed). */
-    fun reviewPromptPolicy(): Any? = null
 
     private fun mergeRelayRuntimeConfig(remote: RawRelayRuntimeConfig): RelayRuntimeConfig {
         val fallback = FALLBACK_RELAY_RUNTIME_CONFIG
