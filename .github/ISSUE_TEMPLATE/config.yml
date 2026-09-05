@@ -1,0 +1,11 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/oriveo/oriveo/security/advisories/new
+    about: Report a security problem privately, not as a public issue.
+  - name: What this edition is for
+    url: https://github.com/oriveo/oriveo/blob/main/COMMUNITY.md
+    about: Read this before proposing a feature — it explains what will and will not be accepted.
+  - name: Building and contributing
+    url: https://github.com/oriveo/oriveo/blob/main/CONTRIBUTING.md
+    about: How to build each client and what a good pull request looks like.

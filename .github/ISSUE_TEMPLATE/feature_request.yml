@@ -1,0 +1,49 @@
+name: Feature request
+description: Suggest something this project should do
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please read
+        [COMMUNITY.md](https://github.com/oriveo/oriveo/blob/main/COMMUNITY.md) first. It describes
+        what this edition is for, and the few kinds of change that will not be accepted no matter
+        how well written — an account, cloud sync, billing, or inference paid for by anyone other
+        than the user.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem are you running into?
+      description: >
+        Describe the situation, not the solution. What were you trying to do, and what got in the
+        way?
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What would you like it to do?
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What have you tried, or what else would work?
+      description: >
+        Existing features you worked around with, or other designs you considered and why you
+        prefer this one.
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Scope
+      options:
+        - label: >
+            This works without an Oriveo account, without a hosted service, and without anyone but
+            the user paying for inference.
+          required: true

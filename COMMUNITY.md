@@ -4,6 +4,9 @@ Oriveo Community Edition is a local, bring-your-own-key AI client. This page des
 what that means in practice, so that feature proposals and pull requests have a shared
 starting point.
 
+[README](README.md) · [Contributing](CONTRIBUTING.md) · [Security](SECURITY.md) ·
+[Code of conduct](CODE_OF_CONDUCT.md)
+
 ## The rule
 
 Everything the app does happens on the device, using credentials the user supplies. Chat

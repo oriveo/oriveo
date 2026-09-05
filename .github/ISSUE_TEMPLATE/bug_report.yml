@@ -1,0 +1,82 @@
+name: Bug report
+description: Something does not work the way it should
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file this.
+
+        If the problem is a security issue, please do not file it here — see
+        [SECURITY.md](https://github.com/oriveo/oriveo/blob/main/SECURITY.md) for how to report it
+        privately.
+
+  - type: dropdown
+    id: client
+    attributes:
+      label: Which client?
+      options:
+        - iOS
+        - Android
+        - Web
+        - Shared contracts / OriveoProviderKit
+        - More than one
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Version or commit
+      description: The app version, or the commit you built from.
+      placeholder: "1.0.0, or a3e072f"
+    validations:
+      required: true
+
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: OS version and, for the web client, the browser.
+      placeholder: "iOS 18.4 on iPhone 15 Pro · Firefox 142 on Fedora 42"
+    validations:
+      required: true
+
+  - type: input
+    id: provider
+    attributes:
+      label: Provider and model
+      description: >
+        Which provider and model were you using? For a relay or a local engine, say which kind and
+        which protocol — do not paste the URL or any key.
+      placeholder: "Anthropic, claude-sonnet-4-5 · or: relay, OpenAI-compatible, local llama.cpp"
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open a new conversation
+        2. Turn on web search
+        3. Send "…"
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected, and what happened instead
+    validations:
+      required: true
+
+  - type: textarea
+    id: extra
+    attributes:
+      label: Anything else
+      description: >
+        Logs, screenshots, a recording. Please redact API keys, relay hostnames, and anything from a
+        conversation you would not want public — this issue is visible to everyone.
+    validations:
+      required: false
