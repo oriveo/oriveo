@@ -1,6 +1,7 @@
 {
   "name": "@oriveo/shared",
   "private": true,
+  "license": "AGPL-3.0-or-later",
   "main": "src/index.ts",
   "types": "src/index.ts",
   "exports": {
