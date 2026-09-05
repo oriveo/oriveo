@@ -23,6 +23,12 @@ coverage/
 *.tsbuildinfo
 bun.lock
 
+# Written by `next dev` on every run, not source. next-env.d.ts points at whichever
+# distDir the last run used, and the agent rule files are re-created by Next itself.
+next-env.d.ts
+/web/apps/app/AGENTS.md
+/web/apps/app/CLAUDE.md
+
 # Gradle / Android
 .gradle/
 build/
