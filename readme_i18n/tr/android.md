@@ -280,9 +280,19 @@ gidiş-dönüşleri.
 > yükler; dolayısıyla **testler yalnızca deponun tamamı elinizdeyken geçer** — tek başına `android/`
 > klasörünü dışarı kopyalamak işe yaramaz.
 
+Ayrıca üç enstrümanlı test vardır — bir yerel motor yayın matrisi, bir düz metin soket testi ve bir
+keystore yalıtım testi. Bunlar kendi kendine yeterli değildir: yerel motor testleri, ağınızda
+gerçekten çalışan bir model sunucusunu adlandıran enstrümantasyon argümanlarına ihtiyaç duyar, bu
+yüzden `connectedAndroidTest` kutudan çıktığı gibi geçmez. Pull request için kapı, birim test
+paketidir.
+
 `:benchmark` modülü, soğuk açılış ve model seçici için makrobenchmark'ları barındırır.
 Kendi kendini enstrümante eden `com.android.test` kullanan ayrı bir Gradle modülüdür ve `:app`
 modülünün özel `benchmark` derleme tipini sürer.
+
+Her iki veritabanı da `version = 1` düzeyindedir ve henüz migration yoktur; şemalar
+`app/schemas/` altına dışa aktarılır ve depoya işlenir — ilk migration'ın `2.json` dosyası da oraya
+düşecektir.
 
 ## Yerelleştirme
 
