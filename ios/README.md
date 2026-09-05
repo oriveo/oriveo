@@ -25,7 +25,12 @@ Configure a provider API key or Relay/local endpoint on first send.
 
 ## Run on your iPhone
 
-You need a Mac with Xcode 16 or later, an Apple ID, and a device on iOS 18 or later. A free Personal Team is enough: this app has no Push, Associated Domains, or other paid capabilities.
+You need a Mac with Xcode, an Apple ID, and a device on iOS 18 or later. A free Personal Team is
+enough: this app has no Push, Associated Domains, or other paid capabilities.
+
+The project is built and tested with Xcode 26. Its project file uses `objectVersion = 77` and
+file-system synchronized groups, so an older Xcode may refuse to open it; if yours does, update
+Xcode rather than editing the project format.
 
 1. Open `ios/Oriveo/Oriveo.xcodeproj`.
 2. Select the `Oriveo` scheme.

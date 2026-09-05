@@ -25,7 +25,9 @@ and no server in the middle: the only thing the app fetches from us is a read-on
 
 ## Building
 
-Requirements: JDK 17, and the Android SDK. Android Studio Ladybug or newer works out of the box.
+Requirements: JDK 17 or later, and the Android SDK. The build uses AGP 9.3, Gradle 9.5 and
+Kotlin 2.3, so Android Studio has to be a release that supports AGP 9.3 — an older one will fail
+to sync the project. Building from the command line needs only the JDK and the SDK.
 
 ```bash
 ./gradlew :app:assembleDebug

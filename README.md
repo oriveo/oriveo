@@ -61,15 +61,18 @@ only if you need to change a default. See [web/README.md](web/README.md).
 
 ## iOS
 
-Requires a Mac with Xcode 16 or later and a device on iOS 18 or later. A free Apple
-Developer account is enough; the app uses no paid capabilities.
+Requires a Mac with Xcode and a device on iOS 18 or later. A free Apple Developer account is
+enough; the app uses no paid capabilities. Built and tested with Xcode 26 — see
+[ios/README.md](ios/README.md) if an older Xcode will not open the project.
 
 Open `ios/Oriveo/Oriveo.xcodeproj`, pick the `Oriveo` scheme, choose your team under
 Signing & Capabilities, and run. [ios/README.md](ios/README.md) has the full walkthrough.
 
 ## Android
 
-Requires Android Studio and JDK 17 or later.
+Requires JDK 17 or later and the Android SDK. The build uses AGP 9.3 and Gradle 9.5, so
+Android Studio has to be new enough to sync them; the command line below needs only the JDK
+and the SDK.
 
 ```bash
 cd android
