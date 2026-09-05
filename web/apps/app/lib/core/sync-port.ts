@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-explicit-any -- notification arguments differ per entity;
+/* notification arguments differ per entity;
    a backend is free to ignore them, so the port does not model each shape. */
 /**
  * The port a synchronisation backend plugs into.

@@ -42,7 +42,6 @@ export function trackEvent(event: TelemetryEventName, props?: TelemetryPropertie
     getTelemetry().track(event, props);
   } catch (err) {
     if (process.env.NODE_ENV !== 'production') {
-      // eslint-disable-next-line no-console
       console.warn('[telemetry] track failed', event, err);
     }
   }
@@ -53,7 +52,6 @@ export function trackPage(path: string, props?: TelemetryProperties): void {
     getTelemetry().page(path, props);
   } catch (err) {
     if (process.env.NODE_ENV !== 'production') {
-      // eslint-disable-next-line no-console
       console.warn('[telemetry] page failed', path, err);
     }
   }

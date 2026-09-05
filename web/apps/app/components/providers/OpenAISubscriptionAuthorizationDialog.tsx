@@ -73,7 +73,6 @@ export function OpenAISubscriptionAuthorizationDialog({
   useEffect(() => {
     start();
     // Start once on mount; retries are triggered explicitly by the button in the failed state.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {

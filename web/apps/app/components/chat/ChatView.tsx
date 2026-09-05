@@ -340,7 +340,7 @@ export function ChatView({ conversationId, searchQuery }: ChatViewProps) {
       reasoning: collect('reasoning', reasoningControl),
       generation: collect('generation', generationControl),
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- metadataVersion is the change signal for the
+    // metadataVersion is the change signal for the
     // metadata snapshot; presentCapabilityControl reads from that same snapshot on demand
   }, [controlsManagedByOriveo, currentModel, generationControl, metadataVersion, provider, reasoningControl, webControl]);
   const handleSelectAlternativeModel = useCallback((model: AIModel) => {
@@ -398,7 +398,7 @@ export function ChatView({ conversationId, searchQuery }: ChatViewProps) {
         provider, model: currentModel, ...(identity ? { transportIdentity: identity.transportIdentity } : {}),
       }),
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- metadataVersion is the change signal for identity/liveness
+    // metadataVersion is the change signal for identity/liveness
   }, [currentModel, effectiveId, generationParameterDraftSessionId, metadataVersion, provider]);
 
   useEffect(() => {
@@ -468,7 +468,7 @@ export function ChatView({ conversationId, searchQuery }: ChatViewProps) {
       undefined,
       relayCapabilityEvidenceIdentity,
     ),
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- metadataVersion is the change signal for the
+    // metadataVersion is the change signal for the
     // metadata snapshot; getLibraryRuntimeConfig() / isMetadataReady() read from it on demand
     [activeLibraryConnection, currentModel, libraryFeatureEnabled, provider, metadataVersion, relayCapabilityEvidenceIdentity],
   );
@@ -517,7 +517,7 @@ export function ChatView({ conversationId, searchQuery }: ChatViewProps) {
             relayCapabilityEvidenceIdentity,
           )
         : undefined,
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- as with libraryResearchRoute, metadataVersion is the change signal
+    // as with libraryResearchRoute, metadataVersion is the change signal
     [activeLibraryConnection, currentModel, libraryDisplayRoute, provider, metadataVersion, relayCapabilityEvidenceIdentity],
   );
 
@@ -551,7 +551,7 @@ export function ChatView({ conversationId, searchQuery }: ChatViewProps) {
         transportIdentity: capabilityPreferenceIdentity.transportIdentity, owner: 'web',
       }).isActive
       : false
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- customFragmentSettingsVersion is the change signal
+    // customFragmentSettingsVersion is the change signal
     // for local custom configuration (the editor broadcasts on every keystroke); the facts themselves are read from that same store on demand
   ), [capabilityPreferenceIdentity, currentModel, customFragmentSettingsVersion, provider]);
   const capabilityOutboundDecision = resolveChatCapabilityOutboundDecision({

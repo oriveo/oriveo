@@ -306,7 +306,6 @@ export function GenerationParameterPanel({
       showToast(tc('generationParameterDormantRestored', { count: restored.length }), 3000, undefined, 'success');
     }
     // Only compare when the dormant set actually changes, so the same toast is not repeated.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dormantKey]);
 
   const dormantSummary = dormantIds.length > 0 ? (

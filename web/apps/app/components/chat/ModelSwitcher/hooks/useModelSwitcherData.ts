@@ -345,7 +345,7 @@ export function useModelSwitcherData({
       }
     }
     return counts;
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- capabilityEvidenceTick is the expiry signal of the evidence TTL
+    // capabilityEvidenceTick is the expiry signal of the evidence TTL
   }, [visibleProviders, normalizedQuery, capabilityProjector, capabilityEvidenceTick, requiredGenerationParameterId]);
 
   const toggleFilter = (key: FilterKey) => {

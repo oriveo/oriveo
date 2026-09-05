@@ -21,7 +21,6 @@ interface RateLimitBucket {
 }
 
 declare global {
-  // eslint-disable-next-line no-var
   var __oriveoChatStreamRateBuckets: Map<string, RateLimitBucket> | undefined;
 }
 

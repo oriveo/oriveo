@@ -69,7 +69,6 @@ export function GrokSubscriptionAuthorizationDialog({
   useEffect(() => {
     start();
     // Fired once on mount; retries are triggered explicitly by the button in the failure state.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {

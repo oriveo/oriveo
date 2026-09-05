@@ -104,12 +104,10 @@ export function OfficialProviderDetail({ provider }: OfficialProviderDetailProps
   const isSubscription = isGrokSubscription || isOpenAISubscription;
   const grokSubscription = useMemo(
     () => getGrokSubscriptionAvailability(),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [metadataVersion],
   );
   const openAISubscription = useMemo(
     () => getOpenAISubscriptionAvailability(),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [metadataVersion],
   );
   // A subscription instance has no key to edit, so the same entry point (Hero, or "update key" on the recovery card) re-authorizes instead.
@@ -133,7 +131,6 @@ export function OfficialProviderDetail({ provider }: OfficialProviderDetailProps
   // Use the resolved catalog, with metadata as the authoritative source.
   const resolvedCatalog = useMemo(
     () => selectResolvedCatalog(provider),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [provider, metadataVersion],
   );
   const catalogModels = useMemo(
@@ -172,7 +169,6 @@ export function OfficialProviderDetail({ provider }: OfficialProviderDetailProps
   }, [resync, provider.id, t, te]);
   const providerConfig = useMemo(
     () => getPublicProviderConfig(provider.kind),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [metadataVersion, provider.kind],
   );
   const officialEndpointOptions = useMemo(() => {

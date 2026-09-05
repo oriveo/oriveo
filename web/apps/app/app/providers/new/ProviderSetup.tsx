@@ -106,12 +106,10 @@ export function ProviderSetup() {
   // providerConfigs gates the check; using it as a dependency recomputes after a metadata refresh.
   const grokSubscription = useMemo(
     () => getGrokSubscriptionAvailability(),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [providerConfigs],
   );
   const openAISubscription = useMemo(
     () => getOpenAISubscriptionAvailability(),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [providerConfigs],
   );
   // Pick a provider first, then fill in the key inline: nothing is selected initially and the key field only appears after a selection.
