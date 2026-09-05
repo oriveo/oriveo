@@ -132,7 +132,7 @@ describe('hydrateStore reports failures to Sentry', () => {
 
     expect(h.captureException).toHaveBeenCalledTimes(1);
     expect(h.captureException.mock.calls[0][1]).toMatchObject({ tags: { module: 'store.hydrate' } });
-    //  app  
+    // Hydration failed, but the app still starts - with an empty list rather than stale data.
     expect(store.getState().providers).toEqual([]);
   });
 });
@@ -225,13 +225,13 @@ describe('subscribePinned cloud-push throttling', () => {
     const unsub = subscribePinned(store);
 
     store.getState().togglePinConversation('c1'); // leading: pushes immediately
-    store.getState().togglePinConversation('c2'); //   → pending
-    store.getState().togglePinConversation('c3'); //   →   pending
+    store.getState().togglePinConversation('c2'); // inside the window: coalesced
+    store.getState().togglePinConversation('c3'); // still inside the window: coalesced
     expect(h.didUpdatePreferences).toHaveBeenCalledTimes(1);
 
     vi.advanceTimersByTime(1000); // trailing fires
     expect(h.didUpdatePreferences).toHaveBeenCalledTimes(2);
-    //   c1/c2/c3 
+    // The trailing call carries the final state, not just the toggle that triggered it.
     expect(h.didUpdatePreferences.mock.calls[1][0].pinnedConversationIds).toEqual(['c1', 'c2', 'c3']);
 
     // The local setPreference is not throttled: every toggle is persisted immediately.

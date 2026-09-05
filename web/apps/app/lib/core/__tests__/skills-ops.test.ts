@@ -48,7 +48,7 @@ function makeCategory(overrides: Partial<SkillCategory> = {}): SkillCategory {
 
 describe('skills ops', () => {
   let store: StoreApi<AppStore>;
-  const usage: SkillUsage = { count: 0, limit: 5, isPro: false };
+  const usage: SkillUsage = { count: 0, limit: 5 };
 
   beforeEach(() => {
     store = createAppStore();

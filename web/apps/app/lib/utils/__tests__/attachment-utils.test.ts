@@ -98,7 +98,7 @@ describe('fileToAttachment', () => {
       const attachment = await fileToAttachment(file);
 
       expect(attachment.thumbnailBase64).toBeUndefined();
-      //   ImageStore 
+      // Too large to compress, but still an image: the bytes go to the ImageStore under an id.
       expect(attachment.kind).toBe('image');
       expect(attachment.localImageID).toBeDefined();
       // Compression did not happen, so the mime type and file name must return to those of the original file instead of staying image/jpeg.

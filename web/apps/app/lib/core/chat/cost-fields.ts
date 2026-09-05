@@ -136,7 +136,8 @@ export function deriveCostFields(
       // double the estimate on every cache hit.
       result = calcCost(breakdown, localPricingOf(model));
     }
-    //   0  
+    // Only emit a cache field that was actually observed. Writing 0 would claim the provider
+    // reported a zero, which is a different fact from it reporting nothing at all.
     const cacheFields: {
       cachedInputTokens?: number;
       cacheCreation5mTokens?: number;

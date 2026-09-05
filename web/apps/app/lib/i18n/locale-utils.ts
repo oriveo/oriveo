@@ -1,6 +1,9 @@
 /**
- * Locale   @oriveo/core/i18n/locale A02 §3.3 Web +   import  
- *  cookie   document  renderer 
+ * Browser-side locale helpers.
+ *
+ * The pure parts (SUPPORTED_LOCALES, isRTL, resolveLocale) are re-exported from @oriveo/core so
+ * that app code has a single import site for locale handling. The cookie helpers stay here
+ * because they touch `document`, which @oriveo/core is not allowed to reach.
  */
 import type { SupportedLocale } from '@oriveo/core/i18n/locale';
 

@@ -217,7 +217,7 @@ describe('AppShellWrapper', () => {
       </AppShellWrapper>,
     );
 
-    //   dock 3  
+    // Notes is reachable from the shell but is not one of the dock entries.
     expect(screen.queryByTestId('nav-/notes')).toBeNull();
     expect(screen.getByTestId('notes-entry-/notes').textContent).toBe('notes');
   });

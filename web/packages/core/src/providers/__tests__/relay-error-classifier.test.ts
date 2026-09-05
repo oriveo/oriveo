@@ -57,7 +57,7 @@ describe('classifyRelayHTTPError', () => {
   });
 
   it('Rule 5: Codex host 404 on chat completions points to Codex style', () => {
-    const error = classifyRelayHTTPError(404, '{"error":"not found"}', 'https://code.ylsagi.com/codex/v1/chat/completions');
+    const error = classifyRelayHTTPError(404, '{"error":"not found"}', 'https://codex.relay.example.com/v1/chat/completions');
     expect(error?.message).toContain('Codex style');
   });
 
@@ -168,7 +168,7 @@ describe('isImageGenerationToolUnsupportedError', () => {
     expect(isImageGenerationToolUnsupportedError(payload, 400)).toBe(true);
   });
 
-  it('matches a Packy image endpoint model mismatch', () => {
+  it('matches an image endpoint that only accepts a dedicated image model', () => {
     const payload = parseRelayUpstreamErrorPayload(JSON.stringify({
       error: { message: 'unsupported model: gpt-5.5 (only gpt-image-2 is supported on this endpoint)' },
     }));

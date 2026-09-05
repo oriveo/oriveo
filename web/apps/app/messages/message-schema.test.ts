@@ -279,8 +279,10 @@ describe('app message schema', () => {
     expect(untranslated).toEqual([]);
   });
 
-  // P5b -   J dormant   16  
-  //   {count}  
+  // The dormant state is a product concept, not an engineering one: a parameter the user set is
+  // being held back because the current model would reject it. Every locale has to say that in
+  // its own words, keep the {count} placeholder where the copy promises a number, and never leak
+  // the internal vocabulary ("dormant", "frozen", "hibernating") into the sentence.
   it('keeps the dormant summary copy free of implementation jargon in every locale', () => {
     const dormantPaths = [
       'common.generationParameterDormantSummary',
@@ -315,24 +317,21 @@ describe('app message schema', () => {
   });
 
   /*
-   * Token  ** **  §4.9.3 
+   * The token-usage strings need a stronger check than "is it translated".
    *
-   *  `l10n-coverage.mjs`   MISSING /
-   * UNTRANSLATED / ENGLISH_PASSTHROUGH / VISIBLE_WIRE_ID  16  
-   * 9  16   it  
-   *
-   *  token  
-   * `Unavailable`  7/16  token  
-   *  —— 
-   *
-   *  ** ** 
+   * A locale can be fully translated and still be wrong here, because the two states are one word
+   * apart in most languages: "we have no token numbers for this request" and "this model does not
+   * support token reporting". Translating the English word "Unavailable" literally lands on the
+   * second meaning in several locales, which tells the user their model is missing a feature it
+   * actually has. The tests below assert on meaning rather than presence, using the vocabulary
+   * each language would reach for.
    */
   const localeMessageFiles = () => readdirSync(join(process.cwd(), 'messages'))
     .filter((name) => name.endsWith('.json'))
     .sort();
 
   it('keeps the token-usage missing state meaning "no data", never "unsupported"', () => {
-    //   /  
+    // Words that push the sentence towards "the model cannot do this", in each shipped locale.
     const unsupportedDirection = new RegExp([
       'desteklenmez',
       'desteklenmiyor',
@@ -397,8 +396,8 @@ describe('app message schema', () => {
   });
 
   it('keeps the token-usage subtitle free of any single-request promise', () => {
-    //   Managed   usage   N  
-    //  §4.9.3  
+    // The subtitle sits above a running total, not above one request's numbers. Copy that
+    // promises "this request" reads as a per-request figure and makes the total look wrong.
     const countPromise = new RegExp([
       'bu istek',
       'bu sefer',
@@ -437,8 +436,8 @@ describe('app message schema', () => {
   });
 
   it('never merges the token-usage missing state with a capability-unsupported string', () => {
-    // §4.9.3   key 
-    //   key  ** **—— 
+    // Two different states, two different keys. Collapsing them onto one string is the quiet
+    // failure mode: the UI would then say "not supported" for a model that simply reported nothing.
     const en = loadMessages('en.json');
     const missingState = getNestedValue(en, 'pages.chat.tokenUsage.unavailable');
     const capabilityUnsupported = getNestedValue(en, 'pages.chat.reasoning.unavailable');

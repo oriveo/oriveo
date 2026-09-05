@@ -47,10 +47,10 @@ vi.mock("../metadata/metadata-client", async (importOriginal) => ({
   getRelayRuntimeConfig: vi.fn(() => undefined),
   getModelTransport: vi.fn(() => "openai_chat"),
   getLibraryRuntimeConfig: vi.fn(() => mocks.libraryConfig),
-  //   library/routing.test.ts  
+  // Routing itself is covered by library/routing.test.ts; here it only has to answer yes.
   hasCatalogModel: vi.fn(() => true),
   resolveCatalogModel: vi.fn(() => ({ contextLength: 128_000 })),
-  //   library/routing.test.ts  
+  // Routing itself is covered by library/routing.test.ts; here it only has to answer yes.
   isMetadataSnapshotConfirmed: vi.fn(() => true),
 }));
 vi.mock("../providers/proxy-client", () => ({
@@ -361,7 +361,7 @@ describe("fallback when the first leg makes zero tool calls", () => {
         documents: 2,
       }),
     );
-    //   agent
+    // ...and never reported as the plain agent route alongside it.
     expect(
       mocks.trackEvent.mock.calls.filter(
         (call) => (call[1] as { route: string }).route === "agent",

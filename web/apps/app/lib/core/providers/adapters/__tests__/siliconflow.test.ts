@@ -55,7 +55,7 @@ describe("SiliconFlow adapter (metadata-only)", () => {
 
     const result = await siliconFlowService.syncModels("sk_test", BASE);
 
-    //   proxy
+    // One call, and it goes to the route handler rather than straight to the upstream.
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(fetchMock).toHaveBeenCalledWith(
       "/api/providers/models",

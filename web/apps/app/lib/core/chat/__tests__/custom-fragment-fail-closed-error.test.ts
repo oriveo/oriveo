@@ -31,7 +31,7 @@ describe('fail-closed error classification and localization', () => {
       // An empty allowed set on the editor side gives the same "not allowed" tier.
       expect(customFragmentRejectionMessage(reason, []).key).toBe('customRequestFieldsNotAllowedConflict');
     }
-    //   reason  
+    // An unrecognised reason must fall into the same tier rather than into the syntax-error copy.
     expect(customFragmentRejectionCopyKey('some_future_reason')).toBe('reasonNotAllowed');
   });
 

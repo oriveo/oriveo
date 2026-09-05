@@ -44,10 +44,11 @@ export interface StorageHealth {
 const LOCAL_PRESSURE_RATIO = 0.6;
 
 /**
- *   IndexedDB  
+ * Probes whether IndexedDB can actually be used, not merely whether the API is exposed.
  *
- *   `'indexedDB' in window`—— `open()`  
- *   error/blocked  
+ * `'indexedDB' in window` is true in private windows and with site data blocked, where `open()`
+ * then fails or hangs on `blocked`. Opening a throwaway database is the only answer that
+ * distinguishes "present" from "usable".
  */
 async function probeIndexedDB(): Promise<IndexedDBAvailability> {
   if (typeof indexedDB === 'undefined') return 'unsupported';

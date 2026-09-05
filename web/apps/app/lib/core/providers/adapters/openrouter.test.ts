@@ -37,7 +37,7 @@ describe('openrouter adapter (metadata-only)', () => {
     mockListModelIds.mockReset();
     mockResolveCatalogModel.mockReset();
 
-    //   mock
+    // Defaults for every test: metadata resolves, but offers nothing.
     mockInitMetadata.mockResolvedValue(undefined);
     mockGetWebSearchProfile.mockReturnValue(null);
     mockGetDefaultModelId.mockReturnValue(undefined);
@@ -104,7 +104,7 @@ describe('openrouter adapter (metadata-only)', () => {
         new Error('unexpected upstream fetch'),
       );
 
-      //   preferred
+      // The preferred model has to come out of metadata alone, with no network call.
       const result = await syncModels('sk-or-test', 'google/gemini-2.5-flash');
 
       expect(fetchSpy).not.toHaveBeenCalled();

@@ -20,8 +20,8 @@ export async function adaptMoonshotToolLoopResponse(
   req: ProviderRequest,
   transport: UpstreamTransport,
   signal?: AbortSignal,
-  // Kept for desktop call compatibility. P5's Web route deliberately passes
-  // neither value and this adapter never invokes the legacy self-healer.
+  // Kept for desktop call compatibility. The web route deliberately passes neither value, and
+  // this adapter never invokes the legacy self-healer.
   _onUnsupportedParamDropped?: UnsupportedParamDroppedReporter,
   _scope?: UnsupportedParamScope,
 ): Promise<Response> {
@@ -89,7 +89,7 @@ export async function adaptMoonshotToolLoopResponse(
             ...req,
             body: { ...req.body, messages },
           };
-          // Current P5 metadata contains no reviewed locator rule. A generic
+          // The current metadata carries no reviewed locator rule. A generic
           // failure in this second leg must surface unchanged, never strip a
           // request field and retry behind the user's back.
           response = await transport.fetch(nextRequest.url, {

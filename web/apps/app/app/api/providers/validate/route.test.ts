@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { brand } from "@oriveo/config";
 
 // relay.example.com is an RFC 2606 reserved test domain and does not resolve in a real
 // environment (NXDOMAIN), so the SSRF guard DNS check fails closed with a 403. The official
@@ -150,7 +151,7 @@ describe("/api/providers/validate", () => {
     expect(await response.json()).toEqual({ result: "unverified", status: 400 });
   });
 
-  it("Anthropic  base +   probePath ", async () => {
+  it("joins the Anthropic base URL and probePath without doubling the /v1 prefix", async () => {
     // The contract sets probePath=`/v1/models` while the web default base already ends in `/v1`, so deduplication must not yield `.../v1/v1/models`
     mockMetadata({
       anthropic: {
@@ -177,7 +178,7 @@ describe("/api/providers/validate", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
-  it("Gemini  base +   probePath key   query", async () => {
+  it("joins the Gemini base URL and probePath and passes the key as a query param", async () => {
     // The contract sets probePath=`/v1beta/models` while the web default base already ends in `/v1beta`, so deduplication must give an exact match
     mockMetadata({
       gemini: {
@@ -237,8 +238,8 @@ describe("/api/providers/validate", () => {
       expect(String(input)).toBe("https://openrouter.ai/api/v1/key");
       const headers = init?.headers as Record<string, string>;
       expect(headers.Authorization).toBe("Bearer sk-or");
-      expect(headers["HTTP-Referer"]).toBe("http://localhost:3000");
-      expect(headers["X-Title"]).toBe("Oriveo");
+      expect(headers["HTTP-Referer"]).toBe(brand.appUrl);
+      expect(headers["X-Title"]).toBe(brand.name);
       return jsonResponse({ data: { label: "key" } });
     });
 

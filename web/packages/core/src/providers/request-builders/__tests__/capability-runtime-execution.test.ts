@@ -64,7 +64,7 @@ describe('provider_recipe_request_compiler.v1 through the production request bui
       expect(request.capabilityExecution?.redactedPreview).toEqual(item.expectedDelta);
       expect(request.body).toMatchObject(item.expectedDelta);
       expect(JSON.stringify(request.capabilityExecution?.redactedPreview)).not.toContain('fixture-api-key');
-      if (item.caseId === 'p3b.openai.chat.exact_model_route_has_no_body_patch') {
+      if (item.caseId === 'openai.chat.exact_model_route_has_no_body_patch') {
         expect(request.body.model).toBe('fixture-model');
       }
     });

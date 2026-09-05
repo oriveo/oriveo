@@ -84,7 +84,7 @@ describe('server control state -> panel presentation', () => {
   });
 });
 
-describe(' W1-W20 ', () => {
+describe('modelControlWebLayout', () => {
   const layout = (overrides: Partial<Parameters<typeof modelControlWebLayout>[0]> = {}) =>
     modelControlWebLayout({
       status: 'automaticAvailable', availableIntents: [], selection: 'off', isEditable: true, ...overrides,
@@ -175,7 +175,7 @@ describe(' W1-W20 ', () => {
   });
 });
 
-describe(' R1-R18 ', () => {
+describe('modelControlReasoningLayout', () => {
   const layout = (overrides: Partial<Parameters<typeof modelControlReasoningLayout>[0]> = {}) =>
     modelControlReasoningLayout({
       status: 'automaticAvailable', intents: ['off', 'low', 'balanced', 'deep', 'max'], isEditable: true, ...overrides,
@@ -256,7 +256,7 @@ describe(' R1-R18 ', () => {
   });
 });
 
-describe(' F1-F15 ', () => {
+describe('modelControlFooterEntries', () => {
   it('F13 the normal state (writable, configurable, no risk) is an empty array in both contexts', () => {
     for (const context of ['panelCard', 'behaviorPageHeader'] as const) {
       expect(modelControlFooterEntries({ context })).toEqual([]);
@@ -322,7 +322,7 @@ describe(' F1-F15 ', () => {
 });
 
 describe('badges', () => {
-  it(' ', () => {
+  it('draws no badge for a state the user can simply act on', () => {
     expect(modelControlBadge(modelControlBadgeClassification('automaticAvailable'), false)).toBeNull();
     expect(modelControlBadge(modelControlBadgeClassification('forceUnsupported'), false)).toBeNull();
   });

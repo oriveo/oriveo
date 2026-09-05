@@ -13,7 +13,7 @@ const context: CapabilityResultContext = {
   }],
 };
 
-describe('P5 result privacy boundary', () => {
+describe('capability result privacy boundary', () => {
   it('serializes only local execution facts, never provider/model/prompt/response/error or endpoint data', () => {
     const encoded = encodeCapabilityResultContext(context);
     const padded = encoded.replaceAll('-', '+').replaceAll('_', '/') + '='.repeat((4 - encoded.length % 4) % 4);
@@ -40,7 +40,7 @@ describe('P5 result privacy boundary', () => {
   // only which fields may be carried. Degrading at the event level would make relay conversations
   // disappear from the dashboard entirely. The behavioural assertions for the attribute contract
   // live in __tests__/chat-lifecycle-telemetry.test.ts.
-  it('keeps P5 facts out of telemetry by field, never by dropping the whole property bag', () => {
+  it('keeps capability facts out of telemetry by field, never by dropping the whole property bag', () => {
     const root = resolve(process.cwd(), '../../..');
     const send = readFileSync(resolve(root, 'web/apps/app/lib/core/chat/operations-send.ts'), 'utf8');
     const sendStart = readFileSync(resolve(root, 'web/apps/app/lib/core/chat/send-start.ts'), 'utf8');

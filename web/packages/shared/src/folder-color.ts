@@ -1,8 +1,9 @@
 import type { Folder } from './types/models';
 
 /**
- *   — 10  
- *   iOS FolderColor / Android FolderColor
+ * The ten folder colours, with the same names and hex pairs as the iOS and Android FolderColor
+ * tables. A folder carries only its colour tag across sync, so the tables have to agree or the
+ * same folder shows up in a different colour on another device.
  */
 
 export const FOLDER_COLORS: Record<string, { main: string; dark: string }> = {
@@ -24,7 +25,7 @@ export const FOLDER_COLOR_ORDER: string[] = [
   'yellow', 'green', 'teal', 'indigo', 'gray',
 ];
 
-/**   fallback blue */
+/** An unknown or missing tag resolves to blue rather than leaving the folder unstyled. */
 export function getFolderColorPair(tag?: string): [string, string] {
   const entry = tag ? FOLDER_COLORS[tag] : undefined;
   const fallback = FOLDER_COLORS['blue'];

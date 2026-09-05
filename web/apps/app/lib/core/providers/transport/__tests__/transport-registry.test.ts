@@ -53,7 +53,7 @@ describe('transport-registry', () => {
         priceTier: '',
       }),
     ).toBeNull();
-    //   emit
+    // A known transport with no strategy is a configuration gap, not an event worth reporting.
     expect(trackEvent).not.toHaveBeenCalled();
   });
 

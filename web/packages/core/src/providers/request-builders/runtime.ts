@@ -403,7 +403,7 @@ export function deepMerge<T extends JSONObject>(target: T, source: JSONObject | 
   return target;
 }
 
-/** P3a: patches may contribute tools/plugins, never erase the builder's base entries. */
+/** Patches may contribute tools/plugins, never erase the builder's base entries. */
 function composeOwnedArray(base: unknown, contribution: readonly unknown[]): unknown[] {
   const out = Array.isArray(base) ? [...base] : [];
   const identities = new Set(out.map(ownedArrayIdentity));

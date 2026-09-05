@@ -213,7 +213,7 @@ describe('fetchOpenAISubscriptionModels', () => {
 
     refreshMetadataOnCodexClientVersionRejected('clientVersionRejected');
     expect(refreshMetadata).toHaveBeenCalledTimes(1);
-    //  OpenAI  
+    // Any other failure must not trigger a refresh; only a rejected client version can.
     refreshMetadataOnCodexClientVersionRejected('unauthorized');
     expect(refreshMetadata).toHaveBeenCalledTimes(1);
   });

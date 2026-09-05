@@ -103,7 +103,7 @@
     ]
   },
   "presentationClasses": {
-    "$comment": "Engineering support states collapse into 3 user-visible classes plus one silent class. All clients read this table only — no client keeps a separate support-label switch of its own. zhHans carries the single source of literal copy that every client localizes from; labelKey/detailKey are the stable per-client localization keys. Adding a new engineering state must register it in both schema.support and supportMap in the same change, or scripts/model-contract-gate.mjs fails hard — silently falling back to \"no data\" is not allowed.",
+    "$comment": "Engineering support states collapse into 3 user-visible classes plus one silent class. All clients read this table only — no client keeps a separate support-label switch of its own. zhHans carries the single source of literal copy that every client localizes from; labelKey/detailKey are the stable per-client localization keys. Adding a new engineering state must register it in both schema.support and supportMap in the same change; the presentation suites on all three clients (web/apps/app/lib/core/chat/__tests__/generation-support-presentation.contract.test.ts, ios/Oriveo/OriveoTests/GenerationParameterSupportPresentationTests.swift, android/app/src/test/java/ai/oriveo/community/core/provider/GenerationParameterSupportPresentationContractTest.kt) walk this table entry by entry and fail on an unmapped state — silently falling back to \"no data\" is not allowed.",
     "classes": [
       {
         "classId": "silent",
@@ -2671,7 +2671,7 @@
       "expect": {
         "lifecycle": "active"
       },
-      "note": "Whether a value is allowed out has nothing to do with its value-state: omit is an explicit remove-field intent and must go through the single outbound gate exactly like a value. relay is no longer a special case — swapping the same combination to official must produce the exact same result, which the model-contract-gate's providerKind-neutrality check locks down tuple by tuple."
+      "note": "Whether a value is allowed out has nothing to do with its value-state: omit is an explicit remove-field intent and must go through the single outbound gate exactly like a value. relay is not a special case — swapping the same combination to official must produce the exact same result, which the generation-parameter lifecycle suites on all three clients lock down tuple by tuple."
     },
     {
       "caseId": "relay.declared.unsupported_omit",

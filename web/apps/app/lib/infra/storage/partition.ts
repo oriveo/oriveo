@@ -44,13 +44,13 @@ async function getMetaDB() {
   return openMetaDB();
 }
 
-/**   ID */
+/** Reads the active user id from IDB; an unset value means the guest partition. */
 export async function getActiveUID(): Promise<string> {
   const db = await getMetaDB();
   try {
     const uid = await db.get('meta', 'activeUID');
     const resolved = (uid as string) ?? 'guest';
-    currentActiveUID = resolved; //   IDB  
+    currentActiveUID = resolved; // keeps getActiveUIDSync usable from synchronous callers
     return resolved;
   } finally {
     db.close();
@@ -66,12 +66,12 @@ export function getActiveUIDSync(): string {
   return currentActiveUID;
 }
 
-/**   ID */
+/** Switches the active partition and updates the synchronous mirror in the same step. */
 export async function setActiveUID(uid: string): Promise<void> {
   const db = await getMetaDB();
   try {
     await db.put('meta', uid, 'activeUID');
-    currentActiveUID = uid; //  
+    currentActiveUID = uid; // keeps getActiveUIDSync usable from synchronous callers
   } finally {
     db.close();
   }
@@ -164,7 +164,8 @@ export async function copyGuestImages(targetUID: string): Promise<void> {
 
     const tx = targetDB.transaction('images', 'readwrite');
     for (const img of allImages) {
-      //   iOS copyGuestImages  
+      // Only fill gaps: an id the target partition already holds is left as it is, so copying
+      // twice cannot overwrite an image the signed-in user has since replaced.
       const existing = await tx.store.getKey(img.id);
       if (existing === undefined) {
         await tx.store.put(img);

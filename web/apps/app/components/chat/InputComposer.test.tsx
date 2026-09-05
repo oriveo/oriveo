@@ -538,7 +538,7 @@ describe('InputComposer', () => {
   it('recomputes "N adjusted" after returning from advanced settings instead of showing the stale count', () => {
     const provider = connectedProvider();
     const model = {
-      id: 'p16-model', name: 'P16 Model', capabilities: ['text'], reasoningModeAvailable: false,
+      id: 'tuned-model', name: 'Tuned Model', capabilities: ['text'], reasoningModeAvailable: false,
       isAvailable: true, isDefault: true, priceTier: '', transport: 'openai_chat',
       generationProfile: {
         template: 'openai_chat_completions',

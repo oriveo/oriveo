@@ -1,4 +1,4 @@
-/** R3 typed, syncable capability intent. Raw/custom values never enter this store or cloud sync. */
+/** Typed, syncable capability intent. Raw or custom values never enter this store. */
 import { resolveLayers, type ScopeLayer } from '@oriveo/core/providers/request-preference/preference-resolution';
 import type { ReasoningIntent, ScopeId } from '@oriveo/core/providers/request-preference/types';
 import type { AIModel, Provider } from '@oriveo/shared';

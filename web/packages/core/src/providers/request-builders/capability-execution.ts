@@ -40,7 +40,7 @@ export interface RuntimeRecipe {
   executionKind: string;
   requestOps: readonly unknown[];
   responseParserKind?: string;
-  /** P5: references are server authored and are resolved only in the same runtime envelope. */
+  /** References are authored upstream and resolve only within the same runtime envelope. */
   responseEvidenceRef?: string;
   errorRecoveryRef?: string;
   continuationKind?: string;
@@ -94,7 +94,7 @@ export interface CapabilityRuntimeEnvelope {
   recipes: Record<string, unknown>;
   controlDefinitions: Record<string, unknown>;
   sourceIndex: Record<string, unknown>;
-  /** Additive P5 maps. Missing maps are deliberately tolerated for rollback compatibility. */
+  /** Additive maps. A missing map is deliberately tolerated, so an older envelope still works. */
   responseEvidenceDefinitions?: Record<string, unknown>;
   errorRecoveryDefinitions?: Record<string, unknown>;
 }
@@ -481,7 +481,7 @@ function recipeMatchesIntent(recipe: RuntimeRecipe, capability: CapabilityKey, m
 }
 
 function parseExecutableOperations(recipe: RuntimeRecipe, mode: string | undefined): RecipeOperation[] {
-  // P4b typed paths already provide canonical intent (including explicit off).
+  // Typed paths already provide canonical intent (including an explicit off).
   // Legacy reasoning modes still enter as fast/balanced/deep/max and are normalized here.
   const intent = recipe.capability === 'reasoning' && mode !== 'off' && mode !== 'low'
     ? reasoningIntent(mode) : mode;

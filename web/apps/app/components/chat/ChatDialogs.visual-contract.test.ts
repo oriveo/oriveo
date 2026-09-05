@@ -15,7 +15,8 @@ const dialogCss = readFileSync(
 );
 
 function ruleBody(source: string, selector: string, label: string): string {
-  //   `.header h2`  
+  // Anchor the search on a leading newline so a selector cannot match as the tail of a longer
+  // one (`.header h2` would otherwise also match `.compact .header h2`).
   const css = `\n${source}`;
   const marker = `\n${selector} {`;
   const start = css.indexOf(marker);

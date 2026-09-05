@@ -62,7 +62,7 @@ describe('resolveAttachmentCapabilities', () => {
     expect(resolveAttachmentCapabilities(provider, model, makeSupport({ image: true })).supportsImage).toBe(false);
   });
 
-  it('H4 generation namespace does not withdraw the legacy vision fact before H4 publishes vision', () => {
+  it('the generation evidence namespace does not withdraw the legacy vision fact before it publishes vision', () => {
     const model: AIModel = {
       ...makeModel(['image']),
       capabilityEvidenceCandidates: [{

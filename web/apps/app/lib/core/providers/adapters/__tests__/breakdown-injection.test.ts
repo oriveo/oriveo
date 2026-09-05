@@ -117,7 +117,7 @@ describe('Moonshot adapter — breakdown injection', () => {
       { choices: [{ delta: {} }], usage: {
         prompt_tokens: 200,
         completion_tokens: 50,
-        cached_tokens: 150, // Moonshot   prompt_tokens_details 
+        cached_tokens: 150, // Reported at the top level rather than under prompt_tokens_details
       } },
     );
     mockSSE(body);

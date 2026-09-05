@@ -178,7 +178,7 @@ export function backfillStorageRefs(
     for (const [msgID, atts] of backfilledAtts) {
       adapter.didBackfillStorageRefs(convId, msgID, atts);
     }
-  }).catch(() => { /*   attachment-sync   */ });
+  }).catch(() => { /* best effort: the startup backfill below retries anything missed here */ });
 }
 
 // ── Startup backfill: attachments the send path missed get a bounded retry here ──────────

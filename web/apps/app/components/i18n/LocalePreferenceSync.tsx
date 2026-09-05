@@ -24,12 +24,12 @@ import { useAppStore } from '../../providers/StoreProvider';
 import { getLocaleCookie, setLocaleCookie, SUPPORTED_LOCALES, type SupportedLocale } from '../../lib/i18n/locale-utils';
 
 export function LocalePreferenceSync(): null {
-  //   layout   mock   store   layout  
-  //   preferences  
+  // Select the single field: this component is mounted for the whole app, and a broader
+  // selector would re-render it on every unrelated store write.
   const language = useAppStore((s) => s.preferences?.language);
   const router = useRouter();
-  //  cookie  document.cookie  
-  //   refresh   effect   cookie   refresh 
+  // Writing document.cookie is not reactive and router.refresh() re-runs this effect, so latch
+  // what has already been applied instead of refreshing again for the same language.
   const appliedRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -42,7 +42,7 @@ export function LocalePreferenceSync(): null {
     }
     appliedRef.current = language;
     setLocaleCookie(language as SupportedLocale);
-    // SSR   messages refresh  
+    // The cookie is read on the server, so the tree has to be re-rendered for it to take effect.
     router.refresh();
   }, [language, router]);
 

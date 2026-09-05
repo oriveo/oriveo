@@ -1063,7 +1063,7 @@
     ]
   },
   "rawEffectiveExpectations": {
-    "$comment": "raw → effective must stay explainable. effective count = raw count - excluded - non-chat. This fixture simulates each source of the difference, verifying that the server's ComputeEffectiveSummary and the admin endpoint agree.",
+    "$comment": "raw → effective must stay explainable. effective count = raw count - excluded - non-chat. This fixture simulates each source of the difference, so a client that recomputes the summary locally must land on the same numbers the catalog reports.",
     "snapshotId": 999,
     "raw": [
       {

@@ -502,7 +502,7 @@ async function executeImportNew(
     result.conversationsImported++;
   }
 
-  //   Provider
+  // Providers: skip anything with an unknown kind or an id already present locally.
   for (const prov of backupFile.data.providers) {
     if (!isValidProviderKind(prov.kind)) {
       result.providersSkipped++;
@@ -974,7 +974,6 @@ function buildSkillUsageSnapshot(
   return {
     count: skillsCount,
     limit: current?.limit ?? null,
-    isPro: current?.isPro ?? false,
   };
 }
 

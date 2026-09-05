@@ -1,4 +1,4 @@
-/** R3 deterministic rejection, explicit resend and local dormant cache. */
+/** Deterministic rejection, explicit resend and the local dormant cache. */
 export type RecoverySource = 'provider_recipe' | 'custom';
 export type RecoveryOwner = 'web' | 'reasoning' | 'generation';
 export type RecoveryAction = 'surface_error' | 'user_confirmed_resend_without_located_setting';

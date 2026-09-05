@@ -48,7 +48,7 @@ const officialRecipes = (JSON.parse(readFileSync(repoFile('shared/capabilityreci
   recipes: Record<string, unknown>;
 }).recipes;
 
-describe('R3 shared model-control runtime fixture through Web production paths', () => {
+describe('shared model-control runtime fixture through web production paths', () => {
   it('resolves the shared seven-scope case owner-by-owner through the production resolver', () => {
     const runtimeCase = fixture.resolutionCases.find((item) => item.caseId === 'seven_scopes_resolve_each_owner_independently')!;
     expect(fixture.scopePriority).toEqual([

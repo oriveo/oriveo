@@ -17,7 +17,7 @@ const fixture = JSON.parse(readFileSync(root('shared/model-contracts/provider_re
 const recipes = (JSON.parse(readFileSync(root(fixture.registryPath), 'utf8')) as { recipes: Record<string, unknown> }).recipes;
 const customControlDefinitions = (JSON.parse(readFileSync(root('shared/model-contracts/request_shape_contract.v2.json'), 'utf8')) as any).fixtures.sharedControlDefinitions as Record<string, any>;
 
-describe('P3c shared execution fixture', () => {
+describe('shared capability execution fixture', () => {
   for (const coverage of fixture.providerCoverage) {
     it(`coverage.${coverage.providerKind}.default_omits_all_auto_recipe_deltas`, async () => {
       const request = await buildProviderRequest({ providerKind: coverage.providerKind, apiKey: 'key', modelID: coverage.modelId, messages: [{ role: 'user', content: 'plain chat' }] }, async () => metadata(coverage.providerKind, coverage.modelId, coverage.selectorTransport ?? coverage.transport, coverage.recipeRef));
@@ -191,7 +191,7 @@ describe('P3c shared execution fixture', () => {
   }
 
   it('executes the shared MiniMax M3 alternate-route case through request, parser and continuation producers', async () => {
-    const execution = fixture.executionCases.find((item) => item.caseId === 'p3c.minimax_m3_anthropic_server_web_alternate_route');
+    const execution = fixture.executionCases.find((item) => item.caseId === 'minimax_m3_anthropic_server_web_alternate_route');
     expect(execution).toBeDefined();
     const continuationCase = fixture.continuationCases.find((item) => item.caseId === 'continuation.replay_minimax_m3_server_web_blocks');
     expect(continuationCase).toBeDefined();
@@ -482,7 +482,7 @@ describe('P3c shared execution fixture', () => {
     expect(compileSafeCustomFragment(wide, 'generation', owners, {}))
       .toEqual({ accepted: false, reason: 'operation_limit_exceeded' });
 
-    //  `invalid_fragment`  
+    // `invalid_fragment` stays reserved for a genuinely wrong shape: a root that is not an object.
     expect(compileSafeCustomFragment('[1,2,3]', 'generation', {}, {}))
       .toEqual({ accepted: false, reason: 'invalid_fragment' });
   });
@@ -490,16 +490,16 @@ describe('P3c shared execution fixture', () => {
   it('fetches declared Formula tools and sends Fiber arguments verbatim', async () => {
     const formula = (recipes['moonshot.formula.web.v1'] as any).formula;
     const calls: Array<{ url: string; init: RequestInit }> = [];
-    const toolCall = fixture.executionCases.find((item) => item.caseId === 'p3c.moonshot_formula_fiber_verbatim').formula.toolCalls[0];
+    const toolCall = fixture.executionCases.find((item) => item.caseId === 'moonshot_formula_fiber_verbatim').formula.toolCalls[0];
     const transport: UpstreamTransport = { fetch: async (url, init) => {
       calls.push({ url, init });
-      if (url.endsWith('/tools')) return json({ tools: fixture.executionCases.find((item) => item.caseId === 'p3c.moonshot_formula_fiber_verbatim').formula.toolsResponse.tools });
-      if (url.endsWith('/fibers')) return json(fixture.executionCases.find((item) => item.caseId === 'p3c.moonshot_formula_fiber_verbatim').formula.fiberResponses[0]);
+      if (url.endsWith('/tools')) return json({ tools: fixture.executionCases.find((item) => item.caseId === 'moonshot_formula_fiber_verbatim').formula.toolsResponse.tools });
+      if (url.endsWith('/fibers')) return json(fixture.executionCases.find((item) => item.caseId === 'moonshot_formula_fiber_verbatim').formula.fiberResponses[0]);
       return sse([{ choices: [{ delta: { tool_calls: [toolCall] } }] }]);
     } };
     const request: ProviderRequest = { url: 'https://api.moonshot.cn/v1/chat/completions', headers: { Authorization: 'Bearer key' }, body: { model: 'kimi-k3', messages: [{ role: 'user', content: 'news' }] }, moonshotFormula: formula, moonshotMaxToolLoops: 1 };
     const prepared = await prepareMoonshotFormulaRequest(request, transport);
-    expect(prepared.body.tools).toEqual(fixture.executionCases.find((item) => item.caseId === 'p3c.moonshot_formula_fiber_verbatim').formula.toolsResponse.tools);
+    expect(prepared.body.tools).toEqual(fixture.executionCases.find((item) => item.caseId === 'moonshot_formula_fiber_verbatim').formula.toolsResponse.tools);
     const response = await adaptMoonshotFormulaFiberResponse(await sse([{ choices: [{ delta: { tool_calls: [toolCall] } }] }]), prepared, transport);
     const replay = await response.text();
     expect(replay).toContain('Moonshot Formula tool loop limit reached before completion');
@@ -551,7 +551,7 @@ describe('P3c shared execution fixture', () => {
   });
 });
 
-describe('P4b typed capability intent reaches production builders', () => {
+describe('typed capability intent reaches production builders', () => {
   it('compiles force web and explicit reasoning off from typed preferences', async () => {
     const activeRecipes = {
       force_web: { id: 'force_web', providerKind: 'openAI', transport: { protocol: 'openai_chat_completions' }, capability: 'web', executionKind: 'request_overlay', requestOps: [{ op: 'set', pointer: '/web_mode', value: 'force', intent: 'force' }] },
@@ -577,7 +577,7 @@ describe('P4b typed capability intent reaches production builders', () => {
   });
 });
 
-describe('P4c developer custom preview', () => {
+describe('developer custom preview', () => {
   it('uses the same recipe-owned schema as the production compiler', () => {
     const result = previewSafeCustomFragment({
       raw: '{"temperature":0.2}',

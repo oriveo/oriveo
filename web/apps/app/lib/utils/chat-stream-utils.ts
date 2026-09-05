@@ -217,7 +217,8 @@ export function sanitizeOutboundMessages(
         // user/assistant alternation and avoids merging two independent questions into one prompt.
         merged[merged.length - 1] = m;
       } else {
-        //   assistant 
+        // Two consecutive turns from the same role: concatenate rather than drop, so nothing the
+        // user wrote is lost on the way to a strictly alternating history.
         const joinedText = [last.text?.trim(), m.text?.trim()]
           .filter((t): t is string => !!t && t.length > 0)
           .join('\n\n');

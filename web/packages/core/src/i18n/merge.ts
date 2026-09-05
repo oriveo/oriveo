@@ -1,8 +1,8 @@
 /**
- * i18n  A02 §3.3  Web +  
+ * Deep merge of two message bags, used to lay one locale over the English fallback.
  *
- *   fallback  key  
- *   key   15  
+ * The merge is per key, not per bag: a locale that has translated only part of a section keeps
+ * the English text for the rest instead of dropping the whole section.
  */
 export type MessageBag = Record<string, unknown>;
 

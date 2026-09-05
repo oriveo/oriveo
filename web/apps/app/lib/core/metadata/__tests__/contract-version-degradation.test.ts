@@ -69,7 +69,7 @@ describe('buildOfficialEnabledModels under contractVersion degradation', () => {
       prevEnabledIds: ['qwen3.6-plus'],
     }, { contractVersionDegraded: true });
 
-    //  default  
+    // Both the list and the default are empty: a degraded contract must not leave a model selected.
     expect(build.models).toEqual([]);
     expect(build.defaultModelId).toBe('');
   });

@@ -274,24 +274,24 @@ describe('WSM-17 - expanding a customOnly status line does not repeat the same s
 
   const otherModel = { ...model, id: 'model-2', name: 'Model 2' } as AIModel;
 
-  it(' ', () => {
+  it('prints the reason once and offers the supported-models route when candidates exist', () => {
     // customOnly with no locally editable schema => the way out is "view supported models", provided candidates exist.
     open({ webControl: customOnly, alternativeModels: { web: [otherModel] } });
     fireEvent.click(screen.getByRole('button', { name: /capabilityControlCustomOnlyReason/ }));
 
     const printed = screen.getAllByText('common.capabilityControlCustomOnlyReason');
-    expect(printed, ' ').toHaveLength(1);
+    expect(printed, 'the reason must not be repeated by the expanded row').toHaveLength(1);
     expect(screen.getByText('common.capabilityControlViewSupportedModels')).toBeTruthy();
   });
 
-  it(' ', () => {
+  it('prints the reason once and says so plainly when there is no candidate to offer', () => {
     open({ webControl: customOnly });
     fireEvent.click(screen.getByRole('button', { name: /capabilityControlCustomOnlyReason/ }));
     expect(screen.getAllByText('common.capabilityControlCustomOnlyReason')).toHaveLength(1);
     expect(screen.getByText('common.capabilityControlNoSupportedModels')).toBeTruthy();
   });
 
-  it(' ', () => {
+  it('explains an unavailable state with the no-official-config line', () => {
     open({ webControl: { state: 'unavailable' as const, availableIntents: [], viaLegacyProfile: false } });
     fireEvent.click(screen.getByRole('button', { name: /capabilityControlNotSupportedByModel/ }));
     expect(screen.getByText('common.capabilityControlWebNoOfficialConfig')).toBeTruthy();

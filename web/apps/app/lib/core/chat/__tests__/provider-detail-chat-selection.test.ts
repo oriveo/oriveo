@@ -51,12 +51,12 @@ const PROVIDER_B = makeProvider('provider-b', [
   makeModel('claude-opus', 'Claude Opus'),
 ]);
 
-describe(' ', () => {
+describe('resolveActiveSelection', () => {
   it('switching to a non-default model of another provider changes both the provider and the model', () => {
     const result = resolveActiveSelection(
       [PROVIDER_A, PROVIDER_B],
-      undefined, //   conversation
-      null, //   selected
+      undefined, // no conversation open
+      null, // nothing selected yet
       null,
       { providerID: 'provider-b', modelID: 'claude-opus' },
     );
@@ -78,7 +78,7 @@ describe(' ', () => {
     expect(result.currentModel?.id).toBe('claude-opus');
   });
 
-  it(' ', () => {
+  it('honours a model id that carries a date suffix instead of the provider default', () => {
     const provider = makeProvider('provider-c', [
       makeModel('gpt-5.4', 'GPT-5.4', true),
       makeModel('o4-mini-2026-04-10', 'o4-mini'),

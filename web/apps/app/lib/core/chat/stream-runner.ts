@@ -138,7 +138,7 @@ export interface StreamPipelineParams {
   setAbortFn: (fn: (() => void) | null) => void;
   /** Direct Library context persists only its document-identity citations. */
   suppressStreamCitations?: boolean;
-  /** P3c local-only replay captured from the authoritative proxy stream. */
+  /** Local-only replay captured from the authoritative proxy stream. */
   continuation?: ContinuationIntent;
   onContinuation?: (continuation: ContinuationIntent) => void;
 }

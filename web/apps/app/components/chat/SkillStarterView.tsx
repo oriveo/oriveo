@@ -17,7 +17,7 @@ export function SkillStarterView({ skill, onStarterClick }: SkillStarterViewProp
   return (
     <div className={styles.wrap}>
       <div className={styles.header}>
-        {/*   +   —   iOS  */}
+        {/* Icon: a soft glow behind the circle, both tinted by the skill's own colour. */}
         <div className={styles.iconWrap} style={{ '--skill-color': skill.color } as React.CSSProperties}>
           <div className={styles.iconGlow} />
           <div className={styles.iconCircle}>

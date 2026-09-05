@@ -51,7 +51,7 @@ export function checkRateLimit(ip: string, now: number = Date.now()): RateLimitO
   const bucket = buckets.get(ip) ?? { timestamps: [] };
   const windowStart = now - WINDOW_MS;
 
-  //   timestamps
+  // Drop the timestamps that have aged out of the window.
   while (bucket.timestamps.length > 0 && bucket.timestamps[0] < windowStart) {
     bucket.timestamps.shift();
   }

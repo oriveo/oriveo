@@ -42,7 +42,7 @@ describe('Token estimation formula', () => {
     // A family emoji is 1 grapheme, not its .length of 11.
     const emoji = '👨‍👩‍👧‍👦';
     expect(estimateTokens(emoji)).toBe(Math.ceil(1 * 0.35)); // = 1
-    //   string.length  
+    // Guards the assertion above against passing by coincidence if the ratio ever changes.
     expect(estimateTokens(emoji)).not.toBe(Math.ceil(emoji.length * 0.35));
   });
 });

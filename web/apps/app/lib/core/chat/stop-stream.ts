@@ -75,7 +75,7 @@ export function stopStream(
       provider_kind: telemetryProviderKind(conversation.providerKind),
       model_id: telemetryModelID(conversation.providerKind, conversation.modelID ?? 'unknown'),
       elapsed_ms: streamStartedAt ? Date.now() - streamStartedAt : 0,
-      //  / 
+      // Separates a stop the user asked for from one issued while recovering a stuck stream.
       is_recovery: Boolean(isRecovery),
     });
   }

@@ -46,7 +46,7 @@ describe('genPkce', () => {
     expect(verifier).toHaveLength(43);
     expect(verifier).not.toMatch(/[+/=]/);
 
-    //   challenge 
+    // Recompute the challenge here rather than trusting genPkce to check its own arithmetic.
     const ascii = new Uint8Array(verifier.length);
     for (let i = 0; i < verifier.length; i++) ascii[i] = verifier.charCodeAt(i) & 0xff;
     const expected = base64UrlEncode(await realCrypto.sha256(ascii));

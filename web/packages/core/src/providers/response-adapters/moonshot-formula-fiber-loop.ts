@@ -73,7 +73,7 @@ export async function adaptMoonshotFormulaFiberResponse(
             kind: 'tool_loop', variant: 'fiber', step: leg + 1, state: { completedMessages },
           } }));
           const next: ProviderRequest = { ...request, body: { ...request.body, messages } };
-          // P5 has no reviewed locatorRules. Keep this replay leg intact and
+          // No reviewed locatorRules exist yet. Keep this replay leg intact and
           // surface the provider result instead of automatically deleting input.
           response = await transport.fetch(next.url, {
             method: 'POST', headers: next.headers, body: JSON.stringify(next.body), signal,

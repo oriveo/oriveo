@@ -308,7 +308,7 @@
   ],
   "executionCases": [
     {
-      "caseId": "p3c.moonshot_builtin_bounded_loop",
+      "caseId": "moonshot_builtin_bounded_loop",
       "providerKind": "moonshot",
       "transport": "openai_chat",
       "recipeRef": "moonshot.chat.web.v1",
@@ -333,7 +333,7 @@
       }
     },
     {
-      "caseId": "p3c.moonshot_formula_fiber_verbatim",
+      "caseId": "moonshot_formula_fiber_verbatim",
       "providerKind": "moonshot",
       "transport": "openai_chat",
       "recipeRef": "moonshot.formula.web.v1",
@@ -403,7 +403,7 @@
       }
     },
     {
-      "caseId": "p3c.gemini_interactions_endpoint_route",
+      "caseId": "gemini_interactions_endpoint_route",
       "providerKind": "gemini",
       "transport": "gemini_generate_content",
       "recipeRef": "gemini.interactions.web.v1",
@@ -433,7 +433,7 @@
       }
     },
     {
-      "caseId": "p3c.minimax_m3_anthropic_server_web_alternate_route",
+      "caseId": "minimax_m3_anthropic_server_web_alternate_route",
       "providerKind": "miniMax",
       "transport": "openai_chat",
       "recipeRef": "minimax.messages.web.v1",
@@ -482,7 +482,7 @@
       }
     },
     {
-      "caseId": "p3c.external_connector_never_executes",
+      "caseId": "external_connector_never_executes",
       "executionKind": "external_connector",
       "input": {
         "modelId": "any",

@@ -64,7 +64,7 @@ export function retryMessageWithSender(
   const msgIndex = messages.findIndex((m) => m.id === messageId);
   if (msgIndex === -1) return null;
 
-  //   user  
+  // Walk back to the user turn this answer belongs to; that turn is what gets resent.
   let userMsgIndex = -1;
   for (let i = msgIndex; i >= 0; i--) {
     if (messages[i].role === 'user') { userMsgIndex = i; break; }
@@ -78,8 +78,8 @@ export function retryMessageWithSender(
   const remaining = messages.slice(0, retryingFailedAssistant ? msgIndex : userMsgIndex);
   const remainingLastDelivered = [...remaining].reverse().find((m) => m.state === 'delivered');
   const failedAssistant = messages[msgIndex];
-  //  
-  //   iOS  
+  // Carry over the documents the failed answer had already cited, so the retry is grounded on
+  // the same sources instead of paying for the research a second time.
   const libraryContextDocuments = !explicitModelControlResend && failedAssistant.role === 'assistant' &&
     !failedAssistant.libraryResearchEnabled
     ? libraryDocumentRefsFromCitations(failedAssistant.citations)

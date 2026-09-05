@@ -73,8 +73,8 @@ describe('single model-controls panel layout contract', () => {
     const closeBar = extractClassBlock(css, 'modelControlsCloseBar');
 
     expect(sections).toContain('overflow-y: auto;');
-    //  W3  
-    //  
+    // The footer must not shrink or scroll with the sections above it: the close bar has to stay
+    // reachable however long the panel gets.
     expect(footer).toContain('flex: 0 0 auto;');
     expect(footer).toContain('flex-direction: column;');
     expect(closeBar).toContain('border-top: 1px solid var(--o-border);');

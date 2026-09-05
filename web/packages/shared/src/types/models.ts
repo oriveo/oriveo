@@ -336,7 +336,7 @@ export interface Provider {
   relayFingerprintKey?: string;
   /** User request intent (transport / auth / reasoning / serviceTier / headers); tunable in advanced mode. */
   relayRequested?: RelayRequestedConfig;
-  /**  enabled + mode + toolModelID */
+  /** Relay image generation: whether it is on, which mode, and which model does the drawing. */
   relayImage?: RelayImageConfig;
   /** Connection auth mode, defaulting to apiKey. Local field, not synced. */
   authMode?: ProviderAuthMode;
@@ -365,11 +365,16 @@ export interface Attachment {
   kind: AttachmentKind;
   fileName: string;
   mimeType: string;
-  base64Data?: string;        //   kind === 'file' /Office  PDF   base64  
-  downloadBase64Data?: string; //   base64Data   .docx  
-  localImageID?: string;      // ImageStore   kind === 'image' 
-  storageRef?: string;        // Cloud Storage  image/file  
-  thumbnailBase64?: string;   //   base64  kind === 'image' 
+  /** Inline bytes for kind === 'file'; what actually goes to the model. */
+  base64Data?: string;
+  /** Original bytes kept for download when base64Data holds an extracted or converted form. */
+  downloadBase64Data?: string;
+  /** ImageStore key for kind === 'image'; image bytes are never inlined onto the message. */
+  localImageID?: string;
+  /** Remote object key, once the attachment has been uploaded. */
+  storageRef?: string;
+  /** Small inline preview for kind === 'image', so a list renders without loading the full image. */
+  thumbnailBase64?: string;
   /** Byte size of the file the user picked; used for client-side checks such as the Managed total attachment cap. */
   originalSizeBytes?: number;
   // File extraction metadata, used by AttachmentInjector and AttachmentPreview.
@@ -378,7 +383,7 @@ export interface Attachment {
   extractedSizeBytes?: number;
   // Raw PDF binary as base64, kept when extractionErrorCode === 'scanned_pdf' so the native fallback can run.
   originalBase64Data?: string;
-  //  'encrypted_pdf' | 'scanned_pdf' | 'password_protected_office' | ... 
+  // Open vocabulary: 'encrypted_pdf' | 'scanned_pdf' | 'password_protected_office' | ...
   extractionErrorCode?: string;
 }
 
@@ -463,9 +468,9 @@ export interface ChatMessage {
   }>;
   /** Device-local explanation for a one-shot resend that intentionally omitted tools. */
   toolFallbackNotice?: 'library_not_searched' | 'web_recovered';
-  /** Local-only P5 CTA gate; never synced. It means exact custom + pre-token upstream 400 only. */
+  /** Local-only CTA gate; never synced. Means exact custom + pre-token upstream 400 only. */
   capabilityCustomRetryEligible?: boolean;
-  /** R3 local-only explicit resend descriptor. Saved preferences are retained dormant. */
+  /** Local-only explicit resend descriptor. Saved preferences are retained dormant. */
   capabilityRecovery?: {
     version: 1;
     action: 'user_confirmed_resend_without_located_setting';
@@ -666,26 +671,24 @@ export interface ProvenanceEntry {
   providerName?: string;
   conversationId?: string;
   messageId?: string;
-  at: string;                      // ISO 8601 
+  at: string;                      // ISO 8601
 }
 
 /**
- * A note. A top-level remote document with no subcollections, keeping the body inline
- * and the same flat field style as Conversation, so `setDoc(merge:true)` writes only the
- * changed fields and merges per field. Syncing is Pro only (the features.sync gate plus
- * isPro() in the rules); Free keeps unlimited notes locally without uploading them.
+ * A note. The body is kept inline and the fields stay flat, in the same style as Conversation, so
+ * a storage backend that merges per field writes only what changed rather than the whole document.
  */
 export interface Note {
-  id: string;                       // canonical UUID createCanonicalUUID 
-  title: string;                    //   =  
+  id: string;                       // Canonical UUID, from createCanonicalUUID
+  title: string;                    // Derived from the body until the user edits it
   /** Title source. The placeholder is the first line of the body; 'manual' means the user edited it. */
   titleSource: 'placeholder' | 'manual';
-  body: string;                     //  markdown  
+  body: string;                     // Markdown
   /** Snapshot of the AI answer as captured, so it survives deletion of the source conversation. Omitted means none. */
   bodySnapshot?: string;
   /** Free-form user note, kept separate from the body. */
   userNote?: string;
-  tags: string[];                   //   =   []  null/omit 
+  tags: string[];                   // Always an array; "no tags" is [], never null or omitted
   /** Owning note folder id; undefined means uncategorized. */
   noteFolderID?: string;
 
@@ -705,10 +708,10 @@ export interface Note {
   /** Multi-source provenance: cross-checks, summaries and AI post-processing leave more than one source, stored structurally instead of inlined into the body. */
   provenance?: ProvenanceEntry[];
 
-  isPinned?: boolean;               //   false/omit
+  isPinned?: boolean;               // Absent means not pinned
 
-  createdAt: string;                // ISO 8601 
-  updatedAt: string;                // ISO 8601 
+  createdAt: string;                // ISO 8601
+  updatedAt: string;                // ISO 8601
   /** Drives the LWW decision; updated only when the listener reports !isPending, never on a local write. */
   firestoreUpdatedAt?: string;
   /** Soft-delete tombstone; non-empty means deleted and moved to the trash. */
@@ -719,9 +722,9 @@ export interface Note {
 
 export interface NoteFolder {
   id: string;
-  name: string;                     // ≤ 30  
-  sortOrder: number;                //   1000 
-  colorTag?: string;                //   folder  
+  name: string;                     // At most 30 characters
+  sortOrder: number;                // Spaced by 1000 so a move can bisect
+  colorTag?: string;                // Key into FOLDER_COLORS, shared with Folder
   createdAt: string;                // ISO 8601
   updatedAt: string;                // ISO 8601
   /** Remote confirmation timestamp, used for LWW. */
@@ -772,11 +775,11 @@ export interface AppPreference {
   themeSetByUser?: boolean;
   language: LanguageOption;
   sendShortcut: SendShortcut;
-  memoryText?: string;                  // ≤2000  
-  memoryAntiForgetEnabled?: boolean;    //   false
-  memoryAntiForgetText?: string;        // ≤200  
+  memoryText?: string;                  // Up to 2000 grapheme clusters
+  memoryAntiForgetEnabled?: boolean;    // Defaults to false
+  memoryAntiForgetText?: string;        // Up to 200 grapheme clusters
   memoryUpdatedAt?: string;             // ISO 8601
-  hasSeenNoteCaptureHint?: boolean;     // Web   UI   payload
+  hasSeenNoteCaptureHint?: boolean;     // One-off UI hint; local to this client
 }
 
 /* ── Session ──────────────────────────────────────────── */

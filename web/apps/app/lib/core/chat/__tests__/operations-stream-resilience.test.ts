@@ -336,7 +336,7 @@ describe('operations guard: an abort must not overwrite a terminal state set els
       conversations: [conversation],
     });
 
-    //   partial runStreamPipeline  
+    // Produce a partial answer and then fail, which is what an upstream dropping mid-stream does.
     mocks.readStream.mockImplementation(async () => {
       store.getState().setStreamingText('conv-1', 'half of the answer so far');
       store.getState().appendStreamingReasoningText('conv-1', 'a fragment of thinking');

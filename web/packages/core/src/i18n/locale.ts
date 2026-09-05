@@ -1,6 +1,8 @@
 /**
- * Locale  A02 §3.3  Web +  
- * cookie  setLocaleCookie/getLocaleCookie   document  renderer 
+ * Locale vocabulary and resolution, with no runtime dependency of its own.
+ *
+ * Reading and writing the stored preference needs `document`, so it lives in the app package
+ * (lib/i18n/locale-utils.ts) rather than here.
  */
 import type { LanguageOption } from '@oriveo/shared/pure-types';
 

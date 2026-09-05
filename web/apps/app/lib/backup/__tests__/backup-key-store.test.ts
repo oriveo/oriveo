@@ -1,5 +1,6 @@
 /**
- *  uid  
+ * The automatic-backup key is per uid, created once and then reused: rotating it silently would
+ * make every archive written before the rotation undecryptable.
  */
 
 import 'fake-indexeddb/auto';
@@ -64,7 +65,7 @@ describe('backup-key-store', () => {
     const decrypted = await crypto.subtle.decrypt({ name: 'AES-GCM', iv }, key2, cipher);
     expect(new TextDecoder().decode(decrypted)).toBe('persist check');
 
-    //  createdAt  
+    // Same key, so the record must be the original one rather than a freshly created replacement.
     const info1 = await getAutomaticBackupKeyInfo('user-1');
     const info2 = await getAutomaticBackupKeyInfo('user-1');
     expect(info1!.createdAt).toBe(info2!.createdAt);
@@ -106,7 +107,7 @@ describe('backup-key-store', () => {
     await deleteAutomaticBackupKey('user-1');
     expect(await getAutomaticBackupKeyInfo('user-1')).toBeNull();
 
-    //   key 
+    // After deletion the next request creates a new key instead of failing.
     const newKey = await getOrCreateAutomaticBackupKey('user-1');
     expect(newKey.type).toBe('secret');
   });

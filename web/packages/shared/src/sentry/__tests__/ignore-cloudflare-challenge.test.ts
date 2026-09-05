@@ -60,7 +60,7 @@ describe('isIgnorableCloudflareChallengeError', () => {
             value: 'Script error.',
             stacktrace: {
               frames: [
-                { filename: 'http://localhost:3000/cdn-cgi/challenge-platform/scripts/jsd/main.js' },
+                { filename: 'http://localhost:3001/cdn-cgi/challenge-platform/scripts/jsd/main.js' },
               ],
             },
           },

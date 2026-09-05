@@ -1626,7 +1626,7 @@ beforeEach(async () => {
       // Does not reuse the welcome screen: it settles into an explicit stalled error state and must offer a primary action
       expect(screen.getByTestId('conversation-stalled-state')).toBeTruthy();
       expect(screen.queryByTestId('skills-landing')).toBeNull();
-      //   5 stalled  
+      // A stalled conversation also blocks the composer, so nothing is typed into a dead screen.
       expect(screen.getByTestId('input-composer').getAttribute('data-disabled')).toBe('true');
     } finally {
       vi.useRealTimers();

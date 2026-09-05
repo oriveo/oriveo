@@ -14,6 +14,7 @@
  *   else (404 / 429 / 5xx / timeout / network error / no match) -> unverified. A working key must
  *   never be rejected.
  */
+import { brand } from "@oriveo/config";
 
 /** Validation contract, shipped by the backend so it can be adjusted without a release. */
 export interface ProviderValidationContract {
@@ -218,8 +219,9 @@ export function buildAuthHeaders(
       headers["anthropic-version"] = "2023-06-01";
       break;
     case "openrouter":
-      headers["HTTP-Referer"] = "http://localhost:3000";
-      headers["X-Title"] = "Oriveo";
+      // Same attribution pair the chat builder sends; see buildOpenRouterRequest.
+      headers["HTTP-Referer"] = brand.appUrl;
+      headers["X-Title"] = brand.name;
       break;
   }
 

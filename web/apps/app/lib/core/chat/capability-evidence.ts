@@ -31,9 +31,9 @@ export type ModelCapabilityKey =
 
 type CapabilityEvidenceModel = AIModel & {
   capabilityEvidenceCandidates?: CapabilityEvidenceCandidate[];
-  /** Allowlisted raw H4 keys, including malformed candidates intentionally dropped by decoding. */
+  /** Allowlisted raw evidence keys, including malformed candidates intentionally dropped by decoding. */
   capabilityEvidenceOwnedKeys?: string[];
-  /** H4 namespace was present but failed schema decoding; owned H4 dimensions fail closed. */
+  /** The evidence view was present but failed schema decoding; keys it owns fail closed. */
   capabilityEvidenceViewMalformed?: boolean;
   metadataRevision?: string;
 };
@@ -200,8 +200,8 @@ export function modelCapabilityEvidenceCandidates(
   // opaque identity supplied by the producer before they can be consumed.
   if (effectiveTransport === 'unknown') return [];
   // Namespace presence is itself a three-state protocol: `undefined` means
-  // H4 is absent and legacy fallback remains allowed; an explicit empty list
-  // means H4 answered but has no fact for this key, so stale local bits must
+  // the evidence view is absent and legacy fallback remains allowed; an explicit empty list
+  // means the view answered but has no fact for this key, so stale local bits must
   // not revive it.
   const serverCandidates = relayScopedCandidates(
     provider,
@@ -211,10 +211,10 @@ export function modelCapabilityEvidenceCandidates(
       : evidenceModel.capabilityEvidenceCandidates,
     relayIdentity,
   );
-  const h4OwnedDimension = key === 'tool_call';
-  if (evidenceModel.capabilityEvidenceViewMalformed && h4OwnedDimension) return [];
+  const evidenceOwnedDimension = key === 'tool_call';
+  if (evidenceModel.capabilityEvidenceViewMalformed && evidenceOwnedDimension) return [];
   if (serverCandidates !== undefined) {
-    // H4 currently owns tool_call only. Generation is derived exclusively
+    // The evidence view currently owns tool_call only. Generation is derived exclusively
     // from profiles.generation + the referenced parameter table. Its namespace
     // is authoritative for that key—even an empty list
     // means tool unknown—but cannot withdraw the legacy public facts for web,
@@ -239,7 +239,7 @@ export function modelCapabilityEvidenceCandidates(
   }
 
   // modelFacts is a catalog-external fallback only. A catalog hit (including
-  // an authoritative null/empty H4 namespace) must never be overwritten by a
+  // an authoritative null/empty evidence view) must never be overwritten by a
   // lower-tier models.dev snapshot.
   const facts = !catalog.model && catalog.providerKind
     ? getModelFacts(catalog.providerKind, model.id)
@@ -404,9 +404,9 @@ export function nextCapabilityEvidenceExpiry(input: {
 }
 
 /**
- * Projects the normalized generation profile into the shared facade. R5 makes
- * `profiles.generation` the sole parameter support matrix; capability evidence
- * remains authoritative for observed capabilities such as tool_call only.
+ * Projects the normalized generation profile into the shared facade. `profiles.generation` is the
+ * sole parameter support matrix; capability evidence stays authoritative only for observed
+ * capabilities such as tool_call.
  */
 export function resolveGenerationParameterEvidence(input: {
   provider: Provider;

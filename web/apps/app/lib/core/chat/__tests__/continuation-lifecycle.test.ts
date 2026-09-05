@@ -14,8 +14,8 @@ import {
   deleteLocalMessageContinuation,
 } from '../continuation-lifecycle';
 
-const CONVERSATION = 'conv-p3c';
-const MESSAGE = 'msg-p3c';
+const CONVERSATION = 'conv-continuation';
+const MESSAGE = 'msg-continuation';
 const opaque = '----MOONSHOT ENCRYPTED BEGIN----opaque----MOONSHOT ENCRYPTED END----';
 
 beforeEach(() => vi.stubGlobal('indexedDB', fakeIndexedDB));
@@ -27,7 +27,7 @@ afterEach(async () => {
   vi.unstubAllGlobals();
 });
 
-describe('P3c local continuation lifecycle', () => {
+describe('local continuation lifecycle', () => {
   it('persists a real proxy continuation event before completion and exposes it only to an explicit continue', async () => {
     await continuationSendStarted(CONVERSATION, MESSAGE);
     const parser = createProxyChunkParser('openAI', {

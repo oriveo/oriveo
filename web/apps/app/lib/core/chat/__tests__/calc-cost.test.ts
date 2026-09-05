@@ -328,7 +328,7 @@ describe('parseUsageMoonshot - cached_tokens at the top level of usage', () => {
     const breakdown = parseUsageMoonshot({
       prompt_tokens: 100,
       completion_tokens: 50,
-      //   prompt_tokens_details Moonshot  
+      // Moonshot does not report cache hits here, so reading this field yields nothing.
       prompt_tokens_details: { cached_tokens: 80 },
     });
     expect(breakdown.cachedInputTokens).toBe(0); // has to be 0

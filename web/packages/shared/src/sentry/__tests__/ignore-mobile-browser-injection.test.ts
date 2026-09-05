@@ -243,7 +243,7 @@ describe('isIgnorableMobileBrowserInjection', () => {
           type: 'TypeError',
           value: "undefined is not an object (evaluating 'page.slug')",
           stacktrace: {
-            frames: [{ filename: 'http://localhost:3000/_next/static/chunks/app.js' }],
+            frames: [{ filename: 'http://localhost:3001/_next/static/chunks/app.js' }],
           },
         }],
       },

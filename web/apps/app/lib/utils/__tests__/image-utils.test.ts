@@ -84,7 +84,7 @@ function blobToUint8(blob: Blob): Promise<Uint8Array> {
  * (base64 maps 4 characters onto 3 bytes), so these tests compare byte for byte.
  */
 describe('base64ToBlob', () => {
-  it(' ', async () => {
+  it('decodes a multi-megabyte string byte for byte across chunk boundaries', async () => {
     // 3MB is roughly 4M base64 characters, which is certain to cross the 1MB chunk boundary.
     const size = 3 * 1024 * 1024;
     const raw = new Uint8Array(size);
@@ -106,7 +106,7 @@ describe('base64ToBlob', () => {
     expect(firstMismatch).toBe(-1);
   });
 
-  it(' ', async () => {
+  it('decodes an input smaller than a single chunk', async () => {
     const blob = await base64ToBlob(btoa('tiny thumbnail bytes'), 'image/jpeg');
     expect(new TextDecoder().decode(await blobToUint8(blob))).toBe('tiny thumbnail bytes');
   });

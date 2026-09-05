@@ -98,11 +98,11 @@ describe('Manual-Retained truth table (Web resolver)', () => {
       prevDefaultModelId: 'legacy-removed-model',
     }, { manualRetainedPruningEnabled: true });
 
-    //   models
+    // Pruned, so it is gone from the enabled list...
     expect(build.models.some((m) => m.id === 'legacy-removed-model')).toBe(false);
     // Default fallback.
     expect(build.defaultModelId).toBe('qwen3.6-plus');
-    //  prunedModelIds  
+    // ...and reported by id, so the UI can say what disappeared instead of silently dropping it.
     expect(build.prunedModelIds).toEqual(['legacy-removed-model']);
   });
 
@@ -180,7 +180,7 @@ describe('Manual-Retained truth table (Web resolver)', () => {
   });
 
   it('flag default (unset) → module constant MANUAL_RETAINED_PRUNING_ENABLED decides; miss is not pruned in pre-launch', async () => {
-    //   overrides pre-launch = false 
+    // No override: the module constant decides, and it is false before launch.
     const build = buildOfficialEnabledModels('qwen', metadata, {
       prevEnabledIds: ['qwen3.6-plus', 'legacy'],
       prevEnabledModels: [

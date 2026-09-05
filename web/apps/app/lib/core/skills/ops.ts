@@ -12,10 +12,8 @@ import { trackEvent } from '../telemetry';
 import { createCanonicalUUID } from '../../utils/id-utils';
 export { getHomeSkills, getSidebarSkills, getSkillById, resolveModelForSkill, type ResolvedModel } from './query';
 
-const UNLIMITED_USAGE: SkillUsage = { count: 0, limit: null, isPro: true };
-
 function localUsage(count: number): SkillUsage {
-  return { count, limit: null, isPro: true };
+  return { count, limit: null };
 }
 
 export async function refreshAllSkills(store: StoreApi<AppStore>): Promise<void> {
@@ -231,5 +229,3 @@ export async function recordSkillUseOp(
     knowledge_enabled: Boolean(skill?.knowledgeBase && skill.knowledgeBase.files.length > 0),
   });
 }
-
-void UNLIMITED_USAGE;

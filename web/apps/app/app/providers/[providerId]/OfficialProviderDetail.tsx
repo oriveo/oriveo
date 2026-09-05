@@ -217,7 +217,7 @@ export function OfficialProviderDetail({ provider }: OfficialProviderDetailProps
 
   return (
     <div className={styles.page}>
-      {/* Top bar —   back Hero   name  title   iOS   */}
+      {/* Top bar: back only. The provider name is the hero's headline, not a title bar. */}
       <div className={styles.topBar}>
         <button
           className={styles.backBtn}
@@ -228,7 +228,7 @@ export function OfficialProviderDetail({ provider }: OfficialProviderDetailProps
         </button>
       </div>
 
-      {/* Recovery Card —   key /   HealthBanner  */}
+      {/* Recovery card: sits above the hero when the connection needs a new key or endpoint. */}
       {showsRecoveryCard && (
         <ProviderConnectionRecoveryCard
           provider={provider}
@@ -241,7 +241,7 @@ export function OfficialProviderDetail({ provider }: OfficialProviderDetailProps
         />
       )}
 
-      {/* Brand Hero — subduedBrand   +   +   API Key +   CTA */}
+      {/* Brand hero: subdued brand backdrop, name, key state and the primary actions. */}
       <ProviderDetailBrandHero
         provider={provider}
         onStartChat={handleStartChat}
@@ -251,7 +251,7 @@ export function OfficialProviderDetail({ provider }: OfficialProviderDetailProps
         isSyncing={isSyncing}
       />
 
-      {/*   —   4   fetchBalance API   §3  */}
+      {/* Balance: only for providers that expose a balance endpoint, and only once a key exists. */}
       {isBalanceCapable(provider.kind) && provider.apiKey && (
         <ProviderBalanceCard provider={provider} />
       )}
@@ -319,9 +319,8 @@ export function OfficialProviderDetail({ provider }: OfficialProviderDetailProps
                   />
                 </div>
                 <div className={styles.modelActions}>
-                  {/*   IA CR-09 / D20  provider   LLM
-                       / / ** ** D1   14  
-                      generation profile  */}
+                  {/* Opens this model's generation profile inline, so the settings stay
+                      attached to the model they belong to. */}
                   <button
                     type="button"
                     className={styles.modelChatBtn}
@@ -384,7 +383,7 @@ export function OfficialProviderDetail({ provider }: OfficialProviderDetailProps
         </div>
       )}
 
-      {/* Settings —   panel 4  Edit API Key / Endpoint / Advanced / Delete  */}
+      {/* Settings: Edit API Key / Endpoint / Advanced / Delete. */}
       <div id="provider-settings-panel">
         <div className={styles.sectionLabel} style={{ marginBottom: 12 }}>
           {t('settings.title')}

@@ -3,8 +3,6 @@ import type {
   RelayRequestedConfig,
 } from '../types/relay';
 
-const CODEX_HOST_HINTS = ['packy', 'ylsagi', 'code-for', 'ccswitch', 'cc-switch', 'codex'];
-
 function preserveCommon(
   requested: RelayRequestedConfig,
   preserve?: RelayRequestedConfig,
@@ -76,9 +74,15 @@ export function makeRelayRequested(
   }
 }
 
+/**
+ * Recovers the relay kind from a stored `RelayRequestedConfig`.
+ *
+ * The requested transport is the only input: a relay's endpoint is a user-supplied host that can
+ * serve any protocol at any path, so the URL is never allowed to override what the configuration
+ * already states.
+ */
 export function inferRelayKind(
   requested: RelayRequestedConfig | null | undefined,
-  baseURL?: string | null,
 ): RelayKind {
   if (!requested) return 'custom';
   switch (requested.transport) {
@@ -86,10 +90,6 @@ export function inferRelayKind(
     case 'auto':
       return 'openai_compatible';
     case 'openai_responses':
-      if (requested.codexCompatIdentity === true) return 'codex_style';
-      if (baseURL && CODEX_HOST_HINTS.some((hint) => baseURL.toLowerCase().includes(hint))) {
-        return 'codex_style';
-      }
       return 'codex_style';
     case 'anthropic_messages':
       return 'anthropic_compatible';

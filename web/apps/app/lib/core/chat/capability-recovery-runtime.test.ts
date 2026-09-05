@@ -88,7 +88,7 @@ describe('D5 tool-call recovery runtime', () => {
   });
 });
 
-describe('R3 capability recovery runtime', () => {
+describe('capability recovery runtime', () => {
   beforeEach(() => memory.clear());
 
   it('admits only one production-owned custom pointer from structured /error/param', () => {

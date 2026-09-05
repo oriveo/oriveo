@@ -5,7 +5,7 @@ import type { OwnerId } from './types';
 export interface CompiledContribution { owner: OwnerId; target: 'tools' | 'plugins'; operation: string; identity: string; value: unknown }
 export type CompileResult = { accepted: true; delta: Record<string, unknown>; preview: Record<string, unknown> } | { accepted: false; reason: string };
 
-/** Transport-neutral P3a compiler. Provider builders consume its delta in P3b. */
+/** Transport-neutral compiler; provider builders apply the delta it returns. */
 export function compileOwnedPatches(
   overlay: OverlayIntent,
   conflicts: readonly (readonly [string, string])[],

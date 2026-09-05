@@ -40,14 +40,14 @@ export async function safeFetchImage(url: string): Promise<SafeImageFetchResult 
     const response = await fetch(url, { signal: controller.signal });
     if (!response.ok) return null;
 
-    //   Content-Length 
+    // Reject on the declared size first, so an oversized image costs nothing to refuse.
     const contentLength = response.headers.get('Content-Length');
     if (contentLength) {
       const declared = Number.parseInt(contentLength, 10);
       if (Number.isFinite(declared) && declared > MAX_BYTES) return null;
     }
 
-    //   abort
+    // No Content-Length, or a lying one: count the bytes and abort as soon as the cap is passed.
     const reader = response.body?.getReader();
     if (!reader) return null;
     const chunks: Uint8Array[] = [];

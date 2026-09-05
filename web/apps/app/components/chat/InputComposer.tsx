@@ -57,7 +57,7 @@ interface InputComposerProps {
   onReasoningIntentChange?: (intent: ReasoningIntent | undefined) => void;
   reasoningOutboundActive?: boolean;
   /* Web search */
-  /** P4b tri-state control. Force is exposed only when the runtime explicitly offers it. */
+  /** Tri-state control. Force is exposed only when the runtime explicitly offers it. */
   webPreference?: CapabilityWebPreference;
   onWebPreferenceChange?: (next: CapabilityWebPreference) => void;
   webOutboundActive?: boolean;
@@ -128,7 +128,7 @@ interface InputComposerProps {
 function formatPreviewDate(iso?: string): string | undefined {
   if (!iso) return undefined;
   const date = new Date(iso);
-  //  Invalid Date 
+  // An unparsable timestamp shows no date at all rather than the string "Invalid Date".
   return Number.isNaN(date.getTime()) ? undefined : date.toLocaleDateString();
 }
 
@@ -164,7 +164,7 @@ function AttachedNoteChip({
   const openTimer = useRef<number | undefined>(undefined);
   const closeTimer = useRef<number | undefined>(undefined);
 
-  //   chip  
+  // Nothing to preview means the chip stays a plain label with no hover affordance.
   const hasPreview = Boolean(note.bodyPreview || note.sourceLabel);
 
   const doOpen = useCallback(() => {

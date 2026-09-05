@@ -181,7 +181,8 @@ export function convertToResponsesParts(parts: ContentPart[]) {
  * - user / system / developer -> `input_text` / `input_image` / `input_file`
  * - assistant -> `output_text` (a past answer; assistant turns never carry images or files)
  *
- * Mixing them is rejected outright by the upstream, or by a strict relay such as YLSAGI.
+ * Mixing them is rejected outright by the upstream, and by relays that validate the body
+ * before forwarding it.
  */
 export function buildResponsesContent(
   role: 'user' | 'assistant' | 'system',
@@ -282,7 +283,8 @@ export function mapOpenAIReasoning(mode: NonNullable<StreamOptions['reasoning']>
     case 'deep':
       return 'high';
     case 'max':
-      // max corresponds to cc-switch's xhigh and is passed through as-is; a relay or model that does not recognise it handles it itself.
+      // 'xhigh' sits above the effort levels OpenAI documents. It is passed through as-is:
+      // relays that understand it honour it, and the rest fall back to their own default.
       return 'xhigh';
     default:
       return 'medium';

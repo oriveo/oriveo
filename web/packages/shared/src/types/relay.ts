@@ -42,10 +42,10 @@ export type RelayImageOutputFormat = 'png' | 'jpeg';
 
 /**
  * Protocol name of the web search tool under the Codex / openai_responses transport.
- * - `web_search` (recommended): follows the OpenAI recommendation and the Codex relays that track
- *   the protocol closely (packy and ylsagi are the common ones)
- * - `web_search_preview` (legacy): still supported by OpenAI, used by older relays and passthrough
- *   stacks such as oneapi/cc-switch
+ * - `web_search` (recommended): the name OpenAI documents, and the one relays that track the
+ *   current protocol expect
+ * - `web_search_preview` (legacy): still accepted by OpenAI, and the only name older relays and
+ *   pass-through gateways recognise
  * - `disabled`: never attach the web_search tool, even when web search is on in the chat UI
  *
  * With no value set the adapter falls back to 'web_search'. Exposed only in custom expert mode.
@@ -81,8 +81,9 @@ export interface RelayRequestedConfig {
   customUserAgent?: string;
   /**
    * Protocol name of the web search tool under the Codex / openai_responses transport. Editable
-   * only in custom expert mode. With no value set the adapter falls back to 'web_search', which
-   * covers packy and ylsagi; older relays can be switched back to 'web_search_preview' by hand.
+   * only in custom expert mode. With no value set the adapter falls back to 'web_search', which is
+   * what relays on the current protocol expect; a relay that only knows the older name has to be
+   * switched back to 'web_search_preview' by hand.
    */
   webSearchToolName?: RelayWebSearchToolName;
   // Image generation parameters, exposed in the UI only when the default model has the imageGen

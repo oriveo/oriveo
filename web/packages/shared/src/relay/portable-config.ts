@@ -10,7 +10,7 @@ import type { RelayRequestedConfig } from '../types/relay';
  * explicit position here, otherwise the `portable-config.v1.json` round-trip contract test fails.
  */
 const RELAY_REQUESTED_PORTABILITY: Record<keyof RelayRequestedConfig, boolean> = {
-  //   /  
+  // Protocol and model shape: the same values on any machine, so they travel.
   transport: true,
   authMode: true,
   securityMode: true,

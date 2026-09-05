@@ -1310,8 +1310,8 @@ describe("metadata-client", () => {
               },
               selfHealPatterns: [
                 { pattern: "unsupported parameter", flags: "i" },
-                //   pattern  
-                //   400  
+                // Padded on purpose: the client has to trim `param` before it can be matched
+                // against the field named in an upstream 400.
                 {
                   pattern: "must be verified to generate reasoning summaries",
                   flags: "i",
@@ -2404,7 +2404,8 @@ describe("metadata-client", () => {
     expect(metadata.resolveCatalogModel("gpt-5-pro", "openAI")?.metadataRevision)
       .toBe('"metadata-r3"');
 
-    //  omitempty →  
+    // The newer payload omits the profile entirely rather than sending an empty object, so the
+    // consumer must drop the previously cached one instead of keeping it.
     fetchSpy.mockResolvedValueOnce(
       new Response(JSON.stringify(buildPayload(false)), {
         status: 200,

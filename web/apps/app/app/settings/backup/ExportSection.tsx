@@ -63,11 +63,10 @@ export function ExportSection() {
       <div className={styles.section}>
         <h2 className={styles.sectionTitle}>{t('exportSection')}</h2>
         <p className={styles.sectionHint}>{t('exportDescription')}</p>
-        {/* PD-20  LLM   catalogModels 
-             keys   */}
         <p className={styles.sectionHint}>{t('exportPrivateCatalogNotice')}</p>
         <div className={styles.form}>
-          {/*  BYOK key   main KeyVault  §4  key  */}
+          {/* Only the web build can export keys. On desktop `provider.apiKey` holds a KeyVault
+              reference rather than the key itself, so there is nothing here to encrypt. */}
           {!IS_DESKTOP && (
             <>
               <label className={styles.checkboxRow}>
@@ -113,7 +112,6 @@ export function ExportSection() {
           </Button>
         </div>
 
-        {/*   */}
         <div className={styles.dataOverview}>
           <h3 className={styles.dataOverviewTitle}>{t('yourData')}</h3>
           <div className={styles.dataOverviewGrid}>

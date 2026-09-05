@@ -60,13 +60,13 @@ export function deleteFolder(store: StoreApi<AppStore>, id: string) {
 }
 
 export function reorderFolders(store: StoreApi<AppStore>, reordered: Folder[]) {
-  //   ≤ 1 
+  // Neighbours less than 2 apart leave no integer to insert between them on the next drag.
   const needsRebalance = reordered.some((f, i) =>
     i > 0 && f.sortOrder - reordered[i - 1].sortOrder <= 1
   );
 
   if (needsRebalance) {
-    //  1000, 2000, 3000...
+    // Respread onto 1000, 2000, 3000, ... so later reorders can bisect without another pass.
     const now = new Date().toISOString();
     reordered = reordered.map((f, i) => ({
       ...f,
@@ -102,7 +102,8 @@ export function batchMoveToFolder(
   const state = store.getState();
   const metadataUpdatedAt = new Date().toISOString();
 
-  //   store 
+  // Rewrite the affected conversations in the store before persisting, so the sidebar moves
+  // with the drag instead of after the write completes.
   const conversations = state.conversations.map((c) =>
     convIDs.includes(c.id)
       ? { ...c, folderID: folderID ?? undefined, firestoreMetadataUpdatedAt: metadataUpdatedAt }
@@ -133,7 +134,8 @@ export function handleFolderReorder(
   const newTargetIdx = sourceIdx < targetIdx ? targetIdx - 1 : targetIdx;
   reordered.splice(newTargetIdx, 0, source);
 
-  //   sortOrder 
+  // Give the moved folder the midpoint between its new neighbours; reorderFolders respreads
+  // the whole list if that midpoint has no room left.
   reordered.forEach((f, i) => {
     const prev = i > 0 ? reordered[i - 1].sortOrder : 0;
     const next = i < reordered.length - 1 ? reordered[i + 1].sortOrder : prev + 2000;

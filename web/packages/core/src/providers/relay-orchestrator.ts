@@ -375,7 +375,7 @@ function sendRelayImagesGeneration(
   const prompt = extractImagePrompt(messages);
 
   if (!prompt) {
-    //   Android OpenAICompatibleService  
+    // Fail before opening a connection: an image request with no prompt has nothing to send.
     return {
       stream: new ReadableStream<StreamEvent>({
         start(ctrl) {
@@ -555,7 +555,7 @@ function sendOpenAIResponsesStream(
   const emittedImageIds = new Set<string>();
   const pendingPartialImages = new Map<string, string>();
 
-  //   detector R3  
+  // Shared across the whole stream: once a retry has fired, a later frame must not fire it again.
   const retryDetector: RelayResponsesRetryDetector = { triggered: false };
 
   const buildRequest = (hints?: RelayRetryHints): RelayRequest => {

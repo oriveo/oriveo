@@ -372,7 +372,7 @@ describe("/api/relay/forward", () => {
     const res = await POST(
       buildRequest({
         "Content-Type": "application/json",
-        "X-Relay-Upstream-URL": "https://code.ylsagi.com/v1/chat/completions",
+        "X-Relay-Upstream-URL": "https://relay.example.com/v1/chat/completions",
         "X-Relay-Proxy-Config": JSON.stringify({
           transport: "openai_chat_completions",
           authMode: "bearer",
@@ -393,7 +393,7 @@ describe("/api/relay/forward", () => {
     const res = await POST(
       buildRequest({
         "Content-Type": "application/json",
-        "X-Relay-Upstream-URL": "https://code.ylsagi.com/v1/chat/completions",
+        "X-Relay-Upstream-URL": "https://relay.example.com/v1/chat/completions",
         "X-Relay-Proxy-Config": JSON.stringify({
           transport: "openai_chat_completions",
           authMode: "bearer",
@@ -421,7 +421,7 @@ describe("/api/relay/forward", () => {
     const pending = POST(
       buildRequest({
         "Content-Type": "application/json",
-        "X-Relay-Upstream-URL": "https://code.ylsagi.com/v1/chat/completions",
+        "X-Relay-Upstream-URL": "https://relay.example.com/v1/chat/completions",
         "X-Relay-Proxy-Config": JSON.stringify({
           transport: "openai_chat_completions",
           authMode: "bearer",
@@ -462,7 +462,7 @@ describe("/api/relay/forward", () => {
     const pending = POST(
       buildRequest({
         "Content-Type": "application/json",
-        "X-Relay-Upstream-URL": "https://www.packyapi.com/v1/messages",
+        "X-Relay-Upstream-URL": "https://relay.example.com/v1/messages",
         "X-Relay-Proxy-Config": JSON.stringify({
           transport: "anthropic_messages",
           authMode: "x_api_key",

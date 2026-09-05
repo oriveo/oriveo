@@ -30,8 +30,7 @@
       "web",
       "reasoning",
       "generation"
-    ],
-    "gate": "scripts/model-contract-gate.mjs"
+    ]
   },
   "mergeCases": [
     {
@@ -230,7 +229,7 @@
   ],
   "cases": [
     {
-      "caseId": "p3b.openai.responses.server_tool_preserves_builder_tool",
+      "caseId": "openai.responses.server_tool_preserves_builder_tool",
       "providerKind": "openAI",
       "transport": "openai_responses",
       "recipeRef": "openai.responses.web.v1",
@@ -257,7 +256,7 @@
       }
     },
     {
-      "caseId": "p3b.anthropic.messages.server_tool_preserves_builder_tool",
+      "caseId": "anthropic.messages.server_tool_preserves_builder_tool",
       "providerKind": "anthropic",
       "transport": "anthropic_messages",
       "recipeRef": "anthropic.messages.web.v1",
@@ -291,7 +290,7 @@
       }
     },
     {
-      "caseId": "p3b.gemini.generate_content.server_tool_preserves_builder_tool",
+      "caseId": "gemini.generate_content.server_tool_preserves_builder_tool",
       "providerKind": "gemini",
       "transport": "gemini_generate_content",
       "recipeRef": "gemini.generate_content.web.v1",
@@ -323,7 +322,7 @@
       }
     },
     {
-      "caseId": "p3b.openai.responses.reasoning_intent",
+      "caseId": "openai.responses.reasoning_intent",
       "providerKind": "openAI",
       "transport": "openai_responses",
       "recipeRef": "openai.responses.reasoning.v1",
@@ -337,7 +336,7 @@
       }
     },
     {
-      "caseId": "p3b.anthropic.messages.reasoning_intent",
+      "caseId": "anthropic.messages.reasoning_intent",
       "providerKind": "anthropic",
       "transport": "anthropic_messages",
       "recipeRef": "anthropic.messages.reasoning.v2",
@@ -354,7 +353,7 @@
       }
     },
     {
-      "caseId": "p3b.gemini.generate_content.reasoning_intent",
+      "caseId": "gemini.generate_content.reasoning_intent",
       "providerKind": "gemini",
       "transport": "gemini_generate_content",
       "recipeRef": "gemini.generate_content.reasoning.v2",
@@ -370,7 +369,7 @@
       }
     },
     {
-      "caseId": "p3b.deepseek.chat.reasoning_intent",
+      "caseId": "deepseek.chat.reasoning_intent",
       "providerKind": "deepseek",
       "transport": "openai_chat",
       "recipeRef": "deepseek.chat.reasoning.v1",
@@ -382,7 +381,7 @@
       }
     },
     {
-      "caseId": "p3b.openai.chat.exact_model_route_has_no_body_patch",
+      "caseId": "openai.chat.exact_model_route_has_no_body_patch",
       "providerKind": "openAI",
       "transport": "openai_chat",
       "recipeRef": "openai.chat.web_model.v1",
@@ -393,7 +392,7 @@
   ],
   "negativeCases": [
     {
-      "caseId": "p3b.cross_provider_recipe_rejected",
+      "caseId": "cross_provider_recipe_rejected",
       "providerKind": "deepseek",
       "transport": "openai_chat",
       "recipeRef": "openai.chat.reasoning.v1",
@@ -402,7 +401,7 @@
       "expectReason": "provider_mismatch"
     },
     {
-      "caseId": "p3b.cross_transport_recipe_rejected",
+      "caseId": "cross_transport_recipe_rejected",
       "providerKind": "openAI",
       "transport": "openai_chat",
       "recipeRef": "openai.responses.web.v1",
@@ -410,7 +409,7 @@
       "expectReason": "transport_mismatch"
     },
     {
-      "caseId": "p3b.cross_capability_recipe_rejected",
+      "caseId": "cross_capability_recipe_rejected",
       "providerKind": "openAI",
       "transport": "openai_responses",
       "recipeRef": "openai.responses.web.v1",
@@ -418,7 +417,7 @@
       "expectReason": "capability_mismatch"
     },
     {
-      "caseId": "p3b.dangling_recipe_rejected",
+      "caseId": "dangling_recipe_rejected",
       "providerKind": "openAI",
       "transport": "openai_responses",
       "recipeRef": "openai.responses.missing.v1",

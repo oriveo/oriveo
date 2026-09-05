@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { brand } from "@oriveo/config";
 import {
   buildAuthHeaders,
   buildProbeURL,
@@ -161,7 +162,8 @@ describe("buildAuthHeaders", () => {
   it("openrouter header profile → HTTP-Referer + X-Title", () => {
     const h = buildAuthHeaders("bearer", "openrouter", "sk");
     expect(h.Authorization).toBe("Bearer sk");
-    expect(h["HTTP-Referer"]).toBe("http://localhost:3000");
-    expect(h["X-Title"]).toBe("Oriveo");
+    // Attribution has to follow the configured origin, not a hardcoded one.
+    expect(h["HTTP-Referer"]).toBe(brand.appUrl);
+    expect(h["X-Title"]).toBe(brand.name);
   });
 });

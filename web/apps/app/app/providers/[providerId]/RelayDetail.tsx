@@ -104,7 +104,7 @@ export function RelayDetail({ provider }: RelayDetailProps) {
   const [expandedGenerationModelId, setExpandedGenerationModelId] = useState<string | null>(null);
   const [modelInput, setModelInput] = useState('');
   const [dismissedRecoveryCard, setDismissedRecoveryCard] = useState(false);
-  const initialKind = provider.relayKind ?? inferRelayKind(provider.relayRequested, provider.baseURLText);
+  const initialKind = provider.relayKind ?? inferRelayKind(provider.relayRequested);
   const [draftKind, setDraftKind] = useState<RelayKind>(initialKind);
   const [draftRequested, setDraftRequested] = useState<RelayRequestedConfig>(
     () => provider.relayRequested ?? makeRelayRequested(initialKind),

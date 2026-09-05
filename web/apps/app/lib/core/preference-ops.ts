@@ -1,5 +1,6 @@
 /**
- *   — store + sync  
+ * Preference mutations: every change goes through here so the store write and the sync
+ * notification stay in one place instead of being repeated at each settings screen.
  */
 
 import type { StoreApi } from 'zustand';
@@ -30,7 +31,7 @@ export function updateMemory(
   memoryAntiForgetText: string | undefined,
 ) {
   const memoryUpdatedAt = new Date().toISOString();
-  //   memoryText  
+  // Blank (or whitespace-only) memory text is a clear, not an update to an empty string.
   const isCleared = !memoryText?.trim();
   const previousMemory = store.getState().preferences.memoryText ?? '';
   const operation: 'clear' | 'create' | 'update' = isCleared

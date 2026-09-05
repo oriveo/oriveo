@@ -1,4 +1,4 @@
-/** P3c continuation lifecycle boundary.
+/** Continuation lifecycle boundary.
  *
  * This module is intentionally local-only: no Zustand persistence, sync adapter, backup or
  * telemetry import is permitted. A new process never reads it to resume a tool loop; it merely

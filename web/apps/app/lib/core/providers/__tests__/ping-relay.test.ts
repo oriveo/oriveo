@@ -14,7 +14,7 @@ afterEach(() => {
 describe('buildRelayPingRequest', () => {
   it('uses POST /responses for Codex style / OpenAI Responses ping', () => {
     const req = buildRelayPingRequest({
-      baseURL: 'https://code.ylsagi.com/codex/v1/',
+      baseURL: 'https://codex-relay.example.com/codex/v1/',
       apiKey: 'sk-test',
       modelID: 'gpt-5.4',
       relayRequested: {
@@ -26,7 +26,7 @@ describe('buildRelayPingRequest', () => {
     });
 
     expect(req.method).toBe('POST');
-    expect(req.upstreamURL).toBe('https://code.ylsagi.com/codex/v1/responses');
+    expect(req.upstreamURL).toBe('https://codex-relay.example.com/codex/v1/responses');
     expect(req.body).toMatchObject({
       model: 'gpt-5.4',
       max_output_tokens: 1,
@@ -150,9 +150,9 @@ describe('buildRelayPingRequest', () => {
 });
 
 describe('extractPingErrorMessage', () => {
-  // Regression: "test connection" on the detail page showed [object Object] when relays such as
-  // anyrouter or packy returned a 4xx, because pingRelay throws a ProviderError plain object while
-  // the detail page fell back to String(error).
+  // Regression: "test connection" on the detail page showed [object Object] whenever a relay
+  // answered with a 4xx, because pingRelay throws a ProviderError plain object while the detail
+  // page fell back to String(error).
   it('returns the message field of a ProviderError plain object instead of "[object Object]"', () => {
     const err = { kind: 'badRequest', title: 'Bad Request', message: 'Model gpt-5.5 not found.' };
     expect(extractPingErrorMessage(err)).toBe('Model gpt-5.5 not found.');

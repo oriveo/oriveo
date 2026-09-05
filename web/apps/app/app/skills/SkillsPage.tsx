@@ -48,14 +48,14 @@ export function SkillsPage() {
   const [activeCategory, setActiveCategory] = useState(ALL_CATEGORY);
   const [promptKind, setPromptKind] = useState<SkillPromptKind | null>(null);
 
-  //   catalog  
+  // A category that no longer exists in the catalog would filter everything away silently.
   useEffect(() => {
     if (activeCategory !== ALL_CATEGORY && !catalogByCategory.has(activeCategory)) {
       setActiveCategory(ALL_CATEGORY);
     }
   }, [catalogByCategory, activeCategory]);
 
-  //   catalog skills
+  // Catalog skills for the active category; the sentinel category means every category.
   const filteredCatalogSkills = useMemo(() => {
     if (activeCategory === ALL_CATEGORY) {
       return Array.from(catalogByCategory.values()).flat();

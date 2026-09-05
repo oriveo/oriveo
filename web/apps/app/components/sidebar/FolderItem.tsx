@@ -97,7 +97,7 @@ export function FolderItem({
         aria-expanded={expanded}
         role="button"
       >
-        {/*   —   folder.colorTag   */}
+        {/* Folder glyph; the gradient is derived from folder.colorTag. */}
         <span
           className={styles.folderIconWrap}
           style={{
@@ -114,7 +114,7 @@ export function FolderItem({
           </svg>
         </span>
 
-        {/*   /   */}
+        {/* Name, replaced in place by an input while the folder is being renamed. */}
         {renaming ? (
           <input
             ref={renameInputRef}

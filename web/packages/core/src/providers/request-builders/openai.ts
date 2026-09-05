@@ -1,4 +1,6 @@
 // OpenAI / OpenRouter request builders (Responses API, Images API and plain Chat Completions).
+import { brand } from "@oriveo/config";
+
 import { resolveProviderBaseURL } from "../url-utils";
 import {
   buildOpenAIChatMessages,
@@ -37,7 +39,7 @@ export function buildOpenRouterRequest(
   }
 
   deepMerge(body, reasoningParams);
-  //   openrouter:web_search server tool chat completions tools  
+  // The openrouter:web_search server tool rides in the same tools array as ordinary tools.
   if (params.options?.supportsWebSearch) {
     deepMerge(body, webSearchProfile?.mergeParams);
   }
@@ -56,8 +58,10 @@ export function buildOpenRouterRequest(
     headers: {
       ...STREAM_HEADERS,
       Authorization: `Bearer ${params.apiKey}`,
-      "HTTP-Referer": "http://localhost:3000",
-      "X-Title": "Oriveo",
+      // OpenRouter attributes usage on its public leaderboards to this pair. It has to be the
+      // origin this deployment actually runs on, not a hardcoded dev port.
+      "HTTP-Referer": brand.appUrl,
+      "X-Title": brand.name,
     },
     body,
   };

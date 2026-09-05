@@ -119,7 +119,7 @@ describe('model capability presentation', () => {
     ]);
   });
 
-  it('treats a catalog-miss persisted H4 namespace as memory, then falls back to the model bit', () => {
+  it('treats a catalog-miss persisted evidence view as memory, then falls back to the model bit', () => {
     const model = makeModel({ capabilityEvidenceCandidates: [], toolCall: true });
     const provider = makeProvider(model);
 

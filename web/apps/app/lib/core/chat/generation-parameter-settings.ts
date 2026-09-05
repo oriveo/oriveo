@@ -119,7 +119,7 @@ function readSettings(): StoredSettings {
 }
 
 function writeSettings(settings: StoredSettings): void {
-  //   store  
+  // Partitioned: one profile's parameter settings must never surface under another.
   writePartitionedStore(STORAGE_KEY, JSON.stringify(settings));
 }
 

@@ -106,8 +106,8 @@ export interface SkillKnowledgeBaseFile {
 
 export interface SkillUsage {
   count: number;
+  /** null means no ceiling, which is what a local-only skill store always reports. */
   limit: number | null;
-  isPro: boolean;
 }
 
 export interface SkillCategory {

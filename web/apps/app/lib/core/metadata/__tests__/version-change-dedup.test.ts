@@ -54,7 +54,7 @@ describe('metadata onVersionChange dedup', () => {
     await refreshMetadata(); // 200 → emit once
     expect(listener).toHaveBeenCalledTimes(1);
 
-    //   304 
+    // A 304 carries no new version, so it must not look like a change.
     fetchMock.mockResolvedValueOnce(
       new Response(null, { status: 304 }),
     );
@@ -102,7 +102,7 @@ describe('metadata onVersionChange dedup', () => {
     onVersionChange(listener);
     __resetVersionListenersForTest();
 
-    //   emit  
+    // A listener removed before the refresh must not be called by it.
     vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
       new Response(JSON.stringify(buildPayload(1, 1)), {
         status: 200,

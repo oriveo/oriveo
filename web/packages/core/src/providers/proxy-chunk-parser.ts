@@ -508,9 +508,9 @@ export function createProxyChunkParser(providerKind?: ProviderKind, continuation
 
 type RecipeCapture = (eventType: string | null, chunk: Record<string, any>) => StreamEvent[];
 
-/** P3 continuation producer. Selection is supplied by the authoritative runtime recipe; this
- * parser never guesses from model IDs. It extracts only the protocol-owned opaque state needed
- * for a later explicit continue and leaves observed capability evidence to P5. */
+/** Continuation producer. Selection is supplied by the authoritative runtime recipe; this parser
+ * never guesses from model IDs. It extracts only the protocol-owned opaque state a later explicit
+ * continue needs, and leaves observed capability evidence to the evidence collector. */
 function createRecipeContinuationCapture(config: ContinuationCaptureConfig | undefined): RecipeCapture {
   if (!config) return () => [];
   if (config.kind === 'previous_id'

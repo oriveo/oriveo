@@ -21,7 +21,7 @@ function buildIntlCacheKey(
   return `${locale ?? ''}:${JSON.stringify(entries)}`;
 }
 
-/**   0 */
+/** Costs at or below this are treated as zero and render as an empty string, not as "$0.00". */
 export const COST_EPSILON = 0.00001;
 
 /**
@@ -89,9 +89,9 @@ export function getRelativeTimeFormatter(
 /**
  * Format a numeric cost value as a display string.
  * - value ≤ COST_EPSILON → ""
- * - COST_EPSILON < value < 0.0001 → "$0.000XX" (5 )
- * - 0.0001 ≤ value < 0.01 → "$X.XXXX" (4 )
- * - value ≥ 0.01 → "$X.XX" (2 )
+ * - COST_EPSILON < value < 0.0001 → "$0.000XX" (5 decimals)
+ * - 0.0001 ≤ value < 0.01 → "$X.XXXX" (4 decimals)
+ * - value ≥ 0.01 → "$X.XX" (2 decimals)
  */
 export function formatCost(value: number): string {
   if (!value || !Number.isFinite(value) || value <= COST_EPSILON) return '';

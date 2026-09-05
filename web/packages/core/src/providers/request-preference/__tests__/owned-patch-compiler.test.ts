@@ -6,7 +6,7 @@ import { compileOwnedPatches } from '../owned-patch-compiler';
 const base = { tools: [{ type: 'function', name: 'weather' }] };
 const overlay = { channel: 'body_fragment', metrics: { bytes: 10, depth: 1, nodes: 1 }, declaredOwners: { '/temperature': 'generation' as const }, operations: [{ owner: 'generation' as const, op: 'set', pointer: '/temperature', value: 0 }] };
 
-describe('P3a owned patch compiler', () => {
+describe('owned patch compiler', () => {
   it('composes a delta and redacted preview without erasing builder tools', () => {
     expect(compileOwnedPatches(overlay, [], base, [{ owner: 'web', target: 'tools', operation: 'append_owned', identity: 'web_search', value: { type: 'web_search' } }])).toEqual({ accepted: true, delta: { temperature: 0, tools: [{ type: 'function', name: 'weather' }, { type: 'web_search' }] }, preview: { temperature: 0, tools: [{ type: 'function', name: 'weather' }, { type: 'web_search' }] } });
   });

@@ -30,7 +30,7 @@ export function ClientIntlProvider({ children }: { children: ReactNode }): React
         if (!cancelled) setState({ locale, messages });
       })
       .catch(() => {
-        //   →  
+        // A missing or unparsable bundle must not leave the app without any messages at all.
         document.documentElement.lang = 'en';
         document.documentElement.dir = 'ltr';
         void loadMessages('en').then((messages) => {

@@ -3,8 +3,8 @@
  *
  * The OpenAI `gpt-image-*` and `chatgpt-image-*` models reject the `response_format` field on the
  * `/v1/images/generations` endpoint; b64_json is the default anyway. Sending it explicitly is
- * rejected with HTTP 400 and `Unknown parameter` by OpenAI directly and by strict relays such as
- * ylsagi and packy.
+ * rejected with HTTP 400 and `Unknown parameter` by OpenAI directly, and by any relay that
+ * forwards the request body unchanged.
  *
  * Prefix match only, case insensitive.
  */

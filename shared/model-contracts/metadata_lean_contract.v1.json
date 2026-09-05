@@ -1,5 +1,5 @@
 {
-  "$comment": "R4 lean metadata wire fixture. Server and all clients read this one shape; missing view still means the byte-compatible full contract.",
+  "$comment": "Lean metadata wire fixture. The catalog service and all clients read this one shape; missing view still means the byte-compatible full contract.",
   "contractVersion": 1,
   "leanResponse": {
     "code": 0,

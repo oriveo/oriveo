@@ -59,7 +59,7 @@ export function projectModelCapabilityPresentation(
     currentModel,
     query.effectiveTransport,
   );
-  // tool_call has a stricter H4 namespace withdrawal rule than the other
+  // tool_call has a stricter evidence-withdrawal rule than the other
   // presentation keys. Ask the sole adapter for that second candidate shape;
   // presentation must not interpret the raw namespace itself.
   const toolCandidates = modelCapabilityEvidenceCandidates(

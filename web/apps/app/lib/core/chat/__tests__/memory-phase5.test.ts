@@ -247,7 +247,7 @@ describe('MEM-5-03: Arabic RTL text - injection and grapheme handling', () => {
     expect(graphemeCount(truncated)).toBe(5);
   });
 
-  it(' ', () => {
+  it('appends the RTL anti-forget reminder to the last user message unchanged', () => {
     const msgs = makeUserMessages(10);
     applyMemoryInjection(msgs, {
       memoryText: arabicMemory,

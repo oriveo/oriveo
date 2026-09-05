@@ -67,7 +67,6 @@ describe('resolveChatLoadState priority chain', () => {
     ).toBe('bootstrapping');
   });
 
-  //   6 
   it('local content outweighs backfilling, timed out and backfill failed', () => {
     const withMessages = makeConversation({
       messages: [{ id: 'm1', role: 'user', text: 'hi', content: 'hi', state: 'delivered', createdAt: '2026-06-04T00:00:00.000Z' }],
@@ -130,7 +129,6 @@ describe('resolveChatLoadState priority chain', () => {
   });
 });
 
-//   8 
 describe('12s timeout threshold', () => {
   it('the threshold is exactly 12 seconds', () => {
     expect(CHAT_LOAD_STALL_TIMEOUT_MS).toBe(12_000);
@@ -158,7 +156,6 @@ describe('12s timeout threshold', () => {
   });
 });
 
-//   5 stalled  
 describe('composer gate', () => {
   it('blocks input for stalled, skeleton and local failure alike', () => {
     expect(isChatComposerBlocked('stalled')).toBe(true);
@@ -221,7 +218,7 @@ describe('empty conversation when backfill is skipped (stalled misjudgement regr
     ).toBe('stalled');
   });
 
-  it("idle ", () => {
+  it("treats an idle backfill phase as still bootstrapping", () => {
     expect(resolveChatLoadState(makeInput({ backfillPhase: 'idle' }))).toBe('bootstrapping');
   });
 });

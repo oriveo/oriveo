@@ -1,6 +1,8 @@
 /**
- *  / 
- *   MessageBubble  
+ * Opening and downloading message attachments.
+ *
+ * Attachments reach the UI in two shapes — inline base64 and a remote URL — and both have to end
+ * up as the same browser download, with the original file name preserved.
  */
 import type { Attachment } from '@oriveo/shared';
 import { downloadFileBlob, downloadFileURL } from '../core/sync-port';

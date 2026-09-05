@@ -48,8 +48,9 @@ vi.mock("./stream-options", async (importOriginal) => ({
 }));
 vi.mock("../metadata/metadata-client", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../metadata/metadata-client")>()),
-  //   activeGenerationParameterIds → resolveGenerationProfileForModel 
-  //   metadata profile 
+  // The send path reaches this export through activeGenerationParameterIds →
+  // resolveGenerationProfileForModel, so leaving it out of the mock makes the whole path throw.
+  // These fixtures carry no metadata profile anyway.
   resolveGenerationProfileRef: vi.fn(() => undefined),
   getRelayRuntimeConfig: vi.fn(() => undefined),
   getModelTransport: vi.fn(() => "openai_chat"),
@@ -66,10 +67,10 @@ vi.mock("../metadata/metadata-client", async (importOriginal) => ({
     weakModelDenylist: [],
     sensitiveGateEnabled: true,
   })),
-  //   library/routing.test.ts  
+  // Routing itself is covered by library/routing.test.ts; here it only has to answer yes.
   hasCatalogModel: vi.fn(() => true),
   resolveCatalogModel: vi.fn(() => ({ contextLength: 128_000 })),
-  //   library/routing.test.ts  
+  // Routing itself is covered by library/routing.test.ts; here it only has to answer yes.
   isMetadataSnapshotConfirmed: vi.fn(() => true),
 }));
 vi.mock("../providers/proxy-client", () => ({ sendLibraryAgentLeg: vi.fn() }));

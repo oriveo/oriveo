@@ -13,7 +13,7 @@ const context: CapabilityResultContext = {
   }],
 };
 
-describe('P5 production capability results', () => {
+describe('production capability results', () => {
   it('keeps HTTP success with no parser signal unconfirmed', () => {
     expect(collectCapabilityResults(context, [])).toEqual([{ owner: 'web', state: 'unconfirmed', source: 'provider_recipe', revision: 'runtime-r3' }]);
   });

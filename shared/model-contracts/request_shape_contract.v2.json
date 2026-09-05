@@ -1,5 +1,5 @@
 {
-  "$comment": "Request shape contract v2. v1 stays frozen as the live outbound wire lock for the four clients; v2 is additive and freezes a different surface: the versioned capabilityRuntime envelope Server ships inside the metadata snapshot, the minimal recipe structure, the per-model capabilityControls states, result definitions, and the fail-safe rules that keep plain chat alive when any of it is unknown. Vocabularies shared with request_preference_contract.v2 (executionKinds, continuationKinds, controlStates) are byte-identical by construction and asserted by scripts/request-shape-contract-v2.test.mjs.",
+  "$comment": "Request shape contract v2. v1 stays frozen as the live outbound wire lock for every client; v2 is additive and freezes a different surface: the versioned capabilityRuntime envelope Server ships inside the metadata snapshot, the minimal recipe structure, the per-model capabilityControls states, result definitions, and the fail-safe rules that keep plain chat alive when any of it is unknown. Vocabularies shared with request_preference_contract.v2 (executionKinds, continuationKinds, controlStates) are byte-identical by construction, and each client's request-preference contract suite asserts that: web/packages/core/src/providers/request-preference/__tests__/request-preference-contract.test.ts, ios/Oriveo/OriveoTests/RequestPreferenceContractTests.swift and android/app/src/test/java/ai/oriveo/community/core/model/RequestPreferenceContractTest.kt.",
   "contractId": "request_shape_contract.v2",
   "version": 2,
   "phase": "P1",
@@ -51,7 +51,7 @@
     ]
   },
   "resultRuntimeExtensions": {
-    "$comment": "P5 additive fields are deliberately not part of runtimeEnvelopeFields: a P4 client ignores them, while a P5 client receiving an older rollback revision keeps request compilation working and reports only unconfirmed. Every P5 revision recipe explicitly references both maps; definitions bind capability + protocol + responseParserKind, so same parser names cannot cross owners/transports.",
+    "$comment": "These additive fields are deliberately not part of runtimeEnvelopeFields, so the compatibility runs both ways: a client that predates them ignores them, and a client that knows them still compiles requests — reporting only unconfirmed — when it is handed an older envelope that omits them. Every recipe in a revision that ships them references both maps explicitly; definitions bind capability + protocol + responseParserKind, so same parser names cannot cross owners/transports.",
     "envelopeFields": [
       "responseEvidenceDefinitions",
       "errorRecoveryDefinitions"

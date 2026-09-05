@@ -198,7 +198,8 @@ export async function hydrateStore(store: StoreApi<AppStore>, expectedUID?: stri
   } catch (error) {
     // When replaceAll is given an expectedUID it must fail loud, so the caller can abort hydration and cloud convergence for the stale partition.
     if (expectedUID !== undefined) throw error;
-    //   silently fail app  
+    // Without an expected uid this is best-effort hydration: report it, but let the app start
+    // with whatever did load rather than render nothing at all.
     Sentry.captureException(error, { tags: { module: 'store.hydrate' } });
   }
 }
@@ -283,7 +284,8 @@ function enrichProvider(provider: Provider): Provider {
 }
 
 function providersEqual(lhs: Provider, rhs: Provider): boolean {
-  //   JSON.stringify  
+  // Reference and field comparison only. This runs on every store write, and a JSON.stringify
+  // of each provider (models plus catalog) was measurable there.
   if (lhs === rhs) return true;
   if (lhs.id !== rhs.id || lhs.kind !== rhs.kind || lhs.updatedAt !== rhs.updatedAt) return false;
   if (lhs.models.length !== rhs.models.length || lhs.catalogModels.length !== rhs.catalogModels.length) return false;

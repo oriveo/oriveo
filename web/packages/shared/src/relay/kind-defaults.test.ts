@@ -84,21 +84,28 @@ describe('makeRelayRequested', () => {
 });
 
 describe('inferRelayKind', () => {
-  it('infers old data from requested transport and Codex hints', () => {
+  it('infers the relay kind from the requested transport alone', () => {
+    // The Responses transport is Codex style whether or not the identity toggle is on: the
+    // toggle changes the client identity that is sent, not which protocol is spoken.
     expect(inferRelayKind({
       transport: 'openai_responses',
       authMode: 'bearer',
       codexCompatIdentity: true,
-    }, 'https://proxy.example.com/v1')).toBe('codex_style');
+    })).toBe('codex_style');
 
     expect(inferRelayKind({
       transport: 'openai_responses',
       authMode: 'bearer',
-    }, 'https://code.ylsagi.com/codex/v1')).toBe('codex_style');
+    })).toBe('codex_style');
 
     expect(inferRelayKind({
       transport: 'anthropic_messages',
       authMode: 'x_api_key',
     })).toBe('anthropic_compatible');
+  });
+
+  it('falls back to custom when there is no requested config', () => {
+    expect(inferRelayKind(null)).toBe('custom');
+    expect(inferRelayKind(undefined)).toBe('custom');
   });
 });

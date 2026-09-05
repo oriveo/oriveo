@@ -1,5 +1,5 @@
 {
-  "$comment": "R3 wire contract. Runtime identity is decoded into connectionId, canonicalModelId, finalTransport and runtimeRevision. The versioned transportIdentity only carries finalTransport + runtimeRevision for backward-compatible wire shape; it is never a generation-template fingerprint or LWW revision.",
+  "$comment": "Capability preference sync wire contract. Runtime identity is decoded into connectionId, canonicalModelId, finalTransport and runtimeRevision. The versioned transportIdentity only carries finalTransport + runtimeRevision for backward-compatible wire shape; it is never a generation-template fingerprint or LWW revision.",
   "schemaVersion": 2,
   "privacy": {
     "allowedTopLevelKeys": [

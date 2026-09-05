@@ -1,17 +1,15 @@
 /**
  * Attachment size policy.
  *
- * The limit comes from the server entitlement (`limits.singleFileBytes`):
- *  - Free 25 MB
- *  - Pro / Lifetime 100 MB
+ * The limit is `limits.singleFileBytes` from the catalog's access grant, currently 25 MB.
  *
  * Callers pass the runtime limit; without one the 50 MB fallback applies, which only matters in the
- * narrow window before the entitlement has hydrated.
+ * narrow window before the grant has hydrated.
  */
 
 export const FALLBACK_ATTACHMENT_BYTES = 50 * 1024 * 1024;
 
-/** @deprecated Use entitlement.limits.singleFileBytes; kept only as a fallback for older imports. */
+/** @deprecated Use the runtime `limits.singleFileBytes`; kept only as a fallback for older imports. */
 export const MAX_CHAT_ATTACHMENT_BYTES = FALLBACK_ATTACHMENT_BYTES;
 
 export function isOversizedChatAttachment(file: File, limitBytes: number = FALLBACK_ATTACHMENT_BYTES): boolean {

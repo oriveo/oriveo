@@ -67,8 +67,8 @@ export type ChatMessageState =
   | "failed";
 
 /**
- *  
- *   ProviderError.kind  
+ * Where a failure came from, which is what decides whose fault it is and what to offer the user.
+ * Orthogonal to ProviderError.kind, which says what went wrong.
  */
 export type ProviderErrorSource = "provider" | "network" | "oriveo" | "desktop" | "unknown";
 

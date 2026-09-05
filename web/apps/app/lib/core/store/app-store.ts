@@ -106,7 +106,7 @@ export interface AppState {
   trashedNotes: Note[];
   /** Note folders, active only; soft-delete tombstones stay remote and never enter the store. */
   noteFolders: NoteFolder[];
-  /**   id */
+  /** Ids of the note folders currently expanded in the sidebar tree. */
   expandedNoteFolderIds: string[];
   /** Ids of locally soft-deleted notes, so the cloud listener cannot write the old documents back into notes. */
   locallyDeletedNoteIds: string[];

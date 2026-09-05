@@ -1035,14 +1035,14 @@
     }
   ],
   "matrix": {
-    "$comment": "Authored coverage inputs only. scripts/capability-evidence-matrix.mjs derives every row, platform cell, and count.",
+    "$comment": "Authored coverage input, not an executed fixture: one row per state the capability evidence view can be in (absent / valid_empty / malformed), recording for each whether a governed key and an unowned key may still fall back to legacy capability facts, and which state makes every governed key fail closed instead. The assertions the three clients actually run are the entries in `cases` above; these rows are the design record those cases were written against.",
     "metadataViewStates": [
       {
         "state": "absent",
         "viewPresent": false,
         "malformed": false,
         "ownedKeys": [],
-        "h4GovernedLegacyFallback": true,
+        "governedLegacyFallback": true,
         "unownedLegacyFallback": true,
         "failClosedAllGoverned": false
       },
@@ -1051,7 +1051,7 @@
         "viewPresent": true,
         "malformed": false,
         "ownedKeys": [],
-        "h4GovernedLegacyFallback": false,
+        "governedLegacyFallback": false,
         "unownedLegacyFallback": true,
         "failClosedAllGoverned": false
       },
@@ -1060,7 +1060,7 @@
         "viewPresent": true,
         "malformed": true,
         "ownedKeys": [],
-        "h4GovernedLegacyFallback": false,
+        "governedLegacyFallback": false,
         "unownedLegacyFallback": false,
         "failClosedAllGoverned": true
       },
@@ -1071,7 +1071,7 @@
         "ownedKeys": [
           "tool_call"
         ],
-        "h4GovernedLegacyFallback": false,
+        "governedLegacyFallback": false,
         "unownedLegacyFallback": true,
         "failClosedAllGoverned": false
       }

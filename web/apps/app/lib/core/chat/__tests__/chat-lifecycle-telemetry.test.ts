@@ -78,8 +78,8 @@ vi.mock('@sentry/nextjs', () => ({
   captureException: (...args: unknown[]) => mocks.captureException(...args),
 }));
 
-//  telemetryProviderKind / sanitizeTelemetryURL  
-//  relay_url  
+// Partial mock: telemetryProviderKind and sanitizeTelemetryURL stay real, because the redaction
+// they apply to relay_url is part of what these tests assert.
 vi.mock('../../telemetry', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../../telemetry')>()),
   trackEvent: (...args: unknown[]) => mocks.trackEvent(...args),
@@ -236,7 +236,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.capabilityRuntime = undefined;
   mocks.buildChatHistory.mockResolvedValue([{ role: 'user', content: 'hello' }]);
-  //   P5 wire fact 
+  // A stream handle that carries a capability result context, so the tests below can prove the
+  // execution facts are available locally and still never reach telemetry.
   mocks.sendStream.mockReturnValue({
     stream: {} as ReadableStream,
     abort: vi.fn(),
@@ -268,7 +269,7 @@ describe('chat lifecycle telemetry property contract', () => {
     expect(completed).toMatchObject({ provider_kind: 'openai', model_id: 'gpt-4o' });
     expect(completed.latency_ms).toBeTypeOf('number');
     expect(completed.cost_usd_micros).toBeTypeOf('number');
-    //   relay  
+    // Relay-only fields must be absent for an official provider, not present and empty.
     expect(sent.relay_url).toBeUndefined();
     expect(completed.relay_url).toBeUndefined();
     expectNoCapabilityFacts(sent);
@@ -295,7 +296,7 @@ describe('chat lifecycle telemetry property contract', () => {
     expect(failed.latency_ms).toBeTypeOf('number');
     expect(JSON.stringify(failed)).not.toMatch(/upstream body must remain local/);
     expectNoCapabilityFacts(failed);
-    //   sent  
+    // The failure does not cost the send event its identifying fields.
     expect(propsOf('chat_message_sent')).toMatchObject({ provider_kind: 'openai', model_id: 'gpt-4o' });
   });
 
@@ -375,7 +376,7 @@ describe('web_search_used - an outbound fact, not a user intent', () => {
     await send(makeOfficialProvider(), webReadyModel(), true);
 
     expect(mocks.trackEvent).not.toHaveBeenCalledWith('web_search_used', expect.anything());
-    //   sent  
+    // The user's intent is still recorded on the send event; only the usage event is withheld.
     expect(propsOf('chat_message_sent')).toMatchObject({ web_search_enabled: true });
   });
 
@@ -457,7 +458,7 @@ describe('Sentry suppression gate on the failure path', () => {
     await send(makeOfficialProvider(), makeModel());
 
     expect(mocks.captureException).not.toHaveBeenCalled();
-    //   Sentry 
+    // Suppressed for Sentry, but the failure is still reported as ordinary telemetry.
     expect(propsOf('chat_message_failed')).toMatchObject({ provider_kind: 'openai', error_code: 'upstream' });
   });
 });

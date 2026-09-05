@@ -31,7 +31,7 @@ export function MemoryPopover({ memoryText, useMemory, onToggleMemory }: MemoryP
   const [showMemoryPopover, setShowMemoryPopover] = useState(false);
   const popoverRef = useRef<HTMLDivElement>(null);
 
-  //   popover
+  // Close on any click outside the popover.
   useEffect(() => {
     if (!showMemoryPopover) return;
     const handler = (e: MouseEvent) => {

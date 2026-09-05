@@ -247,8 +247,8 @@ export function relayImageRoute(
  * Whether `stream = true` has to be forced.
  *
  * Only the imageGen plus Responses inline tool combination forces it; everything else
- * respects the user setting. Non-streaming `/responses` image output was observed to be
- * truncated on ylsagi and packy.
+ * respects the user setting. Some relays truncate the image payload of a non-streaming
+ * `/responses` reply, so streaming is the only dependable way to receive the full result.
  */
 export function shouldForceRelayStream(
   transport: RelayTransport,

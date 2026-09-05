@@ -1,5 +1,5 @@
 {
-  "$comment": "R3 cross-client runtime fixture. Web, iOS and Android must consume these cases through production resolver/builder/parser paths. The fixture never authorizes model-id/providerKind heuristics or a capability-probe request.",
+  "$comment": "Cross-client model-control runtime fixture. Web, iOS and Android must consume these cases through production resolver/builder/parser paths. The fixture never authorizes model-id/providerKind heuristics or a capability-probe request.",
   "contractId": "model_control_runtime.v1",
   "version": 1,
   "owners": [

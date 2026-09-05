@@ -34,7 +34,6 @@ let mockState: MockSkillsState = {
 let mockSkillUsage: SkillUsage = {
   count: 0,
   limit: 5,
-  isPro: false,
 };
 
 function makeSkill(overrides: Partial<Skill> = {}): Skill {
@@ -129,8 +128,7 @@ describe('SkillsPage', () => {
     mockSkillUsage = {
       count: 0,
       limit: 5,
-      isPro: false,
-    };
+        };
 
     mocks.routerPush.mockReset();
     mocks.getCatalogByCategory.mockReset();

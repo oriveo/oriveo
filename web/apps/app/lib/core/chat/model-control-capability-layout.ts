@@ -305,7 +305,8 @@ export function modelControlReasoningLayout(input: {
   switch (status) {
     case 'managedFree':
     case 'managedBalance':
-      //   Server  
+      // A managed connection is configured upstream: state that, and offer no control the client
+      // would not be able to apply.
       return reasoningStatusRow('common.managedByOriveo', undefined, 'none', selection);
     case 'unsupported':
     case 'externalConnectorOnly':
@@ -624,12 +625,13 @@ export function modelControlFooterEntries(input: ModelControlFooterInput): Model
       entries.push({ kind: 'note', text: input.readOnlyReason, tone: 'tertiary' });
     }
   } else if (input.isConfigurable === false && !saysNoCandidates && context === 'behaviorPageHeader') {
-    //  2026-08-16  
-    //  
+    // A non-configurable state still deserves its reason where there is room for it; the compact
+    // card drops the line instead of truncating it.
     if (input.statusTextKey) entries.push({ kind: 'note', textKey: input.statusTextKey, tone: 'tertiary' });
   }
 
-  // D1  
+  // An upstream rejection outranks the rest: it is the only entry backed by a real response
+  // rather than by metadata.
   if (input.upstreamRejected) {
     entries.push({ kind: 'note', textKey: 'common.capabilityControlUpstreamRejected', tone: 'warning' });
   }

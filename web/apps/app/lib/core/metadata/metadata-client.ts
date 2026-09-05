@@ -170,7 +170,7 @@ export interface ModelProfileRefs {
   imageGen?: NullableString;
   generation?: {
     template?: string;
-    /** H4 wire: profiles.generation.revision. */
+    /** Current wire: profiles.generation.revision. */
     revision?: string;
     /** lean wire: reference into top-level generationParameterTables. */
     parametersRef?: string;
@@ -556,7 +556,7 @@ export interface ResolvedModelMetadata {
     imageGen?: string;
     generation?: {
       template?: string;
-      /** Exact H4 semantic revision; absent on the legacy protocol. */
+      /** Exact semantic revision of the generation profile; absent on the legacy protocol. */
       revision?: string;
       parameters?: Array<{
         id?: string;

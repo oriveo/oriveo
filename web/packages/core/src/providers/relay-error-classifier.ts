@@ -337,13 +337,16 @@ function isChatCompletionsURL(value: string): boolean {
   }
 }
 
+// Weak hint that a host speaks the OpenAI Responses protocol rather than Chat Completions, used
+// only to sharpen the copy on a 404. Relays built for the Codex protocol very often say so in
+// their hostname, and that is all this looks for. Both directions of error are cheap: a false
+// positive only shows up on a 404 that already came back from a /chat/completions URL, and a
+// false negative falls through to the generic "not found" message.
 function isCodexStyleHost(value: string): boolean {
   try {
-    const host = new URL(value).host.toLowerCase();
-    return ['packy', 'ylsagi', 'code-for', 'ccswitch', 'cc-switch', 'codex'].some((needle) => host.includes(needle));
+    return new URL(value).host.toLowerCase().includes('codex');
   } catch {
-    const lower = value.toLowerCase();
-    return ['packy', 'ylsagi', 'code-for', 'ccswitch', 'cc-switch', 'codex'].some((needle) => lower.includes(needle));
+    return value.toLowerCase().includes('codex');
   }
 }
 

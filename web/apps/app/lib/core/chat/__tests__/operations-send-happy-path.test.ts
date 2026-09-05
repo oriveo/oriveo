@@ -346,7 +346,7 @@ describe('sendMessage happy path', () => {
     expect(delivered.estimatedCost).toBeGreaterThan(0.5);
   });
 
-  it('P5-capable send keeps full lifecycle telemetry properties while an unreachable web preference stays unreported', async () => {
+  it('a capability-carrying send keeps full lifecycle telemetry while an unreachable web preference stays unreported', async () => {
     const provider = makeProvider();
     const supportedModel = makeModel({
       capabilities: ['text', 'web'], webSearchProfile: 'oai_web', transport: 'openai_chat',
@@ -406,7 +406,7 @@ describe('sendMessage happy path', () => {
     expect(mocks.trackEvent).not.toHaveBeenCalledWith('web_search_used', expect.anything());
   });
 
-  it('P5 stream failure keeps provider/model/error_code on lifecycle telemetry and skips Sentry context', async () => {
+  it('a stream failure keeps provider/model/error_code on lifecycle telemetry and skips Sentry context', async () => {
     const provider = makeProvider();
     const model = makeModel();
     const conversation = makeConversation();
