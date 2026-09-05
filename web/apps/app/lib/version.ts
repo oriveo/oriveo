@@ -3,4 +3,4 @@
  * `NEXT_PUBLIC_APP_VERSION` is a separate, deploy-specific string and takes precedence wherever a
  * build identifier is what matters.
  */
-export const APP_VERSION = '1.2.8';
+export const APP_VERSION = '1.0.0';
