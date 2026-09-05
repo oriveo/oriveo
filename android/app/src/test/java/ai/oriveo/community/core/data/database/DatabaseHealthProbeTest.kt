@@ -16,7 +16,7 @@ import org.robolectric.RobolectricTestRunner
 class DatabaseHealthProbeTest {
 
     @Test
-    fun `disk io failure below the threshold is triaged as storage full and stays out of sentry`() {
+    fun `disk io failure below the threshold is triaged as storage full and stays out of crash reporting`() {
         val verdict = triageDatabaseOpenFailure(
             error = SQLiteDiskIOException(
                 "disk I/O error (code 4874 SQLITE_IOERR_SHMSIZE): , while compiling: PRAGMA journal_mode",

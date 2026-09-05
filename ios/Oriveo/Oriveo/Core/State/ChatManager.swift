@@ -2654,7 +2654,7 @@ final class ChatManager {
                 let shouldRefreshProviderAfterFailure = false
                 // facts/custom requests are privacy-sensitive once they crossed the actual
                 // dispatch boundary. Never attach provider/model/error/body-derived diagnostics
-                // to Sentry for that request.
+                // to a crash reporter for that request.
                 let p5RequestDispatched = CapabilityExecutionRuntime.hasDispatchedFact()
 
                 await MainActor.run {
