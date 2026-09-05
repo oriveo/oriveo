@@ -279,7 +279,7 @@ func groupModelsByVendor(provider: Provider, models: [AIModel]) -> [VendorGroup]
     return groups
 }
 
-/// Provider detail must preserve the order delivered by Server. Managed catalogs already arrive
+/// Provider detail must preserve the order delivered by catalog. Managed catalogs already arrive
 /// ordered by group.sort_order and model.sort_order, so re-scoring here would make an Admin change
 /// require a client release to take effect.
 func detailEnabledModelGroups(for provider: Provider) -> [VendorGroup] {

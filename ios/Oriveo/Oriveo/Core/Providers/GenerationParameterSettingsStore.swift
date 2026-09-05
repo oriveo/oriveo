@@ -46,7 +46,7 @@ nonisolated struct CapabilityPreferenceValues: Codable, Equatable, Hashable, Sen
 }
 
 /// Complete runtime identity used by every persisted capability preference scope. The encoded
-/// wire value contains only final transport + Server runtime revision; connection and canonical
+/// wire value contains only final transport + catalog runtime revision; connection and canonical
 /// model remain explicit record fields, and LWW revision never participates in this encoding.
 nonisolated struct CapabilityPreferenceRuntimeIdentity: Equatable, Sendable {
     let canonicalModelID: String

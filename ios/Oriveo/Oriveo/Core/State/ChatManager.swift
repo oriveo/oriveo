@@ -3388,7 +3388,7 @@ final class ChatManager {
         }
         updated.messages[mi].estimatedCost = estimatedCost
         // Generic failures preserve the requested snapshot. Only the production tracker which
-        // already matched an exact Server locator may replace it with rejected.
+        // already matched an exact catalog locator may replace it with rejected.
         if let execution = CapabilityExecutionRuntime.current?.terminalResult(),
            execution.states.values.contains(.rejected) {
             updated.messages[mi].capabilityExecution = execution
@@ -3504,7 +3504,7 @@ final class ChatManager {
         guard let revision = sessions[conversationID]?
             .appendReasoning(chunk, messageID: messageID, sendTaskID: sendTaskID) else { return }
         // A nonempty normalized parser event is evidence only when the TaskLocal tracker has an
-        // exact Server binding for this owner/protocol/parser.  A display-only heartbeat remains
+        // exact catalog binding for this owner/protocol/parser.  A display-only heartbeat remains
         // useful UI feedback but is never execution evidence.
         CapabilityExecutionRuntime.recordParserEvent(.reasoning, nonEmpty: !chunk.isEmpty)
         reasoningSubjects[conversationID]?.send(ReasoningStreamDelta(

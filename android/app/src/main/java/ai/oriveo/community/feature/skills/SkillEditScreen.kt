@@ -1698,7 +1698,7 @@ fun SkillEditScreen(
                                         modifier = Modifier.padding(spacing.lg),
                                         verticalArrangement = Arrangement.spacedBy(layout.sectionGap),
                                     ) {
-                                        // P4b: old Skill capability fields stay inherited until this
+                                        // Older Skill capability fields stay inherited until this
                                         // single, explicit confirmation is made for the exact target.
                                         skillCapabilityTarget?.let { target ->
                                             Column(verticalArrangement = Arrangement.spacedBy(spacing.xs)) {

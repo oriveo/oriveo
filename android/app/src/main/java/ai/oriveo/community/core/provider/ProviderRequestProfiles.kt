@@ -353,7 +353,7 @@ internal fun safeCustomAllowedPaths(
 
 /**
  * One source of truth for both editor lint and final body mutation.  Official connections require
- * the Server's exact generation recipe. Relay has no catalog model recipe, so it may only use the
+ * the catalog's exact generation recipe. Relay has no catalog model recipe, so it may only use the
  * concrete, already-selected local generation profile for the final transport—never a model-id
  * guess or an automatic relay transport.
  */

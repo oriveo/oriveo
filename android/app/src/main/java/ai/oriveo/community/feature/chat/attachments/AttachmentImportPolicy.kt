@@ -96,7 +96,7 @@ object AttachmentImportPolicy {
         "application/vnd.oasis.opendocument.text",
         "application/vnd.oasis.opendocument.spreadsheet",
         "application/vnd.oasis.opendocument.presentation",
-        "application/epub+zip",   // Phase 3 
+        "application/epub+zip",
     )
 
     fun fileNameFor(contentResolver: ContentResolver, uri: Uri): String {

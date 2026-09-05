@@ -169,7 +169,7 @@ class ChatModelCapabilityResolver(
 
     /**
      * The catalog transport is the only authoritative final carrier available before dispatch.
-     * Relay deliberately returns null: its user directory is not a Server official recipe.
+     * Relay deliberately returns null: its user directory is not a catalog official recipe.
      */
     fun finalTransport(provider: Provider?, model: AIModel?): String? {
         val actualProvider = provider ?: return null

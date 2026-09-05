@@ -90,7 +90,7 @@ nonisolated enum LocalCustomFragmentModeChange {
     }
 }
 
-/// Maps Server control state/reason to a local, non-provenance presentation category. The raw
+/// Maps catalog control state/reason to a local, non-provenance presentation category. The raw
 /// reason code never reaches UI. Exact recipe transport is required only for `auto_available`:
 /// non-automatic verdicts have no recipe by contract and must remain explainable from state/reason.
 nonisolated enum CapabilityControlPresentation: Equatable, Sendable {

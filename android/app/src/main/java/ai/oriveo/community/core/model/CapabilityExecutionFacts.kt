@@ -8,15 +8,15 @@ data class CapabilityExecutionResult(
     val owner: String,
     val state: String,
     val source: String,
-    /** Server capabilityRuntime revision that authorized this local fact; null only for Relay local profiles. */
+    /** Catalog capabilityRuntime revision that authorized this local fact; null only for Relay local profiles. */
     val revision: String? = null,
 )
 
 /**
- * Frozen Server response-evidence signal. Keep the producer event and JSON pointer together so a
+ * Frozen response-evidence signal from the catalog. Keep the producer event and JSON pointer together so a
  * recipe selection cannot silently degrade into a bare event-name match before terminal state is
  * decided. The service parser is responsible for emitting that producer event from the exact
- * protocol/pointer; this collector additionally enforces the Server nonEmpty contract.
+ * protocol/pointer; this collector additionally enforces the catalog's nonEmpty contract.
  */
 data class CapabilityResponseEvidenceSignal(
     val producerEvent: String,
@@ -41,7 +41,7 @@ data class LocatedCapabilityRejection(
 
 /**
  * Builders register pending final-body patches; the final HTTP writer confirms them only when it
- * begins the upstream attempt. Parser events are then matched exclusively to the Server-bound
+ * begins the upstream attempt. Parser events are then matched exclusively to the catalog-bound
  * response evidence kinds. This prevents UI/request intent from claiming execution.
  */
 class CapabilityExecutionCollector(
@@ -147,7 +147,7 @@ class CapabilityExecutionCollector(
             else -> null
         } ?: return
         // A definition that ever permits non-empty=false must still not turn a blank carrier into
-        // observed. Current Server definitions require true; retaining the field makes that
+        // observed. Current catalog definitions require true; retaining the field makes that
         // contract explicit and fail-closed for future definitions.
         if (confirmed.values.any { pending ->
                 pending.evidenceSignals.any { signal ->
@@ -209,7 +209,7 @@ class CapabilityExecutionCollector(
         .filter(Pending::includeExecutionFact)
         .map { fact -> CapabilityExecutionResult(fact.owner, "requested", fact.source, fact.revision) }
 
-    /** Guards analytics/error reporters: a P5 final-wire control never leaks their rich context. */
+    /** Guards error reporters: a final-wire control never leaks its rich context into them. */
     @Synchronized fun hasConfirmedFacts(): Boolean = confirmed.values.any(Pending::includeExecutionFact)
 
     /** Only a normally completed response may settle sent facts to observed or unconfirmed. */

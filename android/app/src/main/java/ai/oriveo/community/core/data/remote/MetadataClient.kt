@@ -63,7 +63,7 @@ fun canonicalCapabilityTransport(value: String?): String = when (value?.lowercas
 }
 
 /**
- * A present responseEvidenceRef must resolve to a complete Server definition. An empty signal
+ * A present responseEvidenceRef must resolve to a complete catalog definition. An empty signal
  * list is valid and deliberately yields unconfirmed after a successful response; a missing or
  * malformed definition is not silently treated as that valid no-evidence case.
  */
@@ -791,7 +791,7 @@ class MetadataClient internal constructor(
         val runtimeConfig: RuntimeConfig? = null,
         
         val capabilityRuntime: JsonObject? = null,
-        /** Catalog-external facts persisted by Server; artifactHash is deliberately not decoded. */
+        /** Facts published alongside the catalog; artifactHash is deliberately not decoded. */
         val modelFacts: Map<String, ModelFacts>? = null,
         val modelFactsRevision: String? = null,
     )
@@ -1277,12 +1277,12 @@ class MetadataClient internal constructor(
 
     /** Exact runtime projection for presentation. Relay has no official automatic recipe. */
     data class CapabilityControlPresentation(
-        /** Server verdict after the exact runtime resolver, never inferred from legacy profiles. */
+        /** Catalog verdict after the exact runtime resolver, never inferred from legacy profiles. */
         val state: String,
         val automaticAvailable: Boolean,
         val recipeRef: String? = null,
         val availableIntents: List<String> = emptyList(),
-        /** Server supplied reason for a non-automatic control, preserved for an honest UI. */
+        /** Catalog-supplied reason for a non-automatic control, preserved for an honest UI. */
         val reasonCode: String? = null,
         /** Local resolver's validation reason (for example a dangling recipe reference). */
         val reason: String? = null,
@@ -1421,7 +1421,7 @@ class MetadataClient internal constructor(
         ).results
 
         val requested = buildList {
-            // Generation is an always-present request concern when Server published an exact
+            // Generation is an always-present request concern when the catalog published an exact
             // control. Its recipe may intentionally be an empty legacy-template bridge, but it
             // still owns custom-fragment path/transport validation and suppresses client guesses.
             
@@ -1495,8 +1495,8 @@ class MetadataClient internal constructor(
     }
 
     /**
-     * P5 result definitions replace the former broad text-based unsupported-parameter retry.
-     * Presence alone is sufficient to close that escape hatch: a malformed P5 payload must
+     * Result definitions replace the former broad text-based unsupported-parameter retry.
+     * Presence alone is sufficient to close that escape hatch: a malformed payload must
      * surface the upstream error, never fall back to an older heuristic.
      */
     fun hasP5CapabilityResultRuntime(): Boolean = table?.capabilityRuntime?.let { runtime ->
@@ -1504,7 +1504,7 @@ class MetadataClient internal constructor(
     } == true
 
     /**
-     * Documentation is a Server authority chain, not a provider-name lookup: exact selected
+     * Documentation is a catalog authority chain, not a provider-name lookup: exact selected
      * generation recipe -> its sourceRefs -> sourceIndex official HTTPS entry.  Missing evidence
      * intentionally yields no link.
      */
@@ -2959,7 +2959,7 @@ class MetadataClient internal constructor(
 
         fun modelFactsRevision(): String? = instance.modelFactsRevision()
 
-        /** Mirrors Server normalizeModelsDevJoinID; transformation order is contractual. */
+        /** Mirrors catalog normalizeModelsDevJoinID; transformation order is contractual. */
         fun normalizeModelFactsID(modelID: String): String {
             var value = modelID.trim().lowercase()
             listOf("accounts/fireworks/models/", "accounts/fireworks/routers/", "pro/").forEach { prefix ->

@@ -121,14 +121,14 @@ data class ChatMessage(
     @kotlinx.serialization.Transient
     val toolFallbackNotice: String? = null,
     /**
-     * P5 execution facts are local message diagnostics. Room persists their coarse owner/state
+     * Execution facts are local message diagnostics. Room persists their coarse owner/state
      * facts; @Transient keeps the cloud-sync and export envelopes free of
      * provider response details and custom configuration metadata.
      */
     @kotlinx.serialization.Transient
     val capabilityExecutionResults: List<CapabilityExecutionResult> = emptyList(),
     /**
-     * P5 local-only recovery affordance. It is set only for a pre-token upstream HTTP 400 on a
+     * Local-only recovery affordance. It is set only for a pre-token upstream HTTP 400 on a
      * request that actually carried a local custom fragment; it deliberately carries no response
      * body, provider, model, pointer, or custom value into sync/export.
      */
@@ -328,9 +328,9 @@ data class ChatRequestOptions(
     @kotlinx.serialization.Transient val localCustomOwner: String = "generation",
     /** P4c owner-scoped local fragments.  Never serialized; Auto/Custom is mutually exclusive per owner. */
     @kotlinx.serialization.Transient val localCustomFragments: Map<String, String> = emptyMap(),
-    /** P5 local request lifecycle carrier; never persisted, synced, logged, or serialized. */
+    /** Local request lifecycle carrier; never persisted, synced, logged, or serialized. */
     @kotlinx.serialization.Transient val capabilityExecutionCollector: CapabilityExecutionCollector? = null,
-    /** P4b typed UI intent. Process-local only; the P3 compiler remains the wire authority. */
+    /** Typed UI intent. Process-local only; the recipe compiler remains the wire authority. */
     @kotlinx.serialization.Transient val capabilityPreferences: CapabilityPreferenceValues? = null,
     /**
      * Grok subscription context: the chat URL and headers that a subscription sign-in produced.

@@ -213,7 +213,7 @@ actor MetadataClient {
         let formula: CapabilityRecipeFormula?
         let fallbackPolicy: String?
         let sourceRefs: [String]?
-        /// binds an execution result to the exact Server-reviewed parser definition.
+        /// binds an execution result to the exact catalog-reviewed parser definition.
         /// A missing ref is fail-safe: the request may still chat, but can never claim observed.
         let responseEvidenceRef: String?
         /// Kept separate on the wire so a future recovery rule cannot be inferred from text.

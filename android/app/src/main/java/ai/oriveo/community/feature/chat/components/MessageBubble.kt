@@ -854,7 +854,7 @@ private fun ToolFallbackNoticeRow() {
     }
 }
 
-/** P5 displays only facts that reached final-wire dispatch; absent is never guessed as a state. */
+/** Displays only facts that reached final-wire dispatch; absent is never guessed as a state. */
 @Composable
 private fun CapabilityExecutionStatusText(results: List<CapabilityExecutionResult>) {
     val colors = OriveoTheme.colors

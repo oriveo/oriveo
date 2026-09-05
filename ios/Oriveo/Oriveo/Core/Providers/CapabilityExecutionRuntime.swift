@@ -365,7 +365,7 @@ final class CapabilityExecutionTracker: @unchecked Sendable {
         }
         let grouped = Dictionary(grouping: visible, by: { $0.value.owner })
         var states = grouped.reduce(into: [String: RequestResultState]()) { result, pair in
-            // An empty Server signal list intentionally remains unconfirmed, even after HTTP 200.
+            // An empty catalog signal list intentionally remains unconfirmed, even after HTTP 200.
             let classification = RequestPreferenceResolver.classifyResult(.init(
                 wireApplied: true,
                 providerAccepted: !pair.value.contains(where: { rejectedPlanIDs.contains($0.key) }),

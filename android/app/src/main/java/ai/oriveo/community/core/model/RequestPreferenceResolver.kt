@@ -710,7 +710,7 @@ object RequestPreferenceResolver {
 
     val REASONING_INTENT_LADDER: List<String> = listOf("off", "low", "balanced", "deep", "max")
     private const val REASONING_INTENTS_CAPABILITY = "reasoning"
-    /** Force is the only Web override the v2 Server contract permits to be advertised. */
+    /** Force is the only web-search override the v2 catalog contract permits to be advertised. */
     private val WEB_INTENTS: Set<String> = setOf("force")
 
     data class IntentsResult(val valid: Boolean, val reason: String? = null, val intents: List<String>)

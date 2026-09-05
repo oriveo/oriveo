@@ -69,7 +69,7 @@ enum ProviderCapabilityIdentityStore {
 
 struct CapabilityEvidenceRequestIdentity: Sendable, Equatable {
     let query: CapabilityEvidenceFacade.Query
-    /// Server capability runtime revision actually selected for this request. It is deliberately
+    /// catalog capability runtime revision actually selected for this request. It is deliberately
     /// separate from metadata/generation revisions and from preference LWW mutation revisions.
     let runtimeRevision: String?
 

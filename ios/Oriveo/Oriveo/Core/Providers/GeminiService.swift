@@ -7,7 +7,7 @@ final class GeminiService: BaseAPIService, ProviderServiceProtocol {
         applyJSONHeaders(to: &request, includeAccept: false)
     }
 
-    /// endpoint_route builder. Selection is exclusively the versioned Server recipe; there is
+    /// endpoint_route builder. Selection is exclusively the versioned catalog recipe; there is
     /// no model-name inference or beta fallback.
     func buildInteractionsRequest(
         modelID: String,

@@ -383,7 +383,7 @@ enum CapabilityRecipeExecution {
         return nil
     }
 
-    /// The UI may expose documentation only when the exact Server-selected generation recipe
+    /// The UI may expose documentation only when the exact catalog-selected generation recipe
     /// carries an official source reference. This preserves the recipe -> sourceRefs ->
     /// sourceIndex authority chain and intentionally has no provider-name fallback.
     static func officialGenerationDocumentationURL(
@@ -403,14 +403,14 @@ enum CapabilityRecipeExecution {
     private struct SafeCustomAuthority {
         let owners: [String: String]
         /// Relay profiles predate typed custom definitions; exact local wires still provide path
-        /// authority. Official controls must also validate values against these Server definitions.
+        /// authority. Official controls must also validate values against these catalog definitions.
         let definitions: [String: [String: MetadataClient.JSONValue]]
     }
 
     private static func safeFragmentAuthority(
         owner: String, providerKind: ProviderKind, modelID: String, transport: String
     ) -> SafeCustomAuthority? {
-        // A Relay has no Server model-id recipe to infer from. Its configured, concrete transport
+        // A Relay has no catalog model-id recipe to infer from. Its configured, concrete transport
         // is the authority and is deliberately restricted to the local engine's declared profile.
         // `.auto` and legacy aliases fail closed rather than guessing a compatible body shape.
         if providerKind == .relay {
@@ -637,7 +637,7 @@ enum CapabilityRecipeExecution {
 }
 
 /// Lossless enough for the one security property JSONDecoder cannot offer: duplicate keys must be
-/// rejected *before* decoding. Accepted fragments are then constrained to Server-declared body paths.
+/// rejected *before* decoding. Accepted fragments are then constrained to catalog-declared body paths.
 enum SafeCustomFragmentCompiler {
     enum Rejection: String, Error, Equatable {
         case duplicateJSONKey = "duplicate_json_key", forbiddenRoot = "forbidden_root", forbiddenChannel = "forbidden_channel"

@@ -318,7 +318,7 @@ struct ChatComposerBar: View {
         ).isEmpty
     }
 
-    /// Complete final-transport + Server-runtime identity used by typed preferences/custom fields.
+    /// Complete final-transport + catalog-runtime identity used by typed preferences/custom fields.
     private var modelControlTransportIdentity: String? {
         currentModel.flatMap { CapabilityPreferenceRuntimeIdentity.make(provider: provider, model: $0)?.wireValue }
     }

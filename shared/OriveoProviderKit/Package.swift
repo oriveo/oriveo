@@ -1,5 +1,5 @@
 // swift-tools-version: 6.1
-// OriveoProviderKit - the provider wire-protocol kernel shared by the iOS and macOS clients.
+// OriveoProviderKit - the provider wire-protocol kernel for the Apple clients.
 //
 // Scope:
 //   In: Foundation-only wire knowledge - SSE line splitting, OpenAI-compatible chunk assembly,
