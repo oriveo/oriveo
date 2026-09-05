@@ -24,15 +24,14 @@ import org.junit.Test
  *
  * Design:
  *  - Uses a relaxed mockk DAO plus an in-memory [MutableSharedFlow] instead of a real Room
- *    database (this module has no Robolectric / room-testing dependency)
+ *    database, so the suite runs as a plain JVM test with no Android runtime
  *  - Keyset pagination semantics (fetchMessagesBefore / existsBefore) are simulated by
  *    [InMemoryMessageStore]
  *  - All IO/CPU dispatchers are injected with [StandardTestDispatcher] so runTest can advance
  *    virtual time
  *
- * SQL correctness is covered by Room's compile-time query validation plus on-device
- * integration tests; this suite covers the state machine's merge, boundary, and
- * history-paging rules.
+ * SQL correctness is covered by Room's compile-time query validation; this suite covers the
+ * state machine's merge, boundary, and history-paging rules.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class MessageWindowLoaderTest {

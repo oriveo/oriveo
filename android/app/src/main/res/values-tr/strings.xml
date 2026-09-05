@@ -1196,6 +1196,7 @@
     <string name="citations_view_all">%1$d alıntının tümünü görüntüle</string>
     <string name="citations_collapse">Daha az göster</string>
     <string name="api_endpoint">API Uç Noktası</string>
+    <string name="api_endpoint_not_configured">Yapılandırılmadı</string>
     <string name="error_relay_upstream_title">Özel LLM Hatası (%1$d)</string>
     <string name="relay_guidance_codex_identity_switch_type">Bu Özel LLM, Codex istemci kimliği gerektiriyor. Sağlayıcılar → bu bağlantı → Bağlantı ayarları → Protokol türü yolunu açın, «Codex (Responses)» seçin ve tekrar deneyin.</string>
     <string name="relay_guidance_codex_identity_enable_compat">Bu Özel LLM, Codex istemci kimliği gerektiriyor. Sağlayıcılar → bu bağlantı → Bağlantı ayarları → Uyumluluk yolunu açın, «Codex uyumlu kimlik» seçeneğini açın ve tekrar deneyin.</string>

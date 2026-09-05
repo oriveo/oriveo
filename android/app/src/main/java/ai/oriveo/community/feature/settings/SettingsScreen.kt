@@ -36,7 +36,6 @@ import androidx.compose.material.icons.filled.AccountBalanceWallet
 import androidx.compose.material.icons.filled.Brightness6
 import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.Email
-import androidx.compose.material.icons.filled.StarRate
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.outlined.Autorenew
 import androidx.compose.material.icons.outlined.Lightbulb
@@ -453,10 +452,14 @@ fun SettingsScreen(
     }
 
     if (showApiEndpointDialog) {
+        // An empty METADATA_BASE_URL is a supported build configuration: it means no model catalog
+        // is fetched at all, so there is no host to name here.
+        val catalogHost = resolveBackendDomainLabel(BuildConfig.METADATA_BASE_URL)
+            .ifBlank { stringResource(R.string.api_endpoint_not_configured) }
         AlertDialog(
             onDismissRequest = { showApiEndpointDialog = false },
             title = { Text(stringResource(R.string.api_endpoint)) },
-            text = { Text(resolveBackendDomainLabel()) },
+            text = { Text(catalogHost) },
             confirmButton = {
                 TextButton(onClick = { showApiEndpointDialog = false }) {
                     Text(stringResource(R.string.ok))

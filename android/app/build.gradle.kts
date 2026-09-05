@@ -14,8 +14,9 @@ fun quoted(value: String): String = "\"${value.replace("\"", "\\\"")}\""
  * Base address of the public model catalog, which supplies model capabilities and prices.
  *
  * Override it with `-PORIVEO_METADATA_BASE_URL=https://your.host` to serve the catalog yourself,
- * or with an empty value to build an app that never leaves the device and relies only on the
- * catalog snapshot bundled with it.
+ * or with an empty value to build an app that never contacts a catalog at all. There is no bundled
+ * fallback, so such a build lists no models for the official providers; every model then comes from
+ * a relay, a local engine, or manual entry.
  */
 val metadataBaseUrl = providers.gradleProperty("ORIVEO_METADATA_BASE_URL").orNull
     ?: "https://api.oriveoai.com"
@@ -132,10 +133,6 @@ android {
         buildConfig = true
     }
 
-    sourceSets {
-        getByName("androidTest").assets.directories.add("$projectDir/schemas")
-    }
-
     testOptions {
         unitTests {
             isReturnDefaultValues = true
@@ -201,10 +198,8 @@ dependencies {
     implementation(libs.androidx.lifecycle.runtime.compose)
     implementation(libs.androidx.lifecycle.process)
     implementation(libs.androidx.navigation.compose)
-    implementation(libs.androidx.datastore.preferences)
     implementation(libs.androidx.security.crypto)
     implementation(libs.androidx.browser)
-    implementation(libs.androidx.exifinterface)
 
     // Compose
     val composeBom = platform(libs.compose.bom)
@@ -256,9 +251,7 @@ dependencies {
     testImplementation(libs.turbine)
     testImplementation(libs.ktor.client.mock)
     testImplementation(libs.kotlinx.coroutines.test)
-    testImplementation(libs.androidx.room.testing)
     testImplementation(libs.robolectric)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
-    androidTestImplementation(libs.androidx.room.testing)
 }

@@ -86,7 +86,7 @@ class RelayErrorMapperTest {
         val error = classify(
             status = 404,
             body = """{"error":{"message":"Not found"}}""",
-            upstreamUrl = "https://code.ylsagi.com/codex/v1/chat/completions",
+            upstreamUrl = "https://codex-relay.example.com/v1/chat/completions",
             context = context(transport = RelayTransport.OpenAIChatCompletions),
         )
 
@@ -235,7 +235,7 @@ class RelayErrorMapperTest {
     }
 
     @Test
-    fun `image-tool retry — packy image endpoint model mismatch hits`() {
+    fun `image-tool retry — an image endpoint model mismatch hits`() {
         val payload = RelayErrorMapper.parseUpstreamErrorPayload(
             """{"error":{"message":"unsupported model: gpt-5.5 (only gpt-image-2 is supported on this endpoint)"}}"""
         )

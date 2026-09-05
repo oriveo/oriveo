@@ -1,15 +1,22 @@
 <?xml version="1.0" encoding="utf-8"?>
 <data-extraction-rules>
+    <!--
+        The excluded preference files are encrypted with a master key that lives in the Android
+        Keystore and never leaves the device that generated it, so neither a cloud restore nor a
+        device transfer can decrypt them. The user re-enters the affected credentials instead.
+    -->
     <cloud-backup>
         <exclude domain="sharedpref" path="oriveo_secure_keys.xml" />
-        <exclude domain="sharedpref" path="review_prompt_state.xml" />
+        <exclude domain="sharedpref" path="oriveo_provider_subscription_tokens.xml" />
+        <exclude domain="sharedpref" path="oriveo_auto_backup_keys.xml" />
         <exclude domain="database" path="message_continuations.db" />
         <exclude domain="database" path="message_continuations.db-wal" />
         <exclude domain="database" path="message_continuations.db-shm" />
     </cloud-backup>
     <device-transfer>
         <exclude domain="sharedpref" path="oriveo_secure_keys.xml" />
-        <exclude domain="sharedpref" path="review_prompt_state.xml" />
+        <exclude domain="sharedpref" path="oriveo_provider_subscription_tokens.xml" />
+        <exclude domain="sharedpref" path="oriveo_auto_backup_keys.xml" />
         <exclude domain="database" path="message_continuations.db" />
         <exclude domain="database" path="message_continuations.db-wal" />
         <exclude domain="database" path="message_continuations.db-shm" />

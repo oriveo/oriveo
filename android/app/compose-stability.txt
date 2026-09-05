@@ -11,9 +11,3 @@ android.net.Uri
 android.graphics.Rect
 android.graphics.RectF
 android.graphics.PointF
-kotlinx.collections.immutable.PersistentList
-kotlinx.collections.immutable.PersistentMap
-kotlinx.collections.immutable.PersistentSet
-kotlinx.collections.immutable.ImmutableList
-kotlinx.collections.immutable.ImmutableMap
-kotlinx.collections.immutable.ImmutableSet

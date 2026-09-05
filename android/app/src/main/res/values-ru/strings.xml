@@ -1196,6 +1196,7 @@
     <string name="citations_view_all">Показать все цитаты (%1$d)</string>
     <string name="citations_collapse">Свернуть</string>
     <string name="api_endpoint">Конечная точка API</string>
+    <string name="api_endpoint_not_configured">Не настроено</string>
     <string name="error_relay_upstream_title">Ошибка пользовательский LLM (%1$d)</string>
     <string name="relay_guidance_codex_identity_switch_type">Этому пользовательскому LLM требуется идентификация клиента Codex. Откройте «Провайдеры» → это подключение → «Настройки подключения» → «Тип протокола», выберите «Codex (Responses)» и повторите попытку.</string>
     <string name="relay_guidance_codex_identity_enable_compat">Этому пользовательскому LLM требуется идентификация клиента Codex. Откройте «Провайдеры» → это подключение → «Настройки подключения» → «Совместимость», включите «Совместимая идентификация Codex» и повторите попытку.</string>

@@ -1240,6 +1240,7 @@
     <string name="status_unavailable">Indisponible</string>
     <string name="provider_detail_n_models">%d modèles</string>
     <string name="api_endpoint">Point de terminaison API</string>
+    <string name="api_endpoint_not_configured">Non configuré</string>
     <string name="error_relay_upstream_title">Erreur de LLM personnalisé (%1$d)</string>
     <string name="relay_guidance_codex_identity_switch_type">Ce LLM personnalisé exige l\'identité client Codex. Ouvrez Fournisseurs → cette connexion → Réglages de connexion → Type de protocole, passez à « Codex (Responses) », puis réessayez.</string>
     <string name="relay_guidance_codex_identity_enable_compat">Ce LLM personnalisé exige l\'identité client Codex. Ouvrez Fournisseurs → cette connexion → Réglages de connexion → Compatibilité, activez « Identité compatible Codex », puis réessayez.</string>

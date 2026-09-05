@@ -1242,6 +1242,7 @@
     <string name="status_unavailable">사용 불가</string>
     <string name="provider_detail_n_models">모델 %d개</string>
     <string name="api_endpoint">API 엔드포인트</string>
+    <string name="api_endpoint_not_configured">설정되지 않음</string>
     <string name="error_relay_upstream_title">맞춤형 LLM 오류(%1$d)</string>
     <string name="relay_guidance_codex_identity_switch_type">이 맞춤형 LLM은 Codex 클라이언트 ID가 필요합니다. 제공업체 → 이 연결 → 연결 설정 → 프로토콜 유형을 열고 ‘Codex(Responses)’로 전환한 뒤 다시 시도하세요.</string>
     <string name="relay_guidance_codex_identity_enable_compat">이 맞춤형 LLM은 Codex 클라이언트 ID가 필요합니다. 제공업체 → 이 연결 → 연결 설정 → 호환성을 열고 ‘Codex 호환 ID’를 켠 뒤 다시 시도하세요.</string>

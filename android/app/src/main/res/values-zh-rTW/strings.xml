@@ -1266,6 +1266,7 @@
     <string name="status_unavailable">不可用</string>
     <string name="provider_detail_n_models">%d 個模型</string>
     <string name="api_endpoint">API Endpoint</string>
+    <string name="api_endpoint_not_configured">未設定</string>
     <string name="error_relay_upstream_title">自訂 LLM 錯誤 (%1$d)</string>
     <string name="relay_guidance_codex_identity_switch_type">這個自訂 LLM 要求 Codex 用戶端身分。開啟供應商 → 該連線 → 連線設定 → 協議類型，切換為「Codex（Responses）」後重試。</string>
     <string name="relay_guidance_codex_identity_enable_compat">這個自訂 LLM 要求 Codex 用戶端身分。開啟供應商 → 該連線 → 連線設定 → 相容性，開啟「Codex 相容身分」後重試。</string>

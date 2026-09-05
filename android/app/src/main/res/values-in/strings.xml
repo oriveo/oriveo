@@ -1196,6 +1196,7 @@
     <string name="citations_view_all">Lihat semua %1$d kutipan</string>
     <string name="citations_collapse">Tampilkan lebih sedikit</string>
     <string name="api_endpoint">Titik Akhir API</string>
+    <string name="api_endpoint_not_configured">Belum dikonfigurasi</string>
     <string name="error_relay_upstream_title">Kesalahan LLM kustom (%1$d)</string>
     <string name="relay_guidance_codex_identity_switch_type">LLM kustom ini memerlukan identitas klien Codex. Buka Penyedia → koneksi ini → Pengaturan koneksi → Jenis protokol, pilih «Codex (Responses)», lalu coba lagi.</string>
     <string name="relay_guidance_codex_identity_enable_compat">LLM kustom ini memerlukan identitas klien Codex. Buka Penyedia → koneksi ini → Pengaturan koneksi → Kompatibilitas, aktifkan «identitas kompatibel Codex», lalu coba lagi.</string>

@@ -188,8 +188,6 @@ fun HomeScreen(
     onNavigateToFolderDetail: (folderID: String) -> Unit = {},
     onNavigateToSkills: () -> Unit = {},
     onNavigateToNotes: () -> Unit = {},
-    allowAutomaticReviewPrompt: Boolean = true,
-    reviewPromptHomeReturnedAtMillis: Long? = null,
     viewModel: HomeViewModel = koinViewModel(),
 ) {
     
@@ -1059,10 +1057,17 @@ fun HomeScreen(
 }
 
 
-internal fun resolveBackendDomainLabel(rawUrl: String = ""): String {
+/**
+ * Reduces a catalog base URL to the bare host (plus port, when one is given) for display.
+ *
+ * Returns an empty string when there is no URL to describe, which is a valid configuration: it
+ * means the build fetches no model catalog. Callers are responsible for showing their own
+ * localized placeholder in that case.
+ */
+internal fun resolveBackendDomainLabel(rawUrl: String): String {
     val trimmed = rawUrl.trim().trimEnd('/')
     if (trimmed.isEmpty()) {
-        return trimmed
+        return ""
     }
 
     val parsed = runCatching { URI(trimmed) }.getOrNull()

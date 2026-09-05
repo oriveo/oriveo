@@ -296,6 +296,7 @@
     <string name="backup_and_export">Backup &amp; Export</string>
     <string name="about">About</string>
     <string name="api_endpoint">API Endpoint</string>
+    <string name="api_endpoint_not_configured">Not configured</string>
     <string name="version">Version</string>
     <string name="privacy_policy">Privacy Policy</string>
     <string name="terms_of_service">Terms of Service</string>

@@ -137,7 +137,8 @@ private class CountingInputStream(input: InputStream) : FilterInputStream(input)
  * The catalog is a read-only feed of model capabilities and prices. It carries no credentials and
  * identifies nobody; chat requests always go straight to the user's own provider. Point
  * `ORIVEO_METADATA_BASE_URL` at your own host at build time to serve it yourself, or leave it
- * blank to run entirely on the catalog snapshot bundled with the app.
+ * blank to build without a catalog: nothing is fetched and there is no bundled fallback, so every
+ * model then comes from a relay, a local engine, or manual entry.
  */
 private fun metadataBaseUrl(): String? =
     BuildConfig.METADATA_BASE_URL.trimEnd('/').takeIf { it.isNotBlank() }

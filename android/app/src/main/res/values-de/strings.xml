@@ -1240,6 +1240,7 @@
     <string name="status_unavailable">Nicht verfügbar</string>
     <string name="provider_detail_n_models">%d Modelle</string>
     <string name="api_endpoint">API-Endpunkt</string>
+    <string name="api_endpoint_not_configured">Nicht konfiguriert</string>
     <string name="error_relay_upstream_title">Fehler beim benutzerdefinierten LLM (%1$d)</string>
     <string name="relay_guidance_codex_identity_switch_type">Dieses benutzerdefinierte LLM erfordert die Codex-Client-Identität. Öffne Anbieter → diese Verbindung → Verbindungseinstellungen → Protokolltyp, wechsle zu „Codex (Responses)“ und versuche es erneut.</string>
     <string name="relay_guidance_codex_identity_enable_compat">Dieses benutzerdefinierte LLM erfordert die Codex-Client-Identität. Öffne Anbieter → diese Verbindung → Verbindungseinstellungen → Kompatibilität, aktiviere „Codex-kompatible Identität“ und versuche es erneut.</string>

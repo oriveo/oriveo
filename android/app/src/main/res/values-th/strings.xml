@@ -1196,6 +1196,7 @@
     <string name="citations_view_all">ดูการอ้างอิงทั้งหมด %1$d รายการ</string>
     <string name="citations_collapse">แสดงน้อยลง</string>
     <string name="api_endpoint">ตำแหน่งข้อมูล API</string>
+    <string name="api_endpoint_not_configured">ยังไม่ได้ตั้งค่า</string>
     <string name="error_relay_upstream_title">ข้อผิดพลาด LLM แบบกำหนดเอง (%1$d)</string>
     <string name="relay_guidance_codex_identity_switch_type">LLM แบบกำหนดเองนี้ต้องการข้อมูลระบุตัวตนไคลเอ็นต์ Codex เปิดผู้ให้บริการ → การเชื่อมต่อนี้ → การตั้งค่าการเชื่อมต่อ → ประเภทโปรโตคอล เลือก «Codex (Responses)» แล้วลองอีกครั้ง</string>
     <string name="relay_guidance_codex_identity_enable_compat">LLM แบบกำหนดเองนี้ต้องการข้อมูลระบุตัวตนไคลเอ็นต์ Codex เปิดผู้ให้บริการ → การเชื่อมต่อนี้ → การตั้งค่าการเชื่อมต่อ → ความเข้ากันได้ เปิด «ข้อมูลระบุตัวตนที่เข้ากันได้กับ Codex» แล้วลองอีกครั้ง</string>

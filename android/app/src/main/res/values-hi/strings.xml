@@ -1196,6 +1196,7 @@
     <string name="citations_view_all">सभी %1$d उद्धरण देखें</string>
     <string name="citations_collapse">कम दिखाएँ</string>
     <string name="api_endpoint">API समापन बिंदु</string>
+    <string name="api_endpoint_not_configured">कॉन्फ़िगर नहीं किया गया</string>
     <string name="error_relay_upstream_title">कस्टम LLM त्रुटि (%1$d)</string>
     <string name="relay_guidance_codex_identity_switch_type">इस कस्टम LLM को Codex क्लाइंट पहचान चाहिए। प्रदाता → यह कनेक्शन → कनेक्शन सेटिंग → प्रोटोकॉल प्रकार खोलें, «Codex (Responses)» चुनें, फिर पुनः प्रयास करें।</string>
     <string name="relay_guidance_codex_identity_enable_compat">इस कस्टम LLM को Codex क्लाइंट पहचान चाहिए। प्रदाता → यह कनेक्शन → कनेक्शन सेटिंग → संगतता खोलें, «Codex संगत पहचान» चालू करें, फिर पुनः प्रयास करें।</string>

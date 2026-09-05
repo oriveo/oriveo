@@ -404,10 +404,11 @@ object RelayErrorMapper {
 
     private fun isChatCompletionsUrl(value: String): Boolean = value.contains("/chat/completions")
 
-    private fun isCodexStyleHost(value: String): Boolean {
-        val lower = value.lowercase()
-        return listOf("packy", "ylsagi", "code-for", "ccswitch", "cc-switch", "codex").any { lower.contains(it) }
-    }
+    /**
+     * A weak hint: a relay whose host mentions Codex most likely speaks the Responses protocol.
+     * It only sharpens the wording of a 404; the relay kind and transport decide behaviour.
+     */
+    private fun isCodexStyleHost(value: String): Boolean = value.lowercase().contains("codex")
 
     private fun isCodexStyleContext(context: RelayErrorContext): Boolean =
         context.relayKind == RelayKind.CodexStyle || context.transport == RelayTransport.OpenAIResponses

@@ -180,7 +180,7 @@ class LocalEngineReleaseRuntimeTest {
         connection.instanceFollowRedirects = false
         try {
             assertTrue(connection.responseCode in 200..299)
-            val bytes = connection.inputStream.use { it.readNBytes(512) }
+            val bytes = connection.inputStream.use { it.readBytes() }
             assertTrue(bytes.size < 512)
             return bytes.toString(Charsets.UTF_8).trim().also { assertTrue(it.isNotEmpty()) }
         } finally {

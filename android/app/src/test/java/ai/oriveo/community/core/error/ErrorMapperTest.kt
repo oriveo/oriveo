@@ -141,7 +141,7 @@ class ErrorMapperTest {
             RelayErrorMapper.classify(
                 404,
                 """{"error":{"message":"Not found"}}""",
-                "https://code.ylsagi.com/codex/v1/chat/completions",
+                "https://codex-relay.example.com/v1/chat/completions",
                 RelayErrorContext(transport = RelayTransport.OpenAIChatCompletions),
             ) to R.string.relay_guidance_responses_only_endpoint,
             RelayErrorMapper.classify(502, """{"error":{"message":"upstream_error: Upstream authentication failed"}}""") to

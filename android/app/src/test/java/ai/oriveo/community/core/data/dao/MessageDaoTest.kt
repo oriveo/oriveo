@@ -6,10 +6,10 @@ import org.junit.Test
 /**
  * Contract test for MessageDao's method signatures.
  *
- * The project doesn't use Robolectric / room-testing, so real DAO SQL is covered by Room's
- * compile-time SQL validation plus real-device integration coverage; this test reflects over
- * the DAO to verify the window-loading methods exist with the right signatures, so a refactor
- * can't silently delete one and send [MessageWindowLoader] down the wrong path.
+ * The queries themselves are validated by Room at compile time, so this test does not execute
+ * SQL. It reflects over the DAO to verify the window-loading methods exist with the right
+ * signatures, so a refactor can't silently delete one and send [MessageWindowLoader] down the
+ * wrong path.
  *
  * State-machine level coverage lives in [ai.oriveo.community.core.data.repository.chat.MessageWindowLoaderTest].
  */

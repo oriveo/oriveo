@@ -1240,6 +1240,7 @@
     <string name="status_unavailable">غير متاح</string>
     <string name="provider_detail_n_models">%d نماذج</string>
     <string name="api_endpoint">نقطة نهاية API</string>
+    <string name="api_endpoint_not_configured">غير مُهيأ</string>
     <string name="error_relay_upstream_title">خطأ نموذج لغوي مخصص (%1$d)</string>
     <string name="relay_guidance_codex_identity_switch_type">يتطلب هذا النموذج اللغوي المخصص هوية عميل Codex. افتح المزوّدون → هذا الاتصال → إعدادات الاتصال → نوع البروتوكول، وبدّل إلى «Codex (Responses)»، ثم أعد المحاولة.</string>
     <string name="relay_guidance_codex_identity_enable_compat">يتطلب هذا النموذج اللغوي المخصص هوية عميل Codex. افتح المزوّدون → هذا الاتصال → إعدادات الاتصال → التوافق، وفعّل «هوية متوافقة مع Codex»، ثم أعد المحاولة.</string>

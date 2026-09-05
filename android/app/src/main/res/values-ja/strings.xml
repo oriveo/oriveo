@@ -1242,6 +1242,7 @@
     <string name="status_unavailable">利用不可</string>
     <string name="provider_detail_n_models">%d 個のモデル</string>
     <string name="api_endpoint">API エンドポイント</string>
+    <string name="api_endpoint_not_configured">未設定</string>
     <string name="error_relay_upstream_title">カスタム LLM エラー (%1$d)</string>
     <string name="relay_guidance_codex_identity_switch_type">このカスタム LLM には Codex クライアント ID が必要です。プロバイダー → この接続 → 接続設定 → プロトコルタイプを開き、「Codex（Responses）」に切り替えてから再試行してください。</string>
     <string name="relay_guidance_codex_identity_enable_compat">このカスタム LLM には Codex クライアント ID が必要です。プロバイダー → この接続 → 接続設定 → 互換性を開き、「Codex 互換 ID」をオンにしてから再試行してください。</string>

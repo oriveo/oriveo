@@ -1196,6 +1196,7 @@
     <string name="citations_view_all">Xem tất cả %1$d trích dẫn</string>
     <string name="citations_collapse">Thu gọn</string>
     <string name="api_endpoint">Điểm cuối API</string>
+    <string name="api_endpoint_not_configured">Chưa cấu hình</string>
     <string name="error_relay_upstream_title">Lỗi LLM tùy chỉnh (%1$d)</string>
     <string name="relay_guidance_codex_identity_switch_type">LLM tùy chỉnh này yêu cầu danh tính ứng dụng Codex. Mở Nhà cung cấp → kết nối này → Cài đặt kết nối → Loại giao thức, chọn «Codex (Responses)», rồi thử lại.</string>
     <string name="relay_guidance_codex_identity_enable_compat">LLM tùy chỉnh này yêu cầu danh tính ứng dụng Codex. Mở Nhà cung cấp → kết nối này → Cài đặt kết nối → Tương thích, bật «danh tính tương thích Codex», rồi thử lại.</string>

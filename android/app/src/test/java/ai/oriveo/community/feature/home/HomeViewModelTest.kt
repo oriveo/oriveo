@@ -223,6 +223,18 @@ class HomeViewModelTest {
         )
     }
 
+    /**
+     * A build configured with an empty catalog base URL fetches no catalog at all. The label has
+     * no host to report, and the caller substitutes a localized placeholder, so the one thing this
+     * function must not do is invent a host.
+     */
+    @Test
+    fun `resolveBackendDomainLabel is empty when no catalog url is configured`() {
+        assertEquals("", resolveBackendDomainLabel(""))
+        assertEquals("", resolveBackendDomainLabel("   "))
+        assertEquals("", resolveBackendDomainLabel("/"))
+    }
+
     @Test
     fun `groupConversationsByFolder groups and sorts once per folder`() {
         val now = System.currentTimeMillis()

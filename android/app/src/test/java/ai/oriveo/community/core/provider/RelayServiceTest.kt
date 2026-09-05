@@ -1226,7 +1226,7 @@ class RelayServiceTest {
     }
 
     @Test
-    fun `responses relay surfaces packy model mismatch after one unchanged attempt`() = runTest {
+    fun `responses relay surfaces an image-model mismatch after one unchanged attempt`() = runTest {
         val seenRequests = mutableListOf<HttpRequestData>()
         val client = HttpClient(
             MockEngine { request ->
@@ -1252,7 +1252,7 @@ class RelayServiceTest {
             apiKey = "sk-relay",
             modelID = "gpt-5.5",
             messages = listOf(ProviderTestFixtures.userMessage("Hi", ProviderKind.Relay, "gpt-5.5")),
-            baseUrl = "https://www.packyapi.com/v1",
+            baseUrl = "https://relay.example.com/v1",
             supportsImageGen = false,
             reasoningMode = ReasoningMode.Automatic,
             webSearchEnabled = false,

@@ -27,6 +27,16 @@
     -->
     <uses-feature android:name="android.hardware.camera.any" android:required="false" />
 
+    <!--
+        usesCleartextTraffic is on because local model servers (llama.cpp, Ollama, LM Studio,
+        vLLM) speak plain HTTP on the user's own machine or LAN and have no certificate. A
+        network security config cannot express the permitted set: it matches by hostname only,
+        has no syntax for address ranges, and the addresses come from the user's network at
+        runtime. RelayEndpointPolicy is the real boundary, and a stricter one than a config
+        could be — it resolves the host, requires every resolved address to be private, rejects
+        a mix of public and private resolution, pins the address set against DNS rebinding,
+        re-verifies it at send time, and refuses cleartext carrying any credential.
+    -->
     <application
         android:name=".OriveoApplication"
         android:allowBackup="true"
