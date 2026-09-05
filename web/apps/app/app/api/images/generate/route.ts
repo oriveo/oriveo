@@ -1,6 +1,5 @@
 import { NextRequest } from 'next/server';
 import { assertUrlNotSsrf, SsrfBlockedError } from '../../_shared/ssrf-guard';
-import { isImagePromptAllowed, MODERATION_BLOCK_MESSAGE } from '../../_shared/moderation';
 
 export const runtime = 'nodejs';
 
@@ -24,11 +23,6 @@ export async function POST(request: NextRequest) {
 
   if (!apiKey || !prompt) {
     return Response.json({ error: 'Missing required fields' }, { status: 400 });
-  }
-
-  // Content moderation: screen the image prompt before it goes upstream, block anything not allowed, and fail closed.
-  if (!(await isImagePromptAllowed(prompt))) {
-    return Response.json({ error: MODERATION_BLOCK_MESSAGE }, { status: 400 });
   }
 
   const base = baseURL || 'https://api.openai.com/v1';

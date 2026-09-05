@@ -26,13 +26,6 @@ import {
   resolveOpenAISubscriptionConfig,
 } from "./openai-subscription-transport";
 import { assertUrlNotSsrf, SsrfBlockedError } from "../../_shared/ssrf-guard";
-import {
-  isImagePromptAllowed,
-  isImageResponseAdapter,
-  MODERATION_BLOCK_MESSAGE,
-  MODERATION_ERROR_KIND,
-} from "../../_shared/moderation";
-import { extractLatestUserPrompt } from "./response-adapters/utils";
 import { buildCapabilityResultContext, encodeCapabilityResultContext } from '../../../../lib/core/chat/capability-result-runtime';
 // errorKind shares one constant with the client: a literal written on each side drifts silently the moment one is changed.
 import { CUSTOM_FRAGMENT_ERROR_KIND } from '../../../../lib/core/chat/custom-fragment-rejection';
@@ -154,30 +147,6 @@ export async function POST(request: NextRequest) {
     // stripping a field after any generic 400 would violate the one-retry
     // contract and could silently remove a developer's custom request field.
 
-    // Content moderation for checkout vendor compliance: image generation requests only. The prompt is
-    // screened before going upstream and anything other than allow is blocked, fail-closed. Text chat
-    // is not moderated (explicitly exempt). The verdict is delivered as a 200 SSE error event and the
-    // client localizes it from errorKind.
-    if (isImageResponseAdapter(req.responseAdapter)) {
-      const prompt = extractLatestUserPrompt(messages);
-      if (prompt && !(await isImagePromptAllowed(prompt, `${providerKind}:${modelID}`))) {
-        const event = `data: ${JSON.stringify({
-          type: "error",
-          error: MODERATION_BLOCK_MESSAGE,
-          errorKind: MODERATION_ERROR_KIND,
-          source: "oriveo",
-        })}\n\n`;
-        return new Response(event, {
-          status: 200,
-          headers: {
-            "Content-Type": "text/event-stream",
-            "Cache-Control": "no-cache",
-            Connection: "keep-alive",
-            ...rateLimitHeaders,
-          },
-        });
-      }
-    }
 
     // SSRF guard: the baseURL comes from the user, so the target of both the main request and the
     // fallback must be validated before fetching upstream. Private, reserved and cloud metadata

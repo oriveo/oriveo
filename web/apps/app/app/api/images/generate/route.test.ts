@@ -23,7 +23,6 @@ vi.mock('node:dns/promises', () => ({
 }));
 
 import { POST } from './route';
-import { MODERATION_BLOCK_MESSAGE } from '../../_shared/moderation';
 
 const fetchMock = vi.fn();
 
@@ -165,84 +164,5 @@ describe('/api/images/generate', () => {
 
     expect(response.status).toBe(403);
     expect(fetchMock).not.toHaveBeenCalled();
-  });
-});
-
-describe('/api/images/generate content moderation', () => {
-  const moderationURL = 'https://moderation.example.invalid/v1/moderation/prompt';
-
-  function moderationResponse(decision: string): Response {
-    return new Response(
-      JSON.stringify({ id: 'mod_1', object: 'moderation_result', decision }),
-      { status: 200, headers: { 'Content-Type': 'application/json' } },
-    );
-  }
-
-  function imageResponse(): Response {
-    return new Response(JSON.stringify({ data: [{ b64_json: 'image-data' }] }), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' },
-    });
-  }
-
-  beforeEach(() => {
-    vi.restoreAllMocks();
-    vi.stubGlobal('fetch', fetchMock);
-    fetchMock.mockReset();
-    vi.stubEnv('MODERATION_MODERATION_API_KEY', 'moderation_test_key');
-    vi.stubEnv('MODERATION_MODERATION_BASE_URL', 'https://moderation.example.invalid');
-  });
-
-  afterEach(() => {
-    vi.unstubAllEnvs();
-  });
-
-  it('blocks the prompt and never reaches the image endpoint when moderation denies it', async () => {
-    fetchMock.mockImplementation((url: string) =>
-      Promise.resolve(
-        String(url).includes('/v1/moderation/prompt')
-          ? moderationResponse('deny')
-          : imageResponse(),
-      ),
-    );
-
-    const response = await POST(
-      buildRequest({ apiKey: 'sk-openai', prompt: 'disallowed prompt' }) as never,
-    );
-
-    expect(response.status).toBe(400);
-    await expect(response.json()).resolves.toEqual({ error: MODERATION_BLOCK_MESSAGE });
-    // The upstream image endpoint must never be called
-    const imageCalls = fetchMock.mock.calls.filter(
-      (call) => !String(call[0]).includes('/v1/moderation/prompt'),
-    );
-    expect(imageCalls).toHaveLength(0);
-  });
-
-  it('screens the prompt then forwards to the image endpoint when moderation allows it', async () => {
-    fetchMock.mockImplementation((url: string) =>
-      Promise.resolve(
-        String(url).includes('/v1/moderation/prompt')
-          ? moderationResponse('allow')
-          : imageResponse(),
-      ),
-    );
-
-    const response = await POST(
-      buildRequest({ apiKey: 'sk-openai', prompt: 'draw a cat' }) as never,
-    );
-
-    expect(fetchMock).toHaveBeenCalledWith(
-      moderationURL,
-      expect.objectContaining({
-        method: 'POST',
-        headers: expect.objectContaining({ 'x-api-key': 'moderation_test_key' }),
-      }),
-    );
-    expect(fetchMock).toHaveBeenCalledWith(
-      'https://api.openai.com/v1/images/generations',
-      expect.anything(),
-    );
-    expect(response.status).toBe(200);
   });
 });
