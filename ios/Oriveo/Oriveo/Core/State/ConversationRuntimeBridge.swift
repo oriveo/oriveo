@@ -126,12 +126,22 @@ final class ConversationRuntimeBridge {
 
         #if DEBUG
         let totalDB = (try? store.fetchConversationCount()) ?? -1
-        print("[CONV_DEBUG] fetchHomeSnapshot: recentStart=\(recentStart) now=\(now) totalDB=\(totalDB) recentSummaries=\(recentSummaries.count) earlierSummaries=\(earlierSummaries.count) earlierCount=\(earlierCount)")
+        AppLog.info(
+            "Home snapshot: recentStart=\(recentStart) now=\(now) storedTotal=\(totalDB) "
+            + "recent=\(recentSummaries.count) earlier=\(earlierSummaries.count) earlierTotal=\(earlierCount)",
+            module: "Conversations"
+        )
         if recentSummaries.isEmpty, totalDB > 0 {
             let allSummaries = (try? store.fetchConversationList()) ?? []
             for s in allSummaries.prefix(5) {
                 let age = now.timeIntervalSince(s.updatedAt)
-                print("[CONV_DEBUG]   allDB: \(s.id.uuidString.prefix(8)) updatedAt=\(s.updatedAt) age=\(String(format: "%.0f", age))s draft=\(s.isDraft) folder=\(s.folderID?.uuidString.prefix(8) ?? "nil") msgCount=\(s.messageCount) visible=\(s.isVisibleInUngroupedConversationList)")
+                AppLog.info(
+                    "  stored conversation \(s.id.uuidString.prefix(8)): updatedAt=\(s.updatedAt) "
+                    + "age=\(String(format: "%.0f", age))s draft=\(s.isDraft) "
+                    + "folder=\(s.folderID?.uuidString.prefix(8) ?? "none") messages=\(s.messageCount) "
+                    + "visible=\(s.isVisibleInUngroupedConversationList)",
+                    module: "Conversations"
+                )
             }
         }
         #endif

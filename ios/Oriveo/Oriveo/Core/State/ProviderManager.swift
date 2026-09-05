@@ -330,7 +330,7 @@ final class ProviderManager {
                     .fetchModels(config: config, accessToken: accessToken)
             }
         } catch {
-            print("[GrokCatalog] /models failed: \(error)")
+            AppLog.error(error, module: "ProviderCatalog", context: ["provider": "grok", "op": "fetchModels"])
             provider.catalogModels = []
             provider.models = []
             provider.lastError = (error as? GrokSubscriptionError)?.userFacingMessage
@@ -385,7 +385,11 @@ final class ProviderManager {
         ToolCallMemoryStore.shared.clear(connectionID: provider.id)
         await MetadataClient.shared.refreshModelFacts()
         guard case let .available(config) = MetadataClient.shared.syncOpenAISubscriptionAvailability() else {
-            print("[CodexCatalog] the served configuration is unavailable, skipping the catalog fetch")
+            AppLog.warning(
+                "The subscription configuration is unavailable, skipping the catalog fetch",
+                module: "ProviderCatalog",
+                context: ["provider": "openai"]
+            )
             provider.catalogModels = []
             provider.models = []
             provider.lastError = ProviderIssueMessage.catalogUnavailableKey
@@ -395,7 +399,11 @@ final class ProviderManager {
         let fromToken = OpenAIJWTClaims.string(accessToken, claim: "chatgpt_account_id") ?? ""
         let resolvedAccountID = passedIn.isEmpty ? fromToken : passedIn
         guard !resolvedAccountID.isEmpty else {
-            print("[CodexCatalog] missing chatgpt-account-id (the caller passed none and the token carries no such claim)")
+            AppLog.warning(
+                "No account id available: the caller passed none and the token carries no such claim",
+                module: "ProviderCatalog",
+                context: ["provider": "openai"]
+            )
             provider.catalogModels = []
             provider.models = []
             provider.lastError = ProviderIssueMessage.catalogUnavailableKey
@@ -409,7 +417,7 @@ final class ProviderManager {
                     .fetchModels(config: config, accessToken: accessToken, accountID: resolvedAccountID)
             }
         } catch {
-            print("[CodexCatalog] /models failed: \(error)")
+            AppLog.error(error, module: "ProviderCatalog", context: ["provider": "openai", "op": "fetchModels"])
             provider.catalogModels = []
             provider.models = []
             provider.lastError = (error as? OpenAISubscriptionError)?.userFacingMessage

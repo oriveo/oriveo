@@ -484,7 +484,8 @@ struct CapabilityRecipeExecutionTests {
             "Switch back to automatic",
             // External-connector and MCP type-and-boundary copy is also user-visible and must cover all 16 locales.
             "This capability is provided by a separate external service, outside this connection's chat request.",
-            // F05: fee/privacy notices driven by the Server-issued riskTier, also required in all 16 locales.
+            // The fee and privacy notices driven by the server-issued riskTier are user-visible too,
+            // so they need all 16 locales as well.
             "This field can send your data to a third-party service.",
             "This field can increase what the provider charges.",
         ]

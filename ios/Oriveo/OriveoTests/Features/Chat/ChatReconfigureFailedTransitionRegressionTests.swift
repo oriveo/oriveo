@@ -3,8 +3,6 @@ import Testing
 import UIKit
 @testable import Oriveo
 
-/// .reconfigureItems` ← `applyIncrementalUpdate` 970/988 ← `rebuildIfReady` 931 ← `update` 458)
-/// registration or reuse identifier than the existing cell when reconfiguring an item".
 /// Reproduces a fatal crash: when an assistant message goes straight from streaming to failed
 /// because the provider request failed, the in-conversation incremental reconfigure in
 /// `ChatListViewController.applyIncrementalUpdate` raised `NSInternalInconsistencyException`:

@@ -649,8 +649,10 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
                                 lastUsage = completed.resolvedUsage
                                 completedResponseID = completed.resolvedID
                                 #if DEBUG
-                                let preview = String(payload.prefix(2000))
-                                print("[OpenAIStream] ✅ response.completed: \(preview)")
+                                AppLog.info(
+                                    "Responses stream completed, payload \(payload.count) characters",
+                                    module: "OpenAI"
+                                )
                                 #endif
                             } catch {
                             }
@@ -2279,7 +2281,10 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
                    let base64 = imageEvent.resolvedResult,
                    emittedImages.insert(imageEvent.resolvedIdentity ?? base64).inserted {
                     #if DEBUG
-                    print("[ImageGen][Relay] event=\(currentEvent), base64Len=\(base64.count), prefix=\(base64.prefix(48))")
+                    AppLog.info(
+                        "Relay image event \(currentEvent), base64 payload \(base64.count) characters",
+                        module: "ImageGen"
+                    )
                     #endif
                     result.firstContentEmitted = true
                     continuation.yield(.imagePart(Attachment(
@@ -2302,7 +2307,10 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
                     ?? L10n.tr("The provider returned an error for this request. Please retry or switch models.", table: .providers)
                 let param = parsed?.error?.param ?? parsed?.response?.error?.param
                 #if DEBUG
-                print("[Relay][StreamError] event=\(currentEvent) code=\(code ?? "<nil>") msg=\(message.prefix(200))")
+                AppLog.warning(
+                    "Relay stream error on \(currentEvent): code=\(code ?? "none") message=\(message.prefix(200))",
+                    module: "Relay"
+                )
                 #endif
 
                 _ = param

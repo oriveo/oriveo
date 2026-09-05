@@ -84,8 +84,8 @@ struct RelayResponsesFallbackTests {
         #expect(ScriptedRelayProtocol.snapshot().bodies.count == 1)
     }
 
-    @Test("Http400 Packy Image Endpoint Model Mismatch Triggers Retry")
-    func http400PackyImageEndpointModelMismatchTriggersRetry() async {
+    @Test("Http400 Image Endpoint Model Mismatch Triggers Retry")
+    func http400ImageEndpointModelMismatchTriggersRetry() async {
         ScriptedRelayProtocol.reset()
         ScriptedRelayProtocol.script = [
             .json(status: 400, body: """
@@ -97,9 +97,9 @@ struct RelayResponsesFallbackTests {
         let service = OpenAIService(session: makeMockSession())
         let relay = RelayRequestedConfig(transport: .openaiResponses, authMode: .bearer)
         let stream = service.sendMessageStream(
-            apiKey: "packy-test", modelID: "gpt-5.5",
+            apiKey: "relay-test", modelID: "gpt-5.5",
             messages: [makeMessage("hi")],
-            baseURL: "https://www.packyapi.com/v1",
+            baseURL: "https://relay.example.com/v1",
             relayRequested: relay
         )
         _ = await drain(stream)
@@ -402,8 +402,8 @@ struct RelayErrorClassifierTests {
         #expect(RelayErrorClassifier.isImageGenerationToolUnsupportedError(payload: payload, statusCode: 400))
     }
 
-    @Test("Matches Packy Image Endpoint Model Mismatch")
-    func matchesPackyImageEndpointModelMismatch() {
+    @Test("Matches Image Endpoint Model Mismatch")
+    func matchesImageEndpointModelMismatch() {
         let payload = RelayUpstreamErrorPayload(
             code: nil,
             message: "unsupported model: gpt-5.5 (only gpt-image-2 is supported on this endpoint)",

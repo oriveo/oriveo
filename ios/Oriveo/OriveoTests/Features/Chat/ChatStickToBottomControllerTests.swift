@@ -3,7 +3,7 @@ import Testing
 @testable import Oriveo
 
 @MainActor
-@Suite("Phase A • ChatStickToBottomController")
+@Suite("ChatStickToBottomController")
 struct ChatStickToBottomControllerTests {
 
     final class StubGeometry: ChatStickToBottomGeometry {

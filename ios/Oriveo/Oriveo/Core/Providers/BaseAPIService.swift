@@ -749,10 +749,12 @@ class BaseAPIService {
         body.localizedCaseInsensitiveContains("Unknown parameter") && body.contains("input[")
     }
 
+    /// A weak hint, used only to phrase a 404 more helpfully: a host that names Codex most likely
+    /// speaks the Responses protocol and has no `/chat/completions` route at all. It never changes
+    /// which request is sent — the transport the user configured decides that.
     private static func isCodexStyleHost(_ url: URL) -> Bool {
         guard let host = url.host?.lowercased() else { return false }
-        let codexHosts = ["packy", "ylsagi", "code-for", "ccswitch", "cc-switch", "codex"]
-        return codexHosts.contains(where: host.contains)
+        return host.contains("codex")
     }
 
     private static func isUnknownStoreParameter(_ body: String) -> Bool {

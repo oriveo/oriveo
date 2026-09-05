@@ -2,7 +2,9 @@ import Foundation
 import Testing
 @testable import Oriveo
 
-// `ManualRetainedPruningPolicy`:
+// Truth table for how `ProviderCatalogResolver` classifies a provider's models: which of them are
+// manual (present locally but absent from the catalog), which stay enabled, and what an alias of a
+// catalog model resolves to.
 
 @Suite("Manual Retained Truth Table Tests", .serialized)
 struct ManualRetainedTruthTableTests {

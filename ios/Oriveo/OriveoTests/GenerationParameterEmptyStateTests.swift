@@ -2,16 +2,15 @@ import Foundation
 import Testing
 @testable import Oriveo
 
-/// In-app assertions for the generation-parameter container's four empty states
-/// (`Relay onboarding experience spec` §5.4 · design source of truth PD-09 / CR-13)
-/// and the relay "unverified" badge (CR-11).
+/// In-app assertions for the generation-parameter container's four empty states and for the
+/// relay "unverified" badge.
 ///
-/// **TG9**: every assertion's input comes from a production code path — the profile is
+/// Every assertion's input comes from a production code path: the profile is
 /// parsed by production `MetadataClient` from server-shaped metadata JSON, or synthesized
 /// by production `LocalEngineGenerationProfiles`; the visible set and empty-state decision
 /// all run production `GenerationParameterPanelPresentation`. Tests do not hand-write a
 /// `GenerationProfileRef`.
-@Suite("generation parameter empty state & unverified badge (D4 / D12 / CR-11 / CR-13)", .serialized)
+@Suite("Generation parameter empty state and unverified badge", .serialized)
 struct GenerationParameterEmptyStateTests {
 
     // MARK: - Four empty states
@@ -64,7 +63,9 @@ struct GenerationParameterEmptyStateTests {
             ) == .catalogManaged
         )
 
-        // CR-13 registered known downgrade: after on-device history is cleared (reinstall / new device / cache wipe), B degrades to A.
+        // A known and accepted downgrade: once the on-device history is cleared (reinstall, new
+        // device, cache wipe) state B degrades to state A, because nothing records that a
+        // non-empty profile was ever seen.
         history.reset()
         #expect(
             GenerationParameterPanelPresentation.emptyState(
@@ -149,7 +150,7 @@ struct GenerationParameterEmptyStateTests {
         }
     }
 
-    @Test("empty-state copy carries zero percents, zero progress numbers, zero schedule promises (PD-09 copy hard rule)")
+    @Test("Empty-state copy carries no percentages, no progress numbers and no schedule promises")
     func emptyStateCopyCarriesNoNumbers() {
         for state in GenerationParameterEmptyState.allCases {
             for copy in [state.title, state.detail].compactMap({ $0 }) {
@@ -161,9 +162,9 @@ struct GenerationParameterEmptyStateTests {
         }
     }
 
-    // MARK: - Relay unverified badge (CR-11)
+    // MARK: - Relay unverified badge
 
-    @Test("CR-11(b)(d): every unknown parameter in a relay locally synthesized profile must carry the badge, and the group note must appear")
+    @Test("Every unknown parameter in a locally synthesized relay profile carries the badge, and the group note appears")
     func everyUnknownRelayParameterCarriesTheBadge() {
         var sawUnknown = false
         for transport in [RelayTransport.openaiChatCompletions, .openaiResponses, .anthropicMessages, .geminiGenerateContent] {
@@ -213,7 +214,7 @@ struct GenerationParameterEmptyStateTests {
         #expect(sawUnknown, "not a single unknown was enumerated; this case tested nothing")
     }
 
-    @Test("CR-11(c): §4.4 relay locally mapped reasoning budget tiers are also subject to the badge")
+    @Test("Locally mapped relay reasoning budget tiers are badged too")
     func relayReasoningBudgetTiersAreBadgedToo() throws {
         let provider = Self.relayProvider(transport: .openaiChatCompletions)
         let model = provider.models[0]
@@ -230,7 +231,7 @@ struct GenerationParameterEmptyStateTests {
         let reasoning = visible.filter(GenerationParameterAvailability.isReasoningParameter)
         #expect(
             Set(reasoning.compactMap(\.id)) == ["reasoning_effort", "reasoning_budget", "reasoning_mode"],
-            "§4.4 reasoning tiers did not appear on the connection-scope panel; this case lost its subject"
+            "the reasoning tiers did not appear on the connection-scope panel; this case lost its subject"
         )
         for parameter in reasoning {
             #expect(parameter.support == "unknown", "locally mapped reasoning tiers are not a measured conclusion")
@@ -243,7 +244,7 @@ struct GenerationParameterEmptyStateTests {
         }
     }
 
-    @Test("CR-11(e): official unknown is editable, but must not impersonate the Relay local-declaration badge")
+    @Test("An official unknown is editable, but must not impersonate the relay local-declaration badge")
     func officialUnknownParametersAreNotBadged() async throws {
         let profile = try await Self.profileFromProductionMetadata(
             parameters: [(id: "temperature", support: "unknown", group: nil)]
@@ -305,8 +306,8 @@ struct GenerationParameterEmptyStateTests {
         )
     }
 
-    /// The profile must be parsed by **production** `MetadataClient` from server-shaped
-    /// metadata JSON, otherwise these assertions only prove the test can construct objects (TG9).
+    /// The profile must be parsed by the production `MetadataClient` from server-shaped metadata
+    /// JSON. Hand-building one here would only prove that the test can construct an object.
     private static func profileFromProductionMetadata(
         parameters: [(id: String, support: String, group: String?)]
     ) async throws -> GenerationProfileRef {

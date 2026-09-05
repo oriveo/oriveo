@@ -88,7 +88,7 @@ private func simulateSyncBehavior(role: String) -> (syncsToCloud: Bool, localOnl
 }
 
 // ══════════════════════════════════════════════════════════
-// Phase 5: MEM-5-01 ~ MEM-5-18
+// Localization, script coverage and robustness of the memory feature
 // ══════════════════════════════════════════════════════════
 
 

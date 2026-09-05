@@ -111,7 +111,9 @@ enum CapabilityEvidenceFacade {
         let grade: Grade
         let scope: Scope
         let policy: RequestPolicy?
- /// `generation_parameter_contract.v1.json#lifecycleCases` official.declared.fixed /
+        /// The raw upstream verdict, kept verbatim even when `support` collapses it to
+        /// `.unknown`. `generationPolicyFor` needs it to tell "nothing was declared" apart from
+        /// an explicit negative such as `fixed` or `mode_dependent`.
         let declaredSupport: String?
         let partitionID: String?
         let providerKind: String
@@ -257,7 +259,10 @@ enum CapabilityEvidenceFacade {
                 verdict = unknown(key: key, reason: .missingEvidence)
             }
         } else if sameKey.isEmpty, query.hasExplicitValue, !isGenerationParameterKey(key) {
- // `sameKey` :**** identity/transport/revision
+            // Reached only when nothing at all is on record for this key. Evidence that exists
+            // but was filtered out by identity, transport or revision is a real signal
+            // (`transportMismatch` / `staleGeneration`) and must not be laundered into an
+            // "accepted unverified" pass just because the user typed a value.
             verdict = Resolution(
                 key: key, support: .unknown, source: .none, grade: .none,
                 requestPolicy: .allowExplicitUnverified,
@@ -315,13 +320,17 @@ enum CapabilityEvidenceFacade {
         key.hasPrefix("generation_parameter/")
     }
 
- /// -- `generation_parameter_contract.v1.json#lifecycleRules`
+    /// Declared verdicts that are negative even though they resolve to `.unknown` support: the
+    /// parameter is not freely settable, so an explicit user value is dropped rather than sent.
     private static let officialNegativeGenerationSupports: Set<String> = [
         "unsupported", "fixed", "mode_dependent", "future_supported",
     ]
 
- /// `capability_evidence_contract.v1.json#official.explicit.*` :""
- /// `accepted` / `accepted_unverified` `dormant` `active`.
+    /// Decides whether an explicitly set generation parameter is sent upstream.
+    ///
+    /// `accepted` and `accepted_unverified` are not evidence of support — they only record that
+    /// a request carrying the value was not rejected — so they arrive here as `.unknown` and
+    /// pass only on the strength of the user having set the value deliberately.
     private static func generationPolicyFor(_ candidate: Candidate, query: Query) -> Resolution {
         switch candidate.support {
         case .supported:
@@ -336,7 +345,9 @@ enum CapabilityEvidenceFacade {
                 policyEvidence: nil
             )
         case .unknown:
- // `fixed` / `mode_dependent` / `future_supported` `.unknown`(facade ),
+            // `fixed`, `mode_dependent` and `future_supported` all resolve to `.unknown`
+            // support, but each is an explicit "you cannot set this". Consult the raw
+            // declaration so the value is omitted instead of being sent and bounced.
             let officialNegative = candidate.declaredSupport
                 .map(officialNegativeGenerationSupports.contains) ?? false
             let allowed = query.hasExplicitValue && !officialNegative
@@ -377,7 +388,8 @@ enum CapabilityEvidenceFacade {
             return true
         case .connectionModelTransport, .exactRequest:
             // Connection-scoped facts must carry every local identity component. A missing field
-            // is not a wildcard: treating it as one would re-enable cross-account / pre-rotation
+            // is not a wildcard: treating it as one would let evidence recorded under another
+            // account, or under a credential that has since been rotated, satisfy this query.
             guard query.partitionID.nonEmpty != nil,
                   query.connectionInstanceID.nonEmpty != nil,
                   query.connectionGeneration.nonEmpty != nil,

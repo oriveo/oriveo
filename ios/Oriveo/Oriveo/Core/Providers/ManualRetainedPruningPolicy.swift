@@ -43,7 +43,10 @@ enum ManualRetainedPruningPolicy {
         }
 
         if !prunedIdentifiers.isEmpty {
-            print("[ManualRetainedPruningPolicy] pruned \(prunedIdentifiers.count) ids from \(provider.kind): \(prunedIdentifiers)")
+            AppLog.info(
+                "Pruned \(prunedIdentifiers.count) manually added model ids from \(provider.kind): \(prunedIdentifiers.sorted())",
+                module: "ProviderCatalog"
+            )
         }
 
         var remaining = provider.models.filter { model in
@@ -73,6 +76,6 @@ enum ManualRetainedPruningPolicy {
 
     static func recordActivation(provider: Provider, count: Int) {
         guard isEnabled, count > 0 else { return }
-        print("[ManualRetainedPruningPolicy] activated \(provider.kind) with \(count) manual models")
+        AppLog.info("Activated \(provider.kind) with \(count) manually added models", module: "ProviderCatalog")
     }
 }

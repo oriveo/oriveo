@@ -72,7 +72,7 @@ struct CapabilityRecipeRequestCompilerTests {
         for item in fixture.cases {
             await MetadataClient.shared.resetForTesting()
             try await MetadataClient.shared.loadForTesting(
-                json: try Self.metadataJSON(for: item, registry: registryObject), metadataETag: "p3b-runtime"
+                json: try Self.metadataJSON(for: item, registry: registryObject), metadataETag: "recipe-runtime"
             )
             if item.providerKind == "gemini" {
                 let resolved = MetadataClient.shared.syncResolveCatalogModel(modelID: item.modelID, providerKind: .gemini)
@@ -232,7 +232,7 @@ struct CapabilityRecipeRequestCompilerTests {
         }
         let runtime: [String: Any] = [
             "schemaVersion": 2,
-            "revision": "p3b-runtime",
+            "revision": "recipe-runtime",
             "generatedAt": "2026-08-11T00:00:00Z",
             "recipes": registry["recipes"] ?? [:],
             "controlDefinitions": registry["controlDefinitions"] ?? [:],
@@ -260,7 +260,7 @@ struct CapabilityRecipeRequestCompilerTests {
         nonisolated(unsafe) var captured: URLRequest?
         RequestShapeContractURLProtocol.requestHandler = { request in
             captured = request
-            let url = request.url ?? URL(string: "https://p3b.invalid")!
+            let url = request.url ?? URL(string: "https://recipe-compiler.invalid")!
             return (HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: ["Content-Type": "text/event-stream"])!, Data())
         }
         let message = ChatMessage(
@@ -370,7 +370,7 @@ struct CapabilityRecipeRequestCompilerTests {
         let baseOwnedArrays: [String: MetadataClient.JSONValue]
         let expectedDelta: [String: MetadataClient.JSONValue]
 
-        var modelID: String { "p3b-\(caseId)" }
+        var modelID: String { "recipe-\(caseId)" }
     }
 
     private struct NegativeCase: Decodable {

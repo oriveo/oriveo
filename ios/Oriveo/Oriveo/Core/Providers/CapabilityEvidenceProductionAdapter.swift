@@ -148,7 +148,9 @@ struct CapabilityEvidenceRequestIdentity: Sendable, Equatable {
         return .init(query: query, runtimeRevision: trimmed)
     }
 
-    /// Capability rejection identity is known as soon as the production builder selects its final
+    /// Narrows the identity once the production builder has settled on a transport, which happens
+    /// before a URL exists. A non-concrete transport returns `nil` rather than recording evidence
+    /// under a placeholder that would later match the wrong dispatch.
     func resolvingCapabilityRuntimeTransport(_ transport: String) -> Self? {
         let trimmed = transport.trimmingCharacters(in: .whitespacesAndNewlines)
         guard CapabilityEvidenceFacade.isConcreteTransport(trimmed) else { return nil }

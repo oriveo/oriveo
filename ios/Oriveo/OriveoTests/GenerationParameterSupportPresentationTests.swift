@@ -50,7 +50,8 @@ struct GenerationParameterSupportPresentationTests {
                 iosEntry.control.rawValue == control,
                 "\(support) editability mismatch: iOS \(iosEntry.control.rawValue) vs contract \(control ?? "nil")"
             )
-            // A disabled control must ship a primary action, otherwise this is another F05 dead end.
+            // A disabled control must ship a primary action; without one the row is a dead end that
+            // tells the user no and offers nothing to do about it.
             if iosEntry.control == .disabled {
                 #expect(iosEntry.primaryAction?.isEmpty == false, "\(support) is disabled but has no primary action")
             }

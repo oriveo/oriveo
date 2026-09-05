@@ -45,12 +45,12 @@ struct ChatFinalizeRemeasureRegressionTests {
     func finalizeTransitionFiresRemeasure() {
         let id = UUID()
         let text = """
-        :
+        An upper-bounded wildcard lets a `List<Integer>` be assigned to a list of numbers:
         ```java
         List<Integer> li = new ArrayList<>();
         List<? extends Number> l1 = li;
         ```
-        .
+        Without the wildcard the second line does not compile, because generics are invariant.
         """
         let parent = UIViewController()
         let cell = AssistantMessageCell(frame: CGRect(x: 0, y: 0, width: 390, height: 300))

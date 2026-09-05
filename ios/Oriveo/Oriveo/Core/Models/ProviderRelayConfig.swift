@@ -114,10 +114,11 @@ nonisolated struct RelayRequestedConfig: Hashable, Sendable {
     var imageResponseFormat: String?
     var webSearchToolName: RelayWebSearchToolName?
     var hasWebSearch: Bool?
-    /// `ant_web_tool` / `gem_web` / `grok_responses_web` / `qwen_web` /
-    /// `zhipu_web` / `or_web` / `kimi_web_search`).
+    /// Names the web search shape this relay's upstream speaks, for example `ant_web_tool`,
+    /// `gem_web`, `grok_responses_web`, `qwen_web`, `zhipu_web`, `or_web` or `kimi_web_search`.
     var webSearchProfile: String?
-    ///   anthropic_messages / gemini_generate_content)
+    /// Wire protocol the relay speaks, for example `openai_chat_completions`, `openai_responses`,
+    /// `anthropic_messages` or `gemini_generate_content`.
     var transportKind: String?
     var resolvedAPIBaseURL: String?
     /// Explicit local engine profile. nil for every existing/cloud Relay.
@@ -450,7 +451,7 @@ enum RelayKindDefaults {
         }
     }
 
-    private static let codexHostHeuristics: [String] = [
-        "packy", "ylsagi", "code-for", "ccswitch", "cc-switch", "codex"
-    ]
+    /// A host that names Codex most likely speaks the Responses protocol. This only seeds the
+    /// initial relay kind for display; an explicit `codexCompatIdentity` always wins over it.
+    private static let codexHostHeuristics: [String] = ["codex"]
 }

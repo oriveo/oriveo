@@ -187,7 +187,9 @@ final class AssistantMessageCell: UICollectionViewCell {
         )
         let wasStreaming = hadStreamingPacer
 
-        // / pacer.visibleText / lastRendered* / streamingHeightFloor / streamingController).
+        // A streaming reconfigure must leave the live streaming state alone: the pacer's visible
+        // text, the last rendered snapshot, the streaming height floor and the controller
+        // subscription all have to survive it.
         // upsertConversationProjection → messageRevision &+= 1 → isStreamingOnlyChange fast path
         let isStreamingReconfigure = previousMessageID == model.messageID
             && isGenerating

@@ -1062,7 +1062,11 @@ private struct GrokSSEFrameLog {
         if chunk.usage != nil { usageFrames += 1; kinds.append("usage") }
         if let reason = choice?.finish_reason, !reason.isEmpty { finishReason = reason }
         #if DEBUG
-        print("[Grok][SSE][\(lane)] #\(frames) kinds=\(kinds.isEmpty ? "empty" : kinds.joined(separator: "+")) len=\(payloadLength) finish_reason=\(choice?.finish_reason ?? "-")")
+        AppLog.info(
+            "SSE frame #\(frames) on \(lane): kinds=\(kinds.isEmpty ? "none" : kinds.joined(separator: "+")) "
+            + "bytes=\(payloadLength) finishReason=\(choice?.finish_reason ?? "none")",
+            module: "Grok"
+        )
         #endif
     }
 
@@ -1070,7 +1074,7 @@ private struct GrokSSEFrameLog {
         frames += 1
         undecodable += 1
         #if DEBUG
-        print("[Grok][SSE][\(lane)] #\(frames) undecodable len=\(payloadLength)")
+        AppLog.info("SSE frame #\(frames) on \(lane) could not be decoded, bytes=\(payloadLength)", module: "Grok")
         #endif
     }
 
@@ -1096,7 +1100,7 @@ struct GrokResponsesSSEFrameLog {
         let key = eventType.isEmpty ? "untyped" : eventType
         counts[key, default: 0] += 1
         #if DEBUG
-        print("[Grok][Responses][\(lane)] #\(frames) type=\(key) len=\(payloadLength)")
+        AppLog.info("Responses frame #\(frames) on \(lane): type=\(key) bytes=\(payloadLength)", module: "Grok")
         #endif
     }
 

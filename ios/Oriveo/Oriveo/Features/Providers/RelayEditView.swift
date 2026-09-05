@@ -350,7 +350,7 @@ struct RelayEditView: View {
         )
     }
 
-    // MARK: - Model Family Banner(Phase G)
+    // MARK: - Model family banner
 
     private func suggestedRelayKindForCurrentModel(editor: Editor) -> RelayKind? {
         let family = RelayFamilyHeuristics.infer(modelID: editor.modelID)
@@ -405,7 +405,7 @@ struct RelayEditView: View {
         )
     }
 
-    // MARK: - Test Connection Row(Phase C)
+    // MARK: - Test connection row
 
     enum TestConnectionResult: Equatable {
         case success(message: String)

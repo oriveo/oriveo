@@ -2218,9 +2218,9 @@ actor MetadataClient {
             let resolvedURL = BackendURLResolver.resolve()
             guard !resolvedURL.isEmpty else { return }
             let urlString = "\(resolvedURL)/api/metadata?view=lean"
-            print("[MetadataClient] fetch: \(urlString)")
+            AppLog.info("Fetching metadata from \(urlString)", module: "Metadata")
             guard let url = URL(string: urlString) else {
-                print("[MetadataClient] invalid metadata URL")
+                AppLog.warning("Metadata endpoint is not a valid URL, skipping the fetch", module: "Metadata")
                 return
             }
 
@@ -2231,7 +2231,7 @@ actor MetadataClient {
 
             let (data, response) = try await dataForBackendRequest(request)
             guard let httpRes = response as? HTTPURLResponse else { return }
-            print("[MetadataClient] status: \(httpRes.statusCode), body: \(data.count) bytes")
+            AppLog.info("Metadata response: status=\(httpRes.statusCode) bytes=\(data.count)", module: "Metadata")
             if httpRes.statusCode == 304 {
                 if AppSessionStore.activeUID == requestedUID, boundUID == requestedUID {
                     Self.snapshotConfirmedThisSession = true
@@ -2245,7 +2245,10 @@ actor MetadataClient {
             let rawDecoded: MetadataResponse
             do {
                 rawDecoded = try decodeMetadataResponse(from: data)
-                print("[MetadataClient] decoded providers: \(rawDecoded.providers.keys.sorted())")
+                AppLog.info(
+                    "Decoded metadata for providers: \(rawDecoded.providers.keys.sorted().joined(separator: ", "))",
+                    module: "Metadata"
+                )
             } catch {
                 reportMetadataDecodingFailure(
                     source: .network,
@@ -2266,7 +2269,7 @@ actor MetadataClient {
             Self.snapshotConfirmedThisSession = true
             Self.syncSelfHealPatternsToClassifier()
         } catch {
-            print("[MetadataClient] fetch failed: \(error)")
+            AppLog.error(error, module: "Metadata", context: ["op": "fetch"])
         }
     }
 

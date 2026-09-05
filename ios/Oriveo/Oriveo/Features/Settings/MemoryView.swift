@@ -1051,7 +1051,7 @@ struct MemoryView: View {
                 }.value
             } catch {
                 #if DEBUG
-                print("[Memory generateDraft] hydrate failed: \(error)")
+                AppLog.error(error, module: "Memory", context: ["op": "generateDraft.hydrate"])
                 #endif
                 guard activeDraftRequestID == requestID else { return }
                 presentDraftError(
@@ -1124,7 +1124,11 @@ struct MemoryView: View {
                     if draft.isEmpty {
                         lastError = ProviderServiceError.emptyResponse
                         #if DEBUG
-                        print("[Memory generateDraft] [\(candidate.provider.displayName)/\(candidate.model.name)] empty response - fallback")
+                        AppLog.info(
+                            "Draft generation returned an empty response, falling back to the next candidate",
+                            module: "Memory",
+                            context: ["model": candidate.model.name]
+                        )
                         #endif
                         continue
                     }
@@ -1140,7 +1144,11 @@ struct MemoryView: View {
                     return
                 } catch {
                     #if DEBUG
-                    print("[Memory generateDraft] [\(candidate.provider.displayName)/\(candidate.model.name)] error: \(error) - fallback")
+                    AppLog.error(
+                        error,
+                        module: "Memory",
+                        context: ["model": candidate.model.name, "op": "generateDraft"]
+                    )
                     #endif
                     lastError = error
                     continue

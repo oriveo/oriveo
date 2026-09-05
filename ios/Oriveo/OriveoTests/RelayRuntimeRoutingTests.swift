@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import Oriveo
 
-/// Phase 09 v3: fixture-driven Relay routing pure-function tests (iOS baseline).
+/// Fixture-driven tests for the pure routing functions a relay send goes through.
 ///
 /// **Single source of truth**: `test-fixtures/relay/routing-fixtures.json` (shared across clients).
 /// This file does not hard-code cases. It decodes the fixture JSON and asserts each case
@@ -15,7 +15,7 @@ import Testing
 /// 1. Append a case (with a unique id) to `routing-fixtures.json`
 /// 2. Update the pure-func implementations on all three clients together
 /// 3. Land only after all three clients re-run green
-@Suite("RelayRuntimeSupport fixture-driven routing (Phase 09 v3)")
+@Suite("Relay runtime routing")
 struct RelayRuntimeRoutingTests {
 
     // MARK: - Fixture loader
@@ -192,7 +192,7 @@ struct RelayRuntimeRoutingTests {
         )
     }
 
-    // MARK: - pickChatDriverModelID (PC-01..05)
+    // MARK: - pickChatDriverModelID
 
     @Test("pickChatDriverModelID fixture cases", arguments: Self.fixture.pickChatDriverModelID.cases)
     func pickChatDriverMatchesFixture(_ c: Fixture.PickChatDriverSection.Case) {

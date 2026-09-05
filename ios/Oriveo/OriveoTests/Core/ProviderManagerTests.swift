@@ -401,8 +401,8 @@ struct ProviderManagerTests {
         let state = makeState()
 
         _ = state.providerManager.registerRelay(
-            name: "packy-claude",
-            endpoint: "https://www.packyapi.com",
+            name: "anthropic-relay",
+            endpoint: "https://relay.example.com",
             apiKey: "sk-test",
             relayRequested: RelayRequestedConfig(transport: .anthropicMessages)
         )
@@ -1618,7 +1618,7 @@ struct ProviderManagerTests {
         #expect(state.conversations.first?.modelID == "gpt-5.4")
     }
 
-    private func loadPhase2OfficialMetadata() async throws {
+    private func loadOfficialCatalogMetadata() async throws {
         await MetadataClient.shared.resetForTesting()
         try await MetadataClient.shared.loadForTesting(json: """
         {
@@ -1765,7 +1765,7 @@ struct ProviderManagerTests {
 
     @Test("Register Provider Qwen Uses Metadata Resolver Catalog")
     func registerProviderQwenUsesMetadataResolverCatalog() async throws {
-        try await loadPhase2OfficialMetadata()
+        try await loadOfficialCatalogMetadata()
         registerProviderManagerSharedMock()
         defer {
             ProviderManagerSharedURLProtocol.requestHandler = nil
@@ -1801,7 +1801,7 @@ struct ProviderManagerTests {
 
     @Test("Register Provider Qwen Alias Maps To Canonical And Preserves Default")
     func registerProviderQwenAliasMapsToCanonicalAndPreservesDefault() async throws {
-        try await loadPhase2OfficialMetadata()
+        try await loadOfficialCatalogMetadata()
         registerProviderManagerSharedMock()
         defer {
             ProviderManagerSharedURLProtocol.requestHandler = nil
@@ -1858,7 +1858,7 @@ struct ProviderManagerTests {
 
     @Test("Register Provider Mini Max Image Models From Metadata")
     func registerProviderMiniMaxImageModelsFromMetadata() async throws {
-        try await loadPhase2OfficialMetadata()
+        try await loadOfficialCatalogMetadata()
         registerProviderManagerSharedMock()
         defer {
             ProviderManagerSharedURLProtocol.requestHandler = nil
@@ -1892,7 +1892,7 @@ struct ProviderManagerTests {
 
     @Test("Register Provider Silicon Flow Vendor From Metadata")
     func registerProviderSiliconFlowVendorFromMetadata() async throws {
-        try await loadPhase2OfficialMetadata()
+        try await loadOfficialCatalogMetadata()
         registerProviderManagerSharedMock()
         defer {
             ProviderManagerSharedURLProtocol.requestHandler = nil
@@ -1926,7 +1926,7 @@ struct ProviderManagerTests {
 
     @Test("Register Provider Zhipu Uses Metadata Catalog")
     func registerProviderZhipuUsesMetadataCatalog() async throws {
-        try await loadPhase2OfficialMetadata()
+        try await loadOfficialCatalogMetadata()
         registerProviderManagerSharedMock()
         defer {
             ProviderManagerSharedURLProtocol.requestHandler = nil
@@ -1967,7 +1967,7 @@ struct ProviderManagerTests {
 
     @Test("Register And Resync Produce Identical Metadata Driven Catalog")
     func registerAndResyncProduceIdenticalMetadataDrivenCatalog() async throws {
-        try await loadPhase2OfficialMetadata()
+        try await loadOfficialCatalogMetadata()
         registerProviderManagerSharedMock()
         defer {
             ProviderManagerSharedURLProtocol.requestHandler = nil
@@ -2011,7 +2011,7 @@ struct ProviderManagerTests {
 
     @Test("Register Provider Prunes Manual Retained When Flag Enabled")
     func registerProviderPrunesManualRetainedWhenFlagEnabled() async throws {
-        try await loadPhase2OfficialMetadata()
+        try await loadOfficialCatalogMetadata()
         registerProviderManagerSharedMock()
         defer {
             ProviderManagerSharedURLProtocol.requestHandler = nil
@@ -2077,7 +2077,7 @@ struct ProviderManagerTests {
 
     @Test("Register Provider Creates Fresh Official Instance Without Manual Retained")
     func registerProviderCreatesFreshOfficialInstanceWithoutManualRetained() async throws {
-        try await loadPhase2OfficialMetadata()
+        try await loadOfficialCatalogMetadata()
         registerProviderManagerSharedMock()
         defer {
             ProviderManagerSharedURLProtocol.requestHandler = nil
@@ -2238,7 +2238,7 @@ struct ProviderManagerTests {
 
     @Test("Different Region Different Deterministic ID")
     func differentRegionDifferentDeterministicID() async throws {
-        try await loadPhase2OfficialMetadata()
+        try await loadOfficialCatalogMetadata()
         registerProviderManagerSharedMock()
         defer {
             ProviderManagerSharedURLProtocol.requestHandler = nil

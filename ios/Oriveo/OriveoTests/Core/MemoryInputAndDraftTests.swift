@@ -83,8 +83,8 @@ private func makeConversationMessages(rounds: Int) -> [ChatMessage] {
 
 
 
-@Suite("MEM-401 empty string input")
-struct MEM401EmptyStringInputTests {
+@Suite("Memory empty string input")
+struct MemoryEmptyStringInputTests {
 
     @Test("Empty string clears all")
     func emptyStringClearsAll() {
@@ -103,8 +103,8 @@ struct MEM401EmptyStringInputTests {
 }
 
 
-@Suite("MEM-402 whitespace trim")
-struct MEM402WhitespaceTrimTests {
+@Suite("Memory whitespace trim")
+struct MemoryWhitespaceTrimTests {
 
     @Test("Leading trailing spaces trimmed on injection")
     func leadingTrailingSpacesTrimmedOnInjection() {
@@ -130,8 +130,8 @@ struct MEM402WhitespaceTrimTests {
 }
 
 
-@Suite("MEM-403 whitespace only")
-struct MEM403WhitespaceOnlyTests {
+@Suite("Memory whitespace only")
+struct MemoryWhitespaceOnlyTests {
 
     @Test("Whitespace only treated as empty", arguments: [
         "\n",
@@ -156,8 +156,8 @@ struct MEM403WhitespaceOnlyTests {
 }
 
 
-@Suite("MEM-404 multiline preserved")
-struct MEM404MultilinePreservedTests {
+@Suite("Memory multiline preserved")
+struct MemoryMultilinePreservedTests {
 
     @Test("Multiline preserved in system prompt")
     func multilinePreservedInSystemPrompt() {
@@ -185,8 +185,8 @@ struct MEM404MultilinePreservedTests {
 }
 
 
-@Suite("MEM-406 emoji grapheme")
-struct MEM406EmojiGraphemeTests {
+@Suite("Memory emoji grapheme")
+struct MemoryEmojiGraphemeTests {
 
     @Test("Family emoji counts as one")
     func familyEmojiCountsAsOne() {
@@ -236,8 +236,8 @@ struct MEM406EmojiGraphemeTests {
 }
 
 
-@Suite("MEM-407 international char")
-struct MEM407InternationalCharTests {
+@Suite("Memory international char")
+struct MemoryInternationalCharTests {
 
     @Test("CJK character counting")
     func cjkCharacterCounting() {
@@ -282,8 +282,8 @@ struct MEM407InternationalCharTests {
 }
 
 
-@Suite("MEM-408 preview truncation grapheme safe")
-struct MEM408PreviewTruncationGraphemeSafeTests {
+@Suite("Memory preview truncation grapheme safe")
+struct MemoryPreviewTruncationGraphemeSafeTests {
 
     @Test("Settings 30-char preview is emoji-safe")
     func settings30CharPreviewEmojiSafe() {
@@ -327,8 +327,8 @@ struct MEM408PreviewTruncationGraphemeSafeTests {
 }
 
 
-@Suite("MEM-413 draft truncation")
-struct MEM413DraftTruncationTests {
+@Suite("Memory draft truncation")
+struct MemoryDraftTruncationTests {
 
     @Test("Truncates at 2000 characters")
     func truncatesAt2000() {
@@ -364,8 +364,8 @@ struct MEM413DraftTruncationTests {
 }
 
 
-@Suite("MEM-426 anti forget not exposed")
-struct MEM426AntiForgetNotExposedTests {
+@Suite("Memory anti forget not exposed")
+struct MemoryAntiForgetNotExposedTests {
 
     @Test("Anti-forget only modifies copy")
     func antiForgetOnlyModifiesCopy() {
@@ -416,8 +416,8 @@ struct MEM426AntiForgetNotExposedTests {
 
 
 
-@Suite("MEM-S03 JSON encoding")
-struct MEMS03JsonEncodingTests {
+@Suite("Memory JSON encoding")
+struct MemoryJsonEncodingTests {
 
     @Test("Backslash encodes correctly")
     func backslashEncodesCorrectly() throws {
@@ -466,8 +466,8 @@ struct MEMS03JsonEncodingTests {
 }
 
 
-@Suite("MEM-S04 prompt injection")
-struct MEMS04PromptInjectionTests {
+@Suite("Memory prompt injection")
+struct MemoryPromptInjectionTests {
 
     @Test("Ignore all instructions handled safely")
     func ignoreAllInstructionsHandledSafely() {
@@ -504,8 +504,8 @@ struct MEMS04PromptInjectionTests {
 }
 
 
-@Suite("MEM-S11 anti forget escape")
-struct MEMS11AntiForgetEscapeTests {
+@Suite("Memory anti forget escape")
+struct MemoryAntiForgetEscapeTests {
 
     @Test("Closing bracket with system does not break format")
     func closingBracketWithSystemDoesNotBreakFormat() {
@@ -563,8 +563,8 @@ struct MEMS11AntiForgetEscapeTests {
 
 
 
-@Suite("MEM-B01 large paste")
-struct MEMB01LargePasteTests {
+@Suite("Memory large paste")
+struct MemoryLargePasteTests {
 
     @Test("Five thousand chars truncated")
     func fiveThousandCharsTruncated() {
@@ -609,8 +609,8 @@ struct MEMB01LargePasteTests {
 }
 
 
-@Suite("MEM-B02 anti forget truncation")
-struct MEMB02AntiForgetTruncationTests {
+@Suite("Memory anti forget truncation")
+struct MemoryAntiForgetTruncationTests {
 
     @Test("Three hundred chars truncated")
     func threeHundredCharsTruncated() {
@@ -655,8 +655,8 @@ struct MEMB02AntiForgetTruncationTests {
 }
 
 
-@Suite("MEM-B03 zero width char")
-struct MEMB03ZeroWidthCharTests {
+@Suite("Memory zero width char")
+struct MemoryZeroWidthCharTests {
 
     @Test("Zero width space handled safely")
     func zeroWidthSpaceHandledSafely() {
@@ -698,8 +698,8 @@ struct MEMB03ZeroWidthCharTests {
 }
 
 
-@Suite("MEM-B04 pure emoji2000")
-struct MEMB04PureEmoji2000Tests {
+@Suite("Memory pure emoji2000")
+struct MemoryPureEmoji2000Tests {
 
     @Test("Two thousand simple emojis")
     func twoThousandSimpleEmojis() {
@@ -731,8 +731,8 @@ struct MEMB04PureEmoji2000Tests {
 }
 
 
-@Suite("MEM-B06 RTL mixed")
-struct MEMB06RTLMixedTests {
+@Suite("Memory RTL mixed")
+struct MemoryRTLMixedTests {
 
     @Test("Arabic english mixed")
     func arabicEnglishMixed() {
@@ -768,8 +768,8 @@ struct MEMB06RTLMixedTests {
 }
 
 
-@Suite("MEM-B12 markdown plain text")
-struct MEMB12MarkdownPlainTextTests {
+@Suite("Memory markdown plain text")
+struct MemoryMarkdownPlainTextTests {
 
     @Test("Markdown saved as plain text")
     func markdownSavedAsPlainText() {
@@ -806,8 +806,8 @@ struct MEMB12MarkdownPlainTextTests {
 }
 
 
-@Suite("MEM-B13 multimodal anti forget")
-struct MEMB13MultimodalAntiForgetTests {
+@Suite("Memory multimodal anti forget")
+struct MemoryMultimodalAntiForgetTests {
 
     @Test("Anti-forget appends to text not attachment")
     func antiForgetAppendsToTextNotAttachment() {
@@ -891,8 +891,8 @@ struct MEMB13MultimodalAntiForgetTests {
 }
 
 
-@Suite("Phase4 integration")
-struct Phase4IntegrationTests {
+@Suite("Memory integration")
+struct MemoryIntegrationTests {
 
     @Test("Full flow with special chars")
     func fullFlowWithSpecialChars() {
@@ -1015,8 +1015,8 @@ private func sanitizeErrorMessage(_ message: String) -> String {
 
 
 
-@Suite("MEM-405 long no space")
-struct MEM405LongNoSpaceTests {
+@Suite("Memory long no space")
+struct MemoryLongNoSpaceTests {
 
     @Test("Long latin no space settings preview")
     func longLatinNoSpaceSettingsPreview() {
@@ -1076,8 +1076,8 @@ struct MEM405LongNoSpaceTests {
 }
 
 
-@Suite("MEM-409 no draft provider")
-struct MEM409NoDraftProviderTests {
+@Suite("Memory no draft provider")
+struct MemoryNoDraftProviderTests {
 
     @Test("No provider cannot draft")
     func noProviderCannotDraft() {
@@ -1144,8 +1144,8 @@ struct MEM409NoDraftProviderTests {
 }
 
 
-@Suite("MEM-410 no conversation draft")
-struct MEM410NoConversationDraftTests {
+@Suite("Memory no conversation draft")
+struct MemoryNoConversationDraftTests {
 
     @Test("No conversations cannot draft")
     func noConversationsCannotDraft() {
@@ -1185,8 +1185,8 @@ struct MEM410NoConversationDraftTests {
 }
 
 
-@Suite("MEM-411 draft failure")
-struct MEM411DraftFailureTests {
+@Suite("Memory draft failure")
+struct MemoryDraftFailureTests {
 
     @Test("Memory text unchanged after draft failure")
     func memoryTextUnchangedAfterDraftFailure() {
@@ -1227,8 +1227,8 @@ struct MEM411DraftFailureTests {
 }
 
 
-@Suite("MEM-412 draft cancellation")
-struct MEM412DraftCancellationTests {
+@Suite("Memory draft cancellation")
+struct MemoryDraftCancellationTests {
 
     @Test("Stale request id discarded")
     func staleRequestIdDiscarded() {
@@ -1273,8 +1273,8 @@ struct MEM412DraftCancellationTests {
 }
 
 
-@Suite("MEM-414 draft conflict")
-struct MEM414DraftConflictTests {
+@Suite("Memory draft conflict")
+struct MemoryDraftConflictTests {
 
     @Test("User edit prevents auto apply")
     func userEditPreventsAutoApply() {
@@ -1335,8 +1335,8 @@ struct MEM414DraftConflictTests {
 }
 
 
-@Suite("MEM-418 idempotent save")
-struct MEM418IdempotentSaveTests {
+@Suite("Memory idempotent save")
+struct MemoryIdempotentSaveTests {
 
     @Test("Five identical saves produce same result")
     func fiveIdenticalSavesProduceSameResult() {
@@ -1394,8 +1394,8 @@ struct MEM418IdempotentSaveTests {
 }
 
 
-@Suite("MEM-421 save then send")
-struct MEM421SaveThenSendTests {
+@Suite("Memory save then send")
+struct MemorySaveThenSendTests {
 
     @Test("Save and immediately build request")
     func saveAndImmediatelyBuildRequest() {
@@ -1440,8 +1440,8 @@ struct MEM421SaveThenSendTests {
 }
 
 
-@Suite("MEM-422 draft logout")
-struct MEM422DraftLogoutTests {
+@Suite("Memory draft logout")
+struct MemoryDraftLogoutTests {
 
     @Test("Logout nulls request id late draft ignored")
     func logoutNullsRequestIdLateDraftIgnored() {
@@ -1485,8 +1485,8 @@ struct MEM422DraftLogoutTests {
 }
 
 
-@Suite("MEM-425 provider removal")
-struct MEM425ProviderRemovalTests {
+@Suite("Memory provider removal")
+struct MemoryProviderRemovalTests {
 
     @Test("Memory save load without provider")
     func memorySaveLoadWithoutProvider() {
@@ -1537,8 +1537,8 @@ struct MEM425ProviderRemovalTests {
 }
 
 
-@Suite("MEM-S07 error no API key")
-struct MEMS07ErrorNoApiKeyTests {
+@Suite("Memory error no API key")
+struct MemoryErrorNoApiKeyTests {
 
     @Test("Sk key redacted from error")
     func skKeyRedactedFromError() {
@@ -1587,8 +1587,8 @@ struct MEMS07ErrorNoApiKeyTests {
 }
 
 
-@Suite("MEM-B07 draft during save")
-struct MEMB07DraftDuringSaveTests {
+@Suite("Memory draft during save")
+struct MemoryDraftDuringSaveTests {
 
     @Test("User save during draft preserved")
     func userSaveDuringDraftPreserved() {
@@ -1632,8 +1632,8 @@ struct MEMB07DraftDuringSaveTests {
 }
 
 
-@Suite("MEM-B08 rate limit")
-struct MEMB08RateLimitTests {
+@Suite("Memory rate limit")
+struct MemoryRateLimitTests {
 
     @Test("Rate limit does not corrupt memory")
     func rateLimitDoesNotCorruptMemory() {
@@ -1684,8 +1684,8 @@ struct MEMB08RateLimitTests {
 }
 
 
-@Suite("MEM-B09 empty draft")
-struct MEMB09EmptyDraftTests {
+@Suite("Memory empty draft")
+struct MemoryEmptyDraftTests {
 
     @Test("Empty string draft not applied")
     func emptyStringDraftNotApplied() {

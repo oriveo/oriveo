@@ -4,7 +4,7 @@
 import Foundation
 import Testing
 
-@Suite("Phase 5 Presentation Contract (iOS)", .serialized)
+@Suite("Presentation contract", .serialized)
 struct PresentationContractTests {
 
     // MARK: - Fixture schema

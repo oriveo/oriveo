@@ -1,6 +1,11 @@
 import Foundation
 
-/// Server `provider + exact model + transport + recipeRef`,
+/// Applies server-delivered capability recipes to an outbound request body.
+///
+/// A recipe is only ever selected by the exact `provider + model + transport + recipeRef` tuple
+/// it was published under. Nothing here infers a request shape from a model id or a provider
+/// kind: with no matching recipe the compiler reports that there is no automatic configuration
+/// rather than guessing one.
 enum CapabilityRecipeRequestCompiler {
     struct LegacyInput: Sendable, Equatable {
         /// `false` means a capability runtime was delivered, so legacy profiles must
@@ -50,12 +55,14 @@ enum CapabilityRecipeRequestCompiler {
         // a relay endpoint lives on the user's own machine and is never in the server catalog,
         // so it can *never* obtain a `generation` control. Applying the "runtime delivered but
         // no matching control ⇒ zero delta" rule to relay does not disable a capability for one
-        // release - it makes relay generation parameters permanently dead, while the UI keeps
- // showing temperature / max_tokens / top_p / seed as set. That is the " / no-op"
-        // Android already draws this line, and draws it in exactly this place -
-        // `ProviderRequestProfiles.kt:474-477`: no runtime ⇒ relay keeps the full legacy
-        // projection, while official providers keep the projection with `permitsOutbound = false`
-        // half, so the two ends diverged on relay.
+        // release - it makes relay generation parameters permanently dead while the UI keeps
+        // showing temperature / max_tokens / top_p / seed as set: the control reads as on and
+        // silently does nothing.
+        //
+        // The Android client draws the same line in the same place, in
+        // `ProviderRequestProfiles.kt`: with no runtime, relay keeps the full legacy projection
+        // while official providers keep the projection with `permitsOutbound = false`. Diverging
+        // here would make the two clients send different bodies for the same relay setup.
         if providerKind == .relay { return (false, nil, nil, nil) }
         guard case let .active(runtime, controls) = runtimeMode(
             providerKind: providerKind, modelID: modelID
@@ -130,7 +137,10 @@ enum CapabilityRecipeRequestCompiler {
         return results
     }
 
- /// fixture production compiler hook:recipe registry/runtime
+    /// Non-mutating overload: compiles onto a copy of `base` and returns the result.
+    ///
+    /// This is the entry point fixture-driven tests use, so they exercise the same compiler that
+    /// production dispatch runs instead of a parallel implementation that could drift from it.
     static func compile(
         recipe: MetadataClient.CapabilityRecipe,
         providerKind: String,
@@ -224,8 +234,9 @@ enum CapabilityRecipeRequestCompiler {
             transport: transport, capability: capability.rawValue, selectedIntent: selectedIntent,
             availableIntents: control.availableIntents, omittingPointers: pointersToOmit
         )
-        // A compilation is deliberately only a candidate.  The final JSON encoder confirms it
-        // after every remaining production mutation has succeeded; failed encoding never becomes
+        // A compilation is deliberately only a candidate. The final JSON encoder confirms it
+        // after every remaining production mutation has succeeded; a body that fails to encode
+        // must never be recorded as a delta that was actually sent.
         CapabilityExecutionRuntime.recordCompiledDelta(
             recipe: recipe,
             runtime: runtime,
@@ -315,9 +326,13 @@ enum CapabilityRecipeRequestCompiler {
         return .init(applied: true, reason: nil, redactedPreview: redact(delta))
     }
 
- /// / `/model-contracts/provider_recipe_request_compiler.v1.json`
- /// `requestOpMerge`:**last-specific-wins**, last-write-wins.
- /// 1. foreignOp(intent != selectedIntent);
+    /// Reduces a recipe's request ops to the set that applies to `selectedIntent`.
+    ///
+    /// The rule is **most specific wins**, not last write wins — the order of ops inside a recipe
+    /// must not change the compiled body:
+    /// 1. ops carrying a different intent are dropped;
+    /// 2. where a pointer has both an intent-specific op and a generic, intent-less one, the
+    ///    intent-specific op wins and the generic one is discarded.
     static func mergedRequestOps(
         _ operations: [MetadataClient.CapabilityRecipeOperation],
         selectedIntent: String?
@@ -339,13 +354,14 @@ enum CapabilityRecipeRequestCompiler {
         guard let pointer = operation.pointer else { return false }
         switch operation.op {
         case "append":
- // request_preference_contract.v2
- // ,"""".
+            // Only the allowlisted array roots accept an append. Any other pointer fails the
+            // operation rather than creating a container the request builder owns.
             guard let root = appendTargetRoot(for: pointer),
                   let value = operation.value?.foundationValue else { return false }
             var elements = body[root] as? [Any] ?? []
- // D8 append :stableJson(value) ( builder
- // ). web_search .
+            // Append is idempotent. The builder may already have placed an equivalent element
+            // (a web search tool, typically), and appending a second copy would send the tool
+            // twice. Compare by canonical JSON, not by object identity.
             guard !elements.contains(where: { stableJSON($0) == stableJSON(value) }) else { return true }
             elements.append(value)
             body[root] = elements
@@ -358,9 +374,11 @@ enum CapabilityRecipeRequestCompiler {
         }
     }
 
- /// append .pointer `/-` ( requestOpMerge 5 :
- /// append "", `/-` ,),
- /// owned array root .
+    /// Resolves an append pointer to the array root it is allowed to write to.
+    ///
+    /// Only pointers ending in `/-` are appends, and only the roots listed here are writable.
+    /// Returning `nil` fails the operation instead of conjuring a container, so a recipe can
+    /// never append into a root that the request builder owns.
     private static func appendTargetRoot(for pointer: String) -> String? {
         guard pointer.hasSuffix("/-") else { return nil }
         switch String(pointer.dropLast(2)) {
@@ -389,7 +407,8 @@ enum CapabilityRecipeRequestCompiler {
         object[head] = child
     }
 
- /// `requestOpMerge.stableJson`: key JSON,.
+    /// Canonical JSON used for equality checks: keys are sorted, so two structurally identical
+    /// values compare equal no matter which order their keys were built in.
     private static func stableJSON(_ value: Any) -> String {
         guard JSONSerialization.isValidJSONObject(["v": value]),
               let data = try? JSONSerialization.data(
@@ -444,9 +463,12 @@ enum CapabilityRecipeRequestCompiler {
 
     private static func reasoningIntent(_ mode: ReasoningMode) -> String? { mode.intentToken }
 
- /// owner + intent → capability evidence key. key ,
- /// exact runtime/source/owner cache owner dormant;
- /// failed-message CTA latch pointer .
+    /// Maps an owner and its selected intent onto the evidence keys that record upstream
+    /// rejection for it.
+    ///
+    /// Reasoning is keyed per level, so a rejection of one level does not quietly disable the
+    /// others. Generation returns no key at all: it is governed pointer by pointer through the
+    /// dormant-pointer cache rather than as a single capability.
     static func capabilityEvidenceKeys(
         capability: RequestPreferenceOwner,
         selectedIntent: String?

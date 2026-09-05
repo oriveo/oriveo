@@ -2,7 +2,7 @@ import Testing
 import UIKit
 @testable import Oriveo
 
-@Suite("Phase 3b • ChatKeyboardCoordinator effectiveViewport")
+@Suite("ChatKeyboardCoordinator effectiveViewport")
 @MainActor
 struct ChatKeyboardCoordinatorTests {
     @Test("Keyboard Hidden Full Height")

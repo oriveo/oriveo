@@ -2,7 +2,9 @@ import Foundation
 import Testing
 @testable import Oriveo
 
-/// `usesLegacyMapping: false`;`ProfileParamsResolver.reasoningMergeParams` /
+/// Builds capability runtime envelopes and controls from the shared recipe registry fixtures, so
+/// tests exercise the same shapes the app receives from the server instead of hand-written
+/// approximations that can drift away from the contract.
 enum CapabilityRuntimeFixtures {
 
     static let defaultRevision = "runtime-fixture"

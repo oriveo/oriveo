@@ -22,7 +22,7 @@ struct OpenAIResponsesStrategy: TransportStrategy {
             events.append(.delta(delta))
         }
 
-        // / `response.reasoning.delta` / `response.reasoning_summary.delta`;
+        // Reasoning arrives under more than one event name; all of them carry the same delta.
         if (type == "response.reasoning.delta"
             || type == "response.reasoning_summary_text.delta"
             || type == "response.reasoning_summary.delta"),

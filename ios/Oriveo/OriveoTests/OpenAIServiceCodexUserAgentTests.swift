@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import Oriveo
 
-/// Phase 09 v3: integration asserts for Codex identity headers on Relay requests
+/// Integration asserts for the Codex identity headers Oriveo sends on relay requests
 /// and the Responses inline tool body.
 ///
 /// Intercepts the actual URLRequest via URLProtocol and asserts:
@@ -12,7 +12,7 @@ import Testing
 /// - user-supplied headers can override the Codex UA (escape hatch)
 /// - `/images/generations` 404 maps to copy that points at switching transport
 /// - Codex UA 403 bodies are recognized and mapped to friendly copy
-@Suite("OpenAIService Codex identity + inline image tool (Phase 09 v3)", .serialized)
+@Suite("OpenAIService Codex identity and inline image tool", .serialized)
 struct OpenAIServiceCodexUserAgentTests {
 
     private func makeMessage(_ text: String) -> ChatMessage {
@@ -502,7 +502,8 @@ struct OpenAIServiceCodexUserAgentTests {
             Issue.record("expected request body captured, got: \(snap.bodies.count) bodies")
             return
         }
-        // Default protocol name is web_search (OpenAI-recommended + packy mainstream)
+        // `web_search` is the current protocol name; `web_search_preview` is the legacy one and
+        // must not be sent by default.
         let tools = json["tools"] as? [[String: Any]] ?? []
         let types = tools.compactMap { $0["type"] as? String }
         #expect(types.contains("image_generation"), "default should include image_generation, got types=\(types)")

@@ -249,11 +249,22 @@ final class ConversationManager {
             }
             #if DEBUG
             let startOfToday = Calendar.current.startOfDay(for: now)
-            print("[CONV_DEBUG] homeConversationSections: branch=authoritative memConv=\(conversations.count) cachedRecent=\(cachedRecentConversations.count) dbRecent=\(snapshot.recentConversations.count) dbEarlier=\(snapshot.earlierConversations.count) mergedRecent=\(recentInput.count)")
+            AppLog.info(
+                "Home sections from the authoritative branch: inMemory=\(conversations.count) "
+                + "cachedRecent=\(cachedRecentConversations.count) storedRecent=\(snapshot.recentConversations.count) "
+                + "storedEarlier=\(snapshot.earlierConversations.count) mergedRecent=\(recentInput.count)",
+                module: "Conversations"
+            )
             for c in recentInput.prefix(5) {
                 let age = now.timeIntervalSince(c.updatedAt)
                 let isToday = c.updatedAt >= startOfToday
-                print("[CONV_DEBUG]   recent: \(c.id.uuidString.prefix(8)) updatedAt=\(c.updatedAt) age=\(String(format: "%.0f", age))s isToday=\(isToday) draft=\(c.isDraft) folder=\(c.folderID?.uuidString.prefix(8) ?? "nil") visible=\(c.isVisibleInUngroupedConversationList)")
+                AppLog.info(
+                    "  recent conversation \(c.id.uuidString.prefix(8)): updatedAt=\(c.updatedAt) "
+                    + "age=\(String(format: "%.0f", age))s isToday=\(isToday) draft=\(c.isDraft) "
+                    + "folder=\(c.folderID?.uuidString.prefix(8) ?? "none") "
+                    + "visible=\(c.isVisibleInUngroupedConversationList)",
+                    module: "Conversations"
+                )
             }
             #endif
             let result = Self.makeHomeConversationSections(
@@ -263,7 +274,10 @@ final class ConversationManager {
                 now: now
             )
             #if DEBUG
-            print("[CONV_DEBUG]   sections: \(result.map { "\($0.section)=\($0.conversations.count)" })")
+            AppLog.info(
+                "  sections: \(result.map { "\($0.section)=\($0.conversations.count)" })",
+                module: "Conversations"
+            )
             #endif
             return result
         }

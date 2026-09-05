@@ -26,7 +26,7 @@ final class CurrentConversationObservation {
             scheduling: .immediate,
             onError: { [weak self] error in
                 #if DEBUG
-                print("[CurrentConversationObservation] \(error)")
+                AppLog.error(error, module: "Conversations", context: ["op": "observeConversationSummary"])
                 #endif
                 MainActor.assumeIsolated {
                     guard let strongSelf = self, strongSelf.observedConversationID == conversationID else { return }

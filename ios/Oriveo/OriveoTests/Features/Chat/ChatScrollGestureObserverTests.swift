@@ -2,7 +2,7 @@ import Testing
 import UIKit
 @testable import Oriveo
 
-@Suite("Phase 3b • ChatScrollGestureObserver distance")
+@Suite("ChatScrollGestureObserver distance")
 @MainActor
 struct ChatScrollGestureObserverTests {
     private func scrollView(contentHeight: CGFloat, offsetY: CGFloat) -> UIScrollView {

@@ -328,8 +328,10 @@ final class OpenRouterService: BaseAPIService, ProviderServiceProtocol, BalanceQ
 
         #if DEBUG
         if supportsImageGen {
-            print(
-                "[ImageGen][OpenRouter] request: model=\(payload.model), modalities=\(payload.modalities ?? []), max_tokens=\(payload.max_tokens.map(String.init) ?? "nil"), messageCount=\(payload.messages.count)"
+            AppLog.info(
+                "Image generation request: model=\(payload.model), modalities=\(payload.modalities ?? []), "
+                + "maxTokens=\(payload.max_tokens.map(String.init) ?? "unset"), messages=\(payload.messages.count)",
+                module: "ImageGen"
             )
         }
         #endif
@@ -377,8 +379,9 @@ final class OpenRouterService: BaseAPIService, ProviderServiceProtocol, BalanceQ
                let retryDelayMs = mappedError.retryDelayMilliseconds,
                retryDelayMs <= 1_000 {
                 #if DEBUG
-                print(
-                    "[ImageGen][OpenRouter] retrying after \(retryDelayMs)ms due to upstream 429: \(mappedError.error.technicalDetail)"
+                AppLog.info(
+                    "Upstream returned 429, retrying in \(retryDelayMs)ms: \(mappedError.error.technicalDetail)",
+                    module: "ImageGen"
                 )
                 #endif
                 try await Task.sleep(nanoseconds: UInt64(max(retryDelayMs, 50)) * 1_000_000)
@@ -402,11 +405,11 @@ final class OpenRouterService: BaseAPIService, ProviderServiceProtocol, BalanceQ
         } catch {
             #if DEBUG
             let statusCode = (rawResponse as? HTTPURLResponse)?.statusCode ?? -1
-            let preview = String(data: data, encoding: .utf8)
-                .map { String($0.prefix(2_000)) }
-                ?? "<non-utf8 body: \(data.count) bytes>"
-            print("[ImageGen][OpenRouter] decode failed: model=\(modelID), status=\(statusCode), error=\(error)")
-            print("[ImageGen][OpenRouter] raw response preview: \(preview)")
+            AppLog.warning(
+                "Could not decode the response: model=\(modelID) status=\(statusCode) "
+                + "bytes=\(data.count) error=\(error)",
+                module: "ImageGen"
+            )
             #endif
             throw ProviderServiceError.network(detail: "Decoding failed: \(error.localizedDescription)")
         }
@@ -419,9 +422,12 @@ final class OpenRouterService: BaseAPIService, ProviderServiceProtocol, BalanceQ
         #if DEBUG
         switch choice.message.content {
         case .text(let t):
-            print("[ImageGen][OpenRouter] content=.text(\(t.count)chars)")
+            AppLog.info("Response content is text, \(t.count) characters", module: "ImageGen")
         case .parts(let p):
-            print("[ImageGen][OpenRouter] content=.parts(\(p.count)): types=\(p.map { $0.type ?? "nil" })")
+            AppLog.info(
+                "Response content has \(p.count) parts: \(p.map { $0.type ?? "untyped" })",
+                module: "ImageGen"
+            )
         }
         #endif
         let rawText = choice.message.content.textValue
@@ -432,7 +438,11 @@ final class OpenRouterService: BaseAPIService, ProviderServiceProtocol, BalanceQ
         let text = ContentValue.stripInlineImages(from: rawText)
             .trimmingCharacters(in: .whitespacesAndNewlines)
         #if DEBUG
-        print("[ImageGen][OpenRouter] rawText=\(rawText.count)chars, cleanText=\(text.count)chars, images=\(imageAttachments.count)")
+        AppLog.info(
+            "Parsed response: raw \(rawText.count) characters, cleaned \(text.count) characters, "
+            + "\(imageAttachments.count) images",
+            module: "ImageGen"
+        )
         #endif
         guard !text.isEmpty || !imageAttachments.isEmpty else {
             throw ProviderServiceError.emptyResponse
@@ -548,8 +558,12 @@ final class OpenRouterService: BaseAPIService, ProviderServiceProtocol, BalanceQ
                     )
                     #if DEBUG
                     if supportsImageGen {
-                        print(
-                            "[ImageGen][OpenRouter] stream request: model=\(payload.model), modalities=\(payload.modalities ?? []), max_tokens=\(payload.max_tokens.map(String.init) ?? "nil"), messageCount=\(payload.messages.count)"
+                        AppLog.info(
+                            "Image generation stream request: model=\(payload.model), "
+                            + "modalities=\(payload.modalities ?? []), "
+                            + "maxTokens=\(payload.max_tokens.map(String.init) ?? "unset"), "
+                            + "messages=\(payload.messages.count)",
+                            module: "ImageGen"
                         )
                     }
                     #endif
@@ -850,8 +864,10 @@ final class OpenRouterService: BaseAPIService, ProviderServiceProtocol, BalanceQ
             : nil
 
         #if DEBUG
-        print(
-            "[ImageGen][OpenRouter] mapped error envelope: httpStatus=\(httpStatusCode), effectiveStatus=\(effectiveStatus), retryAfterMs=\(retryDelayMilliseconds.map(String.init) ?? "nil"), detail=\(mappedError.technicalDetail)"
+        AppLog.info(
+            "Mapped the error envelope: httpStatus=\(httpStatusCode), effectiveStatus=\(effectiveStatus), "
+            + "retryAfterMs=\(retryDelayMilliseconds.map(String.init) ?? "none"), detail=\(mappedError.technicalDetail)",
+            module: "ImageGen"
         )
         #endif
 

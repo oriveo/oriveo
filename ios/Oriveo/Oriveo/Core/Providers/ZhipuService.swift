@@ -123,7 +123,10 @@ final class ZhipuService: BaseAPIService, ProviderServiceProtocol {
 
                     var accumulatedText = ""
                     var lastUsage: ZhipuUsage?
-                    // streamShape.citationsArrayPath = choices.0.delta.tool_calls.0.web_search.search_result,
+                    // Zhipu nests web search results inside the tool call delta
+                    // (`choices.0.delta.tool_calls.0.web_search.search_result`). The exact path
+                    // comes from the model's web search profile rather than being hard-coded here,
+                    // so a change upstream is a metadata update instead of a client release.
                     let zhipuStrategy = TransportRegistry.strategy(for: .openaiChat)
                     let zhipuShape = MetadataClient.shared.syncWebSearchStreamShape(
                         profileName: MetadataClient.shared.syncResolveCatalogModel(

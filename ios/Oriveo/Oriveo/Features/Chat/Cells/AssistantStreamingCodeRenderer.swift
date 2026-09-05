@@ -3,7 +3,10 @@ import UIKit
 
 @MainActor
 final class AssistantStreamingCodeRenderer {
- /// shadow :bounds shadowPath--, shadowPath
+    /// Recomputes `shadowPath` from the current `bounds` on every layout pass.
+    /// The card grows with each streamed chunk, so a path computed once would
+    /// trail the card's real outline; an explicit path also keeps the shadow off
+    /// the offscreen-rendering path.
     private final class ShadowContainerView: UIView {
         override func layoutSubviews() {
             super.layoutSubviews()
@@ -63,11 +66,13 @@ final class AssistantStreamingCodeRenderer {
         lastRenderedCode = code
         highlightNewlyCompletedLines()
 
- // cell self-sizing bounds( UIKitCodeBlockCard ).
+        // Measure against a stable width rather than the live bounds: during cell
+        // self-sizing neither view has been laid out yet, so both report zero and the
+        // fitting height would collapse. Same anchor rule as `UIKitCodeBlockCard`.
         if !isHeightCapped {
             let measuredWidth = textView.bounds.width > 0
                 ? textView.bounds.width
- : view.bounds.width // layout textView.bounds=0, view.bounds
+                : view.bounds.width
             let targetWidth = ChatCardStableWidth.anchor(for: view)
                 ?? (measuredWidth > 0 ? measuredWidth : UIScreen.main.bounds.width - ChatCardStableWidth.contentChrome)
             let fittingSize = textView.sizeThatFits(CGSize(
@@ -105,7 +110,7 @@ final class AssistantStreamingCodeRenderer {
         resetHighlightState()
     }
 
- // MARK: -
+    // MARK: - Incremental highlighting
 
     private func resetHighlightState() {
         highlightedPrefixUTF16 = 0
@@ -205,9 +210,16 @@ final class AssistantStreamingCodeRenderer {
         return result
     }
 
- /// - Parameter fullContent: (committed segment.content).chunker
- /// codeChunk "+ fence "(codeChunkBoundary clamp
- /// harvest/instant backlog ( spring+plain).
+    /// Hands the already-highlighted attributed text to the frozen (static) renderer
+    /// so a finished code block is not re-highlighted from scratch, which would show
+    /// as a flash of unstyled code at the moment the block is committed.
+    ///
+    /// - Parameter fullContent: the committed segment's full content. It can be a few
+    ///   characters ahead of what is on screen, because `codeChunkBoundary` clamps the
+    ///   reveal at the closing fence; the renderer catches up before harvesting so the
+    ///   handed-off text matches the segment exactly.
+    /// - Returns: `nil` when there is nothing on screen to hand off, or when the visible
+    ///   text is not a prefix of `fullContent` (a different block).
     func harvestAttributedCodeForHandoff(fullContent: String) -> NSAttributedString? {
         guard !view.isHidden, !lastRenderedCode.isEmpty,
               fullContent.hasPrefix(lastRenderedCode) else { return nil }
@@ -288,7 +300,10 @@ final class AssistantStreamingCodeRenderer {
         capsule.addSubview(languageLabel)
 
         textView.isEditable = false
- // ****:.`isScrollEnabled = false` textView
+        // Scrolling must stay on: the card caps its height and pins `contentOffset`
+        // to the bottom so the newest lines stay visible while the block streams.
+        // With scrolling disabled the text view lays out its full intrinsic height
+        // and the cap has nothing to scroll within.
         textView.isScrollEnabled = true
         textView.showsVerticalScrollIndicator = true
         textView.showsHorizontalScrollIndicator = false

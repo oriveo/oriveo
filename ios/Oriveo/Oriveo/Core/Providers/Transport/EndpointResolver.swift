@@ -5,7 +5,9 @@ enum EndpointResolver {
     struct ResolvedEndpoint: Equatable, Sendable {
         let baseURL: String
         let path: String
- /// URL = baseURL + path(baseURL / path / )
+        /// `baseURL` joined with `path`. `joinURL` normalizes the seam between them, so a
+        /// trailing slash on the base or a missing leading slash on the path cannot produce
+        /// a doubled or glued path segment.
         let url: URL
     }
 
@@ -16,9 +18,10 @@ enum EndpointResolver {
     }
 
     /// - Parameters:
- /// - provider: Provider ( baseURLText override)
-    /// - Returns: ResolvedEndpoint
- /// - Throws: EndpointResolutionError fallback URL
+    ///   - provider: the provider whose `baseURLText`, when set, overrides both the metadata
+    ///     base URL and the built-in fallback.
+    /// - Returns: the base URL, path and joined URL actually used for the request.
+    /// - Throws: `EndpointResolutionError` when base and path cannot form a valid URL.
     static func resolve(
         provider: Provider,
         kind: EndpointKind,
@@ -32,7 +35,12 @@ enum EndpointResolver {
         )
     }
 
- /// baseURL > metadata > fallback baseURL allowlist.
+    /// Resolves an endpoint by precedence: user-supplied base URL, then the base URL from
+    /// server metadata, then the built-in fallback.
+    ///
+    /// A metadata base URL is only trusted for an official provider when its host is on that
+    /// provider's allowlist, so a stale or tampered metadata payload cannot silently redirect
+    /// traffic that carries the user's API key.
     static func resolve(
         providerKind: ProviderKind,
         userBaseURL: String? = nil,
@@ -49,8 +57,10 @@ enum EndpointResolver {
 
         let chosenBase: String
         let chosenPath: String
- // metadata path " origin "(), fallback
- // "base ", base ( normalizeBaseForEndpoint).
+        // Metadata paths are absolute from the origin and carry their own version prefix
+        // (`/v1/chat/completions`), while fallback paths are relative to a base URL that
+        // already contains that prefix. Remember which one supplied the path so the base can
+        // be trimmed back to the origin first; otherwise the prefix ends up in the URL twice.
         let pathFromMetadata: Bool
         if let userBase {
             chosenBase = userBase
@@ -106,7 +116,7 @@ enum EndpointResolver {
         validatedOfficialMetadataBaseURL(sanitize(metadataTransport?.baseUrl), providerKind: providerKind)
     }
 
- // MARK: - URL
+    // MARK: - URL assembly
 
     static func joinURL(base: String, path: String) -> URL? {
         let trimmedBase = base.hasSuffix("/") ? String(base.dropLast()) : base
@@ -114,10 +124,15 @@ enum EndpointResolver {
         return URL(string: trimmedBase + trimmedPath)
     }
 
- /// metadata `transport.baseUrl` + `endpoints.*` origin
- /// ( `https://api.deepseek.com` + `/v1/chat/completions`); /
- /// endpointPath metadata : fallback path base
- /// (qwen fallback base `/compatible-mode/v1`,path `/chat/completions`),
+    /// Trims a base URL back to its origin so a metadata endpoint path can be appended cleanly.
+    ///
+    /// Metadata pairs `transport.baseUrl` with `endpoints.*` paths that are absolute from the
+    /// origin (`https://api.deepseek.com` + `/v1/chat/completions`), so a base that already
+    /// carries the version prefix would double it.
+    ///
+    /// Only call this when the path came from metadata. Fallback paths are relative to the
+    /// base — qwen's fallback base ends in `/compatible-mode/v1` and its chat path is just
+    /// `/chat/completions` — and trimming would drop a segment the path never restates.
     private static func normalizeBaseForEndpoint(
         base: String,
         providerKind: ProviderKind,
@@ -142,7 +157,8 @@ enum EndpointResolver {
         let stripToPrefix: String?
         let qwenCompatibleSuffix = "/compatible-mode/v1"
         if providerKind == .qwen, basePath.hasSuffix(qwenCompatibleSuffix) {
- // qwen :metadata DashScope path(`/api/v1/services/...`),
+            // Qwen's native DashScope paths (`/api/v1/services/...`) do not live under the
+            // OpenAI-compatible prefix, so drop `/compatible-mode/v1` and rejoin from the origin.
             stripToPrefix = String(basePath.dropLast(qwenCompatibleSuffix.count))
         } else if path == basePath || path.hasPrefix(basePath + "/") {
             stripToPrefix = ""
@@ -231,7 +247,7 @@ enum EndpointResolver {
         }
     }
 
- // MARK: - fallback
+    // MARK: - Built-in fallbacks
 
     static func fallbackBaseURL(for kind: ProviderKind) -> String {
         switch kind {
@@ -247,7 +263,9 @@ enum EndpointResolver {
         case .miniMax: return "https://api.minimax.io/v1"
         case .zhipu: return "https://open.bigmodel.cn/api/paas/v4"
         case .qwen:
- // https://dashscope.aliyuncs.com https://dashscope-intl.aliyuncs.com
+            // DashScope is region-split between `dashscope.aliyuncs.com` and
+            // `dashscope-intl.aliyuncs.com`. The international host is the default; accounts
+            // registered in the other region point at it with their own base URL.
             return "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
         case .moonshot: return "https://api.moonshot.ai/v1"
         case .mistral: return "https://api.mistral.ai/v1"
@@ -262,7 +280,9 @@ enum EndpointResolver {
         case (.anthropic, .chat): return "/messages"
         case (.anthropic, .files): return "/files"
         case (.gemini, .chat), (.gemini, .responses):
- // Gemini generateContent / streamGenerateContent,URL modelID
+            // Gemini encodes both the model id and the method in the URL
+            // (`/models/<model>:generateContent`, or `:streamGenerateContent`), so the path
+            // stops at `/models` and the caller appends the rest.
             return "/models"
         case (.gemini, .files): return "/files"
         case (.openAI, .chat): return "/chat/completions"

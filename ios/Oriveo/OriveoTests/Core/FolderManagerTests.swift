@@ -664,7 +664,7 @@ struct FolderManagerTests {
     }
 
 
-    @Test("TC-2.1.1: trim leading and trailing spaces")
+    @Test("Trim leading and trailing spaces")
     @MainActor
     func nameValidationTrimSpaces() {
         let state = makeAppState()
@@ -673,7 +673,7 @@ struct FolderManagerTests {
         #expect(folder?.name == "Work")
     }
 
-    @Test("TC-2.1.2: exactly 30 characters is accepted")
+    @Test("Exactly 30 characters is accepted")
     @MainActor
     func nameValidationExactly30() {
         let state = makeAppState()
@@ -683,7 +683,7 @@ struct FolderManagerTests {
         #expect(folder?.name.count == 30)
     }
 
-    @Test("TC-2.1.4: empty string is rejected (create)")
+    @Test("Empty string is rejected (create)")
     @MainActor
     func nameValidationRejectEmpty() {
         let state = makeAppState()
@@ -693,7 +693,7 @@ struct FolderManagerTests {
         #expect(state.folders.isEmpty)
     }
 
-    @Test("TC-2.1.5: whitespace-only is rejected (create)")
+    @Test("Whitespace-only is rejected (create)")
     @MainActor
     func nameValidationRejectWhitespace() {
         let state = makeAppState()
@@ -703,7 +703,7 @@ struct FolderManagerTests {
         #expect(state.folders.isEmpty)
     }
 
-    @Test("TC-2.1.6: emoji is accepted")
+    @Test("Emoji is accepted")
     @MainActor
     func nameValidationEmojiAccepted() {
         let state = makeAppState()
@@ -713,7 +713,7 @@ struct FolderManagerTests {
         #expect(folder?.name == "📚 Study Notes")
     }
 
-    @Test("TC-2.1.7: emoji-only is accepted")
+    @Test("Emoji-only is accepted")
     @MainActor
     func nameValidationPureEmoji() {
         let state = makeAppState()
@@ -722,7 +722,7 @@ struct FolderManagerTests {
         #expect(folder?.name == "🎉🎊🎈")
     }
 
-    @Test("TC-2.1.8: special characters are accepted")
+    @Test("Special characters are accepted")
     @MainActor
     func nameValidationSpecialChars() {
         let state = makeAppState()
@@ -731,7 +731,7 @@ struct FolderManagerTests {
         #expect(folder?.name == "Work/Projects #1")
     }
 
-    @Test("TC-2.1.9: Unicode Chinese is accepted")
+    @Test("Unicode Chinese is accepted")
     @MainActor
     func nameValidationUnicodeChinese() {
         let state = makeAppState()
@@ -740,7 +740,7 @@ struct FolderManagerTests {
         #expect(folder?.name == "しごとかんり")
     }
 
-    @Test("TC-2.1.10: single character is accepted")
+    @Test("Single character is accepted")
     @MainActor
     func nameValidationSingleChar() {
         let state = makeAppState()
@@ -749,7 +749,7 @@ struct FolderManagerTests {
         #expect(folder?.name == "A")
     }
 
-    @Test("TC-2.1.11: leading/trailing spaces + oversized → trim then truncate to 30")
+    @Test("Leading/trailing spaces + oversized → trim then truncate to 30")
     @MainActor
     func nameValidationSpacesPlusOverlong() {
         let state = makeAppState()
@@ -760,7 +760,7 @@ struct FolderManagerTests {
         #expect(folder?.name == String(repeating: "A", count: 30))
     }
 
-    @Test("TC-2.1.12: internal newlines are kept (iOS: trim is ends only)")
+    @Test("Internal newlines are kept (iOS: trim is ends only)")
     @MainActor
     func nameValidationInnerNewline() {
         let state = makeAppState()
@@ -769,7 +769,7 @@ struct FolderManagerTests {
         #expect(folder?.name == "Work\nProjects")
     }
 
-    @Test("TC-2.1.13: internal tabs are kept (iOS: trim is ends only)")
+    @Test("Internal tabs are kept (iOS: trim is ends only)")
     @MainActor
     func nameValidationInnerTab() {
         let state = makeAppState()
@@ -779,7 +779,7 @@ struct FolderManagerTests {
     }
 
 
-    @Test("TC-3.1.3: after deleting a middle folder, a new one gets sortOrder = max(remaining)+1000")
+    @Test("After deleting a middle folder, a new one gets sortOrder = max(remaining)+1000")
     @MainActor
     func sortOrderAfterDeleteMiddle() {
         let state = makeAppState()
@@ -792,7 +792,7 @@ struct FolderManagerTests {
         #expect(f4.sortOrder == 4000)
     }
 
-    @Test("TC-3.2.1: drag to middle — C between A and B")
+    @Test("Drag to middle — C between A and B")
     @MainActor
     func dragToMiddle() {
         let state = makeAppState()
@@ -809,7 +809,7 @@ struct FolderManagerTests {
         #expect(sorted[1].sortOrder < sorted[2].sortOrder)
     }
 
-    @Test("TC-3.2.2: drag to top — C is first")
+    @Test("Drag to top — C is first")
     @MainActor
     func dragToTop() {
         let state = makeAppState()
@@ -821,7 +821,7 @@ struct FolderManagerTests {
         #expect(state.folderManager.sortedFolders[0].id == f3.id)
     }
 
-    @Test("TC-3.2.3: drag to bottom — A is last")
+    @Test("Drag to bottom — A is last")
     @MainActor
     func dragToBottom() {
         let state = makeAppState()
@@ -837,7 +837,7 @@ struct FolderManagerTests {
         #expect(state.folderManager.sortedFolders[2].id == f1.id)
     }
 
-    @Test("TC-3.2.4: drag to original position — no change")
+    @Test("Drag to original position — no change")
     @MainActor
     func dragToSamePosition() {
         let state = makeAppState()
@@ -849,7 +849,7 @@ struct FolderManagerTests {
         #expect(state.folders.first(where: { $0.id == f1.id })?.sortOrder == originalSortOrder)
     }
 
-    @Test("TC-3.2.5: swap 2 folders — B before A")
+    @Test("Swap 2 folders — B before A")
     @MainActor
     func swapTwoFolders() {
         let state = makeAppState()
@@ -861,7 +861,7 @@ struct FolderManagerTests {
         #expect(state.folderManager.sortedFolders[1].id == f1.id) // A second
     }
 
-    @Test("TC-3.3.1: adjacent gap ≤ 1 triggers global reindex 1000,2000,...")
+    @Test("Adjacent gap ≤ 1 triggers global reindex 1000,2000,...")
     @MainActor
     func sortOrderRebalanceTrigger() {
         let state = makeAppState()
@@ -876,7 +876,7 @@ struct FolderManagerTests {
         #expect(sorted[2].sortOrder == 3000)
     }
 
-    @Test("TC-3.3.2: order is unchanged after reindex")
+    @Test("Order is unchanged after reindex")
     @MainActor
     func sortOrderRebalancePreservesOrder() {
         let state = makeAppState()
@@ -895,7 +895,7 @@ struct FolderManagerTests {
     }
 
 
-    @Test("TC-1.1.4: creating 10 folders in a row yields unique IDs")
+    @Test("Creating 10 folders in a row yields unique IDs")
     @MainActor
     func createFolderIDsUnique() {
         let state = makeAppState()
@@ -906,7 +906,7 @@ struct FolderManagerTests {
         #expect(unique.count == 10)
     }
 
-    @Test("TC-1.1.5: createdAt is unchanged after rename")
+    @Test("CreatedAt is unchanged after rename")
     @MainActor
     func renameFolderPreservesCreatedAt() {
         let state = makeAppState()
@@ -919,7 +919,7 @@ struct FolderManagerTests {
         #expect(state.folders[0].createdAt == originalCreatedAt)
     }
 
-    @Test("TC-1.2.2: renaming to an existing folder name is allowed")
+    @Test("Renaming to an existing folder name is allowed")
     @MainActor
     func renameFolderAllowsDuplicate() {
         let state = makeAppState()
@@ -933,7 +933,7 @@ struct FolderManagerTests {
         #expect(renamed?.name == "Same Name")
     }
 
-    @Test("TC-1.2.3: rename does not affect conversations inside")
+    @Test("Rename does not affect conversations inside")
     @MainActor
     func renameFolderDoesNotAffectConversations() {
         let state = makeAppState()
@@ -952,7 +952,7 @@ struct FolderManagerTests {
         #expect(state.conversations.allSatisfy { $0.folderID == folder.id })
     }
 
-    @Test("TC-1.2.4: rename does not affect sortOrder")
+    @Test("Rename does not affect sortOrder")
     @MainActor
     func renameFolderPreservesSortOrder() {
         let state = makeAppState()
@@ -965,7 +965,7 @@ struct FolderManagerTests {
         #expect(state.folders[0].sortOrder == originalSortOrder)
     }
 
-    @Test("TC-1.3.3: conversation data is intact after folder delete")
+    @Test("Conversation data is intact after folder delete")
     @MainActor
     func deleteFolderPreservesConversationData() {
         let state = makeAppState()
@@ -988,7 +988,7 @@ struct FolderManagerTests {
         #expect(remaining.folderID == nil)
     }
 
-    @Test("TC-1.3.4: conversation updatedAt is unchanged after folder delete")
+    @Test("Conversation updatedAt is unchanged after folder delete")
     @MainActor
     func deleteFolderPreservesConversationUpdatedAt() {
         let state = makeAppState()
@@ -1006,7 +1006,7 @@ struct FolderManagerTests {
         #expect(abs(resultTime.timeIntervalSince(oldTime)) < 1)
     }
 
-    @Test("TC-1.3.9: deleting a folder does not delete conversations")
+    @Test("Deleting a folder does not delete conversations")
     @MainActor
     func deleteFolderKeepsConversations() {
         let state = makeAppState()
@@ -1025,7 +1025,7 @@ struct FolderManagerTests {
     }
 
 
-    @Test("TC-4.1.2: cross-folder move — folderID updates to the target")
+    @Test("Cross-folder move — folderID updates to the target")
     @MainActor
     func crossFolderMove() {
         let state = makeAppState()
@@ -1042,7 +1042,7 @@ struct FolderManagerTests {
         #expect(state.conversations[0].folderID != folderA.id)
     }
 
-    @Test("TC-4.1.4: conversation updatedAt is unchanged after move")
+    @Test("Conversation updatedAt is unchanged after move")
     @MainActor
     func moveConversationPreservesUpdatedAt() {
         let state = makeAppState()
@@ -1059,7 +1059,7 @@ struct FolderManagerTests {
         #expect(abs(resultTime.timeIntervalSince(oldTime)) < 1)
     }
 
-    @Test("TC-4.1.5: move does not change conversation content")
+    @Test("Move does not change conversation content")
     @MainActor
     func moveConversationPreservesContent() {
         let state = makeAppState()
@@ -1078,7 +1078,7 @@ struct FolderManagerTests {
         #expect(state.conversations[0].estimatedCost == 2.5)
     }
 
-    @Test("TC-4.1.6: moving a missing conversation does not crash")
+    @Test("Moving a missing conversation does not crash")
     @MainActor
     func moveNonExistentConversation() {
         let state = makeAppState()
@@ -1091,7 +1091,7 @@ struct FolderManagerTests {
         #expect(state.conversations.isEmpty)
     }
 
-    @Test("TC-4.1.7: a conversation can belong to only one folder")
+    @Test("A conversation can belong to only one folder")
     @MainActor
     func singleFolderOwnership() {
         let state = makeAppState()
@@ -1109,7 +1109,7 @@ struct FolderManagerTests {
         #expect(inA.isEmpty)
     }
 
-    @Test("TC-4.1.8: folder count increases after moving in")
+    @Test("Folder count increases after moving in")
     @MainActor
     func folderCountIncreasesAfterMoveIn() {
         let state = makeAppState()
@@ -1125,7 +1125,7 @@ struct FolderManagerTests {
         #expect(state.folderManager.conversationCount(in: folder.id) == 1)
     }
 
-    @Test("TC-4.1.9: folder count decreases after moving out")
+    @Test("Folder count decreases after moving out")
     @MainActor
     func folderCountDecreasesAfterMoveOut() {
         let state = makeAppState()
@@ -1145,7 +1145,7 @@ struct FolderManagerTests {
     }
 
 
-    @Test("TC-4.2.1: sortedFolders lists every folder for the submenu")
+    @Test("SortedFolders lists every folder for the submenu")
     @MainActor
     func allFoldersListedForMenu() {
         let state = makeAppState()
@@ -1157,7 +1157,7 @@ struct FolderManagerTests {
         #expect(state.folderManager.sortedFolders.count == 3)
     }
 
-    @Test("TC-4.2.3: a conversation already in a folder has non-nil folderID")
+    @Test("A conversation already in a folder has non-nil folderID")
     @MainActor
     func conversationInFolderHasFolderID() {
         let state = makeAppState()
@@ -1169,7 +1169,7 @@ struct FolderManagerTests {
         #expect(state.conversations[0].folderID == folder.id)
     }
 
-    @Test("TC-4.2.4: a conversation not in a folder has nil folderID")
+    @Test("A conversation not in a folder has nil folderID")
     @MainActor
     func conversationNotInFolderHasNoFolderID() {
         let state = makeAppState()
@@ -1179,7 +1179,7 @@ struct FolderManagerTests {
         #expect(state.conversations[0].folderID == nil)
     }
 
-    @Test("TC-4.2.5: creating a folder then auto-moving the conversation in")
+    @Test("Creating a folder then auto-moving the conversation in")
     @MainActor
     func createFolderInMenuAndAutoMove() {
         let state = makeAppState()
@@ -1193,7 +1193,7 @@ struct FolderManagerTests {
         #expect(state.conversations[0].folderID == newFolder.id)
     }
 
-    @Test("TC-4.2.6: moving to the current folder leaves folderID unchanged")
+    @Test("Moving to the current folder leaves folderID unchanged")
     @MainActor
     func moveToSameFolderNoChange() {
         let state = makeAppState()
@@ -1208,7 +1208,7 @@ struct FolderManagerTests {
     }
 
 
-    @Test("TC-5.1.2: batch move out of a folder")
+    @Test("Batch move out of a folder")
     @MainActor
     func batchMoveOut() {
         let state = makeAppState()
@@ -1224,7 +1224,7 @@ struct FolderManagerTests {
         #expect(state.conversations.allSatisfy { $0.folderID == nil })
     }
 
-    @Test("TC-5.1.3: mixed-state batch move into a new folder")
+    @Test("Mixed-state batch move into a new folder")
     @MainActor
     func batchMoveMixedState() {
         let state = makeAppState()
@@ -1241,7 +1241,7 @@ struct FolderManagerTests {
         #expect(state.conversations.allSatisfy { $0.folderID == folderB.id })
     }
 
-    @Test("TC-5.1.4: batch selecting 0 items is a no-op")
+    @Test("Batch selecting 0 items is a no-op")
     @MainActor
     func batchMoveEmpty() {
         let state = makeAppState()
@@ -1255,7 +1255,7 @@ struct FolderManagerTests {
         #expect(state.conversations[0].folderID == nil)
     }
 
-    @Test("TC-5.1.5: batch move with an invalid ID does not crash")
+    @Test("Batch move with an invalid ID does not crash")
     @MainActor
     func batchMoveWithInvalidIDs() {
         let state = makeAppState()
@@ -1269,7 +1269,7 @@ struct FolderManagerTests {
         #expect(state.conversations[0].folderID == folder.id)
     }
 
-    @Test("TC-5.1.6: folder count updates after batch move in")
+    @Test("Folder count updates after batch move in")
     @MainActor
     func batchMoveUpdatesCount() {
         let state = makeAppState()
@@ -1325,7 +1325,7 @@ struct FolderManagerTests {
     }
 
 
-    @Test("TC-6.1.1: a new folder is collapsed by default")
+    @Test("A new folder is collapsed by default")
     @MainActor
     func newFolderDefaultCollapsed() {
         let state = makeAppState()
@@ -1335,7 +1335,7 @@ struct FolderManagerTests {
         #expect(!state.expandedFolderIDs.contains(folder.id))
     }
 
-    @Test("TC-6.1.2: one toggle → folder expands")
+    @Test("One toggle → folder expands")
     @MainActor
     func toggleExpandOpens() {
         let state = makeAppState()
@@ -1346,7 +1346,7 @@ struct FolderManagerTests {
         #expect(state.expandedFolderIDs.contains(folder.id))
     }
 
-    @Test("TC-6.1.3: toggle while expanded → collapse")
+    @Test("Toggle while expanded → collapse")
     @MainActor
     func toggleExpandCloses() {
         let state = makeAppState()
@@ -1358,7 +1358,7 @@ struct FolderManagerTests {
         #expect(!state.folderManager.isExpanded(folder.id))
     }
 
-    @Test("TC-6.1.4: two toggles are idempotent")
+    @Test("Two toggles are idempotent")
     @MainActor
     func toggleExpandIdempotent() {
         let state = makeAppState()
@@ -1371,7 +1371,7 @@ struct FolderManagerTests {
         #expect(before == after)
     }
 
-    @Test("TC-6.1.6: multiple folders have independent expanded state")
+    @Test("Multiple folders have independent expanded state")
     @MainActor
     func multipleFoldersIndependentExpand() {
         let state = makeAppState()
@@ -1386,7 +1386,7 @@ struct FolderManagerTests {
         #expect(state.folderManager.isExpanded(fC.id))
     }
 
-    @Test("TC-6.1.7: expanded folder shows the full visible conversation count")
+    @Test("Expanded folder shows the full visible conversation count")
     @MainActor
     func expandedFolderShowsNonDraftCount() {
         let state = makeAppState()
@@ -1400,7 +1400,7 @@ struct FolderManagerTests {
         #expect(count == 3)
     }
 
-    @Test("TC-6.1.8: expanding an empty folder shows count 0")
+    @Test("Expanding an empty folder shows count 0")
     @MainActor
     func expandEmptyFolder() {
         let state = makeAppState()
@@ -1413,7 +1413,7 @@ struct FolderManagerTests {
     }
 
 
-    @Test("TC-7.1.1: conversations in a folder do not appear in time groups")
+    @Test("Conversations in a folder do not appear in time groups")
     @MainActor
     func folderConversationExcludedFromTimeGroups() {
         let state = makeAppState()
@@ -1428,7 +1428,7 @@ struct FolderManagerTests {
         #expect(recent.contains { $0.id == noFolder.id })
     }
 
-    @Test("TC-7.1.2: unfiled conversations still appear in time groups")
+    @Test("Unfiled conversations still appear in time groups")
     @MainActor
     func unfiledConversationAppearsInTimeGroups() {
         let state = makeAppState()
@@ -1442,7 +1442,7 @@ struct FolderManagerTests {
         #expect(recent.contains { $0.id == c2.id })
     }
 
-    @Test("TC-7.1.3: moving into a folder removes it from time groups")
+    @Test("Moving into a folder removes it from time groups")
     @MainActor
     func moveIntoFolderRemovedFromTimeGroups() {
         let state = makeAppState()
@@ -1460,7 +1460,7 @@ struct FolderManagerTests {
         #expect(!after.contains { $0.id == conv.id })
     }
 
-    @Test("TC-7.1.4: moving out of a folder returns it to time groups")
+    @Test("Moving out of a folder returns it to time groups")
     @MainActor
     func moveOutOfFolderReturnsToTimeGroups() {
         let state = makeAppState()
@@ -1478,7 +1478,7 @@ struct FolderManagerTests {
         #expect(after.contains { $0.id == conv.id })
     }
 
-    @Test("TC-7.1.6: draft conversations count toward the folder")
+    @Test("Drafts count toward the folder total")
     @MainActor
     func draftCountedInFolder() {
         let state = makeAppState()
@@ -1491,7 +1491,7 @@ struct FolderManagerTests {
         #expect(state.folderManager.conversationCount(in: folder.id) == 3)
     }
 
-    @Test("TC-7.1.7: draft conversations appear in the expanded folder list")
+    @Test("Draft conversations appear in the expanded folder list")
     @MainActor
     func draftInFolderExpandList() {
         let state = makeAppState()
@@ -1507,7 +1507,7 @@ struct FolderManagerTests {
     }
 
 
-    @Test("TC-8.1.1: global search includes conversations inside folders")
+    @Test("Global search includes conversations inside folders")
     @MainActor
     func searchIncludesFolderConversationsByTitle() {
         let state = makeAppState()
@@ -1521,7 +1521,7 @@ struct FolderManagerTests {
         #expect(results.contains { $0.id == inFolder.id })
     }
 
-    @Test("TC-8.1.2: search hits inside a folder still have folderID")
+    @Test("Search hits inside a folder still have folderID")
     @MainActor
     func searchResultHasFolderID() {
         let state = makeAppState()
@@ -1534,7 +1534,7 @@ struct FolderManagerTests {
         #expect(results.first?.folderID == folder.id)
     }
 
-    @Test("TC-8.1.3: unfiled search hits have no folderID")
+    @Test("Unfiled search hits have no folderID")
     @MainActor
     func searchResultNoFolderID() {
         let state = makeAppState()
@@ -1546,7 +1546,7 @@ struct FolderManagerTests {
         #expect(results.first?.folderID == nil)
     }
 
-    @Test("TC-8.2.1: in-folder search is scoped to the folder")
+    @Test("In-folder search is scoped to the folder")
     @MainActor
     func folderScopedSearch() {
         let state = makeAppState()
@@ -1564,7 +1564,7 @@ struct FolderManagerTests {
         #expect(!inFolderA.contains { $0.id == c2.id })
     }
 
-    @Test("TC-8.2.3: in-folder title search matches")
+    @Test("In-folder title search matches")
     @MainActor
     func folderSearchByTitle() {
         let state = makeAppState()
@@ -1580,7 +1580,7 @@ struct FolderManagerTests {
         #expect(results[0].id == c1.id)
     }
 
-    @Test("TC-8.2.2: in-folder search with no hits returns empty")
+    @Test("In-folder search with no hits returns empty")
     @MainActor
     func folderSearchNoResults() {
         let state = makeAppState()
@@ -1595,7 +1595,7 @@ struct FolderManagerTests {
     }
 
 
-    @Test("TC-9.1.1: folder count with drafts stays consistent with Web")
+    @Test("Folder count with drafts stays consistent with Web")
     @MainActor
     func folderDetailCountTwelve() {
         let state = makeAppState()
@@ -1613,7 +1613,7 @@ struct FolderManagerTests {
         #expect(state.folderManager.conversationCount(in: folder.id) == 14)
     }
 
-    @Test("TC-9.1.2: conversations in a folder are ordered by updatedAt descending")
+    @Test("The folder detail page lists conversations by updatedAt descending")
     @MainActor
     func folderDetailSortedByUpdatedAtDesc() {
         let state = makeAppState()
@@ -1632,7 +1632,7 @@ struct FolderManagerTests {
         #expect(sorted[2].title == "Oldest")
     }
 
-    @Test("TC-9.1.3: in-folder search on the detail page filters")
+    @Test("In-folder search on the detail page filters")
     @MainActor
     func folderDetailSearchFilter() {
         let state = makeAppState()
@@ -1651,7 +1651,7 @@ struct FolderManagerTests {
         #expect(!results.contains { $0.id == c2.id })
     }
 
-    @Test("TC-9.1.4: after rename on the detail page, folder(for:) returns the new name")
+    @Test("After rename on the detail page, folder(for:) returns the new name")
     @MainActor
     func folderDetailRename() {
         let state = makeAppState()
@@ -1665,7 +1665,7 @@ struct FolderManagerTests {
         #expect(updated?.name == "New Name")
     }
 
-    @Test("TC-9.1.5: conversations remain after deleting the folder from the detail page")
+    @Test("Conversations remain after deleting the folder from the detail page")
     @MainActor
     func folderDetailDelete() {
         let state = makeAppState()
@@ -1685,7 +1685,7 @@ struct FolderManagerTests {
         #expect(state.conversations[1].title == "Chat B")
     }
 
-    @Test("TC-9.1.6: after an external folder delete, folder(for:) returns nil")
+    @Test("After an external folder delete, folder(for:) returns nil")
     @MainActor
     func folderDeletedExternallyReturnsNil() {
         let state = makeAppState()
@@ -1700,7 +1700,7 @@ struct FolderManagerTests {
         #expect(state.folderManager.folder(for: folderID) == nil)
     }
 
-    @Test("TC-9.1.7: an empty folder has list length and count both 0")
+    @Test("An empty folder has list length and count both 0")
     @MainActor
     func folderDetailEmpty() {
         let state = makeAppState()
@@ -1712,7 +1712,7 @@ struct FolderManagerTests {
         #expect(state.folderManager.conversationCount(in: folder.id) == 0)
     }
 
-    @Test("TC-9.1.9: batch move out from the detail page")
+    @Test("Batch move out from the detail page")
     @MainActor
     func folderDetailBatchMoveOut() {
         let state = makeAppState()
@@ -1734,7 +1734,7 @@ struct FolderManagerTests {
         #expect(state.conversations.first { $0.id == c3.id }?.folderID == folder.id)
     }
 
-    @Test("TC-9.1.11: a new chat from the detail page is created in the folder")
+    @Test("A new chat from the detail page is created in the folder")
     @MainActor
     func folderDetailCreateConversation() {
         let state = makeAppState()
@@ -1751,7 +1751,7 @@ struct FolderManagerTests {
     }
 
 
-    @Test("TC-10.1.1: a new chat in a folder has folderID and is a draft")
+    @Test("A new chat in a folder has folderID and is a draft")
     @MainActor
     func createConversationInFolderHasFolderIDAndIsDraft() {
         let state = makeAppState()
@@ -1768,7 +1768,7 @@ struct FolderManagerTests {
         #expect(conv?.messages.isEmpty == true)
     }
 
-    @Test("TC-10.1.2: a regular new conversation has no folderID")
+    @Test("A regular new conversation has no folderID")
     @MainActor
     func regularConversationHasNoFolderID() {
         let state = makeAppState()
@@ -1781,7 +1781,7 @@ struct FolderManagerTests {
         #expect(state.conversations[0].folderID == nil)
     }
 
-    @Test("TC-10.1.3: a new draft in a folder is counted immediately")
+    @Test("A new draft in a folder is counted immediately")
     @MainActor
     func createInFolderDraftCounted() {
         let state = makeAppState()
@@ -1801,7 +1801,7 @@ struct FolderManagerTests {
         #expect(state.folderManager.conversationCount(in: folder.id) == 2)
     }
 
-    @Test("TC-10.1.4: creating a chat in an empty folder succeeds")
+    @Test("Creating a chat in an empty folder succeeds")
     @MainActor
     func createConversationInEmptyFolder() {
         let state = makeAppState()
@@ -1822,7 +1822,7 @@ struct FolderManagerTests {
     }
 
 
-    @Test("TC-11.1.1: folder expanded state persists across navigation")
+    @Test("Folder expanded state persists across navigation")
     @MainActor
     func expandStatePersistsAcrossNavigation() {
         let state = makeAppState()
@@ -1840,7 +1840,7 @@ struct FolderManagerTests {
         #expect(state.expandedFolderIDs.contains(folder.id))
     }
 
-    @Test("TC-11.1.4: creating a chat in a folder does not auto-change expanded state")
+    @Test("Creating a chat in a folder does not auto-change expanded state")
     @MainActor
     func createConversationDoesNotAutoExpand() {
         let state = makeAppState()
@@ -1855,7 +1855,7 @@ struct FolderManagerTests {
         #expect(!state.folderManager.isExpanded(folder.id))
     }
 
-    @Test("TC-11.1.5: expanded state persists after other operations")
+    @Test("Expanded state persists after other operations")
     @MainActor
     func expandStatePersistsThroughMutations() {
         let state = makeAppState()
@@ -1885,7 +1885,7 @@ struct FolderManagerTests {
     }
 
 
-    @Test("TC-12.1.7: ToastManager.show sets message and auto-clears after duration")
+    @Test("ToastManager.show sets message and auto-clears after duration")
     @MainActor
     func toastManagerShowAndAutoDismiss() async throws {
         let manager = ToastManager()
@@ -1896,7 +1896,7 @@ struct FolderManagerTests {
         #expect(manager.current == nil)
     }
 
-    @Test("TC-12.1.1: consecutive ToastManager.show calls replace the old message")
+    @Test("Consecutive ToastManager.show calls replace the old message")
     @MainActor
     func toastManagerMultipleShowsOverride() {
         let manager = ToastManager()
@@ -1905,7 +1905,7 @@ struct FolderManagerTests {
         #expect(manager.current?.message == "Second Message")
     }
 
-    @Test("TC-12.1.1/12.1.3: single and batch move-in message format")
+    @Test("Single and batch move-in message format")
     @MainActor
     func toastMessageFormatSingleAndBatch() {
         let state = makeAppState()
@@ -1931,7 +1931,7 @@ struct FolderManagerTests {
         #expect(batchMsg.contains("Work"))
     }
 
-    @Test("TC-12.1.2: move-out-of-folder message format")
+    @Test("Move-out-of-folder message format")
     @MainActor
     func toastMessageFormatRemovedFromFolder() {
         let removeMsg = L10n.tr("Removed from folder")
@@ -1944,9 +1944,9 @@ struct FolderManagerTests {
         #expect(batchRemoveMsg.contains("2"))
     }
 
-    // MARK: - TC-13 Context Menu backing logic
+    // MARK: - Context menu backing logic
 
-    @Test("TC-13.2.4: a conversation in a folder has non-nil folderID (show Move Out button)")
+    @Test("A conversation in a folder has non-nil folderID (show Move Out button)")
     @MainActor
     func conversationInFolderHasNonNilFolderID() {
         let state = makeAppState()
@@ -1962,7 +1962,7 @@ struct FolderManagerTests {
         #expect(updated.folderID == folder.id)
     }
 
-    @Test("TC-13.2.4: after moving out, folderID is nil (hide Move Out button)")
+    @Test("After moving out, folderID is nil (hide Move Out button)")
     @MainActor
     func conversationRemovedFromFolderHasNilFolderID() {
         let state = makeAppState()
@@ -1977,7 +1977,7 @@ struct FolderManagerTests {
         #expect(updated.folderID == nil)
     }
 
-    @Test("TC-13.3.4: createFolder returns nil for an empty name and does not create")
+    @Test("CreateFolder returns nil for an empty name and does not create")
     @MainActor
     func createFolderEmptyNameReturnsNil() {
         let state = makeAppState()
@@ -1988,7 +1988,7 @@ struct FolderManagerTests {
         #expect(state.folders.isEmpty)
     }
 
-    @Test("TC-13.2.2: sortedFolders orders by sortOrder (context-menu submenu data)")
+    @Test("SortedFolders orders by sortOrder (context-menu submenu data)")
     @MainActor
     func sortedFoldersForContextMenu() {
         let state = makeAppState()
@@ -2003,7 +2003,7 @@ struct FolderManagerTests {
         #expect(sorted[2].name == "C")
     }
 
-    @Test("TC-13.3.3: createFolder truncates input longer than 30 characters")
+    @Test("CreateFolder truncates input longer than 30 characters")
     @MainActor
     func createFolderNameTruncatedForContextMenu() {
         let state = makeAppState()
@@ -2015,7 +2015,7 @@ struct FolderManagerTests {
 
 
 
-    @Test("TC-22.1.1: deleting the last conversation in a folder keeps the folder and shows empty state")
+    @Test("Deleting the last conversation in a folder keeps the folder and shows empty state")
     @MainActor
     func deleteLastConversationFromFolder() {
         let state = makeAppState()
@@ -2032,7 +2032,7 @@ struct FolderManagerTests {
         #expect(state.folderManager.conversations(in: folder.id).isEmpty)
     }
 
-    @Test("TC-22.1.2: 100+ conversations in one folder all load correctly")
+    @Test("100+ conversations in one folder all load correctly")
     @MainActor
     func hundredPlusConversationsInFolder() {
         let state = makeAppState()
@@ -2052,7 +2052,7 @@ struct FolderManagerTests {
         #expect(state.folderManager.conversations(in: folder.id).count == 120)
     }
 
-    @Test("TC-22.1.3: 50+ folders all sort correctly by sortOrder")
+    @Test("50+ folders all sort correctly by sortOrder")
     @MainActor
     func fiftyPlusFoldersSortedCorrectly() {
         let state = makeAppState()
@@ -2070,7 +2070,7 @@ struct FolderManagerTests {
         }
     }
 
-    @Test("TC-22.1.5: rapid create→rename→delete leaves correct state after each step")
+    @Test("Rapid create→rename→delete leaves correct state after each step")
     @MainActor
     func quickSequentialCreateRenameThenDelete() {
         let state = makeAppState()
@@ -2088,7 +2088,7 @@ struct FolderManagerTests {
         #expect(state.folders.isEmpty)
     }
 
-    @Test("TC-22.1.6: a draft in a folder has folderID set and is included in the folder count")
+    @Test("A draft in a folder has folderID set and is included in the folder count")
     @MainActor
     func draftConversationInFolderIncludedInCount() {
         let state = makeAppState()
@@ -2112,7 +2112,7 @@ struct FolderManagerTests {
         #expect(state.folderManager.conversations(in: folder.id).count == 2)
     }
 
-    @Test("TC-22.1.7: deleting a conversation in a folder decreases the folder count")
+    @Test("Deleting a conversation in a folder decreases the folder count")
     @MainActor
     func deleteConversationFromFolderDecreasesCount() {
         let state = makeAppState()
@@ -2128,7 +2128,7 @@ struct FolderManagerTests {
         #expect(state.folderManager.conversationCount(in: folder.id) == 1)
     }
 
-    @Test("TC-22.1.8: a folder name with quotes and backslashes is stored correctly")
+    @Test("A folder name with quotes and backslashes is stored correctly")
     @MainActor
     func folderNameWithQuotesAndBackslash() {
         let state = makeAppState()
@@ -2144,7 +2144,7 @@ struct FolderManagerTests {
         #expect(folder2.name == "path\\to\\folder")
     }
 
-    @Test("TC-22.1.9: a folder name with HTML/XSS is stored as plain text")
+    @Test("A folder name with HTML/XSS is stored as plain text")
     @MainActor
     func folderNameWithHTMLXSSStoredAsPlainText() {
         let state = makeAppState()
@@ -2156,7 +2156,7 @@ struct FolderManagerTests {
         #expect(state.folders[0].name == "<script>alert(1)</script>")
     }
 
-    @Test("TC-22.1.11: a conversation whose folderID points at a deleted folder is treated as unfiled")
+    @Test("A conversation whose folderID points at a deleted folder is treated as unfiled")
     @MainActor
     func conversationWithDeletedFolderIDTreatedAsUncategorized() {
         let state = makeAppState()
@@ -2172,7 +2172,7 @@ struct FolderManagerTests {
         #expect(updated.folderID == nil)
     }
 
-    @Test("TC-22.1.13: a 30-character Chinese name is truncated to 30 characters")
+    @Test("A 30-character Chinese name is truncated to 30 characters")
     @MainActor
     func longChineseNameTruncatedTo30Chars() {
         let state = makeAppState()
@@ -2185,7 +2185,7 @@ struct FolderManagerTests {
     }
 
 
-    @Test("TC-22.2.1: no folders → sortedFolders returns an empty array")
+    @Test("No folders → sortedFolders returns an empty array")
     @MainActor
     func noFoldersSortedFoldersReturnsEmpty() {
         let state = makeAppState()
@@ -2194,7 +2194,7 @@ struct FolderManagerTests {
         #expect(state.folderManager.sortedFolders.isEmpty)
     }
 
-    @Test("TC-22.2.2: deleting every folder leaves folders empty")
+    @Test("Deleting every folder leaves folders empty")
     @MainActor
     func deleteAllFoldersResultsInEmptyArray() {
         let state = makeAppState()
@@ -2327,7 +2327,7 @@ struct FolderManagerTests {
     }
 
 
-    @Test("TC-25.1.1: folder name max length is 30 characters")
+    @Test("Folder name max length is 30 characters")
     @MainActor
     func maxNameLength30() {
         let state = makeAppState()
@@ -2344,7 +2344,7 @@ struct FolderManagerTests {
         #expect(state.folders[0].name == exact30)
     }
 
-    @Test("TC-25.1.2: empty or whitespace-only names are rejected")
+    @Test("Empty or whitespace-only names are rejected")
     @MainActor
     func emptyOrWhitespaceNameRejected() {
         let state = makeAppState()
@@ -2363,7 +2363,7 @@ struct FolderManagerTests {
         #expect(state.folders[0].name == "Original")
     }
 
-    @Test("TC-25.1.3: initial sortOrder is 1000")
+    @Test("Initial sortOrder is 1000")
     @MainActor
     func sortOrderInitialValue1000() {
         let state = makeAppState()
@@ -2373,7 +2373,7 @@ struct FolderManagerTests {
         #expect(folder.sortOrder == 1000)
     }
 
-    @Test("TC-25.1.4: sortOrder increases by 1000 each time")
+    @Test("SortOrder increases by 1000 each time")
     @MainActor
     func sortOrderIncrement1000() {
         let state = makeAppState()
@@ -2392,7 +2392,7 @@ struct FolderManagerTests {
         #expect(state.folderManager.sortedFolders.isEmpty)
     }
 
-    @Test("TC-22.2.3: empty folder → conversationCount returns 0")
+    @Test("Empty folder → conversationCount returns 0")
     @MainActor
     func emptyFolderConversationCountReturnsZero() {
         let state = makeAppState()
@@ -2405,7 +2405,7 @@ struct FolderManagerTests {
     }
 
 
-    @Test("TC-22.3.1: a conversation folderID pointing at a missing folder is not counted by any valid folder")
+    @Test("A conversation folderID pointing at a missing folder is not counted by any valid folder")
     @MainActor
     func orphanFolderIDNotCountedInAnyFolder() {
         let state = makeAppState()
@@ -2422,7 +2422,7 @@ struct FolderManagerTests {
         #expect(state.folderManager.folderName(for: nonExistentID) == nil)
     }
 
-    @Test("TC-22.3.3: after clearing orphan folderIDs, conversations remain accessible")
+    @Test("After clearing orphan folderIDs, conversations remain accessible")
     @MainActor
     func clearingOrphanFolderIDConversationAccessible() {
         let state = makeAppState()
@@ -2439,7 +2439,7 @@ struct FolderManagerTests {
         #expect(updated.title == "Orphan Chat")
     }
 
-    @Test("TC-22.3.4: folder counts exclude orphan references")
+    @Test("Folder counts exclude orphan references")
     @MainActor
     func folderCountExcludesOrphanReferences() {
         let state = makeAppState()
@@ -2462,7 +2462,7 @@ struct FolderManagerTests {
 
 
 
-    @Test("TC-23.1.4: batch-moving 50 conversations is a single assignment (not per-item didSet)")
+    @Test("Batch-moving 50 conversations is a single assignment (not per-item didSet)")
     @MainActor
     func batchMove50ConversationsSingleAssignment() {
         let state = makeAppState()
@@ -2484,7 +2484,7 @@ struct FolderManagerTests {
         }
     }
 
-    @Test("TC-23.1.5: 50 folders + 500 conversations complete in a reasonable time")
+    @Test("50 folders + 500 conversations complete in a reasonable time")
     @MainActor
     func fiftyFoldersFiveHundredConversationsPerformance() {
         let state = makeAppState()
@@ -2520,7 +2520,7 @@ struct FolderManagerTests {
         #expect(state.folderManager.conversationCount(in: folderIDs[0]) == 108)
     }
 
-    @Test("TC-25.1.5: deleting a folder cascades clearing conversation folderIDs")
+    @Test("Deleting a folder cascades clearing conversation folderIDs")
     @MainActor
     func deleteFolderCascadesClearsFolderID() {
         let state = makeAppState()
@@ -2542,7 +2542,7 @@ struct FolderManagerTests {
         #expect(state.conversations.count == 3)
     }
 
-    @Test("TC-25.1.6: folders default to collapsed")
+    @Test("Folders default to collapsed")
     @MainActor
     func foldersDefaultToCollapsed() {
         let state = makeAppState()
@@ -2559,7 +2559,7 @@ struct FolderManagerTests {
         #expect(!state.folderManager.isExpanded(folder.id))
     }
 
-    @Test("TC-25.1.7: conversations in a folder are ordered by updatedAt descending")
+    @Test("conversations(in:) returns them by updatedAt descending")
     @MainActor
     func conversationsInFolderSortedByUpdatedAtDesc() {
         let state = makeAppState()
@@ -2585,7 +2585,7 @@ struct FolderManagerTests {
         #expect(sorted[2].title == "Old")
     }
 
-    @Test("TC-25.1.8: draft conversations count toward the folder")
+    @Test("Drafts count toward the folder total and appear in its list")
     @MainActor
     func draftConversationsCountedInFolder() {
         let state = makeAppState()
@@ -2606,7 +2606,7 @@ struct FolderManagerTests {
         #expect(Set(convs.map(\.title)) == Set(["Normal", "Draft"]))
     }
 
-    @Test("TC-25.1.9: folder delete is soft-delete (sync-layer deletedAt)")
+    @Test("Folder delete is soft-delete (sync-layer deletedAt)")
     @MainActor
     func deleteFolderUsesSoftDelete() {
         let state = makeAppState()

@@ -134,7 +134,7 @@ final class AppState {
     private(set) var foldersVersion: UInt = 0
     var folderManager = FolderManager()
 
-    // MARK: Notes(GRDB ; AppSessionSnapshot,ADR-IOS-2)
+    // MARK: Notes — persisted in GRDB only, deliberately outside `AppSessionSnapshot`
     var noteManager = NoteManager()
     var conversationPinnedNoteIds: [UUID: [UUID]] = [:]
     var pendingPinnedNoteIds: [UUID] = []
@@ -556,7 +556,7 @@ final class AppState {
                 try bridge.upsertConversationWithoutReadback(conversation, uid: persistedUID)
             } catch {
                 #if DEBUG
-                print("[AppState] background upsert failed: \(error)")
+                AppLog.error(error, module: "AppState", context: ["op": "upsertConversation"])
                 #endif
                 Self.reportConversationPersistFailure(error, op: "upsert_conversation_projection")
             }
@@ -587,7 +587,7 @@ final class AppState {
                 _ = try bridge.upsertConversations(updatedConversations, uid: persistedUID)
             } catch {
                 #if DEBUG
-                print("[AppState] background upsertConversations failed: \(error)")
+                AppLog.error(error, module: "AppState", context: ["op": "upsertConversations"])
                 #endif
                 Self.reportConversationPersistFailure(error, op: "upsert_conversation_projections")
             }
@@ -614,7 +614,7 @@ final class AppState {
                 _ = try bridge.updateConversationModels(updates, uid: persistedUID)
             } catch {
                 #if DEBUG
-                print("[AppState] background updateConversationModels failed: \(error)")
+                AppLog.error(error, module: "AppState", context: ["op": "updateConversationModels"])
                 #endif
                 Self.reportConversationPersistFailure(error, op: "update_conversation_model_projections")
             }
@@ -653,7 +653,7 @@ final class AppState {
                 _ = try bridge.replaceAllConversations(replacement, uid: persistedUID)
             } catch {
                 #if DEBUG
-                print("[AppState] background replaceAllConversations failed: \(error)")
+                AppLog.error(error, module: "AppState", context: ["op": "replaceAllConversations"])
                 #endif
                 Self.reportConversationPersistFailure(error, op: "replace_conversation_projection")
             }
@@ -681,7 +681,7 @@ final class AppState {
             persistRecoverySnapshotAfterDestructiveChange()
         } catch {
             #if DEBUG
-            print("[AppState] deleteConversationProjection failed: \(error)")
+            AppLog.error(error, module: "AppState", context: ["op": "deleteConversationProjection"])
             #endif
         }
     }
@@ -698,7 +698,7 @@ final class AppState {
             persistRecoverySnapshotAfterDestructiveChange()
         } catch {
             #if DEBUG
-            print("[AppState] deleteConversationProjections failed: \(error)")
+            AppLog.error(error, module: "AppState", context: ["op": "deleteConversationProjections"])
             #endif
         }
     }
@@ -713,7 +713,7 @@ final class AppState {
                 try bridge.persistRecoveryProjectionOnly(conversationsSnapshot, for: persistedUID)
             } catch {
                 #if DEBUG
-                print("[AppState] post-destructive recovery persist failed: \(error)")
+                AppLog.error(error, module: "AppState", context: ["op": "postDestructiveRecoveryPersist"])
                 #endif
                 Self.reportConversationPersistFailure(error, op: "persist_recovery_snapshot_after_destructive_change")
             }
@@ -1375,10 +1375,19 @@ final class AppState {
 
             #if DEBUG
             let now = Date()
-            print("[CONV_DEBUG] loadSession uid=\(activeUID) db=\(authoritativeProjection.count) recovery=\(recoveredProjection.count) merged=\(mergedProjection.count) usedMerge=\(mergedProjection != authoritativeProjection)")
+            AppLog.info(
+                "Loaded session: stored=\(authoritativeProjection.count) recovered=\(recoveredProjection.count) "
+                + "merged=\(mergedProjection.count) usedMerge=\(mergedProjection != authoritativeProjection)",
+                module: "Conversations"
+            )
             for c in authoritativeProjection.prefix(10) {
                 let age = now.timeIntervalSince(c.updatedAt)
-                print("[CONV_DEBUG]   db: \(c.id.uuidString.prefix(8)) updatedAt=\(c.updatedAt) age=\(String(format: "%.0f", age))s draft=\(c.isDraft) folder=\(c.folderID?.uuidString.prefix(8) ?? "nil") msgs=\(c.displayMessageCount) title=\(c.title.prefix(20))")
+                AppLog.info(
+                    "  stored conversation \(c.id.uuidString.prefix(8)): updatedAt=\(c.updatedAt) "
+                    + "age=\(String(format: "%.0f", age))s draft=\(c.isDraft) "
+                    + "folder=\(c.folderID?.uuidString.prefix(8) ?? "none") messages=\(c.displayMessageCount)",
+                    module: "Conversations"
+                )
             }
             #endif
 
@@ -1392,7 +1401,7 @@ final class AppState {
             }
         } catch {
             #if DEBUG
-            print("[CONV_DEBUG] GRDB load failed: \(error)")
+            AppLog.error(error, module: "Conversations", context: ["op": "loadSession"])
             #endif
             conversations = conversationRuntimeBridge.loadRecoveryProjection(snapshot: snapshot, uid: activeUID)
         }
@@ -1505,7 +1514,7 @@ final class AppState {
                 try bridge.persistRecoveryProjectionOnly(conversationsSnapshot, for: uid)
             } catch {
                 #if DEBUG
-                print("[AppState] recovery immediate persist failed: \(error)")
+                AppLog.error(error, module: "AppState", context: ["op": "recoveryImmediatePersist"])
                 #endif
             }
             AppSessionStore.save(snapshot, for: uid)
@@ -1539,7 +1548,7 @@ final class AppState {
                 try bridge.persistRecoveryProjectionOnly(conversationsSnapshot, for: persistedUID)
             } catch {
                 #if DEBUG
-                print("[AppState] lifecycle recovery persist failed: \(error)")
+                AppLog.error(error, module: "AppState", context: ["op": "lifecycleRecoveryPersist"])
                 #endif
                 Self.reportConversationPersistFailure(error, op: "persist_lifecycle_recovery")
             }
@@ -1549,7 +1558,7 @@ final class AppState {
                     try bridge.checkpoint()
                 } catch {
                     #if DEBUG
-                    print("[AppState] lifecycle checkpoint failed: \(error)")
+                    AppLog.error(error, module: "AppState", context: ["op": "lifecycleCheckpoint"])
                     #endif
                     Self.reportConversationPersistFailure(error, op: "persist_lifecycle_checkpoint")
                 }
@@ -1613,7 +1622,7 @@ final class AppState {
             }
         } catch {
             #if DEBUG
-            print("[AppState] setConversationUseMemory failed: \(error)")
+            AppLog.error(error, module: "AppState", context: ["op": "setConversationUseMemory"])
             #endif
         }
     }

@@ -31,7 +31,7 @@ final class ChatManager {
         self.toolCallMemory = toolCallMemory
     }
 
- // MARK: - 
+    // MARK: - Streaming session state
 
     private struct StreamingSession {
         var messageID: UUID
@@ -48,9 +48,15 @@ final class ChatManager {
         var reasoningStartedAt: Date?
         var reasoningEndedAt: Date?
 
-        /// `guard var session = sessions[id] … session.reasoningText.append(chunk) … sessions[id] = session`
- /// -- `reasoningText` buffer 2, append 
- /// UI delta; Controller/Block String, `_modify`,
+        /// Appends a reasoning chunk in place and returns the new revision.
+        ///
+        /// The obvious `guard var session = sessions[id] … sessions[id] = session` shape takes a
+        /// second reference to the session, so every append re-copies the whole accumulated
+        /// reasoning text. Called as `sessions[id]?.appendReasoning(…)`, this goes through the
+        /// dictionary's in-place `_modify` accessor instead and the buffer keeps its storage.
+        ///
+        /// Returns `nil` when the session has moved on to another message or send task: a chunk
+        /// still in flight from a superseded send must not land on the current one.
         mutating func appendReasoning(_ chunk: String, messageID: UUID, sendTaskID: UUID) -> UInt64? {
             guard self.messageID == messageID, self.sendTaskID == sendTaskID else { return nil }
             if reasoningStartedAt == nil {
@@ -64,8 +70,9 @@ final class ChatManager {
 
     private var sessions: [UUID: StreamingSession] = [:]
 
- /// - → Subject AssistantMessageCell 
- /// Subject token. `discardStreamingResources(for:)` 
+    /// One subject per conversation, so a token arriving in one conversation only wakes the cells
+    /// subscribed to that conversation. They outlive an individual send and are released by
+    /// `discardStreamingResources(for:)`.
     private var streamingSubjects: [UUID: PassthroughSubject<Void, Never>] = [:]
     private var reasoningSubjects: [UUID: PassthroughSubject<ReasoningStreamDelta, Never>] = [:]
 
@@ -80,7 +87,7 @@ final class ChatManager {
         self.appState = appState
     }
 
- // MARK: - 
+    // MARK: - Conversation access
 
     private var conversations: [Conversation] {
         appState.conversations
@@ -125,15 +132,15 @@ final class ChatManager {
 
     func discardStreamingResources(for conversationID: UUID) {
         if sessions[conversationID] != nil {
- cancelGeneration(in: conversationID) // cancelGeneration removeSession
+            cancelGeneration(in: conversationID) // this also removes the session
         }
         streamingSubjects.removeValue(forKey: conversationID)
         reasoningSubjects.removeValue(forKey: conversationID)
     }
 
- // MARK: - API( convID )
+    // MARK: - Streaming queries, by conversation
 
- /// `conversationID` assistant message ID( nil).
+    /// The assistant message currently streaming in this conversation, or `nil` when it is idle.
     func streamingMessageID(in conversationID: UUID) -> UUID? {
         sessions[conversationID]?.messageID
     }
@@ -189,7 +196,8 @@ final class ChatManager {
         )
     }
 
- /// seam: session sendTaskID( `appendReasoning` guard ).
+    /// Test seam: exposes the session's `sendTaskID` so a test can satisfy the same guard
+    /// `appendReasoning` applies.
     func _testingSendTaskID(in conversationID: UUID) -> UUID? {
         sessions[conversationID]?.sendTaskID
     }
@@ -203,7 +211,8 @@ final class ChatManager {
         appendReasoning(chunk, in: conversationID, messageID: messageID, sendTaskID: sendTaskID)
     }
 
- /// `recordUnhandledToolCalls`, new (-IOS-PRODUCTION).
+    /// Test seam: routes a real `StreamEvent` through the production dispatch switch rather than
+    /// letting a test call `recordUnhandledToolCalls` directly, so the routing itself is covered.
     func _testingDispatchToolCallStreamEvent(
         _ event: StreamEvent,
         in conversationID: UUID,
@@ -223,7 +232,7 @@ final class ChatManager {
         }
     }
 
- /// seam: `completeStreamingMessage`, `chat_message_completed` 
+    /// Test seam: completes a streaming message through the production completion path.
     func _testingCompleteStreamingMessage(
         conversationID: UUID,
         messageID: UUID,
@@ -276,10 +285,11 @@ final class ChatManager {
 
     var isAnyStreaming: Bool { !sessions.isEmpty }
 
- // MARK: - Stage 9 mock harness( 5/24 )
+    // MARK: - Mock streaming harness
 
     #if DEBUG
- /// Stage 9.7 / Fresh install simulator bootstrap:mock launch arg 
+    /// Builds a conversation with canned content so a simulator or UI run has something to render
+    /// without contacting a provider.
     @MainActor
     func bootstrapMockConversationForTesting(withHistory: Bool = false) -> UUID {
         let id = UUID()
@@ -324,7 +334,8 @@ final class ChatManager {
         return id
     }
 
- /// conversation mock user message + assistant ().
+    /// Appends a mock user message and reveals a canned assistant reply token by token, through
+    /// the same session and subject plumbing a real send uses.
     func mockStreamingForTesting(
         in conversationID: UUID,
         userText: String,
@@ -374,11 +385,12 @@ final class ChatManager {
         updated.messages.append(userMessage)
         updated.messages.append(assistantMessage)
         updated.updatedAt = Date()
- // mock ( send ):projection publish stage anchor,
+        // Same order as a real send: stage the anchor first, so the list already knows which user
+        // message to scroll to by the time the new projection reaches it.
         appState.stagePendingChatAnchorUserMessageID(userMessage.id, in: conversationID)
         appState.upsertConversationProjection(updated)
 
- // mock streaming session( sendTask)
+        // No send task: there is nothing to cancel, the loop below drives the stream.
         let session = StreamingSession(
             messageID: assistantID,
             text: "",
@@ -389,7 +401,7 @@ final class ChatManager {
         )
         addSession(session, for: conversationID)
 
- // mock reasoning ( DeepSeek"",doc 10 Task 12 ):
+        // Reasoning first, then body text: the order a reasoning model streams in.
         if !reasoningTokens.isEmpty {
             sessions[conversationID]?.reasoningStartedAt = Date()
             for chunk in reasoningTokens {
@@ -408,7 +420,8 @@ final class ChatManager {
         try? await Task.sleep(nanoseconds: 300_000_000)
         let finalText = sessions[conversationID]?.text ?? ""
 
- // pacer applySnapshot("") visible=0, enqueue 
+        // Publish the final text before dropping the session, so the pacer gets a snapshot that
+        // still matches what it is revealing instead of an empty one.
         if let convIdx = appState.conversations.firstIndex(where: { $0.id == conversationID }),
            let msgIdx = appState.conversations[convIdx].messages.firstIndex(where: { $0.id == assistantID }) {
             var finalConv = appState.conversations[convIdx]
@@ -421,7 +434,7 @@ final class ChatManager {
     }
     #endif
 
- // MARK: - 
+    // MARK: - Sending
 
     func sendMessage(
         _ text: String,
@@ -543,7 +556,9 @@ final class ChatManager {
             createdAt: assistantCreatedAt
         )
 
- // conversation didSet, persistSessionIfNeeded
+        // Mutate a local copy and publish once. Every assignment into `appState.conversations`
+        // runs its `didSet`, which rebuilds the lookup and persists the session, so editing the
+        // stored conversation field by field would pay that cost several times per send.
         let isFirstMessage = conversations[index].messages.isEmpty
         var updatedConv = conversations[index]
         updatedConv.modelID = storedModelID
@@ -642,8 +657,9 @@ final class ChatManager {
     func prepareForSessionBoundary() {
         guard isAnyStreaming, backgroundTaskID == .invalid else { return }
         let taskID = UIApplication.shared.beginBackgroundTask(withName: "oriveo.chatStreaming") { [weak self] in
- // expirationHandler main thread (Apple ), return 
- // endBackgroundTask task → task.
+            // UIKit runs the expiration handler on the main thread, which is what
+            // `MainActor.assumeIsolated` relies on. End the task before interrupting the streams:
+            // the system kills the app if the handler returns without having ended it.
             MainActor.assumeIsolated {
                 guard let self else { return }
                 let id = self.backgroundTaskID
@@ -656,7 +672,10 @@ final class ChatManager {
         }
         backgroundTaskID = taskID
         #if DEBUG
-        print("[ChatManager] prepareForSessionBoundary: BG task started id=\(taskID.rawValue), sessions=\(sessions.count)")
+        AppLog.info(
+            "Session boundary background task \(taskID.rawValue) started, \(sessions.count) sessions streaming",
+            module: "ChatManager"
+        )
         #endif
     }
 
@@ -666,7 +685,9 @@ final class ChatManager {
         backgroundTaskID = .invalid
     }
 
- /// `streamingText` message.text,state `.generating`.
+    /// Copies each session's accumulated text onto its message while leaving the state at
+    /// `.generating`. Used at a lifecycle boundary so partial output survives even if the app is
+    /// suspended before the stream finishes.
     func flushStreamingTextToMessage() {
         for (convID, session) in sessions {
             guard !session.text.isEmpty,
@@ -680,7 +701,8 @@ final class ChatManager {
         }
     }
 
- /// `streamingText` message.text `.interrupted`.
+    /// Copies the session's partial text and reasoning onto the message and marks it
+    /// `.interrupted`, so a stream that was cut short is kept and shown as stopped, not lost.
     private func persistPartialStreamingAsInterrupted(in conversationID: UUID) {
         guard let session = sessions[conversationID],
               let ci = conversations.firstIndex(where: { $0.id == conversationID }),
@@ -708,7 +730,8 @@ final class ChatManager {
         appState.upsertConversationProjection(updated)
     }
 
- /// expirationHandler : socket, streamed DB 
+    /// Persists what every live stream has produced so far, then cancels its send task. Dropping
+    /// the sockets without this step would throw away everything already streamed.
     private func gracefullyInterruptAllStreaming() {
         guard isAnyStreaming else {
             endSessionBoundary()
@@ -718,7 +741,7 @@ final class ChatManager {
         for convID in convIDs {
             persistPartialStreamingAsInterrupted(in: convID)
             sessions[convID]?.sendTask?.cancel()
- removeSession(for: convID) // session endSessionBoundary
+            removeSession(for: convID) // ends the background task once the last session is gone
         }
     }
 
@@ -1071,7 +1094,7 @@ final class ChatManager {
         requested
     }
 
- // MARK: - 
+    // MARK: - Assistant response pipeline
 
     private func queueAssistantResponse(
         conversationID: UUID,
@@ -1152,7 +1175,9 @@ final class ChatManager {
                 switch await GrokSubscriptionRuntime.prepare(providerID: providerID) {
                 case let .success(prepared):
                     effectiveAPIKey = prepared.accessToken
- // (`/models` `api_backend` > seed > chat),
+                    // Pin the transport the subscription link will actually use. It comes from the
+                    // model's declared `api_backend`, falling back to the seeded subscription
+                    // config, so it can differ from the one the prepared context arrived with.
                     requestOptions.grokSubscription = prepared.context.withTransport(
                         CapabilityControlResolution.subscriptionFinalTransport(for: provider, model: model)
                             ?? prepared.context.transport
@@ -1229,7 +1254,9 @@ final class ChatManager {
                     conversationID: conversationID,
                     profileFingerprint: GenerationParameterProfileFingerprint.make(provider: provider, model: model),
                     reasoningMode: capabilitySelection.reasoningMode,
- // applyGenerationParameters --.
+                    // Only parameters this profile declares with a wire name survive. A stored
+                    // override for a parameter the current model no longer exposes stays dormant
+                    // instead of being sent under a name the upstream never accepted.
                     activeParameterIDs: declaredGenerationParameterIDs
                 )
                 requestOptions.generationProfile = generationProfile
@@ -1253,7 +1280,8 @@ final class ChatManager {
             requestOptions.capabilityEvidenceModel = provider.kind == .relay
                 ? model
                 : MetadataClient.shared.syncCurrentCapabilityEvidenceModel(model, providerKind: provider.kind)
- // identity;adapter Keychain/metadata.
+            // Built before dispatch, so `endpointFingerprint` is still unknown here. The final
+            // endpoint is folded in later, once the production builder has chosen a URL.
             let capabilityEvidenceIdentity = CapabilityEvidenceRequestIdentity.make(
                 provider: provider,
                 model: model,
@@ -1264,9 +1292,10 @@ final class ChatManager {
                 effectiveTransport: nil
             )
 
- // flush: convID sessions[convID].text, per-conversation subject
- // 50ms + pacer 22ms + cell throttle 50ms ±40ms jitter,
- // - 32 : flush paced streaming backlog 
+            // Coalesces deltas into `sessions[convID].text` and pokes only that conversation's
+            // subject. Publishing on every token would push updates faster than the pacer and the
+            // cell throttle downstream can consume them; the newline and 32-character triggers stop
+            // a fast stream from sitting in the buffer between the time-based flushes.
             func flushBufferedDelta(force: Bool = false) async {
                 guard !bufferedDelta.isEmpty else { return }
 
@@ -1297,7 +1326,11 @@ final class ChatManager {
             }
 
             #if DEBUG
- print("[ImageGen] : provider=\(providerKind), model=\(model.id), caps=\(model.capabilities), imageGenProfile=\(model.imageGenProfile ?? "nil")")
+            AppLog.info(
+                "Routing a send: provider=\(providerKind) model=\(model.id) "
+                + "capabilities=\(model.capabilities) imageGenProfile=\(model.imageGenProfile ?? "none")",
+                module: "ImageGen"
+            )
             #endif
 
             do {
@@ -1373,7 +1406,11 @@ final class ChatManager {
                         )
                         let deliveredCost = self.resolvedDeliveredCost(from: result, model: model, providerKind: providerKind)
                         #if DEBUG
- print("[ImageGen] OpenRouter : text=\(result.text.prefix(100)), attachments=\(result.attachments?.count ?? 0)")
+                        AppLog.info(
+                            "OpenRouter returned \(result.text.count) characters of text and "
+                            + "\(result.attachments?.count ?? 0) attachments",
+                            module: "ImageGen"
+                        )
                         #endif
                         await MainActor.run {
                             self.applyNonStreamingCompletionIfCurrent(
@@ -1699,7 +1736,11 @@ final class ChatManager {
                             requestOptions: requestOptions
                         )
                         #if DEBUG
- print("[ImageGen] Gemini : text=\(result.text.prefix(100)), attachments=\(result.attachments?.count ?? 0)")
+                        AppLog.info(
+                            "Gemini returned \(result.text.count) characters of text and "
+                            + "\(result.attachments?.count ?? 0) attachments",
+                            module: "ImageGen"
+                        )
                         #endif
                         await MainActor.run {
                             self.applyNonStreamingCompletionIfCurrent(
@@ -1795,7 +1836,8 @@ final class ChatManager {
                         case let .citations(citations):
                             self.recordCitations(citations, in: conversationID)
                         case let .imagePart(attachment):
- // Anthropic yield case(StreamEvent enum),
+                            // Anthropic never yields this case, but `StreamEvent` is shared across
+                            // every provider, so the switch still has to handle it.
                             await self.handleStreamingImagePart(attachment, in: conversationID)
                         case let .toolCallDeltas(calls):
                             self.recordUnhandledToolCalls(calls, in: conversationID, messageID: assistantMessageID, sendTaskID: sendTaskID, provider: provider, model: model)
@@ -2366,8 +2408,11 @@ final class ChatManager {
                     var relayRequestOptions = requestOptions
                     relayRequestOptions.relayRequested = provider.relayRequested
 
- // → /responses image_generation tool + stream=true;
- // (gpt-image-*), model, tool.model
+                    // Image generation on a relay depends on the transport. Chat Completions posts
+                    // to the images endpoint, Responses carries an inline `image_generation` tool on
+                    // a streaming chat request, and Gemini asks for an image modality on its normal
+                    // generate call. A dedicated image model cannot drive the Responses request
+                    // itself, so it moves into the tool while a chat model drives the turn.
                     if model.capabilities.contains(.imageGen) {
                         let imageRoute = RelayRuntimeSupport.imageRoute(for: relayTransport)
                         switch imageRoute {
@@ -2378,7 +2423,10 @@ final class ChatManager {
 
                         case .imagesEndpoint:
                             #if DEBUG
-                            print("[ImageGen][Relay] route=imagesEndpoint provider=\(provider.id) model=\(resolvedModelID) base=\(relayBaseURL)")
+                            AppLog.info(
+                                "Relay image route: imagesEndpoint, provider=\(provider.id) model=\(resolvedModelID)",
+                                module: "ImageGen"
+                            )
                             #endif
                             let result = try await openAIService.sendMessageViaImagesAPIForRelay(
                                 apiKey: apiKey,
@@ -2401,7 +2449,8 @@ final class ChatManager {
                             break
 
                         case .inlineResponsesTool:
- // - gpt-image-*:pickChatDriverModelID model, tool.model
+                            // A dedicated image model cannot drive the request, so pick a chat
+                            // model for the turn and pass the image model to the tool instead.
                             let driverResult = RelayRuntimeSupport.pickChatDriverModelID(
                                 in: provider,
                                 currentModel: model
@@ -2419,7 +2468,11 @@ final class ChatManager {
                                 ? nil
                                 : resolvedModelID
                             #if DEBUG
-                            print("[ImageGen][Relay] route=inlineResponsesTool driver=\(driverModelID) tool=\(imageToolID ?? "<default>") base=\(relayBaseURL)")
+                            AppLog.info(
+                                "Relay image route: inlineResponsesTool, driver=\(driverModelID) "
+                                + "tool=\(imageToolID ?? "default")",
+                                module: "ImageGen"
+                            )
                             #endif
                             let stream = openAIService.sendMessageStream(
                                 apiKey: apiKey,
@@ -2443,7 +2496,7 @@ final class ChatManager {
                                 case let .reasoning(chunk):
                                     self.appendReasoning(chunk, in: conversationID, messageID: assistantMessageID, sendTaskID: sendTaskID)
                                 case let .citations(citations):
-                            self.recordCitations(citations, in: conversationID)
+                                    self.recordCitations(citations, in: conversationID)
                                 case let .imagePart(attachment):
                                     await self.handleStreamingImagePart(attachment, in: conversationID)
                                 case let .toolCallDeltas(calls):
@@ -2517,7 +2570,8 @@ final class ChatManager {
                                 baseURL: relayBaseURL,
                                 reasoningMode: capabilitySelection.reasoningMode,
                                 webSearchEnabled: capabilitySelection.webSearchEnabled,
- // Gemini Relay:imageGen responseModalities(RelayImageRoute.geminiModality)
+                                // Gemini has no separate image endpoint: image output is requested
+                                // as an extra response modality on the normal generate call.
                                 supportsImageGen: model.capabilities.contains(.imageGen),
                                 requestOptions: relayRequestOptions,
                                 relayRequested: provider.relayRequested
@@ -2570,7 +2624,8 @@ final class ChatManager {
                                 baseURL: relayBaseURL,
                                 reasoningMode: capabilitySelection.reasoningMode,
                                 webSearchEnabled: capabilitySelection.webSearchEnabled,
- // Gemini Relay:imageGen responseModalities(RelayImageRoute.geminiModality)
+                                // Gemini has no separate image endpoint: image output is requested
+                                // as an extra response modality on the normal generate call.
                                 supportsImageGen: model.capabilities.contains(.imageGen),
                                 requestOptions: relayRequestOptions,
                                 relayRequested: provider.relayRequested
@@ -2804,7 +2859,7 @@ final class ChatManager {
         return String(String.UnicodeScalarView(filtered).prefix(64))
     }
 
- // MARK: - 
+    // MARK: - Request snapshot
 
     private func prepareRequestSnapshot(
         conversation: Conversation,
@@ -2904,21 +2959,36 @@ final class ChatManager {
             if let pending = availableImageData.removeValue(forKey: resolvedAttachments[i].id) {
                 imageData = pending
                 #if DEBUG
-                print("[ImageGen] took availableImageData attID=\(resolvedAttachments[i].id), bytes=\(pending.count)")
+                AppLog.info(
+                    "Attachment \(resolvedAttachments[i].id) took \(pending.count) bytes of pending image data",
+                    module: "ImageGen"
+                )
                 #endif
             } else if let b64 = resolvedAttachments[i].base64Data, !b64.isEmpty {
                 imageData = Self.decodeImageBase64(b64)
                 #if DEBUG
                 if imageData == nil {
- print("[ImageGen] completeStreaming: attachment base64 decode ,=\(b64.prefix(40))")
+                    AppLog.warning(
+                        "Attachment \(resolvedAttachments[i].id) carried \(b64.count) characters of base64 "
+                        + "that could not be decoded as image data",
+                        module: "ImageGen"
+                    )
                 } else {
-                    print("[ImageGen] completeStreaming fallback decoded from base64, bytes=\(imageData?.count ?? 0)")
+                    AppLog.info(
+                        "Attachment \(resolvedAttachments[i].id) fell back to decoding its inline base64, "
+                        + "\(imageData?.count ?? 0) bytes",
+                        module: "ImageGen"
+                    )
                 }
                 #endif
             } else {
                 imageData = nil
                 #if DEBUG
- print("[ImageGen] completeStreaming: attID=\(resolvedAttachments[i].id) pendingImageData base64,")
+                AppLog.warning(
+                    "Attachment \(resolvedAttachments[i].id) has neither pending image data nor inline base64, "
+                    + "so nothing will be written to disk",
+                    module: "ImageGen"
+                )
                 #endif
             }
 
@@ -2943,7 +3013,11 @@ final class ChatManager {
             ImageStore.generateAndSaveThumbnail(from: write.data, for: write.imageID, partitionUID: partitionUID)
             #if DEBUG
             let verified = ImageStore.loadImageData(for: write.imageID, partitionUID: partitionUID)
-            print("[ImageGen] ImageStore.save done imageID=\(write.imageID), writtenBytes=\(write.data.count), readback=\(verified?.count ?? -1)")
+            AppLog.info(
+                "Saved image \(write.imageID): wrote \(write.data.count) bytes, "
+                + "read back \(verified.map { "\($0.count)" } ?? "nothing")",
+                module: "ImageGen"
+            )
             #endif
         }
     }
@@ -3021,7 +3095,8 @@ final class ChatManager {
         ) else {
             return
         }
- // (Service " tool_calls" emptyResponse).
+        // A response can carry tool calls and no text at all. Record them before completing,
+        // otherwise the turn lands as an empty assistant message with nothing explaining why.
         if let toolCalls = result.toolCalls, !toolCalls.isEmpty, let provider, let model {
             recordUnhandledToolCalls(
                 toolCalls, in: conversationID, messageID: messageID, sendTaskID: taskID,
@@ -3029,7 +3104,8 @@ final class ChatManager {
             )
         }
 
- // result.text sessions[convID], completeStreamingMessage()
+        // Route the final text through the session so completion picks it up on exactly the same
+        // path a streamed response takes.
         sessions[conversationID]?.text = result.text
         streamingSubjects[conversationID]?.send()
         completeStreamingMessage(
@@ -3074,11 +3150,11 @@ final class ChatManager {
         }
 
         var updated = conversations[ci]
- // attachment localImageID → UI 
+        // Image bytes stay in memory keyed by attachment id until they are written to disk below.
         var carriedImageData: [UUID: Data] = [:]
         var streamingAttCount = 0
         var carriedCitations: [Citation] = []
- // removeSession session message.
+        // Everything the session holds has to be read out before `removeSession` drops it.
         var carriedReasoningText: String?
         var carriedReasoningDurationMs: Int64?
         if let session = sessions[conversationID], session.messageID == messageID {
@@ -3116,21 +3192,34 @@ final class ChatManager {
             updated.messages[mi].attachments = existing
         }
         #if DEBUG
-        print("[ImageGen] completeStreaming: text=\(updated.messages[mi].text.prefix(80))(\(updated.messages[mi].text.count)chars), streamingAtts=\(streamingAttCount), paramAtts=\(attachments?.count ?? 0), finalAtts=\(updated.messages[mi].attachments?.count ?? 0), state=\(state)")
+        AppLog.info(
+            "Completing a message: \(updated.messages[mi].text.count) characters of text, "
+            + "\(streamingAttCount) streamed attachments, \(attachments?.count ?? 0) passed in, "
+            + "\(updated.messages[mi].attachments?.count ?? 0) in total, state=\(state)",
+            module: "ImageGen"
+        )
         #endif
         var imageDiskWrites: [ImageAttachmentDiskWrite] = []
         if var allAtts = updated.messages[mi].attachments {
- // removeSession carriedImageData)
+            // The session is gone by now; the pending bytes survive in `carriedImageData`.
             #if DEBUG
             let imageAttsCount = allAtts.filter { $0.kind == .image }.count
-            print("[ImageGen] completeStreaming loop: imageAtts=\(imageAttsCount), availableImageDataKeys=\(carriedImageData.keys.count)")
+            AppLog.info(
+                "Preparing attachments for disk: \(imageAttsCount) images, "
+                + "\(carriedImageData.keys.count) carried image payloads",
+                module: "ImageGen"
+            )
             #endif
             let prepared = Self.prepareImageAttachmentsForDisk(allAtts, imageDataByAttachmentID: carriedImageData)
             allAtts = prepared.attachments
             imageDiskWrites = prepared.writes
             updated.messages[mi].attachments = allAtts
             #if DEBUG
-            print("[ImageGen] pendingWrites count=\(imageDiskWrites.count), attachments localImageIDs=\(allAtts.compactMap { $0.localImageID })")
+            AppLog.info(
+                "\(imageDiskWrites.count) images queued for disk, local ids "
+                + "\(allAtts.compactMap { $0.localImageID })",
+                module: "ImageGen"
+            )
             #endif
         }
 
@@ -3207,7 +3296,6 @@ final class ChatManager {
 
         if state == .delivered {
             let assistantMsg = updated.messages[mi]
- // session.startedAt (completeStreamingMessage cleanup), latency_ms Web/Android 
             let latencyMs: Int = {
                 guard let session = sessions[conversationID] else { return 0 }
                 return Int(Date().timeIntervalSince(session.startedAt) * 1000)
@@ -3317,7 +3405,9 @@ final class ChatManager {
         }()
     }
 
- /// service `.done` result.text `trimmingCharacters(.whitespacesAndNewlines)`
+    /// Strips leading whitespace from the first visible delta so a reply never opens with a blank
+    /// line. Once anything has been accumulated the delta passes through untouched: the final
+    /// `.done` text is trimmed as a whole, and trimming mid-stream would eat real spacing.
     nonisolated static func sanitizedStreamingDelta(_ delta: String, accumulatedIsEmpty: Bool) -> String? {
         guard accumulatedIsEmpty else { return delta }
         let stripped = delta.drop { ch in
@@ -3327,7 +3417,10 @@ final class ChatManager {
         return String(stripped)
     }
 
- /// message + task guard done messageID retry / continue session.
+    /// Replaces the accumulated text with the authoritative final text carried by `.done`.
+    ///
+    /// Guarded on both the message id and the send task id: a late `.done` belonging to a retry or
+    /// continue that has since been superseded must not overwrite the session that replaced it.
     private func reconcileStreamingText(
         with fullText: String,
         in conversationID: UUID,
@@ -3351,16 +3444,21 @@ final class ChatManager {
         }
     }
 
- /// streaming AI : base64 → Data, base64Data.
- /// - HTTP URL(DALL-E via OpenRouter)→ 
- /// - `data:image/png;base64,XXXX` data URL( relay ylsagi )
+    /// Turns a streamed image part into bytes held on the session and clears `base64Data`, so the
+    /// payload is not carried a second time inside the attachment.
+    ///
+    /// Two shapes arrive here: an HTTP URL, which is downloaded, and an inline
+    /// `data:image/png;base64,…` URL, which is decoded. Relays commonly send the second form.
     private func handleStreamingImagePart(_ attachment: Attachment, in conversationID: UUID) async {
         var att = attachment
         if let b64 = att.base64Data, b64.hasPrefix("http"), let url = URL(string: b64) {
             if let data = await downloadGeneratedImage(from: url) {
                 sessions[conversationID]?.pendingImageData[att.id] = data
                 #if DEBUG
-                print("[ImageGen] streaming URL fetched, bytes=\(data.count), attID=\(att.id)")
+                AppLog.info(
+                    "Downloaded a streamed image for attachment \(att.id), \(data.count) bytes",
+                    module: "ImageGen"
+                )
                 #endif
             }
         } else if let b64 = att.base64Data, !b64.isEmpty,
@@ -3368,11 +3466,19 @@ final class ChatManager {
             sessions[conversationID]?.pendingImageData[att.id] = data
             #if DEBUG
             let img = UIImage(data: data)
-            print("[ImageGen] streaming decoded OK, bytes=\(data.count), UIImageValid=\(img != nil), UIImageSize=\(img?.size ?? .zero), attID=\(att.id)")
+            AppLog.info(
+                "Decoded a streamed image for attachment \(att.id): \(data.count) bytes, "
+                + "decodesAsImage=\(img != nil) size=\(img?.size ?? .zero)",
+                module: "ImageGen"
+            )
             #endif
         } else if let b64 = att.base64Data, !b64.isEmpty {
             #if DEBUG
- print("[ImageGen] decode base64 ,=\(b64.count),=\(b64.prefix(40))")
+            AppLog.warning(
+                "A streamed image part carried \(b64.count) characters of base64 that could not be "
+                + "decoded as image data, attachment \(att.id)",
+                module: "ImageGen"
+            )
             #endif
         }
         att.base64Data = nil
@@ -3390,13 +3496,11 @@ final class ChatManager {
         }
     }
 
- /// citations ChatMessage cell ( cell 
- /// PassthroughSubject `model.message.citations`).
- /// citations `completeStreamingMessage` DB.
- /// task cancel await yield reasoning chunk task reasoningText.
+    /// Appends a reasoning chunk to the session and publishes the delta to its subscribers.
     private func appendReasoning(_ chunk: String, in conversationID: UUID, messageID: UUID, sendTaskID: UUID) {
- // reasoning 279s).****--`reasoningText.append("")`
- // modify mutate(): reasoningText chunk
+        // Mutate through the dictionary subscript so the buffer is appended in place. Copying the
+        // session out and writing it back would re-copy the whole accumulated reasoning text on
+        // every chunk, which turns a long reasoning stream quadratic.
         guard let revision = sessions[conversationID]?
             .appendReasoning(chunk, messageID: messageID, sendTaskID: sendTaskID) else { return }
         // A nonempty normalized parser event is evidence only when the TaskLocal tracker has an
@@ -3411,7 +3515,9 @@ final class ChatManager {
         ))
     }
 
- /// `sendTaskID` guard `appendReasoning`: task await chunk task endedAt.
+    /// Stamps the moment reasoning gave way to body text. Guarded on message and send task id for
+    /// the same reason `appendReasoning` is: a chunk still in flight from a superseded send must
+    /// not close out the current one.
     private func markReasoningEndedIfNeeded(in conversationID: UUID, messageID: UUID, sendTaskID: UUID) {
         guard var session = sessions[conversationID],
               session.messageID == messageID,
@@ -3540,7 +3646,7 @@ final class ChatManager {
     }
 
     private func currentAssistantText(conversationID: UUID, messageID: UUID) -> String {
- // sessions[conversationID].text 
+        // Prefer the live session: while a send is running it is ahead of the stored message.
         if let session = sessions[conversationID], session.messageID == messageID {
             return session.text
         }
@@ -3687,7 +3793,7 @@ final class ChatManager {
 
     var debugBackgroundTaskID: UIBackgroundTaskIdentifier { backgroundTaskID }
 
- /// streamingText → message.text, state, session.
+    /// Test helper: completes the active session's message with the given state.
     func debugFinishStreamingForTesting(conversationID: UUID, state: ChatMessageState) {
         guard let session = sessions[conversationID] else { return }
         completeStreamingMessage(
@@ -3720,7 +3826,8 @@ final class ChatManager {
         subject(for: conversationID).send()
     }
 
- /// `streamingConversationIDs` set ( set token flow ).
+    /// Test helper: appends a token to an existing session and pokes its subject. It deliberately
+    /// does not create a session, so `streamingConversationIDs` is left unchanged.
     func debugAppendTokenForTesting(delta: String, in conversationID: UUID) {
         sessions[conversationID]?.text.append(delta)
         streamingSubjects[conversationID]?.send()

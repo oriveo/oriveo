@@ -10,7 +10,10 @@ nonisolated enum CostCalculator {
     nonisolated static let cacheWrite5mFallbackRatio: Double = 1.25
     nonisolated static let cacheWrite1hFallbackRatio: Double = 2.0
 
+    /// Local price estimate: prompt × input + cached × cached-read
     ///   + cache5m × write5m + cache1h × write1h + completion × output
+    ///
+    /// An upstream-reported cost always wins; this only runs when the response carried none.
     nonisolated static func calcCost(
         breakdown: UsageBreakdown,
         pricing: MetadataClient.ResolvedModelMetadata?

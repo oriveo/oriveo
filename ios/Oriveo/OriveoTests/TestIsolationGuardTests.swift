@@ -1,7 +1,13 @@
 import Foundation
 import Testing
 
+/// Fails when a test source schedules the shared metadata reset in an unawaited task:
+///
 ///     defer { Task { await MetadataClient.shared.resetForTesting() } }
+///
+/// That shape returns immediately, so the reset lands inside whichever test runs next. The guard
+/// scans the test sources instead of relying on someone spotting the pattern in review, because
+/// the resulting failure surfaces in an unrelated file and only under some orderings.
 @Suite("Test Isolation Guard Tests")
 struct TestIsolationGuardTests {
 
@@ -26,14 +32,18 @@ struct TestIsolationGuardTests {
         #expect(
             offenders.isEmpty,
             """
-             Task  resetForTesting():\(offenders.sorted().joined(separator: ", "))
+            An unawaited `Task { … }` wrapping `MetadataClient.shared.resetForTesting()` was found at: \
+            \(offenders.sorted().joined(separator: ", "))
 
-            : await  Task , case  fixture 
-            (MetadataClient.sharedSnapshot), -- ,
-            ,.
-            : reset ****(case  loader helper  await ),
-             defer  Task. await,
-             do/catch .
+            `resetForTesting()` clears process-wide state: the shared metadata snapshot, the stored \
+            ETags, the cached UserDefaults keys and the persisted rows. Scheduled without being \
+            awaited, the test returns first and the reset runs during a later test, wiping the \
+            fixture that test had just installed. The failure then appears in an unrelated file and \
+            only under some orderings, which is why it is worth a guard.
+
+            Fix it by awaiting the reset: make the test `async` and call \
+            `await MetadataClient.shared.resetForTesting()` at the end of the body, or from an \
+            `async` teardown helper. A `defer` block cannot await, so the call has to move out of it.
             """
         )
     }

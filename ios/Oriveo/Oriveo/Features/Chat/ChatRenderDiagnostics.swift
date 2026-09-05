@@ -1,8 +1,15 @@
 import Foundation
 import UIKit
 
+/// Opt-in render tracing for the chat list: layout invalidations, cell height preferences,
+/// scroll ticks and fade batching. Every recorder is gated on `enabled` and compiled out of
+/// release builds.
+///
+/// In summary mode a whole window collapses into one line instead of one line per event, which is
+/// what keeps the trace readable while a stream is scrolling:
+///
 /// ```
-/// [OFLIP-SUM t=1.234s] INVAL=7 adj=[-15..814] sumAdj=903 | CELL=3 sumΔ=200 lastH=190 | SCROLL off=1432→1530 Δ=98 dragF | FADE=12 skip=8
+/// s=00042 t=1.234 SUM INVAL=7 adj=[-15..814] sumAdj=903 | CELL=3 sumΔ=200 lastH=190 | SCROLL …
 /// ```
 @MainActor
 enum ChatRenderDiagnostics {
@@ -239,7 +246,7 @@ enum ChatRenderDiagnostics {
         let elapsed = CACurrentMediaTime() - sessionStart
         let seqStr = String(format: "%05d", sequence)
         let tStr = String(format: "%.3f", elapsed)
-        print("[OFLIP][s=\(seqStr) t=\(tStr)] \(msg)")
+        AppLog.info("s=\(seqStr) t=\(tStr) \(msg)", module: "ChatRender")
     }
 
     static func f(_ v: CGFloat) -> String {

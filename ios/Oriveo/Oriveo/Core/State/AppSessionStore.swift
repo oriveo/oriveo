@@ -421,7 +421,7 @@ nonisolated enum AppSessionStore {
             try FileManager.default.moveItem(at: guestDir, to: targetDir)
         } catch {
             #if DEBUG
-            print("[Partition] adoptGuestData failed: \(error)")
+            AppLog.error(error, module: "Session", context: ["op": "adoptGuestData"])
             #endif
         }
 

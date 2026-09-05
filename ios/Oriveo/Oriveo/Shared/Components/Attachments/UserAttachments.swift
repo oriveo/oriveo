@@ -1,7 +1,7 @@
 import SwiftUI
 import QuickLook
 
-// MARK: -
+// MARK: - Layout
 
 enum UserImageAttachmentLayout {
     case hero
@@ -182,7 +182,13 @@ struct UserImageAttachment: View {
             }
     }
 
- /// fillMaxWidth + maxHeight aspect-fit
+    /// A single image is shown at full bubble width, capped in height.
+    ///
+    /// The immersive variant (`heroCornerRadii != nil`) is flush with the bubble edges,
+    /// so it only takes the height cap and lets the bubble decide the width. The
+    /// standalone variant additionally clamps the width for portrait images, otherwise
+    /// a tall photo would reserve the full bubble width while only painting a narrow
+    /// strip of it.
     @ViewBuilder
     private func heroImage(aspect: CGFloat) -> some View {
         let heroMaxHeight: CGFloat = 240

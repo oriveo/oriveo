@@ -462,7 +462,7 @@ struct RelayOfficialCatalogResolverTests {
         #expect(enriched.summary == "Legacy manual model")
     }
 
-    @Test("Phase A_non Manual Model Still Enriches")
+    @Test("A Non Manual Model Still Enriches")
     func phaseA_nonManualModelStillEnriches() async throws {
         await MetadataClient.shared.resetForTesting()
         try await MetadataClient.shared.loadForTesting(json: loadFixtureJSON())
