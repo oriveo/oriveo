@@ -1,0 +1,253 @@
+<div align="center">
+
+# Oriveo для веба
+
+**Клиент чата на Next.js для AI-моделей, за которые вы и так платите.**
+
+<a href="../../LICENSE"><img alt="Лицензия AGPL-3.0-or-later" src="https://img.shields.io/badge/license-AGPL--3.0--or--later-8B5CF6?style=flat-square&labelColor=black"></a>
+<img alt="Next.js 16" src="https://img.shields.io/badge/Next.js-16-A78BFA?style=flat-square&labelColor=black&logo=nextdotjs&logoColor=white">
+<img alt="React 19" src="https://img.shields.io/badge/React-19-A78BFA?style=flat-square&labelColor=black&logo=react&logoColor=white">
+<img alt="Node 22" src="https://img.shields.io/badge/Node-22-A78BFA?style=flat-square&labelColor=black&logo=nodedotjs&logoColor=white">
+<img alt="16 языков интерфейса" src="https://img.shields.io/badge/languages-16-8B5CF6?style=flat-square&labelColor=black">
+
+<sub>
+
+<a href="../../web/README.md">English</a> ·
+<a href="../ar/web.md">العربية</a> ·
+<a href="../de/web.md">Deutsch</a> ·
+<a href="../es/web.md">Español</a> ·
+<a href="../fr/web.md">Français</a> ·
+<a href="../hi/web.md">हिन्दी</a> ·
+<a href="../id/web.md">Indonesia</a> ·
+<a href="../ja/web.md">日本語</a> ·
+<a href="../ko/web.md">한국어</a> ·
+<a href="../pt-BR/web.md">Português</a> ·
+**Русский** ·
+<a href="../th/web.md">ไทย</a> ·
+<a href="../tr/web.md">Türkçe</a> ·
+<a href="../vi/web.md">Tiếng Việt</a> ·
+<a href="../zh-Hans/web.md">简体中文</a> ·
+<a href="../zh-Hant/web.md">繁體中文</a>
+
+</sub>
+
+</div>
+
+---
+
+Веб-клиент Oriveo — это AI-чат в модели BYOK, собранный на Next.js. Разговоры, заметки, папки,
+skills и ваши ключи провайдеров живут в собственном хранилище браузера. Ни аккаунта, ни входа.
+
+Это часть [Oriveo Community Edition](README.md) — трёх клиентов, у которых одно общее определение
+того, как разговаривать с провайдером моделей.
+
+## Быстрый старт
+
+Требуется Node 22 (см. [`.nvmrc`](../../web/.nvmrc)). npm идёт вместе с ним; другой пакетный
+менеджер не нужен.
+
+```bash
+npm install
+npm run dev:app     # http://localhost:3001
+```
+
+Первый экран попросит API-ключ провайдера. Больше ничего не нужно, чтобы начать общаться.
+
+## Как на самом деле идёт запрос
+
+Это та часть, которую стоит прочитать раньше всего остального, потому что веб-клиент — единственное
+место, где запрос **не** идёт от клиента к провайдеру напрямую.
+
+```mermaid
+flowchart LR
+    browser["Браузер<br/>React · Zustand · IndexedDB"]
+
+    subgraph server ["Route handlers Next.js · среда Node"]
+        direction TB
+        chat["/api/chat/stream"]
+        fwd["/api/relay/forward"]
+    end
+
+    official["15 официальных провайдеров"]
+    pubrelay["Relay на публичном хосте"]
+    lan["Сервер модели в вашей сети"]
+    catalog[("Публичный каталог моделей<br/>только чтение · без ключа")]
+
+    browser ==>|"официальный провайдер"| chat ==> official
+    browser ==>|"relay, публичный хост"| fwd ==> pubrelay
+    browser ==>|"relay, LAN или localhost"| lan
+    catalog -.-> browser
+    catalog -.-> chat
+```
+
+**Зачем нужен этот крюк.** API провайдеров не отдают CORS-заголовки, поэтому браузер не может
+обратиться к `api.openai.com` и его собратьям напрямую — preflight падает. Каждому браузерному
+BYOK-клиенту приходится как-то это решать; этот пробрасывает запрос через route handler Next.js,
+работающий в среде Node. Когда вы запускаете `npm run dev:app`, этот handler — на вашей собственной
+машине. Когда вы куда-то деплоите приложение, он на той машине, куда вы задеплоили.
+
+**Что handler делает и чего не делает.** Он проверяет форму запроса и ограничивает его размер,
+применяет rate limit по IP, отказывает URL'ам, которые резолвятся в приватные или link-local адреса,
+собирает тело под конкретного провайдера и стримит ответ обратно. Он не сохраняет ни ваш ключ, ни
+ваши сообщения, ни что-либо производное от них — это поведение прибито отдельным тестом
+(`server-never-learns.test.ts`). Пробрасыватель relay вдобавок фиксирует DNS на том адресе, который
+он отрезолвил, ограничивает размер ответа, ставит границы на все таймауты, разрешает редиректы
+только в пределах того же origin и отказывается пропускать hop-by-hop заголовки.
+
+**Локальные endpoint'ы обходят его целиком.** Relay на приватном адресе, на `.local`-имени, на
+`localhost` или настроенный в режиме локального HTTP либо приватного VPN запрашивается **прямо из
+браузера**, с `credentials: 'omit'` и `targetAddressSpace: 'local'`. Ваш трафик в локальной сети не
+покидает эту сеть и через сервер приложения тоже не проходит.
+
+## Архитектура
+
+```mermaid
+flowchart TB
+    subgraph app ["apps/app — приложение Next.js"]
+        direction LR
+        routes["App Router<br/>чат · заметки · провайдеры · skills · настройки"]
+        store["Zustand store<br/>vanilla + context"]
+        idb[("IndexedDB<br/>разговоры · заметки · ключи")]
+    end
+
+    subgraph pkgs ["packages/ — независимо от среды"]
+        direction LR
+        core["core<br/>транспорты · сборщики запросов · SSE"]
+        shared["shared<br/>типы домена · политика relay"]
+        ui["ui<br/>токены · компоненты"]
+        config["config<br/>бренд · настройки провайдеров"]
+    end
+
+    ports["CorePorts<br/>transport · crypto · clock · telemetry · metadata · env"]
+
+    routes <--> store <--> idb
+    store --> core
+    core --> shared & config
+    routes --> ui
+    core <--> ports
+```
+
+`packages/core` держит каждый байт знаний о протоколах провайдеров и намеренно избавлен от
+браузерных глобалей — eslint запрещает внутри него `window`, `document`, `fetch`, `crypto`,
+`localStorage` и `indexedDB`. Всё, что ему нужно от окружения, приходит через `CorePorts`. Именно
+это позволяет одному и тому же коду работать в браузере, в route handler на Node и в тесте без DOM.
+
+Поддержка провайдеров — это две независимые оси. `providerKind` выбирает **request builder** (как
+выглядит тело для этого вендора). `model.transport` выбирает **стратегию транспорта** (на каком
+сетевом протоколе идёт разговор) из двенадцати, и выбирается она по модели из каталога, а не по
+провайдеру — так что две модели за одним и тем же ключом могут расходиться. Стратегия реализует
+ровно три метода: `buildRequestBody`, `parseStreamChunk`, `parseError`.
+
+## Workspaces
+
+```
+apps/app/               the Next.js application
+packages/core/          provider protocols: transports, request builders, SSE parsing
+packages/shared/        domain types, relay policy, helpers
+packages/ui/            design tokens and shared components
+packages/config/        brand and provider defaults
+packages/ipc-contract/  typed channel contract for a desktop shell
+```
+
+Стилизация — это CSS Modules поверх единого набора токенов на custom properties в `packages/ui`;
+фреймворка утилитарных классов здесь нет. `packages/ipc-contract` описывает поверхность канала, к
+которой подключалась бы настольная оболочка; такой оболочки в этом репозитории нет, поэтому в
+веб-сборке от него остаются только типы и ветки, которые никогда не выполняются.
+
+## Хранение
+
+Всё разложено по партициям, ключом служит активный id, по умолчанию `guest`.
+
+| Что | Где |
+|---|---|
+| Разговоры, сообщения, папки, заметки, провайдеры | IndexedDB `oriveo--{id}`, 8 object store'ов |
+| Снимок каталога моделей (~3 МБ) и model facts | blob-хранилище в IndexedDB, намеренно не localStorage |
+| Настройки и таблицы управления моделью | `localStorage`, всегда через обёртку, которая никогда не бросает исключение |
+| Сгенерированные и приложенные изображения | отдельная база IndexedDB |
+
+Две детали, которые появились из реальных поломок, а не из вкуса. Снимок каталога живёт в IndexedDB
+потому, что при своих ~3 МБ он съедал большую часть 5-мегабайтной квоты localStorage на origin. А
+каждое обращение к localStorage идёт через `safeLocalStorage`, потому что сам *геттер*
+`window.localStorage` бросает `SecurityError`, когда в браузере запрещены данные сайтов, — голое
+чтение роняет страницу ещё до того, как выполнится ваш блок `try`.
+
+> [!IMPORTANT]
+> В вебе ключи провайдеров хранятся в IndexedDB **без шифрования** — это та же модель, которую
+> обычно используют браузерные BYOK-клиенты, потому что у браузера нет места получше. За самой
+> сильной гарантией идите в клиент iOS или Android, где их шифрует системный keychain или keystore.
+> С архивами резервных копий всё иначе: они шифруются AES-256-GCM и PBKDF2-SHA-256 с 600 000
+> итераций, когда вы задаёте пароль.
+
+## Каталог моделей
+
+Какие модели предлагает каждый провайдер и что каждая из них поддерживает — берётся из каталога
+только на чтение, загружаемого при старте. Запрашиваются ровно два endpoint'а, оба `GET`, оба с
+условием по ETag, и ни один из них не несёт API-ключа, разговора или какого-либо идентификатора
+пользователя:
+
+```
+GET {backend}/api/metadata?view=lean
+GET {backend}/api/metadata/model-facts
+```
+
+Бэкенд по умолчанию — `https://api.oriveoai.com`. Направьте `NEXT_PUBLIC_BACKEND_URL` на свой хост,
+чтобы отдавать каталог самостоятельно. Ответ кэшируется на 24 часа в IndexedDB и перевалидируется
+через `If-None-Match`; когда каталог недоступен, приложение продолжает работать с кэшированной
+копией.
+
+## Команды
+
+Запускайте их из этой директории.
+
+| Команда | Что делает |
+|---|---|
+| `npm run dev:app` | сервер разработки на порту 3001 |
+| `npm run build:app` | продакшен-сборка |
+| `npm run typecheck` | `tsc --noEmit` по всем workspace'ам |
+| `npm run test:run` | vitest, один прогон |
+| `npm run test` | vitest в режиме watch |
+| `npm run lint` | eslint по `apps/` и `packages/` |
+
+Чтобы запустить один файл тестов, делайте это из того workspace, которому он принадлежит: несколько
+наборов ищут фикстуры относительно рабочей директории.
+
+```bash
+cd apps/app && npx vitest run lib/core/chat/stream-options.test.ts
+```
+
+## Настройка
+
+Всё опционально. Скопируйте [`.env.example`](../../web/.env.example) в `.env.local` и задайте только
+то, что вам нужно; каждый ключ там описан.
+
+## Тесты
+
+Примерно 4 600 тестов в 461 файле, на vitest. Плотнее всего покрыто то, где ошибка обходится дороже
+всего: форма запроса для каждого провайдера, поведение транспорта для каждого сетевого протокола,
+разбор чанков SSE и прокси, разбор потребления и стоимости, классификация ошибок, зондирование relay
+и режимы безопасности, защита от SSRF, исполнение рецептов возможностей, кэширование каталога и
+инвалидация по версии контракта, хранение в IndexedDB, разделение хранилища на партиции, полный цикл
+резервного копирования и восстановления и сами route handlers.
+
+> [!IMPORTANT]
+> Около 24 наборов загружают контрактные фикстуры из `../shared`, поэтому **тесты проходят только в
+> полной копии репозитория** — если скопировать наружу один `web/`, работать не будет.
+
+## Локализация
+
+Шестнадцать локалей в `apps/app/messages`, примерно по 1 800 ключей в каждой, английский как
+исходный. Тест обходит директорию и падает, если набор ключей какой-либо локали отличается от
+английского, поэтому добавленный файл локали подключается автоматически. Для арабского сделана
+полная раскладка справа налево. Выбор локали идёт по явному параметру `?locale=`, затем по cookie,
+затем по `Accept-Language`.
+
+## Как участвовать
+
+См. [CONTRIBUTING.md](../../CONTRIBUTING.md). `packages/core` устроен вокруг транспортов: добавить
+провайдера — это обычно request builder и адаптер ответа, а не новый клиент. Для исправления
+протокола провайдера предпочитайте записанную фикстуру в `shared/test-fixtures` написанному вручную
+моку.
+
+## Лицензия
+
+[AGPL-3.0-or-later](../../LICENSE).

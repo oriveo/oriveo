@@ -1,0 +1,354 @@
+<div align="center">
+
+<img src="../../docs/assets/logo.png" width="104" height="104" alt="">
+
+# Oriveo
+
+**所有模型，一个应用。**
+
+开源、自带 Key 的 AI 聊天客户端，覆盖 iOS、Android 和 Web。
+不需要账号，不需要订阅，你和模型之间没有我们的服务器。
+
+<a href="../../LICENSE"><img alt="许可证 AGPL-3.0-or-later" src="https://img.shields.io/badge/license-AGPL--3.0--or--later-8B5CF6?style=flat-square&labelColor=black"></a>
+<a href="ios.md"><img alt="iOS 18 及以上" src="https://img.shields.io/badge/iOS-18+-A78BFA?style=flat-square&labelColor=black&logo=apple&logoColor=white"></a>
+<a href="android.md"><img alt="Android 8 及以上" src="https://img.shields.io/badge/Android-8+-A78BFA?style=flat-square&labelColor=black&logo=android&logoColor=white"></a>
+<a href="web.md"><img alt="基于 Next.js 的 Web 端" src="https://img.shields.io/badge/Web-Next.js-A78BFA?style=flat-square&labelColor=black&logo=nextdotjs&logoColor=white"></a>
+<img alt="15 家供应商外加 Relay" src="https://img.shields.io/badge/providers-15_+_relay-8B5CF6?style=flat-square&labelColor=black">
+<img alt="16 种界面语言" src="https://img.shields.io/badge/languages-16-8B5CF6?style=flat-square&labelColor=black">
+
+<a href="https://oriveoai.com">官网</a> &nbsp;·&nbsp;
+<a href="#开始使用">开始使用</a> &nbsp;·&nbsp;
+<a href="#架构">架构</a> &nbsp;·&nbsp;
+<a href="#社区版与-oriveo">版本对比</a> &nbsp;·&nbsp;
+<a href="#常见问题">常见问题</a> &nbsp;·&nbsp;
+<a href="../../CONTRIBUTING.md">参与贡献</a>
+
+<sub>
+
+<a href="../../README.md">English</a> ·
+<a href="../ar/README.md">العربية</a> ·
+<a href="../de/README.md">Deutsch</a> ·
+<a href="../es/README.md">Español</a> ·
+<a href="../fr/README.md">Français</a> ·
+<a href="../hi/README.md">हिन्दी</a> ·
+<a href="../id/README.md">Indonesia</a> ·
+<a href="../ja/README.md">日本語</a> ·
+<a href="../ko/README.md">한국어</a> ·
+<a href="../pt-BR/README.md">Português</a> ·
+<a href="../ru/README.md">Русский</a> ·
+<a href="../th/README.md">ไทย</a> ·
+<a href="../tr/README.md">Türkçe</a> ·
+<a href="../vi/README.md">Tiếng Việt</a> ·
+**简体中文** ·
+<a href="../zh-Hant/README.md">繁體中文</a>
+
+</sub>
+
+</div>
+
+---
+
+## Oriveo 是什么
+
+Oriveo 社区版是一个自带 Key（BYOK）的 AI 聊天客户端，支持 iOS、Android 和 Web。你提供自己已有的
+API Key，客户端就用它直接和供应商通信。没有 Oriveo 账号，没有订阅，也没有任何数据分析。
+
+它原生支持 **15 家模型供应商** —— OpenAI、Anthropic、Google Gemini、OpenRouter、DeepSeek、Grok、
+Mistral、Groq、Together AI、Fireworks AI、MiniMax、Z.ai、Qwen、Kimi 和 SiliconFlow —— 再加上
+**任何 OpenAI、Anthropic 或 Gemini 兼容的端点**，包括跑在你自己机器上的 llama.cpp、Ollama、
+LM Studio 或 vLLM。
+
+| | |
+|---|---|
+| **供应商** | 内置 15 家，另外还有自定义 relay 端点和本地模型服务器 |
+| **客户端** | iOS（SwiftUI）· Android（Jetpack Compose）· Web（Next.js） |
+| **界面语言** | 16 种 |
+| **是否需要账号** | 不需要 |
+| **它为自己发起的调用** | 只有一个：只读的模型目录，不带 Key、也不带任何标识 |
+| **许可证** | AGPL-3.0-or-later |
+
+## 为什么会有它
+
+聊天客户端不该挡在你和你付费使用的模型中间。
+
+- **你的 Key，你的账单。** 你按供应商的公开价格付费。没有加价，没有二次计量，也没有转售。
+- **默认存在本地。** 对话、笔记、文件夹、Skills 和附件都留在设备上。想导出成文件随时可以；不存在
+  某天丢掉访问权的云端副本。
+- **一套行为，三个客户端。** 针对某个供应商、传输方式和能力该如何构造请求，只在
+  [`shared/`](shared.md) 里定义一次，三个客户端都对着同一批 JSON fixture 做断言。供应商的怪癖修一次
+  就够，不用修三遍。
+- **对它唯一发出的那个请求保持坦白。** App 会拉取一份公开的模型目录，这样今天新发布的模型不用更新
+  App 就能用。这个请求是只读的，不带 Key 也不带任何标识，你也可以把它指向自己的服务器。
+
+## 功能
+
+- **聊天** —— 流式输出、思考过程、引用来源、附件（图片、PDF、Office、EPUB、HTML、纯文本）、
+  划词引用、重试、重新生成、答案被打断后继续
+- **供应商** —— 内置 15 家，每家用你自己的 Key；可按供应商覆盖端点、模型和参数
+- **Relay** —— 任何 OpenAI、Anthropic 或 Gemini 兼容的端点，包括你局域网内的那一个
+- **本地模型服务器** —— llama.cpp、Ollama、LM Studio、vLLM，并支持在局域网内自动发现
+- **订阅登录** —— 用你已有的 Codex 或 Grok 订阅代替 API Key
+- **Skills** —— 可复用的系统提示词，带各自的模型、参数和参考文档
+- **笔记与文件夹** —— 把回复存成笔记、整理对话、全文搜索
+- **交叉验证** —— 把同一个问题再问一个模型，两份答案并排放着
+- **花费** —— 按消息和按供应商统计支出，在设备本地根据每次响应实际上报的数据计算，包含缓存折扣档位
+- **图像生成** —— 供应商支持时可用
+- **备份** —— 把所有内容导出成文件，可选用你自己设定的密码加密
+- **16 种界面语言**，包括为阿拉伯语提供的完整从右到左布局
+
+## 社区版与 Oriveo
+
+本仓库是 **Oriveo 社区版**，以 [AGPL-3.0-or-later](../../LICENSE) 授权。App Store、Google Play 上的
+应用以及托管版 Web 应用是 **Oriveo** —— 一个独立的商业产品，用同样的客户端构建，并在上面加了一层账号
+体系。
+
+| | 社区版 | Oriveo |
+|---|---|---|
+| 源码 | 本仓库，AGPL-3.0-or-later | 闭源 |
+| 用自己的供应商 Key 聊天 | 是 | 是 |
+| Relay 和本地模型服务器 | 是 | 是 |
+| 笔记、文件夹、Skills、附件 | 是，无上限 | 是 |
+| 设备端花费统计 | 是 | 是 |
+| 账号 | 无 | Oriveo 账号 |
+| 存储 | 存在设备上；手动导出和恢复 | 本地优先，另有跨设备云同步 |
+| 用量洞察与预算提醒 | — | 是 |
+| 由 Oriveo 付费的模型 | — | 是 |
+| 数据分析与崩溃上报 | 无 | 有 |
+
+社区版构建使用 `ai.oriveo.community` 作为标识符前缀，所以它可以和商店版并存，两者不共享钥匙串、
+更新渠道或本地数据。这个版本接受什么、不接受什么，写在 [COMMUNITY.md](../../COMMUNITY.md) 里。
+
+**Oriveo 完整版：**
+[iPhone 和 iPad](https://apps.apple.com/app/oriveo/id6775370458) &nbsp;·&nbsp;
+[Android](https://play.google.com/store/apps/details?id=com.kenny.oriveo) &nbsp;·&nbsp;
+[Web](https://app.oriveoai.com) &nbsp;·&nbsp;
+[oriveoai.com](https://oriveoai.com)
+
+## 供应商
+
+下面每一家都用你自己创建的 Key 访问。
+
+| 供应商 | 去哪里拿 Key |
+|---|---|
+| OpenAI | [platform.openai.com](https://platform.openai.com/api-keys) |
+| Anthropic | [console.anthropic.com](https://console.anthropic.com/settings/keys) |
+| Google Gemini | [aistudio.google.com](https://aistudio.google.com/apikey) |
+| OpenRouter | [openrouter.ai](https://openrouter.ai/keys) |
+| DeepSeek | [platform.deepseek.com](https://platform.deepseek.com/api_keys) |
+| Grok | [console.x.ai](https://console.x.ai/) |
+| Mistral | [console.mistral.ai](https://console.mistral.ai/api-keys) |
+| Groq | [console.groq.com](https://console.groq.com/keys) |
+| Together AI | [api.together.xyz](https://api.together.xyz/settings/api-keys) |
+| Fireworks AI | [fireworks.ai](https://fireworks.ai/api-keys) |
+| MiniMax | [platform.minimax.io](https://platform.minimax.io/docs/guides/quickstart-preparation) |
+| Z.ai | [open.bigmodel.cn](https://open.bigmodel.cn/usercenter/apikeys) |
+| Qwen | [bailian.console.alibabacloud.com](https://bailian.console.alibabacloud.com/?apiKey=1#/api-key) |
+| Kimi | [platform.kimi.ai](https://platform.kimi.ai/console/api-keys) |
+| SiliconFlow | [cloud.siliconflow.cn](https://cloud.siliconflow.cn/account/ak) |
+| **Relay** | 任何 OpenAI、Anthropic 或 Gemini 兼容的端点，包括你自己机器上的那一个 |
+
+## 架构
+
+三个原生客户端，一份关于「怎么和模型供应商说话」的定义。
+
+```mermaid
+flowchart LR
+    shared["shared/<br/>请求配方 · 契约 · 录制的样本"]
+
+    subgraph clients ["三个原生客户端"]
+        direction TB
+        ios["iOS · SwiftUI"]
+        android["Android · Compose"]
+        web["Web · Next.js"]
+    end
+
+    route["Next.js route handler<br/>跑在提供该应用的机器上"]
+
+    subgraph upstream ["用你的 Key 访问"]
+        official["15 家模型供应商"]
+        relay["任意兼容的 relay"]
+        local["你自己机器上的服务"]
+    end
+
+    catalog[("公开模型目录<br/>只读 · 不带 Key")]
+
+    shared -.->|"每个客户端都对它断言"| clients
+    catalog -.->|"能力与价格"| clients
+    ios & android ==>|"直接从设备发出"| upstream
+    web ==> route ==> upstream
+```
+
+每个客户端有自己的 UI、存储和导航，只在唯一一处接缝上与共享契约相接：把*这个模型、这项能力*翻译成
+一个 HTTP 请求的那一层。
+
+唯一值得知道的不对称在 Web 客户端。供应商的 API 不发 CORS 头，浏览器没法直接调用它们；所以发往
+15 家官方供应商的请求会经过一个 Next.js route handler，它跑在提供该应用的那台机器上 —— 本地运行时
+就是你自己的机器。iOS 和 Android 客户端没有这个限制，直接连供应商。指向你自己网络的 relay 端点同样
+由浏览器直连。
+
+**各客户端的架构：**
+
+| | 技术栈 | README |
+|---|---|---|
+| **iOS** | SwiftUI 加一个 UIKit 消息列表、GRDB | [ios.md](ios.md) |
+| **Android** | Jetpack Compose、Room、Koin、Ktor/OkHttp | [android.md](android.md) |
+| **Web** | Next.js App Router、React、Zustand、TypeScript | [web.md](web.md) |
+| **Shared** | 契约、录制的 fixture，以及 Swift 协议内核 | [shared.md](shared.md) |
+
+## 开始使用
+
+<details open>
+<summary><b>Web</b> —— 最快的试用方式</summary>
+
+<br>
+
+需要 Node 22（见 [`web/.nvmrc`](../../web/.nvmrc)）。
+
+```bash
+cd web
+npm install
+npm run dev:app        # http://localhost:3001
+```
+
+第一屏会问你要一个供应商的 API Key。除此之外不需要别的。
+更多命令和配置见 [web.md](web.md)。
+
+</details>
+
+<details>
+<summary><b>iOS</b> —— 在自己的 iPhone 上构建运行</summary>
+
+<br>
+
+需要一台装有 Xcode 26 的 Mac，以及一台 iOS 18 或更高版本的设备。免费的 Apple Developer 账号就够了
+—— 这个 App 不用任何付费能力。
+
+1. 打开 `ios/Oriveo/Oriveo.xcodeproj`
+2. 选择 `Oriveo` scheme
+3. 在 Signing &amp; Capabilities 里选你自己的 Team
+4. 运行
+
+完整步骤，包括 Xcode 打不开工程时该怎么办：[ios.md](ios.md)。
+
+</details>
+
+<details>
+<summary><b>Android</b> —— 构建 APK</summary>
+
+<br>
+
+需要 JDK 17 或更高版本以及 Android SDK。构建使用 AGP 9.3、Gradle 9.5 和 Kotlin 2.3，所以
+Android Studio 得是能同步它们的版本；用命令行的话只需要 JDK 和 SDK。
+
+```bash
+cd android
+./gradlew :app:assembleDebug
+```
+
+想从自己的服务器提供模型目录，见 [android.md](android.md)。
+
+</details>
+
+## 隐私
+
+- **供应商 Key** 交给平台自己的设施保管 —— iOS Keychain、Android Keystore
+  （`EncryptedSharedPreferences`）或浏览器的 IndexedDB —— 并且只用于访问它所属的那家供应商。
+  在 Web 上它们是明文存储的，这也是浏览器 BYOK 客户端普遍采用的方式；想要最强的保证，请用 iOS 或
+  Android 客户端。
+- **对话、笔记、文件夹、Skills 和附件** 存在设备上。不会上传到任何地方。
+- **没有账号、没有分析、没有崩溃上报。** 没有可登录的东西，也没有什么在偷偷回传。
+- **在 iOS 和 Android 上，聊天请求从设备直达供应商。** 在 Web 上它们会经过提供该应用的那台
+  Next.js 服务器，因为供应商 API 不允许浏览器直连；那台服务器不保存 Key 也不保存消息，而当你在本地
+  运行时，它就是你自己的机器。
+- **我们自己只发一个请求：** 一次只读的模型目录拉取，不带 Key、不带对话、不带任何标识，这样今天新
+  发布的模型不用重新构建就能用。你要是更愿意自己提供这份目录，把它指向你自己的服务器即可。
+
+## 常见问题
+
+<details>
+<summary><b>BYOK 是什么意思？</b></summary>
+
+<br>
+
+Bring your own key，自带 Key。你在供应商自己的控制台里创建一个 API Key —— OpenAI、Anthropic、
+Google 等等 —— 然后粘贴进 Oriveo。请求由那家供应商按其公开价格计费。Oriveo 只是客户端；它不是
+经销商，也不抽成。
+
+</details>
+
+<details>
+<summary><b>我的对话会经过 Oriveo 的服务器吗？</b></summary>
+
+<br>
+
+不会。在 iOS 和 Android 上，客户端直接调用供应商端点。在 Web 上，请求会经过提供该应用的那台
+Next.js 服务器 —— 你在本地运行时那就是你自己的机器 —— 因为浏览器无法直接调用供应商 API。两条路径
+都不涉及 Oriveo 运营的服务器。Oriveo 唯一为自己发起的请求，是只读地拉取公开模型目录，其中不带 Key、
+不带对话，也不带任何标识。
+
+</details>
+
+<details>
+<summary><b>可以用跑在我自己机器上的模型吗？</b></summary>
+
+<br>
+
+可以。添加一个 Relay 连接，指向任何 OpenAI、Anthropic 或 Gemini 兼容的服务 —— llama.cpp、Ollama、
+LM Studio、vLLM，或者任何说这几种协议的东西。Android 和 Web 客户端还能在局域网内发现这样的服务。
+本地 HTTP 不使用任何凭证，流量也不会离开你的网络。
+
+</details>
+
+<details>
+<summary><b>它和 App Store 上的那个 App 有什么区别？</b></summary>
+
+<br>
+
+商店里的应用是 Oriveo，一个商业产品，额外提供账号、跨设备云同步、用量洞察，以及由 Oriveo 付费的
+模型。社区版是同样的三个客户端，但没有这些：没有账号、没有同步服务、没有计费、没有分析。完整对比见
+[社区版与 Oriveo](#社区版与-oriveo)。
+
+</details>
+
+<details>
+<summary><b>有 macOS 客户端吗？</b></summary>
+
+<br>
+
+本仓库里没有。在那之前，Web 客户端在任意浏览器里都能当桌面应用用得很好，而 iOS 构建可以直接跑在
+Apple 芯片的 Mac 上。
+
+</details>
+
+<details>
+<summary><b>界面支持哪些语言？</b></summary>
+
+<br>
+
+十六种：阿拉伯语、德语、英语、西班牙语、法语、印地语、印尼语、日语、韩语、巴西葡萄牙语、俄语、
+泰语、土耳其语、越南语、简体中文和繁体中文。阿拉伯语有完整的从右到左布局。
+
+</details>
+
+## 仓库结构
+
+```
+ios/       iOS client (SwiftUI)
+android/   Android client (Jetpack Compose)
+web/       Web client (Next.js)
+macos/     Reserved for a macOS client
+shared/    Cross-client contracts, recorded fixtures, and the Swift wire kernel
+```
+
+## 参与贡献
+
+欢迎提 Bug 和 Pull Request。[CONTRIBUTING.md](../../CONTRIBUTING.md) 讲了怎么构建每个客户端，以及
+一个好的 Pull Request 长什么样；[COMMUNITY.md](../../COMMUNITY.md) 说明这个版本是为什么存在的，以及
+少数几类无论写得多好都不会被接受的改动。
+
+发现安全问题了？请不要开公开 issue —— [SECURITY.md](../../SECURITY.md) 说明了怎么私下报告，以及这个
+项目把什么算作漏洞、把什么不算。参与进来的每个人都要遵守[行为准则](../../CODE_OF_CONDUCT.md)。
+
+## 许可证
+
+[AGPL-3.0-or-later](../../LICENSE)。贡献同样以该许可证接受。
