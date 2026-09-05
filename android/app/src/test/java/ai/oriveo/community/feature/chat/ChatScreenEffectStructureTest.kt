@@ -268,6 +268,39 @@ class ChatScreenEffectStructureTest {
         }
     }
 
+    /**
+     * The `pointerInput` block starts once, on the first pointer event, and compose-ui only restarts
+     * it when the `key` or the handler's `::class` changes — **not** on recomposition. Any composable
+     * parameter captured inside it is therefore frozen at launch, so comparing the press state
+     * against one reports the press and never the release. The chain is invisible in the code, so it
+     * is locked as an invariant here; the behaviour itself is covered by the [PointerPressTracker]
+     * cases in `ChatPresentationTest`.
+     */
+    @Test
+    fun `pointer press reporting compares against block local state not a captured parameter`() {
+        val listSource = File("src/main/java/ai/oriveo/community/feature/chat/ChatMessagesList.kt").readText()
+        val blockAt = listSource.indexOf(".pointerInput(Unit) {")
+        assertTrue("the list's pointer observation block is gone", blockAt > 0)
+        val block = listSource.substring(blockAt, listSource.indexOf("contentPadding =", blockAt))
+
+        assertTrue(
+            "the baseline must be a PointerPressTracker created inside the block; a captured parameter freezes there",
+            block.contains("val tracker = PointerPressTracker()"),
+        )
+        assertFalse(
+            "the block must not read the isPointerDown parameter (frozen value, the release is never reported)",
+            block.contains("isPointerDown"),
+        )
+        assertTrue(
+            "the callback must also be read through rememberUpdatedState rather than captured at first composition",
+            block.contains("latestOnPointerDownChange.value"),
+        )
+        assertFalse(
+            "ChatMessagesList must not take isPointerDown: flipping it on press and release recomposes the whole list",
+            listSource.contains("    isPointerDown: Boolean,"),
+        )
+    }
+
     /** The full line for a key in the English baseline. If a translation file contains that same line, it was never translated. */
     private fun englishRow(base: String, key: String): String =
         base.lines().first { it.contains("name=\"$key\"") }.trim()

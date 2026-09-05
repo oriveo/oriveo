@@ -565,6 +565,47 @@ class ChatPresentationTest {
         )
     }
 
+    // ── PointerPressTracker: the release must be reported ───────────────────────
+
+    @Test
+    fun `press then release reports twice`() {
+        val tracker = PointerPressTracker()
+
+        // Comparing against a frozen `false` reports the press and then never reports the release,
+        // because `false != false` is never true.
+        assertEquals(true, tracker.consume(true))
+        assertEquals(
+            "the release must be reported, otherwise follow, IME follow and reclaim stay gated off",
+            false,
+            tracker.consume(false),
+        )
+    }
+
+    @Test
+    fun `tracker compares against its own last reported value not a fixed baseline`() {
+        val tracker = PointerPressTracker()
+        val reported = mutableListOf<Boolean>()
+
+        // Two complete touches: each one reports a true and a false, so the baseline follows the
+        // tracker's own last report rather than being pinned to its initial value.
+        listOf(true, true, false, false, true, false).forEach { pressed ->
+            tracker.consume(pressed)?.let(reported::add)
+        }
+
+        assertEquals(listOf(true, false, true, false), reported)
+    }
+
+    @Test
+    fun `tracker suppresses repeats so move events do not spam the callback`() {
+        val tracker = PointerPressTracker()
+
+        assertEquals(true, tracker.consume(true))
+        assertNull("move events while held must not report again", tracker.consume(true))
+        assertNull(tracker.consume(true))
+        assertEquals(false, tracker.consume(false))
+        assertNull("hover or cancel events after the lift must not report again", tracker.consume(false))
+    }
+
     private fun message(id: String, role: ChatRole) = ChatMessage(
         id = id,
         role = role,

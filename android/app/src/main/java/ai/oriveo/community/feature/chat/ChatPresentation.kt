@@ -295,6 +295,34 @@ internal fun shouldFollowImeInset(
 }
 
 /**
+ * Tracks the press state inside the `pointerInput` block. It is the only baseline the
+ * "is a finger currently down on the list" report may compare against.
+ *
+ * Why the baseline has to be block-local state and never a composable parameter:
+ * `SuspendPointerInputElement.update` only calls `resetPointerInputHandler()` when the `key`
+ * changes or the handler's **`::class`** (not its instance) changes. The lambda class at a given
+ * call site never changes, so **recomposition does not restart the `pointerInput` block**, and the
+ * coroutine only starts lazily on the first pointer event. Any parameter captured inside the block
+ * is therefore frozen at the value it had when the coroutine launched. Comparing against a frozen
+ * `false` reports `true` on press but never reports the release (`false != false` is never true),
+ * which leaves the caller's state stuck at `true` after the first touch and gates off follow-to-
+ * bottom, IME follow and anchor reclaim for the rest of the session.
+ *
+ * A plain var rather than snapshot state: it is only read and written from the pointer event
+ * coroutine and must not trigger recomposition.
+ */
+internal class PointerPressTracker {
+    private var pressed = false
+
+    /** Returns the value to report when the press state flips, or null when nothing changed. */
+    fun consume(anyPressed: Boolean): Boolean? {
+        if (anyPressed == pressed) return null
+        pressed = anyPressed
+        return anyPressed
+    }
+}
+
+/**
  * Finds the user message to pin: the User message immediately preceding the streaming assistant
  * message.
  *

@@ -26,6 +26,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -68,7 +69,6 @@ internal fun BoxScope.ChatMessagesList(
     reserveDp: Dp,
     hideInitialListUntilBottomSettled: Boolean,
     isDragging: Boolean,
-    isPointerDown: Boolean,
     onPointerDownChange: (Boolean) -> Unit,
     isGenerating: Boolean,
     isRateLimitError: (ChatMessage) -> Boolean,
@@ -95,19 +95,24 @@ internal fun BoxScope.ChatMessagesList(
     latestMessageCount: Int,
 ) {
     val density = LocalDensity.current
+    // The pointerInput block starts once, on the first pointer event, and recomposition does not
+    // restart it (see [PointerPressTracker]). Everything it captures freezes at that moment, so the
+    // callback has to be read through rememberUpdatedState to reach the current instance.
+    val latestOnPointerDownChange = rememberUpdatedState(onPointerDownChange)
     LazyColumn(
         state = listState,
         modifier = Modifier
             .fillMaxSize()
             .alpha(if (hideInitialListUntilBottomSettled) 0f else 1f)
+            // The baseline has to be block-local state (tracker). A captured parameter freezes when
+            // the block starts, and the release is then never reported.
             .pointerInput(Unit) {
+                val tracker = PointerPressTracker()
                 awaitPointerEventScope {
                     while (true) {
                         val event = awaitPointerEvent(PointerEventPass.Initial)
                         val anyPressed = event.changes.any { it.pressed }
-                        if (anyPressed != isPointerDown) {
-                            onPointerDownChange(anyPressed)
-                        }
+                        tracker.consume(anyPressed)?.let { latestOnPointerDownChange.value(it) }
                     }
                 }
             },

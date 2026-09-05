@@ -298,6 +298,11 @@ internal fun ChatScreenContent(
     val latestMessages by rememberUpdatedState(messages)
     
     
+    // Whether a finger is currently down on the list (observed on PointerEventPass.Initial, the
+    // events are not consumed). All three consumers mean "yield while the finger is down, resume
+    // after it lifts": follow-to-bottom, IME follow, and [decideAnchorTransition]'s Reclaim. The
+    // reporting baseline has to stay inside the pointerInput block ([PointerPressTracker]);
+    // a captured parameter freezes there and the release is never reported.
     var isPointerDown by remember { mutableStateOf(false) }
     
     var noteFocusHighlightId by remember { mutableStateOf<String?>(null) }
@@ -388,6 +393,8 @@ internal fun ChatScreenContent(
         initialBottomSettledConversationId != conversationId
 
     
+    // isDragging is passed down to MessageBubble's isUserDragging, which no longer reads it
+    // (the parameter is kept for call-site compatibility).
     val isDragging by remember(listState) {
         derivedStateOf { isPointerDown && listState.isScrollInProgress }
     }
@@ -677,7 +684,6 @@ internal fun ChatScreenContent(
                         reserveDp = reserveDp,
                         hideInitialListUntilBottomSettled = hideInitialListUntilBottomSettled,
                         isDragging = isDragging,
-                        isPointerDown = isPointerDown,
                         onPointerDownChange = { isPointerDown = it },
                         isGenerating = viewModel.isGenerating,
                         isRateLimitError = ::isRateLimitError,
