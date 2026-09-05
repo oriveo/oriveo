@@ -1,0 +1,29 @@
+{
+  "id": "880E8400-E29B-41D4-A716-446655440001",
+  "role": "user",
+  "text": "Look at this image and file",
+  "providerKind": "openAI",
+  "providerName": "OpenAI",
+  "modelName": "GPT-4o",
+  "estimatedCost": 0.003,
+  "state": "delivered",
+  "attachments": [
+    {
+      "id": "990E8400-E29B-41D4-A716-446655440001",
+      "kind": "image",
+      "fileName": "screenshot.png",
+      "mimeType": "image/png",
+      "localImageID": "img-local-001",
+      "storageRef": "users/uid123/attachments/img-local-001.png",
+      "thumbnailBase64": "iVBORw0KGgoAAAANSUhEUg=="
+    },
+    {
+      "id": "990E8400-E29B-41D4-A716-446655440002",
+      "kind": "file",
+      "fileName": "data.csv",
+      "mimeType": "text/csv",
+      "base64Data": "bmFtZSxhZ2UKQWxpY2UsMzAKQm9iLDI1"
+    }
+  ],
+  "createdAt": "2026-03-15T11:00:00Z"
+}

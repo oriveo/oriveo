@@ -1,0 +1,137 @@
+.pills {
+  display: flex;
+  gap: 5px;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding: 2px 0;
+}
+
+.pills::-webkit-scrollbar {
+  display: none;
+}
+
+/* -- Skill chip: neutral by default, coloured only on hover -- */
+.pill {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid color-mix(in srgb, var(--o-border) 72%, transparent);
+  border-radius: var(--o-radius-full);
+  background: color-mix(in srgb, var(--o-surface) 44%, transparent);
+  color: var(--o-text-secondary);
+  cursor: pointer;
+  transition:
+    background 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease,
+    transform 120ms ease;
+}
+
+.pill:hover {
+  background: color-mix(
+    in srgb,
+    var(--skill-color, var(--o-primary)) 10%,
+    var(--o-surface)
+  );
+  border-color: color-mix(
+    in srgb,
+    var(--skill-color, var(--o-primary)) 28%,
+    var(--o-border-strong)
+  );
+  color: var(--o-text);
+}
+
+.pill:active {
+  transform: scale(0.97);
+}
+
+.pill:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--skill-color, var(--o-primary)) 60%, transparent);
+}
+
+.pillIcon {
+  font-size: 13px;
+  line-height: 1;
+  flex-shrink: 0;
+  /* On hover the icon glows faintly in the skill colour, and stays neutral otherwise */
+  filter: grayscale(0.15);
+  transition: filter 160ms ease;
+}
+
+.pill:hover .pillIcon {
+  filter: grayscale(0)
+    drop-shadow(0 1px 1px color-mix(in srgb, var(--skill-color, var(--o-primary)) 40%, transparent));
+}
+
+.pillName {
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 80px;
+  letter-spacing: -0.005em;
+}
+
+/* ── More Button ── */
+.pillMore {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 28px;
+  padding: 0 11px;
+  border: 1px dashed var(--o-border);
+  border-radius: var(--o-radius-full);
+  background: transparent;
+  color: var(--o-text-tertiary);
+  cursor: pointer;
+  transition: border-color 160ms ease, color 160ms ease, background 160ms ease;
+}
+
+.pillMore:hover {
+  border-color: color-mix(in srgb, var(--o-primary) 40%, var(--o-border));
+  background: var(--o-primary-subtle);
+  color: var(--o-primary);
+}
+
+.pillMore:focus-visible {
+  outline: none;
+  box-shadow: var(--o-focus-ring);
+}
+
+/* ── Loading Skeleton ── */
+.pillSkeleton {
+  flex-shrink: 0;
+  width: 80px;
+  height: 28px;
+  border-radius: var(--o-radius-full);
+  background: linear-gradient(
+    90deg,
+    var(--o-surface-raised) 0%,
+    color-mix(in srgb, var(--o-border) 60%, var(--o-surface-raised)) 50%,
+    var(--o-surface-raised) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.6s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pillSkeleton {
+    animation: none;
+  }
+}

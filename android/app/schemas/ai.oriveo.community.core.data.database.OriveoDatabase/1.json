@@ -1,0 +1,1167 @@
+{
+  "formatVersion": 1,
+  "database": {
+    "version": 1,
+    "identityHash": "e5f8b12dc63918833dd9f265d932378c",
+    "entities": [
+      {
+        "tableName": "providers",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL COLLATE NOCASE, `kind` TEXT NOT NULL, `status` TEXT NOT NULL, `lastCheckedAt` INTEGER, `apiKeyPreview` TEXT NOT NULL, `lastError` TEXT, `baseUrlText` TEXT, `customName` TEXT, `relayKind` TEXT, `modelsJson` TEXT NOT NULL, `catalogModelsJson` TEXT NOT NULL, `relayRequestedJson` TEXT, `relayImageJson` TEXT, `updatedAt` INTEGER NOT NULL, `accountId` TEXT NOT NULL, `cachedAvailableModelCount` INTEGER, `authMode` TEXT NOT NULL, PRIMARY KEY(`id`, `accountId`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "kind",
+            "columnName": "kind",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "status",
+            "columnName": "status",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastCheckedAt",
+            "columnName": "lastCheckedAt",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "apiKeyPreview",
+            "columnName": "apiKeyPreview",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastError",
+            "columnName": "lastError",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "baseUrlText",
+            "columnName": "baseUrlText",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "customName",
+            "columnName": "customName",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "relayKind",
+            "columnName": "relayKind",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "modelsJson",
+            "columnName": "modelsJson",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "catalogModelsJson",
+            "columnName": "catalogModelsJson",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "relayRequestedJson",
+            "columnName": "relayRequestedJson",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "relayImageJson",
+            "columnName": "relayImageJson",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "updatedAt",
+            "columnName": "updatedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "accountId",
+            "columnName": "accountId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "cachedAvailableModelCount",
+            "columnName": "cachedAvailableModelCount",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "authMode",
+            "columnName": "authMode",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id",
+            "accountId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_providers_accountId",
+            "unique": false,
+            "columnNames": [
+              "accountId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_providers_accountId` ON `${TABLE_NAME}` (`accountId`)"
+          },
+          {
+            "name": "index_providers_accountId_kind",
+            "unique": false,
+            "columnNames": [
+              "accountId",
+              "kind"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_providers_accountId_kind` ON `${TABLE_NAME}` (`accountId`, `kind`)"
+          }
+        ]
+      },
+      {
+        "tableName": "conversations",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL COLLATE NOCASE, `title` TEXT NOT NULL, `hasCustomTitle` INTEGER NOT NULL, `providerID` TEXT NOT NULL COLLATE NOCASE, `providerKind` TEXT NOT NULL, `modelID` TEXT NOT NULL, `useMemory` INTEGER NOT NULL, `previewText` TEXT NOT NULL, `estimatedCost` REAL NOT NULL, `isDraft` INTEGER NOT NULL, `draftText` TEXT NOT NULL, `createdAt` INTEGER NOT NULL, `updatedAt` INTEGER NOT NULL, `folderID` TEXT COLLATE NOCASE, `skillId` TEXT, `accountId` TEXT NOT NULL, `deletedAt` INTEGER, `pinnedNoteIdsJson` TEXT, PRIMARY KEY(`id`, `accountId`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "title",
+            "columnName": "title",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "hasCustomTitle",
+            "columnName": "hasCustomTitle",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "providerID",
+            "columnName": "providerID",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "providerKind",
+            "columnName": "providerKind",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "modelID",
+            "columnName": "modelID",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "useMemory",
+            "columnName": "useMemory",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "previewText",
+            "columnName": "previewText",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "estimatedCost",
+            "columnName": "estimatedCost",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isDraft",
+            "columnName": "isDraft",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "draftText",
+            "columnName": "draftText",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "createdAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updatedAt",
+            "columnName": "updatedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "folderID",
+            "columnName": "folderID",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "skillId",
+            "columnName": "skillId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "accountId",
+            "columnName": "accountId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "deletedAt",
+            "columnName": "deletedAt",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "pinnedNoteIdsJson",
+            "columnName": "pinnedNoteIdsJson",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id",
+            "accountId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_conversations_accountId",
+            "unique": false,
+            "columnNames": [
+              "accountId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_conversations_accountId` ON `${TABLE_NAME}` (`accountId`)"
+          },
+          {
+            "name": "index_conversations_accountId_updatedAt",
+            "unique": false,
+            "columnNames": [
+              "accountId",
+              "updatedAt"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_conversations_accountId_updatedAt` ON `${TABLE_NAME}` (`accountId`, `updatedAt`)"
+          },
+          {
+            "name": "index_conversations_folderID",
+            "unique": false,
+            "columnNames": [
+              "folderID"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_conversations_folderID` ON `${TABLE_NAME}` (`folderID`)"
+          },
+          {
+            "name": "index_conversations_deletedAt",
+            "unique": false,
+            "columnNames": [
+              "deletedAt"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_conversations_deletedAt` ON `${TABLE_NAME}` (`deletedAt`)"
+          }
+        ]
+      },
+      {
+        "tableName": "messages",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL COLLATE NOCASE, `accountId` TEXT NOT NULL, `conversationId` TEXT NOT NULL COLLATE NOCASE, `role` TEXT NOT NULL, `text` TEXT NOT NULL, `providerID` TEXT COLLATE NOCASE, `providerKind` TEXT NOT NULL, `providerName` TEXT NOT NULL, `modelID` TEXT, `modelName` TEXT NOT NULL, `servedModelID` TEXT, `estimatedCost` REAL NOT NULL, `state` TEXT NOT NULL, `errorTitle` TEXT, `errorDetail` TEXT, `attachmentsJson` TEXT, `quoteContextJson` TEXT, `createdAt` INTEGER, `sortOrder` INTEGER NOT NULL, `deletedAt` INTEGER, `citationsJson` TEXT, `capabilityExecutionResultsJson` TEXT, `unhandledToolCallsJson` TEXT, `toolFallbackNotice` TEXT, `customRetryWithoutFieldsAvailable` INTEGER NOT NULL, `customRetryWithoutFieldsCode` TEXT, `reasoningText` TEXT, `reasoningDurationMs` INTEGER, `inputTokens` INTEGER, `outputTokens` INTEGER, `cachedInputTokens` INTEGER, `cacheCreationInputTokens` INTEGER, `cacheCreation5mTokens` INTEGER, `cacheCreation1hTokens` INTEGER, `costSource` TEXT, PRIMARY KEY(`id`, `accountId`), FOREIGN KEY(`conversationId`, `accountId`) REFERENCES `conversations`(`id`, `accountId`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "accountId",
+            "columnName": "accountId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "conversationId",
+            "columnName": "conversationId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "role",
+            "columnName": "role",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "text",
+            "columnName": "text",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "providerID",
+            "columnName": "providerID",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "providerKind",
+            "columnName": "providerKind",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "providerName",
+            "columnName": "providerName",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "modelID",
+            "columnName": "modelID",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "modelName",
+            "columnName": "modelName",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "servedModelID",
+            "columnName": "servedModelID",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "estimatedCost",
+            "columnName": "estimatedCost",
+            "affinity": "REAL",
+            "notNull": true
+          },
+          {
+            "fieldPath": "state",
+            "columnName": "state",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "errorTitle",
+            "columnName": "errorTitle",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "errorDetail",
+            "columnName": "errorDetail",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "attachmentsJson",
+            "columnName": "attachmentsJson",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "quoteContextJson",
+            "columnName": "quoteContextJson",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "createdAt",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "sortOrder",
+            "columnName": "sortOrder",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "deletedAt",
+            "columnName": "deletedAt",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "citationsJson",
+            "columnName": "citationsJson",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "capabilityExecutionResultsJson",
+            "columnName": "capabilityExecutionResultsJson",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "unhandledToolCallsJson",
+            "columnName": "unhandledToolCallsJson",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "toolFallbackNotice",
+            "columnName": "toolFallbackNotice",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "customRetryWithoutFieldsAvailable",
+            "columnName": "customRetryWithoutFieldsAvailable",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "customRetryWithoutFieldsCode",
+            "columnName": "customRetryWithoutFieldsCode",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "reasoningText",
+            "columnName": "reasoningText",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "reasoningDurationMs",
+            "columnName": "reasoningDurationMs",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "inputTokens",
+            "columnName": "inputTokens",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "outputTokens",
+            "columnName": "outputTokens",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "cachedInputTokens",
+            "columnName": "cachedInputTokens",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "cacheCreationInputTokens",
+            "columnName": "cacheCreationInputTokens",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "cacheCreation5mTokens",
+            "columnName": "cacheCreation5mTokens",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "cacheCreation1hTokens",
+            "columnName": "cacheCreation1hTokens",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "costSource",
+            "columnName": "costSource",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id",
+            "accountId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_messages_conversationId_accountId_sortOrder",
+            "unique": false,
+            "columnNames": [
+              "conversationId",
+              "accountId",
+              "sortOrder"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_messages_conversationId_accountId_sortOrder` ON `${TABLE_NAME}` (`conversationId`, `accountId`, `sortOrder`)"
+          },
+          {
+            "name": "index_messages_deletedAt",
+            "unique": false,
+            "columnNames": [
+              "deletedAt"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_messages_deletedAt` ON `${TABLE_NAME}` (`deletedAt`)"
+          }
+        ],
+        "foreignKeys": [
+          {
+            "table": "conversations",
+            "onDelete": "CASCADE",
+            "onUpdate": "NO ACTION",
+            "columns": [
+              "conversationId",
+              "accountId"
+            ],
+            "referencedColumns": [
+              "id",
+              "accountId"
+            ]
+          }
+        ]
+      },
+      {
+        "tableName": "preferences",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`key` TEXT NOT NULL, `value` TEXT NOT NULL, PRIMARY KEY(`key`))",
+        "fields": [
+          {
+            "fieldPath": "key",
+            "columnName": "key",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "value",
+            "columnName": "value",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "key"
+          ]
+        }
+      },
+      {
+        "tableName": "folders",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL COLLATE NOCASE, `name` TEXT NOT NULL, `sortOrder` INTEGER NOT NULL, `createdAt` INTEGER NOT NULL, `updatedAt` INTEGER NOT NULL, `accountId` TEXT NOT NULL, `colorTag` TEXT, PRIMARY KEY(`id`, `accountId`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sortOrder",
+            "columnName": "sortOrder",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "createdAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updatedAt",
+            "columnName": "updatedAt",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "accountId",
+            "columnName": "accountId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "colorTag",
+            "columnName": "colorTag",
+            "affinity": "TEXT"
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id",
+            "accountId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_folders_accountId",
+            "unique": false,
+            "columnNames": [
+              "accountId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_folders_accountId` ON `${TABLE_NAME}` (`accountId`)"
+          }
+        ]
+      },
+      {
+        "tableName": "skills",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL, `accountId` TEXT NOT NULL, `key` TEXT, `name` TEXT NOT NULL, `description` TEXT NOT NULL, `icon` TEXT NOT NULL, `color` TEXT NOT NULL, `systemPrompt` TEXT NOT NULL, `suggestedProviderId` TEXT, `suggestedModelId` TEXT, `modelCapabilityHint` TEXT NOT NULL, `temperature` REAL, `reasoningLevel` TEXT, `webSearchEnabled` INTEGER, `starterMessagesJson` TEXT NOT NULL, `knowledgeFilesJson` TEXT NOT NULL, `knowledgeBaseJson` TEXT, `useMemory` INTEGER NOT NULL, `isPinned` INTEGER NOT NULL, `pinOrder` INTEGER NOT NULL, `source` TEXT NOT NULL, `forkedFromId` TEXT, `category` TEXT, `sortOrder` INTEGER NOT NULL, `usageCount` INTEGER NOT NULL, `lastUsedAt` TEXT, `createdAt` TEXT NOT NULL, `updatedAt` TEXT NOT NULL, PRIMARY KEY(`id`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "accountId",
+            "columnName": "accountId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "key",
+            "columnName": "key",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "description",
+            "columnName": "description",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "icon",
+            "columnName": "icon",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "color",
+            "columnName": "color",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "systemPrompt",
+            "columnName": "systemPrompt",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "suggestedProviderId",
+            "columnName": "suggestedProviderId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "suggestedModelId",
+            "columnName": "suggestedModelId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "modelCapabilityHint",
+            "columnName": "modelCapabilityHint",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "temperature",
+            "columnName": "temperature",
+            "affinity": "REAL"
+          },
+          {
+            "fieldPath": "reasoningLevel",
+            "columnName": "reasoningLevel",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "webSearchEnabled",
+            "columnName": "webSearchEnabled",
+            "affinity": "INTEGER"
+          },
+          {
+            "fieldPath": "starterMessagesJson",
+            "columnName": "starterMessagesJson",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "knowledgeFilesJson",
+            "columnName": "knowledgeFilesJson",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "knowledgeBaseJson",
+            "columnName": "knowledgeBaseJson",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "useMemory",
+            "columnName": "useMemory",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "isPinned",
+            "columnName": "isPinned",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "pinOrder",
+            "columnName": "pinOrder",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "source",
+            "columnName": "source",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "forkedFromId",
+            "columnName": "forkedFromId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "category",
+            "columnName": "category",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "sortOrder",
+            "columnName": "sortOrder",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "usageCount",
+            "columnName": "usageCount",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "lastUsedAt",
+            "columnName": "lastUsedAt",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "createdAt",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updatedAt",
+            "columnName": "updatedAt",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_skills_accountId_source",
+            "unique": false,
+            "columnNames": [
+              "accountId",
+              "source"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_skills_accountId_source` ON `${TABLE_NAME}` (`accountId`, `source`)"
+          }
+        ]
+      },
+      {
+        "tableName": "metadata_cache",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`key` TEXT NOT NULL, `payload` TEXT NOT NULL, `version` INTEGER NOT NULL, `contractVersion` INTEGER NOT NULL, `updatedAtMs` INTEGER NOT NULL, PRIMARY KEY(`key`))",
+        "fields": [
+          {
+            "fieldPath": "key",
+            "columnName": "key",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "payload",
+            "columnName": "payload",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "version",
+            "columnName": "version",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "contractVersion",
+            "columnName": "contractVersion",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updatedAtMs",
+            "columnName": "updatedAtMs",
+            "affinity": "INTEGER",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "key"
+          ]
+        }
+      },
+      {
+        "tableName": "notes",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL COLLATE NOCASE, `title` TEXT NOT NULL, `titleSource` TEXT NOT NULL, `body` TEXT NOT NULL, `bodySnapshot` TEXT, `userNote` TEXT, `tagsJson` TEXT NOT NULL, `noteFolderID` TEXT COLLATE NOCASE, `sourceConversationId` TEXT, `sourceMessageId` TEXT, `sourceModelID` TEXT, `sourceModelName` TEXT, `sourceProviderKind` TEXT, `sourceProviderName` TEXT, `sourcePrompt` TEXT, `captureKind` TEXT NOT NULL, `provenanceJson` TEXT, `isPinned` INTEGER NOT NULL, `createdAt` TEXT NOT NULL, `updatedAt` TEXT NOT NULL, `deletedAt` TEXT, `accountId` TEXT NOT NULL, PRIMARY KEY(`id`, `accountId`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "title",
+            "columnName": "title",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "titleSource",
+            "columnName": "titleSource",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "body",
+            "columnName": "body",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "bodySnapshot",
+            "columnName": "bodySnapshot",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "userNote",
+            "columnName": "userNote",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "tagsJson",
+            "columnName": "tagsJson",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "noteFolderID",
+            "columnName": "noteFolderID",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "sourceConversationId",
+            "columnName": "sourceConversationId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "sourceMessageId",
+            "columnName": "sourceMessageId",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "sourceModelID",
+            "columnName": "sourceModelID",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "sourceModelName",
+            "columnName": "sourceModelName",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "sourceProviderKind",
+            "columnName": "sourceProviderKind",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "sourceProviderName",
+            "columnName": "sourceProviderName",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "sourcePrompt",
+            "columnName": "sourcePrompt",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "captureKind",
+            "columnName": "captureKind",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "provenanceJson",
+            "columnName": "provenanceJson",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "isPinned",
+            "columnName": "isPinned",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "createdAt",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updatedAt",
+            "columnName": "updatedAt",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "deletedAt",
+            "columnName": "deletedAt",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "accountId",
+            "columnName": "accountId",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id",
+            "accountId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_notes_accountId",
+            "unique": false,
+            "columnNames": [
+              "accountId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_notes_accountId` ON `${TABLE_NAME}` (`accountId`)"
+          },
+          {
+            "name": "index_notes_updatedAt",
+            "unique": false,
+            "columnNames": [
+              "updatedAt"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_notes_updatedAt` ON `${TABLE_NAME}` (`updatedAt`)"
+          },
+          {
+            "name": "index_notes_noteFolderID",
+            "unique": false,
+            "columnNames": [
+              "noteFolderID"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_notes_noteFolderID` ON `${TABLE_NAME}` (`noteFolderID`)"
+          },
+          {
+            "name": "index_notes_deletedAt",
+            "unique": false,
+            "columnNames": [
+              "deletedAt"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_notes_deletedAt` ON `${TABLE_NAME}` (`deletedAt`)"
+          }
+        ]
+      },
+      {
+        "tableName": "note_folders",
+        "createSql": "CREATE TABLE IF NOT EXISTS `${TABLE_NAME}` (`id` TEXT NOT NULL COLLATE NOCASE, `name` TEXT NOT NULL, `sortOrder` INTEGER NOT NULL, `colorTag` TEXT, `createdAt` TEXT NOT NULL, `updatedAt` TEXT NOT NULL, `deletedAt` TEXT, `accountId` TEXT NOT NULL, PRIMARY KEY(`id`, `accountId`))",
+        "fields": [
+          {
+            "fieldPath": "id",
+            "columnName": "id",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "name",
+            "columnName": "name",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "sortOrder",
+            "columnName": "sortOrder",
+            "affinity": "INTEGER",
+            "notNull": true
+          },
+          {
+            "fieldPath": "colorTag",
+            "columnName": "colorTag",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "createdAt",
+            "columnName": "createdAt",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "updatedAt",
+            "columnName": "updatedAt",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "deletedAt",
+            "columnName": "deletedAt",
+            "affinity": "TEXT"
+          },
+          {
+            "fieldPath": "accountId",
+            "columnName": "accountId",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": [
+            "id",
+            "accountId"
+          ]
+        },
+        "indices": [
+          {
+            "name": "index_note_folders_accountId",
+            "unique": false,
+            "columnNames": [
+              "accountId"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_note_folders_accountId` ON `${TABLE_NAME}` (`accountId`)"
+          },
+          {
+            "name": "index_note_folders_sortOrder",
+            "unique": false,
+            "columnNames": [
+              "sortOrder"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_note_folders_sortOrder` ON `${TABLE_NAME}` (`sortOrder`)"
+          },
+          {
+            "name": "index_note_folders_deletedAt",
+            "unique": false,
+            "columnNames": [
+              "deletedAt"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_note_folders_deletedAt` ON `${TABLE_NAME}` (`deletedAt`)"
+          }
+        ]
+      },
+      {
+        "tableName": "note_search_index",
+        "createSql": "CREATE VIRTUAL TABLE IF NOT EXISTS `${TABLE_NAME}` USING FTS4(`noteId` TEXT NOT NULL, `accountId` TEXT NOT NULL, `title` TEXT NOT NULL, `body` TEXT NOT NULL, `userNote` TEXT NOT NULL, `tagsText` TEXT NOT NULL, notindexed=`noteId`, notindexed=`accountId`)",
+        "fields": [
+          {
+            "fieldPath": "noteId",
+            "columnName": "noteId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "accountId",
+            "columnName": "accountId",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "title",
+            "columnName": "title",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "body",
+            "columnName": "body",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "userNote",
+            "columnName": "userNote",
+            "affinity": "TEXT",
+            "notNull": true
+          },
+          {
+            "fieldPath": "tagsText",
+            "columnName": "tagsText",
+            "affinity": "TEXT",
+            "notNull": true
+          }
+        ],
+        "primaryKey": {
+          "autoGenerate": false,
+          "columnNames": []
+        },
+        "ftsVersion": "FTS4",
+        "ftsOptions": {
+          "tokenizer": "simple",
+          "tokenizerArgs": [],
+          "contentTable": "",
+          "languageIdColumnName": "",
+          "matchInfo": "FTS4",
+          "notIndexedColumns": [
+            "noteId",
+            "accountId"
+          ],
+          "prefixSizes": [],
+          "preferredOrder": "ASC"
+        },
+        "contentSyncTriggers": []
+      }
+    ],
+    "setupQueries": [
+      "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'e5f8b12dc63918833dd9f265d932378c')"
+    ]
+  }
+}

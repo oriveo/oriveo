@@ -1,0 +1,90 @@
+/* Empty state for a skill conversation, matching SkillsLanding: skill icon, greeting and skill
+   description, centred. The skill icon is shown flat, with no white plate, border or halo; the
+   ambient background comes from the full-screen ChatAmbientAurora. No starter cards. */
+.intro {
+  position: relative;
+  width: min(100%, 940px);
+  margin: 0 auto;
+  padding: clamp(28px, 6vh, 68px) var(--o-space-lg);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 9px;
+  text-align: center;
+  isolation: isolate;
+  animation: heroIn 520ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* ── skill icon: flat, icon only, sized through the SkillIcon size prop ── */
+.iconWrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 10px;
+}
+
+.icon {
+  line-height: 1;
+}
+
+/* ── Copy, matching the greeting and sub in SkillsLanding ── */
+.greeting {
+  margin: 0;
+  max-width: 780px;
+  color: var(--o-text);
+  font-family: var(--o-font-display);
+  font-size: clamp(32px, 4vw, 44px);
+  font-weight: var(--o-weight-semibold);
+  line-height: 1.12;
+  letter-spacing: -0.01em;
+  font-feature-settings: 'palt' 1;
+}
+
+.description {
+  margin: 0;
+  max-width: 40ch;
+  color: var(--o-text-secondary);
+  font-size: 14px;
+  line-height: 1.55;
+  text-align: center;
+}
+
+@keyframes heroIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 880px) {
+  .intro {
+    padding-inline: var(--o-space-md);
+  }
+}
+
+@media (max-width: 639px) {
+  .intro {
+    padding-top: clamp(24px, 6vh, 48px);
+    gap: 20px;
+  }
+
+  .greeting {
+    font-size: clamp(26px, 7.5vw, 34px);
+  }
+
+  .description {
+    font-size: 13.5px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .intro {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+}

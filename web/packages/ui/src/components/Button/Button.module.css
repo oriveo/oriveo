@@ -1,0 +1,68 @@
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--o-space-sm);
+  border: none;
+  border-radius: var(--o-radius-md);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--o-transition-fast), transform var(--o-transition-fast), box-shadow var(--o-transition-fast);
+}
+
+.btn:hover {
+  transform: translateY(-1px);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* ── Sizes ── */
+.sm {
+  min-height: 32px;
+  padding: 0 var(--o-space-md);
+  font-size: var(--o-text-xs);
+}
+
+.md {
+  min-height: 40px;
+  padding: 0 var(--o-space-lg);
+  font-size: var(--o-text-sm);
+}
+
+/* ── Tones ── */
+.primary {
+  color: var(--o-primary-text);
+  background: var(--o-gradient-brand);
+  box-shadow: var(--o-elevation-control);
+}
+
+.primary:hover:not(:disabled) {
+  box-shadow: var(--o-elevation-card), var(--o-glow-primary);
+}
+
+.secondary {
+  color: var(--o-text);
+  background: var(--o-surface-raised);
+  border: 1px solid var(--o-border);
+  box-shadow: var(--o-elevation-control);
+}
+
+.secondary:hover:not(:disabled) {
+  border-color: var(--o-border-strong);
+  box-shadow: var(--o-elevation-card);
+}
+
+.danger {
+  color: var(--o-on-danger);
+  background: var(--o-error);
+  box-shadow: var(--o-elevation-control);
+}
+
+.danger:hover:not(:disabled) {
+  opacity: 0.9;
+  box-shadow: 0 0 0 3px var(--o-error-subtle), var(--o-elevation-card);
+}

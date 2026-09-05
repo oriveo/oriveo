@@ -1,0 +1,28 @@
+data: {"id":"d101ea03-8077-49d7-bc92-45789b0a66ff","object":"chat.completion.chunk","created":1787393443,"model":"deepseek-v4-flash","system_fingerprint":"a26a7955944dc5c60445bff77fac9c8e","choices":[{"index":0,"delta":{"role":"assistant","content":""},"logprobs":null,"finish_reason":null}]}
+
+data: {"id":"d101ea03-8077-49d7-bc92-45789b0a66ff","object":"chat.completion.chunk","created":1787393443,"model":"deepseek-v4-flash","system_fingerprint":"a26a7955944dc5c60445bff77fac9c8e","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"call_00_S1xT2zrjmpbVThtHwSoH7017","type":"function","function":{"name":"get_weather","arguments":""}}]},"logprobs":null,"finish_reason":null}]}
+
+data: {"id":"d101ea03-8077-49d7-bc92-45789b0a66ff","object":"chat.completion.chunk","created":1787393443,"model":"deepseek-v4-flash","system_fingerprint":"a26a7955944dc5c60445bff77fac9c8e","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"{"}}]},"logprobs":null,"finish_reason":null}]}
+
+data: {"id":"d101ea03-8077-49d7-bc92-45789b0a66ff","object":"chat.completion.chunk","created":1787393443,"model":"deepseek-v4-flash","system_fingerprint":"a26a7955944dc5c60445bff77fac9c8e","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"\""}}]},"logprobs":null,"finish_reason":null}]}
+
+data: {"id":"d101ea03-8077-49d7-bc92-45789b0a66ff","object":"chat.completion.chunk","created":1787393443,"model":"deepseek-v4-flash","system_fingerprint":"a26a7955944dc5c60445bff77fac9c8e","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"city"}}]},"logprobs":null,"finish_reason":null}]}
+
+data: {"id":"d101ea03-8077-49d7-bc92-45789b0a66ff","object":"chat.completion.chunk","created":1787393443,"model":"deepseek-v4-flash","system_fingerprint":"a26a7955944dc5c60445bff77fac9c8e","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"\""}}]},"logprobs":null,"finish_reason":null}]}
+
+data: {"id":"d101ea03-8077-49d7-bc92-45789b0a66ff","object":"chat.completion.chunk","created":1787393443,"model":"deepseek-v4-flash","system_fingerprint":"a26a7955944dc5c60445bff77fac9c8e","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":": "}}]},"logprobs":null,"finish_reason":null}]}
+
+data: {"id":"d101ea03-8077-49d7-bc92-45789b0a66ff","object":"chat.completion.chunk","created":1787393443,"model":"deepseek-v4-flash","system_fingerprint":"a26a7955944dc5c60445bff77fac9c8e","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"\""}}]},"logprobs":null,"finish_reason":null}]}
+
+data: {"id":"d101ea03-8077-49d7-bc92-45789b0a66ff","object":"chat.completion.chunk","created":1787393443,"model":"deepseek-v4-flash","system_fingerprint":"a26a7955944dc5c60445bff77fac9c8e","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"Mel"}}]},"logprobs":null,"finish_reason":null}]}
+
+data: {"id":"d101ea03-8077-49d7-bc92-45789b0a66ff","object":"chat.completion.chunk","created":1787393443,"model":"deepseek-v4-flash","system_fingerprint":"a26a7955944dc5c60445bff77fac9c8e","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"bourne"}}]},"logprobs":null,"finish_reason":null}]}
+
+data: {"id":"d101ea03-8077-49d7-bc92-45789b0a66ff","object":"chat.completion.chunk","created":1787393443,"model":"deepseek-v4-flash","system_fingerprint":"a26a7955944dc5c60445bff77fac9c8e","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"\""}}]},"logprobs":null,"finish_reason":null}]}
+
+data: {"id":"d101ea03-8077-49d7-bc92-45789b0a66ff","object":"chat.completion.chunk","created":1787393443,"model":"deepseek-v4-flash","system_fingerprint":"a26a7955944dc5c60445bff77fac9c8e","choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"function":{"arguments":"}"}}]},"logprobs":null,"finish_reason":null}]}
+
+data: {"id":"d101ea03-8077-49d7-bc92-45789b0a66ff","object":"chat.completion.chunk","created":1787393443,"model":"deepseek-v4-flash","system_fingerprint":"a26a7955944dc5c60445bff77fac9c8e","choices":[{"index":0,"delta":{"content":""},"logprobs":null,"finish_reason":"tool_calls"}],"usage":{"prompt_tokens":296,"completion_tokens":45,"total_tokens":341,"prompt_tokens_details":{"cached_tokens":0},"prompt_cache_hit_tokens":0,"prompt_cache_miss_tokens":296}}
+
+data: [DONE]
+

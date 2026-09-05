@@ -1,0 +1,23 @@
+<svg viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+  <!-- favicon   16-32px  micro    /logo/v2/A-oriveo-free-micro.svg 
+         0.5px  1.75 
+         -->
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="40%" r="72%">
+      <stop offset="0%" stop-color="#3B2A86"/>
+      <stop offset="60%" stop-color="#231657"/>
+      <stop offset="100%" stop-color="#120B33"/>
+    </radialGradient>
+    <radialGradient id="orb" cx="36%" cy="30%" r="70%">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="40%" stop-color="#E4CCFF"/>
+      <stop offset="100%" stop-color="#8A55F0"/>
+    </radialGradient>
+  </defs>
+  <rect width="32" height="32" rx="7" fill="url(#bg)"/>
+  <ellipse cx="16" cy="16" rx="11.75" ry="7.13" fill="none"
+           stroke="#9F72FF" stroke-width="1.75" transform="rotate(56, 16, 16)"/>
+  <ellipse cx="16" cy="16" rx="11.59" ry="5.81" fill="none"
+           stroke="#E4D3FF" stroke-width="1.75" transform="rotate(-26, 16, 16)"/>
+  <circle cx="16" cy="16" r="3.69" fill="url(#orb)"/>
+</svg>

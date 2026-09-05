@@ -1,0 +1,113 @@
+/* Conversation Outline Rail - the message navigation rail to the right of the chat.
+ * All colours go through --o-* tokens so light and dark switch automatically; do not write
+ * :global([data-theme='dark']) here, because production lightningcss strips the attribute-selector
+ * override (see the notes in variables.css). */
+
+.wrap {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  /* Hit area: only the rail itself consumes pointer events, the rest passes through to the message list */
+  pointer-events: none;
+  z-index: 6;
+}
+
+.rail {
+  pointer-events: auto;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end; /* Ticks are right-aligned and the highlighted state grows leftwards */
+  justify-content: center;
+  max-height: 100%;
+  padding: 8px;
+  /* Dragging on the rail is consumed by the rail and does not propagate to page scrolling */
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.tickRow {
+  position: relative; /* Positioning anchor for the tooltip */
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  width: 100%;
+  border: none;
+  background: none;
+  margin: 0;
+  padding: 0;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.tick {
+  border-radius: var(--o-radius-full);
+  transition:
+    width var(--o-transition-fast),
+    height var(--o-transition-fast),
+    background var(--o-transition-normal);
+}
+
+.tickRow:focus-visible {
+  outline: none;
+}
+
+.tickRow:focus-visible .tick {
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--o-primary) 45%, transparent);
+}
+
+.tooltip {
+  position: absolute;
+  right: calc(100% + 6px); /* Expands leftwards from the left edge of the tick */
+  top: 50%; /* Vertically centred on the tick */
+  display: block;
+  max-width: 320px;
+  padding: 7px 12px;
+  border-radius: 12px;
+  /* Fixed dark chip in both themes: avoids a washed-out white-on-white chip in light mode and matches the dark tooltips on the mobile clients */
+  background: #1f212b;
+  border: 0.5px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.28);
+  color: #fff;
+  font-size: var(--o-text-xs);
+  font-weight: 500;
+  line-height: 1.35;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+  transform: translateY(-50%);
+  animation: tooltipIn var(--o-transition-fast) ease-out both;
+}
+
+@keyframes tooltipIn {
+  from {
+    opacity: 0;
+    transform: translateY(-50%) translateX(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(-50%) translateX(0);
+  }
+}
+
+/* Hidden when the viewport is very narrow or very short, for instance squashed by the keyboard, so the rail does not take up space for nothing */
+@media (max-height: 360px) {
+  .wrap {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tick {
+    transition: none;
+  }
+  .tooltip {
+    animation: none;
+  }
+}

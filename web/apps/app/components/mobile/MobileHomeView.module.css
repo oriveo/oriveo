@@ -1,0 +1,203 @@
+.page {
+  min-height: 100dvh;
+  padding:
+    max(18px, env(safe-area-inset-top, 0px))
+    18px
+    calc(var(--o-mobile-tabbar-height, 88px) + 18px);
+  overflow-y: auto;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--o-surface) 42%, transparent) 0%, transparent 38%),
+    radial-gradient(ellipse at 18% 0%, color-mix(in srgb, var(--o-primary) 8%, transparent) 0%, transparent 38%),
+    var(--o-bg);
+  -webkit-overflow-scrolling: touch;
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-top: 4px;
+}
+
+.dateRow {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--o-text-tertiary);
+  font-size: 12px;
+  font-weight: var(--o-weight-medium);
+  text-transform: uppercase;
+  letter-spacing: 0;
+}
+
+.titleRow {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.title {
+  margin: 0;
+  color: var(--o-text);
+  font-family: var(--o-font-display);
+  font-size: 30px;
+  font-weight: var(--o-weight-semibold);
+  line-height: 1.1;
+  letter-spacing: 0;
+}
+
+.subtitle {
+  margin: 6px 0 0;
+  color: var(--o-text-secondary);
+  font-size: 15px;
+  line-height: 1.35;
+}
+
+.primaryIconButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  flex: 0 0 auto;
+  border: 1px solid color-mix(in srgb, var(--o-primary) 18%, var(--o-border));
+  border-radius: 15px;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--o-primary) 92%, white), var(--o-primary-active));
+  color: var(--o-primary-text);
+  box-shadow:
+    0 10px 22px color-mix(in srgb, var(--o-primary) 24%, transparent),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.24);
+}
+
+.quickComposer {
+  margin-top: 22px;
+}
+
+.quickInput {
+  display: flex;
+  width: 100%;
+  min-height: 96px;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px;
+  border: 1px solid color-mix(in srgb, var(--o-border-strong) 78%, transparent);
+  border-radius: 24px;
+  background: color-mix(in srgb, var(--o-surface) 82%, transparent);
+  color: var(--o-text-tertiary);
+  text-align: start;
+  box-shadow:
+    0 16px 42px rgba(0, 0, 0, 0.075),
+    inset 0 1px 0 0 var(--o-hairline);
+  backdrop-filter: blur(22px) saturate(150%);
+  -webkit-backdrop-filter: blur(22px) saturate(150%);
+}
+
+.quickInput span:first-child {
+  color: var(--o-text-secondary);
+  font-size: 17px;
+  line-height: 1.45;
+}
+
+.sendGlyph {
+  display: inline-flex;
+  width: 40px;
+  height: 40px;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  border-radius: var(--o-radius-full);
+  background: var(--o-primary);
+  color: var(--o-primary-text);
+  box-shadow: 0 8px 20px color-mix(in srgb, var(--o-primary) 26%, transparent);
+}
+
+.skills,
+.history {
+  margin-top: 24px;
+}
+
+.sectionHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+  color: var(--o-text);
+  font-size: 18px;
+  font-weight: var(--o-weight-semibold);
+  letter-spacing: 0;
+}
+
+.sectionHeader button {
+  border: none;
+  background: transparent;
+  color: var(--o-primary);
+  font-size: 13px;
+  font-weight: var(--o-weight-semibold);
+}
+
+.historyCount {
+  color: var(--o-text-tertiary);
+  font-size: 13px;
+  font-weight: var(--o-weight-medium);
+}
+
+.skillScroller {
+  display: flex;
+  gap: 10px;
+  margin-inline: -18px;
+  padding-inline: 18px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.skillScroller::-webkit-scrollbar {
+  display: none;
+}
+
+.skillChip {
+  display: inline-flex;
+  min-width: 112px;
+  height: 42px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex: 0 0 auto;
+  padding: 0 13px;
+  border: 1px solid color-mix(in srgb, var(--skill-color, var(--o-primary)) 20%, var(--o-border));
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--skill-color, var(--o-primary)) 7%, var(--o-surface));
+  color: var(--o-text-secondary);
+  font-size: 13px;
+  font-weight: var(--o-weight-medium);
+}
+
+.skillChip span {
+  max-width: 96px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.historySurface {
+  margin-inline: -8px;
+}
+
+@media (max-width: 360px) {
+  .page {
+    padding-inline: 14px;
+  }
+
+  .title {
+    font-size: 27px;
+  }
+
+  .skillScroller {
+    margin-inline: -14px;
+    padding-inline: 14px;
+  }
+}

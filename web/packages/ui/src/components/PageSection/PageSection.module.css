@@ -1,0 +1,35 @@
+.section {
+  max-width: 860px;
+}
+
+.eyebrow {
+  display: inline-flex;
+  padding: 6px 12px;
+  border-radius: var(--o-radius-full);
+  background: var(--o-primary-subtle);
+  border: 1px solid var(--o-border);
+  color: var(--o-primary);
+  font-size: var(--o-text-xs);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.title {
+  margin: var(--o-space-md) 0 0;
+  font-size: var(--o-text-2xl);
+  font-weight: 620;
+  color: var(--o-text);
+  line-height: 1.25;
+}
+
+.description {
+  margin: var(--o-space-sm) 0 0;
+  color: var(--o-text-secondary);
+  font-size: var(--o-text-base);
+  line-height: 1.7;
+  max-width: 640px;
+}
+
+.body {
+  margin-top: var(--o-space-lg);
+}

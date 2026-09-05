@@ -1,0 +1,415 @@
+/* ── ProviderHeroCard — wallet-style hero card
+ * Exception: decoration only. The whole card sits on a brand-color gradient, so all text
+ * and icons stay white (#ffffff) in both themes. ── */
+
+.card {
+  --brand-color: var(--o-primary);
+
+  appearance: none;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 160px;
+  padding: 16px 20px;
+  border: 0.6px solid rgba(255, 255, 255, 0.14);
+  border-radius: 24px;
+  background:
+    /* Diagonal white band - simulated glass reflection, very faint, a low-alpha overlay instead of softLight */
+    linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0) 12%,
+      rgba(255, 255, 255, 0.06) 30%,
+      rgba(255, 255, 255, 0) 60%
+    ),
+    /* Darker close at the bottom - adds depth */
+    linear-gradient(
+      to bottom,
+      transparent 50%,
+      rgba(0, 0, 0, 0.18) 100%
+    ),
+    /* Very faint sheen at the top right - a restrained specular highlight */
+    radial-gradient(
+      circle 260px at 92% -5%,
+      rgba(255, 255, 255, 0.18),
+      transparent 70%
+    ),
+    /* Main brand diagonal gradient - --brand-color is already toned down in JS by hsbAdjust
+       (62% saturation, 88% brightness); this only blends a little white/black at the ends for a deeper tone in the same hue */
+    linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--brand-color) 94%, white 6%) 0%,
+      color-mix(in srgb, var(--brand-color) 78%, black 22%) 100%
+    );
+  color: #ffffff;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  overflow: hidden;
+  box-shadow: 0 6px 12px rgba(15, 23, 42, 0.10);
+  transition:
+    transform var(--o-transition-fast),
+    box-shadow var(--o-transition-fast);
+}
+
+.card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 16px rgba(15, 23, 42, 0.14);
+}
+
+.card:active {
+  transform: scale(0.992);
+}
+
+.card:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.5);
+  outline-offset: 2px;
+}
+
+/* ── Watermark - a white mask cuts a pale stamp out of the logo shape
+   opacity 0.10, no blendMode ── */
+.watermark {
+  position: absolute;
+  right: -35px;
+  bottom: -20px;
+  width: 150px;
+  height: 150px;
+  background: rgba(255, 255, 255, 0.10);
+  mask-repeat: no-repeat;
+  mask-position: center;
+  mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  -webkit-mask-size: contain;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Motif symbol watermark (Relay / a user-owned provider) - same size, position and brightness as the
+   mask branch, a 124px glyph centered in a 150px box. */
+.watermarkSymbol {
+  position: absolute;
+  right: -35px;
+  bottom: -20px;
+  width: 150px;
+  height: 150px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.10);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ── Body - two columns: identity on the left (logo, name, model, meta), stats on the right (status, cost) ── */
+.body {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  gap: 12px;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* Logo shown bare - no tray (white background, blur and inset all dropped). Every logo has
+   contrast on the dark pastel brand background, and a tray instead blurs white glyph logos
+   such as Anthropic into a pale square. The logo already has rounded corners, so no outer clip is needed. */
+.logoBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  align-self: flex-start;
+}
+
+.statusCapsule {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.22);
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  color: #ffffff;
+}
+
+.statusDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
+}
+
+.statusCapsule[data-status='connected'] .statusDot {
+  background: rgb(92, 245, 168);
+}
+
+.statusCapsule[data-status='syncing'] .statusDot {
+  background: #ffffff;
+  animation: heroPulse 1.4s ease-in-out infinite;
+}
+
+.statusCapsule[data-status='issue'] .statusDot {
+  background: rgb(255, 209, 87);
+}
+
+@keyframes heroPulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.45; transform: scale(0.78); }
+}
+
+/* ── Left identity column: logo + name + model + meta as one compact group pinned to the
+   top, with the slack sinking to the bottom. Name lines up with the cost and meta with "today". ── */
+.identityColumn {
+  display: flex;
+  flex-direction: column;
+  /* logo+name pinned to the top, model+meta pinned to the bottom, anchored at both ends:
+     logo and status share a baseline, meta lines up with "today" in the right column.
+     Not relying on the left column happening to fill 128px, since line-height differences
+     would leave meta floating above the bottom and out of line with "today". */
+  justify-content: space-between;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+/* Top group: logo + name, compact and adjacent, pinned to the top */
+.identityTop {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/* ── Right stats column: status pinned to the top, cost sunk to the bottom ── */
+.statsColumn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: space-between;
+  flex-shrink: 0;
+}
+
+.name {
+  margin-top: 12px;  /* Fixed logo to name gap, kept compact */
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: -0.4px;
+  color: #ffffff;
+  line-height: 1.2;  /* 1.1 plus overflow:hidden clips the descenders on y/g/p; give the line box room */
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.leftBottom {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;  /* Name to model row gap */
+  min-width: 0;
+}
+
+/* Model row: icon + model name, bare (no pill background), icon left edge on the same rail
+   as name and meta. Brighter, heavier text marks it as the primary model, distinct from the meta below. */
+.modelRow {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -0.1px;
+  color: rgba(255, 255, 255, 0.95);
+  line-height: 1.35;  /* line-height:1 plus overflow:hidden clipped the top and bottom of names like gpt-5.5; give the line box room */
+  align-self: flex-start;
+  max-width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.modelRowIcon {
+  flex-shrink: 0;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.modelRowName {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+/* meta - bare text (no leading dot), left edge on the same rail as the name and the model row icon */
+.subText {
+  font-size: 12px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.72);
+  line-height: 1.3;  /* Give the line box room so overflow:hidden does not clip descenders */
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+/* ── Right column - cost + chart (just the cost stack when there is no bar chart)
+   The whole column sits on the bottom; with a chart the cost follows it directly
+   (spacing 4) and the group still sits on the bottom ── */
+.right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: flex-end;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.costStack {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 1px;
+}
+
+.costLabel {
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.65);
+  line-height: 1;
+}
+
+.costValue {
+  font-size: 28px;  /* Slightly larger than the 26px name so the two line up visually */
+  font-weight: 700;
+  /* 'ui-rounded' is a standard CSS Fonts L4 generic family; macOS/iOS Safari picks SF Pro Rounded for it */
+  font-family: ui-rounded, 'SF Pro Rounded', 'SF Pro Display', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.3px;
+  color: #ffffff;
+  line-height: 1;
+  text-shadow: 0 1px 1.5px rgba(0, 0, 0, 0.18);
+}
+
+.costValue[data-zero='true'] {
+  color: rgba(255, 255, 255, 0.78);
+}
+
+.weeklyChart {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+.bars {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 5px;
+  height: 24px;
+}
+
+.bar {
+  width: 8px;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.38);
+  flex-shrink: 0;
+}
+
+.bar[data-last='true'] {
+  background: linear-gradient(to bottom, #ffffff 0%, rgba(255, 255, 255, 0.88) 100%);
+  box-shadow: 0 0 4px rgba(255, 255, 255, 0.45);
+}
+
+.todayRow {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.todayLabel {
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.55);
+  line-height: 1;
+}
+
+.todayValue {
+  font-size: 11px;
+  font-weight: 700;
+  font-family: ui-rounded, 'SF Pro Rounded', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  font-variant-numeric: tabular-nums;
+  color: rgba(255, 255, 255, 0.92);
+  line-height: 1;
+}
+
+/* ── a user-owned provider and other platform-paid tiers - a Free pill replaces the cost ── */
+.freePill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.22);
+  border: 0.6px solid rgba(255, 255, 255, 0.30);
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: #ffffff;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+/* ── Dark theme - brand background lifted slightly, shadow deepened ── */
+:global(html[data-theme='dark']) .card {
+  border-color: rgba(255, 255, 255, 0.08);
+  background:
+    linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0) 12%,
+      rgba(255, 255, 255, 0.06) 30%,
+      rgba(255, 255, 255, 0) 60%
+    ),
+    linear-gradient(
+      to bottom,
+      transparent 50%,
+      rgba(0, 0, 0, 0.24) 100%
+    ),
+    radial-gradient(
+      circle 260px at 92% -5%,
+      rgba(255, 255, 255, 0.14),
+      transparent 70%
+    ),
+    linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--brand-color) 90%, white 4%) 0%,
+      color-mix(in srgb, var(--brand-color) 66%, black 34%) 100%
+    );
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.35);
+}
+
+@media (max-width: 767px) {
+  .card {
+    height: 146px;
+    padding: 12px 16px;
+    border-radius: 20px;
+  }
+
+  .name {
+    font-size: 22px;
+    margin-top: 8px;
+  }
+
+  .costValue {
+    font-size: 26px;
+  }
+}

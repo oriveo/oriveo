@@ -1,0 +1,695 @@
+.shell {
+  position: relative;
+  display: grid;
+  /* Prefer the controlled width (drag or persisted), falling back to the default when absent */
+  grid-template-columns: var(--o-sidebar-width-user, var(--o-sidebar-width)) 1fr;
+  min-height: 100vh;
+  --o-mobile-tabbar-height: 0px;
+  /* Right-edge feather: from 70% it eases into the same pale purple as the chat ambient, so the
+     two-stage purple to white to purple transition cannot leave a bright seam that reads as a border. */
+  --o-shell-sidebar-edge-fade:
+    linear-gradient(
+      90deg,
+      transparent 0%,
+      transparent 70%,
+      color-mix(in srgb, var(--o-primary) 3%, transparent) 100%
+    );
+  --o-shell-sidebar-bg:
+    var(--o-shell-sidebar-edge-fade),
+    radial-gradient(ellipse 120% 92% at 100% 0%, color-mix(in srgb, var(--o-primary) 7%, transparent) 0%, transparent 62%),
+    radial-gradient(ellipse 130% 82% at 90% 100%, color-mix(in srgb, var(--o-primary) 9%, transparent) 0%, transparent 68%),
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--o-surface-overlay) 90%, var(--o-primary) 4%) 0%,
+      color-mix(in srgb, var(--o-surface-overlay) 86%, var(--o-bg-subtle)) 48%,
+      color-mix(in srgb, var(--o-bg) 78%, var(--o-surface-overlay)) 100%
+    );
+  --o-shell-sidebar-pattern: radial-gradient(
+    circle at center,
+    color-mix(in srgb, var(--o-primary) 12%, transparent) 0,
+    color-mix(in srgb, var(--o-primary) 12%, transparent) 1px,
+    transparent 1.7px
+  );
+  --o-shell-sidebar-pattern-opacity: 0.1;
+  --o-shell-sidebar-glass-blur: blur(22px) saturate(155%);
+  --o-shell-sidebar-edge:
+    inset 0 1px 0 0 var(--o-glass-highlight);
+  /* Flat dock: one translucent fill, with no gradient, top highlight or inset highlight.
+     Light and dark look the same; the active item is marked by text color and semibold weight. */
+  --o-shell-nav-bg:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--o-surface) 96%, transparent) 0%,
+      color-mix(in srgb, var(--o-surface) 96%, transparent) 100%
+    );
+  /* The sheen structure is kept (tests pin .sidebarNav::before and this token) but renders fully transparent */
+  --o-shell-nav-sheen:
+    linear-gradient(180deg, transparent 0%, transparent 100%);
+  --o-shell-nav-border: color-mix(in srgb, var(--o-border-strong) 46%, transparent);
+  --o-shell-nav-shadow:
+    0 10px 28px color-mix(in srgb, #000 16%, transparent);
+  --o-shell-nav-sidebar-shadow:
+    0 6px 18px -14px color-mix(in srgb, #000 30%, transparent);
+  --o-shell-nav-active-bg:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--o-text) 12%, var(--o-surface)) 0%,
+      color-mix(in srgb, var(--o-text) 12%, var(--o-surface)) 100%
+    );
+  --o-shell-nav-active-shadow:
+    0 4px 12px -10px color-mix(in srgb, #000 28%, transparent);
+  /* Never interpolate the column width: grid-template-columns is a layout property, so every frame
+     of a 200ms animation reflows the whole main area (chat messages plus the aurora blur) and the
+     sidebar glass. The collapse animation runs on the sidebar transform alone. */
+}
+
+/* The column collapses to 0 at once so no empty slot is left. The sidebar keeps its own fixed width and slides out with transform, over the content. */
+.shell[data-sidebar-open='false'] {
+  grid-template-columns: 0 1fr;
+  overflow-x: clip;
+}
+
+/* Disable transitions while dragging, so the transform and the handle position keep up with the pointer */
+.shell[data-resizing='true'],
+.shell[data-resizing='true'] .sidebar,
+.shell[data-resizing='true'] .content {
+  transition: none !important;
+}
+
+.shell[data-resizing='true'] {
+  cursor: col-resize;
+  user-select: none;
+}
+
+/* ── Overlay (mobile/tablet) ── */
+.overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  background: rgba(0, 0, 0, 0.5);
+}
+
+/* ── Sidebar ── */
+.sidebar {
+  position: sticky;
+  top: 0;
+  /* min-width:0 lets the column actually reach 0; width stays fixed so translateX(-100%) does not track it */
+  min-width: 0;
+  justify-self: start;
+  width: var(--o-sidebar-width-user, var(--o-sidebar-width));
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--o-shell-sidebar-bg);
+  backdrop-filter: var(--o-shell-sidebar-glass-blur);
+  -webkit-backdrop-filter: var(--o-shell-sidebar-glass-blur);
+  border-inline-end: 0;
+  box-shadow: var(--o-shell-sidebar-edge);
+  overflow: hidden;
+  transition: transform var(--o-transition-normal);
+  z-index: 50;
+}
+
+.sidebar::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image: var(--o-shell-sidebar-pattern);
+  background-size: 18px 18px;
+  opacity: var(--o-shell-sidebar-pattern-opacity);
+  /* The dots fade starts at 70% to match the background edge-fade, so the pattern is not cut off abruptly */
+  -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 28%, #000 70%, transparent 100%);
+  mask-image: linear-gradient(90deg, transparent 0%, #000 28%, #000 70%, transparent 100%);
+}
+
+.sidebar > * {
+  position: relative;
+  z-index: 1;
+}
+
+.shell[data-sidebar-open='false'] .sidebar {
+  transform: translateX(-100%);
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sidebar {
+    transition: none;
+  }
+}
+
+/* ── Sidebar Header ── */
+.sidebarHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 14px 10px;
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--o-space-sm);
+}
+
+.brandIcon {
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+  flex-shrink: 0;
+}
+
+.brandName {
+  font-family: var(--o-font-display);
+  font-size: 13px;
+  font-weight: var(--o-weight-medium);
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--o-text);
+  background: linear-gradient(
+    135deg,
+    var(--o-text) 0%,
+    color-mix(in srgb, var(--o-text) 78%, var(--o-primary)) 100%
+  );
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.toggleBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid transparent;
+  border-radius: var(--o-radius-control);
+  background: transparent;
+  color: var(--o-text-tertiary);
+  cursor: pointer;
+  transition: background var(--o-transition-fast), color var(--o-transition-fast), border-color var(--o-transition-fast);
+}
+
+.toggleBtn:hover {
+  background: var(--o-surface);
+  border-color: var(--o-border);
+  color: var(--o-text);
+}
+
+/* ── Actions ── */
+.sidebarActions {
+  padding: 4px 14px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: var(--o-space-sm);
+}
+
+/* New chat: the primary sidebar action. Flat solid brand purple, since brand purple appears only on
+   interactive elements. Same 10px radius and horizontal insets as the search field, with no
+   gradient, glow or inset highlight. */
+.newChatBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--o-space-sm);
+  width: 100%;
+  height: 38px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: var(--o-primary);
+  color: var(--o-primary-text);
+  font-size: var(--o-text-sm);
+  font-weight: var(--o-weight-semibold);
+  letter-spacing: -0.005em;
+  cursor: pointer;
+  transition:
+    background var(--o-transition-fast),
+    transform 120ms ease;
+}
+
+.newChatBtn svg {
+  flex-shrink: 0;
+}
+
+.newChatBtn:hover {
+  background: var(--o-primary-hover);
+}
+
+.newChatBtn:active {
+  background: var(--o-primary-active);
+  transform: scale(0.99);
+  transition-duration: 80ms;
+}
+
+/* Keyboard accessibility: the focus ring appears only on :focus-visible, never on mouse clicks, so it stays a functional indicator rather than decoration */
+.newChatBtn:focus-visible,
+.notesEntryBtn:focus-visible {
+  outline: none;
+  box-shadow: var(--o-focus-ring);
+}
+
+/* Notes entry: the secondary button under new chat, centered the same way so the two read as one
+   group. Flat neutral fill with no border (--o-border is symmetric in both themes and clearly
+   subordinate to the purple call to action, distinguished by neutral grey against brand purple
+   rather than by hiding). On /notes it switches to a very light purple fill with purple text,
+   still flat. */
+.notesEntryBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--o-space-sm);
+  width: 100%;
+  height: 34px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: var(--o-border);
+  color: var(--o-text-secondary);
+  font-size: var(--o-text-sm);
+  font-weight: var(--o-weight-medium);
+  letter-spacing: -0.005em;
+  text-decoration: none;
+  cursor: pointer;
+  transition:
+    background var(--o-transition-fast),
+    color var(--o-transition-fast),
+    transform 120ms ease;
+}
+
+.notesEntryBtn svg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  opacity: 0.8;
+  transition: opacity var(--o-transition-fast);
+}
+
+.notesEntryBtn:hover {
+  background: var(--o-border-strong);
+  color: var(--o-text);
+}
+
+.notesEntryBtn:hover svg {
+  opacity: 1;
+}
+
+.notesEntryBtn:active {
+  transform: scale(0.99);
+  transition-duration: 80ms;
+}
+
+.notesEntryBtnActive,
+.notesEntryBtnActive:hover {
+  background: var(--o-primary-subtle);
+  color: var(--o-primary);
+  transform: none;
+}
+
+.notesEntryBtnActive svg,
+.notesEntryBtnActive:hover svg {
+  color: var(--o-primary);
+  opacity: 1;
+}
+
+/* ── Conversation List ── */
+.conversationList {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 10px 6px;
+}
+
+/* ── Bottom Card (e.g. Free status) ── */
+.sidebarBottomCard {
+  padding: 8px 0 6px;
+}
+
+/* -- Bottom Nav --
+ * White glass base with a grey active pill, so the selected state does not invert against the dock.
+ */
+.sidebarNav {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 5px;
+  margin: 7px 10px 10px;
+  padding: 4px;
+  border: 1px solid var(--o-shell-nav-border);
+  border-radius: 26px;
+  background: var(--o-shell-nav-bg);
+  box-shadow: var(--o-shell-nav-sidebar-shadow);
+  backdrop-filter: blur(30px) saturate(170%);
+  -webkit-backdrop-filter: blur(30px) saturate(170%);
+  overflow: hidden;
+}
+
+.sidebarNav::before,
+.mobileTabBar::before {
+  content: '';
+  position: absolute;
+  inset: 1px;
+  z-index: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  background: var(--o-shell-nav-sheen);
+}
+
+.mobileTabBar {
+  display: none;
+}
+
+.navItem {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  min-width: 0;
+  height: 54px;
+  padding: 6px 2px 5px;
+  border-radius: 21px;
+  border: none;
+  background: transparent;
+  color: var(--o-text-secondary);
+  font-size: 12.5px;
+  font-weight: var(--o-weight-regular);
+  letter-spacing: -0.01em;
+  text-decoration: none;
+  cursor: pointer;
+  width: 100%;
+  text-align: center;
+  flex-direction: column;
+  transition:
+    background 180ms ease,
+    color 180ms ease,
+    transform 160ms ease,
+    box-shadow 200ms ease;
+}
+
+.navItem svg {
+  flex-shrink: 0;
+  width: 23px;
+  height: 23px;
+  opacity: 0.82;
+  transition:
+    color 180ms ease,
+    opacity 180ms ease,
+    transform 180ms ease;
+}
+
+.navItem span {
+  line-height: 1;
+}
+
+.navItem:hover {
+  background: color-mix(in srgb, var(--o-surface) 42%, transparent);
+  color: var(--o-text);
+}
+
+.navItem:hover svg {
+  opacity: 1;
+  transform: translateY(-1px);
+}
+
+.navItemActive,
+.navItemActive:hover {
+  background: var(--o-shell-nav-active-bg);
+  color: var(--o-primary);
+  font-weight: var(--o-weight-semibold);
+  box-shadow: var(--o-shell-nav-active-shadow);
+}
+
+.navItemActive svg,
+.navItemActive:hover svg {
+  opacity: 1;
+  color: var(--o-primary);
+  transform: none;
+}
+
+/* Per-tab selected color, matching the mobile tab bar: teal for providers, orange for settings, and
+   primary purple for home. This is the bottom nav of the wide-screen sidebar (.navItem).
+   href selectors plus an nth-child fallback, with higher specificity than the .navItemActive rule. */
+.navItem[aria-current='page'][href$='/providers'],
+.navItem[aria-current='page'][href$='/providers'] svg {
+  color: var(--o-tab-teal);
+}
+
+.navItem[aria-current='page'][href$='/settings'],
+.navItem[aria-current='page'][href$='/settings'] svg {
+  color: var(--o-tab-orange);
+}
+
+.sidebarNav .navItem:nth-child(2)[aria-current='page'],
+.sidebarNav .navItem:nth-child(2)[aria-current='page'] svg {
+  color: var(--o-tab-teal);
+}
+
+.sidebarNav .navItem:nth-child(3)[aria-current='page'],
+.sidebarNav .navItem:nth-child(3)[aria-current='page'] svg {
+  color: var(--o-tab-orange);
+}
+
+/* ── Main Content ── */
+.content {
+  position: relative;
+  min-height: 100vh;
+  overflow-y: auto;
+}
+
+/* Global expand button, shown when the sidebar is collapsed */
+.sidebarOpenBtn {
+  position: fixed;
+  top: 14px;
+  inset-inline-start: 14px;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--o-border);
+  border-radius: var(--o-radius-md);
+  background: var(--o-bg-subtle);
+  color: var(--o-text-secondary);
+  cursor: pointer;
+  transition: background var(--o-transition-fast), color var(--o-transition-fast);
+}
+
+.sidebarOpenBtn:hover {
+  background: var(--o-surface-raised);
+  color: var(--o-text);
+}
+
+/* Hide the global expand button when the page brings its own TopBar, to avoid duplication */
+.content:has([data-topbar]) .sidebarOpenBtn {
+  display: none;
+}
+
+/* ── Tablet (768–1023px): sidebar as overlay ── */
+@media (max-width: 1023px) {
+  .shell,
+  .shell[data-sidebar-open='false'] {
+    grid-template-columns: 1fr;
+  }
+
+  .overlay {
+    display: block;
+  }
+
+  .sidebar {
+    position: fixed;
+    top: 0;
+    inset-inline-start: 0;
+    bottom: 0;
+    /* Tablet and mobile overlay mode: fixed default width, ignoring the persisted drag preference */
+    width: var(--o-sidebar-width);
+    transform: translateX(0);
+    box-shadow: var(--o-elevation-modal);
+  }
+
+  .shell[data-overlay-sidebar-open='false'] .sidebar {
+    transform: translateX(-100%);
+  }
+}
+
+/* ── Mobile (<768px): sidebar as drawer ── */
+@media (max-width: 767px) {
+  .shell {
+    min-height: 100dvh;
+    /* Floating pill: roughly 64 tall plus a 10 bottom offset plus slack, reserving safe space under the content */
+    --o-mobile-tabbar-height: calc(86px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .content {
+    min-height: 100dvh;
+  }
+
+  .sidebar {
+    width: min(88vw, 320px);
+    max-width: none;
+  }
+
+  .sidebarNav {
+    display: none;
+  }
+
+  /* Floating centered liquid-glass pill: a less than full width island with side gutters, matching iOS 26 and Android */
+  .mobileTabBar {
+    position: fixed;
+    left: 50%;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 10px);
+    transform: translateX(-50%);
+    width: min(calc(100% - 28px), 440px);
+    z-index: 70;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 4px;
+    padding: 6px;
+    border-radius: 32px;
+    border: 1px solid var(--o-shell-nav-border);
+    background: var(--o-shell-nav-bg);
+    box-shadow: var(--o-shell-nav-shadow);
+    backdrop-filter: blur(34px) saturate(190%);
+    -webkit-backdrop-filter: blur(34px) saturate(190%);
+  }
+
+  .shell:not([data-mobile-tabbar-hidden='true']) .sidebarOpenBtn {
+    display: none;
+  }
+
+  .shell:not([data-mobile-tabbar-hidden='true']) .content {
+    padding-bottom: var(--o-mobile-tabbar-height);
+  }
+
+  .mobileTabItem {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    min-width: 0;
+    height: 52px;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    flex-direction: column;
+    border: none;
+    border-radius: 24px;
+    background: transparent;
+    color: var(--o-text-secondary);
+    font-size: 11px;
+    font-weight: var(--o-weight-medium);
+    line-height: 1;
+    text-align: center;
+    text-decoration: none;
+    cursor: pointer;
+    transition:
+      background 160ms ease,
+      color 160ms ease,
+      transform 160ms ease;
+  }
+
+  .mobileTabItem svg {
+    width: 25px;
+    height: 25px;
+    flex-shrink: 0;
+    transition: color 160ms ease;
+  }
+
+  .mobileTabItem span {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .mobileTabItem[aria-current='page'] {
+    background: var(--o-shell-nav-active-bg);
+    color: var(--o-primary);
+    font-weight: var(--o-weight-semibold);
+    box-shadow: var(--o-shell-nav-active-shadow);
+    transform: none;
+  }
+
+  .mobileTabItem[aria-current='page'] svg {
+    color: var(--o-primary);
+  }
+
+  /* Per-tab selected color by route: primary purple for home, teal for providers, orange for settings.
+     Icons use fill=currentColor and labels inherit color, so setting color alone is enough. */
+  .mobileTabItem[aria-current='page'][href$='/providers'],
+  .mobileTabItem[aria-current='page'][href$='/providers'] svg {
+    color: var(--o-tab-teal);
+  }
+
+  .mobileTabItem[aria-current='page'][href$='/settings'],
+  .mobileTabItem[aria-current='page'][href$='/settings'] svg {
+    color: var(--o-tab-orange);
+  }
+
+  /* Fallback by position: item 2 is providers (teal), item 3 is settings (orange).
+     Higher specificity and no dependence on the href attribute, in case href selectors fail to match. */
+  .mobileTabBar .mobileTabItem:nth-child(2)[aria-current='page'],
+  .mobileTabBar .mobileTabItem:nth-child(2)[aria-current='page'] svg {
+    color: var(--o-tab-teal);
+  }
+
+  .mobileTabBar .mobileTabItem:nth-child(3)[aria-current='page'],
+  .mobileTabBar .mobileTabItem:nth-child(3)[aria-current='page'] svg {
+    color: var(--o-tab-orange);
+  }
+}
+
+/* -- Resizer, desktop only at 1024px and above --
+ * An 8px hit area straddling the right edge of the sidebar, centered on the boundary.
+ * It is a direct child of .shell rather than of the sidebar, so the sidebar's overflow:hidden
+ * cannot clip it.
+ * inset-inline-start = sidebar width - 4px is what makes it straddle the edge.
+ */
+.resizer {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  inset-inline-start: calc(var(--o-sidebar-width-user, var(--o-sidebar-width)) - 4px);
+  width: 8px;
+  z-index: 60;
+  cursor: col-resize;
+  background: transparent;
+  touch-action: none;
+  /* No transition while dragging, otherwise inset-inline-start interpolates with width and lags behind the pointer */
+  transition: inset-inline-start var(--o-transition-normal);
+}
+
+.shell[data-resizing='true'] .resizer {
+  transition: none;
+}
+
+.resizer::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  inset-inline-start: 50%;
+  transform: translateX(-50%);
+  width: 1px;
+  background: transparent;
+  transition: background var(--o-transition-fast), width var(--o-transition-fast);
+}
+
+.resizer:hover::after,
+.resizer:focus-visible::after,
+.resizer[data-active]::after {
+  background: color-mix(in srgb, var(--o-primary) 70%, transparent);
+  width: 2px;
+}
+
+.resizer:focus-visible {
+  outline: none;
+}
+
+/* On tablet and mobile the sidebar is an overlay drawer with a fixed width and no dragging */
+@media (max-width: 1023px) {
+  .resizer {
+    display: none;
+  }
+}

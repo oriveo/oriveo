@@ -1,0 +1,461 @@
+.page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  padding: var(--o-space-lg);
+  max-width: 640px;
+  margin: 0 auto;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: var(--o-space-md);
+  margin-bottom: var(--o-space-xl);
+}
+
+.backBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--o-border);
+  border-radius: var(--o-radius-md);
+  background: transparent;
+  color: var(--o-text-secondary);
+  cursor: pointer;
+  transition: background var(--o-transition-fast), color var(--o-transition-fast);
+  flex-shrink: 0;
+}
+
+.backBtn:hover {
+  background: var(--o-surface-raised);
+  color: var(--o-text);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--o-text-xl);
+  font-weight: 700;
+  color: var(--o-text);
+}
+
+.errorBanner {
+  position: sticky;
+  top: max(var(--o-space-sm), env(safe-area-inset-top, 0px));
+  z-index: 6;
+  margin-bottom: var(--o-space-lg);
+}
+
+.errorBannerCard {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--o-space-md);
+  padding: var(--o-space-md);
+  border: 1px solid var(--o-error-subtle);
+  border-radius: var(--o-radius-lg);
+  background: color-mix(in srgb, var(--o-error-subtle) 88%, var(--o-surface) 12%);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.14);
+  backdrop-filter: blur(10px);
+}
+
+.errorBannerBody {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--o-space-sm);
+  min-width: 0;
+}
+
+.errorBannerIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: var(--o-error);
+  color: var(--o-on-danger);
+  font-size: 12px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.errorBannerCopy {
+  min-width: 0;
+}
+
+.errorBannerTitle {
+  margin: 0;
+  font-size: var(--o-text-sm);
+  font-weight: 700;
+  color: var(--o-text);
+}
+
+.errorBannerMessage {
+  margin: 4px 0 0;
+  font-size: var(--o-text-sm);
+  line-height: 1.55;
+  color: var(--o-text-secondary);
+}
+
+.errorBannerDismiss {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: var(--o-radius-sm);
+  background: transparent;
+  color: var(--o-text-tertiary);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background var(--o-transition-fast), color var(--o-transition-fast);
+}
+
+.errorBannerDismiss:hover {
+  background: rgba(255, 255, 255, 0.36);
+  color: var(--o-text);
+}
+
+/* -- Scrollable body: hero / chips / groups / inline key laid out vertically -- */
+.setupBody {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  flex: 1;
+}
+
+/* -- Inline key entry card shown after selection -- */
+.connectCard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--o-space-md);
+  padding: var(--o-space-lg);
+  border: 1px solid var(--o-border);
+  border-radius: 16px;
+  background: var(--o-surface);
+  box-shadow: var(--o-elevation-card);
+}
+
+.connectHeader {
+  display: flex;
+  align-items: center;
+  gap: var(--o-space-md);
+}
+
+.connectLogo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.connectHeaderText {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.connectTitle {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--o-text);
+}
+
+.connectSubtitle {
+  margin: 0;
+  font-size: 13px;
+  color: var(--o-text-secondary);
+}
+
+.connectField {
+  display: flex;
+  flex-direction: column;
+  gap: var(--o-space-sm);
+}
+
+.relayHint {
+  margin: 10px 0 0 4px;
+  font-size: 12px;
+  color: var(--o-text-tertiary);
+  line-height: 1.4;
+}
+
+.customEntries {
+  display: grid;
+  gap: 8px;
+}
+
+/* -- Already-connected guard: selecting an existing provider offers "manage the existing one" or "add another account" -- */
+.alreadyConnected {
+  display: flex;
+  flex-direction: column;
+  gap: var(--o-space-md);
+}
+
+.alreadyConnectedText {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--o-text-secondary);
+}
+
+.alreadyConnectedActions {
+  display: flex;
+  gap: var(--o-space-sm);
+  flex-wrap: wrap;
+}
+
+.alreadyConnectedManage,
+.alreadyConnectedAdd {
+  flex: 1;
+  min-width: 120px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.alreadyConnectedManage {
+  border: 1px solid var(--o-border);
+  background: var(--o-surface);
+  color: var(--o-text);
+}
+
+.alreadyConnectedManage:hover {
+  background: var(--o-surface-raised);
+}
+
+.alreadyConnectedAdd {
+  border: 1px solid var(--o-primary);
+  background: var(--o-primary);
+  color: var(--o-primary-text);
+}
+
+.alreadyConnectedAdd:hover {
+  border-color: var(--o-primary-hover);
+  background: var(--o-primary-hover);
+}
+
+.section {
+  margin-top: var(--o-space-xl);
+}
+
+.sectionLabel {
+  font-size: var(--o-text-sm);
+  font-weight: 600;
+  color: var(--o-text-secondary);
+  margin-bottom: var(--o-space-md);
+}
+
+.keyRow {
+  display: flex;
+  flex-direction: column;
+  gap: var(--o-space-xs);
+}
+
+.keyInputWrap {
+  position: relative;
+}
+
+.keyInput {
+  width: 100%;
+  height: 44px;
+  padding: 0 40px 0 var(--o-space-md);
+  border: 1px solid var(--o-border);
+  border-radius: var(--o-radius-md);
+  background: var(--o-surface);
+  color: var(--o-text);
+  font-size: var(--o-text-sm);
+  font-family: var(--o-font-mono);
+  outline: none;
+  transition: border-color var(--o-transition-fast);
+}
+
+.keyInput:focus {
+  border-color: var(--o-primary);
+}
+
+.keyInput::placeholder {
+  color: var(--o-text-tertiary);
+  font-family: var(--o-font-mono);
+}
+
+.secretMasked {
+  -webkit-text-security: disc;
+}
+
+.toggleVis {
+  position: absolute;
+  right: var(--o-space-sm);
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: var(--o-radius-sm);
+  background: transparent;
+  color: var(--o-text-tertiary);
+  cursor: pointer;
+}
+
+.toggleVis:hover {
+  color: var(--o-text-secondary);
+}
+
+.helpLink {
+  font-size: var(--o-text-xs);
+  color: var(--o-primary);
+  text-decoration: none;
+}
+
+.helpLink:hover {
+  text-decoration: underline;
+}
+
+.advanced {
+  margin-top: var(--o-space-lg);
+}
+
+.advancedToggle {
+  display: flex;
+  align-items: center;
+  gap: var(--o-space-xs);
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--o-text-tertiary);
+  font-size: var(--o-text-xs);
+  cursor: pointer;
+}
+
+.advancedToggle:hover {
+  color: var(--o-text-secondary);
+}
+
+.advancedContent {
+  margin-top: var(--o-space-md);
+}
+
+.providerPanel {
+  margin-top: var(--o-space-xl);
+}
+
+.ctaArea {
+  margin-top: var(--o-space-xl);
+  padding-top: var(--o-space-lg);
+  border-top: 1px solid var(--o-border);
+  padding-bottom: max(var(--o-space-xl), env(safe-area-inset-bottom, 0px));
+}
+
+.ctaBtn {
+  width: 100%;
+  min-height: 48px;
+  font-size: var(--o-text-base);
+}
+
+.progress {
+  display: flex;
+  align-items: center;
+  gap: var(--o-space-sm);
+  padding: var(--o-space-md);
+  border-radius: var(--o-radius-md);
+  background: var(--o-primary-subtle);
+  color: var(--o-primary);
+  font-size: var(--o-text-sm);
+  font-weight: 500;
+}
+
+.statusSection {
+  position: sticky;
+  top: max(var(--o-space-sm), env(safe-area-inset-top, 0px));
+  z-index: 5;
+  margin-bottom: var(--o-space-lg);
+}
+
+.spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--o-primary);
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 0.6s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.manualLink {
+  display: inline-block;
+  margin-top: var(--o-space-md);
+  font-size: var(--o-text-sm);
+  color: var(--o-primary);
+  text-decoration: none;
+  cursor: pointer;
+  border: none;
+  background: none;
+  padding: 0;
+}
+
+.manualLink:hover {
+  text-decoration: underline;
+}
+
+/* -- Relay Form -- */
+.relayForm {
+  margin-top: var(--o-space-xl);
+  display: flex;
+  flex-direction: column;
+  gap: var(--o-space-lg);
+}
+
+.relayField {
+  display: flex;
+  flex-direction: column;
+  gap: var(--o-space-sm);
+}
+
+.relayLabel {
+  font-size: var(--o-text-sm);
+  font-weight: 600;
+  color: var(--o-text-secondary);
+}
+
+.relayInput {
+  width: 100%;
+  height: 44px;
+  padding: 0 var(--o-space-md);
+  border: 1px solid var(--o-border);
+  border-radius: var(--o-radius-md);
+  background: var(--o-surface);
+  color: var(--o-text);
+  font-size: var(--o-text-sm);
+  outline: none;
+  transition: border-color var(--o-transition-fast);
+}
+
+.relayInput:focus {
+  border-color: var(--o-primary);
+}
+
+.relayInput::placeholder {
+  color: var(--o-text-tertiary);
+}
+
+.fieldError {
+  display: block;
+  margin-top: var(--o-space-xs);
+  font-size: var(--o-text-xs);
+  color: var(--o-error);
+}

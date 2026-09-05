@@ -1,0 +1,228 @@
+{
+  "contractId": "owned_patch_compiler.v1",
+  "version": 1,
+  "source": "request_preference_contract.v2",
+  "mustExclude": [
+    "api_key",
+    "authorization",
+    "prompt",
+    "messages",
+    "attachments",
+    "full_endpoint",
+    "response",
+    "raw_custom_fragment"
+  ],
+  "cases": [
+    {
+      "caseId": "compiler.nested_set_and_base_first_tool",
+      "declaredOwners": {
+        "/reasoning/effort": "reasoning"
+      },
+      "base": {
+        "tools": [
+          {
+            "name": "weather",
+            "type": "function"
+          }
+        ]
+      },
+      "operations": [
+        {
+          "owner": "reasoning",
+          "op": "set",
+          "pointer": "/reasoning/effort",
+          "value": "high"
+        }
+      ],
+      "contributions": [
+        {
+          "owner": "web",
+          "target": "tools",
+          "operation": "append_owned",
+          "identity": "web_search",
+          "value": {
+            "type": "web_search"
+          }
+        }
+      ],
+      "expect": {
+        "accepted": true,
+        "delta": {
+          "reasoning": {
+            "effort": "high"
+          },
+          "tools": [
+            {
+              "name": "weather",
+              "type": "function"
+            },
+            {
+              "type": "web_search"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "caseId": "compiler.duplicate_base_identity_rejected",
+      "declaredOwners": {},
+      "base": {
+        "tools": [
+          {
+            "type": "web_search"
+          }
+        ]
+      },
+      "operations": [],
+      "contributions": [
+        {
+          "owner": "web",
+          "target": "tools",
+          "operation": "append_owned",
+          "identity": "{\"type\":\"web_search\"}",
+          "value": {
+            "type": "web_search"
+          }
+        }
+      ],
+      "expect": {
+        "accepted": false,
+        "reason": "duplicate_identity"
+      }
+    },
+    {
+      "caseId": "compiler.cross_owner_rejected",
+      "declaredOwners": {
+        "/reasoning/effort": "reasoning"
+      },
+      "base": {},
+      "operations": [
+        {
+          "owner": "generation",
+          "op": "set",
+          "pointer": "/reasoning/effort",
+          "value": "high"
+        }
+      ],
+      "contributions": [],
+      "expect": {
+        "accepted": false,
+        "reason": "cross_owner"
+      }
+    },
+    {
+      "caseId": "compiler.duplicate_pointer_rejected",
+      "declaredOwners": {
+        "/temperature": "generation"
+      },
+      "base": {},
+      "operations": [
+        {
+          "owner": "generation",
+          "op": "set",
+          "pointer": "/temperature",
+          "value": 0.2
+        },
+        {
+          "owner": "generation",
+          "op": "set",
+          "pointer": "/temperature",
+          "value": 0.7
+        }
+      ],
+      "contributions": [],
+      "expect": {
+        "accepted": false,
+        "reason": "duplicate_pointer"
+      }
+    },
+    {
+      "caseId": "compiler.preview_redacts_contract_names",
+      "declaredOwners": {
+        "/response_format": "generation"
+      },
+      "base": {},
+      "operations": [
+        {
+          "owner": "generation",
+          "op": "set",
+          "pointer": "/response_format",
+          "value": {
+            "Authorization": "secret",
+            "schema": "ok"
+          }
+        }
+      ],
+      "contributions": [],
+      "expect": {
+        "accepted": true,
+        "preview": {
+          "response_format": {
+            "Authorization": "[REDACTED]",
+            "schema": "ok"
+          }
+        }
+      }
+    },
+    {
+      "caseId": "compiler.pointer_parent_conflict_rejected",
+      "declaredOwners": {
+        "/reasoning": "reasoning",
+        "/reasoning/effort": "reasoning"
+      },
+      "base": {},
+      "operations": [
+        {
+          "owner": "reasoning",
+          "op": "set",
+          "pointer": "/reasoning",
+          "value": "flat"
+        },
+        {
+          "owner": "reasoning",
+          "op": "set",
+          "pointer": "/reasoning/effort",
+          "value": "high"
+        }
+      ],
+      "contributions": [],
+      "expect": {
+        "accepted": false,
+        "reason": "pointer_parent_conflict"
+      }
+    },
+    {
+      "caseId": "compiler.semantic_conflict_rejected",
+      "declaredOwners": {
+        "/temperature": "generation",
+        "/top_p": "generation"
+      },
+      "declaredConflicts": [
+        [
+          "/temperature",
+          "/top_p"
+        ]
+      ],
+      "base": {},
+      "operations": [
+        {
+          "owner": "generation",
+          "op": "set",
+          "pointer": "/temperature",
+          "value": 0.2
+        },
+        {
+          "owner": "generation",
+          "op": "set",
+          "pointer": "/top_p",
+          "value": 0.8
+        }
+      ],
+      "contributions": [],
+      "expect": {
+        "accepted": false,
+        "reason": "semantic_conflict"
+      }
+    }
+  ]
+}

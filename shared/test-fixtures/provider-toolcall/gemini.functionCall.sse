@@ -1,0 +1,4 @@
+data: {"candidates":[{"content":{"parts":[{"text":"Let me check the weather."}],"role":"model"},"index":0}],"usageMetadata":{"promptTokenCount":120,"totalTokenCount":120},"modelVersion":"gemini-2.5-flash","responseId":"r2fixture0001"}
+
+data: {"candidates":[{"content":{"parts":[{"functionCall":{"name":"get_weather","args":{"city":"Melbourne","unit":"celsius"}}}],"role":"model"},"finishReason":"STOP","index":0}],"usageMetadata":{"promptTokenCount":120,"candidatesTokenCount":41,"totalTokenCount":161},"modelVersion":"gemini-2.5-flash","responseId":"r2fixture0001"}
+

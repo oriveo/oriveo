@@ -1,0 +1,429 @@
+{
+  "$comment": "Shared fixture for the production request compiler. recipeRef must be read from the server registry's capability_runtime.v1.json; this file only freezes the semantic delta the same input should produce in the real Web/iOS/Android request builders, and does not maintain a second copy of the production recipe. baseOwnedArrays lists the array elements the builder already owns; expectedDelta's arrays must be base-first.",
+  "contractId": "provider_recipe_request_compiler.v1",
+  "version": 1,
+  "registryPath": "shared/capabilityrecipe/capability_runtime.v1.json",
+  "requestOpMerge": {
+    "$comment": "requestOps's intent field previously had no defined semantics, so each client guessed independently, and the force tier compiled into three different and all-incorrect wire shapes across the three clients. This is the one rule now fixed here; every client runs the same merge before compiling.",
+    "rule": "last-specific-wins",
+    "notRule": "last-write-wins",
+    "opKinds": [
+      "set",
+      "append"
+    ],
+    "intentSemantics": {
+      "baseOp": "an op with no intent field — a base op that applies to every intent",
+      "specificOp": "op.intent === selectedIntent — an op specialized for the current intent",
+      "foreignOp": "op.intent is present and !== selectedIntent — always discarded"
+    },
+    "steps": [
+      "1. Discard any foreignOp (intent present and not equal to selectedIntent). When selectedIntent is empty, keep only baseOp.",
+      "2. Group by pointer. If a pointer's group contains at least one specificOp, every baseOp in that group is discarded — regardless of write order; a baseOp written after a specificOp is discarded just the same (this is exactly the line between last-specific-wins and last-write-wins).",
+      "3. The remaining ops run in their original relative order from requestOps.",
+      "4. set: writes value to pointer, overwriting any existing value.",
+      "5. append (pointer ends in /-): appends to the end of the target array; if stableJson(value) matches any element already in that array (including elements the builder already owns via baseOwnedArrays), it is skipped, producing no duplicate."
+    ],
+    "groupKey": "pointer",
+    "appendDedupe": "stableJson(value)",
+    "stableJson": "Compact JSON serialized after recursively sorting object keys in dictionary order; array order is left as-is.",
+    "appliesTo": [
+      "web",
+      "reasoning",
+      "generation"
+    ],
+    "gate": "scripts/model-contract-gate.mjs"
+  },
+  "mergeCases": [
+    {
+      "caseId": "d8.openai.responses.web.force_intent_last_specific_wins",
+      "providerKind": "openAI",
+      "transport": "openai_responses",
+      "recipeRef": "openai.responses.web.v1",
+      "capability": "web",
+      "selectedIntent": "force",
+      "recipeSnapshot": {
+        "capturedFrom": "https://api.oriveoai.com/api/metadata data.capabilityRuntime.recipes",
+        "capturedAt": "2026-08-13",
+        "metadataVersion": 71,
+        "requestOps": [
+          {
+            "op": "append",
+            "pointer": "/tools/-",
+            "value": {
+              "type": "web_search"
+            }
+          },
+          {
+            "op": "set",
+            "pointer": "/tool_choice",
+            "value": "auto"
+          },
+          {
+            "intent": "force",
+            "op": "append",
+            "pointer": "/tools/-",
+            "value": {
+              "type": "web_search"
+            }
+          },
+          {
+            "intent": "force",
+            "op": "set",
+            "pointer": "/tool_choice",
+            "value": "required"
+          }
+        ]
+      },
+      "baseOwnedArrays": {},
+      "expectedBody": {
+        "tools": [
+          {
+            "type": "web_search"
+          }
+        ],
+        "tool_choice": "required"
+      },
+      "expectedBodyIsExact": true,
+      "regressionGuard": "Reverting to the naive compiler from before this rule (no pointer merge, no append dedupe): both the base op and the force op on /tools/- would run, turning tools into two web_search entries, and this case fails. ⚠️ Reverting only last-specific-wins to last-write-wins while keeping dedupe still leaves this case passing — the duplicate web_search gets eaten by dedupe — so the behavioral line between last-specific-wins and last-write-wins must be pinned down by the synthetic case base_op_written_after_specific_op_is_still_discarded below."
+    },
+    {
+      "caseId": "d8.openai.responses.web.no_intent_keeps_base_ops",
+      "providerKind": "openAI",
+      "transport": "openai_responses",
+      "recipeRef": "openai.responses.web.v1",
+      "capability": "web",
+      "selectedIntent": null,
+      "recipeSnapshot": {
+        "capturedFrom": "https://api.oriveoai.com/api/metadata data.capabilityRuntime.recipes",
+        "capturedAt": "2026-08-13",
+        "metadataVersion": 71,
+        "requestOps": [
+          {
+            "op": "append",
+            "pointer": "/tools/-",
+            "value": {
+              "type": "web_search"
+            }
+          },
+          {
+            "op": "set",
+            "pointer": "/tool_choice",
+            "value": "auto"
+          },
+          {
+            "intent": "force",
+            "op": "append",
+            "pointer": "/tools/-",
+            "value": {
+              "type": "web_search"
+            }
+          },
+          {
+            "intent": "force",
+            "op": "set",
+            "pointer": "/tool_choice",
+            "value": "required"
+          }
+        ]
+      },
+      "baseOwnedArrays": {},
+      "expectedBody": {
+        "tools": [
+          {
+            "type": "web_search"
+          }
+        ],
+        "tool_choice": "auto"
+      },
+      "expectedBodyIsExact": true,
+      "regressionGuard": "If foreignOp is not discarded, tool_choice becomes required, and this case must fail."
+    },
+    {
+      "caseId": "d8.openai.responses.web.force_intent_dedupes_builder_owned_tool",
+      "providerKind": "openAI",
+      "transport": "openai_responses",
+      "recipeRef": "openai.responses.web.v1",
+      "capability": "web",
+      "selectedIntent": "force",
+      "recipeSnapshot": {
+        "capturedFrom": "https://api.oriveoai.com/api/metadata data.capabilityRuntime.recipes",
+        "capturedAt": "2026-08-13",
+        "metadataVersion": 71,
+        "requestOps": [
+          {
+            "op": "append",
+            "pointer": "/tools/-",
+            "value": {
+              "type": "web_search"
+            }
+          },
+          {
+            "op": "set",
+            "pointer": "/tool_choice",
+            "value": "auto"
+          },
+          {
+            "intent": "force",
+            "op": "append",
+            "pointer": "/tools/-",
+            "value": {
+              "type": "web_search"
+            }
+          },
+          {
+            "intent": "force",
+            "op": "set",
+            "pointer": "/tool_choice",
+            "value": "required"
+          }
+        ]
+      },
+      "baseOwnedArrays": {
+        "tools": [
+          {
+            "type": "web_search"
+          }
+        ]
+      },
+      "expectedBody": {
+        "tools": [
+          {
+            "type": "web_search"
+          }
+        ],
+        "tool_choice": "required"
+      },
+      "expectedBodyIsExact": true,
+      "regressionGuard": "Without the stableJson dedupe, a web_search the builder already owns gets appended a second time, and this case must fail."
+    },
+    {
+      "caseId": "d8.base_op_written_after_specific_op_is_still_discarded",
+      "providerKind": "openAI",
+      "transport": "openai_responses",
+      "recipeRef": "synthetic.order_independence",
+      "capability": "web",
+      "selectedIntent": "force",
+      "$comment": "A synthetic case: the base op is written after the specialized op. last-write-wins would let auto win; last-specific-wins must let required win. This is the one point where the two rules' behavior diverges.",
+      "recipeSnapshot": {
+        "capturedFrom": "synthetic",
+        "requestOps": [
+          {
+            "intent": "force",
+            "op": "set",
+            "pointer": "/tool_choice",
+            "value": "required"
+          },
+          {
+            "op": "set",
+            "pointer": "/tool_choice",
+            "value": "auto"
+          }
+        ]
+      },
+      "baseOwnedArrays": {},
+      "expectedBody": {
+        "tool_choice": "required"
+      },
+      "expectedBodyIsExact": true,
+      "regressionGuard": "Reverting to last-write-wins turns tool_choice into auto, and this case must fail."
+    }
+  ],
+  "cases": [
+    {
+      "caseId": "p3b.openai.responses.server_tool_preserves_builder_tool",
+      "providerKind": "openAI",
+      "transport": "openai_responses",
+      "recipeRef": "openai.responses.web.v1",
+      "capability": "web",
+      "baseOwnedArrays": {
+        "tools": [
+          {
+            "type": "function",
+            "name": "weather"
+          }
+        ]
+      },
+      "expectedDelta": {
+        "tools": [
+          {
+            "type": "function",
+            "name": "weather"
+          },
+          {
+            "type": "web_search"
+          }
+        ],
+        "tool_choice": "auto"
+      }
+    },
+    {
+      "caseId": "p3b.anthropic.messages.server_tool_preserves_builder_tool",
+      "providerKind": "anthropic",
+      "transport": "anthropic_messages",
+      "recipeRef": "anthropic.messages.web.v1",
+      "capability": "web",
+      "baseOwnedArrays": {
+        "tools": [
+          {
+            "name": "weather",
+            "description": "forecast",
+            "input_schema": {
+              "type": "object"
+            }
+          }
+        ]
+      },
+      "expectedDelta": {
+        "tools": [
+          {
+            "name": "weather",
+            "description": "forecast",
+            "input_schema": {
+              "type": "object"
+            }
+          },
+          {
+            "type": "web_search_20250305",
+            "name": "web_search",
+            "max_uses": 5
+          }
+        ]
+      }
+    },
+    {
+      "caseId": "p3b.gemini.generate_content.server_tool_preserves_builder_tool",
+      "providerKind": "gemini",
+      "transport": "gemini_generate_content",
+      "recipeRef": "gemini.generate_content.web.v1",
+      "capability": "web",
+      "baseOwnedArrays": {
+        "tools": [
+          {
+            "function_declarations": [
+              {
+                "name": "weather"
+              }
+            ]
+          }
+        ]
+      },
+      "expectedDelta": {
+        "tools": [
+          {
+            "function_declarations": [
+              {
+                "name": "weather"
+              }
+            ]
+          },
+          {
+            "google_search": {}
+          }
+        ]
+      }
+    },
+    {
+      "caseId": "p3b.openai.responses.reasoning_intent",
+      "providerKind": "openAI",
+      "transport": "openai_responses",
+      "recipeRef": "openai.responses.reasoning.v1",
+      "capability": "reasoning",
+      "selectedIntent": "deep",
+      "baseOwnedArrays": {},
+      "expectedDelta": {
+        "reasoning": {
+          "effort": "high"
+        }
+      }
+    },
+    {
+      "caseId": "p3b.anthropic.messages.reasoning_intent",
+      "providerKind": "anthropic",
+      "transport": "anthropic_messages",
+      "recipeRef": "anthropic.messages.reasoning.v2",
+      "capability": "reasoning",
+      "selectedIntent": "max",
+      "baseOwnedArrays": {},
+      "expectedDelta": {
+        "thinking": {
+          "type": "adaptive"
+        },
+        "output_config": {
+          "effort": "max"
+        }
+      }
+    },
+    {
+      "caseId": "p3b.gemini.generate_content.reasoning_intent",
+      "providerKind": "gemini",
+      "transport": "gemini_generate_content",
+      "recipeRef": "gemini.generate_content.reasoning.v2",
+      "capability": "reasoning",
+      "selectedIntent": "balanced",
+      "baseOwnedArrays": {},
+      "expectedDelta": {
+        "generationConfig": {
+          "thinkingConfig": {
+            "thinkingLevel": "medium"
+          }
+        }
+      }
+    },
+    {
+      "caseId": "p3b.deepseek.chat.reasoning_intent",
+      "providerKind": "deepseek",
+      "transport": "openai_chat",
+      "recipeRef": "deepseek.chat.reasoning.v1",
+      "capability": "reasoning",
+      "selectedIntent": "max",
+      "baseOwnedArrays": {},
+      "expectedDelta": {
+        "reasoning_effort": "max"
+      }
+    },
+    {
+      "caseId": "p3b.openai.chat.exact_model_route_has_no_body_patch",
+      "providerKind": "openAI",
+      "transport": "openai_chat",
+      "recipeRef": "openai.chat.web_model.v1",
+      "capability": "web",
+      "baseOwnedArrays": {},
+      "expectedDelta": {}
+    }
+  ],
+  "negativeCases": [
+    {
+      "caseId": "p3b.cross_provider_recipe_rejected",
+      "providerKind": "deepseek",
+      "transport": "openai_chat",
+      "recipeRef": "openai.chat.reasoning.v1",
+      "capability": "reasoning",
+      "selectedIntent": "low",
+      "expectReason": "provider_mismatch"
+    },
+    {
+      "caseId": "p3b.cross_transport_recipe_rejected",
+      "providerKind": "openAI",
+      "transport": "openai_chat",
+      "recipeRef": "openai.responses.web.v1",
+      "capability": "web",
+      "expectReason": "transport_mismatch"
+    },
+    {
+      "caseId": "p3b.cross_capability_recipe_rejected",
+      "providerKind": "openAI",
+      "transport": "openai_responses",
+      "recipeRef": "openai.responses.web.v1",
+      "capability": "reasoning",
+      "expectReason": "capability_mismatch"
+    },
+    {
+      "caseId": "p3b.dangling_recipe_rejected",
+      "providerKind": "openAI",
+      "transport": "openai_responses",
+      "recipeRef": "openai.responses.missing.v1",
+      "capability": "web",
+      "expectReason": "recipe_not_found"
+    }
+  ]
+}

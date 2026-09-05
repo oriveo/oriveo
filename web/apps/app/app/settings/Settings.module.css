@@ -1,0 +1,790 @@
+.page {
+  max-width: 640px;
+  margin: 0 auto;
+  padding: var(--o-space-xl) var(--o-space-lg);
+}
+
+.header {
+  margin-bottom: var(--o-space-xl);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--o-text-2xl);
+  font-family: var(--o-font-display);
+  font-weight: 620;
+  letter-spacing: 0;
+  color: var(--o-text);
+}
+
+.subtitle {
+  margin: var(--o-space-xs) 0 0;
+  font-size: var(--o-text-sm);
+  color: var(--o-text-secondary);
+}
+
+/* ── Section card ─────────────────────────── */
+
+.section {
+  background: color-mix(in srgb, var(--o-surface) 96%, transparent);
+  backdrop-filter: blur(8px) saturate(120%);
+  -webkit-backdrop-filter: blur(8px) saturate(120%);
+  border: 1px solid var(--o-border);
+  border-radius: var(--o-radius-card);
+  padding: var(--o-space-lg);
+  margin-bottom: var(--o-space-lg);
+  box-shadow: var(--o-elevation-card);
+}
+
+/*
+ * Root cause: the backdrop-filter on .section establishes a stacking context, trapping the
+ * dropdown menu inside it (MenuSelect's absolute menu at z-index:40). Later sections are
+ * also backdrop-filter stacks and paint on top in DOM order, so a menu overflowing this
+ * section (the 17-item language list, for example) is covered by the next one.
+ * Adjusting the menu z-index cannot help, since the stacking contexts are siblings.
+ * The fix: while a menu is open (trigger data-open=true), lift its section's z-index above every later section.
+ */
+.section:has([data-open='true']) {
+  position: relative;
+  z-index: 50;
+}
+
+.sectionTitle {
+  margin: 0 0 var(--o-space-md);
+  font-size: var(--o-text-sm);
+  font-weight: 600;
+  color: var(--o-text);
+  display: flex;
+  align-items: center;
+  gap: var(--o-space-sm);
+}
+
+/* ── Account hub ───────────────────────── */
+
+.accountHubSection {
+  position: relative;
+  overflow: hidden;
+  padding: 0;
+  max-width: 640px;
+  margin-left: auto;
+  margin-right: auto;
+  background:
+    radial-gradient(circle at 0% 0%, color-mix(in srgb, var(--o-primary) 2.6%, transparent) 0, transparent 40%),
+    radial-gradient(circle at 100% 100%, rgba(244, 114, 138, 0.026) 0, transparent 42%),
+    linear-gradient(135deg, rgba(255, 255, 255, 0.20), color-mix(in srgb, var(--o-primary) 1.2%, transparent), rgba(255, 247, 250, 0.08)),
+    color-mix(in srgb, var(--o-surface) 98%, transparent);
+  border-color: color-mix(in srgb, var(--o-border-strong, var(--o-border)) 55%, transparent);
+  box-shadow:
+    0 18px 34px color-mix(in srgb, var(--o-primary) 6%, transparent),
+    var(--o-elevation-card);
+}
+
+.accountHubSection::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  border: 1px solid transparent;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.36), color-mix(in srgb, var(--o-primary) 8%, transparent), color-mix(in srgb, var(--o-border) 38%, transparent)) border-box;
+  opacity: 0.9;
+  mask:
+    linear-gradient(#000 0 0) padding-box,
+    linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  -webkit-mask:
+    linear-gradient(#000 0 0) padding-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+}
+
+.accountHubProfile {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  cursor: pointer;
+  padding: 16px var(--o-space-lg) 15px;
+  transition:
+    background-color 200ms ease,
+    box-shadow 200ms ease;
+}
+
+.accountHubProfile:hover {
+  background-color: color-mix(in srgb, var(--o-surface-raised) 64%, transparent);
+}
+
+.accountHubProfile:focus-visible {
+  outline: none;
+  box-shadow: var(--o-focus-ring);
+}
+
+.accountHubAvatar {
+  width: 52px;
+  height: 52px;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.accountHubAvatar::before {
+  content: '';
+  position: absolute;
+  inset: -3px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--o-primary) 6%, transparent);
+  filter: blur(7px);
+}
+
+.accountHubAvatar > * {
+  position: relative;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.42);
+}
+
+/* Signed out: the placeholder avatar carries no identity, it is only a CTA, so shrink its visual weight to match the single line of text */
+.accountHubAvatarGuest {
+  width: 42px;
+  height: 42px;
+}
+
+.accountHubAvatarGuest::before {
+  inset: -2px;
+  filter: blur(5px);
+}
+
+.accountHubDivider {
+  height: 1px;
+  margin: 0 var(--o-space-lg);
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--o-border-strong, var(--o-border)) 64%, transparent), color-mix(in srgb, var(--o-primary) 9%, transparent), color-mix(in srgb, var(--o-border-strong, var(--o-border)) 50%, transparent), transparent);
+}
+
+/*
+ * hubCards - two entry cards: membership (rose) and AI balance (gold).
+ * Decorative palette only: light mode uses a lightly tinted white surface, dark mode uses
+ * tinted glass (low-opacity accent tint, a stroke and a light icon) rather than a pale tile on a dark ground.
+ */
+.hubCards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  padding: 13px var(--o-space-lg) 16px;
+}
+
+/* The membership card takes the whole row when the managed entry is not enabled */
+.hubCards > :only-child {
+  grid-column: 1 / -1;
+}
+
+.hubCard {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 12px 14px 13px;
+  border-radius: 14px;
+  cursor: pointer;
+  /* No border: separation comes from the fill plus a hint of accent glow in the top right corner, never a stroke */
+  background:
+    radial-gradient(90% 70% at 100% 0%, rgba(var(--hub-accent), 0.055) 0, transparent 55%),
+    color-mix(in srgb, var(--o-surface-raised) 62%, transparent);
+  transition: transform 200ms ease;
+}
+
+/* Deepen hover with an overlay instead of writing a hover gradient for each theme */
+.hubCard::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: rgba(var(--hub-accent), 0.05);
+  opacity: 0;
+  transition: opacity 200ms ease;
+  pointer-events: none;
+}
+
+.hubCard[data-accent='rose'] {
+  --hub-accent: 244, 63, 94;
+  --hub-icon: #be123c;
+  --hub-icon-dark: #fda4af;
+}
+
+.hubCard[data-accent='gold'] {
+  --hub-accent: 245, 158, 11;
+  --hub-icon: #b45309;
+  --hub-icon-dark: #fcd34d;
+}
+
+.hubCard:hover {
+  transform: translateY(-1px);
+}
+
+.hubCard:hover::after {
+  opacity: 1;
+}
+
+.hubCard:focus-visible {
+  outline: none;
+  box-shadow: var(--o-focus-ring);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hubCard {
+    transition: none;
+  }
+}
+
+.hubCardTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 7px;
+}
+
+.hubCardIcon {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--hub-icon);
+  background: linear-gradient(135deg, rgba(var(--hub-accent), 0.16), rgba(var(--hub-accent), 0.06));
+}
+
+.hubCardChevron {
+  color: var(--o-text-tertiary);
+  flex-shrink: 0;
+}
+
+/* Embossed ghost watermark, bank-card style: an oversized copy of the icon in the corner, partly clipped by the rounded edge */
+.hubCardWatermark {
+  position: absolute;
+  right: -16px;
+  bottom: -20px;
+  width: 88px;
+  height: 88px;
+  color: rgba(var(--hub-accent), 0.07);
+  stroke-width: 1.1;
+  transform: rotate(-12deg);
+  pointer-events: none;
+}
+
+.hubCard .navRowTitle,
+.hubCard .navRowSubtitle {
+  position: relative;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Heavier weight and tabular figures once the balance is ready */
+.hubCardValue {
+  font-weight: var(--o-weight-semibold);
+  font-variant-numeric: tabular-nums;
+  color: var(--o-text);
+}
+
+.accountHubSection .accountInfo,
+.accountHubSection .navRowInfo {
+  max-width: min(420px, calc(100% - 96px));
+}
+
+.accountHubSection .accountName {
+  font-size: var(--o-text-base);
+  line-height: 1.25;
+}
+
+.accountHubSection .accountEmail,
+.accountHubSection .navRowSubtitle {
+  font-size: var(--o-text-xs);
+  line-height: 1.35;
+}
+
+.accountHubSection .navRowTitle {
+  font-size: var(--o-text-base);
+  font-weight: var(--o-weight-semibold);
+  line-height: 1.25;
+}
+
+@media (max-width: 720px) {
+  .accountHubSection {
+    max-width: none;
+  }
+}
+
+/* Two cards do not fit side by side on a narrow screen; fall back to a vertical stack */
+@media (max-width: 480px) {
+  .hubCards {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ── Row (label + control) ────────────────── */
+
+.row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--o-space-md);
+  padding: var(--o-space-sm) 0;
+}
+
+.row + .row {
+  border-top: 1px solid var(--o-border);
+}
+
+.rowLabel {
+  display: flex;
+  align-items: center;
+  gap: var(--o-space-md);
+  font-size: var(--o-text-sm);
+  color: var(--o-text);
+}
+
+.rowLabelIcon {
+  color: var(--o-text-tertiary);
+  flex-shrink: 0;
+}
+
+.rowValue {
+  font-size: var(--o-text-sm);
+  color: var(--o-text-tertiary);
+}
+
+.rowControl {
+  min-width: 156px;
+}
+
+/* Pickers inside settings: lightweight, they should not draw focus */
+.rowControl button {
+  min-height: 34px;
+  border-radius: var(--o-radius-md);
+  background: var(--o-bg);
+  border-color: transparent;
+  box-shadow: none;
+  font-weight: 500;
+  font-size: var(--o-text-xs);
+}
+
+.rowControl button:hover {
+  background: color-mix(in srgb, var(--o-bg) 80%, var(--o-border));
+  border-color: transparent;
+  transform: none;
+}
+
+.rowControl button[data-open='true'] {
+  background: var(--o-bg);
+  border-color: var(--o-primary);
+  box-shadow: none;
+}
+
+/*
+ * Semantic icon - colored icon backplate for the settings page.
+ * blue/amber/green follow the status tokens; sky/indigo/rose are a decorative palette unrelated to the brand color.
+ */
+.semanticIcon {
+  width: 30px;
+  height: 30px;
+  border-radius: 7px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--o-on-info); /* Text on a saturated fill, white in both themes */
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.06),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.16);
+}
+
+.semanticIcon.purple {
+  background: var(--o-primary);
+}
+
+.semanticIcon.blue {
+  background: var(--o-info);
+}
+
+.semanticIcon.amber {
+  background: var(--o-warning);
+}
+
+.semanticIcon.green {
+  background: var(--o-success);
+}
+
+.semanticIcon.sky {
+  background: #0ea5e9;
+}
+
+.semanticIcon.indigo {
+  background: #6366f1;
+}
+
+.semanticIcon.rose {
+  background: #e11d48;
+}
+
+/* ── Navigable row (clickable with chevron) ─ */
+
+.navRow {
+  display: flex;
+  align-items: center;
+  gap: var(--o-space-md);
+  cursor: pointer;
+  border-radius: var(--o-radius-md);
+  padding: var(--o-space-sm);
+  margin: 0 calc(-1 * var(--o-space-sm));
+  transition:
+    background-color 200ms ease,
+    box-shadow 200ms ease;
+  text-decoration: none;
+  color: inherit;
+}
+
+.navRow:hover {
+  background-color: var(--o-surface-raised);
+  box-shadow: inset 0 1px 0 0 var(--o-hairline);
+  text-decoration: none;
+}
+
+.navRowButton {
+  width: calc(100% + 2 * var(--o-space-sm));
+  border: 0;
+  background: transparent;
+  font: inherit;
+  text-align: start;
+}
+
+.navRow:focus-visible {
+  outline: none;
+  background-color: var(--o-surface-raised);
+  box-shadow: var(--o-focus-ring);
+}
+
+.navRow + .navRowDivider {
+  margin: var(--o-space-xs) 0;
+}
+
+.navRowDivider + .navRow {
+  margin-top: 0;
+}
+
+:global(html[data-theme='dark']) .accountHubSection {
+  background:
+    radial-gradient(circle at 14% -18%, rgba(255, 255, 255, 0.075) 0, transparent 38%),
+    radial-gradient(circle at -8% 20%, color-mix(in srgb, var(--o-primary) 12%, transparent) 0, transparent 42%),
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--o-surface-raised) 72%, transparent) 0%,
+      color-mix(in srgb, var(--o-surface) 98%, #0a0a12 2%) 100%
+    );
+  border-color: rgba(255, 255, 255, 0.11);
+  box-shadow:
+    0 16px 38px rgba(0, 0, 0, 0.52),
+    0 6px 22px color-mix(in srgb, var(--o-primary) 9%, transparent),
+    0 0 0 0.5px rgba(255, 255, 255, 0.04),
+    inset 0 1px 0 rgba(255, 255, 255, 0.13),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.36);
+}
+
+:global(html[data-theme='dark']) .accountHubSection::before {
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.16),
+    color-mix(in srgb, var(--o-primary) 13%, transparent) 44%,
+    rgba(255, 255, 255, 0.035)
+  ) border-box;
+  opacity: 0.82;
+}
+
+:global(html[data-theme='dark']) .accountHubProfile:hover {
+  background-color: rgba(255, 255, 255, 0.045);
+}
+
+:global(html[data-theme='dark']) .accountHubAvatar::before {
+  background: color-mix(in srgb, var(--o-primary) 14%, transparent);
+  filter: blur(10px);
+}
+
+:global(html[data-theme='dark']) .accountHubAvatar > * {
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.12),
+    0 8px 18px rgba(0, 0, 0, 0.28);
+}
+
+:global(html[data-theme='dark']) .accountHubDivider {
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.07),
+    color-mix(in srgb, var(--o-primary) 18%, transparent),
+    rgba(255, 255, 255, 0.055),
+    transparent
+  );
+}
+
+:global(html[data-theme='dark']) .hubCard {
+  background:
+    radial-gradient(90% 70% at 100% 0%, rgba(var(--hub-accent), 0.07) 0, transparent 55%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.02));
+}
+
+:global(html[data-theme='dark']) .hubCardIcon {
+  color: var(--hub-icon-dark);
+  background: linear-gradient(135deg, rgba(var(--hub-accent), 0.24), rgba(var(--hub-accent), 0.09));
+  box-shadow: 0 0 16px rgba(var(--hub-accent), 0.14);
+}
+
+:global(html[data-theme='dark']) .hubCardWatermark {
+  color: rgba(var(--hub-accent), 0.075);
+}
+
+:global(html[data-theme='dark']) .accountHubSection .accountEmail,
+:global(html[data-theme='dark']) .accountHubSection .navRowSubtitle {
+  color: color-mix(in srgb, var(--o-text-secondary) 88%, transparent);
+}
+
+:global(html[data-theme='dark']) .accountHubSection .accountChevron,
+:global(html[data-theme='dark']) .accountHubSection .navRowChevron {
+  color: color-mix(in srgb, var(--o-text-secondary) 70%, transparent);
+}
+
+.navRowInfo {
+  flex: 1;
+  min-width: 0;
+}
+
+.navRowTrailing {
+  flex: 0 1 44%;
+  min-width: 0;
+  margin-left: auto;
+}
+
+.navRowTitle {
+  font-size: var(--o-text-sm);
+  color: var(--o-text);
+}
+
+.navRowSubtitle {
+  font-size: var(--o-text-xs);
+  color: var(--o-text-tertiary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Warning coloring for the subscription entry subtitle - tone is warning or danger */
+.navRowSubtitle.warning {
+  color: var(--o-warning);
+}
+
+.navRowSubtitle.danger {
+  color: var(--o-error);
+}
+
+.navRowValue {
+  font-size: var(--o-text-xs);
+  color: var(--o-text-tertiary);
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.navRowChevron {
+  color: var(--o-text-tertiary);
+  flex-shrink: 0;
+}
+
+/* ── Account card ─────────────────────────── */
+
+.accountCard {
+  display: flex;
+  align-items: center;
+  gap: var(--o-space-md);
+  cursor: pointer;
+  border-radius: var(--o-radius-md);
+  padding: var(--o-space-sm);
+  margin: calc(-1 * var(--o-space-sm));
+  transition:
+    background-color 200ms ease,
+    box-shadow 200ms ease;
+}
+
+.accountCard:hover {
+  background-color: var(--o-surface-raised);
+  box-shadow: inset 0 1px 0 0 var(--o-hairline);
+}
+
+.accountChevron {
+  color: var(--o-text-tertiary);
+  flex-shrink: 0;
+}
+
+.avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--o-radius-full);
+  background: var(--o-gradient-brand);
+  color: var(--o-on-info); /* White text on the purple gradient, constant across themes */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: var(--o-text-base);
+  flex-shrink: 0;
+  box-shadow:
+    var(--o-elevation-control),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.2);
+}
+
+.accountInfo {
+  flex: 1;
+  min-width: 0;
+}
+
+.accountName {
+  font-size: var(--o-text-sm);
+  font-weight: 600;
+  color: var(--o-text);
+}
+
+.accountEmail {
+  font-size: var(--o-text-xs);
+  color: var(--o-text-tertiary);
+}
+
+.signInLink {
+  font-size: var(--o-text-sm);
+  color: var(--o-primary);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.signInLink:hover {
+  text-decoration: underline;
+}
+
+/* ── About section ───────────────────────── */
+
+.aboutBrand {
+  display: flex;
+  align-items: center;
+  gap: var(--o-space-md);
+  padding-bottom: var(--o-space-sm);
+}
+
+.aboutLogo {
+  flex-shrink: 0;
+}
+
+.aboutAppName {
+  font-size: var(--o-text-sm);
+  font-weight: 600;
+  color: var(--o-text);
+}
+
+.aboutTagline {
+  font-size: var(--o-text-xs);
+  color: var(--o-text-tertiary);
+}
+
+.aboutInfoRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--o-space-xs) 0;
+}
+
+.aboutInfoRow + .aboutInfoRow {
+  border-top: 1px solid var(--o-border);
+}
+
+.aboutInfoLabel {
+  font-size: var(--o-text-sm);
+  color: var(--o-text);
+}
+
+.aboutInfoValue {
+  font-size: var(--o-text-xs);
+  color: var(--o-text-tertiary);
+}
+
+.aboutLink {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--o-space-xs) 0;
+  font-size: var(--o-text-sm);
+  color: var(--o-text);
+  text-decoration: none;
+  cursor: pointer;
+  transition: color var(--o-transition-fast);
+}
+
+.aboutLink + .aboutLink {
+  border-top: 1px solid var(--o-border);
+}
+
+.aboutLink:hover {
+  color: var(--o-primary);
+}
+
+.aboutLinkTrailing {
+  display: flex;
+  align-items: center;
+  gap: var(--o-space-sm);
+  min-width: 0;
+}
+
+.aboutLinkTrailing .aboutInfoValue {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.divider {
+  height: 1px;
+  background: var(--o-border);
+  margin: var(--o-space-sm) 0;
+}
+
+/* ── Memory icon ─────────────────────── */
+
+.memoryIcon {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--o-radius-md);
+  background: var(--o-primary-subtle, rgba(139, 92, 246, 0.1));
+  color: var(--o-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: inset 0 0 0 1px var(--o-hairline);
+}
+
+@media (max-width: 720px) {
+  .page {
+    padding: var(--o-space-lg) var(--o-space-md)
+      calc(104px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .section {
+    padding: var(--o-space-md);
+  }
+
+  .row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .rowControl {
+    width: 100%;
+    min-width: 0;
+  }
+}

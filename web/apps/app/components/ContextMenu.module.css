@@ -1,0 +1,61 @@
+.menu {
+  position: fixed;
+  z-index: 110;
+  min-width: 180px;
+  background: var(--o-surface-overlay);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--o-border);
+  border-radius: var(--o-radius-md);
+  box-shadow: var(--o-elevation-modal);
+  padding: var(--o-space-xs) 0;
+  outline: none;
+  animation: ctxMenuIn 120ms ease-out;
+}
+
+@keyframes ctxMenuIn {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.menuItem {
+  display: flex;
+  align-items: center;
+  gap: var(--o-space-sm);
+  width: 100%;
+  padding: var(--o-space-sm) var(--o-space-md);
+  border: none;
+  background: transparent;
+  color: var(--o-text);
+  font-size: var(--o-text-sm);
+  text-align: start;
+  cursor: pointer;
+  transition: background var(--o-transition-fast);
+}
+
+.menuItem[data-active='true'],
+.menuItem:hover {
+  background: var(--o-primary-subtle);
+}
+
+.danger {
+  color: var(--o-error);
+}
+
+.danger[data-active='true'],
+.danger:hover {
+  background: color-mix(in srgb, var(--o-error) 10%, transparent);
+}
+
+.icon {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  color: inherit;
+}

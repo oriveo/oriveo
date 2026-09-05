@@ -1,0 +1,625 @@
+/* ── ModelBrowser — Library Panel styling
+   Core principles:
+   - One surface per group card with hairline dividers between rows, instead of nested cards
+   - Nested child rows use a 56px transparent spacer so titles line up with the group header title
+   - The whole row is the add button, so there is no second hit target
+   - No inline expand detail, scope indicator, group capability summary or preview line
+   ── */
+
+.browser {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* ── Toolbar: search + filter + sort + count ── */
+
+.toolbar {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.searchShell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 0 14px;
+  border: 1px solid color-mix(in srgb, var(--o-border) 88%, transparent);
+  border-radius: 12px;
+  background: var(--o-surface);
+  transition: border-color 200ms ease, box-shadow 200ms ease;
+}
+
+.searchShell:hover {
+  border-color: color-mix(in srgb, var(--o-text) 16%, transparent);
+}
+
+.searchShell:focus-within {
+  border-color: var(--o-primary);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--o-primary) 12%, transparent);
+}
+
+.searchIcon {
+  flex-shrink: 0;
+  color: var(--o-text-tertiary);
+}
+
+.searchShell:focus-within .searchIcon {
+  color: var(--o-primary);
+}
+
+.searchInput {
+  flex: 1;
+  height: 42px;
+  border: none;
+  background: transparent;
+  color: var(--o-text);
+  font-size: 14px;
+  outline: none;
+}
+
+.searchInput::placeholder {
+  color: var(--o-text-tertiary);
+}
+
+/* Focus feedback is handled by the outer .searchShell:focus-within;
+   this overrides the global --o-focus-ring injected by :focus-visible so two rings do not stack */
+.searchInput:focus-visible {
+  box-shadow: none;
+}
+
+.toolbarRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.filters {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 auto;
+  flex-wrap: wrap;
+}
+
+.filterChip {
+  --chip-accent: var(--o-text-secondary);
+  --chip-active-bg: color-mix(in srgb, var(--chip-accent) 12%, var(--o-surface));
+  --chip-active-border: color-mix(in srgb, var(--chip-accent) 44%, transparent);
+  --chip-active-fg: color-mix(in srgb, var(--chip-accent) 88%, var(--o-text));
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 30px;
+  padding: 0 11px;
+  border: 1px solid color-mix(in srgb, var(--o-border) 88%, transparent);
+  border-radius: 999px;
+  background: var(--o-surface);
+  color: var(--o-text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 200ms ease, background 200ms ease, color 200ms ease;
+}
+
+.filterChip:hover {
+  border-color: var(--chip-active-border);
+  color: var(--chip-active-fg);
+}
+
+.filterChip[data-active='true'] {
+  background: var(--chip-active-bg);
+  border-color: var(--chip-active-border);
+  color: var(--chip-active-fg);
+}
+
+.filterChip:focus-visible {
+  outline: 2px solid var(--o-primary);
+  outline-offset: 2px;
+}
+
+.filterChipIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  color: var(--chip-accent);
+}
+
+.filterChipCheck {
+  width: 14px;
+  height: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: var(--chip-active-fg);
+  color: var(--o-surface);
+}
+
+/* Capability colours, keeping the original capability colour coding for visual consistency */
+.filterChip[data-cap='reasoning'] { --chip-accent: #8b5cf6; }
+.filterChip[data-cap='image'] { --chip-accent: #0ea5e9; }
+.filterChip[data-cap='video'] { --chip-accent: #ec4899; }
+.filterChip[data-cap='file'] { --chip-accent: #f59e0b; }
+.filterChip[data-cap='web'] { --chip-accent: #10b981; }
+
+.sortControl {
+  flex-shrink: 0;
+}
+
+.countBar {
+  display: flex;
+  align-items: center;
+  font-size: 12px;
+  color: var(--o-text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+.count {
+  font-weight: 500;
+}
+
+/* ── Shortcut Rail: vendor quick-jump bar ── */
+
+.shortcutRail {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+  scroll-snap-type: x mandatory;
+  scrollbar-width: thin;
+}
+
+.shortcutRail::-webkit-scrollbar { height: 4px; }
+.shortcutRail::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--o-text-tertiary) 28%, transparent);
+  border-radius: 999px;
+}
+
+.shortcutButton {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid color-mix(in srgb, var(--o-border) 88%, transparent);
+  border-radius: 999px;
+  background: var(--o-surface);
+  color: var(--o-text-secondary);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  scroll-snap-align: start;
+  white-space: nowrap;
+  transition: border-color 200ms ease, background 200ms ease, color 200ms ease;
+}
+
+.shortcutButton:hover {
+  border-color: color-mix(in srgb, var(--o-primary) 32%, transparent);
+  color: var(--o-text);
+}
+
+.shortcutButton[data-active='true'] {
+  border-color: var(--o-primary);
+  background: color-mix(in srgb, var(--o-primary) 10%, var(--o-surface));
+  color: color-mix(in srgb, var(--o-primary) 88%, var(--o-text));
+}
+
+.shortcutButton:focus-visible {
+  outline: 2px solid var(--o-primary);
+  outline-offset: 2px;
+}
+
+.shortcutLabel {
+  font-weight: 600;
+}
+
+.shortcutCount {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--o-text) 8%, transparent);
+  color: var(--o-text-secondary);
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.shortcutButton[data-active='true'] .shortcutCount {
+  background: color-mix(in srgb, var(--o-primary) 16%, transparent);
+  color: color-mix(in srgb, var(--o-primary) 88%, var(--o-text));
+}
+
+.allShortcutBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--o-primary) 14%, transparent);
+  color: var(--o-primary);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+}
+
+/* ── Group Sections: consecutive groups inside the catalog ──
+   The enclosing ProviderDetail.section already provides the surface and the boundary, so hierarchy
+   here comes from dividers rather than another white rounded container per vendor card. */
+
+.groupSections {
+  display: flex;
+  flex-direction: column;
+  margin: 2px -2px 0;
+  border-top: 1px solid color-mix(in srgb, var(--o-border) 58%, transparent);
+}
+
+/* A vendor is a catalog entry, not a card of its own. */
+.groupSection {
+  border-bottom: 1px solid color-mix(in srgb, var(--o-border) 58%, transparent);
+  transition: background 200ms ease;
+}
+
+.groupButton {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 68px;
+  padding: 14px 12px;
+  border: none;
+  background: transparent;
+  color: var(--o-text);
+  text-align: left;
+  cursor: pointer;
+  transition: background 200ms ease;
+}
+
+.groupButton:hover {
+  background: color-mix(in srgb, var(--o-primary) 4%, var(--o-surface));
+}
+
+.groupButton:focus-visible {
+  outline: 2px solid var(--o-primary);
+  outline-offset: -2px;
+}
+
+/* The expanded state uses only a low-saturation background, without reintroducing a card boundary. */
+.groupSection[data-expanded='true'] .groupButton {
+  background: color-mix(in srgb, var(--o-primary) 6%, var(--o-surface));
+}
+
+.groupCopy {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.groupTitle {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--o-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.groupCount {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--o-text) 6%, transparent);
+  color: var(--o-text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
+.groupChevron {
+  color: var(--o-text-tertiary);
+  flex-shrink: 0;
+  transition: transform 200ms ease;
+}
+
+.groupChevron[data-expanded] {
+  color: var(--o-text-secondary);
+}
+
+/* Expanded content keeps the same clean surface as the detail panel; hierarchy comes from the expanded title and the divider. */
+.groupBody {
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid color-mix(in srgb, var(--o-border) 60%, transparent);
+  background: var(--o-surface);
+}
+
+/* ── Model Row: compact settings-style row ── */
+
+.list {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid color-mix(in srgb, var(--o-border) 88%, transparent);
+  border-radius: 14px;
+  background: var(--o-surface);
+  overflow: hidden;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.list[data-mode='results'],
+.list[data-mode='flat'] {
+  /* flat and results modes can list many rows, so cap the height and scroll */
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.modelRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 56px;
+  padding: 10px 14px;
+  border: none;
+  border-bottom: 1px solid color-mix(in srgb, var(--o-border) 45%, transparent);
+  background: transparent;
+  color: var(--o-text);
+  text-align: left;
+  cursor: pointer;
+  transition: background 180ms ease;
+  font: inherit;
+}
+
+.modelRow:last-child {
+  border-bottom: none;
+}
+
+.modelRow:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--o-primary) 5%, var(--o-surface));
+}
+
+.modelRow:focus-visible {
+  outline: 2px solid var(--o-primary);
+  outline-offset: -2px;
+}
+
+.modelRow:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
+}
+
+/* nested mode: a 56px transparent spacer so the name lines up with the group header title
+   (vendorIdentity small=26 + groupButton gap 12 + padding-left 16 = ~54, rounded to 56) */
+.nestedIndent {
+  flex-shrink: 0;
+  width: 26px;
+  height: 1px;
+  /* Starts at 26 + gap 12 = 38, aligning with the groupTitle that follows vendorIdentity inside groupButton */
+}
+
+.modelContent {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.modelName {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  color: var(--o-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.modelMeta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.modelPrice {
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--o-text-tertiary);
+  font-family: var(--o-font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.modelSpecs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.modelSpec {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 0 7px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--o-text) 5%, transparent);
+  color: var(--o-text-secondary);
+  font-family: var(--o-font-mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.modelTrailing {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.unavailableBadge {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--o-warning) 12%, var(--o-surface));
+  color: color-mix(in srgb, var(--o-warning) 50%, black 50%);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+}
+
+/* Round add button */
+.addBubble {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--o-primary) 12%, transparent);
+  color: var(--o-primary);
+  transition: background 200ms ease, transform 200ms ease;
+  flex-shrink: 0;
+}
+
+.modelRow:hover:not(:disabled) .addBubble {
+  background: color-mix(in srgb, var(--o-primary) 18%, transparent);
+}
+
+.modelRow:active:not(:disabled) .addBubble {
+  transform: scale(0.94);
+}
+
+.modelRow:disabled .addBubble {
+  background: color-mix(in srgb, var(--o-text-tertiary) 10%, transparent);
+  color: var(--o-text-tertiary);
+}
+
+/* ── Empty ── */
+
+.empty {
+  padding: 32px 16px;
+  text-align: center;
+  color: var(--o-text-tertiary);
+  font-size: 13px;
+  border: 1px dashed color-mix(in srgb, var(--o-border) 88%, transparent);
+  border-radius: 14px;
+  background: var(--o-bg-subtle, var(--o-surface));
+}
+
+/* ── Dark theme ── */
+
+:global(html[data-theme='dark']) .searchShell,
+:global(html[data-theme='dark']) .filterChip,
+:global(html[data-theme='dark']) .shortcutButton,
+:global(html[data-theme='dark']) .list {
+  background: rgba(255, 255, 255, 0.03);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+:global(html[data-theme='dark']) .searchShell:hover,
+:global(html[data-theme='dark']) .filterChip:hover,
+:global(html[data-theme='dark']) .shortcutButton:hover {
+  border-color: rgba(255, 255, 255, 0.16);
+}
+
+:global(html[data-theme='dark']) .filterChip[data-active='true'] {
+  background: color-mix(in srgb, var(--chip-accent) 18%, rgba(255, 255, 255, 0.03));
+  border-color: color-mix(in srgb, var(--chip-accent) 52%, transparent);
+  color: color-mix(in srgb, var(--chip-accent) 92%, white 8%);
+}
+
+:global(html[data-theme='dark']) .shortcutButton[data-active='true'] {
+  background: color-mix(in srgb, var(--o-primary) 22%, rgba(255, 255, 255, 0.03));
+  border-color: color-mix(in srgb, var(--o-primary) 52%, transparent);
+}
+
+:global(html[data-theme='dark']) .groupButton:hover,
+:global(html[data-theme='dark']) .modelRow:hover:not(:disabled) {
+  background: rgba(167, 139, 250, 0.06);
+}
+
+:global(html[data-theme='dark']) .groupSection[data-expanded='true'] .groupButton {
+  background: rgba(167, 139, 250, 0.10);
+}
+
+:global(html[data-theme='dark']) .groupBody {
+  border-top-color: rgba(255, 255, 255, 0.08);
+}
+
+:global(html[data-theme='dark']) .modelRow {
+  border-bottom-color: rgba(255, 255, 255, 0.06);
+}
+
+:global(html[data-theme='dark']) .groupCount,
+:global(html[data-theme='dark']) .shortcutCount {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+:global(html[data-theme='dark']) .empty {
+  background: rgba(255, 255, 255, 0.02);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+/* ── Responsive ── */
+
+@media (max-width: 720px) {
+  .toolbarRow {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .filters {
+    width: 100%;
+  }
+
+  .sortControl {
+    width: 100%;
+  }
+
+  .modelRow {
+    padding: 10px 12px;
+  }
+
+  .groupButton {
+    padding: 12px 14px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .searchShell,
+  .filterChip,
+  .shortcutButton,
+  .groupSection,
+  .groupButton,
+  .modelRow,
+  .addBubble,
+  .groupChevron {
+    transition: none;
+  }
+}

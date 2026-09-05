@@ -1,0 +1,130 @@
+.wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100%;
+  padding: var(--o-space-2xl) var(--o-space-xl);
+  gap: var(--o-space-xl);
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--o-space-md);
+  text-align: center;
+}
+
+/* Icon container, laid out as a stack */
+.iconWrap {
+  position: relative;
+  width: 66px;
+  height: 66px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Breathing glow: accent colour at 22% with a 22px blur */
+.iconGlow {
+  position: absolute;
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  background: var(--skill-color, var(--o-primary));
+  opacity: 0.18;
+  filter: blur(22px);
+  animation: breathe 2.6s ease-in-out infinite alternate;
+}
+
+/* Icon circle: no outline ring; the 20% fill alone carries the shape. */
+.iconCircle {
+  position: relative;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--skill-color, var(--o-primary)) 20%, transparent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1;
+}
+
+.icon {
+  font-size: 2rem;
+  line-height: 1;
+}
+
+.name {
+  font-size: 1.625rem;
+  font-weight: 700;
+  color: var(--o-text);
+  margin: 0;
+}
+
+.desc {
+  font-size: 0.875rem;
+  color: var(--o-text-secondary);
+  margin: 0;
+  max-width: 360px;
+  line-height: 1.5;
+}
+
+.starters {
+  display: flex;
+  flex-direction: column;
+  gap: var(--o-space-md);
+  width: 100%;
+  max-width: 680px;
+}
+
+.starter {
+  display: flex;
+  align-items: center;
+  gap: var(--o-space-md);
+  padding: 16px 20px;
+  border: 1px solid var(--o-border);
+  border-radius: var(--o-radius-lg);
+  background: var(--o-surface-raised);
+  color: var(--o-text);
+  font-size: 0.9375rem;
+  cursor: pointer;
+  text-align: left;
+  line-height: 1.45;
+  box-shadow: var(--o-elevation-control);
+  transition: background var(--o-transition-fast), border-color var(--o-transition-fast), box-shadow var(--o-transition-fast);
+  /* Entrance animation: staggered slide-in */
+  animation: slideUp 0.38s cubic-bezier(0.34, 1.56, 0.64, 1) backwards;
+}
+
+.starter:hover {
+  background: var(--o-surface-raised);
+  border-color: var(--o-border-strong);
+  box-shadow: var(--o-elevation-card);
+}
+
+.starterText {
+  flex: 1;
+}
+
+.starterIcon {
+  flex-shrink: 0;
+  color: var(--o-text-tertiary);
+}
+
+@keyframes breathe {
+  from { transform: scale(0.94); }
+  to { transform: scale(1.12); }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

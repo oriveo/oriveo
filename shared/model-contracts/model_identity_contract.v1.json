@@ -1,0 +1,218 @@
+{
+  "version": 1,
+  "metadataLookupCases": [
+    {
+      "id": "openai_live_metadata_resolves_gpt_5_4_nano",
+      "providerKind": "openAI",
+      "query": "gpt-5.4-nano",
+      "expectedCanonicalModelId": "gpt-5.4-nano"
+    },
+    {
+      "id": "openai_live_metadata_resolves_o4_mini",
+      "providerKind": "openAI",
+      "query": "o4-mini",
+      "expectedCanonicalModelId": "o4-mini"
+    },
+    {
+      "id": "openrouter_live_metadata_resolves_vendor_nano",
+      "providerKind": "openRouter",
+      "query": "openai/gpt-5.4-nano",
+      "expectedCanonicalModelId": "openai/gpt-5.4-nano"
+    },
+    {
+      "id": "openrouter_live_metadata_resolves_vendor_mini",
+      "providerKind": "openRouter",
+      "query": "openai/gpt-5.4-mini",
+      "expectedCanonicalModelId": "openai/gpt-5.4-mini"
+    }
+  ],
+  "lookupCases": [
+    {
+      "id": "openai_canonical_matches_dated_snapshot",
+      "providerKind": "openAI",
+      "query": "gpt-5.4-nano",
+      "expectedCanonicalModelId": "gpt-5.4-nano",
+      "expectedModelId": "gpt-5.4-nano-2026-03-01",
+      "models": [
+        {
+          "id": "gpt-5.4-nano-2026-03-01",
+          "name": "GPT-5.4 Nano",
+          "canonicalModelId": "gpt-5.4-nano"
+        }
+      ]
+    },
+    {
+      "id": "openai_dated_snapshot_query_matches_canonical_model",
+      "providerKind": "openAI",
+      "query": "gpt-5.4-nano-2026-03-01",
+      "expectedCanonicalModelId": "gpt-5.4-nano",
+      "expectedModelId": "gpt-5.4-nano",
+      "models": [
+        {
+          "id": "gpt-5.4-nano",
+          "name": "GPT-5.4 Nano",
+          "canonicalModelId": "gpt-5.4-nano"
+        }
+      ]
+    },
+    {
+      "id": "openai_legacy_compact_snapshot_query_matches_canonical_model",
+      "providerKind": "openAI",
+      "query": "o4-mini-20250301",
+      "expectedCanonicalModelId": "o4-mini",
+      "expectedModelId": "o4-mini",
+      "models": [
+        {
+          "id": "o4-mini",
+          "name": "o4-mini",
+          "canonicalModelId": "o4-mini"
+        }
+      ]
+    },
+    {
+      "id": "canonical_query_prefers_exact_id_when_snapshot_and_canonical_both_exist",
+      "providerKind": "openAI",
+      "query": "gpt-5.4-nano",
+      "expectedCanonicalModelId": "gpt-5.4-nano",
+      "expectedModelId": "gpt-5.4-nano",
+      "models": [
+        {
+          "id": "gpt-5.4-nano-2026-03-01",
+          "name": "GPT-5.4 Nano",
+          "canonicalModelId": "gpt-5.4-nano"
+        },
+        {
+          "id": "gpt-5.4-nano",
+          "name": "GPT-5.4 Nano",
+          "canonicalModelId": "gpt-5.4-nano"
+        }
+      ]
+    },
+    {
+      "id": "openrouter_nano_does_not_match_mini",
+      "providerKind": "openRouter",
+      "query": "openai/gpt-5.4-nano",
+      "expectedCanonicalModelId": null,
+      "expectedModelId": null,
+      "models": [
+        {
+          "id": "openai/gpt-5.4-mini",
+          "name": "OpenAI: GPT-5.4 Mini",
+          "canonicalModelId": "openai/gpt-5.4-mini"
+        }
+      ]
+    },
+    {
+      "id": "openrouter_exact_vendor_model_keeps_nano_and_mini_separate",
+      "providerKind": "openRouter",
+      "query": "openai/gpt-5.4-nano",
+      "expectedCanonicalModelId": "openai/gpt-5.4-nano",
+      "expectedModelId": "openai/gpt-5.4-nano",
+      "models": [
+        {
+          "id": "openai/gpt-5.4-mini",
+          "name": "OpenAI: GPT-5.4 Mini",
+          "canonicalModelId": "openai/gpt-5.4-mini"
+        },
+        {
+          "id": "openai/gpt-5.4-nano",
+          "name": "OpenAI: GPT-5.4 Nano",
+          "canonicalModelId": "openai/gpt-5.4-nano"
+        }
+      ]
+    }
+  ],
+  "dedupeCases": [
+    {
+      "id": "dedupe_prefers_canonical_over_dated_snapshot",
+      "models": [
+        {
+          "id": "gpt-5.4-nano-2026-03-01",
+          "name": "GPT-5.4 Nano",
+          "canonicalModelId": "gpt-5.4-nano"
+        },
+        {
+          "id": "gpt-5.4-nano",
+          "name": "GPT-5.4 Nano",
+          "canonicalModelId": "gpt-5.4-nano"
+        }
+      ],
+      "expectedModelIds": [
+        "gpt-5.4-nano"
+      ]
+    },
+    {
+      "id": "dedupe_keeps_distinct_nano_and_mini_models",
+      "models": [
+        {
+          "id": "openai/gpt-5.4-nano",
+          "name": "OpenAI: GPT-5.4 Nano",
+          "canonicalModelId": "openai/gpt-5.4-nano"
+        },
+        {
+          "id": "openai/gpt-5.4-mini",
+          "name": "OpenAI: GPT-5.4 Mini",
+          "canonicalModelId": "openai/gpt-5.4-mini"
+        }
+      ],
+      "expectedModelIds": [
+        "openai/gpt-5.4-nano",
+        "openai/gpt-5.4-mini"
+      ]
+    }
+  ],
+  "storedIdentifierCases": [
+    {
+      "id": "snapshot_model_stores_canonical_identifier",
+      "providerKind": "openAI",
+      "model": {
+        "id": "gpt-5.4-nano-2026-03-01",
+        "name": "GPT-5.4 Nano",
+        "canonicalModelId": "gpt-5.4-nano"
+      },
+      "expectedStoredModelId": "gpt-5.4-nano"
+    },
+    {
+      "id": "canonical_model_stores_own_identifier",
+      "providerKind": "openRouter",
+      "model": {
+        "id": "openai/gpt-5.4-nano",
+        "name": "OpenAI: GPT-5.4 Nano",
+        "canonicalModelId": "openai/gpt-5.4-nano"
+      },
+      "expectedStoredModelId": "openai/gpt-5.4-nano"
+    }
+  ],
+  "sameRemoteCases": [
+    {
+      "id": "snapshot_and_canonical_openai_models_share_same_remote_model",
+      "providerKind": "openAI",
+      "left": {
+        "id": "gpt-5.4-nano-2026-03-01",
+        "name": "GPT-5.4 Nano",
+        "canonicalModelId": "gpt-5.4-nano"
+      },
+      "right": {
+        "id": "gpt-5.4-nano",
+        "name": "GPT-5.4 Nano",
+        "canonicalModelId": "gpt-5.4-nano"
+      },
+      "expected": true
+    },
+    {
+      "id": "openrouter_same_name_different_id_are_not_same_model",
+      "providerKind": "openRouter",
+      "left": {
+        "id": "openai/gpt-5.4-nano",
+        "name": "OpenAI: GPT-5.4",
+        "canonicalModelId": "openai/gpt-5.4-nano"
+      },
+      "right": {
+        "id": "openai/gpt-5.4-mini",
+        "name": "OpenAI: GPT-5.4",
+        "canonicalModelId": "openai/gpt-5.4-mini"
+      },
+      "expected": false
+    }
+  ]
+}

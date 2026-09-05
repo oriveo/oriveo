@@ -1,0 +1,145 @@
+/* ── Cluster header / summary strip — standalone metrics row between the hero card and the list ── */
+
+.header {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 6px 4px;
+  flex-wrap: wrap;
+}
+
+.metaLine {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--o-text-tertiary);
+  letter-spacing: -0.005em;
+}
+
+.metaItem {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.metaIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--o-text-tertiary) 10%, transparent);
+  color: var(--o-text-tertiary);
+  flex-shrink: 0;
+}
+
+.metaIcon[data-tone='success'] {
+  background: color-mix(in srgb, var(--o-success) 14%, transparent);
+  color: var(--o-success);
+}
+
+.metaIcon[data-tone='primary'] {
+  background: color-mix(in srgb, var(--o-primary) 14%, transparent);
+  color: var(--o-primary);
+}
+
+.metaIcon[data-tone='neutral'] {
+  background: color-mix(in srgb, var(--o-text-tertiary) 12%, transparent);
+  color: var(--o-text-secondary);
+}
+
+.metaText {
+  color: var(--o-text-secondary);
+  font-weight: 600;
+  letter-spacing: -0.005em;
+}
+
+/* All signal color is carried by the icon box (background plus icon) while the text stays a neutral
+   secondary, which avoids a color salad such as green label + green icon + black number. */
+
+.dotSep {
+  width: 3px;
+  height: 3px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--o-text-tertiary) 50%, transparent);
+  flex-shrink: 0;
+  align-self: center;
+}
+
+/* ── Status Summary Pill — single floating signal ── */
+.statusBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px 4px 8px;
+  border-radius: var(--o-radius-full);
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 1;
+  letter-spacing: -0.005em;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+
+.statusBadge[data-tone='warning'] {
+  border-color: color-mix(in srgb, var(--o-warning) 22%, transparent);
+  background: color-mix(in srgb, var(--o-warning) 10%, var(--o-surface));
+  color: var(--o-warning);
+}
+
+.statusBadge[data-tone='primary'] {
+  border-color: color-mix(in srgb, var(--o-primary) 22%, transparent);
+  background: color-mix(in srgb, var(--o-primary) 10%, var(--o-surface));
+  color: var(--o-primary-active);
+}
+
+.statusBadge[data-tone='success'] {
+  border-color: color-mix(in srgb, var(--o-success) 22%, transparent);
+  background: color-mix(in srgb, var(--o-success) 10%, var(--o-surface));
+  color: var(--o-success);
+}
+
+.statusBadgeText {
+  white-space: nowrap;
+}
+
+.statusBadgeDot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
+}
+
+.spinIcon {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+:global(html[data-theme='dark']) .dotSep {
+  background: color-mix(in srgb, var(--o-text-tertiary) 60%, transparent);
+}
+
+:global(html[data-theme='dark']) .metaIcon {
+  background: color-mix(in srgb, var(--o-text-tertiary) 14%, transparent);
+}
+
+:global(html[data-theme='dark']) .metaIcon[data-tone='success'] {
+  background: color-mix(in srgb, var(--o-success) 18%, transparent);
+}
+
+:global(html[data-theme='dark']) .metaIcon[data-tone='primary'] {
+  background: color-mix(in srgb, var(--o-primary) 18%, transparent);
+}

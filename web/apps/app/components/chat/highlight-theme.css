@@ -1,0 +1,100 @@
+/* highlight.js theme mapped to Oriveo design tokens */
+
+.hljs {
+  color: var(--o-code-text);
+  background: transparent;
+}
+
+.hljs-comment,
+.hljs-quote {
+  color: var(--o-code-comment);
+  font-style: italic;
+}
+
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-type {
+  color: var(--o-code-keyword);
+}
+
+.hljs-string,
+.hljs-template-variable,
+.hljs-addition {
+  color: var(--o-code-string);
+}
+
+.hljs-number,
+.hljs-literal,
+.hljs-variable,
+.hljs-template-tag,
+.hljs-tag .hljs-attr {
+  color: var(--o-code-number);
+}
+
+.hljs-function,
+.hljs-title,
+.hljs-section {
+  color: var(--o-code-function);
+}
+
+.hljs-built_in,
+.hljs-name {
+  color: var(--o-code-builtin);
+}
+
+.hljs-attr,
+.hljs-attribute {
+  color: var(--o-code-attr);
+}
+
+.hljs-meta {
+  color: var(--o-code-comment);
+}
+
+.hljs-deletion {
+  color: var(--o-error);
+}
+
+.hljs-regexp,
+.hljs-link {
+  color: var(--o-code-string);
+}
+
+.hljs-symbol,
+.hljs-bullet {
+  color: var(--o-code-keyword);
+}
+
+.hljs-tag {
+  color: var(--o-code-number);
+}
+
+.hljs-emphasis {
+  font-style: italic;
+}
+
+.hljs-strong {
+  font-weight: bold;
+}
+
+/* Per-character streaming fade-in: rehypeStreamingCharFade wraps streamed text one character at a time
+ * in .o-fadeChar. It lives in global styles rather than a CSS Module, with a literal class name, to
+ * avoid lightningcss's handling of :global. Each newly mounted character plays a single opacity 0 to 1
+ * transition, so the arrival rhythm produces the fade-in effect on its own; existing character spans
+ * keep their position, are reused by React and do not replay. A pure opacity change stays on the
+ * compositor, so it triggers no layout and does not compete with scrolling. */
+.o-fadeChar {
+  animation: oFadeChar 0.4s ease-out both;
+}
+
+@keyframes oFadeChar {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* With reduced motion the fade-in is skipped and text renders fully opaque (animation:none leaves opacity at its default of 1, so nothing is hidden). */
+@media (prefers-reduced-motion: reduce) {
+  .o-fadeChar {
+    animation: none;
+  }
+}

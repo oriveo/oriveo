@@ -1,0 +1,156 @@
+/*
+   Library confirmation dialog. Same visual language as the library page: a top aurora, an inset
+   info group, and a brand purple primary button.
+   The layout is centered (icon, title, description, info group, buttons) because this is a single
+   decision, and centering pulls attention onto the icon.
+*/
+
+/* The doubled class name raises specificity: Dialog's own .dialog is a single class and cross-file order is not guaranteed. */
+.dialog.dialog {
+  padding: 30px 24px 14px;
+}
+
+/* Top aurora. Two radial lights, indigo at the upper left and purple at the upper right, fading to
+   fully transparent downwards. The horizontal hue shift is what makes it read as light; a single
+   color would just be a purple block.
+   Light and dark values go through `--o-lc-*` tokens (see variables.css) rather than a
+   :global([data-theme]) override, which lightningcss can strip out entirely in a production build. */
+.aurora {
+  position: absolute;
+  z-index: 0;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 230px;
+  background: var(--o-lc-aurora);
+  pointer-events: none;
+}
+
+.body {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+/* Icon badge, lifted by a soft glow in the same hue. The dialog has one visual focus and the icon
+   should be it, not a small square pasted onto the background. */
+.icon {
+  display: grid;
+  width: 58px;
+  height: 58px;
+  border-radius: 19px;
+  place-items: center;
+}
+
+.icon[data-tone="warning"] {
+  background: var(--o-warning-subtle);
+  box-shadow: 0 7px 18px color-mix(in srgb, var(--o-warning) 20%, transparent);
+  color: var(--o-warning);
+}
+
+.icon[data-tone="info"] {
+  background: var(--o-info-subtle);
+  box-shadow: 0 7px 18px color-mix(in srgb, var(--o-info) 20%, transparent);
+  color: var(--o-info);
+}
+
+.icon[data-tone="primary"] {
+  background: color-mix(in srgb, var(--o-primary) 14%, transparent);
+  box-shadow: 0 7px 18px color-mix(in srgb, var(--o-primary) 20%, transparent);
+  color: var(--o-primary);
+}
+
+.title {
+  margin: 15px 0 0;
+  font-size: var(--o-text-lg);
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+.message {
+  margin: 7px 0 0;
+  color: var(--o-text-secondary);
+  font-size: var(--o-text-sm);
+  line-height: 1.55;
+}
+
+/* Info group: no nested card, since two stacked shadows tint each other grey; depth comes from a brightness difference instead. */
+.info {
+  width: 100%;
+  margin: 22px 0 0;
+  border-radius: 16px;
+  background: var(--o-lc-inset-bg);
+}
+
+.infoRow {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 13px 14px;
+  text-align: start;
+}
+
+/* The divider starts where the text starts rather than running to the card edge. */
+.infoRow + .infoRow::before {
+  position: absolute;
+  top: 0;
+  right: 14px;
+  left: 14px;
+  height: 1px;
+  background: var(--o-lc-divider);
+  content: "";
+}
+
+.infoRow dt {
+  color: var(--o-text-tertiary);
+  font-size: var(--o-text-xs);
+  white-space: nowrap;
+}
+
+.infoRow dd {
+  margin: 0;
+  margin-inline-start: auto;
+  color: var(--o-text);
+  font-size: var(--o-text-xs);
+  font-weight: 500;
+  overflow-wrap: anywhere;
+  text-align: end;
+}
+
+.actions {
+  display: flex;
+  width: 100%;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 24px;
+}
+
+.actions > button {
+  width: 100%;
+  min-height: 46px;
+}
+
+/* Full-width buttons do not lift on hover: a whole row of them rising one by one looks like jitter. */
+.actions > button:hover {
+  transform: none;
+}
+
+/* Cancel is the lightest of the three actions: no fill, no border, text only. */
+.quietAction {
+  min-height: 40px;
+  border: 0;
+  background: transparent;
+  color: var(--o-text-secondary);
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--o-text-sm);
+  font-weight: 500;
+}
+
+.quietAction:hover {
+  color: var(--o-text);
+}

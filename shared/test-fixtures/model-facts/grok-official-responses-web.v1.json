@@ -1,0 +1,1044 @@
+{
+  "capabilityContractVersion": 2,
+  "capabilityRuntime": {
+    "controlDefinitions": {
+      "openai.generation.max_output_tokens": {
+        "defaultBehavior": "provider_default",
+        "descriptionKey": "control.generation.maxOutputTokens.desc",
+        "id": "openai.generation.max_output_tokens",
+        "kind": "integer_range",
+        "labelKey": "control.generation.maxOutputTokens",
+        "max": 128000,
+        "min": 1,
+        "owner": "generation",
+        "riskTier": "cost_impacting",
+        "sourceRefs": [
+          "openai.reasoning"
+        ],
+        "targetPointer": "/max_output_tokens"
+      },
+      "openai.reasoning.effort": {
+        "defaultBehavior": "provider_default",
+        "descriptionKey": "control.reasoning.effort.desc",
+        "id": "openai.reasoning.effort",
+        "kind": "enum",
+        "labelKey": "control.reasoning.effort",
+        "owner": "reasoning",
+        "riskTier": "cost_impacting",
+        "sourceRefs": [
+          "openai.reasoning"
+        ],
+        "targetPointer": "/reasoning/effort",
+        "values": [
+          "low",
+          "medium",
+          "high"
+        ]
+      },
+      "qwen.web.enable_search": {
+        "defaultBehavior": "provider_default",
+        "descriptionKey": "control.web.enableSearch.desc",
+        "id": "qwen.web.enable_search",
+        "kind": "boolean",
+        "labelKey": "control.web.enableSearch",
+        "owner": "web",
+        "riskTier": "privacy_impacting",
+        "sourceRefs": [
+          "qwen.web_search"
+        ],
+        "targetPointer": "/enable_search"
+      }
+    },
+    "errorRecoveryDefinitions": {
+      "anthropic.messages.generation": {
+        "capability": "generation",
+        "locatorRules": [],
+        "protocol": "anthropic_messages",
+        "responseParserKind": "anthropic_messages_generation_v1"
+      },
+      "anthropic.messages.reasoning": {
+        "capability": "reasoning",
+        "locatorRules": [],
+        "protocol": "anthropic_messages",
+        "responseParserKind": "anthropic_thinking_v1"
+      },
+      "anthropic.messages.web": {
+        "capability": "web",
+        "locatorRules": [],
+        "protocol": "anthropic_messages",
+        "responseParserKind": "anthropic_web_search_v1"
+      },
+      "deepseek.chat.reasoning": {
+        "capability": "reasoning",
+        "locatorRules": [],
+        "protocol": "openai_chat",
+        "responseParserKind": "deepseek_reasoning_v1"
+      },
+      "fireworks.chat.reasoning": {
+        "capability": "reasoning",
+        "locatorRules": [],
+        "protocol": "openai_chat",
+        "responseParserKind": "fireworks_reasoning_v1"
+      },
+      "gemini.generate.generation": {
+        "capability": "generation",
+        "locatorRules": [],
+        "protocol": "gemini_generate_content",
+        "responseParserKind": "gemini_generate_content_generation_v1"
+      },
+      "gemini.generate.reasoning": {
+        "capability": "reasoning",
+        "locatorRules": [],
+        "protocol": "gemini_generate_content",
+        "responseParserKind": "gemini_thinking_v1"
+      },
+      "gemini.generate.web": {
+        "capability": "web",
+        "locatorRules": [],
+        "protocol": "gemini_generate_content",
+        "responseParserKind": "gemini_google_search_v1"
+      },
+      "gemini.interactions.web": {
+        "capability": "web",
+        "locatorRules": [],
+        "protocol": "gemini_interactions",
+        "responseParserKind": "gemini_google_search_v1"
+      },
+      "grok.chat.reasoning": {
+        "capability": "reasoning",
+        "locatorRules": [],
+        "protocol": "openai_chat",
+        "responseParserKind": "grok_reasoning_v1"
+      },
+      "grok.responses.reasoning": {
+        "capability": "reasoning",
+        "locatorRules": [],
+        "protocol": "openai_responses",
+        "responseParserKind": "grok_reasoning_v1"
+      },
+      "grok.responses.web": {
+        "capability": "web",
+        "locatorRules": [],
+        "protocol": "openai_responses",
+        "responseParserKind": "grok_web_search_v1"
+      },
+      "groq.chat.reasoning": {
+        "capability": "reasoning",
+        "locatorRules": [],
+        "protocol": "openai_chat",
+        "responseParserKind": "groq_reasoning_v1"
+      },
+      "mistral.chat.reasoning": {
+        "capability": "reasoning",
+        "locatorRules": [],
+        "protocol": "openai_chat",
+        "responseParserKind": "mistral_reasoning_v1"
+      },
+      "moonshot.builtin.web": {
+        "capability": "web",
+        "locatorRules": [],
+        "protocol": "openai_chat",
+        "responseParserKind": "moonshot_builtin_web_v1"
+      },
+      "moonshot.chat.reasoning": {
+        "capability": "reasoning",
+        "locatorRules": [],
+        "protocol": "openai_chat",
+        "responseParserKind": "moonshot_reasoning_v1"
+      },
+      "moonshot.formula.web": {
+        "capability": "web",
+        "locatorRules": [],
+        "protocol": "openai_chat",
+        "responseParserKind": "moonshot_formula_web_v1"
+      },
+      "openai.chat.generation": {
+        "capability": "generation",
+        "locatorRules": [],
+        "protocol": "openai_chat",
+        "responseParserKind": "openai_chat_generation_v1"
+      },
+      "openai.chat.reasoning": {
+        "capability": "reasoning",
+        "locatorRules": [],
+        "protocol": "openai_chat",
+        "responseParserKind": "openai_chat_reasoning_v1"
+      },
+      "openai.chat.web": {
+        "capability": "web",
+        "locatorRules": [],
+        "protocol": "openai_chat",
+        "responseParserKind": "openai_chat_web_v1"
+      },
+      "openai.responses.generation": {
+        "capability": "generation",
+        "locatorRules": [],
+        "protocol": "openai_responses",
+        "responseParserKind": "openai_responses_generation_v1"
+      },
+      "openai.responses.reasoning": {
+        "capability": "reasoning",
+        "locatorRules": [],
+        "protocol": "openai_responses",
+        "responseParserKind": "openai_responses_reasoning_v1"
+      },
+      "openai.responses.web": {
+        "capability": "web",
+        "locatorRules": [],
+        "protocol": "openai_responses",
+        "responseParserKind": "openai_responses_web_v1"
+      },
+      "openrouter.chat.reasoning": {
+        "capability": "reasoning",
+        "locatorRules": [],
+        "protocol": "openai_chat",
+        "responseParserKind": "openrouter_reasoning_v1"
+      },
+      "openrouter.chat.web": {
+        "capability": "web",
+        "locatorRules": [],
+        "protocol": "openai_chat",
+        "responseParserKind": "openrouter_web_v1"
+      },
+      "qwen.chat.reasoning": {
+        "capability": "reasoning",
+        "locatorRules": [],
+        "protocol": "openai_chat",
+        "responseParserKind": "qwen_reasoning_v1"
+      },
+      "qwen.chat.web": {
+        "capability": "web",
+        "locatorRules": [],
+        "protocol": "openai_chat",
+        "responseParserKind": "qwen_chat_search_v1"
+      },
+      "siliconflow.chat.reasoning": {
+        "capability": "reasoning",
+        "locatorRules": [],
+        "protocol": "openai_chat",
+        "responseParserKind": "siliconflow_reasoning_v1"
+      },
+      "together.chat.reasoning": {
+        "capability": "reasoning",
+        "locatorRules": [],
+        "protocol": "openai_chat",
+        "responseParserKind": "together_reasoning_v1"
+      },
+      "zhipu.chat.reasoning": {
+        "capability": "reasoning",
+        "locatorRules": [],
+        "protocol": "openai_chat",
+        "responseParserKind": "zhipu_reasoning_v1"
+      },
+      "zhipu.chat.web": {
+        "capability": "web",
+        "locatorRules": [],
+        "protocol": "openai_chat",
+        "responseParserKind": "zhipu_web_search_v1"
+      }
+    },
+    "generatedAt": "2026-08-15T00:00:00Z",
+    "recipes": {
+      "grok.responses.generation.v1": {
+        "capability": "generation",
+        "continuationKind": "none",
+        "controlRefs": [],
+        "errorRecoveryRef": "openai.responses.generation",
+        "executionKind": "request_overlay",
+        "fallbackPolicy": "user_confirmed_resend_without_located_setting",
+        "id": "grok.responses.generation.v1",
+        "providerKind": "grok",
+        "requestOps": [
+          {
+            "op": "legacy_generation_template",
+            "template": "openai_responses"
+          }
+        ],
+        "responseEvidenceRef": "openai.responses.generation",
+        "responseParserKind": "openai_responses_generation_v1",
+        "reviewedAt": "2026-08-11",
+        "sourceRefs": [
+          "grok.reasoning"
+        ],
+        "transport": {
+          "endpointClass": "responses",
+          "protocol": "openai_responses",
+          "requiredHeaders": [],
+          "streaming": "optional"
+        }
+      },
+      "grok.responses.reasoning.v1": {
+        "$comment": "xhigh exists only on grok-4.6 and later; on models that do not support it (for example grok-4.5) the API treats an xhigh request as high. The max->xhigh mapping is therefore selected only by exact models that declare max (currently grok-4.6). grok-4.3 additionally accepts none (reasoning disabled) and medium; those two levels are intentionally not mapped here because doing so would change the meaning of the legacy grok_effort_responses levels already in use.",
+        "capability": "reasoning",
+        "continuationKind": "previous_id",
+        "controlRefs": [],
+        "errorRecoveryRef": "grok.responses.reasoning",
+        "executionKind": "request_overlay",
+        "fallbackPolicy": "user_confirmed_resend_without_located_setting",
+        "id": "grok.responses.reasoning.v1",
+        "providerKind": "grok",
+        "requestOps": [
+          {
+            "intent": "low",
+            "op": "set",
+            "pointer": "/reasoning/effort",
+            "value": "low"
+          },
+          {
+            "intent": "balanced",
+            "op": "set",
+            "pointer": "/reasoning/effort",
+            "value": "medium"
+          },
+          {
+            "intent": "deep",
+            "op": "set",
+            "pointer": "/reasoning/effort",
+            "value": "high"
+          },
+          {
+            "intent": "max",
+            "op": "set",
+            "pointer": "/reasoning/effort",
+            "value": "xhigh"
+          }
+        ],
+        "responseEvidenceRef": "grok.responses.reasoning",
+        "responseParserKind": "grok_reasoning_v1",
+        "reviewedAt": "2026-08-15",
+        "sourceRefs": [
+          "grok.reasoning",
+          "grok.models"
+        ],
+        "transport": {
+          "endpointClass": "responses",
+          "protocol": "openai_responses",
+          "requiredHeaders": [],
+          "streaming": "optional"
+        }
+      },
+      "grok.responses.web.v1": {
+        "capability": "web",
+        "continuationKind": "previous_id",
+        "controlRefs": [],
+        "errorRecoveryRef": "grok.responses.web",
+        "executionKind": "server_tool",
+        "fallbackPolicy": "user_confirmed_resend_without_located_setting",
+        "id": "grok.responses.web.v1",
+        "providerKind": "grok",
+        "requestOps": [
+          {
+            "op": "append",
+            "pointer": "/tools/-",
+            "value": {
+              "type": "web_search"
+            }
+          }
+        ],
+        "responseEvidenceRef": "grok.responses.web",
+        "responseParserKind": "grok_web_search_v1",
+        "reviewedAt": "2026-08-15",
+        "sourceRefs": [
+          "grok.web_search"
+        ],
+        "transport": {
+          "endpointClass": "responses",
+          "protocol": "openai_responses",
+          "requiredHeaders": [],
+          "streaming": "optional"
+        }
+      }
+    },
+    "responseEvidenceDefinitions": {
+      "anthropic.messages.generation": {
+        "capability": "generation",
+        "protocol": "anthropic_messages",
+        "responseParserKind": "anthropic_messages_generation_v1",
+        "signals": []
+      },
+      "anthropic.messages.reasoning": {
+        "capability": "reasoning",
+        "protocol": "anthropic_messages",
+        "responseParserKind": "anthropic_thinking_v1",
+        "signals": [
+          {
+            "kind": "thinking_block",
+            "nonEmpty": true,
+            "pointer": "/content",
+            "producerEvent": "reasoning"
+          }
+        ]
+      },
+      "anthropic.messages.web": {
+        "capability": "web",
+        "protocol": "anthropic_messages",
+        "responseParserKind": "anthropic_web_search_v1",
+        "signals": [
+          {
+            "kind": "citation",
+            "nonEmpty": true,
+            "pointer": "/citations",
+            "producerEvent": "citations"
+          },
+          {
+            "kind": "provider_tool_result",
+            "nonEmpty": true,
+            "pointer": "/summary",
+            "producerEvent": "tool_result"
+          }
+        ]
+      },
+      "deepseek.chat.reasoning": {
+        "capability": "reasoning",
+        "protocol": "openai_chat",
+        "responseParserKind": "deepseek_reasoning_v1",
+        "signals": [
+          {
+            "kind": "thinking_block",
+            "nonEmpty": true,
+            "pointer": "/content",
+            "producerEvent": "reasoning"
+          }
+        ]
+      },
+      "fireworks.chat.reasoning": {
+        "capability": "reasoning",
+        "protocol": "openai_chat",
+        "responseParserKind": "fireworks_reasoning_v1",
+        "signals": [
+          {
+            "kind": "thinking_block",
+            "nonEmpty": true,
+            "pointer": "/content",
+            "producerEvent": "reasoning"
+          }
+        ]
+      },
+      "gemini.generate.generation": {
+        "capability": "generation",
+        "protocol": "gemini_generate_content",
+        "responseParserKind": "gemini_generate_content_generation_v1",
+        "signals": []
+      },
+      "gemini.generate.reasoning": {
+        "capability": "reasoning",
+        "protocol": "gemini_generate_content",
+        "responseParserKind": "gemini_thinking_v1",
+        "signals": [
+          {
+            "kind": "thinking_block",
+            "nonEmpty": true,
+            "pointer": "/content",
+            "producerEvent": "reasoning"
+          }
+        ]
+      },
+      "gemini.generate.web": {
+        "capability": "web",
+        "protocol": "gemini_generate_content",
+        "responseParserKind": "gemini_google_search_v1",
+        "signals": [
+          {
+            "kind": "grounding",
+            "nonEmpty": true,
+            "pointer": "/citations",
+            "producerEvent": "citations"
+          }
+        ]
+      },
+      "gemini.interactions.web": {
+        "capability": "web",
+        "protocol": "gemini_interactions",
+        "responseParserKind": "gemini_google_search_v1",
+        "signals": []
+      },
+      "grok.chat.reasoning": {
+        "capability": "reasoning",
+        "protocol": "openai_chat",
+        "responseParserKind": "grok_reasoning_v1",
+        "signals": [
+          {
+            "kind": "thinking_block",
+            "nonEmpty": true,
+            "pointer": "/content",
+            "producerEvent": "reasoning"
+          }
+        ]
+      },
+      "grok.responses.reasoning": {
+        "capability": "reasoning",
+        "protocol": "openai_responses",
+        "responseParserKind": "grok_reasoning_v1",
+        "signals": [
+          {
+            "kind": "thinking_block",
+            "nonEmpty": true,
+            "pointer": "/content",
+            "producerEvent": "reasoning"
+          }
+        ]
+      },
+      "grok.responses.web": {
+        "capability": "web",
+        "protocol": "openai_responses",
+        "responseParserKind": "grok_web_search_v1",
+        "signals": [
+          {
+            "kind": "citation",
+            "nonEmpty": true,
+            "pointer": "/citations",
+            "producerEvent": "citations"
+          }
+        ]
+      },
+      "groq.chat.reasoning": {
+        "capability": "reasoning",
+        "protocol": "openai_chat",
+        "responseParserKind": "groq_reasoning_v1",
+        "signals": [
+          {
+            "kind": "thinking_block",
+            "nonEmpty": true,
+            "pointer": "/content",
+            "producerEvent": "reasoning"
+          }
+        ]
+      },
+      "mistral.chat.reasoning": {
+        "capability": "reasoning",
+        "protocol": "openai_chat",
+        "responseParserKind": "mistral_reasoning_v1",
+        "signals": [
+          {
+            "kind": "thinking_block",
+            "nonEmpty": true,
+            "pointer": "/content",
+            "producerEvent": "reasoning"
+          }
+        ]
+      },
+      "moonshot.builtin.web": {
+        "capability": "web",
+        "protocol": "openai_chat",
+        "responseParserKind": "moonshot_builtin_web_v1",
+        "signals": [
+          {
+            "kind": "provider_tool_result",
+            "nonEmpty": true,
+            "pointer": "/summary",
+            "producerEvent": "tool_result"
+          }
+        ]
+      },
+      "moonshot.chat.reasoning": {
+        "capability": "reasoning",
+        "protocol": "openai_chat",
+        "responseParserKind": "moonshot_reasoning_v1",
+        "signals": [
+          {
+            "kind": "thinking_block",
+            "nonEmpty": true,
+            "pointer": "/content",
+            "producerEvent": "reasoning"
+          }
+        ]
+      },
+      "moonshot.formula.web": {
+        "capability": "web",
+        "protocol": "openai_chat",
+        "responseParserKind": "moonshot_formula_web_v1",
+        "signals": [
+          {
+            "kind": "provider_tool_result",
+            "nonEmpty": true,
+            "pointer": "/summary",
+            "producerEvent": "tool_result"
+          }
+        ]
+      },
+      "openai.chat.generation": {
+        "capability": "generation",
+        "protocol": "openai_chat",
+        "responseParserKind": "openai_chat_generation_v1",
+        "signals": []
+      },
+      "openai.chat.reasoning": {
+        "capability": "reasoning",
+        "protocol": "openai_chat",
+        "responseParserKind": "openai_chat_reasoning_v1",
+        "signals": [
+          {
+            "kind": "thinking_block",
+            "nonEmpty": true,
+            "pointer": "/content",
+            "producerEvent": "reasoning"
+          }
+        ]
+      },
+      "openai.chat.web": {
+        "capability": "web",
+        "protocol": "openai_chat",
+        "responseParserKind": "openai_chat_web_v1",
+        "signals": [
+          {
+            "kind": "citation",
+            "nonEmpty": true,
+            "pointer": "/citations",
+            "producerEvent": "citations"
+          }
+        ]
+      },
+      "openai.responses.generation": {
+        "capability": "generation",
+        "protocol": "openai_responses",
+        "responseParserKind": "openai_responses_generation_v1",
+        "signals": []
+      },
+      "openai.responses.reasoning": {
+        "capability": "reasoning",
+        "protocol": "openai_responses",
+        "responseParserKind": "openai_responses_reasoning_v1",
+        "signals": [
+          {
+            "kind": "thinking_block",
+            "nonEmpty": true,
+            "pointer": "/content",
+            "producerEvent": "reasoning"
+          }
+        ]
+      },
+      "openai.responses.web": {
+        "capability": "web",
+        "protocol": "openai_responses",
+        "responseParserKind": "openai_responses_web_v1",
+        "signals": [
+          {
+            "kind": "citation",
+            "nonEmpty": true,
+            "pointer": "/citations",
+            "producerEvent": "citations"
+          }
+        ]
+      },
+      "openrouter.chat.reasoning": {
+        "capability": "reasoning",
+        "protocol": "openai_chat",
+        "responseParserKind": "openrouter_reasoning_v1",
+        "signals": [
+          {
+            "kind": "thinking_block",
+            "nonEmpty": true,
+            "pointer": "/content",
+            "producerEvent": "reasoning"
+          }
+        ]
+      },
+      "openrouter.chat.web": {
+        "capability": "web",
+        "protocol": "openai_chat",
+        "responseParserKind": "openrouter_web_v1",
+        "signals": [
+          {
+            "kind": "citation",
+            "nonEmpty": true,
+            "pointer": "/citations",
+            "producerEvent": "citations"
+          }
+        ]
+      },
+      "qwen.chat.reasoning": {
+        "capability": "reasoning",
+        "protocol": "openai_chat",
+        "responseParserKind": "qwen_reasoning_v1",
+        "signals": [
+          {
+            "kind": "thinking_block",
+            "nonEmpty": true,
+            "pointer": "/content",
+            "producerEvent": "reasoning"
+          }
+        ]
+      },
+      "qwen.chat.web": {
+        "capability": "web",
+        "protocol": "openai_chat",
+        "responseParserKind": "qwen_chat_search_v1",
+        "signals": []
+      },
+      "siliconflow.chat.reasoning": {
+        "capability": "reasoning",
+        "protocol": "openai_chat",
+        "responseParserKind": "siliconflow_reasoning_v1",
+        "signals": [
+          {
+            "kind": "thinking_block",
+            "nonEmpty": true,
+            "pointer": "/content",
+            "producerEvent": "reasoning"
+          }
+        ]
+      },
+      "together.chat.reasoning": {
+        "capability": "reasoning",
+        "protocol": "openai_chat",
+        "responseParserKind": "together_reasoning_v1",
+        "signals": [
+          {
+            "kind": "thinking_block",
+            "nonEmpty": true,
+            "pointer": "/content",
+            "producerEvent": "reasoning"
+          }
+        ]
+      },
+      "zhipu.chat.reasoning": {
+        "capability": "reasoning",
+        "protocol": "openai_chat",
+        "responseParserKind": "zhipu_reasoning_v1",
+        "signals": [
+          {
+            "kind": "thinking_block",
+            "nonEmpty": true,
+            "pointer": "/content",
+            "producerEvent": "reasoning"
+          }
+        ]
+      },
+      "zhipu.chat.web": {
+        "capability": "web",
+        "protocol": "openai_chat",
+        "responseParserKind": "zhipu_web_search_v1",
+        "signals": [
+          {
+            "kind": "provider_tool_result",
+            "nonEmpty": true,
+            "pointer": "/summary",
+            "producerEvent": "tool_result"
+          },
+          {
+            "kind": "citation",
+            "nonEmpty": true,
+            "pointer": "/citations",
+            "producerEvent": "citations"
+          }
+        ]
+      }
+    },
+    "revision": "sha256:d4331dce03a1874d8082a58fe68b7367536ee1ec24ba213f50f9354a1bf91efc",
+    "schemaVersion": 2,
+    "sourceIndex": {
+      "anthropic.effort": {
+        "kind": "official_doc",
+        "officialUpdatedAt": null,
+        "reviewedAt": "2026-08-11",
+        "url": "https://platform.claude.com/docs/en/build-with-claude/effort"
+      },
+      "anthropic.web_search": {
+        "kind": "official_doc",
+        "officialUpdatedAt": null,
+        "reviewedAt": "2026-08-11",
+        "url": "https://platform.claude.com/docs/en/agents-and-tools/tool-use/web-search-tool"
+      },
+      "deepseek.chat_api": {
+        "kind": "official_doc",
+        "officialUpdatedAt": null,
+        "reviewedAt": "2026-08-15",
+        "url": "https://api-docs.deepseek.com/api/create-chat-completion"
+      },
+      "deepseek.pricing": {
+        "kind": "official_doc",
+        "officialUpdatedAt": null,
+        "reviewedAt": "2026-08-15",
+        "url": "https://api-docs.deepseek.com/quick_start/pricing"
+      },
+      "deepseek.thinking_mode": {
+        "kind": "official_doc",
+        "officialUpdatedAt": "2026-08-13",
+        "reviewedAt": "2026-08-15",
+        "url": "https://api-docs.deepseek.com/guides/thinking_mode"
+      },
+      "fireworks.chat_completions": {
+        "kind": "official_doc",
+        "officialUpdatedAt": null,
+        "reviewedAt": "2026-08-11",
+        "url": "https://docs.fireworks.ai/api-reference/post-chatcompletions"
+      },
+      "fireworks.reasoning": {
+        "kind": "official_doc",
+        "officialUpdatedAt": null,
+        "reviewedAt": "2026-08-11",
+        "url": "https://docs.fireworks.ai/guides/reasoning"
+      },
+      "gemini.google_search": {
+        "kind": "official_doc",
+        "officialUpdatedAt": "2026-08-04",
+        "reviewedAt": "2026-08-11",
+        "url": "https://ai.google.dev/gemini-api/docs/google-search"
+      },
+      "gemini.interactions": {
+        "kind": "official_doc",
+        "officialUpdatedAt": "2026-07-27",
+        "reviewedAt": "2026-08-11",
+        "url": "https://ai.google.dev/api/interactions-api-v1"
+      },
+      "gemini.thinking": {
+        "kind": "official_doc",
+        "officialUpdatedAt": null,
+        "reviewedAt": "2026-08-11",
+        "url": "https://ai.google.dev/gemini-api/docs/generate-content/thinking"
+      },
+      "grok.models": {
+        "kind": "official_doc",
+        "officialUpdatedAt": null,
+        "reviewedAt": "2026-08-15",
+        "url": "https://docs.x.ai/developers/models"
+      },
+      "grok.reasoning": {
+        "kind": "official_doc",
+        "officialUpdatedAt": null,
+        "reviewedAt": "2026-08-15",
+        "url": "https://docs.x.ai/developers/model-capabilities/text/reasoning"
+      },
+      "grok.retirement": {
+        "kind": "official_doc",
+        "officialUpdatedAt": null,
+        "reviewedAt": "2026-08-15",
+        "url": "https://docs.x.ai/developers/migration/may-15-retirement"
+      },
+      "grok.web_search": {
+        "kind": "official_doc",
+        "officialUpdatedAt": null,
+        "reviewedAt": "2026-08-15",
+        "url": "https://docs.x.ai/developers/tools/web-search"
+      },
+      "groq.built_in_tools": {
+        "kind": "official_doc",
+        "officialUpdatedAt": null,
+        "reviewedAt": "2026-08-11",
+        "url": "https://console.groq.com/docs/tool-use/built-in-tools/web-search"
+      },
+      "groq.reasoning": {
+        "kind": "official_doc",
+        "officialUpdatedAt": null,
+        "reviewedAt": "2026-08-11",
+        "url": "https://console.groq.com/docs/reasoning"
+      },
+      "kimi.official_tools": {
+        "kind": "official_doc",
+        "officialUpdatedAt": null,
+        "reviewedAt": "2026-08-15",
+        "url": "https://platform.kimi.ai/docs/guide/use-official-tools"
+      },
+      "kimi.reasoning_effort": {
+        "kind": "official_doc",
+        "officialUpdatedAt": null,
+        "reviewedAt": "2026-08-15",
+        "url": "https://platform.kimi.ai/docs/guide/use-reasoning-effort"
+      },
+      "kimi.thinking_models": {
+        "kind": "official_doc",
+        "officialUpdatedAt": null,
+        "reviewedAt": "2026-08-15",
+        "url": "https://platform.kimi.ai/docs/guide/use-thinking-models"
+      },
+      "kimi.web_search": {
+        "kind": "official_doc",
+        "officialUpdatedAt": null,
+        "reviewedAt": "2026-08-15",
+        "url": "https://platform.kimi.ai/docs/guide/use-web-search"
+      },
+      "minimax.text_api": {
+        "kind": "official_doc",
+        "officialUpdatedAt": null,
+        "reviewedAt": "2026-08-11",
+        "url": "https://platform.minimax.io/docs/api-reference/text-post"
+      },
+      "minimax.web_search_mcp": {
+        "kind": "official_doc",
+        "officialUpdatedAt": null,
+        "reviewedAt": "2026-08-11",
+        "url": "https://platform.minimax.io/docs/token-plan/mcp-guide"
+      },
+      "mistral.agent_tools": {
+        "kind": "official_doc",
+        "officialUpdatedAt": null,
+        "reviewedAt": "2026-08-15",
+        "url": "https://docs.mistral.ai/studio/agents/agent-tools"
+      },
+      "mistral.deprecations": {
+        "kind": "official_doc",
+        "officialUpdatedAt": null,
+        "reviewedAt": "2026-08-15",
+        "url": "https://docs.mistral.ai/models"
+      },
+      "mistral.reasoning": {
+        "kind": "official_doc",
+        "officialUpdatedAt": null,
+        "reviewedAt": "2026-08-15",
+        "url": "https://docs.mistral.ai/studio/conversations/reasoning"
+      },
+      "mistral.web_search": {
+        "kind": "official_doc",
+        "officialUpdatedAt": null,
+        "reviewedAt": "2026-08-15",
+        "url": "https://docs.mistral.ai/studio/agents/agent-tools/websearch"
+      },
+      "openai.reasoning": {
+        "kind": "official_doc",
+        "officialUpdatedAt": null,
+        "reviewedAt": "2026-08-11",
+        "url": "https://developers.openai.com/api/docs/guides/latest-model"
+      },
+      "openai.web_search": {
+        "kind": "official_doc",
+        "officialUpdatedAt": null,
+        "reviewedAt": "2026-08-11",
+        "url": "https://developers.openai.com/api/docs/guides/tools-web-search"
+      },
+      "openrouter.reasoning_tokens": {
+        "kind": "official_doc",
+        "officialUpdatedAt": null,
+        "reviewedAt": "2026-08-11",
+        "url": "https://openrouter.ai/docs/guides/best-practices/reasoning-tokens"
+      },
+      "openrouter.server_tools": {
+        "kind": "official_doc",
+        "officialUpdatedAt": null,
+        "reviewedAt": "2026-08-11",
+        "url": "https://openrouter.ai/docs/guides/features/server-tools/web-search"
+      },
+      "qwen.deep_thinking": {
+        "kind": "official_doc",
+        "officialUpdatedAt": null,
+        "reviewedAt": "2026-08-11",
+        "url": "https://www.alibabacloud.com/help/en/model-studio/deep-thinking"
+      },
+      "qwen.responses_api": {
+        "kind": "official_doc",
+        "officialUpdatedAt": null,
+        "reviewedAt": "2026-08-11",
+        "url": "https://www.alibabacloud.com/help/en/model-studio/qwen-api-via-openai-responses"
+      },
+      "qwen.web_search": {
+        "kind": "official_doc",
+        "officialUpdatedAt": null,
+        "reviewedAt": "2026-08-11",
+        "url": "https://www.alibabacloud.com/help/en/model-studio/web-search"
+      },
+      "siliconflow.chat_completions": {
+        "kind": "official_doc",
+        "officialUpdatedAt": null,
+        "reviewedAt": "2026-08-11",
+        "url": "https://docs.siliconflow.cn/en/api-reference/chat-completions/chat-completions"
+      },
+      "together.chat_completions": {
+        "kind": "official_doc",
+        "officialUpdatedAt": null,
+        "reviewedAt": "2026-08-11",
+        "url": "https://docs.together.ai/reference/chat-completions"
+      },
+      "together.reasoning": {
+        "kind": "official_doc",
+        "officialUpdatedAt": null,
+        "reviewedAt": "2026-08-11",
+        "url": "https://docs.together.ai/docs/inference/chat/reasoning"
+      },
+      "zhipu.migration": {
+        "kind": "official_doc",
+        "officialUpdatedAt": null,
+        "reviewedAt": "2026-08-11",
+        "url": "https://docs.bigmodel.cn/cn/guide/start/migrate-to-glm-new"
+      },
+      "zhipu.thinking": {
+        "kind": "official_doc",
+        "officialUpdatedAt": null,
+        "reviewedAt": "2026-08-15",
+        "url": "https://docs.bigmodel.cn/cn/guide/capabilities/thinking"
+      },
+      "zhipu.thinking_mode": {
+        "kind": "official_doc",
+        "officialUpdatedAt": null,
+        "reviewedAt": "2026-08-15",
+        "url": "https://docs.bigmodel.cn/cn/guide/capabilities/thinking-mode"
+      },
+      "zhipu.web_search": {
+        "kind": "official_doc",
+        "officialUpdatedAt": null,
+        "reviewedAt": "2026-08-15",
+        "url": "https://docs.bigmodel.cn/cn/guide/tools/web-search"
+      }
+    }
+  },
+  "providers": {
+    "grok": {
+      "models": {
+        "grok-4.6": {
+          "canonicalModelId": "grok-4.6",
+          "capabilities": [
+            "text",
+            "image",
+            "file",
+            "reasoning",
+            "web"
+          ],
+          "capabilityControls": {
+            "generation": {
+              "recipeRef": "grok.responses.generation.v1",
+              "state": "auto_available"
+            },
+            "reasoning": {
+              "availableIntents": [
+                "low",
+                "balanced",
+                "deep",
+                "max"
+              ],
+              "recipeRef": "grok.responses.reasoning.v1",
+              "state": "auto_available"
+            },
+            "web": {
+              "recipeRef": "grok.responses.web.v1",
+              "state": "auto_available"
+            }
+          },
+          "profiles": {
+            "generation": {
+              "parameters": [
+                {
+                  "id": "max_output_tokens",
+                  "source": "authoritative_metadata",
+                  "support": "supported"
+                },
+                {
+                  "id": "temperature",
+                  "source": "provider_metadata",
+                  "support": "supported"
+                }
+              ],
+              "revision": "sha256:ad89355ff74e724d6db7a2b170baa789a97630e4199aa9d97f03f475a927e859",
+              "template": "openai_responses"
+            },
+            "imageGen": null,
+            "reasoning": null,
+            "webSearch": "grok_responses_web"
+          },
+          "toolCall": true,
+          "transport": "openai_responses"
+        }
+      },
+      "resolveMap": {
+        "grok-4.6": "grok-4.6"
+      },
+      "transport": {
+        "baseUrl": "https://api.x.ai",
+        "endpoints": {
+          "chat": "/v1/chat/completions",
+          "images": "/v1/images/generations",
+          "responses": "/v1/responses"
+        }
+      }
+    }
+  },
+  "updatedAt": "2026-08-22T14:22:43Z",
+  "version": 83
+}

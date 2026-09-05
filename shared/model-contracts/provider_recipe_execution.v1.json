@@ -1,0 +1,1380 @@
+{
+  "$comment": "Shared fixture for execution/continuation/safe-fragment. Every recipe body must be read from registryPath; this file only freezes the input/output of the production builder, loop, and local-only continuation. If a client's test only assembles a body and compares it against itself, that does not count as passing.",
+  "contractId": "provider_recipe_execution.v1",
+  "version": 1,
+  "registryPath": "shared/capabilityrecipe/capability_runtime.v1.json",
+  "providerCoverage": [
+    {
+      "providerKind": "openAI",
+      "transport": "openai_responses",
+      "recipeRef": "openai.responses.generation.v1",
+      "modelId": "gpt-5.6-terra"
+    },
+    {
+      "providerKind": "openAI",
+      "transport": "openai_chat",
+      "recipeRef": "openai.chat.generation.v1",
+      "modelId": "gpt-4.1"
+    },
+    {
+      "providerKind": "anthropic",
+      "transport": "anthropic_messages",
+      "recipeRef": "anthropic.messages.generation.v1",
+      "modelId": "claude-sonnet-4"
+    },
+    {
+      "providerKind": "gemini",
+      "transport": "gemini_generate_content",
+      "selectorTransport": "gemini_generate",
+      "recipeRef": "gemini.generate_content.generation.v1",
+      "modelId": "gemini-3-flash"
+    },
+    {
+      "providerKind": "openRouter",
+      "transport": "openai_chat",
+      "recipeRef": "openrouter.chat.generation.v1",
+      "modelId": "vendor/model"
+    },
+    {
+      "providerKind": "groq",
+      "transport": "openai_chat",
+      "recipeRef": "groq.chat.generation.v1",
+      "modelId": "openai/gpt-oss-20b"
+    },
+    {
+      "providerKind": "deepseek",
+      "transport": "openai_chat",
+      "recipeRef": "deepseek.chat.generation.v1",
+      "modelId": "deepseek-v4-flash"
+    },
+    {
+      "providerKind": "siliconFlow",
+      "transport": "openai_chat",
+      "recipeRef": "siliconflow.chat.generation.v1",
+      "modelId": "deepseek-ai/DeepSeek-V3"
+    },
+    {
+      "providerKind": "togetherAI",
+      "transport": "openai_chat",
+      "recipeRef": "togetherai.chat.generation.v1",
+      "modelId": "meta-llama/model"
+    },
+    {
+      "providerKind": "fireworksAI",
+      "transport": "openai_chat",
+      "recipeRef": "fireworksai.chat.generation.v1",
+      "modelId": "accounts/fireworks/models/model"
+    },
+    {
+      "providerKind": "miniMax",
+      "transport": "openai_chat",
+      "recipeRef": "minimax.chat.generation.v1",
+      "modelId": "MiniMax-M2"
+    },
+    {
+      "providerKind": "zhipu",
+      "transport": "openai_chat",
+      "recipeRef": "zhipu.chat.generation.v1",
+      "modelId": "glm-5"
+    },
+    {
+      "providerKind": "qwen",
+      "transport": "openai_chat",
+      "recipeRef": "qwen.chat.generation.v1",
+      "modelId": "qwen3.7-plus"
+    },
+    {
+      "providerKind": "grok",
+      "transport": "openai_responses",
+      "recipeRef": "grok.responses.generation.v1",
+      "modelId": "grok-4.20-multi-agent"
+    },
+    {
+      "providerKind": "grok",
+      "transport": "openai_chat",
+      "recipeRef": "grok.chat.generation.v1",
+      "modelId": "grok-4"
+    },
+    {
+      "providerKind": "moonshot",
+      "transport": "openai_chat",
+      "recipeRef": "moonshot.chat.generation.v1",
+      "modelId": "kimi-k3"
+    },
+    {
+      "providerKind": "mistral",
+      "transport": "openai_chat",
+      "recipeRef": "mistral.chat.generation.v1",
+      "modelId": "mistral-medium-latest"
+    }
+  ],
+  "continuationRecipeCoverage": [
+    {
+      "providerKind": "openAI",
+      "transport": "openai_responses",
+      "recipeRef": "openai.responses.web.v1",
+      "modelId": "gpt-5.6-terra",
+      "capability": "web",
+      "responseParserKind": "openai_responses_web_v1",
+      "continuationKind": "previous_id",
+      "selectorExpected": true
+    },
+    {
+      "providerKind": "anthropic",
+      "transport": "anthropic_messages",
+      "recipeRef": "anthropic.messages.web.v1",
+      "modelId": "claude-sonnet-4-6",
+      "capability": "web",
+      "responseParserKind": "anthropic_web_search_v1",
+      "continuationKind": "replay_blocks",
+      "selectorExpected": true
+    },
+    {
+      "providerKind": "miniMax",
+      "transport": "openai_chat",
+      "recipeRef": "minimax.messages.web.v1",
+      "modelId": "MiniMax-M3",
+      "capability": "web",
+      "responseParserKind": "minimax_anthropic_web_v1",
+      "continuationKind": "replay_blocks",
+      "selectorExpected": true
+    },
+    {
+      "providerKind": "gemini",
+      "transport": "gemini_generate_content",
+      "selectorTransport": "gemini_generate",
+      "recipeRef": "gemini.generate_content.web.v1",
+      "modelId": "gemini-2.5-flash",
+      "capability": "web",
+      "responseParserKind": "gemini_google_search_v1",
+      "continuationKind": "replay_blocks",
+      "selectorExpected": true
+    },
+    {
+      "providerKind": "gemini",
+      "transport": "gemini_generate_content",
+      "selectorTransport": "gemini_generate",
+      "recipeRef": "gemini.generate_content.web.v2",
+      "modelId": "gemini-1.5-pro",
+      "capability": "web",
+      "responseParserKind": "gemini_google_search_v1",
+      "continuationKind": "replay_blocks",
+      "selectorExpected": true
+    },
+    {
+      "providerKind": "gemini",
+      "transport": "gemini_interactions",
+      "recipeRef": "gemini.interactions.web.v1",
+      "modelId": "gemini-3-flash",
+      "capability": "web",
+      "responseParserKind": "gemini_google_search_v1",
+      "continuationKind": "previous_id",
+      "selectorExpected": false
+    },
+    {
+      "providerKind": "grok",
+      "transport": "openai_responses",
+      "recipeRef": "grok.responses.web.v1",
+      "modelId": "grok-4.3",
+      "capability": "web",
+      "responseParserKind": "grok_web_search_v1",
+      "continuationKind": "previous_id",
+      "selectorExpected": true
+    },
+    {
+      "providerKind": "moonshot",
+      "transport": "openai_chat",
+      "recipeRef": "moonshot.chat.web.v1",
+      "modelId": "moonshot-v1-8k",
+      "capability": "web",
+      "responseParserKind": "moonshot_builtin_web_v1",
+      "continuationKind": "tool_loop",
+      "continuationVariant": "default",
+      "selectorExpected": true
+    },
+    {
+      "providerKind": "moonshot",
+      "transport": "openai_chat",
+      "recipeRef": "moonshot.formula.web.v1",
+      "modelId": "kimi-k3",
+      "capability": "web",
+      "responseParserKind": "moonshot_formula_web_v1",
+      "continuationKind": "tool_loop",
+      "continuationVariant": "fiber",
+      "selectorExpected": true
+    },
+    {
+      "providerKind": "openAI",
+      "transport": "openai_responses",
+      "recipeRef": "openai.responses.reasoning.v1",
+      "modelId": "gpt-5.6-terra",
+      "capability": "reasoning",
+      "responseParserKind": "openai_responses_reasoning_v1",
+      "continuationKind": "previous_id",
+      "selectorExpected": true
+    },
+    {
+      "providerKind": "anthropic",
+      "transport": "anthropic_messages",
+      "recipeRef": "anthropic.messages.reasoning.v1",
+      "modelId": "claude-sonnet-4-5",
+      "capability": "reasoning",
+      "responseParserKind": "anthropic_thinking_v1",
+      "continuationKind": "replay_blocks",
+      "selectorExpected": true
+    },
+    {
+      "providerKind": "anthropic",
+      "transport": "anthropic_messages",
+      "recipeRef": "anthropic.messages.reasoning.v2",
+      "modelId": "claude-sonnet-4-6",
+      "capability": "reasoning",
+      "responseParserKind": "anthropic_thinking_v1",
+      "continuationKind": "replay_blocks",
+      "selectorExpected": true
+    },
+    {
+      "providerKind": "gemini",
+      "transport": "gemini_generate_content",
+      "selectorTransport": "gemini_generate",
+      "recipeRef": "gemini.generate_content.reasoning.v1",
+      "modelId": "gemini-2.5-flash",
+      "capability": "reasoning",
+      "responseParserKind": "gemini_thinking_v1",
+      "continuationKind": "replay_blocks",
+      "selectorExpected": true
+    },
+    {
+      "providerKind": "gemini",
+      "transport": "gemini_generate_content",
+      "selectorTransport": "gemini_generate",
+      "recipeRef": "gemini.generate_content.reasoning.v2",
+      "modelId": "gemini-3-pro-preview",
+      "capability": "reasoning",
+      "responseParserKind": "gemini_thinking_v1",
+      "continuationKind": "replay_blocks",
+      "selectorExpected": true
+    },
+    {
+      "providerKind": "deepseek",
+      "transport": "openai_chat",
+      "recipeRef": "deepseek.chat.reasoning.v1",
+      "modelId": "deepseek-v4-flash",
+      "capability": "reasoning",
+      "responseParserKind": "deepseek_reasoning_v1",
+      "continuationKind": "replay_reasoning",
+      "selectorExpected": true
+    },
+    {
+      "providerKind": "mistral",
+      "transport": "openai_chat",
+      "recipeRef": "mistral.chat.reasoning.v1",
+      "modelId": "mistral-small-latest",
+      "capability": "reasoning",
+      "responseParserKind": "mistral_reasoning_v1",
+      "continuationKind": "replay_reasoning",
+      "selectorExpected": true
+    },
+    {
+      "providerKind": "openRouter",
+      "transport": "openai_chat",
+      "recipeRef": "openrouter.chat.reasoning.v1",
+      "modelId": "openai/gpt-5.2",
+      "capability": "reasoning",
+      "responseParserKind": "openrouter_reasoning_v1",
+      "continuationKind": "replay_reasoning",
+      "selectorExpected": true
+    },
+    {
+      "providerKind": "grok",
+      "transport": "openai_responses",
+      "recipeRef": "grok.responses.reasoning.v1",
+      "modelId": "grok-4.3",
+      "capability": "reasoning",
+      "responseParserKind": "grok_reasoning_v1",
+      "continuationKind": "previous_id",
+      "selectorExpected": true
+    },
+    {
+      "providerKind": "moonshot",
+      "transport": "openai_chat",
+      "recipeRef": "moonshot.chat.reasoning.v1",
+      "modelId": "kimi-k3",
+      "capability": "reasoning",
+      "responseParserKind": "moonshot_reasoning_v1",
+      "continuationKind": "replay_reasoning",
+      "selectorExpected": true
+    }
+  ],
+  "executionCases": [
+    {
+      "caseId": "p3c.moonshot_builtin_bounded_loop",
+      "providerKind": "moonshot",
+      "transport": "openai_chat",
+      "recipeRef": "moonshot.chat.web.v1",
+      "capability": "web",
+      "executionKind": "client_tool_loop",
+      "continuationKind": "tool_loop",
+      "continuationVariant": "default",
+      "input": {
+        "modelId": "moonshot-v1-8k",
+        "messages": [
+          {
+            "role": "user",
+            "content": "news"
+          }
+        ],
+        "stream": true
+      },
+      "expected": {
+        "maxToolLoops": 4,
+        "responseAdapter": "moonshot_tool_loop",
+        "toolResultMode": "echo_arguments"
+      }
+    },
+    {
+      "caseId": "p3c.moonshot_formula_fiber_verbatim",
+      "providerKind": "moonshot",
+      "transport": "openai_chat",
+      "recipeRef": "moonshot.formula.web.v1",
+      "capability": "web",
+      "executionKind": "client_tool_loop",
+      "continuationKind": "tool_loop",
+      "continuationVariant": "fiber",
+      "input": {
+        "modelId": "kimi-k3",
+        "messages": [
+          {
+            "role": "user",
+            "content": "news"
+          }
+        ],
+        "stream": true
+      },
+      "formula": {
+        "uri": "moonshot/web-search:latest",
+        "toolsEndpoint": "/v1/formulas/moonshot/web-search:latest/tools",
+        "fibersEndpoint": "/v1/formulas/moonshot/web-search:latest/fibers",
+        "toolsResponse": {
+          "tools": [
+            {
+              "type": "function",
+              "function": {
+                "name": "web_search",
+                "description": "Search",
+                "parameters": {
+                  "type": "object",
+                  "properties": {
+                    "query": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "query"
+                  ]
+                }
+              }
+            }
+          ]
+        },
+        "toolCalls": [
+          {
+            "id": "web_search:0",
+            "type": "function",
+            "function": {
+              "name": "web_search",
+              "arguments": "{\"query\":\"latest\"}"
+            }
+          }
+        ],
+        "fiberResponses": [
+          {
+            "status": "succeeded",
+            "context": {
+              "encrypted_output": "----MOONSHOT ENCRYPTED BEGIN----opaque----MOONSHOT ENCRYPTED END----"
+            }
+          }
+        ]
+      },
+      "expected": {
+        "maxToolLoops": 4,
+        "toolArgumentsMode": "verbatim",
+        "toolResult": "----MOONSHOT ENCRYPTED BEGIN----opaque----MOONSHOT ENCRYPTED END----"
+      }
+    },
+    {
+      "caseId": "p3c.gemini_interactions_endpoint_route",
+      "providerKind": "gemini",
+      "transport": "gemini_generate_content",
+      "recipeRef": "gemini.interactions.web.v1",
+      "capability": "web",
+      "executionKind": "endpoint_route",
+      "continuationKind": "previous_id",
+      "input": {
+        "modelId": "gemini-3-flash",
+        "messages": [
+          {
+            "role": "user",
+            "content": "news"
+          }
+        ],
+        "stream": true
+      },
+      "expected": {
+        "endpointPath": "/v1/interactions",
+        "targetTransport": "gemini_interactions",
+        "bodyDelta": {
+          "tools": [
+            {
+              "type": "google_search"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "caseId": "p3c.minimax_m3_anthropic_server_web_alternate_route",
+      "providerKind": "miniMax",
+      "transport": "openai_chat",
+      "recipeRef": "minimax.messages.web.v1",
+      "capability": "web",
+      "executionKind": "endpoint_route",
+      "continuationKind": "replay_blocks",
+      "input": {
+        "modelId": "MiniMax-M3",
+        "messages": [
+          {
+            "role": "user",
+            "content": "news"
+          }
+        ],
+        "stream": true
+      },
+      "expected": {
+        "sourceProtocol": "openai_chat",
+        "targetProtocol": "anthropic_messages",
+        "endpointClass": "messages",
+        "endpointPath": "/anthropic/v1/messages",
+        "method": "POST",
+        "authMode": "x_api_key",
+        "authHeader": "x-api-key",
+        "headers": {
+          "Content-Type": "application/json",
+          "anthropic-version": "2023-06-01"
+        },
+        "requestMapper": "minimax_anthropic_messages_v1",
+        "bodyDelta": {
+          "tools": [
+            {
+              "type": "web_search_20250305",
+              "name": "web_search"
+            }
+          ]
+        },
+        "stream": {
+          "serverToolUseBlockType": "server_tool_use",
+          "citationsBlockType": "web_search_tool_result",
+          "citationItemType": "web_search_result",
+          "citationUrlField": "url",
+          "citationTitleField": "title",
+          "citationSnippetField": "content"
+        }
+      }
+    },
+    {
+      "caseId": "p3c.external_connector_never_executes",
+      "executionKind": "external_connector",
+      "input": {
+        "modelId": "any",
+        "messages": [
+          {
+            "role": "user",
+            "content": "news"
+          }
+        ],
+        "stream": true
+      },
+      "expected": {
+        "noExecute": true,
+        "reason": "external_no_execute"
+      }
+    }
+  ],
+  "continuationCases": [
+    {
+      "caseId": "continuation.none",
+      "kind": "none",
+      "targetProtocol": "any",
+      "step": 0,
+      "state": {},
+      "expectedWire": {}
+    },
+    {
+      "caseId": "continuation.previous_response_id",
+      "kind": "previous_id",
+      "targetProtocol": "openai_responses",
+      "step": 1,
+      "state": {
+        "previousResponseId": "resp_1"
+      },
+      "expectedWire": {
+        "bodyDelta": {
+          "previous_response_id": "resp_1"
+        }
+      }
+    },
+    {
+      "caseId": "continuation.previous_interaction_id",
+      "kind": "previous_id",
+      "targetProtocol": "gemini_interactions",
+      "step": 1,
+      "state": {
+        "previousResponseId": "interaction_1"
+      },
+      "expectedWire": {
+        "bodyDelta": {
+          "previous_interaction_id": "interaction_1"
+        }
+      }
+    },
+    {
+      "caseId": "continuation.replay_anthropic_blocks",
+      "kind": "replay_blocks",
+      "targetProtocol": "anthropic_messages",
+      "step": 1,
+      "state": {
+        "blocks": [
+          {
+            "type": "thinking",
+            "thinking": "opaque reasoning",
+            "signature": "opaque-signature"
+          }
+        ]
+      },
+      "expectedWire": {
+        "messageAppend": [
+          {
+            "role": "assistant",
+            "content": [
+              {
+                "type": "thinking",
+                "thinking": "opaque reasoning",
+                "signature": "opaque-signature"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "caseId": "continuation.replay_minimax_m3_server_web_blocks",
+      "kind": "replay_blocks",
+      "targetProtocol": "anthropic_messages",
+      "targetResponseParserKind": "minimax_anthropic_web_v1",
+      "step": 1,
+      "state": {
+        "blocks": [
+          {
+            "type": "thinking",
+            "thinking": "opaque reasoning",
+            "signature": "opaque-signature"
+          },
+          {
+            "type": "text",
+            "text": "Searching."
+          },
+          {
+            "type": "server_tool_use",
+            "id": "call_web_1",
+            "name": "web_search",
+            "input": {
+              "query": "latest news"
+            }
+          },
+          {
+            "type": "web_search_tool_result",
+            "tool_use_id": "call_web_1",
+            "content": [
+              {
+                "type": "web_search_result",
+                "title": "Example",
+                "url": "https://example.com/news",
+                "page_age": "2026-08-23",
+                "content": "opaque result"
+              }
+            ]
+          },
+          {
+            "type": "text",
+            "text": "Answer."
+          }
+        ]
+      },
+      "expectedWire": {
+        "messageAppend": [
+          {
+            "role": "assistant",
+            "content": [
+              {
+                "type": "thinking",
+                "thinking": "opaque reasoning",
+                "signature": "opaque-signature"
+              },
+              {
+                "type": "text",
+                "text": "Searching."
+              },
+              {
+                "type": "server_tool_use",
+                "id": "call_web_1",
+                "name": "web_search",
+                "input": {
+                  "query": "latest news"
+                }
+              },
+              {
+                "type": "web_search_tool_result",
+                "tool_use_id": "call_web_1",
+                "content": [
+                  {
+                    "type": "web_search_result",
+                    "title": "Example",
+                    "url": "https://example.com/news",
+                    "page_age": "2026-08-23",
+                    "content": "opaque result"
+                  }
+                ]
+              },
+              {
+                "type": "text",
+                "text": "Answer."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "caseId": "continuation.replay_gemini_thought_signature",
+      "kind": "replay_blocks",
+      "targetProtocol": "gemini_generate_content",
+      "step": 1,
+      "state": {
+        "blocks": [
+          {
+            "role": "model",
+            "parts": [
+              {
+                "functionCall": {
+                  "name": "lookup",
+                  "args": {
+                    "q": "news"
+                  }
+                },
+                "thoughtSignature": "opaque-signature"
+              }
+            ]
+          }
+        ]
+      },
+      "expectedWire": {
+        "contentsAppend": [
+          {
+            "role": "model",
+            "parts": [
+              {
+                "functionCall": {
+                  "name": "lookup",
+                  "args": {
+                    "q": "news"
+                  }
+                },
+                "thoughtSignature": "opaque-signature"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "caseId": "continuation.replay_openrouter_reasoning_details",
+      "kind": "replay_reasoning",
+      "targetProtocol": "openai_chat",
+      "targetResponseParserKind": "openrouter_reasoning_v1",
+      "step": 1,
+      "state": {
+        "assistantMessages": [
+          {
+            "role": "assistant",
+            "content": "answer",
+            "reasoning_details": [
+              {
+                "type": "reasoning.encrypted",
+                "data": "opaque"
+              }
+            ]
+          }
+        ]
+      },
+      "expectedWire": {
+        "messageAppend": [
+          {
+            "role": "assistant",
+            "content": "answer",
+            "reasoning_details": [
+              {
+                "type": "reasoning.encrypted",
+                "data": "opaque"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "caseId": "continuation.replay_moonshot_reasoning_content",
+      "kind": "replay_reasoning",
+      "targetProtocol": "openai_chat",
+      "targetResponseParserKind": "moonshot_reasoning_v1",
+      "step": 1,
+      "state": {
+        "assistantMessages": [
+          {
+            "role": "assistant",
+            "content": "answer",
+            "reasoning_content": "opaque reasoning"
+          }
+        ]
+      },
+      "expectedWire": {
+        "messageAppend": [
+          {
+            "role": "assistant",
+            "content": "answer",
+            "reasoning_content": "opaque reasoning"
+          }
+        ]
+      }
+    },
+    {
+      "caseId": "continuation.replay_deepseek_reasoning_tool_block",
+      "kind": "replay_reasoning",
+      "targetProtocol": "openai_chat",
+      "targetResponseParserKind": "deepseek_reasoning_v1",
+      "step": 1,
+      "state": {
+        "assistantMessages": [
+          {
+            "role": "assistant",
+            "content": "",
+            "reasoning_content": "opaque reasoning",
+            "tool_calls": [
+              {
+                "id": "call_1",
+                "type": "function",
+                "function": {
+                  "name": "lookup",
+                  "arguments": "{}"
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "expectedWire": {
+        "messageAppend": [
+          {
+            "role": "assistant",
+            "content": "",
+            "reasoning_content": "opaque reasoning",
+            "tool_calls": [
+              {
+                "id": "call_1",
+                "type": "function",
+                "function": {
+                  "name": "lookup",
+                  "arguments": "{}"
+                }
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "caseId": "continuation.tool_loop_fiber",
+      "kind": "tool_loop",
+      "variant": "fiber",
+      "targetProtocol": "openai_chat",
+      "step": 1,
+      "state": {
+        "completedMessages": [
+          {
+            "role": "assistant",
+            "content": "",
+            "reasoning_content": "opaque reasoning",
+            "tool_calls": [
+              {
+                "id": "call_1",
+                "type": "function",
+                "function": {
+                  "name": "web_search",
+                  "arguments": "{\"q\":\"news\"}"
+                }
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "tool_call_id": "call_1",
+            "name": "web_search",
+            "content": "opaque"
+          }
+        ]
+      },
+      "expectedWire": {
+        "messageAppend": [
+          {
+            "role": "assistant",
+            "content": "",
+            "reasoning_content": "opaque reasoning",
+            "tool_calls": [
+              {
+                "id": "call_1",
+                "type": "function",
+                "function": {
+                  "name": "web_search",
+                  "arguments": "{\"q\":\"news\"}"
+                }
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "tool_call_id": "call_1",
+            "name": "web_search",
+            "content": "opaque"
+          }
+        ]
+      }
+    },
+    {
+      "caseId": "continuation.tool_loop_builtin",
+      "kind": "tool_loop",
+      "variant": "default",
+      "targetProtocol": "openai_chat",
+      "step": 1,
+      "state": {
+        "completedMessages": [
+          {
+            "role": "assistant",
+            "content": "",
+            "reasoning_content": "opaque reasoning",
+            "tool_calls": [
+              {
+                "id": "call_builtin_1",
+                "type": "builtin_function",
+                "function": {
+                  "name": "$web_search",
+                  "arguments": "{\"q\":\"news\"}"
+                }
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "tool_call_id": "call_builtin_1",
+            "name": "$web_search",
+            "content": "{\"q\":\"news\"}"
+          }
+        ]
+      },
+      "expectedWire": {
+        "messageAppend": [
+          {
+            "role": "assistant",
+            "content": "",
+            "reasoning_content": "opaque reasoning",
+            "tool_calls": [
+              {
+                "id": "call_builtin_1",
+                "type": "builtin_function",
+                "function": {
+                  "name": "$web_search",
+                  "arguments": "{\"q\":\"news\"}"
+                }
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "tool_call_id": "call_builtin_1",
+            "name": "$web_search",
+            "content": "{\"q\":\"news\"}"
+          }
+        ]
+      }
+    },
+    {
+      "caseId": "continuation.missing_local_state_restarts_clean",
+      "kind": "previous_id",
+      "targetProtocol": "openai_responses",
+      "step": 1,
+      "state": null,
+      "expectedWire": {},
+      "reason": "missing_state_restarts_without_continuation"
+    },
+    {
+      "caseId": "continuation.corrupt_local_state_restarts_clean",
+      "kind": "replay_blocks",
+      "targetProtocol": "anthropic_messages",
+      "step": 1,
+      "state": "not-an-object",
+      "expectedWire": {},
+      "reason": "corrupt_state_restarts_without_continuation"
+    },
+    {
+      "caseId": "continuation.background_interrupt_discards_incomplete_round",
+      "kind": "tool_loop",
+      "step": 2,
+      "state": {
+        "completedMessages": [
+          {
+            "role": "assistant",
+            "tool_calls": [
+              {
+                "id": "complete",
+                "type": "function",
+                "function": {
+                  "name": "lookup",
+                  "arguments": "{}"
+                }
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "tool_call_id": "complete",
+            "content": "done"
+          }
+        ],
+        "pendingToolCallId": "pending"
+      },
+      "lifecycleEvent": "background",
+      "expectedPersisted": {
+        "completedMessages": [
+          {
+            "role": "assistant",
+            "tool_calls": [
+              {
+                "id": "complete",
+                "type": "function",
+                "function": {
+                  "name": "lookup",
+                  "arguments": "{}"
+                }
+              }
+            ]
+          },
+          {
+            "role": "tool",
+            "tool_call_id": "complete",
+            "content": "done"
+          }
+        ],
+        "interrupted": true
+      },
+      "resumeAutomatically": false
+    }
+  ],
+  "safeCustomCases": [
+    {
+      "caseId": "custom.web_owner_allowed",
+      "owner": "web",
+      "configurationMode": "custom",
+      "raw": "{\"enable_search\":true}",
+      "controlRefs": [
+        "qwen.web.enable_search"
+      ],
+      "expectedDelta": {
+        "enable_search": true
+      },
+      "expectRecipeSelected": false,
+      "expectCustomApplied": true,
+      "expectTypedOwnerOmitted": true
+    },
+    {
+      "caseId": "custom.reasoning_owner_allowed",
+      "owner": "reasoning",
+      "configurationMode": "custom",
+      "raw": "{\"reasoning\":{\"effort\":\"high\"}}",
+      "controlRefs": [
+        "openai.reasoning.effort"
+      ],
+      "expectedDelta": {
+        "reasoning": {
+          "effort": "high"
+        }
+      },
+      "expectRecipeSelected": false,
+      "expectCustomApplied": true,
+      "expectTypedOwnerOmitted": true
+    },
+    {
+      "caseId": "custom.allowed_owned_scalar",
+      "owner": "generation",
+      "raw": "{\"temperature\":0.2}",
+      "declaredOwners": {
+        "/temperature": "generation"
+      },
+      "expectedDelta": {
+        "temperature": 0.2
+      }
+    },
+    {
+      "caseId": "custom.generation_owner_selected",
+      "owner": "generation",
+      "configurationMode": "custom",
+      "raw": "{\"max_output_tokens\":256}",
+      "controlRefs": [
+        "openai.generation.max_output_tokens"
+      ],
+      "expectedDelta": {
+        "max_output_tokens": 256
+      },
+      "expectRecipeSelected": false,
+      "expectCustomApplied": true,
+      "expectTypedOwnerOmitted": true
+    },
+    {
+      "caseId": "custom.web_auto_omits_raw",
+      "owner": "web",
+      "configurationMode": "auto",
+      "raw": "{}",
+      "controlRefs": [
+        "qwen.web.enable_search"
+      ],
+      "expectedDelta": {},
+      "expectRecipeSelected": true,
+      "expectCustomApplied": false,
+      "expectTypedOwnerOmitted": false
+    },
+    {
+      "caseId": "custom.reasoning_auto_omits_raw",
+      "owner": "reasoning",
+      "configurationMode": "auto",
+      "raw": "{}",
+      "controlRefs": [
+        "openai.reasoning.effort"
+      ],
+      "expectedDelta": {},
+      "expectRecipeSelected": true,
+      "expectCustomApplied": false,
+      "expectTypedOwnerOmitted": false
+    },
+    {
+      "caseId": "custom.generation_auto_omits_raw",
+      "owner": "generation",
+      "configurationMode": "auto",
+      "raw": "{}",
+      "controlRefs": [
+        "openai.generation.max_output_tokens"
+      ],
+      "expectedDelta": {},
+      "expectRecipeSelected": true,
+      "expectCustomApplied": false,
+      "expectTypedOwnerOmitted": false
+    },
+    {
+      "caseId": "custom.allowed_owned_nested_scalar",
+      "owner": "generation",
+      "raw": "{\"generationConfig\":{\"temperature\":0.2}}",
+      "declaredOwners": {
+        "/generationConfig/temperature": "generation"
+      },
+      "expectedDelta": {
+        "generationConfig": {
+          "temperature": 0.2
+        }
+      }
+    },
+    {
+      "caseId": "custom.parent_declaration_cannot_claim_nested_leaf",
+      "owner": "generation",
+      "raw": "{\"generationConfig\":{\"temperature\":0.2}}",
+      "declaredOwners": {
+        "/generationConfig": "generation"
+      },
+      "expectReason": "unknown_path"
+    },
+    {
+      "caseId": "custom.nested_cross_owner_rejected",
+      "owner": "generation",
+      "raw": "{\"generationConfig\":{\"temperature\":0.2}}",
+      "declaredOwners": {
+        "/generationConfig/temperature": "reasoning"
+      },
+      "expectReason": "cross_owner"
+    },
+    {
+      "caseId": "custom.web_cannot_claim_reasoning_owner",
+      "owner": "web",
+      "raw": "{\"reasoning\":{\"effort\":\"high\"}}",
+      "controlRefs": [
+        "openai.reasoning.effort"
+      ],
+      "expectReason": "cross_owner"
+    },
+    {
+      "caseId": "custom.reasoning_cannot_claim_generation_owner",
+      "owner": "reasoning",
+      "raw": "{\"max_output_tokens\":256}",
+      "controlRefs": [
+        "openai.generation.max_output_tokens"
+      ],
+      "expectReason": "cross_owner"
+    },
+    {
+      "caseId": "custom.duplicate_key_rejected_losslessly",
+      "owner": "generation",
+      "raw": "{\"temperature\":0.2,\"temperature\":0.7}",
+      "declaredOwners": {
+        "/temperature": "generation"
+      },
+      "expectReason": "duplicate_json_key"
+    },
+    {
+      "caseId": "custom.unicode_escaped_duplicate_rejected_losslessly",
+      "owner": "generation",
+      "raw": "{\"a\":1,\"\\u0061\":2}",
+      "declaredOwners": {
+        "/a": "generation"
+      },
+      "expectReason": "duplicate_json_key"
+    },
+    {
+      "caseId": "custom.model_rejected",
+      "owner": "generation",
+      "raw": "{\"model\":\"other\"}",
+      "declaredOwners": {},
+      "expectReason": "forbidden_root"
+    },
+    {
+      "caseId": "custom.messages_rejected",
+      "owner": "generation",
+      "raw": "{\"messages\":[]}",
+      "declaredOwners": {},
+      "expectReason": "forbidden_root"
+    },
+    {
+      "caseId": "custom.input_rejected",
+      "owner": "generation",
+      "raw": "{\"input\":[]}",
+      "declaredOwners": {},
+      "expectReason": "forbidden_root"
+    },
+    {
+      "caseId": "custom.contents_rejected",
+      "owner": "generation",
+      "raw": "{\"contents\":[]}",
+      "declaredOwners": {},
+      "expectReason": "forbidden_root"
+    },
+    {
+      "caseId": "custom.instructions_rejected",
+      "owner": "generation",
+      "raw": "{\"instructions\":\"override\"}",
+      "declaredOwners": {},
+      "expectReason": "forbidden_root"
+    },
+    {
+      "caseId": "custom.system_rejected",
+      "owner": "generation",
+      "raw": "{\"system\":\"override\"}",
+      "declaredOwners": {},
+      "expectReason": "forbidden_root"
+    },
+    {
+      "caseId": "custom.stream_rejected",
+      "owner": "generation",
+      "raw": "{\"stream\":false}",
+      "declaredOwners": {},
+      "expectReason": "forbidden_root"
+    },
+    {
+      "caseId": "custom.prompt_rejected",
+      "owner": "generation",
+      "raw": "{\"prompt\":\"override\"}",
+      "declaredOwners": {},
+      "expectReason": "forbidden_root"
+    },
+    {
+      "caseId": "custom.attachments_rejected",
+      "owner": "generation",
+      "raw": "{\"attachments\":[]}",
+      "declaredOwners": {},
+      "expectReason": "forbidden_root"
+    },
+    {
+      "caseId": "custom.stream_options_rejected",
+      "owner": "generation",
+      "raw": "{\"stream_options\":{}}",
+      "declaredOwners": {},
+      "expectReason": "forbidden_root"
+    },
+    {
+      "caseId": "custom.tools_rejected",
+      "owner": "generation",
+      "raw": "{\"tools\":[]}",
+      "declaredOwners": {},
+      "expectReason": "forbidden_root"
+    },
+    {
+      "caseId": "custom.tool_choice_rejected",
+      "owner": "generation",
+      "raw": "{\"tool_choice\":\"auto\"}",
+      "declaredOwners": {},
+      "expectReason": "forbidden_root"
+    },
+    {
+      "caseId": "custom.plugins_rejected",
+      "owner": "generation",
+      "raw": "{\"plugins\":[]}",
+      "declaredOwners": {},
+      "expectReason": "forbidden_root"
+    },
+    {
+      "caseId": "custom.auth_rejected",
+      "owner": "generation",
+      "raw": "{\"auth\":\"secret\"}",
+      "declaredOwners": {},
+      "expectReason": "forbidden_channel"
+    },
+    {
+      "caseId": "custom.headers_rejected",
+      "owner": "generation",
+      "raw": "{\"headers\":{\"Authorization\":\"secret\"}}",
+      "declaredOwners": {},
+      "expectReason": "forbidden_channel"
+    },
+    {
+      "caseId": "custom.endpoint_rejected",
+      "owner": "generation",
+      "raw": "{\"endpoint\":\"https://evil.invalid\"}",
+      "declaredOwners": {},
+      "expectReason": "forbidden_channel"
+    },
+    {
+      "caseId": "custom.base_url_rejected",
+      "owner": "generation",
+      "raw": "{\"base_url\":\"https://evil.invalid\"}",
+      "declaredOwners": {},
+      "expectReason": "forbidden_channel"
+    },
+    {
+      "caseId": "custom.query_rejected",
+      "owner": "generation",
+      "raw": "{\"query\":{}}",
+      "declaredOwners": {},
+      "expectReason": "forbidden_channel"
+    },
+    {
+      "caseId": "custom.transport_route_rejected",
+      "owner": "generation",
+      "raw": "{\"transport_route\":\"evil\"}",
+      "declaredOwners": {},
+      "expectReason": "forbidden_channel"
+    },
+    {
+      "caseId": "custom.model_route_rejected",
+      "owner": "generation",
+      "raw": "{\"model_route\":\"evil\"}",
+      "declaredOwners": {},
+      "expectReason": "forbidden_channel"
+    },
+    {
+      "caseId": "custom.continuation_state_rejected",
+      "owner": "generation",
+      "raw": "{\"continuation_state\":{}}",
+      "declaredOwners": {},
+      "expectReason": "forbidden_channel"
+    },
+    {
+      "caseId": "custom.proto_key_rejected",
+      "owner": "generation",
+      "raw": "{\"__proto__\":{\"polluted\":true}}",
+      "declaredOwners": {},
+      "expectReason": "forbidden_key"
+    },
+    {
+      "caseId": "custom.prototype_key_rejected",
+      "owner": "generation",
+      "raw": "{\"prototype\":{\"polluted\":true}}",
+      "declaredOwners": {},
+      "expectReason": "forbidden_key"
+    },
+    {
+      "caseId": "custom.constructor_key_rejected",
+      "owner": "generation",
+      "raw": "{\"constructor\":{\"polluted\":true}}",
+      "declaredOwners": {},
+      "expectReason": "forbidden_key"
+    },
+    {
+      "caseId": "custom.nested_array_proto_key_rejected",
+      "owner": "generation",
+      "raw": "{\"metadata\":[{\"__proto__\":{\"polluted\":true}}]}",
+      "declaredOwners": {
+        "/metadata": "generation"
+      },
+      "expectReason": "forbidden_key"
+    },
+    {
+      "caseId": "custom.cross_owner_rejected",
+      "owner": "generation",
+      "raw": "{\"temperature\":0.2}",
+      "declaredOwners": {
+        "/temperature": "reasoning"
+      },
+      "expectReason": "cross_owner"
+    },
+    {
+      "caseId": "custom.unknown_path_rejected",
+      "owner": "generation",
+      "raw": "{\"unknown\":true}",
+      "declaredOwners": {},
+      "expectReason": "unknown_path"
+    },
+    {
+      "caseId": "custom.oversize_rejected",
+      "owner": "generation",
+      "generatedUtf8Bytes": 65537,
+      "expectReason": "too_large"
+    },
+    {
+      "caseId": "custom.overdepth_array_rejected",
+      "owner": "generation",
+      "generatedDepth": 33,
+      "declaredOwners": {
+        "/nested": "generation"
+      },
+      "expectReason": "depth_exceeded"
+    },
+    {
+      "caseId": "custom.node_limit_rejected",
+      "owner": "generation",
+      "generatedNodes": 2049,
+      "expectReason": "node_limit_exceeded"
+    }
+  ],
+  "localPersistence": {
+    "scope": "message",
+    "localOnly": true,
+    "cloudSync": false,
+    "backup": false,
+    "telemetry": false,
+    "deleteWithMessage": true,
+    "deleteWithConversation": true,
+    "resumeToolLoopAfterProcessRestart": false
+  }
+}

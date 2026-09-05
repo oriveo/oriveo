@@ -1,0 +1,46 @@
+{
+  "name": "oriveo-web",
+  "private": true,
+  "engines": {
+    "node": "^22.22.2"
+  },
+  "packageManager": "npm@10.9.7",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "overrides": {
+    "brace-expansion@1": "^1.1.18",
+    "brace-expansion@2": "^2.1.4",
+    "brace-expansion@5": "^5.0.9",
+    "fast-uri@3": "^3.1.5",
+    "js-yaml@4": "^4.3.1",
+    "tar@7": "^7.5.21",
+    "undici@6": "^6.28.0",
+    "undici@7": "^7.29.0",
+    "protobufjs": "^7.5.5",
+    "picomatch@4": "^4.0.4",
+    "uuid@9": "^9.0.2"
+  },
+  "scripts": {
+    "dev:app": "npm run dev --workspace @oriveo/app",
+    "build:app": "npm run build --workspace @oriveo/app",
+    "typecheck": "npm run typecheck --workspaces",
+    "test": "npm run test --workspaces",
+    "test:run": "npm run test:run --workspaces",
+    "lint": "eslint apps/ packages/ --no-warn-ignored"
+  },
+  "devDependencies": {
+    "@next/eslint-plugin-next": "^16.3.3",
+    "@types/node": "^22.20.1",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.5",
+    "esbuild": "^0.28.2",
+    "eslint": "^10.9.1",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "fake-indexeddb": "^6.2.5",
+    "turbo": "^2.10.12",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.68.0"
+  }
+}

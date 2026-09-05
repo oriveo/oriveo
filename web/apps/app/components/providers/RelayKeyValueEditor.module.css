@@ -1,0 +1,92 @@
+.editor {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--o-text-tertiary);
+}
+
+.rows {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: minmax(0, 0.45fr) minmax(0, 1fr) 34px;
+  gap: 8px;
+  align-items: center;
+}
+
+.input {
+  width: 100%;
+  height: 38px;
+  border: 1px solid var(--o-border);
+  border-radius: 10px;
+  background: var(--o-surface);
+  color: var(--o-text);
+  font-size: 13px;
+  font-family: var(--o-font-mono);
+  outline: none;
+  padding: 0 10px;
+}
+
+.input:focus {
+  border-color: var(--o-primary);
+  box-shadow: var(--o-glow-primary);
+}
+
+.iconButton {
+  width: 34px;
+  height: 34px;
+  border: 1px solid var(--o-border);
+  border-radius: 10px;
+  background: var(--o-surface);
+  color: var(--o-text-tertiary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.iconButton:hover {
+  color: var(--o-text);
+  border-color: var(--o-border-strong);
+}
+
+.addButton {
+  align-self: flex-start;
+  height: 34px;
+  border: 1px solid var(--o-border);
+  border-radius: 10px;
+  background: var(--o-surface);
+  color: var(--o-text-secondary);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 10px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.addButton:hover {
+  color: var(--o-text);
+  border-color: var(--o-border-strong);
+  background: var(--o-surface-raised);
+}
+
+@media (max-width: 560px) {
+  .row {
+    grid-template-columns: 1fr 34px;
+  }
+
+  .input:first-child {
+    grid-column: 1 / -1;
+  }
+}

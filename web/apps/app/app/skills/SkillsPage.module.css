@@ -1,0 +1,604 @@
+/* ── Skills Page ────────────────────────── */
+
+.page {
+  padding: var(--o-space-xl) var(--o-space-2xl);
+  max-width: 960px;
+  margin: 0 auto;
+  animation: pageIn 450ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes pageIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ── Header ───────────────────────────── */
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--o-space-xl);
+}
+
+.title {
+  font-family: var(--o-font-display);
+  font-size: var(--o-text-2xl);
+  font-weight: 620;
+  color: var(--o-text);
+  margin: 0;
+  letter-spacing: 0;
+}
+
+.newBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 18px;
+  background: linear-gradient(135deg, var(--o-primary), color-mix(in srgb, var(--o-primary) 88%, transparent));
+  color: var(--o-primary-text);
+  border: none;
+  border-radius: var(--o-radius-full);
+  font-size: var(--o-text-sm);
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 180ms ease, box-shadow 180ms ease;
+  box-shadow:
+    0 6px 16px color-mix(in srgb, var(--o-primary) 28%, transparent),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.18);
+}
+
+.newBtn:hover {
+  transform: translateY(-1px);
+  box-shadow:
+    0 10px 24px color-mix(in srgb, var(--o-primary) 34%, transparent),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.22);
+}
+
+.newBtn:active {
+  transform: translateY(0);
+}
+
+/* ── Filter Bar ───────────────────────── */
+
+.filterBarWrap {
+  position: relative;
+  margin-bottom: var(--o-space-xl);
+}
+
+.filterBar {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  padding: 2px 0;
+  /* No mask edge: even a short ramp makes the leading pill's left edge semi transparent,
+     which reads as a pale purple halo on a light background. Overflow is simply clipped instead. */
+}
+
+.filterBar::-webkit-scrollbar {
+  display: none;
+}
+
+.filterPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border: 1px solid var(--o-border);
+  border-radius: var(--o-radius-full);
+  background: var(--o-surface);
+  color: var(--o-text-secondary);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition:
+    background 180ms ease,
+    color 180ms ease,
+    border-color 180ms ease,
+    box-shadow 200ms ease,
+    transform 180ms ease;
+}
+
+.filterPill:hover {
+  background: var(--o-surface-raised);
+  color: var(--o-text);
+}
+
+.filterPill:active {
+  transform: scale(0.97);
+}
+
+.filterPillActive {
+  background: linear-gradient(135deg, var(--o-primary), color-mix(in srgb, var(--o-primary) 85%, transparent));
+  color: var(--o-primary-text);
+  border-color: transparent;
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.18);
+}
+
+.filterPillActive:hover {
+  color: var(--o-primary-text);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--o-primary) 96%, white), var(--o-primary));
+}
+
+.filterPillEmoji {
+  font-size: 14px;
+  line-height: 1;
+}
+
+.filterPillCount {
+  font-size: 11.5px;
+  font-weight: 500;
+  opacity: 0.55;
+}
+
+.filterPillActive .filterPillCount {
+  opacity: 0.75;
+}
+
+/* ── Sections ─────────────────────────── */
+
+.section {
+  margin-bottom: var(--o-space-2xl);
+}
+
+/* Accent bar plus a larger type size, replacing the uppercase style */
+.sectionTitle {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--o-text);
+  margin: 0 0 var(--o-space-md) 0;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.sectionTitle::before {
+  content: '';
+  display: block;
+  width: 3px;
+  height: 14px;
+  border-radius: 1.5px;
+  background: var(--o-primary);
+}
+
+/* ── Grid ─────────────────────────────── */
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: var(--o-space-md);
+}
+
+/* ── Card ─────────────────────────────── */
+
+@keyframes cardIn {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.card {
+  --_color: var(--skill-color, var(--o-primary));
+
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--o-border);
+  border-radius: 18px;
+  background:
+    linear-gradient(
+      to bottom,
+      color-mix(in srgb, var(--_color) 6%, transparent),
+      color-mix(in srgb, var(--_color) 1.2%, transparent)
+    ),
+    var(--o-surface);
+  cursor: default;
+  overflow: hidden;
+  box-shadow:
+    0 4px 14px rgba(0, 0, 0, 0.05),
+    inset 0 1px 0 0 var(--o-hairline);
+  transition:
+    border-color 200ms ease,
+    box-shadow 240ms cubic-bezier(0.16, 1, 0.3, 1),
+    transform 200ms ease;
+  animation: cardIn 460ms cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: calc(var(--i, 0) * 40ms);
+}
+
+.card:hover {
+  border-color: color-mix(in srgb, var(--_color) 30%, var(--o-border-strong));
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.04),
+    0 14px 32px color-mix(in srgb, var(--_color) 18%, transparent),
+    inset 0 1px 0 0 var(--o-hairline);
+  transform: translateY(-3px);
+}
+
+.card:active {
+  transform: translateY(-1px) scale(0.99);
+}
+
+.cardLoading {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+/* ── Card: Icon block (52x52) ───── */
+
+.cardIconWrap {
+  width: 52px;
+  height: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 14px;
+  /* When the light tinted padding between the emoji and the edge has too low an alpha it looks like
+     a floating white veil, so the fill has to be deep enough; no stroke or top highlight, which is what makes it read as a border */
+  background: color-mix(in srgb, var(--_color) 22%, transparent);
+  flex-shrink: 0;
+  transition: background 200ms ease;
+}
+
+.card:hover .cardIconWrap {
+  background: color-mix(in srgb, var(--_color) 30%, transparent);
+}
+
+.cardIcon {
+  font-size: 1.75rem;
+  line-height: 1;
+}
+
+/* ── Card: Header row (icon + pin) ──── */
+
+.cardTop {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.pinnedBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 12px;
+  background: var(--o-primary-subtle);
+  color: var(--o-primary);
+  flex-shrink: 0;
+}
+
+.pinnedBadge svg {
+  width: 12px;
+  height: 12px;
+}
+
+/* ── Card: Body ───────────────────────── */
+
+.cardName {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--o-text);
+  line-height: 1.35;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cardDesc {
+  font-size: 12.5px;
+  color: var(--o-text-secondary);
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  min-height: calc(12.5px * 1.5 * 2);
+}
+
+/* ── Card: Actions ────────────────────── */
+
+.cardActions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: auto;
+}
+
+.useBtn {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  padding: 10px var(--o-space-sm);
+  background: color-mix(in srgb, var(--_color) 10%, transparent);
+  color: var(--o-text);
+  border: none;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    background 180ms ease,
+    transform 120ms ease;
+}
+
+.useBtn:hover {
+  background: color-mix(in srgb, var(--_color) 16%, transparent);
+}
+
+.useBtn:active {
+  transform: scale(0.97);
+}
+
+.useBtnArrow {
+  width: 12px;
+  height: 12px;
+  color: var(--_color);
+  opacity: 0.9;
+}
+
+.forkBtn {
+  padding: 10px var(--o-space-sm);
+  background: transparent;
+  color: var(--o-text-tertiary);
+  border: 1px solid var(--o-border);
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    border-color 180ms ease,
+    color 180ms ease,
+    background 180ms ease;
+  white-space: nowrap;
+}
+
+.forkBtn:hover {
+  border-color: var(--o-primary);
+  color: var(--o-primary);
+  background: var(--o-primary-subtle);
+}
+
+.iconBtn {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background 180ms ease, color 180ms ease;
+  flex-shrink: 0;
+  color: var(--o-text-tertiary);
+}
+
+.iconBtn:hover {
+  background: var(--o-surface-raised);
+  color: var(--o-text);
+}
+
+.iconBtn svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* ── Empty State (sparkles + purple glow + gradient CTA + spotlight) ─── */
+
+.emptyState {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 30px 20px;
+  border: 1px solid var(--o-border);
+  border-radius: 20px;
+  background:
+    radial-gradient(
+      circle at 90% 0%,
+      color-mix(in srgb, var(--o-primary) 10%, transparent),
+      transparent 50%
+    ),
+    linear-gradient(
+      to bottom,
+      color-mix(in srgb, var(--o-primary) 5%, transparent),
+      transparent 50%
+    ),
+    var(--o-surface);
+  box-shadow:
+    0 4px 14px rgba(0, 0, 0, 0.05),
+    inset 0 1px 0 0 var(--o-hairline);
+  overflow: hidden;
+}
+
+.emptyIconWrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--o-primary) 10%, transparent);
+  color: var(--o-primary);
+}
+
+.emptyIconWrap svg {
+  width: 28px;
+  height: 28px;
+}
+
+.emptyText {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--o-text);
+  margin: 0;
+  text-align: center;
+}
+
+.emptyBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 10px 18px;
+  border: none;
+  border-radius: var(--o-radius-full);
+  background: linear-gradient(135deg, var(--o-primary), color-mix(in srgb, var(--o-primary) 88%, transparent));
+  color: var(--o-primary-text);
+  font-size: 13.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    transform 180ms ease,
+    box-shadow 180ms ease;
+  box-shadow:
+    0 8px 22px color-mix(in srgb, var(--o-primary) 28%, transparent),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.20);
+}
+
+.emptyBtn:hover {
+  transform: translateY(-1px);
+  box-shadow:
+    0 12px 28px color-mix(in srgb, var(--o-primary) 34%, transparent),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.24);
+}
+
+.emptyBtn:active {
+  transform: translateY(0);
+}
+
+.emptyBtn svg {
+  width: 13px;
+  height: 13px;
+}
+
+/* ── Delete confirm ──────────────────── */
+
+.deleteConfirmText {
+  font-size: var(--o-text-sm);
+  font-weight: 600;
+  color: var(--o-text);
+  margin: 0;
+}
+
+.deleteConfirmSub {
+  font-size: var(--o-text-xs);
+  color: var(--o-text-secondary);
+  margin: 0;
+  line-height: 1.4;
+}
+
+.deleteConfirmActions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--o-space-xs);
+  margin-top: var(--o-space-sm);
+}
+
+.deleteDangerBtn {
+  padding: 8px var(--o-space-sm);
+  background: var(--o-error);
+  color: var(--o-on-danger);
+  border: none;
+  border-radius: 10px;
+  font-size: var(--o-text-xs);
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity var(--o-transition-fast);
+}
+
+.deleteDangerBtn:hover {
+  opacity: 0.88;
+}
+
+.cancelBtn {
+  padding: 8px var(--o-space-sm);
+  background: transparent;
+  color: var(--o-text-secondary);
+  border: 1px solid var(--o-border);
+  border-radius: 10px;
+  font-size: var(--o-text-xs);
+  cursor: pointer;
+  transition: background var(--o-transition-fast);
+}
+
+.cancelBtn:hover {
+  background: var(--o-surface-raised);
+}
+
+/* ── Skeleton ─────────────────────────── */
+
+.cardSkeleton {
+  height: 200px;
+  border-radius: 18px;
+  background: linear-gradient(
+    110deg,
+    var(--o-surface-raised) 30%,
+    var(--o-surface) 50%,
+    var(--o-surface-raised) 70%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.8s ease infinite;
+}
+
+@keyframes shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* ── Responsive ───────────────────────── */
+
+@media (max-width: 767px) {
+  .page {
+    padding: var(--o-space-md);
+    padding-bottom: calc(104px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .title {
+    font-size: var(--o-text-xl);
+  }
+
+  .grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: var(--o-space-sm);
+  }
+
+  .card {
+    padding: 12px;
+  }
+
+  .cardIconWrap {
+    width: 48px;
+    height: 48px;
+    border-radius: 13px;
+  }
+
+  .filterBar {
+    margin-left: calc(-1 * var(--o-space-md));
+    margin-right: calc(-1 * var(--o-space-md));
+    padding-left: var(--o-space-md);
+    padding-right: var(--o-space-md);
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "id": "660E8400-E29B-41D4-A716-446655440001",
+  "title": "Help with Swift",
+  "hasCustomTitle": true,
+  "providerID": "550E8400-E29B-41D4-A716-446655440001",
+  "providerKind": "openAI",
+  "modelID": "gpt-4o",
+  "previewText": "Sure, I can help with Swift!",
+  "estimatedCost": 0.0025,
+  "isDraft": false,
+  "messages": [
+    {
+      "id": "770E8400-E29B-41D4-A716-446655440001",
+      "role": "user",
+      "text": "How do I use async/await in Swift?",
+      "providerKind": "openAI",
+      "providerName": "OpenAI",
+      "modelName": "GPT-4o",
+      "estimatedCost": 0.001,
+      "state": "delivered",
+      "createdAt": "2026-03-15T10:31:00Z"
+    },
+    {
+      "id": "770E8400-E29B-41D4-A716-446655440002",
+      "role": "assistant",
+      "text": "Sure, I can help with Swift!",
+      "providerKind": "openAI",
+      "providerName": "OpenAI",
+      "modelName": "GPT-4o",
+      "estimatedCost": 0.0015,
+      "state": "delivered",
+      "createdAt": "2026-03-15T10:31:05Z"
+    }
+  ],
+  "draftText": "",
+  "createdAt": "2026-03-15T10:30:00Z",
+  "updatedAt": "2026-03-15T10:31:05Z"
+}

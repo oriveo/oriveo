@@ -1,0 +1,221 @@
+/*
+ * Coloured capability badges.
+ *
+ * Exception: the decorative per-capability palettes (reasoning, image, file, web,
+ * imageGeneration) maintain their own light and dark colours, are unrelated to the brand accent
+ * and deliberately do not go through the --o-* tokens.
+ */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  border-radius: var(--o-radius-full);
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+  user-select: none;
+
+  /* Default text style */
+  color: var(--o-text-secondary);
+  background: var(--o-tag-bg);
+}
+
+.badge[data-size='sm'] {
+  font-size: 10px;
+  padding: 2px 6px;
+}
+
+.badge[data-size='xs'] {
+  font-size: 10.5px;
+  padding: 2px 7px 2px 5px;
+  gap: 3px;
+  font-weight: 600;
+  filter: saturate(0.85);
+  letter-spacing: -0.005em;
+}
+
+.badge[data-size='xs'][data-icon-only='true'] {
+  font-size: 8px;
+  padding: 0;
+  gap: 0;
+  filter: saturate(0.82);
+}
+
+.badge[data-size='md'] {
+  font-size: 11px;
+  padding: 3px 8px;
+}
+
+.icon {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.badges {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.badges[data-size='xs'] {
+  gap: 3px;
+}
+
+/* -- Compact icon-only mode: icon only, no label, square rounded block -- */
+.badge[data-icon-only='true'] {
+  position: relative;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  gap: 0;
+  border-radius: 5px;
+  justify-content: center;
+  transition: transform 200ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.badge[data-icon-only='true'][data-size='xs'] {
+  width: 16px;
+  height: 16px;
+  border-radius: 4px;
+}
+
+.badge[data-icon-only='true'][data-size='md'] {
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+}
+
+.badges[data-icon-only='true'] {
+  gap: 4px;
+}
+
+/* -- CSS-only tooltip showing the capability name on hover in icon-only mode -------- */
+@media (hover: hover) and (pointer: fine) {
+  .badge[data-icon-only='true'][data-tooltip] {
+    cursor: help;
+  }
+
+  .badge[data-icon-only='true'][data-tooltip]:hover {
+    transform: translateY(-1px) scale(1.06);
+    z-index: 5;
+  }
+
+  .badge[data-icon-only='true'][data-tooltip]::after,
+  .badge[data-icon-only='true'][data-tooltip]::before {
+    position: absolute;
+    left: 50%;
+    pointer-events: none;
+    opacity: 0;
+    transform: translateX(-50%) translateY(4px);
+    transition:
+      opacity 180ms cubic-bezier(0.16, 1, 0.3, 1) 80ms,
+      transform 180ms cubic-bezier(0.16, 1, 0.3, 1) 80ms;
+  }
+
+  .badge[data-icon-only='true'][data-tooltip]::after {
+    content: attr(data-tooltip);
+    bottom: calc(100% + 8px);
+    padding: 5px 9px;
+    border-radius: 7px;
+    background: var(--o-tooltip-bg);
+    color: var(--o-text-inverse);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: -0.005em;
+    line-height: 1.2;
+    white-space: nowrap;
+    box-shadow:
+      0 1px 0 var(--o-tooltip-shadow-inset) inset,
+      0 8px 24px -8px var(--o-tooltip-shadow-1),
+      0 2px 4px var(--o-tooltip-shadow-2);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    z-index: 10;
+  }
+
+  .badge[data-icon-only='true'][data-tooltip]::before {
+    content: '';
+    bottom: calc(100% + 2px);
+    width: 8px;
+    height: 8px;
+    background: var(--o-tooltip-bg);
+    transform: translateX(-50%) translateY(4px) rotate(45deg);
+    border-radius: 1.5px;
+    z-index: 9;
+  }
+
+  .badge[data-icon-only='true'][data-tooltip]:hover::after {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+
+  .badge[data-icon-only='true'][data-tooltip]:hover::before {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0) rotate(45deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .badge[data-icon-only='true'][data-tooltip]:hover {
+    transform: none;
+  }
+  .badge[data-icon-only='true'][data-tooltip]::after,
+  .badge[data-icon-only='true'][data-tooltip]::before {
+    transition: opacity 120ms ease;
+    transform: translateX(-50%);
+  }
+  .badge[data-icon-only='true'][data-tooltip]:hover::after,
+  .badge[data-icon-only='true'][data-tooltip]:hover::before {
+    transform: translateX(-50%);
+  }
+  .badge[data-icon-only='true'][data-tooltip]:hover::before {
+    transform: translateX(-50%) rotate(45deg);
+  }
+}
+
+/* -- reasoning: amber and gold -- */
+.badge[data-cap='reasoning'] {
+  color: var(--o-cap-reasoning-text);
+  background: var(--o-cap-reasoning-bg);
+}
+
+/* -- image: rose and pink -- */
+.badge[data-cap='image'] {
+  color: var(--o-cap-image-text);
+  background: var(--o-cap-image-bg);
+}
+
+/* -- file: indigo and violet -- */
+.badge[data-cap='file'] {
+  color: var(--o-cap-file-text);
+  background: var(--o-cap-file-bg);
+}
+
+/* -- web: cyan and teal -- */
+.badge[data-cap='web'] {
+  color: var(--o-cap-web-text);
+  background: var(--o-cap-web-bg);
+}
+
+/* -- imageGeneration: violet -- */
+.badge[data-cap='imageGeneration'] {
+  color: var(--o-cap-image-gen-text);
+  background: var(--o-cap-image-gen-bg);
+}
+
+/* -- Fallback for an unknown capability: grey dot plus the literal name -- */
+.badge[data-cap='unknown'] {
+  color: var(--o-text-secondary);
+  background: var(--o-tag-bg);
+}
+
+.unknownDot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.5;
+}

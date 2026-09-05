@@ -1,0 +1,138 @@
+{
+  "$comment": "Slice of data.modelFacts captured from https://api.oriveoai.com/api/metadata (2026-08-22, snapshot v83), plus the real revision and entry counts. The full dictionary has 394 entries; this file keeps the 6 that the clients' tests need. Entry bytes are unchanged (including artifactHash). modelFactsRevision is the hash of the full 394-entry dictionary and is not recomputed after the slice; it is a shape sample only.",
+  "source": "https://api.oriveoai.com/api/metadata",
+  "capturedAt": "2026-08-22",
+  "productionEntryCount": 394,
+  "modelFactsRevision": "sha256:7d381935dc3b7c397d6241cc965c848522241f48d618d0d822e39d9875e4b71a",
+  "modelFacts": {
+    "grok/grok-4.6": {
+      "artifactHash": "sha256:5982d79b0e5c0f2da289a24e8e79205f91805b033aeb0d6ba8a9eb459f7766ed",
+      "attachment": true,
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "reasoning": true,
+      "reasoningEfforts": [
+        "low",
+        "medium",
+        "high",
+        "xhigh"
+      ],
+      "source": "models_dev",
+      "toolCall": true
+    },
+    "grok/grok-4.5": {
+      "artifactHash": "sha256:c8f5804c6c773265d3653e17eedac2661a45a6c5ce67981b3eb07bdb661a346e",
+      "attachment": true,
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "reasoning": true,
+      "reasoningEfforts": [
+        "low",
+        "medium",
+        "high"
+      ],
+      "source": "models_dev",
+      "toolCall": true
+    },
+    "grok/grok-build-0.1": {
+      "artifactHash": "sha256:90cbbfa507c7c6304abbd35f4912f50dc85a123693b915d828a97ee990cba9cf",
+      "attachment": true,
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "reasoning": true,
+      "source": "models_dev",
+      "toolCall": true
+    },
+    "openAI/gpt-5.6-sol": {
+      "artifactHash": "sha256:72826e7974cf0ee78c8b473dde90c0df13cfeae9439b89c0f9b72e6414066472",
+      "attachment": true,
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "reasoning": true,
+      "reasoningEfforts": [
+        "none",
+        "low",
+        "medium",
+        "high",
+        "xhigh",
+        "max"
+      ],
+      "source": "models_dev",
+      "toolCall": true
+    },
+    "anthropic/claude-sonnet-5": {
+      "artifactHash": "sha256:07d8d3d263a3e68e1811e66e99f5e38dc20eaa8bb854043b3ecb6a318c15a55c",
+      "attachment": true,
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      },
+      "reasoning": true,
+      "reasoningEfforts": [
+        "low",
+        "medium",
+        "high",
+        "xhigh",
+        "max"
+      ],
+      "reasoningToggle": true,
+      "source": "models_dev",
+      "toolCall": true
+    },
+    "gemini/gemini-2.5-flash-image": {
+      "artifactHash": "sha256:a1171742d1f4a359f390b49ff56b778a075e209361b64503c6f9c3688af5ba42",
+      "attachment": true,
+      "modalities": {
+        "input": [
+          "text",
+          "image"
+        ],
+        "output": [
+          "text",
+          "image"
+        ]
+      },
+      "reasoning": true,
+      "source": "models_dev",
+      "toolCall": false
+    }
+  }
+}

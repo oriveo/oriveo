@@ -1,0 +1,67 @@
+.toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 1px solid var(--o-border);
+  border-radius: var(--o-radius-full);
+  background: color-mix(in srgb, var(--o-surface) 68%, transparent);
+  color: var(--o-text-secondary);
+  cursor: pointer;
+  backdrop-filter: blur(14px) saturate(150%);
+  -webkit-backdrop-filter: blur(14px) saturate(150%);
+  box-shadow: var(--o-elevation-control);
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease,
+    color 160ms ease,
+    transform 160ms ease;
+}
+
+.toggle:hover {
+  border-color: color-mix(in srgb, var(--o-primary) 42%, var(--o-border));
+  background: color-mix(in srgb, var(--o-surface) 92%, transparent);
+  color: var(--o-text);
+  transform: translateY(-1px);
+}
+
+.toggle:active {
+  transform: translateY(0) scale(0.95);
+}
+
+.toggle:focus-visible {
+  outline: none;
+  border-color: var(--o-primary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--o-primary) 26%, transparent);
+}
+
+.iconWrap {
+  display: inline-flex;
+  animation: themeIconIn 320ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes themeIconIn {
+  from {
+    opacity: 0;
+    transform: rotate(-40deg) scale(0.6);
+  }
+  to {
+    opacity: 1;
+    transform: rotate(0) scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .iconWrap {
+    animation: none;
+  }
+
+  .toggle,
+  .toggle:hover,
+  .toggle:active {
+    transition: none;
+    transform: none;
+  }
+}

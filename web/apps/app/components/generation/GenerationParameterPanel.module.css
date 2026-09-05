@@ -1,0 +1,163 @@
+.panel { padding: 16px; border: 1px solid var(--o-border, #e5e7eb); border-radius: 16px; background: var(--o-surface, #fff); max-height:min(68vh, 620px); overflow:auto; box-shadow:0 18px 48px rgba(15,23,42,.16); }
+/* Embedded form, used inside the advanced-settings pane of the model options popover.
+   The standalone treatment (border + shadow + max-height + its own overflow) is all wrong there: the
+   outer .modelControlSections is already that screen's only scroll container, and adding a second
+   max-height + overflow:auto makes two scrollers unaware of each other, so hitting the inner boundary
+   freezes the whole screen with no visible cause. Here the panel hands scrolling over and drops the
+   border and shadow: it is not a second card inside the popover, it is the screen. The standalone form
+   used on the provider detail page is unaffected. */
+.panel[data-embedded='true'] { border:0; max-height:none; overflow:visible; box-shadow:none; }
+/* Cross-axis center rather than start: the reset action on the right is pushed to min-height:36px for a
+   44px hit area, while the left column is only around 17px when it holds a single 12px line. Aligned to
+   start their top edges match but their text centers differ by 8px, which reads as the reset action
+   having slipped down. The embedded form with a hidden title is always in that state, so this is not an
+   edge case. In the two-line form the left column is around 37px against a 36px button and center and
+   start agree. */
+.header { display:flex; justify-content:space-between; gap:12px; align-items:center; margin-bottom:10px; }
+.header p { margin:3px 0 0; color:var(--o-text-secondary, #6b7280); font-size:12px; }
+/* The 3px exists to separate this from the title above; when the title is hidden this is the column's
+   only content and the margin just pushes it down. */
+.header p:first-child { margin-top:0; }
+/* ── Hit-area rules ─────────────────────────────────────────
+   Sizing these buttons by font size plus a little padding (14-31px) makes them hard to hit accurately
+   on touch, and two of them are destructive (remove a custom field, clear dormant
+   values). The approach is the same as in the popover: raise the visual size only as far as looks
+   right, then stretch the hit area to 44 with a negative `::after` inset. Horizontally always use
+   `inset-inline: 0` unless a button genuinely has nothing clickable around it, because these buttons sit
+   in rows and a negative horizontal expansion makes neighbours overlap, which is worse than missing:
+   the tap lands on a different action. Expansion is always at most half the container gap so hit areas
+   of adjacent rows do not overlap. */
+.reset,.clear { border:0; background:transparent; color:var(--o-text-secondary, #6b7280); cursor:pointer; }
+/* Visual 36, hit area 44. `.header` has a 12px gap, so expanding 4px vertically cannot reach the two
+   title lines on the left. The font size has to be pinned explicitly: the global `button { font: inherit }`
+   makes it inherit the 16px root size while the `.header p` beside it is 12px, so a secondary reset
+   action would render larger than the text it describes. */
+.reset { position:relative; display:inline-flex; align-items:center; min-height:36px; font-size:12px; }
+.reset::after { content:''; position:absolute; inset-block:-4px; inset-inline:0; }
+/* The `-` and `x` buttons at the right of a parameter row: visual 36x36, hit area 44x44. Expanding 4px on
+   each side stays within `.control`'s 8px gap, so the two hit areas meet without overlapping and neither
+   reaches the input on the left. */
+.clear { position:relative; display:inline-flex; align-items:center; justify-content:center; min-width:36px; min-height:36px; }
+.clear::after { content:''; position:absolute; inset:-4px; }
+.scopeHint { margin:-2px 0 12px; color:var(--o-text-secondary, #6b7280); font-size:12px; line-height:1.45; }
+/* "Controlled by the reasoning shortcut" is an explanation, not a parameter row. Reusing the .row
+   skeleton (hairline on top, two columns) and distinguishing it from real parameters only by a lighter
+   color reads as a disabled control, so it is a self-contained annotation card instead: one column, no
+   hairline, its own background. */
+.reasoningNotice { display:block; margin:0 0 12px; padding:9px 11px; border-radius:9px; background:var(--o-bg-subtle, #f3f4f6); color:var(--o-text-secondary, #6b7280); font-size:12px; line-height:1.45; }
+.reasoningNotice strong { font-weight:650; color:var(--o-text, #111827); }
+.presets { display:flex; flex-wrap:wrap; gap:7px; padding:10px 0; border-top:1px solid var(--o-border, #e5e7eb); }
+.presets input { min-width:130px; flex:1; padding:7px 8px; border:1px solid var(--o-border, #d1d5db); border-radius:7px; background:transparent; color:inherit; }
+.presets>button,.preset button,.compatibility button { border:0; border-radius:7px; padding:7px 9px; background:var(--o-surface-raised, #f3f4f6); color:inherit; cursor:pointer; }
+/* A disabled state has to be visible: with only the disabled attribute and identical visuals, users read
+   it as a broken button. */
+.presets>button:disabled,.portableActions button:disabled,.compatibility button:disabled { opacity:.5; cursor:not-allowed; }
+.preset { display:inline-flex; overflow:hidden; border-radius:7px; }
+.preset button+button { padding-inline:6px; border-left:1px solid var(--o-border, #d1d5db); border-radius:0; }
+/* gap 8: the row below expands its hit area 4px in each direction, so wrapped rows meet without overlapping. */
+.portableActions { display:flex; flex-wrap:wrap; gap:8px; padding:0 0 10px; }
+.portableActions button { position:relative; display:inline-flex; align-items:center; min-height:36px; border:0; border-radius:7px; padding:0 9px; background:var(--o-surface-raised, #f3f4f6); color:inherit; cursor:pointer; }
+.portableActions button::after { content:''; position:absolute; inset-block:-4px; inset-inline:0; }
+.hiddenInput { display:none; }
+.diagnostics { display:flex; flex-direction:column; gap:8px; padding-bottom:10px; }
+.diagnostics>div:not(.portableActions) { display:flex; justify-content:space-between; gap:12px; font-size:11px; color:var(--o-text-secondary, #6b7280); }
+.diagnostics p { margin:0; color:var(--o-text-secondary, #6b7280); font-size:12px; }
+.compatibility { display:flex; align-items:center; justify-content:space-between; gap:8px; padding:8px 10px; border-radius:9px; background:color-mix(in srgb, #f59e0b 12%, transparent); color:var(--o-text-secondary, #6b7280); font-size:11px; }
+.group { border-top:1px solid var(--o-border, #e5e7eb); }
+.group summary { padding:12px 0; cursor:pointer; font-size:13px; font-weight:650; color:var(--o-text, #111827); }
+.row { display:grid; grid-template-columns:minmax(0,1fr) minmax(120px, 180px); gap:12px; align-items:center; padding:8px 0; border-top:1px solid var(--o-border, #e5e7eb); }
+.row label { font-size:13px; text-transform:capitalize; color:var(--o-text, #111827); }
+.labelStack { display:flex; flex-direction:column; gap:2px; min-width:0; }
+.labelStack span { color:var(--o-text-secondary, #6b7280); font-size:11px; text-transform:capitalize; }
+/* gap 8 rather than 6: each of the two icon buttons on the right expands its hit area by 4px, and 8px of
+   spacing makes the two areas meet without overlapping, so a tap always lands on the button aimed at. */
+.control { display:flex; align-items:center; gap:8px; }
+.control input:not([type='checkbox']),.control select,.control textarea { width:100%; min-width:0; padding:7px 8px; border:1px solid var(--o-border, #d1d5db); border-radius:7px; background:transparent; color:inherit; }
+.control textarea { min-height:112px; resize:vertical; font:12px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; }
+.control textarea[aria-invalid='true'] { border-color:#dc2626; }
+@media (max-width: 560px) { .row { grid-template-columns:1fr; gap:6px; } }
+.emptyTitle { display:block; padding:12px 0 0; font-size:13px; font-weight:650; color:var(--o-text, #111827); }
+.emptyHeadline { margin:6px 0 0; font-size:13px; color:var(--o-text, #111827); line-height:1.5; }
+.emptyTitle+.emptyHeadline+.scopeHint { margin-top:6px; }
+.labelRow { display:flex; align-items:center; gap:6px; min-width:0; }
+/* Secondary copy for the engineering state. It is a full sentence, so it must not be rewritten by the
+   capitalize on `.labelStack span`. */
+.supportDetail { text-transform:none; color:var(--o-text-tertiary); line-height:1.5; }
+.unverifiedBadge { margin-left:6px; padding:1px 6px; border:1px solid var(--o-border, #e5e7eb); border-radius:999px; font-style:normal; font-size:10px; text-transform:none; color:var(--o-text-secondary, #6b7280); }
+/* Primary action for the "not adjustable" state: a greyed-out row still needs a way out. It is styled as a
+   text link rather than a second solid button, because the row is already disabled and a prominent solid
+   button would read as "tap here to adjust it". Colors use the text variants of the semantic tokens:
+   --o-primary as body text on light is only 4.06:1 and misses AA. */
+.notAdjustableAction { position:relative; align-self:flex-start; display:inline-flex; align-items:center; min-height:36px; margin-top:2px; padding:0; border:0; background:none; color:var(--o-primary-text-on-surface); font-size:11px; font-weight:600; text-align:left; text-transform:none; cursor:pointer; }
+/* Visual 36, hit area 44. This row is the only way out of the "not adjustable" state, and a missed tap
+   makes users think it is broken too. */
+.notAdjustableAction::after { content:''; position:absolute; inset-block:-4px; inset-inline:0; }
+.notAdjustableAction:hover { text-decoration:underline; }
+/* When the host provides no "switch model" action, the "not adjustable" state lists the candidates
+   inline. It is a statement of fact, not a control, so it uses tertiary secondary-copy typography rather
+   than a second button. */
+.notAdjustableCandidates { text-transform:none; color:var(--o-text-secondary); font-size:11px; line-height:1.5; overflow-wrap:anywhere; }
+.notAdjustableAction:focus-visible { outline:2px solid var(--o-focus-ring); outline-offset:2px; border-radius:4px; }
+/* ── Custom request fields: multiple owners on one page ────── */
+.customFields { display:flex; flex-direction:column; gap:14px; }
+.customOwner { display:flex; flex-direction:column; gap:7px; padding:12px 0 0; border-top:1px solid var(--o-border, #e5e7eb); }
+.customOwnerHeader { display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.customOwnerHeader strong { font-size:13px; font-weight:650; color:var(--o-text, #111827); }
+/* "Enabled" is this section's only status statement, with no second toggle to look at, so it has to read
+   as a fact rather than a button. */
+.customOwnerState { font-size:11px; font-weight:600; color:var(--o-text-secondary, #6b7280); }
+.customTextarea { box-sizing:border-box; width:100%; min-height:128px; padding:8px; border:1px solid var(--o-border, #d1d5db); border-radius:8px; background:var(--o-surface, #fff); color:inherit; font:12px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; resize:vertical; }
+.customTextarea[aria-invalid='true'] { border-color:var(--o-error); }
+.customHint { margin:0; overflow-wrap:anywhere; color:var(--o-text-secondary, #6b7280); font-size:12px; line-height:1.45; }
+.customDanger { margin:0; overflow-wrap:anywhere; color:var(--o-error-text); font-size:12px; line-height:1.45; }
+/* "Remove custom request fields" is the button on this page that must neither be missed nor hit by
+   accident, since it is destructive. Visual 36, hit area 44; the 4px vertical expansion stays inside
+   `.customOwner`'s 7px gap. */
+.customDangerAction { position:relative; align-self:flex-start; display:inline-flex; align-items:center; min-height:36px; padding:0; border:0; background:none; color:var(--o-error-text); font-size:12px; font-weight:600; text-align:left; cursor:pointer; }
+.customDangerAction::after { content:''; position:absolute; inset-block:-4px; inset-inline:0; }
+.customDangerAction:disabled { color:var(--o-text-tertiary, #9ca3af); cursor:not-allowed; }
+.customDangerAction:focus-visible { outline:2px solid var(--o-focus-ring); outline-offset:2px; border-radius:4px; }
+.customRemoveConfirm { display:flex; flex-wrap:wrap; align-items:center; gap:8px; padding:9px 11px; border-radius:9px; background:var(--o-error-subtle); }
+.customRemoveConfirm button { position:relative; display:inline-flex; align-items:center; min-height:36px; border:0; border-radius:7px; padding:0 9px; background:var(--o-surface, #fff); color:inherit; font-size:12px; cursor:pointer; }
+.customRemoveConfirm button::after { content:''; position:absolute; inset-block:-4px; inset-inline:0; }
+.customRemoveConfirm .customDangerAction { padding:0 9px; }
+/* Inline confirmation bar for the reset action, following the same visual and hit-area rules as the group
+   above. Each rule is written out separately rather than merged into one selector: the lint gate
+   evaluates selectors one by one, and a merged form would make its .customRemoveConfirm patterns miss. */
+.resetConfirm { display:flex; flex-wrap:wrap; align-items:center; gap:8px; margin-bottom:10px; padding:9px 11px; border-radius:9px; background:var(--o-error-subtle); }
+.resetConfirm button { position:relative; display:inline-flex; align-items:center; min-height:36px; border:0; border-radius:7px; padding:0 9px; background:var(--o-surface, #fff); color:inherit; font-size:12px; cursor:pointer; }
+.resetConfirm button::after { content:''; position:absolute; inset-block:-4px; inset-inline:0; }
+.resetConfirm .customDangerAction { padding:0 9px; }
+.customPreview { max-height:180px; overflow:auto; padding:8px; border-radius:8px; background:var(--o-surface-raised, #f3f4f6); font:11px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; direction:ltr; text-align:left; }
+/* ── Developer group: read-only does not hide it, it degrades to a single status line ───────────────── */
+.developerGroup { padding:12px 0 0; border-top:1px solid var(--o-border, #e5e7eb); }
+.developerGroupTitle { display:block; font-size:12px; font-weight:650; color:var(--o-text-secondary, #6b7280); }
+.developerRow { display:flex; align-items:center; justify-content:space-between; gap:8px; width:100%; min-height:44px; padding:0; border:0; background:none; color:var(--o-text, #111827); font-size:13px; text-align:left; }
+.developerRow[data-interactive='true'] { cursor:pointer; }
+/* The forward chevron follows the reading direction, the same rule as .modelControlForwardChevron in the
+   popover: an unmirrored `>` means "back" in RTL, while tapping this row navigates inwards. */
+[dir='rtl'] .developerRow svg { transform:scaleX(-1); }
+.developerRowState { color:var(--o-text-tertiary, #9ca3af); font-size:11px; }
+.developerExplanation { display:flex; flex-direction:column; gap:6px; padding:9px 11px; border-radius:9px; background:var(--o-bg-subtle, #f3f4f6); }
+/* gap 8: there can be a dozen candidate models and they will wrap, so with hit areas expanded 4px above
+   and below the two rows meet without overlapping. */
+.developerCandidates { display:flex; flex-wrap:wrap; gap:8px; margin:0; padding:0; list-style:none; }
+.developerCandidates button { position:relative; display:inline-flex; align-items:center; min-height:36px; border:0; border-radius:7px; padding:0 9px; background:var(--o-surface, #fff); color:inherit; font-size:12px; cursor:pointer; }
+.developerCandidates button::after { content:''; position:absolute; inset-block:-4px; inset-inline:0; }
+/* Parameter annotations are given only for temperature and max tokens: the parameter names themselves
+   explain nothing to a non-developer, and annotating every row would bury these two. */
+.parameterAnnotation { text-transform:none; color:var(--o-text-tertiary, #9ca3af); line-height:1.5; }
+/* Back row for the custom fields sub-page. The panel hosts this level itself rather than opening a second popover. */
+.subPageHeader { display:flex; align-items:center; gap:8px; margin-bottom:10px; }
+.subPageBack { position:relative; display:inline-flex; align-items:center; min-height:28px; border:0; border-radius:7px; padding:5px 9px; background:var(--o-surface-raised, #f3f4f6); color:inherit; font-size:12px; cursor:pointer; }
+/* Visual 28, hit area 44: this is the only way back out of the custom fields sub-page, and the 27px that a
+   12px font's line height produces is hard to hit on touch. The pseudo-element expands vertically only
+   (`inset-inline:0`), because the sub-page header has the title right next to it and a horizontal
+   expansion would put the hit area over unclickable text. The 8px expansion falls inside .panel's 16px
+   padding and is not clipped. */
+.subPageBack::after { content:''; position:absolute; inset-block:-8px; inset-inline:0; }
+/* Dormant summary: neutral textSecondary, not warning. Keeping a parameter around is not an error state. */
+.dormant { padding:10px 0; border-top:1px solid var(--o-border, #e5e7eb); }
+.dormant p { margin:0 0 8px; color:var(--o-text-secondary, #6b7280); font-size:12px; line-height:1.45; }
+.dormantList { margin:0; padding:0 0 4px; list-style:none; display:flex; flex-direction:column; gap:6px; }
+.dormantList li { display:flex; justify-content:space-between; gap:12px; font-size:11px; text-transform:capitalize; color:var(--o-text-tertiary, #9ca3af); }

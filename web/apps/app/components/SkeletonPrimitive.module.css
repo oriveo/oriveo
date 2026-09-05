@@ -1,0 +1,84 @@
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.line {
+  border-radius: var(--o-radius-sm);
+  background: linear-gradient(
+    90deg,
+    var(--o-surface-raised) 25%,
+    var(--o-border) 50%,
+    var(--o-surface-raised) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.8s ease-in-out infinite;
+}
+
+.circle {
+  border-radius: var(--o-radius-full);
+  background: linear-gradient(
+    90deg,
+    var(--o-surface-raised) 25%,
+    var(--o-border) 50%,
+    var(--o-surface-raised) 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer 1.8s ease-in-out infinite;
+  flex-shrink: 0;
+}
+
+/* Conversation list skeleton */
+.convList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--o-space-xs);
+  padding: var(--o-space-sm);
+}
+
+.convItem {
+  display: flex;
+  align-items: center;
+  gap: var(--o-space-sm);
+  padding: var(--o-space-sm) var(--o-space-md);
+  border-radius: var(--o-radius-md);
+}
+
+.convContent {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* Provider card skeleton */
+.providerCard {
+  padding: var(--o-space-md);
+  border: 1px solid var(--o-border);
+  border-radius: var(--o-radius-lg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--o-space-sm);
+}
+
+.providerHeader {
+  display: flex;
+  align-items: center;
+  gap: var(--o-space-sm);
+}
+
+.providerInfo {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* Model row skeleton */
+.modelRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--o-space-sm) 0;
+  gap: var(--o-space-md);
+}

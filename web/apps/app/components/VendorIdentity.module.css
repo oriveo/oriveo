@@ -1,0 +1,65 @@
+.vendorIdentity {
+  width: 42px;
+  height: 42px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 14px;
+  background: var(--vendor-frame-bg);
+  color: var(--vendor-frame-fg);
+  overflow: hidden;
+}
+
+.vendorIdentity[data-small='true'] {
+  width: 30px;
+  height: 30px;
+  border-radius: 10px;
+}
+
+.vendorIdentity[data-density='compact'] {
+  width: 38px;
+  height: 38px;
+  border-radius: 10px;
+}
+
+.vendorIdentity[data-density='compact'][data-small='true'] {
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+}
+
+.vendorIdentity[data-has-logo='true'] {
+  border-radius: 0;
+  background: transparent;
+  overflow: visible;
+}
+
+.vendorLogo {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  display: block;
+  padding: var(--vendor-logo-padding-y) var(--vendor-logo-padding-x);
+  transform: translate(var(--vendor-logo-shift-x), var(--vendor-logo-shift-y)) scale(var(--vendor-logo-scale));
+  transform-origin: center;
+}
+
+/* Older long-tail vendor assets only shipped in one monochrome appearance. */
+.vendorIdentity[data-dark='true'][data-frame-mode='light'] .vendorLogo {
+  filter: brightness(0) invert(1);
+}
+
+.vendorIdentity[data-dark='false'][data-frame-mode='dark'] .vendorLogo {
+  filter: brightness(0);
+}
+
+.vendorMonogram {
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+
+.vendorIdentity[data-small='true'] .vendorMonogram {
+  font-size: 10px;
+}

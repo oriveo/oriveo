@@ -1,0 +1,232 @@
+.section {
+  margin-top: 12px;
+  border-top: 1px solid var(--o-border);
+  padding-top: 12px;
+}
+
+.header {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 12px;
+  border: none;
+  background: transparent;
+  color: var(--o-text-secondary);
+  font-weight: var(--o-weight-semibold);
+  cursor: pointer;
+  border-radius: var(--o-radius-control);
+  transition: background var(--o-transition-fast);
+}
+
+.header:hover {
+  background: color-mix(in srgb, var(--o-text) 4%, transparent);
+}
+
+.header:focus-visible {
+  outline: none;
+  box-shadow: var(--o-focus-ring);
+}
+
+.count {
+  background: var(--o-bg-subtle);
+  color: var(--o-text);
+  border-radius: var(--o-radius-pill);
+  padding: 2px 8px;
+  font-size: var(--o-text-xs);
+  font-weight: var(--o-weight-medium);
+}
+
+.list {
+  display: grid;
+  gap: 10px;
+  padding: 8px 12px;
+}
+
+.item {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border-radius: var(--o-radius-card);
+  background: var(--o-surface);
+  border: 1px dashed var(--o-border-strong);
+}
+
+.titleButton {
+  background: transparent;
+  border: none;
+  padding: 0;
+  color: var(--o-text);
+  font-weight: var(--o-weight-semibold);
+  text-align: left;
+  cursor: pointer;
+}
+
+.titleButton:hover {
+  color: var(--o-primary);
+}
+
+.titleButton:focus-visible {
+  outline: none;
+  box-shadow: var(--o-focus-ring);
+  border-radius: var(--o-radius-sm);
+}
+
+.banner {
+  margin: 0;
+  color: var(--o-warning);
+  font-size: var(--o-text-sm);
+}
+
+.actionButton {
+  justify-self: start;
+  border: none;
+  padding: 6px 10px;
+  border-radius: var(--o-radius-control);
+  background: var(--o-primary-subtle);
+  color: var(--o-primary-active);
+  font-weight: var(--o-weight-semibold);
+  cursor: pointer;
+  transition: background var(--o-transition-fast);
+}
+
+.actionButton:hover {
+  background: color-mix(in srgb, var(--o-primary) 18%, transparent);
+}
+
+.actionButton:focus-visible {
+  outline: none;
+  box-shadow: var(--o-focus-ring);
+}
+
+.cleanupButton {
+  border: none;
+  padding: 8px 10px;
+  border-radius: var(--o-radius-control);
+  background: transparent;
+  color: var(--o-error);
+  font-weight: var(--o-weight-semibold);
+  cursor: pointer;
+  text-align: left;
+  transition: background var(--o-transition-fast);
+}
+
+.cleanupButton:hover {
+  background: var(--o-error-subtle);
+}
+
+.cleanupButton:focus-visible {
+  outline: none;
+  box-shadow: var(--o-focus-ring);
+}
+
+.dialogOverlay {
+  position: fixed;
+  inset: 0;
+  background: var(--o-overlay);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.dialogCard {
+  background: var(--o-surface);
+  border-radius: var(--o-radius-modal);
+  padding: 20px;
+  max-width: 360px;
+  width: calc(100% - 32px);
+  box-shadow: var(--o-elevation-modal);
+  display: grid;
+  gap: 12px;
+}
+
+.dialogTitle {
+  margin: 0;
+  font-size: var(--o-text-base);
+  color: var(--o-text);
+  font-weight: var(--o-weight-semibold);
+}
+
+.dialogBody {
+  margin: 0;
+  color: var(--o-text-secondary);
+  font-size: var(--o-text-sm);
+  line-height: 1.5;
+}
+
+.dialogButton {
+  justify-self: end;
+  border: none;
+  padding: 8px 16px;
+  border-radius: var(--o-radius-control);
+  background: var(--o-primary);
+  color: var(--o-primary-text);
+  font-weight: var(--o-weight-semibold);
+  cursor: pointer;
+  transition: background var(--o-transition-fast);
+}
+
+.dialogButton:hover {
+  background: var(--o-primary-hover);
+}
+
+.dialogButton:focus-visible {
+  outline: none;
+  box-shadow: var(--o-focus-ring);
+}
+
+.checkboxRow {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  color: var(--o-text-secondary);
+  font-size: var(--o-text-sm);
+}
+
+.confirmRow {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.cancelButton {
+  border: 1px solid var(--o-border);
+  padding: 8px 14px;
+  border-radius: var(--o-radius-control);
+  background: var(--o-surface);
+  color: var(--o-text-secondary);
+  cursor: pointer;
+  font-weight: var(--o-weight-medium);
+  transition: background var(--o-transition-fast), border-color var(--o-transition-fast);
+}
+
+.cancelButton:hover {
+  background: var(--o-bg-subtle);
+  border-color: var(--o-border-strong);
+}
+
+.cancelButton:focus-visible {
+  outline: none;
+  box-shadow: var(--o-focus-ring);
+}
+
+.dangerButton {
+  border: none;
+  padding: 8px 14px;
+  border-radius: var(--o-radius-control);
+  background: var(--o-error);
+  color: var(--o-on-danger);
+  cursor: pointer;
+  font-weight: var(--o-weight-semibold);
+  transition: background var(--o-transition-fast);
+}
+
+.dangerButton:hover {
+  background: color-mix(in srgb, var(--o-error) 88%, #000);
+}
+
+.dangerButton:focus-visible {
+  outline: none;
+  box-shadow: var(--o-focus-ring);
+}

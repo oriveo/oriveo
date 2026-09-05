@@ -1,0 +1,15 @@
+<!-- Lucide notebook-pen, matching iOS Assets/NotesNotebook (shared by the home notes entry tile and its watermark).
+     pathData expands SVG shorthand (`.5`, a flag immediately followed by a minus sign) into full space-separated numbers, avoiding PathParser's parsing ambiguity on compact arc commands. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24"
+    android:tint="#000000">
+    <path android:strokeColor="#FF000000" android:strokeWidth="2" android:strokeLineCap="round" android:strokeLineJoin="round" android:fillColor="#00000000" android:pathData="M13.4 2 H6 a2 2 0 0 0 -2 2 v16 a2 2 0 0 0 2 2 h12 a2 2 0 0 0 2 -2 v-7.4"/>
+    <path android:strokeColor="#FF000000" android:strokeWidth="2" android:strokeLineCap="round" android:strokeLineJoin="round" android:fillColor="#00000000" android:pathData="M2 6 h4"/>
+    <path android:strokeColor="#FF000000" android:strokeWidth="2" android:strokeLineCap="round" android:strokeLineJoin="round" android:fillColor="#00000000" android:pathData="M2 10 h4"/>
+    <path android:strokeColor="#FF000000" android:strokeWidth="2" android:strokeLineCap="round" android:strokeLineJoin="round" android:fillColor="#00000000" android:pathData="M2 14 h4"/>
+    <path android:strokeColor="#FF000000" android:strokeWidth="2" android:strokeLineCap="round" android:strokeLineJoin="round" android:fillColor="#00000000" android:pathData="M2 18 h4"/>
+    <path android:strokeColor="#FF000000" android:strokeWidth="2" android:strokeLineCap="round" android:strokeLineJoin="round" android:fillColor="#00000000" android:pathData="M21.378 5.626 a1 1 0 1 0 -3.004 -3.004 l-5.01 5.012 a2 2 0 0 0 -0.506 0.854 l-0.837 2.87 a0.5 0.5 0 0 0 0.62 0.62 l2.87 -0.837 a2 2 0 0 0 0.854 -0.506 z"/>
+</vector>

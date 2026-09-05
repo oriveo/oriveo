@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <!-- Disable automatic initialization so the app can initialize the crash-reporting SDK
+             manually during startup, which allows attaching hooks for scrubbing sensitive data
+             and setting the user/environment context, neither of which meta-data-only setup supports. -->
+        <meta-data
+            android:name="io.sentry.auto-init"
+            android:value="false" />
+    </application>
+</manifest>

@@ -1,0 +1,31 @@
+{
+  "name": "@oriveo/shared",
+  "private": true,
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "import": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./pure-types": {
+      "types": "./src/pure-types.ts",
+      "import": "./src/pure-types.ts",
+      "default": "./src/pure-types.ts"
+    },
+    "./relay/*": {
+      "types": "./src/relay/*.ts",
+      "import": "./src/relay/*.ts",
+      "default": "./src/relay/*.ts"
+    }
+  },
+  "devDependencies": {
+    "vitest": "^4.1.11"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest",
+    "test:run": "vitest run"
+  }
+}

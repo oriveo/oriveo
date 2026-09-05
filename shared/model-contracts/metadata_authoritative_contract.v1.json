@@ -1,0 +1,1120 @@
+{
+  "$comment": "Phase 5 metadata authoritative contract fixture. Shape matches /api/metadata response so server, web, ios, and android resolvers consume the same input and reach the same conclusions. Adding a case here makes all four platform tests assert on it.",
+  "contractVersion": 1,
+  "version": 999,
+  "metadata": {
+    "version": 999,
+    "contractVersion": 1,
+    "updatedAt": "2026-04-18T00:00:00Z",
+    "profiles": {
+      "reasoning": {
+        "qwen_hybrid": {
+          "transport": "qwen-extras",
+          "fallbackProfile": null,
+          "levels": [
+            "fast",
+            "balanced",
+            "deep",
+            "max"
+          ]
+        },
+        "oai_responses": {
+          "transport": "openai-responses",
+          "fallbackProfile": null,
+          "levels": [
+            "fast",
+            "balanced",
+            "deep",
+            "max"
+          ]
+        }
+      },
+      "webSearch": {},
+      "imageGen": {}
+    },
+    "providers": {
+      "qwen": {
+        "displayName": "Qwen",
+        "attachmentSupport": {
+          "image": true,
+          "nativeFile": false,
+          "textFileInline": true
+        },
+        "defaultModelId": "qwen3.5-plus",
+        "validation": {
+          "probe": "list_models",
+          "probePath": "/models",
+          "authMode": "bearer",
+          "headerProfile": "none",
+          "invalidKeySignals": [
+            {
+              "status": 401
+            }
+          ]
+        },
+        "resolveMap": {
+          "qwen3.5-plus": "qwen3.5-plus",
+          "qwen3.5-plus-2026-04-02": "qwen3.5-plus",
+          "qwen-image-2026-03-15": "qwen-image",
+          "qwen-image": "qwen-image",
+          "qwq-32b-preview": "qwq-32b-preview",
+          "qwen-reasoning-no-profile": "qwen-reasoning-no-profile"
+        },
+        "models": {
+          "qwen3.5-plus": {
+            "canonicalModelId": "qwen3.5-plus",
+            "aliases": [
+              "qwen3.5-plus-2026-04-02"
+            ],
+            "displayName": "Qwen3.5 Plus",
+            "contextLength": 1000000,
+            "maxOutputTokens": 65536,
+            "supportsTemperature": false,
+            "pricing": {
+              "promptPerMToken": 0.276,
+              "completionPerMToken": 1.651,
+              "cachedInputPerMToken": 0.028
+            },
+            "pricingStatus": "priced",
+            "capabilities": [
+              "text",
+              "reasoning",
+              "image"
+            ],
+            "profiles": {
+              "reasoning": "qwen_hybrid",
+              "webSearch": null,
+              "imageGen": null
+            },
+            "uiHints": {
+              "groupKey": "qwen3.5",
+              "groupName": "Qwen 3.5",
+              "rank": 110,
+              "recommended": true,
+              "badgeOrder": [
+                "reasoning",
+                "image"
+              ]
+            }
+          },
+          "qwen-image": {
+            "canonicalModelId": "qwen-image",
+            "aliases": [
+              "qwen-image-2026-03-15"
+            ],
+            "displayName": "Qwen Image",
+            "contextLength": 32768,
+            "pricing": {
+              "promptPerMToken": 0,
+              "completionPerMToken": 0,
+              "cachedInputPerMToken": null
+            },
+            "pricingStatus": "free",
+            "capabilities": [
+              "text",
+              "imageGeneration"
+            ],
+            "profiles": {
+              "reasoning": null,
+              "webSearch": null,
+              "imageGen": "qwen_image_v1"
+            },
+            "uiHints": {
+              "groupKey": "image-gen",
+              "groupName": "Image Generation",
+              "rank": 90,
+              "recommended": false,
+              "badgeOrder": [
+                "imageGeneration"
+              ]
+            }
+          },
+          "qwq-32b-preview": {
+            "canonicalModelId": "qwq-32b-preview",
+            "aliases": [],
+            "displayName": "QwQ 32B Preview",
+            "contextLength": 128000,
+            "pricingStatus": "unknown",
+            "capabilities": [
+              "text",
+              "reasoning"
+            ],
+            "profiles": {
+              "reasoning": "qwen_hybrid",
+              "webSearch": null,
+              "imageGen": null
+            },
+            "uiHints": {
+              "groupKey": "qwq",
+              "groupName": "QwQ",
+              "rank": 80,
+              "recommended": false,
+              "badgeOrder": [
+                "reasoning"
+              ]
+            }
+          },
+          "qwen-reasoning-no-profile": {
+            "$intent": "One of the spot-check matrix cases: capabilities includes reasoning but profiles.reasoning=null — no client may show the reasoning-effort selector.",
+            "canonicalModelId": "qwen-reasoning-no-profile",
+            "aliases": [],
+            "displayName": "Qwen Reasoning Without Profile",
+            "contextLength": 65536,
+            "pricing": {
+              "promptPerMToken": 0.2,
+              "completionPerMToken": 0.8,
+              "cachedInputPerMToken": null
+            },
+            "pricingStatus": "priced",
+            "capabilities": [
+              "text",
+              "reasoning"
+            ],
+            "profiles": {
+              "reasoning": null,
+              "webSearch": null,
+              "imageGen": null
+            },
+            "uiHints": {
+              "groupKey": "qwen-misc",
+              "groupName": "Qwen Misc",
+              "rank": 40,
+              "recommended": false,
+              "badgeOrder": [
+                "reasoning"
+              ]
+            }
+          }
+        }
+      },
+      "miniMax": {
+        "displayName": "MiniMax",
+        "attachmentSupport": {
+          "image": true,
+          "nativeFile": false,
+          "textFileInline": true
+        },
+        "defaultModelId": "minimax-m2.7",
+        "validation": {
+          "probe": "list_models",
+          "probePath": "/models",
+          "authMode": "bearer",
+          "headerProfile": "none",
+          "invalidKeySignals": [
+            {
+              "status": 401
+            }
+          ]
+        },
+        "resolveMap": {
+          "minimax-m2.7": "minimax-m2.7",
+          "minimax-image-01": "minimax-image-01"
+        },
+        "models": {
+          "minimax-m2.7": {
+            "canonicalModelId": "minimax-m2.7",
+            "aliases": [],
+            "displayName": "MiniMax M2.7",
+            "contextLength": 1000000,
+            "supportsTemperature": true,
+            "pricing": {
+              "promptPerMToken": 1.2,
+              "completionPerMToken": 4.8,
+              "cachedInputPerMToken": null
+            },
+            "pricingStatus": "priced",
+            "capabilities": [
+              "text",
+              "image",
+              "file"
+            ],
+            "profiles": {
+              "reasoning": null,
+              "webSearch": null,
+              "imageGen": null
+            },
+            "uiHints": {
+              "groupKey": "m2.7",
+              "groupName": "MiniMax-M2.7",
+              "rank": 130,
+              "recommended": true,
+              "badgeOrder": [
+                "image",
+                "file"
+              ]
+            }
+          },
+          "minimax-image-01": {
+            "canonicalModelId": "minimax-image-01",
+            "aliases": [],
+            "displayName": "MiniMax Image 01",
+            "contextLength": null,
+            "pricingStatus": "unknown",
+            "capabilities": [
+              "text",
+              "imageGeneration"
+            ],
+            "profiles": {
+              "reasoning": null,
+              "webSearch": null,
+              "imageGen": "minimax_image_v1"
+            },
+            "uiHints": {
+              "groupKey": "image-gen",
+              "groupName": "Image Generation",
+              "rank": 60,
+              "recommended": false,
+              "badgeOrder": [
+                "imageGeneration"
+              ]
+            }
+          }
+        }
+      },
+      "zhipu": {
+        "displayName": "Zhipu",
+        "attachmentSupport": {
+          "image": true,
+          "nativeFile": false,
+          "textFileInline": true
+        },
+        "defaultModelId": "glm-4.7-plus",
+        "validation": {
+          "probe": "list_models",
+          "probePath": "/models",
+          "authMode": "bearer",
+          "headerProfile": "none",
+          "invalidKeySignals": [
+            {
+              "status": 401
+            }
+          ]
+        },
+        "resolveMap": {
+          "glm-4.7-plus": "glm-4.7-plus",
+          "cogview-4": "cogview-4"
+        },
+        "models": {
+          "glm-4.7-plus": {
+            "canonicalModelId": "glm-4.7-plus",
+            "aliases": [],
+            "displayName": "GLM-4.7 Plus",
+            "contextLength": 200000,
+            "pricing": {
+              "promptPerMToken": 0.5,
+              "completionPerMToken": 1.5,
+              "cachedInputPerMToken": null
+            },
+            "pricingStatus": "priced",
+            "capabilities": [
+              "text",
+              "reasoning",
+              "image"
+            ],
+            "profiles": {
+              "reasoning": "oai_responses",
+              "webSearch": null,
+              "imageGen": null
+            },
+            "uiHints": {
+              "groupKey": "glm-4.7",
+              "groupName": "GLM-4.7",
+              "rank": 120,
+              "recommended": true,
+              "badgeOrder": [
+                "reasoning",
+                "image"
+              ]
+            }
+          },
+          "cogview-4": {
+            "canonicalModelId": "cogview-4",
+            "aliases": [],
+            "displayName": "CogView-4",
+            "contextLength": null,
+            "pricing": {
+              "promptPerMToken": 0.06,
+              "completionPerMToken": 0.06,
+              "cachedInputPerMToken": null
+            },
+            "pricingStatus": "priced",
+            "capabilities": [
+              "text",
+              "imageGeneration"
+            ],
+            "profiles": {
+              "reasoning": null,
+              "webSearch": null,
+              "imageGen": "zhipu_cogview_v1"
+            },
+            "uiHints": {
+              "groupKey": "image-gen",
+              "groupName": "Image Generation",
+              "rank": 70,
+              "recommended": false,
+              "badgeOrder": [
+                "imageGeneration"
+              ]
+            }
+          }
+        }
+      },
+      "siliconFlow": {
+        "displayName": "SiliconFlow",
+        "attachmentSupport": {
+          "image": true,
+          "nativeFile": false,
+          "textFileInline": true
+        },
+        "defaultModelId": "deepseek-ai/deepseek-v3",
+        "validation": {
+          "probe": "list_models",
+          "probePath": "/models",
+          "authMode": "bearer",
+          "headerProfile": "none",
+          "invalidKeySignals": [
+            {
+              "status": 401
+            }
+          ]
+        },
+        "resolveMap": {
+          "deepseek-ai/deepseek-v3": "deepseek-ai/deepseek-v3",
+          "zai-org/glm-4.5": "zai-org/glm-4.5"
+        },
+        "models": {
+          "deepseek-ai/deepseek-v3": {
+            "canonicalModelId": "deepseek-ai/deepseek-v3",
+            "aliases": [],
+            "displayName": "DeepSeek V3",
+            "vendorKey": "deepseek-ai",
+            "vendorName": "DeepSeek",
+            "contextLength": 64000,
+            "pricing": {
+              "promptPerMToken": 0.14,
+              "completionPerMToken": 0.28,
+              "cachedInputPerMToken": null
+            },
+            "pricingStatus": "priced",
+            "capabilities": [
+              "text",
+              "file"
+            ],
+            "profiles": {
+              "reasoning": null,
+              "webSearch": null,
+              "imageGen": null
+            },
+            "uiHints": {
+              "groupKey": "deepseek-ai",
+              "groupName": "DeepSeek",
+              "rank": 140,
+              "recommended": true,
+              "badgeOrder": [
+                "file"
+              ]
+            }
+          },
+          "zai-org/glm-4.5": {
+            "canonicalModelId": "zai-org/glm-4.5",
+            "aliases": [],
+            "displayName": "GLM-4.5",
+            "vendorKey": "zai-org",
+            "vendorName": "Z.ai / GLM",
+            "contextLength": 128000,
+            "pricing": {
+              "promptPerMToken": 0.5,
+              "completionPerMToken": 1.0,
+              "cachedInputPerMToken": null
+            },
+            "pricingStatus": "priced",
+            "capabilities": [
+              "text",
+              "reasoning"
+            ],
+            "profiles": {
+              "reasoning": "oai_responses",
+              "webSearch": null,
+              "imageGen": null
+            },
+            "uiHints": {
+              "groupKey": "zai-org",
+              "groupName": "Z.ai / GLM",
+              "rank": 100,
+              "recommended": true,
+              "badgeOrder": [
+                "reasoning"
+              ]
+            }
+          }
+        }
+      },
+      "openRouter": {
+        "displayName": "OpenRouter",
+        "attachmentSupport": {
+          "image": true,
+          "nativeFile": true,
+          "textFileInline": true
+        },
+        "defaultModelId": "anthropic/claude-sonnet-4",
+        "validation": {
+          "probe": "key_info",
+          "probePath": "/key",
+          "authMode": "bearer",
+          "headerProfile": "openrouter",
+          "invalidKeySignals": [
+            {
+              "status": 401
+            }
+          ]
+        },
+        "resolveMap": {
+          "anthropic/claude-sonnet-4": "anthropic/claude-sonnet-4",
+          "openai/gpt-5.4-mini": "openai/gpt-5.4-mini",
+          "openai/gpt-5.4-mini-2026-03-01": "openai/gpt-5.4-mini"
+        },
+        "models": {
+          "anthropic/claude-sonnet-4": {
+            "canonicalModelId": "anthropic/claude-sonnet-4",
+            "aliases": [],
+            "displayName": "Anthropic: Claude Sonnet 4",
+            "vendorKey": "anthropic",
+            "vendorName": "Anthropic",
+            "contextLength": 200000,
+            "pricing": {
+              "promptPerMToken": 3.0,
+              "completionPerMToken": 15.0,
+              "cachedInputPerMToken": 0.3
+            },
+            "pricingStatus": "priced",
+            "capabilities": [
+              "text",
+              "reasoning",
+              "image",
+              "file"
+            ],
+            "profiles": {
+              "reasoning": "oai_responses",
+              "webSearch": null,
+              "imageGen": null
+            },
+            "uiHints": {
+              "groupKey": "anthropic",
+              "groupName": "Anthropic",
+              "rank": 150,
+              "recommended": true,
+              "badgeOrder": [
+                "reasoning",
+                "image",
+                "file"
+              ]
+            }
+          },
+          "openai/gpt-5.4-mini": {
+            "canonicalModelId": "openai/gpt-5.4-mini",
+            "aliases": [
+              "openai/gpt-5.4-mini-2026-03-01"
+            ],
+            "displayName": "OpenAI: GPT-5.4 Mini",
+            "vendorKey": "openai",
+            "vendorName": "OpenAI",
+            "contextLength": 128000,
+            "pricing": {
+              "promptPerMToken": 0.15,
+              "completionPerMToken": 0.6,
+              "cachedInputPerMToken": null
+            },
+            "pricingStatus": "priced",
+            "capabilities": [
+              "text",
+              "image"
+            ],
+            "profiles": {
+              "reasoning": null,
+              "webSearch": null,
+              "imageGen": null
+            },
+            "uiHints": {
+              "groupKey": "openai",
+              "groupName": "OpenAI",
+              "rank": 130,
+              "recommended": true,
+              "badgeOrder": [
+                "image"
+              ]
+            }
+          }
+        }
+      }
+    }
+  },
+  "topLevelExpectations": {
+    "$comment": "Required top-level contract fields. Any client reading /api/metadata must see all of these fields exposed; missing even one is a contract violation.",
+    "expectedContractVersion": 1,
+    "expectedVersion": 999,
+    "requiredTopLevelFields": [
+      "version",
+      "contractVersion",
+      "updatedAt",
+      "profiles",
+      "providers"
+    ],
+    "requiredProviderFields": [
+      "displayName",
+      "attachmentSupport",
+      "defaultModelId",
+      "validation",
+      "resolveMap",
+      "models"
+    ]
+  },
+  "providerExpectations": [
+    {
+      "id": "qwen_default_and_validation",
+      "providerKind": "qwen",
+      "expectedDefaultModelId": "qwen3.5-plus",
+      "expectedCanonicalModelCount": 4,
+      "expectedAttachmentSupport": {
+        "image": true,
+        "nativeFile": false,
+        "textFileInline": true
+      }
+    },
+    {
+      "id": "minimax_default_and_validation",
+      "providerKind": "miniMax",
+      "expectedDefaultModelId": "minimax-m2.7",
+      "expectedCanonicalModelCount": 2,
+      "expectedAttachmentSupport": {
+        "image": true,
+        "nativeFile": false,
+        "textFileInline": true
+      }
+    },
+    {
+      "id": "zhipu_default_and_validation",
+      "providerKind": "zhipu",
+      "expectedDefaultModelId": "glm-4.7-plus",
+      "expectedCanonicalModelCount": 2,
+      "expectedAttachmentSupport": {
+        "image": true,
+        "nativeFile": false,
+        "textFileInline": true
+      }
+    },
+    {
+      "id": "silicon_flow_default_and_validation",
+      "providerKind": "siliconFlow",
+      "expectedDefaultModelId": "deepseek-ai/deepseek-v3",
+      "expectedCanonicalModelCount": 2,
+      "expectedAttachmentSupport": {
+        "image": true,
+        "nativeFile": false,
+        "textFileInline": true
+      }
+    },
+    {
+      "id": "openrouter_default_and_validation",
+      "providerKind": "openRouter",
+      "expectedDefaultModelId": "anthropic/claude-sonnet-4",
+      "expectedCanonicalModelCount": 2,
+      "expectedAttachmentSupport": {
+        "image": true,
+        "nativeFile": true,
+        "textFileInline": true
+      }
+    }
+  ],
+  "modelExpectations": [
+    {
+      "id": "qwen_dated_alias_resolves_to_canonical",
+      "providerKind": "qwen",
+      "query": "qwen3.5-plus-2026-04-02",
+      "expectedCanonicalModelId": "qwen3.5-plus",
+      "expectedDisplayName": "Qwen3.5 Plus",
+      "expectedContextLength": 1000000,
+      "expectedMaxOutputTokens": 65536,
+      "expectedSupportsTemperature": false,
+      "expectedPricingStatus": "priced",
+      "expectedPromptPerMToken": 0.276,
+      "expectedCompletionPerMToken": 1.651,
+      "expectedCachedInputPerMToken": 0.028,
+      "expectedCapabilities": [
+        "text",
+        "reasoning",
+        "image"
+      ],
+      "$capabilitiesNote": "The order is decided by the Web/Android client's normalizeCapabilities: text is always first, and the rest follow badgeOrder. This fixture's metadata.providers[].models[].capabilities is also written in this order, so reading the server output directly matches what the client's normalize step produces.",
+      "expectedReasoningProfile": "qwen_hybrid",
+      "expectedWebSearchProfile": null,
+      "expectedImageGenProfile": null,
+      "expectedVendorKey": null,
+      "expectedVendorName": null,
+      "expectedGroupKey": "qwen3.5",
+      "expectedGroupName": "Qwen 3.5",
+      "expectedRecommended": true,
+      "expectedBadgeOrder": [
+        "reasoning",
+        "image"
+      ],
+      "expectedIsDefault": true
+    },
+    {
+      "id": "qwen_image_model_no_reasoning",
+      "providerKind": "qwen",
+      "query": "qwen-image",
+      "expectedCanonicalModelId": "qwen-image",
+      "expectedDisplayName": "Qwen Image",
+      "expectedContextLength": 32768,
+      "expectedPricingStatus": "free",
+      "expectedPromptPerMToken": 0,
+      "expectedCompletionPerMToken": 0,
+      "expectedCachedInputPerMToken": null,
+      "expectedCapabilities": [
+        "text",
+        "imageGeneration"
+      ],
+      "expectedReasoningProfile": null,
+      "expectedWebSearchProfile": null,
+      "expectedImageGenProfile": "qwen_image_v1",
+      "expectedVendorKey": null,
+      "expectedVendorName": null,
+      "expectedGroupKey": "image-gen",
+      "expectedGroupName": "Image Generation",
+      "expectedRecommended": false,
+      "expectedBadgeOrder": [
+        "imageGeneration"
+      ],
+      "expectedIsDefault": false
+    },
+    {
+      "id": "qwen_qwq_pricing_unknown_with_reasoning_profile",
+      "providerKind": "qwen",
+      "query": "qwq-32b-preview",
+      "expectedCanonicalModelId": "qwq-32b-preview",
+      "expectedDisplayName": "QwQ 32B Preview",
+      "expectedContextLength": 128000,
+      "expectedPricingStatus": "unknown",
+      "expectedPromptPerMToken": null,
+      "expectedCompletionPerMToken": null,
+      "expectedCachedInputPerMToken": null,
+      "expectedCapabilities": [
+        "text",
+        "reasoning"
+      ],
+      "expectedReasoningProfile": "qwen_hybrid",
+      "expectedWebSearchProfile": null,
+      "expectedImageGenProfile": null,
+      "expectedVendorKey": null,
+      "expectedVendorName": null,
+      "expectedGroupKey": "qwq",
+      "expectedGroupName": "QwQ",
+      "expectedRecommended": false,
+      "expectedBadgeOrder": [
+        "reasoning"
+      ],
+      "expectedIsDefault": false
+    },
+    {
+      "id": "qwen_reasoning_capability_without_profile",
+      "$intent": "One of the spot-check matrix cases: capabilities includes reasoning but profiles.reasoning=null. Expected: no client shows the reasoning-effort selector; the backend contract test checks that profiles.reasoning is indeed null.",
+      "providerKind": "qwen",
+      "query": "qwen-reasoning-no-profile",
+      "expectedCanonicalModelId": "qwen-reasoning-no-profile",
+      "expectedDisplayName": "Qwen Reasoning Without Profile",
+      "expectedContextLength": 65536,
+      "expectedPricingStatus": "priced",
+      "expectedPromptPerMToken": 0.2,
+      "expectedCompletionPerMToken": 0.8,
+      "expectedCachedInputPerMToken": null,
+      "expectedCapabilities": [
+        "text",
+        "reasoning"
+      ],
+      "expectedReasoningProfile": null,
+      "expectedWebSearchProfile": null,
+      "expectedImageGenProfile": null,
+      "expectedVendorKey": null,
+      "expectedVendorName": null,
+      "expectedGroupKey": "qwen-misc",
+      "expectedGroupName": "Qwen Misc",
+      "expectedRecommended": false,
+      "expectedBadgeOrder": [
+        "reasoning"
+      ],
+      "expectedIsDefault": false
+    },
+    {
+      "id": "minimax_m27_priced_no_reasoning",
+      "providerKind": "miniMax",
+      "query": "minimax-m2.7",
+      "expectedCanonicalModelId": "minimax-m2.7",
+      "expectedDisplayName": "MiniMax M2.7",
+      "expectedContextLength": 1000000,
+      "expectedSupportsTemperature": true,
+      "expectedPricingStatus": "priced",
+      "expectedPromptPerMToken": 1.2,
+      "expectedCompletionPerMToken": 4.8,
+      "expectedCachedInputPerMToken": null,
+      "expectedCapabilities": [
+        "text",
+        "image",
+        "file"
+      ],
+      "expectedReasoningProfile": null,
+      "expectedWebSearchProfile": null,
+      "expectedImageGenProfile": null,
+      "expectedVendorKey": null,
+      "expectedVendorName": null,
+      "expectedGroupKey": "m2.7",
+      "expectedGroupName": "MiniMax-M2.7",
+      "expectedRecommended": true,
+      "expectedBadgeOrder": [
+        "image",
+        "file"
+      ],
+      "expectedIsDefault": true
+    },
+    {
+      "id": "minimax_image_unknown_pricing",
+      "providerKind": "miniMax",
+      "query": "minimax-image-01",
+      "expectedCanonicalModelId": "minimax-image-01",
+      "expectedDisplayName": "MiniMax Image 01",
+      "expectedContextLength": null,
+      "expectedPricingStatus": "unknown",
+      "expectedPromptPerMToken": null,
+      "expectedCompletionPerMToken": null,
+      "expectedCachedInputPerMToken": null,
+      "expectedCapabilities": [
+        "text",
+        "imageGeneration"
+      ],
+      "expectedReasoningProfile": null,
+      "expectedWebSearchProfile": null,
+      "expectedImageGenProfile": "minimax_image_v1",
+      "expectedVendorKey": null,
+      "expectedVendorName": null,
+      "expectedGroupKey": "image-gen",
+      "expectedGroupName": "Image Generation",
+      "expectedRecommended": false,
+      "expectedBadgeOrder": [
+        "imageGeneration"
+      ],
+      "expectedIsDefault": false
+    },
+    {
+      "id": "zhipu_glm47_reasoning_priced",
+      "providerKind": "zhipu",
+      "query": "glm-4.7-plus",
+      "expectedCanonicalModelId": "glm-4.7-plus",
+      "expectedDisplayName": "GLM-4.7 Plus",
+      "expectedContextLength": 200000,
+      "expectedPricingStatus": "priced",
+      "expectedPromptPerMToken": 0.5,
+      "expectedCompletionPerMToken": 1.5,
+      "expectedCachedInputPerMToken": null,
+      "expectedCapabilities": [
+        "text",
+        "reasoning",
+        "image"
+      ],
+      "$capabilitiesNote": "post-normalize order, kept in sync with this fixture's metadata.",
+      "expectedReasoningProfile": "oai_responses",
+      "expectedWebSearchProfile": null,
+      "expectedImageGenProfile": null,
+      "expectedVendorKey": null,
+      "expectedVendorName": null,
+      "expectedGroupKey": "glm-4.7",
+      "expectedGroupName": "GLM-4.7",
+      "expectedRecommended": true,
+      "expectedBadgeOrder": [
+        "reasoning",
+        "image"
+      ],
+      "expectedIsDefault": true
+    },
+    {
+      "id": "zhipu_cogview_image_gen",
+      "providerKind": "zhipu",
+      "query": "cogview-4",
+      "expectedCanonicalModelId": "cogview-4",
+      "expectedDisplayName": "CogView-4",
+      "expectedContextLength": null,
+      "expectedPricingStatus": "priced",
+      "expectedPromptPerMToken": 0.06,
+      "expectedCompletionPerMToken": 0.06,
+      "expectedCachedInputPerMToken": null,
+      "expectedCapabilities": [
+        "text",
+        "imageGeneration"
+      ],
+      "expectedReasoningProfile": null,
+      "expectedWebSearchProfile": null,
+      "expectedImageGenProfile": "zhipu_cogview_v1",
+      "expectedVendorKey": null,
+      "expectedVendorName": null,
+      "expectedGroupKey": "image-gen",
+      "expectedGroupName": "Image Generation",
+      "expectedRecommended": false,
+      "expectedBadgeOrder": [
+        "imageGeneration"
+      ],
+      "expectedIsDefault": false
+    },
+    {
+      "id": "silicon_flow_deepseek_v3_vendor_explicit",
+      "providerKind": "siliconFlow",
+      "query": "deepseek-ai/deepseek-v3",
+      "expectedCanonicalModelId": "deepseek-ai/deepseek-v3",
+      "expectedDisplayName": "DeepSeek V3",
+      "expectedContextLength": 64000,
+      "expectedPricingStatus": "priced",
+      "expectedPromptPerMToken": 0.14,
+      "expectedCompletionPerMToken": 0.28,
+      "expectedCachedInputPerMToken": null,
+      "expectedCapabilities": [
+        "text",
+        "file"
+      ],
+      "expectedReasoningProfile": null,
+      "expectedWebSearchProfile": null,
+      "expectedImageGenProfile": null,
+      "expectedVendorKey": "deepseek-ai",
+      "expectedVendorName": "DeepSeek",
+      "expectedGroupKey": "deepseek-ai",
+      "expectedGroupName": "DeepSeek",
+      "expectedRecommended": true,
+      "expectedBadgeOrder": [
+        "file"
+      ],
+      "expectedIsDefault": true
+    },
+    {
+      "id": "silicon_flow_glm_45_vendor_zai_org",
+      "providerKind": "siliconFlow",
+      "query": "zai-org/glm-4.5",
+      "expectedCanonicalModelId": "zai-org/glm-4.5",
+      "expectedDisplayName": "GLM-4.5",
+      "expectedContextLength": 128000,
+      "expectedPricingStatus": "priced",
+      "expectedPromptPerMToken": 0.5,
+      "expectedCompletionPerMToken": 1.0,
+      "expectedCachedInputPerMToken": null,
+      "expectedCapabilities": [
+        "text",
+        "reasoning"
+      ],
+      "expectedReasoningProfile": "oai_responses",
+      "expectedWebSearchProfile": null,
+      "expectedImageGenProfile": null,
+      "expectedVendorKey": "zai-org",
+      "expectedVendorName": "Z.ai / GLM",
+      "expectedGroupKey": "zai-org",
+      "expectedGroupName": "Z.ai / GLM",
+      "expectedRecommended": true,
+      "expectedBadgeOrder": [
+        "reasoning"
+      ],
+      "expectedIsDefault": false
+    },
+    {
+      "id": "openrouter_anthropic_claude_sonnet_4",
+      "providerKind": "openRouter",
+      "query": "anthropic/claude-sonnet-4",
+      "expectedCanonicalModelId": "anthropic/claude-sonnet-4",
+      "expectedDisplayName": "Anthropic: Claude Sonnet 4",
+      "expectedContextLength": 200000,
+      "expectedPricingStatus": "priced",
+      "expectedPromptPerMToken": 3.0,
+      "expectedCompletionPerMToken": 15.0,
+      "expectedCachedInputPerMToken": 0.3,
+      "expectedCapabilities": [
+        "text",
+        "reasoning",
+        "image",
+        "file"
+      ],
+      "$capabilitiesNote": "post-normalize order, kept in sync with this fixture's metadata.",
+      "expectedReasoningProfile": "oai_responses",
+      "expectedWebSearchProfile": null,
+      "expectedImageGenProfile": null,
+      "expectedVendorKey": "anthropic",
+      "expectedVendorName": "Anthropic",
+      "expectedGroupKey": "anthropic",
+      "expectedGroupName": "Anthropic",
+      "expectedRecommended": true,
+      "expectedBadgeOrder": [
+        "reasoning",
+        "image",
+        "file"
+      ],
+      "expectedIsDefault": true
+    },
+    {
+      "id": "openrouter_openai_dated_alias_resolves",
+      "providerKind": "openRouter",
+      "query": "openai/gpt-5.4-mini-2026-03-01",
+      "expectedCanonicalModelId": "openai/gpt-5.4-mini",
+      "expectedDisplayName": "OpenAI: GPT-5.4 Mini",
+      "expectedContextLength": 128000,
+      "expectedPricingStatus": "priced",
+      "expectedPromptPerMToken": 0.15,
+      "expectedCompletionPerMToken": 0.6,
+      "expectedCachedInputPerMToken": null,
+      "expectedCapabilities": [
+        "text",
+        "image"
+      ],
+      "expectedReasoningProfile": null,
+      "expectedWebSearchProfile": null,
+      "expectedImageGenProfile": null,
+      "expectedVendorKey": "openai",
+      "expectedVendorName": "OpenAI",
+      "expectedGroupKey": "openai",
+      "expectedGroupName": "OpenAI",
+      "expectedRecommended": true,
+      "expectedBadgeOrder": [
+        "image"
+      ],
+      "expectedIsDefault": false
+    }
+  ],
+  "negativeExpectations": [
+    {
+      "id": "qwen_unknown_model_resolves_nothing",
+      "providerKind": "qwen",
+      "query": "qwen-imaginary-model",
+      "expectedResolved": false
+    },
+    {
+      "id": "openrouter_unknown_vendor_resolves_nothing",
+      "providerKind": "openRouter",
+      "query": "imaginary-vendor/imaginary-model",
+      "expectedResolved": false
+    }
+  ],
+  "vendorIntegrityExpectations": {
+    "$comment": "An aggregated provider's vendor must be explicitly declared by the backend contract; no client may parse it from the model id slug. Every assertion here must be readable directly from metadata.providers[provider].models[modelId].vendorKey/vendorName.",
+    "aggregatorProviders": [
+      "openRouter",
+      "siliconFlow"
+    ],
+    "directProviders": [
+      "qwen",
+      "miniMax",
+      "zhipu"
+    ],
+    "expectations": [
+      {
+        "providerKind": "openRouter",
+        "modelId": "anthropic/claude-sonnet-4",
+        "vendorKey": "anthropic",
+        "vendorName": "Anthropic"
+      },
+      {
+        "providerKind": "openRouter",
+        "modelId": "openai/gpt-5.4-mini",
+        "vendorKey": "openai",
+        "vendorName": "OpenAI"
+      },
+      {
+        "providerKind": "siliconFlow",
+        "modelId": "deepseek-ai/deepseek-v3",
+        "vendorKey": "deepseek-ai",
+        "vendorName": "DeepSeek"
+      },
+      {
+        "providerKind": "siliconFlow",
+        "modelId": "zai-org/glm-4.5",
+        "vendorKey": "zai-org",
+        "vendorName": "Z.ai / GLM"
+      },
+      {
+        "providerKind": "qwen",
+        "modelId": "qwen3.5-plus",
+        "vendorKey": null,
+        "vendorName": null
+      },
+      {
+        "providerKind": "qwen",
+        "modelId": "qwen-image",
+        "vendorKey": null,
+        "vendorName": null
+      },
+      {
+        "providerKind": "qwen",
+        "modelId": "qwen-reasoning-no-profile",
+        "vendorKey": null,
+        "vendorName": null
+      },
+      {
+        "providerKind": "miniMax",
+        "modelId": "minimax-m2.7",
+        "vendorKey": null,
+        "vendorName": null
+      },
+      {
+        "providerKind": "zhipu",
+        "modelId": "glm-4.7-plus",
+        "vendorKey": null,
+        "vendorName": null
+      }
+    ]
+  },
+  "rawEffectiveExpectations": {
+    "$comment": "raw → effective must stay explainable. effective count = raw count - excluded - non-chat. This fixture simulates each source of the difference, verifying that the server's ComputeEffectiveSummary and the admin endpoint agree.",
+    "snapshotId": 999,
+    "raw": [
+      {
+        "providerKind": "qwen",
+        "modelId": "qwen3.5-plus",
+        "modelType": "chat",
+        "isExcluded": false
+      },
+      {
+        "providerKind": "qwen",
+        "modelId": "qwen3.5-plus-2026-04-02",
+        "modelType": "chat",
+        "isExcluded": false
+      },
+      {
+        "providerKind": "qwen",
+        "modelId": "qwen-image",
+        "modelType": "chat",
+        "isExcluded": false
+      },
+      {
+        "providerKind": "qwen",
+        "modelId": "qwen-image-2026-03-15",
+        "modelType": "chat",
+        "isExcluded": false
+      },
+      {
+        "providerKind": "qwen",
+        "modelId": "qwq-32b-preview",
+        "modelType": "chat",
+        "isExcluded": false
+      },
+      {
+        "providerKind": "qwen",
+        "modelId": "qwen-internal-eval",
+        "modelType": "embedding",
+        "isExcluded": false
+      },
+      {
+        "providerKind": "qwen",
+        "modelId": "qwen-deprecated-1",
+        "modelType": "chat",
+        "isExcluded": true
+      }
+    ],
+    "expected": {
+      "rawTotal": 7,
+      "chatTotal": 6,
+      "excludedChat": 1,
+      "effectiveChat": 5,
+      "effectiveCanonical": 3
+    }
+  }
+}

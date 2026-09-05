@@ -1,0 +1,181 @@
+.markdown {
+  font-size: var(--o-text-base);
+  line-height: 1.7;
+  word-break: break-word;
+  letter-spacing: -0.003em;
+}
+
+/* Headings — display face with tight tracking */
+.markdown h1,
+.markdown h2,
+.markdown h3,
+.markdown h4,
+.markdown h5,
+.markdown h6 {
+  margin: 22px 0 8px;
+  font-family: var(--o-font-display);
+  font-weight: 620;
+  line-height: 1.25;
+  letter-spacing: 0;
+  color: var(--o-text);
+}
+
+.markdown > :first-child {
+  margin-top: 0;
+}
+
+.markdown h1 { font-size: 1.4em; }
+.markdown h2 { font-size: 1.22em; }
+.markdown h3 { font-size: 1.08em; }
+.markdown h4 { font-size: 1em; font-weight: 600; }
+
+/* Paragraphs */
+.markdown p {
+  margin: 0 0 10px;
+}
+
+.markdown p:last-child {
+  margin-bottom: 0;
+}
+
+/* Inline code */
+.inlineCode {
+  background: var(--o-code-bg);
+  border: 1px solid var(--o-code-border);
+  border-radius: 4px;
+  padding: 1px 5px;
+  font-size: 0.86em;
+  font-family: var(--o-font-mono);
+  color: var(--o-code-text);
+}
+
+/* Links */
+.link {
+  color: var(--o-primary-hover);
+  text-decoration: none;
+  transition: color var(--o-transition-fast);
+}
+
+.link:hover {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+/* Lists */
+.ul,
+.ol {
+  margin: 4px 0 8px;
+  padding-inline-start: 1.4em;
+}
+
+.li {
+  margin-bottom: 2px;
+}
+
+.li input[type='checkbox'] {
+  margin-inline-end: var(--o-space-xs);
+  pointer-events: none;
+}
+
+/* Blockquote — primary accent + subtle bg */
+.blockquote {
+  margin: 12px 0;
+  padding: 10px 16px;
+  border-inline-start: 3px solid color-mix(in srgb, var(--o-primary) 60%, transparent);
+  background: color-mix(in srgb, var(--o-primary) 4%, transparent);
+  border-radius: 0 var(--o-radius-md) var(--o-radius-md) 0;
+  color: var(--o-text-secondary);
+  font-style: italic;
+}
+
+.blockquote p {
+  margin: 0;
+}
+
+/* Tables — card style */
+.tableWrap {
+  overflow-x: auto;
+  margin: 14px 0;
+  border: 1px solid var(--o-border);
+  border-radius: var(--o-radius-md);
+  box-shadow: var(--o-elevation-control);
+}
+
+.table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: var(--o-text-sm);
+}
+
+.table th,
+.table td {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--o-border);
+  text-align: start;
+  letter-spacing: -0.005em;
+}
+
+.table th {
+  background: var(--o-surface-raised);
+  font-weight: 600;
+  color: var(--o-text);
+  letter-spacing: 0.005em;
+  font-size: 12.5px;
+  text-transform: none;
+}
+
+.table td {
+  color: var(--o-text-secondary);
+}
+
+.table tr:last-child td {
+  border-bottom: none;
+}
+
+.table tbody tr:nth-child(even) td {
+  background: color-mix(in srgb, var(--o-primary) 3%, transparent);
+}
+
+/* Horizontal rule */
+.hr {
+  border: none;
+  border-top: 1px solid var(--o-border);
+  margin: 16px 0;
+}
+
+/* Strikethrough */
+.markdown del {
+  text-decoration: line-through;
+  opacity: 0.6;
+}
+
+/* Images in markdown */
+.markdown img {
+  max-width: 100%;
+  border-radius: var(--o-radius-md);
+}
+
+/* Strong / Bold */
+.markdown strong {
+  font-weight: 600;
+  color: var(--o-text);
+}
+
+/* Streaming LaTeX tail — the tail after an unclosed delimiter renders as plain text so a half-finished formula does not flicker */
+.streamingTail {
+  white-space: pre-wrap;
+  color: var(--o-text);
+}
+
+/* The per-character streaming fade-in animation for .o-fadeChar is defined in the global highlight-theme.css, to avoid CSS Module :global being processed by lightningcss. */
+
+/* KaTeX inline and block formula tuning, to sit well with the body line height */
+.markdown :global(.katex) {
+  font-size: 1em;
+}
+
+.markdown :global(.katex-display) {
+  margin: 12px 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+}

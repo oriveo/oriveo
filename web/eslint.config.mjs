@@ -1,0 +1,188 @@
+import nextPlugin from "@next/eslint-plugin-next";
+import reactHooks from "eslint-plugin-react-hooks";
+import tseslint from "typescript-eslint";
+
+const nextCoreWebVitals = nextPlugin.configs["core-web-vitals"];
+
+export default tseslint.config(
+  {
+    ignores: [
+      "**/node_modules/**",
+      "**/.next/**",
+      "**/.next-dev/**",
+      "**/dist/**",
+      "**/__tests__/**",
+      "**/*.test.ts",
+      "**/*.test.tsx",
+      "**/vitest.config.*",
+    ],
+  },
+  {
+    ...nextCoreWebVitals,
+    settings: {
+      next: {
+        rootDir: ["apps/app/"],
+      },
+    },
+    rules: {
+      ...nextCoreWebVitals.rules,
+      "@next/next/no-html-link-for-pages": "off",
+    },
+  },
+  {
+    files: ["apps/**/*.{ts,tsx}", "packages/**/*.{ts,tsx}"],
+    plugins: {
+      "@typescript-eslint": tseslint.plugin,
+      "react-hooks": reactHooks,
+    },
+    languageOptions: {
+      parser: tseslint.parser,
+      parserOptions: {
+        projectService: true,
+        tsconfigRootDir: import.meta.dirname,
+      },
+    },
+    rules: {
+      "@typescript-eslint/no-deprecated": "warn",
+    },
+  },
+  {
+    files: ["packages/core/src/**/*.{ts,tsx}", "packages/ipc-contract/src/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-globals": [
+        "error",
+        { name: "window", message: "Core/ipc-contract must stay runtime-agnostic. Use an injected port." },
+        { name: "document", message: "Core/ipc-contract must not depend on the DOM." },
+        { name: "localStorage", message: "Core/ipc-contract must not depend on renderer storage." },
+        { name: "sessionStorage", message: "Core/ipc-contract must not depend on renderer storage." },
+        { name: "indexedDB", message: "Core/ipc-contract must not depend on renderer storage." },
+        { name: "fetch", message: "Core/ipc-contract must use TransportPort instead of global fetch." },
+        { name: "crypto", message: "Core/ipc-contract must use CryptoPort instead of global crypto." },
+      ],
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            {
+              name: "@oriveo/shared",
+              message: "Core/ipc-contract may only import @oriveo/shared/pure-types. The shared root can pull runtime telemetry.",
+            },
+            "electron",
+            "assert",
+            "buffer",
+            "crypto",
+            "dgram",
+            "dns",
+            "events",
+            "fs",
+            "http",
+            "https",
+            "module",
+            "net",
+            "os",
+            "path",
+            "perf_hooks",
+            "process",
+            "querystring",
+            "readline",
+            "stream",
+            "string_decoder",
+            "timers",
+            "tls",
+            "tty",
+            "url",
+            "util",
+            "v8",
+            "vm",
+            "zlib",
+            "child_process",
+            "worker_threads",
+            "firebase",
+            "posthog-js",
+            "next",
+            "react",
+          ],
+          patterns: [
+            {
+              group: [
+                "electron/*",
+                "node:*",
+                "assert/*",
+                "buffer/*",
+                "crypto/*",
+                "dgram/*",
+                "dns/*",
+                "events/*",
+                "fs/*",
+                "http/*",
+                "https/*",
+                "module/*",
+                "net/*",
+                "os/*",
+                "path/*",
+                "perf_hooks/*",
+                "process/*",
+                "querystring/*",
+                "readline/*",
+                "stream/*",
+                "string_decoder/*",
+                "timers/*",
+                "tls/*",
+                "tty/*",
+                "url/*",
+                "util/*",
+                "v8/*",
+                "vm/*",
+                "zlib/*",
+                "child_process/*",
+                "worker_threads/*",
+                "firebase/*",
+                "posthog-js/*",
+                "next/*",
+                "react/*",
+                "../apps/*",
+                "../../apps/*",
+                "../../../apps/*",
+                "../../../../apps/*",
+                "**/apps/*",
+              ],
+            },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    files: ["apps/desktop/src/main/**/*.{ts,tsx}", "apps/desktop/src/preload/**/*.{ts,tsx}"],
+    rules: {
+      "no-restricted-imports": [
+        "error",
+        {
+          paths: [
+            "firebase",
+            "posthog-js",
+            "next",
+            "react",
+            "@oriveo/app",
+          ],
+          patterns: [
+            {
+              group: [
+                "firebase/*",
+                "posthog-js/*",
+                "next/*",
+                "react/*",
+                "@oriveo/app/*",
+                "apps/app/*",
+              ],
+            },
+            {
+              regex: String.raw`^\.\.(?:/\.\.)*/app(?:/|$)`,
+              message: "Desktop main/preload must not deep-import apps/app internals. Move reusable logic into a pure package first.",
+            },
+          ],
+        },
+      ],
+    },
+  },
+);

@@ -1,0 +1,48 @@
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  border-radius: var(--o-radius-full);
+  font-size: var(--o-text-xs);
+  font-weight: 600;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.connected {
+  color: var(--o-success);
+  background: var(--o-success-subtle);
+}
+
+.connected .dot {
+  background: var(--o-success);
+}
+
+.syncing {
+  color: var(--o-info);
+  background: var(--o-info-subtle);
+}
+
+.syncing .dot {
+  background: var(--o-info);
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+.issue {
+  color: var(--o-error);
+  background: var(--o-error-subtle);
+}
+
+.issue .dot {
+  background: var(--o-error);
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}

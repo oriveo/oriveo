@@ -1,0 +1,392 @@
+/* ── Add provider page: crystal hero + category chips + two-column showcase cards + the Relay
+   custom entry. Colors go through --o-* tokens so they follow the theme automatically;
+   the per-brand --card-bg / --card-accent are injected from JS based on isDark, which avoids
+   :global([data-theme]) being stripped by lightningcss ── */
+
+/* ── Crystal hero: jewel-grade icon, title and subtitle ── */
+.hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 2px 0 8px;
+}
+
+.heroIconWrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 66px;
+  height: 66px;
+}
+
+/* Two-layer glow energy field */
+.heroGlow {
+  position: absolute;
+  width: 138px;
+  height: 138px;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--o-primary) 22%, transparent) 0%,
+    color-mix(in srgb, var(--o-primary) 6%, transparent) 45%,
+    transparent 70%
+  );
+  filter: blur(14px);
+  pointer-events: none;
+}
+
+/* Crystal body: brand gradient, glass highlight and a double brand shadow. No inset ring; the gradient carries the depth. */
+.heroIcon {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 66px;
+  height: 66px;
+  border-radius: 20px;
+  color: #ffffff;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.45) 0%, rgba(255, 255, 255, 0.10) 45%, rgba(255, 255, 255, 0) 100%),
+    linear-gradient(
+      160deg,
+      color-mix(in srgb, var(--o-primary) 88%, white 12%) 0%,
+      color-mix(in srgb, var(--o-primary) 80%, black 20%) 100%
+    );
+  box-shadow:
+    0 14px 28px color-mix(in srgb, var(--o-primary) 40%, transparent),
+    0 4px 8px color-mix(in srgb, var(--o-primary) 22%, transparent);
+}
+
+.heroIcon svg {
+  position: relative;
+  z-index: 1;
+  filter: drop-shadow(0 1px 1.5px rgba(0, 0, 0, 0.22));
+}
+
+.heroCopy {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.heroTitle {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--o-text);
+  text-align: center;
+}
+
+.heroSubtitle {
+  margin: 0;
+  font-size: 13px;
+  color: var(--o-text-secondary);
+  text-align: center;
+  line-height: 1.4;
+}
+
+/* ── Category chip bar (All / Direct / Aggregators / Custom)
+   Centered on one row when it fits; on a small screen or with long labels it scrolls
+   horizontally from the start. That comes from margin:auto on chipRow: it centers while there
+   is slack and collapses to 0 on overflow so scrolling starts at the beginning. ── */
+.chipBar {
+  display: flex;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.chipBar::-webkit-scrollbar {
+  display: none;
+}
+
+.chipRow {
+  display: inline-flex;
+  gap: 6px;
+  padding: 2px;
+  margin: 0 auto;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 0.5px solid var(--o-border);
+  background: var(--o-surface);
+  color: var(--o-text-secondary);
+  font-size: 13px;
+  font-weight: 400;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background var(--o-transition-fast), color var(--o-transition-fast), border-color var(--o-transition-fast);
+}
+
+.chip:hover {
+  background: var(--o-surface-raised);
+}
+
+.chip[data-active='true'] {
+  background: color-mix(in srgb, var(--o-primary) 12%, transparent);
+  border-color: color-mix(in srgb, var(--o-primary) 25%, transparent);
+  color: var(--o-primary);
+  font-weight: 600;
+}
+
+/* ── Two-column showcase card grid ── */
+.showcaseGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+/* ── Showcase card. The logo itself carries no outline; card interaction states are handled separately. ── */
+.showcaseCard {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-height: 88px;
+  padding: 12px;
+  border: none;
+  border-radius: 16px;
+  background: var(--card-bg);
+  cursor: pointer;
+  overflow: hidden;
+  text-align: left;
+  /* Unselected: the soft shadow is the only boundary between a white card and the light page, so it must not be weakened. */
+  box-shadow: 0 3px 8px rgba(17, 24, 39, 0.10), 0 1px 2px rgba(17, 24, 39, 0.05);
+  transition: box-shadow 0.25s ease, transform 0.2s ease;
+}
+
+.showcaseCard:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 18px rgba(17, 24, 39, 0.12), 0 1px 3px rgba(17, 24, 39, 0.06);
+}
+
+.showcaseCard:focus-visible {
+  outline: 2px solid var(--card-accent);
+  outline-offset: 2px;
+}
+
+.showcaseCard[data-selected='true'] {
+  box-shadow: 0 10px 22px color-mix(in srgb, var(--card-accent) 18%, transparent);
+}
+
+/* Brand watermark stamp (mask silhouette) in the brand color, clipped where it overflows the bottom right. */
+.cardWatermark {
+  position: absolute;
+  right: -22px;
+  bottom: -20px;
+  width: 108px;
+  height: 108px;
+  background: var(--card-accent);
+  opacity: 0.09;
+  mask-repeat: no-repeat;
+  mask-position: center;
+  mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  -webkit-mask-size: contain;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Brand watermark stamp for the Relay / a user-owned provider symbol: same position and brightness, rotated -8deg. */
+.cardWatermarkSymbol {
+  position: absolute;
+  right: -18px;
+  bottom: -16px;
+  width: 96px;
+  height: 96px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--card-accent);
+  opacity: 0.11;
+  transform: rotate(-8deg);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.showcaseCard[data-selected='true'] .cardWatermark {
+  opacity: 0.14;
+}
+
+.showcaseCard[data-selected='true'] .cardWatermarkSymbol {
+  opacity: 0.16;
+}
+
+.cardTop {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  width: 100%;
+  margin-bottom: 8px;
+}
+
+/* Stable logo footprint; artwork remains native and undecorated. */
+.cardLogo {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+}
+
+.cardLogo :global(img),
+.cardLogo > span {
+  position: relative;
+  z-index: 1;
+}
+
+/* Selection check: white tick on a brand-colored circle. */
+.cardCheck {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--card-accent);
+  color: #ffffff;
+  flex-shrink: 0;
+  box-shadow: 0 1px 3px color-mix(in srgb, var(--card-accent) 35%, transparent);
+  animation: cardCheckPop 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes cardCheckPop {
+  0% { transform: scale(0.4); opacity: 0; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+.cardName {
+  position: relative;
+  z-index: 1;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--o-text);
+  line-height: 1.25;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.showcaseCard[data-selected='true'] .cardName {
+  color: var(--card-accent);
+}
+
+.cardTagline {
+  position: relative;
+  z-index: 1;
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--o-text-tertiary);
+  line-height: 1.3;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── The two Custom entries share one 70px row box and differ only in icon color by connection type ── */
+.customEntry {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 70px;
+  padding: 14px;
+  box-sizing: border-box;
+  border-radius: 16px;
+  border: 0.75px solid var(--o-border);
+  background: var(--o-surface-raised);
+  cursor: pointer;
+  text-align: left;
+  box-shadow: var(--o-elevation-card);
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+
+.customEntry:hover {
+  background: var(--o-surface);
+  transform: translateY(-1px);
+}
+
+.customEntry:active {
+  transform: scale(0.995);
+}
+
+.customEntry:focus-visible {
+  outline: 2px solid var(--o-primary);
+  outline-offset: 2px;
+}
+
+.customEntryIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  flex-shrink: 0;
+}
+
+.customEntryIconLocal {
+  color: var(--o-primary);
+}
+
+.customEntryIconEndpoint {
+  color: #f59e0b;
+}
+
+.customEntryInfo {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.customEntryTitle {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--o-text);
+}
+
+.customEntrySubtitle {
+  font-size: 12px;
+  color: var(--o-text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.customEntryChevron {
+  color: var(--o-text-tertiary);
+  flex-shrink: 0;
+}
+
+/* ── Group eyebrow headings (Direct AI Providers / Aggregators) ── */
+.sectionEyebrow {
+  display: block;
+  margin: 0 0 10px 2px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  color: var(--o-text-tertiary);
+}
+
+@media (max-width: 360px) {
+  .showcaseGrid {
+    gap: 10px;
+  }
+}

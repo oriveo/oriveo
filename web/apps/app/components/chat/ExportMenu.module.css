@@ -1,0 +1,51 @@
+.menu {
+  position: absolute;
+  top: 100%;
+  inset-inline-end: 0;
+  margin-top: var(--o-space-xs);
+  min-width: 180px;
+  background: var(--o-surface-overlay);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--o-border);
+  border-radius: var(--o-radius-md);
+  box-shadow: var(--o-elevation-modal);
+  padding: var(--o-space-xs) 0;
+  z-index: 30;
+  animation: exportMenuIn 0.15s ease-out;
+}
+
+@keyframes exportMenuIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.menuItem {
+  display: flex;
+  align-items: center;
+  gap: var(--o-space-sm);
+  width: 100%;
+  padding: var(--o-space-sm) var(--o-space-md);
+  border: none;
+  background: transparent;
+  color: var(--o-text);
+  font-size: var(--o-text-sm);
+  text-align: start;
+  cursor: pointer;
+  transition: background var(--o-transition-fast);
+}
+
+.menuItem:hover {
+  background: var(--o-primary-subtle);
+}
+
+.menuItem svg {
+  color: var(--o-text-secondary);
+  flex-shrink: 0;
+}

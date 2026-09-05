@@ -1,0 +1,254 @@
+{
+  "schemaVersion": 1,
+  "privacy": {
+    "allowedTopLevelKeys": [
+      "schemaVersion",
+      "records",
+      "presets",
+      "tombstones"
+    ],
+    "forbiddenKeyFragments": [
+      "endpoint",
+      "url",
+      "host",
+      "key",
+      "authorization",
+      "header",
+      "query",
+      "prompt",
+      "message",
+      "attachment",
+      "directory"
+    ],
+    "runtimeParameterIds": [
+      "context_length",
+      "keep_alive",
+      "speculative_decoding",
+      "prompt_cache",
+      "cache_reuse"
+    ]
+  },
+  "payload": {
+    "schemaVersion": 1,
+    "records": [
+      {
+        "recordId": "scope:model:00000000-0000-0000-0000-000000000001:gpt-test",
+        "scope": "model_default",
+        "providerId": "00000000-0000-0000-0000-000000000001",
+        "modelId": "gpt-test",
+        "profileKey": "openai_chat_completions||gpt-test",
+        "values": {
+          "temperature": {
+            "state": "value",
+            "value": 0.4
+          }
+        },
+        "revision": 3,
+        "mutationId": "00000000-0000-0000-0000-000000000103"
+      },
+      {
+        "recordId": "scope:connection:00000000-0000-0000-0000-000000000001",
+        "scope": "connection_default",
+        "providerId": "00000000-0000-0000-0000-000000000001",
+        "values": {
+          "temperature": {
+            "state": "value",
+            "value": 0.7
+          }
+        },
+        "revision": 1,
+        "mutationId": "00000000-0000-0000-0000-000000000101"
+      }
+    ],
+    "presets": [
+      {
+        "id": "00000000-0000-0000-0000-000000000201",
+        "name": "Focused",
+        "providerId": "00000000-0000-0000-0000-000000000001",
+        "modelId": "gpt-test",
+        "profileKey": "openai_chat_completions||gpt-test",
+        "values": {
+          "temperature": {
+            "state": "value",
+            "value": 0.2
+          }
+        },
+        "createdAt": "2026-08-07T00:00:00.000Z",
+        "revision": 2,
+        "mutationId": "00000000-0000-0000-0000-000000000202"
+      }
+    ],
+    "tombstones": [
+      {
+        "recordId": "preset:00000000-0000-0000-0000-000000000299",
+        "revision": 4,
+        "mutationId": "00000000-0000-0000-0000-000000000204"
+      }
+    ]
+  },
+  "idCasing": {
+    "wireCanonical": "lowercase-uuid-segments",
+    "note": "On the wire, providerId / conversationId / preset.id, and the UUID segment inside recordId are always lowercase; local storage on each client keeps its own native canonical form (iOS's UUID type, Android/Web's uppercase UUID), and the conversion only happens at the import/export boundary. Both keyed merge conflicts and tombstone matching must canonicalize first, or an existing uppercase recordId can never converge with a new lowercase record and the two fork permanently.",
+    "uuidSegmentPattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$",
+    "canonicalCases": [
+      {
+        "caseId": "uuid_segments_lowercased",
+        "input": "scope:model:9A1195DE-3AF9-5888-ABC8-B8177C458C07:gpt-test",
+        "canonical": "scope:model:9a1195de-3af9-5888-abc8-b8177c458c07:gpt-test"
+      },
+      {
+        "caseId": "model_id_case_is_preserved",
+        "input": "scope:model:9A1195DE-3AF9-5888-ABC8-B8177C458C07:Qwen/Qwen2.5-72B-Instruct",
+        "canonical": "scope:model:9a1195de-3af9-5888-abc8-b8177c458c07:Qwen/Qwen2.5-72B-Instruct"
+      },
+      {
+        "caseId": "already_canonical_is_idempotent",
+        "input": "scope:connection:9a1195de-3af9-5888-abc8-b8177c458c07",
+        "canonical": "scope:connection:9a1195de-3af9-5888-abc8-b8177c458c07"
+      },
+      {
+        "caseId": "non_uuid_segments_are_left_alone",
+        "input": "scope:model:provider-A:model-A",
+        "canonical": "scope:model:provider-A:model-A"
+      },
+      {
+        "caseId": "preset_uuid_lowercased",
+        "input": "preset:7C9E6679-7425-40DE-944B-E07FC1F90AE7",
+        "canonical": "preset:7c9e6679-7425-40de-944b-e07fc1f90ae7"
+      }
+    ],
+    "recordIdCases": [
+      {
+        "caseId": "connection_default_from_uppercase_provider",
+        "scope": "connection_default",
+        "providerId": "9A1195DE-3AF9-5888-ABC8-B8177C458C07",
+        "recordId": "scope:connection:9a1195de-3af9-5888-abc8-b8177c458c07"
+      },
+      {
+        "caseId": "model_default_from_uppercase_provider",
+        "scope": "model_default",
+        "providerId": "9A1195DE-3AF9-5888-ABC8-B8177C458C07",
+        "modelId": "gpt-test",
+        "recordId": "scope:model:9a1195de-3af9-5888-abc8-b8177c458c07:gpt-test"
+      },
+      {
+        "caseId": "conversation_override_from_uppercase_ids",
+        "scope": "conversation_override",
+        "providerId": "9A1195DE-3AF9-5888-ABC8-B8177C458C07",
+        "modelId": "gpt-test",
+        "conversationId": "7C9E6679-7425-40DE-944B-E07FC1F90AE7",
+        "recordId": "scope:conversation:9a1195de-3af9-5888-abc8-b8177c458c07:gpt-test:7c9e6679-7425-40de-944b-e07fc1f90ae7"
+      }
+    ]
+  },
+  "mergeCases": [
+    {
+      "caseId": "higher_revision_wins",
+      "local": {
+        "recordId": "scope:a",
+        "revision": 2,
+        "mutationId": "b"
+      },
+      "remote": {
+        "recordId": "scope:a",
+        "revision": 3,
+        "mutationId": "a"
+      },
+      "winner": "remote"
+    },
+    {
+      "caseId": "mutation_id_breaks_equal_revision_tie",
+      "local": {
+        "recordId": "scope:a",
+        "revision": 3,
+        "mutationId": "a"
+      },
+      "remote": {
+        "recordId": "scope:a",
+        "revision": 3,
+        "mutationId": "b"
+      },
+      "winner": "remote"
+    },
+    {
+      "caseId": "tombstone_prevents_resurrection",
+      "local": {
+        "recordId": "preset:a",
+        "revision": 4,
+        "mutationId": "b",
+        "deleted": true
+      },
+      "remote": {
+        "recordId": "preset:a",
+        "revision": 3,
+        "mutationId": "z"
+      },
+      "winner": "local"
+    }
+  ],
+  "wireInvariants": {
+    "$comment": "Field-by-field consistency rules for the shared envelope. If any client violates one of them, whichever client next reads the other's envelope judges it \"behind\" and writes back, and the other client writes back again — an infinite ping-pong where the content is identical and only the ordering or key set differs. Each client has one contract-driven test locking this section down.",
+    "ordering": {
+      "$comment": "All clients must use the same comparator: JS `<` / Kotlin `sortedBy` / Swift `<` (code-point order). ICU collation (`localeCompare` / `localizedCompare`) is forbidden — it treats `~` as an ignorable weight, so `~deepseek/…` would sort before `z-ai/…`, while in code-point order `~` (U+007E) comes after `z` (U+007A).",
+      "comparator": "code_point",
+      "forbiddenComparators": [
+        "localeCompare",
+        "localizedCompare",
+        "ICU collation",
+        "case-insensitive compare"
+      ],
+      "records": "recordId",
+      "presets": "id",
+      "tombstones": "recordId"
+    },
+    "capacity": {
+      "$comment": "Truncation happens after sorting, and the direction is the same on every client: records/presets keep the head, tombstones keep the tail.",
+      "records": {
+        "limit": 200,
+        "keep": "head"
+      },
+      "presets": {
+        "limit": 100,
+        "keep": "head"
+      },
+      "tombstones": {
+        "limit": 300,
+        "keep": "tail"
+      }
+    },
+    "alwaysPresentTopLevelKeys": {
+      "$comment": "These top-level keys must always be present; an empty collection is written as `[]` (kotlinx's `encodeDefaults=false` would otherwise omit them entirely).",
+      "keys": [
+        "schemaVersion",
+        "records",
+        "presets",
+        "tombstones"
+      ]
+    },
+    "omitWhenNull": {
+      "$comment": "When an optional field is empty the whole key is omitted, never written as an explicit null (kotlinx needs `explicitNulls=false`, Web uses `...(x ? {x} : {})`, Swift's Codable omits it naturally). Inbound data must be normalized the same way — never propagate a remote explicit null as-is.",
+      "recordFields": [
+        "modelId",
+        "conversationId",
+        "profileKey"
+      ]
+    },
+    "exportEqualsMergeShape": "export (the local device's first upload) and merge (reconciling with the remote) must produce the exact same shape: the same sort, the same capacity limit, the same key set. If export skips a sort, the store ends up holding an array that only the other client will re-sort, and whichever client reads it next immediately writes back once more.",
+    "emptyEnvelopeNeverOutbound": "An envelope where records, presets, and tombstones are all empty carries zero information and must never go out on the wire — a merge-style write on an array field replaces it wholesale, so an empty envelope would wipe out the stored envelope on the remote side. Right after a fresh local profile's first sync, and right after a boundary reset, the local state is genuinely all-empty, so the very first send after binding must be silently skipped and wait for a merge to run first. A legitimate \"everything has been deleted\" state always still carries tombstones and is never a fully empty envelope, so this rule never drops a real user intent."
+  },
+  "accountScopeInvariants": {
+    "$comment": "Rules against leaking state across local profile boundaries: local storage on each client is bound to a single profile scope, and no record produced or absorbed under one profile may be carried into another. Without this, a record left over from a previous profile (for example a Web-originated draft-scoped record) could get tombstoned and pushed to the remote store under a different profile. An official provider that derives a deterministic id (the same id regardless of profile) can also cause records from a different profile to get bulk-tombstoned (revision+1) and pushed to the remote store when that provider is removed. Each client has one contract-driven test locking this section down.",
+    "localStateAccountBounded": "Local persistence of records, presets, tombstones, and the revision ledger must be bound to a single profile scope: a per-profile partition (Web's partitioned-local-store) or a profile stamp plus a boundary reset (iOS/Android). One profile's exported envelope must never contain any state produced or absorbed under a different profile.",
+    "boundaryReset": {
+      "$comment": "The reset must happen after the sync writer unbinds and before the next profile binds — getting the order wrong either sends an empty envelope into the previous profile's remote copy (destroying its stored data) or lets the new profile's first send still carry the old data. publish/merge are both asynchronous, so every await around the insertion point must re-check that the binding still belongs to the current profile.",
+      "signOut": "Clears all sync-visible state (records, presets, the tombstones ledger) and the profile stamp.",
+      "bindWithMismatchedStamp": "When binding sync for a profile, if a profile stamp already exists and does not match the profile being bound, a reset must happen before the first send.",
+      "stampAdoption": "When there is no profile stamp yet (an existing install being upgraded), the existing data is adopted and stamped with the current profile rather than reset — any pre-existing cross-profile contamination is left to converge naturally through remote-side handling and capacity eviction, and no new contamination is created going forward. The default scope before a profile is chosen never gets stamped and never triggers a reset."
+    },
+    "revisionBaselineNotInherited": "A boundary reset must clear the revision ledger along with everything else: clearing records but not the ledger would let the next profile's new writes inherit the previous profile's revision baseline, inflating version numbers and corrupting last-write-wins.",
+    "tombstoneQuotaPerAccount": "The tombstone capacity limit (300) is counted per profile. Sharing the limit across profiles would let one profile's existing tombstones crowd out another profile's new ones, resurrecting a setting that profile already deleted. A boundary reset already satisfies this rule — after a reset the limit belongs only to the current profile.",
+    "guestPromotion": "not_migrated — envelope state produced in the default scope does not carry over once a profile is chosen (resetting connection-scoped state is cheap, and the complexity and leak risk of a migration path would be disproportionate). Inheritance in either direction between two profiles is likewise forbidden.",
+    "legacyBareKeyClaim": "Unpartitioned data left over from before partitioning shipped (Web's bare key) may only be inherited by the first profile to use it, and only when \"no profile has ever used this device before\"; if a profile has already used this device, that leftover data is deleted rather than inherited by the next one — the data already belongs to some profile, so the \"unowned\" premise does not hold.",
+    "exportUidBinding": "The local partition/storage an exported envelope is read from and the remote copy it is written to must belong to the same profile; the export path should carry a runtime assertion (discard and report if the profile doesn't match), turning \"this should be structurally impossible\" into something actually verified at runtime."
+  }
+}

@@ -1,0 +1,617 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		67AA2A1A2FC813240099AABC /* ChatLayout in Frameworks */ = {isa = PBXBuildFile; productRef = 67AA2A192FC813240099AABC /* ChatLayout */; };
+		A10000042F63100100000001 /* MarkdownUI in Frameworks */ = {isa = PBXBuildFile; productRef = A10000132F63100100000001 /* MarkdownUI */; };
+		A10000052F63100100000001 /* ZIPFoundation in Frameworks */ = {isa = PBXBuildFile; productRef = A10000142F63100100000001 /* ZIPFoundation */; };
+		B20000012F63200100000001 /* ZIPFoundation in Frameworks */ = {isa = PBXBuildFile; productRef = B2000000DF63200100000001 /* ZIPFoundation */; };
+		D30000012F70000100000001 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = D30000022F70000100000001 /* GRDB */; };
+		D30000042F70000100000001 /* GRDB in Frameworks */ = {isa = PBXBuildFile; productRef = D30000052F70000100000001 /* GRDB */; };
+		E10000012FD0000100000001 /* OriveoProviderKit in Frameworks */ = {isa = PBXBuildFile; productRef = E10000002FD0000100000001 /* OriveoProviderKit */; };
+		E10000032FD0000100000001 /* OriveoProviderKit in Frameworks */ = {isa = PBXBuildFile; productRef = E10000022FD0000100000001 /* OriveoProviderKit */; };
+		F70000012FB0000100000001 /* SwiftMath in Frameworks */ = {isa = PBXBuildFile; productRef = F70000002FB0000100000001 /* SwiftMath */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		B20000072F63200100000001 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 67CB0AEB2F62A10C00606247 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 67CB0AF22F62A10C00606247;
+			remoteInfo = Oriveo;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		67CB0AF32F62A10C00606247 /* Oriveo.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Oriveo.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		B20000022F63200100000001 /* OriveoTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = OriveoTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		67CB0AF52F62A10C00606247 /* Oriveo */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Oriveo;
+			sourceTree = "<group>";
+		};
+		B20000032F63200100000001 /* OriveoTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = OriveoTests;
+			sourceTree = "<group>";
+		};
+/* End PBXFileSystemSynchronizedRootGroup section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		67CB0AF02F62A10C00606247 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				D30000012F70000100000001 /* GRDB in Frameworks */,
+				A10000042F63100100000001 /* MarkdownUI in Frameworks */,
+				67AA2A1A2FC813240099AABC /* ChatLayout in Frameworks */,
+				A10000052F63100100000001 /* ZIPFoundation in Frameworks */,
+				F70000012FB0000100000001 /* SwiftMath in Frameworks */,
+				E10000012FD0000100000001 /* OriveoProviderKit in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B20000042F63200100000001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				D30000042F70000100000001 /* GRDB in Frameworks */,
+				B20000012F63200100000001 /* ZIPFoundation in Frameworks */,
+				E10000032FD0000100000001 /* OriveoProviderKit in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		679BB7912F76775800C4E64B /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		67CB0AEA2F62A10C00606247 = {
+			isa = PBXGroup;
+			children = (
+				67CB0AF52F62A10C00606247 /* Oriveo */,
+				B20000032F63200100000001 /* OriveoTests */,
+				679BB7912F76775800C4E64B /* Frameworks */,
+				67CB0AF42F62A10C00606247 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		67CB0AF42F62A10C00606247 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				67CB0AF32F62A10C00606247 /* Oriveo.app */,
+				B20000022F63200100000001 /* OriveoTests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		67CB0AF22F62A10C00606247 /* Oriveo */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 67CB0AFE2F62A10D00606247 /* Build configuration list for PBXNativeTarget "Oriveo" */;
+			buildPhases = (
+				67CB0AEF2F62A10C00606247 /* Sources */,
+				67CB0AF02F62A10C00606247 /* Frameworks */,
+				67CB0AF12F62A10C00606247 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				67CB0AF52F62A10C00606247 /* Oriveo */,
+			);
+			name = Oriveo;
+			packageProductDependencies = (
+				D30000022F70000100000001 /* GRDB */,
+				A10000132F63100100000001 /* MarkdownUI */,
+				A10000142F63100100000001 /* ZIPFoundation */,
+				F70000002FB0000100000001 /* SwiftMath */,
+				67AA2A192FC813240099AABC /* ChatLayout */,
+				E10000002FD0000100000001 /* OriveoProviderKit */,
+			);
+			productName = Oriveo;
+			productReference = 67CB0AF32F62A10C00606247 /* Oriveo.app */;
+			productType = "com.apple.product-type.application";
+		};
+		B20000092F63200100000001 /* OriveoTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = B2000000CF63200100000001 /* Build configuration list for PBXNativeTarget "OriveoTests" */;
+			buildPhases = (
+				B20000052F63200100000001 /* Sources */,
+				B20000042F63200100000001 /* Frameworks */,
+				B20000062F63200100000001 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				B20000082F63200100000001 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				B20000032F63200100000001 /* OriveoTests */,
+			);
+			name = OriveoTests;
+			packageProductDependencies = (
+				D30000052F70000100000001 /* GRDB */,
+				B2000000DF63200100000001 /* ZIPFoundation */,
+			);
+			productName = OriveoTests;
+			productReference = B20000022F63200100000001 /* OriveoTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		67CB0AEB2F62A10C00606247 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 2630;
+				LastUpgradeCheck = 2630;
+				TargetAttributes = {
+					67CB0AF22F62A10C00606247 = {
+						CreatedOnToolsVersion = 26.3;
+					};
+					B20000092F63200100000001 = {
+						CreatedOnToolsVersion = 26.3;
+						TestTargetID = 67CB0AF22F62A10C00606247;
+					};
+				};
+			};
+			buildConfigurationList = 67CB0AEE2F62A10C00606247 /* Build configuration list for PBXProject "Oriveo" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+				"zh-Hans",
+				"zh-Hant",
+				ja,
+				ko,
+				es,
+				fr,
+				de,
+				"pt-BR",
+				ar,
+				hi,
+				id,
+				vi,
+				th,
+				tr,
+				ru,
+			);
+			mainGroup = 67CB0AEA2F62A10C00606247;
+			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				D30000032F70000100000001 /* XCRemoteSwiftPackageReference "GRDB.swift" */,
+				A10000222F63100100000001 /* XCRemoteSwiftPackageReference "swift-markdown-ui" */,
+				A10000232F63100100000001 /* XCRemoteSwiftPackageReference "ZIPFoundation" */,
+				F70000022FB0000100000001 /* XCRemoteSwiftPackageReference "SwiftMath" */,
+				67AA2A182FC813240099AABC /* XCRemoteSwiftPackageReference "ChatLayout" */,
+				E10000042FD0000100000001 /* XCLocalSwiftPackageReference "../../shared/OriveoProviderKit" */,
+			);
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 67CB0AF42F62A10C00606247 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				67CB0AF22F62A10C00606247 /* Oriveo */,
+				B20000092F63200100000001 /* OriveoTests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		67CB0AF12F62A10C00606247 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B20000062F63200100000001 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		67CB0AEF2F62A10C00606247 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B20000052F63200100000001 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		B20000082F63200100000001 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 67CB0AF22F62A10C00606247 /* Oriveo */;
+			targetProxy = B20000072F63200100000001 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		67CB0AFC2F62A10D00606247 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-ObjC",
+				);
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		67CB0AFD2F62A10D00606247 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				OTHER_LDFLAGS = (
+					"$(inherited)",
+					"-ObjC",
+				);
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		67CB0AFF2F62A10D00606247 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = Oriveo/Oriveo.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 18;
+				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Config/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.2.8;
+				PRODUCT_BUNDLE_IDENTIFIER = ai.oriveo.community;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		67CB0B002F62A10D00606247 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = Oriveo/Oriveo.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 18;
+				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Config/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.2.8;
+				PRODUCT_BUNDLE_IDENTIFIER = ai.oriveo.community;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		B2000000AF63200100000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 18;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.2.8;
+				PRODUCT_BUNDLE_IDENTIFIER = ai.oriveo.community.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Oriveo.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Oriveo";
+			};
+			name = Debug;
+		};
+		B2000000BF63200100000001 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 18;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.2.8;
+				PRODUCT_BUNDLE_IDENTIFIER = ai.oriveo.community.tests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Oriveo.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Oriveo";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		67CB0AEE2F62A10C00606247 /* Build configuration list for PBXProject "Oriveo" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				67CB0AFC2F62A10D00606247 /* Debug */,
+				67CB0AFD2F62A10D00606247 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		67CB0AFE2F62A10D00606247 /* Build configuration list for PBXNativeTarget "Oriveo" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				67CB0AFF2F62A10D00606247 /* Debug */,
+				67CB0B002F62A10D00606247 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		B2000000CF63200100000001 /* Build configuration list for PBXNativeTarget "OriveoTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B2000000AF63200100000001 /* Debug */,
+				B2000000BF63200100000001 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		E10000042FD0000100000001 /* XCLocalSwiftPackageReference "../../shared/OriveoProviderKit" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = ../../shared/OriveoProviderKit;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		67AA2A182FC813240099AABC /* XCRemoteSwiftPackageReference "ChatLayout" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/ekazaev/ChatLayout";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.4.3;
+			};
+		};
+		A10000222F63100100000001 /* XCRemoteSwiftPackageReference "swift-markdown-ui" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/gonzalezreal/swift-markdown-ui";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.4.1;
+			};
+		};
+		A10000232F63100100000001 /* XCRemoteSwiftPackageReference "ZIPFoundation" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/weichsel/ZIPFoundation.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.9.20;
+			};
+		};
+		D30000032F70000100000001 /* XCRemoteSwiftPackageReference "GRDB.swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/groue/GRDB.swift.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 7.11.1;
+			};
+		};
+		F70000022FB0000100000001 /* XCRemoteSwiftPackageReference "SwiftMath" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/mgriebling/SwiftMath.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.7.3;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		67AA2A192FC813240099AABC /* ChatLayout */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 67AA2A182FC813240099AABC /* XCRemoteSwiftPackageReference "ChatLayout" */;
+			productName = ChatLayout;
+		};
+		A10000132F63100100000001 /* MarkdownUI */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A10000222F63100100000001 /* XCRemoteSwiftPackageReference "swift-markdown-ui" */;
+			productName = MarkdownUI;
+		};
+		A10000142F63100100000001 /* ZIPFoundation */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A10000232F63100100000001 /* XCRemoteSwiftPackageReference "ZIPFoundation" */;
+			productName = ZIPFoundation;
+		};
+		B2000000DF63200100000001 /* ZIPFoundation */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A10000232F63100100000001 /* XCRemoteSwiftPackageReference "ZIPFoundation" */;
+			productName = ZIPFoundation;
+		};
+		D30000022F70000100000001 /* GRDB */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = D30000032F70000100000001 /* XCRemoteSwiftPackageReference "GRDB.swift" */;
+			productName = GRDB;
+		};
+		D30000052F70000100000001 /* GRDB */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = D30000032F70000100000001 /* XCRemoteSwiftPackageReference "GRDB.swift" */;
+			productName = GRDB;
+		};
+		E10000002FD0000100000001 /* OriveoProviderKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = OriveoProviderKit;
+		};
+		E10000022FD0000100000001 /* OriveoProviderKit */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = OriveoProviderKit;
+		};
+		F70000002FB0000100000001 /* SwiftMath */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = F70000022FB0000100000001 /* XCRemoteSwiftPackageReference "SwiftMath" */;
+			productName = SwiftMath;
+		};
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = 67CB0AEB2F62A10C00606247 /* Project object */;
+}

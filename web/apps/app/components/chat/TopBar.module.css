@@ -1,0 +1,516 @@
+.bar {
+  display: flex;
+  align-items: center;
+  gap: var(--o-space-sm);
+  padding: var(--o-space-sm) var(--o-space-lg);
+  background: var(--o-chat-topbar-bg);
+  border-bottom: 1px solid var(--o-chat-topbar-border);
+  backdrop-filter: blur(18px) saturate(150%);
+  -webkit-backdrop-filter: blur(18px) saturate(150%);
+  min-height: 52px;
+  position: relative;
+  z-index: 1;
+  transition: background var(--o-transition-fast), border-color var(--o-transition-fast);
+}
+
+/* Empty state: fully transparent so the aurora glow carries through from above */
+.bar[data-transparent='true'] {
+  background: transparent;
+  border-bottom-color: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+.sidebarToggle {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: none;
+  border-radius: var(--o-radius-md);
+  background: transparent;
+  color: var(--o-text-secondary);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background var(--o-transition-fast), color var(--o-transition-fast);
+}
+
+.sidebarToggle:hover {
+  background: var(--o-primary-subtle);
+  color: var(--o-text);
+}
+
+/* Show when sidebar is closed (any screen size) */
+.sidebarToggle[data-sidebar-closed='true'] {
+  display: flex;
+}
+
+@media (max-width: 1023px) {
+  .sidebarToggle {
+    display: flex;
+  }
+}
+
+.modelInfo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex: 1;
+  min-width: 0;
+}
+
+.modelTrigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 10px 5px 5px;
+  margin: -4px -8px -4px -5px;
+  border: 1px solid transparent;
+  border-radius: var(--o-radius-full);
+  background: transparent;
+  cursor: pointer;
+  color: var(--o-text);
+  transition: background var(--o-transition-fast), border-color var(--o-transition-fast);
+}
+
+.modelTrigger:hover {
+  background: var(--o-surface-raised);
+  border-color: var(--o-border);
+}
+
+.modelTriggerBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+}
+
+.modelName {
+  font-size: 15px;
+  font-weight: var(--o-weight-medium);
+  color: var(--o-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  letter-spacing: -0.005em;
+}
+
+/* -- Free suffix chip - replaces the "(free)" suffix on the model name and sits alongside modelName -- */
+.freeTag {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  margin-left: 2px;
+  border-radius: 4px;
+  background: var(--o-gradient-brand);
+  color: var(--o-primary-text);
+  font-size: 9.5px;
+  font-weight: var(--o-weight-semibold);
+  letter-spacing: 0.06em;
+  line-height: 1.5;
+  flex-shrink: 0;
+}
+
+.chevron {
+  flex-shrink: 0;
+  color: var(--o-text-tertiary);
+  transition: color var(--o-transition-fast);
+}
+
+.modelTrigger:hover .chevron {
+  color: var(--o-text-secondary);
+}
+
+.modelMeta {
+  font-size: var(--o-text-xs);
+  color: var(--o-text-tertiary);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* -- Provider badge -- */
+.providerBadge {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+/* Model family badge - on relay, shows the family's official logo derived from the model ID, in front of the model name */
+.modelFamilyBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  margin-right: 2px;
+}
+
+/* -- Cost pill - neutral by default; cost should not compete with the brand colour -- */
+.costPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 10px;
+  height: 26px;
+  border-radius: var(--o-radius-full);
+  background: var(--o-tag-bg);
+  border: 1px solid var(--o-border);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--o-text-secondary);
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
+/* -- Skill chip - neutral by default; the badge keeps its purple so it stays recognizable -- */
+
+.skillChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 10px 2px 2px;
+  border-radius: var(--o-radius-full);
+  background: var(--o-tag-bg);
+  border: 1px solid var(--o-border);
+  flex-shrink: 0;
+  transition: border-color var(--o-transition-fast), background var(--o-transition-fast);
+}
+
+.skillChip:hover {
+  background: var(--o-primary-subtle);
+  border-color: color-mix(in srgb, var(--o-primary) 24%, var(--o-border-strong));
+}
+
+.skillChipBadge {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+}
+
+.skillChipBadgeHalo {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--o-primary) 80%, #b07aff),
+    var(--o-primary)
+  );
+  box-shadow: 0 2px 6px color-mix(in srgb, var(--o-primary) 30%, transparent);
+}
+
+.skillChipBadgeIcon {
+  position: relative;
+  z-index: 1;
+  font-size: 12px;
+  line-height: 1;
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.18));
+}
+
+.skillChipName {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--o-text);
+  white-space: nowrap;
+  max-width: 110px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  letter-spacing: -0.005em;
+}
+
+/* -- Memory indicator - neutral by default; the purple dot is the status signal -- */
+
+.memoryIndicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 10px 0 8px;
+  border: 1px solid var(--o-border);
+  border-radius: var(--o-radius-full);
+  background: var(--o-tag-bg);
+  color: var(--o-text-secondary);
+  cursor: pointer;
+  font-size: 11.5px;
+  font-weight: 500;
+  letter-spacing: 0.005em;
+  transition:
+    background var(--o-transition-fast),
+    border-color var(--o-transition-fast),
+    color var(--o-transition-fast);
+  flex-shrink: 0;
+}
+
+.memoryIndicator:hover {
+  background: var(--o-primary-subtle);
+  border-color: color-mix(in srgb, var(--o-primary) 24%, var(--o-border-strong));
+  color: var(--o-primary);
+}
+
+.memoryIndicatorDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--o-primary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--o-primary) 18%, transparent);
+  flex-shrink: 0;
+}
+
+.memoryIndicatorLabel {
+  line-height: 1;
+}
+
+/* -- Memory popover - flat, in the Linear/Raycast style -- */
+.memoryPopover {
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-top: 8px;
+  width: min(320px, calc(100vw - 24px));
+  padding: 6px;
+  background: color-mix(in srgb, var(--o-surface) 92%, transparent);
+  border: 1px solid var(--o-border-strong);
+  border-radius: 14px;
+  box-shadow: var(--o-elevation-modal);
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.memoryPopoverHero {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px 6px;
+}
+
+.memoryPopoverHeroIcon {
+  display: none;
+}
+
+.memoryPopoverHeroText {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+}
+
+.memoryPopoverTitle {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.3;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  color: var(--o-text);
+}
+
+.memoryPopoverBadge {
+  display: none;
+}
+
+.memoryPopoverClose {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  flex-shrink: 0;
+  border: none;
+  border-radius: var(--o-radius-sm);
+  background: transparent;
+  color: var(--o-text-tertiary);
+  cursor: pointer;
+  transition: color var(--o-transition-fast), background var(--o-transition-fast);
+}
+
+.memoryPopoverClose:hover {
+  color: var(--o-text);
+  background: var(--o-surface-raised);
+}
+
+.memoryPopoverPreviewCard {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--o-bg-subtle);
+}
+
+.memoryPopoverPreviewHeader {
+  display: none;
+}
+
+.memoryPopoverPreviewLabel {
+  display: none;
+}
+
+.memoryPopoverPreviewIcon {
+  display: none;
+}
+
+.memoryPopoverPreview {
+  margin: 0;
+  max-height: 130px;
+  overflow: auto;
+  color: var(--o-text-secondary);
+  font-size: 12.5px;
+  line-height: 1.5;
+  word-break: break-word;
+  scrollbar-width: thin;
+  letter-spacing: -0.005em;
+}
+
+.memoryPopoverActions {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding-top: 4px;
+  border-top: 1px solid var(--o-border);
+  margin-top: 2px;
+}
+
+.memoryPopoverPrimaryAction,
+.memoryPopoverDangerAction {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: none;
+  font: inherit;
+  border-radius: 8px;
+  background: transparent;
+  cursor: pointer;
+  transition: background var(--o-transition-fast), color var(--o-transition-fast);
+  text-align: start;
+}
+
+.memoryPopoverPrimaryAction {
+  color: var(--o-text);
+}
+
+.memoryPopoverPrimaryAction:hover {
+  background: var(--o-surface-raised);
+}
+
+.memoryPopoverDangerAction {
+  color: var(--o-error);
+}
+
+.memoryPopoverDangerAction:hover {
+  background: var(--o-error-subtle);
+}
+
+.memoryPopoverActionIconWrap,
+.memoryPopoverActionIconDangerWrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  border-radius: 6px;
+}
+
+.memoryPopoverActionIconWrap {
+  background: var(--o-primary-subtle);
+  color: var(--o-primary);
+}
+
+.memoryPopoverActionIconDangerWrap {
+  background: var(--o-error-subtle);
+  color: var(--o-error);
+}
+
+.memoryPopoverActionText,
+.memoryPopoverDangerText {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.35;
+  letter-spacing: -0.005em;
+}
+
+.memoryPopoverActionChevron,
+.memoryPopoverActionChevronDanger {
+  font-size: 16px;
+  line-height: 1;
+  opacity: 0.5;
+  color: inherit;
+}
+
+@media (max-width: 767px) {
+  .bar {
+    min-height: 50px;
+    padding:
+      max(var(--o-space-xs), env(safe-area-inset-top, 0px))
+      var(--o-space-sm)
+      var(--o-space-xs);
+    gap: 6px;
+  }
+
+  .sidebarToggle {
+    width: 36px;
+    height: 36px;
+  }
+
+  .modelInfo {
+    gap: 6px;
+  }
+
+  .modelTrigger {
+    min-width: 0;
+    max-width: 100%;
+    padding-right: 8px;
+  }
+
+  .modelName {
+    max-width: min(46vw, 180px);
+  }
+
+  .modelMeta {
+    display: none;
+  }
+
+  .providerBadge {
+    display: none;
+  }
+
+  .costPill,
+  .memoryIndicator,
+  .skillChip {
+    display: none;
+  }
+
+  .memoryPopover {
+    left: auto;
+    right: -12px;
+    transform: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .memoryIndicator,
+  .memoryPopoverPrimaryAction,
+  .memoryPopoverDangerAction {
+    transition: none;
+    transform: none;
+  }
+}

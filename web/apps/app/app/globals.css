@@ -1,0 +1,168 @@
+/* ── App globals — tokens come from @oriveo/ui/tokens/variables.css ── */
+
+* {
+  box-sizing: border-box;
+}
+
+/* Rotation angle for the animated focus ring on inputs (a conic-gradient sweep).
+ * Registering it as an <angle> lets @keyframes interpolate it smoothly; browsers without
+ * support fall back to a static gradient border. */
+@property --o-aurora-angle {
+  syntax: '<angle>';
+  initial-value: 0deg;
+  inherits: false;
+}
+
+html {
+  background: var(--o-bg);
+  scroll-behavior: smooth;
+  transition: background-color 300ms ease, color 200ms ease;
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  min-height: 100dvh;
+  color: var(--o-text);
+  font-family: var(--o-font-sans);
+  font-weight: var(--o-weight-regular);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-feature-settings: 'cv11', 'ss01', 'palt' 1;
+  font-variant-numeric: tabular-nums;
+  text-rendering: optimizeLegibility;
+  transition: background-color 300ms ease, color 200ms ease;
+}
+
+@supports (-webkit-touch-callout: none) {
+  html,
+  body {
+    min-height: -webkit-fill-available;
+  }
+}
+
+@media (max-width: 767px) {
+  html {
+    overflow-x: hidden;
+  }
+
+  body {
+    overflow-x: hidden;
+    overscroll-behavior-y: none;
+  }
+}
+
+/* -- Global noise texture - breaks up flat, plastic-looking fills
+ * fractalNoise SVG at 0.022 opacity, fixed full screen and non-interactive */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.022;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.6 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 220px 220px;
+  background-repeat: repeat;
+  mix-blend-mode: overlay;
+}
+
+[data-theme='dark'] body::before {
+  opacity: 0.04;
+}
+
+/* Keeps the main content above the noise layer */
+body > * {
+  position: relative;
+  z-index: 1;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+  /* `font: inherit` does not carry colour. The UA stylesheet gives these controls the system
+     `buttontext` / `fieldtext` colours, and that declaration blocks colour inheritance from the
+     parent. This app declares no `color-scheme`, so the browser resolves those system colours as
+     light, and in the dark theme every button or input without an explicit colour renders black
+     text on a dark background. It is the classic case of a framework default that does not flip
+     with the theme and happens to look right in light mode, so it only shows up in dark.
+     Individual modules would each need their own `color: inherit`; this covers them all at once. */
+  color: inherit;
+}
+
+/* ── Selection color ── */
+/* 25% was too faint to read as selected over AI text and page backgrounds; 40% is clear in both themes */
+::selection {
+  background: color-mix(in srgb, var(--o-primary) 40%, transparent);
+  color: inherit;
+}
+
+/* ── Custom scrollbars ── */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--o-primary) 18%, transparent);
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--o-primary) 30%, transparent);
+}
+
+/* Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--o-primary) 18%, transparent) transparent;
+}
+
+/* ── Focus visible ── */
+:focus-visible {
+  outline: none;
+  box-shadow: var(--o-focus-ring);
+}
+
+/* ── Reduced motion ── */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Skip to content link */
+.sr-skip:focus {
+  position: fixed !important;
+  left: var(--o-space-md) !important;
+  top: var(--o-space-md) !important;
+  width: auto !important;
+  height: auto !important;
+  overflow: visible !important;
+  padding: var(--o-space-sm) var(--o-space-md);
+  background: var(--o-primary);
+  color: var(--o-primary-text);
+  border-radius: var(--o-radius-md);
+  font-size: var(--o-text-sm);
+  font-weight: 600;
+  text-decoration: none;
+  z-index: 10000;
+  box-shadow: var(--o-elevation-modal);
+}

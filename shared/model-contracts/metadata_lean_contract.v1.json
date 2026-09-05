@@ -1,0 +1,181 @@
+{
+  "$comment": "R4 lean metadata wire fixture. Server and all clients read this one shape; missing view still means the byte-compatible full contract.",
+  "contractVersion": 1,
+  "leanResponse": {
+    "code": 0,
+    "data": {
+      "view": "lean",
+      "version": 86,
+      "contractVersion": 1,
+      "updatedAt": "2026-08-25T00:00:00Z",
+      "generationParameterTables": {
+        "sha256:41e4ccbe10bbbea4a258ddce69fd4eb68ef7b062446c8f9c6f96162874560e68": [
+          {
+            "id": "temperature",
+            "support": "supported",
+            "source": "provider_metadata"
+          },
+          {
+            "id": "top_p",
+            "support": "supported",
+            "source": "provider_metadata"
+          }
+        ]
+      },
+      "profiles": {
+        "reasoning": {},
+        "webSearch": {},
+        "imageGen": {},
+        "generation": {
+          "version": 1,
+          "parameters": {
+            "temperature": {
+              "group": "sampling",
+              "valueSchema": "number",
+              "range": {
+                "min": 0,
+                "max": 2
+              },
+              "interactionGroup": "sampling_strategy",
+              "portability": "portable",
+              "risk": "normal",
+              "conflictsWith": [
+                "top_p"
+              ],
+              "constraints": [
+                {
+                  "mode": "normal"
+                }
+              ]
+            },
+            "top_p": {
+              "group": "sampling",
+              "valueSchema": "number",
+              "range": {
+                "min": 0,
+                "max": 1
+              },
+              "interactionGroup": "sampling_strategy",
+              "portability": "portable",
+              "risk": "normal",
+              "conflictsWith": [
+                "temperature"
+              ],
+              "constraints": [
+                {
+                  "mode": "normal"
+                }
+              ]
+            }
+          },
+          "templates": {
+            "openai_chat_completions": {
+              "transport": "openai_chat_completions",
+              "wire": {
+                "temperature": "temperature",
+                "top_p": "top_p"
+              }
+            }
+          }
+        }
+      },
+      "providers": {
+        "openAI": {
+          "displayName": "OpenAI",
+          "defaultModelId": "gpt-fixture",
+          "resolveMap": {
+            "gpt-fixture": "gpt-fixture"
+          },
+          "attachmentSupport": {
+            "image": true,
+            "nativeFile": true,
+            "textFileInline": true
+          },
+          "validation": {
+            "probe": "list_models",
+            "probePath": "/models",
+            "authMode": "bearer",
+            "headerProfile": "none",
+            "invalidKeySignals": [
+              {
+                "status": 401
+              }
+            ]
+          },
+          "models": {
+            "gpt-fixture": {
+              "canonicalModelId": "gpt-fixture",
+              "displayName": "GPT Fixture",
+              "pricing": {
+                "promptPerMToken": 1,
+                "completionPerMToken": 2
+              },
+              "pricingStatus": "priced",
+              "capabilities": [
+                "text",
+                "tools"
+              ],
+              "profiles": {
+                "reasoning": null,
+                "webSearch": null,
+                "imageGen": null,
+                "generation": {
+                  "template": "openai_chat_completions",
+                  "parametersRef": "sha256:41e4ccbe10bbbea4a258ddce69fd4eb68ef7b062446c8f9c6f96162874560e68",
+                  "revision": "sha256:5c27e9490ac0dd7f175883117348999284209dab56890474df6708744d1e365b"
+                }
+              },
+              "transport": "openai_chat_completions",
+              "capabilityEvidenceView": {
+                "candidates": [
+                  {
+                    "key": "tool_call",
+                    "support": "supported",
+                    "source": "server_typed",
+                    "grade": "machine_verified",
+                    "observedAt": 1777000000000,
+                    "expiresAt": 1777604800000
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    "message": "ok"
+  },
+  "treeCompletion": {
+    "$comment": "Lean candidates inherit identity only from the containing provider/model tree. Clients reject any future explicit identity field that conflicts before filling absent fields.",
+    "scope": "provider_model_transport",
+    "providerKindPath": "data.providers.<providerKind>",
+    "modelIdPath": "data.providers.<providerKind>.models.<modelId>",
+    "transportPath": "data.providers.<providerKind>.models.<modelId>.transport"
+  },
+  "modelFactsResponse": {
+    "code": 0,
+    "data": {
+      "revision": "sha256:facts-fixture",
+      "facts": {
+        "openAI/gpt-out-of-catalog": {
+          "toolCall": true,
+          "reasoning": true,
+          "reasoningEfforts": [
+            "low",
+            "high"
+          ],
+          "attachment": false,
+          "source": "models_dev",
+          "artifactHash": "sha256:item-fixture"
+        }
+      }
+    },
+    "message": "ok"
+  },
+  "modelFactsCaching": {
+    "endpoint": "/api/metadata/model-facts",
+    "contentRevisionHeader": "X-Model-Facts-Revision",
+    "validator": "ETag hashes the exact identity or gzip response bytes; validators never cross content encoding",
+    "unavailable": "404 means the active legacy snapshot has no facts artifact; an empty facts object is never synthesized"
+  }
+}

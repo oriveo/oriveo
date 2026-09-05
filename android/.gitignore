@@ -1,0 +1,21 @@
+*.iml
+.gradle
+/build
+/captures
+.externalNativeBuild
+.cxx
+.DS_Store
+
+# Machine-specific: your SDK location
+local.properties
+
+# Signing material never belongs in the repository. See SIGNING.md.
+*.jks
+*.keystore
+
+/.idea/caches
+/.idea/libraries
+/.idea/modules.xml
+/.idea/workspace.xml
+/.idea/navEditor.xml
+/.idea/assetWizardSettings.xml

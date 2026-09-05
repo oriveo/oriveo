@@ -1,0 +1,2728 @@
+{
+  "$comment": "Generation-parameter contract v1. Every payload case must be driven through a production request builder; tests must not synthesize request JSON. Missing overrides are omitted, while numeric zero is an explicit value. Unknown enum values are preserved by contract decoders and must not crash a whole profile.",
+  "version": 1,
+  "canonicalKeys": {
+    "budget": [
+      "max_output_tokens",
+      "stop"
+    ],
+    "reasoning": [
+      "reasoning_effort",
+      "reasoning_budget",
+      "reasoning_mode"
+    ],
+    "sampling": [
+      "temperature",
+      "top_p",
+      "top_k",
+      "min_p"
+    ],
+    "repetition": [
+      "frequency_penalty",
+      "presence_penalty",
+      "repeat_penalty"
+    ],
+    "reproducibility": [
+      "seed"
+    ],
+    "output_contract": [
+      "json_schema",
+      "logprobs"
+    ],
+    "engine_runtime": [
+      "mirostat",
+      "mirostat_tau",
+      "mirostat_eta",
+      "llamacpp_native",
+      "extra_body"
+    ]
+  },
+  "schema": {
+    "support": [
+      "supported",
+      "accepted",
+      "accepted_unverified",
+      "fixed",
+      "unsupported",
+      "mode_dependent",
+      "unknown",
+      "future_supported"
+    ],
+    "overrideStates": [
+      "inherit",
+      "value",
+      "omit"
+    ],
+    "groups": [
+      "budget",
+      "reasoning",
+      "sampling",
+      "repetition",
+      "reproducibility",
+      "output_contract",
+      "engine_runtime"
+    ],
+    "valueSchemas": [
+      "number",
+      "integer",
+      "enum",
+      "string",
+      "boolean",
+      "string-list",
+      "json-schema"
+    ],
+    "portability": [
+      "portable",
+      "transport_scoped",
+      "engine_scoped"
+    ],
+    "sources": [
+      "authoritative_metadata",
+      "provider_metadata",
+      "relay_declared",
+      "official_catalog",
+      "engine_introspection",
+      "user_declared",
+      "runtime_feedback"
+    ],
+    "overridePriority": [
+      "single_send",
+      "conversation_connection_model",
+      "skill_agent",
+      "connection_model",
+      "connection",
+      "provider_default"
+    ],
+    "fingerprintFields": [
+      "providerInstanceID",
+      "endpointFingerprint",
+      "transport",
+      "resolvedModelID",
+      "modelRevision",
+      "activeMode"
+    ]
+  },
+  "presentationClasses": {
+    "$comment": "Engineering support states collapse into 3 user-visible classes plus one silent class. All clients read this table only — no client keeps a separate support-label switch of its own. zhHans carries the single source of literal copy that every client localizes from; labelKey/detailKey are the stable per-client localization keys. Adding a new engineering state must register it in both schema.support and supportMap in the same change, or scripts/model-contract-gate.mjs fails hard — silently falling back to \"no data\" is not allowed.",
+    "classes": [
+      {
+        "classId": "silent",
+        "renders": false,
+        "control": "editable",
+        "zhHans": null,
+        "rationale": "Silent by default: printing an \"already supported\" line under every parameter would drown out the states that actually need attention."
+      },
+      {
+        "classId": "unverified",
+        "renders": true,
+        "control": "editable",
+        "labelKey": "generationParameterClassUnverified",
+        "zhHans": "会发送 · 效果未验证",
+        "rationale": "Unverified does not mean unsupported: the value still goes out on the wire as-is; the label only states honestly that it has not been verified."
+      },
+      {
+        "classId": "not_adjustable",
+        "renders": true,
+        "control": "disabled",
+        "labelKey": "generationParameterClassNotAdjustable",
+        "zhHans": "不可调整",
+        "primaryAction": {
+          "actionKey": "generationParameterFindSupportedModels",
+          "zhHans": "查看支持该参数的模型"
+        },
+        "rationale": "Graying a control out must come with an actionable next step, otherwise it is a dead end for the user."
+      },
+      {
+        "classId": "no_data",
+        "renders": true,
+        "control": "editable",
+        "labelKey": "generationParameterClassNoData",
+        "zhHans": "暂无资料",
+        "rationale": "\"We don't know\" is shown as exactly that, not rendered as a false conclusion."
+      }
+    ],
+    "supportMap": {
+      "supported": {
+        "class": "silent"
+      },
+      "accepted": {
+        "class": "silent"
+      },
+      "accepted_unverified": {
+        "class": "unverified",
+        "detailKey": "generationParameterDetailAcceptedUnverified",
+        "zhHans": "这个值会照原样发给供应商，但我们没有验证过它是否生效"
+      },
+      "fixed": {
+        "class": "not_adjustable",
+        "detailKey": "generationParameterDetailFixed",
+        "zhHans": "由模型固定，改了不会生效"
+      },
+      "unsupported": {
+        "class": "not_adjustable",
+        "detailKey": "generationParameterDetailUnsupported",
+        "zhHans": "此模型不接受这个参数，发送会被拒绝"
+      },
+      "mode_dependent": {
+        "class": "not_adjustable",
+        "detailKey": "generationParameterDetailModeDependent",
+        "zhHans": "取决于当前思考档位，切换档位后可能变化"
+      },
+      "unknown": {
+        "class": "no_data",
+        "detailKey": "generationParameterDetailUnknown",
+        "zhHans": "我们还没有这个参数的官方资料"
+      },
+      "future_supported": {
+        "class": "not_adjustable",
+        "detailKey": "generationParameterDetailFutureSupported",
+        "zhHans": "官方已列入计划，尚未开放"
+      }
+    }
+  },
+  "profiles": {
+    "contract_complete": {
+      "id": "contract_complete",
+      "parameters": [
+        {
+          "canonicalKey": "max_output_tokens",
+          "group": "budget",
+          "support": "supported",
+          "valueSchema": "integer",
+          "range": {
+            "min": 1
+          },
+          "defaultDescription": "provider_default",
+          "portability": "transport_scoped",
+          "risk": "cost",
+          "source": "relay_declared"
+        },
+        {
+          "canonicalKey": "stop",
+          "group": "budget",
+          "support": "supported",
+          "valueSchema": "string-list",
+          "defaultDescription": "provider_default",
+          "portability": "transport_scoped",
+          "risk": "normal",
+          "source": "relay_declared"
+        },
+        {
+          "canonicalKey": "reasoning_effort",
+          "group": "reasoning",
+          "support": "mode_dependent",
+          "valueSchema": "enum",
+          "enumValues": [
+            "low",
+            "medium",
+            "high"
+          ],
+          "constraints": [
+            {
+              "mode": "reasoning"
+            }
+          ],
+          "defaultDescription": "provider_default",
+          "portability": "transport_scoped",
+          "risk": "cost",
+          "source": "authoritative_metadata"
+        },
+        {
+          "canonicalKey": "reasoning_budget",
+          "group": "reasoning",
+          "support": "fixed",
+          "valueSchema": "integer",
+          "fixedValue": 4096,
+          "defaultDescription": 4096,
+          "portability": "transport_scoped",
+          "risk": "cost",
+          "source": "provider_metadata"
+        },
+        {
+          "canonicalKey": "temperature",
+          "group": "sampling",
+          "support": "supported",
+          "valueSchema": "number",
+          "range": {
+            "min": 0,
+            "max": 2,
+            "step": 0.01
+          },
+          "defaultDescription": "provider_default",
+          "interactionGroup": "sampling_strategy",
+          "conflictsWith": [
+            "top_p"
+          ],
+          "portability": "portable",
+          "risk": "normal",
+          "source": "authoritative_metadata"
+        },
+        {
+          "canonicalKey": "top_p",
+          "group": "sampling",
+          "support": "accepted_unverified",
+          "valueSchema": "number",
+          "range": {
+            "minExclusive": 0,
+            "max": 1,
+            "step": 0.01
+          },
+          "defaultDescription": "unknown",
+          "interactionGroup": "sampling_strategy",
+          "conflictsWith": [
+            "temperature"
+          ],
+          "portability": "portable",
+          "risk": "experimental",
+          "source": "runtime_feedback"
+        },
+        {
+          "canonicalKey": "top_k",
+          "group": "sampling",
+          "support": "unknown",
+          "valueSchema": "integer",
+          "range": {
+            "min": 0
+          },
+          "defaultDescription": "unknown",
+          "portability": "engine_scoped",
+          "risk": "experimental",
+          "source": "user_declared"
+        },
+        {
+          "canonicalKey": "min_p",
+          "group": "sampling",
+          "support": "unsupported",
+          "valueSchema": "number",
+          "range": {
+            "min": 0,
+            "max": 1
+          },
+          "defaultDescription": "unknown",
+          "portability": "engine_scoped",
+          "risk": "experimental",
+          "source": "official_catalog"
+        },
+        {
+          "canonicalKey": "frequency_penalty",
+          "group": "repetition",
+          "support": "supported",
+          "valueSchema": "number",
+          "range": {
+            "min": -2,
+            "max": 2
+          },
+          "defaultDescription": "provider_default",
+          "portability": "transport_scoped",
+          "risk": "normal",
+          "source": "relay_declared"
+        },
+        {
+          "canonicalKey": "presence_penalty",
+          "group": "repetition",
+          "support": "supported",
+          "valueSchema": "number",
+          "range": {
+            "min": -2,
+            "max": 2
+          },
+          "defaultDescription": "provider_default",
+          "portability": "transport_scoped",
+          "risk": "normal",
+          "source": "relay_declared"
+        },
+        {
+          "canonicalKey": "repeat_penalty",
+          "group": "repetition",
+          "support": "supported",
+          "valueSchema": "number",
+          "range": {
+            "min": 0
+          },
+          "defaultDescription": "provider_default",
+          "conflictsWith": [
+            "frequency_penalty",
+            "presence_penalty"
+          ],
+          "portability": "engine_scoped",
+          "risk": "normal",
+          "source": "engine_introspection"
+        },
+        {
+          "canonicalKey": "seed",
+          "group": "reproducibility",
+          "support": "supported",
+          "valueSchema": "integer",
+          "defaultDescription": "provider_default",
+          "portability": "transport_scoped",
+          "risk": "normal",
+          "source": "relay_declared"
+        },
+        {
+          "canonicalKey": "json_schema",
+          "group": "output_contract",
+          "support": "mode_dependent",
+          "valueSchema": "json-schema",
+          "conflictsWith": [
+            "tools"
+          ],
+          "constraints": [
+            {
+              "transport": [
+                "openai_chat_completions",
+                "openai_responses"
+              ]
+            }
+          ],
+          "defaultDescription": "provider_default",
+          "portability": "transport_scoped",
+          "risk": "output_contract",
+          "source": "relay_declared"
+        },
+        {
+          "canonicalKey": "logprobs",
+          "group": "output_contract",
+          "support": "unknown",
+          "valueSchema": "boolean",
+          "defaultDescription": "unknown",
+          "portability": "transport_scoped",
+          "risk": "experimental",
+          "source": "official_catalog"
+        },
+        {
+          "canonicalKey": "mirostat",
+          "group": "engine_runtime",
+          "support": "supported",
+          "valueSchema": "integer",
+          "enumValues": [
+            0,
+            1,
+            2
+          ],
+          "conflictsWith": [
+            "temperature",
+            "top_p",
+            "top_k",
+            "min_p"
+          ],
+          "defaultDescription": "provider_default",
+          "portability": "engine_scoped",
+          "risk": "resource",
+          "source": "engine_introspection"
+        },
+        {
+          "canonicalKey": "llamacpp_native",
+          "group": "engine_runtime",
+          "support": "supported",
+          "valueSchema": "boolean",
+          "defaultDescription": "provider_default",
+          "portability": "engine_scoped",
+          "risk": "experimental",
+          "source": "engine_introspection"
+        },
+        {
+          "canonicalKey": "extra_body",
+          "group": "engine_runtime",
+          "support": "supported",
+          "valueSchema": "json-schema",
+          "defaultDescription": "provider_default",
+          "portability": "engine_scoped",
+          "risk": "experimental",
+          "source": "relay_declared"
+        }
+      ]
+    }
+  },
+  "cases": [
+    {
+      "caseId": "openai_chat.omit",
+      "intent": {
+        "transport": "openai_chat_completions",
+        "authMode": "none",
+        "modelId": "fixture-chat",
+        "override": {
+          "state": "omit"
+        }
+      },
+      "expect": {
+        "headersExclude": [
+          "Authorization",
+          "x-api-key",
+          "x-goog-api-key"
+        ],
+        "bodyExcludes": [
+          "temperature"
+        ],
+        "resolved": {
+          "state": "omit",
+          "source": "explicit_omit",
+          "wirePath": null
+        }
+      }
+    },
+    {
+      "caseId": "openai_chat.zero",
+      "intent": {
+        "transport": "openai_chat_completions",
+        "authMode": "none",
+        "modelId": "fixture-chat",
+        "override": {
+          "state": "value",
+          "value": 0
+        }
+      },
+      "expect": {
+        "headersExclude": [
+          "Authorization",
+          "x-api-key",
+          "x-goog-api-key"
+        ],
+        "bodyIncludes": {
+          "temperature": 0
+        },
+        "resolved": {
+          "state": "value",
+          "value": 0,
+          "source": "single_send",
+          "wirePath": "temperature"
+        }
+      }
+    },
+    {
+      "caseId": "openai_chat.normal",
+      "intent": {
+        "transport": "openai_chat_completions",
+        "authMode": "bearer",
+        "modelId": "fixture-chat",
+        "override": {
+          "state": "value",
+          "value": 0.7
+        }
+      },
+      "expect": {
+        "headersInclude": {
+          "Authorization": "*"
+        },
+        "bodyIncludes": {
+          "temperature": 0.7
+        },
+        "resolved": {
+          "state": "value",
+          "value": 0.7,
+          "source": "single_send",
+          "wirePath": "temperature"
+        }
+      }
+    },
+    {
+      "caseId": "openai_responses.omit",
+      "intent": {
+        "transport": "openai_responses",
+        "authMode": "none",
+        "modelId": "fixture-responses",
+        "override": {
+          "state": "omit"
+        }
+      },
+      "expect": {
+        "headersExclude": [
+          "Authorization",
+          "x-api-key",
+          "x-goog-api-key"
+        ],
+        "bodyExcludes": [
+          "temperature"
+        ],
+        "resolved": {
+          "state": "omit",
+          "source": "explicit_omit",
+          "wirePath": null
+        }
+      }
+    },
+    {
+      "caseId": "openai_responses.zero",
+      "intent": {
+        "transport": "openai_responses",
+        "authMode": "none",
+        "modelId": "fixture-responses",
+        "override": {
+          "state": "value",
+          "value": 0
+        }
+      },
+      "expect": {
+        "headersExclude": [
+          "Authorization",
+          "x-api-key",
+          "x-goog-api-key"
+        ],
+        "bodyIncludes": {
+          "temperature": 0
+        },
+        "resolved": {
+          "state": "value",
+          "value": 0,
+          "source": "single_send",
+          "wirePath": "temperature"
+        }
+      }
+    },
+    {
+      "caseId": "openai_responses.normal",
+      "intent": {
+        "transport": "openai_responses",
+        "authMode": "bearer",
+        "modelId": "fixture-responses",
+        "override": {
+          "state": "value",
+          "value": 0.7
+        }
+      },
+      "expect": {
+        "headersInclude": {
+          "Authorization": "*"
+        },
+        "bodyIncludes": {
+          "temperature": 0.7
+        },
+        "resolved": {
+          "state": "value",
+          "value": 0.7,
+          "source": "single_send",
+          "wirePath": "temperature"
+        }
+      }
+    },
+    {
+      "caseId": "anthropic_messages.omit",
+      "intent": {
+        "transport": "anthropic_messages",
+        "authMode": "none",
+        "modelId": "fixture-anthropic",
+        "override": {
+          "state": "omit"
+        }
+      },
+      "expect": {
+        "headersExclude": [
+          "Authorization",
+          "x-api-key",
+          "x-goog-api-key"
+        ],
+        "bodyExcludes": [
+          "temperature"
+        ],
+        "resolved": {
+          "state": "omit",
+          "source": "explicit_omit",
+          "wirePath": null
+        }
+      }
+    },
+    {
+      "caseId": "anthropic_messages.zero",
+      "intent": {
+        "transport": "anthropic_messages",
+        "authMode": "none",
+        "modelId": "fixture-anthropic",
+        "override": {
+          "state": "value",
+          "value": 0
+        }
+      },
+      "expect": {
+        "headersExclude": [
+          "Authorization",
+          "x-api-key",
+          "x-goog-api-key"
+        ],
+        "bodyIncludes": {
+          "temperature": 0
+        },
+        "resolved": {
+          "state": "value",
+          "value": 0,
+          "source": "single_send",
+          "wirePath": "temperature"
+        }
+      }
+    },
+    {
+      "caseId": "anthropic_messages.normal",
+      "intent": {
+        "transport": "anthropic_messages",
+        "authMode": "x_api_key",
+        "modelId": "fixture-anthropic",
+        "override": {
+          "state": "value",
+          "value": 0.7
+        }
+      },
+      "expect": {
+        "headersInclude": {
+          "x-api-key": "*"
+        },
+        "bodyIncludes": {
+          "temperature": 0.7
+        },
+        "resolved": {
+          "state": "value",
+          "value": 0.7,
+          "source": "single_send",
+          "wirePath": "temperature"
+        }
+      }
+    },
+    {
+      "caseId": "gemini_generate_content.omit",
+      "intent": {
+        "transport": "gemini_generate_content",
+        "authMode": "none",
+        "modelId": "fixture-gemini",
+        "override": {
+          "state": "omit"
+        }
+      },
+      "expect": {
+        "headersExclude": [
+          "Authorization",
+          "x-api-key",
+          "x-goog-api-key"
+        ],
+        "bodyExcludes": [
+          "generationConfig.temperature"
+        ],
+        "resolved": {
+          "state": "omit",
+          "source": "explicit_omit",
+          "wirePath": null
+        }
+      }
+    },
+    {
+      "caseId": "gemini_generate_content.zero",
+      "intent": {
+        "transport": "gemini_generate_content",
+        "authMode": "none",
+        "modelId": "fixture-gemini",
+        "override": {
+          "state": "value",
+          "value": 0
+        }
+      },
+      "expect": {
+        "headersExclude": [
+          "Authorization",
+          "x-api-key",
+          "x-goog-api-key"
+        ],
+        "bodyIncludes": {
+          "generationConfig.temperature": 0
+        },
+        "resolved": {
+          "state": "value",
+          "value": 0,
+          "source": "single_send",
+          "wirePath": "generationConfig.temperature"
+        }
+      }
+    },
+    {
+      "caseId": "gemini_generate_content.normal",
+      "intent": {
+        "transport": "gemini_generate_content",
+        "authMode": "x_goog_api_key",
+        "modelId": "fixture-gemini",
+        "override": {
+          "state": "value",
+          "value": 0.7
+        }
+      },
+      "expect": {
+        "headersInclude": {
+          "x-goog-api-key": "*"
+        },
+        "bodyIncludes": {
+          "generationConfig.temperature": 0.7
+        },
+        "resolved": {
+          "state": "value",
+          "value": 0.7,
+          "source": "single_send",
+          "wirePath": "generationConfig.temperature"
+        }
+      }
+    }
+  ],
+  "resolverCases": [
+    {
+      "caseId": "inherit_then_omit_blocks_lower",
+      "layers": [
+        {
+          "scope": "conversation_connection_model",
+          "override": {
+            "state": "omit"
+          }
+        },
+        {
+          "scope": "connection_model",
+          "override": {
+            "state": "value",
+            "value": 0.5
+          }
+        }
+      ],
+      "expect": {
+        "state": "omit",
+        "source": "conversation_connection_model"
+      }
+    },
+    {
+      "caseId": "zero_is_not_missing",
+      "layers": [
+        {
+          "scope": "single_send",
+          "override": {
+            "state": "value",
+            "value": 0
+          }
+        },
+        {
+          "scope": "connection_model",
+          "override": {
+            "state": "value",
+            "value": 0.5
+          }
+        }
+      ],
+      "expect": {
+        "state": "value",
+        "value": 0,
+        "source": "single_send"
+      }
+    },
+    {
+      "caseId": "unknown_requires_explicit_value",
+      "support": "unknown",
+      "layers": [
+        {
+          "scope": "provider_default",
+          "override": {
+            "state": "inherit"
+          }
+        }
+      ],
+      "expect": {
+        "state": "omit",
+        "reason": "unknown_without_explicit_value"
+      }
+    },
+    {
+      "caseId": "tools_conflict_json_schema",
+      "activeKeys": [
+        "tools",
+        "json_schema"
+      ],
+      "expect": {
+        "support": "unsupported",
+        "reason": "conflict"
+      }
+    },
+    {
+      "caseId": "reasoning_disables_sampling",
+      "activeKeys": [
+        "reasoning_mode",
+        "temperature"
+      ],
+      "expect": {
+        "omitted": [
+          "temperature"
+        ],
+        "reason": "constraint"
+      }
+    },
+    {
+      "caseId": "engine_revision_change_invalidates",
+      "fromFingerprint": [
+        "relay-1",
+        "https://box.local/v1",
+        "openai_chat_completions",
+        "model-a",
+        "r1",
+        "normal"
+      ],
+      "toFingerprint": [
+        "relay-1",
+        "https://box.local/v1",
+        "openai_chat_completions",
+        "model-a",
+        "r2",
+        "normal"
+      ],
+      "expect": {
+        "portable": [
+          "temperature"
+        ],
+        "invalidated": [
+          "mirostat",
+          "llamacpp_native"
+        ]
+      }
+    },
+    {
+      "caseId": "exact_structured_400_before_stream_requires_explicit_resend",
+      "status": 400,
+      "streamStarted": false,
+      "sideEffects": false,
+      "errorClass": "parameter_rejected",
+      "locator": {
+        "source": "provider_recipe",
+        "owner": "generation",
+        "pointers": [
+          "/temperature"
+        ],
+        "errorFields": {
+          "/error/param": "temperature"
+        }
+      },
+      "expect": {
+        "stripOnce": false,
+        "retry": false,
+        "action": "user_confirmed_resend_without_located_setting",
+        "preference": "dormant"
+      }
+    },
+    {
+      "caseId": "unlocated_400_surfaces_without_learning",
+      "status": 400,
+      "streamStarted": false,
+      "sideEffects": false,
+      "errorClass": "parameter_rejected",
+      "expect": {
+        "stripOnce": false,
+        "retry": false,
+        "action": "surface_error",
+        "learnNegative": false
+      }
+    },
+    {
+      "caseId": "status_422_does_not_self_heal",
+      "status": 422,
+      "streamStarted": false,
+      "errorClass": "parameter_rejected",
+      "expect": {
+        "stripOnce": false,
+        "retry": false
+      }
+    },
+    {
+      "caseId": "started_stream_never_retries",
+      "status": 400,
+      "streamStarted": true,
+      "errorClass": "parameter_rejected",
+      "expect": {
+        "stripOnce": false,
+        "retry": false
+      }
+    },
+    {
+      "caseId": "unknown_profile_enum_preserved",
+      "wire": {
+        "support": "future_supported",
+        "reasoningLevel": "ultra"
+      },
+      "expect": {
+        "decoded": "unknown",
+        "rawPreserved": true,
+        "silentFallback": false
+      }
+    }
+  ],
+  "wireHardening": {
+    "$comment": "The wire path the server sends down is the write path; clients trust its semantics, not its shape: thresholds, enums, and tiers remain 100% server-authoritative, but a structurally invalid write path must be rejected by the same rule on every client. A violating parameter is dropped and logged as a local diagnostic; it must never throw and abort the whole request.",
+    "segmentPattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+    "blockedSegments": [
+      "__proto__",
+      "prototype",
+      "constructor"
+    ],
+    "maxSegments": 4,
+    "builderOwnedRootFields": [
+      "model",
+      "messages",
+      "input",
+      "contents",
+      "prompt",
+      "attachments",
+      "instructions",
+      "system",
+      "stream",
+      "stream_options",
+      "tools",
+      "tool_choice",
+      "plugins"
+    ],
+    "evaluationOrder": [
+      "blocked_segment",
+      "invalid_segment",
+      "depth_exceeded",
+      "owned_root_field"
+    ],
+    "reasons": [
+      "blocked_segment",
+      "invalid_segment",
+      "depth_exceeded",
+      "owned_root_field"
+    ],
+    "jsonSchemaLimits": {
+      "maxBytes": 65536,
+      "maxDepth": 32
+    },
+    "relaySynthesizedWireSource": "client_constant_table"
+  },
+  "wireHardeningCases": [
+    {
+      "caseId": "wire.proto_root",
+      "wire": "__proto__.polluted",
+      "value": 0.7,
+      "expect": {
+        "applied": false,
+        "reason": "blocked_segment"
+      }
+    },
+    {
+      "caseId": "wire.constructor_prototype",
+      "wire": "constructor.prototype.polluted",
+      "value": 0.7,
+      "expect": {
+        "applied": false,
+        "reason": "blocked_segment"
+      }
+    },
+    {
+      "caseId": "wire.prototype_segment",
+      "wire": "prototype.polluted",
+      "value": 0.7,
+      "expect": {
+        "applied": false,
+        "reason": "blocked_segment"
+      }
+    },
+    {
+      "caseId": "wire.nested_proto",
+      "wire": "generationConfig.__proto__.polluted",
+      "value": 0.7,
+      "expect": {
+        "applied": false,
+        "reason": "blocked_segment"
+      }
+    },
+    {
+      "caseId": "wire.hyphen_segment",
+      "wire": "generationConfig.temp-erature",
+      "value": 0.7,
+      "expect": {
+        "applied": false,
+        "reason": "invalid_segment"
+      }
+    },
+    {
+      "caseId": "wire.leading_digit_segment",
+      "wire": "0temperature",
+      "value": 0.7,
+      "expect": {
+        "applied": false,
+        "reason": "invalid_segment"
+      }
+    },
+    {
+      "caseId": "wire.empty_segment",
+      "wire": "generationConfig..temperature",
+      "value": 0.7,
+      "expect": {
+        "applied": false,
+        "reason": "invalid_segment"
+      }
+    },
+    {
+      "caseId": "wire.bracket_segment",
+      "wire": "extra_body[0].temperature",
+      "value": 0.7,
+      "expect": {
+        "applied": false,
+        "reason": "invalid_segment"
+      }
+    },
+    {
+      "caseId": "wire.depth_five",
+      "wire": "a.b.c.d.e",
+      "value": 0.7,
+      "expect": {
+        "applied": false,
+        "reason": "depth_exceeded"
+      }
+    },
+    {
+      "caseId": "wire.depth_four_allowed",
+      "wire": "a.b.c.d",
+      "value": 0.7,
+      "expect": {
+        "applied": true,
+        "reason": null
+      }
+    },
+    {
+      "caseId": "wire.owned_root_model",
+      "wire": "model",
+      "value": 0.7,
+      "expect": {
+        "applied": false,
+        "reason": "owned_root_field"
+      }
+    },
+    {
+      "caseId": "wire.owned_root_messages",
+      "wire": "messages",
+      "value": 0.7,
+      "expect": {
+        "applied": false,
+        "reason": "owned_root_field"
+      }
+    },
+    {
+      "caseId": "wire.owned_root_tools",
+      "wire": "tools",
+      "value": 0.7,
+      "expect": {
+        "applied": false,
+        "reason": "owned_root_field"
+      }
+    },
+    {
+      "caseId": "wire.owned_root_prompt",
+      "wire": "prompt",
+      "value": 0.7,
+      "expect": {
+        "applied": false,
+        "reason": "owned_root_field"
+      }
+    },
+    {
+      "caseId": "wire.owned_root_attachments",
+      "wire": "attachments",
+      "value": 0.7,
+      "expect": {
+        "applied": false,
+        "reason": "owned_root_field"
+      }
+    },
+    {
+      "caseId": "wire.owned_root_instructions",
+      "wire": "instructions",
+      "value": 0.7,
+      "expect": {
+        "applied": false,
+        "reason": "owned_root_field"
+      }
+    },
+    {
+      "caseId": "wire.owned_root_plugins",
+      "wire": "plugins",
+      "value": 0.7,
+      "expect": {
+        "applied": false,
+        "reason": "owned_root_field"
+      }
+    },
+    {
+      "caseId": "wire.owned_root_nested",
+      "wire": "stream_options.include_usage",
+      "value": 0.7,
+      "expect": {
+        "applied": false,
+        "reason": "owned_root_field"
+      }
+    },
+    {
+      "caseId": "wire.plain_allowed",
+      "wire": "temperature",
+      "value": 0.7,
+      "expect": {
+        "applied": true,
+        "reason": null
+      }
+    }
+  ],
+  "relayWireRoundTrips": [
+    {
+      "transportKind": "openai_chat",
+      "authMode": "none",
+      "expect": {
+        "transportKind": "openai_chat",
+        "authMode": "none"
+      }
+    },
+    {
+      "transportKind": "future_transport",
+      "authMode": "future_auth",
+      "expect": {
+        "decodeDoesNotFail": true,
+        "unknownValuesVisible": true
+      }
+    }
+  ],
+  "availabilityCases": [
+    {
+      "caseId": "official.session.support_supported",
+      "intent": {
+        "providerKind": "official",
+        "scope": "session",
+        "parameter": {
+          "id": "temperature",
+          "group": "sampling",
+          "support": "supported",
+          "wire": "temperature"
+        },
+        "entitlement": {
+          "canManageRuntime": true
+        }
+      },
+      "expect": {
+        "inScope": true,
+        "entryVisible": true,
+        "editable": true
+      }
+    },
+    {
+      "caseId": "official.session.support_accepted",
+      "intent": {
+        "providerKind": "official",
+        "scope": "session",
+        "parameter": {
+          "id": "temperature",
+          "group": "sampling",
+          "support": "accepted",
+          "wire": "temperature"
+        },
+        "entitlement": {
+          "canManageRuntime": true
+        }
+      },
+      "expect": {
+        "inScope": true,
+        "entryVisible": true,
+        "editable": true
+      }
+    },
+    {
+      "caseId": "official.session.support_accepted_unverified",
+      "intent": {
+        "providerKind": "official",
+        "scope": "session",
+        "parameter": {
+          "id": "temperature",
+          "group": "sampling",
+          "support": "accepted_unverified",
+          "wire": "temperature"
+        },
+        "entitlement": {
+          "canManageRuntime": true
+        }
+      },
+      "expect": {
+        "inScope": true,
+        "entryVisible": true,
+        "editable": true
+      }
+    },
+    {
+      "caseId": "official.session.support_unknown",
+      "intent": {
+        "providerKind": "official",
+        "scope": "session",
+        "parameter": {
+          "id": "temperature",
+          "group": "sampling",
+          "support": "unknown",
+          "wire": "temperature"
+        },
+        "entitlement": {
+          "canManageRuntime": true
+        }
+      },
+      "expect": {
+        "inScope": true,
+        "entryVisible": true,
+        "editable": true
+      }
+    },
+    {
+      "caseId": "official.session.support_future_supported",
+      "intent": {
+        "providerKind": "official",
+        "scope": "session",
+        "parameter": {
+          "id": "temperature",
+          "group": "sampling",
+          "support": "future_supported",
+          "wire": "temperature"
+        },
+        "entitlement": {
+          "canManageRuntime": true
+        }
+      },
+      "expect": {
+        "inScope": false,
+        "entryVisible": false,
+        "editable": false
+      }
+    },
+    {
+      "caseId": "official.session.support_unsupported",
+      "intent": {
+        "providerKind": "official",
+        "scope": "session",
+        "parameter": {
+          "id": "temperature",
+          "group": "sampling",
+          "support": "unsupported",
+          "wire": "temperature"
+        },
+        "entitlement": {
+          "canManageRuntime": true
+        }
+      },
+      "expect": {
+        "inScope": false,
+        "entryVisible": false,
+        "editable": false
+      }
+    },
+    {
+      "caseId": "official.session.support_fixed",
+      "intent": {
+        "providerKind": "official",
+        "scope": "session",
+        "parameter": {
+          "id": "temperature",
+          "group": "sampling",
+          "support": "fixed",
+          "wire": "temperature"
+        },
+        "entitlement": {
+          "canManageRuntime": true
+        }
+      },
+      "expect": {
+        "inScope": false,
+        "entryVisible": false,
+        "editable": false
+      }
+    },
+    {
+      "caseId": "official.session.support_mode_dependent",
+      "intent": {
+        "providerKind": "official",
+        "scope": "session",
+        "parameter": {
+          "id": "temperature",
+          "group": "sampling",
+          "support": "mode_dependent",
+          "wire": "temperature"
+        },
+        "entitlement": {
+          "canManageRuntime": true
+        }
+      },
+      "expect": {
+        "inScope": false,
+        "entryVisible": false,
+        "editable": false
+      }
+    },
+    {
+      "caseId": "official.connectionDefaults.support_supported",
+      "intent": {
+        "providerKind": "official",
+        "scope": "connectionDefaults",
+        "parameter": {
+          "id": "temperature",
+          "group": "sampling",
+          "support": "supported",
+          "wire": "temperature"
+        },
+        "entitlement": {
+          "canManageRuntime": true
+        }
+      },
+      "expect": {
+        "inScope": true,
+        "entryVisible": true,
+        "editable": true
+      }
+    },
+    {
+      "caseId": "official.connectionDefaults.support_accepted",
+      "intent": {
+        "providerKind": "official",
+        "scope": "connectionDefaults",
+        "parameter": {
+          "id": "temperature",
+          "group": "sampling",
+          "support": "accepted",
+          "wire": "temperature"
+        },
+        "entitlement": {
+          "canManageRuntime": true
+        }
+      },
+      "expect": {
+        "inScope": true,
+        "entryVisible": true,
+        "editable": true
+      }
+    },
+    {
+      "caseId": "official.connectionDefaults.support_accepted_unverified",
+      "intent": {
+        "providerKind": "official",
+        "scope": "connectionDefaults",
+        "parameter": {
+          "id": "temperature",
+          "group": "sampling",
+          "support": "accepted_unverified",
+          "wire": "temperature"
+        },
+        "entitlement": {
+          "canManageRuntime": true
+        }
+      },
+      "expect": {
+        "inScope": true,
+        "entryVisible": true,
+        "editable": true
+      }
+    },
+    {
+      "caseId": "official.connectionDefaults.support_unknown",
+      "intent": {
+        "providerKind": "official",
+        "scope": "connectionDefaults",
+        "parameter": {
+          "id": "temperature",
+          "group": "sampling",
+          "support": "unknown",
+          "wire": "temperature"
+        },
+        "entitlement": {
+          "canManageRuntime": true
+        }
+      },
+      "expect": {
+        "inScope": true,
+        "entryVisible": true,
+        "editable": true
+      }
+    },
+    {
+      "caseId": "official.connectionDefaults.support_future_supported",
+      "intent": {
+        "providerKind": "official",
+        "scope": "connectionDefaults",
+        "parameter": {
+          "id": "temperature",
+          "group": "sampling",
+          "support": "future_supported",
+          "wire": "temperature"
+        },
+        "entitlement": {
+          "canManageRuntime": true
+        }
+      },
+      "expect": {
+        "inScope": true,
+        "entryVisible": true,
+        "editable": false
+      }
+    },
+    {
+      "caseId": "official.connectionDefaults.support_unsupported",
+      "intent": {
+        "providerKind": "official",
+        "scope": "connectionDefaults",
+        "parameter": {
+          "id": "temperature",
+          "group": "sampling",
+          "support": "unsupported",
+          "wire": "temperature"
+        },
+        "entitlement": {
+          "canManageRuntime": true
+        }
+      },
+      "expect": {
+        "inScope": true,
+        "entryVisible": true,
+        "editable": false
+      },
+      "note": "connectionDefaults is a **rendering surface**, not an interactive one (the fixed / mode_dependent / wire_missing cases in this same section are already \"rendered but editable=false\"). Dropping the unsupported row entirely would make the presentationClasses \"not adjustable\" class **structurally unreachable** on the connection panel — instead of the user seeing \"this model doesn't accept this parameter\" plus \"see models that support it\", the row would simply disappear. An unavailable tier must exist in the view tree and be disabled rather than not rendered at all, and every unavailable state must carry one actionable next step. ⚠️ editable stays false and the outbound value stays dormant (lifecycleCases#official.declared.unsupported is the matching anchor on the other side): this entry only changes **visibility**, never **whether it is sent**."
+    },
+    {
+      "caseId": "official.connectionDefaults.support_fixed",
+      "intent": {
+        "providerKind": "official",
+        "scope": "connectionDefaults",
+        "parameter": {
+          "id": "temperature",
+          "group": "sampling",
+          "support": "fixed",
+          "wire": "temperature"
+        },
+        "entitlement": {
+          "canManageRuntime": true
+        }
+      },
+      "expect": {
+        "inScope": true,
+        "entryVisible": true,
+        "editable": false
+      }
+    },
+    {
+      "caseId": "official.connectionDefaults.support_mode_dependent",
+      "intent": {
+        "providerKind": "official",
+        "scope": "connectionDefaults",
+        "parameter": {
+          "id": "temperature",
+          "group": "sampling",
+          "support": "mode_dependent",
+          "wire": "temperature"
+        },
+        "entitlement": {
+          "canManageRuntime": true
+        }
+      },
+      "expect": {
+        "inScope": true,
+        "entryVisible": true,
+        "editable": false
+      }
+    },
+    {
+      "caseId": "relay.session.support_supported",
+      "intent": {
+        "providerKind": "relay",
+        "scope": "session",
+        "parameter": {
+          "id": "temperature",
+          "group": "sampling",
+          "support": "supported",
+          "wire": "temperature"
+        },
+        "entitlement": {
+          "canManageRuntime": true
+        }
+      },
+      "expect": {
+        "inScope": true,
+        "entryVisible": true,
+        "editable": true
+      }
+    },
+    {
+      "caseId": "relay.session.support_accepted",
+      "intent": {
+        "providerKind": "relay",
+        "scope": "session",
+        "parameter": {
+          "id": "temperature",
+          "group": "sampling",
+          "support": "accepted",
+          "wire": "temperature"
+        },
+        "entitlement": {
+          "canManageRuntime": true
+        }
+      },
+      "expect": {
+        "inScope": true,
+        "entryVisible": true,
+        "editable": true
+      }
+    },
+    {
+      "caseId": "relay.session.support_accepted_unverified",
+      "intent": {
+        "providerKind": "relay",
+        "scope": "session",
+        "parameter": {
+          "id": "temperature",
+          "group": "sampling",
+          "support": "accepted_unverified",
+          "wire": "temperature"
+        },
+        "entitlement": {
+          "canManageRuntime": true
+        }
+      },
+      "expect": {
+        "inScope": true,
+        "entryVisible": true,
+        "editable": true
+      }
+    },
+    {
+      "caseId": "relay.session.support_unknown",
+      "intent": {
+        "providerKind": "relay",
+        "scope": "session",
+        "parameter": {
+          "id": "temperature",
+          "group": "sampling",
+          "support": "unknown",
+          "wire": "temperature"
+        },
+        "entitlement": {
+          "canManageRuntime": true
+        }
+      },
+      "expect": {
+        "inScope": true,
+        "entryVisible": true,
+        "editable": true
+      }
+    },
+    {
+      "caseId": "relay.session.support_future_supported",
+      "intent": {
+        "providerKind": "relay",
+        "scope": "session",
+        "parameter": {
+          "id": "temperature",
+          "group": "sampling",
+          "support": "future_supported",
+          "wire": "temperature"
+        },
+        "entitlement": {
+          "canManageRuntime": true
+        }
+      },
+      "expect": {
+        "inScope": false,
+        "entryVisible": false,
+        "editable": false
+      }
+    },
+    {
+      "caseId": "relay.session.support_unsupported",
+      "intent": {
+        "providerKind": "relay",
+        "scope": "session",
+        "parameter": {
+          "id": "temperature",
+          "group": "sampling",
+          "support": "unsupported",
+          "wire": "temperature"
+        },
+        "entitlement": {
+          "canManageRuntime": true
+        }
+      },
+      "expect": {
+        "inScope": false,
+        "entryVisible": false,
+        "editable": false
+      }
+    },
+    {
+      "caseId": "relay.session.support_fixed",
+      "intent": {
+        "providerKind": "relay",
+        "scope": "session",
+        "parameter": {
+          "id": "temperature",
+          "group": "sampling",
+          "support": "fixed",
+          "wire": "temperature"
+        },
+        "entitlement": {
+          "canManageRuntime": true
+        }
+      },
+      "expect": {
+        "inScope": false,
+        "entryVisible": false,
+        "editable": false
+      }
+    },
+    {
+      "caseId": "relay.session.support_mode_dependent",
+      "intent": {
+        "providerKind": "relay",
+        "scope": "session",
+        "parameter": {
+          "id": "temperature",
+          "group": "sampling",
+          "support": "mode_dependent",
+          "wire": "temperature"
+        },
+        "entitlement": {
+          "canManageRuntime": true
+        }
+      },
+      "expect": {
+        "inScope": false,
+        "entryVisible": false,
+        "editable": false
+      }
+    },
+    {
+      "caseId": "relay.connectionDefaults.support_supported",
+      "intent": {
+        "providerKind": "relay",
+        "scope": "connectionDefaults",
+        "parameter": {
+          "id": "temperature",
+          "group": "sampling",
+          "support": "supported",
+          "wire": "temperature"
+        },
+        "entitlement": {
+          "canManageRuntime": true
+        }
+      },
+      "expect": {
+        "inScope": true,
+        "entryVisible": true,
+        "editable": true
+      }
+    },
+    {
+      "caseId": "relay.connectionDefaults.support_accepted",
+      "intent": {
+        "providerKind": "relay",
+        "scope": "connectionDefaults",
+        "parameter": {
+          "id": "temperature",
+          "group": "sampling",
+          "support": "accepted",
+          "wire": "temperature"
+        },
+        "entitlement": {
+          "canManageRuntime": true
+        }
+      },
+      "expect": {
+        "inScope": true,
+        "entryVisible": true,
+        "editable": true
+      }
+    },
+    {
+      "caseId": "relay.connectionDefaults.support_accepted_unverified",
+      "intent": {
+        "providerKind": "relay",
+        "scope": "connectionDefaults",
+        "parameter": {
+          "id": "temperature",
+          "group": "sampling",
+          "support": "accepted_unverified",
+          "wire": "temperature"
+        },
+        "entitlement": {
+          "canManageRuntime": true
+        }
+      },
+      "expect": {
+        "inScope": true,
+        "entryVisible": true,
+        "editable": true
+      }
+    },
+    {
+      "caseId": "relay.connectionDefaults.support_unknown",
+      "intent": {
+        "providerKind": "relay",
+        "scope": "connectionDefaults",
+        "parameter": {
+          "id": "temperature",
+          "group": "sampling",
+          "support": "unknown",
+          "wire": "temperature"
+        },
+        "entitlement": {
+          "canManageRuntime": true
+        }
+      },
+      "expect": {
+        "inScope": true,
+        "entryVisible": true,
+        "editable": true
+      }
+    },
+    {
+      "caseId": "relay.connectionDefaults.support_future_supported",
+      "intent": {
+        "providerKind": "relay",
+        "scope": "connectionDefaults",
+        "parameter": {
+          "id": "temperature",
+          "group": "sampling",
+          "support": "future_supported",
+          "wire": "temperature"
+        },
+        "entitlement": {
+          "canManageRuntime": true
+        }
+      },
+      "expect": {
+        "inScope": true,
+        "entryVisible": true,
+        "editable": false
+      }
+    },
+    {
+      "caseId": "relay.connectionDefaults.support_unsupported",
+      "intent": {
+        "providerKind": "relay",
+        "scope": "connectionDefaults",
+        "parameter": {
+          "id": "temperature",
+          "group": "sampling",
+          "support": "unsupported",
+          "wire": "temperature"
+        },
+        "entitlement": {
+          "canManageRuntime": true
+        }
+      },
+      "expect": {
+        "inScope": true,
+        "entryVisible": true,
+        "editable": false
+      },
+      "note": "The relay instance of the same rule as official.connectionDefaults.support_unsupported (providerKind plays no part in the decision). Rendered visible + editable=false + dormant on the wire."
+    },
+    {
+      "caseId": "relay.connectionDefaults.support_fixed",
+      "intent": {
+        "providerKind": "relay",
+        "scope": "connectionDefaults",
+        "parameter": {
+          "id": "temperature",
+          "group": "sampling",
+          "support": "fixed",
+          "wire": "temperature"
+        },
+        "entitlement": {
+          "canManageRuntime": true
+        }
+      },
+      "expect": {
+        "inScope": true,
+        "entryVisible": true,
+        "editable": false
+      }
+    },
+    {
+      "caseId": "relay.connectionDefaults.support_mode_dependent",
+      "intent": {
+        "providerKind": "relay",
+        "scope": "connectionDefaults",
+        "parameter": {
+          "id": "temperature",
+          "group": "sampling",
+          "support": "mode_dependent",
+          "wire": "temperature"
+        },
+        "entitlement": {
+          "canManageRuntime": true
+        }
+      },
+      "expect": {
+        "inScope": true,
+        "entryVisible": true,
+        "editable": false
+      }
+    },
+    {
+      "caseId": "official.session.wire_missing",
+      "intent": {
+        "providerKind": "official",
+        "scope": "session",
+        "parameter": {
+          "id": "temperature",
+          "group": "sampling",
+          "support": "supported",
+          "wire": null
+        },
+        "entitlement": {
+          "canManageRuntime": true
+        }
+      },
+      "expect": {
+        "inScope": false,
+        "entryVisible": false,
+        "editable": false
+      },
+      "note": "The server declared the parameter but did not supply a write path. The session scope requires a non-empty wire path; the connection scope still renders the row, but with editable=false."
+    },
+    {
+      "caseId": "official.connectionDefaults.wire_missing",
+      "intent": {
+        "providerKind": "official",
+        "scope": "connectionDefaults",
+        "parameter": {
+          "id": "temperature",
+          "group": "sampling",
+          "support": "supported",
+          "wire": null
+        },
+        "entitlement": {
+          "canManageRuntime": true
+        }
+      },
+      "expect": {
+        "inScope": true,
+        "entryVisible": true,
+        "editable": false
+      },
+      "note": "The server declared the parameter but did not supply a write path. The session scope requires a non-empty wire path; the connection scope still renders the row, but with editable=false."
+    },
+    {
+      "caseId": "relay.session.wire_missing",
+      "intent": {
+        "providerKind": "relay",
+        "scope": "session",
+        "parameter": {
+          "id": "temperature",
+          "group": "sampling",
+          "support": "supported",
+          "wire": null
+        },
+        "entitlement": {
+          "canManageRuntime": true
+        }
+      },
+      "expect": {
+        "inScope": false,
+        "entryVisible": false,
+        "editable": false
+      },
+      "note": "The server declared the parameter but did not supply a write path. The session scope requires a non-empty wire path; the connection scope still renders the row, but with editable=false."
+    },
+    {
+      "caseId": "relay.connectionDefaults.wire_missing",
+      "intent": {
+        "providerKind": "relay",
+        "scope": "connectionDefaults",
+        "parameter": {
+          "id": "temperature",
+          "group": "sampling",
+          "support": "supported",
+          "wire": null
+        },
+        "entitlement": {
+          "canManageRuntime": true
+        }
+      },
+      "expect": {
+        "inScope": true,
+        "entryVisible": true,
+        "editable": false
+      },
+      "note": "The server declared the parameter but did not supply a write path. The session scope requires a non-empty wire path; the connection scope still renders the row, but with editable=false."
+    },
+    {
+      "caseId": "official.session.engine_runtime.entitlement_on",
+      "intent": {
+        "providerKind": "official",
+        "scope": "session",
+        "parameter": {
+          "id": "top_k",
+          "group": "engine_runtime",
+          "support": "supported",
+          "wire": "extra_body.top_k"
+        },
+        "entitlement": {
+          "canManageRuntime": true
+        }
+      },
+      "expect": {
+        "inScope": true,
+        "entryVisible": true,
+        "editable": true
+      }
+    },
+    {
+      "caseId": "official.session.engine_runtime.entitlement_off",
+      "intent": {
+        "providerKind": "official",
+        "scope": "session",
+        "parameter": {
+          "id": "top_k",
+          "group": "engine_runtime",
+          "support": "supported",
+          "wire": "extra_body.top_k"
+        },
+        "entitlement": {
+          "canManageRuntime": false
+        }
+      },
+      "expect": {
+        "inScope": true,
+        "entryVisible": true,
+        "editable": true
+      },
+      "note": "When a capability group is turned off, the whole group becomes unconfigurable in the connection scope; the session-scope predicate's signature does not factor in that toggle — filtering for it is applied by each client's own panel — so the session predicate still evaluates to true."
+    },
+    {
+      "caseId": "official.connectionDefaults.engine_runtime.entitlement_on",
+      "intent": {
+        "providerKind": "official",
+        "scope": "connectionDefaults",
+        "parameter": {
+          "id": "top_k",
+          "group": "engine_runtime",
+          "support": "supported",
+          "wire": "extra_body.top_k"
+        },
+        "entitlement": {
+          "canManageRuntime": true
+        }
+      },
+      "expect": {
+        "inScope": true,
+        "entryVisible": true,
+        "editable": true
+      }
+    },
+    {
+      "caseId": "official.connectionDefaults.engine_runtime.entitlement_off",
+      "intent": {
+        "providerKind": "official",
+        "scope": "connectionDefaults",
+        "parameter": {
+          "id": "top_k",
+          "group": "engine_runtime",
+          "support": "supported",
+          "wire": "extra_body.top_k"
+        },
+        "entitlement": {
+          "canManageRuntime": false
+        }
+      },
+      "expect": {
+        "inScope": false,
+        "entryVisible": false,
+        "editable": false
+      },
+      "note": "When a capability group is turned off, the whole group becomes unconfigurable in the connection scope; the session-scope predicate's signature does not factor in that toggle — filtering for it is applied by each client's own panel — so the session predicate still evaluates to true."
+    },
+    {
+      "caseId": "relay.session.engine_runtime.entitlement_on",
+      "intent": {
+        "providerKind": "relay",
+        "scope": "session",
+        "parameter": {
+          "id": "top_k",
+          "group": "engine_runtime",
+          "support": "supported",
+          "wire": "extra_body.top_k"
+        },
+        "entitlement": {
+          "canManageRuntime": true
+        }
+      },
+      "expect": {
+        "inScope": true,
+        "entryVisible": true,
+        "editable": true
+      }
+    },
+    {
+      "caseId": "relay.session.engine_runtime.entitlement_off",
+      "intent": {
+        "providerKind": "relay",
+        "scope": "session",
+        "parameter": {
+          "id": "top_k",
+          "group": "engine_runtime",
+          "support": "supported",
+          "wire": "extra_body.top_k"
+        },
+        "entitlement": {
+          "canManageRuntime": false
+        }
+      },
+      "expect": {
+        "inScope": true,
+        "entryVisible": true,
+        "editable": true
+      },
+      "note": "When a capability group is turned off, the whole group becomes unconfigurable in the connection scope; the session-scope predicate's signature does not factor in that toggle — filtering for it is applied by each client's own panel — so the session predicate still evaluates to true."
+    },
+    {
+      "caseId": "relay.connectionDefaults.engine_runtime.entitlement_on",
+      "intent": {
+        "providerKind": "relay",
+        "scope": "connectionDefaults",
+        "parameter": {
+          "id": "top_k",
+          "group": "engine_runtime",
+          "support": "supported",
+          "wire": "extra_body.top_k"
+        },
+        "entitlement": {
+          "canManageRuntime": true
+        }
+      },
+      "expect": {
+        "inScope": true,
+        "entryVisible": true,
+        "editable": true
+      }
+    },
+    {
+      "caseId": "relay.connectionDefaults.engine_runtime.entitlement_off",
+      "intent": {
+        "providerKind": "relay",
+        "scope": "connectionDefaults",
+        "parameter": {
+          "id": "top_k",
+          "group": "engine_runtime",
+          "support": "supported",
+          "wire": "extra_body.top_k"
+        },
+        "entitlement": {
+          "canManageRuntime": false
+        }
+      },
+      "expect": {
+        "inScope": false,
+        "entryVisible": false,
+        "editable": false
+      },
+      "note": "When a capability group is turned off, the whole group becomes unconfigurable in the connection scope; the session-scope predicate's signature does not factor in that toggle — filtering for it is applied by each client's own panel — so the session predicate still evaluates to true."
+    },
+    {
+      "caseId": "official.session.reasoning_effort",
+      "intent": {
+        "providerKind": "official",
+        "scope": "session",
+        "parameter": {
+          "id": "reasoning_effort",
+          "group": "reasoning",
+          "support": "supported",
+          "wire": "reasoning_effort"
+        },
+        "entitlement": {
+          "canManageRuntime": true
+        }
+      },
+      "expect": {
+        "inScope": false,
+        "entryVisible": false,
+        "editable": false
+      },
+      "note": "The session scope is carried solely by the reasoning chip; the connection scope is kept and actually goes out on the wire."
+    },
+    {
+      "caseId": "official.session.reasoning_budget",
+      "intent": {
+        "providerKind": "official",
+        "scope": "session",
+        "parameter": {
+          "id": "reasoning_budget",
+          "group": "reasoning",
+          "support": "fixed",
+          "wire": "reasoning_budget"
+        },
+        "entitlement": {
+          "canManageRuntime": true
+        }
+      },
+      "expect": {
+        "inScope": false,
+        "entryVisible": false,
+        "editable": false
+      },
+      "note": "The session scope is carried solely by the reasoning chip; the connection scope is kept and actually goes out on the wire."
+    },
+    {
+      "caseId": "official.session.reasoning_mode",
+      "intent": {
+        "providerKind": "official",
+        "scope": "session",
+        "parameter": {
+          "id": "reasoning_mode",
+          "group": "reasoning",
+          "support": "mode_dependent",
+          "wire": "reasoning_mode"
+        },
+        "entitlement": {
+          "canManageRuntime": true
+        }
+      },
+      "expect": {
+        "inScope": false,
+        "entryVisible": false,
+        "editable": false
+      },
+      "note": "The session scope is carried solely by the reasoning chip; the connection scope is kept and actually goes out on the wire."
+    },
+    {
+      "caseId": "official.connectionDefaults.reasoning_effort",
+      "intent": {
+        "providerKind": "official",
+        "scope": "connectionDefaults",
+        "parameter": {
+          "id": "reasoning_effort",
+          "group": "reasoning",
+          "support": "supported",
+          "wire": "reasoning_effort"
+        },
+        "entitlement": {
+          "canManageRuntime": true
+        }
+      },
+      "expect": {
+        "inScope": true,
+        "entryVisible": true,
+        "editable": true
+      },
+      "note": "The session scope is carried solely by the reasoning chip; the connection scope is kept and actually goes out on the wire."
+    },
+    {
+      "caseId": "official.connectionDefaults.reasoning_budget",
+      "intent": {
+        "providerKind": "official",
+        "scope": "connectionDefaults",
+        "parameter": {
+          "id": "reasoning_budget",
+          "group": "reasoning",
+          "support": "fixed",
+          "wire": "reasoning_budget"
+        },
+        "entitlement": {
+          "canManageRuntime": true
+        }
+      },
+      "expect": {
+        "inScope": true,
+        "entryVisible": true,
+        "editable": false
+      },
+      "note": "The session scope is carried solely by the reasoning chip; the connection scope is kept and actually goes out on the wire."
+    },
+    {
+      "caseId": "official.connectionDefaults.reasoning_mode",
+      "intent": {
+        "providerKind": "official",
+        "scope": "connectionDefaults",
+        "parameter": {
+          "id": "reasoning_mode",
+          "group": "reasoning",
+          "support": "mode_dependent",
+          "wire": "reasoning_mode"
+        },
+        "entitlement": {
+          "canManageRuntime": true
+        }
+      },
+      "expect": {
+        "inScope": true,
+        "entryVisible": true,
+        "editable": false
+      },
+      "note": "The session scope is carried solely by the reasoning chip; the connection scope is kept and actually goes out on the wire."
+    },
+    {
+      "caseId": "relay.session.reasoning_effort",
+      "intent": {
+        "providerKind": "relay",
+        "scope": "session",
+        "parameter": {
+          "id": "reasoning_effort",
+          "group": "reasoning",
+          "support": "supported",
+          "wire": "reasoning_effort"
+        },
+        "entitlement": {
+          "canManageRuntime": true
+        }
+      },
+      "expect": {
+        "inScope": false,
+        "entryVisible": false,
+        "editable": false
+      },
+      "note": "The session scope is carried solely by the reasoning chip; the connection scope is kept and actually goes out on the wire."
+    },
+    {
+      "caseId": "relay.session.reasoning_budget",
+      "intent": {
+        "providerKind": "relay",
+        "scope": "session",
+        "parameter": {
+          "id": "reasoning_budget",
+          "group": "reasoning",
+          "support": "fixed",
+          "wire": "reasoning_budget"
+        },
+        "entitlement": {
+          "canManageRuntime": true
+        }
+      },
+      "expect": {
+        "inScope": false,
+        "entryVisible": false,
+        "editable": false
+      },
+      "note": "The session scope is carried solely by the reasoning chip; the connection scope is kept and actually goes out on the wire."
+    },
+    {
+      "caseId": "relay.session.reasoning_mode",
+      "intent": {
+        "providerKind": "relay",
+        "scope": "session",
+        "parameter": {
+          "id": "reasoning_mode",
+          "group": "reasoning",
+          "support": "mode_dependent",
+          "wire": "reasoning_mode"
+        },
+        "entitlement": {
+          "canManageRuntime": true
+        }
+      },
+      "expect": {
+        "inScope": false,
+        "entryVisible": false,
+        "editable": false
+      },
+      "note": "The session scope is carried solely by the reasoning chip; the connection scope is kept and actually goes out on the wire."
+    },
+    {
+      "caseId": "relay.connectionDefaults.reasoning_effort",
+      "intent": {
+        "providerKind": "relay",
+        "scope": "connectionDefaults",
+        "parameter": {
+          "id": "reasoning_effort",
+          "group": "reasoning",
+          "support": "supported",
+          "wire": "reasoning_effort"
+        },
+        "entitlement": {
+          "canManageRuntime": true
+        }
+      },
+      "expect": {
+        "inScope": true,
+        "entryVisible": true,
+        "editable": true
+      },
+      "note": "The session scope is carried solely by the reasoning chip; the connection scope is kept and actually goes out on the wire."
+    },
+    {
+      "caseId": "relay.connectionDefaults.reasoning_budget",
+      "intent": {
+        "providerKind": "relay",
+        "scope": "connectionDefaults",
+        "parameter": {
+          "id": "reasoning_budget",
+          "group": "reasoning",
+          "support": "fixed",
+          "wire": "reasoning_budget"
+        },
+        "entitlement": {
+          "canManageRuntime": true
+        }
+      },
+      "expect": {
+        "inScope": true,
+        "entryVisible": true,
+        "editable": false
+      },
+      "note": "The session scope is carried solely by the reasoning chip; the connection scope is kept and actually goes out on the wire."
+    },
+    {
+      "caseId": "relay.connectionDefaults.reasoning_mode",
+      "intent": {
+        "providerKind": "relay",
+        "scope": "connectionDefaults",
+        "parameter": {
+          "id": "reasoning_mode",
+          "group": "reasoning",
+          "support": "mode_dependent",
+          "wire": "reasoning_mode"
+        },
+        "entitlement": {
+          "canManageRuntime": true
+        }
+      },
+      "expect": {
+        "inScope": true,
+        "entryVisible": true,
+        "editable": false
+      },
+      "note": "The session scope is carried solely by the reasoning chip; the connection scope is kept and actually goes out on the wire."
+    },
+    {
+      "caseId": "relay.session.reasoning_effort_without_group",
+      "intent": {
+        "providerKind": "relay",
+        "scope": "session",
+        "parameter": {
+          "id": "reasoning_effort",
+          "support": "supported",
+          "wire": "reasoning_effort"
+        },
+        "entitlement": {
+          "canManageRuntime": true
+        }
+      },
+      "expect": {
+        "inScope": false,
+        "entryVisible": false,
+        "editable": false
+      },
+      "note": "When an older snapshot does not send a group, the id prefix is used as a fallback to decide reasoning-group membership."
+    },
+    {
+      "caseId": "relay.connectionDefaults.reasoning_effort_without_group",
+      "intent": {
+        "providerKind": "relay",
+        "scope": "connectionDefaults",
+        "parameter": {
+          "id": "reasoning_effort",
+          "support": "supported",
+          "wire": "reasoning_effort"
+        },
+        "entitlement": {
+          "canManageRuntime": true
+        }
+      },
+      "expect": {
+        "inScope": true,
+        "entryVisible": true,
+        "editable": true
+      },
+      "note": "When an older snapshot does not send a group, the id prefix is used as a fallback to decide reasoning-group membership."
+    }
+  ],
+  "availabilityRules": {
+    "$comment": "Defines the three visibility predicates shared by every client. Generation parameters are judged by their declared support state together with the exact profile / transport facts; providerKind plays no part in support semantics. accepted / accepted_unverified / unknown all mean there is no official evidence against the parameter: it is only editable and attempted on the wire when the user has set an explicit value, the wire path is valid, and the current profile identity is complete; future_supported is an explicit official statement that the capability is not yet available, and counts as evidence against adjusting it. Any difference for a relay only comes from the connection identity discovered locally, the final transport, and the profile facts. Each case's profile contains only the one parameter it is about, so entryVisible is always equal to inScope.",
+    "sessionActionable": [
+      "the wire path is non-empty",
+      "group !== \"reasoning\" and id does not start with \"reasoning_\"",
+      "support ∈ {supported, accepted, accepted_unverified, unknown}, and the current exact connection × model × final transport/profile identity is complete",
+      "independent of any access gating: filtering for the engine_runtime group is applied by each client's own panel on top of this"
+    ],
+    "connectionConfigurable": [
+      "Does not filter out any row by support: this set is a **rendering surface**, not an interactive one. The unsupported / fixed / mode_dependent / future_supported states are always rendered and grayed out, with the presentationClasses not_adjustable class supplying the reason and the primary action; dropping the row entirely would make the \"not adjustable\" class structurally unreachable, which is exactly the shape this rule prevents",
+      "group !== \"engine_runtime\", unless the connection is explicitly allowed to manage its own runtime settings",
+      "keeps the reasoning group (the connection-level reasoning value is sent on the wire by default)",
+      "does not require the wire path to be non-empty: when there is no wire path, the row is still rendered but with editable=false"
+    ],
+    "editable": [
+      "the wire path is non-empty",
+      "support ∈ {supported, accepted, accepted_unverified, unknown}, and the current exact profile identity is complete; accepted / accepted_unverified / unknown still require an explicit value before they are actually sent on the wire"
+    ],
+    "outboundSupport": [
+      "supported",
+      "accepted",
+      "accepted_unverified",
+      "unknown"
+    ],
+    "tg6": "editable is a subset of the states that can produce a legitimate outbound intent: every providerKind is judged only by support and the exact profile / transport identity; accepted / accepted_unverified / unknown are writable only once identity is complete, and still require an explicit value before being sent. Client-side consumer tests must assert each case individually and must not assert inScope alone."
+  },
+  "lifecycleCases": [
+    {
+      "caseId": "official.declared.supported",
+      "intent": {
+        "providerKind": "official",
+        "parameterId": "temperature",
+        "declared": true,
+        "storedState": "value",
+        "support": "supported",
+        "wire": "temperature"
+      },
+      "expect": {
+        "lifecycle": "active"
+      }
+    },
+    {
+      "caseId": "official.declared.accepted",
+      "intent": {
+        "providerKind": "official",
+        "parameterId": "temperature",
+        "declared": true,
+        "storedState": "value",
+        "support": "accepted",
+        "wire": "temperature"
+      },
+      "expect": {
+        "lifecycle": "active"
+      },
+      "note": "Folding accepted into unknown still only means \"we have no authoritative evidence\", never \"the upstream rejected it\". storedState=\"value\" means the user explicitly set this value, which is the same fact as hasExplicitValue in capability_evidence_contract.v1.json#official.explicit.no_evidence_allows; the two contracts must never give opposite answers for the same fact. The boundary this opens is \"we don't know\", not \"send unconditionally\" — the counter-evidence is guarded by this table's official.declared.unsupported plus the evidence contract's conflict / runtime_rejected cases."
+    },
+    {
+      "caseId": "official.declared.accepted_unverified",
+      "intent": {
+        "providerKind": "official",
+        "parameterId": "temperature",
+        "declared": true,
+        "storedState": "value",
+        "support": "accepted_unverified",
+        "wire": "temperature"
+      },
+      "expect": {
+        "lifecycle": "active"
+      },
+      "note": "providerKind plays no part in the decision. Requiring a relay declaration plus a fully known connection identity before allowing a value would amount to gating behavior on providerKind, which is not allowed, and would directly contradict capability_evidence_contract.v1.json#official.explicit.legacy_unverified_allows, which treats \"official provider + explicit + accepted_unverified/legacy_unverified\" as allow_explicit_unverified. The unified rule is: the user explicitly expressed intent, and the parameter is not one with official evidence of being unsupported."
+    },
+    {
+      "caseId": "official.declared.unknown",
+      "intent": {
+        "providerKind": "official",
+        "parameterId": "temperature",
+        "declared": true,
+        "storedState": "value",
+        "support": "unknown",
+        "wire": "temperature"
+      },
+      "expect": {
+        "lifecycle": "active"
+      },
+      "note": "unknown means \"we have not found official documentation for this yet\", not \"the upstream refuses it\". Treating every such case as \"you can't use this\" was the old, overly strict behavior. unknown belongs to the \"no data\" class with control: editable — the panel says it is editable while the outbound value stays dormant and unsent, which is exactly the gap this rule closes between what the UI shows and what actually happens on the wire. The risk of a hard upstream rejection is covered separately by the 400-rejection chain (reject → negative cache → show \"upstream already rejected\" → one tap to resend without that setting), so no second strategy is needed here."
+    },
+    {
+      "caseId": "official.declared.fixed",
+      "intent": {
+        "providerKind": "official",
+        "parameterId": "temperature",
+        "declared": true,
+        "storedState": "value",
+        "support": "fixed",
+        "wire": "temperature"
+      },
+      "expect": {
+        "lifecycle": "dormant"
+      },
+      "note": "This case is unaffected by the unknown-handling rule above: fixed is a **conclusion backed by official evidence** (the value is fixed by the model; changing it has no effect), not \"we don't know\". The relaxed boundary only covers gaps in metadata, not evidence that already exists. fixed belongs to the \"not adjustable\" class with control: disabled, matching dormant — the display and the outbound behavior agree."
+    },
+    {
+      "caseId": "official.declared.mode_dependent",
+      "intent": {
+        "providerKind": "official",
+        "parameterId": "temperature",
+        "declared": true,
+        "storedState": "value",
+        "support": "mode_dependent",
+        "wire": "temperature"
+      },
+      "expect": {
+        "lifecycle": "dormant"
+      },
+      "note": "This case is unaffected by the unknown-handling rule above: mode_dependent is likewise a conclusion backed by official evidence (it depends on the current reasoning tier), not a metadata gap. It belongs to the \"not adjustable\" class with control: disabled, matching dormant."
+    },
+    {
+      "caseId": "official.declared.unsupported",
+      "intent": {
+        "providerKind": "official",
+        "parameterId": "temperature",
+        "declared": true,
+        "storedState": "value",
+        "support": "unsupported",
+        "wire": "temperature"
+      },
+      "expect": {
+        "lifecycle": "dormant"
+      },
+      "note": "**The counter-example that must stay dormant**: an explicit, officially-evidenced unsupported case is never sent even if the user set a value. This keeps the relaxed \"we don't know\" rule above from being implemented as always-true — the same boundary has a matching anchor at capability_evidence_contract.v1.json#official.explicit.official_unsupported_still_omits (omit_unsupported). Changing this case removes that boundary entirely, so treat it as a deliberate, reviewed change."
+    },
+    {
+      "caseId": "official.declared.future_supported",
+      "intent": {
+        "providerKind": "official",
+        "parameterId": "temperature",
+        "declared": true,
+        "storedState": "value",
+        "support": "future_supported",
+        "wire": "temperature"
+      },
+      "expect": {
+        "lifecycle": "dormant"
+      },
+      "note": "future_supported is an explicit official statement that the capability is not yet available, not a documentation gap. It belongs to the same evidence-backed, not-sent group as unsupported / fixed / mode_dependent: the connection panel keeps a disabled row, the session panel does not expose it, and an explicit value is kept but not currently sent."
+    },
+    {
+      "caseId": "official.declared.supported_without_wire",
+      "intent": {
+        "providerKind": "official",
+        "parameterId": "temperature",
+        "declared": true,
+        "storedState": "value",
+        "support": "supported"
+      },
+      "expect": {
+        "lifecycle": "dormant"
+      },
+      "note": "No wire path means there is nowhere to write the value, so it can never be sent."
+    },
+    {
+      "caseId": "official.undeclared",
+      "intent": {
+        "providerKind": "official",
+        "parameterId": "temperature",
+        "declared": false,
+        "storedState": "value"
+      },
+      "expect": {
+        "lifecycle": "dormant"
+      },
+      "note": "After a profile revision changes and this id is no longer declared, the individual field is judged stale rather than invalidating the whole record."
+    },
+    {
+      "caseId": "relay.declared.unknown",
+      "intent": {
+        "providerKind": "relay",
+        "parameterId": "temperature",
+        "declared": true,
+        "storedState": "value",
+        "support": "unknown",
+        "wire": "temperature"
+      },
+      "expect": {
+        "lifecycle": "active"
+      },
+      "note": "unknown synthesized from a relay's local template: it is only attempted on the wire once the user explicitly sets a value, and still counts as active, with the UI tagging the row \"unverified\". This case and official.declared.unknown are two instances of the same rule and must reach the same conclusion — relay is no longer treated as a special case."
+    },
+    {
+      "caseId": "relay.declared.unknown_without_wire",
+      "intent": {
+        "providerKind": "relay",
+        "parameterId": "custom_unwired",
+        "declared": true,
+        "storedState": "value",
+        "support": "unknown"
+      },
+      "expect": {
+        "lifecycle": "dormant"
+      }
+    },
+    {
+      "caseId": "relay.declared.future_supported",
+      "intent": {
+        "providerKind": "relay",
+        "parameterId": "temperature",
+        "declared": true,
+        "storedState": "value",
+        "support": "future_supported",
+        "wire": "temperature"
+      },
+      "expect": {
+        "lifecycle": "dormant"
+      },
+      "note": "providerKind does not change the official counter-evidence meaning of future_supported; for a relay, only the exact profile facts discovered locally can produce accepted / unknown — a not-yet-available capability must never be guessed as available."
+    },
+    {
+      "caseId": "relay.undeclared_after_transport_correction",
+      "intent": {
+        "providerKind": "relay",
+        "parameterId": "top_k",
+        "declared": false,
+        "storedState": "value"
+      },
+      "expect": {
+        "lifecycle": "dormant"
+      },
+      "note": "When the runtime corrects relayResolvedTransport from one transport to another, the new template no longer declares this id. The stored record must still read back correctly as an orphan rather than being dropped; the value is judged dormant and the UI states this honestly."
+    },
+    {
+      "caseId": "relay.declared.supported_omit",
+      "intent": {
+        "providerKind": "relay",
+        "parameterId": "temperature",
+        "declared": true,
+        "storedState": "omit",
+        "support": "supported",
+        "wire": "temperature"
+      },
+      "expect": {
+        "lifecycle": "active"
+      },
+      "note": "omit is an explicit \"remove this field\" intent; it must go out on the wire itself, and is not judged dormant just because it isn't a value."
+    },
+    {
+      "caseId": "relay.declared.unknown_omit",
+      "intent": {
+        "providerKind": "relay",
+        "parameterId": "temperature",
+        "declared": true,
+        "storedState": "omit",
+        "support": "unknown",
+        "wire": "temperature"
+      },
+      "expect": {
+        "lifecycle": "active"
+      },
+      "note": "Whether a value is allowed out has nothing to do with its value-state: omit is an explicit remove-field intent and must go through the single outbound gate exactly like a value. relay is no longer a special case — swapping the same combination to official must produce the exact same result, which the model-contract-gate's providerKind-neutrality check locks down tuple by tuple."
+    },
+    {
+      "caseId": "relay.declared.unsupported_omit",
+      "intent": {
+        "providerKind": "relay",
+        "parameterId": "temperature",
+        "declared": true,
+        "storedState": "omit",
+        "support": "unsupported",
+        "wire": "temperature"
+      },
+      "expect": {
+        "lifecycle": "dormant"
+      }
+    }
+  ],
+  "lifecycleRules": {
+    "$comment": "Defines the lifecycle of a parameter value. Web owns the final semantics. dormant is a **derived state**: it equals the current device's judgment of a stored value under the current profile; it is never written to local storage or into the generation_parameter_sync.v1 envelope — each client computes it for itself. iOS/Android only consume this table and must not duplicate the rule elsewhere. ⚠️ This table and capability_evidence_contract.v1.json's official.explicit.* are two projections of the same policy: that one decides requestPolicy (allow_explicit_unverified vs omit_*), this one decides lifecycle (active vs dormant). The two must stay in lockstep — \"explicit intent + no official counter-evidence → allow\" and \"officially-evidenced unsupported / conflict / already rejected upstream → do not allow\". Changing the rule on only one side reopens the exact gap this table exists to close.",
+    "definition": "active means the parameter id still goes out on the wire under the current profile; dormant means the value stays in storage and sync but is not currently sent. The two are mutually exclusive and exhaustive.",
+    "lifecycle": [
+      "the profile does not declare this parameter id → dormant",
+      "the wire path is missing or empty → dormant",
+      "support ∈ outboundSupport → active",
+      "the user has expressed explicit intent for this parameter (storedState ∈ {value, omit}; inherit does not count) and there is no official evidence against it — support ∈ {unknown, accepted, accepted_unverified} — → active (unverified does not mean unsupported. **providerKind plays no part in this decision**; relay is no longer treated as a special case — a relay's unknown state is just one instance of this same rule. The UI still labels it via presentationClasses as \"sent · unverified\" / \"no data\")",
+      "everything else (unsupported / fixed / mode_dependent / future_supported — these four states are all **conclusions backed by official evidence**, not a metadata gap) → dormant",
+      "once the upstream runtime has deterministically rejected this parameter (a negative-cache hit, or the facade judging it omit_runtime_rejected) → dormant; the panel shows \"already rejected upstream\" with a one-tap resend action"
+    ],
+    "valueIndependence": "The decision **only looks at whether the parameter id can go out under the current profile, never at the value itself**. An out-of-range value or an enum value outside the known set is a compatibility hint for the user to fix themselves; judging it dormant instead would be just another form of the silent substitution this contract forbids.",
+    "outboundParity": "This table and applyGenerationParameters's outbound gate must stay in lockstep case by case: the set judged active on the read side must equal the set actually written into the body on the send side. Any drift between the two produces a summary that says N items were kept while M items actually went out.",
+    "storage": [
+      "A dormant value is **never deleted**: it stays in the local record and automatically becomes active again once the profile matches, with no need for the user to re-enter it.",
+      "A scope record's identity equals connection × model × session, **and never includes the profile fingerprint**. Folding the fingerprint into that identity would cause whole-record invalidation and orphaned records that can no longer be read back.",
+      "The fingerprint is a property of the record: it is updated with the current scope on write (this is where a migration lands), and on read it is handed to this table to be judged field by field."
+    ],
+    "sync": [
+      "The envelope adds no new dormant field, and schemaVersion stays at 1; an older client reads exactly the same payload shape as today.",
+      "Reason: dormancy is derived locally on each device. Writing it onto the wire would let device A's profile turn off a value on device B that B could actually still send — a cross-device silent substitution.",
+      "A dormant value still takes part in export/merge/tombstoning as normal; deletion follows the existing tombstone rule, and an old record is never revived."
+    ],
+    "ui": [
+      "When a dormant value exists, a summary row appears at the bottom of the container with two secondary actions, \"view\" and \"clear\"; when none exists, the row is not rendered at all.",
+      "Both the empty and non-empty states **must be rendered**: after the runtime corrects the transport, the panel is usually non-empty and only missing a subset of parameters; rendering only the empty state would leave dormant values in the non-empty state as silent orphans.",
+      "\"Clear\" only removes the dormant half; the active values are left untouched.",
+      "Once the profile matches again, a one-time toast reports how many values were restored.",
+      "Copy always reads \"kept · not currently in effect\"; implementation words like dormant/sleeping/frozen must never appear in it."
+    ],
+    "presets": [
+      "A preset's identity equals connection × model, matching the scope record's identity, and **never includes the profile fingerprint**. Folding the fingerprint into the match would mean a whole preset becomes unreadable after switching endpoint or protocol, even while the underlying record stays on disk and keeps syncing.",
+      "Copying a preset across models is only ever allowed through a field-by-field portable mapping declared for the same provider and the target profile; any field without a mapping is never copied.",
+      "Neither saving nor applying a preset **filters values by the current device's active/dormant judgment**: dormancy is a locally derived state, and using it to trim a preset that gets synced elsewhere would let device A's profile turn off a value on device B that B could still send; also, when the profile can't be evaluated at all, every value is judged dormant, so filtering by active would save the preset as empty.",
+      "Once applied, the values that land in a scope record are judged field by field by this same table as usual: the ones that don't take effect stay in storage and count toward the \"kept · not currently in effect\" summary, with the outbound gate guaranteeing they are not sent."
+    ]
+  }
+}

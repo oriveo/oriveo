@@ -1,0 +1,1707 @@
+/* ── Notes list and detail visual language ──────────────────────────
+ * Material strategy: the canvas stays calm and only cards and source cards are raised
+ * (surface plus an elevation token, a hairline highlight and a tinted shadow).
+ * Each note's single accent color is its source provider's brand color (--note-source-color).
+ * Weights stay within 600-680 to match the real weights in PingFang and Noto and avoid the
+ * clumsiness of faux bold. */
+
+.pageShell,
+.detailShell {
+  width: 100%;
+  max-width: 1120px;
+  margin: 0 auto;
+  padding: 32px 28px 48px;
+  color: var(--o-text);
+}
+
+.pageHeader,
+.detailHeader,
+.trashHeader,
+.panelHeader,
+.sourceCardHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+/* Section header row (body | edit, cancel, save): title and buttons are vertically centered so a small heading is not top-aligned against them */
+.panelHeader {
+  align-items: center;
+}
+
+.pageHeader {
+  margin-bottom: 24px;
+}
+
+.pageTitle {
+  margin: 0;
+  font-size: clamp(28px, 3.4vw, 36px);
+  line-height: 1.16;
+  font-weight: 680;
+  letter-spacing: -0.012em;
+}
+
+.pageSubtitle {
+  max-width: 58ch;
+  margin: 9px 0 0;
+  color: var(--o-text-secondary);
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.notePurposeLine {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.notePurposeIcon {
+  width: 24px;
+  height: 24px;
+  flex: 0 0 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  color: var(--o-primary);
+  background: color-mix(in srgb, var(--o-primary) 11%, transparent);
+}
+
+.headerCluster {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* Sync status: the capsule is lifted slightly and separated from the canvas by a hairline */
+.statusChip {
+  max-width: 360px;
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--o-border);
+  border-radius: 999px;
+  background: var(--o-surface);
+  box-shadow: var(--o-elevation-control);
+  color: var(--o-text-secondary);
+  padding: 0 12px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.statusChip[data-enabled='true'] {
+  border-color: color-mix(in srgb, var(--o-success) 26%, var(--o-border));
+  color: var(--o-success);
+}
+
+.statusChip button {
+  appearance: none;
+  border: 0;
+  border-left: 1px solid var(--o-border-strong);
+  background: transparent;
+  color: var(--o-primary-active);
+  padding: 0 0 0 9px;
+  font: inherit;
+  font-weight: 680;
+  cursor: pointer;
+  transition: color var(--o-transition-fast);
+}
+
+.statusChip button:hover {
+  color: var(--o-primary);
+}
+
+.headerActions,
+.detailHeaderActions,
+.inlineActions,
+.sourceActions,
+.dialogActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.headerButton,
+.primaryHeaderButton {
+  border-radius: 11px;
+}
+
+/* View switcher segmented control: a floating base with the selected segment raised as a white surface */
+.viewTabs {
+  display: inline-flex;
+  gap: 4px;
+  padding: 4px;
+  margin: 0 0 20px;
+  border: 1px solid var(--o-border);
+  border-radius: 999px;
+  background: var(--o-bg-subtle);
+}
+
+.viewTab {
+  appearance: none;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--o-text-secondary);
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 34px;
+  padding: 0 14px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color var(--o-transition-fast), background var(--o-transition-fast);
+}
+
+.viewTab:hover {
+  color: var(--o-text);
+}
+
+.viewTab[data-active='true'] {
+  background: var(--o-surface);
+  color: var(--o-text);
+  box-shadow: var(--o-elevation-control);
+}
+
+.countPill {
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--o-error) 12%, transparent);
+  color: var(--o-error);
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.notesGrid {
+  display: grid;
+  grid-template-columns: minmax(184px, 220px) minmax(0, 1fr);
+  gap: 28px;
+  align-items: start;
+}
+
+/* The list area has no container of its own: cards float directly on the canvas, avoiding a box inside a box */
+.listPane {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 0;
+}
+
+.folderPane {
+  position: sticky;
+  top: 18px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 2px 0;
+}
+
+.folderList {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+/* folderItem fills the whole row so the count always sits flush right, aligned with "all notes"; edit and delete appear on the right on hover */
+.folderRow {
+  position: relative;
+  border-radius: 11px;
+}
+
+.folderItem {
+  appearance: none;
+  border: 0;
+  border-radius: 11px;
+  background: transparent;
+  color: var(--o-text-secondary);
+  /* Full width: buttons default to fit-content, and once folderRow becomes block this has to stretch explicitly or the capsule and count fall out of alignment */
+  width: 100%;
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 9px;
+  min-height: 40px;
+  padding: 0 12px;
+  text-align: left;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  transition: background var(--o-transition-fast), color var(--o-transition-fast);
+}
+
+.folderItem span:nth-child(2) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.folderRow:hover .folderItem,
+.folderItem:hover {
+  background: color-mix(in srgb, var(--o-text) 5%, transparent);
+  color: var(--o-text);
+}
+
+/* Selected state: solid folder color with white text */
+.folderItem[data-active='true'],
+.folderRow[data-active='true'] .folderItem {
+  background: var(--folder-color, var(--o-primary-active));
+  color: #fff;
+  font-weight: 600;
+}
+
+.folderItem[data-active='true'] :first-child,
+.folderRow[data-active='true'] :first-child {
+  color: #fff;
+}
+
+.folderItem[data-active='true'] .folderCount,
+.folderRow[data-active='true'] .folderCount {
+  color: rgba(255, 255, 255, 0.7);
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.folderIconButton {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  appearance: none;
+  border: 0;
+  border-radius: 9px;
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--o-text-tertiary);
+  background: transparent;
+  cursor: pointer;
+  opacity: 0;
+  /* While hidden it must not intercept clicks on folderItem, since absolute positioning covers the selection area on the right */
+  pointer-events: none;
+  transition: opacity var(--o-transition-fast), color var(--o-transition-fast), background var(--o-transition-fast);
+}
+
+.folderRow .folderIconButton:last-child {
+  right: 5px;
+}
+
+.folderRow .folderIconButton:nth-last-child(2) {
+  right: 35px;
+}
+
+.folderRow .folderIconButton:nth-last-child(3) {
+  right: 65px;
+}
+
+.folderRow:hover .folderIconButton,
+.folderIconButton:focus-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.folderIconButton:hover {
+  color: var(--o-text);
+  background: color-mix(in srgb, var(--o-text) 7%, transparent);
+}
+
+.folderCount {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--o-text-tertiary);
+  font-variant-numeric: tabular-nums;
+  transition: opacity var(--o-transition-fast);
+}
+
+/* On hover or focus the count fades out to make room for edit and delete, the same technique as date to delete on a note card */
+.folderRow:hover .folderCount,
+.folderRow:focus-within .folderCount {
+  opacity: 0;
+}
+
+/* Reserve space on the right for edit and delete on hover: only long folder names trigger it, and this keeps the buttons off the end of the name */
+.folderRow:hover .folderItem,
+.folderRow:focus-within .folderItem {
+  padding-right: 98px;
+}
+
+/* Folder color grid, shared by the create picker and the recolor dialog: six columns of dots */
+.colorGrid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.colorSwatch {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+.colorSwatch[data-selected='true'] {
+  outline: 2px solid var(--o-text);
+  outline-offset: 2px;
+}
+
+.uncategorizedCount {
+  margin-top: 4px;
+}
+
+/* Toolbar: search and sort are raised controls (white surface plus hairline), the same language as the cards */
+.toolbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(172px, auto);
+  gap: 10px;
+  margin-bottom: 18px;
+}
+
+.searchBox,
+.selectBox {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  border: 1px solid var(--o-border);
+  border-radius: 12px;
+  background: var(--o-surface);
+  box-shadow: var(--o-elevation-control);
+  padding: 0 12px;
+  color: var(--o-text-tertiary);
+  transition: border-color 150ms ease, box-shadow 200ms ease;
+}
+
+.searchBox:hover,
+.selectBox:hover {
+  border-color: var(--o-border-strong);
+}
+
+/* The focus ring lives on the rounded container: the inner input/select has no radius, so letting it take the global :focus-visible would render a square rectangle */
+.searchBox:focus-within,
+.selectBox:focus-within {
+  border-color: color-mix(in srgb, var(--o-primary) 44%, var(--o-border-strong));
+  box-shadow: var(--o-elevation-control), 0 0 0 3px color-mix(in srgb, var(--o-primary) 10%, transparent);
+}
+
+.searchBox input,
+.selectBox select,
+.textInput,
+.noteTextarea,
+.bodyTextarea {
+  width: 100%;
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--o-text);
+  font: inherit;
+}
+
+/* Suppress the global focus ring on the inner control; the radius is on the container, which shows the ring for the group */
+.searchBox input:focus-visible,
+.selectBox select:focus-visible {
+  box-shadow: none;
+}
+
+.selectBox select {
+  cursor: pointer;
+}
+
+.searchBox button,
+.tagChip button,
+.iconButton {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.tagFilterPanel,
+.tagList,
+.tagSuggestionList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.tagFilterPanel {
+  grid-column: 1 / -1;
+}
+
+.tagChip {
+  appearance: none;
+  border: 1px solid var(--o-note-tag-border);
+  border-radius: 999px;
+  min-height: 26px;
+  padding: 0 9px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: var(--o-note-tag-bg);
+  color: var(--o-note-tag-text);
+  font-size: 11.5px;
+  font-weight: 650;
+  cursor: pointer;
+  max-width: 100%;
+  transition: border-color var(--o-transition-fast), background var(--o-transition-fast), color var(--o-transition-fast);
+}
+
+.tagChip:hover {
+  border-color: var(--o-note-tag-border-selected);
+  background: var(--o-note-tag-bg-suggestion);
+}
+
+.tagChip[data-active='true'] {
+  border-color: var(--o-note-tag-border-selected);
+  background: var(--o-note-tag-bg-selected);
+  color: var(--o-note-tag-text-selected);
+}
+
+.tagChipIcon {
+  color: var(--o-note-tag-icon);
+  flex-shrink: 0;
+}
+
+.listStack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Staggered fade-in as list cards load: cards that were kept (the DOM is reused per note.id) do not replay, only newly entering cards fade in. */
+@media (prefers-reduced-motion: no-preference) {
+  .listStack > * {
+    animation: noteSectionRise 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  .listStack > *:nth-child(1) { animation-delay: 0.02s; }
+  .listStack > *:nth-child(2) { animation-delay: 0.06s; }
+  .listStack > *:nth-child(3) { animation-delay: 0.1s; }
+  .listStack > *:nth-child(4) { animation-delay: 0.14s; }
+  .listStack > *:nth-child(5) { animation-delay: 0.18s; }
+  .listStack > *:nth-child(6) { animation-delay: 0.22s; }
+  .listStack > *:nth-child(7) { animation-delay: 0.26s; }
+  .listStack > *:nth-child(n + 8) { animation-delay: 0.3s; }
+}
+
+/* ── Note entry: document cover card ───────────────────────────────────
+ * A single-column cover card: metadata token, title, excerpt reading area, tag chips.
+ * The source color is used only for faint ambience, the source token and tag icons, never for
+ * a left color bar or a number. */
+.noteCardSkeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+  padding: 18px;
+  border: 1px solid var(--o-border);
+  border-radius: 24px;
+  background: var(--o-surface);
+  box-shadow: var(--o-elevation-card);
+}
+
+.noteCard {
+  --note-source-color: var(--o-primary);
+  position: relative;
+  appearance: none;
+  display: block;
+  overflow: hidden;
+  padding: 18px;
+  border-radius: 26px;
+  /* iOS cardSurface: topLeading=surface-card-from → surface + ambientLayer clear→brand×7% */
+  background:
+    linear-gradient(145deg, transparent, color-mix(in srgb, var(--note-source-color) 7%, transparent)),
+    linear-gradient(145deg, var(--o-surface-card-from), var(--o-surface));
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.06),
+    0 6px 18px rgba(0, 0, 0, 0.06);
+  text-align: left;
+  color: inherit;
+  cursor: pointer;
+  transition:
+    transform var(--o-transition-fast),
+    box-shadow var(--o-transition-fast);
+}
+
+/* iOS ambientLayer: Circle blur at top-left, brand×13%, blurRadius 28 */
+.noteCard::before {
+  content: '';
+  position: absolute;
+  left: -8px;
+  top: -18px;
+  width: 140px;
+  height: 140px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--note-source-color) 13%, transparent);
+  filter: blur(28px);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* iOS strokeBorder gradient: hairline(topLeading) → brand×8% → border×22%(bottomTrailing) */
+.noteCard::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 26px;
+  padding: 1px;
+  background: linear-gradient(
+    145deg,
+    var(--o-hairline),
+    color-mix(in srgb, var(--note-source-color) 8%, var(--o-border)) 50%,
+    color-mix(in srgb, var(--o-border) 22%, transparent)
+  );
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: destination-out;
+  mask-composite: exclude;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.noteCard:hover {
+  transform: translateY(-1px);
+  box-shadow:
+    0 2px 6px rgba(0, 0, 0, 0.08),
+    0 10px 26px rgba(0, 0, 0, 0.08),
+    0 0 0 1px color-mix(in srgb, var(--note-source-color) 22%, var(--o-border));
+}
+
+.noteCard:active {
+  transform: translateY(0);
+}
+
+.noteCard:focus-visible {
+  outline: 0;
+  box-shadow: var(--o-focus-ring);
+}
+
+.noteContent {
+  position: relative;
+  z-index: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.noteMetaBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+
+.sourceSlot {
+  min-width: 0;
+  flex: 1 1 auto;
+  display: inline-flex;
+  align-items: center;
+}
+
+.metaActions {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.manualSourceToken {
+  max-width: 100%;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--o-bg-subtle) 76%, transparent);
+  color: var(--o-text-secondary);
+  padding: 6px 9px;
+  font-size: 11.5px;
+  font-weight: 680;
+  line-height: 1;
+}
+
+.detailGlyph {
+  color: color-mix(in srgb, var(--o-text-tertiary) 70%, transparent);
+  flex-shrink: 0;
+}
+
+.pinTag {
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: var(--o-primary-active);
+  color: var(--o-text-inverse);
+  box-shadow: 0 7px 14px color-mix(in srgb, var(--o-primary) 16%, transparent);
+  flex-shrink: 0;
+}
+
+.noteTitle {
+  font-size: 22px;
+  line-height: 1.3;
+  font-weight: 670;
+  letter-spacing: -0.014em;
+  color: var(--o-text);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.noteExcerptPanel {
+  position: relative;
+  display: block;
+  overflow: hidden;
+  /* hairline at 0.46 opacity */
+  border: 1px solid color-mix(in srgb, var(--o-hairline) 46%, transparent);
+  border-radius: 18px;
+  background:
+    linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--o-bg-inset) 78%, var(--o-surface)),
+      color-mix(in srgb, var(--note-source-color) 3%, var(--o-bg-inset))
+    );
+  padding: 12px 46px 12px 14px;
+}
+
+.noteExcerptPanel::after {
+  content: '”';
+  position: absolute;
+  top: 9px;
+  right: 14px;
+  color: color-mix(in srgb, var(--note-source-color) 6%, transparent);
+  font-size: 26px;
+  line-height: 1;
+  font-weight: 600;
+  pointer-events: none;
+}
+
+.notePreview {
+  color: var(--o-text-secondary);
+  font-size: 14px;
+  line-height: 1.62;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* List paging "show more": a full-width light button carrying the 10-per-page load. */
+.showMoreBtn {
+  display: block;
+  width: 100%;
+  margin-top: 14px;
+  padding: 11px 0;
+  border: 1px solid var(--o-border);
+  border-radius: 11px;
+  background: var(--o-surface);
+  box-shadow: var(--o-elevation-control);
+  color: var(--o-text-secondary);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color var(--o-transition-fast), color var(--o-transition-fast);
+}
+
+.showMoreBtn:hover {
+  border-color: var(--o-border-strong);
+  color: var(--o-text);
+}
+
+.noteTagPreview {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.noteTagChip,
+.noteTagMore {
+  max-width: 150px;
+  min-height: 26px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border-radius: 999px;
+  border: 1px solid var(--o-note-tag-border);
+  background: var(--o-note-tag-bg);
+  color: var(--o-note-tag-text);
+  padding: 0 9px;
+  font-size: 11.5px;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.noteTagChip svg {
+  color: var(--o-note-tag-icon);
+  flex-shrink: 0;
+}
+
+.noteTagMore {
+  background: color-mix(in srgb, var(--o-bg-subtle) 78%, transparent);
+  color: var(--o-text-secondary);
+}
+
+.metaDate {
+  border-radius: 11px;
+  background: color-mix(in srgb, var(--o-bg-subtle) 76%, transparent);
+  color: var(--o-text-secondary);
+  padding: 6px 10px;
+  font-size: 11.5px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+  flex-shrink: 0;
+}
+
+.noteCardDelete {
+  position: absolute;
+  right: 14px;
+  bottom: 14px;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: 0;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--o-surface) 82%, transparent);
+  color: var(--o-text-tertiary);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity var(--o-transition-fast), background var(--o-transition-fast), color var(--o-transition-fast);
+}
+
+.noteCard:hover .noteCardDelete,
+.noteCard:focus-within .noteCardDelete {
+  opacity: 1;
+}
+
+.noteCardDelete:hover {
+  background: var(--o-error-subtle);
+  color: var(--o-error);
+}
+
+.sourceBadge {
+  --note-source-color: var(--o-primary);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  max-width: 100%;
+  border: 1px solid color-mix(in srgb, var(--note-source-color) 9%, transparent);
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--note-source-color) 11%, transparent);
+  color: var(--note-source-color);
+  padding: 6px 10px;
+  font-size: 11.5px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.sourceBadge[data-compact='true'] {
+  gap: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.sourceBadgeIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.sourceBadgeText {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.savedToast {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.savedToastTitle {
+  max-width: min(260px, 50vw);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 650;
+}
+
+.savedToast button {
+  appearance: none;
+  border: 0;
+  border-radius: 8px;
+  background: var(--o-primary);
+  color: var(--o-primary-text);
+  padding: 5px 9px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+/* ── Detail view ─────────────────────────────────────────────── */
+.detailShell {
+  position: relative;
+  max-width: 760px;
+  isolation: isolate;
+}
+
+.detailShell::before,
+.detailShell::after {
+  content: '';
+  position: fixed;
+  pointer-events: none;
+  z-index: -1;
+  border-radius: 999px;
+  filter: blur(78px);
+}
+
+.detailShell::before {
+  top: 58px;
+  right: max(18px, calc((100vw - 760px) / 2 - 48px));
+  width: 250px;
+  height: 250px;
+  background: color-mix(in srgb, var(--note-source-color, var(--o-primary)) 10%, transparent);
+}
+
+.detailShell::after {
+  top: 166px;
+  right: max(96px, calc((100vw - 760px) / 2 + 126px));
+  width: 150px;
+  height: 150px;
+  background: color-mix(in srgb, var(--o-primary) 4%, transparent);
+}
+
+.detailHeader {
+  margin-bottom: 16px;
+  align-items: center;
+}
+
+.trashBanner {
+  margin-bottom: 16px;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--o-warning) 38%, var(--o-border));
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--o-warning) 10%, var(--o-surface));
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.detailContent {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+/* On load the sections float in from top to bottom in sequence: a one-off mount animation that reinforces the sense of opening an archived document */
+@media (prefers-reduced-motion: no-preference) {
+  .detailContent > * {
+    animation: noteSectionRise 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+  }
+
+  .detailContent > *:nth-child(1) { animation-delay: 0.02s; }
+  .detailContent > *:nth-child(2) { animation-delay: 0.07s; }
+  .detailContent > *:nth-child(3) { animation-delay: 0.12s; }
+  .detailContent > *:nth-child(4) { animation-delay: 0.17s; }
+  .detailContent > *:nth-child(5) { animation-delay: 0.22s; }
+  .detailContent > *:nth-child(n + 6) { animation-delay: 0.27s; }
+}
+
+@keyframes noteSectionRise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Hero: an editorial masthead, open and boxless, with a hairline at the bottom separating the title block from the body */
+.detailHero {
+  --note-source-color: var(--o-primary);
+  padding: 14px 2px 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+/* Source byline: provider icon plus model name (brand color, small caps), then the date it was filed. This is the only place on the page that mentions the source */
+.detailSourceStrip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  max-width: 100%;
+  color: var(--o-text-tertiary);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.detailSourceModel {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  min-width: 0;
+  color: var(--note-source-color);
+  padding: 6px 10px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--note-source-color) 10%, transparent);
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+}
+
+.detailSourceModel > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.detailSourceModel svg {
+  flex-shrink: 0;
+}
+
+.detailSourceDate {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  padding: 6px 10px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--o-bg-inset) 72%, transparent);
+  color: var(--o-text-secondary);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.03em;
+}
+
+.detailSourceDate::before {
+  content: none;
+}
+
+.detailPinnedPill {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 8px;
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: var(--o-primary-active);
+  color: var(--o-primary-text);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.detailTitleInput {
+  width: 100%;
+  min-width: 0;
+  margin-top: 16px;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--o-text);
+  font: inherit;
+  font-size: clamp(30px, 3.4vw, 34px);
+  line-height: 1.16;
+  font-weight: 720;
+  letter-spacing: -0.022em;
+}
+
+.titleSourceHint {
+  margin: 10px 0 0;
+  color: var(--o-text-tertiary);
+  font-size: 12px;
+}
+
+.fieldLabel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  /* Breathing room between form groups: the dialog container has no gap, so each group's margin does the work (the name and color groups had zero spacing between them) */
+  margin-bottom: 16px;
+  color: var(--o-text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.textInput,
+.noteTextarea,
+.bodyTextarea {
+  border: 1px solid var(--o-border);
+  border-radius: 10px;
+  background: var(--o-bg);
+  padding: 10px 11px;
+  color: var(--o-text);
+}
+
+.noteTextarea {
+  min-height: 84px;
+  resize: vertical;
+  margin-top: 10px;
+  background: color-mix(in srgb, var(--o-primary) 4%, var(--o-bg));
+}
+
+.bodyTextarea {
+  min-height: 320px;
+  resize: vertical;
+  /* Matches the margin-top of markdownPreview in view mode, so the body does not jump when switching between edit and view */
+  margin-top: 14px;
+  font-family: var(--o-font-mono);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.mutedText {
+  margin: 6px 0 0;
+  color: var(--o-text-tertiary);
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.sourcePanel {
+  --note-source-color: var(--o-primary);
+  margin-top: 28px;
+  padding: 14px 15px;
+  border: 0;
+  border-radius: 16px;
+  background: var(--o-surface);
+  box-shadow:
+    0 12px 26px color-mix(in srgb, var(--note-source-color) 5%, transparent),
+    var(--o-elevation-control);
+}
+
+/* Keep the "source" heading on the same baseline as the exact timestamp by removing the default top margin of mutedText */
+.sourceCardHeader {
+  align-items: baseline;
+}
+
+.sourceCardHeader .mutedText {
+  margin: 0;
+}
+
+/* The original question: a brand-tinted background with a brand-colored bar on the left, so its provenance is obvious at a glance */
+.promptQuote {
+  position: relative;
+  margin: 13px 0 12px;
+  padding: 10px 42px 10px 18px;
+  border-radius: 13px;
+  background: color-mix(in srgb, var(--note-source-color, var(--o-primary)) 7%, var(--o-surface));
+  overflow: hidden;
+}
+
+.promptQuote::before {
+  content: '';
+  position: absolute;
+  left: 8px;
+  top: 10px;
+  bottom: 10px;
+  width: 3px;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--note-source-color, var(--o-primary)) 50%, transparent);
+}
+
+.promptQuote p {
+  margin: 0;
+  color: var(--o-text-secondary);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.promptQuote svg {
+  position: absolute;
+  top: 8px;
+  right: 10px;
+  color: color-mix(in srgb, var(--note-source-color) 10%, transparent);
+  transform: rotate(180deg);
+}
+
+.inlineTagsSection {
+  margin-top: 24px;
+  min-width: 0;
+}
+
+.inlineTagsScroller {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 2px 2px 4px;
+  scrollbar-width: none;
+}
+
+.inlineTagsScroller::-webkit-scrollbar {
+  display: none;
+}
+
+.inlineTagChip {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 26px;
+  padding: 0 9px;
+  border-radius: 999px;
+  border: 1px solid var(--o-note-tag-border);
+  background: var(--o-note-tag-bg);
+  color: var(--o-note-tag-text);
+  font-size: 11.5px;
+  font-weight: 650;
+}
+
+.inlineTagChip > svg {
+  color: var(--o-note-tag-icon);
+}
+
+.inlineTagChip button {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--o-text-tertiary);
+  display: inline-flex;
+  padding: 0;
+  cursor: pointer;
+}
+
+/* Section subheadings are uniform: body, source and tags share one size and weight */
+.detailPanel h2,
+.sourcePanel h2,
+.trashHeader h2,
+.tagsLabel {
+  margin: 0;
+  color: var(--o-text-secondary);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: 0.01em;
+}
+
+.detailPanel {
+  margin-top: 26px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.detailContentTabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px;
+  width: 100%;
+  margin-bottom: 12px;
+  padding: 4px;
+  border: 1px solid var(--o-border);
+  border-radius: 999px;
+  background: var(--o-bg-subtle);
+}
+
+.detailContentTabs button {
+  appearance: none;
+  border: 0;
+  border-radius: 999px;
+  min-height: 34px;
+  background: transparent;
+  color: var(--o-text-secondary);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.detailContentTabs button[data-active='true'] {
+  background: var(--o-surface);
+  color: var(--o-text);
+  box-shadow: var(--o-elevation-control);
+}
+
+.detailContentCard {
+  position: relative;
+  border-radius: 20px;
+  overflow: hidden;
+  background:
+    linear-gradient(
+      180deg,
+      var(--o-surface) 0%,
+      color-mix(in srgb, var(--o-primary) 6%, var(--o-bg-subtle)) 100%
+    );
+  border: 1px solid color-mix(in srgb, var(--o-primary) 10%, var(--o-border));
+  box-shadow:
+    0 16px 48px color-mix(in srgb, var(--o-primary) 8%, transparent),
+    var(--o-elevation-card);
+}
+
+.detailContentCard::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 56px;
+  border-radius: 20px 20px 0 0;
+  background: linear-gradient(180deg, var(--o-glass-highlight), transparent);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.detailContentCard::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 220px;
+  height: 220px;
+  background: radial-gradient(ellipse at top right, color-mix(in srgb, var(--o-primary) 10%, transparent), transparent 70%);
+  border-radius: 0 20px 0 0;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.markdownPreview {
+  max-width: 68ch;
+  padding: 18px 20px 44px;
+  color: var(--o-text);
+  position: relative;
+  z-index: 1;
+}
+
+.markdownPreviewEditorial {
+  max-width: 68ch;
+  padding: 22px 24px 28px;
+  color: var(--o-text);
+  position: relative;
+  z-index: 1;
+}
+
+.markdownPreviewEditorial h2 {
+  position: relative;
+  padding-left: 14px;
+  margin-top: 28px;
+}
+
+.markdownPreviewEditorial h2::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.1em;
+  bottom: 0.1em;
+  width: 4px;
+  border-radius: 2px;
+  background: var(--o-primary);
+}
+
+.markdownPreviewEditorial h3 {
+  color: var(--o-primary);
+}
+
+.sourcePrimaryAction {
+  background: color-mix(in srgb, var(--note-source-color) 9%, transparent);
+  color: var(--note-source-color);
+  box-shadow: none;
+}
+
+.sourcePrimaryAction:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--note-source-color) 15%, transparent);
+  box-shadow: none;
+}
+
+.sourceSecondaryAction {
+  background: color-mix(in srgb, var(--o-primary) 9%, transparent);
+  color: var(--o-primary-active);
+  border-color: color-mix(in srgb, var(--o-primary) 14%, var(--o-border));
+  box-shadow: none;
+}
+
+.sourceSecondaryAction:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--o-primary) 15%, transparent);
+  border-color: color-mix(in srgb, var(--o-primary) 22%, var(--o-border));
+  box-shadow: none;
+}
+
+.sourceSecondaryAction .sourceActionBadgeIcon {
+  border-radius: 999px;
+  background: var(--o-primary-active);
+}
+
+.sourceActionBadgeIcon {
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--note-source-color);
+  color: var(--o-primary-text);
+}
+
+.sourceActionBadgeIcon svg {
+  color: var(--o-primary-text);
+}
+
+.tagEditor {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.compactTagEditor {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.compactTagEditor .tagInputRow {
+  width: 168px;
+}
+
+.compactTagEditor .tagSuggestionList {
+  display: none;
+}
+
+.inlineAddTagButton {
+  appearance: none;
+  border: 0;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 26px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--o-border) 80%, transparent);
+  background: color-mix(in srgb, var(--o-text) 5%, transparent);
+  color: var(--o-text-secondary);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.tagSuggestionList {
+  gap: 6px;
+}
+
+.tagSuggestionList .tagChip {
+  border-color: transparent;
+  background: var(--o-surface);
+  color: var(--o-text-secondary);
+  box-shadow: var(--o-elevation-control);
+}
+
+.tagInputRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 36px;
+  gap: 8px;
+}
+
+.iconButton {
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--o-border);
+  border-radius: 10px;
+  background: var(--o-surface);
+  color: var(--o-text-secondary);
+  transition: border-color var(--o-transition-fast), color var(--o-transition-fast);
+}
+
+.iconButton:hover:not(:disabled) {
+  border-color: var(--o-border-strong);
+  color: var(--o-text);
+}
+
+.iconButton:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.colophon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 28px;
+  padding-bottom: 6px;
+  pointer-events: none;
+  user-select: none;
+}
+
+.colophon::before,
+.colophon::after {
+  content: '';
+  display: block;
+  width: 28px;
+  height: 1px;
+  background: var(--o-border);
+}
+
+.colophonDiamond {
+  font-size: 7px;
+  line-height: 1;
+  color: color-mix(in srgb, var(--note-source-color, var(--o-primary)) 55%, transparent);
+}
+
+.dangerZone {
+  padding: 40px 0 8px;
+  margin-top: 0;
+  border-top: 0;
+  display: flex;
+  justify-content: center;
+}
+
+.detailEditActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.dialogTitle {
+  margin: 0 0 14px;
+  font-size: 18px;
+  font-weight: 650;
+}
+
+.folderChoices {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: min(360px, 72vw);
+}
+
+/* Folder options are selectable rows rather than input fields, with a check mark when selected, so they are not mistaken for editable fields */
+.folderChoice {
+  position: relative;
+  appearance: none;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  border: 1px solid var(--o-border);
+  border-radius: 12px;
+  background: var(--o-surface);
+  color: var(--o-text);
+  text-align: left;
+  min-height: 44px;
+  padding: 0 40px 0 14px;
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+  transition: border-color var(--o-transition-fast), background var(--o-transition-fast), color var(--o-transition-fast);
+}
+
+/* Folder color dot in the move-to-folder list */
+.folderDot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.folderChoice:hover {
+  border-color: var(--o-border-strong);
+  background: var(--o-bg-subtle);
+}
+
+.folderChoice[data-active='true'] {
+  border-color: color-mix(in srgb, var(--o-primary) 32%, var(--o-border));
+  background: color-mix(in srgb, var(--o-primary) 7%, var(--o-surface));
+  color: var(--o-primary-active);
+  font-weight: 600;
+}
+
+/* Selection check mark drawn with borders, so no third-party icon is needed */
+.folderChoice[data-active='true']::after {
+  content: '';
+  position: absolute;
+  right: 16px;
+  top: 50%;
+  width: 6px;
+  height: 11px;
+  border: solid var(--o-primary-active);
+  border-width: 0 2px 2px 0;
+  transform: translateY(-60%) rotate(45deg);
+}
+
+/* Dialog footer: buttons right-aligned and spaced away from the content above, as dialogs conventionally are */
+.dialogActions {
+  justify-content: flex-end;
+  margin-top: 24px;
+}
+
+/* Trash: same language as the list, open sections with raised cards */
+.trashSection {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 0;
+}
+
+.trashHeader {
+  margin-bottom: 16px;
+}
+
+.trashHeader h2 {
+  font-size: 15px;
+}
+
+.trashHeader p {
+  margin: 6px 0 0;
+  color: var(--o-text-secondary);
+  font-size: 13px;
+}
+
+.trashItem {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+}
+
+@media (max-width: 767px) {
+  .pageShell,
+  .detailShell {
+    padding: 16px;
+  }
+
+  .pageHeader,
+  .detailHeader,
+  .trashHeader {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .headerActions,
+  .detailHeaderActions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .headerCluster {
+    align-items: stretch;
+    justify-content: stretch;
+  }
+
+  .statusChip {
+    max-width: none;
+    justify-content: center;
+  }
+
+  .pageTitle {
+    font-size: 26px;
+  }
+
+  .viewTabs {
+    width: 100%;
+  }
+
+  .viewTab {
+    flex: 1 1 0;
+    justify-content: center;
+  }
+
+  .notesGrid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 18px;
+  }
+
+  .folderPane {
+    position: static;
+  }
+
+  .noteCard {
+    padding: 16px;
+    border-radius: 24px;
+  }
+
+  .noteMetaBar {
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .metaActions {
+    gap: 6px;
+  }
+
+  .metaDate {
+    max-width: 104px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .noteExcerptPanel {
+    padding-right: 34px;
+  }
+
+  .noteExcerptPanel::after {
+    right: 10px;
+    top: 8px;
+    font-size: 24px;
+  }
+
+  .toolbar {
+    grid-template-columns: 1fr;
+  }
+
+  .folderList {
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(132px, max-content);
+    overflow-x: auto;
+    padding-bottom: 2px;
+  }
+
+  .uncategorizedCount {
+    display: none;
+  }
+
+  .sourceCardHeader,
+  .panelHeader {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .detailTitleInput {
+    font-size: 27px;
+  }
+
+  .sourceActions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .trashItem {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

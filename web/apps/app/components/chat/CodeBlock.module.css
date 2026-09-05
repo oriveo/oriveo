@@ -1,0 +1,114 @@
+.wrapper {
+  border-radius: 12px;
+  overflow: hidden;
+  margin: 14px 0;
+  background: var(--o-code-bg);
+  border: 1px solid var(--o-code-border);
+  box-shadow: var(--o-elevation-control);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 12px 6px 14px;
+  background: var(--o-code-header-bg);
+  border-bottom: 1px solid var(--o-code-border);
+  min-height: 32px;
+}
+
+.language {
+  font-size: 11px;
+  color: var(--o-code-comment);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-family: var(--o-font-mono);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.headerActions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  min-width: max-content;
+}
+
+.copyBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  height: 24px;
+  padding: 0 8px;
+  border: none;
+  border-radius: var(--o-radius-sm);
+  background: transparent;
+  color: var(--o-code-comment);
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 500;
+  transition:
+    color var(--o-transition-fast),
+    background var(--o-transition-fast),
+    transform 100ms ease;
+}
+
+.copyBtn:hover {
+  color: var(--o-code-text);
+  background: color-mix(in srgb, var(--o-code-text) 6%, transparent);
+}
+
+.copyBtn:active {
+  transform: scale(0.88);
+}
+
+.buttonLabel {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Draw-in animation for the copy-success checkmark. */
+.copyBtn svg polyline {
+  animation: checkDraw 250ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes checkDraw {
+  from {
+    stroke-dasharray: 24;
+    stroke-dashoffset: 24;
+  }
+  to {
+    stroke-dasharray: 24;
+    stroke-dashoffset: 0;
+  }
+}
+
+.codeArea {
+  overflow-x: auto;
+}
+
+.pre {
+  margin: 0;
+  padding: 14px 16px;
+  font-size: 13px;
+  line-height: 1.6;
+  font-family: var(--o-font-mono);
+  white-space: pre;
+  tab-size: 2;
+  letter-spacing: 0;
+}
+
+.pre code {
+  font-family: inherit;
+  background: none;
+  padding: 0;
+  border: none;
+  font-size: inherit;
+}

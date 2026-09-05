@@ -1,0 +1,18 @@
+.desktopSurface,
+.chatSurface {
+  display: contents;
+}
+
+.mobileSurface {
+  display: none;
+}
+
+@media (max-width: 767px) {
+  .desktopSurface {
+    display: none;
+  }
+
+  .mobileSurface {
+    display: block;
+  }
+}

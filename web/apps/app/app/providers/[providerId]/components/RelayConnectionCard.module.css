@@ -1,0 +1,416 @@
+/* ── RelayConnectionCard — the main connection card that combines endpoint, API Key and
+   Test connection. Section tint is blue (#2563EB / #60A5FA), and every row leading icon in
+   this card uses the same 32px rounded box container. ── */
+
+.section {
+  --connection-tint: #2563EB; /* iOS RelayConnectionCard.sectionTint light */
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+:global(html[data-theme='dark']) .section {
+  --connection-tint: #60A5FA; /* iOS RelayConnectionCard.sectionTint dark */
+}
+
+@keyframes relayConnSpin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.spin {
+  animation: relayConnSpin 1.4s linear infinite;
+}
+
+/* ── Group header — link icon + uppercase title, tint blue ── */
+.groupHeader {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding-left: 2px;
+}
+
+.groupIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--connection-tint) 14%, transparent);
+  color: var(--connection-tint);
+  flex-shrink: 0;
+}
+
+.groupTitle {
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--o-text-secondary);
+  line-height: 1.2;
+}
+
+/* ── Inner stack — the endpoint, api key and test blocks separated by a 1px divider ── */
+.stack {
+  display: flex;
+  flex-direction: column;
+  border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--connection-tint) 12%, var(--o-border));
+  background: var(--o-surface);
+  overflow: hidden;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+:global(html[data-theme='dark']) .stack {
+  background: var(--o-surface);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+}
+
+.divider {
+  height: 1px;
+  background: color-mix(in srgb, var(--o-border) 70%, transparent);
+}
+
+/* ── Endpoint block — UPPERCASE label + mono inline input + globe inset icon ── */
+.endpointBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 14px 16px;
+}
+
+.endpointLabel {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--o-text-secondary);
+}
+
+.endpointDisplay,
+.endpointInputWrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--connection-tint) 10%, var(--o-border));
+  background: var(--o-bg-subtle);
+  min-height: 38px;
+}
+
+:global(html[data-theme='dark']) .endpointDisplay,
+:global(html[data-theme='dark']) .endpointInputWrap {
+  background: color-mix(in srgb, var(--o-surface-raised) 60%, var(--o-bg));
+}
+
+.endpointInputWrap:focus-within {
+  border-color: color-mix(in srgb, var(--connection-tint) 38%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--connection-tint) 12%, transparent);
+}
+
+.endpointGlobe {
+  flex-shrink: 0;
+  color: color-mix(in srgb, var(--connection-tint) 78%, var(--o-text-secondary));
+}
+
+.endpointValue {
+  flex: 1;
+  min-width: 0;
+  font-family: var(--o-font-mono);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--o-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.endpointPlaceholderText {
+  flex: 1;
+  font-size: 13px;
+  color: var(--o-text-tertiary);
+}
+
+.endpointInput {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  font-family: var(--o-font-mono);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--o-text);
+  padding: 0;
+}
+
+.endpointInput::placeholder {
+  color: var(--o-text-tertiary);
+}
+
+/* Focus feedback is handled entirely by the outer .endpointInputWrap:focus-within;
+   this overrides the --o-focus-ring injected by the global :focus-visible rule so the two
+   rings do not stack */
+.endpointInput:focus-visible {
+  box-shadow: none;
+}
+
+.endpointActions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.endpointError {
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--o-error);
+}
+
+.endpointEditBtn {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  border: 1px solid var(--o-border);
+  background: var(--o-surface);
+  color: var(--o-text-secondary);
+  cursor: pointer;
+  transition: background var(--o-transition-fast), border-color var(--o-transition-fast), color var(--o-transition-fast);
+}
+
+.endpointEditBtn:hover {
+  background: var(--o-bg-subtle);
+  color: var(--o-text);
+  border-color: var(--o-border-strong);
+}
+
+/* ── API Key block — 32px warning-tint icon box + title/preview + Change capsule ── */
+.apiKeyRow,
+.testRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  cursor: pointer;
+  background: transparent;
+  border: none;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  transition: background var(--o-transition-fast);
+}
+
+.apiKeyRow:hover:not(:disabled),
+.testRow:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--connection-tint) 4%, transparent);
+}
+
+.apiKeyRow:focus-visible,
+.testRow:focus-visible {
+  outline: none;
+  background: color-mix(in srgb, var(--connection-tint) 6%, transparent);
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--connection-tint) 38%, transparent);
+}
+
+.apiKeyRow:disabled,
+.testRow:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+/* Row leading icon inside the card - a uniform 32px rounded box (warning colour for API Key, the same colour for Test and Connection) */
+.iconBox {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+}
+
+.iconBox[data-tone='warning'] {
+  background: color-mix(in srgb, var(--o-warning) 14%, transparent);
+  color: var(--o-warning);
+}
+
+.iconBox[data-tone='connection'] {
+  background: color-mix(in srgb, var(--connection-tint) 14%, transparent);
+  color: var(--connection-tint);
+}
+
+/* S0 "no key needed" and S2 "saved" - valid states stay neutral rather than alarming the user with a warning colour */
+.iconBox[data-tone='neutral'] {
+  background: var(--o-bg-subtle);
+  color: var(--o-text-secondary);
+}
+
+.iconBox[data-tone='error'] {
+  background: color-mix(in srgb, var(--o-error) 14%, transparent);
+  color: var(--o-error);
+}
+
+/* S0 and S3 are read-only: same layout but not clickable, hence a div rather than a button */
+.apiKeyStaticRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  width: 100%;
+}
+
+.rowStack {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.rowTitle {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--o-text);
+  letter-spacing: -0.005em;
+  line-height: 1.3;
+}
+
+.rowSubtitle {
+  font-size: 12px;
+  color: var(--o-text-secondary);
+  line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rowSubtitle[data-mono='true'] {
+  font-family: var(--o-font-mono);
+}
+
+.rowSubtitle[data-tone='warning'] {
+  color: var(--o-warning);
+  font-weight: 500;
+}
+
+.rowSubtitle[data-tone='error'] {
+  color: var(--o-error);
+  font-weight: 500;
+}
+
+/* The explanatory sentence for S0 and S3 is a full sentence and must not be cut in half by nowrap */
+.apiKeyStaticRow .rowSubtitle {
+  white-space: normal;
+  overflow: visible;
+}
+
+.changeCapsule {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: var(--o-primary-subtle);
+  color: var(--o-primary);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.rowChevron {
+  flex-shrink: 0;
+  color: var(--o-text-tertiary);
+}
+
+/* ── API Key inline edit ── */
+.apiKeyEdit {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+}
+
+.apiKeyEditStack {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.apiKeyEditInput {
+  flex: 1;
+  border: 1px solid var(--o-border);
+  background: var(--o-bg-subtle);
+  border-radius: 10px;
+  padding: 8px 12px;
+  font-family: var(--o-font-mono);
+  font-size: 13px;
+  color: var(--o-text);
+  min-width: 0;
+  outline: none;
+  transition: border-color var(--o-transition-fast), box-shadow var(--o-transition-fast);
+}
+
+.apiKeyEditInput:focus {
+  border-color: color-mix(in srgb, var(--connection-tint) 38%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--connection-tint) 12%, transparent);
+}
+
+.apiKeyEditError {
+  font-size: 12px;
+  color: var(--o-error);
+}
+
+.apiKeyEditActions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+/* ── Test result row — success / error banner inside card ── */
+.testResult {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px 16px 12px;
+  font-size: 12.5px;
+  line-height: 1.4;
+}
+
+.testResult[data-tone='success'] {
+  background: var(--o-success-subtle);
+  color: var(--o-text-secondary);
+}
+
+.testResult[data-tone='error'] {
+  background: var(--o-error-subtle);
+  color: var(--o-text-secondary);
+}
+
+.testResultIcon {
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.testResult[data-tone='success'] .testResultIcon {
+  color: var(--o-success);
+}
+
+.testResult[data-tone='error'] .testResultIcon {
+  color: var(--o-error);
+}
+
+.testResultText {
+  flex: 1;
+  min-width: 0;
+  word-break: break-word;
+}

@@ -1,0 +1,100 @@
+.title {
+  margin: 0 0 var(--o-space-md);
+  font-size: var(--o-text-lg);
+  font-weight: 700;
+  color: var(--o-text);
+}
+
+.cropContainer {
+  position: relative;
+  width: 280px;
+  height: 280px;
+  margin: 0 auto var(--o-space-lg);
+  border-radius: 50%;
+  overflow: hidden;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  box-shadow: 0 0 0 4px var(--o-border), var(--o-elevation-card);
+  background: var(--o-surface-raised);
+}
+
+.cropContainer:active {
+  cursor: grabbing;
+}
+
+.canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+/* Circular crop mask: translucent in the corners, transparent in the middle. */
+.overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.controls {
+  display: flex;
+  gap: var(--o-space-sm);
+}
+
+.fileButton {
+  display: block;
+  width: 100%;
+  padding: var(--o-space-sm) var(--o-space-md);
+  margin-bottom: var(--o-space-lg);
+  border: 1px dashed var(--o-border);
+  border-radius: var(--o-radius-md);
+  background: var(--o-bg);
+  color: var(--o-text-secondary);
+  font-size: var(--o-text-sm);
+  font-weight: 500;
+  text-align: center;
+  cursor: pointer;
+  transition: border-color 150ms, color 150ms;
+}
+
+.fileButton:hover {
+  border-color: var(--o-primary);
+  color: var(--o-text);
+}
+
+.cancelButton {
+  flex: 1;
+  padding: var(--o-space-sm) var(--o-space-md);
+  border: none;
+  border-radius: var(--o-radius-md);
+  background: var(--o-surface-raised);
+  color: var(--o-text-secondary);
+  font-size: var(--o-text-sm);
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.saveButton {
+  flex: 1;
+  padding: var(--o-space-sm) var(--o-space-md);
+  border: none;
+  border-radius: var(--o-radius-md);
+  background: var(--o-primary);
+  color: var(--o-primary-text);
+  font-size: var(--o-text-sm);
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 150ms;
+}
+
+.saveButton:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.hint {
+  text-align: center;
+  font-size: var(--o-text-xs);
+  color: var(--o-text-tertiary);
+  margin-bottom: var(--o-space-sm);
+}

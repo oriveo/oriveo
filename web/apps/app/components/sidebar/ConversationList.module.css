@@ -1,0 +1,311 @@
+.wrapper {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+  min-height: 0;
+}
+
+.mobileHome {
+  gap: 12px;
+}
+
+/* ── Toolbar ── */
+.toolbar {
+  padding: 0 4px;
+}
+
+.mobileHome .toolbar {
+  padding: 0 8px;
+}
+
+.searchRow {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.searchWrap {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+
+.searchIcon {
+  position: absolute;
+  inset-inline-start: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--o-text-tertiary);
+  pointer-events: none;
+}
+
+.searchInput {
+  width: 100%;
+  height: 32px;
+  padding: 0 var(--o-space-sm);
+  padding-inline-start: 32px;
+  border: 1px solid color-mix(in srgb, var(--o-border) 78%, transparent);
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--o-surface) 58%, transparent);
+  color: var(--o-text);
+  font-size: 13px;
+  letter-spacing: -0.005em;
+  outline: none;
+  box-shadow: inset 0 1px 0 0 var(--o-hairline);
+  transition: border-color 150ms ease, box-shadow 200ms ease, background 150ms ease;
+}
+
+.searchInput:hover {
+  border-color: var(--o-border-strong);
+}
+
+.searchInput:focus {
+  border-color: color-mix(in srgb, var(--o-primary) 44%, var(--o-border-strong));
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--o-primary) 10%, transparent),
+    inset 0 1px 0 0 var(--o-hairline);
+}
+
+.searchInput::placeholder {
+  color: var(--o-text-tertiary);
+}
+
+.mobileHome .searchInput {
+  height: 40px;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--o-surface) 72%, transparent);
+  font-size: 16px;
+}
+
+.searchClear {
+  position: absolute;
+  inset-inline-end: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: var(--o-radius-full);
+  background: transparent;
+  color: var(--o-text-tertiary);
+  cursor: pointer;
+  transition: color var(--o-transition-fast), background var(--o-transition-fast);
+}
+
+.searchClear:hover {
+  color: var(--o-text);
+  background: var(--o-primary-subtle);
+}
+
+/* ── Edit Toggle ── */
+.editToggle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--o-text-tertiary);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: color var(--o-transition-fast), background var(--o-transition-fast);
+}
+
+.editToggle:hover {
+  color: var(--o-text);
+  background: var(--o-surface);
+  border-color: var(--o-border);
+}
+
+.mobileHome .editToggle {
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--o-surface) 48%, transparent);
+  border-color: color-mix(in srgb, var(--o-border) 64%, transparent);
+}
+
+/* ── Edit Toolbar ── */
+.editToolbar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 0;
+  animation: toolbarIn 0.15s ease-out;
+}
+
+@keyframes toolbarIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.editToolbarSpacer {
+  flex: 1;
+}
+
+.editToolbarBtn {
+  padding: 4px 10px;
+  border: 1px solid var(--o-border);
+  border-radius: var(--o-radius-md);
+  background: transparent;
+  color: var(--o-text-secondary);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background var(--o-transition-fast), color var(--o-transition-fast), border-color var(--o-transition-fast);
+}
+
+.editToolbarBtn:hover {
+  background: var(--o-surface-raised);
+  color: var(--o-text);
+}
+
+.editToolbarDanger {
+  color: var(--o-error);
+  border-color: color-mix(in srgb, var(--o-error) 40%, transparent);
+}
+
+.editToolbarDanger:hover {
+  background: var(--o-error-subtle);
+  color: var(--o-error);
+  border-color: var(--o-error);
+}
+
+.editToolbarDone {
+  padding: 4px 12px;
+  border: none;
+  border-radius: var(--o-radius-md);
+  background: var(--o-primary);
+  color: var(--o-primary-text);
+  font-size: 12px;
+  font-weight: 520;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background var(--o-transition-fast);
+}
+
+.editToolbarDone:hover {
+  background: color-mix(in srgb, var(--o-primary) 85%, white);
+}
+
+/* ── Conversation List ── */
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  overflow-y: auto;
+  flex: 1;
+  padding: 0 0 6px;
+}
+
+.mobileHome .list {
+  gap: 18px;
+  overflow: visible;
+  padding-bottom: 0;
+}
+
+/* ── Group Label ── */
+.groupLabel {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--o-text-tertiary);
+  text-transform: uppercase;
+  padding: 4px 8px 8px;
+  display: flex;
+  align-items: center;
+}
+
+.mobileHome .groupLabel {
+  padding-inline: 8px;
+  color: var(--o-text-secondary);
+  font-size: 12px;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+/* -- GroupedCard container -- */
+.groupedCard {
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  overflow: visible;
+  box-shadow: none;
+}
+
+.groupedCard > *:not(:last-child) {
+  border-bottom: none;
+}
+
+.showMoreBtn {
+  display: block;
+  margin: 8px auto 0;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--o-text-tertiary);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color var(--o-transition-fast);
+}
+
+.showMoreBtn:hover {
+  color: var(--o-text-secondary);
+}
+
+/* ── Folder Section ── */
+.folderSection {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* ── Empty State ── */
+.empty {
+  padding: var(--o-space-lg) var(--o-space-md);
+  text-align: center;
+}
+
+.emptyText {
+  font-size: var(--o-text-sm);
+  color: var(--o-text-tertiary);
+  margin: 0;
+}
+
+.emptyHint {
+  font-size: var(--o-text-xs);
+  color: var(--o-text-tertiary);
+  margin: var(--o-space-xs) 0 0;
+  opacity: 0.7;
+}
+
+/* ── Divider ── */
+.divider {
+  height: 1px;
+  background: var(--o-border);
+  margin: 0 12px;
+}
+
+/* ── Sync Status ── */
+.syncStatus {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  font-size: var(--o-text-xs);
+  color: var(--o-text-tertiary);
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}

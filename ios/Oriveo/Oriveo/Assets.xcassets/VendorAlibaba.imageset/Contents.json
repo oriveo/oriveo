@@ -1,0 +1,8 @@
+{
+  "images" : [
+    { "filename" : "vendoralibaba.png", "idiom" : "universal", "scale" : "1x" },
+    { "filename" : "vendoralibaba@2x.png", "idiom" : "universal", "scale" : "2x" },
+    { "filename" : "vendoralibaba@3x.png", "idiom" : "universal", "scale" : "3x" }
+  ],
+  "info" : { "author" : "xcode", "version" : 1 }
+}

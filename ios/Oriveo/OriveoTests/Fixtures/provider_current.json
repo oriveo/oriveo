@@ -1,0 +1,35 @@
+{
+  "id": "550E8400-E29B-41D4-A716-446655440001",
+  "kind": "openAI",
+  "status": {"kind": "connected"},
+  "models": [
+    {
+      "id": "gpt-4o",
+      "name": "GPT-4o",
+      "capabilities": ["text", "image", "reasoning"],
+      "reasoningModeAvailable": true,
+      "isAvailable": true,
+      "isDefault": true,
+      "priceTier": "premium",
+      "summary": "Most capable GPT-4 model",
+      "promptPrice": 0.000005,
+      "completionPrice": 0.000015
+    },
+    {
+      "id": "gpt-4o-mini",
+      "name": "GPT-4o Mini",
+      "capabilities": ["text"],
+      "reasoningModeAvailable": false,
+      "isAvailable": true,
+      "isDefault": false,
+      "priceTier": "standard"
+    }
+  ],
+  "catalogModels": [],
+  "recommendedModels": [],
+  "lastSyncedAt": "2026-03-15T10:30:00Z",
+  "apiKey": "sk-test-key-abc123",
+  "apiKeyPreview": "sk-...c123",
+  "baseURLText": "api.openai.com/v1",
+  "updatedAt": "2026-03-15T10:30:00Z"
+}

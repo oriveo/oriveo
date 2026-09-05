@@ -1,0 +1,96 @@
+/* ── Image preview modal (fullscreen viewer) ───────────────── */
+
+.previewOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.86);
+  backdrop-filter: blur(8px) saturate(140%);
+  -webkit-backdrop-filter: blur(8px) saturate(140%);
+  padding: 56px 24px 24px;
+  animation: previewFadeIn 160ms ease-out;
+}
+
+@keyframes previewFadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.previewImage {
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  border-radius: 8px;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
+  user-select: none;
+}
+
+.previewLoading {
+  position: absolute;
+  left: 50%;
+  bottom: 24px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  transform: translateX(-50%);
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: rgba(20, 20, 24, 0.72);
+  color: var(--o-on-info);
+  font-size: 13px;
+  line-height: 1;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.36);
+}
+
+.previewSpinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.32);
+  border-top-color: var(--o-on-info);
+  border-radius: 50%;
+  animation: previewSpin 800ms linear infinite;
+}
+
+@keyframes previewSpin {
+  to { transform: rotate(360deg); }
+}
+
+.previewToolbar {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  z-index: 1;
+}
+
+.previewToolButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: rgba(20, 20, 24, 0.6);
+  color: var(--o-on-info); /*   lightbox   */
+  cursor: pointer;
+  transition: background 120ms ease, transform 120ms ease;
+  text-decoration: none;
+}
+
+.previewToolButton:hover {
+  background: rgba(40, 40, 48, 0.85);
+  transform: scale(1.05);
+}
+
+.previewToolButton:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.55);
+  outline-offset: 2px;
+}

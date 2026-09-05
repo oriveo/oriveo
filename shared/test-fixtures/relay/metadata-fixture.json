@@ -1,0 +1,331 @@
+{
+  "_comment": "Shared contract fixture.",
+  "version": 999,
+  "contractVersion": 1,
+  "updatedAt": "2026-04-23T00:00:00Z",
+  "profiles": {
+    "reasoning": {
+      "openaiReasoning": {
+        "levels": [
+          "fast",
+          "medium",
+          "deep",
+          "maximum"
+        ]
+      },
+      "anthropicReasoning": {
+        "levels": [
+          "fast",
+          "medium",
+          "deep",
+          "maximum"
+        ]
+      },
+      "geminiReasoning": {
+        "levels": [
+          "fast",
+          "medium",
+          "deep",
+          "maximum"
+        ]
+      }
+    },
+    "webSearch": {
+      "openaiWebSearch": {},
+      "geminiGoogleSearch": {}
+    },
+    "imageGen": {
+      "openaiImageGen": {},
+      "geminiImageGen": {}
+    },
+    "generation": {
+      "version": 1,
+      "parameters": {
+        "reasoning_effort": {
+          "group": "reasoning",
+          "valueSchema": "string",
+          "enumValues": [
+            "low",
+            "medium",
+            "high",
+            "xhigh"
+          ]
+        }
+      },
+      "templates": {
+        "openai_responses": {
+          "transport": "openai_responses",
+          "wire": {
+            "reasoning_effort": "reasoning.effort"
+          }
+        }
+      }
+    }
+  },
+  "providers": {
+    "openAI": {
+      "displayName": "OpenAI",
+      "attachmentSupport": {
+        "image": true,
+        "nativeFile": true,
+        "textFileInline": true
+      },
+      "defaultModelId": "gpt-5.4",
+      "resolveMap": {
+        "gpt-5.4": "gpt-5.4",
+        "gpt-5.4-2026-04-01": "gpt-5.4",
+        "gpt-image-2": "gpt-image-2"
+      },
+      "models": {
+        "gpt-5.4": {
+          "canonicalModelId": "gpt-5.4",
+          "displayName": "GPT-5.4",
+          "aliases": [
+            "gpt-5.4-2026-04-01"
+          ],
+          "pricing": {
+            "promptPerMToken": 2.0,
+            "completionPerMToken": 8.0
+          },
+          "pricingStatus": "priced",
+          "capabilities": [
+            "text",
+            "image",
+            "file",
+            "web",
+            "reasoning"
+          ],
+          "profiles": {
+            "reasoning": "openaiReasoning",
+            "webSearch": "openaiWebSearch",
+            "generation": {
+              "template": "openai_responses",
+              "parameters": [
+                {
+                  "id": "reasoning_effort",
+                  "support": "supported",
+                  "source": "authoritative_metadata",
+                  "enumValues": [
+                    "low",
+                    "high"
+                  ]
+                }
+              ]
+            }
+          },
+          "uiHints": {
+            "groupKey": "openai",
+            "groupName": "OpenAI",
+            "rank": 10,
+            "recommended": true
+          }
+        },
+        "gpt-image-2": {
+          "canonicalModelId": "gpt-image-2",
+          "displayName": "GPT Image 2",
+          "capabilities": [
+            "imageGeneration"
+          ],
+          "profiles": {
+            "imageGen": "openaiImageGen"
+          },
+          "uiHints": {
+            "groupKey": "openai-image",
+            "groupName": "OpenAI Image"
+          }
+        }
+      }
+    },
+    "anthropic": {
+      "displayName": "Anthropic",
+      "attachmentSupport": {
+        "image": true,
+        "nativeFile": true,
+        "textFileInline": true
+      },
+      "defaultModelId": "claude-sonnet-4.5",
+      "resolveMap": {
+        "claude-sonnet-4.5": "claude-sonnet-4.5",
+        "claude-sonnet-4-5-2026-04-01": "claude-sonnet-4.5"
+      },
+      "models": {
+        "claude-sonnet-4.5": {
+          "canonicalModelId": "claude-sonnet-4.5",
+          "displayName": "Claude Sonnet 4.5",
+          "aliases": [
+            "claude-sonnet-4-5-2026-04-01"
+          ],
+          "capabilities": [
+            "text",
+            "image",
+            "file",
+            "reasoning"
+          ],
+          "profiles": {
+            "reasoning": "anthropicReasoning",
+            "generation": {
+              "template": "openai_responses",
+              "parameters": [
+                {
+                  "id": "reasoning_effort",
+                  "support": "supported",
+                  "source": "provider_metadata"
+                }
+              ]
+            }
+          },
+          "uiHints": {
+            "groupKey": "anthropic",
+            "groupName": "Anthropic",
+            "rank": 10,
+            "recommended": true
+          }
+        }
+      }
+    },
+    "gemini": {
+      "displayName": "Gemini",
+      "attachmentSupport": {
+        "image": true,
+        "nativeFile": true,
+        "textFileInline": true
+      },
+      "defaultModelId": "gemini-2.5-pro",
+      "resolveMap": {
+        "gemini-2.5-pro": "gemini-2.5-pro"
+      },
+      "models": {
+        "gemini-2.5-pro": {
+          "canonicalModelId": "gemini-2.5-pro",
+          "displayName": "Gemini 2.5 Pro",
+          "capabilities": [
+            "text",
+            "image",
+            "file",
+            "web",
+            "reasoning"
+          ],
+          "profiles": {
+            "reasoning": "geminiReasoning",
+            "webSearch": "geminiGoogleSearch"
+          },
+          "uiHints": {
+            "groupKey": "gemini",
+            "groupName": "Gemini"
+          }
+        }
+      }
+    }
+  },
+  "providerConfigs": [],
+  "relayRuntimeConfig": {
+    "version": "2026-04-23-1",
+    "officialProviderWhitelist": [
+      "openAI",
+      "anthropic",
+      "gemini",
+      "deepseek",
+      "miniMax",
+      "zhipu",
+      "qwen"
+    ],
+    "transportEnvelopes": {
+      "openai_responses": {
+        "image": true,
+        "nativeFile": true,
+        "textFileInline": true,
+        "webSearch": true,
+        "imageGeneration": true,
+        "reasoning": true
+      },
+      "openai_chat_completions": {
+        "image": true,
+        "nativeFile": false,
+        "textFileInline": true,
+        "webSearch": false,
+        "imageGeneration": false,
+        "reasoning": true
+      },
+      "anthropic_messages": {
+        "image": true,
+        "nativeFile": true,
+        "textFileInline": true,
+        "webSearch": false,
+        "imageGeneration": false,
+        "reasoning": true
+      },
+      "gemini_generate_content": {
+        "image": true,
+        "nativeFile": true,
+        "textFileInline": true,
+        "webSearch": true,
+        "imageGeneration": true,
+        "reasoning": true
+      }
+    },
+    "transportRules": {
+      "openai_responses": {
+        "providerPriority": "openAI",
+        "defaultAuthMode": "bearer",
+        "defaultVersion": "v1",
+        "acceptedVersions": [
+          "v1"
+        ],
+        "headerProfile": "codex_responses",
+        "codexIdentityDefault": true,
+        "webSearchToolName": "web_search",
+        "imageRoute": "inline_responses_tool",
+        "forceStreamForImageGeneration": true
+      },
+      "openai_chat_completions": {
+        "providerPriority": "openAI",
+        "defaultAuthMode": "bearer",
+        "defaultVersion": "v1",
+        "acceptedVersions": [
+          "v1"
+        ],
+        "headerProfile": "none",
+        "codexIdentityDefault": false,
+        "webSearchToolName": "disabled",
+        "imageRoute": "images_endpoint",
+        "forceStreamForImageGeneration": false
+      },
+      "anthropic_messages": {
+        "providerPriority": "anthropic",
+        "defaultAuthMode": "x_api_key",
+        "defaultVersion": "v1",
+        "acceptedVersions": [
+          "v1"
+        ],
+        "headerProfile": "anthropic_v2023_06_01",
+        "codexIdentityDefault": false,
+        "webSearchToolName": "disabled",
+        "imageRoute": "unsupported",
+        "forceStreamForImageGeneration": false
+      },
+      "gemini_generate_content": {
+        "providerPriority": "gemini",
+        "defaultAuthMode": "x_goog_api_key",
+        "defaultVersion": "v1beta",
+        "acceptedVersions": [
+          "v1",
+          "v1beta"
+        ],
+        "headerProfile": "gemini_key",
+        "codexIdentityDefault": false,
+        "webSearchToolName": "google_search",
+        "imageRoute": "gemini_modality",
+        "forceStreamForImageGeneration": false
+      }
+    },
+    "verificationPolicy": {
+      "hardFailedExpiryDays": 7,
+      "softFailedRetryAfterSeconds": 60,
+      "verifiedCacheDays": 30
+    },
+    "featureGatingPolicy": {
+      "showActualModelIdHint": true,
+      "showSoftFailHint": true
+    }
+  }
+}

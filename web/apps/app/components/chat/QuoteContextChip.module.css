@@ -1,0 +1,137 @@
+.root {
+  position: relative;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  max-width: 100%;
+  border-radius: 12px;
+  color: var(--o-text-secondary);
+  background: color-mix(in srgb, var(--o-primary) 10%, var(--o-surface-raised));
+  box-shadow: 0 5px 14px color-mix(in srgb, black 8%, transparent);
+}
+
+.root[data-presentation='sent'] {
+  margin-bottom: 7px;
+  background: color-mix(in srgb, white 90%, var(--o-primary) 10%);
+  color: color-mix(in srgb, var(--o-primary-active) 72%, black);
+  box-shadow: none;
+}
+
+.main {
+  min-width: 0;
+  min-height: 44px;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 8px 7px 11px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+
+.icon {
+  flex: 0 0 auto;
+  color: var(--o-primary);
+}
+
+.summary {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.remove {
+  width: 44px;
+  height: 44px;
+  flex: 0 0 44px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--o-text-tertiary);
+  cursor: pointer;
+}
+
+.main:hover,
+.remove:hover {
+  background: color-mix(in srgb, var(--o-primary) 7%, transparent);
+}
+
+.main:focus-visible,
+.remove:focus-visible,
+.previewBody:focus-visible {
+  outline: 2px solid var(--o-primary);
+  outline-offset: 2px;
+}
+
+.preview {
+  position: absolute;
+  z-index: 40;
+  left: 0;
+  bottom: calc(100% + 8px);
+  width: min(560px, calc(100vw - 48px));
+  max-width: 100%;
+  padding: 12px;
+  border-radius: 14px;
+  background: var(--o-surface-raised);
+  color: var(--o-text);
+  box-shadow: var(--o-shadow-lg);
+}
+
+.root[data-presentation='sent'] .preview {
+  bottom: auto;
+  top: calc(100% + 8px);
+  right: 0;
+  left: auto;
+}
+
+.previewTitle {
+  margin-bottom: 7px;
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--o-text-secondary);
+}
+
+.previewBody {
+  max-height: min(60vh, 420px);
+  overflow: auto;
+  overscroll-behavior: contain;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.highlight {
+  border-radius: 3px;
+  padding: 1px 0;
+  color: inherit;
+  background: color-mix(in srgb, var(--o-warning) 38%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .main,
+  .remove {
+    transition: none;
+  }
+}
+
+@media (forced-colors: active) {
+  .root,
+  .preview {
+    outline: 1px solid CanvasText;
+  }
+
+  .highlight {
+    background: Highlight;
+    color: HighlightText;
+  }
+}

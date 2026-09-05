@@ -1,0 +1,504 @@
+{
+  "$comment": "This tracks the category 7/8 roster. producerFixture points at the existing production parser/adapter test which must emit the normalized event; this file never treats its own sample event as proof. HTTP success plus no emitted evidence stays unconfirmed. expected=no_execution_fact is the three-client decision for owner=generation: every generation recipe binds an evidence definition whose signals are empty (official APIs never echo back that a temperature took effect), so a generation fact could only ever sit at unconfirmed forever. Such a state bit carries zero information and reads as 'it never succeeded', so generation stays out of the execution-fact/result state machine entirely on Web, iOS and Android. This closes only the after-the-fact badge: generation recipes still authorize the legacy template, custom-fragment path/transport validation and the user's typed generation parameters on the wire.",
+  "contractId": "provider_recipe_result_facts.v1",
+  "version": 1,
+  "registryPath": "shared/capabilityrecipe/capability_runtime.v1.json",
+  "providerResultCoverage": [
+    {
+      "providerKind": "openAI",
+      "recipeRef": "openai.responses.web.v1",
+      "modelId": "gpt-5",
+      "transport": "openai_responses",
+      "expected": "observed",
+      "producerFixture": "web/packages/core/src/providers/__tests__/proxy-chunk-parser.test.ts",
+      "producerEvents": [
+        "citations"
+      ]
+    },
+    {
+      "providerKind": "anthropic",
+      "recipeRef": "anthropic.messages.web.v1",
+      "modelId": "claude-sonnet-4-5",
+      "transport": "anthropic_messages",
+      "expected": "observed",
+      "producerFixture": "web/packages/core/src/providers/__tests__/proxy-chunk-parser.test.ts",
+      "producerEvents": [
+        "citations"
+      ]
+    },
+    {
+      "providerKind": "gemini",
+      "recipeRef": "gemini.generate_content.web.v1",
+      "modelId": "gemini-3-flash",
+      "transport": "gemini_generate_content",
+      "expected": "observed",
+      "producerFixture": "web/packages/core/src/providers/transport/strategies/gemini-generate.ts",
+      "producerEvents": [
+        "citations"
+      ]
+    },
+    {
+      "providerKind": "deepseek",
+      "recipeRef": "deepseek.chat.reasoning.v1",
+      "modelId": "deepseek-v4-flash",
+      "transport": "openai_chat",
+      "expected": "observed",
+      "producerFixture": "web/packages/core/src/providers/__tests__/proxy-chunk-parser.test.ts",
+      "producerEvents": [
+        "reasoning"
+      ]
+    },
+    {
+      "providerKind": "grok",
+      "recipeRef": "grok.responses.web.v1",
+      "modelId": "grok-4-1-fast-reasoning",
+      "transport": "openai_responses",
+      "expected": "observed",
+      "producerFixture": "web/packages/core/src/providers/__tests__/proxy-chunk-parser.test.ts",
+      "producerEvents": [
+        "citations"
+      ]
+    },
+    {
+      "providerKind": "zhipu",
+      "recipeRef": "zhipu.chat.web.v1",
+      "modelId": "glm-5",
+      "transport": "openai_chat",
+      "expected": "unconfirmed",
+      "producerFixture": "web/packages/core/src/providers/__tests__/proxy-chunk-parser.test.ts",
+      "producerEvents": []
+    },
+    {
+      "providerKind": "qwen",
+      "recipeRef": "qwen.chat.web.v1",
+      "modelId": "qwen3.7-plus",
+      "transport": "openai_chat",
+      "expected": "unconfirmed",
+      "producerFixture": "web/packages/core/src/providers/__tests__/proxy-chunk-parser.test.ts",
+      "producerEvents": []
+    },
+    {
+      "providerKind": "moonshot",
+      "recipeRef": "moonshot.chat.web.v1",
+      "modelId": "kimi-k2.6",
+      "transport": "openai_chat",
+      "expected": "unconfirmed",
+      "producerFixture": "web/packages/core/src/providers/response-adapters/moonshot-tool-loop.ts",
+      "producerEvents": []
+    },
+    {
+      "providerKind": "mistral",
+      "recipeRef": "mistral.chat.reasoning.v1",
+      "modelId": "magistral-medium",
+      "transport": "openai_chat",
+      "expected": "observed",
+      "producerFixture": "web/packages/core/src/providers/__tests__/proxy-chunk-parser.test.ts",
+      "producerEvents": [
+        "reasoning"
+      ]
+    },
+    {
+      "providerKind": "miniMax",
+      "recipeRef": "minimax.chat.generation.v1",
+      "modelId": "MiniMax-M2.5",
+      "transport": "openai_chat",
+      "expected": "no_execution_fact",
+      "producerFixture": "web/packages/core/src/providers/__tests__/proxy-chunk-parser.test.ts",
+      "producerEvents": []
+    },
+    {
+      "providerKind": "openRouter",
+      "recipeRef": "openrouter.chat.web.v1",
+      "modelId": "openai/gpt-5",
+      "transport": "openai_chat",
+      "expected": "observed",
+      "producerFixture": "web/packages/core/src/providers/__tests__/proxy-chunk-parser.test.ts",
+      "producerEvents": [
+        "citations"
+      ]
+    },
+    {
+      "providerKind": "groq",
+      "recipeRef": "groq.chat.reasoning.v1",
+      "modelId": "openai/gpt-oss-120b",
+      "transport": "openai_chat",
+      "expected": "observed",
+      "producerFixture": "web/packages/core/src/providers/__tests__/proxy-chunk-parser.test.ts",
+      "producerEvents": [
+        "reasoning"
+      ]
+    },
+    {
+      "providerKind": "togetherAI",
+      "recipeRef": "togetherai.chat.reasoning.v1",
+      "modelId": "deepseek-ai/DeepSeek-V3.1",
+      "transport": "openai_chat",
+      "expected": "observed",
+      "producerFixture": "web/packages/core/src/providers/__tests__/proxy-chunk-parser.test.ts",
+      "producerEvents": [
+        "reasoning"
+      ]
+    },
+    {
+      "providerKind": "fireworksAI",
+      "recipeRef": "fireworksai.chat.reasoning.v1",
+      "modelId": "accounts/fireworks/models/deepseek-v3p1",
+      "transport": "openai_chat",
+      "expected": "observed",
+      "producerFixture": "web/packages/core/src/providers/__tests__/proxy-chunk-parser.test.ts",
+      "producerEvents": [
+        "reasoning"
+      ]
+    },
+    {
+      "providerKind": "siliconFlow",
+      "recipeRef": "siliconflow.chat.reasoning.v1",
+      "modelId": "deepseek-ai/DeepSeek-V3.1-Terminus",
+      "transport": "openai_chat",
+      "expected": "observed",
+      "producerFixture": "web/packages/core/src/providers/__tests__/proxy-chunk-parser.test.ts",
+      "producerEvents": [
+        "reasoning"
+      ]
+    }
+  ],
+  "recoveryCases": [
+    {
+      "caseId": "recovery.openAI.no_locator_surfaces_error",
+      "providerKind": "openAI",
+      "providerCoverage": true,
+      "recipeRef": "openai.responses.web.v1",
+      "status": 400,
+      "preToken": true,
+      "streamStarted": false,
+      "sideEffects": false,
+      "automaticRetryCount": 0,
+      "source": "provider_recipe",
+      "expected": "surface_error"
+    },
+    {
+      "caseId": "recovery.anthropic.no_locator_surfaces_error",
+      "providerKind": "anthropic",
+      "providerCoverage": true,
+      "recipeRef": "anthropic.messages.web.v1",
+      "status": 400,
+      "preToken": true,
+      "streamStarted": false,
+      "sideEffects": false,
+      "automaticRetryCount": 0,
+      "source": "provider_recipe",
+      "expected": "surface_error"
+    },
+    {
+      "caseId": "recovery.gemini.no_locator_surfaces_error",
+      "providerKind": "gemini",
+      "providerCoverage": true,
+      "recipeRef": "gemini.generate_content.web.v1",
+      "status": 400,
+      "preToken": true,
+      "streamStarted": false,
+      "sideEffects": false,
+      "automaticRetryCount": 0,
+      "source": "provider_recipe",
+      "expected": "surface_error"
+    },
+    {
+      "caseId": "recovery.deepseek.no_locator_surfaces_error",
+      "providerKind": "deepseek",
+      "providerCoverage": true,
+      "recipeRef": "deepseek.chat.reasoning.v1",
+      "status": 400,
+      "preToken": true,
+      "streamStarted": false,
+      "sideEffects": false,
+      "automaticRetryCount": 0,
+      "source": "provider_recipe",
+      "expected": "surface_error"
+    },
+    {
+      "caseId": "recovery.grok.no_locator_surfaces_error",
+      "providerKind": "grok",
+      "providerCoverage": true,
+      "recipeRef": "grok.responses.web.v1",
+      "status": 400,
+      "preToken": true,
+      "streamStarted": false,
+      "sideEffects": false,
+      "automaticRetryCount": 0,
+      "source": "provider_recipe",
+      "expected": "surface_error"
+    },
+    {
+      "caseId": "recovery.zhipu.no_locator_surfaces_error",
+      "providerKind": "zhipu",
+      "providerCoverage": true,
+      "recipeRef": "zhipu.chat.web.v1",
+      "status": 400,
+      "preToken": true,
+      "streamStarted": false,
+      "sideEffects": false,
+      "automaticRetryCount": 0,
+      "source": "provider_recipe",
+      "expected": "surface_error"
+    },
+    {
+      "caseId": "recovery.qwen.no_locator_surfaces_error",
+      "providerKind": "qwen",
+      "providerCoverage": true,
+      "recipeRef": "qwen.chat.web.v1",
+      "status": 400,
+      "preToken": true,
+      "streamStarted": false,
+      "sideEffects": false,
+      "automaticRetryCount": 0,
+      "source": "provider_recipe",
+      "expected": "surface_error"
+    },
+    {
+      "caseId": "recovery.moonshot.no_locator_surfaces_error",
+      "providerKind": "moonshot",
+      "providerCoverage": true,
+      "recipeRef": "moonshot.chat.web.v1",
+      "status": 400,
+      "preToken": true,
+      "streamStarted": false,
+      "sideEffects": false,
+      "automaticRetryCount": 0,
+      "source": "provider_recipe",
+      "expected": "surface_error"
+    },
+    {
+      "caseId": "recovery.mistral.no_locator_surfaces_error",
+      "providerKind": "mistral",
+      "providerCoverage": true,
+      "recipeRef": "mistral.chat.reasoning.v1",
+      "status": 400,
+      "preToken": true,
+      "streamStarted": false,
+      "sideEffects": false,
+      "automaticRetryCount": 0,
+      "source": "provider_recipe",
+      "expected": "surface_error"
+    },
+    {
+      "caseId": "recovery.miniMax.no_locator_surfaces_error",
+      "providerKind": "miniMax",
+      "providerCoverage": true,
+      "recipeRef": "minimax.chat.generation.v1",
+      "status": 400,
+      "preToken": true,
+      "streamStarted": false,
+      "sideEffects": false,
+      "automaticRetryCount": 0,
+      "source": "provider_recipe",
+      "expected": "surface_error"
+    },
+    {
+      "caseId": "recovery.openRouter.no_locator_surfaces_error",
+      "providerKind": "openRouter",
+      "providerCoverage": true,
+      "recipeRef": "openrouter.chat.web.v1",
+      "status": 400,
+      "preToken": true,
+      "streamStarted": false,
+      "sideEffects": false,
+      "automaticRetryCount": 0,
+      "source": "provider_recipe",
+      "expected": "surface_error"
+    },
+    {
+      "caseId": "recovery.groq.no_locator_surfaces_error",
+      "providerKind": "groq",
+      "providerCoverage": true,
+      "recipeRef": "groq.chat.reasoning.v1",
+      "status": 400,
+      "preToken": true,
+      "streamStarted": false,
+      "sideEffects": false,
+      "automaticRetryCount": 0,
+      "source": "provider_recipe",
+      "expected": "surface_error"
+    },
+    {
+      "caseId": "recovery.togetherAI.no_locator_surfaces_error",
+      "providerKind": "togetherAI",
+      "providerCoverage": true,
+      "recipeRef": "togetherai.chat.reasoning.v1",
+      "status": 400,
+      "preToken": true,
+      "streamStarted": false,
+      "sideEffects": false,
+      "automaticRetryCount": 0,
+      "source": "provider_recipe",
+      "expected": "surface_error"
+    },
+    {
+      "caseId": "recovery.fireworksAI.no_locator_surfaces_error",
+      "providerKind": "fireworksAI",
+      "providerCoverage": true,
+      "recipeRef": "fireworksai.chat.reasoning.v1",
+      "status": 400,
+      "preToken": true,
+      "streamStarted": false,
+      "sideEffects": false,
+      "automaticRetryCount": 0,
+      "source": "provider_recipe",
+      "expected": "surface_error"
+    },
+    {
+      "caseId": "recovery.siliconFlow.no_locator_surfaces_error",
+      "providerKind": "siliconFlow",
+      "providerCoverage": true,
+      "recipeRef": "siliconflow.chat.reasoning.v1",
+      "status": 400,
+      "preToken": true,
+      "streamStarted": false,
+      "sideEffects": false,
+      "automaticRetryCount": 0,
+      "source": "provider_recipe",
+      "expected": "surface_error"
+    },
+    {
+      "caseId": "recovery.auth_401_never_recovers",
+      "providerKind": "openAI",
+      "providerCoverage": false,
+      "recipeRef": "openai.responses.web.v1",
+      "status": 401,
+      "preToken": true,
+      "streamStarted": false,
+      "sideEffects": false,
+      "automaticRetryCount": 0,
+      "source": "provider_recipe",
+      "expected": "surface_error"
+    },
+    {
+      "caseId": "recovery.permission_403_never_recovers",
+      "providerKind": "anthropic",
+      "providerCoverage": false,
+      "recipeRef": "anthropic.messages.web.v1",
+      "status": 403,
+      "preToken": true,
+      "streamStarted": false,
+      "sideEffects": false,
+      "automaticRetryCount": 0,
+      "source": "provider_recipe",
+      "expected": "surface_error"
+    },
+    {
+      "caseId": "recovery.rate_limit_429_never_recovers",
+      "providerKind": "qwen",
+      "providerCoverage": false,
+      "recipeRef": "qwen.chat.web.v1",
+      "status": 429,
+      "preToken": true,
+      "streamStarted": false,
+      "sideEffects": false,
+      "automaticRetryCount": 0,
+      "source": "provider_recipe",
+      "expected": "surface_error"
+    },
+    {
+      "caseId": "recovery.server_500_never_recovers",
+      "providerKind": "gemini",
+      "providerCoverage": false,
+      "recipeRef": "gemini.generate_content.web.v1",
+      "status": 500,
+      "preToken": true,
+      "streamStarted": false,
+      "sideEffects": false,
+      "automaticRetryCount": 0,
+      "source": "provider_recipe",
+      "expected": "surface_error"
+    },
+    {
+      "caseId": "recovery.network_never_recovers",
+      "providerKind": "openRouter",
+      "providerCoverage": false,
+      "recipeRef": "openrouter.chat.web.v1",
+      "status": 0,
+      "errorKind": "network",
+      "preToken": true,
+      "streamStarted": false,
+      "sideEffects": false,
+      "automaticRetryCount": 0,
+      "source": "provider_recipe",
+      "expected": "surface_error"
+    },
+    {
+      "caseId": "recovery.timeout_never_recovers",
+      "providerKind": "groq",
+      "providerCoverage": false,
+      "recipeRef": "groq.chat.reasoning.v1",
+      "status": 0,
+      "errorKind": "timeout",
+      "preToken": true,
+      "streamStarted": false,
+      "sideEffects": false,
+      "automaticRetryCount": 0,
+      "source": "provider_recipe",
+      "expected": "surface_error"
+    },
+    {
+      "caseId": "recovery.stream_started_never_recovers",
+      "providerKind": "anthropic",
+      "providerCoverage": false,
+      "recipeRef": "anthropic.messages.reasoning.v1",
+      "status": 400,
+      "preToken": false,
+      "streamStarted": true,
+      "sideEffects": false,
+      "automaticRetryCount": 0,
+      "source": "provider_recipe",
+      "expected": "surface_error"
+    },
+    {
+      "caseId": "recovery.side_effect_never_recovers",
+      "providerKind": "moonshot",
+      "providerCoverage": false,
+      "recipeRef": "moonshot.chat.web.v1",
+      "status": 400,
+      "preToken": true,
+      "streamStarted": false,
+      "sideEffects": true,
+      "automaticRetryCount": 0,
+      "source": "provider_recipe",
+      "expected": "surface_error"
+    },
+    {
+      "caseId": "recovery.second_attempt_never_repeats",
+      "providerKind": "mistral",
+      "providerCoverage": false,
+      "recipeRef": "mistral.chat.reasoning.v1",
+      "status": 400,
+      "preToken": true,
+      "streamStarted": false,
+      "sideEffects": false,
+      "automaticRetryCount": 1,
+      "source": "provider_recipe",
+      "expected": "surface_error"
+    },
+    {
+      "caseId": "recovery.custom_never_silent",
+      "providerKind": "openAI",
+      "providerCoverage": false,
+      "recipeRef": "openai.responses.generation.v1",
+      "status": 400,
+      "preToken": true,
+      "streamStarted": false,
+      "sideEffects": false,
+      "automaticRetryCount": 0,
+      "source": "custom",
+      "structuredError": {
+        "error": {
+          "param": "temperature"
+        }
+      },
+      "customAppliedPointers": {
+        "generation": [
+          "/temperature"
+        ]
+      },
+      "expected": "user_confirmed_resend_without_located_setting"
+    }
+  ]
+}

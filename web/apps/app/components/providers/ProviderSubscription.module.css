@@ -1,0 +1,249 @@
+/* Grok subscription sign-in: a choice between two connection methods, plus the device code authorization dialog */
+
+.modeSection {
+  display: flex;
+  flex-direction: column;
+  gap: var(--o-space-md);
+}
+
+.modeTitle {
+  font-size: var(--o-text-sm);
+  font-weight: 600;
+  color: var(--o-text);
+}
+
+.modeOptions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--o-space-sm);
+}
+
+/* Centered vertically rather than top-aligned: with a two-line subtitle, top alignment floats the
+   icon and the radio circle upwards, away from the visual center of the text block. Both cards
+   share a minimum height, and the extra space on the single-line card is split evenly. */
+.modeOption {
+  display: flex;
+  align-items: center;
+  gap: var(--o-space-md);
+  width: 100%;
+  min-height: 74px;
+  padding: var(--o-space-md);
+  border: 1px solid var(--o-border);
+  border-radius: var(--o-radius-lg);
+  background: var(--o-surface);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color var(--o-transition-fast),
+    background var(--o-transition-fast);
+}
+
+.modeOptionSelected {
+  border-color: color-mix(in srgb, var(--o-primary) 42%, transparent);
+  background: color-mix(in srgb, var(--o-primary) 8%, var(--o-surface));
+}
+
+/* Fixed width and height, so the icons on both cards share a baseline (a key and a person glyph have different widths). */
+.modeIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 24px;
+  width: 24px;
+  height: 24px;
+  color: var(--o-text-secondary);
+}
+
+.modeOptionSelected .modeIcon {
+  color: var(--o-primary);
+}
+
+.modeCopy {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.modeOptionTitle {
+  font-size: var(--o-text-sm);
+  font-weight: 600;
+  color: var(--o-text);
+}
+
+.modeOptionDesc {
+  font-size: var(--o-text-xs);
+  color: var(--o-text-secondary);
+  line-height: 1.45;
+}
+
+/* An unselected state drawn as a border alone is nearly invisible on a dark background, and the user cannot tell it is a radio choice. */
+.modeRadio {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 22px;
+  width: 22px;
+  height: 22px;
+  color: var(--o-text-tertiary);
+}
+
+.modeOptionSelected .modeRadio {
+  color: var(--o-primary);
+}
+
+.connectPanel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--o-space-md);
+  padding: var(--o-space-lg);
+  border: 1px solid var(--o-border);
+  border-radius: var(--o-radius-lg);
+  background: var(--o-surface);
+}
+
+.connectHint {
+  font-size: var(--o-text-xs);
+  color: var(--o-text-secondary);
+  line-height: 1.5;
+}
+
+.disabledNotice {
+  padding: var(--o-space-md);
+  border: 1px solid var(--o-border);
+  border-radius: var(--o-radius-md);
+  background: var(--o-surface-raised);
+  font-size: var(--o-text-xs);
+  color: var(--o-text-secondary);
+  line-height: 1.5;
+}
+
+/* ── Authorization dialog ─────────────────────────────────────── */
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgb(0 0 0 / 45%);
+  backdrop-filter: blur(10px) saturate(120%);
+  -webkit-backdrop-filter: blur(10px) saturate(120%);
+  z-index: 200;
+}
+
+/* At least 22px of top padding: the title must not sit against the top edge of the dialog. */
+.dialog {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--o-space-md);
+  width: 90%;
+  max-width: 420px;
+  padding: 24px var(--o-space-xl) var(--o-space-xl);
+  border: 1px solid var(--o-border);
+  border-radius: 16px;
+  background: var(--o-surface);
+  box-shadow: var(--o-elevation-card);
+  text-align: center;
+}
+
+.dialogIcon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--o-primary);
+}
+
+.dialogTitle {
+  font-size: var(--o-text-lg);
+  font-weight: 700;
+  color: var(--o-text);
+}
+
+.dialogSubtitle {
+  font-size: var(--o-text-sm);
+  color: var(--o-text-secondary);
+  line-height: 1.5;
+}
+
+.dialogBody {
+  display: flex;
+  flex-direction: column;
+  gap: var(--o-space-md);
+  width: 100%;
+}
+
+.codeBox {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 14px var(--o-space-md);
+  border-radius: 14px;
+  background: var(--o-surface-raised);
+}
+
+.codeLabel {
+  font-size: var(--o-text-xs);
+  color: var(--o-text-secondary);
+}
+
+.codeValue {
+  font-family: var(--o-font-mono);
+  font-size: var(--o-text-lg);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--o-text);
+  user-select: all;
+}
+
+.waiting {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--o-space-sm);
+  font-size: var(--o-text-xs);
+  color: var(--o-text-secondary);
+}
+
+.errorText {
+  font-size: var(--o-text-sm);
+  color: var(--o-text-secondary);
+  line-height: 1.5;
+}
+
+.spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--o-border);
+  border-top-color: var(--o-primary);
+  border-radius: 50%;
+  animation: grok-subscription-spin 0.8s linear infinite;
+}
+
+.busy {
+  display: flex;
+  justify-content: center;
+  padding: var(--o-space-lg) 0;
+}
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--o-space-sm);
+  width: 100%;
+}
+
+@keyframes grok-subscription-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation: none;
+  }
+}

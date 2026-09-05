@@ -1,0 +1,5209 @@
+{
+  "$comment": "Request-shape contract v1 — the full matrix across every official provider. Each case feeds the same metadata and user intent into every runtime request builder. endpointPath, headers, query params, body includes/excludes lock the upstream wire shape. If server profile or transport output changes, update this fixture and all platform harnesses in the same change. The profiles defined here correspond **both ways** to the server's AllProfiles(): forward, they must match byte for byte; backward, the server must never add one unilaterally (gem_contract_conflict_web is the one explicit exception, as a Conflict canary); and every profile in the reasoning/webSearch/imageGen groups must have a dispatch case that actually runs end to end (see Test*ProfilesHaveDispatchCases in the server's request_shape_contract_test.go). A case's model-to-profile reference is reconciled against the server harness and AssignProfiles. Explicitly out of scope for v1: fallback/responseAdapter/moonshotMaxToolLoops assertions (each client covers those with its own tests). gem_predict (imagen) was removed together with the corresponding dead profile on the server side. The numeric evidence behind these decisions comes from direct measurement (61 probes); the resulting reasoning-profile assignment rules now live in the capability specification doc. A later addition covers the generation outbound surface (a v1-additive key; older consumers can simply ignore the new key): metadata.profiles.generation is copied byte for byte from production's AllProfiles()[\"generation\"]; every official providerKind has at least one intent.generationOverrides case, asserting that the value the user set appears in the real body a production builder produces, using the upstream field name from template.wire (bodyExcludes locks, in the other direction, that a canonical parameter id is never sent out verbatim); generationProviderKindUniverse × generationOutboundExemptions is a structural gate — every providerKind in the full set either has an outbound case or is on the exemption list with a reason.",
+  "version": 1,
+  "generationSnapshotEvidence": [
+    {
+      "providerKind": "openAI",
+      "canonicalModelId": "gpt-5-mini",
+      "modelType": "chat",
+      "limitOutput": 4096,
+      "temperature": true,
+      "supportedParameters": [
+        "verbosity"
+      ]
+    },
+    {
+      "providerKind": "anthropic",
+      "canonicalModelId": "claude-sonnet-4-6",
+      "modelType": "chat",
+      "limitOutput": 4096,
+      "temperature": true,
+      "supportedParameters": [
+        "stop"
+      ]
+    },
+    {
+      "providerKind": "gemini",
+      "canonicalModelId": "gemini-3.1-pro-preview",
+      "modelType": "chat",
+      "limitOutput": 4096,
+      "temperature": true,
+      "supportedParameters": []
+    },
+    {
+      "providerKind": "grok",
+      "canonicalModelId": "grok-4.5",
+      "modelType": "chat",
+      "limitOutput": 4096,
+      "temperature": true,
+      "supportedParameters": []
+    },
+    {
+      "providerKind": "deepseek",
+      "canonicalModelId": "deepseek-reasoner",
+      "modelType": "chat",
+      "limitOutput": 4096,
+      "temperature": true,
+      "supportedParameters": []
+    },
+    {
+      "providerKind": "moonshot",
+      "canonicalModelId": "kimi-k2.6",
+      "modelType": "chat",
+      "limitOutput": 4096,
+      "temperature": true,
+      "supportedParameters": []
+    },
+    {
+      "providerKind": "mistral",
+      "canonicalModelId": "mistral-medium-3-5",
+      "modelType": "chat",
+      "limitOutput": 4096,
+      "temperature": true,
+      "supportedParameters": []
+    },
+    {
+      "providerKind": "qwen",
+      "canonicalModelId": "qwen3-max",
+      "modelType": "chat",
+      "limitOutput": 4096,
+      "temperature": true,
+      "supportedParameters": []
+    },
+    {
+      "providerKind": "zhipu",
+      "canonicalModelId": "glm-4.6",
+      "modelType": "chat",
+      "limitOutput": 4096,
+      "temperature": true,
+      "supportedParameters": []
+    },
+    {
+      "providerKind": "miniMax",
+      "canonicalModelId": "MiniMax-M2.5",
+      "modelType": "chat",
+      "limitOutput": 4096,
+      "temperature": true,
+      "supportedParameters": []
+    },
+    {
+      "providerKind": "siliconFlow",
+      "canonicalModelId": "deepseek-ai/DeepSeek-V3.2",
+      "modelType": "chat",
+      "limitOutput": 4096,
+      "temperature": true,
+      "supportedParameters": []
+    },
+    {
+      "providerKind": "openRouter",
+      "canonicalModelId": "openai/gpt-5.2",
+      "modelType": "chat",
+      "limitOutput": 4096,
+      "temperature": true,
+      "supportedParameters": []
+    },
+    {
+      "providerKind": "groq",
+      "canonicalModelId": "openai/gpt-oss-120b",
+      "modelType": "chat",
+      "limitOutput": 4096,
+      "temperature": true,
+      "supportedParameters": []
+    },
+    {
+      "providerKind": "togetherAI",
+      "canonicalModelId": "Qwen/Qwen3.6-Plus",
+      "modelType": "chat",
+      "limitOutput": 4096,
+      "temperature": true,
+      "supportedParameters": []
+    },
+    {
+      "providerKind": "fireworksAI",
+      "canonicalModelId": "accounts/fireworks/models/gpt-oss-120b",
+      "modelType": "chat",
+      "limitOutput": 4096,
+      "temperature": true,
+      "supportedParameters": []
+    }
+  ],
+  "metadata": {
+    "version": 1001,
+    "contractVersion": 1,
+    "updatedAt": "2026-07-04T00:00:00Z",
+    "profiles": {
+      "reasoning": {
+        "or": {
+          "transport": "chat_completions",
+          "levels": [
+            "fast",
+            "balanced",
+            "deep",
+            "max"
+          ],
+          "params": {
+            "fast": {
+              "reasoning": {
+                "effort": "low"
+              }
+            },
+            "balanced": {
+              "reasoning": {
+                "effort": "medium"
+              }
+            },
+            "deep": {
+              "reasoning": {
+                "effort": "high"
+              }
+            },
+            "max": {
+              "reasoning": {
+                "effort": "xhigh"
+              }
+            }
+          }
+        },
+        "or_no_xhigh": {
+          "transport": "chat_completions",
+          "levels": [
+            "fast",
+            "balanced",
+            "deep"
+          ],
+          "params": {
+            "fast": {
+              "reasoning": {
+                "effort": "low"
+              }
+            },
+            "balanced": {
+              "reasoning": {
+                "effort": "medium"
+              }
+            },
+            "deep": {
+              "reasoning": {
+                "effort": "high"
+              }
+            }
+          }
+        },
+        "or_low_high": {
+          "transport": "chat_completions",
+          "levels": [
+            "fast",
+            "deep"
+          ],
+          "params": {
+            "fast": {
+              "reasoning": {
+                "effort": "low"
+              }
+            },
+            "deep": {
+              "reasoning": {
+                "effort": "high"
+              }
+            }
+          }
+        },
+        "oai_responses": {
+          "transport": "responses_api",
+          "fallbackProfile": "oai_chat",
+          "levels": [
+            "fast",
+            "balanced",
+            "deep"
+          ],
+          "params": {
+            "fast": {
+              "reasoning": {
+                "effort": "low"
+              }
+            },
+            "balanced": {
+              "reasoning": {
+                "effort": "medium"
+              }
+            },
+            "deep": {
+              "reasoning": {
+                "effort": "high"
+              }
+            }
+          }
+        },
+        "oai_responses_xhigh": {
+          "transport": "responses_api",
+          "fallbackProfile": "oai_chat",
+          "levels": [
+            "fast",
+            "balanced",
+            "deep",
+            "max"
+          ],
+          "params": {
+            "fast": {
+              "reasoning": {
+                "effort": "low"
+              }
+            },
+            "balanced": {
+              "reasoning": {
+                "effort": "medium"
+              }
+            },
+            "deep": {
+              "reasoning": {
+                "effort": "high"
+              }
+            },
+            "max": {
+              "reasoning": {
+                "effort": "xhigh"
+              }
+            }
+          }
+        },
+        "oai_responses_pro": {
+          "transport": "responses_api",
+          "fallbackProfile": "oai_chat",
+          "levels": [
+            "balanced",
+            "deep",
+            "max"
+          ],
+          "params": {
+            "balanced": {
+              "reasoning": {
+                "effort": "medium"
+              }
+            },
+            "deep": {
+              "reasoning": {
+                "effort": "high"
+              }
+            },
+            "max": {
+              "reasoning": {
+                "effort": "xhigh"
+              }
+            }
+          }
+        },
+        "oai_chat": {
+          "transport": "chat_completions",
+          "levels": [
+            "fast",
+            "balanced",
+            "deep"
+          ],
+          "params": {
+            "fast": {
+              "reasoning_effort": "low"
+            },
+            "balanced": {
+              "reasoning_effort": "medium"
+            },
+            "deep": {
+              "reasoning_effort": "high"
+            }
+          }
+        },
+        "ant_adaptive": {
+          "transport": "anthropic_messages",
+          "levels": [
+            "fast",
+            "balanced",
+            "deep",
+            "max"
+          ],
+          "params": {
+            "fast": {
+              "thinking": {
+                "type": "adaptive"
+              },
+              "output_config": {
+                "effort": "low"
+              }
+            },
+            "balanced": {
+              "thinking": {
+                "type": "adaptive"
+              },
+              "output_config": {
+                "effort": "medium"
+              }
+            },
+            "deep": {
+              "thinking": {
+                "type": "adaptive"
+              },
+              "output_config": {
+                "effort": "high"
+              }
+            },
+            "max": {
+              "thinking": {
+                "type": "adaptive"
+              },
+              "output_config": {
+                "effort": "max"
+              }
+            }
+          }
+        },
+        "ant_adaptive_max": {
+          "transport": "anthropic_messages",
+          "levels": [
+            "fast",
+            "balanced",
+            "deep",
+            "max"
+          ],
+          "params": {
+            "fast": {
+              "thinking": {
+                "type": "adaptive"
+              },
+              "output_config": {
+                "effort": "low"
+              }
+            },
+            "balanced": {
+              "thinking": {
+                "type": "adaptive"
+              },
+              "output_config": {
+                "effort": "medium"
+              }
+            },
+            "deep": {
+              "thinking": {
+                "type": "adaptive"
+              },
+              "output_config": {
+                "effort": "high"
+              }
+            },
+            "max": {
+              "thinking": {
+                "type": "adaptive"
+              },
+              "output_config": {
+                "effort": "max"
+              }
+            }
+          }
+        },
+        "ant_budget": {
+          "transport": "anthropic_messages",
+          "levels": [
+            "fast",
+            "balanced",
+            "deep"
+          ],
+          "params": {
+            "fast": {
+              "thinking": {
+                "type": "enabled",
+                "budget_tokens": 2048
+              },
+              "max_tokens": 8192
+            },
+            "balanced": {
+              "thinking": {
+                "type": "enabled",
+                "budget_tokens": 8192
+              },
+              "max_tokens": 12288
+            },
+            "deep": {
+              "thinking": {
+                "type": "enabled",
+                "budget_tokens": 16384
+              },
+              "max_tokens": 20480
+            }
+          }
+        },
+        "gem_budget": {
+          "transport": "gemini_generate_content",
+          "levels": [
+            "fast",
+            "balanced",
+            "deep"
+          ],
+          "params": {
+            "fast": {
+              "generationConfig": {
+                "thinkingConfig": {
+                  "thinkingBudget": 1024
+                }
+              }
+            },
+            "balanced": {
+              "generationConfig": {
+                "thinkingConfig": {
+                  "thinkingBudget": 4096
+                }
+              }
+            },
+            "deep": {
+              "generationConfig": {
+                "thinkingConfig": {
+                  "thinkingBudget": 16384
+                }
+              }
+            }
+          }
+        },
+        "gem_level": {
+          "transport": "gemini_generate_content",
+          "levels": [
+            "fast",
+            "balanced",
+            "deep"
+          ],
+          "params": {
+            "fast": {
+              "generationConfig": {
+                "thinkingConfig": {
+                  "thinkingLevel": "LOW"
+                }
+              }
+            },
+            "balanced": {
+              "generationConfig": {
+                "thinkingConfig": {
+                  "thinkingLevel": "MEDIUM"
+                }
+              }
+            },
+            "deep": {
+              "generationConfig": {
+                "thinkingConfig": {
+                  "thinkingLevel": "HIGH"
+                }
+              }
+            }
+          }
+        },
+        "gem_level_flash": {
+          "transport": "gemini_generate_content",
+          "levels": [
+            "fast",
+            "deep"
+          ],
+          "params": {
+            "fast": {
+              "generationConfig": {
+                "thinkingConfig": {
+                  "thinkingLevel": "LOW"
+                }
+              }
+            },
+            "deep": {
+              "generationConfig": {
+                "thinkingConfig": {
+                  "thinkingLevel": "HIGH"
+                }
+              }
+            }
+          }
+        },
+        "gem_gemma": {
+          "transport": "gemini_generate_content",
+          "levels": [
+            "fast",
+            "deep"
+          ],
+          "params": {
+            "fast": {
+              "generationConfig": {
+                "thinkingConfig": {
+                  "thinkingLevel": "minimal"
+                }
+              }
+            },
+            "deep": {
+              "generationConfig": {
+                "thinkingConfig": {
+                  "thinkingLevel": "high"
+                }
+              }
+            }
+          }
+        },
+        "sf_thinking": {
+          "transport": "chat_completions",
+          "levels": [
+            "fast",
+            "balanced",
+            "deep"
+          ],
+          "params": {
+            "fast": {
+              "enable_thinking": true,
+              "thinking_budget": 1024
+            },
+            "balanced": {
+              "enable_thinking": true,
+              "thinking_budget": 4096
+            },
+            "deep": {
+              "enable_thinking": true,
+              "thinking_budget": 16384
+            }
+          }
+        },
+        "deepseek_thinking": {
+          "transport": "chat_completions",
+          "levels": [
+            "fast",
+            "balanced",
+            "deep",
+            "max"
+          ],
+          "defaultLevel": "balanced",
+          "params": {
+            "fast": {
+              "thinking": {
+                "type": "disabled"
+              }
+            },
+            "balanced": {
+              "reasoning_effort": "low"
+            },
+            "deep": {
+              "reasoning_effort": "high"
+            },
+            "max": {
+              "reasoning_effort": "max"
+            }
+          }
+        },
+        "kimi_thinking_k3": {
+          "transport": "chat_completions",
+          "levels": [
+            "fast",
+            "balanced",
+            "deep"
+          ],
+          "defaultLevel": "balanced",
+          "params": {
+            "fast": {
+              "reasoning_effort": "low"
+            },
+            "balanced": {
+              "reasoning_effort": "high"
+            },
+            "deep": {
+              "reasoning_effort": "max"
+            }
+          },
+          "streamDeltaField": "reasoning_content",
+          "streamShape": {
+            "reasoningDeltaPath": "choices.0.delta.reasoning_content"
+          }
+        },
+        "grok_effort_responses": {
+          "transport": "responses_api",
+          "levels": [
+            "fast",
+            "balanced"
+          ],
+          "params": {
+            "fast": {
+              "reasoning": {
+                "effort": "low"
+              }
+            },
+            "balanced": {
+              "reasoning": {
+                "effort": "high"
+              }
+            }
+          }
+        },
+        "zhipu_thinking": {
+          "transport": "chat_completions",
+          "levels": [
+            "fast",
+            "balanced"
+          ],
+          "params": {
+            "fast": {
+              "thinking": {
+                "type": "disabled"
+              }
+            },
+            "balanced": {
+              "thinking": {
+                "type": "enabled"
+              }
+            }
+          }
+        },
+        "mm_thinking": {
+          "transport": "chat_completions",
+          "levels": [
+            "fast",
+            "balanced"
+          ],
+          "params": {
+            "fast": {
+              "thinking": {
+                "type": "disabled"
+              }
+            },
+            "balanced": {
+              "thinking": {
+                "type": "enabled"
+              }
+            }
+          }
+        },
+        "kimi_thinking": {
+          "transport": "chat_completions",
+          "levels": [
+            "fast",
+            "balanced"
+          ],
+          "params": {
+            "fast": {
+              "thinking": {
+                "type": "disabled"
+              }
+            },
+            "balanced": {
+              "thinking": {
+                "type": "enabled"
+              }
+            }
+          },
+          "streamDeltaField": "reasoning_content",
+          "streamShape": {
+            "reasoningDeltaPath": "choices.0.delta.reasoning_content"
+          }
+        },
+        "mistral_prompt": {
+          "transport": "chat_completions",
+          "levels": [
+            "fast",
+            "balanced"
+          ],
+          "params": {
+            "fast": {
+              "reasoning_effort": "none"
+            },
+            "balanced": {
+              "reasoning_effort": "high"
+            }
+          },
+          "streamShape": {
+            "reasoningContentBlocks": true
+          }
+        }
+      },
+      "webSearch": {
+        "oai_web_tool": {
+          "mergeParams": {},
+          "streamShape": {
+            "citationsArrayPath": "choices.0.message.annotations",
+            "citationUrlField": "url_citation.url",
+            "citationTitleField": "url_citation.title"
+          }
+        },
+        "oai_responses_web": {
+          "mergeParams": {
+            "tools": [
+              {
+                "type": "web_search"
+              }
+            ],
+            "tool_choice": "auto"
+          },
+          "streamShape": {
+            "citationsBlockType": "url_citation",
+            "citationsArrayPath": "output.annotations"
+          }
+        },
+        "ant_web_tool": {
+          "mergeParams": {
+            "tools": [
+              {
+                "type": "web_search_20250305",
+                "name": "web_search",
+                "max_uses": 5
+              }
+            ]
+          },
+          "streamShape": {
+            "citationsBlockType": "web_search_tool_result",
+            "citationSnippetField": "cited_text"
+          }
+        },
+        "gem_web": {
+          "mergeParams": {
+            "tools": [
+              {
+                "google_search": {}
+              }
+            ]
+          },
+          "streamShape": {
+            "citationsArrayPath": "candidates.0.groundingMetadata.groundingChunks",
+            "citationUrlField": "web.uri",
+            "citationTitleField": "web.title"
+          }
+        },
+        "gem_web_retrieval": {
+          "mergeParams": {
+            "tools": [
+              {
+                "google_search_retrieval": {
+                  "dynamic_retrieval_config": {
+                    "mode": "MODE_DYNAMIC"
+                  }
+                }
+              }
+            ]
+          },
+          "streamShape": {
+            "citationsArrayPath": "candidates.0.groundingMetadata.groundingChunks",
+            "citationUrlField": "web.uri",
+            "citationTitleField": "web.title"
+          }
+        },
+        "gem_contract_conflict_web": {
+          "$comment": "Conflict canary: webSearch writes generationConfig.thinkingConfig.thinkingLevel=LOW; Gemini 3 reasoning profile must win with HIGH. tools array remains a normal web-search merge. This is the one profile this fixture allows to exist only here and not in AllProfiles() — it isn't a real upstream shape, but a deliberately constructed same-key conflict between reasoning and webSearch, used to lock down the merge priority across all clients. The server harness recognizes it by the 'Conflict canary' prefix in this $comment via isContractOnlyProfile, exempting it in both directions; every other profile must correspond to AllProfiles() exactly (forward byte-for-byte match plus no unilateral server additions).",
+          "mergeParams": {
+            "generationConfig": {
+              "thinkingConfig": {
+                "thinkingLevel": "LOW"
+              }
+            },
+            "tools": [
+              {
+                "google_search": {}
+              }
+            ]
+          },
+          "streamShape": {
+            "citationsArrayPath": "candidates.0.groundingMetadata.groundingChunks",
+            "citationUrlField": "web.uri",
+            "citationTitleField": "web.title"
+          }
+        },
+        "grok_responses_web": {
+          "mergeParams": {
+            "tools": [
+              {
+                "type": "web_search",
+                "filters": {
+                  "allowed_domains": [],
+                  "excluded_domains": []
+                },
+                "enable_image_understanding": true
+              }
+            ]
+          },
+          "streamShape": {
+            "citationsBlockType": "url_citation",
+            "citationsArrayPath": "output.annotations"
+          }
+        },
+        "qwen_web": {
+          "mergeParams": {
+            "enable_search": true
+          }
+        },
+        "zhipu_web": {
+          "mergeParams": {
+            "tools": [
+              {
+                "type": "web_search",
+                "web_search": {
+                  "enable": true,
+                  "search_engine": "search_pro",
+                  "search_result": true
+                }
+              }
+            ]
+          },
+          "streamShape": {
+            "citationsArrayPath": "choices.0.delta.tool_calls.0.web_search.search_result",
+            "citationUrlField": "link"
+          }
+        },
+        "or_web": {
+          "mergeParams": {
+            "plugins": [
+              {
+                "id": "web",
+                "max_results": 5
+              }
+            ]
+          },
+          "streamShape": {
+            "citationsArrayPath": "choices.0.delta.annotations",
+            "citationUrlField": "url_citation.url",
+            "citationTitleField": "url_citation.title",
+            "citationSnippetField": "url_citation.content"
+          }
+        },
+        "kimi_web_search": {
+          "mergeParams": {
+            "tools": [
+              {
+                "type": "builtin_function",
+                "function": {
+                  "name": "$web_search"
+                }
+              }
+            ]
+          },
+          "maxToolLoops": 4,
+          "toolResultContent": "raw_arguments"
+        }
+      },
+      "imageGen": {
+        "oai_images": {
+          "route": "images_api",
+          "streaming": false,
+          "supportsContext": false,
+          "requestDefaults": {
+            "size": "1024x1024",
+            "n": 1
+          }
+        },
+        "or_chat": {
+          "route": "chat_api",
+          "streaming": true,
+          "supportsContext": true,
+          "mergeParams": {
+            "modalities": [
+              "text",
+              "image"
+            ]
+          }
+        },
+        "gem_content": {
+          "route": "chat_api",
+          "streaming": true,
+          "supportsContext": true,
+          "mergeParams": {
+            "generationConfig": {
+              "responseModalities": [
+                "TEXT",
+                "IMAGE"
+              ]
+            }
+          }
+        },
+        "mm_images": {
+          "route": "minimax_image_generation",
+          "streaming": false,
+          "supportsContext": false,
+          "requestDefaults": {
+            "response_format": "base64",
+            "n": 1
+          }
+        },
+        "zhipu_images": {
+          "route": "images_api",
+          "streaming": false,
+          "supportsContext": false,
+          "requestDefaults": {
+            "size": "1024x1024"
+          }
+        },
+        "qwen_images": {
+          "route": "dashscope_multimodal",
+          "streaming": false,
+          "supportsContext": false,
+          "requestDefaults": {
+            "size": "1024*1024",
+            "n": 1,
+            "prompt_extend": true
+          }
+        },
+        "qwen_images_auto": {
+          "route": "dashscope_multimodal",
+          "streaming": false,
+          "supportsContext": false,
+          "requestDefaults": {}
+        },
+        "sf_images": {
+          "route": "images_api",
+          "streaming": false,
+          "supportsContext": false,
+          "requestDefaults": {
+            "size": "1024x1024",
+            "n": 1
+          }
+        },
+        "together_images": {
+          "route": "images_api",
+          "streaming": false,
+          "supportsContext": false,
+          "requestDefaults": {
+            "size": "1024x1024",
+            "n": 1
+          }
+        },
+        "together_images_no_n": {
+          "route": "images_api",
+          "streaming": false,
+          "supportsContext": false,
+          "requestDefaults": {
+            "size": "1024x1024"
+          }
+        },
+        "grok_images": {
+          "route": "images_api",
+          "streaming": false,
+          "supportsContext": false,
+          "requestDefaults": {
+            "n": 1,
+            "response_format": "b64_json"
+          }
+        }
+      },
+      "generation": {
+        "version": 1,
+        "parameters": {
+          "dry_allowed_length": {
+            "group": "engine_runtime",
+            "portability": "engine_scoped",
+            "range": {
+              "min": 0
+            },
+            "risk": "experimental",
+            "valueSchema": "integer"
+          },
+          "dry_base": {
+            "group": "engine_runtime",
+            "portability": "engine_scoped",
+            "range": {
+              "minExclusive": 0
+            },
+            "risk": "experimental",
+            "valueSchema": "number"
+          },
+          "dry_multiplier": {
+            "group": "engine_runtime",
+            "portability": "engine_scoped",
+            "range": {
+              "min": 0
+            },
+            "risk": "experimental",
+            "valueSchema": "number"
+          },
+          "dry_penalty_last_n": {
+            "group": "engine_runtime",
+            "portability": "engine_scoped",
+            "range": {
+              "min": -1
+            },
+            "risk": "experimental",
+            "valueSchema": "integer"
+          },
+          "dry_sequence_breakers": {
+            "group": "engine_runtime",
+            "portability": "engine_scoped",
+            "risk": "experimental",
+            "valueSchema": "string-list"
+          },
+          "dynatemp_exponent": {
+            "group": "engine_runtime",
+            "portability": "engine_scoped",
+            "range": {
+              "minExclusive": 0
+            },
+            "risk": "experimental",
+            "valueSchema": "number"
+          },
+          "dynatemp_range": {
+            "group": "engine_runtime",
+            "portability": "engine_scoped",
+            "range": {
+              "min": 0
+            },
+            "risk": "experimental",
+            "valueSchema": "number"
+          },
+          "frequency_penalty": {
+            "group": "repetition",
+            "portability": "transport_scoped",
+            "range": {
+              "max": 2,
+              "min": -2,
+              "step": 0.01
+            },
+            "risk": "normal",
+            "valueSchema": "number"
+          },
+          "ignore_eos": {
+            "group": "engine_runtime",
+            "portability": "engine_scoped",
+            "risk": "experimental",
+            "valueSchema": "boolean"
+          },
+          "json_schema": {
+            "conflictsWith": [
+              "tools",
+              "response_format"
+            ],
+            "constraints": [
+              {
+                "tools": false
+              }
+            ],
+            "group": "output_contract",
+            "portability": "transport_scoped",
+            "risk": "output_contract",
+            "valueSchema": "json-schema"
+          },
+          "llamacpp_native": {
+            "group": "engine_runtime",
+            "portability": "engine_scoped",
+            "risk": "experimental",
+            "valueSchema": "boolean"
+          },
+          "logprobs": {
+            "group": "output_contract",
+            "portability": "transport_scoped",
+            "risk": "experimental",
+            "valueSchema": "boolean"
+          },
+          "max_output_tokens": {
+            "defaultDescription": "provider_default",
+            "group": "budget",
+            "portability": "transport_scoped",
+            "range": {
+              "min": 1,
+              "step": 1
+            },
+            "risk": "cost",
+            "valueSchema": "integer"
+          },
+          "min_keep": {
+            "group": "engine_runtime",
+            "portability": "engine_scoped",
+            "range": {
+              "min": 0
+            },
+            "risk": "experimental",
+            "valueSchema": "integer"
+          },
+          "min_p": {
+            "group": "sampling",
+            "portability": "engine_scoped",
+            "range": {
+              "max": 1,
+              "min": 0
+            },
+            "risk": "experimental",
+            "valueSchema": "number"
+          },
+          "mirostat": {
+            "conflictsWith": [
+              "temperature",
+              "top_p",
+              "top_k",
+              "min_p"
+            ],
+            "enumValues": [
+              0,
+              1,
+              2
+            ],
+            "group": "engine_runtime",
+            "portability": "engine_scoped",
+            "risk": "resource",
+            "valueSchema": "integer"
+          },
+          "mirostat_eta": {
+            "group": "engine_runtime",
+            "portability": "engine_scoped",
+            "range": {
+              "minExclusive": 0
+            },
+            "risk": "resource",
+            "valueSchema": "number"
+          },
+          "mirostat_tau": {
+            "group": "engine_runtime",
+            "portability": "engine_scoped",
+            "range": {
+              "min": 0
+            },
+            "risk": "resource",
+            "valueSchema": "number"
+          },
+          "n_indent": {
+            "group": "engine_runtime",
+            "portability": "engine_scoped",
+            "range": {
+              "min": 0
+            },
+            "risk": "experimental",
+            "valueSchema": "integer"
+          },
+          "n_keep": {
+            "group": "engine_runtime",
+            "portability": "engine_scoped",
+            "range": {
+              "min": -1
+            },
+            "risk": "experimental",
+            "valueSchema": "integer"
+          },
+          "n_probs": {
+            "group": "engine_runtime",
+            "portability": "engine_scoped",
+            "range": {
+              "min": 0
+            },
+            "risk": "experimental",
+            "valueSchema": "integer"
+          },
+          "post_sampling_probs": {
+            "group": "engine_runtime",
+            "portability": "engine_scoped",
+            "risk": "experimental",
+            "valueSchema": "boolean"
+          },
+          "presence_penalty": {
+            "group": "repetition",
+            "portability": "transport_scoped",
+            "range": {
+              "max": 2,
+              "min": -2,
+              "step": 0.01
+            },
+            "risk": "normal",
+            "valueSchema": "number"
+          },
+          "reasoning_budget": {
+            "defaultDescription": "provider_default",
+            "group": "reasoning",
+            "portability": "transport_scoped",
+            "range": {
+              "min": 1,
+              "step": 1
+            },
+            "risk": "cost",
+            "valueSchema": "integer"
+          },
+          "reasoning_effort": {
+            "constraints": [
+              {
+                "mode": "reasoning"
+              }
+            ],
+            "defaultDescription": "provider_default",
+            "enumValues": [
+              "low",
+              "medium",
+              "high",
+              "xhigh"
+            ],
+            "group": "reasoning",
+            "portability": "transport_scoped",
+            "risk": "cost",
+            "valueSchema": "enum"
+          },
+          "reasoning_mode": {
+            "defaultDescription": "provider_default",
+            "enumValues": [
+              "enabled",
+              "disabled"
+            ],
+            "group": "reasoning",
+            "portability": "transport_scoped",
+            "risk": "cost",
+            "valueSchema": "enum"
+          },
+          "repeat_last_n": {
+            "group": "engine_runtime",
+            "portability": "engine_scoped",
+            "range": {
+              "min": -1
+            },
+            "risk": "experimental",
+            "valueSchema": "integer"
+          },
+          "repeat_penalty": {
+            "conflictsWith": [
+              "frequency_penalty",
+              "presence_penalty"
+            ],
+            "group": "repetition",
+            "portability": "engine_scoped",
+            "range": {
+              "min": 0,
+              "step": 0.01
+            },
+            "risk": "normal",
+            "valueSchema": "number"
+          },
+          "response_format": {
+            "enumValues": [
+              "text",
+              "json"
+            ],
+            "group": "output_contract",
+            "portability": "transport_scoped",
+            "risk": "output_contract",
+            "valueSchema": "enum"
+          },
+          "route_require_parameters": {
+            "defaultDescription": "provider_default",
+            "group": "routing",
+            "portability": "transport_scoped",
+            "risk": "normal",
+            "valueSchema": "boolean"
+          },
+          "samplers": {
+            "group": "engine_runtime",
+            "portability": "engine_scoped",
+            "risk": "experimental",
+            "valueSchema": "string-list"
+          },
+          "seed": {
+            "group": "reproducibility",
+            "portability": "transport_scoped",
+            "risk": "normal",
+            "valueSchema": "integer"
+          },
+          "stop": {
+            "defaultDescription": "provider_default",
+            "group": "budget",
+            "portability": "transport_scoped",
+            "risk": "normal",
+            "valueSchema": "string-list"
+          },
+          "t_max_predict_ms": {
+            "group": "engine_runtime",
+            "portability": "engine_scoped",
+            "range": {
+              "min": 0
+            },
+            "risk": "resource",
+            "valueSchema": "integer"
+          },
+          "temperature": {
+            "conflictsWith": [
+              "top_p"
+            ],
+            "defaultDescription": "provider_default",
+            "group": "sampling",
+            "interactionGroup": "sampling_strategy",
+            "portability": "portable",
+            "range": {
+              "max": 2,
+              "min": 0,
+              "step": 0.01
+            },
+            "risk": "normal",
+            "valueSchema": "number"
+          },
+          "top_k": {
+            "group": "sampling",
+            "portability": "engine_scoped",
+            "range": {
+              "min": 0
+            },
+            "risk": "experimental",
+            "valueSchema": "integer"
+          },
+          "top_logprobs": {
+            "group": "output_contract",
+            "portability": "transport_scoped",
+            "range": {
+              "max": 20,
+              "min": 0,
+              "step": 1
+            },
+            "requires": [
+              {
+                "key": "logprobs",
+                "value": true
+              }
+            ],
+            "risk": "experimental",
+            "valueSchema": "integer"
+          },
+          "top_n_sigma": {
+            "group": "engine_runtime",
+            "portability": "engine_scoped",
+            "range": {
+              "min": -1
+            },
+            "risk": "experimental",
+            "valueSchema": "number"
+          },
+          "top_p": {
+            "conflictsWith": [
+              "temperature"
+            ],
+            "defaultDescription": "provider_default",
+            "group": "sampling",
+            "interactionGroup": "sampling_strategy",
+            "portability": "portable",
+            "range": {
+              "max": 1,
+              "minExclusive": 0,
+              "step": 0.01
+            },
+            "risk": "normal",
+            "valueSchema": "number"
+          },
+          "typical_p": {
+            "group": "engine_runtime",
+            "portability": "engine_scoped",
+            "range": {
+              "max": 1,
+              "min": 0
+            },
+            "risk": "experimental",
+            "valueSchema": "number"
+          },
+          "verbosity": {
+            "enumValues": [
+              "low",
+              "medium",
+              "high"
+            ],
+            "group": "output_contract",
+            "portability": "transport_scoped",
+            "risk": "normal",
+            "valueSchema": "enum"
+          },
+          "xtc_probability": {
+            "group": "engine_runtime",
+            "portability": "engine_scoped",
+            "range": {
+              "max": 1,
+              "min": 0
+            },
+            "risk": "experimental",
+            "valueSchema": "number"
+          },
+          "xtc_threshold": {
+            "group": "engine_runtime",
+            "portability": "engine_scoped",
+            "range": {
+              "max": 1,
+              "min": 0
+            },
+            "risk": "experimental",
+            "valueSchema": "number"
+          }
+        },
+        "templates": {
+          "anthropic_messages": {
+            "transport": "anthropic_messages",
+            "wire": {
+              "json_schema": "output_config.format",
+              "max_output_tokens": "max_tokens",
+              "response_format": "output_config.format",
+              "stop": "stop_sequences",
+              "temperature": "temperature",
+              "top_k": "top_k",
+              "top_p": "top_p"
+            }
+          },
+          "gemini_generate_content": {
+            "transport": "gemini_generate_content",
+            "wire": {
+              "frequency_penalty": "generationConfig.frequencyPenalty",
+              "json_schema": "generationConfig.responseJsonSchema",
+              "logprobs": "generationConfig.responseLogprobs",
+              "max_output_tokens": "generationConfig.maxOutputTokens",
+              "presence_penalty": "generationConfig.presencePenalty",
+              "response_format": "generationConfig.responseMimeType",
+              "seed": "generationConfig.seed",
+              "stop": "generationConfig.stopSequences",
+              "temperature": "generationConfig.temperature",
+              "top_k": "generationConfig.topK",
+              "top_logprobs": "generationConfig.logprobs",
+              "top_p": "generationConfig.topP"
+            }
+          },
+          "llamacpp_native": {
+            "transport": "llamacpp_native",
+            "wire": {
+              "dry_allowed_length": "dry_allowed_length",
+              "dry_base": "dry_base",
+              "dry_multiplier": "dry_multiplier",
+              "dry_penalty_last_n": "dry_penalty_last_n",
+              "dry_sequence_breakers": "dry_sequence_breakers",
+              "dynatemp_exponent": "dynatemp_exponent",
+              "dynatemp_range": "dynatemp_range",
+              "ignore_eos": "ignore_eos",
+              "json_schema": "json_schema",
+              "logprobs": "n_probs",
+              "max_output_tokens": "n_predict",
+              "min_keep": "min_keep",
+              "min_p": "min_p",
+              "mirostat": "mirostat",
+              "mirostat_eta": "mirostat_eta",
+              "mirostat_tau": "mirostat_tau",
+              "n_indent": "n_indent",
+              "n_keep": "n_keep",
+              "n_probs": "n_probs",
+              "post_sampling_probs": "post_sampling_probs",
+              "repeat_last_n": "repeat_last_n",
+              "repeat_penalty": "repeat_penalty",
+              "response_format": "json_schema",
+              "samplers": "samplers",
+              "seed": "seed",
+              "stop": "stop",
+              "t_max_predict_ms": "t_max_predict_ms",
+              "temperature": "temperature",
+              "top_k": "top_k",
+              "top_logprobs": "n_probs",
+              "top_n_sigma": "top_n_sigma",
+              "top_p": "top_p",
+              "typical_p": "typical_p",
+              "xtc_probability": "xtc_probability",
+              "xtc_threshold": "xtc_threshold"
+            }
+          },
+          "openai_chat_completions": {
+            "transport": "openai_chat_completions",
+            "wire": {
+              "frequency_penalty": "frequency_penalty",
+              "json_schema": "response_format",
+              "logprobs": "logprobs",
+              "max_output_tokens": "max_tokens",
+              "min_p": "min_p",
+              "presence_penalty": "presence_penalty",
+              "reasoning_budget": "reasoning_budget",
+              "reasoning_effort": "reasoning_effort",
+              "reasoning_mode": "reasoning_mode",
+              "repeat_penalty": "repeat_penalty",
+              "response_format": "response_format",
+              "route_require_parameters": "provider.require_parameters",
+              "seed": "seed",
+              "stop": "stop",
+              "temperature": "temperature",
+              "top_k": "top_k",
+              "top_logprobs": "top_logprobs",
+              "top_p": "top_p",
+              "verbosity": "verbosity"
+            }
+          },
+          "openai_responses": {
+            "transport": "openai_responses",
+            "wire": {
+              "json_schema": "text.format",
+              "max_output_tokens": "max_output_tokens",
+              "reasoning_effort": "reasoning.effort",
+              "response_format": "text.format",
+              "route_require_parameters": "provider.require_parameters",
+              "seed": "seed",
+              "temperature": "temperature",
+              "top_p": "top_p",
+              "verbosity": "text.verbosity"
+            }
+          },
+          "vllm_extra_body": {
+            "transport": "openai_chat_completions",
+            "wire": {
+              "frequency_penalty": "frequency_penalty",
+              "logprobs": "logprobs",
+              "max_output_tokens": "max_tokens",
+              "min_p": "extra_body.min_p",
+              "presence_penalty": "presence_penalty",
+              "repeat_penalty": "extra_body.repetition_penalty",
+              "seed": "seed",
+              "stop": "stop",
+              "temperature": "temperature",
+              "top_k": "extra_body.top_k",
+              "top_p": "top_p"
+            }
+          }
+        }
+      }
+    },
+    "providers": {
+      "openAI": {
+        "displayName": "OpenAI",
+        "defaultModelId": "gpt-5-mini",
+        "transport": {
+          "baseUrl": "https://api.openai.com/v1",
+          "endpoints": {
+            "chat": "/chat/completions",
+            "responses": "/responses",
+            "images": "/images/generations"
+          }
+        },
+        "resolveMap": {
+          "gpt-5-mini": "gpt-5-mini",
+          "gpt-5.4-mini": "gpt-5.4-mini",
+          "gpt-5.2-pro": "gpt-5.2-pro",
+          "gpt-5-search-api": "gpt-5-search-api",
+          "gpt-image-1": "gpt-image-1"
+        },
+        "models": {
+          "gpt-5.4-mini": {
+            "canonicalModelId": "gpt-5.4-mini",
+            "displayName": "GPT-5.4 Mini",
+            "capabilities": [
+              "text",
+              "reasoning"
+            ],
+            "transport": "openai_responses",
+            "profiles": {
+              "reasoning": "oai_responses_xhigh",
+              "webSearch": null,
+              "imageGen": null
+            }
+          },
+          "gpt-5.2-pro": {
+            "canonicalModelId": "gpt-5.2-pro",
+            "displayName": "GPT-5.2 Pro",
+            "capabilities": [
+              "text",
+              "reasoning"
+            ],
+            "transport": "openai_responses",
+            "profiles": {
+              "reasoning": "oai_responses_pro",
+              "webSearch": null,
+              "imageGen": null
+            }
+          },
+          "gpt-5-mini": {
+            "canonicalModelId": "gpt-5-mini",
+            "displayName": "GPT-5 Mini",
+            "capabilities": [
+              "text",
+              "reasoning",
+              "web"
+            ],
+            "transport": "openai_responses",
+            "profiles": {
+              "reasoning": "oai_responses",
+              "webSearch": "oai_responses_web",
+              "imageGen": null,
+              "generation": {
+                "template": "openai_responses",
+                "parameters": [
+                  {
+                    "id": "max_output_tokens",
+                    "support": "supported",
+                    "source": "authoritative_metadata"
+                  },
+                  {
+                    "id": "temperature",
+                    "support": "supported",
+                    "source": "provider_metadata"
+                  },
+                  {
+                    "id": "verbosity",
+                    "support": "supported",
+                    "source": "provider_metadata"
+                  }
+                ]
+              }
+            }
+          },
+          "gpt-5-search-api": {
+            "canonicalModelId": "gpt-5-search-api",
+            "displayName": "GPT-5 Search API",
+            "capabilities": [
+              "text",
+              "web"
+            ],
+            "transport": "openai_chat",
+            "profiles": {
+              "reasoning": null,
+              "webSearch": "oai_web_tool",
+              "imageGen": null
+            }
+          },
+          "gpt-image-1": {
+            "canonicalModelId": "gpt-image-1",
+            "displayName": "GPT Image 1",
+            "capabilities": [
+              "imageGeneration"
+            ],
+            "transport": "openai_images",
+            "profiles": {
+              "reasoning": null,
+              "webSearch": null,
+              "imageGen": "oai_images"
+            }
+          }
+        }
+      },
+      "anthropic": {
+        "displayName": "Anthropic",
+        "defaultModelId": "claude-sonnet-4-5",
+        "transport": {
+          "baseUrl": "https://api.anthropic.com/v1",
+          "endpoints": {
+            "chat": "/messages",
+            "files": "/files"
+          }
+        },
+        "resolveMap": {
+          "claude-sonnet-4-5": "claude-sonnet-4-5",
+          "claude-sonnet-4-6": "claude-sonnet-4-6",
+          "claude-opus-4-6": "claude-opus-4-6"
+        },
+        "models": {
+          "claude-sonnet-4-5": {
+            "canonicalModelId": "claude-sonnet-4-5",
+            "displayName": "Claude Sonnet 4.5",
+            "maxOutputTokens": 28672,
+            "capabilities": [
+              "text",
+              "reasoning",
+              "web"
+            ],
+            "transport": "anthropic_messages",
+            "profiles": {
+              "reasoning": "ant_budget",
+              "webSearch": "ant_web_tool",
+              "imageGen": null
+            }
+          },
+          "claude-sonnet-4-6": {
+            "canonicalModelId": "claude-sonnet-4-6",
+            "displayName": "Claude Sonnet 4.6",
+            "capabilities": [
+              "text",
+              "reasoning"
+            ],
+            "transport": "anthropic_messages",
+            "profiles": {
+              "reasoning": "ant_adaptive",
+              "webSearch": null,
+              "imageGen": null,
+              "generation": {
+                "template": "anthropic_messages",
+                "parameters": [
+                  {
+                    "id": "max_output_tokens",
+                    "support": "supported",
+                    "source": "authoritative_metadata"
+                  },
+                  {
+                    "id": "stop",
+                    "support": "supported",
+                    "source": "provider_metadata"
+                  },
+                  {
+                    "id": "temperature",
+                    "support": "supported",
+                    "source": "provider_metadata"
+                  }
+                ]
+              }
+            }
+          },
+          "claude-opus-4-6": {
+            "canonicalModelId": "claude-opus-4-6",
+            "displayName": "Claude Opus 4.6",
+            "capabilities": [
+              "text",
+              "reasoning"
+            ],
+            "transport": "anthropic_messages",
+            "profiles": {
+              "reasoning": "ant_adaptive_max",
+              "webSearch": null,
+              "imageGen": null
+            }
+          }
+        }
+      },
+      "gemini": {
+        "displayName": "Google Gemini",
+        "defaultModelId": "gemini-3.1-flash-preview",
+        "transport": {
+          "baseUrl": "https://generativelanguage.googleapis.com/v1beta",
+          "endpoints": {
+            "chat": "/models",
+            "files": "/files"
+          }
+        },
+        "resolveMap": {
+          "gemini-3.1-flash-preview": "gemini-3.1-flash-preview",
+          "gemini-3.1-pro-preview": "gemini-3.1-pro-preview",
+          "gemini-2.5-flash": "gemini-2.5-flash",
+          "gemini-1.5-pro": "gemini-1.5-pro",
+          "gemma-4-31b-it": "gemma-4-31b-it"
+        },
+        "models": {
+          "gemini-3.1-flash-preview": {
+            "canonicalModelId": "gemini-3.1-flash-preview",
+            "displayName": "Gemini 3.1 Flash Preview",
+            "capabilities": [
+              "text",
+              "reasoning",
+              "web",
+              "imageGeneration"
+            ],
+            "profiles": {
+              "reasoning": "gem_level_flash",
+              "webSearch": "gem_contract_conflict_web",
+              "imageGen": "gem_content"
+            }
+          },
+          "gemini-3.1-pro-preview": {
+            "canonicalModelId": "gemini-3.1-pro-preview",
+            "displayName": "Gemini 3.1 Pro Preview",
+            "capabilities": [
+              "text",
+              "reasoning"
+            ],
+            "transport": "gemini_generate",
+            "profiles": {
+              "reasoning": "gem_level",
+              "webSearch": null,
+              "imageGen": null,
+              "generation": {
+                "template": "gemini_generate_content",
+                "parameters": [
+                  {
+                    "id": "max_output_tokens",
+                    "support": "supported",
+                    "source": "authoritative_metadata"
+                  },
+                  {
+                    "id": "temperature",
+                    "support": "supported",
+                    "source": "provider_metadata"
+                  }
+                ]
+              }
+            }
+          },
+          "gemini-2.5-flash": {
+            "canonicalModelId": "gemini-2.5-flash",
+            "displayName": "Gemini 2.5 Flash",
+            "capabilities": [
+              "text",
+              "reasoning",
+              "web"
+            ],
+            "transport": "gemini_generate",
+            "profiles": {
+              "reasoning": "gem_budget",
+              "webSearch": "gem_web",
+              "imageGen": null
+            }
+          },
+          "gemini-1.5-pro": {
+            "canonicalModelId": "gemini-1.5-pro",
+            "displayName": "Gemini 1.5 Pro",
+            "capabilities": [
+              "text",
+              "web"
+            ],
+            "transport": "gemini_generate",
+            "profiles": {
+              "reasoning": null,
+              "webSearch": "gem_web_retrieval",
+              "imageGen": null
+            }
+          },
+          "gemma-4-31b-it": {
+            "canonicalModelId": "gemma-4-31b-it",
+            "displayName": "Gemma 4 31B IT",
+            "capabilities": [
+              "text",
+              "reasoning"
+            ],
+            "transport": "gemini_generate",
+            "profiles": {
+              "reasoning": "gem_gemma",
+              "webSearch": null,
+              "imageGen": null
+            }
+          }
+        }
+      },
+      "grok": {
+        "displayName": "Grok",
+        "defaultModelId": "grok-4.20-multi-agent-0309",
+        "transport": {
+          "baseUrl": "https://api.x.ai/v1",
+          "endpoints": {
+            "chat": "/chat/completions",
+            "responses": "/responses",
+            "images": "/images/generations"
+          }
+        },
+        "resolveMap": {
+          "grok-4.20-multi-agent-0309": "grok-4.20-multi-agent-0309",
+          "grok-3-mini": "grok-3-mini",
+          "grok-4-fast-reasoning": "grok-4-fast-reasoning",
+          "grok-4.3": "grok-4.3",
+          "grok-4.5": "grok-4.5",
+          "grok-4.20-0309-reasoning": "grok-4.20-0309-reasoning",
+          "grok-imagine-image-pro": "grok-imagine-image-pro"
+        },
+        "models": {
+          "grok-4.20-multi-agent-0309": {
+            "canonicalModelId": "grok-4.20-multi-agent-0309",
+            "displayName": "Grok Multi-Agent",
+            "capabilities": [
+              "text",
+              "web"
+            ],
+            "transport": "openai_responses",
+            "profiles": {
+              "reasoning": null,
+              "webSearch": null,
+              "imageGen": null
+            }
+          },
+          "grok-3-mini": {
+            "canonicalModelId": "grok-3-mini",
+            "displayName": "Grok 3 Mini",
+            "capabilities": [
+              "text",
+              "reasoning"
+            ],
+            "transport": "openai_responses",
+            "profiles": {
+              "reasoning": "oai_chat",
+              "webSearch": null,
+              "imageGen": null
+            }
+          },
+          "grok-4-fast-reasoning": {
+            "canonicalModelId": "grok-4-fast-reasoning",
+            "displayName": "Grok 4 Fast Reasoning",
+            "capabilities": [
+              "text",
+              "reasoning",
+              "web"
+            ],
+            "transport": "openai_responses",
+            "profiles": {
+              "reasoning": "oai_chat",
+              "webSearch": "grok_responses_web",
+              "imageGen": null
+            }
+          },
+          "grok-4.3": {
+            "canonicalModelId": "grok-4.3",
+            "displayName": "Grok 4.3",
+            "capabilities": [
+              "text",
+              "reasoning"
+            ],
+            "transport": "openai_responses",
+            "profiles": {
+              "reasoning": "grok_effort_responses",
+              "webSearch": null,
+              "imageGen": null
+            }
+          },
+          "grok-4.5": {
+            "$comment": "grok's defaultTransport is unified to openai_responses across the family (chat/completions's search_parameters now returns 410); 4.5's reasoning legacy profile switches accordingly to the Responses-shaped grok_effort_responses, and its generation template switches to openai_responses. grok_effort_45 is retired at the same time, since no model is assigned to it anymore.",
+            "canonicalModelId": "grok-4.5",
+            "displayName": "Grok 4.5",
+            "capabilities": [
+              "text",
+              "reasoning"
+            ],
+            "transport": "openai_responses",
+            "profiles": {
+              "reasoning": "grok_effort_responses",
+              "webSearch": null,
+              "imageGen": null,
+              "generation": {
+                "template": "openai_responses",
+                "parameters": [
+                  {
+                    "id": "max_output_tokens",
+                    "support": "supported",
+                    "source": "authoritative_metadata"
+                  },
+                  {
+                    "id": "temperature",
+                    "support": "supported",
+                    "source": "provider_metadata"
+                  }
+                ]
+              }
+            }
+          },
+          "grok-4.20-0309-reasoning": {
+            "canonicalModelId": "grok-4.20-0309-reasoning",
+            "displayName": "Grok 4.20 Reasoning",
+            "capabilities": [
+              "text",
+              "reasoning"
+            ],
+            "transport": "openai_responses",
+            "profiles": {
+              "reasoning": null,
+              "webSearch": null,
+              "imageGen": null
+            }
+          },
+          "grok-imagine-image-pro": {
+            "canonicalModelId": "grok-imagine-image-pro",
+            "displayName": "Grok Imagine Pro",
+            "capabilities": [
+              "imageGeneration"
+            ],
+            "transport": "grok_image",
+            "profiles": {
+              "reasoning": null,
+              "webSearch": null,
+              "imageGen": "grok_images"
+            }
+          }
+        }
+      },
+      "deepseek": {
+        "displayName": "DeepSeek",
+        "defaultModelId": "deepseek-reasoner",
+        "transport": {
+          "baseUrl": "https://api.deepseek.com/v1",
+          "endpoints": {
+            "chat": "/chat/completions"
+          }
+        },
+        "resolveMap": {
+          "deepseek-reasoner": "deepseek-reasoner",
+          "deepseek-v4-pro": "deepseek-v4-pro"
+        },
+        "models": {
+          "deepseek-reasoner": {
+            "canonicalModelId": "deepseek-reasoner",
+            "displayName": "DeepSeek Reasoner",
+            "capabilities": [
+              "text",
+              "reasoning"
+            ],
+            "transport": "openai_chat",
+            "profiles": {
+              "reasoning": "deepseek_thinking",
+              "webSearch": null,
+              "imageGen": null,
+              "generation": {
+                "template": "openai_chat_completions",
+                "parameters": [
+                  {
+                    "id": "max_output_tokens",
+                    "support": "supported",
+                    "source": "authoritative_metadata"
+                  },
+                  {
+                    "id": "temperature",
+                    "support": "supported",
+                    "source": "provider_metadata"
+                  }
+                ]
+              }
+            }
+          },
+          "deepseek-v4-pro": {
+            "canonicalModelId": "deepseek-v4-pro",
+            "displayName": "DeepSeek V4 Pro",
+            "capabilities": [
+              "text",
+              "reasoning"
+            ],
+            "transport": "openai_chat",
+            "profiles": {
+              "reasoning": null,
+              "webSearch": null,
+              "imageGen": null
+            }
+          }
+        }
+      },
+      "moonshot": {
+        "displayName": "Moonshot Kimi",
+        "defaultModelId": "kimi-k2.6",
+        "transport": {
+          "baseUrl": "https://api.moonshot.ai/v1",
+          "endpoints": {
+            "chat": "/chat/completions"
+          }
+        },
+        "resolveMap": {
+          "kimi-k2.6": "kimi-k2.6",
+          "kimi-k3": "kimi-k3"
+        },
+        "models": {
+          "kimi-k2.6": {
+            "canonicalModelId": "kimi-k2.6",
+            "displayName": "Kimi K2.6",
+            "capabilities": [
+              "text",
+              "reasoning",
+              "web"
+            ],
+            "transport": "openai_chat",
+            "profiles": {
+              "reasoning": "kimi_thinking",
+              "webSearch": "kimi_web_search",
+              "imageGen": null,
+              "generation": {
+                "template": "openai_chat_completions",
+                "parameters": [
+                  {
+                    "id": "max_output_tokens",
+                    "support": "supported",
+                    "source": "authoritative_metadata"
+                  },
+                  {
+                    "id": "temperature",
+                    "support": "supported",
+                    "source": "provider_metadata"
+                  }
+                ]
+              }
+            }
+          },
+          "kimi-k3": {
+            "canonicalModelId": "kimi-k3",
+            "displayName": "Kimi K3",
+            "capabilities": [
+              "text",
+              "reasoning",
+              "web"
+            ],
+            "transport": "openai_chat",
+            "profiles": {
+              "reasoning": "kimi_thinking_k3",
+              "webSearch": "kimi_web_search",
+              "imageGen": null
+            }
+          }
+        }
+      },
+      "mistral": {
+        "displayName": "Mistral",
+        "defaultModelId": "magistral-medium-latest",
+        "transport": {
+          "baseUrl": "https://api.mistral.ai/v1",
+          "endpoints": {
+            "chat": "/chat/completions"
+          }
+        },
+        "resolveMap": {
+          "magistral-medium-latest": "magistral-medium-latest",
+          "mistral-medium-3-5": "mistral-medium-3-5"
+        },
+        "models": {
+          "magistral-medium-latest": {
+            "canonicalModelId": "magistral-medium-latest",
+            "displayName": "Magistral Medium",
+            "capabilities": [
+              "text",
+              "reasoning",
+              "image"
+            ],
+            "transport": "openai_chat",
+            "profiles": {
+              "reasoning": "mistral_prompt",
+              "webSearch": null,
+              "imageGen": null
+            }
+          },
+          "mistral-medium-3-5": {
+            "canonicalModelId": "mistral-medium-3-5",
+            "displayName": "Mistral Medium 3.5",
+            "capabilities": [
+              "text",
+              "reasoning",
+              "image"
+            ],
+            "transport": "openai_chat",
+            "profiles": {
+              "reasoning": null,
+              "webSearch": null,
+              "imageGen": null,
+              "generation": {
+                "template": "openai_chat_completions",
+                "parameters": [
+                  {
+                    "id": "max_output_tokens",
+                    "support": "supported",
+                    "source": "authoritative_metadata"
+                  },
+                  {
+                    "id": "temperature",
+                    "support": "supported",
+                    "source": "provider_metadata"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      },
+      "qwen": {
+        "displayName": "Qwen",
+        "defaultModelId": "qwen3-max",
+        "transport": {
+          "baseUrl": "https://dashscope-intl.aliyuncs.com",
+          "endpoints": {
+            "chat": "/compatible-mode/v1/chat/completions",
+            "images": "/api/v1/services/aigc/multimodal-generation/generation"
+          },
+          "requestProfile": {
+            "streamOptionsIncludeUsage": true
+          }
+        },
+        "resolveMap": {
+          "qwen3-max": "qwen3-max",
+          "qwen-plus": "qwen-plus",
+          "qwen-image": "qwen-image",
+          "qwen-image-plus": "qwen-image-plus"
+        },
+        "models": {
+          "qwen3-max": {
+            "canonicalModelId": "qwen3-max",
+            "displayName": "Qwen3 Max",
+            "capabilities": [
+              "text",
+              "reasoning",
+              "web"
+            ],
+            "transport": "openai_chat",
+            "profiles": {
+              "reasoning": null,
+              "webSearch": "qwen_web",
+              "imageGen": null,
+              "generation": {
+                "template": "openai_chat_completions",
+                "parameters": [
+                  {
+                    "id": "max_output_tokens",
+                    "support": "supported",
+                    "source": "authoritative_metadata"
+                  },
+                  {
+                    "id": "temperature",
+                    "support": "supported",
+                    "source": "provider_metadata"
+                  }
+                ]
+              }
+            }
+          },
+          "qwen-plus": {
+            "canonicalModelId": "qwen-plus",
+            "displayName": "Qwen Plus",
+            "capabilities": [
+              "text",
+              "web"
+            ],
+            "transport": "openai_chat",
+            "profiles": {
+              "reasoning": null,
+              "webSearch": "qwen_web",
+              "imageGen": null
+            }
+          },
+          "qwen-image": {
+            "canonicalModelId": "qwen-image",
+            "displayName": "Qwen Image",
+            "capabilities": [
+              "imageGeneration"
+            ],
+            "transport": "qwen_image",
+            "profiles": {
+              "reasoning": null,
+              "webSearch": null,
+              "imageGen": "qwen_images"
+            }
+          },
+          "qwen-image-plus": {
+            "canonicalModelId": "qwen-image-plus",
+            "displayName": "Qwen Image Plus",
+            "capabilities": [
+              "imageGeneration"
+            ],
+            "transport": "qwen_image",
+            "profiles": {
+              "reasoning": null,
+              "webSearch": null,
+              "imageGen": "qwen_images_auto"
+            }
+          }
+        }
+      },
+      "zhipu": {
+        "displayName": "Zhipu GLM",
+        "defaultModelId": "glm-4.6",
+        "transport": {
+          "baseUrl": "https://open.bigmodel.cn/api/paas/v4",
+          "endpoints": {
+            "chat": "/chat/completions",
+            "images": "/images/generations"
+          }
+        },
+        "resolveMap": {
+          "glm-4.6": "glm-4.6",
+          "glm-5.2": "glm-5.2",
+          "cogview-3-flash": "cogview-3-flash"
+        },
+        "models": {
+          "glm-4.6": {
+            "canonicalModelId": "glm-4.6",
+            "displayName": "GLM-4.6",
+            "capabilities": [
+              "text",
+              "web"
+            ],
+            "transport": "openai_chat",
+            "profiles": {
+              "reasoning": null,
+              "webSearch": "zhipu_web",
+              "imageGen": null,
+              "generation": {
+                "template": "openai_chat_completions",
+                "parameters": [
+                  {
+                    "id": "max_output_tokens",
+                    "support": "supported",
+                    "source": "authoritative_metadata"
+                  },
+                  {
+                    "id": "temperature",
+                    "support": "supported",
+                    "source": "provider_metadata"
+                  }
+                ]
+              }
+            }
+          },
+          "glm-5.2": {
+            "canonicalModelId": "glm-5.2",
+            "displayName": "GLM-5.2",
+            "capabilities": [
+              "text",
+              "reasoning"
+            ],
+            "transport": "openai_chat",
+            "profiles": {
+              "reasoning": "zhipu_thinking",
+              "webSearch": null,
+              "imageGen": null
+            }
+          },
+          "cogview-3-flash": {
+            "canonicalModelId": "cogview-3-flash",
+            "displayName": "CogView 3 Flash",
+            "capabilities": [
+              "imageGeneration"
+            ],
+            "transport": "zhipu_image",
+            "profiles": {
+              "reasoning": null,
+              "webSearch": null,
+              "imageGen": "zhipu_images"
+            }
+          }
+        }
+      },
+      "miniMax": {
+        "displayName": "MiniMax",
+        "defaultModelId": "MiniMax-M2.5",
+        "transport": {
+          "baseUrl": "https://api.minimax.io/v1",
+          "endpoints": {
+            "chat": "/chat/completions",
+            "images": "/image_generation"
+          }
+        },
+        "resolveMap": {
+          "MiniMax-M2.5": "MiniMax-M2.5",
+          "MiniMax-M3": "MiniMax-M3",
+          "image-01": "image-01"
+        },
+        "models": {
+          "MiniMax-M2.5": {
+            "canonicalModelId": "MiniMax-M2.5",
+            "displayName": "MiniMax M2.5",
+            "capabilities": [
+              "text",
+              "reasoning"
+            ],
+            "transport": "openai_chat",
+            "profiles": {
+              "reasoning": null,
+              "webSearch": null,
+              "imageGen": null,
+              "generation": {
+                "template": "openai_chat_completions",
+                "parameters": [
+                  {
+                    "id": "max_output_tokens",
+                    "support": "supported",
+                    "source": "authoritative_metadata"
+                  },
+                  {
+                    "id": "temperature",
+                    "support": "supported",
+                    "source": "provider_metadata"
+                  }
+                ]
+              }
+            }
+          },
+          "MiniMax-M3": {
+            "canonicalModelId": "MiniMax-M3",
+            "displayName": "MiniMax M3",
+            "capabilities": [
+              "text",
+              "reasoning"
+            ],
+            "transport": "openai_chat",
+            "profiles": {
+              "reasoning": "mm_thinking",
+              "webSearch": null,
+              "imageGen": null
+            }
+          },
+          "image-01": {
+            "canonicalModelId": "image-01",
+            "displayName": "MiniMax Image 01",
+            "capabilities": [
+              "imageGeneration"
+            ],
+            "transport": "openai_images",
+            "profiles": {
+              "reasoning": null,
+              "webSearch": null,
+              "imageGen": "mm_images"
+            }
+          }
+        }
+      },
+      "siliconFlow": {
+        "displayName": "SiliconFlow",
+        "defaultModelId": "deepseek-ai/DeepSeek-V3.2",
+        "transport": {
+          "baseUrl": "https://api.siliconflow.cn/v1",
+          "endpoints": {
+            "chat": "/chat/completions",
+            "images": "/images/generations"
+          }
+        },
+        "resolveMap": {
+          "deepseek-ai/DeepSeek-V3.2": "deepseek-ai/DeepSeek-V3.2",
+          "Kwai-Kolors/Kolors": "Kwai-Kolors/Kolors"
+        },
+        "models": {
+          "deepseek-ai/DeepSeek-V3.2": {
+            "canonicalModelId": "deepseek-ai/DeepSeek-V3.2",
+            "displayName": "DeepSeek V3.2",
+            "capabilities": [
+              "text",
+              "reasoning"
+            ],
+            "transport": "openai_chat",
+            "profiles": {
+              "reasoning": "sf_thinking",
+              "webSearch": null,
+              "imageGen": null,
+              "generation": {
+                "template": "openai_chat_completions",
+                "parameters": [
+                  {
+                    "id": "max_output_tokens",
+                    "support": "supported",
+                    "source": "authoritative_metadata"
+                  },
+                  {
+                    "id": "temperature",
+                    "support": "supported",
+                    "source": "provider_metadata"
+                  }
+                ]
+              }
+            }
+          },
+          "Kwai-Kolors/Kolors": {
+            "canonicalModelId": "Kwai-Kolors/Kolors",
+            "displayName": "Kolors",
+            "capabilities": [
+              "imageGeneration"
+            ],
+            "transport": "openai_chat",
+            "profiles": {
+              "reasoning": null,
+              "webSearch": null,
+              "imageGen": "sf_images"
+            }
+          }
+        }
+      },
+      "openRouter": {
+        "displayName": "OpenRouter",
+        "defaultModelId": "openai/gpt-5-mini",
+        "transport": {
+          "baseUrl": "https://openrouter.ai/api/v1",
+          "endpoints": {
+            "chat": "/chat/completions"
+          }
+        },
+        "resolveMap": {
+          "openai/gpt-5-mini": "openai/gpt-5-mini",
+          "openai/gpt-5.2": "openai/gpt-5.2",
+          "google/gemini-3.5-flash": "google/gemini-3.5-flash",
+          "google/gemini-2.5-flash-image": "google/gemini-2.5-flash-image"
+        },
+        "models": {
+          "openai/gpt-5-mini": {
+            "canonicalModelId": "openai/gpt-5-mini",
+            "displayName": "GPT-5 Mini (OpenRouter)",
+            "maxOutputTokens": 4096,
+            "capabilities": [
+              "text",
+              "reasoning",
+              "web"
+            ],
+            "transport": "openai_chat",
+            "profiles": {
+              "reasoning": "or_no_xhigh",
+              "webSearch": "or_web",
+              "imageGen": null
+            }
+          },
+          "openai/gpt-5.2": {
+            "canonicalModelId": "openai/gpt-5.2",
+            "displayName": "GPT-5.2 (OpenRouter)",
+            "capabilities": [
+              "text",
+              "reasoning"
+            ],
+            "transport": "openai_chat",
+            "profiles": {
+              "reasoning": "or",
+              "webSearch": null,
+              "imageGen": null,
+              "generation": {
+                "template": "openai_chat_completions",
+                "parameters": [
+                  {
+                    "id": "max_output_tokens",
+                    "support": "supported",
+                    "source": "authoritative_metadata"
+                  },
+                  {
+                    "id": "route_require_parameters",
+                    "support": "supported",
+                    "source": "authoritative_metadata"
+                  },
+                  {
+                    "id": "temperature",
+                    "support": "supported",
+                    "source": "provider_metadata"
+                  }
+                ]
+              }
+            }
+          },
+          "google/gemini-3.5-flash": {
+            "canonicalModelId": "google/gemini-3.5-flash",
+            "displayName": "Gemini 3.5 Flash (OpenRouter)",
+            "capabilities": [
+              "text",
+              "reasoning"
+            ],
+            "transport": "openai_chat",
+            "profiles": {
+              "reasoning": "or_low_high",
+              "webSearch": null,
+              "imageGen": null
+            }
+          },
+          "google/gemini-2.5-flash-image": {
+            "canonicalModelId": "google/gemini-2.5-flash-image",
+            "displayName": "Gemini 2.5 Flash Image (OpenRouter)",
+            "capabilities": [
+              "text",
+              "imageGeneration"
+            ],
+            "transport": "openai_chat",
+            "profiles": {
+              "reasoning": null,
+              "webSearch": null,
+              "imageGen": "or_chat"
+            }
+          }
+        }
+      },
+      "groq": {
+        "displayName": "Groq",
+        "defaultModelId": "openai/gpt-oss-120b",
+        "transport": {
+          "baseUrl": "https://api.groq.com/openai/v1",
+          "endpoints": {
+            "chat": "/chat/completions"
+          }
+        },
+        "resolveMap": {
+          "openai/gpt-oss-120b": "openai/gpt-oss-120b",
+          "qwen/qwen3.6-27b": "qwen/qwen3.6-27b"
+        },
+        "models": {
+          "openai/gpt-oss-120b": {
+            "canonicalModelId": "openai/gpt-oss-120b",
+            "displayName": "GPT-OSS 120B (Groq)",
+            "capabilities": [
+              "text",
+              "reasoning"
+            ],
+            "transport": "openai_chat",
+            "profiles": {
+              "reasoning": "oai_chat",
+              "webSearch": null,
+              "imageGen": null,
+              "generation": {
+                "template": "openai_chat_completions",
+                "parameters": [
+                  {
+                    "id": "max_output_tokens",
+                    "support": "supported",
+                    "source": "authoritative_metadata"
+                  },
+                  {
+                    "id": "temperature",
+                    "support": "supported",
+                    "source": "provider_metadata"
+                  }
+                ]
+              }
+            }
+          },
+          "qwen/qwen3.6-27b": {
+            "canonicalModelId": "qwen/qwen3.6-27b",
+            "displayName": "Qwen3.6 27B (Groq)",
+            "capabilities": [
+              "text",
+              "reasoning"
+            ],
+            "transport": "openai_chat",
+            "profiles": {
+              "reasoning": null,
+              "webSearch": null,
+              "imageGen": null
+            }
+          }
+        }
+      },
+      "togetherAI": {
+        "displayName": "Together AI",
+        "defaultModelId": "openai/gpt-oss-120b",
+        "transport": {
+          "baseUrl": "https://api.together.xyz/v1",
+          "endpoints": {
+            "chat": "/chat/completions",
+            "images": "/images/generations"
+          }
+        },
+        "resolveMap": {
+          "openai/gpt-oss-120b": "openai/gpt-oss-120b",
+          "Qwen/Qwen3.6-Plus": "Qwen/Qwen3.6-Plus",
+          "Qwen/Qwen-Image-2.0": "Qwen/Qwen-Image-2.0",
+          "google/gemini-3-pro-image": "google/gemini-3-pro-image"
+        },
+        "models": {
+          "openai/gpt-oss-120b": {
+            "canonicalModelId": "openai/gpt-oss-120b",
+            "displayName": "GPT-OSS 120B (Together)",
+            "capabilities": [
+              "text",
+              "reasoning"
+            ],
+            "transport": "openai_chat",
+            "profiles": {
+              "reasoning": "oai_chat",
+              "webSearch": null,
+              "imageGen": null
+            }
+          },
+          "Qwen/Qwen3.6-Plus": {
+            "canonicalModelId": "Qwen/Qwen3.6-Plus",
+            "displayName": "Qwen3.6 Plus (Together)",
+            "capabilities": [
+              "text",
+              "reasoning"
+            ],
+            "transport": "openai_chat",
+            "profiles": {
+              "reasoning": null,
+              "webSearch": null,
+              "imageGen": null,
+              "generation": {
+                "template": "openai_chat_completions",
+                "parameters": [
+                  {
+                    "id": "max_output_tokens",
+                    "support": "supported",
+                    "source": "authoritative_metadata"
+                  },
+                  {
+                    "id": "temperature",
+                    "support": "supported",
+                    "source": "provider_metadata"
+                  }
+                ]
+              }
+            }
+          },
+          "Qwen/Qwen-Image-2.0": {
+            "canonicalModelId": "Qwen/Qwen-Image-2.0",
+            "displayName": "Qwen Image 2.0 (Together)",
+            "capabilities": [
+              "imageGeneration"
+            ],
+            "transport": "openai_chat",
+            "profiles": {
+              "reasoning": null,
+              "webSearch": null,
+              "imageGen": "together_images"
+            }
+          },
+          "google/gemini-3-pro-image": {
+            "canonicalModelId": "google/gemini-3-pro-image",
+            "displayName": "Gemini 3 Pro Image (Together)",
+            "capabilities": [
+              "imageGeneration"
+            ],
+            "transport": "openai_chat",
+            "profiles": {
+              "reasoning": null,
+              "webSearch": null,
+              "imageGen": "together_images_no_n"
+            }
+          }
+        }
+      },
+      "fireworksAI": {
+        "displayName": "Fireworks AI",
+        "defaultModelId": "accounts/fireworks/models/gpt-oss-120b",
+        "transport": {
+          "baseUrl": "https://api.fireworks.ai/inference/v1",
+          "endpoints": {
+            "chat": "/chat/completions"
+          }
+        },
+        "resolveMap": {
+          "accounts/fireworks/models/gpt-oss-120b": "accounts/fireworks/models/gpt-oss-120b"
+        },
+        "models": {
+          "accounts/fireworks/models/gpt-oss-120b": {
+            "canonicalModelId": "accounts/fireworks/models/gpt-oss-120b",
+            "displayName": "GPT-OSS 120B (Fireworks)",
+            "capabilities": [
+              "text",
+              "reasoning"
+            ],
+            "transport": "openai_chat",
+            "profiles": {
+              "reasoning": "oai_chat",
+              "webSearch": null,
+              "imageGen": null,
+              "generation": {
+                "template": "openai_chat_completions",
+                "parameters": [
+                  {
+                    "id": "max_output_tokens",
+                    "support": "supported",
+                    "source": "authoritative_metadata"
+                  },
+                  {
+                    "id": "temperature",
+                    "support": "supported",
+                    "source": "provider_metadata"
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "cases": [
+    {
+      "caseId": "grok.responses.no_profile_deep",
+      "intent": {
+        "providerKind": "grok",
+        "modelId": "grok-4.20-multi-agent-0309",
+        "reasoningMode": "deep",
+        "webSearch": false,
+        "imageGen": false
+      },
+      "expect": {
+        "endpointPath": "/v1/responses",
+        "headersInclude": {
+          "Authorization": "*"
+        },
+        "queryExcludes": [
+          "key"
+        ],
+        "bodyIncludes": {
+          "model": "grok-4.20-multi-agent-0309",
+          "stream": true,
+          "input": "*"
+        },
+        "bodyExcludes": [
+          "messages",
+          "reasoning",
+          "reasoning_effort"
+        ]
+      }
+    },
+    {
+      "caseId": "grok.chat.reasoning.fast",
+      "$comment": "The caseId keeps its historical name so the three clients' test-case lists don't drift. grok-3-mini goes through /v1/responses (the same shape as grok.responses.web_reasoning.deep: the legacy oai_chat profile still sends a top-level reasoning_effort on the Responses body).",
+      "intent": {
+        "providerKind": "grok",
+        "modelId": "grok-3-mini",
+        "reasoningMode": "fast",
+        "webSearch": false,
+        "imageGen": false
+      },
+      "expect": {
+        "endpointPath": "/v1/responses",
+        "headersInclude": {
+          "Authorization": "*"
+        },
+        "queryExcludes": [
+          "key"
+        ],
+        "bodyIncludes": {
+          "model": "grok-3-mini",
+          "stream": true,
+          "input": "*",
+          "reasoning_effort": "low"
+        },
+        "bodyExcludes": [
+          "messages",
+          "reasoning",
+          "tools"
+        ]
+      }
+    },
+    {
+      "caseId": "grok.responses.web_reasoning.deep",
+      "intent": {
+        "providerKind": "grok",
+        "modelId": "grok-4-fast-reasoning",
+        "reasoningMode": "deep",
+        "webSearch": true,
+        "imageGen": false
+      },
+      "expect": {
+        "endpointPath": "/v1/responses",
+        "headersInclude": {
+          "Authorization": "*"
+        },
+        "queryExcludes": [
+          "key"
+        ],
+        "bodyIncludes": {
+          "model": "grok-4-fast-reasoning",
+          "stream": true,
+          "input": "*",
+          "reasoning_effort": "high",
+          "tools.0.type": "web_search",
+          "tools.0.enable_image_understanding": true
+        },
+        "bodyExcludes": [
+          "messages",
+          "reasoning"
+        ]
+      }
+    },
+    {
+      "caseId": "openai.responses.reasoning.deep",
+      "intent": {
+        "providerKind": "openAI",
+        "modelId": "gpt-5-mini",
+        "reasoningMode": "deep",
+        "webSearch": false,
+        "imageGen": false
+      },
+      "expect": {
+        "$comment": "reasoning.summary moved from bodyIncludes to bodyExcludes: the server's oai_responses no longer sends summary:\"auto\", and the hardcoded injection on the three clients' direct BYOK path was removed in the same change. The evidence: o4-mini with reasoning:{effort:\"medium\",summary:\"auto\"} returns 400 \"Your organization must be verified to generate reasoning summaries\"; the same request without summary returns 200. Note that the relay path deliberately **keeps** summary and is unrelated to this case (this case covers the official BYOK direct path only).",
+        "endpointPath": "/v1/responses",
+        "headersInclude": {
+          "Authorization": "*"
+        },
+        "queryExcludes": [
+          "key"
+        ],
+        "bodyIncludes": {
+          "model": "gpt-5-mini",
+          "stream": true,
+          "input": "*",
+          "reasoning.effort": "high"
+        },
+        "bodyExcludes": [
+          "messages",
+          "reasoning_effort",
+          "tools",
+          "reasoning.summary"
+        ]
+      }
+    },
+    {
+      "caseId": "openai.responses.automatic_no_injection",
+      "intent": {
+        "providerKind": "openAI",
+        "modelId": "gpt-5-mini",
+        "reasoningMode": "automatic",
+        "webSearch": false,
+        "imageGen": false
+      },
+      "expect": {
+        "$comment": "Formerly named openai.responses.automatic_summary_only — this case existed to assert that \"automatic keeps summary on\"; once summary was removed the meaning flips entirely, so it was renamed and the whole reasoning object moved into bodyExcludes. oai_responses has no defaultLevel, so automatic now means literally zero injection.",
+        "endpointPath": "/v1/responses",
+        "headersInclude": {
+          "Authorization": "*"
+        },
+        "queryExcludes": [
+          "key"
+        ],
+        "bodyIncludes": {
+          "model": "gpt-5-mini",
+          "stream": true,
+          "input": "*"
+        },
+        "bodyExcludes": [
+          "messages",
+          "reasoning_effort",
+          "reasoning",
+          "reasoning.effort",
+          "reasoning.summary",
+          "tools"
+        ]
+      }
+    },
+    {
+      "caseId": "openai.responses.web.balanced",
+      "intent": {
+        "providerKind": "openAI",
+        "modelId": "gpt-5-mini",
+        "reasoningMode": "balanced",
+        "webSearch": true,
+        "imageGen": false
+      },
+      "expect": {
+        "endpointPath": "/v1/responses",
+        "headersInclude": {
+          "Authorization": "*"
+        },
+        "queryExcludes": [
+          "key"
+        ],
+        "bodyIncludes": {
+          "model": "gpt-5-mini",
+          "stream": true,
+          "input": "*",
+          "reasoning.effort": "medium",
+          "tools.0.type": "web_search",
+          "tool_choice": "auto"
+        },
+        "bodyExcludes": [
+          "messages",
+          "reasoning_effort",
+          "reasoning.summary"
+        ]
+      }
+    },
+    {
+      "caseId": "openai.responses_xhigh.max",
+      "intent": {
+        "providerKind": "openAI",
+        "modelId": "gpt-5.4-mini",
+        "reasoningMode": "max",
+        "webSearch": false,
+        "imageGen": false
+      },
+      "expect": {
+        "$comment": "gpt-5.2 and above add one more tier, xhigh (measured: gpt-5.4-mini high averages 1507 tokens vs xhigh 8674, with no overlap across five runs). gpt-5 / 5.1 / the o-series return 400 not supported for it, so this must be its own profile rather than an extra tier added to oai_responses.",
+        "endpointPath": "/v1/responses",
+        "headersInclude": {
+          "Authorization": "*"
+        },
+        "queryExcludes": [
+          "key"
+        ],
+        "bodyIncludes": {
+          "model": "gpt-5.4-mini",
+          "stream": true,
+          "input": "*",
+          "reasoning.effort": "xhigh"
+        },
+        "bodyExcludes": [
+          "messages",
+          "reasoning_effort",
+          "tools"
+        ]
+      }
+    },
+    {
+      "caseId": "openai.responses_pro.max",
+      "intent": {
+        "providerKind": "openAI",
+        "modelId": "gpt-5.2-pro",
+        "reasoningMode": "max",
+        "webSearch": false,
+        "imageGen": false
+      },
+      "expect": {
+        "endpointPath": "/v1/responses",
+        "headersInclude": {
+          "Authorization": "*"
+        },
+        "queryExcludes": [
+          "key"
+        ],
+        "bodyIncludes": {
+          "model": "gpt-5.2-pro",
+          "stream": true,
+          "input": "*",
+          "reasoning.effort": "xhigh"
+        },
+        "bodyExcludes": [
+          "messages",
+          "reasoning_effort",
+          "tools"
+        ]
+      }
+    },
+    {
+      "caseId": "openai.responses_pro.fast_clamps_to_no_injection",
+      "intent": {
+        "providerKind": "openAI",
+        "modelId": "gpt-5.2-pro",
+        "reasoningMode": "fast",
+        "webSearch": false,
+        "imageGen": false
+      },
+      "expect": {
+        "$comment": "A regression lock: gpt-5.2-pro / 5.4-pro / 5.5-pro measurably reject effort=low with a 400, so oai_responses_pro declares no fast tier. Selecting \"fast\" must be clamped by all three clients down to automatic (below balanced there is only automatic) — meaning zero injection and falling back to the upstream default — and must never send effort=low.",
+        "endpointPath": "/v1/responses",
+        "headersInclude": {
+          "Authorization": "*"
+        },
+        "queryExcludes": [
+          "key"
+        ],
+        "bodyIncludes": {
+          "model": "gpt-5.2-pro",
+          "stream": true,
+          "input": "*"
+        },
+        "bodyExcludes": [
+          "messages",
+          "reasoning_effort",
+          "reasoning.effort",
+          "tools"
+        ]
+      }
+    },
+    {
+      "caseId": "openai.chat.search_api_web_no_injection",
+      "intent": {
+        "providerKind": "openAI",
+        "modelId": "gpt-5-search-api",
+        "reasoningMode": "automatic",
+        "webSearch": true,
+        "imageGen": false
+      },
+      "expect": {
+        "endpointPath": "/v1/chat/completions",
+        "headersInclude": {
+          "Authorization": "*"
+        },
+        "queryExcludes": [
+          "key"
+        ],
+        "bodyIncludes": {
+          "model": "gpt-5-search-api",
+          "stream": true,
+          "messages": "*"
+        },
+        "bodyExcludes": [
+          "input",
+          "tools",
+          "reasoning",
+          "reasoning_effort"
+        ]
+      }
+    },
+    {
+      "caseId": "openai.images.route",
+      "intent": {
+        "providerKind": "openAI",
+        "modelId": "gpt-image-1",
+        "reasoningMode": "automatic",
+        "webSearch": false,
+        "imageGen": true
+      },
+      "expect": {
+        "$comment": "The gpt-image family rejects response_format (measured: 400 Unknown parameter); requestDefaults only sends size+n. No client may hardcode response_format again.",
+        "endpointPath": "/v1/images/generations",
+        "headersInclude": {
+          "Authorization": "*"
+        },
+        "queryExcludes": [
+          "key"
+        ],
+        "bodyIncludes": {
+          "model": "gpt-image-1",
+          "prompt": "*",
+          "size": "1024x1024",
+          "n": 1
+        },
+        "bodyExcludes": [
+          "messages",
+          "input",
+          "stream",
+          "response_format"
+        ]
+      }
+    },
+    {
+      "caseId": "grok.images.route",
+      "intent": {
+        "providerKind": "grok",
+        "modelId": "grok-imagine-image-pro",
+        "reasoningMode": "automatic",
+        "webSearch": false,
+        "imageGen": true
+      },
+      "expect": {
+        "$comment": "Grok image generation is dispatched uniformly through route. It was previously excluded (web dispatch was unreachable, routed through a separate image service) — this has been fixed so all three clients dispatch uniformly via the imageGen profile's route=images_api. requestDefaults authoritatively sends {n,response_format}; size is forbidden (measured on xAI: 400 Argument not supported: size).",
+        "endpointPath": "/v1/images/generations",
+        "headersInclude": {
+          "Authorization": "*"
+        },
+        "queryExcludes": [
+          "key"
+        ],
+        "bodyIncludes": {
+          "model": "grok-imagine-image-pro",
+          "prompt": "*",
+          "n": 1,
+          "response_format": "b64_json"
+        },
+        "bodyExcludes": [
+          "messages",
+          "input",
+          "stream",
+          "size"
+        ]
+      }
+    },
+    {
+      "caseId": "anthropic.reasoning_web.deep",
+      "intent": {
+        "providerKind": "anthropic",
+        "modelId": "claude-sonnet-4-5",
+        "reasoningMode": "deep",
+        "webSearch": true,
+        "imageGen": false
+      },
+      "expect": {
+        "endpointPath": "/v1/messages",
+        "headersInclude": {
+          "x-api-key": "*",
+          "anthropic-version": "*"
+        },
+        "queryExcludes": [
+          "key"
+        ],
+        "bodyIncludes": {
+          "model": "claude-sonnet-4-5",
+          "stream": true,
+          "thinking.type": "enabled",
+          "thinking.budget_tokens": 16384,
+          "max_tokens": 20480,
+          "cache_control.type": "ephemeral",
+          "tools.0.type": "web_search_20250305",
+          "tools.0.name": "web_search",
+          "tools.0.max_uses": 5
+        },
+        "bodyExcludes": [
+          "reasoning_effort"
+        ]
+      }
+    },
+    {
+      "caseId": "anthropic.adaptive_max.max",
+      "intent": {
+        "providerKind": "anthropic",
+        "modelId": "claude-opus-4-6",
+        "reasoningMode": "max",
+        "webSearch": false,
+        "imageGen": false
+      },
+      "expect": {
+        "endpointPath": "/v1/messages",
+        "headersInclude": {
+          "x-api-key": "*",
+          "anthropic-version": "*"
+        },
+        "queryExcludes": [
+          "key"
+        ],
+        "bodyIncludes": {
+          "model": "claude-opus-4-6",
+          "stream": true,
+          "messages": "*",
+          "max_tokens": "*",
+          "cache_control.type": "ephemeral",
+          "thinking.type": "adaptive",
+          "output_config.effort": "max"
+        },
+        "bodyExcludes": [
+          "thinking.budget_tokens",
+          "tools",
+          "reasoning_effort"
+        ]
+      }
+    },
+    {
+      "caseId": "anthropic.adaptive.deep",
+      "intent": {
+        "providerKind": "anthropic",
+        "modelId": "claude-sonnet-4-6",
+        "reasoningMode": "deep",
+        "webSearch": false,
+        "imageGen": false
+      },
+      "expect": {
+        "$comment": "ant_adaptive (the sonnet-4.6 family) differs from ant_adaptive_max only in not having a max tier; both request shapes use thinking.type=adaptive + output_config.effort, and must never fall back to ant_budget's thinking.budget_tokens (the adaptive family rejects it upstream).",
+        "endpointPath": "/v1/messages",
+        "headersInclude": {
+          "x-api-key": "*",
+          "anthropic-version": "*"
+        },
+        "queryExcludes": [
+          "key"
+        ],
+        "bodyIncludes": {
+          "model": "claude-sonnet-4-6",
+          "stream": true,
+          "messages": "*",
+          "max_tokens": "*",
+          "cache_control.type": "ephemeral",
+          "thinking.type": "adaptive",
+          "output_config.effort": "high"
+        },
+        "bodyExcludes": [
+          "thinking.budget_tokens",
+          "tools",
+          "reasoning_effort"
+        ]
+      }
+    },
+    {
+      "caseId": "anthropic.automatic_no_thinking",
+      "intent": {
+        "providerKind": "anthropic",
+        "modelId": "claude-sonnet-4-5",
+        "reasoningMode": "automatic",
+        "webSearch": false,
+        "imageGen": false
+      },
+      "expect": {
+        "endpointPath": "/v1/messages",
+        "headersInclude": {
+          "x-api-key": "*",
+          "anthropic-version": "*"
+        },
+        "queryExcludes": [
+          "key"
+        ],
+        "bodyIncludes": {
+          "model": "claude-sonnet-4-5",
+          "stream": true,
+          "messages": "*",
+          "max_tokens": "*",
+          "cache_control.type": "ephemeral"
+        },
+        "bodyExcludes": [
+          "thinking",
+          "output_config",
+          "tools",
+          "reasoning_effort"
+        ]
+      }
+    },
+    {
+      "caseId": "gemini.reasoning_web_image.deep",
+      "intent": {
+        "providerKind": "gemini",
+        "modelId": "gemini-3.1-flash-preview",
+        "reasoningMode": "deep",
+        "webSearch": true,
+        "imageGen": true
+      },
+      "expect": {
+        "endpointPath": "/v1beta/models/gemini-3.1-flash-preview:streamGenerateContent",
+        "headersInclude": {
+          "x-goog-api-key": "*"
+        },
+        "queryExcludes": [
+          "key"
+        ],
+        "bodyIncludes": {
+          "contents": "*",
+          "tools.0.google_search": "*",
+          "generationConfig.responseModalities.0": "TEXT",
+          "generationConfig.responseModalities.1": "IMAGE",
+          "generationConfig.thinkingConfig.thinkingLevel": "HIGH"
+        },
+        "bodyExcludes": [
+          "reasoning_effort",
+          "enable_thinking",
+          "generationConfig.thinkingConfig.thinkingBudget"
+        ]
+      }
+    },
+    {
+      "caseId": "gemini.budget.fast",
+      "intent": {
+        "providerKind": "gemini",
+        "modelId": "gemini-2.5-flash",
+        "reasoningMode": "fast",
+        "webSearch": false,
+        "imageGen": false
+      },
+      "expect": {
+        "endpointPath": "/v1beta/models/gemini-2.5-flash:streamGenerateContent",
+        "headersInclude": {
+          "x-goog-api-key": "*"
+        },
+        "queryExcludes": [
+          "key"
+        ],
+        "bodyIncludes": {
+          "contents": "*",
+          "generationConfig.thinkingConfig.thinkingBudget": 1024
+        },
+        "bodyExcludes": [
+          "tools",
+          "generationConfig.thinkingConfig.thinkingLevel",
+          "generationConfig.responseModalities"
+        ]
+      }
+    },
+    {
+      "caseId": "gemini.level_pro.balanced",
+      "intent": {
+        "providerKind": "gemini",
+        "modelId": "gemini-3.1-pro-preview",
+        "reasoningMode": "balanced",
+        "webSearch": false,
+        "imageGen": false
+      },
+      "expect": {
+        "$comment": "This tier is the only difference between gem_level and gem_level_flash: on the pro family, a hard problem measurably separates MEDIUM and HIGH (4964 vs 10886 tokens, p=0.0122), while on the flash family the difference is not significant (p=0.8345), so flash declares no balanced. Losing this case would make it impossible to tell whether the two profiles got swapped.",
+        "endpointPath": "/v1beta/models/gemini-3.1-pro-preview:streamGenerateContent",
+        "headersInclude": {
+          "x-goog-api-key": "*"
+        },
+        "queryExcludes": [
+          "key"
+        ],
+        "bodyIncludes": {
+          "contents": "*",
+          "generationConfig.thinkingConfig.thinkingLevel": "MEDIUM"
+        },
+        "bodyExcludes": [
+          "tools",
+          "generationConfig.thinkingConfig.thinkingBudget"
+        ]
+      }
+    },
+    {
+      "caseId": "gemini.web.automatic",
+      "intent": {
+        "providerKind": "gemini",
+        "modelId": "gemini-2.5-flash",
+        "reasoningMode": "automatic",
+        "webSearch": true,
+        "imageGen": false
+      },
+      "expect": {
+        "endpointPath": "/v1beta/models/gemini-2.5-flash:streamGenerateContent",
+        "headersInclude": {
+          "x-goog-api-key": "*"
+        },
+        "queryExcludes": [
+          "key"
+        ],
+        "bodyIncludes": {
+          "contents": "*",
+          "tools.0.google_search": "*"
+        },
+        "bodyExcludes": [
+          "generationConfig.thinkingConfig"
+        ]
+      }
+    },
+    {
+      "caseId": "gemini.gemma.deep",
+      "intent": {
+        "providerKind": "gemini",
+        "modelId": "gemma-4-31b-it",
+        "reasoningMode": "deep",
+        "webSearch": false,
+        "imageGen": false
+      },
+      "expect": {
+        "$comment": "gemma only accepts thinkingLevel's minimal/high tiers (lowercase), and rejects thinkingBudget and LOW/MEDIUM/HIGH. The tier mapping is fast→minimal / deep→high, with no balanced/max. Sending gem_budget or gem_level by mistake causes a live 400 on gemini BYOK.",
+        "endpointPath": "/v1beta/models/gemma-4-31b-it:streamGenerateContent",
+        "headersInclude": {
+          "x-goog-api-key": "*"
+        },
+        "queryExcludes": [
+          "key"
+        ],
+        "bodyIncludes": {
+          "contents": "*",
+          "generationConfig.thinkingConfig.thinkingLevel": "high"
+        },
+        "bodyExcludes": [
+          "tools",
+          "generationConfig.thinkingConfig.thinkingBudget",
+          "generationConfig.responseModalities"
+        ]
+      }
+    },
+    {
+      "caseId": "gemini.web_retrieval.automatic",
+      "intent": {
+        "providerKind": "gemini",
+        "modelId": "gemini-1.5-pro",
+        "reasoningMode": "automatic",
+        "webSearch": true,
+        "imageGen": false
+      },
+      "expect": {
+        "$comment": "gemini 1.5's older web search uses googleSearchRetrieval + dynamic_retrieval_config, a different wire shape from 2.0+'s google_search; sending google_search to it returns a 400 upstream.",
+        "endpointPath": "/v1beta/models/gemini-1.5-pro:streamGenerateContent",
+        "headersInclude": {
+          "x-goog-api-key": "*"
+        },
+        "queryExcludes": [
+          "key"
+        ],
+        "bodyIncludes": {
+          "contents": "*",
+          "tools.0.google_search_retrieval.dynamic_retrieval_config.mode": "MODE_DYNAMIC"
+        },
+        "bodyExcludes": [
+          "generationConfig.thinkingConfig",
+          "tools.0.google_search"
+        ]
+      }
+    },
+    {
+      "caseId": "deepseek.thinking.fast_disabled",
+      "intent": {
+        "providerKind": "deepseek",
+        "modelId": "deepseek-reasoner",
+        "reasoningMode": "fast",
+        "webSearch": false,
+        "imageGen": false
+      },
+      "expect": {
+        "endpointPath": "/v1/chat/completions",
+        "headersInclude": {
+          "Authorization": "*"
+        },
+        "queryExcludes": [
+          "key"
+        ],
+        "bodyIncludes": {
+          "model": "deepseek-reasoner",
+          "stream": true,
+          "messages": "*",
+          "thinking.type": "disabled"
+        },
+        "bodyExcludes": [
+          "reasoning_effort",
+          "enable_thinking",
+          "tools"
+        ]
+      }
+    },
+    {
+      "caseId": "deepseek.thinking.balanced",
+      "intent": {
+        "providerKind": "deepseek",
+        "modelId": "deepseek-reasoner",
+        "reasoningMode": "balanced",
+        "webSearch": false,
+        "imageGen": false
+      },
+      "expect": {
+        "endpointPath": "/v1/chat/completions",
+        "headersInclude": {
+          "Authorization": "*"
+        },
+        "queryExcludes": [
+          "key"
+        ],
+        "bodyIncludes": {
+          "model": "deepseek-reasoner",
+          "stream": true,
+          "messages": "*",
+          "reasoning_effort": "low"
+        },
+        "bodyExcludes": [
+          "thinking",
+          "enable_thinking",
+          "tools"
+        ]
+      }
+    },
+    {
+      "caseId": "deepseek.thinking.max",
+      "intent": {
+        "providerKind": "deepseek",
+        "modelId": "deepseek-reasoner",
+        "reasoningMode": "max",
+        "webSearch": false,
+        "imageGen": false
+      },
+      "expect": {
+        "endpointPath": "/v1/chat/completions",
+        "headersInclude": {
+          "Authorization": "*"
+        },
+        "queryExcludes": [
+          "key"
+        ],
+        "bodyIncludes": {
+          "model": "deepseek-reasoner",
+          "stream": true,
+          "messages": "*",
+          "reasoning_effort": "max"
+        },
+        "bodyExcludes": [
+          "thinking",
+          "enable_thinking",
+          "tools"
+        ]
+      }
+    },
+    {
+      "caseId": "deepseek.automatic_uses_default_level",
+      "intent": {
+        "providerKind": "deepseek",
+        "modelId": "deepseek-reasoner",
+        "reasoningMode": "automatic",
+        "webSearch": false,
+        "imageGen": false
+      },
+      "expect": {
+        "endpointPath": "/v1/chat/completions",
+        "headersInclude": {
+          "Authorization": "*"
+        },
+        "queryExcludes": [
+          "key"
+        ],
+        "bodyIncludes": {
+          "model": "deepseek-reasoner",
+          "stream": true,
+          "messages": "*",
+          "reasoning_effort": "low"
+        },
+        "bodyExcludes": [
+          "thinking",
+          "enable_thinking"
+        ]
+      }
+    },
+    {
+      "caseId": "deepseek_pro.thinking.balanced",
+      "intent": {
+        "providerKind": "deepseek",
+        "modelId": "deepseek-v4-pro",
+        "reasoningMode": "balanced",
+        "webSearch": false,
+        "imageGen": false
+      },
+      "expect": {
+        "endpointPath": "/v1/chat/completions",
+        "headersInclude": {
+          "Authorization": "*"
+        },
+        "queryExcludes": [
+          "key"
+        ],
+        "bodyIncludes": {
+          "model": "deepseek-v4-pro",
+          "stream": true,
+          "messages": "*",
+          "reasoning_effort": "high"
+        },
+        "bodyExcludes": [
+          "thinking",
+          "enable_thinking",
+          "tools"
+        ]
+      }
+    },
+    {
+      "caseId": "moonshot.k3.thinking.deep",
+      "intent": {
+        "providerKind": "moonshot",
+        "modelId": "kimi-k3",
+        "reasoningMode": "deep",
+        "webSearch": false,
+        "imageGen": false
+      },
+      "expect": {
+        "endpointPath": "/v1/chat/completions",
+        "headersInclude": {
+          "Authorization": "*"
+        },
+        "queryExcludes": [
+          "key"
+        ],
+        "bodyIncludes": {
+          "model": "kimi-k3",
+          "stream": true,
+          "messages": "*",
+          "reasoning_effort": "max"
+        },
+        "bodyExcludes": [
+          "thinking",
+          "tools"
+        ]
+      }
+    },
+    {
+      "caseId": "grok.responses.effort.balanced",
+      "intent": {
+        "providerKind": "grok",
+        "modelId": "grok-4.3",
+        "reasoningMode": "balanced",
+        "webSearch": false,
+        "imageGen": false
+      },
+      "expect": {
+        "endpointPath": "/v1/responses",
+        "headersInclude": {
+          "Authorization": "*"
+        },
+        "queryExcludes": [
+          "key"
+        ],
+        "bodyIncludes": {
+          "model": "grok-4.3",
+          "stream": true,
+          "reasoning.effort": "high"
+        },
+        "bodyExcludes": [
+          "reasoning_effort",
+          "thinking",
+          "enable_thinking"
+        ]
+      }
+    },
+    {
+      "caseId": "grok45.chat.effort.fast",
+      "$comment": "The caseId keeps its historical name; grok-4.5 goes through /v1/responses + grok_effort_responses (reasoning.effort), and the chat-shaped reasoning_effort must never be sent for it anymore.",
+      "intent": {
+        "providerKind": "grok",
+        "modelId": "grok-4.5",
+        "reasoningMode": "fast",
+        "webSearch": false,
+        "imageGen": false
+      },
+      "expect": {
+        "endpointPath": "/v1/responses",
+        "headersInclude": {
+          "Authorization": "*"
+        },
+        "queryExcludes": [
+          "key"
+        ],
+        "bodyIncludes": {
+          "model": "grok-4.5",
+          "stream": true,
+          "input": "*",
+          "reasoning.effort": "low"
+        },
+        "bodyExcludes": [
+          "messages",
+          "reasoning_effort",
+          "thinking",
+          "enable_thinking",
+          "tools"
+        ]
+      }
+    },
+    {
+      "caseId": "moonshot.thinking.fast_disabled",
+      "intent": {
+        "providerKind": "moonshot",
+        "modelId": "kimi-k2.6",
+        "reasoningMode": "fast",
+        "webSearch": false,
+        "imageGen": false
+      },
+      "expect": {
+        "endpointPath": "/v1/chat/completions",
+        "headersInclude": {
+          "Authorization": "*"
+        },
+        "queryExcludes": [
+          "key"
+        ],
+        "bodyIncludes": {
+          "model": "kimi-k2.6",
+          "stream": true,
+          "messages": "*",
+          "thinking.type": "disabled"
+        },
+        "bodyExcludes": [
+          "tools",
+          "reasoning_effort"
+        ]
+      }
+    },
+    {
+      "caseId": "moonshot.web_thinking.balanced",
+      "intent": {
+        "providerKind": "moonshot",
+        "modelId": "kimi-k2.6",
+        "reasoningMode": "balanced",
+        "webSearch": true,
+        "imageGen": false
+      },
+      "expect": {
+        "endpointPath": "/v1/chat/completions",
+        "headersInclude": {
+          "Authorization": "*"
+        },
+        "queryExcludes": [
+          "key"
+        ],
+        "bodyIncludes": {
+          "model": "kimi-k2.6",
+          "stream": true,
+          "messages": "*",
+          "thinking.type": "enabled",
+          "tools.0.type": "builtin_function",
+          "tools.0.function.name": "$web_search"
+        },
+        "bodyExcludes": [
+          "reasoning_effort"
+        ]
+      }
+    },
+    {
+      "caseId": "mistral.thinking.fast_none",
+      "intent": {
+        "providerKind": "mistral",
+        "modelId": "magistral-medium-latest",
+        "reasoningMode": "fast",
+        "webSearch": false,
+        "imageGen": false
+      },
+      "expect": {
+        "endpointPath": "/v1/chat/completions",
+        "headersInclude": {
+          "Authorization": "*"
+        },
+        "queryExcludes": [
+          "key"
+        ],
+        "bodyIncludes": {
+          "model": "magistral-medium-latest",
+          "stream": true,
+          "messages": "*",
+          "reasoning_effort": "none"
+        },
+        "bodyExcludes": [
+          "prompt_mode",
+          "thinking",
+          "enable_thinking",
+          "tools"
+        ]
+      }
+    },
+    {
+      "caseId": "mistral.thinking.deep",
+      "intent": {
+        "providerKind": "mistral",
+        "modelId": "magistral-medium-latest",
+        "reasoningMode": "deep",
+        "webSearch": false,
+        "imageGen": false
+      },
+      "expect": {
+        "endpointPath": "/v1/chat/completions",
+        "headersInclude": {
+          "Authorization": "*"
+        },
+        "queryExcludes": [
+          "key"
+        ],
+        "bodyIncludes": {
+          "model": "magistral-medium-latest",
+          "stream": true,
+          "messages": "*",
+          "reasoning_effort": "high"
+        },
+        "bodyExcludes": [
+          "prompt_mode",
+          "thinking",
+          "enable_thinking",
+          "tools"
+        ]
+      }
+    },
+    {
+      "caseId": "mistral.automatic_no_injection",
+      "intent": {
+        "providerKind": "mistral",
+        "modelId": "magistral-medium-latest",
+        "reasoningMode": "automatic",
+        "webSearch": false,
+        "imageGen": false
+      },
+      "expect": {
+        "endpointPath": "/v1/chat/completions",
+        "headersInclude": {
+          "Authorization": "*"
+        },
+        "queryExcludes": [
+          "key"
+        ],
+        "bodyIncludes": {
+          "model": "magistral-medium-latest",
+          "stream": true,
+          "messages": "*"
+        },
+        "bodyExcludes": [
+          "prompt_mode",
+          "reasoning_effort",
+          "thinking",
+          "enable_thinking"
+        ]
+      }
+    },
+    {
+      "caseId": "mistral.medium.reasoning_cap_gate_no_injection",
+      "intent": {
+        "providerKind": "mistral",
+        "modelId": "mistral-medium-3-5",
+        "reasoningMode": "deep",
+        "webSearch": false,
+        "imageGen": false
+      },
+      "expect": {
+        "endpointPath": "/v1/chat/completions",
+        "headersInclude": {
+          "Authorization": "*"
+        },
+        "queryExcludes": [
+          "key"
+        ],
+        "bodyIncludes": {
+          "model": "mistral-medium-3-5",
+          "stream": true,
+          "messages": "*"
+        },
+        "bodyExcludes": [
+          "prompt_mode",
+          "reasoning_effort",
+          "thinking",
+          "enable_thinking"
+        ]
+      }
+    },
+    {
+      "caseId": "qwen.hybrid.max",
+      "intent": {
+        "providerKind": "qwen",
+        "modelId": "qwen3-max",
+        "reasoningMode": "max",
+        "webSearch": false,
+        "imageGen": false
+      },
+      "expect": {
+        "endpointPath": "/compatible-mode/v1/chat/completions",
+        "headersInclude": {
+          "Authorization": "*"
+        },
+        "queryExcludes": [
+          "key"
+        ],
+        "bodyIncludes": {
+          "model": "qwen3-max",
+          "stream": true,
+          "messages": "*",
+          "enable_thinking": true,
+          "thinking_budget": 38000
+        },
+        "bodyExcludes": [
+          "parameters",
+          "tools",
+          "enable_search",
+          "reasoning_effort"
+        ]
+      }
+    },
+    {
+      "caseId": "qwen.web.automatic",
+      "intent": {
+        "providerKind": "qwen",
+        "modelId": "qwen-plus",
+        "reasoningMode": "automatic",
+        "webSearch": true,
+        "imageGen": false
+      },
+      "expect": {
+        "endpointPath": "/compatible-mode/v1/chat/completions",
+        "headersInclude": {
+          "Authorization": "*"
+        },
+        "queryExcludes": [
+          "key"
+        ],
+        "bodyIncludes": {
+          "model": "qwen-plus",
+          "stream": true,
+          "messages": "*",
+          "enable_search": true
+        },
+        "bodyExcludes": [
+          "parameters",
+          "tools",
+          "enable_thinking",
+          "thinking_budget"
+        ]
+      }
+    },
+    {
+      "caseId": "qwen.images.route",
+      "intent": {
+        "providerKind": "qwen",
+        "modelId": "qwen-image",
+        "reasoningMode": "automatic",
+        "webSearch": false,
+        "imageGen": true
+      },
+      "expect": {
+        "endpointPath": "/api/v1/services/aigc/multimodal-generation/generation",
+        "headersInclude": {
+          "Authorization": "*"
+        },
+        "queryExcludes": [
+          "key"
+        ],
+        "bodyIncludes": {
+          "model": "qwen-image",
+          "input": "*",
+          "parameters.size": "1024*1024",
+          "parameters.n": 1,
+          "parameters.prompt_extend": true
+        },
+        "bodyExcludes": [
+          "messages",
+          "stream",
+          "enable_thinking"
+        ]
+      }
+    },
+    {
+      "caseId": "qwen.images.upstream_default_size",
+      "intent": {
+        "providerKind": "qwen",
+        "modelId": "qwen-image-plus",
+        "reasoningMode": "automatic",
+        "webSearch": false,
+        "imageGen": true
+      },
+      "expect": {
+        "endpointPath": "/api/v1/services/aigc/multimodal-generation/generation",
+        "headersInclude": {
+          "Authorization": "*"
+        },
+        "queryExcludes": [
+          "key"
+        ],
+        "bodyIncludes": {
+          "model": "qwen-image-plus",
+          "input": "*"
+        },
+        "bodyExcludes": [
+          "messages",
+          "stream",
+          "enable_thinking",
+          "parameters.size",
+          "parameters.n",
+          "parameters.prompt_extend"
+        ]
+      }
+    },
+    {
+      "caseId": "zhipu.thinking.fast_disabled",
+      "intent": {
+        "providerKind": "zhipu",
+        "modelId": "glm-5.2",
+        "reasoningMode": "fast",
+        "webSearch": false,
+        "imageGen": false
+      },
+      "expect": {
+        "endpointPath": "/api/paas/v4/chat/completions",
+        "headersInclude": {
+          "Authorization": "*"
+        },
+        "queryExcludes": [
+          "key"
+        ],
+        "bodyIncludes": {
+          "model": "glm-5.2",
+          "stream": true,
+          "messages": "*",
+          "thinking.type": "disabled"
+        },
+        "bodyExcludes": [
+          "reasoning_effort",
+          "enable_thinking",
+          "tools"
+        ]
+      }
+    },
+    {
+      "caseId": "minimax.m3.thinking.balanced",
+      "intent": {
+        "providerKind": "miniMax",
+        "modelId": "MiniMax-M3",
+        "reasoningMode": "balanced",
+        "webSearch": false,
+        "imageGen": false
+      },
+      "expect": {
+        "endpointPath": "/v1/chat/completions",
+        "headersInclude": {
+          "Authorization": "*"
+        },
+        "queryExcludes": [
+          "key"
+        ],
+        "bodyIncludes": {
+          "model": "MiniMax-M3",
+          "stream": true,
+          "messages": "*",
+          "thinking.type": "enabled"
+        },
+        "bodyExcludes": [
+          "reasoning_effort",
+          "enable_thinking",
+          "thinking.budget_tokens"
+        ]
+      }
+    },
+    {
+      "caseId": "zhipu.web.automatic",
+      "intent": {
+        "providerKind": "zhipu",
+        "modelId": "glm-4.6",
+        "reasoningMode": "automatic",
+        "webSearch": true,
+        "imageGen": false
+      },
+      "expect": {
+        "endpointPath": "/api/paas/v4/chat/completions",
+        "headersInclude": {
+          "Authorization": "*"
+        },
+        "queryExcludes": [
+          "key"
+        ],
+        "bodyIncludes": {
+          "model": "glm-4.6",
+          "stream": true,
+          "messages": "*",
+          "tools.0.type": "web_search",
+          "tools.0.web_search.enable": true,
+          "tools.0.web_search.search_engine": "search_pro",
+          "tools.0.web_search.search_result": true
+        },
+        "bodyExcludes": [
+          "reasoning_effort",
+          "enable_thinking"
+        ]
+      }
+    },
+    {
+      "caseId": "zhipu.images.route",
+      "intent": {
+        "providerKind": "zhipu",
+        "modelId": "cogview-3-flash",
+        "reasoningMode": "automatic",
+        "webSearch": false,
+        "imageGen": true
+      },
+      "expect": {
+        "endpointPath": "/api/paas/v4/images/generations",
+        "headersInclude": {
+          "Authorization": "*"
+        },
+        "queryExcludes": [
+          "key"
+        ],
+        "bodyIncludes": {
+          "model": "cogview-3-flash",
+          "prompt": "*",
+          "size": "1024x1024"
+        },
+        "bodyExcludes": [
+          "messages",
+          "stream"
+        ]
+      }
+    },
+    {
+      "caseId": "minimax.chat.no_profile",
+      "intent": {
+        "providerKind": "miniMax",
+        "modelId": "MiniMax-M2.5",
+        "reasoningMode": "deep",
+        "webSearch": false,
+        "imageGen": false
+      },
+      "expect": {
+        "endpointPath": "/v1/chat/completions",
+        "headersInclude": {
+          "Authorization": "*"
+        },
+        "queryExcludes": [
+          "key"
+        ],
+        "bodyIncludes": {
+          "model": "MiniMax-M2.5",
+          "stream": true,
+          "messages": "*"
+        },
+        "bodyExcludes": [
+          "thinking",
+          "reasoning_effort",
+          "reasoning",
+          "tools"
+        ]
+      }
+    },
+    {
+      "caseId": "minimax.images.route",
+      "intent": {
+        "providerKind": "miniMax",
+        "modelId": "image-01",
+        "reasoningMode": "automatic",
+        "webSearch": false,
+        "imageGen": true
+      },
+      "expect": {
+        "endpointPath": "/v1/image_generation",
+        "headersInclude": {
+          "Authorization": "*"
+        },
+        "queryExcludes": [
+          "key"
+        ],
+        "bodyIncludes": {
+          "model": "image-01",
+          "prompt": "*",
+          "response_format": "base64",
+          "n": 1
+        },
+        "bodyExcludes": [
+          "messages",
+          "stream"
+        ]
+      }
+    },
+    {
+      "caseId": "siliconflow.thinking.deep",
+      "intent": {
+        "providerKind": "siliconFlow",
+        "modelId": "deepseek-ai/DeepSeek-V3.2",
+        "reasoningMode": "deep",
+        "webSearch": false,
+        "imageGen": false
+      },
+      "expect": {
+        "endpointPath": "/v1/chat/completions",
+        "headersInclude": {
+          "Authorization": "*"
+        },
+        "queryExcludes": [
+          "key"
+        ],
+        "bodyIncludes": {
+          "model": "deepseek-ai/DeepSeek-V3.2",
+          "stream": true,
+          "messages": "*",
+          "enable_thinking": true,
+          "thinking_budget": 16384
+        },
+        "bodyExcludes": [
+          "thinking",
+          "reasoning_effort",
+          "tools"
+        ]
+      }
+    },
+    {
+      "caseId": "siliconflow.images.route",
+      "intent": {
+        "providerKind": "siliconFlow",
+        "modelId": "Kwai-Kolors/Kolors",
+        "reasoningMode": "automatic",
+        "webSearch": false,
+        "imageGen": true
+      },
+      "expect": {
+        "endpointPath": "/v1/images/generations",
+        "headersInclude": {
+          "Authorization": "*"
+        },
+        "queryExcludes": [
+          "key"
+        ],
+        "bodyIncludes": {
+          "model": "Kwai-Kolors/Kolors",
+          "prompt": "*",
+          "size": "1024x1024",
+          "n": 1
+        },
+        "bodyExcludes": [
+          "messages",
+          "stream"
+        ]
+      }
+    },
+    {
+      "caseId": "openrouter.reasoning_web_clamp.max",
+      "intent": {
+        "providerKind": "openRouter",
+        "modelId": "openai/gpt-5-mini",
+        "reasoningMode": "max",
+        "webSearch": true,
+        "imageGen": false
+      },
+      "expect": {
+        "endpointPath": "/api/v1/chat/completions",
+        "headersInclude": {
+          "Authorization": "*"
+        },
+        "queryExcludes": [
+          "key"
+        ],
+        "bodyIncludes": {
+          "model": "openai/gpt-5-mini",
+          "stream": true,
+          "messages": "*",
+          "reasoning.effort": "high",
+          "max_tokens": 4096,
+          "plugins.0.id": "web",
+          "plugins.0.max_results": 5
+        },
+        "bodyExcludes": [
+          "reasoning_effort",
+          "input",
+          "tools"
+        ]
+      }
+    },
+    {
+      "caseId": "openrouter.or.max",
+      "intent": {
+        "providerKind": "openRouter",
+        "modelId": "openai/gpt-5.2",
+        "reasoningMode": "max",
+        "webSearch": false,
+        "imageGen": false
+      },
+      "expect": {
+        "endpointPath": "/api/v1/chat/completions",
+        "headersInclude": {
+          "Authorization": "*"
+        },
+        "queryExcludes": [
+          "key"
+        ],
+        "bodyIncludes": {
+          "model": "openai/gpt-5.2",
+          "stream": true,
+          "messages": "*",
+          "reasoning.effort": "xhigh"
+        },
+        "bodyExcludes": [
+          "reasoning_effort",
+          "input",
+          "tools",
+          "plugins"
+        ]
+      }
+    },
+    {
+      "caseId": "openrouter.low_high.balanced_clamps_to_fast",
+      "intent": {
+        "providerKind": "openRouter",
+        "modelId": "google/gemini-3.5-flash",
+        "reasoningMode": "balanced",
+        "webSearch": false,
+        "imageGen": false
+      },
+      "expect": {
+        "endpointPath": "/api/v1/chat/completions",
+        "headersInclude": {
+          "Authorization": "*"
+        },
+        "queryExcludes": [
+          "key"
+        ],
+        "bodyIncludes": {
+          "model": "google/gemini-3.5-flash",
+          "stream": true,
+          "messages": "*",
+          "reasoning.effort": "low"
+        },
+        "bodyExcludes": [
+          "reasoning_effort",
+          "input",
+          "tools",
+          "plugins"
+        ]
+      }
+    },
+    {
+      "caseId": "openrouter.image.modalities",
+      "intent": {
+        "providerKind": "openRouter",
+        "modelId": "google/gemini-2.5-flash-image",
+        "reasoningMode": "automatic",
+        "webSearch": false,
+        "imageGen": true
+      },
+      "expect": {
+        "endpointPath": "/api/v1/chat/completions",
+        "headersInclude": {
+          "Authorization": "*"
+        },
+        "queryExcludes": [
+          "key"
+        ],
+        "bodyIncludes": {
+          "model": "google/gemini-2.5-flash-image",
+          "stream": true,
+          "messages": "*",
+          "modalities.0": "text",
+          "modalities.1": "image"
+        },
+        "bodyExcludes": [
+          "reasoning",
+          "reasoning_effort",
+          "tools"
+        ]
+      }
+    },
+    {
+      "caseId": "groq.reasoning.fast",
+      "intent": {
+        "providerKind": "groq",
+        "modelId": "openai/gpt-oss-120b",
+        "reasoningMode": "fast",
+        "webSearch": false,
+        "imageGen": false
+      },
+      "expect": {
+        "endpointPath": "/openai/v1/chat/completions",
+        "headersInclude": {
+          "Authorization": "*"
+        },
+        "queryExcludes": [
+          "key"
+        ],
+        "bodyIncludes": {
+          "model": "openai/gpt-oss-120b",
+          "stream": true,
+          "messages": "*",
+          "reasoning_effort": "low"
+        },
+        "bodyExcludes": [
+          "reasoning",
+          "thinking",
+          "tools"
+        ]
+      }
+    },
+    {
+      "caseId": "groq.no_profile_no_injection",
+      "intent": {
+        "providerKind": "groq",
+        "modelId": "qwen/qwen3.6-27b",
+        "reasoningMode": "deep",
+        "webSearch": false,
+        "imageGen": false
+      },
+      "expect": {
+        "endpointPath": "/openai/v1/chat/completions",
+        "headersInclude": {
+          "Authorization": "*"
+        },
+        "queryExcludes": [
+          "key"
+        ],
+        "bodyIncludes": {
+          "model": "qwen/qwen3.6-27b",
+          "stream": true,
+          "messages": "*"
+        },
+        "bodyExcludes": [
+          "reasoning_effort",
+          "reasoning",
+          "thinking"
+        ]
+      }
+    },
+    {
+      "caseId": "together.gpt_oss.reasoning.deep",
+      "intent": {
+        "providerKind": "togetherAI",
+        "modelId": "openai/gpt-oss-120b",
+        "reasoningMode": "deep",
+        "webSearch": false,
+        "imageGen": false
+      },
+      "expect": {
+        "endpointPath": "/v1/chat/completions",
+        "headersInclude": {
+          "Authorization": "*"
+        },
+        "queryExcludes": [
+          "key"
+        ],
+        "bodyIncludes": {
+          "model": "openai/gpt-oss-120b",
+          "stream": true,
+          "messages": "*",
+          "reasoning_effort": "high"
+        },
+        "bodyExcludes": [
+          "thinking",
+          "enable_thinking"
+        ]
+      }
+    },
+    {
+      "caseId": "together.no_profile_no_injection",
+      "intent": {
+        "providerKind": "togetherAI",
+        "modelId": "Qwen/Qwen3.6-Plus",
+        "reasoningMode": "deep",
+        "webSearch": false,
+        "imageGen": false
+      },
+      "expect": {
+        "endpointPath": "/v1/chat/completions",
+        "headersInclude": {
+          "Authorization": "*"
+        },
+        "queryExcludes": [
+          "key"
+        ],
+        "bodyIncludes": {
+          "model": "Qwen/Qwen3.6-Plus",
+          "stream": true,
+          "messages": "*"
+        },
+        "bodyExcludes": [
+          "reasoning_effort",
+          "reasoning",
+          "thinking"
+        ]
+      }
+    },
+    {
+      "caseId": "together.images.route",
+      "intent": {
+        "providerKind": "togetherAI",
+        "modelId": "Qwen/Qwen-Image-2.0",
+        "reasoningMode": "automatic",
+        "webSearch": false,
+        "imageGen": true
+      },
+      "expect": {
+        "$comment": "Together image generation is dispatched uniformly through route. Missing this branch sends all image-generation models to /chat/completions, which returns a 400 upstream (\"Image inference is not supported on this endpoint. Please use /images/generations instead\"). requestDefaults authoritatively sends {size,n} (measured against every image model with a 200 response and a data[0].url).",
+        "endpointPath": "/v1/images/generations",
+        "headersInclude": {
+          "Authorization": "*"
+        },
+        "queryExcludes": [
+          "key"
+        ],
+        "bodyIncludes": {
+          "model": "Qwen/Qwen-Image-2.0",
+          "prompt": "*",
+          "size": "1024x1024",
+          "n": 1
+        },
+        "bodyExcludes": [
+          "messages",
+          "input",
+          "stream",
+          "response_format"
+        ]
+      }
+    },
+    {
+      "caseId": "together.images.no_n_variant",
+      "intent": {
+        "providerKind": "togetherAI",
+        "modelId": "google/gemini-3-pro-image",
+        "reasoningMode": "automatic",
+        "webSearch": false,
+        "imageGen": true
+      },
+      "expect": {
+        "$comment": "The together_images_no_n variant: same endpoint, same route, just without n (measured: 400 {\"param\":\"n\",\"message\":\"n is not supported for this model\"}; dropping n and sending only size returns 200). Clients must always expand requestDefaults as-is and never add n themselves.",
+        "endpointPath": "/v1/images/generations",
+        "headersInclude": {
+          "Authorization": "*"
+        },
+        "queryExcludes": [
+          "key"
+        ],
+        "bodyIncludes": {
+          "model": "google/gemini-3-pro-image",
+          "prompt": "*",
+          "size": "1024x1024"
+        },
+        "bodyExcludes": [
+          "messages",
+          "input",
+          "stream",
+          "n",
+          "response_format"
+        ]
+      }
+    },
+    {
+      "caseId": "fireworks.reasoning.balanced",
+      "intent": {
+        "providerKind": "fireworksAI",
+        "modelId": "accounts/fireworks/models/gpt-oss-120b",
+        "reasoningMode": "balanced",
+        "webSearch": false,
+        "imageGen": false
+      },
+      "expect": {
+        "endpointPath": "/inference/v1/chat/completions",
+        "headersInclude": {
+          "Authorization": "*"
+        },
+        "queryExcludes": [
+          "key"
+        ],
+        "bodyIncludes": {
+          "model": "accounts/fireworks/models/gpt-oss-120b",
+          "stream": true,
+          "messages": "*",
+          "reasoning_effort": "medium"
+        },
+        "bodyExcludes": [
+          "reasoning",
+          "thinking",
+          "tools"
+        ]
+      }
+    },
+    {
+      "caseId": "openai.generation.responses_wire",
+      "intent": {
+        "providerKind": "openAI",
+        "modelId": "gpt-5-mini",
+        "reasoningMode": "automatic",
+        "webSearch": false,
+        "imageGen": false,
+        "generationOverrides": {
+          "temperature": {
+            "state": "value",
+            "value": 0.31
+          },
+          "max_output_tokens": {
+            "state": "value",
+            "value": 512
+          },
+          "verbosity": {
+            "state": "value",
+            "value": "low"
+          }
+        }
+      },
+      "expect": {
+        "$comment": "The openai_responses template: max_output_tokens keeps its name, verbosity nests under text.verbosity. bodyExcludes locks the rule that a canonical parameter id must never be sent out verbatim — passing the id straight through instead of looking it up in the wire table is exactly the kind of silent drift this guards against.",
+        "endpointPath": "/v1/responses",
+        "headersInclude": {
+          "Authorization": "*"
+        },
+        "queryExcludes": [
+          "key"
+        ],
+        "bodyIncludes": {
+          "model": "gpt-5-mini",
+          "stream": true,
+          "input": "*",
+          "temperature": 0.31,
+          "max_output_tokens": 512,
+          "text.verbosity": "low"
+        },
+        "bodyExcludes": [
+          "max_tokens",
+          "verbosity"
+        ]
+      }
+    },
+    {
+      "caseId": "anthropic.generation.messages_wire",
+      "intent": {
+        "providerKind": "anthropic",
+        "modelId": "claude-sonnet-4-6",
+        "reasoningMode": "automatic",
+        "webSearch": false,
+        "imageGen": false,
+        "generationOverrides": {
+          "temperature": {
+            "state": "value",
+            "value": 0.31
+          },
+          "max_output_tokens": {
+            "state": "value",
+            "value": 512
+          },
+          "stop": {
+            "state": "value",
+            "value": [
+              "END"
+            ]
+          }
+        }
+      },
+      "expect": {
+        "$comment": "The anthropic_messages template renames two fields: max_output_tokens→max_tokens, stop→stop_sequences. max_tokens=512 also locks in that an explicit user value overrides the default the builder would otherwise write from metadata's maxOutputTokens.",
+        "endpointPath": "/v1/messages",
+        "headersInclude": {
+          "x-api-key": "*",
+          "anthropic-version": "*"
+        },
+        "queryExcludes": [
+          "key"
+        ],
+        "bodyIncludes": {
+          "model": "claude-sonnet-4-6",
+          "stream": true,
+          "messages": "*",
+          "temperature": 0.31,
+          "max_tokens": 512,
+          "cache_control.type": "ephemeral",
+          "stop_sequences": [
+            "END"
+          ]
+        },
+        "bodyExcludes": [
+          "max_output_tokens",
+          "stop"
+        ]
+      }
+    },
+    {
+      "caseId": "gemini.generation.generate_content_wire",
+      "intent": {
+        "providerKind": "gemini",
+        "modelId": "gemini-3.1-pro-preview",
+        "reasoningMode": "automatic",
+        "webSearch": false,
+        "imageGen": false,
+        "generationOverrides": {
+          "temperature": {
+            "state": "value",
+            "value": 0.31
+          },
+          "max_output_tokens": {
+            "state": "value",
+            "value": 512
+          }
+        }
+      },
+      "expect": {
+        "$comment": "The gemini_generate_content template nests everything under generationConfig.*; none of the same-named top-level fields may appear, or generateContent returns a 400 immediately.",
+        "endpointPath": "/v1beta/models/gemini-3.1-pro-preview:streamGenerateContent",
+        "headersInclude": {
+          "x-goog-api-key": "*"
+        },
+        "queryExcludes": [
+          "key"
+        ],
+        "bodyIncludes": {
+          "contents": "*",
+          "generationConfig.temperature": 0.31,
+          "generationConfig.maxOutputTokens": 512
+        },
+        "bodyExcludes": [
+          "temperature",
+          "max_output_tokens",
+          "max_tokens"
+        ]
+      }
+    },
+    {
+      "caseId": "openrouter.generation.chat_wire",
+      "intent": {
+        "providerKind": "openRouter",
+        "modelId": "openai/gpt-5.2",
+        "reasoningMode": "automatic",
+        "webSearch": false,
+        "imageGen": false,
+        "generationOverrides": {
+          "temperature": {
+            "state": "value",
+            "value": 0.31
+          },
+          "max_output_tokens": {
+            "state": "value",
+            "value": 512
+          },
+          "route_require_parameters": {
+            "state": "value",
+            "value": true
+          }
+        }
+      },
+      "expect": {
+        "$comment": "The original site of a real bug: the OpenRouter panel showed the setting as visible and editable, while iOS/Android sent zero injection on the wire. route_require_parameters is the one the server only sends down for openRouter, with the wire nested at provider.require_parameters.",
+        "endpointPath": "/api/v1/chat/completions",
+        "headersInclude": {
+          "Authorization": "*"
+        },
+        "queryExcludes": [
+          "key"
+        ],
+        "bodyIncludes": {
+          "model": "openai/gpt-5.2",
+          "stream": true,
+          "messages": "*",
+          "temperature": 0.31,
+          "max_tokens": 512,
+          "provider.require_parameters": true
+        },
+        "bodyExcludes": [
+          "max_output_tokens",
+          "route_require_parameters"
+        ]
+      }
+    },
+    {
+      "caseId": "grok.generation.chat_wire",
+      "$comment": "The caseId keeps its historical name; grok-4.5 goes through the openai_responses generation template: max_output_tokens keeps its name on the wire, and max_tokens must never appear.",
+      "intent": {
+        "providerKind": "grok",
+        "modelId": "grok-4.5",
+        "reasoningMode": "automatic",
+        "webSearch": false,
+        "imageGen": false,
+        "generationOverrides": {
+          "temperature": {
+            "state": "value",
+            "value": 0.31
+          },
+          "max_output_tokens": {
+            "state": "value",
+            "value": 512
+          }
+        }
+      },
+      "expect": {
+        "endpointPath": "/v1/responses",
+        "headersInclude": {
+          "Authorization": "*"
+        },
+        "queryExcludes": [
+          "key"
+        ],
+        "bodyIncludes": {
+          "model": "grok-4.5",
+          "stream": true,
+          "input": "*",
+          "temperature": 0.31,
+          "max_output_tokens": 512
+        },
+        "bodyExcludes": [
+          "messages",
+          "max_tokens"
+        ]
+      }
+    },
+    {
+      "caseId": "deepseek.generation.chat_wire",
+      "intent": {
+        "providerKind": "deepseek",
+        "modelId": "deepseek-reasoner",
+        "reasoningMode": "automatic",
+        "webSearch": false,
+        "imageGen": false,
+        "generationOverrides": {
+          "temperature": {
+            "state": "value",
+            "value": 0.31
+          },
+          "max_output_tokens": {
+            "state": "value",
+            "value": 512
+          }
+        }
+      },
+      "expect": {
+        "endpointPath": "/v1/chat/completions",
+        "headersInclude": {
+          "Authorization": "*"
+        },
+        "queryExcludes": [
+          "key"
+        ],
+        "bodyIncludes": {
+          "model": "deepseek-reasoner",
+          "stream": true,
+          "messages": "*",
+          "temperature": 0.31,
+          "max_tokens": 512
+        },
+        "bodyExcludes": [
+          "max_output_tokens"
+        ]
+      }
+    },
+    {
+      "caseId": "mistral.generation.chat_wire",
+      "intent": {
+        "providerKind": "mistral",
+        "modelId": "mistral-medium-3-5",
+        "reasoningMode": "automatic",
+        "webSearch": false,
+        "imageGen": false,
+        "generationOverrides": {
+          "temperature": {
+            "state": "value",
+            "value": 0.31
+          },
+          "max_output_tokens": {
+            "state": "value",
+            "value": 512
+          }
+        }
+      },
+      "expect": {
+        "endpointPath": "/v1/chat/completions",
+        "headersInclude": {
+          "Authorization": "*"
+        },
+        "queryExcludes": [
+          "key"
+        ],
+        "bodyIncludes": {
+          "model": "mistral-medium-3-5",
+          "stream": true,
+          "messages": "*",
+          "temperature": 0.31,
+          "max_tokens": 512
+        },
+        "bodyExcludes": [
+          "max_output_tokens"
+        ]
+      }
+    },
+    {
+      "caseId": "groq.generation.chat_wire",
+      "intent": {
+        "providerKind": "groq",
+        "modelId": "openai/gpt-oss-120b",
+        "reasoningMode": "automatic",
+        "webSearch": false,
+        "imageGen": false,
+        "generationOverrides": {
+          "temperature": {
+            "state": "value",
+            "value": 0.31
+          },
+          "max_output_tokens": {
+            "state": "value",
+            "value": 512
+          }
+        }
+      },
+      "expect": {
+        "endpointPath": "/openai/v1/chat/completions",
+        "headersInclude": {
+          "Authorization": "*"
+        },
+        "queryExcludes": [
+          "key"
+        ],
+        "bodyIncludes": {
+          "model": "openai/gpt-oss-120b",
+          "stream": true,
+          "messages": "*",
+          "temperature": 0.31,
+          "max_tokens": 512
+        },
+        "bodyExcludes": [
+          "max_output_tokens"
+        ]
+      }
+    },
+    {
+      "caseId": "together.generation.chat_wire",
+      "intent": {
+        "providerKind": "togetherAI",
+        "modelId": "Qwen/Qwen3.6-Plus",
+        "reasoningMode": "automatic",
+        "webSearch": false,
+        "imageGen": false,
+        "generationOverrides": {
+          "temperature": {
+            "state": "value",
+            "value": 0.31
+          },
+          "max_output_tokens": {
+            "state": "value",
+            "value": 512
+          }
+        }
+      },
+      "expect": {
+        "endpointPath": "/v1/chat/completions",
+        "headersInclude": {
+          "Authorization": "*"
+        },
+        "queryExcludes": [
+          "key"
+        ],
+        "bodyIncludes": {
+          "model": "Qwen/Qwen3.6-Plus",
+          "stream": true,
+          "messages": "*",
+          "temperature": 0.31,
+          "max_tokens": 512
+        },
+        "bodyExcludes": [
+          "max_output_tokens"
+        ]
+      }
+    },
+    {
+      "caseId": "fireworks.generation.chat_wire",
+      "intent": {
+        "providerKind": "fireworksAI",
+        "modelId": "accounts/fireworks/models/gpt-oss-120b",
+        "reasoningMode": "automatic",
+        "webSearch": false,
+        "imageGen": false,
+        "generationOverrides": {
+          "temperature": {
+            "state": "value",
+            "value": 0.31
+          },
+          "max_output_tokens": {
+            "state": "value",
+            "value": 512
+          }
+        }
+      },
+      "expect": {
+        "endpointPath": "/inference/v1/chat/completions",
+        "headersInclude": {
+          "Authorization": "*"
+        },
+        "queryExcludes": [
+          "key"
+        ],
+        "bodyIncludes": {
+          "model": "accounts/fireworks/models/gpt-oss-120b",
+          "stream": true,
+          "messages": "*",
+          "temperature": 0.31,
+          "max_tokens": 512
+        },
+        "bodyExcludes": [
+          "max_output_tokens"
+        ]
+      }
+    },
+    {
+      "caseId": "minimax.generation.chat_wire",
+      "intent": {
+        "providerKind": "miniMax",
+        "modelId": "MiniMax-M2.5",
+        "reasoningMode": "automatic",
+        "webSearch": false,
+        "imageGen": false,
+        "generationOverrides": {
+          "temperature": {
+            "state": "value",
+            "value": 0.31
+          },
+          "max_output_tokens": {
+            "state": "value",
+            "value": 512
+          }
+        }
+      },
+      "expect": {
+        "endpointPath": "/v1/chat/completions",
+        "headersInclude": {
+          "Authorization": "*"
+        },
+        "queryExcludes": [
+          "key"
+        ],
+        "bodyIncludes": {
+          "model": "MiniMax-M2.5",
+          "stream": true,
+          "messages": "*",
+          "temperature": 0.31,
+          "max_tokens": 512
+        },
+        "bodyExcludes": [
+          "max_output_tokens"
+        ]
+      }
+    },
+    {
+      "caseId": "zhipu.generation.chat_wire",
+      "intent": {
+        "providerKind": "zhipu",
+        "modelId": "glm-4.6",
+        "reasoningMode": "automatic",
+        "webSearch": false,
+        "imageGen": false,
+        "generationOverrides": {
+          "temperature": {
+            "state": "value",
+            "value": 0.31
+          },
+          "max_output_tokens": {
+            "state": "value",
+            "value": 512
+          }
+        }
+      },
+      "expect": {
+        "endpointPath": "/api/paas/v4/chat/completions",
+        "headersInclude": {
+          "Authorization": "*"
+        },
+        "queryExcludes": [
+          "key"
+        ],
+        "bodyIncludes": {
+          "model": "glm-4.6",
+          "stream": true,
+          "messages": "*",
+          "temperature": 0.31,
+          "max_tokens": 512
+        },
+        "bodyExcludes": [
+          "max_output_tokens"
+        ]
+      }
+    },
+    {
+      "caseId": "qwen.generation.chat_wire",
+      "intent": {
+        "providerKind": "qwen",
+        "modelId": "qwen3-max",
+        "reasoningMode": "automatic",
+        "webSearch": false,
+        "imageGen": false,
+        "generationOverrides": {
+          "temperature": {
+            "state": "value",
+            "value": 0.31
+          },
+          "max_output_tokens": {
+            "state": "value",
+            "value": 512
+          }
+        }
+      },
+      "expect": {
+        "endpointPath": "/compatible-mode/v1/chat/completions",
+        "headersInclude": {
+          "Authorization": "*"
+        },
+        "queryExcludes": [
+          "key"
+        ],
+        "bodyIncludes": {
+          "model": "qwen3-max",
+          "stream": true,
+          "messages": "*",
+          "temperature": 0.31,
+          "max_tokens": 512
+        },
+        "bodyExcludes": [
+          "max_output_tokens"
+        ]
+      }
+    },
+    {
+      "caseId": "moonshot.generation.chat_wire",
+      "intent": {
+        "providerKind": "moonshot",
+        "modelId": "kimi-k2.6",
+        "reasoningMode": "automatic",
+        "webSearch": false,
+        "imageGen": false,
+        "generationOverrides": {
+          "temperature": {
+            "state": "value",
+            "value": 0.31
+          },
+          "max_output_tokens": {
+            "state": "value",
+            "value": 512
+          }
+        }
+      },
+      "expect": {
+        "endpointPath": "/v1/chat/completions",
+        "headersInclude": {
+          "Authorization": "*"
+        },
+        "queryExcludes": [
+          "key"
+        ],
+        "bodyIncludes": {
+          "model": "kimi-k2.6",
+          "stream": true,
+          "messages": "*",
+          "temperature": 0.31,
+          "max_tokens": 512
+        },
+        "bodyExcludes": [
+          "max_output_tokens"
+        ]
+      }
+    },
+    {
+      "caseId": "siliconflow.generation.chat_wire",
+      "intent": {
+        "providerKind": "siliconFlow",
+        "modelId": "deepseek-ai/DeepSeek-V3.2",
+        "reasoningMode": "automatic",
+        "webSearch": false,
+        "imageGen": false,
+        "generationOverrides": {
+          "temperature": {
+            "state": "value",
+            "value": 0.31
+          },
+          "max_output_tokens": {
+            "state": "value",
+            "value": 512
+          }
+        }
+      },
+      "expect": {
+        "endpointPath": "/v1/chat/completions",
+        "headersInclude": {
+          "Authorization": "*"
+        },
+        "queryExcludes": [
+          "key"
+        ],
+        "bodyIncludes": {
+          "model": "deepseek-ai/DeepSeek-V3.2",
+          "stream": true,
+          "messages": "*",
+          "temperature": 0.31,
+          "max_tokens": 512
+        },
+        "bodyExcludes": [
+          "max_output_tokens"
+        ]
+      }
+    }
+  ],
+  "uiCases": [
+    {
+      "caseId": "capability_without_profile_hides_web",
+      "intent": {
+        "providerKind": "grok",
+        "modelId": "grok-4.20-multi-agent-0309",
+        "capability": "web"
+      },
+      "expect": {
+        "visible": false
+      }
+    },
+    {
+      "caseId": "capability_without_profile_hides_reasoning",
+      "intent": {
+        "providerKind": "grok",
+        "modelId": "grok-4.20-0309-reasoning",
+        "capability": "reasoning"
+      },
+      "expect": {
+        "visible": false
+      }
+    }
+  ],
+  "generationProviderKindUniverse": [
+    "openAI",
+    "anthropic",
+    "gemini",
+    "openRouter",
+    "deepseek",
+    "grok",
+    "mistral",
+    "groq",
+    "togetherAI",
+    "fireworksAI",
+    "miniMax",
+    "zhipu",
+    "qwen",
+    "moonshot",
+    "siliconFlow",
+    "relay"
+  ],
+  "generationOutboundExemptions": [
+    {
+      "providerKind": "relay",
+      "reason": "relay's generation profile does not come from /api/metadata; it is synthesized locally on-device from engineProfile/transport (Web's lib/core/chat/stream-options.ts relayGenerationProfile, iOS/Android's LocalEngineContract). This fixture's metadata.providers only describes what the server sends down, so adding a fake relay provider entry here would be fabricating server output. relay's outbound injection is covered separately by the relay case in generation_parameter_contract.v1.json."
+    }
+  ]
+}

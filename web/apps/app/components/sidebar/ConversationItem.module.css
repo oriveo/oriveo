@@ -1,0 +1,302 @@
+.itemWrap {
+  position: relative;
+}
+
+/* Hairline separator between non-active rows within a group (not on the last row, and never on an active row). */
+.itemWrap:not(:last-child) .item:not([data-active='true'])::after {
+  content: '';
+  position: absolute;
+  inset-inline-start: calc(12px + 28px + 12px); /* padding + avatar + gap, aligned with the left edge of the text */
+  inset-inline-end: 12px;
+  bottom: -1px;
+  height: 1px;
+  background: color-mix(in srgb, var(--o-border) 65%, transparent);
+  pointer-events: none;
+}
+
+.item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 64px;
+  padding: 11px 12px;
+  border: none;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--o-text-secondary);
+  text-align: start;
+  text-decoration: none;
+  cursor: pointer;
+  width: 100%;
+  transition:
+    background var(--o-transition-fast),
+    color var(--o-transition-fast),
+    box-shadow var(--o-transition-fast);
+}
+
+/* Apply hover only on devices that really have hover: on mobile, sticky hover leaves a tapped row stuck in the hover state. */
+@media (hover: hover) {
+  .item:hover {
+    background: color-mix(in srgb, var(--o-surface) 70%, transparent);
+    color: var(--o-text);
+  }
+}
+
+/* Touch devices: momentary press feedback driven by pointer events, cleared on release. */
+@media (hover: none) {
+  .item:active {
+    background: color-mix(in srgb, var(--o-surface) 60%, transparent);
+  }
+}
+
+.item[data-active='true'] {
+  background: color-mix(in srgb, var(--o-primary) 9%, transparent);
+  color: var(--o-text);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--o-primary) 18%, transparent);
+}
+
+.item[data-active='true']::before {
+  content: '';
+  position: absolute;
+  inset-inline-start: 3px;
+  top: 14px;
+  bottom: 14px;
+  width: 3px;
+  border-radius: 999px;
+  background: var(--o-primary);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--o-primary) 45%, transparent);
+}
+
+.mobileHomeItem {
+  min-height: 74px;
+  padding: 12px 10px;
+  border-radius: 16px;
+}
+
+.mobileHomeItem[data-active='true'] {
+  background: transparent;
+  box-shadow: none;
+}
+
+.mobileHomeItem[data-active='true']::before {
+  display: none;
+}
+
+.avatar {
+  position: relative;
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  overflow: visible;
+  background: transparent;
+}
+
+/* Force the logo to its geometric center. absolute + inset:0 + margin:auto is the centering that
+   ignores the child's display mode, so next/image centers exactly whether it renders as an <img>,
+   a <span> or a wrapper. */
+.avatar > * {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+}
+
+.content {
+  min-width: 0;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.titleRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.titleText {
+  flex: 1;
+  min-width: 0;
+  color: var(--o-text);
+  font-size: 14.5px;
+  font-weight: 600;
+  line-height: 1.3;
+  letter-spacing: -0.005em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mobileHomeItem .titleText {
+  font-size: 16px;
+  line-height: 1.28;
+}
+
+.previewLine {
+  color: var(--o-text-secondary);
+  font-size: 12.5px;
+  line-height: 1.45;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  word-break: break-word;
+}
+
+.mobileHomeItem .previewLine {
+  font-size: 14px;
+  line-height: 1.42;
+}
+
+.metaRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  margin-top: 1px;
+}
+
+.metaModel {
+  flex: 1;
+  min-width: 0;
+  color: var(--o-text-tertiary);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.005em;
+  line-height: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.metaTrailing {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+  color: var(--o-text-tertiary);
+  font-size: 11px;
+  line-height: 1;
+}
+
+.mobileHomeItem .metaModel,
+.mobileHomeItem .metaTrailing {
+  font-size: 12px;
+}
+
+.metaCount {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.metaCountIcon {
+  opacity: 0.7;
+}
+
+.metaTime {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.pinIcon {
+  color: var(--o-primary);
+  margin-inline-end: 3px;
+  flex-shrink: 0;
+  vertical-align: middle;
+}
+
+.skillIcon {
+  margin-inline-end: 3px;
+  font-size: 13px;
+  flex-shrink: 0;
+  vertical-align: middle;
+}
+
+.moreBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: none;
+  border-radius: var(--o-radius-control);
+  background: transparent;
+  color: var(--o-text-tertiary);
+  cursor: pointer;
+  opacity: 0;
+  flex-shrink: 0;
+  transition:
+    opacity var(--o-transition-fast),
+    color var(--o-transition-fast),
+    background var(--o-transition-fast);
+}
+
+.item:hover .moreBtn,
+.moreBtn:focus-visible {
+  opacity: 1;
+}
+
+/* Touch devices have no hover, so moreBtn must be visible by default or it can never be tapped. */
+@media (hover: none) {
+  .moreBtn {
+    opacity: 0.55;
+  }
+}
+
+.moreBtn:hover {
+  color: var(--o-text);
+  background: color-mix(in srgb, var(--o-surface-raised) 70%, transparent);
+}
+
+.checkbox {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--o-border-strong, var(--o-border));
+  border-radius: 5px;
+  background: transparent;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition:
+    background var(--o-transition-fast),
+    border-color var(--o-transition-fast);
+  padding: 0;
+}
+
+.checkbox[data-checked='true'] {
+  background: var(--o-primary);
+  border-color: var(--o-primary);
+  color: var(--o-primary-text);
+}
+
+.dragging {
+  opacity: 0.5;
+  outline: 1px dashed var(--o-primary);
+}
+
+.item[draggable='true'] {
+  cursor: grab;
+}
+
+.item[draggable='true']:active {
+  cursor: grabbing;
+}
+
+.editInput {
+  width: 100%;
+  padding: var(--o-space-xs) var(--o-space-sm);
+  border: 1px solid var(--o-primary);
+  border-radius: var(--o-radius-control);
+  background: var(--o-bg);
+  color: var(--o-text);
+  font-size: 14px;
+  outline: none;
+  box-shadow: var(--o-glow-primary);
+}

@@ -1,0 +1,48 @@
+.DS_Store
+
+# Secrets and machine-local configuration
+.env
+.env.local
+.env.*.local
+local.properties
+sentry.properties
+*.keystore
+*.jks
+google-services.json
+GoogleService-Info.plist
+
+# Node / Next.js
+node_modules/
+.next/
+.next-dev/
+.turbo/
+.vercel/
+out/
+out-desktop/
+coverage/
+*.tsbuildinfo
+bun.lock
+
+# Gradle / Android
+.gradle/
+build/
+.cxx/
+captures/
+.kotlin/
+*.iml
+.idea/
+
+# Xcode / Swift
+DerivedData/
+.build/
+.swiftpm/
+xcuserdata/
+*.xcuserstate
+*.xccheckout
+*.mobileprovision
+*.p12
+Pods/
+.sentry-native
+
+# Android release artifacts
+android/app/release/

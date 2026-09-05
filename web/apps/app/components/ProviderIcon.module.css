@@ -1,0 +1,19 @@
+.fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  background: var(--o-surface-raised, var(--o-bg));
+  color: var(--o-text-secondary);
+}
+
+/* Bare mode: no container, the logo is shown directly. */
+.bareLogo {
+  flex-shrink: 0;
+  object-fit: contain;
+}
+
+.bareFallback {
+  flex-shrink: 0;
+  color: var(--o-text-secondary);
+}

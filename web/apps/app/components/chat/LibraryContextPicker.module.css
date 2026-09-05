@@ -1,0 +1,333 @@
+.header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 20px 22px 14px;
+  border-bottom: 1px solid var(--o-border);
+}
+
+.headerIcon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 36px;
+  height: 36px;
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--o-primary) 11%, var(--o-surface));
+  color: var(--o-primary);
+}
+
+.header h2,
+.header p {
+  margin: 0;
+  letter-spacing: 0;
+}
+
+.header h2 {
+  font-size: var(--o-text-lg);
+}
+
+.header p {
+  margin-top: 2px;
+  color: var(--o-text-tertiary);
+  font-size: 12px;
+}
+
+.search {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 9px;
+  margin: 14px 18px 10px;
+  padding: 0 5px 0 11px;
+  min-height: 42px;
+  border: 1px solid var(--o-border-strong);
+  border-radius: 7px;
+  color: var(--o-text-tertiary);
+  background: var(--o-bg);
+}
+
+.search:focus-within {
+  border-color: var(--o-primary);
+}
+
+.search input {
+  min-width: 0;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--o-text);
+  font: inherit;
+  font-size: 14px;
+}
+
+.search button,
+.status button,
+.loadMore {
+  border: 0;
+  background: transparent;
+  color: var(--o-primary);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.search button {
+  min-height: 32px;
+  padding: 0 9px;
+  border-radius: 6px;
+  background: var(--o-primary-subtle);
+}
+
+.search button:disabled,
+.loadMore:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.results {
+  min-height: 260px;
+  max-height: min(52vh, 460px);
+  padding: 0 18px 12px;
+  overflow-y: auto;
+}
+
+.status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 220px;
+  color: var(--o-text-secondary);
+  font-size: 13px;
+}
+
+.status[data-tone='error'] {
+  color: var(--o-error);
+}
+
+.spinner {
+  animation: spin 900ms linear infinite;
+}
+
+/* Scope card: the same grid as the document rows below, but raised as its own card */
+.scopeCard {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) 24px;
+  /* Centered rather than start: a 34px icon tile and a 24px check circle aligned on their top
+     edges are 5px apart at their centers, which reads as visibly misaligned on a two-line card. */
+  align-items: center;
+  gap: 10px;
+  width: calc(100% - 28px);
+  margin: 14px 14px 0;
+  padding: 12px 10px;
+  border: 1px solid var(--o-border);
+  border-radius: 12px;
+  background: var(--o-surface);
+  color: var(--o-text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.scopeCard:hover:not([data-disabled]) {
+  background: var(--o-primary-subtle);
+}
+
+.scopeCard[data-selected] {
+  border-color: var(--o-primary);
+  background: var(--o-primary-subtle);
+}
+
+.scopeCard[data-disabled] {
+  cursor: default;
+  opacity: 0.6;
+}
+
+.scopeIcon {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
+  /* No border: surface-raised carries it instead, since in light mode --o-bg is almost the same color as the card and a borderless block would disappear */
+  background: var(--o-surface-raised);
+  color: var(--o-primary);
+}
+
+.scopeCard[data-disabled] .scopeIcon {
+  color: var(--o-text-tertiary);
+}
+
+.scopeCopy {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 3px;
+}
+
+.scopeTitle {
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.scopeHint {
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--o-text-tertiary);
+}
+
+.sectionLabel {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 18px 14px 0;
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--o-text-secondary);
+}
+
+.selectionCount {
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  color: var(--o-text-tertiary);
+}
+
+.sectionLabel[data-at-limit] .selectionCount {
+  color: var(--o-primary);
+}
+
+/* Only appears at the limit: explains why the unselected rows do not respond */
+.limitHint {
+  margin: 6px 14px 0;
+  font-size: 12px;
+  color: var(--o-text-tertiary);
+}
+
+.documentList {
+  display: flex;
+  flex-direction: column;
+}
+
+.documentRow {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) 24px;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 56px;
+  padding: 8px 7px;
+  border: 0;
+  border-bottom: 1px solid var(--o-border);
+  background: transparent;
+  color: var(--o-text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.documentRow:hover,
+.documentRow[data-selected] {
+  background: var(--o-primary-subtle);
+}
+
+.documentRow:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+
+.documentRow:disabled:hover {
+  background: transparent;
+}
+
+.sourceIcon {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 6px;
+  /* Same as .scopeIcon: without a border, surface-raised is what separates it from the row background */
+  background: var(--o-surface-raised);
+  color: var(--o-text-secondary);
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.sourceIcon[data-source='google'] {
+  color: #1a73e8;
+}
+
+.documentCopy {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 2px;
+}
+
+.documentTitle,
+.documentSource {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.documentTitle {
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.documentSource {
+  color: var(--o-text-tertiary);
+  font-size: 11px;
+}
+
+.selection {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border: 1px solid var(--o-border-strong);
+  border-radius: 5px;
+  color: var(--o-primary-text);
+}
+
+/* Dimmed placeholder box: keeps the position and alignment without the solid border-strong that reads as "clickable" */
+.selection[data-disabled] {
+  border-color: var(--o-border);
+}
+
+.documentRow[data-selected] .selection {
+  border-color: var(--o-primary);
+  background: var(--o-primary);
+}
+
+.loadMore {
+  display: block;
+  width: 100%;
+  min-height: 38px;
+  margin-top: 6px;
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 18px 18px;
+  border-top: 1px solid var(--o-border);
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (max-width: 520px) {
+  .header { padding: 16px 16px 12px; }
+  .search { margin-inline: 12px; }
+  .results { padding-inline: 12px; max-height: 55vh; }
+  .actions { padding: 10px 12px 14px; }
+  .actions > * { flex: 1 1 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner { animation: none; }
+}

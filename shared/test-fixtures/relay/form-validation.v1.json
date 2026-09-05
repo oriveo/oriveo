@@ -1,0 +1,431 @@
+{
+  "$comment": "Shared contract fixture.",
+  "version": 1,
+  "form": {
+    "$comment": "Shared contract fixture.",
+    "fields": [
+      {
+        "field": "endpoint",
+        "group": "connection",
+        "labelEN": "Request URL",
+        "placeholder": "https://api.example.com/v1",
+        "revalidation": "always"
+      },
+      {
+        "field": "security_mode",
+        "group": "connection",
+        "labelEN": "Connection security",
+        "placeholder": null,
+        "revalidation": "always"
+      },
+      {
+        "field": "api_key",
+        "group": "connection",
+        "labelEN": "API Key",
+        "placeholder": "sk-...",
+        "revalidation": "always"
+      },
+      {
+        "field": "model_id",
+        "group": "connection",
+        "labelEN": "Model",
+        "placeholder": null,
+        "revalidation": "unless_within_discovered_catalog"
+      },
+      {
+        "field": "transport",
+        "group": "protocol",
+        "labelEN": "Protocol",
+        "placeholder": null,
+        "revalidation": "always"
+      },
+      {
+        "field": "auth_mode",
+        "group": "protocol",
+        "labelEN": "Authentication",
+        "placeholder": null,
+        "revalidation": "always"
+      },
+      {
+        "field": "headers",
+        "group": "advanced_http",
+        "labelEN": "Custom Headers",
+        "placeholder": "X-Internal-Token",
+        "revalidation": "always"
+      },
+      {
+        "field": "query_params",
+        "group": "advanced_http",
+        "labelEN": "Custom Query Params",
+        "placeholder": "tenant",
+        "revalidation": "always"
+      }
+    ]
+  },
+  "credentialMatrix": [
+    {
+      "state": "never_entered_requires_credential",
+      "$comment": "Shared contract fixture."
+    },
+    {
+      "state": "never_entered_auth_none",
+      "$comment": "Shared contract fixture."
+    },
+    {
+      "state": "stored_only_other_fields_changed",
+      "$comment": "Shared contract fixture."
+    },
+    {
+      "state": "explicit_removal",
+      "$comment": "Shared contract fixture."
+    }
+  ],
+  "cases": [
+    {
+      "caseId": "never_entered_requires_credential_create",
+      "matrixState": "never_entered_requires_credential",
+      "mode": "create",
+      "draft": {
+        "endpoint": "https://relay.example.com/v1",
+        "apiKey": "",
+        "authMode": "bearer",
+        "securityMode": "remote_https",
+        "transport": "openai_chat_completions",
+        "modelId": "",
+        "headers": [],
+        "queryParams": [],
+        "hasSavedCredential": false
+      },
+      "expect": {
+        "valid": false,
+        "issues": [
+          {
+            "field": "api_key",
+            "code": "credential_required"
+          }
+        ]
+      }
+    },
+    {
+      "caseId": "never_entered_requires_credential_edit",
+      "matrixState": "never_entered_requires_credential",
+      "mode": "edit",
+      "draft": {
+        "endpoint": "https://relay.example.com/v1",
+        "apiKey": "",
+        "authMode": "bearer",
+        "securityMode": "remote_https",
+        "transport": "openai_chat_completions",
+        "modelId": "gpt-5.6-sol",
+        "headers": [],
+        "queryParams": [],
+        "hasSavedCredential": false
+      },
+      "expect": {
+        "valid": true,
+        "issues": []
+      }
+    },
+    {
+      "caseId": "never_entered_auth_none_create",
+      "matrixState": "never_entered_auth_none",
+      "mode": "create",
+      "draft": {
+        "endpoint": "https://relay.example.com/v1",
+        "apiKey": "",
+        "authMode": "none",
+        "securityMode": "remote_https",
+        "transport": "openai_chat_completions",
+        "modelId": "",
+        "headers": [],
+        "queryParams": [],
+        "hasSavedCredential": false
+      },
+      "expect": {
+        "valid": true,
+        "issues": []
+      }
+    },
+    {
+      "caseId": "never_entered_auth_none_edit",
+      "matrixState": "never_entered_auth_none",
+      "mode": "edit",
+      "draft": {
+        "endpoint": "https://relay.example.com/v1",
+        "apiKey": "",
+        "authMode": "none",
+        "securityMode": "remote_https",
+        "transport": "openai_chat_completions",
+        "modelId": "",
+        "headers": [],
+        "queryParams": [],
+        "hasSavedCredential": false
+      },
+      "expect": {
+        "valid": true,
+        "issues": []
+      }
+    },
+    {
+      "caseId": "stored_only_other_fields_changed_create",
+      "matrixState": "stored_only_other_fields_changed",
+      "mode": "create",
+      "draft": {
+        "endpoint": "https://relay.example.com/v1",
+        "apiKey": "sk-relay-0123456789abcdef",
+        "authMode": "bearer",
+        "securityMode": "remote_https",
+        "transport": "openai_chat_completions",
+        "modelId": "gpt-5.6-sol",
+        "headers": [],
+        "queryParams": [],
+        "hasSavedCredential": false
+      },
+      "expect": {
+        "valid": true,
+        "issues": []
+      }
+    },
+    {
+      "caseId": "stored_only_other_fields_changed_edit",
+      "matrixState": "stored_only_other_fields_changed",
+      "mode": "edit",
+      "draft": {
+        "endpoint": "https://relay.example.com/v1",
+        "apiKey": "",
+        "authMode": "bearer",
+        "securityMode": "remote_https",
+        "transport": "openai_chat_completions",
+        "modelId": "claude-opus-4-6",
+        "headers": [],
+        "queryParams": [],
+        "hasSavedCredential": true
+      },
+      "expect": {
+        "valid": true,
+        "issues": []
+      }
+    },
+    {
+      "caseId": "explicit_removal_create",
+      "matrixState": "explicit_removal",
+      "mode": "create",
+      "draft": {
+        "endpoint": "https://relay.example.com/v1",
+        "apiKey": "",
+        "authMode": "bearer",
+        "securityMode": "remote_https",
+        "transport": "openai_chat_completions",
+        "modelId": "gpt-5.6-sol",
+        "headers": [],
+        "queryParams": [],
+        "hasSavedCredential": false
+      },
+      "expect": {
+        "valid": false,
+        "issues": [
+          {
+            "field": "api_key",
+            "code": "credential_required"
+          }
+        ]
+      }
+    },
+    {
+      "caseId": "explicit_removal_edit",
+      "matrixState": "explicit_removal",
+      "mode": "edit",
+      "draft": {
+        "endpoint": "https://relay.example.com/v1",
+        "apiKey": "",
+        "authMode": "bearer",
+        "securityMode": "remote_https",
+        "transport": "openai_chat_completions",
+        "modelId": "gpt-5.6-sol",
+        "headers": [],
+        "queryParams": [],
+        "hasSavedCredential": false
+      },
+      "expect": {
+        "valid": true,
+        "issues": []
+      }
+    },
+    {
+      "caseId": "endpoint_required_create",
+      "mode": "create",
+      "draft": {
+        "endpoint": "   ",
+        "apiKey": "",
+        "authMode": "none",
+        "securityMode": "remote_https",
+        "transport": "auto",
+        "modelId": "",
+        "headers": [],
+        "queryParams": [],
+        "hasSavedCredential": false
+      },
+      "expect": {
+        "valid": false,
+        "issues": [
+          {
+            "field": "endpoint",
+            "code": "endpoint_required"
+          }
+        ]
+      }
+    },
+    {
+      "caseId": "cleartext_endpoint_rejected_create",
+      "$comment": "Shared contract fixture.",
+      "mode": "create",
+      "draft": {
+        "endpoint": "http://relay.example.com/v1",
+        "apiKey": "sk-relay-0123456789abcdef",
+        "authMode": "bearer",
+        "securityMode": "remote_https",
+        "transport": "openai_chat_completions",
+        "modelId": "",
+        "headers": [],
+        "queryParams": [],
+        "hasSavedCredential": false
+      },
+      "expect": {
+        "valid": false,
+        "issues": [
+          {
+            "field": "endpoint",
+            "code": "endpoint_rejected",
+            "detail": "cleartext_not_allowed"
+          }
+        ]
+      }
+    },
+    {
+      "caseId": "local_http_keyless_edit_allowed",
+      "$comment": "Shared contract fixture.",
+      "mode": "edit",
+      "draft": {
+        "endpoint": "http://192.168.1.20:1234/v1",
+        "apiKey": "",
+        "authMode": "none",
+        "securityMode": "local_http",
+        "transport": "openai_chat_completions",
+        "modelId": "qwen3-8b",
+        "headers": [],
+        "queryParams": [],
+        "hasSavedCredential": false
+      },
+      "expect": {
+        "valid": true,
+        "issues": []
+      }
+    },
+    {
+      "caseId": "cleartext_credentials_edit",
+      "mode": "edit",
+      "draft": {
+        "endpoint": "http://192.168.1.20:1234/v1",
+        "apiKey": "",
+        "authMode": "bearer",
+        "securityMode": "local_http",
+        "transport": "openai_chat_completions",
+        "modelId": "qwen3-8b",
+        "headers": [],
+        "queryParams": [],
+        "hasSavedCredential": true
+      },
+      "expect": {
+        "valid": false,
+        "issues": [
+          {
+            "field": "api_key",
+            "code": "cleartext_credentials",
+            "detail": "cleartext_credentials"
+          }
+        ]
+      }
+    },
+    {
+      "caseId": "cleartext_sensitive_header_edit",
+      "$comment": "Shared contract fixture.",
+      "mode": "edit",
+      "draft": {
+        "endpoint": "http://192.168.1.20:1234/v1",
+        "apiKey": "",
+        "authMode": "none",
+        "securityMode": "local_http",
+        "transport": "openai_chat_completions",
+        "modelId": "qwen3-8b",
+        "headers": [
+          {
+            "key": "X-Internal-Token",
+            "value": "abc"
+          }
+        ],
+        "queryParams": [],
+        "hasSavedCredential": false
+      },
+      "expect": {
+        "valid": false,
+        "issues": [
+          {
+            "field": "headers",
+            "code": "cleartext_credentials",
+            "detail": "cleartext_credentials"
+          }
+        ]
+      }
+    },
+    {
+      "caseId": "security_mode_scheme_mismatch_edit",
+      "$comment": "Shared contract fixture.",
+      "mode": "edit",
+      "draft": {
+        "endpoint": "https://relay.example.com/v1",
+        "apiKey": "",
+        "authMode": "none",
+        "securityMode": "local_http",
+        "transport": "openai_chat_completions",
+        "modelId": "",
+        "headers": [],
+        "queryParams": [],
+        "hasSavedCredential": false
+      },
+      "expect": {
+        "valid": false,
+        "issues": [
+          {
+            "field": "security_mode",
+            "code": "security_mode_scheme_mismatch"
+          }
+        ]
+      }
+    },
+    {
+      "caseId": "credential_invalid_characters_create",
+      "$comment": "Shared contract fixture.",
+      "mode": "create",
+      "draft": {
+        "endpoint": "https://relay.example.com/v1",
+        "apiKey": "sk-relay-0123　456789abcdef",
+        "authMode": "bearer",
+        "securityMode": "remote_https",
+        "transport": "openai_chat_completions",
+        "modelId": "",
+        "headers": [],
+        "queryParams": [],
+        "hasSavedCredential": false
+      },
+      "expect": {
+        "valid": false,
+        "issues": [
+          {
+            "field": "api_key",
+            "code": "credential_invalid_characters"
+          }
+        ]
+      }
+    }
+  ]
+}

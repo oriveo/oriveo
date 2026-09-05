@@ -1,0 +1,27 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ]
+  },
+  "include": [
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/dev/types/**/*.ts",
+    ".next/types/**/*.ts",
+    "next-env.d.ts",
+    ".next/prod/types/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "**/__tests__/**",
+    "vitest.config.mts",
+    "**/*.test.ts",
+    "**/*.test.tsx",
+    "**/*.visual-contract.test.ts",
+    "**/*.visual-contract.test.tsx"
+  ]
+}

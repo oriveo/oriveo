@@ -1,0 +1,717 @@
+{
+  "$comment": "R3 cross-client runtime fixture. Web, iOS and Android must consume these cases through production resolver/builder/parser paths. The fixture never authorizes model-id/providerKind heuristics or a capability-probe request.",
+  "contractId": "model_control_runtime.v1",
+  "version": 1,
+  "owners": [
+    "web",
+    "reasoning",
+    "generation"
+  ],
+  "scopePriority": [
+    "single_send",
+    "conversation_connection_model",
+    "skill_agent",
+    "connection_model",
+    "connection",
+    "provider_recipe",
+    "provider_default"
+  ],
+  "runtimeIdentity": {
+    "$comment": "Runtime identity and mutation ordering are orthogonal. mutationRevision orders LWW writes; it must never stand in for the Server runtime revision.",
+    "requiredFields": [
+      "connectionId",
+      "canonicalModelId",
+      "finalTransport",
+      "runtimeRevision"
+    ],
+    "connectionIdSource": "provider_connection_instance_id",
+    "canonicalModelIdSource": "current_authoritative_catalog_mapping_or_exact_stored_id",
+    "finalTransportSource": "production_dispatch_selection",
+    "runtimeRevisionSource": "applied_server_capability_runtime_revision",
+    "mutationOrderingFields": [
+      "mutationRevision",
+      "mutationId"
+    ],
+    "mutationRevisionIsRuntimeRevision": false,
+    "unknownFinalTransport": "no_automatic_configuration",
+    "unknownRuntimeRevision": "no_automatic_configuration",
+    "identityMismatch": "retain_preference_dormant"
+  },
+  "persistence": {
+    "canonicalRecordKeyFields": [
+      "scope",
+      "connectionId",
+      "canonicalModelId",
+      "finalTransport",
+      "runtimeRevision",
+      "scopedObjectId"
+    ],
+    "lwwOrder": [
+      "mutationRevision",
+      "mutationId"
+    ],
+    "tombstoneParticipatesInSameLww": true,
+    "olderRecordCannotResurrectTombstone": true,
+    "newerExplicitReconfirmationMayReplaceTombstone": true,
+    "deleteAllIdentityVariantsWhenConnectionDeleted": true,
+    "legacyRecordWithoutCompleteRuntimeIdentity": "retain_dormant_until_explicit_reconfirmation",
+    "rawCustomSync": false
+  },
+  "resolutionCases": [
+    {
+      "caseId": "seven_scopes_resolve_each_owner_independently",
+      "identity": {
+        "connectionId": "CONNECTION-A",
+        "canonicalModelId": "model/a",
+        "finalTransport": "openai_responses",
+        "runtimeRevision": "runtime-r7"
+      },
+      "layers": {
+        "single_send": {
+          "web": "inherit",
+          "reasoning": "off",
+          "generation": "inherit"
+        },
+        "conversation_connection_model": {
+          "web": "force",
+          "reasoning": "inherit",
+          "generation": {
+            "temperature": 0
+          }
+        },
+        "skill_agent": {
+          "web": "off",
+          "reasoning": "deep",
+          "generation": {
+            "top_p": 0.8
+          }
+        },
+        "connection_model": {
+          "web": "automatic",
+          "reasoning": "balanced",
+          "generation": {
+            "temperature": 0.4
+          }
+        },
+        "connection": {
+          "web": "off",
+          "reasoning": "low",
+          "generation": {
+            "max_output_tokens": 1024
+          }
+        },
+        "provider_recipe": {
+          "web": "automatic",
+          "reasoning": "balanced",
+          "generation": "inherit"
+        },
+        "provider_default": {
+          "web": "off",
+          "reasoning": "provider_default",
+          "generation": "inherit"
+        }
+      },
+      "expected": {
+        "web": "force",
+        "reasoning": "off",
+        "generation": {
+          "temperature": 0,
+          "top_p": 0.8,
+          "max_output_tokens": 1024
+        }
+      }
+    },
+    {
+      "caseId": "skill_agent_wins_without_conversation_override",
+      "identity": {
+        "connectionId": "CONNECTION-A",
+        "canonicalModelId": "model/a",
+        "finalTransport": "anthropic_messages",
+        "runtimeRevision": "runtime-r7"
+      },
+      "layers": {
+        "single_send": null,
+        "conversation_connection_model": null,
+        "skill_agent": {
+          "web": "automatic",
+          "reasoning": "deep"
+        },
+        "connection_model": {
+          "web": "off",
+          "reasoning": "low"
+        },
+        "connection": {
+          "web": "off",
+          "reasoning": "provider_default"
+        },
+        "provider_recipe": {
+          "web": "automatic",
+          "reasoning": "balanced"
+        },
+        "provider_default": {
+          "web": "off",
+          "reasoning": "provider_default"
+        }
+      },
+      "expected": {
+        "web": "automatic",
+        "reasoning": "deep"
+      }
+    }
+  ],
+  "identityIsolationCases": [
+    {
+      "caseId": "connection_switch_keeps_old_value_dormant",
+      "storedIdentity": {
+        "connectionId": "CONNECTION-A",
+        "canonicalModelId": "model/a",
+        "finalTransport": "openai_responses",
+        "runtimeRevision": "runtime-r7"
+      },
+      "queryIdentity": {
+        "connectionId": "CONNECTION-B",
+        "canonicalModelId": "model/a",
+        "finalTransport": "openai_responses",
+        "runtimeRevision": "runtime-r7"
+      },
+      "expected": {
+        "match": false,
+        "automaticFields": {},
+        "storedState": "dormant"
+      }
+    },
+    {
+      "caseId": "canonical_model_switch_keeps_old_value_dormant",
+      "storedIdentity": {
+        "connectionId": "CONNECTION-A",
+        "canonicalModelId": "model/a",
+        "finalTransport": "openai_responses",
+        "runtimeRevision": "runtime-r7"
+      },
+      "queryIdentity": {
+        "connectionId": "CONNECTION-A",
+        "canonicalModelId": "model/b",
+        "finalTransport": "openai_responses",
+        "runtimeRevision": "runtime-r7"
+      },
+      "expected": {
+        "match": false,
+        "automaticFields": {},
+        "storedState": "dormant"
+      }
+    },
+    {
+      "caseId": "final_transport_switch_never_uses_generation_template_as_identity",
+      "storedIdentity": {
+        "connectionId": "CONNECTION-A",
+        "canonicalModelId": "model/a",
+        "finalTransport": "openai_chat",
+        "runtimeRevision": "runtime-r7"
+      },
+      "queryIdentity": {
+        "connectionId": "CONNECTION-A",
+        "canonicalModelId": "model/a",
+        "finalTransport": "openai_responses",
+        "runtimeRevision": "runtime-r7"
+      },
+      "legacyGenerationTemplateFingerprint": "openai_responses||model/a",
+      "expected": {
+        "match": false,
+        "automaticFields": {},
+        "storedState": "dormant"
+      }
+    },
+    {
+      "caseId": "runtime_revision_switch_is_not_lww_revision",
+      "storedIdentity": {
+        "connectionId": "CONNECTION-A",
+        "canonicalModelId": "model/a",
+        "finalTransport": "openai_responses",
+        "runtimeRevision": "runtime-r7"
+      },
+      "queryIdentity": {
+        "connectionId": "CONNECTION-A",
+        "canonicalModelId": "model/a",
+        "finalTransport": "openai_responses",
+        "runtimeRevision": "runtime-r8"
+      },
+      "storedMutationRevision": 99,
+      "queryMutationRevision": 1,
+      "expected": {
+        "match": false,
+        "automaticFields": {},
+        "storedState": "dormant"
+      }
+    }
+  ],
+  "mergeCases": [
+    {
+      "caseId": "higher_mutation_revision_wins",
+      "local": {
+        "mutationRevision": 2,
+        "mutationId": "z",
+        "deleted": false
+      },
+      "remote": {
+        "mutationRevision": 3,
+        "mutationId": "a",
+        "deleted": false
+      },
+      "winner": "remote"
+    },
+    {
+      "caseId": "mutation_id_breaks_equal_revision_tie",
+      "local": {
+        "mutationRevision": 3,
+        "mutationId": "a",
+        "deleted": false
+      },
+      "remote": {
+        "mutationRevision": 3,
+        "mutationId": "b",
+        "deleted": false
+      },
+      "winner": "remote"
+    },
+    {
+      "caseId": "newer_tombstone_prevents_resurrection",
+      "local": {
+        "mutationRevision": 7,
+        "mutationId": "b",
+        "deleted": true
+      },
+      "remote": {
+        "mutationRevision": 6,
+        "mutationId": "z",
+        "deleted": false
+      },
+      "winner": "local"
+    },
+    {
+      "caseId": "newer_reconfirmation_replaces_own_tombstone",
+      "local": {
+        "mutationRevision": 7,
+        "mutationId": "b",
+        "deleted": true
+      },
+      "remote": {
+        "mutationRevision": 8,
+        "mutationId": "a",
+        "deleted": false
+      },
+      "winner": "remote"
+    }
+  ],
+  "finalBodyCases": [
+    {
+      "caseId": "exact_recipe_all_owners",
+      "identity": {
+        "connectionId": "CONNECTION-A",
+        "canonicalModelId": "gpt-5.6-terra",
+        "finalTransport": "openai_responses",
+        "runtimeRevision": "runtime-r7"
+      },
+      "recipeRefs": [
+        "openai.responses.web.v1",
+        "openai.responses.reasoning.v1",
+        "openai.responses.generation.v1"
+      ],
+      "preferences": {
+        "web": "automatic",
+        "reasoning": "deep",
+        "generation": {
+          "temperature": 0.2
+        }
+      },
+      "baseBody": {
+        "model": "gpt-5.6-terra",
+        "stream": true,
+        "input": [
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "input_text",
+                "text": "hello"
+              }
+            ]
+          }
+        ]
+      },
+      "expectedFinalBody": {
+        "model": "gpt-5.6-terra",
+        "stream": true,
+        "input": [
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "input_text",
+                "text": "hello"
+              }
+            ]
+          }
+        ],
+        "tools": [
+          {
+            "type": "web_search"
+          }
+        ],
+        "tool_choice": "auto",
+        "reasoning": {
+          "effort": "high"
+        },
+        "temperature": 0.2
+      },
+      "expectedDispatch": {
+        "requestedOwners": [
+          "web",
+          "reasoning"
+        ],
+        "generationExecutionFact": false
+      }
+    },
+    {
+      "caseId": "unknown_or_killed_runtime_plain_chat_remains_valid",
+      "identity": {
+        "connectionId": "CONNECTION-A",
+        "canonicalModelId": "future-model",
+        "finalTransport": "openai_responses",
+        "runtimeRevision": "runtime-r8"
+      },
+      "recipeRefs": [],
+      "controlState": "unknown",
+      "kill": true,
+      "legacyProfilesPresent": true,
+      "baseBody": {
+        "model": "future-model",
+        "stream": true,
+        "input": [
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "input_text",
+                "text": "hello"
+              }
+            ]
+          }
+        ]
+      },
+      "expectedFinalBody": {
+        "model": "future-model",
+        "stream": true,
+        "input": [
+          {
+            "role": "user",
+            "content": [
+              {
+                "type": "input_text",
+                "text": "hello"
+              }
+            ]
+          }
+        ]
+      },
+      "expectedDispatch": {
+        "requestedOwners": [],
+        "chatContinues": true,
+        "legacyFallbackUsed": false
+      }
+    }
+  ],
+  "resultFactCases": [
+    {
+      "caseId": "wire_delta_after_final_dispatch_is_requested",
+      "wireApplied": true,
+      "dispatchLatched": true,
+      "events": [],
+      "expected": "requested"
+    },
+    {
+      "caseId": "http_200_without_nonempty_signal_is_unconfirmed",
+      "wireApplied": true,
+      "dispatchLatched": true,
+      "httpStatus": 200,
+      "events": [
+        {
+          "type": "text",
+          "content": "I searched the web"
+        }
+      ],
+      "expected": "unconfirmed"
+    },
+    {
+      "caseId": "nonempty_citation_from_production_parser_is_observed",
+      "wireApplied": true,
+      "dispatchLatched": true,
+      "events": [
+        {
+          "type": "citations",
+          "citations": [
+            {
+              "url": "https://source.example"
+            }
+          ]
+        }
+      ],
+      "expected": "observed"
+    },
+    {
+      "caseId": "nonempty_reasoning_from_production_parser_is_observed",
+      "wireApplied": true,
+      "dispatchLatched": true,
+      "events": [
+        {
+          "type": "reasoning",
+          "content": "evidence"
+        }
+      ],
+      "expected": "observed"
+    },
+    {
+      "caseId": "generation_never_claims_execution_fact",
+      "owner": "generation",
+      "wireApplied": true,
+      "dispatchLatched": true,
+      "events": [
+        {
+          "type": "usage",
+          "usage": {
+            "output_tokens": 1
+          }
+        }
+      ],
+      "expected": "no_execution_fact"
+    }
+  ],
+  "rejection": {
+    "automaticRetry": false,
+    "structuredExactLocatorRequired": true,
+    "errorBodySubstringScanning": false,
+    "negativeCacheIdentityFields": {
+      "base": [
+        "connectionId",
+        "canonicalModelId",
+        "finalTransport",
+        "runtimeRevision",
+        "source",
+        "owner"
+      ],
+      "provider_recipe": [
+        "recipeRef",
+        "locatedPointers"
+      ],
+      "custom": [
+        "customFragmentIdentity"
+      ],
+      "$comment": "The key is discriminated by source. A provider_recipe rejection identifies the exact recipe and located requestOp pointers; an explicit resend omits only those pointers. Each custom owner stores one raw fragment, so owner-level customFragmentIdentity identifies that exact blob."
+    },
+    "preferenceAfterRejection": "dormant",
+    "primaryAction": "user_confirmed_resend_without_located_setting",
+    "preserve": [
+      "draft",
+      "attachments",
+      "generated_content",
+      "saved_preference"
+    ]
+  },
+  "rejectionCases": [
+    {
+      "caseId": "structured_exact_recipe_locator_offers_explicit_resend",
+      "source": "provider_recipe",
+      "status": 400,
+      "preFirstEvent": true,
+      "streamStarted": false,
+      "sideEffects": false,
+      "recipe": {
+        "recipeRef": "fixture.exact.web.v1",
+        "errorRecoveryRef": "fixture.exact.web",
+        "capability": "web",
+        "protocol": "openai_responses",
+        "responseParserKind": "fixture_web_v1",
+        "requestOps": [
+          {
+            "op": "set",
+            "pointer": "/web_search_options",
+            "value": {
+              "enabled": true
+            }
+          },
+          {
+            "op": "set",
+            "pointer": "/include",
+            "value": [
+              "web_search_call.action.sources"
+            ]
+          }
+        ]
+      },
+      "errorRecoveryDefinition": {
+        "capability": "web",
+        "protocol": "openai_responses",
+        "responseParserKind": "fixture_web_v1",
+        "locatorRules": [
+          {
+            "status": 400,
+            "owner": "web",
+            "pointers": [
+              "/web_search_options"
+            ],
+            "errorFields": {
+              "/error/param": "web_search_options"
+            }
+          }
+        ]
+      },
+      "error": {
+        "error": {
+          "param": "web_search_options"
+        }
+      },
+      "expected": {
+        "learnNegative": true,
+        "automaticRetry": false,
+        "action": "user_confirmed_resend_without_located_setting",
+        "preference": "dormant",
+        "normalSendAutomaticFields": {},
+        "explicitResend": {
+          "oneRequestResendLatch": true,
+          "omittedPointers": [
+            "/web_search_options"
+          ],
+          "preservedPointers": [
+            "/include"
+          ]
+        }
+      }
+    },
+    {
+      "caseId": "custom_exact_400_offers_explicit_resend",
+      "source": "custom",
+      "status": 400,
+      "preFirstEvent": true,
+      "streamStarted": false,
+      "sideEffects": false,
+      "locatedOwner": "generation",
+      "customFragmentIdentity": "owner:generation",
+      "customAppliedPointers": {
+        "generation": [
+          "/temperature"
+        ]
+      },
+      "error": {
+        "error": {
+          "param": "temperature"
+        }
+      },
+      "locatedPointers": [
+        "/temperature"
+      ],
+      "expected": {
+        "learnNegative": true,
+        "automaticRetry": false,
+        "action": "user_confirmed_resend_without_located_setting",
+        "preference": "dormant",
+        "normalSendAutomaticFields": {},
+        "explicitResend": {
+          "oneRequestResendLatch": true,
+          "omitCustomFragmentIdentity": "owner:generation"
+        }
+      }
+    },
+    {
+      "caseId": "negative_cache_isolated_by_source",
+      "identity": {
+        "connectionId": "CONNECTION-A",
+        "canonicalModelId": "model/a",
+        "finalTransport": "openai_responses",
+        "runtimeRevision": "runtime-r7",
+        "owner": "generation"
+      },
+      "rejection": {
+        "source": "custom",
+        "customFragmentIdentity": "owner:generation"
+      },
+      "expected": {
+        "customFragment": "dormant",
+        "providerRecipe": "active",
+        "crossSourceSuppression": false
+      }
+    },
+    {
+      "caseId": "unstructured_400_never_scans_error_text",
+      "source": "provider_recipe",
+      "status": 400,
+      "preFirstEvent": true,
+      "streamStarted": false,
+      "sideEffects": false,
+      "error": {
+        "message": "unsupported parameter web_search_options"
+      },
+      "expected": {
+        "learnNegative": false,
+        "automaticRetry": false,
+        "action": "surface_error"
+      }
+    }
+  ],
+  "nonLearningFailures": [
+    "401",
+    "403",
+    "429",
+    "5xx",
+    "network",
+    "timeout",
+    "stream_interrupted",
+    "cancelled",
+    "background_interrupted",
+    "side_effect_started"
+  ],
+  "lifecycleCases": [
+    {
+      "caseId": "legacy_upgrade_missing_runtime_identity",
+      "expected": {
+        "automaticFields": {},
+        "state": "dormant",
+        "chatContinues": true
+      }
+    },
+    {
+      "caseId": "cold_start_restores_latest_lww_winner",
+      "expected": {
+        "usesTombstones": true,
+        "resurrection": false
+      }
+    },
+    {
+      "caseId": "session_restore_preserves_failed_content_and_retry_descriptor",
+      "expected": {
+        "draft": true,
+        "attachments": true,
+        "generatedContent": true
+      }
+    },
+    {
+      "caseId": "skill_agent_uses_same_runtime_identity",
+      "expected": {
+        "scope": "skill_agent",
+        "crossConnectionReuse": false
+      }
+    },
+    {
+      "caseId": "background_interrupt_does_not_learn",
+      "expected": {
+        "learnNegative": false,
+        "storedPreference": "unchanged"
+      }
+    },
+    {
+      "caseId": "connection_delete_tombstones_all_identity_variants",
+      "expected": {
+        "resurrection": false,
+        "readdRequiresExplicitReconfirmation": true
+      }
+    }
+  ]
+}

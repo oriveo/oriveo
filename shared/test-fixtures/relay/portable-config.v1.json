@@ -1,0 +1,164 @@
+{
+  "$comment": "Shared contract fixture.",
+  "version": 1,
+  "allFields": [
+    "transport",
+    "authMode",
+    "securityMode",
+    "modelID",
+    "reasoningEffort",
+    "serviceTier",
+    "stream",
+    "disableResponseStorage",
+    "headers",
+    "queryParams",
+    "codexCompatIdentity",
+    "customUserAgent",
+    "imageSize",
+    "imageQuality",
+    "imageStyle",
+    "imageCount",
+    "imageResponseFormat",
+    "webSearchToolName",
+    "hasWebSearch",
+    "webSearchProfile",
+    "transportKind",
+    "resolvedAPIBaseURL",
+    "engineProfile",
+    "certificateFingerprint"
+  ],
+  "portableFields": [
+    "transport",
+    "authMode",
+    "securityMode",
+    "modelID",
+    "reasoningEffort",
+    "serviceTier",
+    "stream",
+    "disableResponseStorage",
+    "codexCompatIdentity",
+    "imageSize",
+    "imageQuality",
+    "imageStyle",
+    "imageCount",
+    "imageResponseFormat",
+    "webSearchToolName",
+    "hasWebSearch",
+    "webSearchProfile",
+    "transportKind",
+    "resolvedAPIBaseURL",
+    "engineProfile"
+  ],
+  "localOnlyFields": [
+    {
+      "field": "headers",
+      "reason": "custom_header_values_may_carry_a_second_credential"
+    },
+    {
+      "field": "queryParams",
+      "reason": "query_values_may_carry_a_second_credential"
+    },
+    {
+      "field": "customUserAgent",
+      "reason": "already_treated_as_credential_material_on_device_and_raises_fingerprinting_surface"
+    },
+    {
+      "field": "certificateFingerprint",
+      "reason": "device_bound_tofu_pin_repaired_by_re_pairing_not_worth_carrying_out"
+    }
+  ],
+  "cases": [
+    {
+      "caseId": "full_config_keeps_only_allowlisted_behaviour_fields",
+      "input": {
+        "transport": "openai_responses",
+        "authMode": "bearer",
+        "securityMode": "remote_https",
+        "modelID": "my-private-model",
+        "reasoningEffort": "high",
+        "serviceTier": "priority",
+        "stream": true,
+        "disableResponseStorage": true,
+        "headers": [
+          {
+            "key": "X-API-Key",
+            "value": "secret"
+          }
+        ],
+        "queryParams": [
+          {
+            "key": "token",
+            "value": "secret"
+          }
+        ],
+        "codexCompatIdentity": true,
+        "customUserAgent": "codex_cli_rs/1.0 (user@example.com)",
+        "imageSize": "1024x1024",
+        "imageQuality": "hd",
+        "imageStyle": "vivid",
+        "imageCount": 2,
+        "imageResponseFormat": "b64_json",
+        "webSearchToolName": "web_search",
+        "hasWebSearch": true,
+        "webSearchProfile": "oai_responses_web",
+        "transportKind": "openai_responses",
+        "resolvedAPIBaseURL": "https://user:pass@relay.example.com/codex?token=secret#fragment",
+        "engineProfile": "llamacpp",
+        "certificateFingerprint": "aa11bb22cc33dd44ee55ff6600112233445566778899aabbccddeeff00112233"
+      },
+      "expect": {
+        "transport": "openai_responses",
+        "authMode": "bearer",
+        "securityMode": "remote_https",
+        "modelID": "my-private-model",
+        "reasoningEffort": "high",
+        "serviceTier": "priority",
+        "stream": true,
+        "disableResponseStorage": true,
+        "codexCompatIdentity": true,
+        "imageSize": "1024x1024",
+        "imageQuality": "hd",
+        "imageStyle": "vivid",
+        "imageCount": 2,
+        "imageResponseFormat": "b64_json",
+        "webSearchToolName": "web_search",
+        "hasWebSearch": true,
+        "webSearchProfile": "oai_responses_web",
+        "transportKind": "openai_responses",
+        "resolvedAPIBaseURL": "https://relay.example.com/codex",
+        "engineProfile": "llamacpp"
+      }
+    },
+    {
+      "caseId": "local_engine_minimal_config_round_trips",
+      "input": {
+        "transport": "openai_chat_completions",
+        "authMode": "none",
+        "securityMode": "local_http",
+        "engineProfile": "ollama",
+        "resolvedAPIBaseURL": "http://192.168.1.20:11434/v1"
+      },
+      "expect": {
+        "transport": "openai_chat_completions",
+        "authMode": "none",
+        "securityMode": "local_http",
+        "engineProfile": "ollama",
+        "resolvedAPIBaseURL": "http://192.168.1.20:11434/v1"
+      }
+    },
+    {
+      "caseId": "unparsable_resolved_root_is_dropped_not_synced_raw",
+      "input": {
+        "transport": "auto",
+        "authMode": "auto",
+        "securityMode": "remote_https",
+        "resolvedAPIBaseURL": "not a URL"
+      },
+      "expect": {
+        "transport": "auto",
+        "authMode": "auto",
+        "securityMode": "remote_https"
+      }
+    }
+  ]
+}

@@ -1,0 +1,170 @@
+/* -- ProviderConnectionRecoveryCard - the provider connection issue recovery card
+   - warningSoft fill with a warning-coloured border
+   - solid yellow primary button, glass capsule secondary button
+   - lays out horizontally and stacks on narrow screens -- */
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--o-warning) 10%, var(--o-surface));
+  border: 1px solid color-mix(in srgb, var(--o-warning) 22%, transparent);
+}
+
+.row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.iconBubble {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--o-surface-raised, var(--o-surface)) 82%, transparent);
+  color: var(--o-warning);
+}
+
+.copyStack {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.headline {
+  margin: 0;
+  font-size: 13.5px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--o-text);
+}
+
+.detail {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--o-text-secondary);
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.dismissBtn {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: transparent;
+  color: var(--o-text-tertiary);
+  cursor: pointer;
+  border-radius: 8px;
+  transition: background var(--o-transition-fast), color var(--o-transition-fast);
+}
+
+.dismissBtn:hover {
+  background: color-mix(in srgb, var(--o-text) 8%, transparent);
+  color: var(--o-text-secondary);
+}
+
+.dismissBtn:focus-visible {
+  outline: 2px solid var(--o-primary);
+  outline-offset: 2px;
+}
+
+/* Actions - solid yellow primary, glass capsule secondary */
+.actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.primaryAction,
+.secondaryAction {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  flex: 1 1 0;
+  min-height: 38px;
+  padding: 0 12px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background var(--o-transition-fast), opacity var(--o-transition-fast), transform var(--o-transition-fast);
+}
+
+.primaryAction {
+  border: none;
+  background: var(--o-warning);
+  color: var(--o-on-warning);
+}
+
+.primaryAction:hover {
+  background: color-mix(in srgb, var(--o-warning) 88%, black 12%);
+}
+
+.primaryAction:active {
+  background: color-mix(in srgb, var(--o-warning) 78%, black 22%);
+}
+
+.secondaryAction {
+  border: 1px solid color-mix(in srgb, var(--o-warning) 28%, transparent);
+  background: color-mix(in srgb, var(--o-surface-raised, var(--o-surface)) 82%, transparent);
+  /* In light mode #f5a524 on white is about 2.4:1, below 4.5; blending 50% black brings it to about 4.9:1, which meets WCAG AA */
+  color: color-mix(in srgb, var(--o-warning) 50%, black 50%);
+}
+
+.secondaryAction:hover {
+  background: color-mix(in srgb, var(--o-warning) 10%, var(--o-surface-raised, var(--o-surface)));
+  border-color: color-mix(in srgb, var(--o-warning) 42%, transparent);
+}
+
+.primaryAction:focus-visible,
+.secondaryAction:focus-visible {
+  outline: 2px solid var(--o-warning);
+  outline-offset: 2px;
+}
+
+/* Dark theme - adjusted background contrast, border raised to 38% so the yellow anchor stays bright */
+:global(html[data-theme='dark']) .card {
+  background: color-mix(in srgb, var(--o-warning) 14%, transparent);
+  border-color: color-mix(in srgb, var(--o-warning) 38%, transparent);
+}
+
+:global(html[data-theme='dark']) .secondaryAction {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: color-mix(in srgb, var(--o-warning) 38%, transparent);
+  /* In dark mode #f5a524 is already bright enough on the dark fill, but mixing in 25% white takes it to about 7:1 and makes it stand out more */
+  color: color-mix(in srgb, var(--o-warning) 70%, white 30%);
+}
+
+:global(html[data-theme='dark']) .secondaryAction:hover {
+  background: color-mix(in srgb, var(--o-warning) 18%, rgba(255, 255, 255, 0.04));
+  border-color: color-mix(in srgb, var(--o-warning) 52%, transparent);
+}
+
+@media (max-width: 640px) {
+  .actions {
+    flex-direction: column;
+  }
+
+  .primaryAction,
+  .secondaryAction {
+    flex: 1 1 auto;
+    width: 100%;
+  }
+}

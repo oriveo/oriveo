@@ -1,0 +1,103 @@
+.row {
+  display: flex;
+  gap: 6px;
+  padding: 2px 4px 0;
+  overflow-x: auto;
+  flex-wrap: wrap;
+}
+
+.item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 200px;
+  padding: 4px 8px 4px 6px;
+  border: 1px solid var(--o-border);
+  border-radius: var(--o-radius-full);
+  background: var(--o-bg-subtle);
+  transition: background var(--o-transition-fast);
+}
+
+.item:hover {
+  background: var(--o-surface);
+}
+
+.thumbnail {
+  width: 28px;
+  height: 28px;
+  object-fit: cover;
+  border-radius: var(--o-radius-md);
+  flex-shrink: 0;
+}
+
+.fileIcon {
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--o-radius-sm);
+  background: color-mix(in srgb, var(--o-primary) 8%, var(--o-surface));
+  color: color-mix(in srgb, var(--o-primary) 70%, var(--o-text));
+  flex-shrink: 0;
+}
+
+.fileName {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--o-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.extractedInfo {
+  font-size: 10px;
+  color: var(--o-text-secondary);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.removeBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  margin-left: 2px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--o-text-tertiary);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition:
+    color var(--o-transition-fast),
+    background var(--o-transition-fast);
+}
+
+.removeBtn:hover {
+  background: var(--o-error);
+  color: var(--o-primary-text);
+}
+
+/* Truncation CTA: points the user at adding the file to Skill Knowledge for full retrieval */
+.ctaKnowledge {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--o-primary);
+  background: transparent;
+  border: none;
+  padding: 2px 4px;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  border-radius: var(--o-radius-sm);
+  transition: background var(--o-transition-fast);
+}
+
+.ctaKnowledge:hover {
+  background: color-mix(in srgb, var(--o-primary) 12%, transparent);
+}

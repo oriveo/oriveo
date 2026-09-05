@@ -1,0 +1,12 @@
+data: {"choices":[{"delta":{"content":null,"tool_calls":[{"index":0,"id":"call_da587283fb834fadad0e80","type":"function","function":{"name":"get_weather","arguments":""}}],"role":"assistant"},"finish_reason":null,"index":0,"logprobs":null}],"object":"chat.completion.chunk","usage":null,"created":1787393470,"system_fingerprint":null,"model":"qwen-flash","id":"chatcmpl-1cba09a3-db6f-96b7-ae06-2fc163b0f0b1"}
+
+data: {"choices":[{"delta":{"content":null,"tool_calls":[{"index":0,"id":"","type":"function","function":{"arguments":"{\"city\": \""}}]},"finish_reason":null,"index":0,"logprobs":null}],"object":"chat.completion.chunk","usage":null,"created":1787393470,"system_fingerprint":null,"model":"qwen-flash","id":"chatcmpl-1cba09a3-db6f-96b7-ae06-2fc163b0f0b1"}
+
+data: {"choices":[{"delta":{"content":null,"tool_calls":[{"index":0,"id":"","type":"function","function":{"arguments":"Melbourne\"}"}}]},"finish_reason":null,"index":0,"logprobs":null}],"object":"chat.completion.chunk","usage":null,"created":1787393470,"system_fingerprint":null,"model":"qwen-flash","id":"chatcmpl-1cba09a3-db6f-96b7-ae06-2fc163b0f0b1"}
+
+data: {"choices":[{"delta":{"tool_calls":[{"function":{"arguments":null},"index":0,"id":"","type":"function"}]},"index":0}],"object":"chat.completion.chunk","usage":null,"created":1787393470,"system_fingerprint":null,"model":"qwen-flash","id":"chatcmpl-1cba09a3-db6f-96b7-ae06-2fc163b0f0b1"}
+
+data: {"choices":[{"finish_reason":"tool_calls","delta":{},"index":0,"logprobs":null}],"object":"chat.completion.chunk","usage":null,"created":1787393470,"system_fingerprint":null,"model":"qwen-flash","id":"chatcmpl-1cba09a3-db6f-96b7-ae06-2fc163b0f0b1"}
+
+data: [DONE]
+

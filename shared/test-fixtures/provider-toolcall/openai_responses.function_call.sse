@@ -1,0 +1,45 @@
+event: response.created
+data: {"type":"response.created","sequence_number":0,"response":{"id":"resp_r2fixture0001","object":"response","created_at":1787457600,"status":"in_progress","model":"gpt-4.1-mini","output":[]}}
+
+event: response.in_progress
+data: {"type":"response.in_progress","sequence_number":1,"response":{"id":"resp_r2fixture0001","object":"response","created_at":1787457600,"status":"in_progress","model":"gpt-4.1-mini","output":[]}}
+
+event: response.output_item.added
+data: {"type":"response.output_item.added","sequence_number":2,"output_index":0,"item":{"id":"msg_r2intro","type":"message","status":"in_progress","role":"assistant","content":[]}}
+
+event: response.content_part.added
+data: {"type":"response.content_part.added","sequence_number":3,"item_id":"msg_r2intro","output_index":0,"content_index":0,"part":{"type":"output_text","text":"","annotations":[]}}
+
+event: response.output_text.delta
+data: {"type":"response.output_text.delta","sequence_number":4,"item_id":"msg_r2intro","output_index":0,"content_index":0,"delta":"Let me check the weather."}
+
+event: response.output_text.done
+data: {"type":"response.output_text.done","sequence_number":5,"item_id":"msg_r2intro","output_index":0,"content_index":0,"text":"Let me check the weather."}
+
+event: response.content_part.done
+data: {"type":"response.content_part.done","sequence_number":6,"item_id":"msg_r2intro","output_index":0,"content_index":0,"part":{"type":"output_text","text":"Let me check the weather.","annotations":[]}}
+
+event: response.output_item.done
+data: {"type":"response.output_item.done","sequence_number":7,"output_index":0,"item":{"id":"msg_r2intro","type":"message","status":"completed","role":"assistant","content":[{"type":"output_text","text":"Let me check the weather.","annotations":[]}]}}
+
+event: response.output_item.added
+data: {"type":"response.output_item.added","sequence_number":8,"output_index":1,"item":{"id":"fc_r2weather","type":"function_call","status":"in_progress","call_id":"call_r2_weather","name":"get_weather","arguments":""}}
+
+event: response.function_call_arguments.delta
+data: {"type":"response.function_call_arguments.delta","sequence_number":9,"item_id":"fc_r2weather","output_index":1,"delta":"{\"city\":"}
+
+event: response.function_call_arguments.delta
+data: {"type":"response.function_call_arguments.delta","sequence_number":10,"item_id":"fc_r2weather","output_index":1,"delta":"\"Melbourne\""}
+
+event: response.function_call_arguments.delta
+data: {"type":"response.function_call_arguments.delta","sequence_number":11,"item_id":"fc_r2weather","output_index":1,"delta":",\"unit\":\"celsius\"}"}
+
+event: response.function_call_arguments.done
+data: {"type":"response.function_call_arguments.done","sequence_number":12,"item_id":"fc_r2weather","output_index":1,"arguments":"{\"city\":\"Melbourne\",\"unit\":\"celsius\"}"}
+
+event: response.output_item.done
+data: {"type":"response.output_item.done","sequence_number":13,"output_index":1,"item":{"id":"fc_r2weather","type":"function_call","status":"completed","call_id":"call_r2_weather","name":"get_weather","arguments":"{\"city\":\"Melbourne\",\"unit\":\"celsius\"}"}}
+
+event: response.completed
+data: {"type":"response.completed","sequence_number":14,"response":{"id":"resp_r2fixture0001","object":"response","created_at":1787457600,"status":"completed","model":"gpt-4.1-mini","output":[{"id":"msg_r2intro","type":"message","status":"completed","role":"assistant","content":[{"type":"output_text","text":"Let me check the weather.","annotations":[]}]},{"id":"fc_r2weather","type":"function_call","status":"completed","call_id":"call_r2_weather","name":"get_weather","arguments":"{\"city\":\"Melbourne\",\"unit\":\"celsius\"}"}],"usage":{"input_tokens":120,"input_tokens_details":{"cached_tokens":0},"output_tokens":41,"output_tokens_details":{"reasoning_tokens":0},"total_tokens":161}}}
+

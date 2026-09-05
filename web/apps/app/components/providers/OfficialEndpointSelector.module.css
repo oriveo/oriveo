@@ -1,0 +1,154 @@
+.selector {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.description {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--o-text-tertiary);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.option {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 108px;
+  padding: 14px;
+  border: 1px solid color-mix(in srgb, var(--o-border-strong) 74%, transparent);
+  border-radius: 18px;
+  background:
+    radial-gradient(circle at top right, color-mix(in srgb, var(--o-primary) 12%, transparent) 0%, transparent 42%),
+    linear-gradient(180deg, color-mix(in srgb, var(--o-surface) 98%, var(--o-bg-subtle)) 0%, color-mix(in srgb, var(--o-surface-raised) 80%, var(--o-surface)) 100%);
+  color: var(--o-text);
+  text-align: left;
+  font: inherit;
+  appearance: none;
+  cursor: pointer;
+  transition:
+    border-color var(--o-transition-fast),
+    box-shadow var(--o-transition-fast),
+    transform var(--o-transition-fast),
+    background var(--o-transition-fast);
+}
+
+.option:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--o-primary) 24%, var(--o-border));
+  box-shadow: 0 10px 22px color-mix(in srgb, var(--o-primary) 10%, transparent);
+}
+
+.option:focus-visible {
+  outline: none;
+  border-color: color-mix(in srgb, var(--o-primary) 30%, var(--o-border));
+  box-shadow:
+    0 0 0 4px color-mix(in srgb, var(--o-primary) 12%, transparent),
+    0 12px 24px color-mix(in srgb, var(--o-primary) 12%, transparent);
+}
+
+.option[data-selected='true'] {
+  border-color: color-mix(in srgb, var(--o-primary) 34%, var(--o-border));
+  background:
+    radial-gradient(circle at top right, color-mix(in srgb, var(--o-primary) 16%, transparent) 0%, transparent 44%),
+    linear-gradient(180deg, color-mix(in srgb, var(--o-primary) 8%, var(--o-surface)) 0%, color-mix(in srgb, var(--o-surface-raised) 82%, var(--o-surface)) 100%);
+  box-shadow:
+    0 0 0 4px color-mix(in srgb, var(--o-primary) 10%, transparent),
+    0 16px 28px color-mix(in srgb, var(--o-primary) 12%, transparent);
+}
+
+.optionHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.optionTitle {
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.35;
+  color: var(--o-text);
+}
+
+.optionCode {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 38px;
+  height: 24px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--o-surface) 68%, var(--o-surface-raised));
+  border: 1px solid color-mix(in srgb, var(--o-border) 86%, transparent);
+  color: var(--o-text-secondary);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.option[data-selected='true'] .optionCode {
+  background: color-mix(in srgb, var(--o-primary) 10%, var(--o-surface));
+  border-color: color-mix(in srgb, var(--o-primary) 22%, transparent);
+  color: var(--o-primary-active);
+}
+
+.optionUrl {
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 8px 10px;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--o-surface-raised) 90%, var(--o-surface));
+  border: 1px solid color-mix(in srgb, var(--o-border) 82%, transparent);
+  color: var(--o-text-secondary);
+  font-size: 12px;
+  line-height: 1.45;
+  font-family: var(--o-font-mono);
+  word-break: break-word;
+}
+
+.option[data-selected='true'] .optionUrl {
+  border-color: color-mix(in srgb, var(--o-primary) 16%, transparent);
+  color: var(--o-text);
+}
+
+.optionCheck {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--o-border-strong) 76%, transparent);
+  background: color-mix(in srgb, var(--o-surface) 94%, var(--o-surface-raised));
+  color: transparent;
+  transition:
+    border-color var(--o-transition-fast),
+    background var(--o-transition-fast),
+    color var(--o-transition-fast);
+}
+
+.option[data-selected='true'] .optionCheck {
+  border-color: color-mix(in srgb, var(--o-primary) 26%, transparent);
+  background: color-mix(in srgb, var(--o-primary) 14%, var(--o-surface));
+  color: var(--o-primary-active);
+}
+
+@media (max-width: 720px) {
+  .grid {
+    grid-template-columns: 1fr;
+  }
+}

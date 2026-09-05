@@ -1,0 +1,23 @@
+{
+  "id": "550E8400-E29B-41D4-A716-446655440003",
+  "kind": "relay",
+  "status": {"kind": "connected"},
+  "models": [
+    {
+      "id": "custom-model-v1",
+      "name": "Custom Model V1",
+      "capabilities": ["text"],
+      "reasoningModeAvailable": false,
+      "isAvailable": true,
+      "isDefault": true,
+      "priceTier": "unknown"
+    }
+  ],
+  "catalogModels": [],
+  "recommendedModels": [],
+  "apiKey": "sk-relay-custom",
+  "apiKeyPreview": "sk-...tom",
+  "baseURLText": "https://my-relay-server.com/v1",
+  "customName": "My Corporate Relay",
+  "updatedAt": "2026-03-16T08:00:00Z"
+}

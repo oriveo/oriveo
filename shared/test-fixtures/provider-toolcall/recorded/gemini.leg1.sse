@@ -1,0 +1,2 @@
+data: {"candidates": [{"content": {"parts": [{"functionCall": {"name": "get_weather","args": {"city": "Melbourne"}}}],"role": "model"},"finishReason": "STOP","index": 0,"finishMessage": "Model generated function call(s)."}],"usageMetadata": {"promptTokenCount": 53,"candidatesTokenCount": 15,"totalTokenCount": 68,"promptTokensDetails": [{"modality": "TEXT","tokenCount": 53}],"serviceTier": "standard"},"modelVersion": "gemini-2.5-flash-lite","responseId": "UnaJaoO8EL-7g8UPktaF-QU"}
+

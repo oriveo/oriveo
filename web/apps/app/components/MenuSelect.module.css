@@ -1,0 +1,231 @@
+.root {
+  position: relative;
+  min-width: var(--menu-select-min-width, 140px);
+  flex-shrink: 0;
+}
+
+.trigger {
+  width: 100%;
+  min-height: 38px;
+  padding: 0 14px 0 16px;
+  border: 1px solid var(--o-ms-trigger-border);
+  border-radius: 14px;
+  background: var(--o-ms-trigger-bg);
+  box-shadow: var(--o-ms-trigger-shadow);
+  color: var(--o-text);
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  cursor: pointer;
+  transition:
+    border-color var(--o-transition-fast),
+    box-shadow var(--o-transition-fast),
+    background var(--o-transition-fast),
+    transform var(--o-transition-fast);
+}
+
+.root[data-has-description='true'] .trigger {
+  min-height: 46px;
+}
+
+.root[data-size='md'] .trigger {
+  min-height: 42px;
+  border-radius: 16px;
+}
+
+.root[data-size='md'][data-has-description='true'] .trigger {
+  min-height: 50px;
+}
+
+.trigger:hover {
+  border-color: color-mix(in srgb, var(--o-primary) 18%, var(--o-border));
+  transform: translateY(-1px);
+}
+
+.trigger:focus-visible {
+  border-color: var(--o-ms-trigger-focus-border);
+  box-shadow: var(--o-ms-trigger-focus-shadow);
+}
+
+.trigger[data-open='true'] {
+  border-color: var(--o-ms-trigger-focus-border);
+  background: var(--o-surface);
+  box-shadow: var(--o-ms-trigger-focus-shadow);
+}
+
+.value {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1px;
+}
+
+.value[data-with-description='false'] {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: block;
+}
+
+.valueLabel {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--o-text-sm);
+  font-weight: 700;
+}
+
+.valueDescription {
+  min-width: 0;
+  color: var(--o-text-tertiary);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.15;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.icon {
+  flex-shrink: 0;
+  color: var(--o-text-tertiary);
+  transition: transform var(--o-transition-fast), color var(--o-transition-fast);
+}
+
+.trigger[data-open='true'] .icon {
+  color: var(--o-primary);
+  transform: rotate(180deg);
+}
+
+.menu {
+  position: absolute;
+  top: calc(100% + 10px);
+  z-index: 40;
+  min-width: var(--menu-select-menu-min-width, var(--menu-select-min-width, 140px));
+  padding: 8px;
+  border: 1px solid var(--o-ms-menu-border);
+  border-radius: 18px;
+  background: var(--o-ms-menu-bg);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  box-shadow: var(--o-ms-menu-shadow);
+  animation: menuSelectIn 140ms ease-out;
+  outline: none;
+  /* Cap long lists (17 languages, for example) and scroll inside, so the menu does not run past the bottom of the viewport */
+  max-height: min(60vh, 440px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.root[data-align='end'] .menu {
+  right: 0;
+}
+
+.root[data-align='start'] .menu {
+  left: 0;
+}
+
+.option {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 11px 12px;
+  border: none;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--o-text-secondary);
+  font-size: var(--o-text-sm);
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background var(--o-transition-fast),
+    color var(--o-transition-fast),
+    transform var(--o-transition-fast),
+    box-shadow var(--o-transition-fast);
+}
+
+.option:hover,
+.option[data-active='true'] {
+  background: var(--o-ms-option-hover-bg);
+  color: var(--o-text);
+}
+
+.option:focus-visible {
+  background: var(--o-ms-option-hover-bg);
+  color: var(--o-text);
+  box-shadow: none;
+}
+
+.option[data-selected='true'] {
+  background: var(--o-ms-option-selected-bg);
+  color: var(--o-text);
+  box-shadow: var(--o-ms-option-selected-shadow);
+}
+
+.optionCopy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.optionLabel {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.optionDescription {
+  color: var(--o-text-tertiary);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.optionCheck {
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: var(--o-ms-option-check-bg);
+  color: var(--o-ms-option-check-color);
+  flex-shrink: 0;
+}
+
+.option[data-selected='true'] .optionCheck {
+  background: var(--o-ms-option-check-selected-bg);
+  color: var(--o-ms-option-check-color);
+}
+
+@keyframes menuSelectIn {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@media (max-width: 720px) {
+  .root {
+    width: 100%;
+  }
+
+  .menu {
+    left: 0;
+    right: 0;
+    min-width: 0;
+  }
+}
+

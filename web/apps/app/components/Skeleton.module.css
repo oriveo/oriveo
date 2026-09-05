@@ -1,0 +1,154 @@
+.shell {
+  display: grid;
+  grid-template-columns: 280px 1fr;
+  height: 100vh;
+  overflow: hidden;
+}
+
+@media (max-width: 768px) {
+  .shell {
+    grid-template-columns: 1fr;
+  }
+  .sidebar {
+    display: none;
+  }
+}
+
+/* ── Shimmer base ── */
+.block {
+  background: var(--o-surface-raised);
+  border-radius: var(--o-radius-md);
+  position: relative;
+  overflow: hidden;
+}
+
+.block::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(139, 92, 246, 0.06) 50%,
+    transparent 100%
+  );
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+/* ── Sidebar ── */
+.sidebar {
+  border-right: 1px solid var(--o-border);
+  padding: var(--o-space-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--o-space-sm);
+}
+
+.sidebarHeader {
+  padding: var(--o-space-sm) 0;
+}
+
+.brand {
+  width: 100px;
+  height: 24px;
+}
+
+.sidebarItems {
+  display: flex;
+  flex-direction: column;
+  gap: var(--o-space-sm);
+}
+
+.sidebarItem {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: var(--o-space-xs) 0;
+}
+
+.itemTitle {
+  width: 75%;
+  height: 14px;
+}
+
+.itemPreview {
+  width: 50%;
+  height: 10px;
+}
+
+/* ── Main ── */
+.main {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+}
+
+.topBar {
+  padding: var(--o-space-md);
+  border-bottom: 1px solid var(--o-border);
+}
+
+.topBarModel {
+  width: 140px;
+  height: 20px;
+  margin: 0 auto;
+}
+
+/* ── Messages ── */
+.messages {
+  flex: 1;
+  max-width: 760px;
+  width: 100%;
+  margin: 0 auto;
+  padding: var(--o-space-lg) var(--o-space-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--o-space-md);
+}
+
+.msgRow {
+  display: flex;
+}
+
+.msgUser {
+  justify-content: flex-end;
+}
+
+.msgAssistant {
+  justify-content: flex-start;
+}
+
+.msgBubble {
+  height: 40px;
+}
+
+.short {
+  width: 35%;
+}
+
+.medium {
+  width: 55%;
+}
+
+.long {
+  width: 80%;
+  height: 60px;
+}
+
+/* ── Input ── */
+.inputArea {
+  padding: var(--o-space-md);
+}
+
+.inputBar {
+  max-width: 760px;
+  width: 100%;
+  height: 48px;
+  margin: 0 auto;
+  border-radius: var(--o-radius-xl);
+}

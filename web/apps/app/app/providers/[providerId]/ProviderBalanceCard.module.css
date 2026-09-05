@@ -1,0 +1,370 @@
+/**
+ * Provider detail page - account balance card.
+ *
+ * Visual details:
+ *   - 20px corner radius plus a two-layer shadow
+ *   - Background: surface, a purple radial glow in the top right, a diagonal glass highlight and
+ *     a PieChart watermark in the bottom right
+ *   - Typography comes from the design tokens (--o-*); no hard-coded CSS variable values, apart
+ *     from the inline decorative shadow and glass opacities
+ */
+
+/* ---------- Card container ---------- */
+.card {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  border-radius: 20px;
+  background: var(--o-surface);
+  border: 1px solid var(--o-border, rgba(15, 23, 42, 0.08));
+  box-shadow:
+    0 6px 12px rgba(15, 23, 42, 0.06),
+    0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+/* Purple radial glow in the top right */
+.card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    240px circle at 102% -5%,
+    color-mix(in srgb, var(--o-primary) 14%, transparent),
+    transparent 70%
+  );
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Diagonal glass highlight, slightly transparent white */
+.card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.06) 40%,
+    rgba(255, 255, 255, 0) 80%
+  );
+  mix-blend-mode: plus-lighter;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* PieChart watermark in the bottom right */
+.watermark {
+  position: absolute;
+  right: -30px;
+  bottom: -30px;
+  width: 130px;
+  height: 130px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.06;
+  color: var(--o-primary);
+  transform: rotate(-12deg);
+  pointer-events: none;
+  z-index: 0;
+}
+.watermark svg {
+  width: 100%;
+  height: 100%;
+}
+
+/* Content layer, above the decoration */
+.content {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+}
+
+/* ---------- Header ---------- */
+.header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.iconChip {
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--o-primary) 12%, transparent);
+  color: var(--o-primary);
+}
+
+.title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--o-text);
+  letter-spacing: -0.005em;
+  flex: 1;
+}
+
+.refreshBtn {
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  background: color-mix(in srgb, var(--o-primary) 12%, transparent);
+  color: var(--o-primary);
+  border: 0;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background var(--o-transition-fast), opacity var(--o-transition-fast);
+}
+
+.refreshBtn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--o-primary) 18%, transparent);
+}
+
+.refreshBtn:disabled {
+  cursor: progress;
+}
+
+.refreshBtn[data-refreshing='true'] {
+  opacity: 0.85;
+}
+
+.refreshBtn[data-refreshing='true'] svg {
+  animation: balanceCardSpin 0.9s linear infinite;
+}
+
+@keyframes balanceCardSpin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ---------- Main amount ---------- */
+.amount {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-feature-settings: 'tnum';
+  font-variant-numeric: tabular-nums;
+}
+
+.amountValue {
+  font-size: 32px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--o-text);
+  line-height: 1.1;
+}
+
+.amountCurrency {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--o-text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* ---------- Breakdown group ---------- */
+.breakdownGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Usage progress bar: 6px primarySoft track with a solid primary fill */
+.progressTrack {
+  height: 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--o-primary) 12%, transparent);
+  overflow: hidden;
+}
+
+.progressFill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--o-primary);
+  transition: width var(--o-transition-normal);
+}
+
+.breakdown {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+  font-variant-numeric: tabular-nums;
+}
+
+.breakdownItem {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* 22px round icon chip */
+.breakdownIconChip {
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: var(--o-bg-subtle, rgba(15, 23, 42, 0.05));
+  color: var(--o-text-secondary);
+}
+
+.breakdownIconChip[data-warning='true'] {
+  background: color-mix(in srgb, var(--o-warning, #f59e0b) 14%, transparent);
+  color: var(--o-warning, #f59e0b);
+}
+
+.breakdownTextCol {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.breakdownLabel {
+  font-size: 11px;
+  color: var(--o-text-tertiary);
+}
+
+.breakdownValueRow {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  font-variant-numeric: tabular-nums;
+}
+
+.breakdownValue {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--o-text);
+}
+
+.breakdownValueWarning {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--o-warning, #f59e0b);
+}
+
+.owingTag {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--o-warning, #f59e0b);
+}
+
+/* ---------- Skeleton ---------- */
+.skeletonGroup {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.skeletonAmount {
+  height: 36px;
+  width: 140px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--o-text) 6%, transparent);
+  animation: balanceCardShimmer 1.4s ease-in-out infinite;
+}
+
+.skeletonBar {
+  height: 6px;
+  width: 100%;
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--o-text) 6%, transparent);
+  animation: balanceCardShimmer 1.4s ease-in-out infinite;
+}
+
+.skeletonChips {
+  display: flex;
+  gap: 20px;
+}
+
+.skeletonChip {
+  height: 28px;
+  width: 80px;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--o-text) 6%, transparent);
+  animation: balanceCardShimmer 1.4s ease-in-out infinite;
+}
+
+@keyframes balanceCardShimmer {
+  0%,
+  100% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* ---------- Error ---------- */
+.errorBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.errorTitle {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--o-warning, #f59e0b);
+}
+
+.errorRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.errorText {
+  font-size: 12px;
+  color: var(--o-text-secondary);
+}
+
+.retryChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  background: color-mix(in srgb, var(--o-primary) 12%, transparent);
+  color: var(--o-primary);
+  border: 0;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background var(--o-transition-fast);
+}
+
+.retryChip:hover {
+  background: color-mix(in srgb, var(--o-primary) 18%, transparent);
+}
+
+/* ---------- Reduced motion ---------- */
+@media (prefers-reduced-motion: reduce) {
+  .refreshBtn[data-refreshing='true'] svg,
+  .skeletonAmount,
+  .skeletonBar,
+  .skeletonChip,
+  .progressFill {
+    animation: none;
+    transition: none;
+  }
+}

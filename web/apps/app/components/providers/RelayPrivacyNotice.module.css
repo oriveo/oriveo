@@ -1,0 +1,21 @@
+.notice {
+  display: flex;
+  gap: 10px;
+  padding: 12px 14px;
+  background: color-mix(in srgb, var(--o-primary) 4%, var(--o-surface));
+  border: 1px solid color-mix(in srgb, var(--o-primary) 18%, var(--o-border-strong));
+  border-radius: calc(var(--o-radius-lg) + 2px);
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--o-text-secondary);
+}
+
+.icon {
+  flex-shrink: 0;
+  margin-top: 2px;
+  color: color-mix(in srgb, var(--o-primary) 70%, var(--o-text-tertiary));
+}
+
+.body {
+  min-width: 0;
+}

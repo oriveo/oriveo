@@ -1,0 +1,65 @@
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: color-mix(in srgb, var(--o-bg) 58%, transparent);
+  backdrop-filter: blur(14px);
+}
+
+.dialog {
+  width: min(360px, 100%);
+  padding: 22px;
+  border: 1px solid var(--o-border);
+  border-radius: 18px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, white 10%, transparent), transparent 44%),
+    var(--o-surface-overlay);
+  box-shadow: var(--o-elevation-modal);
+  text-align: center;
+}
+
+.icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 46px;
+  height: 46px;
+  margin-bottom: 14px;
+  border-radius: 50%;
+  color: var(--o-error);
+  background: color-mix(in srgb, var(--o-error) 12%, transparent);
+}
+
+.title {
+  margin: 0;
+  color: var(--o-text);
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.message {
+  margin: 9px 0 18px;
+  color: var(--o-text-secondary);
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.action {
+  width: 100%;
+  height: 42px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--o-primary);
+  color: var(--o-primary-text);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.action:hover {
+  filter: brightness(1.04);
+}

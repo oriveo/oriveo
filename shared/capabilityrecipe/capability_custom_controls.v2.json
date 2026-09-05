@@ -1,0 +1,38 @@
+{
+  "qwen.web.enable_search": {
+    "id": "qwen.web.enable_search",
+    "owner": "web",
+    "kind": "boolean",
+    "labelKey": "control.web.enableSearch",
+    "descriptionKey": "control.web.enableSearch.desc",
+    "targetPointer": "/enable_search",
+    "defaultBehavior": "provider_default",
+    "riskTier": "privacy_impacting",
+    "sourceRefs": ["qwen.web_search"]
+  },
+  "openai.reasoning.effort": {
+    "id": "openai.reasoning.effort",
+    "owner": "reasoning",
+    "kind": "enum",
+    "values": ["low", "medium", "high"],
+    "labelKey": "control.reasoning.effort",
+    "descriptionKey": "control.reasoning.effort.desc",
+    "targetPointer": "/reasoning/effort",
+    "defaultBehavior": "provider_default",
+    "riskTier": "cost_impacting",
+    "sourceRefs": ["openai.reasoning"]
+  },
+  "openai.generation.max_output_tokens": {
+    "id": "openai.generation.max_output_tokens",
+    "owner": "generation",
+    "kind": "integer_range",
+    "min": 1,
+    "max": 128000,
+    "labelKey": "control.generation.maxOutputTokens",
+    "descriptionKey": "control.generation.maxOutputTokens.desc",
+    "targetPointer": "/max_output_tokens",
+    "defaultBehavior": "provider_default",
+    "riskTier": "cost_impacting",
+    "sourceRefs": ["openai.reasoning"]
+  }
+}

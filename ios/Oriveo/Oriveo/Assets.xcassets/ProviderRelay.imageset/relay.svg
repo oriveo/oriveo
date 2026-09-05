@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">
+  <defs>
+    <linearGradient id="relayPetal" x1="6" y1="6" x2="26" y2="26" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#A78BFA"/>
+      <stop offset="0.55" stop-color="#7C3AED"/>
+      <stop offset="1" stop-color="#5B21B6"/>
+    </linearGradient>
+  </defs>
+  <ellipse cx="16" cy="8" rx="3" ry="5.5" fill="url(#relayPetal)"/>
+  <ellipse cx="16" cy="24" rx="3" ry="5.5" fill="url(#relayPetal)"/>
+  <ellipse cx="8" cy="16" rx="5.5" ry="3" fill="url(#relayPetal)"/>
+  <ellipse cx="24" cy="16" rx="5.5" ry="3" fill="url(#relayPetal)"/>
+  <circle cx="16" cy="16" r="2.6" fill="#F97316"/>
+</svg>

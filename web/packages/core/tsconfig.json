@@ -1,0 +1,14 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["es2022", "webworker"],
+    "paths": {
+      "@oriveo/core": ["./src/index.ts"],
+      "@oriveo/core/*": ["./src/*"],
+      "@oriveo/shared": ["../shared/src/index.ts"],
+      "@oriveo/shared/pure-types": ["../shared/src/pure-types.ts"]
+    }
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["node_modules"]
+}

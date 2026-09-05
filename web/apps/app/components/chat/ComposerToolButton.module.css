@@ -1,0 +1,186 @@
+.button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 30px;
+  max-width: 100%;
+  padding: 3px 10px 3px 4px;
+  border: 1px solid transparent;
+  border-radius: var(--o-radius-full);
+  background: transparent;
+  color: var(--o-text-tertiary);
+  cursor: pointer;
+  transition:
+    background 180ms ease,
+    color 180ms ease,
+    border-color 180ms ease,
+    transform 120ms ease,
+    box-shadow 200ms ease;
+}
+
+.button:focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 2px var(--o-bg),
+    0 0 0 4px color-mix(in srgb, var(--o-primary) 60%, transparent);
+}
+
+.button:hover {
+  color: var(--o-text);
+  background: var(--o-surface-raised);
+  border-color: var(--o-border);
+}
+
+.button:active {
+  transform: scale(0.97);
+  transition-duration: 80ms;
+}
+
+.button[data-active='true'] {
+  color: var(--o-primary);
+  background: var(--o-primary-subtle);
+  border-color: color-mix(in srgb, var(--o-primary) 22%, transparent);
+  box-shadow: inset 0 1px 0 0 var(--o-hairline);
+}
+
+.button[data-active='true']:hover {
+  background: color-mix(in srgb, var(--o-primary) 14%, transparent);
+  border-color: color-mix(in srgb, var(--o-primary) 32%, transparent);
+}
+
+.button[data-emphasized='true'] {
+  color: var(--o-text);
+  background: var(--o-primary-subtle);
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--o-primary) 8%, transparent);
+}
+
+.button[data-emphasized='true'] .iconWrap {
+  color: var(--o-primary);
+}
+
+.button[data-disabled],
+.button[data-read-only] {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.button[data-disabled]:hover,
+.button[data-read-only]:hover {
+  background: transparent;
+  border-color: transparent;
+  color: var(--o-text-tertiary);
+}
+
+.button[data-disabled]:active,
+.button[data-read-only]:active {
+  transform: none;
+}
+
+.iconWrap {
+  width: 24px;
+  height: 24px;
+  border-radius: var(--o-radius-full);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  color: inherit;
+  flex-shrink: 0;
+}
+
+.label {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+
+.trailing {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.capabilityIcons {
+  display: inline-flex;
+  align-items: center;
+  gap: 3.5px;
+  flex-shrink: 0;
+  color: var(--o-primary);
+}
+
+.capabilityIcons > span {
+  width: 11px;
+  height: 11px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.capabilityIcons svg {
+  width: 11px;
+  height: 11px;
+  stroke-width: 2.5;
+}
+
+.emphasisOrb {
+  position: relative;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--o-primary-subtle);
+}
+
+.emphasisOrb::after {
+  content: '';
+  position: absolute;
+  inset: 3.25px;
+  border-radius: 50%;
+  background: var(--o-primary);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--o-primary) 22%, transparent);
+}
+
+/* Metadata must never be truncated into something that reads like a plausible label ("this
+ * model...", "Managed b..."). This rule used to give an escape hatch only to [data-read-only]
+ * (the managed read-only state), while the BYOK web search, reasoning and model behavior chips
+ * stayed pinned inside 72px and were cut by ellipsis. Every state is now treated the same: short
+ * statuses ("Auto") already fit and never wrap, and long statuses (the sentence explaining why a
+ * capability is unavailable) wrap and are shown in full, with the toolbar itself scrolling
+ * horizontally. */
+.meta {
+  max-width: min(17rem, 100%);
+  height: auto;
+  min-height: 22px;
+  padding: 0 8px;
+  border-radius: var(--o-radius-full);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-align: start;
+  background: color-mix(in srgb, var(--o-primary) 10%, transparent);
+  color: color-mix(in srgb, var(--o-primary) 84%, var(--o-text));
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.chevron {
+  color: var(--o-text-tertiary);
+  transition: transform var(--o-transition-fast), color var(--o-transition-fast);
+}
+
+.button[data-active='true'] .chevron {
+  color: var(--o-primary);
+  transform: rotate(180deg);
+}
+
+@media (max-width: 767px) {
+  .meta {
+    max-width: min(13rem, 100%);
+  }
+}

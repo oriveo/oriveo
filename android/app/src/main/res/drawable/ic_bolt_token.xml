@@ -1,0 +1,20 @@
+<!--
+    Bolt-Token emblem, sharing the same path data as iOS's BoltToken.imageset/bolt-token.svg.
+    Duotone multi-color fill, no tint; rendered with Image() rather than Icon() on the Compose
+    side to keep the original colors.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#c6871b"
+        android:pathData="M12,2.3L20.4,7.15L20.4,16.85L12,21.7L3.6,16.85L3.6,7.15Z" />
+    <path
+        android:fillColor="#f5ce6a"
+        android:pathData="M12,4L18.93,8L18.93,16L12,20L5.07,16L5.07,8Z" />
+    <path
+        android:fillColor="#b26f12"
+        android:pathData="M13.2,6.2L8.7,12.6L11.4,12.6L10.8,17.8L15.5,10.9L12.6,10.9Z" />
+</vector>

@@ -1,0 +1,12 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "paths": {
+      "@oriveo/shared": ["../shared/src/index.ts"],
+      "@oriveo/config": ["../config/src/index.ts"],
+      "@oriveo/ui": ["./src/index.ts"]
+    }
+  },
+  "include": ["src/**/*.ts", "src/**/*.tsx"],
+  "exclude": ["node_modules", "**/*.test.ts", "**/*.test.tsx", "**/*.visual-contract.test.ts", "**/*.visual-contract.test.tsx"]
+}

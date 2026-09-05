@@ -1,0 +1,19 @@
+.block { margin: 0 0 8px; border-inline-start: 2px solid color-mix(in srgb, var(--o-primary) 32%, var(--o-border)); color: var(--o-text-secondary); }
+.header { display: flex; width: 100%; align-items: center; gap: 8px; min-height: 30px; padding: 2px 8px 2px 10px; border: 0; background: transparent; color: inherit; font: inherit; font-size: 12px; font-weight: 650; cursor: pointer; text-align: start; }
+.header:focus-visible { outline: none; box-shadow: var(--o-focus-ring); }
+.header .count { margin-inline-start: auto; color: var(--o-text-tertiary); font-variant-numeric: tabular-nums; }
+.header svg { transition: transform 160ms ease; }
+.header svg[data-expanded='true'] { transform: rotate(180deg); }
+.steps { display: grid; gap: 3px; margin: 0; padding: 2px 8px 8px 10px; list-style: none; }
+.steps li { display: grid; grid-template-columns: 22px minmax(0, 1fr) 18px; align-items: center; gap: 5px; min-height: 28px; font-size: 12px; }
+.toolIcon { display: grid; place-items: center; color: var(--o-primary); }
+.label { display: flex; min-width: 0; gap: 5px; }
+.label strong { flex: 0 0 auto; color: var(--o-text-secondary); }
+.label span { overflow: hidden; color: var(--o-text-tertiary); text-overflow: ellipsis; white-space: nowrap; }
+.stateIcon { display: grid; place-items: center; color: var(--o-success); }
+li[data-status='failed'] .stateIcon { color: var(--o-error); }
+li[data-status='running'] .stateIcon,
+li[data-status='pending'] .stateIcon { color: var(--o-primary); }
+.spinner { animation: researchSpin 900ms linear infinite; }
+@keyframes researchSpin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spinner { animation: none; } }

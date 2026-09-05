@@ -1,0 +1,107 @@
+.card {
+  position: fixed;
+  z-index: 150;
+  width: max-content;
+  max-width: min(340px, calc(100vw - 16px));
+  /* line-clamp already bounds the height, so no scrolling is needed; overflow:hidden keeps the accent bar from being clipped or scrolled away. */
+  overflow: hidden;
+  padding: 14px 16px 15px 20px;
+  /* A trace of brand purple in the border, echoing the outline of the reference chip in the composer. */
+  border: 1px solid color-mix(in srgb, var(--o-primary) 14%, var(--o-border));
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--o-surface-overlay) 94%, var(--o-primary) 3%);
+  backdrop-filter: blur(18px) saturate(150%);
+  -webkit-backdrop-filter: blur(18px) saturate(150%);
+  /* Tint the shadow toward brand purple so it does not look dead on a light UI, then layer the standard modal shadow on top. */
+  box-shadow:
+    0 12px 32px color-mix(in srgb, var(--o-primary) 14%, transparent),
+    var(--o-elevation-modal);
+  transition: opacity 140ms ease, transform 140ms ease;
+}
+
+/* Brand-colored accent bar on the left: a rounded capsule with a vertical fade, inset top and bottom so it does not touch the edges. */
+.card::before {
+  content: '';
+  position: absolute;
+  left: 9px;
+  top: 15px;
+  bottom: 15px;
+  width: 3px;
+  border-radius: 999px;
+  background: linear-gradient(
+    180deg,
+    var(--o-primary),
+    color-mix(in srgb, var(--o-primary) 35%, transparent)
+  );
+}
+
+.title {
+  margin: 0;
+  font-size: 13.5px;
+  font-weight: 650;
+  line-height: 1.4;
+  letter-spacing: -0.005em;
+  color: var(--o-text);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.meta {
+  margin-top: 7px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 11px;
+}
+
+.sourceChip {
+  display: inline-flex;
+  align-items: center;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--o-primary) 12%, transparent);
+  color: var(--o-primary);
+  font-weight: 600;
+  font-size: 10.5px;
+}
+
+.date {
+  color: var(--o-text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
+
+.body {
+  margin: 11px 0 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--o-text-secondary);
+  white-space: pre-wrap;
+  /* Wrap very long unbroken strings such as URLs and paths instead of overflowing horizontally and losing the tail. */
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 5;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .card {
+    transition: none;
+  }
+}
+
+/* Reduced-transparency preference: drop the frosted glass and give an opaque ground so the text stays readable. */
+@media (prefers-reduced-transparency: reduce) {
+  .card {
+    background: color-mix(in srgb, var(--o-surface) 97%, var(--o-primary) 3%);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}

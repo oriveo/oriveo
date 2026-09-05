@@ -1,0 +1,458 @@
+{
+  "$comment": "Captured from https://api.oriveoai.com/api/metadata. Web production-capability-snapshot.test.ts and iOS ProductionCapabilitySnapshotTests assert against this file.",
+  "$comment2": "Replaying the same production slice: the client only consumes an exact server recipe, and unknown is no longer propped up by a legacy profile. When there is no exact recipe, the state honestly stays unknown with no automatic field, and plain chat still works.",
+  "$comment3": "Also covers openAI/gpt-5-pro and openAI/gpt-5.2-chat-latest: reasoning = auto_available, but availableIntents is empty and there is no legacy reasoning profile. This is deliberate on the server side (in capabilityrecipe/rules.go: the pro variant rejects low, and these two single-value models each accept only high or medium respectively, so no tier picker is drawn when there is nothing to pick that wouldn't just fail) — \"has automatic configuration but no tier\" is a first-class state here, not a broken auto_available.",
+  "expectedVerdicts": {
+    "$comment": "The one table every client must arrive at after running its own real decision function. Web's production-capability-snapshot.test.ts already asserts it case by case; the identically-named suites on iOS/Android should read from here too, instead of each keeping its own copy of the expected values. Omitting intents means the specific tiers are not constrained, only state and viaLegacyProfile are.",
+    "qwen/qwen3-max": {
+      "web": {
+        "state": "unknown",
+        "viaLegacyProfile": false
+      },
+      "reasoning": {
+        "state": "unavailable",
+        "viaLegacyProfile": false
+      }
+    },
+    "qwen/qwen3.6-plus": {
+      "web": {
+        "state": "unavailable",
+        "viaLegacyProfile": false
+      },
+      "reasoning": {
+        "state": "unknown",
+        "viaLegacyProfile": false
+      }
+    },
+    "anthropic/claude-fable-5": {
+      "web": {
+        "state": "unavailable",
+        "viaLegacyProfile": false
+      },
+      "reasoning": {
+        "state": "auto_available",
+        "viaLegacyProfile": false,
+        "intents": [
+          "low",
+          "balanced",
+          "deep",
+          "max"
+        ]
+      }
+    },
+    "openRouter/anthropic/claude-opus-4.5": {
+      "web": {
+        "state": "auto_available",
+        "viaLegacyProfile": false
+      },
+      "reasoning": {
+        "state": "unavailable",
+        "viaLegacyProfile": false
+      }
+    },
+    "zhipu/glm-4.6": {
+      "web": {
+        "state": "auto_available",
+        "viaLegacyProfile": false
+      },
+      "reasoning": {
+        "state": "auto_available",
+        "viaLegacyProfile": false,
+        "intents": [
+          "off",
+          "balanced"
+        ]
+      }
+    },
+    "deepseek/deepseek-chat": {
+      "web": {
+        "state": "unavailable",
+        "viaLegacyProfile": false
+      },
+      "reasoning": {
+        "state": "unavailable",
+        "viaLegacyProfile": false
+      }
+    },
+    "groq/allam-2-7b": {
+      "web": {
+        "state": "unavailable",
+        "viaLegacyProfile": false
+      },
+      "reasoning": {
+        "state": "unavailable",
+        "viaLegacyProfile": false
+      }
+    },
+    "openRouter/anthropic/claude-opus-4.7-fast": {
+      "web": {
+        "state": "auto_available",
+        "viaLegacyProfile": false
+      },
+      "reasoning": {
+        "state": "unknown",
+        "viaLegacyProfile": false
+      }
+    },
+    "openAI/gpt-5-pro": {
+      "web": {
+        "state": "auto_available",
+        "viaLegacyProfile": false,
+        "intents": [
+          "force"
+        ]
+      },
+      "reasoning": {
+        "state": "auto_available",
+        "viaLegacyProfile": false,
+        "intents": []
+      }
+    },
+    "openAI/gpt-5.2-chat-latest": {
+      "web": {
+        "state": "auto_available",
+        "viaLegacyProfile": false,
+        "intents": [
+          "force"
+        ]
+      },
+      "reasoning": {
+        "state": "auto_available",
+        "viaLegacyProfile": false,
+        "intents": []
+      }
+    }
+  },
+  "capturedAt": "2026-08-12T01:00:12Z",
+  "capturedAtAppended": "2026-08-13T02:00:00Z",
+  "profiles": {
+    "reasoning": {
+      "ant_adaptive_max": {
+        "levels": [
+          "fast",
+          "balanced",
+          "deep",
+          "max"
+        ]
+      },
+      "zhipu_thinking": {
+        "levels": [
+          "fast",
+          "balanced"
+        ]
+      },
+      "or": {
+        "levels": [
+          "fast",
+          "balanced",
+          "deep",
+          "max"
+        ]
+      }
+    }
+  },
+  "models": {
+    "qwen/qwen3-max": {
+      "providerKind": "qwen",
+      "modelId": "qwen3-max",
+      "capabilities": [
+        "text",
+        "web"
+      ],
+      "profiles": {
+        "reasoning": null,
+        "webSearch": "qwen_web"
+      },
+      "capabilityControls": {
+        "generation": {
+          "state": "auto_available",
+          "recipeRef": "qwen.chat.generation.v1"
+        },
+        "reasoning": {
+          "state": "unavailable",
+          "reasonCode": "model_capability_absent"
+        },
+        "web": {
+          "state": "unknown",
+          "reasonCode": "official_source_insufficient"
+        }
+      },
+      "transport": "openai_chat"
+    },
+    "qwen/qwen3.6-plus": {
+      "providerKind": "qwen",
+      "modelId": "qwen3.6-plus",
+      "capabilities": [
+        "text",
+        "image",
+        "video",
+        "reasoning"
+      ],
+      "profiles": {
+        "reasoning": null,
+        "webSearch": null
+      },
+      "capabilityControls": {
+        "generation": {
+          "state": "auto_available",
+          "recipeRef": "qwen.chat.generation.v1"
+        },
+        "reasoning": {
+          "state": "unknown",
+          "reasonCode": "official_source_insufficient"
+        },
+        "web": {
+          "state": "unavailable",
+          "reasonCode": "model_capability_absent"
+        }
+      },
+      "transport": "openai_chat"
+    },
+    "anthropic/claude-fable-5": {
+      "providerKind": "anthropic",
+      "modelId": "claude-fable-5",
+      "capabilities": [
+        "text",
+        "image",
+        "file",
+        "reasoning"
+      ],
+      "profiles": {
+        "reasoning": "ant_adaptive_max",
+        "webSearch": null
+      },
+      "capabilityControls": {
+        "generation": {
+          "state": "auto_available",
+          "recipeRef": "anthropic.messages.generation.v1"
+        },
+        "reasoning": {
+          "state": "auto_available",
+          "recipeRef": "anthropic.messages.reasoning.v2",
+          "availableIntents": [
+            "low",
+            "balanced",
+            "deep",
+            "max"
+          ]
+        },
+        "web": {
+          "state": "unavailable",
+          "reasonCode": "model_capability_absent"
+        }
+      },
+      "transport": "anthropic_messages"
+    },
+    "openRouter/anthropic/claude-opus-4.5": {
+      "providerKind": "openRouter",
+      "modelId": "anthropic/claude-opus-4.5",
+      "capabilities": [
+        "text",
+        "image",
+        "file",
+        "reasoning",
+        "web"
+      ],
+      "profiles": {
+        "reasoning": null,
+        "webSearch": "or_web"
+      },
+      "capabilityControls": {
+        "generation": {
+          "state": "auto_available",
+          "recipeRef": "openrouter.chat.generation.v1"
+        },
+        "reasoning": {
+          "state": "unavailable",
+          "reasonCode": "upstream_parameter_not_declared"
+        },
+        "web": {
+          "state": "auto_available",
+          "recipeRef": "openrouter.chat.web.v1"
+        }
+      },
+      "transport": "openai_chat"
+    },
+    "zhipu/glm-4.6": {
+      "providerKind": "zhipu",
+      "modelId": "glm-4.6",
+      "capabilities": [
+        "text",
+        "reasoning",
+        "web"
+      ],
+      "profiles": {
+        "reasoning": "zhipu_thinking",
+        "webSearch": "zhipu_web"
+      },
+      "capabilityControls": {
+        "generation": {
+          "state": "auto_available",
+          "recipeRef": "zhipu.chat.generation.v1"
+        },
+        "reasoning": {
+          "state": "auto_available",
+          "recipeRef": "zhipu.chat.reasoning.v1",
+          "availableIntents": [
+            "off",
+            "balanced"
+          ]
+        },
+        "web": {
+          "state": "auto_available",
+          "recipeRef": "zhipu.chat.web.v1"
+        }
+      },
+      "transport": "openai_chat"
+    },
+    "deepseek/deepseek-chat": {
+      "providerKind": "deepseek",
+      "modelId": "deepseek-chat",
+      "capabilities": [
+        "text",
+        "file"
+      ],
+      "profiles": {
+        "reasoning": null,
+        "webSearch": null
+      },
+      "capabilityControls": {
+        "generation": {
+          "state": "auto_available",
+          "recipeRef": "deepseek.chat.generation.v1"
+        },
+        "reasoning": {
+          "state": "unavailable",
+          "reasonCode": "model_capability_absent"
+        },
+        "web": {
+          "state": "unavailable",
+          "reasonCode": "model_capability_absent"
+        }
+      },
+      "transport": "openai_chat"
+    },
+    "groq/allam-2-7b": {
+      "providerKind": "groq",
+      "modelId": "allam-2-7b",
+      "capabilities": [
+        "text"
+      ],
+      "profiles": {
+        "reasoning": null,
+        "webSearch": null
+      },
+      "capabilityControls": {
+        "generation": {
+          "state": "auto_available",
+          "recipeRef": "groq.chat.generation.v1"
+        },
+        "reasoning": {
+          "state": "unavailable",
+          "reasonCode": "model_capability_absent"
+        },
+        "web": {
+          "state": "unavailable",
+          "reasonCode": "model_capability_absent"
+        }
+      },
+      "transport": "openai_chat"
+    },
+    "openRouter/anthropic/claude-opus-4.7-fast": {
+      "providerKind": "openRouter",
+      "modelId": "anthropic/claude-opus-4.7-fast",
+      "capabilities": [
+        "text",
+        "image",
+        "file",
+        "reasoning",
+        "web"
+      ],
+      "profiles": {
+        "reasoning": "or",
+        "webSearch": "or_web"
+      },
+      "capabilityControls": {
+        "generation": {
+          "state": "auto_available",
+          "recipeRef": "openrouter.chat.generation.v1"
+        },
+        "reasoning": {
+          "state": "unknown",
+          "reasonCode": "official_source_insufficient"
+        },
+        "web": {
+          "state": "auto_available",
+          "recipeRef": "openrouter.chat.web.v1"
+        }
+      },
+      "transport": "openai_chat"
+    },
+    "openAI/gpt-5-pro": {
+      "providerKind": "openAI",
+      "modelId": "gpt-5-pro",
+      "capabilities": [
+        "text",
+        "image",
+        "file",
+        "reasoning",
+        "web"
+      ],
+      "profiles": {
+        "reasoning": null,
+        "webSearch": "oai_responses_web"
+      },
+      "capabilityControls": {
+        "generation": {
+          "state": "auto_available",
+          "recipeRef": "openai.responses.generation.v1"
+        },
+        "reasoning": {
+          "state": "auto_available",
+          "recipeRef": "openai.responses.reasoning.v1"
+        },
+        "web": {
+          "state": "auto_available",
+          "recipeRef": "openai.responses.web.v1",
+          "availableIntents": [
+            "force"
+          ]
+        }
+      },
+      "transport": "openai_responses"
+    },
+    "openAI/gpt-5.2-chat-latest": {
+      "providerKind": "openAI",
+      "modelId": "gpt-5.2-chat-latest",
+      "capabilities": [
+        "text",
+        "image",
+        "file",
+        "reasoning",
+        "web"
+      ],
+      "profiles": {
+        "reasoning": null,
+        "webSearch": "oai_responses_web"
+      },
+      "capabilityControls": {
+        "generation": {
+          "state": "auto_available",
+          "recipeRef": "openai.responses.generation.v1"
+        },
+        "reasoning": {
+          "state": "auto_available",
+          "recipeRef": "openai.responses.reasoning.v1"
+        },
+        "web": {
+          "state": "auto_available",
+          "recipeRef": "openai.responses.web.v1",
+          "availableIntents": [
+            "force"
+          ]
+        }
+      },
+      "transport": "openai_responses"
+    }
+  }
+}

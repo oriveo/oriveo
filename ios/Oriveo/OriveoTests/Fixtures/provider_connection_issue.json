@@ -1,0 +1,10 @@
+{
+  "id": "550E8400-E29B-41D4-A716-446655440004",
+  "kind": "gemini",
+  "status": {"kind": "issue", "message": "API Key expired"},
+  "models": [],
+  "catalogModels": [],
+  "apiKey": "AIza-expired",
+  "apiKeyPreview": "AIza...red",
+  "updatedAt": "2026-03-14T09:00:00Z"
+}

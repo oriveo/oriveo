@@ -1,0 +1,178 @@
+/* -- Folder row: same visual language as ConversationItem, flat + transparent + hairline -- */
+.folderHeader {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 56px;
+  padding: 11px 12px;
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  transition:
+    background var(--o-transition-fast),
+    color var(--o-transition-fast);
+  color: var(--o-text);
+  width: 100%;
+  background: transparent;
+  text-align: left;
+}
+
+.mobileHomeFolderHeader {
+  min-height: 68px;
+  padding: 12px 10px;
+  border-radius: 16px;
+}
+
+@media (hover: hover) {
+  .folderHeader:hover {
+    background: color-mix(in srgb, var(--o-surface) 70%, transparent);
+  }
+}
+
+@media (hover: none) {
+  .folderHeader:active {
+    background: color-mix(in srgb, var(--o-surface) 60%, transparent);
+  }
+}
+
+/* -- Gradient icon container; the brand colour block is what distinguishes folders from conversation rows -- */
+.folderIconWrap {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.folderIconWrap svg {
+  width: 14px;
+  height: 14px;
+  color: var(--o-on-info); /* White icon on the folder colour fill */
+}
+
+.folderName {
+  flex: 1;
+  font-size: 14.5px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+/* -- Count badge: no capsule, aligned with the tertiary meta styling -- */
+.folderCount {
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--o-text-tertiary);
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+
+.chevron {
+  width: 14px;
+  height: 14px;
+  color: var(--o-text-tertiary);
+  transition: transform 200ms ease;
+  flex-shrink: 0;
+}
+
+.chevronExpanded {
+  transform: rotate(90deg);
+}
+
+/* -- Expanded area -- */
+.folderContent {
+  overflow: hidden;
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 200ms ease;
+}
+
+.folderContentExpanded {
+  grid-template-rows: 1fr;
+}
+
+/* Inner expanded area: a 16px left indent reinforces the parent and child hierarchy */
+.folderContentInner {
+  overflow: hidden;
+  padding-block: 4px 0;
+  padding-inline-start: 16px;
+}
+
+/* -- Drop target highlight -- */
+.folderHeaderDragOver {
+  background: color-mix(in srgb, var(--o-primary) 12%, transparent);
+  outline: 2px dashed var(--o-primary);
+  outline-offset: -2px;
+}
+
+/* -- New conversation button: secondary CTA, aligned with the indent -- */
+.newChatInFolder {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  font-size: 12px;
+  color: var(--o-text-tertiary);
+  cursor: pointer;
+  border-radius: 10px;
+  border: none;
+  background: none;
+  width: 100%;
+  transition: color var(--o-transition-fast), background var(--o-transition-fast);
+}
+
+@media (hover: hover) {
+  .newChatInFolder:hover {
+    color: var(--o-primary);
+    background: color-mix(in srgb, var(--o-surface) 70%, transparent);
+  }
+}
+
+@media (hover: none) {
+  .newChatInFolder:active {
+    color: var(--o-primary);
+    background: color-mix(in srgb, var(--o-surface) 60%, transparent);
+  }
+}
+
+/* -- Empty folder state -- */
+.emptyFolder {
+  padding: 16px 20px;
+  text-align: center;
+  color: var(--o-text-tertiary);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.emptyFolder p {
+  margin: 0 0 4px;
+}
+
+/* -- Inline rename: same size and weight as .folderName so nothing shifts when entering edit mode -- */
+.renameInput {
+  flex: 1;
+  min-width: 0;
+  padding: 2px 6px;
+  border: 1px solid var(--o-primary);
+  border-radius: var(--o-radius-sm);
+  background: var(--o-surface);
+  color: var(--o-text);
+  font-size: 14.5px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+  outline: none;
+}
+
+/* -- GroupedCard inside a folder: a flat container consistent with the outer conversation list;
+       the ConversationItem rows carry their own hairline divider, so no border-bottom here -- */
+.folderGroupedCard {
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  overflow: visible;
+}

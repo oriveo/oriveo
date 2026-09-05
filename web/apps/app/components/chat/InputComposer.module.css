@@ -1,0 +1,1307 @@
+.wrap {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 5;
+  padding: 40px var(--o-space-md) var(--o-space-md);
+  /* Gradient mask: transparent at the top fading to nearly opaque at the bottom, so messages scrolling behind the composer do not show through */
+  background:
+    linear-gradient(
+      180deg,
+      transparent 0%,
+      color-mix(in srgb, var(--o-bg) 55%, transparent) 45%,
+      color-mix(in srgb, var(--o-bg) 92%, transparent) 100%
+    );
+  pointer-events: none;
+}
+
+/* Lift the whole composer in the home form. How far has to live in a single variable: the model
+   options popover subtracts the same number from its height cap (see
+   `.wrapHome .modelControlsPopover`), and two hand-written clamps would inevitably drift. */
+.wrapHome {
+  --o-composer-home-lift: clamp(44px, 7.5vh, 84px);
+  bottom: var(--o-composer-home-lift);
+  padding: 0 var(--o-space-lg);
+  background: none;
+}
+
+/* Attachment cloud-sync quota banner */
+.attachmentSyncBanner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+  padding: 7px 10px;
+  border-radius: 10px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--o-text-secondary);
+  border: 1px solid transparent;
+}
+
+.attachmentSyncBanner[data-tone='paused'] {
+  background: color-mix(in srgb, var(--o-error) 8%, transparent);
+  border-color: color-mix(in srgb, var(--o-error) 20%, transparent);
+  color: color-mix(in srgb, var(--o-error) 80%, var(--o-text));
+}
+
+.attachmentSyncBanner[data-tone='warning'] {
+  background: color-mix(in srgb, var(--o-warning) 8%, transparent);
+  border-color: color-mix(in srgb, var(--o-warning) 20%, transparent);
+  color: color-mix(in srgb, var(--o-warning) 88%, var(--o-text));
+}
+
+.attachmentSyncBannerIcon {
+  flex-shrink: 0;
+}
+
+/* ── Unified composer — frosted glass + hairline highlight ── */
+.composer {
+  position: relative;
+  pointer-events: auto;
+  max-width: 820px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  padding: 10px 12px 6px;
+  border: 1px solid var(--o-border-strong);
+  border-radius: 20px;
+  background: var(--o-composer-bg);
+  backdrop-filter: blur(28px) saturate(1.6);
+  -webkit-backdrop-filter: blur(28px) saturate(1.6);
+  box-shadow: var(--o-composer-shadow);
+  transition:
+    border-color 220ms ease,
+    box-shadow 240ms cubic-bezier(0.16, 1, 0.3, 1),
+    transform 200ms ease;
+}
+
+.pendingQuote {
+  min-width: 0;
+  max-width: 100%;
+  padding: 0 2px 8px;
+}
+
+/* ── Focus aurora border — a colored gradient flowing around the edge ──
+ * A conic-gradient rotates --o-aurora-angle and the mask cuts out the middle, leaving only the
+ * border width. One crisp outline, with no blurred glow: a pale rainbow over white smears into a
+ * washed-out halo. pointer-events:none plus the cut-out keeps the input usable. */
+.composer::before {
+  content: '';
+  position: absolute;
+  /* -1px: the containing block is the composer's padding-box, so this has to extend 1px to cover
+   * the outer edge of the border; otherwise the rainbow is drawn inside the 1px border and the
+   * border, transparent while focused, lets the white background through as a white outline */
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1.6px;
+  background: conic-gradient(
+    from var(--o-aurora-angle),
+    #6e8bff,
+    #9b6bff,
+    #e06bc4,
+    #ffb36b,
+    #66e0b8,
+    #6e8bff
+  );
+  -webkit-mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#fff 0 0) content-box,
+    linear-gradient(#fff 0 0);
+  mask-composite: exclude;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 260ms ease;
+}
+
+.composer:has(.textarea:focus)::before {
+  opacity: 1;
+  animation: auroraSpin 3.5s linear infinite;
+}
+
+@keyframes auroraSpin {
+  to {
+    --o-aurora-angle: 360deg;
+  }
+}
+
+.wrapHome .composer {
+  max-width: 780px;
+  min-height: 116px;
+  padding: 15px 17px 10px;
+  border-radius: 22px;
+  background: var(--o-composer-home-bg);
+  box-shadow: var(--o-composer-home-shadow);
+}
+
+.relatedNotes {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 0 2px 8px;
+}
+
+.relatedNotesTitle {
+  font-size: 11px;
+  line-height: 1.2;
+  font-weight: 700;
+  color: var(--o-text-tertiary);
+  text-transform: uppercase;
+}
+
+.relatedNoteList {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 7px;
+}
+
+.relatedNoteItem {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  max-width: 100%;
+  min-height: 44px;
+  padding: 8px 8px 8px 10px;
+  border: 1px solid color-mix(in srgb, var(--o-primary) 14%, var(--o-border));
+  border-radius: 12px;
+  background:
+    linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--o-primary) 8%, transparent),
+      color-mix(in srgb, var(--o-surface) 82%, transparent)
+    );
+  color: var(--o-text-secondary);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, white 42%, transparent);
+  transition:
+    border-color 180ms ease,
+    background 180ms ease,
+    transform 160ms ease;
+}
+
+.relatedNoteItem:hover {
+  border-color: color-mix(in srgb, var(--o-primary) 24%, var(--o-border-strong));
+  background:
+    linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--o-primary) 12%, transparent),
+      color-mix(in srgb, var(--o-surface) 92%, transparent)
+    );
+  transform: translateY(-1px);
+}
+
+.relatedNoteCopy {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 2px;
+}
+
+.relatedNoteSource {
+  max-width: min(260px, 48vw);
+  overflow: hidden;
+  color: var(--o-text-tertiary);
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1.15;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.relatedNoteTitle {
+  max-width: min(260px, 48vw);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--o-text);
+}
+
+.relatedNoteActions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.relatedNoteAttach,
+.relatedNoteDismiss {
+  appearance: none;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  min-height: 22px;
+  padding: 0 7px;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 650;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease,
+    transform 120ms ease;
+}
+
+.relatedNoteAttach {
+  background: var(--o-primary);
+  color: var(--o-primary-text);
+  box-shadow: 0 2px 7px color-mix(in srgb, var(--o-primary) 20%, transparent);
+}
+
+.relatedNoteDismiss {
+  border-color: var(--o-border);
+  background: var(--o-bg);
+  color: var(--o-text-secondary);
+}
+
+.relatedNoteAttach:hover {
+  background: var(--o-primary-active);
+}
+
+.relatedNoteDismiss:hover {
+  color: var(--o-text);
+  border-color: var(--o-border-strong);
+  background: var(--o-primary-subtle);
+}
+
+.relatedNoteAttach:active,
+.relatedNoteDismiss:active {
+  transform: scale(0.97);
+}
+
+/* Chips for notes pinned as context: laid out inline above the input, reflecting honestly that they ride along on every turn. */
+.attachedNotes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 0 2px 8px;
+}
+
+.attachedNoteChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  padding: 5px 6px 5px 9px;
+  border: 1px solid color-mix(in srgb, var(--o-primary) 24%, var(--o-border));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--o-primary) 10%, var(--o-surface));
+  color: var(--o-text);
+}
+
+.attachedNoteChipMain {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: default;
+}
+
+/* Touch has no hover; the chip is tappable to open a preview, so hint with pointer */
+@media (pointer: coarse) {
+  .attachedNoteChipMain {
+    cursor: pointer;
+  }
+}
+
+.attachedNoteIcon {
+  flex-shrink: 0;
+  color: var(--o-primary);
+}
+
+.libraryContextMonogram {
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 13px;
+  height: 13px;
+  color: var(--o-text);
+  font-size: 10px;
+  font-weight: 850;
+  line-height: 1;
+}
+
+.attachedNoteTitle {
+  max-width: min(220px, 42vw);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.2;
+}
+
+.attachedNoteRemove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--o-text-tertiary);
+  cursor: pointer;
+  transition:
+    background 140ms ease,
+    color 140ms ease;
+}
+
+.attachedNoteRemove:hover {
+  background: color-mix(in srgb, var(--o-primary) 16%, transparent);
+  color: var(--o-text);
+}
+
+.attachedNoteRemove:active {
+  transform: scale(0.92);
+}
+
+/* Very slight lift and glow on hover */
+.composer:hover:not(:has(.textarea:focus)) {
+  border-color: color-mix(in srgb, var(--o-primary) 18%, var(--o-border-strong));
+  box-shadow: var(--o-composer-hover-shadow);
+  transform: translateY(-1px);
+}
+
+/* Container focus state: the solid outline gives way to the aurora border (::before/::after), keeping only a soft outer glow */
+.composer:has(.textarea:focus) {
+  border-color: transparent;
+  box-shadow: var(--o-composer-focus-shadow);
+}
+
+/* ── Textarea ── */
+.textarea {
+  flex: 0 0 auto;
+  width: 100%;
+  min-height: 36px;
+  max-height: 200px;
+  padding: 2px 4px 6px;
+  margin: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  color: var(--o-text);
+  font-size: var(--o-text-base);
+  font-family: inherit;
+  line-height: 1.5;
+  resize: none;
+  outline: none;
+  overflow-y: auto;
+  scrollbar-width: none;
+  -webkit-appearance: none;
+}
+
+.wrapHome .textarea {
+  min-height: 50px;
+  padding: 4px 4px 11px;
+  font-size: 17px;
+}
+
+.textarea::-webkit-scrollbar {
+  display: none;
+}
+
+.textarea:focus {
+  outline: none;
+  box-shadow: none;
+  border: none;
+}
+
+.textarea::placeholder {
+  color: var(--o-text-tertiary);
+}
+
+/* Model options popover: anchored 54px above the bottom of the composer, growing upwards.
+ *
+ * z-index:30 only applies inside .wrap (z-index:5, its own stacking context). It cannot beat
+ * .modelSwitcherLayer (z-index:20) in ChatView, which is a sibling of .wrap; when the model
+ * switcher is open it covers the whole page with its own .overlay, which is expected modal
+ * behavior and not an occlusion to fix here. Raising this number will not get past it.
+ *
+ * The height cap has to come from the real available space: the inner scroll area does not know
+ * how much the composer takes below the popover (16px padding + 54px offset on desktop, 76px +
+ * safe area + 54px on mobile). In a short viewport (landscape phone, large safe area) a blind
+ * viewport percentage pushes the top out of .view, and since .view is overflow:hidden whatever
+ * is pushed out can never be scrolled back.
+ *
+ * Logical properties (inset-inline-start) keep the anchor on the input side under RTL; the close
+ * bar sits outside the scroll area, so close can never scroll away. */
+.modelControlsPopover {
+  position: absolute;
+  inset-inline-start: 8px;
+  bottom: 54px;
+  z-index: 30;
+  width: min(440px, calc(100% - 16px));
+  /* Height the composer takes below the popover, plus clearance for the 52px TopBar */
+  --o-model-options-popover-reserved: 130px;
+  max-height: calc(100vh - var(--o-model-options-popover-reserved));
+  max-height: calc(100dvh - var(--o-model-options-popover-reserved));
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--o-border-strong);
+  border-radius: var(--o-radius-lg);
+  background: var(--o-surface);
+  box-shadow: var(--o-elevation-modal);
+  animation: panelIn 160ms ease-out;
+}
+
+/* Home form: the composer does not sit flush with the bottom but is lifted by
+   `--o-composer-home-lift` (44-84px on desktop, 76px + safe area on mobile). The popover grows
+   upwards, so that lift is space taken below it as well. The 130px in the base rule is measured
+   from `.wrap`'s bottom padding and knows nothing about this form, so at the 84px end it pushes
+   the popover's top out of `.view` (overflow:hidden), and what is pushed out never scrolls back.
+   Reserved = lift + the popover's own 54px offset + 52px of TopBar clearance (the mobile TopBar
+   is 50, so 52 is enough). */
+.wrapHome .modelControlsPopover {
+  --o-model-options-popover-reserved: calc(var(--o-composer-home-lift) + 54px + 52px);
+}
+
+/* Header: model name plus provider and protocol. Plain type rather than yet another card, since it is a header, not something to act on. */
+.modelControlsHeader {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 14px 16px 10px;
+  color: var(--o-text);
+}
+
+/* The header of a second-level pane gains a back button, so it becomes a row. */
+.modelControlsHeader[data-secondary='true'] {
+  flex-direction: row;
+  align-items: center;
+  gap: 6px;
+}
+
+.modelControlsTitle {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--o-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* All explanatory text in this panel uses `--o-text-secondary`, never tertiary. On the light
+   `--o-bg-subtle` used by capability cards and banners, tertiary measures 4.397:1, just under
+   AA, and half the explanatory text here sits on cards while the other half sits on the popover
+   background - one grey per background would make the same class of text look like two different
+   things. secondary is >=7:1 on both backgrounds and in both themes. It is registered in
+   lib/design-system/semantic-text-contrast.ts, so going back to tertiary fails immediately. */
+.modelControlsSubtitle {
+  font-size: 12px;
+  color: var(--o-text-secondary);
+}
+
+.modelControlsBack {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  min-height: 32px;
+  margin-inline-start: -6px;
+  border: 0;
+  border-radius: var(--o-radius-md);
+  background: transparent;
+  color: var(--o-text-secondary);
+  cursor: pointer;
+}
+
+/* 32 visually, 44 for the hit target: the back button is the only way out of a second-level
+   pane, so it should be harder to miss than any pill, while growing the visual to 44 would make
+   a plain icon button heavier than the title beside it. Expanding 6px on all sides stays inside
+   the header's 14/16px padding and touches no other tappable area. */
+.modelControlsBack::after {
+  content: '';
+  position: absolute;
+  inset: -6px;
+}
+
+.modelControlsBack:hover {
+  background: var(--o-bg-subtle);
+  color: var(--o-text);
+}
+
+/* Mirror the back arrow under RTL, otherwise it points forward */
+.modelControlsBack svg {
+  transform: scaleX(1);
+}
+
+[dir='rtl'] .modelControlsBack svg {
+  transform: scaleX(-1);
+}
+
+/* Same for the forward chevron (status row, advanced settings row, candidate model row). It is
+   the other half of the same rule as the back button: an unmirrored `›` under RTL reads as
+   "back", while all three of these go deeper. A dedicated class is used rather than
+   `.modelControlNavigationRow svg`, since that row also holds a parameter icon that would
+   otherwise be flipped along with it. */
+.modelControlForwardChevron {
+  flex: 0 0 auto;
+}
+
+[dir='rtl'] .modelControlForwardChevron {
+  transform: scaleX(-1);
+}
+
+.modelControlSections {
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 0 10px 10px;
+}
+
+/* ── Capability cards ──────────────────────────────────────────────────────────────
+ * Cards are not outlined and are layered by background alone: three outlined cards on one screen
+ * put all the attention on the borders. */
+.modelControlCard {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border-radius: var(--o-radius-md);
+  background: var(--o-bg-subtle);
+}
+
+.modelControlCardHeader {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 28px;
+}
+
+.modelControlCardIcon {
+  flex: 0 0 auto;
+  color: var(--o-text-secondary);
+}
+
+.modelControlCardIcon[data-accent='web'] { color: var(--o-cap-web-text); }
+.modelControlCardIcon[data-accent='reasoning'] { color: var(--o-cap-reasoning-text); }
+
+.modelControlCardTitle {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--o-text);
+}
+
+/* Web-search switch: the native input covers a 44x44 hit area and keeps full accessibility
+   semantics, while the visuals move to the track / thumb behind it so Safari and Chrome do not
+   each draw their own native box. The visual stays a compact 44x24 capsule, and the label only
+   contributes vertical hit area without changing the card's information density. */
+.modelControlSwitchHit {
+  position: relative;
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+  cursor: pointer;
+}
+
+.modelControlSwitch {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.modelControlSwitchTrack {
+  position: relative;
+  display: block;
+  width: 44px;
+  height: 24px;
+  border-radius: var(--o-radius-full);
+  background: color-mix(in srgb, var(--o-text-secondary) 24%, var(--o-surface));
+  box-shadow: inset 0 1px 2px color-mix(in srgb, var(--o-text) 12%, transparent);
+  pointer-events: none;
+  transition:
+    background var(--o-transition-normal),
+    box-shadow var(--o-transition-normal),
+    transform var(--o-transition-fast);
+}
+
+.modelControlSwitchThumb {
+  position: absolute;
+  inset-block-start: 2px;
+  inset-inline-start: 2px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--o-switch-thumb);
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.22),
+    0 1px 1px rgba(0, 0, 0, 0.12);
+  transition: inset-inline-start 220ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.modelControlSwitchCheck {
+  width: 12px;
+  height: 12px;
+  color: var(--o-primary-active);
+  opacity: 0;
+  transform: scale(0.7);
+  transition:
+    opacity var(--o-transition-fast),
+    transform var(--o-transition-normal);
+}
+
+.modelControlSwitchHit:hover .modelControlSwitchTrack {
+  background: color-mix(in srgb, var(--o-text-secondary) 32%, var(--o-surface));
+}
+
+.modelControlSwitch:checked + .modelControlSwitchTrack {
+  background: var(--o-primary);
+  box-shadow: inset 0 1px 2px color-mix(in srgb, #000 16%, transparent);
+}
+
+.modelControlSwitch:checked + .modelControlSwitchTrack .modelControlSwitchThumb {
+  inset-inline-start: 22px;
+}
+
+.modelControlSwitch:checked + .modelControlSwitchTrack .modelControlSwitchCheck {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.modelControlSwitchHit:hover .modelControlSwitch:checked + .modelControlSwitchTrack {
+  background: var(--o-primary-hover);
+}
+
+.modelControlSwitch:active + .modelControlSwitchTrack {
+  transform: scale(0.96);
+}
+
+.modelControlSwitch:focus-visible + .modelControlSwitchTrack {
+  box-shadow:
+    inset 0 1px 2px color-mix(in srgb, var(--o-text) 12%, transparent),
+    0 0 0 3px color-mix(in srgb, var(--o-primary) 28%, transparent);
+}
+
+.modelControlSwitch:disabled {
+  cursor: not-allowed;
+}
+
+.modelControlSwitch:disabled + .modelControlSwitchTrack {
+  background: color-mix(in srgb, var(--o-text-disabled-on-control) 20%, var(--o-surface));
+}
+
+/* Badge: shown only outside the normal case. The capsule background differs between themes
+   (X11: 0.20 dark, 0.12 light), both defined in `packages/ui/src/tokens/variables.css` and only
+   referenced here - the same 12% is nearly invisible on a dark background, which degrades the
+   capsule into colored text with no container. */
+.modelControlBadge {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  padding: 0 8px;
+  border-radius: var(--o-radius-full);
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.modelControlBadge[data-tone='manual'] {
+  background: var(--o-model-control-badge-manual-bg);
+  color: var(--o-warning-text);
+}
+
+.modelControlBadge[data-tone='unavailable'] {
+  background: var(--o-model-control-badge-unavailable-bg);
+  color: var(--o-error-text);
+}
+
+/* ── Pill group (shared by web-search timing and thinking level) ──
+ * Only levels the recipe actually sends are rendered, and every one of them is clickable: there
+ * are no greyed-out options here, hence no :disabled rule. */
+.modelControlPills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.modelControlPill {
+  position: relative;
+  min-height: 36px;
+  padding: 0 12px;
+  border: none;
+  border-radius: var(--o-radius-full);
+  background: var(--o-surface);
+  color: var(--o-text-secondary);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color 180ms cubic-bezier(0.4, 0, 0.2, 1), background 180ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* 36pt visually, 44pt for the hit target: packed together, a 36pt hit area is easy to miss on
+   touch, while growing the visual to 44 would make this row of capsules heavier than the cards
+   on either side. A pseudo-element grows the hit area outwards without affecting layout
+   (`inset-inline: 0` keeps two adjacent hit areas from overlapping). */
+.modelControlPill::after {
+  content: '';
+  position: absolute;
+  inset-block: -4px;
+  inset-inline: 0;
+}
+
+.modelControlPill:hover {
+  color: var(--o-text);
+}
+
+.modelControlPill[data-active='true'] {
+  background: var(--o-segmented-selected-bg);
+  color: var(--o-primary-text);
+}
+
+/* ── Status row and its way out ──
+ * A button is only constructed when there is an explanation: a control that does nothing when
+ * clicked is as bad as a greyed-out option. */
+.modelControlStatusRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  min-height: 44px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--o-text-secondary);
+  font: inherit;
+  font-size: 12px;
+  line-height: 1.5;
+  text-align: start;
+}
+
+.modelControlStatusRow[data-interactive='true'] {
+  cursor: pointer;
+}
+
+.modelControlExplanation {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 10px;
+  border-radius: var(--o-radius-md);
+  background: var(--o-surface);
+}
+
+.modelControlExplanation p {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--o-text-secondary);
+}
+
+/* Always-visible explanation. Never turn this into a hover title: touch and keyboard users
+   cannot read it. For the color see the note above `.modelControlsSubtitle`: explanatory text in
+   this panel is always secondary. */
+.modelControlNote {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--o-text-secondary);
+}
+
+.modelControlNote[data-tone='warning'] {
+  color: var(--o-warning-text);
+}
+
+.modelControlNote svg {
+  flex: 0 0 auto;
+  margin-top: 2px;
+}
+
+/* Explanation group inside a card. When there is not a single one the group is not rendered, so no empty-state spacing is needed here. */
+.modelControlNotes {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.modelControlInlineAction {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--o-border);
+  border-radius: var(--o-radius-md);
+  background: var(--o-surface);
+  color: var(--o-text);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+/* 36 visually, 44 for the hit target, same technique as the pills. `inset-inline: 0` is
+   required: with two side by side (the identity restore pair), negative horizontal expansion
+   would make the two hit areas overlap. */
+.modelControlInlineAction::after {
+  content: '';
+  position: absolute;
+  inset-block: -4px;
+  inset-inline: 0;
+}
+
+.modelControlInlineAction:hover:not(:disabled) {
+  border-color: var(--o-border-strong);
+}
+
+.modelControlInlineAction:disabled {
+  cursor: progress;
+  color: var(--o-text-disabled-on-control);
+}
+
+/* ── Read-only banner ── */
+.modelControlBanner {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px;
+  border-radius: var(--o-radius-md);
+  background: var(--o-bg-subtle);
+}
+
+/* ── The "advanced settings ›" row. It is a card in itself and is not wrapped in another one. ── */
+.modelControlNavigationRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 52px;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: var(--o-radius-md);
+  background: var(--o-bg-subtle);
+  color: var(--o-text);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.modelControlNavigationCopy {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.modelControlNavigationSubtitle {
+  font-size: 12px;
+  color: var(--o-text-secondary);
+}
+
+.modelControlNavigationTrailing {
+  flex: 0 0 auto;
+  font-size: 12px;
+  color: var(--o-text-secondary);
+}
+
+/* ── Placeholder list when there is no model: the entry stays and says honestly that it is not ready ── */
+.modelControlPlaceholderList {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  border-radius: var(--o-radius-md);
+  background: var(--o-bg-subtle);
+  list-style: none;
+}
+
+.modelControlPlaceholderRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 52px;
+  padding: 0 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--o-text);
+}
+
+.modelControlPlaceholderRow + .modelControlPlaceholderRow {
+  border-top: 1px solid var(--o-border);
+}
+
+.modelControlPlaceholderState {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--o-text-secondary);
+}
+
+/* ── "See supported models" pane ── */
+.modelControlCandidateList {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.modelControlCandidateRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 52px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: var(--o-radius-md);
+  background: transparent;
+  color: var(--o-text);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.modelControlCandidateRow:hover {
+  background: var(--o-bg-subtle);
+}
+
+.modelControlCandidateName {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.modelControlCandidateAction {
+  flex: 0 0 auto;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--o-primary-text-on-surface);
+}
+
+/* ── Fixed bottom area: the scope upgrade row and the close bar, joined into one block ── */
+.modelControlsFooter {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  background: var(--o-surface);
+}
+
+/* Scope upgrade row. It shares the bottom area's background with the close bar and is separated
+   from the scrolling content by a single hairline: it is not a card but a one-line receipt for
+   where the change that just happened was applied. */
+.modelControlScopeUpgrade {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 6px 12px;
+  border-top: 1px solid var(--o-border);
+  animation: modelControlScopeUpgradeIn 0.22s ease-in-out;
+}
+
+.modelControlScopeUpgradeNote {
+  flex: 1 1 auto;
+  font-size: 11px;
+  color: var(--o-text-secondary);
+}
+
+.modelControlScopeUpgradeAction {
+  position: relative;
+  flex: 0 0 auto;
+  min-height: 32px;
+  padding: 0 10px;
+  border: none;
+  border-radius: var(--o-radius-sm);
+  background: transparent;
+  color: var(--o-primary-text-on-surface);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* 32 visually, 44 for the hit target. The 6px of expansion exactly consumes this row's own 6px
+   vertical padding, so the hit area matches the row height without spilling onto the close bar
+   or leaving an unclickable strip. */
+.modelControlScopeUpgradeAction::after {
+  content: '';
+  position: absolute;
+  inset-block: -6px;
+  inset-inline: 0;
+}
+
+.modelControlScopeUpgradeConfirmed {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: 11px;
+  color: var(--o-text-secondary);
+}
+
+@keyframes modelControlScopeUpgradeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Closing is a neutral action and should not use the accent color, which would pull attention away from choosing a level. */
+.modelControlsCloseBar {
+  display: flex;
+  justify-content: flex-end;
+  padding: 10px;
+  border-top: 1px solid var(--o-border);
+}
+
+.modelControlsCloseBar button {
+  min-height: 40px;
+  padding: 0 14px;
+  border: 1px solid var(--o-border);
+  border-radius: var(--o-radius-md);
+  background: var(--o-bg-subtle);
+  color: var(--o-text);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.modelControlPill:focus-visible,
+.modelControlStatusRow:focus-visible,
+.modelControlInlineAction:focus-visible,
+.modelControlNavigationRow:focus-visible,
+.modelControlCandidateRow:focus-visible,
+.modelControlsBack:focus-visible,
+.modelControlsCloseBar button:focus-visible {
+  outline: 2px solid var(--o-primary);
+  outline-offset: 2px;
+}
+
+/* Reduced motion: both the popover entrance and level switching drop to zero. Keeping the two
+   in one group is deliberate - the contrast gate registers entries by unique rule selector, and
+   a second `.modelControlPill` rule inside a media query would leave it gambling on cascade
+   order. */
+@media (prefers-reduced-motion: reduce) {
+  .modelControlsPopover,
+  .modelControlScopeUpgrade,
+  .modelControlPill,
+  .modelControlSwitchTrack,
+  .modelControlSwitchThumb,
+  .modelControlSwitchCheck {
+    animation: none;
+    transition: none;
+  }
+}
+
+/* ── Bottom row: tools left, send right ── */
+.bottomRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.tools {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-wrap: nowrap;
+  overflow-x:auto;
+  scrollbar-width:none;
+  min-height: 32px;
+}
+
+.hiddenInput {
+  display: none;
+}
+
+/* ── Send button — brand gradient with an inner highlight ── */
+.sendBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: none;
+  border-radius: var(--o-radius-full);
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--o-primary) 92%, white),
+    var(--o-primary-active)
+  );
+  color: var(--o-primary-text);
+  cursor: pointer;
+  flex-shrink: 0;
+  box-shadow:
+    0 2px 6px color-mix(in srgb, var(--o-primary) 30%, transparent),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.22);
+  transition:
+    transform 160ms cubic-bezier(0.16, 1, 0.3, 1),
+    box-shadow 200ms ease,
+    opacity 150ms ease;
+}
+
+.sendBtn:hover:not(:disabled) {
+  transform: scale(1.08) translateY(-1px);
+  box-shadow:
+    0 4px 12px color-mix(in srgb, var(--o-primary) 40%, transparent),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.28);
+}
+
+.sendBtn:active:not(:disabled) {
+  transform: scale(0.92);
+  transition-duration: 80ms;
+  box-shadow:
+    0 1px 3px color-mix(in srgb, var(--o-primary) 30%, transparent),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.18);
+}
+
+.sendBtn:disabled {
+  opacity: 0.28;
+  cursor: default;
+  transform: none;
+  box-shadow: none;
+}
+
+/* ── Stop button ── */
+.stopBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: none;
+  border-radius: var(--o-radius-full);
+  background: var(--o-error);
+  color: var(--o-on-danger);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition:
+    transform 120ms ease,
+    background 150ms ease;
+}
+
+.stopBtn:hover {
+  opacity: 0.88;
+  transform: scale(1.06);
+}
+
+.stopBtn:active {
+  transform: scale(0.93);
+  transition-duration: 60ms;
+}
+
+@keyframes panelIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 767px) {
+  .wrap {
+    padding:
+      32px
+      var(--o-space-sm)
+      calc(76px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .wrapHome {
+    --o-composer-home-lift: calc(76px + env(safe-area-inset-bottom, 0px));
+    bottom: var(--o-composer-home-lift);
+    padding: 0 var(--o-space-sm);
+  }
+
+  .composer {
+    max-width: 100%;
+    padding: 8px 10px 6px;
+    border-radius: 16px;
+  }
+
+  .relatedNoteItem {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 7px;
+  }
+
+  .relatedNoteSource,
+  .relatedNoteTitle {
+    max-width: 100%;
+  }
+
+  .relatedNoteActions {
+    justify-content: flex-start;
+  }
+
+  .wrapHome .composer {
+    min-height: 104px;
+    border-radius: 18px;
+    padding: 12px 12px 8px;
+  }
+
+  .textarea {
+    min-height: 32px;
+    font-size: 16px;
+  }
+
+  /* On mobile .wrap has 76px + safe area of bottom padding, the popover lifts another 54px, and clearance is measured against a 50px TopBar. */
+  .modelControlsPopover {
+    inset-inline-start: 4px;
+    width: calc(100% - 8px);
+    --o-model-options-popover-reserved: calc(180px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .sendBtn,
+  .stopBtn {
+    width: 32px;
+    height: 32px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* Accessibility: the aurora border stops rotating (the colored gradient is still shown) */
+  .composer:has(.textarea:focus)::before {
+    animation: none;
+  }
+}

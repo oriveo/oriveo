@@ -1,0 +1,656 @@
+/* -- ProviderCostSummaryCard --
+   Visual strategy: part of the oriveoGradientPanel family, like the cluster panel, so the card
+   reads as belonging to the same surface. The content layer follows a monthly-statement rhythm:
+   month chip, large amount, a 10px segmented bar, and a compact legend list of
+   capsule chip + name + cost + share%.
+
+   Details:
+   - mesh sheen: two radial-gradients (stronger purple top-right, weaker bottom-left)
+   - watermark: a credit-card icon overflowing top-right, clipped in half by the 22px radius
+   - the amount renders "$" in black one size down, baseline-aligned with the digits
+   - the 10px capsule segmented bar picks from a 12-bucket palette by list index, so colors never collide
+   - the 16x7px capsule legend chip matches the bar segments
+   - with a single provider the bar is hidden (the TSX skips .segmentedBar)
+*/
+
+.card {
+  width: 100%;
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  text-align: left;
+  padding: 0;
+  border-radius: 22px;
+  border: 1px solid transparent;
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, white 65%, var(--o-surface)) 0%,
+      var(--o-surface) 28%,
+      var(--o-surface) 70%,
+      var(--o-surface) 100%
+    ) padding-box,
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--o-text) 6%, transparent) 0%,
+      color-mix(in srgb, var(--o-text) 6%, transparent) 50%,
+      color-mix(in srgb, var(--o-text) 10%, transparent) 100%
+    ) border-box;
+  box-shadow:
+    0 0.5px 1px rgba(15, 23, 42, 0.05),
+    0 3px 6px rgba(15, 23, 42, 0.04),
+    0 12px 24px -4px rgba(15, 23, 42, 0.10);
+}
+
+/* Cool blue-violet corner glows, a warm purple brand sheen, and a soft band along the bottom.
+   Stacking order from bottom to top: cool top-left, cool bottom-right, warm top-right (strong),
+   warm bottom-left (weak), bottom soft band.
+   The cool tones match the cluster panel so the card reads as part of it; the warm purple belongs
+   to the cost card alone and echoes the purple in the month chip, baseline and "$". */
+.card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background:
+    radial-gradient(
+      circle 280px at -5% -5%,
+      color-mix(in srgb, #6B7FFF 6.5%, transparent) 0%,
+      transparent 100%
+    ),
+    radial-gradient(
+      circle 240px at 105% 105%,
+      color-mix(in srgb, #6B7FFF 4.5%, transparent) 0%,
+      transparent 100%
+    ),
+    radial-gradient(
+      circle 75% at 100% 0%,
+      color-mix(in srgb, var(--o-primary) 18%, transparent) 0%,
+      transparent 100%
+    ),
+    radial-gradient(
+      circle 55% at 0% 100%,
+      color-mix(in srgb, var(--o-primary) 10%, transparent) 0%,
+      transparent 100%
+    ),
+    linear-gradient(
+      180deg,
+      transparent calc(100% - 6px),
+      color-mix(in srgb, #6B7FFF 3.5%, transparent) 100%
+    );
+  pointer-events: none;
+  z-index: 0;
+}
+
+:global(html[data-theme="dark"]) .card {
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, white 7%, var(--o-surface)) 0%,
+      var(--o-surface) 32%,
+      var(--o-surface) 70%,
+      color-mix(in srgb, black 14%, var(--o-surface)) 100%
+    ) padding-box,
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.18) 0%,
+      rgba(255, 255, 255, 0.06) 40%,
+      rgba(0, 0, 0, 0.4) 100%
+    ) border-box;
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.32),
+    0 4px 10px rgba(0, 0, 0, 0.36),
+    0 16px 32px -4px rgba(0, 0, 0, 0.50);
+}
+
+:global(html[data-theme="dark"]) .card::before {
+  background:
+    radial-gradient(
+      circle 280px at -5% -5%,
+      color-mix(in srgb, #8FA0FF 12%, transparent) 0%,
+      transparent 100%
+    ),
+    radial-gradient(
+      circle 240px at 105% 105%,
+      color-mix(in srgb, #8FA0FF 8%, transparent) 0%,
+      transparent 100%
+    ),
+    radial-gradient(
+      circle 75% at 100% 0%,
+      color-mix(in srgb, var(--o-primary) 26%, transparent) 0%,
+      transparent 100%
+    ),
+    radial-gradient(
+      circle 55% at 0% 100%,
+      color-mix(in srgb, var(--o-primary) 14%, transparent) 0%,
+      transparent 100%
+    ),
+    linear-gradient(
+      180deg,
+      transparent calc(100% - 6px),
+      color-mix(in srgb, #8FA0FF 7%, transparent) 100%
+    );
+}
+
+.clickable {
+  appearance: none;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  transition:
+    box-shadow var(--o-transition-fast),
+    transform var(--o-transition-fast);
+}
+
+.clickable:hover {
+  transform: translateY(-1px);
+  box-shadow:
+    0 1px 2px rgba(15, 23, 42, 0.07),
+    0 4px 8px rgba(15, 23, 42, 0.06),
+    0 16px 30px -4px rgba(15, 23, 42, 0.14);
+}
+
+.clickable:focus-visible {
+  outline: none;
+  box-shadow:
+    inset 0 0 0 2px color-mix(in srgb, var(--o-primary) 38%, transparent),
+    0 0 0 4px color-mix(in srgb, var(--o-primary) 16%, transparent),
+    0 8px 18px -6px color-mix(in srgb, var(--o-primary) 24%, transparent);
+}
+
+:global(html[data-theme="dark"]) .clickable:hover {
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.36),
+    0 5px 12px rgba(0, 0, 0, 0.40),
+    0 20px 40px -4px rgba(0, 0, 0, 0.55);
+}
+
+/* Watermark: a credit-card icon overflowing top-right, clipped in half by the 22px radius so it
+   peeks out of the corner. Rotated -14 degrees at a very low opacity, purely textural. */
+.watermark {
+  position: absolute;
+  top: -22px;
+  right: -28px;
+  width: 80px;
+  height: 80px;
+  pointer-events: none;
+  transform: rotate(-14deg);
+  z-index: 0;
+}
+
+.watermark svg {
+  width: 100%;
+  height: 100%;
+  color: color-mix(in srgb, var(--o-primary) 4.5%, transparent);
+}
+
+:global(html[data-theme="dark"]) .watermark svg {
+  color: color-mix(in srgb, var(--o-primary) 7%, transparent);
+}
+
+/* card body */
+.body {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 16px;
+  padding: 18px 18px 16px;
+}
+
+.titleRow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.titleLead {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.titleIconPlate {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  flex-shrink: 0;
+  border-radius: 7px;
+  /* No faux ring here: the plate stands out from the card through the surface-raised fill
+     difference alone. */
+  background: var(--o-surface-raised);
+  color: var(--o-primary);
+  box-shadow: 0 0.5px 1px rgba(15, 23, 42, 0.04);
+}
+
+:global(html[data-theme="dark"]) .titleIconPlate {
+  color: var(--o-primary-hover);
+  box-shadow: 0 0.5px 1px rgba(0, 0, 0, 0.30);
+}
+
+.titleIcon {
+  color: inherit;
+  flex-shrink: 0;
+}
+
+.eyebrow {
+  margin: 0;
+  color: var(--o-text-secondary);
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+}
+
+.chevronWrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, white 35%, var(--o-surface)) 0%,
+      var(--o-surface) 100%
+    ) padding-box,
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.85) 0%,
+      color-mix(in srgb, var(--o-text) 6%, transparent) 60%,
+      color-mix(in srgb, var(--o-text) 12%, transparent) 100%
+    ) border-box;
+  color: var(--o-text-secondary);
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.7),
+    0 1px 1.5px rgba(15, 23, 42, 0.03);
+  transition:
+    color var(--o-transition-fast),
+    transform var(--o-transition-fast),
+    box-shadow var(--o-transition-fast);
+}
+
+.chevron {
+  color: inherit;
+  flex-shrink: 0;
+}
+
+.clickable:hover .chevronWrap {
+  color: var(--o-primary-active);
+  transform: translateX(2px);
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.7),
+    0 2px 4px -1px color-mix(in srgb, var(--o-primary) 24%, transparent);
+}
+
+:global(html[data-theme="dark"]) .chevronWrap {
+  color: rgba(244, 244, 245, 0.7);
+}
+
+:global(html[data-theme="dark"]) .clickable:hover .chevronWrap {
+  color: var(--o-primary-hover);
+  box-shadow:
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.08),
+    0 2px 4px -1px color-mix(in srgb, var(--o-primary) 30%, transparent);
+}
+
+/* Hero block */
+.hero {
+  display: grid;
+  gap: 8px;
+}
+
+/* Month chip: purple capsule with a 4px dot and the month label ("MAY 2026"). */
+.monthChip {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--o-primary) 9%, transparent);
+  border: 0.6px solid color-mix(in srgb, var(--o-primary) 18%, transparent);
+}
+
+:global(html[data-theme="dark"]) .monthChip {
+  background: color-mix(in srgb, var(--o-primary) 18%, transparent);
+  border-color: color-mix(in srgb, var(--o-primary) 32%, transparent);
+}
+
+.monthDot {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--o-primary) 85%, transparent);
+}
+
+.monthLabel {
+  color: color-mix(in srgb, var(--o-primary) 85%, transparent);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1.4px;
+  line-height: 1.2;
+}
+
+:global(html[data-theme="dark"]) .monthLabel {
+  color: color-mix(in srgb, var(--o-primary) 95%, transparent);
+}
+
+/* Amount row: "$" in black, one size down, on the same baseline as the digits (not superscript); digits at 36px tnum Plus Jakarta. */
+.amountRow {
+  display: flex;
+  align-items: baseline;
+  gap: 2px;
+}
+
+.dollar {
+  color: var(--o-text);
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.amount {
+  color: var(--o-text);
+  font-size: 36px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: -0.04em;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 120px baseline: a two-stop gradient (deep purple to pale purple to clear) so the digits sit on a line. */
+.baseline {
+  display: block;
+  width: 120px;
+  height: 1.5px;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--o-primary) 55%, transparent) 0%,
+    color-mix(in srgb, var(--o-primary) 20%, transparent) 50%,
+    transparent 100%
+  );
+  pointer-events: none;
+}
+
+:global(html[data-theme="dark"]) .baseline {
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--o-primary) 68%, transparent) 0%,
+    color-mix(in srgb, var(--o-primary) 28%, transparent) 50%,
+    transparent 100%
+  );
+}
+
+.subtitle {
+  margin: 0;
+  max-width: 38rem;
+  color: var(--o-text-tertiary);
+  font-size: 12.5px;
+  font-weight: 500;
+  line-height: 1.5;
+}
+
+/* Segmented stacked bar: 10px capsule segments, colored from the palette by list index. */
+.segmentedBar {
+  display: flex;
+  align-items: stretch;
+  gap: 3px;
+  height: 10px;
+  padding: 0;
+  margin-top: 2px;
+}
+
+.segment {
+  height: 10px;
+  border-radius: 999px;
+  position: relative;
+  /* 1px white highlight on top of each segment, plus a gradient fill and a border. */
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--seg-c) 94%, white 6%) 0%,
+    var(--seg-c) 100%
+  );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    0 0 0 0.5px color-mix(in srgb, var(--seg-c) 32%, transparent);
+  min-width: 4px;
+}
+
+:global(html[data-theme="dark"]) .segment {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--seg-c-dark) 94%, white 6%) 0%,
+    var(--seg-c-dark) 100%
+  );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    0 0 0 0.5px color-mix(in srgb, var(--seg-c-dark) 45%, transparent);
+}
+
+/* Remaining track when the visible share is below 1.0, hinting that providers are hidden. */
+.segmentRest {
+  height: 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--o-text-tertiary) 7%, transparent);
+}
+
+:global(html[data-theme="dark"]) .segmentRest {
+  background: color-mix(in srgb, var(--o-text-tertiary) 10%, transparent);
+}
+
+/* Breakdown — fade-gradient hairline separator + legend list */
+.breakdown {
+  position: relative;
+  display: grid;
+  gap: 0;
+  padding: 8px 0 0;
+  margin-top: 4px;
+  border-radius: 0;
+  background: transparent;
+}
+
+.breakdown::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  height: 1px;
+  background: linear-gradient(
+    to right,
+    transparent 0%,
+    color-mix(in srgb, var(--o-text) 8%, transparent) 14%,
+    color-mix(in srgb, var(--o-text) 8%, transparent) 86%,
+    transparent 100%
+  );
+  pointer-events: none;
+}
+
+:global(html[data-theme="dark"]) .breakdown::before {
+  background: linear-gradient(
+    to right,
+    transparent 0%,
+    rgba(255, 255, 255, 0.08) 14%,
+    rgba(255, 255, 255, 0.08) 86%,
+    transparent 100%
+  );
+}
+
+.legend {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
+}
+
+.legendItem {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  padding: 8px 0;
+  border: none;
+  background: transparent;
+}
+
+/* fade-gradient hairline separator, except after the last item. */
+.legendItem:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  left: 26px;
+  right: 0;
+  bottom: 0;
+  height: 1px;
+  background: linear-gradient(
+    to right,
+    transparent 0%,
+    color-mix(in srgb, var(--o-text) 6%, transparent) 12%,
+    color-mix(in srgb, var(--o-text) 6%, transparent) 88%,
+    transparent 100%
+  );
+  pointer-events: none;
+}
+
+:global(html[data-theme="dark"]) .legendItem:not(:last-child)::after {
+  background: linear-gradient(
+    to right,
+    transparent 0%,
+    rgba(255, 255, 255, 0.06) 12%,
+    rgba(255, 255, 255, 0.06) 88%,
+    transparent 100%
+  );
+}
+
+/* Capsule chip: a 16x7px miniature of a bar segment, binding the legend to the bar. */
+.legendChip {
+  width: 16px;
+  height: 7px;
+  border-radius: 999px;
+  position: relative;
+  flex-shrink: 0;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--chip-c) 94%, white 6%) 0%,
+    var(--chip-c) 100%
+  );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    0 0 0 0.5px color-mix(in srgb, var(--chip-c) 30%, transparent);
+}
+
+:global(html[data-theme="dark"]) .legendChip {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--chip-c-dark) 94%, white 6%) 0%,
+    var(--chip-c-dark) 100%
+  );
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.16),
+    0 0 0 0.5px color-mix(in srgb, var(--chip-c-dark) 40%, transparent);
+}
+
+.legendName {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--o-text);
+  font-size: 13.5px;
+  font-weight: 600;
+  letter-spacing: -0.005em;
+}
+
+.legendCost {
+  flex-shrink: 0;
+  color: var(--o-text);
+  font-size: 13.5px;
+  font-weight: 700;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.008em;
+}
+
+.legendShare {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-shrink: 0;
+  min-width: 36px;
+  color: var(--o-text-tertiary);
+  font-size: 11.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* "+ N more" row: grey capsule chip plus text. */
+.legendMore {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0 0;
+  color: var(--o-text-tertiary);
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.legendMoreChip {
+  width: 16px;
+  height: 7px;
+  border-radius: 999px;
+  flex-shrink: 0;
+  background: color-mix(in srgb, var(--o-text-tertiary) 14%, transparent);
+  box-shadow: 0 0 0 0.5px color-mix(in srgb, var(--o-text-tertiary) 20%, transparent);
+}
+
+:global(html[data-theme="dark"]) .legendMoreChip {
+  background: color-mix(in srgb, var(--o-text-tertiary) 22%, transparent);
+  box-shadow: 0 0 0 0.5px color-mix(in srgb, var(--o-text-tertiary) 30%, transparent);
+}
+
+/* Placeholder class still referenced by the TSX. */
+.accent {
+  display: none;
+}
+
+/* -- Small screens (<=480px): tighter padding, smaller hero digits and watermark -- */
+@media (max-width: 480px) {
+  .body {
+    gap: 14px;
+    padding: 14px 14px 12px;
+  }
+
+  .watermark {
+    width: 60px;
+    height: 60px;
+    top: -16px;
+    right: -18px;
+  }
+
+  .amount {
+    font-size: 28px;
+  }
+
+  .dollar {
+    font-size: 16px;
+  }
+
+  .baseline {
+    width: 90px;
+  }
+
+  .legendItem:not(:last-child)::after {
+    left: 24px;
+  }
+
+  /* Legend rows keep their font size (already compact) but drop horizontal gap so name + cost + share breathe. */
+  .legendItem {
+    gap: 10px;
+  }
+}

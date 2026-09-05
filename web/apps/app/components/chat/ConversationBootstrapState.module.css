@@ -1,0 +1,163 @@
+@keyframes bootstrapShimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes bootstrapSpin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes bootstrapFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.state {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 14px;
+  width: min(820px, 100%);
+  min-height: 100%;
+  margin: 0 auto;
+  padding: 32px 20px 24px;
+  box-sizing: border-box;
+}
+
+.status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 13px;
+  color: var(--o-text-secondary);
+}
+
+.statusNote {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: -6px 0 0;
+  font-size: 12px;
+  color: var(--o-text-tertiary);
+}
+
+.statusAction {
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: var(--o-primary);
+  cursor: pointer;
+}
+
+.statusAction:hover {
+  text-decoration: underline;
+}
+
+.spinner {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  border-radius: 50%;
+  border: 2px solid color-mix(in srgb, var(--o-text-tertiary) 30%, transparent);
+  border-top-color: var(--o-primary);
+  animation: bootstrapSpin 0.8s linear infinite;
+}
+
+.row {
+  display: flex;
+  width: 100%;
+  animation: bootstrapFadeIn 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* nth-of-type rather than nth-child: status lines are <p> and bubble rows are <div>, so
+   nth-child would be shifted one place by the status lines in front (the first bubble would get
+   the second delay step and the last bubble would never match). */
+.row:nth-of-type(1) { animation-delay: 0s; }
+.row:nth-of-type(2) { animation-delay: 0.06s; }
+.row:nth-of-type(3) { animation-delay: 0.12s; }
+.row:nth-of-type(4) { animation-delay: 0.18s; }
+.row:nth-of-type(5) { animation-delay: 0.24s; }
+.row:nth-of-type(6) { animation-delay: 0.30s; }
+
+.rowLeft {
+  justify-content: flex-start;
+}
+
+.rowRight {
+  justify-content: flex-end;
+}
+
+.bubble {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  padding: 14px 18px;
+  border-radius: 20px;
+  min-width: 120px;
+  max-width: 100%;
+  box-shadow: var(--o-elevation-card);
+}
+
+.bubbleAssistant {
+  background: color-mix(in srgb, var(--o-surface-raised) 96%, transparent);
+  border: 1px solid color-mix(in srgb, var(--o-border) 70%, transparent);
+  border-bottom-left-radius: 6px;
+}
+
+.bubbleUser {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--o-primary) 14%, var(--o-surface-raised)),
+    color-mix(in srgb, var(--o-primary) 8%, var(--o-surface))
+  );
+  border: 1px solid color-mix(in srgb, var(--o-primary) 22%, transparent);
+  border-bottom-right-radius: 6px;
+}
+
+.line {
+  display: block;
+  height: 10px;
+  border-radius: 999px;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--o-text-tertiary) 10%, transparent) 25%,
+    color-mix(in srgb, var(--o-text-tertiary) 24%, transparent) 50%,
+    color-mix(in srgb, var(--o-text-tertiary) 10%, transparent) 75%
+  );
+  background-size: 200% 100%;
+  animation: bootstrapShimmer 1.6s ease-in-out infinite;
+}
+
+.bubbleUser .line {
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--o-primary) 14%, transparent) 25%,
+    color-mix(in srgb, var(--o-primary) 28%, transparent) 50%,
+    color-mix(in srgb, var(--o-primary) 14%, transparent) 75%
+  );
+  background-size: 200% 100%;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .row {
+    animation: none;
+  }
+  .line {
+    animation: none;
+  }
+  /* The spinner is the only motion that says loading is still in progress, so reduced motion slows it down instead of stopping it - a stopped spinner is indistinguishable from a hang. */
+  .spinner {
+    animation-duration: 2.4s;
+  }
+}

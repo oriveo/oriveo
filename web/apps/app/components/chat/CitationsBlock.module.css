@@ -1,0 +1,158 @@
+/* Citations block container.
+ * Light and dark both switch through the --o-citations-* tokens.
+ * Do not override locally with :global(html[data-theme='dark']) - under Next.js 16 with webpack
+ * production builds, lightningcss strips whole dark rules wrapped in an attribute selector
+ * inside a CSS Module, leaving the unwrapped dark values to override the light ones, which ends
+ * up as white text on a white background.
+ */
+.container {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--o-citations-bg);
+  border: 1px solid var(--o-citations-border);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--o-citations-header);
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  text-decoration: none;
+  color: inherit;
+  transition: background-color 120ms ease;
+  min-width: 0;
+}
+
+.item:hover {
+  background: var(--o-citations-item-hover);
+}
+
+.itemStatic:hover {
+  background: transparent;
+}
+
+.favicon {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  border-radius: 3px;
+  background: var(--o-citations-favicon-bg);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.favicon[data-library-source="notion"] {
+  background: #111111;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.favicon[data-library-source="google"] {
+  color: var(--o-info);
+}
+
+.faviconImg {
+  width: 16px;
+  height: 16px;
+  border-radius: 3px;
+  object-fit: contain;
+}
+
+.faviconFallback {
+  width: 12px;
+  height: 12px;
+  color: var(--o-citations-favicon-color);
+}
+
+.itemTextWrap {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.title {
+  font-size: 13px;
+  line-height: 1.3;
+  color: var(--o-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.domain {
+  font-size: 11px;
+  line-height: 1.2;
+  color: var(--o-citations-domain);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.snippet {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--o-text-secondary);
+  font-size: 12px;
+  line-height: 1.35;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.indexBadge {
+  flex-shrink: 0;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--o-citations-badge-bg);
+  font-size: 11px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--o-citations-badge-color);
+}
+
+.toggleButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 0;
+  background: transparent;
+  color: var(--o-citations-toggle);
+  font-size: 12px;
+  cursor: pointer;
+  align-self: flex-start;
+}
+
+.toggleButton:hover {
+  background: var(--o-citations-toggle-hover);
+}

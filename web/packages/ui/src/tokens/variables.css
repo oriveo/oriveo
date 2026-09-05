@@ -1,0 +1,1025 @@
+/* ── Oriveo Design Tokens ───────────────────────────── */
+/* Prefix: --o- */
+/* Usage: import '@oriveo/ui' in your app entry */
+
+/*
+ * Light theme - neutral white/grey surfaces; brand purple appears only on interactive
+ * elements. Background, text and border all use the zinc neutral ramp, matching dark.
+ */
+:root,
+[data-theme='light'] {
+  /* ── Background ── */
+  --o-bg: #FAFAFA;
+  --o-bg-subtle: #F4F4F5;
+  --o-bg-inset: #F0F0F2;
+
+  /* ── Surface ── */
+  --o-surface: #FFFFFF;
+  --o-surface-raised: #F4F4F5;
+  --o-surface-card-from: #F7F6FB;
+  --o-surface-overlay: rgba(255, 255, 255, 0.85);
+
+  /* ── Metric card background inside the token usage dialog ──
+   * A dedicated token rather than a dark-theme attribute selector override in a CSS
+   * Module: in a production build lightningcss strips the whole dark block when a CSS
+   * Module rule uses an attribute selector (same failure as the reasoning/citations set).
+   * The two themes need opposite directions, so each picks its own value:
+   * the light dialog background composites to ~#F9F9F9 - 1.084:1 against
+   * --o-bg-inset(#F0F0F2), but only 1.047:1 against --o-surface-raised(#F4F4F5).
+   * the dark dialog background composites to ~rgb(26,30,41) - only 1.026:1 against
+   * --o-bg-inset(#181C24), where the card all but vanishes, and 1.149:1 against
+   * --o-surface-raised(#252937).
+   */
+  --o-token-usage-card-bg: var(--o-bg-inset);
+
+  /* ── Text ── */
+  --o-text: #18181B;
+  --o-text-secondary: #52525B;
+  --o-text-tertiary: #71717A;
+  /* Neutral colour for disabled text inside controls, such as an unavailable segmented
+   * option. --o-text-tertiary cannot be reused here: on the segmented track
+   * --o-bg-subtle it is only 4.40:1, below AA 4.5. Disabled state is not expressed by
+   * lowering contrast - it is expressed by not responding to taps, not bolding, and
+   * keeping the reason visible next to the control. Measured: 4.87:1 on --o-bg-subtle,
+   * 5.35:1 on --o-surface. --o-text-tertiary itself is unchanged and still used for
+   * non-text elements such as chevrons, which only need 3:1. */
+  --o-text-disabled-on-control: #6A6A73;
+  --o-text-inverse: #ffffff;
+
+  /* ── Border - neutral, no purple tint ── */
+  --o-border: rgba(0, 0, 0, 0.08);
+  --o-border-strong: rgba(0, 0, 0, 0.16);
+
+  /* ── Primary (brand purple) ── */
+  --o-primary: #8B5CF6;
+  --o-primary-hover: #7C3AED;
+  --o-primary-active: #6D28D9;
+  --o-primary-subtle: rgba(139, 92, 246, 0.08);
+  --o-primary-text: #ffffff;
+  /* Strictly distinct from the line above: --o-primary-text is the text colour drawn on
+   * top of a primary fill, paired with background: var(--o-primary), while
+   * --o-primary-text-on-surface is the AA variant for using brand purple as a text colour
+   * on ordinary surfaces. In light mode --o-primary #8B5CF6 as body text is only 4.23:1 on
+   * #FFFFFF and 3.85:1 on #F4F4F5; violet-700 at the same hue gives 7.11:1 / 6.46:1. */
+  --o-primary-text-on-surface: #6D28D9;
+  /* A third semantic, different from both above: --o-primary-text-safe is an accent fill
+   * that has text drawn on it, such as the selected segmented pill.
+   * This is the mirror of the rule that gives semantic colours a text variant: there the
+   * text moves, here the fill under the text moves. --o-primary-text is already at the
+   * white / near-black extreme, so the only remaining move is to darken the fill one step.
+   * Measured with --o-primary-text on this colour: 7.10:1 light, 6.89:1 dark; the raw
+   * --o-primary value gives only 4.23:1 in light mode.
+   * --o-primary itself is untouched: fills, icons and strokes that carry no text keep the
+   * saturated original. */
+  --o-primary-text-safe: #6D28D9;
+
+  /* ── Bottom navigation per-tab selected colour: home uses primary purple, providers teal, settings orange ── */
+  --o-tab-teal: #0d9488;
+  --o-tab-orange: #ea580c;
+  /* Selected capsule fill in the mobile bottom navigation - a white pill on the glass bar */
+  --o-tab-capsule: #ffffff;
+
+  /* ── Status ── */
+  --o-success: #10B981;
+  --o-success-subtle: rgba(16, 185, 129, 0.10);
+  --o-warning: #F59E0B;
+  --o-warning-subtle: rgba(245, 158, 11, 0.10);
+  --o-error: #EF4444;
+  --o-error-subtle: rgba(239, 68, 68, 0.10);
+  --o-info: #3B82F6;
+  --o-info-subtle: rgba(59, 130, 246, 0.10);
+
+  /* ── Status text - AA variants for using the semantic colours as body text ─────
+   * The success / warning / error / info set above holds the saturated non-text values
+   * (fills, icons, strokes, badge backgrounds; WCAG non-text threshold 3:1). In light
+   * mode none of them reach the 4.5:1 body-text threshold when written straight into
+   * `color:` - measured against #FFFFFF: success 2.54, warning 2.15, error 3.76, info 3.68.
+   * Text always uses this set instead: in light mode darkened to the 700/800 step of the
+   * same hue, giving >=4.5:1 against both --o-surface(#FFFFFF) and --o-bg-subtle(#F4F4F5).
+   * Dark mode already passes at 5.3-11.5:1 and points back at the originals, so do not
+   * darken them there.
+   * Gate: apps/app/lib/design-system/semantic-text-contrast.ts */
+  --o-success-text: #065F46;
+  --o-warning-text: #92400E;
+  --o-error-text: #B91C1C;
+  --o-info-text: #1D4ED8;
+
+  /* ── On-* foreground colors ── */
+  --o-on-danger: #ffffff;
+  --o-on-success: #ffffff;
+  --o-on-warning: #18181B;
+  --o-on-info: #ffffff;
+
+  /* Switch thumb: white in both themes, matching the iOS/Android system switch */
+  --o-switch-thumb: #ffffff;
+
+  /* ── Overlay / Scrim ── */
+  --o-overlay: rgba(0, 0, 0, 0.45);
+
+  /* ── Shadow - pure black, clean ── */
+  --o-shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --o-shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --o-shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.1);
+  --o-shadow-xl: 0 24px 64px rgba(0, 0, 0, 0.12);
+
+  /* ── Elevation - three semantic steps (control / card / modal) ─────
+   * control: buttons, chips, pills - barely lifted
+   * card: cards and panels - moderate lift
+   * modal: dialogs and popovers - strong lift
+   */
+  --o-elevation-control: 0 1px 2px rgba(0, 0, 0, 0.04), inset 0 1px 0 0 var(--o-hairline);
+  --o-elevation-card: 0 1px 2px rgba(0, 0, 0, 0.04), 0 8px 24px rgba(0, 0, 0, 0.05), inset 0 1px 0 0 var(--o-hairline);
+  --o-elevation-modal: 0 4px 12px rgba(0, 0, 0, 0.08), 0 24px 64px rgba(0, 0, 0, 0.12), inset 0 1px 0 0 var(--o-hairline);
+
+  /* ── Code Block ── */
+  --o-code-bg: #F4F4F5;
+  --o-code-header-bg: #E4E4E7;
+  --o-code-text: #18181B;
+  --o-code-border: rgba(0, 0, 0, 0.06);
+
+  /* ── Syntax Highlighting ── */
+  --o-code-keyword: #7C3AED;
+  --o-code-string: #16A34A;
+  --o-code-number: #EA580C;
+  --o-code-function: #2563EB;
+  --o-code-builtin: #D97706;
+  --o-code-attr: #BE185D;
+  --o-code-comment: #A1A1AA;
+
+  /* ── Tag / Badge ── */
+  --o-tag-bg: rgba(0, 0, 0, 0.04);
+  --o-tag-text: #52525B;
+
+  /* ── Gradient ── */
+  --o-gradient-brand: linear-gradient(135deg, #8B5CF6, #7C3AED, #6D28D9);
+  --o-gradient-surface: linear-gradient(180deg, var(--o-bg) 0%, var(--o-bg-subtle) 100%);
+
+  /* ── Glow ── */
+  --o-glow-primary: 0 0 0 3px rgba(139, 92, 246, 0.12);
+  --o-glow-primary-strong: 0 0 0 4px rgba(139, 92, 246, 0.2), 0 0 24px rgba(139, 92, 246, 0.08);
+  --o-bubble-glow: 0 6px 10px rgba(140, 95, 248, 0.10);
+
+  /* ── Hairline ── */
+  --o-hairline: rgba(255, 255, 255, 0.70);
+
+  /* ── Glass highlight - white gloss decoration in both themes; unlike hairline, this token is the sheen layer on top of a card ── */
+  --o-glass-highlight: rgba(255, 255, 255, 0.34);
+
+  /* ── Screen Background ── */
+  --o-screen-bg: linear-gradient(135deg, #FAFBFF, #F6F5FA);
+
+  /* ── App Shell / Composer Glass ── */
+  --o-composer-bg: color-mix(in srgb, var(--o-surface) 84%, transparent);
+  --o-composer-home-bg: color-mix(in srgb, var(--o-surface) 80%, transparent);
+  --o-composer-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.05),
+    0 8px 24px rgba(0, 0, 0, 0.04),
+    inset 0 1px 0 0 var(--o-hairline);
+  --o-composer-hover-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.05),
+    0 10px 24px color-mix(in srgb, var(--o-primary) 8%, transparent),
+    inset 0 1px 0 0 var(--o-hairline);
+  --o-composer-focus-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.06),
+    0 14px 36px color-mix(in srgb, var(--o-primary) 14%, transparent),
+    inset 0 1px 0 0 var(--o-hairline);
+  --o-composer-home-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.04),
+    0 16px 42px rgba(0, 0, 0, 0.075),
+    0 0 0 1px color-mix(in srgb, var(--o-primary) 6%, transparent),
+    inset 0 1px 0 0 var(--o-hairline);
+  --o-chat-topbar-bg:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--o-bg) 86%, transparent) 0%,
+      color-mix(in srgb, var(--o-bg) 62%, transparent) 62%,
+      color-mix(in srgb, var(--o-bg) 0%, transparent) 100%
+    );
+  --o-chat-topbar-border: color-mix(in srgb, var(--o-border) 44%, transparent);
+  --o-chat-aurora-glow-bg:
+    radial-gradient(ellipse 132% 96% at 50% 108%, color-mix(in srgb, var(--o-primary) 16%, transparent) 0%, transparent 74%),
+    radial-gradient(ellipse 92% 82% at 8% 92%, color-mix(in srgb, #6366f1 13%, transparent) 0%, transparent 70%),
+    radial-gradient(ellipse 88% 78% at 92% 96%, color-mix(in srgb, #8b7cf0 11%, transparent) 0%, transparent 68%),
+    radial-gradient(ellipse 122% 74% at 50% -4%, color-mix(in srgb, var(--o-primary) 10%, transparent) 0%, transparent 70%);
+  /* Second offset colour blob (cool purple-blue, same family as the sidebar), carried by .glow::after and drifting the other way to build up motion */
+  --o-chat-aurora-glow-bg-2:
+    radial-gradient(ellipse 84% 72% at 26% 72%, color-mix(in srgb, #6366f1 11%, transparent) 0%, transparent 66%),
+    radial-gradient(ellipse 80% 68% at 76% 60%, color-mix(in srgb, var(--o-primary) 11%, transparent) 0%, transparent 64%),
+    radial-gradient(ellipse 88% 72% at 50% 42%, color-mix(in srgb, #8b7cf0 10%, transparent) 0%, transparent 66%);
+  --o-chat-aurora-glow-blur: blur(20px);
+  --o-chat-aurora-halftone-dot: color-mix(in srgb, var(--o-primary) 34%, transparent);
+  --o-chat-aurora-halftone-size: 14px 14px;
+  --o-chat-aurora-dot-core: 1.15px;
+  --o-chat-aurora-dot-fade: 1.7px;
+
+  /* ── Focus ── */
+  --o-focus-ring: 0 0 0 2px var(--o-primary);
+
+  /* ── Spacing ── */
+  --o-space-xs: 4px;
+  --o-space-sm: 8px;
+  --o-space-md: 16px;
+  --o-space-lg: 24px;
+  --o-space-xl: 32px;
+  --o-space-2xl: 48px;
+
+  /* ── Radius - numeric and semantic tracks ──
+   * numeric (sm/md/lg/xl/2xl/full): the raw tokens, migrated gradually
+   * semantic (control/chip/card/surface/modal/pill): four strict steps
+   * control 8px: buttons, inputs, small icon buttons
+   * chip full: capsule chips and pills
+   * card 12px: list cards, cell cards
+   * surface 16px: panels, containers, modal shells
+   * modal 20px: important dialogs, key popovers
+   */
+  --o-radius-sm: 6px;
+  --o-radius-md: 10px;
+  --o-radius-lg: 16px;
+  --o-radius-xl: 24px;
+  --o-radius-2xl: 32px;
+  --o-radius-full: 999px;
+
+  --o-radius-control: 8px;
+  --o-radius-chip: 999px;
+  --o-radius-card: 12px;
+  --o-radius-surface: 16px;
+  --o-radius-modal: 20px;
+  --o-radius-pill: 999px;
+
+  /* ── Typography ── */
+  --o-font-sans: var(--font-inter, 'Inter'), system-ui, -apple-system, BlinkMacSystemFont, 'PingFang SC',
+    'Noto Sans SC', 'Microsoft YaHei', 'Helvetica Neue', sans-serif;
+  --o-font-display: var(--o-font-sans);
+  --o-font-mono: var(--font-jetbrains-mono, 'JetBrains Mono'), 'SF Mono', 'Fira Code', 'Cascadia Code', ui-monospace, monospace;
+  --o-text-xs: 12px;
+  --o-text-sm: 14px;
+  --o-text-base: 16px;
+  --o-text-lg: 18px;
+  --o-text-xl: 22px;
+  --o-text-2xl: 28px;
+  --o-text-3xl: 36px;
+
+  /* ── Font Weight - three discrete steps aligned with the real weights shipped by PingFang/Noto, to avoid faux bold ── */
+  --o-weight-regular: 400;
+  --o-weight-medium: 500;
+  --o-weight-semibold: 600;
+
+  /* ── Sidebar ── */
+  --o-sidebar-width: 300px;
+
+  /* ── Touch ── */
+  --o-touch-target: 44px;
+
+  /* ── Transition ── */
+  --o-transition-fast: 120ms ease;
+  --o-transition-normal: 200ms ease;
+  --o-transition-slow: 350ms ease;
+
+  /* ── Reasoning / Citations Block ──
+   * These are tokens rather than component-level colours with a
+   * :global([data-theme='dark']) override because Next.js 16 + webpack production runs
+   * lightningcss, which strips the entire dark block when a CSS Module rule contains an
+   * attribute selector - including the legal :global(html[data-theme]) form. After a
+   * production build the light theme would be left with only the dark rules, i.e. white
+   * on white. Switching through tokens is the only way to follow useTheme reliably.
+   */
+  --o-reasoning-line: rgba(0, 0, 0, 0.15);
+  --o-reasoning-line-streaming: rgba(56, 132, 255, 0.3);
+  --o-reasoning-line-done: rgba(0, 0, 0, 0.12);
+  --o-reasoning-header: rgba(0, 0, 0, 0.55);
+  --o-reasoning-header-hover: rgba(0, 0, 0, 0.04);
+  --o-reasoning-header-strong: rgba(0, 0, 0, 0.75);
+  --o-reasoning-content: rgba(0, 0, 0, 0.6);
+  --o-citations-bg: rgba(0, 0, 0, 0.03);
+  --o-citations-border: rgba(0, 0, 0, 0.08);
+  --o-citations-header: rgba(0, 0, 0, 0.55);
+  --o-citations-item-hover: rgba(0, 0, 0, 0.05);
+  --o-citations-favicon-bg: rgba(0, 0, 0, 0.05);
+  --o-citations-favicon-color: rgba(0, 0, 0, 0.4);
+  --o-citations-domain: rgba(0, 0, 0, 0.5);
+  --o-citations-badge-bg: rgba(0, 0, 0, 0.08);
+  --o-citations-badge-color: rgba(0, 0, 0, 0.65);
+  --o-citations-toggle: rgba(0, 0, 0, 0.6);
+  --o-citations-toggle-hover: rgba(0, 0, 0, 0.05);
+
+  /* ── Capability Badge - decorative palette (reasoning/image/file/web/imageGen) ──
+   * Same reason as the reasoning/citations set: a :global([data-theme='dark']) override is
+   * stripped by lightningcss in a production build, so this has to switch through tokens.
+   */
+  --o-cap-reasoning-text: #92400E;
+  --o-cap-reasoning-bg: rgba(254, 243, 199, 0.7);
+  --o-cap-image-text: #9D174D;
+  --o-cap-image-bg: rgba(252, 231, 243, 0.7);
+  --o-cap-file-text: #3730A3;
+  --o-cap-file-bg: rgba(237, 233, 254, 0.7);
+  --o-cap-web-text: #115E59;
+  --o-cap-web-bg: rgba(236, 254, 255, 0.7);
+  --o-cap-image-gen-text: #5B21B6;
+  --o-cap-image-gen-bg: rgba(237, 233, 254, 0.7);
+
+  /* ── Tooltip - same reason as above ── */
+  --o-tooltip-bg: rgba(15, 23, 42, 0.92);
+  --o-tooltip-shadow-inset: rgba(255, 255, 255, 0.08);
+  --o-tooltip-shadow-1: rgba(15, 23, 42, 0.4);
+  --o-tooltip-shadow-2: rgba(15, 23, 42, 0.18);
+
+  /* ── Usage Insights Demo Card ──
+   * Also avoids lightningcss stripping :global([data-theme]) blocks in a production build;
+   * see the reasoning/citations comment above.
+   */
+  --o-usage-demo-card-shadow:
+    0 18px 44px -12px color-mix(in srgb, var(--o-primary) 50%, transparent),
+    0 4px 16px -4px rgba(0, 0, 0, 0.15);
+
+  /* ── MenuSelect (`--o-ms-*`) ── */
+  --o-ms-trigger-bg:
+    linear-gradient(180deg, color-mix(in srgb, var(--o-surface) 94%, var(--o-bg-subtle)) 0%, color-mix(in srgb, var(--o-surface-raised) 72%, var(--o-surface)) 100%);
+  --o-ms-trigger-border: color-mix(in srgb, var(--o-border-strong) 72%, transparent);
+  --o-ms-trigger-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.48);
+  --o-ms-trigger-focus-border: color-mix(in srgb, var(--o-primary) 26%, var(--o-border));
+  --o-ms-trigger-focus-shadow: 0 0 0 3px color-mix(in srgb, var(--o-primary) 10%, transparent);
+  --o-ms-menu-bg: color-mix(in srgb, var(--o-surface-overlay) 92%, var(--o-surface));
+  --o-ms-menu-border: color-mix(in srgb, var(--o-border-strong) 82%, transparent);
+  --o-ms-menu-shadow:
+    0 24px 56px rgba(15, 23, 42, 0.16),
+    inset 0 1px 0 rgba(255, 255, 255, 0.56);
+  --o-ms-option-hover-bg: color-mix(in srgb, var(--o-primary) 10%, var(--o-surface));
+  --o-ms-option-selected-bg:
+    linear-gradient(135deg, color-mix(in srgb, var(--o-primary) 14%, var(--o-surface)) 0%, color-mix(in srgb, var(--o-surface) 100%, var(--o-surface-raised)) 100%);
+  --o-ms-option-selected-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.52),
+    0 8px 18px rgba(15, 23, 42, 0.08);
+  --o-ms-option-check-bg: color-mix(in srgb, var(--o-primary) 12%, var(--o-surface));
+  --o-ms-option-check-color: var(--o-primary-active);
+  --o-ms-option-check-selected-bg: color-mix(in srgb, var(--o-primary) 18%, var(--o-surface));
+
+  /* ── ProviderDetail (`--o-pd-*`) ── */
+  --o-pd-subtitledot-color: color-mix(in srgb, var(--o-text-tertiary) 52%, transparent);
+  --o-pd-back-bg: var(--o-surface);
+  --o-pd-back-border: rgba(15, 23, 42, 0.08);
+  --o-pd-back-hover-bg: var(--o-bg-subtle);
+  --o-pd-back-hover-border: rgba(15, 23, 42, 0.16);
+  --o-pd-card-border: rgba(15, 23, 42, 0.08);
+  --o-pd-card-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  --o-pd-card-hover-border: rgba(15, 23, 42, 0.14);
+  --o-pd-card-hover-shadow:
+    0 1px 2px rgba(15, 23, 42, 0.05),
+    0 4px 12px -4px rgba(15, 23, 42, 0.08);
+  --o-pd-iconframe-bg: var(--o-bg-subtle);
+  --o-pd-iconframe-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+  --o-pd-metapill-bg: var(--o-bg-subtle);
+  --o-pd-metapill-border: rgba(15, 23, 42, 0.06);
+  --o-pd-metaicon-color: var(--o-text-tertiary);
+  --o-pd-statusalert-bg: color-mix(in srgb, var(--o-error) 6%, var(--o-surface));
+  --o-pd-statusalert-border: color-mix(in srgb, var(--o-error) 24%, transparent);
+  --o-pd-usagetabs-bg: var(--o-bg-subtle);
+  --o-pd-usagetabs-border: rgba(15, 23, 42, 0.06);
+  --o-pd-usagetab-active-bg: var(--o-surface);
+  --o-pd-usagetab-active-shadow:
+    0 0 0 1px color-mix(in srgb, var(--o-primary) 24%, transparent),
+    0 1px 2px rgba(15, 23, 42, 0.06);
+  --o-pd-modelrow-hover-bg: color-mix(in srgb, var(--o-primary) 5%, var(--o-surface));
+  --o-pd-toggle-off-bg: color-mix(in srgb, var(--o-text-tertiary) 26%, var(--o-surface-raised));
+  --o-pd-toggle-off-hover-bg: color-mix(in srgb, var(--o-text-tertiary) 34%, var(--o-surface-raised));
+  --o-pd-toggle-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.08);
+  --o-pd-toggle-focus-shadow:
+    inset 0 1px 2px rgba(15, 23, 42, 0.08),
+    0 0 0 3px color-mix(in srgb, var(--o-primary) 20%, transparent);
+  --o-pd-toggle-on-bg: linear-gradient(135deg, var(--o-primary) 0%, color-mix(in srgb, var(--o-primary) 82%, #000 18%) 100%);
+  --o-pd-toggle-on-shadow:
+    inset 0 1px 2px rgba(15, 23, 42, 0.12),
+    0 0 0 1px color-mix(in srgb, var(--o-primary) 18%, transparent);
+  --o-pd-toggle-on-hover-shadow:
+    inset 0 1px 2px rgba(15, 23, 42, 0.12),
+    0 0 0 1px color-mix(in srgb, var(--o-primary) 24%, transparent),
+    0 6px 16px color-mix(in srgb, var(--o-primary) 22%, transparent);
+  --o-pd-toggle-on-focus-shadow:
+    inset 0 1px 2px rgba(15, 23, 42, 0.12),
+    0 0 0 3px color-mix(in srgb, var(--o-primary) 28%, transparent);
+  --o-pd-thumb-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.18),
+    0 1px 1px rgba(0, 0, 0, 0.1),
+    inset 0 0 0 0.5px rgba(15, 23, 42, 0.06);
+  --o-pd-dangerzone-bg: color-mix(in srgb, var(--o-error) 5%, var(--o-surface));
+  --o-pd-dangerzone-border: color-mix(in srgb, var(--o-error) 22%, transparent);
+  --o-pd-dangericon-bg: color-mix(in srgb, var(--o-error) 14%, var(--o-surface));
+  --o-pd-confirmoverlay-bg: rgba(15, 23, 42, 0.32);
+  --o-pd-dialog-border: rgba(15, 23, 42, 0.08);
+  --o-pd-dialog-shadow:
+    0 0 0 1px rgba(15, 23, 42, 0.04),
+    0 1px 3px rgba(15, 23, 42, 0.06),
+    0 24px 64px -12px rgba(15, 23, 42, 0.28);
+  --o-pd-empty-bg: var(--o-bg-subtle);
+  --o-pd-empty-border: rgba(15, 23, 42, 0.12);
+  --o-pd-input-bg: var(--o-surface);
+  --o-pd-input-border: rgba(15, 23, 42, 0.1);
+  --o-pd-input-hover-border: rgba(15, 23, 42, 0.16);
+  --o-pd-input-focus-shadow: 0 0 0 4px color-mix(in srgb, var(--o-primary) 14%, transparent);
+  --o-pd-keydisplay-bg: var(--o-bg-subtle);
+  --o-pd-keydisplay-border: rgba(15, 23, 42, 0.06);
+  --o-pd-keydisplay-hover-border: rgba(15, 23, 42, 0.12);
+  --o-pd-iconbtn-bg: var(--o-surface);
+  --o-pd-iconbtn-border: rgba(15, 23, 42, 0.08);
+  --o-pd-iconbtn-color: var(--o-text-secondary);
+  --o-pd-iconbtn-hover-bg: color-mix(in srgb, var(--o-primary) 8%, var(--o-surface));
+  --o-pd-iconbtn-hover-border: color-mix(in srgb, var(--o-primary) 32%, transparent);
+  --o-pd-iconbtn-hover-color: var(--o-primary-active);
+  --o-pd-statcard-bg: var(--o-bg-subtle);
+  --o-pd-statcard-border: rgba(15, 23, 42, 0.06);
+  --o-pd-modelaction-bg: var(--o-surface);
+  --o-pd-modelaction-border: rgba(15, 23, 42, 0.1);
+  --o-pd-modelaction-color: var(--o-text-secondary);
+  --o-pd-modelaction-hover-bg: color-mix(in srgb, var(--o-primary) 8%, var(--o-surface));
+  --o-pd-modelaction-hover-border: color-mix(in srgb, var(--o-primary) 32%, transparent);
+  --o-pd-modelaction-hover-color: var(--o-primary-active);
+  --o-pd-removebtn-bg: var(--o-surface);
+  --o-pd-chatbtn-bg: color-mix(in srgb, var(--o-primary) 14%, transparent);
+  --o-pd-chatbtn-hover-bg: color-mix(in srgb, var(--o-primary) 22%, transparent);
+  --o-pd-relaycheck-bg: var(--o-bg-subtle);
+  --o-pd-relaycheck-border: rgba(15, 23, 42, 0.08);
+
+  /* ── ModelSwitcher (`--o-mw-*`) ── */
+  --o-mw-overlay-bg:
+    radial-gradient(at 14% 10%, color-mix(in srgb, var(--o-primary) 8%, transparent) 0%, transparent 52%),
+    radial-gradient(at 86% 90%, rgba(99, 102, 241, 0.06) 0%, transparent 58%),
+    rgba(15, 23, 42, 0.28);
+  --o-mw-overlay-blur: blur(14px) saturate(130%);
+  --o-mw-dropdown-border: rgba(15, 23, 42, 0.05);
+  --o-mw-dropdown-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.7),
+    0 1px 0 rgba(15, 23, 42, 0.03),
+    0 12px 32px -10px rgba(15, 23, 42, 0.14),
+    0 32px 80px -24px rgba(99, 102, 241, 0.22);
+  --o-mw-search-bg: rgba(15, 23, 42, 0.035);
+  --o-mw-search-hover-bg: rgba(15, 23, 42, 0.055);
+  --o-mw-search-focus-bg: var(--o-surface);
+  --o-mw-search-focus-shadow: 0 0 0 3px color-mix(in srgb, var(--o-primary) 10%, transparent);
+  --o-mw-section-divider: rgba(15, 23, 42, 0.05);
+  --o-mw-providermark-bg: linear-gradient(180deg, var(--o-surface) 0%, rgba(15, 23, 42, 0.02) 100%);
+  --o-mw-providermark-border: rgba(15, 23, 42, 0.06);
+  --o-mw-providermark-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.8),
+    0 1px 2px rgba(15, 23, 42, 0.04);
+  --o-mw-providermark-active-bg:
+    linear-gradient(180deg, color-mix(in srgb, var(--o-primary) 4%, var(--o-surface)) 0%, color-mix(in srgb, var(--o-primary) 10%, var(--o-surface)) 100%);
+  --o-mw-providermark-active-border: color-mix(in srgb, var(--o-primary) 22%, transparent);
+  --o-mw-providerbody-line: rgba(15, 23, 42, 0.06);
+  --o-mw-providerbadge-bg: rgba(15, 23, 42, 0.05);
+  --o-mw-providerbadge-color: var(--o-text-tertiary);
+  --o-mw-providerbadge-active-bg: color-mix(in srgb, var(--o-primary) 14%, transparent);
+  --o-mw-providerbadge-active-color: var(--o-primary-active);
+  --o-mw-provideradd-bg: rgba(15, 23, 42, 0.04);
+  --o-mw-provideradd-hover-bg: color-mix(in srgb, var(--o-primary) 12%, transparent);
+  --o-mw-provideradd-hover-color: var(--o-primary-active);
+  --o-mw-modelrow-hover-bg: rgba(15, 23, 42, 0.035);
+  --o-mw-modelrow-active-bg: rgba(15, 23, 42, 0.055);
+  --o-mw-modelrow-selected-bg: color-mix(in srgb, var(--o-primary) 5%, var(--o-surface));
+  --o-mw-modelrow-selected-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--o-primary) 18%, transparent),
+    0 4px 12px -6px color-mix(in srgb, var(--o-primary) 28%, transparent);
+  --o-mw-metasep-color: rgba(15, 23, 42, 0.18);
+  --o-mw-selected-icon-color: var(--o-primary);
+  --o-mw-recommended-ring: var(--o-primary);
+  --o-mw-filterchip-color: var(--o-text-secondary);
+  --o-mw-filterchip-hover-bg: rgba(15, 23, 42, 0.05);
+  --o-mw-filterchip-active-bg: rgba(15, 23, 42, 0.085);
+  --o-mw-filterdivider-bg: rgba(15, 23, 42, 0.08);
+
+  /* Model control segmented pill:
+     the selected state is an accent fill plus --o-primary-text, and each theme has to be
+     measured separately. --o-primary-text-safe is exactly the fill that passes in both,
+     at 7.10:1 light / 6.89:1 dark. Using --o-primary directly gives only 4.23:1 in light,
+     and darkening the dark theme too drops it to 4.43:1 - the direction is inverted, so
+     the fill resolves to this single token instead of two hand-written purples.
+     No [data-theme] override in a CSS Module: see the note in CitationsBlock.module.css,
+     lightningcss strips such rules in production and leaves white on white. */
+  --o-segmented-selected-bg: var(--o-primary-text-safe);
+
+  /* Capsule background of the model control badge: the two themes differ, 0.20 dark and
+     0.12 light. One shared value is the classic mistake with tints like this - 12% amber
+     over a light white card is a visible capsule, while the same 12% over the dark
+     #1B1F2A all but merges into the background and the badge degrades into a run of
+     coloured text with no container, which is exactly what separates it from the body
+     text around it.
+     A token rather than a [data-theme] override in a CSS Module: lightningcss strips
+     theme overrides inside modules in production, see CitationsBlock.module.css.
+     Text still uses --o-warning-text / --o-error-text, with contrast recorded in
+     semantic-text-contrast.ts. */
+  --o-model-control-badge-manual-bg: color-mix(in srgb, var(--o-warning) 12%, transparent);
+  --o-model-control-badge-unavailable-bg: color-mix(in srgb, var(--o-error) 12%, transparent);
+  --o-mw-iconbtn-bg: rgba(15, 23, 42, 0.04);
+  --o-mw-iconbtn-border: transparent;
+  --o-mw-iconbtn-hover-bg: var(--o-bg-subtle);
+  --o-mw-iconbtn-hover-border: var(--o-border);
+  --o-mw-clearbtn-bg: rgba(15, 23, 42, 0.08);
+  --o-mw-clearbtn-hover-bg: rgba(15, 23, 42, 0.14);
+  --o-mw-providerpill-bg: var(--o-bg-subtle);
+  --o-mw-providerpill-color: var(--o-text-secondary);
+  --o-mw-catalogrow-hover-bg: color-mix(in srgb, var(--o-primary) 5%, var(--o-surface));
+  --o-mw-empty-border: var(--o-border);
+  --o-mw-providerempty-bg: var(--o-surface);
+  --o-mw-providerempty-hover-bg: var(--o-bg-subtle);
+  --o-mw-shortcutrail-bg: var(--o-bg-subtle);
+  --o-mw-shortcutrail-border: var(--o-border);
+  --o-mw-shortcutbtn-hover-bg: var(--o-surface);
+  --o-mw-shortcutbtn-active-bg: var(--o-surface);
+  --o-mw-shortcutall-bg: var(--o-primary-subtle);
+  --o-mw-shortcutall-color: var(--o-primary);
+  --o-mw-shortcutcount-bg: var(--o-bg-subtle);
+  --o-mw-shortcutcount-color: var(--o-text-tertiary);
+  --o-mw-shortcut-active-bg: color-mix(in srgb, var(--o-primary) 12%, var(--o-surface));
+  --o-mw-shortcut-active-color: var(--o-primary-active);
+  --o-mw-sectioncount-bg: var(--o-bg-subtle);
+  --o-mw-sectioncount-color: var(--o-text-tertiary);
+  --o-mw-catalogadd-bg: var(--o-bg-subtle);
+  --o-mw-manualhero-bg: var(--o-bg-subtle);
+  --o-mw-manualhero-border: var(--o-border);
+  --o-mw-manualinput-bg: var(--o-bg-subtle);
+  --o-mw-manualinput-border: var(--o-border);
+  --o-mw-manualinput-focus-border: color-mix(in srgb, var(--o-primary) 30%, var(--o-border));
+  --o-mw-manualexisting-bg: color-mix(in srgb, var(--o-info) 6%, var(--o-surface));
+  --o-mw-manualexisting-border: color-mix(in srgb, var(--o-info) 18%, var(--o-border));
+
+  /* ── Note Tag Chips ── */
+  --o-note-tag-bg: #FBF1D5;
+  --o-note-tag-bg-selected: #F3E2A8;
+  --o-note-tag-bg-suggestion: #FCF7E8;
+  --o-note-tag-border: rgba(234, 216, 162, 0.9);
+  --o-note-tag-border-selected: #D9BD6C;
+  --o-note-tag-text: #6E5518;
+  --o-note-tag-text-selected: #55400F;
+  --o-note-tag-icon: #C79A2C;
+
+  /* ── Library confirmation dialog (`--o-lc-*`) ──
+   * Same reason as the reasoning/citations set: a :global([data-theme]) override in a
+   * component CSS Module can be stripped by lightningcss in a production build, so colours
+   * always switch through tokens.
+   * aurora is the full-page library glow at ~0.62 strength: the dialog covers less than
+   * half the screen and full strength would leave the whole of it bathed in light.
+   */
+  --o-lc-aurora:
+    radial-gradient(
+      120% 100% at 0% 0%,
+      color-mix(in srgb, var(--o-primary) 9%, transparent),
+      transparent 62%
+    ),
+    radial-gradient(
+      110% 90% at 100% 0%,
+      color-mix(in srgb, #b07bf0 7%, transparent),
+      transparent 58%
+    );
+  --o-lc-inset-bg: color-mix(in srgb, #2e1b69 3.5%, transparent);
+  --o-lc-divider: color-mix(in srgb, #2e1b69 7%, transparent);
+}
+
+/*
+ * Dark theme. After changing any dark value, run `node scripts/verify-design-tokens.mjs`.
+ *
+ * Design principles:
+ * - no pure black (L*~9, #0F1218), which reads cheap and makes glows harsh
+ * - four surface steps (bg / bg-subtle / surface / surface-raised) express depth by luminance
+ * - text is not pure white (#ECEEF2): still AAA contrast, but not glaring
+ * - borders use translucent white so they adapt to whatever is underneath
+ * - brand purple is desaturated and lightened (OKLCH L~0.69 C~0.14, #A78BFA)
+ * - translucent scrims deepen to 0.72
+ */
+[data-theme='dark'] {
+  /* ── Background - four steps ── */
+  --o-bg: #0F1218;
+  --o-bg-subtle: #14181F;
+  --o-bg-inset: #181C24;
+
+  /* ── Surface ── */
+  --o-surface: #1B1F2A;
+  --o-surface-raised: #252937;
+  --o-surface-card-from: #252937;
+  --o-surface-overlay: rgba(15, 18, 24, 0.88);
+
+  /* See the light theme note: dark has to use raised, inset is only 1.026:1 on the dialog background. */
+  --o-token-usage-card-bg: var(--o-surface-raised);
+
+  /* ── Text - not pure white ── */
+  --o-text: #ECEEF2;
+  --o-text-secondary: #B4BAC6;
+  --o-text-tertiary: #8B919E;
+  /* See the note on the light theme token. The dark tertiary is 5.63:1 on the track and
+   * already passes, but the two themes must hold two real values: one number in both means
+   * the dark theme was never measured on its own.
+   * Measured: 6.78:1 on --o-bg-subtle, 6.27:1 on --o-surface. */
+  --o-text-disabled-on-control: #9AA0AC;
+  --o-text-inverse: #0F1218;
+
+  /* ── Border - translucent white, adapts to whatever is underneath ── */
+  --o-border: rgba(255, 255, 255, 0.10);
+  --o-border-strong: rgba(255, 255, 255, 0.18);
+
+  /* ── Primary - brand purple, desaturated and lightened for dark ── */
+  --o-primary: #A78BFA;
+  --o-primary-hover: #C4B5FD;
+  --o-primary-active: #8B5CF6;
+  --o-primary-subtle: rgba(167, 139, 250, 0.12);
+  --o-primary-text: #0F1218;
+  /* Dark --o-primary #A78BFA already reaches 6.05:1 (surface) / 6.54:1 (bg-subtle) as body
+   * text, so it points back at the original: darkening it here would lower contrast. */
+  --o-primary-text-on-surface: var(--o-primary);
+  /* The dark accent fill already passes - #0F1218 on #A78BFA is 6.89:1 - so it points back
+   * at the original: darkening it here would drop to 4.43:1. */
+  --o-primary-text-safe: var(--o-primary);
+
+  /* ── Bottom navigation per-tab selected colour, desaturated and lightened for dark ── */
+  --o-tab-teal: #2dd4bf;
+  --o-tab-orange: #fb923c;
+  /* Dark: the selected capsule is translucent white, picked out by the slightly grey glass bar behind it */
+  --o-tab-capsule: rgba(255, 255, 255, 0.13);
+
+  /* ── Status - desaturated and lightened to avoid a neon look ── */
+  --o-success: #6EE7A1;
+  --o-success-subtle: rgba(110, 231, 161, 0.14);
+  --o-warning: #FCD34D;
+  --o-warning-subtle: rgba(252, 211, 77, 0.14);
+  --o-error: #F8978F;
+  --o-error-subtle: rgba(248, 151, 143, 0.14);
+  --o-info: #8DB6FF;
+  --o-info-subtle: rgba(141, 182, 255, 0.14);
+
+  /* ── Status text - dark already passes, measured 7.7-11.4:1 against --o-surface, so it
+   * points back at the originals. Copying the darkened light-theme values here would make
+   * the text harder to read on a dark background. */
+  --o-success-text: var(--o-success);
+  --o-warning-text: var(--o-warning);
+  --o-error-text: var(--o-error);
+  --o-info-text: var(--o-info);
+
+  /* ── On-* foreground colors
+   * Dark status colours are lightened (#6EE7A1, #FCD34D), so the backgrounds are not
+   * saturated-dark enough and dark foreground text reads more clearly on them.
+   */
+  --o-on-danger: #1F0A09;
+  --o-on-success: #062a13;
+  --o-on-warning: #18181B;
+  --o-on-info: #0a1a3d;
+
+  /* Switch thumb: white in both themes */
+  --o-switch-thumb: #ffffff;
+
+  /* ── Shadow - pure black, clean ── */
+  --o-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.5);
+  --o-shadow-md: 0 4px 16px rgba(0, 0, 0, 0.55);
+  --o-shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.6);
+  --o-shadow-xl: 0 24px 64px rgba(0, 0, 0, 0.7);
+
+  /* ── Elevation - three semantic steps; dark expresses depth through the hairline highlight */
+  --o-elevation-control: 0 1px 2px rgba(0, 0, 0, 0.4), inset 0 1px 0 0 var(--o-hairline);
+  --o-elevation-card: 0 2px 4px rgba(0, 0, 0, 0.4), 0 12px 32px rgba(0, 0, 0, 0.5), inset 0 1px 0 0 var(--o-hairline);
+  --o-elevation-modal: 0 4px 12px rgba(0, 0, 0, 0.5), 0 32px 80px rgba(0, 0, 0, 0.65), inset 0 1px 0 0 var(--o-hairline);
+
+  /* ── Code Block ── */
+  --o-code-bg: #0C0F16;
+  --o-code-header-bg: #14181F;
+  --o-code-text: #E4E4E7;
+  --o-code-border: rgba(255, 255, 255, 0.08);
+  --o-code-inline-bg: rgba(255, 255, 255, 0.06);
+
+  /* ── Syntax Highlighting (Catppuccin Mocha palette) ── */
+  --o-code-keyword: #CBA6F7;
+  --o-code-string: #A6E3A1;
+  --o-code-number: #FAB387;
+  --o-code-function: #89B4FA;
+  --o-code-builtin: #F9E2AF;
+  --o-code-attr: #F2CDCD;
+  --o-code-comment: #71717A;
+
+  /* ── Tag / Badge ── */
+  --o-tag-bg: rgba(255, 255, 255, 0.06);
+  --o-tag-text: #B4BAC6;
+
+  /* ── Gradient ── */
+  --o-gradient-brand: linear-gradient(135deg, #A78BFA, #8B5CF6);
+  --o-gradient-surface: linear-gradient(180deg, var(--o-bg) 0%, var(--o-bg-subtle) 100%);
+
+  /* ── Glow ── */
+  --o-glow-primary: 0 0 0 2px rgba(167, 139, 250, 0.15);
+  --o-glow-primary-strong: 0 0 0 3px rgba(167, 139, 250, 0.2), 0 0 16px rgba(167, 139, 250, 0.08);
+  --o-bubble-glow: 0 10px 16px rgba(124, 91, 238, 0.22);
+
+  /* ── Hairline ── */
+  --o-hairline: rgba(255, 255, 255, 0.06);
+
+  /* ── Glass highlight - matches hairline at 8% in dark ── */
+  --o-glass-highlight: rgba(255, 255, 255, 0.08);
+
+  /* ── Screen Background ── */
+  --o-screen-bg: linear-gradient(135deg, #0F1218, #10141C);
+
+  /* ── App Shell / Composer Glass (dark) ── */
+  --o-composer-bg: color-mix(in srgb, var(--o-surface) 78%, transparent);
+  --o-composer-home-bg: color-mix(in srgb, var(--o-surface) 72%, transparent);
+  --o-composer-shadow:
+    0 18px 54px rgba(0, 0, 0, 0.36),
+    0 0 0 1px color-mix(in srgb, var(--o-primary) 8%, transparent),
+    inset 0 1px 0 0 var(--o-hairline);
+  --o-composer-hover-shadow:
+    0 20px 58px rgba(0, 0, 0, 0.4),
+    0 0 0 1px color-mix(in srgb, var(--o-primary) 12%, transparent),
+    0 10px 24px color-mix(in srgb, var(--o-primary) 10%, transparent),
+    inset 0 1px 0 0 var(--o-glass-highlight);
+  --o-composer-focus-shadow:
+    0 22px 64px rgba(0, 0, 0, 0.44),
+    0 0 0 1px color-mix(in srgb, var(--o-primary) 16%, transparent),
+    0 14px 36px color-mix(in srgb, var(--o-primary) 18%, transparent),
+    inset 0 1px 0 0 var(--o-glass-highlight);
+  --o-composer-home-shadow:
+    0 20px 60px rgba(0, 0, 0, 0.42),
+    0 0 0 1px color-mix(in srgb, var(--o-primary) 11%, transparent),
+    inset 0 1px 0 0 var(--o-glass-highlight);
+  --o-chat-topbar-bg:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--o-bg) 72%, transparent) 0%,
+      color-mix(in srgb, var(--o-bg) 46%, transparent) 62%,
+      color-mix(in srgb, var(--o-bg) 0%, transparent) 100%
+    );
+  --o-chat-topbar-border: color-mix(in srgb, var(--o-primary) 10%, transparent);
+  --o-chat-aurora-glow-bg:
+    radial-gradient(ellipse 110% 82% at 50% 100%, color-mix(in srgb, var(--o-primary) 23%, transparent) 0%, transparent 72%),
+    radial-gradient(ellipse 72% 66% at 14% 90%, color-mix(in srgb, #c65bf0 16%, transparent) 0%, transparent 64%),
+    radial-gradient(ellipse 66% 62% at 86% 88%, color-mix(in srgb, var(--o-primary) 15%, transparent) 0%, transparent 62%),
+    radial-gradient(ellipse 100% 68% at 50% 0%, color-mix(in srgb, var(--o-primary) 13%, transparent) 0%, transparent 66%);
+  --o-chat-aurora-glow-bg-2:
+    radial-gradient(ellipse 62% 56% at 28% 72%, color-mix(in srgb, #818cf8 16%, transparent) 0%, transparent 60%),
+    radial-gradient(ellipse 58% 52% at 74% 64%, color-mix(in srgb, #c65bf0 15%, transparent) 0%, transparent 58%),
+    radial-gradient(ellipse 66% 56% at 52% 44%, color-mix(in srgb, var(--o-primary) 14%, transparent) 0%, transparent 62%);
+  --o-chat-aurora-glow-blur: blur(15px);
+  --o-chat-aurora-halftone-dot: color-mix(in srgb, #c9b6ff 42%, transparent);
+  --o-chat-aurora-halftone-size: 16px 16px;
+  --o-chat-aurora-dot-core: 1.2px;
+  --o-chat-aurora-dot-fade: 1.8px;
+
+  /* ── Focus ── */
+  --o-focus-ring: 0 0 0 2px rgba(167, 139, 250, 0.5);
+
+  /* ── Overlay / Scrim ── */
+  --o-overlay: rgba(0, 0, 0, 0.72);
+
+  /* ── Reasoning / Citations Block (dark) ──
+   * See the note above the same tokens in the light section: a :global([data-theme])
+   * override inside a CSS Module is stripped in a production build, so this switches
+   * through tokens.
+   */
+  --o-reasoning-line: rgba(255, 255, 255, 0.12);
+  --o-reasoning-line-streaming: rgba(106, 168, 255, 0.4);
+  --o-reasoning-line-done: rgba(255, 255, 255, 0.16);
+  --o-reasoning-header: rgba(255, 255, 255, 0.6);
+  --o-reasoning-header-hover: rgba(255, 255, 255, 0.06);
+  --o-reasoning-header-strong: rgba(255, 255, 255, 0.85);
+  --o-reasoning-content: rgba(255, 255, 255, 0.6);
+  --o-citations-bg: rgba(255, 255, 255, 0.04);
+  --o-citations-border: rgba(255, 255, 255, 0.08);
+  --o-citations-header: rgba(255, 255, 255, 0.55);
+  --o-citations-item-hover: rgba(255, 255, 255, 0.06);
+  --o-citations-favicon-bg: rgba(255, 255, 255, 0.06);
+  --o-citations-favicon-color: rgba(255, 255, 255, 0.5);
+  --o-citations-domain: rgba(255, 255, 255, 0.5);
+  --o-citations-badge-bg: rgba(255, 255, 255, 0.1);
+  --o-citations-badge-color: rgba(255, 255, 255, 0.75);
+  --o-citations-toggle: rgba(255, 255, 255, 0.7);
+  --o-citations-toggle-hover: rgba(255, 255, 255, 0.08);
+
+  /* ── Capability Badge (dark) - desaturated lightened text on a 15% translucent tint ── */
+  --o-cap-reasoning-text: #FCD34D;
+  --o-cap-reasoning-bg: rgba(180, 83, 9, 0.15);
+  --o-cap-image-text: #F9A8D4;
+  --o-cap-image-bg: rgba(190, 24, 93, 0.15);
+  --o-cap-file-text: #C4B5FD;
+  --o-cap-file-bg: rgba(67, 56, 202, 0.15);
+  --o-cap-web-text: #99F6E4;
+  --o-cap-web-bg: rgba(15, 118, 110, 0.15);
+  --o-cap-image-gen-text: #DDD6FE;
+  --o-cap-image-gen-bg: rgba(124, 58, 237, 0.15);
+
+  /* ── Tooltip (dark) - frosted light background in dark mode ── */
+  --o-tooltip-bg: rgba(244, 244, 245, 0.96);
+  --o-tooltip-shadow-inset: rgba(255, 255, 255, 0.6);
+  --o-tooltip-shadow-1: rgba(0, 0, 0, 0.6);
+  --o-tooltip-shadow-2: rgba(0, 0, 0, 0.3);
+
+  /* ── Usage Insights Demo Card (dark) ── */
+  --o-usage-demo-card-shadow:
+    0 22px 50px -12px rgba(0, 0, 0, 0.6),
+    0 4px 16px -4px rgba(0, 0, 0, 0.35);
+
+  /* ── MenuSelect (dark) ── */
+  --o-ms-trigger-bg: linear-gradient(180deg, var(--o-surface) 0%, var(--o-bg-subtle) 100%);
+  --o-ms-trigger-border: var(--o-border-strong);
+  --o-ms-trigger-shadow: inset 0 1px 0 var(--o-hairline);
+  --o-ms-trigger-focus-border: var(--o-primary-subtle);
+  --o-ms-trigger-focus-shadow: var(--o-glow-primary);
+  --o-ms-menu-bg: color-mix(in srgb, rgba(15, 19, 26, 0.94) 100%, var(--o-surface));
+  --o-ms-menu-border: var(--o-border-strong);
+  --o-ms-menu-shadow:
+    var(--o-shadow-lg),
+    inset 0 1px 0 var(--o-hairline);
+  --o-ms-option-hover-bg: var(--o-primary-subtle);
+  --o-ms-option-selected-bg: linear-gradient(135deg, var(--o-primary-subtle) 0%, var(--o-surface-raised) 100%);
+  --o-ms-option-selected-shadow:
+    inset 0 1px 0 var(--o-hairline),
+    var(--o-shadow-md);
+  --o-ms-option-check-bg: var(--o-primary-subtle);
+  --o-ms-option-check-color: var(--o-primary-hover);
+  --o-ms-option-check-selected-bg: var(--o-primary-subtle);
+
+  /* ── ProviderDetail (dark) ── */
+  --o-pd-subtitledot-color: rgba(255, 255, 255, 0.28);
+  --o-pd-back-bg: rgba(255, 255, 255, 0.04);
+  --o-pd-back-border: var(--o-border);
+  --o-pd-back-hover-bg: rgba(255, 255, 255, 0.08);
+  --o-pd-back-hover-border: var(--o-border-strong);
+  --o-pd-card-border: rgba(255, 255, 255, 0.08);
+  --o-pd-card-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --o-pd-card-hover-border: rgba(255, 255, 255, 0.16);
+  --o-pd-card-hover-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.3),
+    0 6px 16px -6px rgba(0, 0, 0, 0.4);
+  --o-pd-iconframe-bg: rgba(255, 255, 255, 0.06);
+  --o-pd-iconframe-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --o-pd-metapill-bg: rgba(255, 255, 255, 0.04);
+  --o-pd-metapill-border: rgba(255, 255, 255, 0.06);
+  --o-pd-metaicon-color: rgba(244, 244, 245, 0.5);
+  --o-pd-statusalert-bg: color-mix(in srgb, var(--o-error) 14%, transparent);
+  --o-pd-statusalert-border: color-mix(in srgb, var(--o-error) 32%, transparent);
+  --o-pd-usagetabs-bg: rgba(255, 255, 255, 0.04);
+  --o-pd-usagetabs-border: rgba(255, 255, 255, 0.06);
+  --o-pd-usagetab-active-bg: rgba(255, 255, 255, 0.06);
+  --o-pd-usagetab-active-shadow:
+    0 0 0 1px color-mix(in srgb, var(--o-primary) 36%, transparent),
+    0 1px 2px rgba(0, 0, 0, 0.3);
+  --o-pd-modelrow-hover-bg: rgba(167, 139, 250, 0.06);
+  --o-pd-toggle-off-bg: rgba(255, 255, 255, 0.12);
+  --o-pd-toggle-off-hover-bg: rgba(255, 255, 255, 0.18);
+  --o-pd-toggle-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.28);
+  --o-pd-toggle-focus-shadow:
+    inset 0 1px 2px rgba(0, 0, 0, 0.28),
+    0 0 0 3px color-mix(in srgb, var(--o-primary) 20%, transparent);
+  --o-pd-toggle-on-bg: linear-gradient(135deg, rgba(167, 139, 250, 0.9) 0%, rgba(139, 92, 246, 0.78) 100%);
+  --o-pd-toggle-on-shadow:
+    inset 0 1px 2px rgba(0, 0, 0, 0.3),
+    0 0 0 1px rgba(167, 139, 250, 0.24);
+  --o-pd-toggle-on-hover-shadow:
+    inset 0 1px 2px rgba(0, 0, 0, 0.3),
+    0 0 0 1px rgba(167, 139, 250, 0.32),
+    0 8px 20px rgba(139, 92, 246, 0.28);
+  --o-pd-toggle-on-focus-shadow:
+    inset 0 1px 2px rgba(0, 0, 0, 0.3),
+    0 0 0 3px color-mix(in srgb, var(--o-primary) 28%, transparent);
+  --o-pd-thumb-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.35),
+    0 1px 1px rgba(0, 0, 0, 0.2);
+  --o-pd-dangerzone-bg: color-mix(in srgb, var(--o-error) 8%, var(--o-surface));
+  --o-pd-dangerzone-border: color-mix(in srgb, var(--o-error) 28%, transparent);
+  --o-pd-dangericon-bg: rgba(239, 68, 68, 0.18);
+  --o-pd-confirmoverlay-bg: rgba(0, 0, 0, 0.6);
+  --o-pd-dialog-border: rgba(255, 255, 255, 0.08);
+  --o-pd-dialog-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.04),
+    0 1px 3px rgba(0, 0, 0, 0.5),
+    0 24px 64px -12px rgba(0, 0, 0, 0.7);
+  --o-pd-empty-bg: rgba(255, 255, 255, 0.03);
+  --o-pd-empty-border: rgba(255, 255, 255, 0.08);
+  --o-pd-input-bg: rgba(255, 255, 255, 0.04);
+  --o-pd-input-border: rgba(255, 255, 255, 0.1);
+  --o-pd-input-hover-border: rgba(255, 255, 255, 0.18);
+  --o-pd-input-focus-shadow: 0 0 0 4px color-mix(in srgb, var(--o-primary) 22%, transparent);
+  --o-pd-keydisplay-bg: rgba(255, 255, 255, 0.03);
+  --o-pd-keydisplay-border: rgba(255, 255, 255, 0.08);
+  --o-pd-keydisplay-hover-border: rgba(255, 255, 255, 0.16);
+  --o-pd-iconbtn-bg: rgba(255, 255, 255, 0.04);
+  --o-pd-iconbtn-border: rgba(255, 255, 255, 0.08);
+  --o-pd-iconbtn-color: rgba(244, 244, 245, 0.7);
+  --o-pd-iconbtn-hover-bg: color-mix(in srgb, var(--o-primary) 16%, transparent);
+  --o-pd-iconbtn-hover-border: color-mix(in srgb, var(--o-primary) 36%, transparent);
+  --o-pd-iconbtn-hover-color: var(--o-primary-hover);
+  --o-pd-statcard-bg: rgba(255, 255, 255, 0.03);
+  --o-pd-statcard-border: rgba(255, 255, 255, 0.08);
+  --o-pd-modelaction-bg: rgba(255, 255, 255, 0.04);
+  --o-pd-modelaction-border: rgba(255, 255, 255, 0.1);
+  --o-pd-modelaction-color: rgba(244, 244, 245, 0.72);
+  --o-pd-modelaction-hover-bg: color-mix(in srgb, var(--o-primary) 14%, transparent);
+  --o-pd-modelaction-hover-border: color-mix(in srgb, var(--o-primary) 36%, transparent);
+  --o-pd-modelaction-hover-color: var(--o-primary-hover);
+  --o-pd-removebtn-bg: rgba(255, 255, 255, 0.04);
+  --o-pd-chatbtn-bg: color-mix(in srgb, var(--o-primary) 18%, transparent);
+  --o-pd-chatbtn-hover-bg: color-mix(in srgb, var(--o-primary) 28%, transparent);
+  --o-pd-relaycheck-bg: rgba(255, 255, 255, 0.03);
+  --o-pd-relaycheck-border: rgba(255, 255, 255, 0.08);
+
+  /* ── ModelSwitcher (dark) ── */
+  --o-mw-overlay-bg:
+    radial-gradient(at 14% 10%, color-mix(in srgb, var(--o-primary) 18%, transparent) 0%, transparent 52%),
+    radial-gradient(at 86% 90%, rgba(99, 102, 241, 0.14) 0%, transparent 58%),
+    rgba(2, 6, 23, 0.6);
+  --o-mw-overlay-blur: blur(16px) saturate(140%);
+  --o-mw-dropdown-border: rgba(255, 255, 255, 0.06);
+  --o-mw-dropdown-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.04),
+    0 1px 0 rgba(255, 255, 255, 0.02),
+    0 16px 40px -12px rgba(0, 0, 0, 0.6),
+    0 40px 96px -28px color-mix(in srgb, var(--o-primary) 28%, transparent);
+  --o-mw-search-bg: rgba(255, 255, 255, 0.04);
+  --o-mw-search-hover-bg: rgba(255, 255, 255, 0.07);
+  --o-mw-search-focus-bg: rgba(255, 255, 255, 0.04);
+  --o-mw-search-focus-shadow: 0 0 0 3px color-mix(in srgb, var(--o-primary) 16%, transparent);
+  --o-mw-section-divider: rgba(255, 255, 255, 0.06);
+  --o-mw-providermark-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.04) 100%);
+  --o-mw-providermark-border: rgba(255, 255, 255, 0.08);
+  --o-mw-providermark-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  --o-mw-providermark-active-bg:
+    linear-gradient(180deg, color-mix(in srgb, var(--o-primary) 10%, rgba(255, 255, 255, 0.06)) 0%, color-mix(in srgb, var(--o-primary) 16%, rgba(255, 255, 255, 0.06)) 100%);
+  --o-mw-providermark-active-border: color-mix(in srgb, var(--o-primary) 36%, transparent);
+  --o-mw-providerbody-line: rgba(255, 255, 255, 0.08);
+  --o-mw-providerbadge-bg: rgba(255, 255, 255, 0.06);
+  --o-mw-providerbadge-color: var(--o-text-secondary);
+  --o-mw-providerbadge-active-bg: color-mix(in srgb, var(--o-primary) 22%, transparent);
+  --o-mw-providerbadge-active-color: var(--o-primary-hover);
+  --o-mw-provideradd-bg: rgba(255, 255, 255, 0.05);
+  --o-mw-provideradd-hover-bg: color-mix(in srgb, var(--o-primary) 18%, transparent);
+  --o-mw-provideradd-hover-color: var(--o-primary-hover);
+  --o-mw-modelrow-hover-bg: rgba(255, 255, 255, 0.04);
+  --o-mw-modelrow-active-bg: rgba(255, 255, 255, 0.06);
+  --o-mw-modelrow-selected-bg: color-mix(in srgb, var(--o-primary) 10%, transparent);
+  --o-mw-modelrow-selected-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--o-primary) 32%, transparent),
+    0 4px 16px -6px color-mix(in srgb, var(--o-primary) 40%, transparent);
+  --o-mw-metasep-color: rgba(255, 255, 255, 0.18);
+  --o-mw-selected-icon-color: var(--o-primary-hover);
+  --o-mw-recommended-ring: var(--o-primary-hover);
+  --o-mw-filterchip-color: var(--o-text-tertiary);
+  --o-mw-filterchip-hover-bg: rgba(255, 255, 255, 0.05);
+  --o-mw-filterchip-active-bg: var(--o-border-strong);
+  --o-mw-filterdivider-bg: rgba(255, 255, 255, 0.08);
+
+  /* See the note on the same token in the light section. Both themes point at --o-primary-text-safe, which absorbs the difference in direction itself. */
+  --o-segmented-selected-bg: var(--o-primary-text-safe);
+
+  /* Badge capsule background in dark: 0.20, against 0.12 in light. See the note on the
+     same token in the light section - with one shared value the capsule vanishes in dark
+     mode, and it is the badge's only container. */
+  --o-model-control-badge-manual-bg: color-mix(in srgb, var(--o-warning) 20%, transparent);
+  --o-model-control-badge-unavailable-bg: color-mix(in srgb, var(--o-error) 20%, transparent);
+  --o-mw-iconbtn-bg: rgba(255, 255, 255, 0.05);
+  --o-mw-iconbtn-border: rgba(255, 255, 255, 0.08);
+  --o-mw-iconbtn-hover-bg: rgba(255, 255, 255, 0.1);
+  --o-mw-iconbtn-hover-border: rgba(255, 255, 255, 0.16);
+  --o-mw-clearbtn-bg: rgba(255, 255, 255, 0.08);
+  --o-mw-clearbtn-hover-bg: rgba(255, 255, 255, 0.16);
+  --o-mw-providerpill-bg: rgba(255, 255, 255, 0.06);
+  --o-mw-providerpill-color: var(--o-text);
+  --o-mw-catalogrow-hover-bg: rgba(255, 255, 255, 0.06);
+  --o-mw-empty-border: var(--o-border-strong);
+  --o-mw-providerempty-bg: var(--o-bg-inset);
+  --o-mw-providerempty-hover-bg: rgba(255, 255, 255, 0.05);
+  --o-mw-shortcutrail-bg: rgba(255, 255, 255, 0.03);
+  --o-mw-shortcutrail-border: rgba(255, 255, 255, 0.08);
+  --o-mw-shortcutbtn-hover-bg: rgba(255, 255, 255, 0.06);
+  --o-mw-shortcutbtn-active-bg: rgba(255, 255, 255, 0.08);
+  --o-mw-shortcutall-bg: rgba(255, 255, 255, 0.06);
+  --o-mw-shortcutall-color: var(--o-text-secondary);
+  --o-mw-shortcutcount-bg: rgba(255, 255, 255, 0.06);
+  --o-mw-shortcutcount-color: var(--o-text-secondary);
+  --o-mw-shortcut-active-bg: var(--o-primary-subtle);
+  --o-mw-shortcut-active-color: var(--o-primary);
+  --o-mw-sectioncount-bg: rgba(255, 255, 255, 0.06);
+  --o-mw-sectioncount-color: var(--o-text-secondary);
+  --o-mw-catalogadd-bg: rgba(255, 255, 255, 0.06);
+  --o-mw-manualhero-bg: rgba(255, 255, 255, 0.03);
+  --o-mw-manualhero-border: rgba(255, 255, 255, 0.08);
+  --o-mw-manualinput-bg: rgba(255, 255, 255, 0.04);
+  --o-mw-manualinput-border: rgba(255, 255, 255, 0.08);
+  --o-mw-manualinput-focus-border: color-mix(in srgb, var(--o-primary) 30%, transparent);
+  --o-mw-manualexisting-bg: rgba(96, 165, 250, 0.06);
+  --o-mw-manualexisting-border: rgba(96, 165, 250, 0.14);
+
+  /* ── Note Tag Chips (dark) ── */
+  --o-note-tag-bg: #3A3220;
+  --o-note-tag-bg-selected: #4C4027;
+  --o-note-tag-bg-suggestion: #322B1D;
+  --o-note-tag-border: rgba(255, 255, 255, 0.07);
+  --o-note-tag-border-selected: rgba(255, 255, 255, 0.14);
+  --o-note-tag-text: #EAD9AC;
+  --o-note-tag-text-selected: #F4E7C0;
+  --o-note-tag-icon: #DCC07C;
+
+  /* ── Library confirmation dialog (dark) ── */
+  --o-lc-aurora:
+    radial-gradient(
+      120% 100% at 0% 0%,
+      color-mix(in srgb, var(--o-primary) 19%, transparent),
+      transparent 62%
+    ),
+    radial-gradient(
+      110% 90% at 100% 0%,
+      color-mix(in srgb, #b07bf0 12%, transparent),
+      transparent 58%
+    );
+  --o-lc-inset-bg: rgba(255, 255, 255, 0.05);
+  --o-lc-divider: rgba(255, 255, 255, 0.08);
+}

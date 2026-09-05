@@ -1,0 +1,57 @@
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--o-space-sm);
+  padding: var(--o-space-lg);
+  border-radius: var(--o-radius-card);
+  border: 1px solid var(--o-border);
+  background: var(--o-surface);
+  text-decoration: none;
+  color: inherit;
+  box-shadow: var(--o-elevation-control);
+  transition:
+    border-color 200ms ease,
+    box-shadow 240ms cubic-bezier(0.16, 1, 0.3, 1),
+    transform 200ms ease;
+}
+
+.card:hover {
+  border-color: var(--o-border-strong);
+  box-shadow:
+    var(--o-elevation-card),
+    inset 0 1px 0 0 var(--o-hairline);
+  transform: translateY(-2px);
+}
+
+.card:focus-visible {
+  outline: none;
+  border-color: color-mix(in srgb, var(--o-primary) 50%, var(--o-border-strong));
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--o-primary) 18%, transparent),
+    inset 0 1px 0 0 var(--o-hairline);
+}
+
+.icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--o-radius-md);
+  background: var(--o-primary-subtle);
+  color: var(--o-primary);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--o-text-base);
+  font-weight: 600;
+  color: var(--o-text);
+}
+
+.description {
+  margin: 0;
+  font-size: var(--o-text-sm);
+  color: var(--o-text-secondary);
+  line-height: 1.65;
+}

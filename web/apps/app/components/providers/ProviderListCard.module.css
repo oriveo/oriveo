@@ -1,0 +1,245 @@
+/* ── ProviderListCard — compact list row ── */
+
+.card {
+  --brand-color: var(--o-primary);
+
+  appearance: none;
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 0;
+  padding: 13px 14px 13px 14px;
+  border: none;
+  border-radius: 12px;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  transition:
+    background var(--o-transition-fast),
+    transform var(--o-transition-fast);
+}
+
+/* ── Permanent brand colour bar, 3.5x38px ── */
+.brandBar {
+  width: 3.5px;
+  height: 38px;
+  border-radius: 2px;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--brand-color) 100%, transparent) 0%,
+    color-mix(in srgb, var(--brand-color) 72%, transparent) 100%
+  );
+  flex-shrink: 0;
+  margin-right: 16px;
+}
+
+:global(html[data-theme='dark']) .brandBar {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--brand-color) 92%, transparent) 0%,
+    color-mix(in srgb, var(--brand-color) 62%, transparent) 100%
+  );
+}
+
+/* A faint warning tint across the whole row for the issue state */
+.card[data-status='issue'] {
+  background: transparent;
+}
+
+.card:hover {
+  background: color-mix(in srgb, var(--brand-color) 5%, transparent);
+}
+
+:global(html[data-theme='dark']) .card:hover {
+  background: color-mix(in srgb, var(--brand-color) 9%, transparent);
+}
+
+.card:focus-visible {
+  outline: none;
+  background: color-mix(in srgb, var(--brand-color) 6%, transparent);
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--brand-color) 36%, transparent);
+}
+
+.card:active {
+  transform: scale(0.995);
+}
+
+/* ── Logo — a stable 38x38 slot, with no background box or cropping ── */
+.logo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+  margin-right: 13px;
+}
+
+/* ── Info area — name + sub ── */
+.info {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.nameRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.name {
+  font-size: 16.5px;
+  font-weight: 650;
+  color: var(--o-text);
+  line-height: 1.2;
+  letter-spacing: -0.012em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.statusInline {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.statusInline[data-status='syncing'] {
+  color: var(--o-primary-active);
+}
+
+.statusInline[data-status='issue'] {
+  color: var(--o-warning);
+}
+
+.statusDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
+  box-shadow: 0 0 0 2px color-mix(in srgb, currentColor 18%, transparent);
+}
+
+.statusInline[data-status='syncing'] .statusDot {
+  animation: rowPulse 1.4s ease-in-out infinite;
+}
+
+@keyframes rowPulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.8); }
+}
+
+/* ── Sub row — "X models - Y min ago" with a 2.5px dot ── */
+.subRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--o-text-tertiary);
+  min-width: 0;
+}
+
+.subText {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.subDot {
+  width: 2.5px;
+  height: 2.5px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--o-text-tertiary) 45%, transparent);
+  flex-shrink: 0;
+}
+
+:global(html[data-theme='dark']) .subDot {
+  background: color-mix(in srgb, var(--o-text-tertiary) 60%, transparent);
+}
+
+/* ── Trailing — cost plus chevron, with no "This Month" label ── */
+.trailing {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+  padding-left: 8px;
+}
+
+.cost {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  font-size: 13.5px;
+  font-weight: 600;
+  font-family: 'SF Pro Rounded', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  font-variant-numeric: tabular-nums;
+  color: var(--o-text);
+  letter-spacing: -0.012em;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.amountLabel {
+  color: var(--o-text-tertiary);
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  font-size: 10.5px;
+  font-weight: 500;
+  line-height: 1;
+}
+
+.amountValue {
+  color: inherit;
+}
+
+.cost[data-zero='true'] {
+  color: color-mix(in srgb, var(--o-text-tertiary) 85%, transparent);
+  font-weight: 500;
+}
+
+.chevron {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 11px;
+  height: 11px;
+  color: color-mix(in srgb, var(--o-text-tertiary) 55%, transparent);
+  flex-shrink: 0;
+  transition: color var(--o-transition-fast), transform var(--o-transition-fast);
+}
+
+.card:hover .chevron {
+  color: var(--brand-color);
+  transform: translateX(2px);
+}
+
+@media (max-width: 767px) {
+  .card {
+    padding: 12px 12px 12px 12px;
+  }
+
+  .brandBar {
+    margin-right: 12px;
+  }
+
+  .logo {
+    margin-right: 11px;
+  }
+
+  .trailing {
+    gap: 8px;
+  }
+}

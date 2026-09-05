@@ -1,0 +1,66 @@
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(8px) saturate(140%);
+  -webkit-backdrop-filter: blur(8px) saturate(140%);
+  padding: var(--o-space-lg);
+}
+
+.dialog {
+  position: relative;
+  background: color-mix(in srgb, var(--o-surface) 96%, transparent);
+  backdrop-filter: blur(12px) saturate(140%);
+  -webkit-backdrop-filter: blur(12px) saturate(140%);
+  border: 1px solid var(--o-border);
+  border-radius: var(--o-radius-modal);
+  padding: var(--o-space-xl);
+  max-width: 440px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow:
+    var(--o-elevation-modal),
+    inset 0 1px 0 0 var(--o-hairline);
+  animation: dialogIn 200ms ease-out;
+}
+
+.dialogLg {
+  max-width: 560px;
+}
+
+.dialogXl {
+  max-width: 920px;
+}
+
+/* Padding only. Bundling background, border and box-shadow in here to serve one caller that draws
+ * its own shell silently punched through every other caller's popover shell, leaving the content
+ * sitting directly on the dim overlay. "No padding" and "no shell" are orthogonal intents and must
+ * not be merged into one modifier class. */
+.dialogFlush {
+  padding: 0;
+}
+
+/* The escape hatch for callers that draw their own shell: it clears only the base class's surfaces
+ * (background, border, shadow) and leaves padding alone. Orthogonal to .dialogFlush, one
+ * responsibility each, and the two can be used together. */
+.dialogSurfaceless {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+}
+
+@keyframes dialogIn {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}

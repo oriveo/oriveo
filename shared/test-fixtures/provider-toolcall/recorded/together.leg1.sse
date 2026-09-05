@@ -1,0 +1,10 @@
+data: {"id":"oxCrFc6-4YNCb4-a2f119f5bcccfcfb","object":"chat.completion.chunk","created":1787393570,"choices":[{"index":0,"role":"assistant","text":"","logprobs":null,"finish_reason":null,"delta":{"token_id":null,"role":"assistant","content":""}}],"model":"meta-llama/Llama-3.3-70B-Instruct-Turbo"}
+
+data: {"id":"oxCrFc6-4YNCb4-a2f119f5bcccfcfb","object":"chat.completion.chunk","created":1787393570,"choices":[{"index":0,"text":"","logprobs":null,"finish_reason":null,"delta":{"token_id":null,"role":"assistant","content":"","tool_calls":[{"index":0,"id":"call_x3kiuon4ma4df7wt90opdold","type":"function","function":{"name":"get_weather","arguments":""}}]}}],"model":"meta-llama/Llama-3.3-70B-Instruct-Turbo"}
+
+data: {"id":"oxCrFc6-4YNCb4-a2f119f5bcccfcfb","object":"chat.completion.chunk","created":1787393570,"choices":[{"index":0,"text":"","logprobs":null,"finish_reason":"tool_calls","delta":{"token_id":null,"role":"assistant","content":"","tool_calls":[{"index":0,"function":{"arguments":"{\"city\":\"Melbourne\"}"}}]}}],"model":"meta-llama/Llama-3.3-70B-Instruct-Turbo"}
+
+data: {"id":"oxCrFc6-4YNCb4-a2f119f5bcccfcfb","object":"chat.completion.chunk","created":1787393570,"choices":[{"index":0,"text":"","logprobs":null,"finish_reason":"tool_calls","seed":1628884590683277600,"delta":{"token_id":128008,"role":"assistant","content":""}}],"model":"meta-llama/Llama-3.3-70B-Instruct-Turbo","usage":{"prompt_tokens":194,"completion_tokens":24,"total_tokens":218,"cached_tokens":0}}
+
+data: [DONE]
+

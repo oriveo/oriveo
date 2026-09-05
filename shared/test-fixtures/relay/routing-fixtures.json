@@ -1,0 +1,333 @@
+{
+  "$schema": "./relay-routing-fixtures.schema",
+  "version": 1,
+  "description": "Shared contract fixture.",
+  "imageRoute": {
+    "describe": "Shared contract fixture.",
+    "cases": [
+      {
+        "id": "IR-01",
+        "transport": "openai_responses",
+        "expected": "inlineResponsesTool"
+      },
+      {
+        "id": "IR-02",
+        "transport": "openai_chat_completions",
+        "expected": "imagesEndpoint"
+      },
+      {
+        "id": "IR-03",
+        "transport": "anthropic_messages",
+        "expected": "unsupported"
+      },
+      {
+        "id": "IR-04",
+        "transport": "gemini_generate_content",
+        "expected": "geminiModality"
+      },
+      {
+        "id": "IR-05",
+        "transport": "auto",
+        "expected": "imagesEndpoint"
+      }
+    ]
+  },
+  "codexIdentityHeaders": {
+    "describe": "Shared contract fixture.",
+    "cases": [
+      {
+        "id": "CI-01",
+        "transport": "openai_responses",
+        "requiresCodexUA": true,
+        "requiresOriginator": true,
+        "requiresSessionID": true,
+        "requiresOpenAIBeta": true
+      },
+      {
+        "id": "CI-02",
+        "transport": "auto",
+        "requiresCodexUA": false,
+        "requiresOriginator": false,
+        "requiresSessionID": false,
+        "requiresOpenAIBeta": false
+      },
+      {
+        "id": "CI-03",
+        "transport": "openai_chat_completions",
+        "requiresCodexUA": false,
+        "requiresOriginator": false,
+        "requiresSessionID": false,
+        "requiresOpenAIBeta": false
+      },
+      {
+        "id": "CI-04",
+        "transport": "anthropic_messages",
+        "requiresCodexUA": false,
+        "requiresOriginator": false,
+        "requiresSessionID": false,
+        "requiresOpenAIBeta": false
+      },
+      {
+        "id": "CI-05",
+        "transport": "gemini_generate_content",
+        "requiresCodexUA": false,
+        "requiresOriginator": false,
+        "requiresSessionID": false,
+        "requiresOpenAIBeta": false
+      }
+    ]
+  },
+  "shouldForceStream": {
+    "describe": "Shared contract fixture.",
+    "cases": [
+      {
+        "id": "FS-01",
+        "transport": "openai_responses",
+        "capabilities": [
+          "imageGen"
+        ],
+        "expected": true
+      },
+      {
+        "id": "FS-02",
+        "transport": "auto",
+        "capabilities": [
+          "imageGen"
+        ],
+        "expected": false
+      },
+      {
+        "id": "FS-03",
+        "transport": "openai_responses",
+        "capabilities": [
+          "text"
+        ],
+        "expected": false
+      },
+      {
+        "id": "FS-04",
+        "transport": "openai_chat_completions",
+        "capabilities": [
+          "imageGen"
+        ],
+        "expected": false
+      },
+      {
+        "id": "FS-05",
+        "transport": "gemini_generate_content",
+        "capabilities": [
+          "imageGen"
+        ],
+        "expected": false
+      },
+      {
+        "id": "FS-06",
+        "transport": "anthropic_messages",
+        "capabilities": [
+          "imageGen"
+        ],
+        "expected": false
+      }
+    ]
+  },
+  "isDedicatedImageModel": {
+    "describe": "Shared contract fixture.",
+    "cases": [
+      {
+        "id": "DI-01",
+        "modelID": "gpt-image-1",
+        "expected": true
+      },
+      {
+        "id": "DI-02",
+        "modelID": "gpt-image-2",
+        "expected": true
+      },
+      {
+        "id": "DI-03",
+        "modelID": "chatgpt-image-1",
+        "expected": true
+      },
+      {
+        "id": "DI-04",
+        "modelID": "GPT-IMAGE-2",
+        "expected": true
+      },
+      {
+        "id": "DI-05",
+        "modelID": "gpt-5.4",
+        "expected": false
+      },
+      {
+        "id": "DI-06",
+        "modelID": "claude-4-sonnet",
+        "expected": false
+      },
+      {
+        "id": "DI-07",
+        "modelID": "gemini-2.5-flash",
+        "expected": false
+      }
+    ]
+  },
+  "pickChatDriverModelID": {
+    "describe": "Shared contract fixture.",
+    "cases": [
+      {
+        "id": "PC-01",
+        "note": "Shared contract fixture.",
+        "currentModelID": "gpt-5.4",
+        "models": [
+          {
+            "id": "gpt-5.4",
+            "capabilities": [
+              "text"
+            ],
+            "available": true,
+            "isDefault": true
+          },
+          {
+            "id": "gpt-image-2",
+            "capabilities": [
+              "text",
+              "imageGen"
+            ],
+            "available": true,
+            "isDefault": false
+          }
+        ],
+        "expectedSuccess": "gpt-5.4"
+      },
+      {
+        "id": "PC-02",
+        "note": "Shared contract fixture.",
+        "currentModelID": "gpt-image-2",
+        "models": [
+          {
+            "id": "gpt-5.4",
+            "capabilities": [
+              "text"
+            ],
+            "available": true,
+            "isDefault": true
+          },
+          {
+            "id": "gpt-image-2",
+            "capabilities": [
+              "text",
+              "imageGen"
+            ],
+            "available": true,
+            "isDefault": false
+          }
+        ],
+        "expectedSuccess": "gpt-5.4"
+      },
+      {
+        "id": "PC-03",
+        "note": "Shared contract fixture.",
+        "currentModelID": "gpt-image-2",
+        "models": [
+          {
+            "id": "gpt-image-2",
+            "capabilities": [
+              "text",
+              "imageGen"
+            ],
+            "available": true,
+            "isDefault": true
+          },
+          {
+            "id": "claude-4-sonnet",
+            "capabilities": [
+              "text"
+            ],
+            "available": true,
+            "isDefault": false
+          }
+        ],
+        "expectedSuccess": "claude-4-sonnet"
+      },
+      {
+        "id": "PC-04",
+        "note": "Shared contract fixture.",
+        "currentModelID": "gpt-image-2",
+        "models": [
+          {
+            "id": "gpt-image-2",
+            "capabilities": [
+              "text",
+              "imageGen"
+            ],
+            "available": true,
+            "isDefault": true
+          }
+        ],
+        "expectedError": "missingChatDriverModel"
+      },
+      {
+        "id": "PC-05",
+        "note": "Shared contract fixture.",
+        "currentModelID": "gpt-image-2",
+        "models": [
+          {
+            "id": "gpt-image-2",
+            "capabilities": [
+              "text",
+              "imageGen"
+            ],
+            "available": true,
+            "isDefault": true
+          },
+          {
+            "id": "gpt-5.4",
+            "capabilities": [
+              "text"
+            ],
+            "available": false,
+            "isDefault": false
+          },
+          {
+            "id": "claude-4-haiku",
+            "capabilities": [
+              "text"
+            ],
+            "available": true,
+            "isDefault": false
+          }
+        ],
+        "expectedSuccess": "claude-4-haiku"
+      },
+      {
+        "id": "PC-06",
+        "note": "Shared contract fixture.",
+        "platform": "ios",
+        "currentModelID": "relay-manual-gpt-image-2",
+        "models": [
+          {
+            "id": "relay-manual-gpt-image-2",
+            "capabilities": [
+              "text",
+              "imageGen"
+            ],
+            "available": true,
+            "isDefault": true
+          },
+          {
+            "id": "relay-manual-gpt-5.5",
+            "capabilities": [
+              "text"
+            ],
+            "available": true,
+            "isDefault": false
+          }
+        ],
+        "expectedSuccess": "gpt-5.5"
+      }
+    ]
+  },
+  "systemInstructions": {
+    "extending": "When adding a new capability / transport: (1) add the matching id to this fixture; (2) update the pure-function implementation on all three clients at the same time; (3) run each client's test against this fixture until every assertion passes. Any client that changes the rule without going through this fixture fails its regression tests.",
+    "acceptanceBarrier": "All three clients must generate their input from this same fixture; no client may hardcode a way around it."
+  }
+}

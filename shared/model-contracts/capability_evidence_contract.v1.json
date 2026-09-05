@@ -1,0 +1,1276 @@
+{
+  "$comment": "Capability evidence consumption contract v1. Every golden case is resolved by Web, iOS and Android pure facades. The fixture contains only safe normalized candidates; raw production shapes live in shared/test-fixtures/provider-capability-evidence/production-shapes.v1.json and must be converted by platform adapters.",
+  "version": 1,
+  "schema": {
+    "capabilityKinds": [
+      "web",
+      "vision",
+      "tools",
+      "reasoning",
+      "generation"
+    ],
+    "supports": [
+      "supported",
+      "unsupported",
+      "unknown"
+    ],
+    "sources": [
+      "server_typed",
+      "server_profile",
+      "relay_verification",
+      "relay_declaration",
+      "runtime_observation",
+      "operator_override",
+      "legacy_metadata",
+      "none"
+    ],
+    "grades": [
+      "machine_verified",
+      "effect_verified",
+      "observed",
+      "declared",
+      "operator",
+      "accepted_unverified",
+      "legacy_unverified",
+      "none"
+    ],
+    "scopes": [
+      "provider_model_transport",
+      "connection_model_transport",
+      "exact_request"
+    ],
+    "requestPolicies": [
+      "allow",
+      "omit_unsupported",
+      "omit_unknown",
+      "allow_explicit_unverified",
+      "omit_runtime_rejected"
+    ],
+    "reasonCodes": [
+      "missing_evidence",
+      "expired",
+      "conflict",
+      "transport_mismatch",
+      "stale_generation",
+      "runtime_rejected",
+      "user_accepted_unverified",
+      "legacy_payload",
+      "unsupported",
+      "supported"
+    ],
+    "sourcePriority": [
+      "operator_override",
+      "server_typed",
+      "server_profile",
+      "relay_verification",
+      "relay_declaration",
+      "legacy_metadata"
+    ],
+    "localOnlyQueryFields": [
+      "partitionId",
+      "connectionInstanceId",
+      "connectionGeneration",
+      "credentialEpoch",
+      "endpointFingerprint"
+    ]
+  },
+  "governance": {
+    "facadeFiles": [
+      "web/packages/core/src/providers/capability-evidence-facade.ts",
+      "ios/Oriveo/Oriveo/Core/Providers/CapabilityEvidenceFacade.swift",
+      "android/app/src/main/java/ai/oriveo/community/core/provider/CapabilityEvidenceFacade.kt"
+    ],
+    "evidenceAdapterFiles": [
+      "web/packages/core/src/providers/unsupported-param.ts",
+      "ios/Oriveo/Oriveo/Core/Providers/CapabilityEvidenceProductionAdapter.swift",
+      "android/app/src/main/java/ai/oriveo/community/core/provider/CapabilityEvidenceProductionAdapter.kt",
+      "android/app/src/main/java/ai/oriveo/community/core/provider/UnsupportedParamSelfHeal.kt"
+    ],
+    "forbiddenFacadeTokens": [
+      "fetch(",
+      "URLSession",
+      "HttpURLConnection",
+      "MetadataClient",
+      "RelayDiscovery",
+      "SecureKeyStore",
+      "Keychain"
+    ],
+    "projectionConsumerFiles": [
+      {
+        "path": "web/packages/core/src/providers/generation-workbench.ts",
+        "role": "profile_producer",
+        "anchors": [
+          "GenerationParameterProfile",
+          "validateCustomGenerationParameter"
+        ]
+      },
+      {
+        "path": "web/packages/core/src/providers/local-service-capabilities.ts",
+        "role": "profile_producer",
+        "anchors": [
+          "LocalServiceCapabilityContract",
+          "LOCAL_SERVICE_CAPABILITY_PATHS"
+        ]
+      },
+      {
+        "path": "web/packages/core/src/providers/request-builders/generation-parameters.ts",
+        "role": "projection_consumer",
+        "anchors": [
+          "GenerationParameterProfile",
+          "applyGenerationParameters",
+          "facade requestPolicy"
+        ]
+      },
+      {
+        "path": "web/apps/app/lib/core/chat/stream-options.ts",
+        "role": "projection_consumer",
+        "anchors": [
+          "resolveGenerationParameterEvidence",
+          "filterGenerationParameterOverrides"
+        ]
+      },
+      {
+        "path": "web/apps/app/lib/core/chat/generation-panel-presentation.ts",
+        "role": "presentation_consumer",
+        "anchors": [
+          "CapabilityEvidenceResolution",
+          "showsUnverifiedBadge"
+        ]
+      },
+      {
+        "path": "web/apps/app/components/generation/GenerationParameterPanel.tsx",
+        "role": "presentation_consumer",
+        "anchors": [
+          "resolveGenerationParameterEvidence",
+          "showsUnverifiedBadge"
+        ]
+      },
+      {
+        "path": "ios/Oriveo/Oriveo/Core/Providers/LocalEngineContract.swift",
+        "role": "projection_consumer",
+        "anchors": [
+          "CapabilityEvidenceProductionAdapter",
+          "GenerationParameterAvailability"
+        ]
+      },
+      {
+        "path": "ios/Oriveo/Oriveo/Core/Providers/ProfileParamsResolver.swift",
+        "role": "projection_consumer",
+        "anchors": [
+          "CapabilityEvidenceProductionAdapter",
+          "permitsOutbound"
+        ]
+      },
+      {
+        "path": "ios/Oriveo/Oriveo/Features/Providers/GenerationParameterDefaultsSheet.swift",
+        "role": "presentation_consumer",
+        "anchors": [
+          "CapabilityEvidenceProductionAdapter",
+          "GenerationParameterPanelPresentation"
+        ]
+      },
+      {
+        "path": "android/app/src/main/java/ai/oriveo/community/core/provider/GenerationParameterResolver.kt",
+        "role": "projection_consumer",
+        "anchors": [
+          "capabilityProjection",
+          "permitsOutbound"
+        ]
+      },
+      {
+        "path": "android/app/src/main/java/ai/oriveo/community/core/provider/LocalEngineContract.kt",
+        "role": "projection_consumer",
+        "anchors": [
+          "CapabilityEvidenceProductionAdapter",
+          "capabilityProjection"
+        ]
+      },
+      {
+        "path": "android/app/src/main/java/ai/oriveo/community/feature/providers/detail/GenerationParameterDefaultsSheet.kt",
+        "role": "presentation_consumer",
+        "anchors": [
+          "CapabilityEvidenceProductionAdapter",
+          "GenerationParameterPanelPresentation"
+        ]
+      },
+      {
+        "$comment": "The three clients' presentation mirror. These files never decide support themselves; they only look up the support value the facade has already resolved and map it to a user-visible class (a line-by-line projection of generation_parameter_contract.v1.json#presentationClasses, reconciled word-for-word by each client's *SupportPresentationContract* test). accepted_unverified is registered here only because it is **a key in that table**, not a new decision of its own — hence it is listed as a presentation_consumer rather than something needing a broader scan. The anchors pin down the fact that this table's source of truth is the shared contract: whoever turns the mapping into a hand-written switch loses the anchor and turns the test red.",
+        "path": "web/apps/app/lib/core/chat/generation-support-presentation.ts",
+        "role": "presentation_consumer",
+        "anchors": [
+          "generation_parameter_contract.v1.json#presentationClasses",
+          "GENERATION_SUPPORT_MAP"
+        ]
+      },
+      {
+        "path": "android/app/src/main/java/ai/oriveo/community/core/provider/GenerationParameterSupportPresentation.kt",
+        "role": "presentation_consumer",
+        "anchors": [
+          "generation_parameter_contract.v1.json#presentationClasses",
+          "classBySupport"
+        ]
+      },
+      {
+        "path": "ios/Oriveo/Oriveo/Core/Providers/GenerationParameterSupportPresentation.swift",
+        "role": "presentation_consumer",
+        "anchors": [
+          "generation_parameter_contract.v1.json#presentationClasses",
+          "classBySupport"
+        ]
+      }
+    ]
+  },
+  "cases": [
+    {
+      "caseId": "server.typed.tool.supported",
+      "query": {
+        "partitionId": "u1",
+        "connectionInstanceId": "p1",
+        "connectionGeneration": "cg1",
+        "credentialEpoch": "ce1",
+        "providerKind": "openAI",
+        "modelId": "gpt-5.4",
+        "canonicalModelId": "gpt-5.4",
+        "effectiveTransport": "openai_chat_completions",
+        "metadataRevision": "etag-1",
+        "now": 1000,
+        "hasExplicitValue": false
+      },
+      "candidates": [
+        {
+          "key": "tool_call",
+          "support": "supported",
+          "source": "server_typed",
+          "grade": "machine_verified",
+          "scope": "provider_model_transport",
+          "providerKind": "openAI",
+          "modelId": "gpt-5.4",
+          "transport": "openai_chat_completions",
+          "metadataRevision": "etag-1",
+          "observedAt": 900,
+          "expiresAt": 1900
+        }
+      ],
+      "expect": {
+        "key": "tool_call",
+        "support": "supported",
+        "source": "server_typed",
+        "grade": "machine_verified",
+        "requestPolicy": "allow",
+        "reasonCode": "supported",
+        "policyEvidence": null
+      }
+    },
+    {
+      "caseId": "server.typed.tool.expired_falls_back_legacy",
+      "query": {
+        "partitionId": "u1",
+        "connectionInstanceId": "p1",
+        "connectionGeneration": "cg1",
+        "credentialEpoch": "ce1",
+        "providerKind": "openAI",
+        "modelId": "gpt-5.4",
+        "canonicalModelId": "gpt-5.4",
+        "effectiveTransport": "openai_chat_completions",
+        "metadataRevision": "etag-1",
+        "now": 2000,
+        "hasExplicitValue": false
+      },
+      "candidates": [
+        {
+          "key": "tool_call",
+          "support": "supported",
+          "source": "server_typed",
+          "grade": "machine_verified",
+          "scope": "provider_model_transport",
+          "providerKind": "openAI",
+          "modelId": "gpt-5.4",
+          "transport": "openai_chat_completions",
+          "metadataRevision": "etag-1",
+          "observedAt": 900,
+          "expiresAt": 1900
+        },
+        {
+          "key": "tool_call",
+          "support": "unsupported",
+          "source": "legacy_metadata",
+          "grade": "legacy_unverified",
+          "scope": "provider_model_transport",
+          "providerKind": "openAI",
+          "modelId": "gpt-5.4",
+          "transport": "openai_chat_completions",
+          "metadataRevision": "etag-1"
+        }
+      ],
+      "expect": {
+        "key": "tool_call",
+        "support": "unsupported",
+        "source": "legacy_metadata",
+        "grade": "legacy_unverified",
+        "requestPolicy": "omit_unsupported",
+        "reasonCode": "unsupported",
+        "policyEvidence": null
+      }
+    },
+    {
+      "caseId": "server.same_rank_conflict_is_unknown",
+      "query": {
+        "partitionId": "u1",
+        "connectionInstanceId": "p1",
+        "connectionGeneration": "cg1",
+        "credentialEpoch": "ce1",
+        "providerKind": "openAI",
+        "modelId": "gpt-5.4",
+        "canonicalModelId": "gpt-5.4",
+        "effectiveTransport": "openai_chat_completions",
+        "metadataRevision": "etag-1",
+        "now": 1000,
+        "hasExplicitValue": false
+      },
+      "candidates": [
+        {
+          "key": "tool_call",
+          "support": "supported",
+          "source": "server_typed",
+          "grade": "machine_verified",
+          "scope": "provider_model_transport",
+          "providerKind": "openAI",
+          "modelId": "gpt-5.4",
+          "transport": "openai_chat_completions",
+          "metadataRevision": "etag-1",
+          "expiresAt": 1900
+        },
+        {
+          "key": "tool_call",
+          "support": "unsupported",
+          "source": "server_typed",
+          "grade": "machine_verified",
+          "scope": "provider_model_transport",
+          "providerKind": "openAI",
+          "modelId": "gpt-5.4",
+          "transport": "openai_chat_completions",
+          "metadataRevision": "etag-1",
+          "expiresAt": 1900
+        }
+      ],
+      "expect": {
+        "key": "tool_call",
+        "support": "unknown",
+        "source": "none",
+        "grade": "none",
+        "requestPolicy": "omit_unknown",
+        "reasonCode": "conflict",
+        "policyEvidence": null
+      }
+    },
+    {
+      "caseId": "operator.override.negative_wins_honestly",
+      "query": {
+        "partitionId": "u1",
+        "connectionInstanceId": "p1",
+        "connectionGeneration": "cg1",
+        "credentialEpoch": "ce1",
+        "providerKind": "openAI",
+        "modelId": "gpt-5.4",
+        "canonicalModelId": "gpt-5.4",
+        "effectiveTransport": "openai_chat_completions",
+        "metadataRevision": "etag-1",
+        "now": 1000,
+        "hasExplicitValue": false
+      },
+      "candidates": [
+        {
+          "key": "tool_call",
+          "support": "supported",
+          "source": "server_typed",
+          "grade": "machine_verified",
+          "scope": "provider_model_transport",
+          "providerKind": "openAI",
+          "modelId": "gpt-5.4",
+          "transport": "openai_chat_completions",
+          "metadataRevision": "etag-1"
+        },
+        {
+          "key": "tool_call",
+          "support": "unsupported",
+          "source": "operator_override",
+          "grade": "operator",
+          "scope": "provider_model_transport",
+          "providerKind": "openAI",
+          "modelId": "gpt-5.4",
+          "transport": "openai_chat_completions",
+          "metadataRevision": "etag-1"
+        }
+      ],
+      "expect": {
+        "key": "tool_call",
+        "support": "unsupported",
+        "source": "operator_override",
+        "grade": "operator",
+        "requestPolicy": "omit_unsupported",
+        "reasonCode": "unsupported",
+        "policyEvidence": null
+      }
+    },
+    {
+      "caseId": "relay.explicit.accepted_unverified",
+      "query": {
+        "partitionId": "u1",
+        "connectionInstanceId": "relay-1",
+        "connectionGeneration": "cg3",
+        "credentialEpoch": "ce8",
+        "providerKind": "relay",
+        "modelId": "local-model",
+        "effectiveTransport": "openai_chat_completions",
+        "endpointFingerprint": "ep_abc",
+        "metadataRevision": "local-7",
+        "now": 1000,
+        "hasExplicitValue": true
+      },
+      "candidates": [
+        {
+          "key": "generation_parameter/temperature",
+          "support": "unknown",
+          "source": "relay_declaration",
+          "grade": "accepted_unverified",
+          "scope": "connection_model_transport",
+          "partitionId": "u1",
+          "providerKind": "relay",
+          "modelId": "local-model",
+          "transport": "openai_chat_completions",
+          "connectionInstanceId": "relay-1",
+          "connectionGeneration": "cg3",
+          "credentialEpoch": "ce8",
+          "endpointFingerprint": "ep_abc",
+          "metadataRevision": "local-7"
+        }
+      ],
+      "expect": {
+        "key": "generation_parameter/temperature",
+        "support": "unknown",
+        "source": "relay_declaration",
+        "grade": "accepted_unverified",
+        "requestPolicy": "allow_explicit_unverified",
+        "reasonCode": "user_accepted_unverified",
+        "policyEvidence": null
+      }
+    },
+    {
+      "caseId": "relay.accepted_unverified_without_explicit_value_omits",
+      "query": {
+        "partitionId": "u1",
+        "connectionInstanceId": "relay-1",
+        "connectionGeneration": "cg3",
+        "credentialEpoch": "ce8",
+        "providerKind": "relay",
+        "modelId": "local-model",
+        "effectiveTransport": "openai_chat_completions",
+        "endpointFingerprint": "ep_abc",
+        "metadataRevision": "local-7",
+        "now": 1000,
+        "hasExplicitValue": false
+      },
+      "candidates": [
+        {
+          "key": "generation_parameter/temperature",
+          "support": "unknown",
+          "source": "relay_declaration",
+          "grade": "accepted_unverified",
+          "scope": "connection_model_transport",
+          "partitionId": "u1",
+          "providerKind": "relay",
+          "modelId": "local-model",
+          "transport": "openai_chat_completions",
+          "connectionInstanceId": "relay-1",
+          "connectionGeneration": "cg3",
+          "credentialEpoch": "ce8",
+          "endpointFingerprint": "ep_abc",
+          "metadataRevision": "local-7"
+        }
+      ],
+      "expect": {
+        "key": "generation_parameter/temperature",
+        "support": "unknown",
+        "source": "relay_declaration",
+        "grade": "accepted_unverified",
+        "requestPolicy": "omit_unknown",
+        "reasonCode": "missing_evidence",
+        "policyEvidence": null
+      }
+    },
+    {
+      "caseId": "runtime.reject_overlays_request_not_verdict",
+      "query": {
+        "partitionId": "u1",
+        "connectionInstanceId": "relay-1",
+        "connectionGeneration": "cg3",
+        "credentialEpoch": "ce8",
+        "providerKind": "relay",
+        "modelId": "local-model",
+        "effectiveTransport": "openai_chat_completions",
+        "endpointFingerprint": "ep_abc",
+        "metadataRevision": "local-7",
+        "now": 1000,
+        "hasExplicitValue": true
+      },
+      "candidates": [
+        {
+          "key": "generation_parameter/temperature",
+          "support": "supported",
+          "source": "relay_declaration",
+          "grade": "declared",
+          "scope": "connection_model_transport",
+          "partitionId": "u1",
+          "providerKind": "relay",
+          "modelId": "local-model",
+          "transport": "openai_chat_completions",
+          "connectionInstanceId": "relay-1",
+          "connectionGeneration": "cg3",
+          "credentialEpoch": "ce8",
+          "endpointFingerprint": "ep_abc",
+          "metadataRevision": "local-7"
+        },
+        {
+          "key": "generation_parameter/temperature",
+          "support": "unknown",
+          "source": "runtime_observation",
+          "grade": "observed",
+          "scope": "exact_request",
+          "policy": "runtime_rejected",
+          "partitionId": "u1",
+          "providerKind": "relay",
+          "modelId": "local-model",
+          "transport": "openai_chat_completions",
+          "connectionInstanceId": "relay-1",
+          "connectionGeneration": "cg3",
+          "credentialEpoch": "ce8",
+          "endpointFingerprint": "ep_abc",
+          "metadataRevision": "local-7",
+          "observedAt": 900,
+          "expiresAt": 1100
+        }
+      ],
+      "expect": {
+        "key": "generation_parameter/temperature",
+        "support": "supported",
+        "source": "relay_declaration",
+        "grade": "declared",
+        "requestPolicy": "omit_runtime_rejected",
+        "reasonCode": "runtime_rejected",
+        "policyEvidence": {
+          "source": "runtime_observation",
+          "grade": "observed"
+        }
+      }
+    },
+    {
+      "caseId": "runtime.old_credential_epoch_cannot_overlay",
+      "query": {
+        "partitionId": "u1",
+        "connectionInstanceId": "relay-1",
+        "connectionGeneration": "cg3",
+        "credentialEpoch": "ce9",
+        "providerKind": "relay",
+        "modelId": "local-model",
+        "effectiveTransport": "openai_chat_completions",
+        "endpointFingerprint": "ep_abc",
+        "metadataRevision": "local-7",
+        "now": 1000,
+        "hasExplicitValue": true
+      },
+      "candidates": [
+        {
+          "key": "generation_parameter/temperature",
+          "support": "supported",
+          "source": "relay_declaration",
+          "grade": "declared",
+          "scope": "connection_model_transport",
+          "partitionId": "u1",
+          "providerKind": "relay",
+          "modelId": "local-model",
+          "transport": "openai_chat_completions",
+          "connectionInstanceId": "relay-1",
+          "connectionGeneration": "cg3",
+          "credentialEpoch": "ce9",
+          "endpointFingerprint": "ep_abc",
+          "metadataRevision": "local-7"
+        },
+        {
+          "key": "generation_parameter/temperature",
+          "support": "unknown",
+          "source": "runtime_observation",
+          "grade": "observed",
+          "scope": "exact_request",
+          "policy": "runtime_rejected",
+          "partitionId": "u1",
+          "providerKind": "relay",
+          "modelId": "local-model",
+          "transport": "openai_chat_completions",
+          "connectionInstanceId": "relay-1",
+          "connectionGeneration": "cg3",
+          "credentialEpoch": "ce8",
+          "endpointFingerprint": "ep_abc",
+          "metadataRevision": "local-7",
+          "expiresAt": 1100
+        }
+      ],
+      "expect": {
+        "key": "generation_parameter/temperature",
+        "support": "supported",
+        "source": "relay_declaration",
+        "grade": "declared",
+        "requestPolicy": "allow",
+        "reasonCode": "supported",
+        "policyEvidence": null
+      }
+    },
+    {
+      "caseId": "transport.switch_rejects_old_candidate",
+      "query": {
+        "partitionId": "u1",
+        "connectionInstanceId": "p1",
+        "connectionGeneration": "cg2",
+        "credentialEpoch": "ce1",
+        "providerKind": "anthropic",
+        "modelId": "claude-sonnet",
+        "canonicalModelId": "claude-sonnet",
+        "effectiveTransport": "anthropic_messages",
+        "metadataRevision": "etag-2",
+        "now": 1000,
+        "hasExplicitValue": false
+      },
+      "candidates": [
+        {
+          "key": "vision_input",
+          "support": "supported",
+          "source": "legacy_metadata",
+          "grade": "legacy_unverified",
+          "scope": "provider_model_transport",
+          "providerKind": "anthropic",
+          "modelId": "claude-sonnet",
+          "transport": "openai_chat_completions",
+          "metadataRevision": "etag-2"
+        }
+      ],
+      "expect": {
+        "key": "vision_input",
+        "support": "unknown",
+        "source": "none",
+        "grade": "none",
+        "requestPolicy": "omit_unknown",
+        "reasonCode": "transport_mismatch",
+        "policyEvidence": null
+      }
+    },
+    {
+      "caseId": "metadata.revision_rejects_stale_profile",
+      "query": {
+        "partitionId": "u1",
+        "connectionInstanceId": "p1",
+        "connectionGeneration": "cg2",
+        "credentialEpoch": "ce1",
+        "providerKind": "openAI",
+        "modelId": "gpt-5.4",
+        "canonicalModelId": "gpt-5.4",
+        "effectiveTransport": "openai_responses",
+        "metadataRevision": "etag-new",
+        "generationRevision": "gen-2",
+        "now": 1000,
+        "hasExplicitValue": false
+      },
+      "candidates": [
+        {
+          "key": "reasoning_level/deep",
+          "support": "supported",
+          "source": "server_profile",
+          "grade": "effect_verified",
+          "scope": "provider_model_transport",
+          "providerKind": "openAI",
+          "modelId": "gpt-5.4",
+          "transport": "openai_responses",
+          "metadataRevision": "etag-old",
+          "generationRevision": "gen-1"
+        }
+      ],
+      "expect": {
+        "key": "reasoning_level/deep",
+        "support": "unknown",
+        "source": "none",
+        "grade": "none",
+        "requestPolicy": "omit_unknown",
+        "reasonCode": "stale_generation",
+        "policyEvidence": null
+      }
+    },
+    {
+      "caseId": "canonical.alias_uses_current_mapping",
+      "query": {
+        "partitionId": "u1",
+        "connectionInstanceId": "p1",
+        "connectionGeneration": "cg2",
+        "credentialEpoch": "ce1",
+        "providerKind": "qwen",
+        "modelId": "qwen3.5-plus-2026-04-02",
+        "canonicalModelId": "qwen3.5-plus",
+        "effectiveTransport": "qwen_extras",
+        "metadataRevision": "etag-3",
+        "now": 1000,
+        "hasExplicitValue": false
+      },
+      "candidates": [
+        {
+          "key": "vision_input",
+          "support": "supported",
+          "source": "legacy_metadata",
+          "grade": "legacy_unverified",
+          "scope": "provider_model_transport",
+          "providerKind": "qwen",
+          "modelId": "qwen3.5-plus",
+          "transport": "qwen_extras",
+          "metadataRevision": "etag-3"
+        }
+      ],
+      "expect": {
+        "key": "vision_input",
+        "support": "supported",
+        "source": "legacy_metadata",
+        "grade": "legacy_unverified",
+        "requestPolicy": "allow",
+        "reasonCode": "supported",
+        "policyEvidence": null
+      }
+    },
+    {
+      "caseId": "connection.missing_endpoint_fingerprint_fails_closed",
+      "query": {
+        "partitionId": "u1",
+        "connectionInstanceId": "relay-1",
+        "connectionGeneration": "cg3",
+        "credentialEpoch": "ce8",
+        "providerKind": "relay",
+        "modelId": "local-model",
+        "effectiveTransport": "openai_chat_completions",
+        "endpointFingerprint": "ep_abc",
+        "metadataRevision": "local-7",
+        "now": 1000,
+        "hasExplicitValue": false
+      },
+      "candidates": [
+        {
+          "key": "generation_parameter/temperature",
+          "support": "supported",
+          "source": "relay_declaration",
+          "grade": "declared",
+          "scope": "connection_model_transport",
+          "partitionId": "u1",
+          "providerKind": "relay",
+          "modelId": "local-model",
+          "transport": "openai_chat_completions",
+          "connectionInstanceId": "relay-1",
+          "connectionGeneration": "cg3",
+          "credentialEpoch": "ce8",
+          "metadataRevision": "local-7"
+        }
+      ],
+      "expect": {
+        "key": "generation_parameter/temperature",
+        "support": "unknown",
+        "source": "none",
+        "grade": "none",
+        "requestPolicy": "omit_unknown",
+        "reasonCode": "missing_evidence",
+        "policyEvidence": null
+      }
+    },
+    {
+      "caseId": "missing_candidates_fail_safe_unknown",
+      "query": {
+        "partitionId": "u1",
+        "connectionInstanceId": "p1",
+        "connectionGeneration": "cg1",
+        "credentialEpoch": "ce1",
+        "providerKind": "future",
+        "modelId": "future-model",
+        "effectiveTransport": "future_transport",
+        "metadataRevision": "etag-1",
+        "now": 1000,
+        "hasExplicitValue": false
+      },
+      "candidates": [],
+      "expect": {
+        "key": "web_search",
+        "support": "unknown",
+        "source": "none",
+        "grade": "none",
+        "requestPolicy": "omit_unknown",
+        "reasonCode": "missing_evidence",
+        "policyEvidence": null
+      }
+    },
+    {
+      "$comment": "An official provider + explicit user intent + no evidence against it → allow. Before this case existed, every hasExplicitValue:true case in this file was a relay case, with no coverage at all for \"official provider + explicit\"; as a result, iOS/Web read that single relay case as the whole rule while Android only checked the grade condition, and both implementations passed the contract anyway — the three clients diverged because of this coverage gap, not because anyone copied it wrong. In production, 257 out of 764 model combinations fall into official_source_insufficient, which is exactly the \"no candidate at all\" case this covers.",
+      "caseId": "official.explicit.no_evidence_allows",
+      "query": {
+        "partitionId": "u1",
+        "connectionInstanceId": "p1",
+        "connectionGeneration": "cg1",
+        "credentialEpoch": "ce1",
+        "providerKind": "openAI",
+        "modelId": "gpt-5.4",
+        "canonicalModelId": "gpt-5.4",
+        "effectiveTransport": "openai_chat_completions",
+        "endpointFingerprint": "ep_official",
+        "metadataRevision": "etag-1",
+        "now": 1000,
+        "hasExplicitValue": true
+      },
+      "candidates": [],
+      "expect": {
+        "key": "web_search",
+        "support": "unknown",
+        "source": "none",
+        "grade": "none",
+        "requestPolicy": "allow_explicit_unverified",
+        "reasonCode": "user_accepted_unverified",
+        "policyEvidence": null
+      }
+    },
+    {
+      "$comment": "A capability on an official provider that is only propped up by a legacy profile (89 combinations in production, 44 of them qwen/web). Once the user explicitly turns it on, it must actually be sent — this used to fall through to omit_unknown, the same shape of bug as a light that's always on but never actually connected.",
+      "caseId": "official.explicit.legacy_unverified_allows",
+      "query": {
+        "partitionId": "u1",
+        "connectionInstanceId": "p1",
+        "connectionGeneration": "cg1",
+        "credentialEpoch": "ce1",
+        "providerKind": "qwen",
+        "modelId": "qwen3-max",
+        "canonicalModelId": "qwen3-max",
+        "effectiveTransport": "openai_chat_completions",
+        "endpointFingerprint": "ep_official",
+        "metadataRevision": "etag-1",
+        "now": 1000,
+        "hasExplicitValue": true
+      },
+      "candidates": [
+        {
+          "key": "web_search",
+          "support": "unknown",
+          "source": "legacy_metadata",
+          "grade": "legacy_unverified",
+          "scope": "provider_model_transport",
+          "providerKind": "qwen",
+          "modelId": "qwen3-max",
+          "transport": "openai_chat_completions",
+          "metadataRevision": "etag-1",
+          "expiresAt": 1900
+        }
+      ],
+      "expect": {
+        "key": "web_search",
+        "support": "unknown",
+        "source": "legacy_metadata",
+        "grade": "legacy_unverified",
+        "requestPolicy": "allow_explicit_unverified",
+        "reasonCode": "user_accepted_unverified",
+        "policyEvidence": null
+      }
+    },
+    {
+      "$comment": "The counter-example that keeps the relaxed rule above from being implemented as always-true: when there is official evidence of explicit non-support, an explicit user toggle still does not send it. The boundary being relaxed is \"we don't know\", not \"send unconditionally\".",
+      "caseId": "official.explicit.official_unsupported_still_omits",
+      "query": {
+        "partitionId": "u1",
+        "connectionInstanceId": "p1",
+        "connectionGeneration": "cg1",
+        "credentialEpoch": "ce1",
+        "providerKind": "openAI",
+        "modelId": "gpt-5.4",
+        "canonicalModelId": "gpt-5.4",
+        "effectiveTransport": "openai_chat_completions",
+        "endpointFingerprint": "ep_official",
+        "metadataRevision": "etag-1",
+        "now": 1000,
+        "hasExplicitValue": true
+      },
+      "candidates": [
+        {
+          "key": "web_search",
+          "support": "unsupported",
+          "source": "server_typed",
+          "grade": "machine_verified",
+          "scope": "provider_model_transport",
+          "providerKind": "openAI",
+          "modelId": "gpt-5.4",
+          "transport": "openai_chat_completions",
+          "metadataRevision": "etag-1",
+          "expiresAt": 1900
+        }
+      ],
+      "expect": {
+        "key": "web_search",
+        "support": "unsupported",
+        "source": "server_typed",
+        "grade": "machine_verified",
+        "requestPolicy": "omit_unsupported",
+        "reasonCode": "unsupported",
+        "policyEvidence": null
+      }
+    },
+    {
+      "$comment": "When same-tier evidence conflicts with itself, an explicit toggle still does not allow it. conflict is not \"we don't know\" — one of the two conflicting pieces of evidence might well be an explicit non-support, and allowing it anyway would mean picking the answer that's worse for the user. This case was missing at first: reading the rule literally, Web allowed conflict too while Android explicitly excluded it, and the three clients disagreed immediately; this case has to be settled by the contract, not decided independently by each client.",
+      "caseId": "official.explicit.conflict_still_omits",
+      "query": {
+        "partitionId": "u1",
+        "connectionInstanceId": "p1",
+        "connectionGeneration": "cg1",
+        "credentialEpoch": "ce1",
+        "providerKind": "openAI",
+        "modelId": "gpt-5.4",
+        "canonicalModelId": "gpt-5.4",
+        "effectiveTransport": "openai_chat_completions",
+        "endpointFingerprint": "ep_official",
+        "metadataRevision": "etag-1",
+        "now": 1000,
+        "hasExplicitValue": true
+      },
+      "candidates": [
+        {
+          "key": "tool_call",
+          "support": "supported",
+          "source": "server_typed",
+          "grade": "machine_verified",
+          "scope": "provider_model_transport",
+          "providerKind": "openAI",
+          "modelId": "gpt-5.4",
+          "transport": "openai_chat_completions",
+          "metadataRevision": "etag-1",
+          "expiresAt": 1900
+        },
+        {
+          "key": "tool_call",
+          "support": "unsupported",
+          "source": "server_typed",
+          "grade": "machine_verified",
+          "scope": "provider_model_transport",
+          "providerKind": "openAI",
+          "modelId": "gpt-5.4",
+          "transport": "openai_chat_completions",
+          "metadataRevision": "etag-1",
+          "expiresAt": 1900
+        }
+      ],
+      "expect": {
+        "key": "tool_call",
+        "support": "unknown",
+        "source": "none",
+        "grade": "none",
+        "requestPolicy": "omit_unknown",
+        "reasonCode": "conflict",
+        "policyEvidence": null
+      }
+    },
+    {
+      "$comment": "The contract anchor for the hard boundary: once the upstream has actually rejected something, it is never sent again even if the user explicitly turns it on — an upstream rejection is real evidence, stronger than anything our own metadata can guess at. The panel uses this to show \"already rejected upstream\" with a one-tap retry action.",
+      "caseId": "official.explicit.runtime_rejected_still_omits",
+      "query": {
+        "partitionId": "u1",
+        "connectionInstanceId": "p1",
+        "connectionGeneration": "cg1",
+        "credentialEpoch": "ce1",
+        "providerKind": "openAI",
+        "modelId": "gpt-5.4",
+        "canonicalModelId": "gpt-5.4",
+        "effectiveTransport": "openai_chat_completions",
+        "endpointFingerprint": "ep_official",
+        "metadataRevision": "etag-1",
+        "now": 1000,
+        "hasExplicitValue": true
+      },
+      "candidates": [
+        {
+          "key": "reasoning_level/deep",
+          "support": "supported",
+          "source": "server_typed",
+          "grade": "machine_verified",
+          "scope": "provider_model_transport",
+          "providerKind": "openAI",
+          "modelId": "gpt-5.4",
+          "transport": "openai_chat_completions",
+          "metadataRevision": "etag-1",
+          "expiresAt": 1900
+        },
+        {
+          "key": "reasoning_level/deep",
+          "support": "unknown",
+          "source": "runtime_observation",
+          "grade": "observed",
+          "scope": "exact_request",
+          "policy": "runtime_rejected",
+          "partitionId": "u1",
+          "providerKind": "openAI",
+          "modelId": "gpt-5.4",
+          "transport": "openai_chat_completions",
+          "connectionInstanceId": "p1",
+          "connectionGeneration": "cg1",
+          "credentialEpoch": "ce1",
+          "endpointFingerprint": "ep_official",
+          "metadataRevision": "etag-1",
+          "observedAt": 900,
+          "expiresAt": 1100
+        }
+      ],
+      "expect": {
+        "key": "reasoning_level/deep",
+        "support": "supported",
+        "source": "server_typed",
+        "grade": "machine_verified",
+        "requestPolicy": "omit_runtime_rejected",
+        "reasonCode": "runtime_rejected",
+        "policyEvidence": {
+          "source": "runtime_observation",
+          "grade": "observed"
+        }
+      }
+    }
+  ],
+  "matrix": {
+    "$comment": "Authored coverage inputs only. scripts/capability-evidence-matrix.mjs derives every row, platform cell, and count.",
+    "metadataViewStates": [
+      {
+        "state": "absent",
+        "viewPresent": false,
+        "malformed": false,
+        "ownedKeys": [],
+        "h4GovernedLegacyFallback": true,
+        "unownedLegacyFallback": true,
+        "failClosedAllGoverned": false
+      },
+      {
+        "state": "valid_empty",
+        "viewPresent": true,
+        "malformed": false,
+        "ownedKeys": [],
+        "h4GovernedLegacyFallback": false,
+        "unownedLegacyFallback": true,
+        "failClosedAllGoverned": false
+      },
+      {
+        "state": "malformed",
+        "viewPresent": true,
+        "malformed": true,
+        "ownedKeys": [],
+        "h4GovernedLegacyFallback": false,
+        "unownedLegacyFallback": false,
+        "failClosedAllGoverned": true
+      },
+      {
+        "state": "owned_invalid",
+        "viewPresent": true,
+        "malformed": false,
+        "ownedKeys": [
+          "tool_call"
+        ],
+        "h4GovernedLegacyFallback": false,
+        "unownedLegacyFallback": true,
+        "failClosedAllGoverned": false
+      }
+    ]
+  },
+  "availabilityCases": [
+    {
+      "caseId": "official.supported.safe_wire",
+      "providerKind": "official",
+      "scope": "session",
+      "support": "supported",
+      "wire": "temperature",
+      "completeIdentity": true,
+      "hasExplicitValue": true,
+      "expect": {
+        "support": "supported",
+        "requestPolicy": "allow",
+        "visible": true,
+        "editable": true,
+        "outbound": true
+      }
+    },
+    {
+      "caseId": "official.unsupported",
+      "providerKind": "official",
+      "scope": "connectionDefaults",
+      "support": "unsupported",
+      "wire": "temperature",
+      "completeIdentity": true,
+      "hasExplicitValue": true,
+      "expect": {
+        "support": "unsupported",
+        "requestPolicy": "omit_unsupported",
+        "visible": false,
+        "editable": false,
+        "outbound": false
+      }
+    },
+    {
+      "caseId": "official.unknown.connection_row_disabled",
+      "providerKind": "official",
+      "scope": "connectionDefaults",
+      "support": "unknown",
+      "wire": "temperature",
+      "completeIdentity": true,
+      "hasExplicitValue": true,
+      "expect": {
+        "support": "unknown",
+        "requestPolicy": "omit_unknown",
+        "visible": true,
+        "editable": false,
+        "outbound": false
+      }
+    },
+    {
+      "caseId": "official.accepted_is_not_authority",
+      "providerKind": "official",
+      "scope": "session",
+      "support": "accepted_unverified",
+      "wire": "temperature",
+      "completeIdentity": true,
+      "hasExplicitValue": true,
+      "expect": {
+        "support": "unknown",
+        "requestPolicy": "omit_unknown",
+        "visible": false,
+        "editable": false,
+        "outbound": false
+      }
+    },
+    {
+      "caseId": "official.session.missing_wire",
+      "providerKind": "official",
+      "scope": "session",
+      "support": "supported",
+      "wire": null,
+      "completeIdentity": true,
+      "hasExplicitValue": true,
+      "expect": {
+        "support": "supported",
+        "requestPolicy": "allow",
+        "visible": false,
+        "editable": false,
+        "outbound": false
+      }
+    },
+    {
+      "caseId": "official.missing_transport",
+      "providerKind": "official",
+      "scope": "session",
+      "support": "supported",
+      "wire": "temperature",
+      "completeIdentity": false,
+      "hasExplicitValue": true,
+      "expect": {
+        "support": "unknown",
+        "requestPolicy": "omit_unknown",
+        "visible": false,
+        "editable": false,
+        "outbound": false
+      }
+    },
+    {
+      "caseId": "relay.declaration.visible_without_explicit",
+      "providerKind": "relay",
+      "scope": "session",
+      "support": "supported",
+      "wire": "temperature",
+      "completeIdentity": true,
+      "hasExplicitValue": false,
+      "expect": {
+        "support": "unknown",
+        "requestPolicy": "omit_unknown",
+        "visible": true,
+        "editable": true,
+        "outbound": false
+      }
+    },
+    {
+      "caseId": "relay.accepted.explicit_outbound",
+      "providerKind": "relay",
+      "scope": "session",
+      "support": "accepted_unverified",
+      "wire": "temperature",
+      "completeIdentity": true,
+      "hasExplicitValue": true,
+      "expect": {
+        "support": "unknown",
+        "requestPolicy": "allow_explicit_unverified",
+        "visible": true,
+        "editable": true,
+        "outbound": true
+      }
+    },
+    {
+      "caseId": "relay.unknown.no_explicit_outbound",
+      "providerKind": "relay",
+      "scope": "session",
+      "support": "unknown",
+      "wire": "temperature",
+      "completeIdentity": true,
+      "hasExplicitValue": false,
+      "expect": {
+        "support": "unknown",
+        "requestPolicy": "omit_unknown",
+        "visible": true,
+        "editable": true,
+        "outbound": false
+      }
+    },
+    {
+      "caseId": "relay.unsupported.remains_negative",
+      "providerKind": "relay",
+      "scope": "connectionDefaults",
+      "support": "unsupported",
+      "wire": "temperature",
+      "completeIdentity": true,
+      "hasExplicitValue": true,
+      "expect": {
+        "support": "unsupported",
+        "requestPolicy": "omit_unsupported",
+        "visible": false,
+        "editable": false,
+        "outbound": false
+      }
+    },
+    {
+      "caseId": "relay.missing_identity",
+      "providerKind": "relay",
+      "scope": "session",
+      "support": "supported",
+      "wire": "temperature",
+      "completeIdentity": false,
+      "hasExplicitValue": true,
+      "expect": {
+        "support": "unknown",
+        "requestPolicy": "omit_unknown",
+        "visible": false,
+        "editable": false,
+        "outbound": false
+      }
+    },
+    {
+      "caseId": "relay.engine_runtime.connection_entitlement_off",
+      "providerKind": "relay",
+      "scope": "connectionDefaults",
+      "support": "supported",
+      "wire": "extra_body.top_k",
+      "group": "engine_runtime",
+      "canManageRuntime": false,
+      "completeIdentity": true,
+      "hasExplicitValue": true,
+      "expect": {
+        "support": "unknown",
+        "requestPolicy": "allow_explicit_unverified",
+        "visible": false,
+        "editable": false,
+        "outbound": true
+      }
+    }
+  ]
+}

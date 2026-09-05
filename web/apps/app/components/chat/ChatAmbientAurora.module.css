@@ -1,0 +1,111 @@
+/* Ambient backdrop, layered between the flat .view background and the content */
+.aurora {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+  opacity: 1;
+  transition: opacity 600ms ease;
+  /* Fade out the left edge so the aurora dissolves toward the base colour next to the light
+     sidebar, removing the hard white-against-purple seam. The body of the glow stays clearly
+     visible through the centre and right, so it keeps its presence while blending into the
+     sidebar. */
+  -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 70%);
+  mask-image: linear-gradient(90deg, transparent 0%, #000 70%);
+}
+
+/* Dimmed to a backdrop once there are messages; never faded to 0, so the aurora is still felt */
+.aurora[data-prominent='false'] {
+  opacity: 0.42;
+}
+
+/* Slow breathing: the whole layer scales on the GPU, so nothing repaints */
+.breathe {
+  position: absolute;
+  inset: 0;
+  transform-origin: center;
+  animation: ambientBreathe 6s ease-in-out infinite alternate;
+}
+
+@keyframes ambientBreathe {
+  from {
+    transform: scale(0.98);
+  }
+  to {
+    transform: scale(1.06);
+  }
+}
+
+/* -- Glow layer, spread wide; large desktop screens do not copy the mobile top-and-bottom clustering --
+ * A main glow running the width of the bottom, secondary glows in the lower corners and a horizontal
+ * glow at the top, wrapping the whole screen in soft light. */
+.glow {
+  position: absolute;
+  inset: -18%;
+  background: var(--o-chat-aurora-glow-bg);
+  filter: var(--o-chat-aurora-glow-blur);
+  /* The primary colour blobs drift slowly; offset against the second layer they compose a flowing morph, transform only so it stays GPU composited */
+  animation: auroraDriftA 24s ease-in-out infinite alternate;
+  will-change: transform;
+}
+
+/* A second, offset set of colour blobs (tokens supply a different hue spread), drifting the other way on a different period */
+.glow::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--o-chat-aurora-glow-bg-2);
+  animation: auroraDriftB 31s ease-in-out infinite alternate;
+  will-change: transform;
+}
+
+@keyframes auroraDriftA {
+  from {
+    transform: translate3d(-3%, 1.5%, 0) rotate(-2deg) scale(1.02);
+  }
+  to {
+    transform: translate3d(3%, -2%, 0) rotate(2deg) scale(1.08);
+  }
+}
+
+@keyframes auroraDriftB {
+  from {
+    transform: translate3d(4%, -1.5%, 0) rotate(2.5deg) scale(1.04);
+  }
+  to {
+    transform: translate3d(-4%, 2.5%, 0) rotate(-2.5deg) scale(1.1);
+  }
+}
+
+/* -- Halftone: a dot grid plus a mask that spreads top and bottom and leaves a narrow gap in the middle, wider than on mobile -- */
+.halftone {
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(
+    circle at center,
+    var(--o-chat-aurora-halftone-dot) 0,
+    var(--o-chat-aurora-halftone-dot) var(--o-chat-aurora-dot-core),
+    transparent var(--o-chat-aurora-dot-fade)
+  );
+  background-size: var(--o-chat-aurora-halftone-size);
+  -webkit-mask-image:
+    radial-gradient(ellipse 120% 62% at 50% 110%, #000 0%, transparent 78%),
+    radial-gradient(ellipse 104% 52% at 50% -8%, rgba(0, 0, 0, 0.82) 0%, transparent 72%);
+  -webkit-mask-composite: source-over;
+  mask-image:
+    radial-gradient(ellipse 120% 62% at 50% 110%, #000 0%, transparent 78%),
+    radial-gradient(ellipse 104% 52% at 50% -8%, rgba(0, 0, 0, 0.82) 0%, transparent 72%);
+  mask-composite: add;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .breathe {
+    animation: none;
+    transform: scale(1);
+  }
+  .glow,
+  .glow::after {
+    animation: none;
+  }
+}

@@ -1,0 +1,1658 @@
+{
+  "$comment": "Request preference contract v2. This is the live cross-runtime contract: it freezes intent ownership, resolution, safe custom overlays, typed contributions, factual result reporting, continuation bounds, and explicit rejection recovery for production requests.",
+  "contractId": "request_preference_contract.v2",
+  "version": 2,
+  "owners": [
+    {
+      "id": "web",
+      "namespace": "webPatch",
+      "responsibility": "web search controls, provider web tools, and web plugins"
+    },
+    {
+      "id": "reasoning",
+      "namespace": "reasoningPatch",
+      "responsibility": "thinking, reasoning effort, and reasoning budget"
+    },
+    {
+      "id": "generation",
+      "namespace": "generationPatch",
+      "responsibility": "sampling, output budget, stop, seed, and output contract"
+    }
+  ],
+  "vocabulary": {
+    "overrideStates": [
+      "inherit",
+      "value",
+      "omit"
+    ],
+    "valueModes": [
+      "preset",
+      "custom"
+    ],
+    "valuePayloadKinds": [
+      "feature_selection",
+      "typed_control"
+    ],
+    "controlAvailability": [
+      "auto_available",
+      "managed_only",
+      "custom_only",
+      "unavailable",
+      "unknown"
+    ],
+    "connectionAccess": [
+      "managed",
+      "byok_developer",
+      "relay_developer"
+    ],
+    "executionKinds": [
+      "request_overlay",
+      "server_tool",
+      "client_tool_loop",
+      "endpoint_route",
+      "model_route",
+      "external_connector",
+      "unavailable"
+    ],
+    "continuationKinds": [
+      "none",
+      "previous_id",
+      "replay_blocks",
+      "replay_reasoning",
+      "tool_loop"
+    ],
+    "resultStates": [
+      "not_requested",
+      "requested",
+      "observed",
+      "unconfirmed",
+      "rejected",
+      "recovered"
+    ],
+    "observationEvidenceKinds": [
+      "provider_tool_result",
+      "citation",
+      "grounding",
+      "thinking_block",
+      "reasoning_usage"
+    ]
+  },
+  "resolution": {
+    "$comment": "This is the only scope precedence list in the v2 contract. Missing and inherit continue downward; omit is terminal; value is terminal, including numeric zero. An owner-level feature selection chooses preset or custom; leaf typed controls may carry scalars, including zero.",
+    "scopePriority": [
+      "single_send",
+      "conversation_connection_model",
+      "skill_agent",
+      "connection_model",
+      "connection",
+      "provider_recipe",
+      "provider_default"
+    ],
+    "missingMeans": "inherit",
+    "terminalStates": [
+      "value",
+      "omit"
+    ],
+    "numericZeroIsExplicitValue": true,
+    "sameScopeSameOwnerDuplicate": "reject",
+    "crossOwnerCollision": "reject",
+    "lastWriteWins": false
+  },
+  "selectionPolicy": {
+    "preset": "Requires an active Server recipe. managed_only presets may only be selected by managed access.",
+    "custom": "Requires BYOK or Relay developer access and an availability state that permits custom fragments.",
+    "customOnlyDoesNotImplyPreset": true,
+    "presetAndCustomAreMutuallyExclusive": true,
+    "unknownOrUnavailableInjectsNothingAutomatically": true
+  },
+  "safeOverlay": {
+    "$comment": "A custom fragment is compiled from lossless JSON input. Duplicate keys must be rejected before object materialization. Every target pointer must be declared by the selected recipe for exactly one owner.",
+    "inputType": "json_object_fragment",
+    "pointerSyntax": "rfc6901",
+    "segmentPattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+    "blockedSegmentsRecursive": [
+      "__proto__",
+      "prototype",
+      "constructor"
+    ],
+    "allowedOperations": [
+      "set",
+      "omit",
+      "upsert_owned_element"
+    ],
+    "forbiddenChannels": [
+      "auth",
+      "headers",
+      "query",
+      "endpoint",
+      "base_url",
+      "transport_route",
+      "model_route",
+      "continuation_state"
+    ],
+    "builderOwnedRootFields": [
+      "model",
+      "messages",
+      "input",
+      "contents",
+      "prompt",
+      "attachments",
+      "instructions",
+      "system",
+      "stream",
+      "stream_options",
+      "tools",
+      "tool_choice",
+      "plugins"
+    ],
+    "typedContributionOnlyRoots": [
+      "tools",
+      "plugins"
+    ],
+    "limits": {
+      "maxBytes": 65536,
+      "maxDepth": 32,
+      "maxNodes": 2048,
+      "maxOperations": 128
+    },
+    "unknownPointerPolicy": "reject",
+    "crossOwnerPolicy": "reject",
+    "duplicatePointerPolicy": "reject",
+    "duplicateJsonKeyPolicy": "reject_before_parse_materialization",
+    "wholeArrayReplacementPolicy": "reject",
+    "wholeArrayDeletionPolicy": "reject"
+  },
+  "typedContributions": {
+    "$comment": "Builder and Agent tools already in the base request are retained. Feature contributions are typed and append-only; generic overlays cannot replace or delete the tools/plugins arrays.",
+    "targets": [
+      "tools",
+      "plugins"
+    ],
+    "allowedOwnerByTarget": {
+      "tools": [
+        "web"
+      ],
+      "plugins": [
+        "web"
+      ]
+    },
+    "operations": [
+      "append_owned"
+    ],
+    "identityFields": [
+      "type",
+      "name"
+    ],
+    "baseItemsAlwaysRetained": true,
+    "duplicateIdentityPolicy": "reject",
+    "deleteForeignItemPolicy": "reject",
+    "replaceArrayPolicy": "reject"
+  },
+  "resultFacts": {
+    "$comment": "Request construction and response execution are separate facts. requested is recorded only after a feature delta reaches the wire. observed additionally requires recipe-declared response evidence; HTTP success alone is unconfirmed.",
+    "requestedRequiresWireDelta": true,
+    "observedRequiresRequested": true,
+    "observedRequiresEvidence": true,
+    "httpSuccessWithoutEvidence": "unconfirmed",
+    "singleRejectionScope": [
+      "connection",
+      "transport",
+      "model",
+      "recipe_revision"
+    ],
+    "singleRejectionMayChangeServerGlobalSupport": false
+  },
+  "continuation": {
+    "$comment": "Opaque provider continuation state is never authored by a custom overlay. Each recipe selects one known kind, declares exact replay fields, and sets a finite per-send step bound. tool_loop stores only complete assistant tool_call + tool result message blocks, never orphan results. plugin-style fields are expressed as request_overlay target roots, and fiber is a tool_loop variant, so neither is an independent kind.",
+    "unknownKindPolicy": "reject_feature_patch",
+    "customOverlayMayWriteState": false,
+    "kinds": {
+      "none": {
+        "maxSteps": 0,
+        "requiredStateFields": [],
+        "opaqueReplay": false
+      },
+      "previous_id": {
+        "maxSteps": 1,
+        "requiredStateFields": [
+          "previousResponseId"
+        ],
+        "opaqueReplay": true
+      },
+      "replay_blocks": {
+        "maxSteps": 8,
+        "requiredStateFields": [
+          "blocks"
+        ],
+        "opaqueReplay": true
+      },
+      "replay_reasoning": {
+        "maxSteps": 8,
+        "requiredStateFields": [
+          "assistantMessages"
+        ],
+        "opaqueReplay": true
+      },
+      "tool_loop": {
+        "maxSteps": 8,
+        "requiredStateFields": [
+          "completedMessages"
+        ],
+        "opaqueReplay": true,
+        "toolCallIdsMustBeUnique": true,
+        "variants": [
+          "default",
+          "fiber"
+        ],
+        "fiberVariantRequiresEncryptedOutputReplay": true
+      }
+    }
+  },
+  "retryPolicy": {
+    "$comment": "No capability setting may be stripped and retried silently. A deterministic HTTP 400 may offer an explicit user-confirmed resend only when a reviewed structured locator binds the rejection to exact pointers owned by one selected recipe or to the actual custom fragment. The saved preference remains dormant; the resend omits only the located owner for that new send, preserving draft, attachments and generated content.",
+    "automaticRetry": false,
+    "allowedStatus": 400,
+    "allowedErrorClass": "optional_parameter_rejected",
+    "requiresLocatedOwner": true,
+    "requiresLocatedPointers": true,
+    "requiresPreToken": true,
+    "requiresStreamNotStarted": true,
+    "requiresNoSideEffects": true,
+    "requiresStructuredErrorLocator": true,
+    "requiresExactRecipeOwnedPointers": true,
+    "unreviewedLocatorAction": "surface_error",
+    "mutationScope": "explicit_resend_only",
+    "savedPreferenceAfterRejection": "retain_dormant",
+    "explicitResendAction": "user_confirmed_resend_without_located_setting",
+    "preserveOnFailure": [
+      "draft",
+      "attachments",
+      "generated_content",
+      "saved_preference"
+    ],
+    "neverAutomatic": [
+      "401",
+      "403",
+      "422",
+      "429",
+      "5xx",
+      "network",
+      "timeout",
+      "stream_started",
+      "side_effect_started",
+      "unlocated_error"
+    ]
+  },
+  "redactedPreview": {
+    "source": "compiled_request_delta",
+    "mustExclude": [
+      "api_key",
+      "authorization",
+      "prompt",
+      "messages",
+      "attachments",
+      "full_endpoint",
+      "response",
+      "raw_custom_fragment"
+    ],
+    "mustNotUseStoredInputAsProof": true
+  },
+  "fixtureSchemas": {
+    "recipeSelectorRequiredFields": [
+      "providerKind",
+      "transport",
+      "capability",
+      "executionKind",
+      "requestOps",
+      "responseParserKind",
+      "continuationKind",
+      "sourceRefs",
+      "reviewedAt"
+    ],
+    "sourceRefRequiredFields": [
+      "kind",
+      "url",
+      "reviewedAt"
+    ],
+    "productionProofRequiredFromPhase": "P3"
+  },
+  "fixtures": {
+    "resolutionCases": [
+      {
+        "caseId": "resolve.inherit_falls_through",
+        "owner": "generation",
+        "layers": [
+          {
+            "scope": "single_send",
+            "override": {
+              "state": "inherit"
+            }
+          },
+          {
+            "scope": "connection_model",
+            "override": {
+              "state": "value",
+              "value": {
+                "mode": "preset",
+                "presetId": "balanced"
+              }
+            }
+          }
+        ],
+        "expect": {
+          "state": "value",
+          "value": {
+            "mode": "preset",
+            "presetId": "balanced"
+          },
+          "source": "connection_model"
+        }
+      },
+      {
+        "caseId": "resolve.omit_blocks_recipe",
+        "owner": "web",
+        "layers": [
+          {
+            "scope": "connection",
+            "override": {
+              "state": "omit"
+            }
+          },
+          {
+            "scope": "provider_recipe",
+            "override": {
+              "state": "value",
+              "value": {
+                "mode": "preset",
+                "presetId": "automatic"
+              }
+            }
+          }
+        ],
+        "expect": {
+          "state": "omit",
+          "source": "connection"
+        }
+      },
+      {
+        "caseId": "resolve.zero_is_value",
+        "owner": "generation",
+        "layers": [
+          {
+            "scope": "single_send",
+            "override": {
+              "state": "value",
+              "value": 0
+            }
+          },
+          {
+            "scope": "connection",
+            "override": {
+              "state": "value",
+              "value": 0.7
+            }
+          }
+        ],
+        "expect": {
+          "state": "value",
+          "value": 0,
+          "source": "single_send"
+        }
+      },
+      {
+        "caseId": "resolve.recipe_before_provider_default",
+        "owner": "reasoning",
+        "layers": [
+          {
+            "scope": "provider_default",
+            "override": {
+              "state": "omit"
+            }
+          },
+          {
+            "scope": "provider_recipe",
+            "override": {
+              "state": "value",
+              "value": {
+                "mode": "preset",
+                "presetId": "deep"
+              }
+            }
+          }
+        ],
+        "expect": {
+          "state": "value",
+          "value": {
+            "mode": "preset",
+            "presetId": "deep"
+          },
+          "source": "provider_recipe"
+        }
+      },
+      {
+        "caseId": "resolve.all_inherit_omits",
+        "owner": "web",
+        "layers": [
+          {
+            "scope": "single_send",
+            "override": {
+              "state": "inherit"
+            }
+          },
+          {
+            "scope": "provider_default",
+            "override": {
+              "state": "inherit"
+            }
+          }
+        ],
+        "expect": {
+          "state": "omit",
+          "source": "provider_default",
+          "reason": "no_explicit_or_recipe_value"
+        }
+      }
+    ],
+    "selectionCases": [
+      {
+        "caseId": "selection.auto_preset",
+        "intent": {
+          "availability": "auto_available",
+          "selection": "preset",
+          "access": "byok_developer"
+        },
+        "expect": {
+          "allowed": true,
+          "reason": null
+        }
+      },
+      {
+        "caseId": "selection.custom_only_rejects_preset",
+        "intent": {
+          "availability": "custom_only",
+          "selection": "preset",
+          "access": "byok_developer"
+        },
+        "expect": {
+          "allowed": false,
+          "reason": "auto_recipe_unavailable"
+        }
+      },
+      {
+        "caseId": "selection.custom_only_allows_byok_custom",
+        "intent": {
+          "availability": "custom_only",
+          "selection": "custom",
+          "access": "byok_developer"
+        },
+        "expect": {
+          "allowed": true,
+          "reason": null
+        }
+      },
+      {
+        "caseId": "selection.managed_preset",
+        "intent": {
+          "availability": "managed_only",
+          "selection": "preset",
+          "access": "managed"
+        },
+        "expect": {
+          "allowed": true,
+          "reason": null
+        }
+      },
+      {
+        "caseId": "selection.managed_rejects_custom",
+        "intent": {
+          "availability": "managed_only",
+          "selection": "custom",
+          "access": "managed"
+        },
+        "expect": {
+          "allowed": false,
+          "reason": "custom_forbidden"
+        }
+      },
+      {
+        "caseId": "selection.unknown_injects_nothing",
+        "intent": {
+          "availability": "unknown",
+          "selection": "preset",
+          "access": "relay_developer"
+        },
+        "expect": {
+          "allowed": false,
+          "reason": "control_unknown"
+        }
+      }
+    ],
+    "conflictCases": [
+      {
+        "caseId": "conflict.cross_owner_same_pointer",
+        "assignments": [
+          {
+            "owner": "web",
+            "pointer": "/reasoning/effort"
+          },
+          {
+            "owner": "reasoning",
+            "pointer": "/reasoning/effort"
+          }
+        ],
+        "declaredConflicts": [],
+        "expect": {
+          "accepted": false,
+          "reason": "owner_conflict"
+        }
+      },
+      {
+        "caseId": "conflict.same_owner_duplicate_pointer",
+        "assignments": [
+          {
+            "owner": "generation",
+            "pointer": "/temperature"
+          },
+          {
+            "owner": "generation",
+            "pointer": "/temperature"
+          }
+        ],
+        "declaredConflicts": [],
+        "expect": {
+          "accepted": false,
+          "reason": "duplicate_pointer"
+        }
+      },
+      {
+        "caseId": "conflict.recipe_declared_semantic_conflict",
+        "assignments": [
+          {
+            "owner": "generation",
+            "pointer": "/temperature"
+          },
+          {
+            "owner": "generation",
+            "pointer": "/top_p"
+          }
+        ],
+        "declaredConflicts": [
+          [
+            "/temperature",
+            "/top_p"
+          ]
+        ],
+        "expect": {
+          "accepted": false,
+          "reason": "semantic_conflict"
+        }
+      },
+      {
+        "caseId": "conflict.disjoint_owners",
+        "assignments": [
+          {
+            "owner": "web",
+            "pointer": "/web_search_options"
+          },
+          {
+            "owner": "reasoning",
+            "pointer": "/reasoning/effort"
+          },
+          {
+            "owner": "generation",
+            "pointer": "/temperature"
+          }
+        ],
+        "declaredConflicts": [],
+        "expect": {
+          "accepted": true,
+          "reason": null
+        }
+      }
+    ],
+    "safeOverlayCases": [
+      {
+        "caseId": "overlay.allowed_owned_scalar",
+        "intent": {
+          "channel": "body_fragment",
+          "metrics": {
+            "bytes": 24,
+            "depth": 1,
+            "nodes": 1
+          },
+          "declaredOwners": {
+            "/temperature": "generation"
+          },
+          "operations": [
+            {
+              "owner": "generation",
+              "op": "set",
+              "pointer": "/temperature",
+              "value": 0
+            }
+          ]
+        },
+        "expect": {
+          "accepted": true,
+          "reason": null
+        }
+      },
+      {
+        "caseId": "overlay.allowed_owned_omit",
+        "intent": {
+          "channel": "body_fragment",
+          "metrics": {
+            "bytes": 24,
+            "depth": 1,
+            "nodes": 1
+          },
+          "declaredOwners": {
+            "/reasoning/effort": "reasoning"
+          },
+          "operations": [
+            {
+              "owner": "reasoning",
+              "op": "omit",
+              "pointer": "/reasoning/effort"
+            }
+          ]
+        },
+        "expect": {
+          "accepted": true,
+          "reason": null
+        }
+      },
+      {
+        "caseId": "overlay.rejects_builder_model",
+        "intent": {
+          "channel": "body_fragment",
+          "metrics": {
+            "bytes": 20,
+            "depth": 1,
+            "nodes": 1
+          },
+          "declaredOwners": {
+            "/model": "generation"
+          },
+          "operations": [
+            {
+              "owner": "generation",
+              "op": "set",
+              "pointer": "/model",
+              "value": "other"
+            }
+          ]
+        },
+        "expect": {
+          "accepted": false,
+          "reason": "builder_owned_root"
+        }
+      },
+      {
+        "caseId": "overlay.rejects_header_channel",
+        "intent": {
+          "channel": "headers",
+          "metrics": {
+            "bytes": 32,
+            "depth": 1,
+            "nodes": 1
+          },
+          "declaredOwners": {},
+          "operations": [
+            {
+              "owner": "web",
+              "op": "set",
+              "pointer": "/Authorization",
+              "value": "secret"
+            }
+          ]
+        },
+        "expect": {
+          "accepted": false,
+          "reason": "forbidden_channel"
+        }
+      },
+      {
+        "caseId": "overlay.rejects_dangerous_pointer",
+        "intent": {
+          "channel": "body_fragment",
+          "metrics": {
+            "bytes": 32,
+            "depth": 3,
+            "nodes": 3
+          },
+          "declaredOwners": {
+            "/generationConfig/__proto__/polluted": "generation"
+          },
+          "operations": [
+            {
+              "owner": "generation",
+              "op": "set",
+              "pointer": "/generationConfig/__proto__/polluted",
+              "value": true
+            }
+          ]
+        },
+        "expect": {
+          "accepted": false,
+          "reason": "blocked_segment"
+        }
+      },
+      {
+        "caseId": "overlay.rejects_dangerous_value_key",
+        "intent": {
+          "channel": "body_fragment",
+          "metrics": {
+            "bytes": 40,
+            "depth": 2,
+            "nodes": 2
+          },
+          "declaredOwners": {
+            "/response_format": "generation"
+          },
+          "operations": [
+            {
+              "owner": "generation",
+              "op": "set",
+              "pointer": "/response_format",
+              "value": {
+                "constructor": {
+                  "polluted": true
+                }
+              }
+            }
+          ]
+        },
+        "expect": {
+          "accepted": false,
+          "reason": "blocked_value_key"
+        }
+      },
+      {
+        "caseId": "overlay.rejects_duplicate_pointer",
+        "intent": {
+          "channel": "body_fragment",
+          "metrics": {
+            "bytes": 40,
+            "depth": 1,
+            "nodes": 2
+          },
+          "declaredOwners": {
+            "/temperature": "generation"
+          },
+          "operations": [
+            {
+              "owner": "generation",
+              "op": "set",
+              "pointer": "/temperature",
+              "value": 0.1
+            },
+            {
+              "owner": "generation",
+              "op": "set",
+              "pointer": "/temperature",
+              "value": 0.2
+            }
+          ]
+        },
+        "expect": {
+          "accepted": false,
+          "reason": "duplicate_pointer"
+        }
+      },
+      {
+        "caseId": "overlay.rejects_cross_owner",
+        "intent": {
+          "channel": "body_fragment",
+          "metrics": {
+            "bytes": 40,
+            "depth": 2,
+            "nodes": 2
+          },
+          "declaredOwners": {
+            "/reasoning/effort": "reasoning"
+          },
+          "operations": [
+            {
+              "owner": "generation",
+              "op": "set",
+              "pointer": "/reasoning/effort",
+              "value": "high"
+            }
+          ]
+        },
+        "expect": {
+          "accepted": false,
+          "reason": "cross_owner"
+        }
+      },
+      {
+        "caseId": "overlay.rejects_unknown_pointer",
+        "intent": {
+          "channel": "body_fragment",
+          "metrics": {
+            "bytes": 30,
+            "depth": 1,
+            "nodes": 1
+          },
+          "declaredOwners": {},
+          "operations": [
+            {
+              "owner": "web",
+              "op": "set",
+              "pointer": "/magic_search",
+              "value": true
+            }
+          ]
+        },
+        "expect": {
+          "accepted": false,
+          "reason": "unknown_pointer"
+        }
+      },
+      {
+        "caseId": "overlay.rejects_tools_array_replace",
+        "intent": {
+          "channel": "body_fragment",
+          "metrics": {
+            "bytes": 50,
+            "depth": 2,
+            "nodes": 2
+          },
+          "declaredOwners": {
+            "/tools": "web"
+          },
+          "operations": [
+            {
+              "owner": "web",
+              "op": "set",
+              "pointer": "/tools",
+              "value": [
+                {
+                  "type": "web_search"
+                }
+              ]
+            }
+          ]
+        },
+        "expect": {
+          "accepted": false,
+          "reason": "typed_contribution_required"
+        }
+      },
+      {
+        "caseId": "overlay.rejects_oversize",
+        "intent": {
+          "channel": "body_fragment",
+          "metrics": {
+            "bytes": 65537,
+            "depth": 1,
+            "nodes": 1
+          },
+          "declaredOwners": {
+            "/temperature": "generation"
+          },
+          "operations": [
+            {
+              "owner": "generation",
+              "op": "set",
+              "pointer": "/temperature",
+              "value": 0.5
+            }
+          ]
+        },
+        "expect": {
+          "accepted": false,
+          "reason": "size_exceeded"
+        }
+      },
+      {
+        "caseId": "overlay.rejects_overdepth",
+        "intent": {
+          "channel": "body_fragment",
+          "metrics": {
+            "bytes": 256,
+            "depth": 33,
+            "nodes": 33
+          },
+          "declaredOwners": {
+            "/response_format/schema": "generation"
+          },
+          "operations": [
+            {
+              "owner": "generation",
+              "op": "set",
+              "pointer": "/response_format/schema",
+              "value": {
+                "type": "object"
+              }
+            }
+          ]
+        },
+        "expect": {
+          "accepted": false,
+          "reason": "depth_exceeded"
+        }
+      }
+    ],
+    "toolContributionCases": [
+      {
+        "caseId": "tools.append_preserves_builder_tools",
+        "base": [
+          "function:weather"
+        ],
+        "contributions": [
+          {
+            "owner": "web",
+            "target": "tools",
+            "operation": "append_owned",
+            "identity": "web_search",
+            "value": {
+              "type": "web_search"
+            }
+          }
+        ],
+        "expect": {
+          "accepted": true,
+          "identities": [
+            "function:weather",
+            "web_search"
+          ],
+          "reason": null
+        }
+      },
+      {
+        "caseId": "tools.rejects_array_replace",
+        "base": [
+          "function:weather"
+        ],
+        "contributions": [
+          {
+            "owner": "web",
+            "target": "tools",
+            "operation": "replace",
+            "identity": "web_search",
+            "value": {
+              "type": "web_search"
+            }
+          }
+        ],
+        "expect": {
+          "accepted": false,
+          "reason": "non_append_operation"
+        }
+      },
+      {
+        "caseId": "tools.rejects_generation_owner",
+        "base": [],
+        "contributions": [
+          {
+            "owner": "generation",
+            "target": "tools",
+            "operation": "append_owned",
+            "identity": "search",
+            "value": {
+              "type": "web_search"
+            }
+          }
+        ],
+        "expect": {
+          "accepted": false,
+          "reason": "owner_not_allowed"
+        }
+      },
+      {
+        "caseId": "tools.rejects_duplicate_identity",
+        "base": [
+          "web_search"
+        ],
+        "contributions": [
+          {
+            "owner": "web",
+            "target": "tools",
+            "operation": "append_owned",
+            "identity": "web_search",
+            "value": {
+              "type": "web_search"
+            }
+          }
+        ],
+        "expect": {
+          "accepted": false,
+          "reason": "duplicate_identity"
+        }
+      }
+    ],
+    "resultCases": [
+      {
+        "caseId": "result.no_wire_is_not_requested",
+        "intent": {
+          "wireApplied": false,
+          "providerAccepted": true,
+          "evidenceKinds": []
+        },
+        "expect": {
+          "state": "not_requested",
+          "requested": false,
+          "observed": false
+        }
+      },
+      {
+        "caseId": "result.http_200_without_evidence_is_unconfirmed",
+        "intent": {
+          "wireApplied": true,
+          "providerAccepted": true,
+          "evidenceKinds": []
+        },
+        "expect": {
+          "state": "unconfirmed",
+          "requested": true,
+          "observed": false
+        }
+      },
+      {
+        "caseId": "result.citation_confirms_web",
+        "intent": {
+          "wireApplied": true,
+          "providerAccepted": true,
+          "evidenceKinds": [
+            "citation"
+          ]
+        },
+        "expect": {
+          "state": "observed",
+          "requested": true,
+          "observed": true
+        }
+      },
+      {
+        "caseId": "result.thinking_block_confirms_reasoning",
+        "intent": {
+          "wireApplied": true,
+          "providerAccepted": true,
+          "evidenceKinds": [
+            "thinking_block"
+          ]
+        },
+        "expect": {
+          "state": "observed",
+          "requested": true,
+          "observed": true
+        }
+      },
+      {
+        "caseId": "result.evidence_without_request_does_not_upgrade",
+        "intent": {
+          "wireApplied": false,
+          "providerAccepted": true,
+          "evidenceKinds": [
+            "grounding"
+          ]
+        },
+        "expect": {
+          "state": "not_requested",
+          "requested": false,
+          "observed": false
+        }
+      },
+      {
+        "caseId": "result.explicit_rejection",
+        "intent": {
+          "wireApplied": true,
+          "providerAccepted": false,
+          "evidenceKinds": []
+        },
+        "expect": {
+          "state": "rejected",
+          "requested": true,
+          "observed": false
+        }
+      },
+      {
+        "caseId": "result.safe_retry_recovered",
+        "intent": {
+          "wireApplied": true,
+          "providerAccepted": true,
+          "evidenceKinds": [],
+          "recovered": true
+        },
+        "expect": {
+          "state": "recovered",
+          "requested": true,
+          "observed": false
+        }
+      }
+    ],
+    "continuationCases": [
+      {
+        "caseId": "continuation.none",
+        "intent": {
+          "kind": "none",
+          "step": 0,
+          "state": {}
+        },
+        "expect": {
+          "accepted": true,
+          "reason": null
+        }
+      },
+      {
+        "caseId": "continuation.previous_id",
+        "intent": {
+          "kind": "previous_id",
+          "step": 1,
+          "state": {
+            "previousResponseId": "resp_1"
+          }
+        },
+        "expect": {
+          "accepted": true,
+          "reason": null
+        }
+      },
+      {
+        "caseId": "continuation.replay_blocks",
+        "intent": {
+          "kind": "replay_blocks",
+          "step": 1,
+          "state": {
+            "blocks": [
+              {
+                "type": "thinking",
+                "signature": "opaque"
+              }
+            ]
+          }
+        },
+        "expect": {
+          "accepted": true,
+          "reason": null
+        }
+      },
+      {
+        "caseId": "continuation.replay_reasoning",
+        "intent": {
+          "kind": "replay_reasoning",
+          "step": 1,
+          "state": {
+            "assistantMessages": [
+              {
+                "role": "assistant",
+                "content": "answer",
+                "reasoning_details": [
+                  {
+                    "type": "reasoning.encrypted",
+                    "data": "opaque"
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "expect": {
+          "accepted": true,
+          "reason": null
+        }
+      },
+      {
+        "caseId": "continuation.tool_loop",
+        "intent": {
+          "kind": "tool_loop",
+          "step": 8,
+          "state": {
+            "completedMessages": [
+              {
+                "role": "assistant",
+                "tool_calls": [
+                  {
+                    "id": "call_1",
+                    "type": "function",
+                    "function": {
+                      "name": "lookup",
+                      "arguments": "{}"
+                    }
+                  }
+                ]
+              },
+              {
+                "role": "tool",
+                "tool_call_id": "call_1",
+                "content": "opaque"
+              }
+            ]
+          }
+        },
+        "expect": {
+          "accepted": true,
+          "reason": null
+        }
+      },
+      {
+        "caseId": "continuation.tool_loop_fiber_variant",
+        "intent": {
+          "kind": "tool_loop",
+          "variant": "fiber",
+          "step": 1,
+          "state": {
+            "completedMessages": [
+              {
+                "role": "assistant",
+                "tool_calls": [
+                  {
+                    "id": "call_1",
+                    "type": "function",
+                    "function": {
+                      "name": "web_search",
+                      "arguments": "{\\\"q\\\":\\\"news\\\"}"
+                    }
+                  }
+                ]
+              },
+              {
+                "role": "tool",
+                "tool_call_id": "call_1",
+                "content": "opaque"
+              }
+            ]
+          }
+        },
+        "expect": {
+          "accepted": true,
+          "reason": null
+        }
+      },
+      {
+        "caseId": "continuation.tool_loop_builtin_variant",
+        "intent": {
+          "kind": "tool_loop",
+          "variant": "default",
+          "step": 1,
+          "state": {
+            "completedMessages": [
+              {
+                "role": "assistant",
+                "reasoning_content": "opaque reasoning",
+                "tool_calls": [
+                  {
+                    "id": "call_builtin_1",
+                    "type": "builtin_function",
+                    "function": {
+                      "name": "$web_search",
+                      "arguments": "{\"q\":\"news\"}"
+                    }
+                  }
+                ]
+              },
+              {
+                "role": "tool",
+                "tool_call_id": "call_builtin_1",
+                "name": "$web_search",
+                "content": "{\"q\":\"news\"}"
+              }
+            ]
+          }
+        },
+        "expect": {
+          "accepted": true,
+          "reason": null
+        }
+      },
+      {
+        "caseId": "continuation.tool_loop_is_bounded",
+        "intent": {
+          "kind": "tool_loop",
+          "step": 9,
+          "state": {
+            "completedMessages": []
+          }
+        },
+        "expect": {
+          "accepted": false,
+          "reason": "step_limit_exceeded"
+        }
+      },
+      {
+        "caseId": "continuation.missing_opaque_state",
+        "intent": {
+          "kind": "tool_loop",
+          "step": 1,
+          "state": {}
+        },
+        "expect": {
+          "accepted": false,
+          "reason": "missing_state_field"
+        }
+      },
+      {
+        "caseId": "continuation.unknown_variant_fails_safe",
+        "intent": {
+          "kind": "tool_loop",
+          "variant": "future_variant",
+          "step": 1,
+          "state": {
+            "completedMessages": []
+          }
+        },
+        "expect": {
+          "accepted": false,
+          "reason": "unknown_variant"
+        }
+      },
+      {
+        "caseId": "continuation.tool_loop_orphan_result_rejected",
+        "intent": {
+          "kind": "tool_loop",
+          "step": 1,
+          "state": {
+            "completedMessages": [
+              {
+                "role": "tool",
+                "tool_call_id": "call_1",
+                "content": "opaque"
+              }
+            ]
+          }
+        },
+        "expect": {
+          "accepted": false,
+          "reason": "invalid_tool_loop_state"
+        }
+      },
+      {
+        "caseId": "continuation.tool_loop_missing_result_rejected",
+        "intent": {
+          "kind": "tool_loop",
+          "step": 1,
+          "state": {
+            "completedMessages": [
+              {
+                "role": "assistant",
+                "tool_calls": [
+                  {
+                    "id": "call_1",
+                    "type": "function",
+                    "function": {
+                      "name": "lookup",
+                      "arguments": "{}"
+                    }
+                  }
+                ]
+              }
+            ]
+          }
+        },
+        "expect": {
+          "accepted": false,
+          "reason": "invalid_tool_loop_state"
+        }
+      },
+      {
+        "caseId": "continuation.tool_loop_duplicate_id_rejected",
+        "intent": {
+          "kind": "tool_loop",
+          "step": 1,
+          "state": {
+            "completedMessages": [
+              {
+                "role": "assistant",
+                "tool_calls": [
+                  {
+                    "id": "call_1",
+                    "type": "function",
+                    "function": {
+                      "name": "lookup",
+                      "arguments": "{}"
+                    }
+                  },
+                  {
+                    "id": "call_1",
+                    "type": "function",
+                    "function": {
+                      "name": "lookup_again",
+                      "arguments": "{}"
+                    }
+                  }
+                ]
+              },
+              {
+                "role": "tool",
+                "tool_call_id": "call_1",
+                "content": "one"
+              },
+              {
+                "role": "tool",
+                "tool_call_id": "call_1",
+                "content": "two"
+              }
+            ]
+          }
+        },
+        "expect": {
+          "accepted": false,
+          "reason": "invalid_tool_loop_state"
+        }
+      },
+      {
+        "caseId": "continuation.tool_loop_unknown_call_type_rejected",
+        "intent": {
+          "kind": "tool_loop",
+          "step": 1,
+          "state": {
+            "completedMessages": [
+              {
+                "role": "assistant",
+                "tool_calls": [
+                  {
+                    "id": "call_1",
+                    "type": "future_function",
+                    "function": {
+                      "name": "lookup",
+                      "arguments": "{}"
+                    }
+                  }
+                ]
+              },
+              {
+                "role": "tool",
+                "tool_call_id": "call_1",
+                "content": "opaque"
+              }
+            ]
+          }
+        },
+        "expect": {
+          "accepted": false,
+          "reason": "invalid_tool_loop_state"
+        }
+      },
+      {
+        "caseId": "continuation.unknown_kind_fails_safe",
+        "intent": {
+          "kind": "future_kind",
+          "step": 0,
+          "state": {}
+        },
+        "expect": {
+          "accepted": false,
+          "reason": "unknown_continuation_kind"
+        }
+      }
+    ],
+    "retryCases": [
+      {
+        "caseId": "retry.recipe_400_exact_locator_requires_explicit_resend",
+        "intent": {
+          "source": "provider_recipe",
+          "status": 400,
+          "errorClass": "optional_parameter_rejected",
+          "owner": "web",
+          "locatedPointers": [
+            "/web_search_options"
+          ],
+          "preToken": true,
+          "streamStarted": false,
+          "sideEffects": false,
+          "automaticRetryCount": 0
+        },
+        "expect": {
+          "retry": false,
+          "action": "user_confirmed_resend_without_located_setting",
+          "preference": "retain_dormant"
+        }
+      },
+      {
+        "caseId": "retry.custom_is_never_silent",
+        "intent": {
+          "source": "custom",
+          "status": 400,
+          "errorClass": "optional_parameter_rejected",
+          "owner": "web",
+          "locatedPointers": [
+            "/web_search_options"
+          ],
+          "preToken": true,
+          "streamStarted": false,
+          "sideEffects": false,
+          "automaticRetryCount": 0
+        },
+        "expect": {
+          "retry": false,
+          "action": "user_confirmed_resend_without_located_setting",
+          "preference": "retain_dormant"
+        }
+      },
+      {
+        "caseId": "retry.second_attempt_stops",
+        "intent": {
+          "source": "provider_recipe",
+          "status": 400,
+          "errorClass": "optional_parameter_rejected",
+          "owner": "web",
+          "locatedPointers": [
+            "/web_search_options"
+          ],
+          "preToken": true,
+          "streamStarted": false,
+          "sideEffects": false,
+          "automaticRetryCount": 1
+        },
+        "expect": {
+          "retry": false,
+          "action": "surface_error"
+        }
+      },
+      {
+        "caseId": "retry.auth_never_retries",
+        "intent": {
+          "source": "provider_recipe",
+          "status": 401,
+          "errorClass": "auth",
+          "owner": "web",
+          "locatedPointers": [],
+          "preToken": true,
+          "streamStarted": false,
+          "sideEffects": false,
+          "automaticRetryCount": 0
+        },
+        "expect": {
+          "retry": false,
+          "action": "surface_error"
+        }
+      },
+      {
+        "caseId": "retry.rate_limit_never_retries",
+        "intent": {
+          "source": "provider_recipe",
+          "status": 429,
+          "errorClass": "rate_limit",
+          "owner": "reasoning",
+          "locatedPointers": [],
+          "preToken": true,
+          "streamStarted": false,
+          "sideEffects": false,
+          "automaticRetryCount": 0
+        },
+        "expect": {
+          "retry": false,
+          "action": "surface_error"
+        }
+      },
+      {
+        "caseId": "retry.stream_started_never_retries",
+        "intent": {
+          "source": "provider_recipe",
+          "status": 400,
+          "errorClass": "optional_parameter_rejected",
+          "owner": "generation",
+          "locatedPointers": [
+            "/temperature"
+          ],
+          "preToken": false,
+          "streamStarted": true,
+          "sideEffects": false,
+          "automaticRetryCount": 0
+        },
+        "expect": {
+          "retry": false,
+          "action": "surface_error"
+        }
+      },
+      {
+        "caseId": "retry.side_effect_never_retries",
+        "intent": {
+          "source": "provider_recipe",
+          "status": 400,
+          "errorClass": "optional_parameter_rejected",
+          "owner": "web",
+          "locatedPointers": [
+            "/tools"
+          ],
+          "preToken": true,
+          "streamStarted": false,
+          "sideEffects": true,
+          "automaticRetryCount": 0
+        },
+        "expect": {
+          "retry": false,
+          "action": "surface_error"
+        }
+      },
+      {
+        "caseId": "retry.unlocated_error_never_retries",
+        "intent": {
+          "source": "provider_recipe",
+          "status": 400,
+          "errorClass": "optional_parameter_rejected",
+          "owner": null,
+          "locatedPointers": [],
+          "preToken": true,
+          "streamStarted": false,
+          "sideEffects": false,
+          "automaticRetryCount": 0
+        },
+        "expect": {
+          "retry": false,
+          "action": "surface_error"
+        }
+      },
+      {
+        "caseId": "retry.timeout_never_retries",
+        "intent": {
+          "source": "provider_recipe",
+          "status": null,
+          "errorClass": "timeout",
+          "owner": "web",
+          "locatedPointers": [],
+          "preToken": true,
+          "streamStarted": false,
+          "sideEffects": false,
+          "automaticRetryCount": 0
+        },
+        "expect": {
+          "retry": false,
+          "action": "surface_error"
+        }
+      }
+    ]
+  }
+}

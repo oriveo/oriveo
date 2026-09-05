@@ -1,0 +1,144 @@
+.root {
+  position: fixed;
+  top: var(--o-space-lg);
+  inset-inline-end: var(--o-space-lg);
+  z-index: 10;
+  animation: fadeIn 400ms ease-out 300ms both;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--o-space-xs);
+  padding: 8px 12px;
+  min-height: 36px;
+  border: 1px solid var(--o-border);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--o-surface-raised) 70%, transparent);
+  color: var(--o-text-secondary);
+  font-size: var(--o-text-sm);
+  font-weight: 500;
+  cursor: pointer;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  transition: border-color 150ms ease, background-color 150ms ease, color 150ms ease;
+}
+
+.trigger:hover {
+  border-color: color-mix(in srgb, var(--o-primary) 35%, var(--o-border));
+  background: color-mix(in srgb, var(--o-surface-raised) 90%, white 4%);
+  color: var(--o-text);
+}
+
+.trigger:focus-visible {
+  outline: none;
+  border-color: var(--o-primary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--o-primary) 28%, transparent);
+}
+
+.label {
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  inset-inline-end: 0;
+  min-width: 200px;
+  max-height: min(70vh, 520px);
+  overflow-y: auto;
+  padding: 6px;
+  margin: 0;
+  list-style: none;
+  border: 1px solid var(--o-border);
+  border-radius: var(--o-radius-lg);
+  background: color-mix(in srgb, var(--o-surface-raised) 96%, white 4%);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  animation: menuIn 160ms ease-out both;
+}
+
+@keyframes menuIn {
+  from {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.option {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--o-space-sm);
+  padding: 8px 12px;
+  border: 0;
+  border-radius: var(--o-radius-sm);
+  background: transparent;
+  color: var(--o-text-secondary);
+  font-size: var(--o-text-sm);
+  font-weight: 500;
+  text-align: start;
+  cursor: pointer;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+
+.option:hover {
+  background: color-mix(in srgb, var(--o-primary) 10%, transparent);
+  color: var(--o-text);
+}
+
+.option:focus-visible {
+  outline: none;
+  background: color-mix(in srgb, var(--o-primary) 14%, transparent);
+  color: var(--o-text);
+}
+
+.option.active {
+  color: var(--o-text);
+  background: color-mix(in srgb, var(--o-primary) 12%, transparent);
+}
+
+.optionLabel {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 480px) {
+  .root {
+    top: var(--o-space-md);
+    inset-inline-end: var(--o-space-md);
+  }
+
+  .trigger {
+    padding: 6px 10px;
+    min-height: 32px;
+    font-size: var(--o-text-xs);
+  }
+
+  .label {
+    max-width: 120px;
+  }
+}

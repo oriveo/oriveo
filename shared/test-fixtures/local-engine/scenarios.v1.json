@@ -1,0 +1,21 @@
+{
+  "$comment": "Local engine simulator scenarios v1. The future zero-dependency simulator and every platform socket test consume this file; recorded requests are asserted outside the simulator so it never self-certifies.",
+  "version": 1,
+  "scenarios": [
+    {"id":"llamacpp.ready","engine":"llamacpp","request":{"method":"GET","path":"/health"},"response":{"status":200,"headers":{"content-type":"application/json"},"body":{"status":"ok"}}},
+    {"id":"llamacpp.loading","engine":"llamacpp","request":{"method":"GET","path":"/health"},"response":{"status":503,"headers":{"content-type":"application/json"},"body":{"status":"loading model"}}},
+    {"id":"llamacpp.props","engine":"llamacpp","request":{"method":"GET","path":"/props"},"response":{"status":200,"headers":{"content-type":"application/json"},"body":{"default_generation_settings":{"temperature":0.8,"top_k":40,"top_p":0.95,"min_p":0.05,"repeat_penalty":1.1}}}},
+    {"id":"llamacpp.chat_stream","engine":"llamacpp","request":{"method":"POST","path":"/v1/chat/completions"},"response":{"status":200,"headers":{"content-type":"text/event-stream"},"chunks":["data: {\"choices\":[{\"delta\":{\"content\":\"ok\"}}]}\n\n","data: [DONE]\n\n"]}},
+    {"id":"ollama.ready","engine":"ollama","request":{"method":"GET","path":"/api/tags"},"response":{"status":200,"headers":{"content-type":"application/json"},"body":{"models":[{"name":"fixture:latest"}]}}},
+    {"id":"ollama.show","engine":"ollama","request":{"method":"POST","path":"/api/show"},"response":{"status":200,"headers":{"content-type":"application/json"},"body":{"capabilities":["completion","tools"],"parameters":"temperature 0.8\ntop_k 40"}}},
+    {"id":"ollama.cloud_model","engine":"ollama","request":{"method":"GET","path":"/api/tags"},"response":{"status":200,"headers":{"content-type":"application/json"},"body":{"models":[{"name":"fixture:cloud"}]}}},
+    {"id":"lmstudio.ready","engine":"lmstudio","request":{"method":"GET","path":"/v1/models"},"response":{"status":200,"headers":{"content-type":"application/json"},"body":{"data":[{"id":"fixture-model","state":"loaded"}]}}},
+    {"id":"lmstudio.loading","engine":"lmstudio","request":{"method":"POST","path":"/v1/chat/completions"},"response":{"status":503,"headers":{"content-type":"application/json"},"body":{"error":{"type":"model_loading","message":"Model is loading"}}}},
+    {"id":"vllm.ready","engine":"vllm","request":{"method":"GET","path":"/v1/models"},"response":{"status":200,"headers":{"content-type":"application/json"},"body":{"object":"list","data":[{"id":"fixture-model","object":"model","owned_by":"vllm"}]}}},
+    {"id":"openwebui.ready","engine":"openwebui","request":{"method":"GET","path":"/api/models"},"response":{"status":200,"headers":{"content-type":"application/json"},"body":{"data":[{"id":"fixture-model","name":"Fixture model"}]}}},
+    {"id":"openwebui.models_shape","engine":"openwebui","request":{"method":"GET","path":"/api/models"},"response":{"status":200,"headers":{"content-type":"application/json"},"body":{"models":[{"name":"fixture-model"}]}}},
+    {"id":"wrong_engine_on_expected_port","engine":"not-llamacpp","request":{"method":"GET","path":"/health"},"response":{"status":200,"headers":{"content-type":"text/html"},"body":"<html>not llama.cpp</html>"}},
+    {"id":"parameter_rejected_400","engine":"generic-openai","request":{"method":"POST","path":"/v1/chat/completions"},"response":{"status":400,"headers":{"content-type":"application/json"},"body":{"error":{"type":"invalid_request_error","param":"temperature","message":"unsupported parameter"}}}},
+    {"id":"auth_none_recording","engine":"generic-openai","request":{"method":"POST","path":"/v1/chat/completions","recordHeaders":true,"recordQuery":true,"recordBody":true},"response":{"status":200,"headers":{"content-type":"text/event-stream"},"chunks":["data: {\"choices\":[{\"delta\":{\"content\":\"ok\"}}]}\n\n","data: [DONE]\n\n"]}}
+  ]
+}

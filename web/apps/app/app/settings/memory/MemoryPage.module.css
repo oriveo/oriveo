@@ -1,0 +1,931 @@
+/*
+ * Memory page, aligned with the design language used elsewhere in the web app (see Settings.module.css):
+ * - Light back link at the top, display-font heading, inline status chip
+ * - Starter state: one ambient gradient CTA card (layered radial/linear, echoing accountHubSection)
+ * - Editor state: two columns (editor + sidebar), side by side on desktop >= 880px, stacked on mobile
+ * - Plain save bar: no pulse dot decoration, the rhythm comes from the layout
+ * Dark mode follows the project convention of :global(html[data-theme='dark']).
+ */
+
+/* ── Page shell ───────────────────────────────────── */
+
+.page {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: var(--o-space-lg) var(--o-space-lg) calc(96px + env(safe-area-inset-bottom, 0px));
+  opacity: 0;
+  transform: translateY(6px);
+  transition:
+    opacity 380ms cubic-bezier(0.2, 0.7, 0.3, 1),
+    transform 420ms cubic-bezier(0.2, 0.7, 0.3, 1);
+}
+
+.pageAppeared {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page {
+    transition: none;
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@media (min-width: 880px) {
+  .page {
+    max-width: 960px;
+  }
+}
+
+/* ── Back link ────────────────────────────────────── */
+
+.backLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: var(--o-space-md);
+  padding: 4px 8px 4px 4px;
+  border-radius: var(--o-radius-md);
+  font-size: var(--o-text-xs);
+  font-weight: 500;
+  color: var(--o-text-secondary);
+  background: transparent;
+  cursor: pointer;
+  text-decoration: none;
+  transition: color 160ms ease, background-color 160ms ease;
+}
+
+.backLink:hover {
+  color: var(--o-text);
+  background-color: color-mix(in srgb, var(--o-surface-raised) 70%, transparent);
+}
+
+.backLink:focus-visible {
+  outline: none;
+  box-shadow: var(--o-focus-ring);
+}
+
+/* ── Page header ──────────────────────────────────── */
+
+.header {
+  margin-bottom: var(--o-space-xl);
+}
+
+.headerTitleRow {
+  display: flex;
+  align-items: center;
+  gap: var(--o-space-md);
+  flex-wrap: wrap;
+}
+
+.title {
+  margin: 0;
+  font-family: var(--o-font-display);
+  font-size: var(--o-text-2xl);
+  font-weight: 700;
+  letter-spacing: -0.012em;
+  color: var(--o-text);
+}
+
+.subtitle {
+  margin: var(--o-space-xs) 0 0;
+  font-size: var(--o-text-sm);
+  line-height: 1.55;
+  color: var(--o-text-secondary);
+  max-width: 56ch;
+}
+
+/* ── Status chip (inline, on the same row as the title) ─────────── */
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 9px 4px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  border: 1px solid transparent;
+  line-height: 1;
+}
+
+.chipPrimary {
+  color: var(--o-primary);
+  background: color-mix(in srgb, var(--o-primary) 9%, transparent);
+  border-color: color-mix(in srgb, var(--o-primary) 22%, transparent);
+}
+
+.chipSuccess {
+  color: var(--o-success);
+  background: color-mix(in srgb, var(--o-success) 11%, transparent);
+  border-color: color-mix(in srgb, var(--o-success) 24%, transparent);
+}
+
+/* ── Starter card (ambient gradient, echoing accountHubSection) ── */
+
+.starterCard {
+  position: relative;
+  overflow: hidden;
+  padding: var(--o-space-xl) var(--o-space-lg);
+  border-radius: var(--o-radius-modal);
+  border: 1px solid color-mix(in srgb, var(--o-border-strong, var(--o-border)) 55%, transparent);
+  background:
+    radial-gradient(circle at 12% 8%, color-mix(in srgb, var(--o-primary) 14%, transparent) 0, transparent 38%),
+    radial-gradient(circle at 88% 100%, color-mix(in srgb, var(--o-primary) 7%, transparent) 0, transparent 42%),
+    linear-gradient(155deg, rgba(255, 255, 255, 0.22), color-mix(in srgb, var(--o-primary) 1.5%, transparent), rgba(245, 240, 255, 0.06)),
+    color-mix(in srgb, var(--o-surface) 98%, transparent);
+  box-shadow:
+    0 22px 44px color-mix(in srgb, var(--o-primary) 8%, transparent),
+    0 1px 2px rgba(0, 0, 0, 0.05),
+    inset 0 1px 0 var(--o-hairline);
+}
+
+.starterCard::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  border: 1px solid transparent;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.42),
+    color-mix(in srgb, var(--o-primary) 12%, transparent) 38%,
+    color-mix(in srgb, var(--o-border) 35%, transparent) 72%,
+    rgba(255, 255, 255, 0.08)
+  ) border-box;
+  mask:
+    linear-gradient(#000 0 0) padding-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask:
+    linear-gradient(#000 0 0) padding-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: 0.92;
+}
+
+.starterCard::after {
+  /* Highlight offset toward the top left, so the light reads as coming from that corner */
+  content: '';
+  position: absolute;
+  top: -50px;
+  left: -40px;
+  width: 280px;
+  height: 280px;
+  pointer-events: none;
+  background: radial-gradient(circle, color-mix(in srgb, var(--o-primary) 16%, transparent), transparent 65%);
+  filter: blur(40px);
+  z-index: 0;
+}
+
+.starterCard > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* Glyph: plain purple backplate rather than a showy orb */
+.starterGlyph {
+  position: relative;
+  width: 56px;
+  height: 56px;
+  border-radius: 14px;
+  margin-bottom: var(--o-space-lg);
+  padding: 1px;
+  background: linear-gradient(140deg, color-mix(in srgb, var(--o-primary) 60%, white 0%), color-mix(in srgb, var(--o-primary) 92%, black 14%));
+  box-shadow:
+    0 10px 22px color-mix(in srgb, var(--o-primary) 32%, transparent),
+    0 1px 2px rgba(0, 0, 0, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+
+.starterGlyphInner {
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  display: grid;
+  place-items: center;
+  background:
+    radial-gradient(circle at 30% 25%, rgba(255, 255, 255, 0.32), transparent 55%),
+    linear-gradient(145deg, color-mix(in srgb, var(--o-primary) 84%, white 0%), color-mix(in srgb, var(--o-primary) 92%, black 12%));
+  color: #ffffff;
+}
+
+.starterTitle {
+  margin: 0 0 var(--o-space-sm);
+  font-family: var(--o-font-display);
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.18;
+  color: var(--o-text);
+  max-width: 38ch;
+}
+
+.starterBody {
+  margin: 0 0 calc(var(--o-space-lg) + 4px);
+  font-size: var(--o-text-sm);
+  line-height: 1.65;
+  color: var(--o-text-secondary);
+  max-width: 56ch;
+}
+
+.starterActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--o-space-sm);
+}
+
+.starterPrimary {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 40px;
+  padding: 0 var(--o-space-md);
+  font-size: var(--o-text-sm);
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.starterPrimary svg {
+  flex-shrink: 0;
+}
+
+.starterSecondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 9px 14px;
+  border-radius: var(--o-radius-md);
+  border: 1px solid var(--o-border);
+  background: color-mix(in srgb, var(--o-surface) 85%, transparent);
+  color: var(--o-text);
+  font-size: var(--o-text-sm);
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease;
+}
+
+.starterSecondary:hover {
+  background: var(--o-surface-raised);
+  border-color: var(--o-border-strong, var(--o-border));
+  color: var(--o-text);
+}
+
+.starterSecondary:focus-visible {
+  outline: none;
+  box-shadow: var(--o-focus-ring);
+}
+
+.spinner {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #ffffff;
+  border-radius: 50%;
+  animation: spin 0.85s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+/* ── Editor grid (two columns, desktop only) ───────────── */
+
+.editorGrid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: var(--o-space-lg);
+  align-items: start;
+}
+
+@media (min-width: 880px) {
+  .editorGrid {
+    grid-template-columns: minmax(0, 1.6fr) minmax(260px, 1fr);
+  }
+}
+
+/* ── Editor card ──────────────────────────────────── */
+
+.editorCard {
+  position: relative;
+  background: color-mix(in srgb, var(--o-surface) 96%, transparent);
+  backdrop-filter: blur(8px) saturate(120%);
+  -webkit-backdrop-filter: blur(8px) saturate(120%);
+  border: 1px solid var(--o-border);
+  border-radius: var(--o-radius-card);
+  padding: var(--o-space-lg);
+  box-shadow: var(--o-elevation-card);
+  transition:
+    border-color 200ms ease,
+    box-shadow 240ms ease;
+}
+
+.editorCardFocused {
+  border-color: color-mix(in srgb, var(--o-primary) 28%, var(--o-border));
+}
+
+.editorHeader {
+  display: flex;
+  align-items: center;
+  gap: var(--o-space-sm);
+  margin-bottom: var(--o-space-md);
+}
+
+.editorIcon {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  color: #ffffff;
+  background: var(--o-primary);
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.22);
+}
+
+.editorTitle {
+  flex: 1;
+  margin: 0;
+  font-size: var(--o-text-base);
+  font-weight: 650;
+  color: var(--o-text);
+  letter-spacing: -0.005em;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.charCounter {
+  flex-shrink: 0;
+  font-size: 12px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--o-text-tertiary);
+  transition: color 180ms ease;
+}
+
+/* 1700-1899: warm orange nudge, not yet a hard warning */
+.charCounterSoftWarn {
+  color: color-mix(in srgb, var(--o-warning) 78%, var(--o-text-secondary));
+}
+
+/* 1900+: warning color */
+.charCounterWarn {
+  color: var(--o-warning);
+}
+
+.textarea {
+  width: 100%;
+  min-height: 200px;
+  max-height: 360px;
+  padding: 10px 0 0;
+  border: 0;
+  background: transparent;
+  color: var(--o-text);
+  font-family: inherit;
+  font-size: var(--o-text-sm);
+  line-height: 1.6;
+  resize: vertical;
+  outline: 0;
+  box-shadow: none;
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.textarea:focus,
+.textarea:focus-visible,
+.textarea:focus-within {
+  outline: 0;
+  box-shadow: none;
+  border: 0;
+}
+
+.textarea::placeholder {
+  color: var(--o-text-tertiary);
+}
+
+.editorFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: var(--o-space-md);
+  padding-top: var(--o-space-sm);
+  border-top: 1px dashed var(--o-border);
+}
+
+.editorHint {
+  font-size: 11px;
+  color: var(--o-text-tertiary);
+  font-style: italic;
+}
+
+.editorMeta {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--o-text-tertiary);
+  margin-left: auto;
+}
+
+.editorMeta svg {
+  flex-shrink: 0;
+}
+
+/* ── Sidebar(stat + toggle + privacy) ──────────── */
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--o-space-md);
+}
+
+@media (min-width: 880px) {
+  .sidebar {
+    align-self: stretch;
+  }
+  /* Push the privacy hint to the bottom of the sidebar, visually aligned with the editor footer */
+  .sidebar > .privacyNote {
+    margin-top: auto;
+  }
+}
+
+/* Regenerate action card (regenerating is also available in editor mode) */
+
+.regenerateCard {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: var(--o-radius-card);
+  border: 1px solid color-mix(in srgb, var(--o-primary) 22%, var(--o-border));
+  background:
+    radial-gradient(circle at 0% 0%, color-mix(in srgb, var(--o-primary) 10%, transparent), transparent 60%),
+    color-mix(in srgb, var(--o-surface) 96%, transparent);
+  box-shadow: var(--o-elevation-card);
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+  transition: background 200ms ease, border-color 200ms ease, transform 160ms ease;
+}
+
+.regenerateCard:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--o-primary) 38%, var(--o-border));
+  background:
+    radial-gradient(circle at 0% 0%, color-mix(in srgb, var(--o-primary) 14%, transparent), transparent 60%),
+    color-mix(in srgb, var(--o-surface) 96%, transparent);
+}
+
+.regenerateCard:active:not(:disabled) {
+  transform: scale(0.985);
+}
+
+.regenerateCard:focus-visible {
+  outline: none;
+  box-shadow: var(--o-focus-ring), var(--o-elevation-card);
+}
+
+.regenerateCard:disabled {
+  opacity: 0.7;
+  cursor: wait;
+}
+
+.regenerateIcon {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  color: #ffffff;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--o-primary) 84%, white 0%), color-mix(in srgb, var(--o-primary) 100%, black 6%));
+  box-shadow:
+    0 4px 10px color-mix(in srgb, var(--o-primary) 30%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+
+.regenerateText {
+  flex: 1;
+  font-size: var(--o-text-sm);
+  font-weight: 600;
+  color: var(--o-text);
+  line-height: 1.3;
+}
+
+.regenerateSpinner {
+  width: 14px;
+  height: 14px;
+  border: 1.6px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #ffffff;
+  border-radius: 50%;
+  animation: spin 0.85s linear infinite;
+}
+
+/* — Stat card — */
+
+.statCard {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px var(--o-space-lg);
+  border-radius: var(--o-radius-card);
+  border: 1px solid color-mix(in srgb, var(--o-success) 18%, var(--o-border));
+  background:
+    linear-gradient(140deg, color-mix(in srgb, var(--o-success) 5%, transparent), transparent 80%),
+    color-mix(in srgb, var(--o-surface) 95%, transparent);
+  box-shadow: var(--o-elevation-card);
+}
+
+.statIcon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  color: #ffffff;
+  background: var(--o-success);
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.22);
+}
+
+.statText {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.statValue {
+  font-size: 18px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  color: var(--o-text);
+  line-height: 1;
+  font-family: var(--o-font-display);
+}
+
+.statLabel {
+  font-size: 11px;
+  color: var(--o-text-secondary);
+}
+
+/* — Toggle card — */
+
+.toggleCard {
+  background: color-mix(in srgb, var(--o-surface) 96%, transparent);
+  border: 1px solid var(--o-border);
+  border-radius: var(--o-radius-card);
+  padding: var(--o-space-md);
+  box-shadow: var(--o-elevation-card);
+  transition: border-color 240ms ease, background-color 240ms ease;
+}
+
+.toggleCardActive {
+  border-color: color-mix(in srgb, var(--o-primary) 32%, var(--o-border));
+  background:
+    radial-gradient(circle at 0% 0%, color-mix(in srgb, var(--o-primary) 8%, transparent), transparent 50%),
+    color-mix(in srgb, var(--o-surface) 96%, transparent);
+}
+
+.toggleHeader {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.toggleIcon {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  color: var(--o-text-secondary);
+  background: var(--o-surface-raised);
+  transition: all 240ms ease;
+}
+
+.toggleIconActive {
+  color: #ffffff;
+  background: var(--o-primary);
+  box-shadow: 0 4px 10px color-mix(in srgb, var(--o-primary) 36%, transparent);
+}
+
+.toggleText {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.toggleTitle {
+  font-size: var(--o-text-sm);
+  font-weight: 600;
+  color: var(--o-text);
+}
+
+.toggleDesc {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--o-text-secondary);
+}
+
+/* Numbers inside the AntiForget description (for example "10 turns") are highlighted in the primary color */
+.descHighlight {
+  font-style: normal;
+  font-weight: 700;
+  color: var(--o-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+/* — Toggle switch — */
+
+.toggle {
+  position: relative;
+  flex-shrink: 0;
+  width: 40px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: var(--o-border-strong);
+  cursor: pointer;
+  transition: background-color 200ms ease;
+}
+
+.toggle:focus-visible {
+  outline: none;
+  box-shadow: var(--o-focus-ring);
+}
+
+.toggle[data-on='true'] {
+  background: var(--o-primary);
+}
+
+.toggleKnob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--o-switch-thumb, #ffffff);
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.18),
+    0 0 0 0.5px rgba(0, 0, 0, 0.06);
+  transition: transform 200ms cubic-bezier(0.4, 0.2, 0.2, 1);
+}
+
+.toggle[data-on='true'] .toggleKnob {
+  transform: translateX(18px);
+}
+
+/* Privacy footnote (restrained, no background fill) */
+
+.privacyNote {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 4px 0 0;
+  padding: 0 4px;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--o-text-tertiary);
+}
+
+.privacyIcon {
+  color: var(--o-text-tertiary);
+  flex-shrink: 0;
+  margin-top: 2px;
+  opacity: 0.7;
+}
+
+/* ── Save bar (plain, no pulse dot) ──────────── */
+
+.saveBar {
+  position: fixed;
+  left: 50%;
+  bottom: calc(var(--o-space-lg) + env(safe-area-inset-bottom, 0px));
+  transform: translateX(-50%);
+  z-index: 30;
+  width: calc(100% - var(--o-space-lg) * 2);
+  max-width: 540px;
+  animation: saveBarIn 0.32s cubic-bezier(0.2, 0.7, 0.3, 1);
+}
+
+@keyframes saveBarIn {
+  from { opacity: 0; transform: translate(-50%, 12px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .saveBar { animation: none; }
+}
+
+.saveBarInner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 10px 10px 16px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--o-surface) 92%, transparent);
+  backdrop-filter: blur(18px) saturate(180%);
+  -webkit-backdrop-filter: blur(18px) saturate(180%);
+  border: 1px solid color-mix(in srgb, var(--o-primary) 18%, var(--o-border));
+  box-shadow:
+    0 18px 36px rgba(15, 23, 42, 0.16),
+    0 2px 4px rgba(15, 23, 42, 0.04),
+    inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  transition: border-color 220ms ease, background-color 220ms ease;
+}
+
+/* Inline save confirmation: the saveBar flashes green with a short "saved" message, then fades out */
+.saveBarSuccess {
+  border-color: color-mix(in srgb, var(--o-success) 32%, var(--o-border));
+  background: color-mix(in srgb, var(--o-success) 6%, var(--o-surface) 90%);
+}
+
+.saveDot {
+  flex-shrink: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--o-primary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--o-primary) 18%, transparent);
+}
+
+.saveSuccessIcon {
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  color: var(--o-success);
+}
+
+.saveLabel {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--o-text);
+  flex-shrink: 0;
+}
+
+.saveMeta {
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  color: var(--o-text-tertiary);
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.saveBtn {
+  flex-shrink: 0;
+  min-height: 36px;
+  padding: 0 14px 0 18px;
+  font-size: var(--o-text-sm);
+  font-weight: 600;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Cmd+S kbd hint: shortcut label tucked to the right of the Save button */
+.kbdHint {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 5px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  background: rgba(255, 255, 255, 0.18);
+  border: 0.5px solid rgba(255, 255, 255, 0.32);
+  color: rgba(255, 255, 255, 0.95);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+/* ── Dialog ───────────────────────────────────────── */
+
+.dialogTitle {
+  margin: 0 0 var(--o-space-sm);
+  font-size: var(--o-text-base);
+  font-weight: 700;
+  color: var(--o-text);
+}
+
+.dialogMessage {
+  margin: 0 0 var(--o-space-md);
+  font-size: var(--o-text-sm);
+  line-height: 1.6;
+  color: var(--o-text-secondary);
+}
+
+.dialogActions {
+  display: flex;
+  gap: var(--o-space-sm);
+  justify-content: flex-end;
+  margin-top: var(--o-space-md);
+}
+
+/* ── Responsive ────────────────────────────────────── */
+
+@media (max-width: 600px) {
+  .page {
+    padding: var(--o-space-md) var(--o-space-md) calc(96px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .starterCard {
+    padding: var(--o-space-lg) var(--o-space-md);
+  }
+
+  .editorCard {
+    padding: var(--o-space-md);
+  }
+
+  .saveBar {
+    width: calc(100% - var(--o-space-md) * 2);
+  }
+
+  .saveBarInner {
+    padding: 8px 8px 8px 14px;
+  }
+
+  .saveLabel {
+    font-size: 12px;
+  }
+
+  .saveMeta {
+    display: none;
+  }
+}
+
+/* ── Dark mode overrides (project convention: `:global(html[data-theme='dark'])`) ── */
+
+:global(html[data-theme='dark']) .starterCard {
+  border-color: rgba(255, 255, 255, 0.10);
+  background:
+    radial-gradient(circle at 12% 8%, color-mix(in srgb, var(--o-primary) 22%, transparent) 0, transparent 38%),
+    radial-gradient(circle at 88% 100%, color-mix(in srgb, var(--o-primary) 14%, transparent) 0, transparent 42%),
+    linear-gradient(155deg, rgba(255, 255, 255, 0.06), color-mix(in srgb, var(--o-primary) 3%, transparent), rgba(0, 0, 0, 0.12)),
+    color-mix(in srgb, var(--o-surface-raised) 86%, transparent);
+  box-shadow:
+    0 24px 52px rgba(0, 0, 0, 0.5),
+    0 6px 22px color-mix(in srgb, var(--o-primary) 14%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+:global(html[data-theme='dark']) .starterCard::before {
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.16),
+    color-mix(in srgb, var(--o-primary) 18%, transparent) 38%,
+    rgba(255, 255, 255, 0.03) 72%,
+    rgba(255, 255, 255, 0.005)
+  ) border-box;
+  opacity: 0.78;
+}
+
+:global(html[data-theme='dark']) .starterCard::after {
+  background: radial-gradient(circle, color-mix(in srgb, var(--o-primary) 24%, transparent), transparent 65%);
+}
+
+:global(html[data-theme='dark']) .starterSecondary {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+:global(html[data-theme='dark']) .starterSecondary:hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+:global(html[data-theme='dark']) .saveBarInner {
+  background: color-mix(in srgb, var(--o-surface-raised) 90%, transparent);
+  border-color: color-mix(in srgb, var(--o-primary) 28%, rgba(255, 255, 255, 0.12));
+  box-shadow:
+    0 22px 44px rgba(0, 0, 0, 0.6),
+    0 2px 4px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+:global(html[data-theme='dark']) .toggleCardActive {
+  background:
+    radial-gradient(circle at 0% 0%, color-mix(in srgb, var(--o-primary) 14%, transparent), transparent 50%),
+    color-mix(in srgb, var(--o-surface-raised) 88%, transparent);
+}

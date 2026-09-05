@@ -1,0 +1,10 @@
+data: {"id":"r2-grok-proxy-0001","object":"chat.completion.chunk","created":1787457600,"model":"grok-4.6","choices":[{"index":0,"delta":{"role":"assistant","content":"I'll look that up.\n\n```json\n"},"finish_reason":null}],"usage":null}
+
+data: {"id":"r2-grok-proxy-0001","object":"chat.completion.chunk","created":1787457600,"model":"grok-4.6","choices":[{"index":0,"delta":{"role":"assistant","content":"{\"name\": \"web_search\", \"arguments\": {\"query\": \"Melbourne weather today\", \"num_results\": 5}}"},"finish_reason":null}],"usage":null}
+
+data: {"id":"r2-grok-proxy-0001","object":"chat.completion.chunk","created":1787457600,"model":"grok-4.6","choices":[{"index":0,"delta":{"role":"assistant","content":"\n```"},"finish_reason":null}],"usage":null}
+
+data: {"id":"r2-grok-proxy-0001","object":"chat.completion.chunk","created":1787457600,"model":"grok-4.6","choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":96,"completion_tokens":44,"total_tokens":140,"cost_in_usd_ticks":0}}
+
+data: [DONE]
+

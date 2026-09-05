@@ -1,0 +1,471 @@
+{
+  "$comment": "R3 wire contract. Runtime identity is decoded into connectionId, canonicalModelId, finalTransport and runtimeRevision. The versioned transportIdentity only carries finalTransport + runtimeRevision for backward-compatible wire shape; it is never a generation-template fingerprint or LWW revision.",
+  "schemaVersion": 2,
+  "privacy": {
+    "allowedTopLevelKeys": [
+      "schemaVersion",
+      "records",
+      "tombstones"
+    ],
+    "typedRecordKeys": [
+      "recordId",
+      "scope",
+      "providerId",
+      "canonicalModelId",
+      "conversationId",
+      "skillId",
+      "transportIdentity",
+      "web",
+      "reasoningIntent",
+      "revision",
+      "mutationId"
+    ],
+    "webValues": [
+      "off",
+      "automatic",
+      "force"
+    ],
+    "reasoningIntentValues": [
+      "off",
+      "low",
+      "balanced",
+      "deep",
+      "max"
+    ],
+    "rawCustom": "forbidden: custom mode and raw JSON are local-only and must never be encoded, synced, or telemetered"
+  },
+  "payload": {
+    "schemaVersion": 2,
+    "records": [
+      {
+        "recordId": "scope:connection:9a1195de-3af9-5888-abc8-b8177c458c07:gpt-test:r1.b3BlbmFpX3Jlc3BvbnNlcw.cnVudGltZS1yNw",
+        "scope": "connection",
+        "providerId": "9a1195de-3af9-5888-abc8-b8177c458c07",
+        "canonicalModelId": "gpt-test",
+        "transportIdentity": "r1.b3BlbmFpX3Jlc3BvbnNlcw.cnVudGltZS1yNw",
+        "web": "off",
+        "reasoningIntent": null,
+        "revision": 2,
+        "mutationId": "00000000-0000-4000-8000-000000000102"
+      },
+      {
+        "recordId": "scope:model:9a1195de-3af9-5888-abc8-b8177c458c07:Qwen/Qwen2.5-72B-Instruct:r1.b3BlbmFpX2NoYXQ.cnVudGltZS1yNw",
+        "scope": "connection_model",
+        "providerId": "9a1195de-3af9-5888-abc8-b8177c458c07",
+        "canonicalModelId": "Qwen/Qwen2.5-72B-Instruct",
+        "transportIdentity": "r1.b3BlbmFpX2NoYXQ.cnVudGltZS1yNw",
+        "web": "automatic",
+        "reasoningIntent": "off",
+        "revision": 3,
+        "mutationId": "00000000-0000-4000-8000-000000000103"
+      },
+      {
+        "recordId": "scope:conversation:9a1195de-3af9-5888-abc8-b8177c458c07:gpt-test:r1.b3BlbmFpX3Jlc3BvbnNlcw.cnVudGltZS1yNw:7c9e6679-7425-40de-944b-e07fc1f90ae7",
+        "scope": "conversation_connection_model",
+        "providerId": "9a1195de-3af9-5888-abc8-b8177c458c07",
+        "canonicalModelId": "gpt-test",
+        "conversationId": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+        "transportIdentity": "r1.b3BlbmFpX3Jlc3BvbnNlcw.cnVudGltZS1yNw",
+        "web": "force",
+        "reasoningIntent": "max",
+        "revision": 4,
+        "mutationId": "00000000-0000-4000-8000-000000000104"
+      },
+      {
+        "recordId": "scope:skill:9a1195de-3af9-5888-abc8-b8177c458c07:gpt-test:r1.YW50aHJvcGljX21lc3NhZ2Vz.cnVudGltZS1yNw:3fa85f64-5717-4562-b3fc-2c963f66afa6",
+        "scope": "skill_agent",
+        "providerId": "9a1195de-3af9-5888-abc8-b8177c458c07",
+        "canonicalModelId": "gpt-test",
+        "skillId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+        "transportIdentity": "r1.YW50aHJvcGljX21lc3NhZ2Vz.cnVudGltZS1yNw",
+        "web": "automatic",
+        "reasoningIntent": "off",
+        "revision": 5,
+        "mutationId": "00000000-0000-4000-8000-000000000105"
+      }
+    ],
+    "tombstones": [
+      {
+        "recordId": "scope:conversation:9a1195de-3af9-5888-abc8-b8177c458c07:deleted-model:r1.b3BlbmFpX3Jlc3BvbnNlcw.cnVudGltZS1yNw:7c9e6679-7425-40de-944b-e07fc1f90ae7",
+        "revision": 7,
+        "mutationId": "00000000-0000-4000-8000-000000000107"
+      }
+    ]
+  },
+  "runtimeIdentityEncoding": {
+    "version": "r1",
+    "format": "r1.<base64url(finalTransport)>.<base64url(runtimeRevision)>",
+    "canonicalModelField": "canonicalModelId",
+    "connectionField": "providerId",
+    "decodedFields": [
+      "finalTransport",
+      "runtimeRevision"
+    ],
+    "mutationRevisionIsRuntimeRevision": false,
+    "legacyRawTransportIdentity": "retain_dormant_until_explicit_reconfirmation",
+    "malformedOrUnknownVersion": "retain_dormant_until_explicit_reconfirmation"
+  },
+  "scopeInvariants": [
+    {
+      "scope": "connection",
+      "required": [
+        "providerId",
+        "canonicalModelId",
+        "transportIdentity"
+      ],
+      "forbidden": [
+        "conversationId",
+        "skillId"
+      ]
+    },
+    {
+      "scope": "connection_model",
+      "required": [
+        "providerId",
+        "canonicalModelId",
+        "transportIdentity"
+      ],
+      "forbidden": [
+        "conversationId",
+        "skillId"
+      ]
+    },
+    {
+      "scope": "conversation_connection_model",
+      "required": [
+        "providerId",
+        "canonicalModelId",
+        "conversationId",
+        "transportIdentity"
+      ],
+      "forbidden": [
+        "skillId"
+      ]
+    },
+    {
+      "scope": "skill_agent",
+      "required": [
+        "providerId",
+        "canonicalModelId",
+        "skillId",
+        "transportIdentity"
+      ],
+      "forbidden": [
+        "conversationId"
+      ]
+    }
+  ],
+  "recordIdCases": [
+    {
+      "caseId": "connection_lowercases_provider_uuid_and_keeps_canonical_model",
+      "scope": "connection",
+      "providerId": "9A1195DE-3AF9-5888-ABC8-B8177C458C07",
+      "canonicalModelId": "gpt-test",
+      "finalTransport": "openai_responses",
+      "runtimeRevision": "runtime-r7",
+      "transportIdentity": "r1.b3BlbmFpX3Jlc3BvbnNlcw.cnVudGltZS1yNw",
+      "recordId": "scope:connection:9a1195de-3af9-5888-abc8-b8177c458c07:gpt-test:r1.b3BlbmFpX3Jlc3BvbnNlcw.cnVudGltZS1yNw"
+    },
+    {
+      "caseId": "connection_model_preserves_case_sensitive_model_id",
+      "scope": "connection_model",
+      "providerId": "9A1195DE-3AF9-5888-ABC8-B8177C458C07",
+      "canonicalModelId": "Qwen/Qwen2.5-72B-Instruct",
+      "finalTransport": "openai_chat",
+      "runtimeRevision": "runtime-r7",
+      "transportIdentity": "r1.b3BlbmFpX2NoYXQ.cnVudGltZS1yNw",
+      "recordId": "scope:model:9a1195de-3af9-5888-abc8-b8177c458c07:Qwen/Qwen2.5-72B-Instruct:r1.b3BlbmFpX2NoYXQ.cnVudGltZS1yNw"
+    },
+    {
+      "caseId": "conversation_lowercases_uuid_segments_only",
+      "scope": "conversation_connection_model",
+      "providerId": "9A1195DE-3AF9-5888-ABC8-B8177C458C07",
+      "canonicalModelId": "gpt-test",
+      "finalTransport": "openai_responses",
+      "runtimeRevision": "runtime-r7",
+      "conversationId": "7C9E6679-7425-40DE-944B-E07FC1F90AE7",
+      "transportIdentity": "r1.b3BlbmFpX3Jlc3BvbnNlcw.cnVudGltZS1yNw",
+      "recordId": "scope:conversation:9a1195de-3af9-5888-abc8-b8177c458c07:gpt-test:r1.b3BlbmFpX3Jlc3BvbnNlcw.cnVudGltZS1yNw:7c9e6679-7425-40de-944b-e07fc1f90ae7"
+    },
+    {
+      "caseId": "skill_lowercases_uuid_segments_only",
+      "scope": "skill_agent",
+      "providerId": "9A1195DE-3AF9-5888-ABC8-B8177C458C07",
+      "canonicalModelId": "gpt-test",
+      "finalTransport": "anthropic_messages",
+      "runtimeRevision": "runtime-r7",
+      "skillId": "3FA85F64-5717-4562-B3FC-2C963F66AFA6",
+      "transportIdentity": "r1.YW50aHJvcGljX21lc3NhZ2Vz.cnVudGltZS1yNw",
+      "recordId": "scope:skill:9a1195de-3af9-5888-abc8-b8177c458c07:gpt-test:r1.YW50aHJvcGljX21lc3NhZ2Vz.cnVudGltZS1yNw:3fa85f64-5717-4562-b3fc-2c963f66afa6"
+    }
+  ],
+  "legacyMigrationCases": [
+    {
+      "caseId": "raw_transport_identity_is_dormant",
+      "legacyRecord": {
+        "schemaVersion": 1,
+        "providerId": "9a1195de-3af9-5888-abc8-b8177c458c07",
+        "modelId": "gpt-test",
+        "transportIdentity": "openai_responses",
+        "revision": 99
+      },
+      "currentIdentity": {
+        "providerId": "9a1195de-3af9-5888-abc8-b8177c458c07",
+        "canonicalModelId": "gpt-test",
+        "finalTransport": "openai_responses",
+        "runtimeRevision": "runtime-r7"
+      },
+      "expected": {
+        "resolved": false,
+        "state": "dormant",
+        "reason": "incomplete_runtime_identity"
+      }
+    },
+    {
+      "caseId": "lww_revision_cannot_fill_runtime_revision",
+      "legacyRecord": {
+        "schemaVersion": 1,
+        "providerId": "9a1195de-3af9-5888-abc8-b8177c458c07",
+        "modelId": "gpt-test",
+        "transportIdentity": "openai_responses",
+        "revision": 7
+      },
+      "currentIdentity": {
+        "providerId": "9a1195de-3af9-5888-abc8-b8177c458c07",
+        "canonicalModelId": "gpt-test",
+        "finalTransport": "openai_responses",
+        "runtimeRevision": "7"
+      },
+      "expected": {
+        "resolved": false,
+        "state": "dormant",
+        "reason": "mutation_revision_is_not_runtime_revision"
+      }
+    }
+  ],
+  "resolutionCases": [
+    {
+      "caseId": "conversation_web_inherits_connection_reasoning",
+      "singleSend": null,
+      "conversation": {
+        "web": "force",
+        "reasoningIntent": null
+      },
+      "skillAgent": null,
+      "connectionModel": {
+        "web": "off",
+        "reasoningIntent": null
+      },
+      "connection": {
+        "web": "automatic",
+        "reasoningIntent": "max"
+      },
+      "providerRecipe": {
+        "web": "automatic",
+        "reasoningIntent": "low"
+      },
+      "providerDefault": {
+        "web": "off",
+        "reasoningIntent": "balanced"
+      },
+      "expected": {
+        "web": "force",
+        "reasoningIntent": "max"
+      }
+    },
+    {
+      "caseId": "provider_recipe_supplies_both_fields",
+      "singleSend": null,
+      "conversation": null,
+      "skillAgent": null,
+      "connectionModel": null,
+      "connection": null,
+      "providerRecipe": {
+        "web": "automatic",
+        "reasoningIntent": "low"
+      },
+      "providerDefault": {
+        "web": "off",
+        "reasoningIntent": "max"
+      },
+      "expected": {
+        "web": "automatic",
+        "reasoningIntent": "low"
+      }
+    },
+    {
+      "caseId": "provider_recipe_web_inherits_provider_default_reasoning",
+      "singleSend": null,
+      "conversation": null,
+      "skillAgent": null,
+      "connectionModel": null,
+      "connection": null,
+      "providerRecipe": {
+        "web": "automatic",
+        "reasoningIntent": null
+      },
+      "providerDefault": {
+        "web": "off",
+        "reasoningIntent": "deep"
+      },
+      "expected": {
+        "web": "automatic",
+        "reasoningIntent": "deep"
+      }
+    }
+  ],
+  "invalidTombstoneCases": [
+    {
+      "recordId": "scope:model:not-a-canonical-provider:model:transport",
+      "revision": 999,
+      "mutationId": "remote-invalid-provider-delete"
+    },
+    {
+      "recordId": "scope:model:9A1195DE-3AF9-5888-ABC8-B8177C458C07:model:openai_responses",
+      "revision": 999,
+      "mutationId": "remote-uppercase-delete"
+    },
+    {
+      "recordId": "scope:unknown:9a1195de-3af9-5888-abc8-b8177c458c07:model:transport",
+      "revision": 999,
+      "mutationId": "remote-unknown-scope-delete"
+    }
+  ],
+  "mergeCases": [
+    {
+      "caseId": "higher_revision_wins",
+      "local": {
+        "recordId": "scope:model:a:model:transport",
+        "revision": 2,
+        "mutationId": "z"
+      },
+      "remote": {
+        "recordId": "scope:model:a:model:transport",
+        "revision": 3,
+        "mutationId": "a"
+      },
+      "winner": "remote"
+    },
+    {
+      "caseId": "mutation_id_breaks_equal_revision_tie",
+      "local": {
+        "recordId": "scope:model:a:model:transport",
+        "revision": 3,
+        "mutationId": "a"
+      },
+      "remote": {
+        "recordId": "scope:model:a:model:transport",
+        "revision": 3,
+        "mutationId": "b"
+      },
+      "winner": "remote"
+    },
+    {
+      "caseId": "tombstone_prevents_resurrection",
+      "local": {
+        "recordId": "scope:conversation:a:model:transport:conversation",
+        "revision": 7,
+        "mutationId": "b",
+        "deleted": true
+      },
+      "remote": {
+        "recordId": "scope:conversation:a:model:transport:conversation",
+        "revision": 6,
+        "mutationId": "z"
+      },
+      "winner": "local"
+    },
+    {
+      "caseId": "reconfirmation_outranks_own_tombstone",
+      "local": {
+        "recordId": "scope:skill:a:model:transport:skill",
+        "revision": 7,
+        "mutationId": "b",
+        "deleted": true
+      },
+      "remote": {
+        "recordId": "scope:skill:a:model:transport:skill",
+        "revision": 8,
+        "mutationId": "a"
+      },
+      "winner": "remote"
+    }
+  ],
+  "wireInvariants": {
+    "$comment": "Field-by-field consistency rules for the shared envelope. If any client violates one of them, whichever client next reads the other's envelope judges it \"behind\" and writes back, and the other client writes back again — an infinite ping-pong where the content is identical and only the ordering or key set differs. Each client has one contract-driven test locking this section down.",
+    "ordering": {
+      "$comment": "All clients must use the same comparator: JS `<` / Kotlin `sortedBy` / Swift `<` (code-point order). ICU collation (`localeCompare` / `localizedCompare`) is forbidden — it treats `~` as an ignorable weight, so `~deepseek/…` would sort before `z-ai/…`, while in code-point order `~` (U+007E) comes after `z` (U+007A). The write-back check compares the array as an ordered sequence, so two clients using different sorters produce an infinite write-back ping-pong that differs only in order — two copies with identical content and only a different array order still trigger endless writes.",
+      "comparator": "code_point",
+      "forbiddenComparators": [
+        "localeCompare",
+        "localizedCompare",
+        "ICU collation",
+        "case-insensitive compare"
+      ],
+      "records": "recordId",
+      "tombstones": "recordId"
+    },
+    "capacity": {
+      "$comment": "Truncation happens after sorting, and the direction is the same on every client: records keep the head, tombstones keep the tail.",
+      "records": {
+        "limit": 200,
+        "keep": "head"
+      },
+      "tombstones": {
+        "limit": 300,
+        "keep": "tail"
+      }
+    },
+    "alwaysPresentTopLevelKeys": {
+      "$comment": "These top-level keys must always be present; an empty collection is written as `[]`. kotlinx's default `encodeDefaults=false` omits schemaVersion whenever it equals the default, along with any empty array — in practice, capabilityPreferenceSettings written by Android ≤1.2.6 has no schemaVersion at all, and both Web's `schemaVersion !== 2` check and iOS's decoding would then discard the whole remote value and overwrite it with local data (data loss plus a write-back loop).",
+      "keys": [
+        "schemaVersion",
+        "records",
+        "tombstones"
+      ]
+    },
+    "omitWhenNull": {
+      "$comment": "When an optional field is empty the whole key is omitted, never written as an explicit null. Swift's Codable and kotlinx's `explicitNulls=false` omit it naturally, Web uses `...(x ? {x} : {})`. Inbound data must be normalized the same way: if the remote sends an explicit null, flatten it out locally instead of propagating it as-is — otherwise only one of the three clients keeps the null and the equality check can never pass.",
+      "recordFields": [
+        "conversationId",
+        "skillId",
+        "reasoningIntent"
+      ]
+    },
+    "missingSchemaVersionIsV2": "Android ≤1.2.6 omits schemaVersion, so the decoder must treat a missing value as 2 to read that batch of existing data back correctly; any other explicit version is still rejected.",
+    "emptyEnvelopeNeverOutbound": "An envelope where records and tombstones are all empty carries zero information and must never go out on the wire — a merge-style write on an array field replaces it wholesale, so an empty envelope would wipe out the stored envelope on the remote side. Right after a fresh local profile's first sync, and right after a boundary reset, the local state is genuinely all-empty, so the very first send after binding must be silently skipped and wait for a merge to run first. A legitimate \"everything has been deleted\" state always still carries tombstones and is never a fully empty envelope, so this rule never drops a real user intent.",
+    "orderingBoundaryCase": {
+      "$comment": "Crossing the ~/z boundary: ICU collation and code-point order give opposite answers here, and every implementation must produce the code-point order.",
+      "unordered": [
+        "scope:model:9a1195de-3af9-5888-abc8-b8177c458c07:~deepseek/deepseek-v4-flash:r1.b3BlbmFpX2NoYXQ.cnVudGltZS1yNw",
+        "scope:model:9a1195de-3af9-5888-abc8-b8177c458c07:z-ai/glm-5:r1.b3BlbmFpX2NoYXQ.cnVudGltZS1yNw",
+        "scope:model:9a1195de-3af9-5888-abc8-b8177c458c07:cohere/north-mini:r1.b3BlbmFpX2NoYXQ.cnVudGltZS1yNw"
+      ],
+      "codePointOrder": [
+        "scope:model:9a1195de-3af9-5888-abc8-b8177c458c07:cohere/north-mini:r1.b3BlbmFpX2NoYXQ.cnVudGltZS1yNw",
+        "scope:model:9a1195de-3af9-5888-abc8-b8177c458c07:z-ai/glm-5:r1.b3BlbmFpX2NoYXQ.cnVudGltZS1yNw",
+        "scope:model:9a1195de-3af9-5888-abc8-b8177c458c07:~deepseek/deepseek-v4-flash:r1.b3BlbmFpX2NoYXQ.cnVudGltZS1yNw"
+      ],
+      "icuOrderIsWrong": [
+        "~deepseek/deepseek-v4-flash",
+        "cohere/north-mini",
+        "z-ai/glm-5"
+      ]
+    }
+  },
+  "accountScopeInvariants": {
+    "$comment": "Rules against leaking state across local profile boundaries: local storage on each client is bound to a single profile scope, and no record produced or absorbed under one profile may be carried into another. Without this, a new profile's preferences record could end up with tombstones that still reference an older profile's session ids. An official provider that derives a deterministic id (the same id regardless of profile) makes a record from a different profile look like a \"legitimate record\" under the new profile — so removing that provider bulk-tombstones it (revision+1) and pushes it to the remote store still carrying the old profile's session id. Each client has one contract-driven test locking this section down.",
+    "localStateAccountBounded": "Local persistence of records, tombstones, the revision ledger, and any other local state in this same envelope (drafts/presets) must be bound to a single profile scope: a per-profile partition (Web's partitioned-local-store) or a profile stamp plus a boundary reset (iOS/Android). One profile's exported envelope must never contain any state produced or absorbed under a different profile.",
+    "boundaryReset": {
+      "$comment": "The reset must happen after the sync writer unbinds and before the next profile binds — getting the order wrong either sends an empty envelope into the previous profile's remote copy (destroying its stored data) or lets the new profile's first send still carry the old data. publish/merge are both asynchronous, so every await around the insertion point must re-check that the binding still belongs to the current profile.",
+      "signOut": "Clears all sync-visible state (records, the tombstones ledger, presets/drafts) and the profile stamp.",
+      "bindWithMismatchedStamp": "When binding sync for a profile, if a profile stamp already exists and does not match the profile being bound, a reset must happen before the first send.",
+      "stampAdoption": "When there is no profile stamp yet (an existing install being upgraded), the existing data is adopted and stamped with the current profile rather than reset — any pre-existing cross-profile contamination is left to converge naturally through remote-side handling and capacity eviction, and no new contamination is created going forward. The default scope before a profile is chosen never gets stamped and never triggers a reset."
+    },
+    "revisionBaselineNotInherited": "A boundary reset must clear the revision ledger along with everything else: clearing records but not the ledger would let the next profile's new writes inherit the previous profile's revision baseline, inflating version numbers and corrupting last-write-wins.",
+    "tombstoneQuotaPerAccount": "The tombstone capacity limit (300) is counted per profile. Sharing the limit across profiles would let one profile's existing tombstones crowd out another profile's new ones, resurrecting a setting that profile already deleted. A boundary reset already satisfies this rule — after a reset the limit belongs only to the current profile.",
+    "guestPromotion": "not_migrated — envelope state produced in the default scope does not carry over once a profile is chosen (resetting connection-scoped state is cheap, and the complexity and leak risk of a migration path would be disproportionate). Inheritance in either direction between two profiles is likewise forbidden.",
+    "legacyBareKeyClaim": "Unpartitioned data left over from before partitioning shipped (Web's bare key) may only be inherited by the first profile to use it, and only when \"no profile has ever used this device before\"; if a profile has already used this device, that leftover data is deleted rather than inherited by the next one — the data already belongs to some profile, so the \"unowned\" premise does not hold.",
+    "exportUidBinding": "The local partition/storage an exported envelope is read from and the remote copy it is written to must belong to the same profile; the export path should carry a runtime assertion (discard and report if the profile doesn't match), turning \"this should be structurally impossible\" into something actually verified at runtime."
+  }
+}

@@ -1,0 +1,125 @@
+{
+  "schema": "oriveo.provider-toolcall-unsupported-4xx/v1",
+  "work_id": "provider-toolcall-governance",
+  "purpose": "Shared contract fixture.",
+  "rules": {
+    "status_range": [
+      400,
+      499
+    ],
+    "status_excluded": [
+      401,
+      402,
+      403,
+      407,
+      408,
+      429
+    ],
+    "match": "The response body (or the mapped error detail) must hit, case-insensitively, at least one regex from each of the subject and verdict pattern groups; both groups use `(?i)` semantics, and an implementation must not additionally trim or normalize anything beyond punctuation.",
+    "subject_patterns": [
+      "\\btools?\\b",
+      "\\btool_calls?\\b",
+      "\\btool_choice\\b",
+      "\\bfunctions?\\b",
+      "\\bfunction[_ ]call(ing)?\\b"
+    ],
+    "verdict_patterns": [
+      "\\bunsupported\\b",
+      "\\bnot (currently )?support(ed)?\\b",
+      "\\bdoes(n't| not) support\\b",
+      "\\binvalid\\b",
+      "\\bunknown\\b",
+      "\\bunrecognized\\b",
+      "\\bunexpected\\b",
+      "\\bextra (inputs?|fields?|parameters?)\\b",
+      "\\bnot (allowed|permitted|available)\\b",
+      "\\bnot a valid\\b"
+    ]
+  },
+  "cases": [
+    {
+      "id": "openai_style_unrecognized_argument",
+      "status": 400,
+      "body": "{\"error\":{\"message\":\"Unrecognized request argument supplied: tools\",\"type\":\"invalid_request_error\"}}",
+      "expect": true
+    },
+    {
+      "id": "generic_tools_not_supported",
+      "status": 400,
+      "body": "{\"error\":{\"message\":\"This model does not support tools.\"}}",
+      "expect": true
+    },
+    {
+      "id": "function_calling_unsupported",
+      "status": 400,
+      "body": "{\"error\":{\"message\":\"Function calling is not supported for model foo\"}}",
+      "expect": true
+    },
+    {
+      "id": "tool_choice_invalid",
+      "status": 400,
+      "body": "{\"error\":{\"message\":\"Invalid value for 'tool_choice': this model cannot use tools\"}}",
+      "expect": true
+    },
+    {
+      "id": "extra_inputs_tools",
+      "status": 422,
+      "body": "{\"detail\":[{\"loc\":[\"body\",\"tools\"],\"msg\":\"Extra inputs are not permitted\",\"type\":\"extra_forbidden\"}]}",
+      "expect": true
+    },
+    {
+      "id": "unknown_field_tools",
+      "status": 400,
+      "body": "{\"message\":\"Unknown field: tools\"}",
+      "expect": true
+    },
+    {
+      "id": "rate_limited_mentions_tools",
+      "status": 429,
+      "body": "{\"error\":{\"message\":\"Rate limit exceeded for tools endpoint\"}}",
+      "expect": false
+    },
+    {
+      "id": "unauthorized",
+      "status": 401,
+      "body": "{\"error\":{\"message\":\"Invalid API key; tools unsupported\"}}",
+      "expect": false
+    },
+    {
+      "id": "forbidden",
+      "status": 403,
+      "body": "{\"error\":{\"message\":\"tools not allowed for this account\"}}",
+      "expect": false
+    },
+    {
+      "id": "server_error",
+      "status": 500,
+      "body": "{\"error\":{\"message\":\"tools unsupported\"}}",
+      "expect": false
+    },
+    {
+      "id": "bad_request_unrelated",
+      "status": 400,
+      "body": "{\"error\":{\"message\":\"messages[0].content must not be empty\"}}",
+      "expect": false
+    },
+    {
+      "id": "bad_request_context_length",
+      "status": 400,
+      "body": "{\"error\":{\"message\":\"This model's maximum context length is 8192 tokens. Your messages resulted in 9000 tokens.\"}}",
+      "expect": false
+    },
+    {
+      "id": "invalid_json_unrelated",
+      "status": 400,
+      "body": "{\"error\":{\"message\":\"Invalid JSON body\"}}",
+      "expect": false
+    },
+    {
+      "id": "subject_without_verdict",
+      "status": 400,
+      "body": "{\"error\":{\"message\":\"tools[0].function.name is required\"}}",
+      "expect": false
+    }
+  ]
+}

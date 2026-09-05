@@ -1,0 +1,144 @@
+{
+  "sourceLanguage": "en",
+  "strings": {
+    "CFBundleName": {
+      "comment": "Bundle name",
+      "extractionState": "extracted_with_value",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Oriveo"
+          }
+        }
+      }
+    },
+    "NSCameraUsageDescription": {
+      "comment": "Privacy - Camera Usage Description",
+      "extractionState": "extracted_with_value",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Take photos to attach to your chat messages or update your profile avatar."
+          }
+        }
+      }
+    },
+    "NSLocalNetworkUsageDescription": {
+      "extractionState": "manual",
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "الاتصال مباشرة بخدمات الذكاء الاصطناعي على شبكتك المحلية أو شبكة VPN الخاصة."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Direkt mit KI-Diensten in deinem lokalen Netzwerk oder privaten VPN verbinden."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Connect directly to AI services on your local network or private VPN."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Conectarse directamente a servicios de IA en tu red local o VPN privada."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Se connecter directement aux services d’IA de votre réseau local ou VPN privé."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "अपने लोकल नेटवर्क या निजी VPN पर AI सेवाओं से सीधे कनेक्ट करें।"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Terhubung langsung ke layanan AI di jaringan lokal atau VPN pribadi Anda."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ローカルネットワークまたはプライベートVPN上のAIサービスに直接接続します。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "로컬 네트워크 또는 비공개 VPN의 AI 서비스에 직접 연결합니다."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Conectar diretamente a serviços de IA na sua rede local ou VPN privada."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Прямое подключение к сервисам ИИ в локальной сети или частной VPN."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "เชื่อมต่อโดยตรงกับบริการ AI บนเครือข่ายภายในหรือ VPN ส่วนตัวของคุณ"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yerel ağınızdaki veya özel VPN’inizdeki yapay zeka hizmetlerine doğrudan bağlanın."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kết nối trực tiếp với các dịch vụ AI trên mạng cục bộ hoặc VPN riêng của bạn."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "直接连接局域网或专用 VPN 中的 AI 服务。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "直接連線區域網路或私人 VPN 中的 AI 服務。"
+          }
+        }
+      }
+    },
+    "NSPhotoLibraryAddUsageDescription": {
+      "comment": "Privacy - Photo Library Additions Usage Description",
+      "extractionState": "extracted_with_value",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "new",
+            "value": "Save AI-generated images to your photo library"
+          }
+        }
+      }
+    },
+    "Oriveo Backup": {}
+  },
+  "version": "1.0"
+}

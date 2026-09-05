@@ -1,0 +1,551 @@
+.layer {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 24px 24px calc(var(--o-crosscheck-sidebar-width, var(--o-sidebar-width, 0px)) + 24px);
+  pointer-events: none;
+}
+
+.backdrop {
+  position: absolute;
+  inset: 0;
+  background: var(--o-overlay);
+  backdrop-filter: blur(8px) saturate(0.95);
+  -webkit-backdrop-filter: blur(8px) saturate(0.95);
+  pointer-events: auto;
+}
+
+.sheet {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  width: min(1080px, 100%);
+  height: min(760px, calc(100dvh - 48px));
+  max-height: calc(100dvh - 48px);
+  min-height: min(600px, calc(100dvh - 48px));
+  overflow: hidden;
+  margin: 0;
+  border: 1px solid var(--o-border);
+  border-radius: var(--o-radius-modal);
+  background: var(--o-surface);
+  box-shadow: var(--o-elevation-modal);
+  padding: 22px;
+  pointer-events: auto;
+}
+
+.header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-shrink: 0;
+}
+
+.header h2,
+.header p,
+.compareGrid h3,
+.emptyOpinion {
+  margin: 0;
+}
+
+.header h2 {
+  font-size: 18px;
+  line-height: 1.25;
+  letter-spacing: -0.01em;
+}
+
+.header p {
+  margin-top: 4px;
+  color: var(--o-text-secondary);
+  font-size: 13px;
+}
+
+.closeButton {
+  appearance: none;
+  min-width: var(--o-touch-target);
+  min-height: var(--o-touch-target);
+  width: var(--o-touch-target);
+  height: var(--o-touch-target);
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--o-text-secondary);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition:
+    background var(--o-transition-fast),
+    color var(--o-transition-fast),
+    transform var(--o-transition-fast);
+}
+
+.closeButton:hover {
+  background: var(--o-primary-subtle);
+  color: var(--o-text);
+}
+
+.closeButton:active {
+  transform: scale(0.97);
+}
+
+.controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 14px;
+  margin-top: 16px;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 3;
+}
+
+.modelField {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 6px;
+  color: var(--o-text-secondary);
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.modelField[data-disabled='true'] {
+  opacity: 0.72;
+  pointer-events: none;
+}
+
+.modelPicker {
+  position: relative;
+  width: 100%;
+}
+
+.modelTrigger {
+  width: 100%;
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  border: 1px solid color-mix(in srgb, var(--o-border-strong) 82%, transparent);
+  border-radius: 12px;
+  background: var(--o-ms-trigger-bg);
+  color: var(--o-text);
+  padding: 7px 12px 7px 14px;
+  cursor: pointer;
+  font: inherit;
+  box-shadow: var(--o-ms-trigger-shadow);
+  transition:
+    border-color var(--o-transition-fast),
+    box-shadow var(--o-transition-fast),
+    transform var(--o-transition-fast);
+}
+
+.modelTrigger:hover {
+  border-color: color-mix(in srgb, var(--o-primary) 28%, var(--o-border-strong));
+  transform: translateY(-1px);
+}
+
+.modelTrigger:focus-visible,
+.modelTrigger[aria-expanded='true'] {
+  outline: none;
+  border-color: var(--o-ms-trigger-focus-border);
+  box-shadow: var(--o-ms-trigger-focus-shadow);
+}
+
+.modelTriggerCopy,
+.modelOptionCopy {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+
+.modelName,
+.modelOptionName {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--o-text);
+  font-size: 14px;
+  font-weight: 750;
+  letter-spacing: -0.01em;
+}
+
+.providerName,
+.modelOptionProvider {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--o-text-tertiary);
+  font-size: 11px;
+  font-weight: 650;
+  line-height: 1.15;
+}
+
+.modelChevron {
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border-radius: 999px;
+  color: var(--o-primary);
+  background: color-mix(in srgb, var(--o-primary) 10%, transparent);
+  font-size: 15px;
+  line-height: 1;
+  transform: translateY(-1px);
+}
+
+.modelTrigger[aria-expanded='true'] .modelChevron {
+  transform: translateY(1px) rotate(180deg);
+}
+
+.modelMenu {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 8px);
+  left: 0;
+  width: min(520px, 100%);
+  display: grid;
+  gap: 4px;
+  max-height: min(46vh, 300px);
+  overflow-y: auto;
+  padding: 8px;
+  border: 1px solid var(--o-ms-menu-border);
+  border-radius: 16px;
+  background: var(--o-surface);
+  box-shadow: var(--o-ms-menu-shadow);
+  overscroll-behavior: contain;
+  outline: none;
+}
+
+.modelProviderGroup {
+  min-width: 0;
+  overflow: hidden;
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--o-surface-raised) 78%, transparent);
+}
+
+.modelProviderHeader,
+.modelVendorHeader {
+  width: 100%;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 0;
+  background: transparent;
+  color: var(--o-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.modelProviderHeader {
+  min-height: 50px;
+  padding: 9px 12px;
+  font-size: 13px;
+  font-weight: 750;
+}
+
+.modelVendorHeader {
+  min-height: 46px;
+  padding: 8px 12px 8px 16px;
+  color: var(--o-text-secondary);
+  font-size: 12px;
+  font-weight: 700;
+  background: color-mix(in srgb, var(--o-bg-inset) 56%, transparent);
+}
+
+.modelProviderHeader:hover,
+.modelProviderHeader:focus-visible,
+.modelVendorHeader:hover,
+.modelVendorHeader:focus-visible {
+  outline: none;
+  background: var(--o-ms-option-hover-bg);
+}
+
+.modelGroupLead {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.modelGroupLead > span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.modelGroupChevron {
+  flex-shrink: 0;
+  transition: transform var(--o-transition-fast);
+}
+
+.modelGroupChevron[data-collapsed='true'] {
+  transform: rotate(-90deg);
+}
+
+.modelGroupCount {
+  flex-shrink: 0;
+  color: var(--o-text-tertiary);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.modelProviderBody,
+.modelVendorBody {
+  display: grid;
+  min-width: 0;
+}
+
+.modelProviderBody,
+.modelVendorGroup + .modelVendorGroup {
+  border-top: 1px solid var(--o-border);
+}
+
+.modelVendorBody {
+  padding: 2px 4px 4px 16px;
+}
+
+.modelOption {
+  width: 100%;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 54px;
+  border: 0;
+  border-radius: 12px;
+  background: transparent;
+  padding: 9px 10px 9px 12px;
+  color: var(--o-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition:
+    background var(--o-transition-fast),
+    transform var(--o-transition-fast);
+}
+
+.modelOption:hover,
+.modelOption:focus-visible,
+.modelOption[data-active='true'] {
+  outline: none;
+  background: var(--o-ms-option-hover-bg);
+}
+
+.modelOption[data-selected='true'] {
+  background: var(--o-ms-option-selected-bg);
+  box-shadow: var(--o-ms-option-selected-shadow);
+}
+
+.modelOptionCheck {
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border-radius: 999px;
+  background: var(--o-ms-option-check-bg);
+  color: var(--o-ms-option-check-color);
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.modelOptionCheck:empty {
+  visibility: hidden;
+}
+
+.noCandidate {
+  min-width: 0;
+  margin: 0;
+  color: var(--o-text-tertiary);
+  font-size: 12px;
+  align-self: center;
+}
+
+.runButtonWrap {
+  display: flex;
+  align-items: end;
+  justify-content: flex-end;
+  min-width: max-content;
+}
+
+.runButtonWrap button {
+  min-height: 48px;
+  padding-inline: 22px;
+  border-radius: 12px;
+  white-space: nowrap;
+  font-size: 13px;
+}
+
+.compareGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 16px;
+  min-height: 0;
+  flex: 1;
+}
+
+.compareGrid article {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  border: 1px solid color-mix(in srgb, var(--o-border-strong) 52%, transparent);
+  border-radius: 16px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--o-surface) 96%, var(--o-primary) 2%) 0%, var(--o-surface) 68%),
+    var(--o-surface);
+  padding: 0;
+  box-shadow:
+    0 1px 2px color-mix(in srgb, var(--o-text) 4%, transparent),
+    inset 0 1px 0 var(--o-hairline);
+  overflow: hidden;
+}
+
+.compareGrid h3 {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 16px 12px;
+  border-bottom: 1px solid color-mix(in srgb, var(--o-border) 82%, transparent);
+  background: color-mix(in srgb, var(--o-bg-subtle) 42%, transparent);
+  font-size: 13px;
+  color: var(--o-text-secondary);
+  font-weight: 750;
+}
+
+.compareGrid h3::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--o-text-tertiary) 55%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--o-text-tertiary) 9%, transparent);
+}
+
+.compareGrid article:nth-child(2) h3::before {
+  background: var(--o-primary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--o-primary) 12%, transparent);
+}
+
+.answerContent {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  color: var(--o-text);
+  font-size: 14px;
+  line-height: 1.68;
+  padding: 16px;
+  scrollbar-gutter: stable;
+}
+
+.answerContent :where(p, ul, ol, blockquote, pre, table) {
+  font-size: 14px;
+}
+
+.answerContent :where(pre, table) {
+  max-width: 100%;
+}
+
+.secondAnswerContent {
+  padding: 16px;
+}
+
+.emptyOpinion {
+  color: var(--o-text-tertiary);
+  line-height: 1.65;
+  text-wrap: pretty;
+}
+
+.footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+  flex-shrink: 0;
+}
+
+/* At <=1023px the AppShell turns the sidebar into an overlay and the grid collapses to one column,
+   so the main area fills the viewport and the sheet is centred full-screen again. */
+@media (max-width: 1023px) {
+  .layer {
+    padding: 20px;
+  }
+}
+
+@media (max-width: 720px) {
+  /* On phones it goes back to a bottom sheet, which is easier to swipe up; desktop and tablet keep the centred layout */
+  .layer {
+    align-items: flex-end;
+    padding: 12px 0 0;
+  }
+
+  .sheet {
+    width: 100%;
+    height: auto;
+    max-height: 88dvh;
+    min-height: 0;
+    overflow-y: auto;
+    margin: 0;
+    border-radius: var(--o-radius-modal) var(--o-radius-modal) 0 0;
+    padding: 16px 16px calc(16px + env(safe-area-inset-bottom));
+    padding-bottom: calc(16px + env(safe-area-inset-bottom));
+    overscroll-behavior: contain;
+  }
+
+  .controls,
+  .compareGrid {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .controls {
+    gap: 12px;
+  }
+
+  .runButtonWrap {
+    min-width: 0;
+  }
+
+  .runButtonWrap button {
+    width: 100%;
+  }
+
+  .modelMenu {
+    position: static;
+    width: 100%;
+    margin-top: 8px;
+    max-height: min(34dvh, 260px);
+    box-shadow: var(--o-elevation-card);
+  }
+
+  .compareGrid {
+    flex: 0 1 auto;
+    gap: 14px;
+  }
+
+  .compareGrid article {
+    max-height: 30dvh;
+  }
+
+  .answerContent {
+    padding: 14px;
+  }
+}

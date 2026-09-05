@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#8B5CF6">
+  <title>Oriveo — Offline</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #0E0D17;
+      color: #F7F7FB;
+      font-family: system-ui, -apple-system, sans-serif;
+    }
+    .card {
+      text-align: center;
+      padding: 48px 32px;
+      max-width: 400px;
+    }
+    .icon {
+      width: 64px;
+      height: 64px;
+      margin: 0 auto 24px;
+      border-radius: 16px;
+      background: linear-gradient(135deg, #8B5CF6, #6D28D9);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .icon svg { width: 32px; height: 32px; stroke: #fff; fill: none; }
+    h1 { font-size: 24px; margin-bottom: 12px; }
+    p { font-size: 16px; color: #A7A1C2; line-height: 1.5; margin-bottom: 24px; }
+    button {
+      padding: 12px 24px;
+      border: none;
+      border-radius: 12px;
+      background: linear-gradient(135deg, #8B5CF6, #7C3AED);
+      color: #fff;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    button:hover { opacity: 0.9; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="icon">
+      <svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="1" y1="1" x2="23" y2="23" />
+        <path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55" />
+        <path d="M5 12.55a10.94 10.94 0 0 1 5.17-2.39" />
+        <path d="M10.71 5.05A16 16 0 0 1 22.56 9" />
+        <path d="M1.42 9a15.91 15.91 0 0 1 4.7-2.88" />
+        <path d="M8.53 16.11a6 6 0 0 1 6.95 0" />
+        <line x1="12" y1="20" x2="12.01" y2="20" />
+      </svg>
+    </div>
+    <h1 id="title">You're Offline</h1>
+    <p id="desc">It looks like you've lost your internet connection. Oriveo needs a connection to chat with AI models.</p>
+    <button id="retry" onclick="location.reload()">Try Again</button>
+  </div>
+  <script>
+    // Multilingual offline page: prefer NEXT_LOCALE cookie, else navigator.language
+    var T = {
+      'en':      { t: "You're Offline",   d: "It looks like you've lost your internet connection. Oriveo needs a connection to chat with AI models.", r: "Try Again" },
+      'zh-Hans': { t: '网络已断开',        d: '看起来你的网络连接已断开。Oriveo 需要联网才能与 AI 模型对话。', r: '重试' },
+      'zh-Hant': { t: '網路已斷開',        d: '看起來你的網路連線已斷開。Oriveo 需要聯網才能與 AI 模型對話。', r: '重試' },
+      'ja':      { t: 'オフラインです',     d: 'インターネット接続が切断されたようです。Oriveo は AI モデルとの対話に接続が必要です。', r: '再試行' },
+      'ko':      { t: '오프라인 상태',      d: '인터넷 연결이 끊어진 것 같습니다. Oriveo는 AI 모델과 대화하려면 연결이 필요합니다.', r: '다시 시도' },
+      'es':      { t: 'Sin conexión',      d: 'Parece que perdiste tu conexión a internet. Oriveo necesita conexión para chatear con modelos de IA.', r: 'Reintentar' },
+      'fr':      { t: 'Hors ligne',        d: "Il semble que vous ayez perdu votre connexion internet. Oriveo a besoin d'une connexion pour discuter avec les modèles IA.", r: 'Réessayer' },
+      'de':      { t: 'Offline',           d: 'Es scheint, dass Sie Ihre Internetverbindung verloren haben. Oriveo benötigt eine Verbindung, um mit KI-Modellen zu chatten.', r: 'Erneut versuchen' },
+      'pt-BR':   { t: 'Sem conexão',       d: 'Parece que você perdeu sua conexão com a internet. O Oriveo precisa de conexão para conversar com modelos de IA.', r: 'Tentar novamente' },
+      'ar':      { t: 'غير متصل',          d: 'يبدو أنك فقدت اتصالك بالإنترنت. يحتاج Oriveo إلى اتصال للدردشة مع نماذج الذكاء الاصطناعي.', r: 'إعادة المحاولة' },
+      'hi':      { t: "आप ऑफ़लाइन हैं", d: "ऐसा लगता है कि आपने अपना इंटरनेट कनेक्शन खो दिया है। Oriveo को AI मॉडल के साथ चैट करने के लिए कनेक्शन की आवश्यकता है।", r: "पुनः प्रयास करें" },
+      'id':      { t: "Anda sedang Offline", d: "Sepertinya Anda kehilangan koneksi internet. Oriveo memerlukan koneksi untuk mengobrol dengan model AI.", r: "Coba Lagi" },
+      'vi':      { t: "Bạn đang ngoại tuyến", d: "Có vẻ như bạn đã mất kết nối internet. Oriveo cần có kết nối để trò chuyện với các mô hình AI.", r: "Thử lại" },
+      'th':      { t: "คุณออฟไลน์อยู่", d: "ดูเหมือนว่าคุณสูญเสียการเชื่อมต่ออินเทอร์เน็ต Oriveo ต้องการการเชื่อมต่อเพื่อแชทกับโมเดล AI", r: "ลองอีกครั้ง" },
+      'tr':      { t: "Çevrimdışısın", d: "İnternet bağlantınızı kaybetmiş gibi görünüyorsunuz. Oriveo'nun yapay zeka modelleriyle sohbet etmek için bağlantıya ihtiyacı var.", r: "Tekrar deneyin" },
+      'ru':      { t: "Вы оффлайн", d: "Похоже, вы потеряли подключение к Интернету. Oriveo требуется подключение для общения с моделями ИИ.", r: "Попробуйте еще раз" },
+    };
+
+    function detectLocale() {
+      // Prefer NEXT_LOCALE cookie
+      var m = document.cookie.match(/(?:^|;\s*)NEXT_LOCALE=([^;]*)/);
+      if (m && m[1] !== 'system' && T[m[1]]) return m[1];
+      // Fall back to navigator.language
+      var langs = (navigator.languages || [navigator.language || 'en']);
+      for (var i = 0; i < langs.length; i++) {
+        var l = langs[i];
+        if (T[l]) return l;
+        // Prefix match
+        var p = l.split('-')[0];
+        if (p === 'zh') return (l.indexOf('TW') >= 0 || l.indexOf('Hant') >= 0 || l.indexOf('HK') >= 0) ? 'zh-Hant' : 'zh-Hans';
+        if (p === 'pt') return 'pt-BR';
+        for (var k in T) { if (k.indexOf(p) === 0) return k; }
+      }
+      return 'en';
+    }
+
+    var locale = detectLocale();
+    var strings = T[locale] || T['en'];
+    document.getElementById('title').textContent = strings.t;
+    document.getElementById('desc').textContent = strings.d;
+    document.getElementById('retry').textContent = strings.r;
+    document.documentElement.lang = locale;
+    if (locale === 'ar') document.documentElement.dir = 'rtl';
+  </script>
+</body>
+</html>

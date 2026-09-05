@@ -1,0 +1,20 @@
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- Base application theme. -->
+    <style name="Theme.Oriveo" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <!-- Primary brand color. -->
+        <item name="colorPrimary">@color/purple_500</item>
+        <item name="colorPrimaryVariant">@color/purple_700</item>
+        <item name="colorOnPrimary">@color/white</item>
+        <!-- Secondary brand color. -->
+        <item name="colorSecondary">@color/teal_200</item>
+        <item name="colorSecondaryVariant">@color/teal_700</item>
+        <item name="colorOnSecondary">@color/black</item>
+        <!-- Cold-start window background is fixed to dark: the product's default theme is
+             dark, and Compose takes over per the user's preference after the first frame; a
+             user who explicitly chose light will briefly see a dark background on cold start
+             (an accepted tradeoff, the reverse of the previous behavior) -->
+        <item name="android:windowBackground">@color/window_background_dark</item>
+        <!-- statusBar/navigationBar colors are managed centrally by MainActivity's
+             enableEdgeToEdge(); these two attrs are deprecated as of Android 15 (API 35) -->
+    </style>
+</resources>

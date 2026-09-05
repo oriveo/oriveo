@@ -1,0 +1,24 @@
+{
+  "id": "660E8400-E29B-41D4-A716-446655440002",
+  "title": "Old format conversation",
+  "providerID": "550E8400-E29B-41D4-A716-446655440001",
+  "providerKind": "openAI",
+  "modelID": "gpt-4o",
+  "useMemory": true,
+  "previewText": "Legacy preview",
+  "estimatedCostText": "~$0.05",
+  "isDraft": false,
+  "messages": [
+    {
+      "id": "770E8400-E29B-41D4-A716-446655440003",
+      "role": "user",
+      "text": "Old message format",
+      "providerKind": "openAI",
+      "providerName": "OpenAI",
+      "modelName": "GPT-4o",
+      "estimatedCostText": "~$0.02",
+      "state": "delivered"
+    }
+  ],
+  "draftText": ""
+}

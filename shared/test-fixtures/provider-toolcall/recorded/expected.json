@@ -1,0 +1,287 @@
+{
+  "schema": "oriveo.provider-toolcall-fixtures/v1",
+  "work_id": "provider-toolcall-governance",
+  "purpose": "Shared contract fixture.",
+  "conventions": {
+    "line_format": "The raw upstream bytes (including each provider's own differences in data: spacing and CRLF/LF), with no normalization applied.",
+    "arguments": "The expected arguments is the fully concatenated raw text (a string); comparison is done after JSON normalization (key order/whitespace are not significant).",
+    "text": "expected.text is the raw concatenated body text from leg 1 (not trimmed).",
+    "tool_call_events": "Proposals on the same leg must merge into a single .toolCallDeltas event."
+  },
+  "fixtures": [
+    {
+      "file": "groq.leg1.sse",
+      "transport": "openai_chat",
+      "provider": "groq",
+      "model": "openai/gpt-oss-20b",
+      "endpoint": "https://api.groq.com/openai/v1/chat/completions",
+      "recorded_at": "2026-08-22",
+      "scenario": "Shared contract fixture.",
+      "expected": {
+        "text": "",
+        "finish_reason": "tool_calls",
+        "tool_calls": [
+          {
+            "id": "fc_cdb7398f-251f-4a1d-95df-09177e8d230f",
+            "name": "get_weather",
+            "arguments": "{\"city\":\"Melbourne\"}"
+          }
+        ],
+        "tool_call_events": 1
+      }
+    },
+    {
+      "file": "together.leg1.sse",
+      "transport": "openai_chat",
+      "provider": "together",
+      "model": "meta-llama/Llama-3.3-70B-Instruct-Turbo",
+      "endpoint": "https://api.together.xyz/v1/chat/completions",
+      "recorded_at": "2026-08-22",
+      "scenario": "Shared contract fixture.",
+      "expected": {
+        "text": "",
+        "finish_reason": "tool_calls",
+        "tool_calls": [
+          {
+            "id": "call_x3kiuon4ma4df7wt90opdold",
+            "name": "get_weather",
+            "arguments": "{\"city\":\"Melbourne\"}"
+          }
+        ],
+        "tool_call_events": 1
+      }
+    },
+    {
+      "file": "fireworks.leg1.sse",
+      "transport": "openai_chat",
+      "provider": "fireworks",
+      "model": "accounts/fireworks/models/gpt-oss-20b",
+      "endpoint": "https://api.fireworks.ai/inference/v1/chat/completions",
+      "recorded_at": "2026-08-22",
+      "scenario": "Shared contract fixture.",
+      "expected": {
+        "text": "",
+        "finish_reason": "tool_calls",
+        "tool_calls": [
+          {
+            "id": "call_Q67yLDsA8TCyJ845gUq6M6HE",
+            "name": "get_weather",
+            "arguments": "{\"city\":\"Melbourne\"}"
+          }
+        ],
+        "tool_call_events": 1
+      }
+    },
+    {
+      "file": "qwen.leg1.sse",
+      "transport": "openai_chat",
+      "provider": "qwen",
+      "model": "qwen-flash",
+      "endpoint": "https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions",
+      "recorded_at": "2026-08-22",
+      "scenario": "Shared contract fixture.",
+      "expected": {
+        "text": "",
+        "finish_reason": "tool_calls",
+        "tool_calls": [
+          {
+            "id": "call_da587283fb834fadad0e80",
+            "name": "get_weather",
+            "arguments": "{\"city\": \"Melbourne\"}"
+          }
+        ],
+        "tool_call_events": 1
+      }
+    },
+    {
+      "file": "zhipu.leg1.sse",
+      "transport": "openai_chat",
+      "provider": "zhipu",
+      "model": "glm-4.5-flash",
+      "endpoint": "https://open.bigmodel.cn/api/paas/v4/chat/completions",
+      "recorded_at": "2026-08-22",
+      "scenario": "Shared contract fixture.",
+      "expected": {
+        "text": "\n",
+        "finish_reason": "tool_calls",
+        "tool_calls": [
+          {
+            "id": "call_4b8b5e7d4d2d43e0a0294ffd",
+            "name": "get_weather",
+            "arguments": "{\"city\":\"Melbourne\"}"
+          }
+        ],
+        "tool_call_events": 1
+      }
+    },
+    {
+      "file": "siliconflow.leg1.sse",
+      "transport": "openai_chat",
+      "provider": "siliconflow",
+      "model": "Qwen/Qwen3-8B",
+      "endpoint": "https://api.siliconflow.cn/v1/chat/completions",
+      "recorded_at": "2026-08-22",
+      "scenario": "Shared contract fixture.",
+      "expected": {
+        "text": "\n\n",
+        "finish_reason": "tool_calls",
+        "tool_calls": [
+          {
+            "id": "01a028f4e44b43d1e4a359c89e066fdd",
+            "name": "get_weather",
+            "arguments": " {\"city\": \"Melbourne\"}"
+          }
+        ],
+        "tool_call_events": 1
+      }
+    },
+    {
+      "file": "deepseek.leg1.sse",
+      "transport": "openai_chat",
+      "provider": "deepseek",
+      "model": "deepseek-chat",
+      "endpoint": "https://api.deepseek.com/v1/chat/completions",
+      "recorded_at": "2026-08-22",
+      "scenario": "Shared contract fixture.",
+      "expected": {
+        "text": "",
+        "finish_reason": "tool_calls",
+        "tool_calls": [
+          {
+            "id": "call_00_S1xT2zrjmpbVThtHwSoH7017",
+            "name": "get_weather",
+            "arguments": "{\"city\": \"Melbourne\"}"
+          }
+        ],
+        "tool_call_events": 1
+      }
+    },
+    {
+      "file": "moonshot.leg1.sse",
+      "transport": "openai_chat",
+      "provider": "moonshot",
+      "model": "kimi-k2.5",
+      "endpoint": "https://api.moonshot.ai/v1/chat/completions",
+      "recorded_at": "2026-08-22",
+      "scenario": "Shared contract fixture.",
+      "expected": {
+        "text": "我来为您查询 Melbourne 的天气信息。",
+        "finish_reason": "tool_calls",
+        "tool_calls": [
+          {
+            "id": "get_weather_0",
+            "name": "get_weather",
+            "arguments": "{\"city\": \"Melbourne\"}"
+          }
+        ],
+        "tool_call_events": 1
+      }
+    },
+    {
+      "file": "moonshot_web_search.leg1.sse",
+      "transport": "openai_chat",
+      "provider": "moonshot_web_search",
+      "model": "kimi-k2.5",
+      "endpoint": "https://api.moonshot.ai/v1/chat/completions",
+      "recorded_at": "2026-08-22",
+      "scenario": "Shared contract fixture.",
+      "expected": {
+        "text": "",
+        "finish_reason": "tool_calls",
+        "tool_calls": [
+          {
+            "id": "t-web_search-6a89763b81be",
+            "name": "$web_search",
+            "arguments": "{\"search_result\":{\"search_id\":\"2d6bf68f6a89763b2a05020001088aa9\"},\"usage\":{\"total_tokens\":7610}}"
+          }
+        ],
+        "tool_call_events": 1
+      }
+    },
+    {
+      "file": "anthropic.leg1.sse",
+      "transport": "anthropic_messages",
+      "provider": "anthropic",
+      "model": "claude-haiku-4-5",
+      "endpoint": "https://api.anthropic.com/v1/messages",
+      "recorded_at": "2026-08-22",
+      "scenario": "Shared contract fixture.",
+      "expected": {
+        "text": "",
+        "finish_reason": "tool_use",
+        "tool_calls": [
+          {
+            "id": "toolu_01Hcqj6pE7vjt41MGeYq9QZS",
+            "name": "get_weather",
+            "arguments": "{\"city\": \"Melbourne\"}"
+          }
+        ],
+        "tool_call_events": 1
+      }
+    },
+    {
+      "file": "gemini.leg1.sse",
+      "transport": "gemini_generate",
+      "provider": "gemini",
+      "model": "gemini-2.5-flash-lite",
+      "endpoint": "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:streamGenerateContent",
+      "recorded_at": "2026-08-22",
+      "scenario": "Shared contract fixture.",
+      "expected": {
+        "text": "",
+        "finish_reason": "STOP",
+        "tool_calls": [
+          {
+            "id": null,
+            "name": "get_weather",
+            "arguments": "{\"city\":\"Melbourne\"}"
+          }
+        ],
+        "tool_call_events": 1
+      }
+    },
+    {
+      "file": "grok.leg1.sse",
+      "transport": "openai_responses",
+      "provider": "grok",
+      "model": "grok-4.20-0309-non-reasoning",
+      "endpoint": "https://api.x.ai/v1/responses",
+      "recorded_at": "2026-08-22",
+      "scenario": "Shared contract fixture.",
+      "expected": {
+        "text": "",
+        "finish_reason": "completed",
+        "tool_calls": [
+          {
+            "id": "call-977beb74-5776-4c5c-99a6-33ab432d81a0-0",
+            "name": "get_weather",
+            "arguments": "{\"city\":\"Melbourne\"}"
+          }
+        ],
+        "tool_call_events": 1
+      },
+      "note": "Shared contract fixture."
+    },
+    {
+      "file": "openai.leg1.sse",
+      "transport": "openai_responses",
+      "provider": "openai",
+      "model": "gpt-4.1-nano",
+      "endpoint": "https://api.openai.com/v1/responses",
+      "recorded_at": "2026-08-22",
+      "scenario": "Shared contract fixture.",
+      "expected": {
+        "text": "",
+        "finish_reason": "completed",
+        "tool_calls": [
+          {
+            "id": "call_M4FR75dEQnEnB7mD97GNnAsA",
+            "name": "get_weather",
+            "arguments": "{\"city\":\"Melbourne\"}"
+          }
+        ],
+        "tool_call_events": 1
+      }
+    }
+  ]
+}

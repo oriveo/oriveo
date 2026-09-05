@@ -1,0 +1,654 @@
+{
+  "$comment": "Golden fixture shared by all three clients for the presentation contract. All three clients are only allowed to implement one shared set of rendering components; the structural elements a given fixture renders on iOS / Web / Android (whether the vendor subtitle appears, the recommended badge, capability badge order, which pricing copy branch is used, whether the reasoning selector appears, the number of group headers, empty/offline banners) must be identical.",
+  "contractVersion": 1,
+  "leafCases": [
+    {
+      "id": "openrouter_claude_sonnet_aggregator_with_vendor",
+      "$intent": "A model card under an aggregated provider: the vendor subtitle must be shown; the recommended badge; the reasoning selector; priced.",
+      "providerKind": "openRouter",
+      "model": {
+        "canonicalModelId": "anthropic/claude-sonnet-4",
+        "displayName": "Anthropic: Claude Sonnet 4",
+        "vendorKey": "anthropic",
+        "vendorName": "Anthropic",
+        "contextLength": 200000,
+        "pricing": {
+          "promptPerMToken": 3.0,
+          "completionPerMToken": 15.0,
+          "cachedInputPerMToken": 0.3
+        },
+        "pricingStatus": "priced",
+        "capabilities": [
+          "text",
+          "image",
+          "file",
+          "reasoning"
+        ],
+        "profiles": {
+          "reasoning": "openai_responses",
+          "webSearch": null,
+          "imageGen": null
+        },
+        "uiHints": {
+          "groupKey": "anthropic",
+          "groupName": "Anthropic",
+          "rank": 150,
+          "recommended": true,
+          "badgeOrder": [
+            "reasoning",
+            "image",
+            "file"
+          ]
+        }
+      },
+      "expectedRender": {
+        "showsVendorSubtitle": true,
+        "vendorSubtitleText": "Anthropic",
+        "showsRecommendedBadge": true,
+        "capabilityBadges": [
+          "reasoning",
+          "image",
+          "file"
+        ],
+        "$comment": "text must never be shown as a badge; badgeOrder decides the order of reasoning/image/file.",
+        "showsCachedPricing": true,
+        "pricingBranch": "priced",
+        "showsReasoningPicker": true,
+        "showsWebSearchPicker": false,
+        "showsImageGenPicker": false
+      }
+    },
+    {
+      "id": "qwen_direct_no_vendor_subtitle",
+      "$intent": "A direct provider: the vendor field is empty, and the UI must not render the vendor subtitle slot.",
+      "providerKind": "qwen",
+      "model": {
+        "canonicalModelId": "qwen3.5-plus",
+        "displayName": "Qwen3.5 Plus",
+        "vendorKey": null,
+        "vendorName": null,
+        "contextLength": 1000000,
+        "pricing": {
+          "promptPerMToken": 0.276,
+          "completionPerMToken": 1.651,
+          "cachedInputPerMToken": 0.028
+        },
+        "pricingStatus": "priced",
+        "capabilities": [
+          "text",
+          "image",
+          "reasoning"
+        ],
+        "profiles": {
+          "reasoning": "qwen_hybrid",
+          "webSearch": null,
+          "imageGen": null
+        },
+        "uiHints": {
+          "groupKey": "qwen3.5",
+          "groupName": "Qwen 3.5",
+          "rank": 110,
+          "recommended": true,
+          "badgeOrder": [
+            "reasoning",
+            "image"
+          ]
+        }
+      },
+      "expectedRender": {
+        "showsVendorSubtitle": false,
+        "vendorSubtitleText": null,
+        "showsRecommendedBadge": true,
+        "capabilityBadges": [
+          "reasoning",
+          "image"
+        ],
+        "showsCachedPricing": true,
+        "pricingBranch": "priced",
+        "showsReasoningPicker": true,
+        "showsWebSearchPicker": false,
+        "showsImageGenPicker": false
+      }
+    },
+    {
+      "id": "miniMax_image_pricing_unknown",
+      "$intent": "pricingStatus=unknown: no number is shown; a gray 'unknown' label is shown instead.",
+      "providerKind": "miniMax",
+      "model": {
+        "canonicalModelId": "minimax-image-01",
+        "displayName": "MiniMax Image 01",
+        "vendorKey": null,
+        "vendorName": null,
+        "contextLength": null,
+        "pricing": null,
+        "pricingStatus": "unknown",
+        "capabilities": [
+          "text",
+          "imageGeneration"
+        ],
+        "profiles": {
+          "reasoning": null,
+          "webSearch": null,
+          "imageGen": "minimax_image_v1"
+        },
+        "uiHints": {
+          "groupKey": "image-gen",
+          "groupName": "Image Generation",
+          "rank": 60,
+          "recommended": false,
+          "badgeOrder": [
+            "imageGeneration"
+          ]
+        }
+      },
+      "expectedRender": {
+        "showsVendorSubtitle": false,
+        "vendorSubtitleText": null,
+        "showsRecommendedBadge": false,
+        "capabilityBadges": [
+          "imageGeneration"
+        ],
+        "showsCachedPricing": false,
+        "pricingBranch": "unknown",
+        "showsReasoningPicker": false,
+        "showsWebSearchPicker": false,
+        "showsImageGenPicker": true
+      }
+    },
+    {
+      "id": "qwen_image_free_pricing",
+      "$intent": "pricingStatus=free: a 'Free' label is shown, and the price number is hidden.",
+      "providerKind": "qwen",
+      "model": {
+        "canonicalModelId": "qwen-image",
+        "displayName": "Qwen Image",
+        "vendorKey": null,
+        "vendorName": null,
+        "contextLength": 32768,
+        "pricing": {
+          "promptPerMToken": 0,
+          "completionPerMToken": 0,
+          "cachedInputPerMToken": null
+        },
+        "pricingStatus": "free",
+        "capabilities": [
+          "text",
+          "imageGeneration"
+        ],
+        "profiles": {
+          "reasoning": null,
+          "webSearch": null,
+          "imageGen": "qwen_image_v1"
+        },
+        "uiHints": {
+          "groupKey": "image-gen",
+          "groupName": "Image Generation",
+          "rank": 90,
+          "recommended": false,
+          "badgeOrder": [
+            "imageGeneration"
+          ]
+        }
+      },
+      "expectedRender": {
+        "showsVendorSubtitle": false,
+        "vendorSubtitleText": null,
+        "showsRecommendedBadge": false,
+        "capabilityBadges": [
+          "imageGeneration"
+        ],
+        "showsCachedPricing": false,
+        "pricingBranch": "free",
+        "showsReasoningPicker": false,
+        "showsWebSearchPicker": false,
+        "showsImageGenPicker": true
+      }
+    },
+    {
+      "id": "openrouter_priced_with_cached_input",
+      "$intent": "priced + cachedInputPerMToken: the full three-part input/output/cached pricing is shown.",
+      "providerKind": "openRouter",
+      "model": {
+        "canonicalModelId": "openai/gpt-5.4-mini",
+        "displayName": "OpenAI: GPT-5.4 Mini",
+        "vendorKey": "openai",
+        "vendorName": "OpenAI",
+        "contextLength": 128000,
+        "pricing": {
+          "promptPerMToken": 0.15,
+          "completionPerMToken": 0.6,
+          "cachedInputPerMToken": 0.05
+        },
+        "pricingStatus": "priced",
+        "capabilities": [
+          "text",
+          "image"
+        ],
+        "profiles": {
+          "reasoning": null,
+          "webSearch": null,
+          "imageGen": null
+        },
+        "uiHints": {
+          "groupKey": "openai",
+          "groupName": "OpenAI",
+          "rank": 130,
+          "recommended": true,
+          "badgeOrder": [
+            "image"
+          ]
+        }
+      },
+      "expectedRender": {
+        "showsVendorSubtitle": true,
+        "vendorSubtitleText": "OpenAI",
+        "showsRecommendedBadge": true,
+        "capabilityBadges": [
+          "image"
+        ],
+        "showsCachedPricing": true,
+        "pricingBranch": "priced",
+        "showsReasoningPicker": false,
+        "showsWebSearchPicker": false,
+        "showsImageGenPicker": false
+      }
+    },
+    {
+      "id": "qwen_qwq_reasoning_profile_present",
+      "$intent": "profiles.reasoning is non-empty: the reasoning-effort selector is shown (even when pricing is unknown).",
+      "providerKind": "qwen",
+      "model": {
+        "canonicalModelId": "qwq-32b-preview",
+        "displayName": "QwQ 32B Preview",
+        "vendorKey": null,
+        "vendorName": null,
+        "contextLength": 128000,
+        "pricing": null,
+        "pricingStatus": "unknown",
+        "capabilities": [
+          "text",
+          "reasoning"
+        ],
+        "profiles": {
+          "reasoning": "qwen_hybrid",
+          "webSearch": null,
+          "imageGen": null
+        },
+        "uiHints": {
+          "groupKey": "qwq",
+          "groupName": "QwQ",
+          "rank": 80,
+          "recommended": false,
+          "badgeOrder": [
+            "reasoning"
+          ]
+        }
+      },
+      "expectedRender": {
+        "showsVendorSubtitle": false,
+        "vendorSubtitleText": null,
+        "showsRecommendedBadge": false,
+        "capabilityBadges": [
+          "reasoning"
+        ],
+        "showsCachedPricing": false,
+        "pricingBranch": "unknown",
+        "showsReasoningPicker": true,
+        "showsWebSearchPicker": false,
+        "showsImageGenPicker": false
+      }
+    },
+    {
+      "id": "model_with_text_capability_only_no_badges",
+      "$intent": "badgeOrder only lists reasoning/image, while capabilities include text+image+reasoning: text must not be shown as a badge, and badge order follows badgeOrder.",
+      "providerKind": "qwen",
+      "model": {
+        "canonicalModelId": "qwen-text-test",
+        "displayName": "Qwen Text Only",
+        "vendorKey": null,
+        "vendorName": null,
+        "contextLength": 32768,
+        "pricing": {
+          "promptPerMToken": 0.1,
+          "completionPerMToken": 0.4,
+          "cachedInputPerMToken": null
+        },
+        "pricingStatus": "priced",
+        "capabilities": [
+          "text",
+          "image",
+          "reasoning"
+        ],
+        "profiles": {
+          "reasoning": null,
+          "webSearch": null,
+          "imageGen": null
+        },
+        "uiHints": {
+          "groupKey": "qwen-test",
+          "groupName": "Qwen Test",
+          "rank": 50,
+          "recommended": false,
+          "badgeOrder": [
+            "reasoning",
+            "image"
+          ]
+        }
+      },
+      "expectedRender": {
+        "showsVendorSubtitle": false,
+        "vendorSubtitleText": null,
+        "showsRecommendedBadge": false,
+        "capabilityBadges": [
+          "reasoning",
+          "image"
+        ],
+        "$comment": "The order must strictly equal badgeOrder = [reasoning, image], and text must not appear.",
+        "showsCachedPricing": true,
+        "pricingBranch": "priced",
+        "showsReasoningPicker": false,
+        "$comment2": "capabilities lists reasoning, but profiles.reasoning is null: the selector must not be shown, consistently across all three clients.",
+        "showsWebSearchPicker": false,
+        "showsImageGenPicker": false
+      }
+    },
+    {
+      "id": "model_with_recommended_only_no_other_badges",
+      "$intent": "The standalone path for uiHints.recommended=true: only the recommended badge must be shown; when capabilities is only text, there is no capability badge.",
+      "providerKind": "qwen",
+      "model": {
+        "canonicalModelId": "qwen-min-recommended",
+        "displayName": "Qwen Minimal Recommended",
+        "vendorKey": null,
+        "vendorName": null,
+        "contextLength": 8192,
+        "pricing": {
+          "promptPerMToken": 0.05,
+          "completionPerMToken": 0.15,
+          "cachedInputPerMToken": null
+        },
+        "pricingStatus": "priced",
+        "capabilities": [
+          "text"
+        ],
+        "profiles": {
+          "reasoning": null,
+          "webSearch": null,
+          "imageGen": null
+        },
+        "uiHints": {
+          "groupKey": "qwen-test",
+          "groupName": "Qwen Test",
+          "rank": 30,
+          "recommended": true,
+          "badgeOrder": []
+        }
+      },
+      "expectedRender": {
+        "showsVendorSubtitle": false,
+        "vendorSubtitleText": null,
+        "showsRecommendedBadge": true,
+        "capabilityBadges": [],
+        "showsCachedPricing": true,
+        "pricingBranch": "priced",
+        "showsReasoningPicker": false,
+        "showsWebSearchPicker": false,
+        "showsImageGenPicker": false
+      }
+    }
+  ],
+  "containerCases": [
+    {
+      "id": "openrouter_grouped_by_vendor",
+      "$intent": "An aggregated provider list: collapsed into multiple group headers by vendorKey.",
+      "providerKind": "openRouter",
+      "models": [
+        {
+          "canonicalModelId": "anthropic/claude-sonnet-4",
+          "displayName": "Anthropic: Claude Sonnet 4",
+          "vendorKey": "anthropic",
+          "vendorName": "Anthropic",
+          "pricingStatus": "priced",
+          "capabilities": [
+            "text",
+            "reasoning"
+          ],
+          "uiHints": {
+            "groupKey": "anthropic",
+            "groupName": "Anthropic",
+            "rank": 150,
+            "recommended": true,
+            "badgeOrder": [
+              "reasoning"
+            ]
+          }
+        },
+        {
+          "canonicalModelId": "anthropic/claude-haiku-4",
+          "displayName": "Anthropic: Claude Haiku 4",
+          "vendorKey": "anthropic",
+          "vendorName": "Anthropic",
+          "pricingStatus": "priced",
+          "capabilities": [
+            "text"
+          ],
+          "uiHints": {
+            "groupKey": "anthropic",
+            "groupName": "Anthropic",
+            "rank": 110,
+            "recommended": false,
+            "badgeOrder": []
+          }
+        },
+        {
+          "canonicalModelId": "openai/gpt-5.4-mini",
+          "displayName": "OpenAI: GPT-5.4 Mini",
+          "vendorKey": "openai",
+          "vendorName": "OpenAI",
+          "pricingStatus": "priced",
+          "capabilities": [
+            "text",
+            "image"
+          ],
+          "uiHints": {
+            "groupKey": "openai",
+            "groupName": "OpenAI",
+            "rank": 130,
+            "recommended": true,
+            "badgeOrder": [
+              "image"
+            ]
+          }
+        }
+      ],
+      "expectedRender": {
+        "groupHeaders": [
+          "Anthropic",
+          "OpenAI"
+        ],
+        "$comment": "Ordered by the order vendorName appears; within the same vendor, ordered by rank descending.",
+        "modelOrderWithinGroups": {
+          "Anthropic": [
+            "anthropic/claude-sonnet-4",
+            "anthropic/claude-haiku-4"
+          ],
+          "OpenAI": [
+            "openai/gpt-5.4-mini"
+          ]
+        }
+      }
+    },
+    {
+      "id": "qwen_grouped_by_family",
+      "$intent": "A direct provider: grouped by groupKey/groupName (family).",
+      "providerKind": "qwen",
+      "models": [
+        {
+          "canonicalModelId": "qwen3.5-plus",
+          "displayName": "Qwen3.5 Plus",
+          "vendorKey": null,
+          "pricingStatus": "priced",
+          "capabilities": [
+            "text",
+            "reasoning"
+          ],
+          "uiHints": {
+            "groupKey": "qwen3.5",
+            "groupName": "Qwen 3.5",
+            "rank": 110,
+            "recommended": true,
+            "badgeOrder": [
+              "reasoning"
+            ]
+          }
+        },
+        {
+          "canonicalModelId": "qwen3-coder",
+          "displayName": "Qwen3 Coder",
+          "vendorKey": null,
+          "pricingStatus": "priced",
+          "capabilities": [
+            "text"
+          ],
+          "uiHints": {
+            "groupKey": "qwen3-coder",
+            "groupName": "Qwen3 Coder",
+            "rank": 95,
+            "recommended": false,
+            "badgeOrder": []
+          }
+        },
+        {
+          "canonicalModelId": "qwq-32b-preview",
+          "displayName": "QwQ 32B Preview",
+          "vendorKey": null,
+          "pricingStatus": "unknown",
+          "capabilities": [
+            "text",
+            "reasoning"
+          ],
+          "uiHints": {
+            "groupKey": "qwq",
+            "groupName": "QwQ",
+            "rank": 80,
+            "recommended": false,
+            "badgeOrder": [
+              "reasoning"
+            ]
+          }
+        }
+      ],
+      "expectedRender": {
+        "groupHeaders": [
+          "Qwen 3.5",
+          "Qwen3 Coder",
+          "QwQ"
+        ],
+        "$comment": "Group headers are ordered by each group's highest rank, descending.",
+        "modelOrderWithinGroups": {
+          "Qwen 3.5": [
+            "qwen3.5-plus"
+          ],
+          "Qwen3 Coder": [
+            "qwen3-coder"
+          ],
+          "QwQ": [
+            "qwq-32b-preview"
+          ]
+        }
+      }
+    }
+  ],
+  "stateCases": [
+    {
+      "id": "empty_provider_catalog",
+      "$intent": "providers[kind] exists but models is empty: empty-state copy plus a retry button.",
+      "providerKind": "qwen",
+      "providerData": {
+        "displayName": "Qwen",
+        "defaultModelId": null,
+        "validationModelId": null,
+        "resolveMap": {},
+        "models": {}
+      },
+      "expectedRender": {
+        "showsEmptyStateCopy": true,
+        "showsRetryAction": true,
+        "showsCatalogList": false,
+        "showsOfflineBanner": false,
+        "showsManualRetainedSection": false
+      }
+    },
+    {
+      "id": "metadata_offline_with_cache",
+      "$intent": "First load with a cache present: the cached content is rendered directly, plus a top offline banner.",
+      "providerKind": "qwen",
+      "metadataSource": "cachedOffline",
+      "providerData": {
+        "displayName": "Qwen",
+        "defaultModelId": "qwen3.5-plus",
+        "models": {
+          "qwen3.5-plus": {
+            "canonicalModelId": "qwen3.5-plus",
+            "displayName": "Qwen3.5 Plus",
+            "pricingStatus": "priced",
+            "capabilities": [
+              "text"
+            ],
+            "uiHints": {
+              "rank": 110,
+              "recommended": true,
+              "badgeOrder": []
+            }
+          }
+        }
+      },
+      "expectedRender": {
+        "showsEmptyStateCopy": false,
+        "showsRetryAction": false,
+        "showsCatalogList": true,
+        "showsOfflineBanner": true,
+        "showsManualRetainedSection": false
+      }
+    },
+    {
+      "id": "manual_retained_section_visible_during_pre_launch",
+      "$intent": "Manual-Retained only appears during the initial pre-launch migration window, and must be its own group, never mixed into the official catalog.",
+      "providerKind": "qwen",
+      "metadataSource": "freshNetwork",
+      "providerData": {
+        "displayName": "Qwen",
+        "defaultModelId": "qwen3.5-plus",
+        "models": {
+          "qwen3.5-plus": {
+            "canonicalModelId": "qwen3.5-plus",
+            "displayName": "Qwen3.5 Plus",
+            "pricingStatus": "priced",
+            "capabilities": [
+              "text"
+            ],
+            "uiHints": {
+              "rank": 110,
+              "recommended": true,
+              "badgeOrder": []
+            }
+          }
+        }
+      },
+      "manualRetainedModels": [
+        {
+          "modelId": "qwen-legacy-private-2024",
+          "displayName": "Qwen Legacy Private"
+        }
+      ],
+      "expectedRender": {
+        "showsEmptyStateCopy": false,
+        "showsRetryAction": false,
+        "showsCatalogList": true,
+        "showsOfflineBanner": false,
+        "showsManualRetainedSection": true,
+        "manualRetainedHeaderKey": "providers.catalog.manualRetainedHeader"
+      }
+    }
+  ]
+}

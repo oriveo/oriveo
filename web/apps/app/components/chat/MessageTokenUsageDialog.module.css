@@ -1,0 +1,171 @@
+.panel {
+  position: relative;
+  width: min(100%, 440px);
+  padding: 28px;
+}
+
+.close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  display: inline-flex;
+  width: 36px;
+  height: 36px;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: var(--o-radius-control);
+  background: transparent;
+  color: var(--o-text-tertiary);
+  cursor: pointer;
+}
+
+.close:hover {
+  background: color-mix(in srgb, var(--o-text) 7%, transparent);
+  color: var(--o-text);
+}
+
+.close:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--o-primary) 42%, transparent);
+  outline-offset: 2px;
+}
+
+.header {
+  padding-right: 44px;
+}
+
+.title {
+  margin: 0;
+  color: var(--o-text);
+  font-size: 20px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+
+.subtitle {
+  margin: 6px 0 0;
+  color: var(--o-text-tertiary);
+  font-size: 13px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 24px 0 0;
+}
+
+/* When the input card carries cache sub-rows it is much taller than the output card, so a side-by-side layout looks ragged and the whole grid switches to a single column. */
+.gridSingle {
+  composes: grid;
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.metric {
+  min-width: 0;
+  padding: 16px;
+  border-radius: 14px;
+  /* Theme dependent: light uses inset, dark uses raised. Why this has to be a token rather
+   * than a [data-theme='dark'] override written here, see the comment in
+   * packages/ui/src/tokens/variables.css: in a production build lightningcss strips
+   * attribute-selector overrides out of CSS Modules. */
+  background: var(--o-token-usage-card-bg);
+}
+
+.metric dt {
+  /* tertiary(#71717A) is only 4.25:1 on the light card background, below the AA 4.5, while
+   * secondary(#52525B) passes. This spot is not registered in the semantic-text-contrast
+   * allowlist, so the scanner cannot see it and it has to be watched by hand. */
+  color: var(--o-text-secondary);
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.metric dd {
+  display: block;
+  margin: 7px 0 0;
+  min-width: 0;
+}
+
+.metricValue {
+  display: block;
+  overflow: hidden;
+  color: var(--o-text);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 18px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  line-height: 1.2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The divider makes the sub-items read as a breakdown inside this card rather than another metric at the same level. */
+.cacheBreakdown {
+  display: flex;
+  margin-top: 10px;
+  flex-direction: column;
+  border-top: 1px solid var(--o-border);
+  gap: 6px;
+  padding-top: 9px;
+}
+
+.cacheRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+
+.cacheLabel {
+  overflow: hidden;
+  color: var(--o-text-secondary);
+  font-size: 12px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+/* The visual weight has to stay below the main number, or it reads as an equally weighted value again. */
+.cacheValue {
+  color: var(--o-text-secondary);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.total {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 16px;
+  padding: 18px 4px 0;
+  border-top: 1px solid var(--o-border);
+  color: var(--o-text-secondary);
+  font-size: 13px;
+}
+
+.total strong {
+  color: var(--o-primary);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 22px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+}
+
+@media (max-width: 520px) {
+  .panel {
+    padding: 24px 20px;
+  }
+
+  .metric {
+    padding: 14px;
+  }
+
+  .metricValue {
+    font-size: 16px;
+  }
+}

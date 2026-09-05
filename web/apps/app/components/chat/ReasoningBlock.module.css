@@ -1,0 +1,177 @@
+/**
+ * Reasoning display styles.
+ *
+ * Layout: a 2-column grid of [2pt accent bar + content].
+ * The accent bar color differs between the streaming and finished states.
+ *
+ * Color: light and dark both switch through the --o-reasoning-* tokens.
+ * Do not override with :global(html[data-theme='dark']) .X - under Next.js 16 with webpack
+ * production builds, lightningcss strips whole dark rules wrapped in an attribute selector
+ * inside a CSS Module, leaving the unwrapped dark values to override the light ones, which
+ * ends up as white text on a white background.
+ */
+
+.container {
+  display: grid;
+  grid-template-columns: 2px 1fr;
+  gap: 10px;
+  margin: 8px 0;
+  padding: 2px 0;
+  /* The left accent bar is painted into the first column through background. */
+  background:
+    linear-gradient(var(--o-reasoning-line), var(--o-reasoning-line))
+    left / 2px 100% no-repeat;
+  border-radius: 2px;
+}
+
+/* Streaming: primary at 30% alpha */
+.streaming {
+  background:
+    linear-gradient(var(--o-reasoning-line-streaming), var(--o-reasoning-line-streaming))
+    left / 2px 100% no-repeat;
+}
+
+/* Finished: textTertiary at 20% alpha */
+.done {
+  background:
+    linear-gradient(var(--o-reasoning-line-done), var(--o-reasoning-line-done))
+    left / 2px 100% no-repeat;
+}
+
+/* RTL: the accent bar moves to the right side */
+[dir="rtl"] .container {
+  background-position: right;
+}
+
+/* ── Header button ── */
+.headerBtn {
+  grid-column: 2;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 6px;
+  margin-left: -6px;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  border-radius: 6px;
+  color: var(--o-reasoning-header);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.3;
+  /* Inner grid cell, so the header sizes to its content and stays left aligned. */
+  width: fit-content;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+
+.headerBtn:hover {
+  background: var(--o-reasoning-header-hover);
+  color: var(--o-reasoning-header-strong);
+}
+
+.headerBtn:focus-visible {
+  outline: 2px solid var(--o-primary);
+  outline-offset: 2px;
+}
+
+.headerLabel {
+  white-space: nowrap;
+}
+
+/* ── Chevron ── */
+.chevron {
+  flex-shrink: 0;
+  transition: transform 200ms ease;
+}
+
+.chevronOpen {
+  transform: rotate(90deg);
+}
+
+/* RTL: mirror the chevron so it points the other way */
+[dir="rtl"] .chevron {
+  transform: scaleX(-1);
+}
+[dir="rtl"] .chevronOpen {
+  transform: scaleX(-1) rotate(-90deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chevron,
+  .chevronOpen {
+    transition: none;
+  }
+}
+
+/* --- Streaming dot (pulse) --- */
+.streamingDot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--o-info);
+  flex-shrink: 0;
+  animation: reasoningPulse 1.4s ease-in-out infinite;
+}
+
+@keyframes reasoningPulse {
+  0%, 100% {
+    opacity: 0.35;
+    transform: scale(0.85);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .streamingDot {
+    animation: none;
+    opacity: 0.7;
+  }
+}
+
+/* ── Content ── */
+.contentWrap {
+  grid-column: 2;
+  overflow: hidden;
+}
+
+/* Collapsed: a single line of reasoningTail whose trailing text scrolls as new chunks arrive.
+   white-space:nowrap + overflow:hidden keeps its position stable so it does not jitter.
+   reasoningTail is already truncated to 40 characters with an ellipsis prefix, so CSS adds no
+   ellipsis of its own. */
+.contentTail {
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--o-reasoning-content);
+  padding: 2px 0 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: clip;
+}
+
+/* Expanded, shared by the streaming and finished states: full markdown.
+   One renderer for both, so nothing changes shape when the stream settles.
+
+   MarkdownRenderer's inner `.markdown` sets `font-size: var(--o-text-base)` (16px). That is a
+   hashed CSS Module class, so an outside selector cannot reach it, and a single class selector
+   beats anything inherited from the parent - which left the reasoning block the same size as
+   body text and lost the hierarchy that marks reasoning as secondary. Override the token
+   itself instead: the variable inherits into the subtree, so the inner `var(--o-text-base)`
+   resolves to 13px and same-source sizes such as code blocks scale down with it. */
+.contentMarkdown {
+  --o-text-base: 13px;
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--o-reasoning-content);
+  padding: 2px 0 6px;
+}
+
+/* While streaming, the content is assembled from several settled blocks plus an active tail
+   (see StreamingReasoningMarkdown); this restores the spacing between blocks so it matches the
+   single-block rendering of the finished state. */
+.contentMarkdown > * + * {
+  margin-top: 0.5em;
+}

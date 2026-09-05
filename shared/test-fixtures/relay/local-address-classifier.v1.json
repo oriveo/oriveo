@@ -1,0 +1,26 @@
+{
+  "$comment": "Local address classifier v1. The same input is asserted in both directions: a local/private mode may allow an address while remote_https must keep the existing SSRF boundary. DNS and every redirect hop are reclassified before Prompt or credentials are sent.",
+  "version": 1,
+  "cases": [
+    {"caseId":"loopback_local_http","input":"http://127.0.0.1:11434","securityMode":"local_http","resolvedIPs":["127.0.0.1"],"expect":{"allowed":true,"reason":"loopback"}},
+    {"caseId":"loopback_remote_rejected","input":"http://127.0.0.1:11434","securityMode":"remote_https","resolvedIPs":["127.0.0.1"],"expect":{"allowed":false,"reason":"cleartext_not_allowed"}},
+    {"caseId":"rfc1918_local_http","input":"http://192.168.1.20:1234","securityMode":"local_http","resolvedIPs":["192.168.1.20"],"expect":{"allowed":true,"reason":"private_lan"}},
+    {"caseId":"rfc1918_remote_rejected","input":"http://10.0.0.8:8080","securityMode":"remote_https","resolvedIPs":["10.0.0.8"],"expect":{"allowed":false,"reason":"cleartext_not_allowed"}},
+    {"caseId":"ipv6_ula_local_http","input":"http://[fd12:3456::8]:8080","securityMode":"local_http","resolvedIPs":["fd12:3456::8"],"expect":{"allowed":true,"reason":"private_lan"}},
+    {"caseId":"ipv6_link_local","input":"http://[fe80::1]:8080","securityMode":"local_http","resolvedIPs":["fe80::1"],"expect":{"allowed":true,"reason":"link_local"}},
+    {"caseId":"dot_local_name","input":"http://studio.local:1234","securityMode":"local_http","resolvedIPs":["192.168.1.30"],"expect":{"allowed":true,"reason":"private_lan"}},
+    {"caseId":"tailscale_cgnat_private_vpn","input":"http://100.101.102.103:11434","securityMode":"private_vpn","resolvedIPs":["100.101.102.103"],"expect":{"allowed":true,"reason":"private_vpn"}},
+    {"caseId":"tailscale_cgnat_nonlocal_rejected","input":"http://100.101.102.103:11434","securityMode":"remote_https","resolvedIPs":["100.101.102.103"],"expect":{"allowed":false,"reason":"cleartext_not_allowed"}},
+    {"caseId":"tailscale_ipv6_private_vpn","input":"http://[fd7a:115c:a1e0::42]:11434","securityMode":"private_vpn","resolvedIPs":["fd7a:115c:a1e0::42"],"expect":{"allowed":true,"reason":"private_vpn"}},
+    {"caseId":"public_http_rejected","input":"http://203.0.113.8:8080","securityMode":"local_http","resolvedIPs":["203.0.113.8"],"expect":{"allowed":false,"reason":"public_address"}},
+    {"caseId":"mixed_resolution_rejected","input":"http://mixed.example:8080","securityMode":"local_http","resolvedIPs":["192.168.1.40","203.0.113.9"],"expect":{"allowed":false,"reason":"mixed_resolution"}},
+    {"caseId":"dns_rebinding_rejected","input":"http://rebind.example:8080","securityMode":"local_http","resolvedIPs":["192.168.1.50"],"recheckResolvedIPs":["203.0.113.10"],"expect":{"allowed":false,"reason":"dns_rebinding"}},
+    {"caseId":"cross_origin_redirect_rejected","input":"http://192.168.1.50:8080","securityMode":"local_http","resolvedIPs":["192.168.1.50"],"redirects":["http://192.168.1.51:8080"],"expect":{"allowed":false,"reason":"cross_origin_redirect"}},
+    {"caseId":"same_origin_redirect_rechecked","input":"http://192.168.1.50:8080","securityMode":"local_http","resolvedIPs":["192.168.1.50"],"redirects":["http://192.168.1.50:8080/v1"],"expect":{"allowed":true,"reason":"private_lan"}},
+    {"caseId":"cleartext_key_rejected","input":"http://192.168.1.20:8080","securityMode":"local_http","resolvedIPs":["192.168.1.20"],"credentials":{"authMode":"bearer","hasKey":true},"expect":{"allowed":false,"reason":"cleartext_credentials"}},
+    {"caseId":"cleartext_custom_header_rejected","input":"http://192.168.1.20:8080","securityMode":"local_http","resolvedIPs":["192.168.1.20"],"credentials":{"authMode":"none","sensitiveHeaders":["X-Private-Key"]},"expect":{"allowed":false,"reason":"cleartext_credentials"}},
+    {"caseId":"no_scheme_uses_local_mode","input":"192.168.1.20:8080","securityMode":"local_http","resolvedIPs":["192.168.1.20"],"expect":{"allowed":true,"reason":"private_lan","normalized":"http://192.168.1.20:8080"}},
+    {"caseId":"userinfo_always_rejected","input":"http://user:pass@192.168.1.20:8080","securityMode":"local_http","resolvedIPs":["192.168.1.20"],"expect":{"allowed":false,"reason":"userinfo"}},
+    {"caseId":"https_public_remote_allowed","input":"https://relay.example.com","securityMode":"remote_https","resolvedIPs":["203.0.113.20"],"expect":{"allowed":true,"reason":"encrypted_remote"}}
+  ]
+}

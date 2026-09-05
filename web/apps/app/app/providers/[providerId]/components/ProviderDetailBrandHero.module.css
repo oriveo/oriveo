@@ -1,0 +1,437 @@
+/* ── ProviderDetailBrandHero — hero at the top of the provider detail page.
+   Subdued brand gradient, stamped watermark, glass API key capsule and two CTAs.
+   It reuses the same color language as ProviderHeroCard on the list page.
+
+   Exception: this palette is decorative-only. The whole hero sits on a brand-color gradient, so every
+   piece of text, icon and glass capsule inside the card stays white (#ffffff) across themes for
+   readability. ── */
+
+.card {
+  --brand-color: var(--o-primary);
+
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px 18px;
+  border: 0.6px solid rgba(255, 255, 255, 0.14);
+  border-radius: 24px;
+  color: #ffffff;
+  overflow: hidden;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.12);
+  background:
+    linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0) 12%,
+      rgba(255, 255, 255, 0.06) 30%,
+      rgba(255, 255, 255, 0) 60%
+    ),
+    linear-gradient(
+      to bottom,
+      transparent 50%,
+      rgba(0, 0, 0, 0.18) 100%
+    ),
+    radial-gradient(
+      circle 280px at 92% -5%,
+      rgba(255, 255, 255, 0.16),
+      transparent 70%
+    ),
+    linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--brand-color) 94%, white 6%) 0%,
+      color-mix(in srgb, var(--brand-color) 78%, black 22%) 100%
+    );
+}
+/* Watermark: a white masked logo stamp, offset toward the bottom trailing corner. */
+.watermark {
+  position: absolute;
+  right: -32px;
+  bottom: -28px;
+  width: 220px;
+  height: 220px;
+  background: rgba(255, 255, 255, 0.10);
+  mask-repeat: no-repeat;
+  mask-position: center;
+  mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  -webkit-mask-size: contain;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Motif symbol watermark (tile, relay, free) at the same size, position and brightness as the mask
+   branch: a 164 glyph centered in a 220 box. */
+.watermarkSymbol {
+  position: absolute;
+  right: -32px;
+  bottom: -28px;
+  width: 220px;
+  height: 220px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.10);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Top row — logo badge + status capsule */
+.topRow {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* The logo is shown bare: no tray, no white backing, no blur, no inset. */
+.logoBadge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.statusCapsule {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.22);
+  border: 0.6px solid rgba(255, 255, 255, 0.30);
+  font-size: 11.5px;
+  font-weight: 600;
+  line-height: 1;
+  white-space: nowrap;
+  color: #ffffff;
+}
+
+.statusDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
+}
+
+.statusCapsule[data-status='connected'] .statusDot {
+  background: rgb(92, 245, 168);
+}
+
+.statusCapsule[data-status='syncing'] .statusDot {
+  background: #ffffff;
+  animation: brandHeroPulse 1.4s ease-in-out infinite;
+}
+
+/* The warning dot uses a brighter #FFD157 rather than the global --o-warning (#f5a524), which has too
+   little contrast on the colored brand background. */
+.statusCapsule[data-status='issue'] .statusDot,
+.statusCapsule[data-status='needsKey'] .statusDot {
+  background: rgb(255, 209, 87);
+}
+
+@keyframes brandHeroPulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.45; transform: scale(0.78); }
+}
+
+/* Name + meta */
+.nameBlock {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.nameRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.name {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.4px;
+  color: #ffffff;
+  line-height: 1.1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.editNameBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.62);
+  cursor: pointer;
+  border-radius: 8px;
+  flex-shrink: 0;
+  transition: background var(--o-transition-fast), color var(--o-transition-fast);
+}
+
+.editNameBtn:hover {
+  background: rgba(255, 255, 255, 0.10);
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.editNameBtn:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.6);
+  outline-offset: 2px;
+}
+
+.metaRow {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.78);
+  line-height: 1.2;
+  flex-wrap: wrap;
+}
+
+.metaCount {
+  white-space: nowrap;
+}
+
+.metaDot {
+  width: 3.5px;
+  height: 3.5px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.45);
+  flex-shrink: 0;
+}
+
+.metaSynced {
+  color: rgba(255, 255, 255, 0.72);
+  white-space: nowrap;
+}
+
+/* API Key glass capsule */
+.apiKeyRow {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.18);
+  border: 0.5px solid rgba(255, 255, 255, 0.22);
+  color: #ffffff;
+  text-align: left;
+  cursor: pointer;
+  transition: background var(--o-transition-fast), border-color var(--o-transition-fast);
+}
+
+.apiKeyRow:hover {
+  background: rgba(255, 255, 255, 0.24);
+  border-color: rgba(255, 255, 255, 0.32);
+}
+
+.apiKeyRow:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.55);
+  outline-offset: 2px;
+}
+
+.apiKeyIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.26);
+  color: #ffffff;
+  flex-shrink: 0;
+}
+
+.apiKeyLabelStack {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+.apiKeyLabel {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.62);
+  line-height: 1;
+}
+
+.apiKeyValue {
+  font-size: 13.5px;
+  font-weight: 600;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: #ffffff;
+  line-height: 1.2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.apiKeyValue[data-dim='true'] {
+  color: rgba(255, 255, 255, 0.78);
+  font-family: var(--o-font-sans, system-ui);
+  font-weight: 500;
+}
+
+.apiKeyChevron {
+  color: rgba(255, 255, 255, 0.55);
+  flex-shrink: 0;
+}
+
+/* Actions: two CTAs, a white primary and a glass secondary. */
+.actions {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.primaryAction,
+.secondaryAction {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  flex: 1 1 0;
+  min-height: 44px;
+  padding: 0 14px;
+  border-radius: 14px;
+  font-size: 14.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--o-transition-fast), opacity var(--o-transition-fast), transform var(--o-transition-fast);
+  white-space: nowrap;
+}
+
+.primaryAction {
+  border: 0.5px solid rgba(255, 255, 255, 0.42);
+  background: rgba(255, 255, 255, 0.96);
+  /* Text color: a darker version of the brand color on the white background, for contrast. */
+  color: color-mix(in srgb, var(--brand-color) 65%, black 35%);
+}
+
+.primaryAction:hover {
+  background: #ffffff;
+  transform: translateY(-1px);
+}
+
+.primaryAction:active {
+  transform: translateY(0);
+  background: rgba(255, 255, 255, 0.86);
+}
+
+.secondaryAction {
+  border: 0.5px solid rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.20);
+  color: rgba(255, 255, 255, 0.96);
+}
+
+.secondaryAction:hover {
+  background: rgba(255, 255, 255, 0.28);
+}
+
+.secondaryAction:disabled {
+  opacity: 0.62;
+  cursor: not-allowed;
+}
+
+.primaryAction:focus-visible,
+.secondaryAction:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.65);
+  outline-offset: 2px;
+}
+
+.spinningIcon {
+  animation: brandHeroSpin 0.9s linear infinite;
+}
+
+@keyframes brandHeroSpin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Reduced motion: disable every spin and pulse animation. */
+@media (prefers-reduced-motion: reduce) {
+  .statusCapsule[data-status='syncing'] .statusDot,
+  .spinningIcon {
+    animation: none;
+  }
+}
+
+/* Dark theme: brighten the brand endpoints and deepen the shadows. */
+:global(html[data-theme='dark']) .card {
+  border-color: rgba(255, 255, 255, 0.08);
+  background:
+    linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0) 12%,
+      rgba(255, 255, 255, 0.06) 30%,
+      rgba(255, 255, 255, 0) 60%
+    ),
+    linear-gradient(
+      to bottom,
+      transparent 50%,
+      rgba(0, 0, 0, 0.24) 100%
+    ),
+    radial-gradient(
+      circle 280px at 92% -5%,
+      rgba(255, 255, 255, 0.14),
+      transparent 70%
+    ),
+    linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--brand-color) 90%, white 4%) 0%,
+      color-mix(in srgb, var(--brand-color) 66%, black 34%) 100%
+    );
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.40);
+}
+
+@media (max-width: 720px) {
+  .card {
+    padding: 14px 16px;
+    border-radius: 20px;
+  }
+
+  .name {
+    font-size: 24px;
+  }
+
+  .actions {
+    flex-direction: column;
+  }
+
+  .primaryAction,
+  .secondaryAction {
+    flex: 1 1 auto;
+    width: 100%;
+  }
+
+  .watermark {
+    width: 180px;
+    height: 180px;
+    right: -28px;
+    bottom: -20px;
+  }
+}

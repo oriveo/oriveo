@@ -1,0 +1,2785 @@
+{
+  "$comment": "Request shape contract v2. v1 stays frozen as the live outbound wire lock for the four clients; v2 is additive and freezes a different surface: the versioned capabilityRuntime envelope Server ships inside the metadata snapshot, the minimal recipe structure, the per-model capabilityControls states, result definitions, and the fail-safe rules that keep plain chat alive when any of it is unknown. Vocabularies shared with request_preference_contract.v2 (executionKinds, continuationKinds, controlStates) are byte-identical by construction and asserted by scripts/request-shape-contract-v2.test.mjs.",
+  "contractId": "request_shape_contract.v2",
+  "version": 2,
+  "phase": "P1",
+  "relatedContracts": [
+    {
+      "contractId": "request_shape_contract.v1",
+      "relation": "frozen_live_wire_lock",
+      "note": "v1 locks endpoint, headers, query and body key shape of the current outbound requests; v2 never edits or reinterprets it"
+    },
+    {
+      "contractId": "request_preference_contract.v2",
+      "relation": "sibling",
+      "note": "owns intent resolution, safe overlay, typed contributions, result facts, continuation bounds and retry; this contract owns the runtime envelope and recipe structure that feed it"
+    }
+  ],
+  "wireNaming": {
+    "$comment": "The single canonical spelling table. Every document, fixture and client implementation uses exactly these names; a second vocabulary is a contract violation. Matching is exact token matching, not substring.",
+    "runtimeEnvelopeKey": "capabilityRuntime",
+    "runtimeSchemaVersion": 2,
+    "runtimeEnvelopeFields": [
+      "schemaVersion",
+      "revision",
+      "generatedAt",
+      "recipes",
+      "controlDefinitions",
+      "sourceIndex"
+    ],
+    "unknownEnvelopeFieldPolicy": "ignore",
+    "perModelControlsKey": "capabilityControls",
+    "capabilityControlKeys": [
+      "web",
+      "reasoning",
+      "generation"
+    ],
+    "unknownCapabilityKeyPolicy": "ignore",
+    "recipeReferenceKey": "recipeRef",
+    "customControlReferencesKey": "customControlRefs",
+    "forbiddenAliases": [
+      "capability_runtime",
+      "capabilityRuntimeV2",
+      "runtimeCapabilities",
+      "capability_controls",
+      "capabilityControl",
+      "controlsByCapability",
+      "capabilityState",
+      "recipe_ref",
+      "recipeId",
+      "recipeKey"
+    ]
+  },
+  "resultRuntimeExtensions": {
+    "$comment": "P5 additive fields are deliberately not part of runtimeEnvelopeFields: a P4 client ignores them, while a P5 client receiving an older rollback revision keeps request compilation working and reports only unconfirmed. Every P5 revision recipe explicitly references both maps; definitions bind capability + protocol + responseParserKind, so same parser names cannot cross owners/transports.",
+    "envelopeFields": [
+      "responseEvidenceDefinitions",
+      "errorRecoveryDefinitions"
+    ],
+    "recipeFields": [
+      "responseEvidenceRef",
+      "errorRecoveryRef"
+    ],
+    "responseEvidenceKinds": [
+      "provider_tool_result",
+      "citation",
+      "grounding",
+      "thinking_block",
+      "reasoning_usage"
+    ],
+    "signalSource": "selected_production_parser_normalized_stream_event",
+    "httpSuccessWithoutSignal": "unconfirmed",
+    "missingDefinition": "unconfirmed",
+    "errorRecoveryBinding": "same_exact_capability_protocol_responseParserKind",
+    "unreviewedStructuredLocator": "surface_error"
+  },
+  "providerKindUniverse": {
+    "$comment": "BYOK provider kinds plus relay. Hosted product lines are not part of this universe.",
+    "count": 16,
+    "kinds": [
+      "openRouter",
+      "openAI",
+      "anthropic",
+      "gemini",
+      "groq",
+      "deepseek",
+      "siliconFlow",
+      "togetherAI",
+      "fireworksAI",
+      "miniMax",
+      "zhipu",
+      "qwen",
+      "grok",
+      "moonshot",
+      "mistral",
+      "relay"
+    ],
+    "source": {
+      "kind": "code",
+      "path": "shared/model-contracts",
+      "symbol": "AllProviderMeta"
+    },
+    "excluded": []
+  },
+  "managedProductPolicies": {
+    "$comment": "Catalog states that are not used by user-owned providers. Clients must not invent defaults for them."
+  },
+  "controlStates": [
+    "auto_available",
+    "managed_only",
+    "custom_only",
+    "unavailable",
+    "unknown"
+  ],
+  "stateRequirements": {
+    "$comment": "auto_available is the only state that may carry a recipeRef and the only state that sends fields automatically. Every other state must explain itself: a reasonCode plus at least one resolvable source key, so that a downgrade is auditable instead of anonymous. Two provider kinds are exempt from the source requirement because no official third-party source exists to cite: relay resolves against a catalog on the user's own machine, and the managed free tier carries no field at all. Their fixed verdict blocks auto_available specifically; any other declared state still goes through the ordinary reasonCode and source checks, so the exemption cannot be borrowed by a different provider or a different state.",
+    "autoAvailableRequiresRecipeRef": true,
+    "nonAutoMustNotCarryRecipeRef": true,
+    "nonAutoRequiresReasonCode": true,
+    "nonAutoMinSourceRefs": 1,
+    "sourceRefsResolveAgainst": "capabilityRuntime.sourceIndex",
+    "fixedVerdictBlocksAutoAvailableOnly": true,
+    "sourceRefExemptions": [
+      {
+        "providerKind": "relay",
+        "state": "custom_only",
+        "reasonCode": "relay_user_directory",
+        "why": "the relay catalog comes from the user's own machine; Server performs no exact selector resolution, so there is no official source to cite"
+      }
+    ],
+    "fixedVerdicts": [
+      {
+        "providerKind": "relay",
+        "state": "custom_only",
+        "reasonCode": "relay_user_directory",
+        "autoRecipeAllowed": false,
+        "modelIdGuessing": "forbidden",
+        "note": "BYOK/Relay developers may still author a safe custom fragment under the sibling contract"
+      }
+    ],
+    "knownReasonCodes": [
+      "relay_user_directory",
+      "managed_zero_payload",
+      "managed_balance_server_authority",
+      "endpoint_route_pending",
+      "model_route_pending",
+      "no_official_managed_search",
+      "official_source_insufficient",
+      "source_review_expired",
+      "provider_kill_switch",
+      "transport_not_supported"
+    ],
+    "reasonCodeListIsClosed": false
+  },
+  "recipeSchema": {
+    "$comment": "The minimal structure a production recipe must carry. executionKinds and continuationKinds are byte-identical to request_preference_contract.v2 vocabulary: there is no separate plugin kind (plugin-style fields are request_overlay target roots) and no separate fiber kind (fiber is a tool_loop variant). An earlier illustrative continuationKind string predates the frozen enum below; the enum is authoritative.",
+    "requiredFields": [
+      "id",
+      "providerKind",
+      "transport",
+      "capability",
+      "executionKind",
+      "requestOps",
+      "responseParserKind",
+      "continuationKind",
+      "controlRefs",
+      "fallbackPolicy",
+      "sourceRefs",
+      "reviewedAt"
+    ],
+    "idPattern": "^[a-z0-9_]+\\.[a-z0-9_]+\\.[a-z0-9_]+\\.v[0-9]+$",
+    "idShape": "provider.transport.capability.vN",
+    "transportRequiredFields": [
+      "protocol",
+      "endpointClass",
+      "requiredHeaders",
+      "streaming"
+    ],
+    "streamingModes": [
+      "required",
+      "optional",
+      "unsupported"
+    ],
+    "capabilities": [
+      "web",
+      "reasoning",
+      "generation"
+    ],
+    "executionKinds": [
+      "request_overlay",
+      "server_tool",
+      "client_tool_loop",
+      "endpoint_route",
+      "model_route",
+      "external_connector",
+      "unavailable"
+    ],
+    "executionKindRequirements": {
+      "client_tool_loop": {
+        "requiredFields": [
+          "maxToolLoops"
+        ],
+        "minToolLoops": 1,
+        "maxToolLoops": 8,
+        "defaultToolLoops": 6,
+        "$comment": "One shared formula for every client tool loop (Moonshot web search, future MCP) — effective maxSteps = min(server value, 8), default 6 when the server sends nothing. Server-side recipe validation accepts 1..8; the old Moonshot-only 1..5 clamp is retired."
+      },
+      "endpoint_route": {
+        "requiredFields": [
+          "route"
+        ]
+      },
+      "model_route": {
+        "requestOpsMustBeEmpty": true
+      },
+      "external_connector": {
+        "requestOpsMustBeEmpty": true,
+        "clientExecution": "forbidden"
+      },
+      "unavailable": {
+        "requestOpsMustBeEmpty": true,
+        "clientExecution": "forbidden"
+      }
+    },
+    "fiberVariantRequirements": {
+      "requiredFields": [
+        "formula"
+      ],
+      "requestOpsMustBeEmpty": true,
+      "formulaRequiredFields": [
+        "uri",
+        "toolsPath",
+        "fibersPath",
+        "argumentsMode",
+        "resultPaths"
+      ],
+      "argumentsMode": "verbatim",
+      "resultPathPriority": [
+        "context.output",
+        "context.encrypted_output"
+      ]
+    },
+    "endpointRouteRequiredFields": [
+      "protocol",
+      "endpointClass",
+      "path",
+      "requestMapper"
+    ],
+    "alternateTransportRouteRequiredFields": [
+      "sourceProtocol",
+      "protocol",
+      "endpointClass",
+      "path",
+      "method",
+      "authMode",
+      "authHeader",
+      "headers",
+      "requestMapper"
+    ],
+    "endpointRouteMethods": [
+      "POST"
+    ],
+    "endpointRouteAuthModes": [
+      "x_api_key",
+      "bearer"
+    ],
+    "continuationKinds": [
+      "none",
+      "previous_id",
+      "replay_blocks",
+      "replay_reasoning",
+      "tool_loop"
+    ],
+    "continuationVariants": {
+      "tool_loop": [
+        "default",
+        "fiber"
+      ]
+    },
+    "fallbackPolicies": [
+      "user_confirmed_resend_without_located_setting",
+      "no_fallback"
+    ],
+    "controlRefsResolveAgainst": "capabilityRuntime.controlDefinitions",
+    "minSourceRefs": 1,
+    "reviewedAtPattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
+    "validationOutcomes": [
+      "register_recipe",
+      "reject_feature_patch"
+    ],
+    "sourceRefSchema": {
+      "$comment": "One entry of capabilityRuntime.sourceIndex. officialUpdatedAt must be present as an explicit key and may be null: when the official page carries no publication date the honest value is null. Writing the crawl or review date into officialUpdatedAt is forbidden; reviewedAt is the separate field for that.",
+      "requiredFields": [
+        "kind",
+        "url",
+        "reviewedAt"
+      ],
+      "explicitNullableFields": [
+        "officialUpdatedAt"
+      ],
+      "kinds": [
+        "official_doc",
+        "official_sdk",
+        "official_schema"
+      ],
+      "communitySourceMayActivateRecipe": false,
+      "crawlDateAsOfficialUpdatedAt": "forbidden",
+      "urlPattern": "^https://"
+    }
+  },
+  "controlDefinitionSchema": {
+    "$comment": "One entry of capabilityRuntime.controlDefinitions. Server ships localization keys, type, value domain, owner and risk label; the three clients never invent a field or a range. Pointer legality (forbidden channels, builder-owned roots) is owned by request_preference_contract.v2 safeOverlay and is not restated here.",
+    "requiredFields": [
+      "id",
+      "owner",
+      "kind",
+      "labelKey",
+      "descriptionKey",
+      "targetPointer",
+      "defaultBehavior",
+      "riskTier",
+      "sourceRefs"
+    ],
+    "owners": [
+      "web",
+      "reasoning",
+      "generation"
+    ],
+    "controlKinds": [
+      "boolean",
+      "enum",
+      "integer_range",
+      "number_range",
+      "string_list",
+      "json_schema"
+    ],
+    "kindRequiredFields": {
+      "enum": [
+        "values"
+      ],
+      "integer_range": [
+        "min",
+        "max"
+      ],
+      "number_range": [
+        "min",
+        "max"
+      ],
+      "string_list": [
+        "maxItems"
+      ]
+    },
+    "riskTiers": [
+      "standard",
+      "cost_impacting",
+      "privacy_impacting"
+    ],
+    "targetPointerPattern": "^/",
+    "forbiddenTargetRoots": [
+      "auth",
+      "headers",
+      "query",
+      "endpoint",
+      "base_url",
+      "transport_route",
+      "model_route",
+      "continuation_state",
+      "model",
+      "messages",
+      "input",
+      "contents",
+      "prompt",
+      "attachments",
+      "instructions",
+      "system",
+      "stream",
+      "stream_options",
+      "tools",
+      "tool_choice",
+      "plugins"
+    ],
+    "forbiddenTargetSegments": [
+      "__proto__",
+      "prototype",
+      "constructor"
+    ],
+    "pointerOwnershipAuthority": "request_preference_contract.v2#safeOverlay"
+  },
+  "customControlReferenceSchema": {
+    "$comment": "CapabilityControl.customControlRefs is the only official-provider authority for Custom mode. Clients resolve refs against the same capabilityRuntime.controlDefinitions envelope and must never derive writable paths from recipe requestOps. auto_available and non-auto states may carry refs; managed_only may not. A non-Relay custom_only control with no resolvable refs keeps Custom visible but disabled. Relay uses only its local exact-transport schema because Server cannot resolve the user's catalog.",
+    "field": "customControlRefs",
+    "resolveAgainst": "capabilityRuntime.controlDefinitions",
+    "definitionOwnerMustEqualCapability": true,
+    "definitionSourceRefsMustResolve": true,
+    "duplicateRefsAllowed": false,
+    "allowedStates": [
+      "auto_available",
+      "custom_only",
+      "unavailable",
+      "unknown"
+    ],
+    "managedOnlyMustBeEmpty": true,
+    "clientDerivationFromRecipeRequestOps": "forbidden",
+    "customOnlyWithoutResolvableRefs": "custom_disabled",
+    "relayAuthority": "local_exact_transport_schema_only"
+  },
+  "reasoningIntents": {
+    "$comment": "The product-facing thinking ladder. availableIntents on a reasoning control is a subset of this list, derived from the recipe for the exact model and transport, kept in canonical order, and never gap-filled: a provider that officially offers only two rungs shows two rungs rather than a synthesized middle value.",
+    "values": [
+      "off",
+      "low",
+      "balanced",
+      "deep",
+      "max"
+    ],
+    "availableIntentsMustBeSubset": true,
+    "availableIntentsAreRecipeDerived": true,
+    "availableIntentsMustFollowCanonicalOrder": true,
+    "availableIntentsGapFillingForbidden": true,
+    "availableIntentsOnlyOnCapability": "reasoning",
+    "emptyAvailableIntentsMeansNoIntentControl": true
+  },
+  "webIntents": {
+    "$comment": "Web has exactly one optional override. `automatic` and `off` are persisted preference values, never recipe-selectable intents: an auto recipe lets the model decide whether to search, while force is advertised only when the exact official recipe carries a force-specific request operation. Empty, repeated, or mixed lists are invalid rather than silently becoming automatic.",
+    "values": [
+      "force"
+    ],
+    "availableIntentsOnlyOnCapability": "web",
+    "exactlyOneRequired": true,
+    "automaticAndOffArePreferenceValues": true
+  },
+  "goldenFixtureSchema": {
+    "$comment": "The per-provider golden fixture roster. Each category is bound to the phase that owns it, so a later phase's evidence cannot be faked early. A fixture that builds its own request body and compares it to itself proves nothing: every request-shape fixture must compare against an object produced by the production builder path.",
+    "coversProviderKinds": "providerKindUniverse.kinds",
+    "categories": [
+      {
+        "index": 1,
+        "id": "default_chat_all_namespaces_omitted",
+        "phase": "P3",
+        "summary": "plain chat with web, reasoning and generation all omitted"
+      },
+      {
+        "index": 2,
+        "id": "valid_auto_recipe_redacted_delta",
+        "phase": "P3",
+        "summary": "one working auto recipe, captured as the production builder's redacted request delta"
+      },
+      {
+        "index": 3,
+        "id": "no_recipe_or_wrong_transport_sends_nothing",
+        "phase": "P3",
+        "summary": "no auto recipe or mismatched transport: nothing is sent and plain chat continues"
+      },
+      {
+        "index": 4,
+        "id": "custom_fragment_allow_and_reject",
+        "phase": "P3",
+        "summary": "a safe custom fragment accepted, and an out-of-ownership fragment rejected"
+      },
+      {
+        "index": 5,
+        "id": "streaming_and_non_streaming_paths",
+        "phase": "P3",
+        "summary": "at least one request/response path each for streaming and non-streaming"
+      },
+      {
+        "index": 6,
+        "id": "model_and_transport_boundary_hit_and_miss",
+        "phase": "P3",
+        "summary": "exact model and transport selector hit, plus a deliberate miss"
+      },
+      {
+        "index": 7,
+        "id": "response_evidence_observed_and_unconfirmed",
+        "phase": "P5",
+        "summary": "observed via recipe-declared evidence, and HTTP success without evidence staying unconfirmed"
+      },
+      {
+        "index": 8,
+        "id": "pre_token_400_recovery_and_non_recovery",
+        "phase": "P5",
+        "summary": "a located 400 before first token offers explicit resend without that setting; no error path silently retries, and 401/429/5xx/mid-stream errors never create negative capability evidence"
+      },
+      {
+        "index": 9,
+        "id": "source_reviewed_at_revision_consistency",
+        "phase": "P2",
+        "summary": "official source, reviewedAt and recipe revision agree"
+      }
+    ],
+    "perTransportIsolation": {
+      "rule": "a provider exposing more than one execution kind needs an independent fixture per transport",
+      "examples": [
+        "qwen",
+        "openRouter",
+        "gemini"
+      ],
+      "oneSuccessCaseMayNotStandInForAllEndpoints": true
+    },
+    "selfBuiltBodyComparedToItself": "not_a_pass",
+    "productionBuilderProofRequiredFromPhase": "P3"
+  },
+  "failSafe": {
+    "$comment": "Every unknown degrades to sending nothing for that one item, never to breaking the send. The dangling recipeRef rule is the cross-revision window guard: clients cache metadata for up to 24h, so a control can legitimately point at a recipe the local snapshot does not have. In that window the item shows as no automatic configuration; partially applying a half-known recipe is forbidden.",
+    "actions": [
+      "apply_runtime",
+      "apply_recipe",
+      "no_auto_config",
+      "ignore_runtime",
+      "reject_feature_patch"
+    ],
+    "chatAlwaysContinues": true,
+    "missingRuntimeEnvelope": "ignore_runtime",
+    "unknownSchemaVersion": "ignore_runtime",
+    "missingEnvelopeField": "ignore_runtime",
+    "unknownEnvelopeField": "ignore_field",
+    "danglingRecipeRef": "no_auto_config",
+    "danglingRecipeRefDegradesTo": "unknown",
+    "partialApplyOnDanglingRecipeRef": false,
+    "unknownControlState": "unknown",
+    "unknownCapabilityKey": "ignore_field",
+    "unknownExecutionKind": "reject_feature_patch",
+    "unknownContinuationKind": "reject_feature_patch",
+    "unknownContinuationVariant": "reject_feature_patch",
+    "unknownControlKind": "reject_feature_patch",
+    "contractInvalidRuntimeAction": "no_auto_config"
+  },
+  "fixtures": {
+    "sharedSourceIndex": {
+      "openai.web_search": {
+        "kind": "official_doc",
+        "url": "https://developers.openai.com/api/docs/guides/tools-web-search",
+        "reviewedAt": "2026-08-11",
+        "officialUpdatedAt": null
+      },
+      "anthropic.web_search": {
+        "kind": "official_doc",
+        "url": "https://platform.claude.com/docs/en/agents-and-tools/tool-use/web-search-tool",
+        "reviewedAt": "2026-08-11",
+        "officialUpdatedAt": null
+      },
+      "gemini.interactions": {
+        "kind": "official_doc",
+        "url": "https://ai.google.dev/api/interactions-api-v1",
+        "reviewedAt": "2026-08-11",
+        "officialUpdatedAt": "2026-07-27"
+      },
+      "gemini.google_search": {
+        "kind": "official_doc",
+        "url": "https://ai.google.dev/gemini-api/docs/google-search",
+        "reviewedAt": "2026-08-11",
+        "officialUpdatedAt": "2026-08-04"
+      },
+      "openrouter.server_tools": {
+        "kind": "official_doc",
+        "url": "https://openrouter.ai/docs/guides/features/server-tools/web-search",
+        "reviewedAt": "2026-08-11",
+        "officialUpdatedAt": null
+      },
+      "grok.web_search": {
+        "kind": "official_doc",
+        "url": "https://docs.x.ai/developers/tools/web-search",
+        "reviewedAt": "2026-08-15",
+        "officialUpdatedAt": null
+      },
+      "zhipu.web_search": {
+        "kind": "official_doc",
+        "url": "https://docs.bigmodel.cn/cn/guide/tools/web-search",
+        "reviewedAt": "2026-08-15",
+        "officialUpdatedAt": null
+      },
+      "qwen.web_search": {
+        "kind": "official_doc",
+        "url": "https://www.alibabacloud.com/help/en/model-studio/web-search",
+        "reviewedAt": "2026-08-11",
+        "officialUpdatedAt": null
+      },
+      "kimi.official_tools": {
+        "kind": "official_doc",
+        "url": "https://platform.kimi.ai/docs/guide/use-official-tools",
+        "reviewedAt": "2026-08-15",
+        "officialUpdatedAt": null
+      },
+      "mistral.web_search": {
+        "kind": "official_doc",
+        "url": "https://docs.mistral.ai/studio/agents/agent-tools/websearch",
+        "reviewedAt": "2026-08-15",
+        "officialUpdatedAt": null
+      },
+      "groq.built_in_tools": {
+        "kind": "official_doc",
+        "url": "https://console.groq.com/docs/tool-use/built-in-tools/web-search",
+        "reviewedAt": "2026-08-11",
+        "officialUpdatedAt": null
+      },
+      "deepseek.thinking_mode": {
+        "kind": "official_doc",
+        "url": "https://api-docs.deepseek.com/guides/thinking_mode",
+        "reviewedAt": "2026-08-15",
+        "officialUpdatedAt": "2026-08-13"
+      },
+      "together.chat_completions": {
+        "kind": "official_doc",
+        "url": "https://docs.together.ai/reference/chat-completions",
+        "reviewedAt": "2026-08-11",
+        "officialUpdatedAt": null
+      },
+      "fireworks.chat_completions": {
+        "kind": "official_doc",
+        "url": "https://docs.fireworks.ai/api-reference/post-chatcompletions",
+        "reviewedAt": "2026-08-11",
+        "officialUpdatedAt": null
+      },
+      "siliconflow.chat_completions": {
+        "kind": "official_doc",
+        "url": "https://docs.siliconflow.cn/en/api-reference/chat-completions/chat-completions",
+        "reviewedAt": "2026-08-11",
+        "officialUpdatedAt": null
+      },
+      "minimax.text_api": {
+        "kind": "official_doc",
+        "url": "https://platform.minimax.io/docs/api-reference/text-post",
+        "reviewedAt": "2026-08-11",
+        "officialUpdatedAt": null
+      },
+      "openai.reasoning": {
+        "kind": "official_doc",
+        "url": "https://developers.openai.com/api/docs/guides/latest-model",
+        "reviewedAt": "2026-08-11",
+        "officialUpdatedAt": null
+      }
+    },
+    "sharedControlDefinitions": {
+      "qwen.web.enable_search": {
+        "id": "qwen.web.enable_search",
+        "owner": "web",
+        "kind": "boolean",
+        "labelKey": "control.web.enableSearch",
+        "descriptionKey": "control.web.enableSearch.desc",
+        "targetPointer": "/enable_search",
+        "defaultBehavior": "provider_default",
+        "riskTier": "privacy_impacting",
+        "sourceRefs": [
+          "qwen.web_search"
+        ]
+      },
+      "openai.reasoning.effort": {
+        "id": "openai.reasoning.effort",
+        "owner": "reasoning",
+        "kind": "enum",
+        "values": [
+          "low",
+          "medium",
+          "high"
+        ],
+        "labelKey": "control.reasoning.effort",
+        "descriptionKey": "control.reasoning.effort.desc",
+        "targetPointer": "/reasoning/effort",
+        "defaultBehavior": "provider_default",
+        "riskTier": "cost_impacting",
+        "sourceRefs": [
+          "openai.reasoning"
+        ]
+      },
+      "openai.generation.max_output_tokens": {
+        "id": "openai.generation.max_output_tokens",
+        "owner": "generation",
+        "kind": "integer_range",
+        "min": 1,
+        "max": 128000,
+        "labelKey": "control.generation.maxOutputTokens",
+        "descriptionKey": "control.generation.maxOutputTokens.desc",
+        "targetPointer": "/max_output_tokens",
+        "defaultBehavior": "provider_default",
+        "riskTier": "cost_impacting",
+        "sourceRefs": [
+          "openai.reasoning"
+        ]
+      }
+    },
+    "runtimeEnvelopeCases": [
+      {
+        "caseId": "envelope.minimal_applies",
+        "payload": {
+          "capabilityRuntime": {
+            "schemaVersion": 2,
+            "revision": "sha256:0000000000000000000000000000000000000000000000000000000000000000",
+            "generatedAt": "2026-08-11T00:00:00Z",
+            "recipes": {},
+            "controlDefinitions": {},
+            "sourceIndex": {}
+          }
+        },
+        "expect": {
+          "applied": true,
+          "action": "apply_runtime",
+          "reason": null,
+          "chatContinues": true
+        }
+      },
+      {
+        "caseId": "envelope.additive_field_is_ignored_not_fatal",
+        "payload": {
+          "capabilityRuntime": {
+            "schemaVersion": 2,
+            "revision": "sha256:aa",
+            "generatedAt": "2026-08-11T00:00:00Z",
+            "recipes": {},
+            "controlDefinitions": {},
+            "sourceIndex": {},
+            "futureField": {
+              "anything": true
+            }
+          }
+        },
+        "expect": {
+          "applied": true,
+          "action": "apply_runtime",
+          "reason": null,
+          "chatContinues": true
+        }
+      },
+      {
+        "caseId": "envelope.unknown_schema_version_ignores_whole_runtime",
+        "payload": {
+          "capabilityRuntime": {
+            "schemaVersion": 3,
+            "revision": "sha256:bb",
+            "generatedAt": "2026-08-11T00:00:00Z",
+            "recipes": {},
+            "controlDefinitions": {},
+            "sourceIndex": {}
+          }
+        },
+        "expect": {
+          "applied": false,
+          "action": "ignore_runtime",
+          "reason": "unknown_schema_version",
+          "chatContinues": true
+        }
+      },
+      {
+        "caseId": "envelope.missing_field_ignores_whole_runtime",
+        "payload": {
+          "capabilityRuntime": {
+            "schemaVersion": 2,
+            "revision": "sha256:cc",
+            "generatedAt": "2026-08-11T00:00:00Z",
+            "recipes": {},
+            "controlDefinitions": {}
+          }
+        },
+        "expect": {
+          "applied": false,
+          "action": "ignore_runtime",
+          "reason": "missing_envelope_field",
+          "chatContinues": true
+        }
+      },
+      {
+        "caseId": "envelope.absent_runtime_is_not_an_error",
+        "payload": {
+          "models": []
+        },
+        "expect": {
+          "applied": false,
+          "action": "ignore_runtime",
+          "reason": "missing_runtime_envelope",
+          "chatContinues": true
+        }
+      }
+    ],
+    "controlResolutionCases": [
+      {
+        "caseId": "control.auto_available_applies_recipe",
+        "providerKind": "openAI",
+        "recipes": [
+          "openai.responses.web.v1"
+        ],
+        "capabilityControls": {
+          "web": {
+            "state": "auto_available",
+            "recipeRef": "openai.responses.web.v1"
+          }
+        },
+        "expect": {
+          "unknownCapabilities": [],
+          "results": {
+            "web": {
+              "valid": true,
+              "state": "auto_available",
+              "action": "apply_recipe",
+              "reason": null
+            }
+          }
+        }
+      },
+      {
+        "caseId": "control.auto_available_resolves_same_owner_custom_refs",
+        "providerKind": "openAI",
+        "recipes": [
+          "openai.responses.reasoning.v1"
+        ],
+        "capabilityControls": {
+          "reasoning": {
+            "state": "auto_available",
+            "recipeRef": "openai.responses.reasoning.v1",
+            "customControlRefs": [
+              "openai.reasoning.effort"
+            ]
+          }
+        },
+        "expect": {
+          "unknownCapabilities": [],
+          "results": {
+            "reasoning": {
+              "valid": true,
+              "state": "auto_available",
+              "action": "apply_recipe",
+              "reason": null
+            }
+          }
+        }
+      },
+      {
+        "caseId": "control.non_auto_may_resolve_custom_refs",
+        "providerKind": "qwen",
+        "recipes": [],
+        "capabilityControls": {
+          "web": {
+            "state": "custom_only",
+            "reasonCode": "endpoint_route_pending",
+            "sourceRefs": [
+              "qwen.web_search"
+            ],
+            "customControlRefs": [
+              "qwen.web.enable_search"
+            ]
+          }
+        },
+        "expect": {
+          "unknownCapabilities": [],
+          "results": {
+            "web": {
+              "valid": true,
+              "state": "custom_only",
+              "action": "no_auto_config",
+              "reason": null
+            }
+          }
+        }
+      },
+      {
+        "caseId": "control.cross_owner_custom_ref_is_invalid",
+        "providerKind": "openAI",
+        "recipes": [
+          "openai.responses.web.v1"
+        ],
+        "capabilityControls": {
+          "web": {
+            "state": "auto_available",
+            "recipeRef": "openai.responses.web.v1",
+            "customControlRefs": [
+              "openai.reasoning.effort"
+            ]
+          }
+        },
+        "expect": {
+          "unknownCapabilities": [],
+          "results": {
+            "web": {
+              "valid": false,
+              "state": "auto_available",
+              "action": "no_auto_config",
+              "reason": "custom_control_owner_mismatch"
+            }
+          }
+        }
+      },
+      {
+        "caseId": "control.dangling_custom_ref_disables_custom",
+        "providerKind": "openAI",
+        "recipes": [
+          "openai.responses.web.v1"
+        ],
+        "capabilityControls": {
+          "web": {
+            "state": "auto_available",
+            "recipeRef": "openai.responses.web.v1",
+            "customControlRefs": [
+              "openai.web.missing"
+            ]
+          }
+        },
+        "expect": {
+          "unknownCapabilities": [],
+          "results": {
+            "web": {
+              "valid": false,
+              "state": "auto_available",
+              "action": "no_auto_config",
+              "reason": "unresolved_custom_control_ref"
+            }
+          }
+        }
+      },
+      {
+        "caseId": "control.web_force_is_exactly_recipe_advertised",
+        "providerKind": "openAI",
+        "recipes": [
+          "openai.responses.web.v1"
+        ],
+        "capabilityControls": {
+          "web": {
+            "state": "auto_available",
+            "recipeRef": "openai.responses.web.v1",
+            "availableIntents": [
+              "force"
+            ]
+          }
+        },
+        "expect": {
+          "unknownCapabilities": [],
+          "results": {
+            "web": {
+              "valid": true,
+              "state": "auto_available",
+              "action": "apply_recipe",
+              "reason": null
+            }
+          }
+        }
+      },
+      {
+        "caseId": "control.three_keys_resolve_independently",
+        "providerKind": "openAI",
+        "recipes": [
+          "openai.responses.web.v1",
+          "openai.responses.reasoning.v1"
+        ],
+        "capabilityControls": {
+          "web": {
+            "state": "auto_available",
+            "recipeRef": "openai.responses.web.v1"
+          },
+          "reasoning": {
+            "state": "auto_available",
+            "recipeRef": "openai.responses.reasoning.v1",
+            "availableIntents": [
+              "off",
+              "low",
+              "balanced",
+              "deep",
+              "max"
+            ]
+          },
+          "generation": {
+            "state": "custom_only",
+            "reasonCode": "endpoint_route_pending",
+            "sourceRefs": [
+              "openai.reasoning"
+            ]
+          }
+        },
+        "expect": {
+          "unknownCapabilities": [],
+          "results": {
+            "web": {
+              "valid": true,
+              "state": "auto_available",
+              "action": "apply_recipe",
+              "reason": null
+            },
+            "reasoning": {
+              "valid": true,
+              "state": "auto_available",
+              "action": "apply_recipe",
+              "reason": null
+            },
+            "generation": {
+              "valid": true,
+              "state": "custom_only",
+              "action": "no_auto_config",
+              "reason": null
+            }
+          }
+        }
+      },
+      {
+        "caseId": "control.dangling_recipe_ref_degrades_to_no_auto_config",
+        "providerKind": "anthropic",
+        "recipes": [
+          "anthropic.messages.reasoning.v1"
+        ],
+        "capabilityControls": {
+          "web": {
+            "state": "auto_available",
+            "recipeRef": "anthropic.messages.web.v2"
+          }
+        },
+        "expect": {
+          "unknownCapabilities": [],
+          "results": {
+            "web": {
+              "valid": true,
+              "state": "unknown",
+              "action": "no_auto_config",
+              "reason": "dangling_recipe_ref"
+            }
+          }
+        }
+      },
+      {
+        "caseId": "control.auto_available_without_recipe_ref_is_invalid",
+        "providerKind": "gemini",
+        "recipes": [],
+        "capabilityControls": {
+          "web": {
+            "state": "auto_available"
+          }
+        },
+        "expect": {
+          "unknownCapabilities": [],
+          "results": {
+            "web": {
+              "valid": false,
+              "state": "unknown",
+              "action": "no_auto_config",
+              "reason": "missing_recipe_ref"
+            }
+          }
+        }
+      },
+      {
+        "caseId": "control.unknown_state_fails_safe_to_unknown",
+        "providerKind": "qwen",
+        "recipes": [
+          "qwen.chat.web.v1"
+        ],
+        "capabilityControls": {
+          "web": {
+            "state": "auto_available_v3",
+            "recipeRef": "qwen.chat.web.v1"
+          }
+        },
+        "expect": {
+          "unknownCapabilities": [],
+          "results": {
+            "web": {
+              "valid": true,
+              "state": "unknown",
+              "action": "no_auto_config",
+              "reason": "unknown_state"
+            }
+          }
+        }
+      },
+      {
+        "caseId": "control.unknown_capability_key_is_ignored",
+        "providerKind": "openAI",
+        "recipes": [
+          "openai.responses.web.v1"
+        ],
+        "capabilityControls": {
+          "web": {
+            "state": "auto_available",
+            "recipeRef": "openai.responses.web.v1"
+          },
+          "imageGen": {
+            "state": "auto_available",
+            "recipeRef": "openai.responses.image.v1"
+          }
+        },
+        "expect": {
+          "unknownCapabilities": [
+            "imageGen"
+          ],
+          "results": {
+            "web": {
+              "valid": true,
+              "state": "auto_available",
+              "action": "apply_recipe",
+              "reason": null
+            }
+          }
+        }
+      },
+      {
+        "caseId": "control.non_auto_without_reason_code_is_invalid",
+        "providerKind": "mistral",
+        "recipes": [],
+        "capabilityControls": {
+          "web": {
+            "state": "custom_only",
+            "sourceRefs": [
+              "mistral.web_search"
+            ]
+          }
+        },
+        "expect": {
+          "unknownCapabilities": [],
+          "results": {
+            "web": {
+              "valid": false,
+              "state": "custom_only",
+              "action": "no_auto_config",
+              "reason": "missing_reason_code"
+            }
+          }
+        }
+      },
+      {
+        "caseId": "control.non_auto_without_source_refs_is_invalid",
+        "providerKind": "mistral",
+        "recipes": [],
+        "capabilityControls": {
+          "web": {
+            "state": "custom_only",
+            "reasonCode": "endpoint_route_pending",
+            "sourceRefs": []
+          }
+        },
+        "expect": {
+          "unknownCapabilities": [],
+          "results": {
+            "web": {
+              "valid": false,
+              "state": "custom_only",
+              "action": "no_auto_config",
+              "reason": "missing_source_refs"
+            }
+          }
+        }
+      },
+      {
+        "caseId": "control.non_auto_with_unresolvable_source_is_invalid",
+        "providerKind": "mistral",
+        "recipes": [],
+        "capabilityControls": {
+          "web": {
+            "state": "custom_only",
+            "reasonCode": "endpoint_route_pending",
+            "sourceRefs": [
+              "mistral.nonexistent_page"
+            ]
+          }
+        },
+        "expect": {
+          "unknownCapabilities": [],
+          "results": {
+            "web": {
+              "valid": false,
+              "state": "custom_only",
+              "action": "no_auto_config",
+              "reason": "unresolved_source_ref"
+            }
+          }
+        }
+      },
+      {
+        "caseId": "control.non_auto_must_not_carry_recipe_ref",
+        "providerKind": "deepseek",
+        "recipes": [
+          "deepseek.chat.web.v1"
+        ],
+        "capabilityControls": {
+          "web": {
+            "state": "unavailable",
+            "reasonCode": "no_official_managed_search",
+            "sourceRefs": [
+              "deepseek.thinking_mode"
+            ],
+            "recipeRef": "deepseek.chat.web.v1"
+          }
+        },
+        "expect": {
+          "unknownCapabilities": [],
+          "results": {
+            "web": {
+              "valid": false,
+              "state": "unavailable",
+              "action": "no_auto_config",
+              "reason": "unexpected_recipe_ref"
+            }
+          }
+        }
+      },
+      {
+        "caseId": "control.available_intents_outside_enum_is_invalid",
+        "providerKind": "grok",
+        "recipes": [
+          "grok.responses.reasoning.v1"
+        ],
+        "capabilityControls": {
+          "reasoning": {
+            "state": "auto_available",
+            "recipeRef": "grok.responses.reasoning.v1",
+            "availableIntents": [
+              "low",
+              "balanced",
+              "xhigh"
+            ]
+          }
+        },
+        "expect": {
+          "unknownCapabilities": [],
+          "results": {
+            "reasoning": {
+              "valid": false,
+              "state": "auto_available",
+              "action": "no_auto_config",
+              "reason": "invalid_available_intent"
+            }
+          }
+        }
+      },
+      {
+        "caseId": "control.available_intents_out_of_order_is_invalid",
+        "providerKind": "grok",
+        "recipes": [
+          "grok.responses.reasoning.v1"
+        ],
+        "capabilityControls": {
+          "reasoning": {
+            "state": "auto_available",
+            "recipeRef": "grok.responses.reasoning.v1",
+            "availableIntents": [
+              "deep",
+              "low"
+            ]
+          }
+        },
+        "expect": {
+          "unknownCapabilities": [],
+          "results": {
+            "reasoning": {
+              "valid": false,
+              "state": "auto_available",
+              "action": "no_auto_config",
+              "reason": "unordered_available_intents"
+            }
+          }
+        }
+      },
+      {
+        "caseId": "control.web_non_force_intents_are_invalid",
+        "providerKind": "grok",
+        "recipes": [
+          "grok.responses.web.v1"
+        ],
+        "capabilityControls": {
+          "web": {
+            "state": "auto_available",
+            "recipeRef": "grok.responses.web.v1",
+            "availableIntents": [
+              "off",
+              "low"
+            ]
+          }
+        },
+        "expect": {
+          "unknownCapabilities": [],
+          "results": {
+            "web": {
+              "valid": false,
+              "state": "auto_available",
+              "action": "no_auto_config",
+              "reason": "invalid_available_intent"
+            }
+          }
+        }
+      },
+      {
+        "caseId": "control.sparse_intents_are_not_gap_filled",
+        "providerKind": "deepseek",
+        "recipes": [
+          "deepseek.chat.reasoning.v1"
+        ],
+        "capabilityControls": {
+          "reasoning": {
+            "state": "auto_available",
+            "recipeRef": "deepseek.chat.reasoning.v1",
+            "availableIntents": [
+              "low",
+              "deep",
+              "max"
+            ]
+          }
+        },
+        "expect": {
+          "unknownCapabilities": [],
+          "results": {
+            "reasoning": {
+              "valid": true,
+              "state": "auto_available",
+              "action": "apply_recipe",
+              "reason": null
+            }
+          }
+        }
+      }
+    ],
+    "reasoningIntentCases": [
+      {
+        "caseId": "intents.full_ladder",
+        "capability": "reasoning",
+        "intents": [
+          "off",
+          "low",
+          "balanced",
+          "deep",
+          "max"
+        ],
+        "expect": {
+          "valid": true,
+          "reason": null,
+          "intents": [
+            "off",
+            "low",
+            "balanced",
+            "deep",
+            "max"
+          ]
+        }
+      },
+      {
+        "caseId": "intents.sparse_subset_is_kept_verbatim",
+        "capability": "reasoning",
+        "intents": [
+          "low",
+          "max"
+        ],
+        "expect": {
+          "valid": true,
+          "reason": null,
+          "intents": [
+            "low",
+            "max"
+          ]
+        }
+      },
+      {
+        "caseId": "intents.empty_means_no_intent_control",
+        "capability": "reasoning",
+        "intents": [],
+        "expect": {
+          "valid": true,
+          "reason": null,
+          "intents": []
+        }
+      },
+      {
+        "caseId": "intents.unknown_value_rejected",
+        "capability": "reasoning",
+        "intents": [
+          "off",
+          "medium"
+        ],
+        "expect": {
+          "valid": false,
+          "reason": "invalid_available_intent",
+          "intents": [
+            "off",
+            "medium"
+          ]
+        }
+      },
+      {
+        "caseId": "intents.duplicate_rejected",
+        "capability": "reasoning",
+        "intents": [
+          "low",
+          "low"
+        ],
+        "expect": {
+          "valid": false,
+          "reason": "duplicate_available_intent",
+          "intents": [
+            "low",
+            "low"
+          ]
+        }
+      },
+      {
+        "caseId": "intents.unordered_rejected",
+        "capability": "reasoning",
+        "intents": [
+          "max",
+          "off"
+        ],
+        "expect": {
+          "valid": false,
+          "reason": "unordered_available_intents",
+          "intents": [
+            "max",
+            "off"
+          ]
+        }
+      },
+      {
+        "caseId": "intents.web_force_is_legal",
+        "capability": "web",
+        "intents": [
+          "force"
+        ],
+        "expect": {
+          "valid": true,
+          "reason": null,
+          "intents": [
+            "force"
+          ]
+        }
+      },
+      {
+        "caseId": "intents.web_empty_is_not_force",
+        "capability": "web",
+        "intents": [],
+        "expect": {
+          "valid": false,
+          "reason": "invalid_available_intent",
+          "intents": []
+        }
+      },
+      {
+        "caseId": "intents.web_automatic_is_not_recipe_intent",
+        "capability": "web",
+        "intents": [
+          "automatic"
+        ],
+        "expect": {
+          "valid": false,
+          "reason": "invalid_available_intent",
+          "intents": [
+            "automatic"
+          ]
+        }
+      },
+      {
+        "caseId": "intents.not_applicable_to_generation",
+        "capability": "generation",
+        "intents": [
+          "low"
+        ],
+        "expect": {
+          "valid": false,
+          "reason": "intents_not_applicable",
+          "intents": [
+            "low"
+          ]
+        }
+      }
+    ],
+    "recipeCases": [
+      {
+        "caseId": "recipe.valid_server_tool",
+        "recipe": {
+          "id": "openai.responses.web.v1",
+          "providerKind": "openAI",
+          "transport": {
+            "protocol": "openai_responses",
+            "endpointClass": "responses",
+            "requiredHeaders": [],
+            "streaming": "optional"
+          },
+          "capability": "web",
+          "executionKind": "server_tool",
+          "requestOps": [],
+          "responseParserKind": "openai_responses_web_v1",
+          "continuationKind": "previous_id",
+          "controlRefs": [],
+          "fallbackPolicy": "user_confirmed_resend_without_located_setting",
+          "sourceRefs": [
+            "openai.web_search"
+          ],
+          "reviewedAt": "2026-08-11"
+        },
+        "expect": {
+          "valid": true,
+          "action": "register_recipe",
+          "reason": null
+        }
+      },
+      {
+        "caseId": "recipe.valid_client_tool_loop_fiber_variant",
+        "recipe": {
+          "id": "moonshot.formula.web.v1",
+          "providerKind": "moonshot",
+          "transport": {
+            "protocol": "openai_chat",
+            "endpointClass": "chat_completions",
+            "requiredHeaders": [],
+            "streaming": "optional"
+          },
+          "capability": "web",
+          "executionKind": "client_tool_loop",
+          "requestOps": [],
+          "responseParserKind": "moonshot_formula_web_v1",
+          "continuationKind": "tool_loop",
+          "continuationVariant": "fiber",
+          "maxToolLoops": 4,
+          "formula": {
+            "uri": "moonshot/web-search:latest",
+            "toolsPath": "/v1/formulas/moonshot/web-search:latest/tools",
+            "fibersPath": "/v1/formulas/moonshot/web-search:latest/fibers",
+            "argumentsMode": "verbatim",
+            "resultPaths": [
+              "context.output",
+              "context.encrypted_output"
+            ]
+          },
+          "controlRefs": [],
+          "fallbackPolicy": "no_fallback",
+          "sourceRefs": [
+            "kimi.official_tools"
+          ],
+          "reviewedAt": "2026-08-11"
+        },
+        "expect": {
+          "valid": true,
+          "action": "register_recipe",
+          "reason": null
+        }
+      },
+      {
+        "caseId": "recipe.client_tool_loop_missing_bound_rejected",
+        "recipe": {
+          "id": "moonshot.chat.web.v1",
+          "providerKind": "moonshot",
+          "transport": {
+            "protocol": "openai_chat",
+            "endpointClass": "chat_completions",
+            "requiredHeaders": [],
+            "streaming": "optional"
+          },
+          "capability": "web",
+          "executionKind": "client_tool_loop",
+          "requestOps": [],
+          "responseParserKind": "moonshot_builtin_web_v1",
+          "continuationKind": "tool_loop",
+          "continuationVariant": "default",
+          "controlRefs": [],
+          "fallbackPolicy": "no_fallback",
+          "sourceRefs": [
+            "kimi.official_tools"
+          ],
+          "reviewedAt": "2026-08-11"
+        },
+        "expect": {
+          "valid": false,
+          "action": "reject_feature_patch",
+          "reason": "missing_execution_field",
+          "field": "maxToolLoops"
+        }
+      },
+      {
+        "caseId": "recipe.fiber_missing_formula_rejected",
+        "recipe": {
+          "id": "moonshot.formula.web.v1",
+          "providerKind": "moonshot",
+          "transport": {
+            "protocol": "openai_chat",
+            "endpointClass": "chat_completions",
+            "requiredHeaders": [],
+            "streaming": "optional"
+          },
+          "capability": "web",
+          "executionKind": "client_tool_loop",
+          "requestOps": [],
+          "responseParserKind": "moonshot_formula_web_v1",
+          "continuationKind": "tool_loop",
+          "continuationVariant": "fiber",
+          "maxToolLoops": 4,
+          "controlRefs": [],
+          "fallbackPolicy": "no_fallback",
+          "sourceRefs": [
+            "kimi.official_tools"
+          ],
+          "reviewedAt": "2026-08-11"
+        },
+        "expect": {
+          "valid": false,
+          "action": "reject_feature_patch",
+          "reason": "missing_fiber_field",
+          "field": "formula"
+        }
+      },
+      {
+        "caseId": "recipe.endpoint_route_missing_route_rejected",
+        "recipe": {
+          "id": "gemini.interactions.web.v1",
+          "providerKind": "gemini",
+          "transport": {
+            "protocol": "gemini_interactions",
+            "endpointClass": "interactions",
+            "requiredHeaders": [],
+            "streaming": "optional"
+          },
+          "capability": "web",
+          "executionKind": "endpoint_route",
+          "requestOps": [],
+          "responseParserKind": "gemini_google_search_v1",
+          "continuationKind": "previous_id",
+          "controlRefs": [],
+          "fallbackPolicy": "no_fallback",
+          "sourceRefs": [
+            "gemini.interactions"
+          ],
+          "reviewedAt": "2026-08-11"
+        },
+        "expect": {
+          "valid": false,
+          "action": "reject_feature_patch",
+          "reason": "missing_execution_field",
+          "field": "route"
+        }
+      },
+      {
+        "caseId": "recipe.model_route_body_mutation_rejected",
+        "recipe": {
+          "id": "openai.chat.web_model.v1",
+          "providerKind": "openAI",
+          "transport": {
+            "protocol": "openai_chat",
+            "endpointClass": "chat_completions",
+            "requiredHeaders": [],
+            "streaming": "optional"
+          },
+          "capability": "web",
+          "executionKind": "model_route",
+          "requestOps": [
+            {
+              "op": "set",
+              "pointer": "/model",
+              "value": "other"
+            }
+          ],
+          "responseParserKind": "openai_chat_web_v1",
+          "continuationKind": "none",
+          "controlRefs": [],
+          "fallbackPolicy": "no_fallback",
+          "sourceRefs": [
+            "openai.web_search"
+          ],
+          "reviewedAt": "2026-08-11"
+        },
+        "expect": {
+          "valid": false,
+          "action": "reject_feature_patch",
+          "reason": "execution_kind_forbids_request_ops"
+        }
+      },
+      {
+        "caseId": "recipe.valid_with_resolved_control_refs",
+        "recipe": {
+          "id": "openai.responses.generation.v1",
+          "providerKind": "openAI",
+          "transport": {
+            "protocol": "openai_responses",
+            "endpointClass": "responses",
+            "requiredHeaders": [],
+            "streaming": "optional"
+          },
+          "capability": "generation",
+          "executionKind": "request_overlay",
+          "requestOps": [],
+          "responseParserKind": "openai_responses_generation_v1",
+          "continuationKind": "none",
+          "controlRefs": [
+            "openai.generation.max_output_tokens"
+          ],
+          "fallbackPolicy": "user_confirmed_resend_without_located_setting",
+          "sourceRefs": [
+            "openai.reasoning"
+          ],
+          "reviewedAt": "2026-08-11"
+        },
+        "expect": {
+          "valid": true,
+          "action": "register_recipe",
+          "reason": null
+        }
+      },
+      {
+        "caseId": "recipe.missing_continuation_kind",
+        "recipe": {
+          "id": "anthropic.messages.web.v1",
+          "providerKind": "anthropic",
+          "transport": {
+            "protocol": "anthropic_messages",
+            "endpointClass": "messages",
+            "requiredHeaders": [
+              "anthropic-version"
+            ],
+            "streaming": "optional"
+          },
+          "capability": "web",
+          "executionKind": "server_tool",
+          "requestOps": [],
+          "responseParserKind": "anthropic_web_search_v1",
+          "controlRefs": [],
+          "fallbackPolicy": "user_confirmed_resend_without_located_setting",
+          "sourceRefs": [
+            "anthropic.web_search"
+          ],
+          "reviewedAt": "2026-08-11"
+        },
+        "expect": {
+          "valid": false,
+          "action": "reject_feature_patch",
+          "reason": "missing_required_field",
+          "field": "continuationKind"
+        }
+      },
+      {
+        "caseId": "recipe.missing_source_refs_field",
+        "recipe": {
+          "id": "gemini.interactions.web.v1",
+          "providerKind": "gemini",
+          "transport": {
+            "protocol": "gemini_interactions",
+            "endpointClass": "interactions",
+            "requiredHeaders": [],
+            "streaming": "optional"
+          },
+          "capability": "web",
+          "executionKind": "server_tool",
+          "requestOps": [],
+          "responseParserKind": "gemini_google_search_v1",
+          "continuationKind": "replay_blocks",
+          "controlRefs": [],
+          "fallbackPolicy": "user_confirmed_resend_without_located_setting",
+          "reviewedAt": "2026-08-11"
+        },
+        "expect": {
+          "valid": false,
+          "action": "reject_feature_patch",
+          "reason": "missing_required_field",
+          "field": "sourceRefs"
+        }
+      },
+      {
+        "caseId": "recipe.unknown_execution_kind_rejected",
+        "recipe": {
+          "id": "openrouter.chat.web.v1",
+          "providerKind": "openRouter",
+          "transport": {
+            "protocol": "openai_chat",
+            "endpointClass": "chat_completions",
+            "requiredHeaders": [],
+            "streaming": "optional"
+          },
+          "capability": "web",
+          "executionKind": "plugin",
+          "requestOps": [],
+          "responseParserKind": "openrouter_web_v1",
+          "continuationKind": "none",
+          "controlRefs": [],
+          "fallbackPolicy": "no_fallback",
+          "sourceRefs": [
+            "openrouter.server_tools"
+          ],
+          "reviewedAt": "2026-08-11"
+        },
+        "expect": {
+          "valid": false,
+          "action": "reject_feature_patch",
+          "reason": "unknown_execution_kind"
+        }
+      },
+      {
+        "caseId": "recipe.unknown_continuation_kind_rejected",
+        "recipe": {
+          "id": "openai.responses.reasoning.v1",
+          "providerKind": "openAI",
+          "transport": {
+            "protocol": "openai_responses",
+            "endpointClass": "responses",
+            "requiredHeaders": [],
+            "streaming": "optional"
+          },
+          "capability": "reasoning",
+          "executionKind": "request_overlay",
+          "requestOps": [],
+          "responseParserKind": "openai_responses_reasoning_v1",
+          "continuationKind": "previous_response_id_or_encrypted_reasoning",
+          "controlRefs": [],
+          "fallbackPolicy": "user_confirmed_resend_without_located_setting",
+          "sourceRefs": [
+            "openai.reasoning"
+          ],
+          "reviewedAt": "2026-08-11"
+        },
+        "expect": {
+          "valid": false,
+          "action": "reject_feature_patch",
+          "reason": "unknown_continuation_kind"
+        }
+      },
+      {
+        "caseId": "recipe.unknown_continuation_variant_rejected",
+        "recipe": {
+          "id": "moonshot.chat.web.v1",
+          "providerKind": "moonshot",
+          "transport": {
+            "protocol": "openai_chat",
+            "endpointClass": "chat_completions",
+            "requiredHeaders": [],
+            "streaming": "optional"
+          },
+          "capability": "web",
+          "executionKind": "client_tool_loop",
+          "requestOps": [],
+          "responseParserKind": "moonshot_builtin_web_v1",
+          "continuationKind": "tool_loop",
+          "continuationVariant": "quantum",
+          "controlRefs": [],
+          "fallbackPolicy": "no_fallback",
+          "sourceRefs": [
+            "kimi.official_tools"
+          ],
+          "reviewedAt": "2026-08-11"
+        },
+        "expect": {
+          "valid": false,
+          "action": "reject_feature_patch",
+          "reason": "unknown_continuation_variant"
+        }
+      },
+      {
+        "caseId": "recipe.unknown_provider_kind_rejected",
+        "expect": {
+          "valid": false,
+          "action": "reject_feature_patch",
+          "reason": "unknown_provider_kind"
+        }
+      },
+      {
+        "caseId": "recipe.malformed_id_rejected",
+        "recipe": {
+          "id": "openai-web-v1",
+          "providerKind": "openAI",
+          "transport": {
+            "protocol": "openai_responses",
+            "endpointClass": "responses",
+            "requiredHeaders": [],
+            "streaming": "optional"
+          },
+          "capability": "web",
+          "executionKind": "server_tool",
+          "requestOps": [],
+          "responseParserKind": "openai_responses_web_v1",
+          "continuationKind": "none",
+          "controlRefs": [],
+          "fallbackPolicy": "no_fallback",
+          "sourceRefs": [
+            "openai.web_search"
+          ],
+          "reviewedAt": "2026-08-11"
+        },
+        "expect": {
+          "valid": false,
+          "action": "reject_feature_patch",
+          "reason": "invalid_recipe_id"
+        }
+      },
+      {
+        "caseId": "recipe.unknown_streaming_mode_rejected",
+        "recipe": {
+          "id": "zhipu.chat.web.v1",
+          "providerKind": "zhipu",
+          "transport": {
+            "protocol": "openai_chat",
+            "endpointClass": "chat_completions",
+            "requiredHeaders": [],
+            "streaming": "maybe"
+          },
+          "capability": "web",
+          "executionKind": "server_tool",
+          "requestOps": [],
+          "responseParserKind": "zhipu_web_search_v1",
+          "continuationKind": "none",
+          "controlRefs": [],
+          "fallbackPolicy": "no_fallback",
+          "sourceRefs": [
+            "zhipu.web_search"
+          ],
+          "reviewedAt": "2026-08-11"
+        },
+        "expect": {
+          "valid": false,
+          "action": "reject_feature_patch",
+          "reason": "unknown_streaming_mode"
+        }
+      },
+      {
+        "caseId": "recipe.missing_transport_field_rejected",
+        "recipe": {
+          "id": "qwen.chat.web.v1",
+          "providerKind": "qwen",
+          "transport": {
+            "protocol": "openai_chat",
+            "endpointClass": "chat_completions",
+            "streaming": "optional"
+          },
+          "capability": "web",
+          "executionKind": "request_overlay",
+          "requestOps": [],
+          "responseParserKind": "qwen_chat_search_v1",
+          "continuationKind": "none",
+          "controlRefs": [],
+          "fallbackPolicy": "user_confirmed_resend_without_located_setting",
+          "sourceRefs": [
+            "qwen.web_search"
+          ],
+          "reviewedAt": "2026-08-11"
+        },
+        "expect": {
+          "valid": false,
+          "action": "reject_feature_patch",
+          "reason": "missing_transport_field"
+        }
+      },
+      {
+        "caseId": "recipe.empty_source_refs_rejected",
+        "recipe": {
+          "id": "grok.responses.web.v1",
+          "providerKind": "grok",
+          "transport": {
+            "protocol": "openai_responses",
+            "endpointClass": "responses",
+            "requiredHeaders": [],
+            "streaming": "optional"
+          },
+          "capability": "web",
+          "executionKind": "server_tool",
+          "requestOps": [],
+          "responseParserKind": "grok_web_search_v1",
+          "continuationKind": "previous_id",
+          "controlRefs": [],
+          "fallbackPolicy": "user_confirmed_resend_without_located_setting",
+          "sourceRefs": [],
+          "reviewedAt": "2026-08-11"
+        },
+        "expect": {
+          "valid": false,
+          "action": "reject_feature_patch",
+          "reason": "missing_source_refs"
+        }
+      },
+      {
+        "caseId": "recipe.unresolved_source_ref_rejected",
+        "recipe": {
+          "id": "grok.responses.reasoning.v1",
+          "providerKind": "grok",
+          "transport": {
+            "protocol": "openai_responses",
+            "endpointClass": "responses",
+            "requiredHeaders": [],
+            "streaming": "optional"
+          },
+          "capability": "reasoning",
+          "executionKind": "request_overlay",
+          "requestOps": [],
+          "responseParserKind": "grok_reasoning_v1",
+          "continuationKind": "previous_id",
+          "controlRefs": [],
+          "fallbackPolicy": "user_confirmed_resend_without_located_setting",
+          "sourceRefs": [
+            "grok.reasoning_page_not_indexed"
+          ],
+          "reviewedAt": "2026-08-11"
+        },
+        "expect": {
+          "valid": false,
+          "action": "reject_feature_patch",
+          "reason": "unresolved_source_ref"
+        }
+      },
+      {
+        "caseId": "recipe.unresolved_control_ref_rejected",
+        "recipe": {
+          "id": "siliconflow.chat.generation.v1",
+          "providerKind": "siliconFlow",
+          "transport": {
+            "protocol": "openai_chat",
+            "endpointClass": "chat_completions",
+            "requiredHeaders": [],
+            "streaming": "optional"
+          },
+          "capability": "generation",
+          "executionKind": "request_overlay",
+          "requestOps": [],
+          "responseParserKind": "openai_chat_generation_v1",
+          "continuationKind": "none",
+          "controlRefs": [
+            "siliconflow.generation.thinking_budget"
+          ],
+          "fallbackPolicy": "user_confirmed_resend_without_located_setting",
+          "sourceRefs": [
+            "siliconflow.chat_completions"
+          ],
+          "reviewedAt": "2026-08-11"
+        },
+        "expect": {
+          "valid": false,
+          "action": "reject_feature_patch",
+          "reason": "unresolved_control_ref"
+        }
+      },
+      {
+        "caseId": "recipe.invalid_reviewed_at_rejected",
+        "recipe": {
+          "id": "fireworks.chat.reasoning.v1",
+          "providerKind": "fireworksAI",
+          "transport": {
+            "protocol": "openai_chat",
+            "endpointClass": "chat_completions",
+            "requiredHeaders": [],
+            "streaming": "optional"
+          },
+          "capability": "reasoning",
+          "executionKind": "request_overlay",
+          "requestOps": [],
+          "responseParserKind": "fireworks_reasoning_v1",
+          "continuationKind": "none",
+          "controlRefs": [],
+          "fallbackPolicy": "user_confirmed_resend_without_located_setting",
+          "sourceRefs": [
+            "fireworks.chat_completions"
+          ],
+          "reviewedAt": "2026/08/11"
+        },
+        "expect": {
+          "valid": false,
+          "action": "reject_feature_patch",
+          "reason": "invalid_reviewed_at"
+        }
+      }
+    ],
+    "sourceRefCases": [
+      {
+        "caseId": "source.official_doc_without_publication_date",
+        "entry": {
+          "kind": "official_doc",
+          "url": "https://docs.together.ai/reference/chat-completions",
+          "reviewedAt": "2026-08-11",
+          "officialUpdatedAt": null
+        },
+        "expect": {
+          "valid": true,
+          "reason": null
+        }
+      },
+      {
+        "caseId": "source.official_doc_with_publication_date",
+        "entry": {
+          "kind": "official_doc",
+          "url": "https://api-docs.deepseek.com/guides/thinking_mode",
+          "reviewedAt": "2026-08-11",
+          "officialUpdatedAt": "2026-07-28"
+        },
+        "expect": {
+          "valid": true,
+          "reason": null
+        }
+      },
+      {
+        "caseId": "source.official_updated_at_must_be_explicit",
+        "entry": {
+          "kind": "official_doc",
+          "url": "https://console.groq.com/docs/reasoning",
+          "reviewedAt": "2026-08-11"
+        },
+        "expect": {
+          "valid": false,
+          "reason": "missing_official_updated_at"
+        }
+      },
+      {
+        "caseId": "source.unknown_kind_rejected",
+        "entry": {
+          "kind": "community_blog",
+          "url": "https://example.com/how-to",
+          "reviewedAt": "2026-08-11",
+          "officialUpdatedAt": null
+        },
+        "expect": {
+          "valid": false,
+          "reason": "unknown_source_kind"
+        }
+      },
+      {
+        "caseId": "source.non_https_url_rejected",
+        "entry": {
+          "kind": "official_doc",
+          "url": "http://docs.example.com/x",
+          "reviewedAt": "2026-08-11",
+          "officialUpdatedAt": null
+        },
+        "expect": {
+          "valid": false,
+          "reason": "invalid_source_url"
+        }
+      },
+      {
+        "caseId": "source.missing_reviewed_at_rejected",
+        "entry": {
+          "kind": "official_doc",
+          "url": "https://docs.mistral.ai/studio-api/conversations/reasoning",
+          "officialUpdatedAt": null
+        },
+        "expect": {
+          "valid": false,
+          "reason": "missing_required_field"
+        }
+      }
+    ],
+    "controlDefinitionCases": [
+      {
+        "caseId": "controlDef.valid_enum",
+        "definition": {
+          "id": "grok.reasoning.effort",
+          "owner": "reasoning",
+          "kind": "enum",
+          "values": [
+            "low",
+            "medium",
+            "high"
+          ],
+          "labelKey": "control.reasoning.effort",
+          "descriptionKey": "control.reasoning.effort.desc",
+          "targetPointer": "/reasoning/effort",
+          "defaultBehavior": "provider_default",
+          "riskTier": "cost_impacting",
+          "sourceRefs": [
+            "grok.web_search"
+          ]
+        },
+        "expect": {
+          "valid": true,
+          "action": "register_recipe",
+          "reason": null
+        }
+      },
+      {
+        "caseId": "controlDef.valid_integer_range",
+        "definition": {
+          "id": "siliconflow.reasoning.thinking_budget",
+          "owner": "reasoning",
+          "kind": "integer_range",
+          "min": 128,
+          "max": 32768,
+          "labelKey": "control.reasoning.thinkingBudget",
+          "descriptionKey": "control.reasoning.thinkingBudget.desc",
+          "targetPointer": "/thinking_budget",
+          "defaultBehavior": "provider_default",
+          "riskTier": "cost_impacting",
+          "sourceRefs": [
+            "siliconflow.chat_completions"
+          ]
+        },
+        "expect": {
+          "valid": true,
+          "action": "register_recipe",
+          "reason": null
+        }
+      },
+      {
+        "caseId": "controlDef.unknown_kind_rejects_feature_patch",
+        "definition": {
+          "id": "zhipu.generation.mystery",
+          "owner": "generation",
+          "kind": "freeform_blob",
+          "labelKey": "control.generation.mystery",
+          "descriptionKey": "control.generation.mystery.desc",
+          "targetPointer": "/mystery",
+          "defaultBehavior": "provider_default",
+          "riskTier": "standard",
+          "sourceRefs": [
+            "zhipu.web_search"
+          ]
+        },
+        "expect": {
+          "valid": false,
+          "action": "reject_feature_patch",
+          "reason": "unknown_control_kind"
+        }
+      },
+      {
+        "caseId": "controlDef.unknown_owner_rejected",
+        "definition": {
+          "id": "qwen.routing.search_strategy",
+          "owner": "routing",
+          "kind": "enum",
+          "values": [
+            "standard",
+            "agent"
+          ],
+          "labelKey": "control.routing.searchStrategy",
+          "descriptionKey": "control.routing.searchStrategy.desc",
+          "targetPointer": "/search_strategy",
+          "defaultBehavior": "provider_default",
+          "riskTier": "standard",
+          "sourceRefs": [
+            "qwen.web_search"
+          ]
+        },
+        "expect": {
+          "valid": false,
+          "action": "reject_feature_patch",
+          "reason": "unknown_owner"
+        }
+      },
+      {
+        "caseId": "controlDef.enum_without_values_rejected",
+        "definition": {
+          "id": "deepseek.reasoning.effort",
+          "owner": "reasoning",
+          "kind": "enum",
+          "labelKey": "control.reasoning.effort",
+          "descriptionKey": "control.reasoning.effort.desc",
+          "targetPointer": "/reasoning/effort",
+          "defaultBehavior": "provider_default",
+          "riskTier": "cost_impacting",
+          "sourceRefs": [
+            "deepseek.thinking_mode"
+          ]
+        },
+        "expect": {
+          "valid": false,
+          "action": "reject_feature_patch",
+          "reason": "missing_kind_field"
+        }
+      },
+      {
+        "caseId": "controlDef.missing_localization_key_rejected",
+        "definition": {
+          "id": "minimax.generation.max_tokens",
+          "owner": "generation",
+          "kind": "integer_range",
+          "min": 1,
+          "max": 8192,
+          "descriptionKey": "control.generation.maxTokens.desc",
+          "targetPointer": "/max_tokens",
+          "defaultBehavior": "provider_default",
+          "riskTier": "cost_impacting",
+          "sourceRefs": [
+            "minimax.text_api"
+          ]
+        },
+        "expect": {
+          "valid": false,
+          "action": "reject_feature_patch",
+          "reason": "missing_required_field"
+        }
+      },
+      {
+        "caseId": "controlDef.invalid_target_pointer_rejected",
+        "definition": {
+          "id": "groq.reasoning.include_reasoning",
+          "owner": "reasoning",
+          "kind": "boolean",
+          "labelKey": "control.reasoning.includeReasoning",
+          "descriptionKey": "control.reasoning.includeReasoning.desc",
+          "targetPointer": "include_reasoning",
+          "defaultBehavior": "provider_default",
+          "riskTier": "standard",
+          "sourceRefs": [
+            "groq.built_in_tools"
+          ]
+        },
+        "expect": {
+          "valid": false,
+          "action": "reject_feature_patch",
+          "reason": "invalid_target_pointer"
+        }
+      },
+      {
+        "caseId": "controlDef.builder_owned_root_rejected",
+        "definition": {
+          "id": "qwen.web.tools",
+          "owner": "web",
+          "kind": "json_schema",
+          "labelKey": "control.web.tools",
+          "descriptionKey": "control.web.tools.desc",
+          "targetPointer": "/tools",
+          "defaultBehavior": "provider_default",
+          "riskTier": "privacy_impacting",
+          "sourceRefs": [
+            "qwen.web_search"
+          ]
+        },
+        "expect": {
+          "valid": false,
+          "action": "reject_feature_patch",
+          "reason": "forbidden_target_pointer"
+        }
+      },
+      {
+        "caseId": "controlDef.prototype_segment_rejected",
+        "definition": {
+          "id": "openai.generation.prototype",
+          "owner": "generation",
+          "kind": "boolean",
+          "labelKey": "control.generation.prototype",
+          "descriptionKey": "control.generation.prototype.desc",
+          "targetPointer": "/metadata/__proto__/enabled",
+          "defaultBehavior": "provider_default",
+          "riskTier": "standard",
+          "sourceRefs": [
+            "openai.reasoning"
+          ]
+        },
+        "expect": {
+          "valid": false,
+          "action": "reject_feature_patch",
+          "reason": "forbidden_target_pointer"
+        }
+      }
+    ],
+    "providerUniverseCases": [
+      {
+        "caseId": "universe.openAI",
+        "providerKind": "openAI",
+        "recipes": [
+          "openai.responses.web.v1"
+        ],
+        "capabilityControls": {
+          "web": {
+            "state": "auto_available",
+            "recipeRef": "openai.responses.web.v1"
+          }
+        },
+        "expect": {
+          "unknownCapabilities": [],
+          "results": {
+            "web": {
+              "valid": true,
+              "state": "auto_available",
+              "action": "apply_recipe",
+              "reason": null
+            }
+          }
+        }
+      },
+      {
+        "caseId": "universe.anthropic",
+        "providerKind": "anthropic",
+        "recipes": [
+          "anthropic.messages.web.v1"
+        ],
+        "capabilityControls": {
+          "web": {
+            "state": "auto_available",
+            "recipeRef": "anthropic.messages.web.v1"
+          }
+        },
+        "expect": {
+          "unknownCapabilities": [],
+          "results": {
+            "web": {
+              "valid": true,
+              "state": "auto_available",
+              "action": "apply_recipe",
+              "reason": null
+            }
+          }
+        }
+      },
+      {
+        "caseId": "universe.gemini",
+        "providerKind": "gemini",
+        "recipes": [
+          "gemini.interactions.web.v1"
+        ],
+        "capabilityControls": {
+          "web": {
+            "state": "auto_available",
+            "recipeRef": "gemini.interactions.web.v1"
+          }
+        },
+        "expect": {
+          "unknownCapabilities": [],
+          "results": {
+            "web": {
+              "valid": true,
+              "state": "auto_available",
+              "action": "apply_recipe",
+              "reason": null
+            }
+          }
+        }
+      },
+      {
+        "caseId": "universe.openRouter",
+        "providerKind": "openRouter",
+        "recipes": [
+          "openrouter.chat.web.v1"
+        ],
+        "capabilityControls": {
+          "web": {
+            "state": "auto_available",
+            "recipeRef": "openrouter.chat.web.v1"
+          }
+        },
+        "expect": {
+          "unknownCapabilities": [],
+          "results": {
+            "web": {
+              "valid": true,
+              "state": "auto_available",
+              "action": "apply_recipe",
+              "reason": null
+            }
+          }
+        }
+      },
+      {
+        "caseId": "universe.grok",
+        "providerKind": "grok",
+        "recipes": [
+          "grok.responses.web.v1"
+        ],
+        "capabilityControls": {
+          "web": {
+            "state": "auto_available",
+            "recipeRef": "grok.responses.web.v1"
+          }
+        },
+        "expect": {
+          "unknownCapabilities": [],
+          "results": {
+            "web": {
+              "valid": true,
+              "state": "auto_available",
+              "action": "apply_recipe",
+              "reason": null
+            }
+          }
+        }
+      },
+      {
+        "caseId": "universe.zhipu",
+        "providerKind": "zhipu",
+        "recipes": [
+          "zhipu.chat.web.v1"
+        ],
+        "capabilityControls": {
+          "web": {
+            "state": "auto_available",
+            "recipeRef": "zhipu.chat.web.v1"
+          }
+        },
+        "expect": {
+          "unknownCapabilities": [],
+          "results": {
+            "web": {
+              "valid": true,
+              "state": "auto_available",
+              "action": "apply_recipe",
+              "reason": null
+            }
+          }
+        }
+      },
+      {
+        "caseId": "universe.qwen",
+        "providerKind": "qwen",
+        "recipes": [
+          "qwen.chat.web.v1"
+        ],
+        "capabilityControls": {
+          "web": {
+            "state": "auto_available",
+            "recipeRef": "qwen.chat.web.v1"
+          }
+        },
+        "expect": {
+          "unknownCapabilities": [],
+          "results": {
+            "web": {
+              "valid": true,
+              "state": "auto_available",
+              "action": "apply_recipe",
+              "reason": null
+            }
+          }
+        }
+      },
+      {
+        "caseId": "universe.moonshot",
+        "providerKind": "moonshot",
+        "recipes": [
+          "moonshot.formula.web.v1"
+        ],
+        "capabilityControls": {
+          "web": {
+            "state": "auto_available",
+            "recipeRef": "moonshot.formula.web.v1"
+          }
+        },
+        "expect": {
+          "unknownCapabilities": [],
+          "results": {
+            "web": {
+              "valid": true,
+              "state": "auto_available",
+              "action": "apply_recipe",
+              "reason": null
+            }
+          }
+        }
+      },
+      {
+        "caseId": "universe.mistral",
+        "providerKind": "mistral",
+        "recipes": [],
+        "capabilityControls": {
+          "web": {
+            "state": "custom_only",
+            "reasonCode": "endpoint_route_pending",
+            "sourceRefs": [
+              "mistral.web_search"
+            ]
+          }
+        },
+        "expect": {
+          "unknownCapabilities": [],
+          "results": {
+            "web": {
+              "valid": true,
+              "state": "custom_only",
+              "action": "no_auto_config",
+              "reason": null
+            }
+          }
+        }
+      },
+      {
+        "caseId": "universe.groq",
+        "providerKind": "groq",
+        "recipes": [],
+        "capabilityControls": {
+          "web": {
+            "state": "custom_only",
+            "reasonCode": "model_route_pending",
+            "sourceRefs": [
+              "groq.built_in_tools"
+            ]
+          }
+        },
+        "expect": {
+          "unknownCapabilities": [],
+          "results": {
+            "web": {
+              "valid": true,
+              "state": "custom_only",
+              "action": "no_auto_config",
+              "reason": null
+            }
+          }
+        }
+      },
+      {
+        "caseId": "universe.deepseek",
+        "providerKind": "deepseek",
+        "recipes": [],
+        "capabilityControls": {
+          "web": {
+            "state": "unavailable",
+            "reasonCode": "no_official_managed_search",
+            "sourceRefs": [
+              "deepseek.thinking_mode"
+            ]
+          }
+        },
+        "expect": {
+          "unknownCapabilities": [],
+          "results": {
+            "web": {
+              "valid": true,
+              "state": "unavailable",
+              "action": "no_auto_config",
+              "reason": null
+            }
+          }
+        }
+      },
+      {
+        "caseId": "universe.togetherAI",
+        "providerKind": "togetherAI",
+        "recipes": [],
+        "capabilityControls": {
+          "web": {
+            "state": "unavailable",
+            "reasonCode": "no_official_managed_search",
+            "sourceRefs": [
+              "together.chat_completions"
+            ]
+          }
+        },
+        "expect": {
+          "unknownCapabilities": [],
+          "results": {
+            "web": {
+              "valid": true,
+              "state": "unavailable",
+              "action": "no_auto_config",
+              "reason": null
+            }
+          }
+        }
+      },
+      {
+        "caseId": "universe.fireworksAI",
+        "providerKind": "fireworksAI",
+        "recipes": [],
+        "capabilityControls": {
+          "web": {
+            "state": "unavailable",
+            "reasonCode": "no_official_managed_search",
+            "sourceRefs": [
+              "fireworks.chat_completions"
+            ]
+          }
+        },
+        "expect": {
+          "unknownCapabilities": [],
+          "results": {
+            "web": {
+              "valid": true,
+              "state": "unavailable",
+              "action": "no_auto_config",
+              "reason": null
+            }
+          }
+        }
+      },
+      {
+        "caseId": "universe.siliconFlow",
+        "providerKind": "siliconFlow",
+        "recipes": [],
+        "capabilityControls": {
+          "web": {
+            "state": "unavailable",
+            "reasonCode": "no_official_managed_search",
+            "sourceRefs": [
+              "siliconflow.chat_completions"
+            ]
+          }
+        },
+        "expect": {
+          "unknownCapabilities": [],
+          "results": {
+            "web": {
+              "valid": true,
+              "state": "unavailable",
+              "action": "no_auto_config",
+              "reason": null
+            }
+          }
+        }
+      },
+      {
+        "caseId": "universe.miniMax",
+        "providerKind": "miniMax",
+        "recipes": [],
+        "capabilityControls": {
+          "web": {
+            "state": "unknown",
+            "reasonCode": "official_source_insufficient",
+            "sourceRefs": [
+              "minimax.text_api"
+            ]
+          }
+        },
+        "expect": {
+          "unknownCapabilities": [],
+          "results": {
+            "web": {
+              "valid": true,
+              "state": "unknown",
+              "action": "no_auto_config",
+              "reason": null
+            }
+          }
+        }
+      },
+      {
+        "caseId": "universe.relay_is_custom_only_without_official_source",
+        "providerKind": "relay",
+        "recipes": [],
+        "capabilityControls": {
+          "web": {
+            "state": "custom_only",
+            "reasonCode": "relay_user_directory",
+            "sourceRefs": []
+          }
+        },
+        "expect": {
+          "unknownCapabilities": [],
+          "results": {
+            "web": {
+              "valid": true,
+              "state": "custom_only",
+              "action": "no_auto_config",
+              "reason": null
+            }
+          }
+        }
+      }
+    ],
+    "exemptionNegativeCases": [
+      {
+        "caseId": "exemption.relay_exemption_does_not_extend_to_other_providers",
+        "providerKind": "qwen",
+        "recipes": [],
+        "capabilityControls": {
+          "web": {
+            "state": "custom_only",
+            "reasonCode": "relay_user_directory",
+            "sourceRefs": []
+          }
+        },
+        "expect": {
+          "unknownCapabilities": [],
+          "results": {
+            "web": {
+              "valid": false,
+              "state": "custom_only",
+              "action": "no_auto_config",
+              "reason": "missing_source_refs"
+            }
+          }
+        }
+      },
+      {
+        "caseId": "exemption.relay_exemption_does_not_extend_to_other_states",
+        "providerKind": "relay",
+        "recipes": [],
+        "capabilityControls": {
+          "web": {
+            "state": "unavailable",
+            "reasonCode": "relay_user_directory",
+            "sourceRefs": []
+          }
+        },
+        "expect": {
+          "unknownCapabilities": [],
+          "results": {
+            "web": {
+              "valid": false,
+              "state": "unavailable",
+              "action": "no_auto_config",
+              "reason": "missing_source_refs"
+            }
+          }
+        }
+      },
+      {
+        "caseId": "exemption.relay_may_not_claim_an_auto_recipe",
+        "providerKind": "relay",
+        "recipes": [
+          "relay.chat.web.v1"
+        ],
+        "capabilityControls": {
+          "web": {
+            "state": "auto_available",
+            "recipeRef": "relay.chat.web.v1"
+          }
+        },
+        "expect": {
+          "unknownCapabilities": [],
+          "results": {
+            "web": {
+              "valid": false,
+              "state": "custom_only",
+              "action": "no_auto_config",
+              "reason": "fixed_verdict_violation"
+            }
+          }
+        }
+      }
+    ]
+  }
+}

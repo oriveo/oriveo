@@ -1,0 +1,135 @@
+[
+  {
+    "modelId": "gpt-5.4",
+    "expected": "openai",
+    "note": "Shared contract fixture."
+  },
+  {
+    "modelId": "gpt-image-2",
+    "expected": "openai",
+    "note": "Shared contract fixture."
+  },
+  {
+    "modelId": "gpt-4o-mini",
+    "expected": "openai"
+  },
+  {
+    "modelId": "o3-mini",
+    "expected": "openai",
+    "note": "Shared contract fixture."
+  },
+  {
+    "modelId": "o4",
+    "expected": "openai"
+  },
+  {
+    "modelId": "chatgpt-4o-latest",
+    "expected": "openai"
+  },
+  {
+    "modelId": "dall-e-3",
+    "expected": "openai"
+  },
+  {
+    "modelId": "whisper-1",
+    "expected": "openai"
+  },
+  {
+    "modelId": "tts-1-hd",
+    "expected": "openai"
+  },
+  {
+    "modelId": "text-embedding-3-large",
+    "expected": "openai"
+  },
+  {
+    "modelId": "claude-opus-4",
+    "expected": "anthropic"
+  },
+  {
+    "modelId": "claude-sonnet-4-5",
+    "expected": "anthropic"
+  },
+  {
+    "modelId": "claude-haiku-4-5",
+    "expected": "anthropic"
+  },
+  {
+    "modelId": "gemini-2.5-pro",
+    "expected": "google"
+  },
+  {
+    "modelId": "gemini-2.0-flash",
+    "expected": "google"
+  },
+  {
+    "modelId": "imagen-3",
+    "expected": "google"
+  },
+  {
+    "modelId": "deepseek-v3",
+    "expected": "deepseek"
+  },
+  {
+    "modelId": "deepseek-r1",
+    "expected": "deepseek"
+  },
+  {
+    "modelId": "ds-coder-v2",
+    "expected": "deepseek"
+  },
+  {
+    "modelId": "qwen2.5-72b",
+    "expected": "qwen"
+  },
+  {
+    "modelId": "qwen3-32b",
+    "expected": "qwen"
+  },
+  {
+    "modelId": "qwq-32b",
+    "expected": "qwen"
+  },
+  {
+    "modelId": "grok-3",
+    "expected": "xai"
+  },
+  {
+    "modelId": "grok-vision-beta",
+    "expected": "xai"
+  },
+  {
+    "modelId": "llama-3.3-70b",
+    "expected": "meta"
+  },
+  {
+    "modelId": "codellama-34b",
+    "expected": "meta"
+  },
+  {
+    "modelId": "mistral-large",
+    "expected": "mistral"
+  },
+  {
+    "modelId": "mixtral-8x22b",
+    "expected": "mistral"
+  },
+  {
+    "modelId": "codestral-22b",
+    "expected": "mistral"
+  },
+  {
+    "modelId": "my-custom-model",
+    "expected": null,
+    "note": "Shared contract fixture."
+  },
+  {
+    "modelId": "unknown-xyz-2026",
+    "expected": null
+  },
+  {
+    "modelId": "",
+    "expected": null,
+    "note": "Shared contract fixture."
+  }
+]

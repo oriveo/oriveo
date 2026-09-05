@@ -1,0 +1,28 @@
+.avatar {
+  border-radius: 50%;
+  background: var(--o-gradient-brand);
+  color: var(--o-on-info);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  overflow: hidden;
+  user-select: none;
+  cursor: default;
+}
+
+.avatar[role='button'] {
+  cursor: pointer;
+}
+
+.img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.initial {
+  font-weight: 700;
+  line-height: 1;
+}

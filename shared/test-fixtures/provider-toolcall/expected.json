@@ -1,0 +1,193 @@
+{
+  "schema": "oriveo.provider-toolcall-fixtures/v1",
+  "work_id": "provider-toolcall-governance",
+  "purpose": "Shared contract fixture.",
+  "conventions": {
+    "line_format": "Lines are split on LF; each data block is followed by a blank line; `data: ` includes the space; anthropic/openai_responses each have their own `event:` line before every data line, with the type carried in the body.",
+    "arguments": "For the four native cases, the expected arguments is the fully concatenated raw text (a string); gemini's args are a structured object on the wire, and the expected value is compared after JSON normalization (key order is not significant).",
+    "text": "expected.text is the raw concatenated body text (not trimmed)."
+  },
+  "fixtures": [
+    {
+      "file": "openai_chat.tool_calls.sse",
+      "transport": "openai_chat",
+      "scenario": "Shared contract fixture.",
+      "expected": {
+        "text": "",
+        "finish_reason": "tool_calls",
+        "tool_calls": [
+          {
+            "id": "call_r2_weather",
+            "name": "get_weather",
+            "arguments": "{\"city\":\"Melbourne\",\"unit\":\"celsius\"}"
+          },
+          {
+            "id": "call_r2_time",
+            "name": "get_time",
+            "arguments": "{\"timezone\":\"Australia/Melbourne\"}"
+          }
+        ],
+        "usage": {
+          "input_tokens": 120,
+          "output_tokens": 37
+        }
+      }
+    },
+    {
+      "file": "openai_responses.function_call.sse",
+      "transport": "openai_responses",
+      "scenario": "Shared contract fixture.",
+      "expected": {
+        "text": "Let me check the weather.",
+        "finish_reason": "completed",
+        "tool_calls": [
+          {
+            "id": "call_r2_weather",
+            "name": "get_weather",
+            "arguments": "{\"city\":\"Melbourne\",\"unit\":\"celsius\"}"
+          }
+        ],
+        "usage": {
+          "input_tokens": 120,
+          "output_tokens": 41
+        }
+      }
+    },
+    {
+      "file": "anthropic.tool_use.sse",
+      "transport": "anthropic_messages",
+      "scenario": "Shared contract fixture.",
+      "expected": {
+        "text": "Let me check the weather.",
+        "finish_reason": "tool_use",
+        "tool_calls": [
+          {
+            "id": "toolu_r2weather",
+            "name": "get_weather",
+            "arguments": "{\"city\": \"Melbourne\", \"unit\": \"celsius\"}"
+          }
+        ],
+        "usage": {
+          "input_tokens": 120,
+          "output_tokens": 41
+        }
+      }
+    },
+    {
+      "file": "gemini.functionCall.sse",
+      "transport": "gemini_generate",
+      "scenario": "Shared contract fixture.",
+      "expected": {
+        "text": "Let me check the weather.",
+        "finish_reason": "STOP",
+        "tool_calls": [
+          {
+            "id": null,
+            "name": "get_weather",
+            "arguments": "{\"city\":\"Melbourne\",\"unit\":\"celsius\"}"
+          }
+        ],
+        "usage": {
+          "input_tokens": 120,
+          "output_tokens": 41
+        }
+      }
+    },
+    {
+      "file": "grok_proxy.text_json_fence.sse",
+      "transport": "openai_chat",
+      "provider_lane": "grok_subscription(cli-chat-proxy)",
+      "scenario": "Shared contract fixture.",
+      "expected": {
+        "text": "I'll look that up.\n\n```json\n{\"name\": \"web_search\", \"arguments\": {\"query\": \"Melbourne weather today\", \"num_results\": 5}}\n```",
+        "finish_reason": "stop",
+        "tool_calls": [],
+        "tool_call_events": 0,
+        "usage": {
+          "input_tokens": 96,
+          "output_tokens": 44
+        }
+      }
+    },
+    {
+      "file": "grok_proxy.text_tool_call_tag.sse",
+      "transport": "openai_chat",
+      "provider_lane": "grok_subscription(cli-chat-proxy)",
+      "scenario": "Shared contract fixture.",
+      "expected": {
+        "text": "<tool_call>\n{\"name\": \"web_search\", \"arguments\": {\"query\": \"Melbourne weather today\", \"num_results\": 5}}\n</tool_call>",
+        "finish_reason": "stop",
+        "tool_calls": [],
+        "tool_call_events": 0,
+        "usage": {
+          "input_tokens": 96,
+          "output_tokens": 44
+        }
+      }
+    },
+    {
+      "file": "grok_proxy.text_html_fence.sse",
+      "transport": "openai_chat",
+      "provider_lane": "grok_subscription(cli-chat-proxy)",
+      "scenario": "Shared contract fixture.",
+      "expected": {
+        "text": "```html\n<tool_call>{\"name\": \"web_search\", \"arguments\": {\"query\": \"Melbourne weather today\", \"num_results\": 5}}</tool_call>\n```",
+        "finish_reason": "stop",
+        "tool_calls": [],
+        "tool_call_events": 0,
+        "usage": {
+          "input_tokens": 96,
+          "output_tokens": 44
+        }
+      }
+    },
+    {
+      "file": "grok_proxy.responses.web_search.sse",
+      "transport": "openai_responses",
+      "provider_lane": "grok_subscription(cli-chat-proxy)",
+      "scenario": "Shared contract fixture.",
+      "expected": {
+        "text": "墨尔本现在气温约为14摄氏度。[[1]](https://www.bom.gov.au/vic/observations/melbourne.shtml)",
+        "finish_reason": "completed",
+        "tool_calls": [],
+        "tool_call_events": 0,
+        "web_search_calls": 4,
+        "citations": [
+          {
+            "url": "https://www.bom.gov.au/vic/observations/melbourne.shtml",
+            "title": "1"
+          }
+        ],
+        "reasoning_summary_prefix": "The user asked: \"墨尔本现在几度？一句话\"",
+        "usage": {
+          "input_tokens": 18172,
+          "output_tokens": 737,
+          "reasoning_tokens": 709,
+          "cached_tokens": 4736,
+          "cost_in_usd_ticks": 257225400
+        }
+      }
+    }
+  ],
+  "client_status": {
+    "ios": {
+      "decoded_as_events": [
+        "openai_chat",
+        "grok_proxy.*",
+        "openai_responses",
+        "anthropic_messages",
+        "gemini_generate"
+      ],
+      "parse_no_crash_no_text_loss": [],
+      "note": "Shared contract fixture."
+    },
+    "web": {
+      "status": "deferred",
+      "note": "Shared contract fixture."
+    },
+    "android": {
+      "status": "deferred",
+      "note": "Shared contract fixture."
+    }
+  }
+}

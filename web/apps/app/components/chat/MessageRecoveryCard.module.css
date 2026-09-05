@@ -1,0 +1,187 @@
+/* ── MessageRecoveryCard ── */
+
+.card {
+  padding: var(--o-space-md);
+  border-radius: var(--o-radius-lg);
+  border: 1px solid var(--o-border);
+  margin-top: var(--o-space-xs);
+}
+
+.cardFailed {
+  border-color: var(--o-error-subtle);
+  background: var(--o-error-subtle);
+}
+
+.cardInterrupted {
+  border-color: var(--o-warning-subtle);
+  background: var(--o-warning-subtle);
+}
+
+/* ── Header ── */
+.header {
+  display: flex;
+  align-items: center;
+  gap: var(--o-space-sm);
+}
+
+.icon {
+  flex-shrink: 0;
+}
+
+.cardFailed .icon {
+  color: var(--o-error);
+}
+
+.cardInterrupted .icon {
+  color: var(--o-warning);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--o-text-base);
+  font-weight: 600;
+  color: var(--o-text);
+}
+
+/* ── Description ── */
+.description {
+  margin: var(--o-space-xs) 0 0;
+  font-size: var(--o-text-sm);
+  color: var(--o-text-secondary);
+  line-height: 1.65;
+}
+
+/* ── Actions ── */
+.actions {
+  display: flex;
+  align-items: center;
+  gap: var(--o-space-sm);
+  flex-wrap: wrap;
+  margin-top: var(--o-space-md);
+}
+
+.primaryBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  padding: 0 var(--o-space-md);
+  border: none;
+  border-radius: var(--o-radius-md);
+  font-size: var(--o-text-sm);
+  font-weight: 600;
+  color: var(--o-on-danger); /*   on-danger warning   on-warning */
+  cursor: pointer;
+  transition: opacity var(--o-transition-fast);
+}
+
+.primaryBtn:hover {
+  opacity: 0.9;
+}
+
+.primaryBtn:disabled,
+.secondaryBtn:disabled,
+.detailToggle:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.cardFailed .primaryBtn {
+  background: var(--o-error);
+}
+
+.cardInterrupted .primaryBtn {
+  background: var(--o-warning);
+  color: var(--o-on-warning);
+}
+
+.cardInterrupted .primaryBtn:disabled {
+  color: color-mix(in srgb, var(--o-on-warning) 80%, transparent);
+}
+
+.secondaryBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  padding: 0 var(--o-space-md);
+  border-radius: var(--o-radius-md);
+  font-size: var(--o-text-sm);
+  font-weight: 500;
+  background: transparent;
+  cursor: pointer;
+  transition: background var(--o-transition-fast), color var(--o-transition-fast);
+}
+
+.cardFailed .secondaryBtn {
+  border: 1px solid var(--o-error);
+  color: var(--o-error);
+}
+
+.cardFailed .secondaryBtn:hover {
+  background: var(--o-error-subtle);
+}
+
+.cardFailed .secondaryBtn:disabled:hover,
+.cardInterrupted .secondaryBtn:disabled:hover {
+  background: transparent;
+}
+
+.cardInterrupted .secondaryBtn {
+  border: 1px solid var(--o-warning);
+  color: var(--o-warning);
+}
+
+.cardInterrupted .secondaryBtn:hover {
+  background: var(--o-warning-subtle);
+}
+
+/* ── Technical Details ── */
+.detailToggle {
+  display: inline-block;
+  margin-top: var(--o-space-md);
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--o-text-tertiary);
+  font-size: var(--o-text-xs);
+  text-decoration: underline;
+  cursor: pointer;
+  transition: color var(--o-transition-fast);
+}
+
+.detailToggle:hover {
+  color: var(--o-text-secondary);
+}
+
+.detailToggle:disabled:hover {
+  color: var(--o-text-tertiary);
+}
+
+.detailContentWrap {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows var(--o-transition-slow);
+}
+
+.detailContentWrap[data-open='true'] {
+  grid-template-rows: 1fr;
+}
+
+.detailContentInner {
+  overflow: hidden;
+}
+
+.detailContent {
+  margin: var(--o-space-sm) 0 0;
+  padding: var(--o-space-md);
+  border-radius: var(--o-radius-sm);
+  background: var(--o-surface);
+  color: var(--o-text-tertiary);
+  font-size: var(--o-text-xs);
+  font-family: var(--o-font-mono);
+  white-space: pre-wrap;
+  word-break: break-all;
+  overflow-x: auto;
+  line-height: 1.6;
+}

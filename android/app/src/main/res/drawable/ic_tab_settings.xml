@@ -1,0 +1,37 @@
+<!-- Bottom navigation settings icon (mirrors iOS's slider.horizontal.3, matching Apple's stroke weight at the same size) -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M3,4.7 L11.85,4.7 A1,1 0 0 1 11.85,6.7 L3,6.7 A1,1 0 0 1 3,4.7 Z" />
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M17.55,4.7 L21,4.7 A1,1 0 0 1 21,6.7 L17.55,6.7 A1,1 0 0 1 17.55,4.7 Z" />
+    <path
+        android:fillColor="#FF000000"
+        android:fillType="evenOdd"
+        android:pathData="M11.85,5.7 A2.85,2.85 0 1 0 17.55,5.7 A2.85,2.85 0 1 0 11.85,5.7 Z M13.2,5.7 A1.5,1.5 0 1 0 16.2,5.7 A1.5,1.5 0 1 0 13.2,5.7 Z" />
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M3,11 L5.85,11 A1,1 0 0 1 5.85,13 L3,13 A1,1 0 0 1 3,11 Z" />
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M11.55,11 L21,11 A1,1 0 0 1 21,13 L11.55,13 A1,1 0 0 1 11.55,11 Z" />
+    <path
+        android:fillColor="#FF000000"
+        android:fillType="evenOdd"
+        android:pathData="M5.85,12 A2.85,2.85 0 1 0 11.55,12 A2.85,2.85 0 1 0 5.85,12 Z M7.2,12 A1.5,1.5 0 1 0 10.2,12 A1.5,1.5 0 1 0 7.2,12 Z" />
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M3,17.3 L11.85,17.3 A1,1 0 0 1 11.85,19.3 L3,19.3 A1,1 0 0 1 3,17.3 Z" />
+    <path
+        android:fillColor="#FF000000"
+        android:pathData="M17.55,17.3 L21,17.3 A1,1 0 0 1 21,19.3 L17.55,19.3 A1,1 0 0 1 17.55,17.3 Z" />
+    <path
+        android:fillColor="#FF000000"
+        android:fillType="evenOdd"
+        android:pathData="M11.85,18.3 A2.85,2.85 0 1 0 17.55,18.3 A2.85,2.85 0 1 0 11.85,18.3 Z M13.2,18.3 A1.5,1.5 0 1 0 16.2,18.3 A1.5,1.5 0 1 0 13.2,18.3 Z" />
+</vector>

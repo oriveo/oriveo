@@ -1,0 +1,49 @@
+{
+  "name": "@oriveo/app",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --port 3001",
+    "build": "next build --webpack",
+    "start": "next start --hostname 127.0.0.1 --port 3001",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest",
+    "test:run": "vitest run"
+  },
+  "dependencies": {
+    "@oriveo/config": "*",
+    "@oriveo/core": "*",
+    "@oriveo/ipc-contract": "*",
+    "@oriveo/shared": "*",
+    "@oriveo/ui": "*",
+    "@sentry/nextjs": "^10.72.0",
+    "highlight.js": "^11.12.0",
+    "idb": "^8.0.3",
+    "jszip": "^3.10.1",
+    "katex": "^0.18.4",
+    "lucide-react": "^1.37.0",
+    "next": "^16.3.3",
+    "next-intl": "^4.14.1",
+    "pdfjs-dist": "^6.3.289",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "react-markdown": "^10.1.0",
+    "rehype-highlight": "^7.0.2",
+    "rehype-katex": "^7.0.1",
+    "remark-cjk-friendly": "^2.3.1",
+    "remark-cjk-friendly-gfm-strikethrough": "^2.3.1",
+    "remark-gfm": "^4.0.1",
+    "remark-math": "^6.0.0",
+    "smol-toml": "^1.8.0",
+    "spark-md5": "^3.0.2",
+    "use-sync-external-store": "^1.6.0",
+    "zustand": "^5.0.15"
+  },
+  "devDependencies": {
+    "@testing-library/dom": "^10.4.1",
+    "@testing-library/react": "^16.3.3",
+    "@vitejs/plugin-react": "^6.1.1",
+    "fake-indexeddb": "^6.2.5",
+    "jsdom": "^30.0.1",
+    "vitest": "^4.1.11"
+  }
+}

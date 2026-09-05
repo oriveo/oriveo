@@ -1,0 +1,57 @@
+/* -- RelayTintedSection: tinted group header plus inner stack,
+      with an uppercase title, a leading icon box and a section tint. -- */
+
+.wrap {
+  /* --section-tint and --section-tint-dark are injected by the caller */
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+:global(html[data-theme='dark']) .wrap {
+  --section-tint: var(--section-tint-dark);
+}
+
+.header {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding-left: 2px;
+}
+
+.icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--section-tint) 14%, transparent);
+  color: var(--section-tint);
+  flex-shrink: 0;
+}
+
+.title {
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--o-text-secondary);
+  line-height: 1.2;
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 14px;
+  border: 1px solid color-mix(in srgb, var(--section-tint) 12%, var(--o-border));
+  background: var(--o-surface);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+:global(html[data-theme='dark']) .stack {
+  background: var(--o-surface);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+}

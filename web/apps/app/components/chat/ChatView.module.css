@@ -1,0 +1,327 @@
+.view {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+  position: relative;
+  /* Form a stacking context so ChatAmbientAurora at z-index:-1 sits between the background and the content. */
+  isolation: isolate;
+  background: var(--o-bg);
+}
+
+@supports (-webkit-touch-callout: none) {
+  .view {
+    height: -webkit-fill-available;
+  }
+}
+
+.noProvider {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--o-space-md);
+  padding: var(--o-space-2xl);
+  text-align: center;
+}
+
+.noProviderText {
+  font-size: var(--o-text-base);
+  color: var(--o-text-secondary);
+}
+
+/* Drag-and-drop overlay */
+.dragOverlay {
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--o-primary) 8%, transparent);
+  border: 2px dashed var(--o-primary);
+  border-radius: var(--o-radius-lg);
+  margin: var(--o-space-md);
+  pointer-events: none;
+  animation: dragPulse 1.5s ease-in-out infinite;
+}
+
+@keyframes dragPulse {
+  0%, 100% {
+    border-color: var(--o-primary);
+    background: color-mix(in srgb, var(--o-primary) 8%, transparent);
+  }
+  50% {
+    border-color: var(--o-primary-hover);
+    background: color-mix(in srgb, var(--o-primary) 14%, transparent);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dragOverlay {
+    animation: none;
+  }
+}
+
+.dragContent {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--o-space-sm);
+  color: var(--o-primary);
+  font-size: var(--o-text-base);
+  font-weight: 500;
+}
+
+/* Export button */
+.topBarActions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.exportBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: var(--o-radius-md);
+  background: transparent;
+  color: var(--o-text-secondary);
+  cursor: pointer;
+  transition: color var(--o-transition-fast), background var(--o-transition-fast);
+}
+
+.exportBtn:hover {
+  color: var(--o-text);
+  background: var(--o-primary-subtle);
+}
+
+.themeToggleBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: var(--o-radius-md);
+  background: transparent;
+  color: var(--o-text-secondary);
+  cursor: pointer;
+  transition:
+    background var(--o-transition-fast),
+    color var(--o-transition-fast),
+    transform 160ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.themeToggleBtn:hover {
+  color: var(--o-text);
+  background: var(--o-primary-subtle);
+  transform: translateY(-1px);
+}
+
+.themeToggleBtn:active {
+  transform: scale(0.96);
+}
+
+.modelSwitcherLayer {
+  position: absolute;
+  inset: 0;
+  z-index: 20;
+  pointer-events: none;
+}
+
+.privacyBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 82;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: color-mix(in srgb, var(--o-bg) 64%, transparent);
+  backdrop-filter: blur(16px);
+}
+
+.privacyDialog {
+  width: min(440px, 100%);
+  padding: 24px;
+  border: 1px solid var(--o-border);
+  border-radius: 18px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--o-primary) 8%, transparent), transparent 46%),
+    var(--o-surface-overlay);
+  box-shadow: var(--o-elevation-modal);
+}
+
+.privacyIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  margin-bottom: 14px;
+  border-radius: 14px;
+  color: var(--o-primary);
+  background: color-mix(in srgb, var(--o-primary) 12%, transparent);
+}
+
+.privacyDialog h2 {
+  margin: 0;
+  color: var(--o-text);
+  font-size: 19px;
+  line-height: 1.25;
+}
+
+.privacyDialog p {
+  margin: 10px 0 20px;
+  color: var(--o-text-secondary);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.privacyActions {
+  display: grid;
+  grid-template-columns: 1fr 1.2fr;
+  gap: 10px;
+}
+
+.privacySecondary,
+.privacyPrimary {
+  min-height: 42px;
+  border-radius: 12px;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    transform 160ms cubic-bezier(0.16, 1, 0.3, 1),
+    filter var(--o-transition-fast),
+    background var(--o-transition-fast);
+}
+
+.privacySecondary {
+  border: 1px solid var(--o-border);
+  background: var(--o-surface);
+  color: var(--o-text);
+}
+
+.privacyPrimary {
+  border: 0;
+  background: var(--o-primary);
+  color: var(--o-primary-text);
+}
+
+.privacySecondary:hover,
+.privacyPrimary:hover {
+  transform: translateY(-1px);
+}
+
+.privacySecondary:active,
+.privacyPrimary:active {
+  transform: scale(0.98);
+}
+
+.privacySecondary:disabled,
+.privacyPrimary:disabled {
+  cursor: not-allowed;
+  opacity: 0.64;
+  transform: none;
+}
+
+.returnToNoteBar {
+  display: flex;
+  padding: 8px var(--o-space-lg);
+  flex-shrink: 0;
+}
+
+.returnToNoteBar button {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: none;
+  background: none;
+  padding: 0;
+  color: var(--o-primary-active);
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.emptyStateStack {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-height: 100%;
+}
+
+/* ── Expensive model hint ── */
+.expensiveModelHint {
+  display: flex;
+  align-items: center;
+  gap: var(--o-space-sm);
+  padding: var(--o-space-xs) var(--o-space-lg);
+  background: color-mix(in srgb, var(--o-warning) 8%, transparent);
+  flex-shrink: 0;
+}
+
+.expensiveModelHintIcon {
+  color: var(--o-warning);
+  flex-shrink: 0;
+}
+
+.expensiveModelHintText {
+  font-size: var(--o-text-xs);
+  color: var(--o-text-secondary);
+  flex: 1;
+}
+
+.expensiveModelHintClose {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  padding: 4px;
+  cursor: pointer;
+  color: var(--o-text-tertiary);
+  flex-shrink: 0;
+}
+
+.expensiveModelHintClose:hover {
+  color: var(--o-text-secondary);
+}
+
+@media (max-width: 767px) {
+  .view {
+    height: 100dvh;
+    min-height: 100dvh;
+  }
+
+  .noProvider {
+    padding: var(--o-space-xl) var(--o-space-lg)
+      calc(96px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .dragOverlay {
+    margin: var(--o-space-sm);
+    border-radius: var(--o-radius-md);
+  }
+
+  .expensiveModelHint {
+    padding: var(--o-space-xs) var(--o-space-md);
+  }
+
+  .privacyDialog {
+    padding: 22px;
+  }
+
+  .privacyActions {
+    grid-template-columns: 1fr;
+  }
+}

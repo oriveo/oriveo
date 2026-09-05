@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Background layer for the adaptive icon. The flat color used before, #09091A (near black),
+  sat at about 4% lightness and blended straight into a dark wallpaper.
+
+  Switched to a radial gradient matching the master logo's base color
+  (cx=50% cy=40% r=72%, #3B2A86 -> #231657 -> #120B33, lightness raised to about 18%).
+  Vector drawable radial gradients need API 24+; this module's minSdk is 26, so it is safe.
+
+  Geometry converted to the 108dp adaptive canvas: cx=54, cy=43.2, r=77.76.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path android:pathData="M0,0h108v108h-108z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="radial"
+                android:centerX="54"
+                android:centerY="43.2"
+                android:gradientRadius="77.76">
+                <item android:offset="0.0" android:color="#FF3B2A86" />
+                <item android:offset="0.6" android:color="#FF231657" />
+                <item android:offset="1.0" android:color="#FF120B33" />
+            </gradient>
+        </aapt:attr>
+    </path>
+</vector>

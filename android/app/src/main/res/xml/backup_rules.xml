@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<full-backup-content>
+    <exclude domain="sharedpref" path="oriveo_secure_keys.xml" />
+    <exclude domain="sharedpref" path="review_prompt_state.xml" />
+    <exclude domain="database" path="message_continuations.db" />
+    <exclude domain="database" path="message_continuations.db-wal" />
+    <exclude domain="database" path="message_continuations.db-shm" />
+</full-backup-content>

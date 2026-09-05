@@ -1,0 +1,376 @@
+/* ── Providers page — hero + summary + all providers cluster + cost ── */
+
+.pageWrapper {
+  position: relative;
+  min-height: 100%;
+  width: 100%;
+}
+
+/* Page-specific pale purple background: absolute, confined to .pageWrapper.
+   Top and bottom purple radial glows plus a 3-stop very light linear gradient. */
+.pageBackground {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    /* Top primary glow (radius 560px at 50% -12%) */
+    radial-gradient(
+      circle 560px at 50% -12%,
+      color-mix(in srgb, var(--o-primary) 3.5%, transparent) 0%,
+      transparent 100%
+    ),
+    /* Matching bottom primary glow (radius 480px at 50% 112%) */
+    radial-gradient(
+      circle 480px at 50% 112%,
+      color-mix(in srgb, var(--o-primary) 2.8%, transparent) 0%,
+      transparent 100%
+    ),
+    /* Base 3-stop very light purple gradient */
+    linear-gradient(
+      180deg,
+      #fdfcff 0%,
+      #faf7fe 60%,
+      #f5effa 100%
+    );
+}
+
+:global(html[data-theme='dark']) .pageBackground {
+  background:
+    radial-gradient(
+      circle 500px at 50% -12%,
+      color-mix(in srgb, var(--o-primary) 6%, transparent) 0%,
+      transparent 100%
+    ),
+    radial-gradient(
+      circle 420px at 50% 112%,
+      color-mix(in srgb, var(--o-primary) 4.5%, transparent) 0%,
+      transparent 100%
+    ),
+    linear-gradient(
+      180deg,
+      var(--o-bg) 0%,
+      color-mix(in srgb, var(--o-primary) 1.8%, var(--o-bg)) 100%
+    );
+}
+
+.page {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding: var(--o-space-lg);
+  padding-bottom: var(--o-space-xl);
+  max-width: 720px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+/* ── Header — 32px title + 36×36 primary circular add button ── */
+.headerBar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--o-space-sm);
+  padding: 0 4px;
+}
+
+.headerTitle {
+  font-size: 32px;
+  font-weight: 700;
+  color: var(--o-text);
+  letter-spacing: -0.018em;
+  line-height: 1.15;
+}
+
+.addCircleButton {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 0.5px solid color-mix(in srgb, white 18%, transparent);
+  background: var(--o-primary);
+  color: var(--o-primary-text);
+  cursor: pointer;
+  flex-shrink: 0;
+  box-shadow:
+    0 4px 10px color-mix(in srgb, var(--o-primary) 28%, transparent),
+    0 1px 2px rgba(15, 23, 42, 0.08);
+  transition:
+    transform var(--o-transition-fast),
+    background var(--o-transition-fast),
+    box-shadow var(--o-transition-fast),
+    filter var(--o-transition-fast);
+}
+
+.addCircleButton:hover {
+  background: var(--o-primary-hover);
+  filter: brightness(1.03);
+  box-shadow:
+    0 6px 14px color-mix(in srgb, var(--o-primary) 36%, transparent),
+    0 1px 2px rgba(15, 23, 42, 0.08);
+}
+
+.addCircleButton:active {
+  transform: scale(0.92);
+  filter: brightness(0.98);
+}
+
+:global(html[data-theme='dark']) .addCircleButton {
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+/* ── Section header — small heading ("Active this month" / "All providers" / "Costs") ── */
+.sectionHeader {
+  --section-icon-color: var(--o-primary);
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  align-self: flex-start;
+  font-size: 13.5px;
+  line-height: 20px;
+  font-weight: 800;
+  letter-spacing: 0;
+  color: var(--o-text);
+  padding: 0 4px;
+  margin-bottom: 10px;
+}
+
+.sectionHeader[data-tone='active'] {
+  --section-icon-color: var(--o-success);
+}
+
+.sectionHeader[data-tone='all'] {
+  --section-icon-color: var(--o-info);
+}
+
+.sectionHeader[data-tone='costs'] {
+  --section-icon-color: var(--o-warning);
+}
+
+.sectionHeaderIcon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  /* Bare icon: no outline, no backing plate, no shadow. The shape identity comes from the tone
+     accent color itself; a color plate turns into noise once three sections share a screen. */
+  color: var(--section-icon-color);
+}
+
+/* ── Spotlight section (the area holding the Hero card) ── */
+.spotlightSection {
+  display: flex;
+  flex-direction: column;
+}
+
+.allProvidersSection {
+  display: flex;
+  flex-direction: column;
+}
+
+.costSection {
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── Cluster container — refined panel surface (4-stop light gradient + 3-stop neutral grey border +
+   two radial gradients for cool blue-purple corner haze + a 6px soft light band at the bottom +
+   3 layered drop shadows) ── */
+.cluster {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  padding: 6px;
+  border-radius: 22px;
+  border: 1px solid transparent;
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, white 65%, var(--o-surface)) 0%,
+      var(--o-surface) 28%,
+      var(--o-surface) 70%,
+      var(--o-surface) 100%
+    ) padding-box,
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--o-text) 6%, transparent) 0%,
+      color-mix(in srgb, var(--o-text) 6%, transparent) 50%,
+      color-mix(in srgb, var(--o-text) 10%, transparent) 100%
+    ) border-box;
+  box-shadow:
+    0 0.5px 1px rgba(15, 23, 42, 0.05),
+    0 3px 6px rgba(15, 23, 42, 0.04),
+    0 12px 24px -4px rgba(15, 23, 42, 0.10);
+}
+
+.cluster::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background:
+    radial-gradient(
+      circle 280px at -5% -5%,
+      color-mix(in srgb, #6B7FFF 6.5%, transparent) 0%,
+      transparent 100%
+    ),
+    radial-gradient(
+      circle 240px at 105% 105%,
+      color-mix(in srgb, #6B7FFF 4.5%, transparent) 0%,
+      transparent 100%
+    ),
+    linear-gradient(
+      180deg,
+      transparent calc(100% - 6px),
+      color-mix(in srgb, #6B7FFF 3.5%, transparent) 100%
+    );
+  pointer-events: none;
+  z-index: 0;
+}
+
+.cluster > * {
+  position: relative;
+  z-index: 1;
+}
+
+.cardList {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Fading row separator — left inset aligned exactly with the left edge of the name column
+   14 (card padding) + 3.5 (brand bar) + 16 (gap) + 38 (logo) + 13 (gap) = 84.5 ≈ 85 */
+.cardList > * + * {
+  position: relative;
+}
+
+.cardList > * + *::after {
+  content: '';
+  position: absolute;
+  left: 85px;
+  right: 14px;
+  top: 0;
+  height: 1px;
+  background: linear-gradient(
+    to right,
+    transparent 0%,
+    color-mix(in srgb, var(--o-text) 8%, transparent) 12%,
+    color-mix(in srgb, var(--o-text) 8%, transparent) 88%,
+    transparent 100%
+  );
+  pointer-events: none;
+}
+
+/* ── Empty state — transparent ghost style that blends into the cluster panel ── */
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  padding: 32px var(--o-space-lg);
+  text-align: center;
+  background: transparent;
+  border: none;
+}
+
+.emptyIcon {
+  color: var(--o-text-tertiary);
+  opacity: 0.6;
+}
+
+.emptyTitle {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--o-text);
+}
+
+.emptyHint {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--o-text-tertiary);
+  max-width: 280px;
+  line-height: 1.5;
+}
+
+/* ── Dark theme cluster ── */
+:global(html[data-theme='dark']) .cluster {
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, white 7%, var(--o-surface)) 0%,
+      var(--o-surface) 32%,
+      var(--o-surface) 70%,
+      color-mix(in srgb, black 14%, var(--o-surface)) 100%
+    ) padding-box,
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.18) 0%,
+      rgba(255, 255, 255, 0.06) 40%,
+      rgba(0, 0, 0, 0.4) 100%
+    ) border-box;
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.32),
+    0 4px 10px rgba(0, 0, 0, 0.36),
+    0 16px 32px -4px rgba(0, 0, 0, 0.50);
+}
+
+:global(html[data-theme='dark']) .cluster::before {
+  background:
+    radial-gradient(
+      circle 280px at -5% -5%,
+      color-mix(in srgb, #8FA0FF 12%, transparent) 0%,
+      transparent 100%
+    ),
+    radial-gradient(
+      circle 240px at 105% 105%,
+      color-mix(in srgb, #8FA0FF 8%, transparent) 0%,
+      transparent 100%
+    ),
+    linear-gradient(
+      180deg,
+      transparent calc(100% - 6px),
+      color-mix(in srgb, #8FA0FF 7%, transparent) 100%
+    );
+}
+
+:global(html[data-theme='dark']) .cardList > * + *::after {
+  background: rgba(255, 255, 255, 0.07);
+}
+
+@media (max-width: 767px) {
+  .page {
+    padding: var(--o-space-md);
+    padding-bottom: calc(104px + env(safe-area-inset-bottom, 0px));
+    gap: 18px;
+  }
+
+  .headerTitle {
+    font-size: 26px;
+  }
+
+  .addCircleButton {
+    width: 32px;
+    height: 32px;
+  }
+
+  .sectionHeader {
+    font-size: 11px;
+    margin-bottom: 8px;
+  }
+
+  .cluster {
+    padding: 4px;
+    border-radius: 16px;
+  }
+
+  .cardList > * + *::after {
+    left: 73px;
+    right: 12px;
+  }
+}

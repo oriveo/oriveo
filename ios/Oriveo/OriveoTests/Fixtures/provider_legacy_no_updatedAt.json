@@ -1,0 +1,19 @@
+{
+  "id": "550E8400-E29B-41D4-A716-446655440002",
+  "kind": "anthropic",
+  "status": {"kind": "connected"},
+  "models": [
+    {
+      "id": "claude-4-sonnet",
+      "name": "Claude 4 Sonnet",
+      "capabilities": ["text", "reasoning"],
+      "reasoningModeAvailable": true,
+      "isAvailable": true,
+      "isDefault": true,
+      "priceTier": "premium"
+    }
+  ],
+  "catalogModels": [],
+  "apiKey": "sk-ant-test-key",
+  "apiKeyPreview": "sk-ant-...key"
+}

@@ -1,0 +1,314 @@
+.page {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100dvh;
+  padding: var(--o-space-2xl) var(--o-space-lg);
+  background: var(--o-gradient-surface);
+  position: relative;
+  overflow: hidden;
+  /* Give the pseudo-element light field, the grain and the content their own stacking context inside page, so layer order stays controllable */
+  isolation: isolate;
+}
+
+/* Ambient light field: the main blob sits directly behind the logo and title, with several radial
+ * stops easing into the background instead of a hard-edged elliptical mask. */
+.page::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(64% 52% at 50% 40%, color-mix(in srgb, var(--o-primary) 20%, transparent) 0%, transparent 72%),
+    radial-gradient(46% 38% at 20% 16%, color-mix(in srgb, #6366F1 13%, transparent) 0%, transparent 72%),
+    radial-gradient(48% 40% at 82% 22%, color-mix(in srgb, #EC4899 10%, transparent) 0%, transparent 74%);
+  filter: blur(48px);
+  transform-origin: 50% 38%;
+  animation: welcomeAuroraDrift 42s ease-in-out infinite alternate;
+  will-change: transform;
+}
+
+/* Edge treatment: a faint brand glow at the top and a vignette at the bottom, so the content does not float in a void */
+.page::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(120% 70% at 50% -12%, color-mix(in srgb, var(--o-primary) 8%, transparent) 0%, transparent 56%),
+    radial-gradient(140% 70% at 50% 116%, color-mix(in srgb, var(--o-bg) 72%, transparent) 0%, transparent 52%);
+}
+
+[data-theme='dark'] .page::before {
+  background:
+    radial-gradient(64% 52% at 50% 40%, color-mix(in srgb, var(--o-primary) 34%, transparent) 0%, transparent 72%),
+    radial-gradient(46% 38% at 20% 16%, color-mix(in srgb, #818CF8 22%, transparent) 0%, transparent 72%),
+    radial-gradient(48% 40% at 82% 22%, color-mix(in srgb, #F472B6 15%, transparent) 0%, transparent 74%);
+}
+
+/* Very faint film grain: it eats the banding in the large dark gradient and adds a film-like
+ * texture. Static, pointer-events:none and a single composited layer, so it costs nothing on mobile.
+ * The noise comes from SVG feTurbulence used as a filter rather than a decorative image, desaturated
+ * to neutral grey. */
+.grain {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 180px 180px;
+  opacity: 0.02;
+}
+
+[data-theme='dark'] .grain {
+  opacity: 0.04;
+  mix-blend-mode: overlay;
+}
+
+@keyframes welcomeAuroraDrift {
+  0%   { transform: translate(0, 0) scale(1); }
+  50%  { transform: translate(2.5%, -1.5%) scale(1.05); }
+  100% { transform: translate(-2%, 1.5%) scale(1.02); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page::before {
+    animation: none;
+  }
+}
+
+/* Theme toggle: pinned to the top left, balancing the LocaleMenu in the top right */
+.themeToggle {
+  position: fixed;
+  top: var(--o-space-lg);
+  inset-inline-start: var(--o-space-lg);
+  z-index: 10;
+  animation: fadeIn 400ms ease-out 300ms both;
+}
+
+@media (max-width: 480px) {
+  .themeToggle {
+    top: var(--o-space-md);
+    inset-inline-start: var(--o-space-md);
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  max-width: 460px;
+  width: 100%;
+  position: relative;
+  z-index: 1;
+}
+
+.logoWrap {
+  margin-bottom: var(--o-space-xl);
+  animation: fadeUp 600ms ease-out both;
+}
+
+@keyframes fadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.tagline {
+  margin: 0;
+  font-size: clamp(28px, 4.4vw, 40px);
+  font-family: var(--o-font-display);
+  font-weight: 620;
+  line-height: 1.14;
+  letter-spacing: 0;
+  color: var(--o-text);
+  animation: fadeUp 700ms cubic-bezier(0.16, 1, 0.3, 1) 200ms both;
+}
+
+.subtitle {
+  margin: var(--o-space-md) 0 0;
+  font-size: 15px;
+  color: var(--o-text-secondary);
+  line-height: 1.5;
+  letter-spacing: -0.005em;
+  max-width: 38ch;
+  animation: fadeUp 700ms cubic-bezier(0.16, 1, 0.3, 1) 380ms both;
+}
+
+.accountSection {
+  width: 100%;
+  max-width: 300px;
+  margin-top: var(--o-space-xl);
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  animation: fadeUp 600ms ease-out 450ms both;
+}
+
+.accountCard {
+  width: 100%;
+  padding: var(--o-space-md);
+  box-sizing: border-box;
+  border: 1px solid var(--o-border);
+  border-radius: var(--o-radius-card);
+  background: color-mix(in srgb, var(--o-surface) 88%, transparent);
+  backdrop-filter: blur(12px) saturate(140%);
+  -webkit-backdrop-filter: blur(12px) saturate(140%);
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--o-space-sm);
+  box-shadow: var(--o-elevation-card);
+}
+
+.accountLabel {
+  font-size: var(--o-text-sm);
+  color: var(--o-text-tertiary);
+  text-align: left;
+}
+
+.accountRow {
+  display: flex;
+  align-items: center;
+  gap: var(--o-space-md);
+}
+
+.accountAvatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--o-gradient-brand);
+  color: var(--o-primary-text);
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.accountInfo {
+  min-width: 0;
+  text-align: left;
+}
+
+.accountName {
+  font-size: var(--o-text-base);
+  font-weight: 600;
+  color: var(--o-text);
+  word-break: break-word;
+}
+
+.accountEmail {
+  margin-top: 2px;
+  font-size: var(--o-text-sm);
+  color: var(--o-text-secondary);
+  word-break: break-word;
+}
+
+.errorMsg {
+  margin-top: var(--o-space-md);
+  padding: var(--o-space-sm) var(--o-space-md);
+  background: var(--o-error-subtle);
+  border: 1px solid color-mix(in srgb, var(--o-error) 28%, transparent);
+  border-radius: var(--o-radius-control);
+  font-size: var(--o-text-sm);
+  color: var(--o-error);
+  width: 100%;
+  animation: fadeUp 600ms ease-out 500ms both;
+}
+
+.actions {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--o-space-sm);
+  margin-top: var(--o-space-md);
+  width: 100%;
+  max-width: 300px;
+  margin-left: auto;
+  margin-right: auto;
+  animation: fadeUp 600ms ease-out 500ms both;
+}
+
+.ctaBtn {
+  width: 100%;
+  min-height: 48px;
+  font-size: var(--o-text-base);
+}
+
+.guestLink {
+  margin-top: 4px;
+  padding: 8px;
+  font-size: 13px;
+  color: var(--o-text-tertiary);
+  text-decoration: none;
+  cursor: pointer;
+  letter-spacing: -0.005em;
+  border-radius: var(--o-radius-control);
+  transition: color 180ms ease, background 180ms ease;
+}
+
+.guestLink:hover {
+  color: var(--o-text);
+  background: var(--o-surface-raised);
+}
+
+.guestLink:focus-visible {
+  outline: none;
+  box-shadow: var(--o-focus-ring);
+}
+
+.privacy {
+  margin-top: var(--o-space-xl);
+  font-size: var(--o-text-xs);
+  color: var(--o-text-tertiary);
+  max-width: 300px;
+  line-height: 1.5;
+  animation: fadeUp 600ms ease-out 650ms both;
+}
+
+.loadingState {
+  padding: var(--o-space-lg);
+  font-size: var(--o-text-base);
+  color: var(--o-text-secondary);
+  text-align: center;
+}
+
+/* Sign-in transition state */
+.spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid rgba(139, 92, 246, 0.15);
+  border-top-color: rgba(139, 92, 246, 0.8);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  margin-top: var(--o-space-lg);
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.transitionText {
+  margin-top: var(--o-space-md);
+  font-size: var(--o-text-base);
+  color: var(--o-text-secondary);
+  animation: fadeUp 400ms ease-out both;
+}

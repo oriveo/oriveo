@@ -1,0 +1,643 @@
+.row {
+  display: flex;
+  gap: 10px;
+  padding: 12px 0;
+}
+
+/* Tighter spacing between consecutive messages from the same speaker */
+.row[data-same-speaker='true'] {
+  padding: 4px 0;
+}
+
+.row[data-role='user'] {
+  flex-direction: row-reverse;
+  align-items: center;
+  animation: userMsgIn 250ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.row[data-role='assistant'] {
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 12px;
+  animation: assistantMsgIn 300ms ease-out both;
+}
+
+@keyframes userMsgIn {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes assistantMsgIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ── Avatars ── */
+.avatar {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.avatarUser {
+  flex-shrink: 0;
+}
+
+.container {
+  position: relative;
+  max-width: 100%;
+  min-width: 0;
+}
+
+/* User messages — shrink-wrap to content, right-aligned via row-reverse */
+.row[data-role='user'] .container {
+  max-width: 72%;
+  width: fit-content;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+
+/* Show actions on hover */
+.container:hover .actions {
+  height: 28px;
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.bubble {
+  font-size: var(--o-text-base);
+  line-height: 1.7;
+  word-break: break-word;
+}
+
+/* User messages - brand gradient, inner highlight and drop shadow */
+.row[data-role='user'] .bubble {
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--o-primary) 96%, white) 0%,
+    var(--o-primary-active) 100%
+  );
+  color: #fff;
+  border-radius: 20px;
+  padding: 11px 17px;
+  white-space: pre-wrap;
+  line-height: 1.6;
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.05),
+    0 6px 16px color-mix(in srgb, var(--o-primary) 22%, transparent),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.18);
+  letter-spacing: -0.005em;
+}
+
+/* User bubble selection - the bubble is white on purple, so the global purple selection colour is
+ * almost invisible; a light highlight with dark purple text reads clearly in both themes (the
+ * bubble itself is white on purple in both) */
+.row[data-role='user'] .bubble::selection,
+.row[data-role='user'] .bubble ::selection {
+  background: rgba(255, 255, 255, 0.92);
+  color: color-mix(in srgb, var(--o-primary-active) 75%, #000);
+}
+
+/* Assistant messages — no bubble, open text layout */
+.row[data-role='assistant'] .bubble {
+  background: transparent;
+  color: var(--o-text);
+  border-radius: 0;
+  padding: 2px 0;
+}
+
+/* -- Assistant header - model name plus generating pill, vertically centred with the avatar -- */
+.assistantHeader {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+}
+
+.assistantModelName {
+  font-size: var(--o-text-xs);
+  font-weight: 500;
+  color: var(--o-text-secondary);
+}
+
+.failed .bubble {
+  opacity: 0.7;
+}
+
+.interrupted .bubble {
+  opacity: 0.85;
+}
+
+/* ── User image attachments ── */
+.userAttachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--o-space-xs);
+  justify-content: flex-end;
+  margin-bottom: var(--o-space-xs);
+}
+
+.userAttachmentImage {
+  width: 80px;
+  height: 80px;
+  object-fit: cover;
+  border-radius: var(--o-radius-lg);
+}
+
+/* ── Bubble-internal file attachments ── */
+.bubbleFiles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--o-space-xs);
+  margin-bottom: 6px;
+}
+
+/* No bottom spacing when there are attachments but no text */
+.bubbleFiles:last-child {
+  margin-bottom: 0;
+}
+
+/* ── File attachment chip ── */
+.fileChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: none;
+  border-radius: var(--o-radius-md);
+  background: rgba(255, 255, 255, 0.18);
+  color: var(--o-primary-text);
+  font-size: var(--o-text-xs);
+  max-width: 200px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+  font-family: inherit;
+}
+
+.fileChip:hover {
+  background: rgba(255, 255, 255, 0.3);
+}
+
+.fileChipRemoteOnly {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.fileChipLoading {
+  opacity: 0.7;
+  cursor: wait;
+  animation: chipPulse 1.5s ease-in-out infinite;
+}
+
+@keyframes chipPulse {
+  0%, 100% { opacity: 0.7; }
+  50% { opacity: 0.4; }
+}
+
+.fileChip span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Generated images ── */
+.generatedImages {
+  display: grid;
+  gap: var(--o-space-sm);
+  margin-top: var(--o-space-sm);
+  justify-content: start;
+  align-items: start;
+}
+
+.generatedImagesSingle {
+  width: min(100%, 360px);
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.generatedImagesGrid {
+  width: min(100%, 520px);
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.generatedImageCard {
+  margin: 0;
+  min-width: 0;
+  padding: 8px;
+  border-radius: 22px;
+  border: 1px solid color-mix(in srgb, var(--o-border) 75%, white 25%);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--o-surface-raised) 88%, white 12%), var(--o-surface));
+  box-shadow: var(--o-elevation-control);
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+
+.generatedImageCard:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--o-elevation-card);
+  border-color: color-mix(in srgb, var(--o-primary) 20%, var(--o-border));
+}
+
+.generatedImageLink {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: none;
+  border-radius: 16px;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--o-surface-raised) 92%, white 8%);
+  cursor: pointer;
+  line-height: 0;
+}
+
+.generatedImageLink:hover {
+  opacity: 1;
+}
+
+.generatedImage {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-height: 420px;
+  object-fit: contain;
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--o-bg) 88%, white 12%);
+}
+
+@media (max-width: 720px) {
+  .generatedImagesSingle {
+    width: min(100%, 300px);
+  }
+
+  .generatedImagesGrid {
+    width: min(100%, 320px);
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .generatedImage {
+    max-height: 320px;
+  }
+}
+
+.inlineError {
+  margin-top: var(--o-space-xs);
+}
+
+.managedNotice {
+  margin-top: 8px;
+  padding: 9px 11px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--o-primary) 18%, transparent);
+  background: color-mix(in srgb, var(--o-primary) 7%, var(--o-surface));
+  color: var(--o-text-secondary);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.managedNotice[data-tone='warning'] {
+  border-color: color-mix(in srgb, var(--o-warning) 32%, transparent);
+  background: color-mix(in srgb, var(--o-warning) 9%, var(--o-surface));
+  color: color-mix(in srgb, var(--o-warning) 76%, var(--o-text));
+}
+
+.meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 6px 0 0;
+}
+
+.metaInfo {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-wrap: wrap;
+}
+
+.metaPill {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--o-text-tertiary);
+  white-space: nowrap;
+}
+
+/* separator dot between metadata pills */
+.metaPill + .metaPill::before {
+  content: '\00B7';
+  margin-inline-end: 4px;
+}
+
+.metaActions {
+  display: flex;
+  align-items: center;
+  gap: var(--o-space-xs);
+  flex-wrap: wrap;
+  /* Ghost buttons have no resting fill, so the group shifts left to align the optical left edge of the first icon with the meta text */
+  margin-inline-start: -7px;
+}
+
+/* Shared ghost action buttons: borderless, transparent at rest, soft rounded background on hover */
+.metaActionBtn,
+.metaIconBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  border: none;
+  border-radius: var(--o-radius-control);
+  background: transparent;
+  font: inherit;
+  font-weight: 500;
+  line-height: 1;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color 160ms ease, background 160ms ease, transform 120ms ease;
+  -webkit-appearance: none;
+}
+
+/* 'Save as note' with a text label: the only accent-coloured element here */
+.metaActionBtn {
+  gap: var(--o-space-xs);
+  height: 30px;
+  padding: 0 var(--o-space-sm);
+  font-size: 12px;
+  color: var(--o-primary);
+}
+
+/* Icon-only copy and more actions: neutral square ghost buttons */
+.metaIconBtn {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  color: var(--o-text-tertiary);
+}
+
+.metaActionBtn svg,
+.metaIconBtn svg {
+  display: block;
+  flex: 0 0 auto;
+}
+
+.metaIconBtn:hover {
+  background: color-mix(in srgb, var(--o-text) 7%, transparent);
+  color: var(--o-text-secondary);
+}
+
+.metaActionBtn:hover {
+  background: var(--o-primary-subtle);
+}
+
+.metaActionBtn:active,
+.metaIconBtn:active {
+  transform: scale(0.94);
+}
+
+/* Copy succeeded: the icon button turns accent with a soft confirmation background */
+.metaIconBtn[data-copied] {
+  color: var(--o-primary);
+  background: var(--o-primary-subtle);
+}
+
+.metaActionBtn:focus-visible,
+.metaIconBtn:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--o-primary) 42%, transparent);
+  outline-offset: 2px;
+}
+
+.metaMoreWrap {
+  position: relative;
+  display: inline-flex;
+}
+
+.metaActionMenu {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 6px);
+  left: 0;
+  min-width: 210px;
+  padding: 5px;
+  border: 1px solid var(--o-border);
+  border-radius: var(--o-radius-md);
+  background: var(--o-surface);
+  box-shadow: var(--o-shadow-lg);
+}
+
+/* Flips upward near the composer so the input bar does not cover it */
+.metaActionMenuUp {
+  top: auto;
+  bottom: calc(100% + 6px);
+}
+
+.metaActionMenuItem {
+  display: flex;
+  width: 100%;
+  min-height: 34px;
+  align-items: center;
+  gap: 8px;
+  padding: 0 8px;
+  border: none;
+  border-radius: var(--o-radius-sm);
+  background: transparent;
+  color: var(--o-text-secondary);
+  font: inherit;
+  font-size: 12px;
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.metaActionMenuItemValue {
+  margin-inline-start: auto;
+  color: var(--o-text-tertiary);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 500;
+}
+
+.metaActionMenuItem:hover,
+.metaActionMenuItem:focus-visible {
+  outline: none;
+  background: color-mix(in srgb, var(--o-text) 6%, transparent);
+  color: var(--o-text);
+}
+
+.savedNoteRefs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--o-space-xs);
+  margin-top: var(--o-space-xs);
+  /* Ghost chips have no fill, so they shift left to align the icon with the body text edge, as in metaActions */
+  margin-inline-start: -7px;
+}
+
+.savedNoteRefWrap {
+  position: relative;
+  display: inline-flex;
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* Borderless neutral ghost with a note icon and the saved-note title */
+.savedNoteRef {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--o-space-xs);
+  max-width: min(100%, 280px);
+  height: 30px;
+  padding: 0 var(--o-space-sm);
+  border: none;
+  border-radius: var(--o-radius-control);
+  background: transparent;
+  color: var(--o-text-tertiary);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1;
+  cursor: pointer;
+  transition: color 160ms ease, background 160ms ease;
+}
+
+.savedNoteRef svg {
+  flex: 0 0 auto;
+}
+
+.savedNoteRef span {
+  white-space: nowrap;
+}
+
+.savedNoteRef strong {
+  min-width: 0;
+  overflow: hidden;
+  color: inherit;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.savedNoteRef:hover {
+  background: color-mix(in srgb, var(--o-text) 7%, transparent);
+  color: var(--o-text-secondary);
+}
+
+.savedNoteRef:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--o-primary) 45%, transparent);
+  outline-offset: 2px;
+}
+
+/* Edit mode - needs to be wider than the bubble, overriding the container's fit-content */
+.editWrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--o-space-xs);
+  min-width: 320px;
+}
+
+.editTextarea {
+  width: 100%;
+  min-height: 80px;
+  padding: var(--o-space-sm) var(--o-space-md);
+  border: 1px solid var(--o-primary);
+  border-radius: var(--o-radius-lg);
+  background: var(--o-bg);
+  color: var(--o-text);
+  font-size: var(--o-text-sm);
+  line-height: 1.5;
+  resize: vertical;
+  outline: none;
+  font-family: inherit;
+  box-shadow: var(--o-glow-primary);
+}
+
+.editActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--o-space-xs);
+}
+
+.editCancel,
+.editSubmit {
+  padding: var(--o-space-xs) var(--o-space-md);
+  border-radius: var(--o-radius-md);
+  font-size: var(--o-text-xs);
+  font-weight: 500;
+  cursor: pointer;
+  border: none;
+}
+
+.editCancel {
+  background: var(--o-surface-raised);
+  color: var(--o-text-secondary);
+}
+
+.editCancel:hover {
+  background: var(--o-surface);
+}
+
+.editSubmit {
+  background: var(--o-primary);
+  color: var(--o-primary-text);
+}
+
+.editSubmit:hover:not(:disabled) {
+  background: var(--o-primary-hover);
+}
+
+.editSubmit:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+@media (max-width: 767px) {
+  .row[data-role='user'] .container {
+    max-width: 88%;
+    width: fit-content;
+  }
+  /* Always show message actions on small screens (no hover) */
+  .container .actions {
+    height: 28px;
+    opacity: 0.5;
+    pointer-events: auto;
+  }
+  .editWrap {
+    min-width: unset;
+  }
+}
+
+/* Touch-only devices: always show message actions */
+@media (hover: none) {
+  .container .actions {
+    height: 28px;
+    opacity: 0.7;
+    pointer-events: auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .row[data-role='user'],
+  .row[data-role='assistant'] {
+    animation: none;
+  }
+}
+.researchDisclaimer {
+  margin: 7px 0 0;
+  color: var(--o-text-tertiary);
+  font-size: 11px;
+  line-height: 1.45;
+}

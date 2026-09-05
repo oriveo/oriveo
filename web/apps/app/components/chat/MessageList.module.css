@@ -1,0 +1,170 @@
+/* Wrapper: provides the positioning context for the right-hand navigation rail. It does not scroll itself - .area is the scroll container. */
+.areaWrap {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.selectionNoteToolbar {
+  position: fixed;
+  z-index: 30;
+  transform: translate(-50%, -100%);
+  pointer-events: auto;
+}
+
+.selectionNoteToolbar button {
+  appearance: none;
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 12px;
+  border: 1px solid color-mix(in srgb, var(--o-primary) 32%, var(--o-border));
+  border-radius: 999px;
+  background: var(--o-surface-overlay);
+  color: var(--o-text);
+  box-shadow: var(--o-elevation-modal);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+@media (pointer: coarse) {
+  .selectionNoteToolbar button {
+    min-height: 44px;
+  }
+}
+
+.area {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  /* none rather than contain: stop hard at the top and bottom edges, removing the rubber-band
+   * bounce of native macOS overscroll - otherwise releasing at the bottom feels like a sudden drop.
+   * contain only stops scroll chaining, it does not remove this element's own bounce; the parent
+   * .view is already overflow:hidden so there is no chain to propagate, making none side-effect free. */
+  overscroll-behavior: none;
+  -webkit-overflow-scrolling: touch;
+  overflow-anchor: none;
+  /* Overrides the global html{scroll-behavior:smooth} in globals.css: the programmatic stick-to-bottom
+   * has to be instant, otherwise every streaming tick that writes scrollTop starts a ~300ms smooth
+   * animation, so following the bottom drifts and fights the in-flight animation when pulled back. */
+  scroll-behavior: auto;
+}
+
+/* Empty state: the parent centres SkillsLanding directly with flex.
+ * SkillsLanding does not need to fill the area, its content height is enough and .areaEmpty centres it.
+ * Transparent so the ambient aurora backdrop rendered by ChatView shows through. */
+.areaEmpty {
+  justify-content: center;
+  align-items: center;
+  overflow: hidden;
+  padding-bottom: 0;
+  background: transparent;
+}
+
+.list {
+  max-width: 820px;
+  width: 100%;
+  margin: 0 auto;
+  padding: var(--o-space-lg) var(--o-space-lg) 140px;
+  display: flex;
+  flex-direction: column;
+  /* Not flex:1: pinning to the top relies on .spacer having a real height, and flex-grow would swallow the spacer in short conversations, leaving them unscrollable. */
+  overflow-anchor: none;
+}
+
+/* Pin-to-top filler: the height is written as an inline style by usePinToTopScroll, and it must not be compressed inside the flex column. */
+.spacer {
+  flex: 0 0 auto;
+  width: 100%;
+}
+
+@media (max-width: 767px) {
+  .areaEmpty {
+    justify-content: flex-start;
+    overflow-y: auto;
+  }
+
+  .list {
+    padding: var(--o-space-md) var(--o-space-md)
+      calc(156px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .jumpToBottomBtn {
+    bottom: calc(112px + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+/* Jump-to-bottom button: bottom right (bottom-centre was rejected because it covers the text) with the
+   height pushed to 62% of the rail to avoid mis-taps; bottom must clear the overlay composer (the same
+   140px as .list padding-bottom - an earlier 16px sat straight behind the input box); primary gradient
+   fill with a white arrow, since the old surface-overlay fill had too little contrast to read. */
+.jumpToBottomBtn {
+  position: absolute;
+  right: var(--o-space-lg);
+  bottom: 96px;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: 0.5px solid rgb(255 255 255 / 20%);
+  border-radius: var(--o-radius-full);
+  background: linear-gradient(135deg, var(--o-primary), color-mix(in srgb, var(--o-primary) 72%, #7c5cff));
+  color: #fff;
+  cursor: pointer;
+  transition: box-shadow var(--o-transition-fast), transform var(--o-transition-fast), filter var(--o-transition-fast);
+  box-shadow: 0 8px 18px color-mix(in srgb, var(--o-primary) 35%, transparent), 0 2px 5px rgb(0 0 0 / 20%);
+  animation: pillIn 250ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes pillIn {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.jumpToBottomBtn:hover {
+  filter: brightness(1.08);
+  box-shadow: 0 10px 22px color-mix(in srgb, var(--o-primary) 45%, transparent), 0 3px 6px rgb(0 0 0 / 22%);
+  transform: translateY(-2px);
+}
+
+.jumpToBottomBtn:active {
+  transform: translateY(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .jumpToBottomBtn {
+    animation: none;
+  }
+}
+
+.area :global(.o-focus-message) {
+  animation: focusMessagePulse 2400ms ease-out both;
+}
+
+@keyframes focusMessagePulse {
+  0% {
+    background: color-mix(in srgb, var(--o-primary) 18%, transparent);
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--o-primary) 24%, transparent);
+  }
+  100% {
+    background: transparent;
+    box-shadow: none;
+  }
+}
