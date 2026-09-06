@@ -47,6 +47,11 @@ export interface Skill {
   suggestedModelId?: string;
   /** "any" | "reasoning" | "vision" | "fast" | "large-context" */
   modelCapabilityHint: string;
+  /**
+   * Sampling preferences a skill may carry. The web editor does not offer them, but a skill
+   * authored on another client does, and every write path preserves what it reads: editing such a
+   * skill in the browser must not quietly strip the author's settings.
+   */
   temperature?: number;
   reasoningLevel?: string;
   webSearchEnabled?: boolean;
