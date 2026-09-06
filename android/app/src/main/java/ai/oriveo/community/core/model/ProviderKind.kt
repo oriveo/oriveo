@@ -99,8 +99,16 @@ enum class ProviderKind {
     val usesServerOrderedModels: Boolean
         get() = false
 
+    /**
+     * Whether the endpoint this provider is reached on may change after setup.
+     *
+     * Derived from [regionOptions] rather than listed by hand, so a provider that offers a region
+     * picker always has somewhere to store the answer; listing the kinds separately let the picker
+     * and the write path drift apart, which showed up as a region change that silently did nothing.
+     * Relay has no fixed endpoint at all - its address is whatever the user typed.
+     */
     val usesConfigurableBaseUrl: Boolean
-        get() = this == MiniMax || this == Qwen || this == Moonshot || this == Relay
+        get() = this == Relay || regionOptions.isNotEmpty()
 
     val supportsAutomaticSync: Boolean
         get() = this != Relay

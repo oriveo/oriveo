@@ -189,6 +189,35 @@ class ProviderKindTest {
         assertEquals("https://api.siliconflow.com/v1", options[1].baseURL)
     }
 
+    @Test
+    fun `every provider offering regions can store the chosen endpoint`() {
+        // The region picker and the base-url write path must agree: a provider that offers a choice
+        // and cannot persist it accepts the tap and silently keeps the old endpoint.
+        ProviderKind.entries
+            .filter { it.regionOptions.isNotEmpty() }
+            .forEach { kind ->
+                assertTrue(
+                    "$kind offers ${kind.regionOptions.size} region options but cannot store one",
+                    kind.usesConfigurableBaseUrl,
+                )
+            }
+        assertTrue(ProviderKind.SiliconFlow.usesConfigurableBaseUrl)
+    }
+
+    @Test
+    fun `providers with one fixed endpoint keep it`() {
+        assertTrue(ProviderKind.Relay.usesConfigurableBaseUrl)
+        listOf(
+            ProviderKind.OpenAI,
+            ProviderKind.Anthropic,
+            ProviderKind.Gemini,
+            ProviderKind.Mistral,
+            ProviderKind.Groq,
+        ).forEach { kind ->
+            assertFalse("$kind has no region options and no editable endpoint", kind.usesConfigurableBaseUrl)
+        }
+    }
+
     // ── supportsAutomaticSync ────────────────────────────────────
 
     @Test
