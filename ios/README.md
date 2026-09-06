@@ -35,9 +35,14 @@
 ---
 
 The Oriveo iOS client is a bring-your-own-key AI chat app. You add API keys you already own, and
-the app calls each provider directly from the phone. Conversations, notes, folders, skills, and
-attachments are stored on the device in SQLite; API keys go to the iOS Keychain. There is no
-account and no sign-in.
+the app calls each provider directly from the phone. Conversations, messages, notes and note
+folders live in an on-device SQLite database; attachment blobs are files beside it; skills,
+preferences, the provider list and conversation folders are on-device JSON. API keys go to the iOS
+Keychain.
+
+There is no Oriveo account: nothing is uploaded, and there is nothing to sign in to. Two providers
+do offer signing in with a subscription you already have instead of pasting a key — ChatGPT and
+Grok — and that sign-in goes to OpenAI and xAI, not to us.
 
 It is part of [Oriveo Community Edition](../README.md) — three clients that share one definition of
 how to talk to a model provider.
@@ -111,9 +116,11 @@ flowchart LR
     parse --> cells["Streaming transcript"]
 ```
 
-`BaseAPIService.encodeChatBody` is the single point where a request body becomes bytes. Every
-capability recipe, generation parameter, and custom field has to pass through it, which is what
-makes the wire format testable in one place instead of fifteen.
+`BaseAPIService.encodeChatBody` is the last stop before an OpenAI-compatible request becomes
+bytes — twelve of the sixteen providers go through it, so a capability recipe, generation parameter
+or custom field is testable in one place rather than twelve. OpenAI, Anthropic and Gemini speak
+their own shapes and serialize in their own services; each of those points is covered by its own
+request-shape suite.
 
 ## What a model is allowed to do
 
@@ -137,35 +144,52 @@ Application Support/Oriveo/
   users/<uid>/
     oriveo.sqlite                # conversations, messages, notes, catalog cache
     Images/  Files/              # attachment blobs, referenced by id
-    session-snapshot.json        # preferences, provider list (never API keys)
+    session-snapshot.json        # preferences, provider list, folders, last used model
 ```
 
 - **SQLite through GRDB** with WAL, foreign keys on, and a `DatabaseMigrator` covering every schema
   change. Full-text search over messages and notes uses FTS5 with a trigram tokenizer.
 - **API keys live in the Keychain**, keyed by provider and partition, and are blanked out of the
-  session snapshot before it is written.
+  session snapshot before it is written. Skills are stored separately as JSON in `UserDefaults`.
 - **Attachment blobs are files on disk**, not rows, so a large PDF never bloats the database.
+
+A backup is a `.oriveo` ZIP holding `data.json` plus the image files. The optional password does not
+encrypt the archive: it encrypts only the provider API keys inside it (AES-GCM, with a key derived
+by PBKDF2-HMAC-SHA256 over 600,000 iterations). Conversations, notes, skills and preferences are
+plain JSON in the archive either way, so treat a backup file as readable by anyone who has it.
 
 ## The one network call the app makes for itself
 
-On cold start the app issues two unauthenticated, ETag-conditional `GET` requests to
-`https://api.oriveoai.com` — `/api/metadata?view=lean` and `/api/metadata/model-facts`. They fetch
-the public model catalog: which models exist, what each supports, how its reasoning controls are
-named, and what it costs. No key, no conversation, and no identifier is attached, and the response
-is cached in SQLite so the app works from the cached copy when the catalog is unreachable.
+On cold start the app issues one unauthenticated, ETag-conditional `GET` to
+`https://api.oriveoai.com/api/metadata?view=lean`. It fetches the public model catalog: which models
+exist, what each supports, how its reasoning controls are named, and what it costs. No key, no
+conversation and no identifier is attached, and the response is cached in SQLite so the app works
+from the cached copy when the catalog is unreachable. A second endpoint,
+`/api/metadata/model-facts`, is read only after you sign in with a ChatGPT or Grok subscription, to
+learn what that subscription's models can do.
 
-This is the only request the app makes on its own behalf. Everything else goes to a provider you
+These are the only requests the app makes on its own behalf. Everything else goes to a provider you
 configured, with your key.
 
-To point a **Debug** build at your own catalog host, set `ORIVEO_METADATA_BASE_URL` — either as a
-scheme environment variable or as a key in `ios/Oriveo/Config/Info.plist`. Unlike the Android and
-web clients, a Release build ignores it and always uses the published catalog; changing that means
-editing `BackendURLResolver`.
+Pointing the catalog at your own host is a **Debug-build convenience**, resolved in
+`Oriveo/Core/Providers/BackendURLResolver.swift` in this order:
+
+1. the `ORIVEO_METADATA_BASE_URL` environment variable, set in the scheme's Run action; then
+2. an `ORIVEO_METADATA_BASE_URL` string in `ios/Oriveo/Config/Info.plist` — the key is already
+   there and empty, so filling it in is enough; then
+3. `https://api.oriveoai.com`.
+
+Two things to know. A Release build ignores both and always uses the published catalog; changing
+that means editing `BackendURLResolver`. And when the test bundle is running, or with `CI=true`, an
+override pointing at a private address (localhost, `10/8`, `192.168/16`, `172.16/12`, `.local`,
+link-local IPv6) is ignored, so a leftover local host cannot make the suite depend on whichever
+machine you are sitting at.
 
 ## Project layout
 
 ```
 ios/Oriveo/
+  Config/Info.plist    the app's Info.plist; GENERATE_INFOPLIST_FILE is off
   Oriveo.xcodeproj/
   Oriveo/
     Core/
@@ -175,19 +199,30 @@ ios/Oriveo/
       Models/          domain types
       Attachments/     import limits, budgets, per-format text extraction
       Tools/           tool-call loop and per-protocol adapters
+      Cache/ Localization/ Observability/ Reachability/ Routing/ Usage/
     Features/
-      Chat/            transcript, composer, model controls, export
+      App/             root view and tab shell
+      Chat/            transcript, composer, model controls, cross-check, export
       Providers/       setup, detail, relay, local engines, subscription sign-in
       Home/ Notes/ Skills/ Settings/ Backup/ Onboarding/
     Shared/Components/ shared views
     DesignSystem/      theme, colour, haptics
+    Preview/           sample data for SwiftUI previews
+    *.xcstrings        ten string catalogs
+    Assets.xcassets · PrivacyInfo.xcprivacy · Oriveo.entitlements
   OriveoTests/
 ```
 
 ## Build and run
 
-You need a Mac with **Xcode 26** and a device on **iOS 18 or later**. A free Apple Developer
-account is enough; the app uses no paid capabilities and ships an empty entitlements file.
+You need **Xcode 26**, and to run on hardware a device on **iOS 18 or later**. A free Apple
+Developer account is enough: the entitlements file is empty and the app uses no paid capability —
+no push, no iCloud, no app groups, no associated domains.
+
+Xcode 16.3 is the floor the project format and Swift tools version actually impose, but the target
+sets `SWIFT_APPROACHABLE_CONCURRENCY` and `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor`, which older
+Xcode versions ignore without saying so. Silently changing actor isolation is a poor way to find
+that out, so build with Xcode 26.
 
 1. Open `ios/Oriveo/Oriveo.xcodeproj`
 2. Select the `Oriveo` scheme
@@ -197,6 +232,11 @@ account is enough; the app uses no paid capabilities and ships an empty entitlem
 
 To build for the Simulator instead, pick any iPhone simulator and Run. Package dependencies resolve
 from the committed `Package.resolved`.
+
+**On an Apple silicon Mac** the iPhone build also runs natively: choose the **My Mac (Designed for
+iPad)** destination. Mac Catalyst is deliberately off (`SUPPORTS_MACCATALYST = NO`), so this is the
+iOS app under the iPad compatibility runtime rather than a Mac app — device-only paths such as
+camera capture behave the way they do on a Mac.
 
 The project file uses `objectVersion = 77` with file-system synchronized groups, so an older Xcode
 may refuse to open it. Update Xcode rather than editing the project format.
@@ -217,26 +257,32 @@ may refuse to open it. Update Xcode rather than editing the project format.
 | [ZIPFoundation](https://github.com/weichsel/ZIPFoundation) | 0.9.20 | backup archives, Office/EPUB/ODF extraction |
 | `OriveoProviderKit` | local | the provider wire kernel, in [`shared/`](../shared/README.md) |
 
+`Package.resolved` also pins the two transitive dependencies swift-markdown-ui brings in:
+[NetworkImage](https://github.com/gonzalezreal/NetworkImage) 6.0.1 and
+[swift-cmark](https://github.com/swiftlang/swift-cmark) 0.8.0. Every direct dependency is MIT
+licensed and swift-cmark is BSD-2-Clause, all compatible with AGPL-3.0-or-later.
+
 ## Testing
 
 Run the `Oriveo` scheme's test action (⌘U) in Xcode, or from the repository root:
 
 ```bash
 xcodebuild test -project ios/Oriveo/Oriveo.xcodeproj -scheme Oriveo \
-  -destination 'platform=iOS Simulator,name=iPhone 17'
+  -destination 'platform=iOS Simulator,name=iPhone 16'
 ```
 
-Substitute a simulator you actually have — `xcrun simctl list devices available` lists them.
+Substitute a simulator you actually have. `xcodebuild -project ios/Oriveo/Oriveo.xcodeproj -scheme Oriveo
+-showdestinations` lists everything this checkout can build for.
 
 > [!IMPORTANT]
 > The test target reads contract fixtures from `shared/` by walking up from `#filePath` until it
-> finds that directory. Around 29 suites depend on it, so **the tests only pass in a full checkout**
-> — copying `ios/` out on its own will not work.
+> finds that directory, so **the tests only pass in a full checkout** — copying `ios/` out on its
+> own will not work.
 
-The suite is large: roughly 2,900 tests across 273 files, mostly [Swift
-Testing](https://github.com/swiftlang/swift-testing). It covers request shape per provider,
-recorded upstream SSE replay, relay and local-engine policy, transcript measurement and streaming
-behaviour, storage, and backup round-trips.
+The suite is large: about 2,900 [Swift Testing](https://github.com/swiftlang/swift-testing) cases
+plus 76 XCTest ones, across 274 files. It covers request shape per provider, recorded upstream SSE
+replay, relay and local-engine policy, transcript measurement and streaming behaviour, storage, and
+backup round-trips.
 
 `shared/OriveoProviderKit` has its own suite:
 
@@ -246,9 +292,11 @@ cd shared/OriveoProviderKit && swift test
 
 ## Localization
 
-Sixteen languages, stored as Xcode String Catalogs (`.xcstrings`) — ten catalogs, about 1,900 keys,
-English as the source. Strings are resolved through `L10n.tr(_:table:)` against an `.lproj` bundle
-chosen from the user's in-app language setting, so switching language takes effect without
+Sixteen languages, stored as Xcode String Catalogs (`.xcstrings`) — ten catalogs, about 1,340 keys,
+English as the source. Every key is translated into all sixteen, apart from the few marked
+`shouldTranslate: false`: the product name, punctuation, format skeletons and protocol values that
+would be wrong to localize. Strings are resolved through `L10n.tr(_:table:)` against an `.lproj`
+bundle chosen from the user's in-app language setting, so switching language takes effect without
 relaunching. Right-to-left layout for Arabic is handled explicitly.
 
 ## Contributing
