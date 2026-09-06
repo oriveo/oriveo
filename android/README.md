@@ -143,8 +143,12 @@ ciphertext would be undecryptable on the new device anyway. **After moving to a 
 re-enter your API keys and sign in to any provider subscription again**; conversations and notes
 come across normally.
 
-Backup archives you export yourself are encrypted separately, with PBKDF2-HMAC-SHA256 at 600,000
-iterations and AES-GCM, using a password you choose.
+An archive you export yourself is a zip holding `data.json` plus the attachment files. The password
+you choose protects **only the provider API keys** inside it: they are encrypted with
+PBKDF2-HMAC-SHA256 at 600,000 iterations and AES-GCM and stored as one field of `data.json`.
+Conversations, messages, notes, folders, skills, preferences and attachments are written as plain
+JSON and plain files either way, so treat an archive as readable by anyone who has the file. Export
+without keys if you only want your history.
 
 ## Reaching a model server on your own network
 
@@ -265,8 +269,8 @@ Exact versions are pinned in [`gradle/libs.versions.toml`](gradle/libs.versions.
 ./gradlew :app:testDebugUnitTest
 ```
 
-Roughly 3,000 unit tests across 319 files, using JUnit 4, MockK, Turbine, `kotlinx-coroutines-test`
-and Ktor's mock engine. Coverage is heaviest where mistakes are most expensive: request shape per
+Roughly 3,000 unit tests across 318 files, using JUnit 4, MockK, Robolectric,
+`kotlinx-coroutines-test` and Ktor's mock engine. Coverage is heaviest where mistakes are most expensive: request shape per
 provider, SSE parsing, transport selection, relay probing and security modes, capability recipe
 execution, catalog caching and contract-version handling, Room persistence, and backup round-trips.
 
@@ -289,7 +293,7 @@ and committed, which is where the first migration's `2.json` will land.
 
 ## Localization
 
-Sixteen languages: `values/` (English, the source) plus fifteen `values-*` directories, about 1,700
+Sixteen languages: `values/` (English, the source) plus fifteen `values-*` directories, about 1,300
 strings each, with every locale holding an identical key set. In-app language switching goes
 through `AppLanguageManager` and `android:localeConfig`. Language splits are disabled in the bundle
 so a single artifact carries every translation.
