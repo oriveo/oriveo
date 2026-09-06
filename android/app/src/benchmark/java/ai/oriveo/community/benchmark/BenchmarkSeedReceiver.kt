@@ -69,7 +69,7 @@ class BenchmarkSeedReceiver : BroadcastReceiver() {
 private object BenchmarkDataSeeder {
     private const val ACCOUNT_ID = LOCAL_PARTITION_ID
     private const val PROVIDER_ID = "7B2A9C8A-4017-4FD0-8E1D-0BC90BFC7D6D"
-    private const val MANAGED_PROVIDER_ID = "benchmark-local-relay"
+    private const val RELAY_PROVIDER_ID = "benchmark-local-relay"
     private const val TARGET_CONVERSATION_ID = "C9FBA7B8-F541-4929-AD47-C4272CC764D9"
     private const val TARGET_CONVERSATION_TITLE = "Rendering cost on the chat screen"
     private const val MODEL_ID = "gpt-4.1-mini"
@@ -115,7 +115,7 @@ private object BenchmarkDataSeeder {
         )
         val finalized = ai.oriveo.community.core.provider.prepareProviderForUpsert(provider)
         providerDao.upsert(finalized.toEntity(ACCOUNT_ID))
-        providerDao.upsert(managedBenchmarkProvider(now).toEntity(ACCOUNT_ID))
+        providerDao.upsert(largeCatalogBenchmarkProvider(now).toEntity(ACCOUNT_ID))
 
         sampleConversations(now).forEach { seededConversation ->
             conversationDao.upsert(seededConversation.conversation.toEntity(ACCOUNT_ID))
@@ -136,7 +136,8 @@ private object BenchmarkDataSeeder {
         )
     }
 
-    private fun managedBenchmarkProvider(now: Long): Provider {
+    /** A relay holding 32 models across four vendors, so the picker has a real catalog to render. */
+    private fun largeCatalogBenchmarkProvider(now: Long): Provider {
         val vendors = listOf(
             "openai" to "OpenAI",
             "anthropic" to "Anthropic",
@@ -146,7 +147,7 @@ private object BenchmarkDataSeeder {
         val models = List(32) { index ->
             val (groupKey, groupName) = vendors[index % vendors.size]
             AIModel(
-                id = "managed-benchmark-$index",
+                id = "benchmark-model-$index",
                 name = "$groupName Benchmark Model $index",
                 capabilities = listOf(
                     ModelCapability.Text,
@@ -162,7 +163,7 @@ private object BenchmarkDataSeeder {
             )
         }
         return Provider(
-            id = MANAGED_PROVIDER_ID,
+            id = RELAY_PROVIDER_ID,
             // Uses a Relay container to reproduce the same multi-vendor, large-catalog rendering
             // load, so the benchmark doesn't depend on network access or a signed-in state.
             kind = ProviderKind.Relay,
