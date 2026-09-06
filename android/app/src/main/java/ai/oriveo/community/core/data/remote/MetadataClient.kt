@@ -56,7 +56,6 @@ import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.longOrNull
 import ai.oriveo.community.core.model.CapabilityResponseEvidenceSignal
 
-
 fun canonicalCapabilityTransport(value: String?): String = when (value?.lowercase()) {
     "openai_chat" -> "openai_chat_completions"
     else -> value?.lowercase().orEmpty()
@@ -90,7 +89,7 @@ private fun responseEvidenceSignals(
         if (
             kind in setOf("citation", "grounding", "thinking_block", "provider_tool_result") &&
                 producerEvent in setOf("citations", "reasoning", "tool_result") &&
-                pointer?.startsWith('/') == true && nonEmpty == true
+                pointer.startsWith('/') && nonEmpty == true
         ) {
             CapabilityResponseEvidenceSignal(
                 producerEvent = producerEvent,
@@ -224,10 +223,8 @@ internal const val METADATA_FAILURE_MODULE = "metadata_client"
 private fun Map<String, String>.tagOrUnknown(key: String): String =
     this[key]?.takeIf { it.isNotBlank() } ?: "unknown"
 
-
 internal fun metadataFailureMessage(tags: Map<String, String>): String =
     "metadata ${tags.tagOrUnknown("phase")} failed"
-
 
 internal fun metadataFailureFingerprint(tags: Map<String, String>): List<String> =
     listOf(METADATA_FAILURE_MODULE, tags.tagOrUnknown("phase"), tags.tagOrUnknown("exception_class"))
@@ -250,12 +247,11 @@ class MetadataClient internal constructor(
         ReasoningMode.Max,
     )
 
-    
     data class ResolvedModelMetadata(
         val canonicalModelId: String,
-        
+
         val modelRef: String? = null,
-        
+
         val capabilityContractVersion: Int = 0,
         val displayName: String? = null,
         val contextLength: Int? = null,
@@ -275,9 +271,9 @@ class MetadataClient internal constructor(
         val costOutputPriority: Double? = null,
         val cacheReadInputPerMToken: Double? = null,
         val cacheCreationInputPerMToken: Double? = null,
-        
+
         val cacheWrite5mPerMToken: Double? = null,
-        
+
         val cacheWrite1hPerMToken: Double? = null,
         val profiles: ProfileRefs = ProfileRefs(),
         val supportsPdfInput: Boolean = false,
@@ -286,27 +282,25 @@ class MetadataClient internal constructor(
         val isDefault: Boolean = false,
         val vendorKey: String? = null,
         val vendorName: String? = null,
-        
+
         val toolCall: Boolean? = null,
-        
-        
+
         val transport: String? = null,
-        
+
         val nativeFileMimes: List<String> = emptyList(),
-        
+
         val pdfNativeDefault: Boolean = false,
-        
+
         val capabilityEvidenceCandidates: List<CapabilityEvidenceCandidateView>? = null,
-        
+
         val capabilityEvidenceOwnedKeys: Set<String>? = null,
-        
+
         val capabilityEvidenceViewMalformed: Boolean? = null,
     )
 
-    
     data class CapabilityRecipeSelection(
         val id: String,
-        
+
         val providerKind: String,
         val capability: String,
         val executionKind: String,
@@ -347,17 +341,15 @@ class MetadataClient internal constructor(
         val expiresAt: Long? = null,
     )
 
-    
     data class CurrentCapabilityEvidenceModel(
         val metadata: ResolvedModelMetadata,
         val metadataRevision: String?,
-        
+
         val generationRevision: String?,
         val declaredReasoningLevels: Set<String>,
         val contentRevision: Long,
     )
 
-    
     data class RefreshEvent(
         val version: Int,
         val contractVersion: Int,
@@ -415,9 +407,6 @@ class MetadataClient internal constructor(
         val sortOrder: Int? = null,
     )
 
-    
-
-    
     @Serializable
     data class RelayTransportEnvelope(
         val image: Boolean = false,
@@ -476,7 +465,6 @@ class MetadataClient internal constructor(
         val showSoftFailHint: Boolean = true,
     )
 
-    
     data class RelayRuntimeConfig(
         val version: String,
         val officialProviderWhitelist: List<String>,
@@ -486,7 +474,6 @@ class MetadataClient internal constructor(
         val featureGatingPolicy: RelayFeatureGatingPolicy,
     )
 
-    
     @Serializable
     private data class RawRelayRuntimeConfig(
         val version: String? = null,
@@ -502,15 +489,12 @@ class MetadataClient internal constructor(
         CrossProvider("cross_provider"),
     }
 
-    
     data class RelayCatalogMatchResult(
         val matchedProviderKind: ProviderKind,
         val canonicalModelId: String,
         val metadata: ResolvedModelMetadata,
         val source: RelayCatalogMatchSource,
     )
-
-    
 
     @Serializable
     private data class ModelPricing(
@@ -524,8 +508,7 @@ class MetadataClient internal constructor(
         val costOutputPriority: Double? = null,
         val cacheReadInputPerMToken: Double? = null,
         val cacheCreationInputPerMToken: Double? = null,
-        
-        
+
         val cacheWrite5mPerMToken: Double? = null,
         val cacheWrite1hPerMToken: Double? = null,
     )
@@ -547,7 +530,6 @@ class MetadataClient internal constructor(
         val badgeOrder: List<String>? = null,
     )
 
-    
     @Serializable
     data class StreamShape(
         val reasoningDeltaPath: String? = null,
@@ -568,7 +550,6 @@ class MetadataClient internal constructor(
         val files: String? = null,
     )
 
-    
     @Serializable
     data class ProviderTransport(
         val baseUrl: String,
@@ -580,7 +561,7 @@ class MetadataClient internal constructor(
         val transport: String? = null,
         val fallbackProfile: String? = null,
         val levels: List<String>? = null,
-        
+
         val defaultLevel: String? = null,
         val params: Map<String, JsonObject>? = null,
         val streamShape: StreamShape? = null,
@@ -595,8 +576,7 @@ class MetadataClient internal constructor(
 
     @Serializable
     private data class ImageGenProfileDefinition(
-        
-        
+
         val route: String? = null,
         val mergeParams: kotlinx.serialization.json.JsonObject? = null,
         val requestDefaults: kotlinx.serialization.json.JsonObject? = null,
@@ -606,8 +586,7 @@ class MetadataClient internal constructor(
     @Serializable
     private data class ProfileDefinitions(
         val reasoning: Map<String, ReasoningProfileDefinition> = emptyMap(),
-        
-        
+
         val webSearch: Map<String, WebSearchProfileDefinition> = emptyMap(),
         val imageGen: Map<String, ImageGenProfileDefinition> = emptyMap(),
         val generation: GenerationProfileDefinitions? = null,
@@ -642,7 +621,6 @@ class MetadataClient internal constructor(
         val wire: Map<String, String> = emptyMap(),
     )
 
-    
     private fun resolveGenerationProfile(
         reference: GenerationProfileRef?,
         definitions: GenerationProfileDefinitions?,
@@ -670,8 +648,7 @@ class MetadataClient internal constructor(
                     group = definition.group,
                     valueSchema = definition.valueSchema,
                     range = definition.range,
-                    
-                    
+
                     enumValues = parameter.enumValues.ifEmpty { definition.enumValues },
                     fixedValue = definition.fixedValue,
                     defaultDescription = definition.defaultDescription,
@@ -705,23 +682,22 @@ class MetadataClient internal constructor(
         val supportsServiceTier: Boolean? = null,
         val profiles: ModelProfileRefs? = null,
         val uiHints: ModelUIHints? = null,
-        
+
         val vendorKey: String? = null,
         val vendorName: String? = null,
         val toolCall: Boolean? = null,
-        
-        
+
         val transport: String? = null,
-        
+
         val nativeFileMimes: List<String>? = null,
-        
+
         val pdfNativeDefault: Boolean? = null,
-        
+
         val capabilityEvidenceView: JsonElement? = JsonPrimitive(CAPABILITY_EVIDENCE_ABSENT),
         val capabilityEvidenceCandidates: List<CapabilityEvidenceCandidateView>? = null,
         val capabilityEvidenceOwnedKeys: List<String>? = null,
         val capabilityEvidenceViewMalformed: Boolean? = null,
-        
+
         val capabilityControls: JsonObject? = null,
     )
 
@@ -733,11 +709,10 @@ class MetadataClient internal constructor(
         val validation: ProviderValidation? = null,
         val resolveMap: Map<String, String>? = null,
         val models: Map<String, ModelData> = emptyMap(),
-        
+
         val transport: ProviderTransport? = null,
     )
 
-    
     @Serializable
     data class SelfHealPattern(
         val pattern: String = "",
@@ -751,36 +726,35 @@ class MetadataClient internal constructor(
         val selfHealPatterns: List<SelfHealPattern> = emptyList(),
     )
 
-    
     @Serializable
     data class ProviderValidation(
-        
+
         val probe: String? = null,
-        
+
         val probePath: String? = null,
-        
+
         val authMode: String? = null,
-        
+
         val headerProfile: String? = null,
-        
+
         val invalidKeySignals: List<InvalidKeySignal> = emptyList(),
     )
 
     @Serializable
     data class InvalidKeySignal(
         val status: Int? = null,
-        
+
         val bodyIncludes: List<String> = emptyList(),
     )
 
     @Serializable
     private data class MetadataResponse(
         val version: Int = 0,
-        
+
         val view: String? = null,
-        
+
         val contractVersion: Int = 0,
-        
+
         val capabilityContractVersion: Int = 0,
         val updatedAt: String? = null,
         val profiles: ProfileDefinitions = ProfileDefinitions(),
@@ -789,7 +763,7 @@ class MetadataClient internal constructor(
         val providerConfigs: List<PublicProviderConfig>? = null,
         val relayRuntimeConfig: RawRelayRuntimeConfig? = null,
         val runtimeConfig: RuntimeConfig? = null,
-        
+
         val capabilityRuntime: JsonObject? = null,
         /** Facts published alongside the catalog; artifactHash is deliberately not decoded. */
         val modelFacts: Map<String, ModelFacts>? = null,
@@ -836,7 +810,6 @@ class MetadataClient internal constructor(
         val timestamp: Long,
     )
 
-    
     @Serializable
     private data class RoomCacheEnvelope(
         val data: MetadataResponse,
@@ -855,7 +828,6 @@ class MetadataClient internal constructor(
     private val ETAG_KEY = "oriveo:metadataETag"
     private val CACHE_TTL_MS = 24 * 60 * 60 * 1000L
 
-    
     private val VALID_CAPABILITIES = setOf(
         ModelCapability.Reasoning,
         ModelCapability.Text,
@@ -870,8 +842,6 @@ class MetadataClient internal constructor(
         Regex("-\\d{4}-\\d{2}-\\d{2}$"),
     )
 
-    
-    
     private val kindMap = mapOf(
         "openAI" to "openAI",
         "anthropic" to "anthropic",
@@ -893,13 +863,12 @@ class MetadataClient internal constructor(
     private val initMutex = Mutex()
     private val fetchMutex = Mutex()
     private val modelFactsFetchMutex = Mutex()
-    
+
     private val _refreshEvents = MutableSharedFlow<RefreshEvent>(
         replay = 1,
         extraBufferCapacity = 4,
     )
 
-    
     val refreshEvents: Flow<RefreshEvent> = _refreshEvents.asSharedFlow()
 
     @Volatile
@@ -917,7 +886,6 @@ class MetadataClient internal constructor(
         val contentRevision: Long,
     )
 
-    
     @Volatile
     private var evidencePublication = EvidencePublication(null, null, 0)
 
@@ -927,31 +895,23 @@ class MetadataClient internal constructor(
     @Volatile
     private var appContext: Context? = initialContext?.applicationContext
 
-    
     @Volatile
     private var _snapshotConfirmedThisSession = false
 
-    
-
-    
     val version: Int get() = table?.version ?: 0
 
-    
     val contractVersion: Int get() = table?.contractVersion ?: 0
 
-    
     val capabilityContractVersion: Int get() = table?.capabilityContractVersion ?: 0
 
-    
     val isContractVersionSupported: Boolean
         get() {
             val version = contractVersion
-            
+
             if (version == 0) return true
             return version in (SUPPORTED_CONTRACT_VERSION - 1)..(SUPPORTED_CONTRACT_VERSION + 1)
         }
 
-    
     val isContractVersionDegraded: Boolean
         get() {
             val version = contractVersion
@@ -959,13 +919,12 @@ class MetadataClient internal constructor(
             return version >= SUPPORTED_CONTRACT_VERSION + 2
         }
 
-    
     enum class MetadataSource {
-        
+
         Unknown,
-        
+
         CachedOffline,
-        
+
         FreshNetwork,
     }
 
@@ -977,8 +936,7 @@ class MetadataClient internal constructor(
     private val json = Json {
         ignoreUnknownKeys = true
         isLenient = true
-        
-        
+
         coerceInputValues = true
     }
 
@@ -989,11 +947,7 @@ class MetadataClient internal constructor(
         statusCode: Int?,
         error: Throwable,
     ) {
-        
-        
-        
-        
-        
+
         if (error.isTransientNetworkOrCancellation()) return
         failureReporter(
             mapOf(
@@ -1002,9 +956,7 @@ class MetadataClient internal constructor(
                 "response_bytes" to responseBytes.coerceAtLeast(0L).toString(),
                 "status" to (statusCode?.toString() ?: "none"),
                 "exception_class" to error.javaClass.simpleName.ifBlank { error.javaClass.name },
-                
-                
-                
+
                 "has_snapshot" to (table != null).toString(),
             )
         )
@@ -1046,7 +998,6 @@ class MetadataClient internal constructor(
         }
     }
 
-    
     private suspend fun readPersistedPayload(dao: MetadataCacheDao): String? {
         val length = dao.payloadLength() ?: return null
         if (length <= 0) return null
@@ -1111,7 +1062,7 @@ class MetadataClient internal constructor(
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (error: Exception) {
-            
+
             reportFailure("cache_migration", startedAtMs, 0L, null, error)
             legacy
         } catch (error: Error) {
@@ -1127,7 +1078,7 @@ class MetadataClient internal constructor(
         } catch (cancelled: CancellationException) {
             throw cancelled
         } catch (error: Exception) {
-            
+
             try {
                 reportFailure("cache_clear", startedAtMs, 0L, null, error)
             } catch (reportingFailure: Throwable) {
@@ -1225,7 +1176,6 @@ class MetadataClient internal constructor(
         fetchMetadata(bypassETag = false)
     }
 
-    
     /** Only off-catalog and subscription models need the facts table; a cold start skips it. */
     suspend fun ensureModelFactsLoaded() {
         ensureInitialized()
@@ -1235,18 +1185,15 @@ class MetadataClient internal constructor(
         fetchModelFacts()
     }
 
-    
     suspend fun refreshModelFacts() {
         ensureInitialized()
         fetchModelFacts()
     }
 
-    
     fun resolveCatalogModel(modelID: String, providerKind: ProviderKind): ResolvedModelMetadata? {
         return resolveCatalogModel(table, modelID, providerKind)
     }
 
-    
     fun currentMetadataRevision(): String? = evidencePublication.metadataRevision
 
     /**
@@ -1261,7 +1208,6 @@ class MetadataClient internal constructor(
         return capabilityRuntimeRevision(runtime)
     }
 
-    
     data class CapabilityRuntimeRequest(
         val runtime: JsonObject,
         val selections: List<CapabilityRecipeSelection>,
@@ -1271,7 +1217,7 @@ class MetadataClient internal constructor(
     data class CapabilityCustomControlAuthority(
         val owners: Map<String, String>,
         val runtimeRevision: String,
-        
+
         val riskTiers: List<String> = emptyList(),
     )
 
@@ -1337,14 +1283,12 @@ class MetadataClient internal constructor(
         }
     }
 
-    
     data class CapabilityActionLookup(
         val state: String?,
         val recipeTransport: String?,
         val modelTransport: String?,
     )
 
-    
     fun capabilityActionLookup(
         providerKind: ProviderKind,
         modelID: String,
@@ -1424,12 +1368,7 @@ class MetadataClient internal constructor(
             // Generation is an always-present request concern when the catalog published an exact
             // control. Its recipe may intentionally be an empty legacy-template bridge, but it
             // still owns custom-fragment path/transport validation and suppresses client guesses.
-            
-            
-            
-            
-            
-            
+
             if ("generation" in entries) add("generation" to null)
             if (webRequested) add("web" to typedWebIntent)
             val requestedReasoning = typedReasoningIntent ?: reasoningMode.intentValue
@@ -1534,7 +1473,6 @@ class MetadataClient internal constructor(
             ?.firstOrNull()
     }
 
-    
     private fun controlDefinitionOwners(runtime: JsonObject): Map<String, String> =
         (runtime["controlDefinitions"] as? JsonObject)?.mapNotNull { (ref, raw) ->
             val owner = ((raw as? JsonObject)?.get("owner") as? JsonPrimitive)?.contentOrNull ?: return@mapNotNull null
@@ -1569,8 +1507,7 @@ class MetadataClient internal constructor(
         val riskTiers = linkedSetOf<String>()
         refs.forEach { ref ->
             val definition = definitions[ref] as? JsonObject ?: return null
-            
-            
+
             (definition["riskTier"] as? JsonPrimitive)?.contentOrNull
                 ?.takeIf { it in setOf("cost_impacting", "privacy_impacting") }
                 ?.let(riskTiers::add)
@@ -1601,7 +1538,6 @@ class MetadataClient internal constructor(
         }
     }
 
-    
     fun currentCapabilityEvidenceModel(
         modelID: String,
         providerKind: ProviderKind,
@@ -1704,8 +1640,7 @@ class MetadataClient internal constructor(
             isDefault = provider.defaultModelId == canonicalId,
             vendorKey = model.vendorKey?.takeIf { it.isNotBlank() },
             vendorName = model.vendorName?.takeIf { it.isNotBlank() },
-            
-            
+
             toolCall = model.toolCall,
             transport = model.transport?.takeIf { it.isNotBlank() },
             nativeFileMimes = model.nativeFileMimes.orEmpty(),
@@ -1724,7 +1659,6 @@ class MetadataClient internal constructor(
         return null
     }
 
-    
     fun resolveCatalogModelAcrossProvidersWithProvider(
         modelID: String,
         transportPriority: ProviderKind? = null,
@@ -1760,7 +1694,6 @@ class MetadataClient internal constructor(
         return null
     }
 
-    
     fun relayRuntimeConfig(): RelayRuntimeConfig {
         val remote = table?.relayRuntimeConfig ?: return FALLBACK_RELAY_RUNTIME_CONFIG
         return mergeRelayRuntimeConfig(remote)
@@ -1771,9 +1704,6 @@ class MetadataClient internal constructor(
         return table?.runtimeConfig?.featureFlags?.get(normalizedKey) ?: defaultValue
     }
 
-    fun isManagedEntryEnabled(): Boolean = false
-
-    
     fun selfHealPatterns(): List<SelfHealPattern> =
         table?.runtimeConfig?.selfHealPatterns.orEmpty()
 
@@ -1818,7 +1748,6 @@ class MetadataClient internal constructor(
         )
     }
 
-    
     private fun providerKindSerialName(kind: ProviderKind): String = when (kind) {
         ProviderKind.OpenAI -> "openAI"
         ProviderKind.Anthropic -> "anthropic"
@@ -1838,7 +1767,6 @@ class MetadataClient internal constructor(
         ProviderKind.Relay -> "relay"
     }
 
-    
     private val backendKeyToProviderKind: Map<String, ProviderKind> = mapOf(
         "openAI" to ProviderKind.OpenAI,
         "anthropic" to ProviderKind.Anthropic,
@@ -1879,8 +1807,6 @@ class MetadataClient internal constructor(
      */
     val snapshotConfirmedThisSession: Boolean get() = _snapshotConfirmedThisSession
 
-
-    
     fun resolveAIModelForRouter(modelID: String, providerKind: ProviderKind): ai.oriveo.community.core.model.AIModel? {
         val metadata = resolveCatalogModel(modelID, providerKind) ?: return null
         return ai.oriveo.community.core.model.AIModel(
@@ -1938,7 +1864,6 @@ class MetadataClient internal constructor(
         return providerFor(providerKind)?.defaultModelId
     }
 
-    
     fun validation(providerKind: ProviderKind): ProviderValidation? {
         return providerFor(providerKind)?.validation
     }
@@ -1947,30 +1872,25 @@ class MetadataClient internal constructor(
         return providerFor(providerKind)?.attachmentSupport
     }
 
-    
     fun providerTransport(providerKind: ProviderKind): ProviderTransport? {
         return providerFor(providerKind)?.transport
     }
 
-    
     fun webSearchStreamShape(profileName: String?): StreamShape? {
         if (profileName.isNullOrBlank()) return null
         return table?.profiles?.webSearch?.get(profileName)?.streamShape
     }
 
-    
     fun webSearchMergeParams(profileName: String?): kotlinx.serialization.json.JsonObject? {
         if (profileName.isNullOrBlank()) return null
         return table?.profiles?.webSearch?.get(profileName)?.mergeParams
     }
 
-    
     fun webSearchMaxToolLoops(profileName: String?): Int? {
         if (profileName.isNullOrBlank()) return null
         return table?.profiles?.webSearch?.get(profileName)?.maxToolLoops
     }
 
-    
     fun reasoningStreamShape(profileName: String?): StreamShape? {
         if (profileName.isNullOrBlank()) return null
         return table?.profiles?.reasoning?.get(profileName)?.streamShape
@@ -1980,8 +1900,7 @@ class MetadataClient internal constructor(
         if (profileName.isNullOrBlank()) return null
         val profile = table?.profiles?.reasoning?.get(profileName)
         val normalized = clampReasoningMode(mode, profileName)
-        
-        
+
         val effectiveLevel = if (normalized == ReasoningMode.Automatic) {
             profile?.defaultLevel?.takeIf { it.isNotBlank() } ?: return null
         } else {
@@ -1990,29 +1909,21 @@ class MetadataClient internal constructor(
         return profile?.params?.get(effectiveLevel)
     }
 
-    
-    
-    
-
-    
     fun imageGenStreamShape(profileName: String?): StreamShape? {
         if (profileName.isNullOrBlank()) return null
         return table?.profiles?.imageGen?.get(profileName)?.streamShape
     }
 
-    
     fun imageGenMergeParams(profileName: String?): kotlinx.serialization.json.JsonObject? {
         if (profileName.isNullOrBlank()) return null
         return table?.profiles?.imageGen?.get(profileName)?.mergeParams
     }
 
-    
     fun imageGenRoute(profileName: String?): String? {
         if (profileName.isNullOrBlank()) return null
         return table?.profiles?.imageGen?.get(profileName)?.route
     }
 
-    
     fun imageGenRequestDefaults(profileName: String?): kotlinx.serialization.json.JsonObject? {
         if (profileName.isNullOrBlank()) return null
         return table?.profiles?.imageGen?.get(profileName)?.requestDefaults
@@ -2022,7 +1933,6 @@ class MetadataClient internal constructor(
         return table?.providerConfigs != null
     }
 
-    
     fun grokSubscriptionAvailability(
         appVersion: String = BuildConfig.VERSION_NAME,
     ): GrokSubscriptionAvailability {
@@ -2036,7 +1946,6 @@ class MetadataClient internal constructor(
         return GrokSubscriptionAuthResolver.resolve(raw = raw, appVersion = appVersion)
     }
 
-    
     fun openAISubscriptionAvailability(
         appVersion: String = BuildConfig.VERSION_NAME,
     ): OpenAISubscriptionAvailability {
@@ -2065,9 +1974,6 @@ class MetadataClient internal constructor(
             return ReasoningMode.entries
         }
 
-        
-        
-        
         val levels = table?.profiles?.reasoning?.get(profileName)?.levels
         if (levels.isNullOrEmpty()) {
             return listOf(ReasoningMode.Automatic)
@@ -2254,7 +2160,6 @@ class MetadataClient internal constructor(
         )
     }
 
-    
     private fun normalizeMetadataEvidenceViews(
         data: MetadataResponse,
         metadataRevision: String?,
@@ -2365,7 +2270,7 @@ class MetadataClient internal constructor(
             capabilityEvidenceView = JsonPrimitive(CAPABILITY_EVIDENCE_ABSENT),
             capabilityEvidenceCandidates = persistedCandidates,
             capabilityEvidenceOwnedKeys = owned,
-            
+
             capabilityEvidenceViewMalformed = model.capabilityEvidenceViewMalformed ?: true,
         )
     }
@@ -2446,7 +2351,6 @@ class MetadataClient internal constructor(
     private fun JsonObject.string(key: String): String? =
         (get(key) as? JsonPrimitive)?.contentOrNull
 
-    
     private fun JsonObject.matchesLeanIdentity(
         key: String,
         expected: String,
@@ -2468,10 +2372,8 @@ class MetadataClient internal constructor(
 
     private fun isSafeEvidenceString(value: String): Boolean = value.isNotEmpty() && value.length <= 256
 
-    
     private fun ModelCapability.serialName(): String = this.raw
 
-    
     internal fun handleNotModified() {
         val wasConfirmed = _snapshotConfirmedThisSession
         _snapshotConfirmedThisSession = true
@@ -2647,7 +2549,6 @@ class MetadataClient internal constructor(
         }
     }
 
-    
     private fun publishNetworkSnapshot(decoded: MetadataResponse, responseETag: String?) {
         val decodedWithFacts = if (decoded.view == "lean" && decoded.modelFacts == null) {
             decoded.copy(
@@ -2661,7 +2562,7 @@ class MetadataClient internal constructor(
             acceptPersistedProjection = false,
         )
         val nextRevision = evidencePublication.contentRevision + 1
-        
+
         evidencePublication = EvidencePublication(safe, responseETag, nextRevision)
         table = safe
         storedETag = responseETag
@@ -2677,13 +2578,11 @@ class MetadataClient internal constructor(
         )
     }
 
-    
     internal fun loadNetworkPayloadForTesting(rawJson: String, responseETag: String?) {
         val decoded = decodeMetadataPayload(rawJson)
         publishNetworkSnapshot(decoded, responseETag?.trim()?.takeIf { it.isNotEmpty() })
     }
 
-    
     private fun decodeMetadataPayload(rawJson: String): MetadataResponse =
         if (hasTopLevelDataField(rawJson)) {
             json.decodeFromString<WrappedResponse>(rawJson).data
@@ -2691,7 +2590,6 @@ class MetadataClient internal constructor(
             json.decodeFromString<MetadataResponse>(rawJson)
         }
 
-    
     private fun hasTopLevelDataField(rawJson: String): Boolean {
         var index = skipJsonWhitespace(rawJson, 0)
         if (rawJson.getOrNull(index) != '{') return false
@@ -2813,12 +2711,10 @@ class MetadataClient internal constructor(
         return index
     }
 
-    
     internal suspend fun fetchMetadataForTesting(bypassETag: Boolean = false) {
         fetchMetadata(bypassETag)
     }
 
-    
     internal suspend fun fetchModelFactsForTesting() {
         fetchModelFacts()
     }
@@ -2846,7 +2742,6 @@ class MetadataClient internal constructor(
     companion object {
         private const val DATA_FIELD = "data"
 
-        
         private const val PAYLOAD_CHUNK_CHARS = 200_000
         private const val CAPABILITY_EVIDENCE_ABSENT = "__oriveo_capability_evidence_absent__"
         private const val PUBLIC_CAPABILITY_EVIDENCE_SCHEMA = "capability-evidence-view/v1"
@@ -2861,7 +2756,6 @@ class MetadataClient internal constructor(
         @Volatile
         var instance: MetadataClient = MetadataClient()
 
-        
         val FALLBACK_RELAY_RUNTIME_CONFIG: RelayRuntimeConfig = RelayRuntimeConfig(
             version = "fallback",
             officialProviderWhitelist = listOf(
@@ -2989,11 +2883,9 @@ class MetadataClient internal constructor(
 
         fun hasP5CapabilityResultRuntime(): Boolean = instance.hasP5CapabilityResultRuntime()
 
-        
         fun grokSubscriptionAvailability(): GrokSubscriptionAvailability =
             instance.grokSubscriptionAvailability()
 
-        
         fun openAISubscriptionAvailability(): OpenAISubscriptionAvailability =
             instance.openAISubscriptionAvailability()
 
@@ -3024,11 +2916,8 @@ class MetadataClient internal constructor(
         /** See [MetadataClient.snapshotConfirmedThisSession]. */
         val snapshotConfirmedThisSession: Boolean get() = instance.snapshotConfirmedThisSession
 
-
         fun isRuntimeFeatureEnabled(key: String, defaultValue: Boolean = true): Boolean =
             instance.isRuntimeFeatureEnabled(key, defaultValue)
-
-        fun isManagedEntryEnabled(): Boolean = instance.isManagedEntryEnabled()
 
         fun selfHealPatterns(): List<SelfHealPattern> = instance.selfHealPatterns()
 

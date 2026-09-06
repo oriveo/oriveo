@@ -42,7 +42,6 @@ import ai.oriveo.community.ui.component.rootTabTopInset
 import ai.oriveo.community.ui.theme.OriveoTheme
 import org.koin.androidx.compose.koinViewModel
 
-
 @Composable
 fun ProvidersScreen(
     onNavigateToSetup: () -> Unit = {},
@@ -57,7 +56,6 @@ fun ProvidersScreen(
     val providerBalances by viewModel.providerBalances.collectAsStateWithLifecycle()
     var pendingDelete by remember { mutableStateOf<Provider?>(null) }
 
-    
     val connectedCount = remember(providers) {
         providers.count { it.effectiveStatusKind == ProviderEffectiveStatusKind.Connected }
     }
@@ -76,7 +74,6 @@ fun ProvidersScreen(
     val spotlightProviders = remember(providers, monthlyCostByProvider) {
         computeSpotlightProviders(providers, monthlyCostByProvider)
     }
-    val managedBalanceText: String? = null
     val providerBalancesRefreshKey = remember(providers) {
         providers
             .filter { it.kind in BALANCE_CAPABLE_KINDS }
@@ -91,9 +88,7 @@ fun ProvidersScreen(
         ProvidersScreenBackground()
 
         val screenH = OriveoTheme.layout.screenH
-        
-        
-        
+
         val statusBarInset = rootTabTopInset()
         val navigationBarInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
         LazyColumn(
@@ -105,15 +100,14 @@ fun ProvidersScreen(
                 ),
             contentPadding = PaddingValues(
                 start = screenH,
-                
-                
+
                 top = statusBarInset + 8.dp,
                 end = screenH,
                 bottom = navigationBarInset + OriveoTheme.layout.tabBarOverlay,
             ),
             verticalArrangement = Arrangement.spacedBy(24.dp),
         ) {
-            
+
             item(key = "providers_title") {
                 ProvidersSectionTitle(
                     leading = { ProvidersClusterTitleLabel() },
@@ -121,19 +115,17 @@ fun ProvidersScreen(
                 )
             }
 
-            
             if (providers.isEmpty()) {
                 item(key = "providers_full_empty") {
                     ProvidersFullEmptyState(onAdd = onNavigateToSetup)
                 }
             } else {
-                
+
                 if (spotlightProviders.isNotEmpty()) {
                     item(key = "providers_spotlight") {
                         ProvidersSpotlightSection(
                             providers = spotlightProviders,
-                            
-                            
+
                             costForProvider = { p -> monthlyCostByProvider[p.id] ?: 0.0 },
                             dailyCostsForProvider = { p -> dailyCostsByProvider[p.id] ?: emptyList() },
                             availableModelCountForProvider = { p ->
@@ -147,7 +139,6 @@ fun ProvidersScreen(
                     }
                 }
 
-                
                 item(key = "providers_summary") {
                     ProvidersSummaryStrip(
                         providerCount = providers.size,
@@ -158,8 +149,6 @@ fun ProvidersScreen(
                     )
                 }
 
-                
-                
                 item(key = "providers_all_section") {
                     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         ProvidersSectionHeader(
@@ -171,8 +160,7 @@ fun ProvidersScreen(
                             providers.forEachIndexed { index, provider ->
                                 key(provider.id) {
                                     if (index > 0) {
-                                        
-                                        
+
                                         OriveoFadeHairline(
                                             insetLeading = 85.dp,
                                             insetTrailing = 14.dp,
@@ -201,7 +189,6 @@ fun ProvidersScreen(
                 }
             }
 
-            
             if (monthlyCostSummary.isVisible) {
                 item(key = "cost_section") {
                     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -264,7 +251,6 @@ fun ProvidersScreen(
         )
     }
 }
-
 
 internal fun computeSpotlightProviders(
     providers: List<Provider>,

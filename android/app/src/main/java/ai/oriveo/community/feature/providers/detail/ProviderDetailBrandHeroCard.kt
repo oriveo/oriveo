@@ -1,6 +1,5 @@
 package ai.oriveo.community.feature.providers.detail
 
-
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -80,10 +79,6 @@ import ai.oriveo.community.ui.theme.OriveoTheme
 import ai.oriveo.community.ui.theme.ProviderBadgeColors
 import ai.oriveo.community.ui.util.formatRelativeTime
 
-
-internal fun usesManagedBlackGoldHero(provider: Provider): Boolean = false
-
-
 internal fun shouldShowHeroApiKeyEditor(provider: Provider): Boolean =
     provider.kind.allowsCredentialEditing &&
         (provider.kind != ProviderKind.Relay || provider.relayRequested.requiresCredential)
@@ -92,7 +87,6 @@ internal fun shouldShowResidualCredentialRemoval(provider: Provider): Boolean =
     provider.kind == ProviderKind.Relay &&
         !provider.relayRequested.requiresCredential &&
         hasStoredCredential(provider.apiKey)
-
 
 @Composable
 fun ProviderDetailBrandHeroCard(
@@ -104,12 +98,10 @@ fun ProviderDetailBrandHeroCard(
     onRemoveResidualApiKey: (() -> Unit)? = null,
     onEditName: (() -> Unit)?,
     modifier: Modifier = Modifier,
-    
-    
+
     isResyncing: Boolean = false,
 ) {
-    
-    
+
     val resolvedLogoKind = remember(
         provider.kind,
         provider.relayKind,
@@ -129,8 +121,7 @@ fun ProviderDetailBrandHeroCard(
     } else {
         ProviderBadgeColors.usageBreakdown(resolvedLogoKind)
     }
-    
-    
+
     val subduedBrand = remember(brandColor, resolvedLogoKind) {
         if (resolvedLogoKind == ProviderKind.Grok) {
             Color(0xFF2E3036)
@@ -139,7 +130,6 @@ fun ProviderDetailBrandHeroCard(
         }
     }
     val pressedBrand = remember(subduedBrand) { subduedBrand.hsbAdjusted(saturation = 0.85f, brightness = 0.55f) }
-    val usesManagedBlackGold = usesManagedBlackGoldHero(provider)
 
     val effective = provider.effectiveStatusKind
     val canStartChat = provider.defaultModel != null
@@ -151,19 +141,15 @@ fun ProviderDetailBrandHeroCard(
             .shadow(
                 elevation = 12.dp,
                 shape = RoundedCornerShape(24.dp),
-                ambientColor = if (usesManagedBlackGold) ManagedHeroPalette.gold.copy(alpha = 0.14f) else Color.Black.copy(alpha = 0.16f),
-                spotColor = if (usesManagedBlackGold) ManagedHeroPalette.gold.copy(alpha = 0.14f) else Color.Black.copy(alpha = 0.16f),
+                ambientColor = Color.Black.copy(alpha = 0.16f),
+                spotColor = Color.Black.copy(alpha = 0.16f),
             )
             .clip(RoundedCornerShape(24.dp))
-            .heroBrandBackground(subduedBrand, usesManagedBlackGold)
-            .border(
-                if (usesManagedBlackGold) 0.8.dp else 0.6.dp,
-                if (usesManagedBlackGold) ManagedHeroPalette.gold.copy(alpha = 0.26f) else Color.White.copy(alpha = 0.14f),
-                RoundedCornerShape(24.dp),
-            ),
+            .heroBrandBackground(subduedBrand)
+            .border(0.6.dp, Color.White.copy(alpha = 0.14f), RoundedCornerShape(24.dp)),
     ) {
-        
-        HeroWatermark(logoKind = resolvedLogoKind, usesManagedBlackGold = usesManagedBlackGold)
+
+        HeroWatermark(logoKind = resolvedLogoKind)
 
         Column(
             modifier = Modifier
@@ -177,7 +163,6 @@ fun ProviderDetailBrandHeroCard(
                 effective = effective,
                 statusTitle = heroStatusTitle(effective, provider.status),
                 statusPulsing = isSyncing,
-                usesManagedBlackGold = usesManagedBlackGold,
             )
 
             HeroNameAndMeta(
@@ -185,7 +170,6 @@ fun ProviderDetailBrandHeroCard(
                 enabledModelCount = enabledModelCount,
                 syncedText = provider.lastCheckedAt?.let(::formatRelativeTime) ?: stringResource(R.string.never),
                 onEditName = onEditName,
-                usesManagedBlackGold = usesManagedBlackGold,
             )
 
             if (shouldShowHeroApiKeyEditor(provider)) {
@@ -212,7 +196,6 @@ fun ProviderDetailBrandHeroCard(
                 isRelay = provider.kind == ProviderKind.Relay,
                 isSyncing = isSyncing,
                 pressedBrand = pressedBrand,
-                usesManagedBlackGold = usesManagedBlackGold,
                 onStartChat = onStartChat,
                 onResync = onResync,
             )
@@ -234,48 +217,19 @@ private fun heroStatusTitle(
 @Composable
 private fun heroStatusColor(effective: ProviderEffectiveStatusKind): Color = when (effective) {
     ProviderEffectiveStatusKind.Connected -> OriveoTheme.colors.success
-    
+
     ProviderEffectiveStatusKind.Syncing -> Color.White
     ProviderEffectiveStatusKind.Issue, ProviderEffectiveStatusKind.NeedsKey ->
         OriveoTheme.colors.warning
 }
 
-
-private fun Modifier.heroBrandBackground(subduedBrand: Color, usesManagedBlackGold: Boolean): Modifier {
-    if (usesManagedBlackGold) {
-        return this
-            .background(
-                Brush.linearGradient(
-                    colors = listOf(
-                        ManagedHeroPalette.obsidianTop,
-                        ManagedHeroPalette.obsidianMid,
-                        ManagedHeroPalette.obsidianBottom,
-                    ),
-                ),
-            )
-            .drawBehind {
-                drawRect(
-                    brush = Brush.radialGradient(
-                        colors = listOf(ManagedHeroPalette.gold.copy(alpha = 0.10f), Color.Transparent),
-                        center = androidx.compose.ui.geometry.Offset(size.width * 0.90f, size.height * 0.04f),
-                        radius = 280f.coerceAtLeast(size.minDimension * 0.7f),
-                    ),
-                )
-                drawRect(
-                    brush = Brush.linearGradient(
-                        colors = listOf(Color.White.copy(alpha = 0.06f), Color.Transparent),
-                        start = androidx.compose.ui.geometry.Offset.Zero,
-                        end = androidx.compose.ui.geometry.Offset(size.width * 0.5f, size.height * 0.5f),
-                    ),
-                )
-            }
-    }
+private fun Modifier.heroBrandBackground(subduedBrand: Color): Modifier {
     val start = subduedBrand.blendedWith(Color.White, 0.06f)
     val end = subduedBrand.blendedWith(Color.Black, 0.22f)
     return this
         .background(Brush.linearGradient(colors = listOf(start, end)))
         .drawBehind {
-            
+
             drawRect(
                 brush = Brush.radialGradient(
                     colors = listOf(Color.White.copy(alpha = 0.16f), Color.White.copy(alpha = 0f)),
@@ -283,7 +237,7 @@ private fun Modifier.heroBrandBackground(subduedBrand: Color, usesManagedBlackGo
                     radius = 280f.coerceAtLeast(size.minDimension * 0.7f),
                 ),
             )
-            
+
             drawRect(
                 brush = Brush.verticalGradient(
                     colors = listOf(Color.Transparent, Color.Black.copy(alpha = 0.18f)),
@@ -291,7 +245,7 @@ private fun Modifier.heroBrandBackground(subduedBrand: Color, usesManagedBlackGo
                     endY = size.height,
                 ),
             )
-            
+
             drawRect(
                 brush = Brush.linearGradient(
                     colors = listOf(
@@ -307,10 +261,8 @@ private fun Modifier.heroBrandBackground(subduedBrand: Color, usesManagedBlackGo
 }
 
 @Composable
-private fun HeroWatermark(logoKind: ProviderKind, usesManagedBlackGold: Boolean) {
-    
-    
-    
+private fun HeroWatermark(logoKind: ProviderKind) {
+
     val watermarkSymbol = logoKind.brandWatermarkIcon()
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -322,7 +274,7 @@ private fun HeroWatermark(logoKind: ProviderKind, usesManagedBlackGold: Boolean)
                     .align(Alignment.BottomEnd)
                     .size(164.dp)
                     .offset(x = 50.dp, y = 40.dp),
-                tint = if (usesManagedBlackGold) ManagedHeroPalette.champagne.copy(alpha = 0.11f) else Color.White.copy(alpha = 0.10f),
+                tint = Color.White.copy(alpha = 0.10f),
             )
         } else {
             Image(
@@ -332,9 +284,9 @@ private fun HeroWatermark(logoKind: ProviderKind, usesManagedBlackGold: Boolean)
                     .align(Alignment.BottomEnd)
                     .size(200.dp)
                     .offset(x = 50.dp, y = 40.dp)
-                    .alpha(if (usesManagedBlackGold) 0.11f else 0.10f),
+                    .alpha(0.10f),
                 contentScale = ContentScale.Fit,
-                colorFilter = ColorFilter.tint(if (usesManagedBlackGold) ManagedHeroPalette.champagne else Color.White),
+                colorFilter = ColorFilter.tint(Color.White),
             )
         }
     }
@@ -347,42 +299,25 @@ private fun HeroTopRow(
     effective: ProviderEffectiveStatusKind,
     statusTitle: String,
     statusPulsing: Boolean,
-    usesManagedBlackGold: Boolean,
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        
-        
-        
-        if (usesManagedBlackGold) {
-            Box(
-                modifier = Modifier
-                    .size(50.dp)
-                    .clip(RoundedCornerShape(15.dp))
-                    .background(ManagedHeroPalette.badgeSurface)
-                    .border(0.8.dp, ManagedHeroPalette.gold.copy(alpha = 0.34f), RoundedCornerShape(15.dp)),
-                contentAlignment = Alignment.Center,
-            ) {
-                ProviderBadgeIcon(kind = logoKind, size = 42.dp, forceDarkAppearance = true)
-            }
-        } else {
-            ProviderBadgeIcon(
-                kind = logoKind,
-                size = 35.dp,
-                relayKind = relayKind,
-                forceDarkAppearance = true,
-                contentScaleOverride = 1f,
-            )
-        }
+
+        ProviderBadgeIcon(
+            kind = logoKind,
+            size = 35.dp,
+            relayKind = relayKind,
+            forceDarkAppearance = true,
+            contentScaleOverride = 1f,
+        )
         Spacer(modifier = Modifier.weight(1f))
         HeroStatusCapsule(
             statusColor = heroStatusColor(effective),
             statusTitle = statusTitle,
             statusPulsing = statusPulsing,
-            usesManagedBlackGold = usesManagedBlackGold,
         )
     }
 }
@@ -392,13 +327,12 @@ private fun HeroStatusCapsule(
     statusColor: Color,
     statusTitle: String,
     statusPulsing: Boolean,
-    usesManagedBlackGold: Boolean,
 ) {
     Row(
         modifier = Modifier
             .clip(CircleShape)
-            .background(if (usesManagedBlackGold) ManagedHeroPalette.statusSurface else Color.White.copy(alpha = 0.22f))
-            .border(0.6.dp, if (usesManagedBlackGold) ManagedHeroPalette.gold.copy(alpha = 0.30f) else Color.White.copy(alpha = 0.30f), CircleShape)
+            .background(Color.White.copy(alpha = 0.22f))
+            .border(0.6.dp, Color.White.copy(alpha = 0.30f), CircleShape)
             .padding(horizontal = 10.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -407,7 +341,7 @@ private fun HeroStatusCapsule(
         Text(
             text = statusTitle,
             style = TextStyle(fontSize = 11.5.sp, fontWeight = FontWeight.SemiBold),
-            color = if (usesManagedBlackGold) ManagedHeroPalette.title else Color.White,
+            color = Color.White,
             maxLines = 1,
         )
     }
@@ -419,7 +353,6 @@ private fun HeroNameAndMeta(
     enabledModelCount: Int,
     syncedText: String,
     onEditName: (() -> Unit)?,
-    usesManagedBlackGold: Boolean,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Row(
@@ -440,8 +373,8 @@ private fun HeroNameAndMeta(
                         trim = LineHeightStyle.Trim.Both,
                     ),
                 ),
-                color = if (usesManagedBlackGold) ManagedHeroPalette.title else Color.White,
-                
+                color = Color.White,
+
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f, fill = false),
@@ -458,7 +391,7 @@ private fun HeroNameAndMeta(
                         imageVector = Icons.Filled.Edit,
                         contentDescription = stringResource(R.string.edit),
                         modifier = Modifier.size(13.dp),
-                        tint = if (usesManagedBlackGold) ManagedHeroPalette.secondary else Color.White.copy(alpha = 0.62f),
+                        tint = Color.White.copy(alpha = 0.62f),
                     )
                 }
             }
@@ -470,7 +403,7 @@ private fun HeroNameAndMeta(
             Text(
                 text = stringResource(R.string.provider_detail_available_models, enabledModelCount),
                 style = TextStyle(fontSize = 12.5.sp, fontWeight = FontWeight.Medium),
-                color = if (usesManagedBlackGold) ManagedHeroPalette.body else Color.White.copy(alpha = 0.78f),
+                color = Color.White.copy(alpha = 0.78f),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f, fill = false),
@@ -479,7 +412,7 @@ private fun HeroNameAndMeta(
                 modifier = Modifier
                     .size(3.5.dp)
                     .clip(CircleShape)
-                    .background(if (usesManagedBlackGold) ManagedHeroPalette.gold.copy(alpha = 0.66f) else Color.White.copy(alpha = 0.45f)),
+                    .background(Color.White.copy(alpha = 0.45f)),
             )
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -489,12 +422,12 @@ private fun HeroNameAndMeta(
                     imageVector = Icons.Filled.History,
                     contentDescription = null,
                     modifier = Modifier.size(11.dp),
-                    tint = if (usesManagedBlackGold) ManagedHeroPalette.secondary else Color.White.copy(alpha = 0.72f),
+                    tint = Color.White.copy(alpha = 0.72f),
                 )
                 Text(
                     text = syncedText,
                     style = TextStyle(fontSize = 12.5.sp, fontWeight = FontWeight.Medium),
-                    color = if (usesManagedBlackGold) ManagedHeroPalette.secondary else Color.White.copy(alpha = 0.72f),
+                    color = Color.White.copy(alpha = 0.72f),
                     maxLines = 1,
                 )
             }
@@ -508,12 +441,10 @@ private fun HeroApiKeyRow(
     effective: ProviderEffectiveStatusKind,
     onClick: () -> Unit,
 ) {
-    
-    
+
     val isSubscription = provider.authMode == ProviderAuthMode.Subscription
     val displayValue = if (isSubscription) {
-        
-        
+
         if (provider.kind == ProviderKind.OpenAI) {
             stringResource(R.string.provider_credential_subscription_value_openai)
         } else {
@@ -593,11 +524,11 @@ private fun heroApiKeyDisplayValue(
     provider: Provider,
     effective: ProviderEffectiveStatusKind,
 ): String {
-    
+
     if (effective == ProviderEffectiveStatusKind.NeedsKey) return stringResource(R.string.tap_to_set)
     val preview = provider.apiKeyPreview
     if (preview.isNotEmpty()) return preview
-    
+
     return when (provider.status) {
         is ProviderConnectionState.Connected, is ProviderConnectionState.Syncing ->
             stringResource(R.string.tap_to_view)
@@ -606,14 +537,12 @@ private fun heroApiKeyDisplayValue(
     }
 }
 
-
 @Composable
 private fun HeroActions(
     canStartChat: Boolean,
     isRelay: Boolean,
     isSyncing: Boolean,
     pressedBrand: Color,
-    usesManagedBlackGold: Boolean,
     onStartChat: () -> Unit,
     onResync: () -> Unit,
 ) {
@@ -622,11 +551,7 @@ private fun HeroActions(
     if (!showsPrimary && !showsSecondary) return
 
     BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
-        
-        
-        
-        
-        
+
         val needsStack = showsPrimary && showsSecondary && maxWidth < 225.dp ||
             !(showsPrimary && showsSecondary) && maxWidth < 140.dp
 
@@ -637,11 +562,10 @@ private fun HeroActions(
                 } else if (isSyncing) {
                     stringResource(R.string.status_syncing)
                 } else {
-                    stringResource(if (usesManagedBlackGold) R.string.refresh_models else R.string.verify_connection)
+                    stringResource(R.string.verify_connection)
                 },
                 icon = if (canStartChat) Icons.Filled.Add else Icons.Filled.Refresh,
                 pressedBrand = pressedBrand,
-                usesManagedBlackGold = usesManagedBlackGold,
                 enabled = !isSyncing,
                 onClick = if (canStartChat) onStartChat else onResync,
                 modifier = mod,
@@ -650,8 +574,7 @@ private fun HeroActions(
         val secondary: @Composable (Modifier) -> Unit = { mod ->
             HeroSecondaryButton(
                 text = if (isSyncing) stringResource(R.string.status_syncing)
-                else stringResource(if (usesManagedBlackGold) R.string.refresh_models else R.string.verify_connection),
-                usesManagedBlackGold = usesManagedBlackGold,
+                else stringResource(R.string.verify_connection),
                 enabled = !isSyncing,
                 onClick = onResync,
                 modifier = mod,
@@ -683,7 +606,6 @@ private fun HeroPrimaryButton(
     text: String,
     icon: androidx.compose.ui.graphics.vector.ImageVector,
     pressedBrand: Color,
-    usesManagedBlackGold: Boolean,
     enabled: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -693,26 +615,8 @@ private fun HeroPrimaryButton(
         modifier = modifier
             .heightIn(min = 44.dp)
             .clip(RoundedCornerShape(14.dp))
-            .run {
-                if (usesManagedBlackGold) {
-                    background(
-                        Brush.linearGradient(
-                            colors = listOf(
-                                ManagedHeroPalette.goldHighlight,
-                                ManagedHeroPalette.champagne,
-                                ManagedHeroPalette.gold,
-                            ),
-                        ),
-                    )
-                } else {
-                    background(Color.White.copy(alpha = 0.96f))
-                }
-            }
-            .border(
-                if (usesManagedBlackGold) 0.7.dp else 0.5.dp,
-                if (usesManagedBlackGold) Color.White.copy(alpha = 0.30f) else Color.White.copy(alpha = 0.42f),
-                RoundedCornerShape(14.dp),
-            )
+            .background(Color.White.copy(alpha = 0.96f))
+            .border(0.5.dp, Color.White.copy(alpha = 0.42f), RoundedCornerShape(14.dp))
             .alpha(if (enabled) 1f else 0.7f)
             .clickable(enabled = enabled) {
                 haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
@@ -729,12 +633,12 @@ private fun HeroPrimaryButton(
                 imageVector = icon,
                 contentDescription = null,
                 modifier = Modifier.size(14.dp),
-                tint = if (usesManagedBlackGold) ManagedHeroPalette.onGold else pressedBrand,
+                tint = pressedBrand,
             )
             Text(
                 text = text,
                 style = TextStyle(fontSize = 15.sp, fontWeight = FontWeight.SemiBold),
-                color = if (usesManagedBlackGold) ManagedHeroPalette.onGold else pressedBrand,
+                color = pressedBrand,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -745,7 +649,6 @@ private fun HeroPrimaryButton(
 @Composable
 private fun HeroSecondaryButton(
     text: String,
-    usesManagedBlackGold: Boolean,
     enabled: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -755,12 +658,8 @@ private fun HeroSecondaryButton(
         modifier = modifier
             .heightIn(min = 44.dp)
             .clip(RoundedCornerShape(14.dp))
-            .background(if (usesManagedBlackGold) ManagedHeroPalette.statusSurface else Color.White.copy(alpha = 0.20f))
-            .border(
-                if (usesManagedBlackGold) 0.7.dp else 0.5.dp,
-                if (usesManagedBlackGold) ManagedHeroPalette.gold.copy(alpha = 0.28f) else Color.White.copy(alpha = 0.28f),
-                RoundedCornerShape(14.dp),
-            )
+            .background(Color.White.copy(alpha = 0.20f))
+            .border(0.5.dp, Color.White.copy(alpha = 0.28f), RoundedCornerShape(14.dp))
             .alpha(if (enabled) 1f else 0.7f)
             .clickable(enabled = enabled) {
                 haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
@@ -777,30 +676,15 @@ private fun HeroSecondaryButton(
                 imageVector = Icons.Filled.Refresh,
                 contentDescription = null,
                 modifier = Modifier.size(13.dp),
-                tint = if (usesManagedBlackGold) ManagedHeroPalette.champagne else Color.White.copy(alpha = 0.95f),
+                tint = Color.White.copy(alpha = 0.95f),
             )
             Text(
                 text = text,
                 style = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.SemiBold),
-                color = if (usesManagedBlackGold) ManagedHeroPalette.champagne else Color.White.copy(alpha = 0.95f),
+                color = Color.White.copy(alpha = 0.95f),
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )
         }
     }
-}
-
-private object ManagedHeroPalette {
-    val obsidianTop = Color(0xFF1D1A16)
-    val obsidianMid = Color(0xFF131110)
-    val obsidianBottom = Color(0xFF0C0A08)
-    val badgeSurface = Color(0xFF28231B)
-    val statusSurface = Color(0xFF231E17)
-    val gold = Color(0xFFE4B44A)
-    val goldHighlight = Color(0xFFF6DC96)
-    val champagne = Color(0xFFF2CF7E)
-    val onGold = Color(0xFF26190A)
-    val title = Color(0xFFF8F4EA)
-    val body = Color(0xFFD8D0BF)
-    val secondary = Color(0xFFAAA08C)
 }

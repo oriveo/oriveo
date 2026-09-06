@@ -45,7 +45,6 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.GridView
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.outlined.CreditCard
 import androidx.compose.material.icons.outlined.Memory
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -64,7 +63,7 @@ import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Paint
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.graphicsLayer
@@ -79,7 +78,6 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
@@ -124,7 +122,6 @@ enum class ModelPickerContext {
     Crosscheck,
 }
 
-
 private data class V2PickerColors(
     val textPrimary: Color,
     val textSecondary: Color,
@@ -148,24 +145,18 @@ private fun rememberV2PickerColors(): V2PickerColors {
             textSecondary = base.textSecondary,
             textTertiary = base.textTertiary,
             primary = base.primary,
-            
-            
+
             primarySubtle = base.primarySoft,
-            
-            
-            
+
             surfaceDefault = if (isDark) base.surface else Color.White,
             bgInset = base.surfaceInset,
-            
-            
-            
+
             borderDefault = if (isDark) Color(0x1AFFFFFF) else Color(0x14000000),
             borderSubtle = if (isDark) Color(0x0FFFFFFF) else Color(0x0A000000),
             shadowSm = base.shadow,
         )
     }
 }
-
 
 private fun Modifier.groupedCardSurface(
     shape: RoundedCornerShape,
@@ -180,27 +171,23 @@ private fun Modifier.groupedCardSurface(
         ),
     )
     val shineColor = Color.White.copy(alpha = if (isDark) 0.05f else 0.70f)
-    
-    
-    
-    
+
     val shadowColor = if (isDark) Color.Black.copy(alpha = 0.20f) else Color.Black.copy(alpha = 0.04f)
     return this
-        
-        
+
         .drawBehind {
+            // The soft drop shadow needs setShadowLayer, which only the platform Paint exposes.
             val r = shape.topStart.toPx(size, this)
-            val paint = Paint()
-            paint.asFrameworkPaint().apply {
+            val paint = android.graphics.Paint().apply {
                 color = android.graphics.Color.TRANSPARENT
                 setShadowLayer(14.dp.toPx(), 0f, 5.dp.toPx(), shadowColor.toArgb())
             }
             drawIntoCanvas { canvas ->
-                canvas.drawRoundRect(0f, 0f, size.width, size.height, r, r, paint)
+                canvas.nativeCanvas.drawRoundRect(0f, 0f, size.width, size.height, r, r, paint)
             }
         }
         .clip(shape)
-        
+
         .drawWithContent {
             drawContent()
             val inset = 1.dp.toPx()
@@ -214,10 +201,9 @@ private fun Modifier.groupedCardSurface(
         }
         .background(v2.surfaceDefault, shape)
         .drawBehind { drawRect(brush = sheen) }
-        
+
         .border(0.5.dp, v2.borderDefault, shape)
 }
-
 
 @Composable
 fun ModelPickerSheet(
@@ -272,13 +258,11 @@ fun ModelPickerSheet(
             searchText = searchText,
         )
     }
-    
+
     var selectedCapabilityFilters by remember {
         mutableStateOf<Set<ModelPickerCapabilityFilterKind>>(emptySet())
     }
-    
-    
-    
+
     val expansionSignature = remember(providers) {
         providers.map { it.id }
     }
@@ -289,11 +273,6 @@ fun ModelPickerSheet(
     val haptics = LocalHapticFeedback.current
     val lazyListState = rememberLazyListState()
 
-    
-    
-    
-    
-    val managedWeeklyQuotaOffer = 0
     val capabilityObservationRevision by CapabilityEvidenceObservationBridge.revision.collectAsStateWithLifecycle()
     val providerRepository: ProviderRepository = koinInject()
     val toolCallMemoryStore: ToolCallMemoryStore = koinInject()
@@ -301,7 +280,7 @@ fun ModelPickerSheet(
     val toolCallMemoryVerdict: (Provider, AIModel) -> Boolean? = { provider, model ->
         providerRepository.toolCallMemoryVerdict(provider, model)
     }
-    
+
     val capabilityFilterCounts = remember(
         unfilteredProviderSections,
         capabilityObservationRevision,
@@ -321,11 +300,6 @@ fun ModelPickerSheet(
             toolCallMemoryVerdict = toolCallMemoryVerdict,
         )
     }
-    val hasManagedProvider = false
-    val visibleManagedWeeklyQuota = null
-    val visibleManagedWeeklyQuotaOffer = null
-    val isManagedFreeTier = false
-
     LaunchedEffect(expansionSignature, isHome, activeProviderId, sortedProviders) {
         expandedProviderIds = defaultExpandedModelPickerProviderIds(
             providers = sortedProviders,
@@ -431,9 +405,6 @@ fun ModelPickerSheet(
                     providerCount = providers.size,
                     modelCountTotal = remember(providers) { providers.sumOf { it.models.size } },
                     lazyListState = lazyListState,
-                    isManagedFreeTier = isManagedFreeTier,
-                    managedWeeklyQuota = visibleManagedWeeklyQuota,
-                    managedWeeklyQuotaOffer = visibleManagedWeeklyQuotaOffer,
                     capabilityObservationRevision = capabilityObservationRevision,
                     toolCallMemoryVerdict = toolCallMemoryVerdict,
                 )
@@ -467,9 +438,6 @@ private fun ColumnScope.ModelPickerContent(
     providerCount: Int,
     modelCountTotal: Int,
     lazyListState: androidx.compose.foundation.lazy.LazyListState,
-    isManagedFreeTier: Boolean,
-    managedWeeklyQuota: Any? = null,
-    managedWeeklyQuotaOffer: Any? = null,
     capabilityObservationRevision: Long,
     toolCallMemoryVerdict: (Provider, AIModel) -> Boolean?,
 ) {
@@ -525,14 +493,9 @@ private fun ColumnScope.ModelPickerContent(
                             onDismiss = onDismiss,
                         )
                     }
-                    Spacer(
-                        modifier = Modifier.height(
-                            if (managedWeeklyQuota == null && managedWeeklyQuotaOffer == null) 16.dp else 10.dp,
-                        ),
-                    )
+                    Spacer(modifier = Modifier.height(16.dp))
                 }
             }
-
 
             item(key = "search") {
                 Column {
@@ -542,8 +505,7 @@ private fun ColumnScope.ModelPickerContent(
                         onSearchClear = onSearchClear,
                     )
                     Spacer(modifier = Modifier.height(12.dp))
-                    
-                    
+
                     ModelPickerCapabilityFilterRow(
                         counts = capabilityFilterCounts,
                         selected = selectedCapabilityFilters,
@@ -554,7 +516,7 @@ private fun ColumnScope.ModelPickerContent(
             }
 
             if (providerSections.isEmpty()) {
-                
+
                 item(key = "empty") {
                     if (selectedCapabilityFilters.isEmpty()) {
                         EmptyModelState()
@@ -577,7 +539,6 @@ private fun ColumnScope.ModelPickerContent(
                         onSelectModel = onSelectModel,
                         isModelSelected = isModelSelected,
                         onOpenCatalog = onOpenCatalog,
-                        isManagedFreeTier = isManagedFreeTier,
                     )
                 }
             }
@@ -585,17 +546,13 @@ private fun ColumnScope.ModelPickerContent(
     }
 }
 
-internal fun visibleManagedQuotaForPicker(hasManagedProvider: Boolean, balance: Any?): Any? = null
-
-
 @Composable
 private fun HomeHeader(
     providerCount: Int,
     modelCount: Int,
 ) {
     val v2 = rememberV2PickerColors()
-    
-    
+
     val rawWidthDp = androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp
     val isCompact = rawWidthDp < 390
     val titleSize = if (isCompact) 24.sp else 28.sp
@@ -829,7 +786,6 @@ private fun SearchBar(
     }
 }
 
-
 @Composable
 private fun ModelPickerCapabilityFilterRow(
     counts: Map<ModelPickerCapabilityFilterKind, Int>,
@@ -843,7 +799,7 @@ private fun ModelPickerCapabilityFilterRow(
             val isSelected = kind in selected
             val label = stringResource(kind.filterLabelRes, count)
             val stateText = stringResource(
-                if (isSelected) R.string.selected else R.string.model_control_not_selected,
+                if (isSelected) R.string.selected_state else R.string.model_control_not_selected,
             )
             Box(
                 modifier = Modifier
@@ -862,7 +818,7 @@ private fun ModelPickerCapabilityFilterRow(
                 Text(
                     text = label,
                     style = OriveoTheme.typography.footnote.copy(fontWeight = FontWeight.Medium),
-                    
+
                     color = when {
                         isSelected -> OriveoTheme.colors.textInverse
                         count > 0 -> v2.textPrimary
@@ -874,7 +830,6 @@ private fun ModelPickerCapabilityFilterRow(
         }
     }
 }
-
 
 @Composable
 private fun CapabilityFilterEmptyState() {
@@ -984,7 +939,7 @@ internal fun buildModelPickerListEntries(
 
             if (isExpanded) {
                 val groups = groupModelPickerModelsByVendor(section.models)
-                
+
                 if (groups.size > 1 && provider.kind == ProviderKind.OpenAI) {
                     groups.forEach { group ->
                         val groupExpanded = searchText.isNotBlank() ||
@@ -1084,7 +1039,6 @@ private fun ModelPickerListEntryRow(
     onSelectModel: (providerId: String, modelId: String) -> Unit,
     isModelSelected: (providerId: String, model: AIModel) -> Boolean,
     onOpenCatalog: (providerId: String) -> Unit,
-    isManagedFreeTier: Boolean,
 ) {
     val content = positionedEntry.content
     if (content is ModelPickerListContent.Gap) {
@@ -1132,7 +1086,6 @@ private fun ModelPickerListEntryRow(
                 isNestedUnderVendor = content.isNestedUnderVendor,
                 isSelected = isModelSelected(content.provider.id, content.model),
                 onClick = { onSelectModel(content.provider.id, content.model.id) },
-                isManagedFreeTier = isManagedFreeTier,
             )
             is ModelPickerListContent.AddModels -> AddModelsRow(
                 onClick = { onOpenCatalog(content.providerId) },
@@ -1400,39 +1353,6 @@ private fun ModelPickerVendorGroupHeader(
     }
 }
 
-
-@Composable
-private fun ModelPickerPaidBadge(v2: V2PickerColors) {
-    val badgeDescription = stringResource(R.string.paid_model_badge_a11y)
-    Row(
-        modifier = Modifier
-            .clip(CircleShape)
-            .background(v2.bgInset)
-            .padding(horizontal = 6.dp, vertical = 2.dp)
-            .clearAndSetSemantics { contentDescription = badgeDescription },
-        horizontalArrangement = Arrangement.spacedBy(3.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(
-            imageVector = Icons.Outlined.CreditCard,
-            contentDescription = null,
-            
-            modifier = Modifier.size(11.dp),
-            tint = v2.textSecondary,
-        )
-        Text(
-            text = stringResource(R.string.paid_model_badge),
-            style = OriveoTheme.typography.footnote.copy(
-                fontSize = 11.sp,
-                lineHeight = 13.sp,
-                fontWeight = FontWeight.Medium,
-            ),
-            color = v2.textSecondary,
-            maxLines = 1,
-        )
-    }
-}
-
 @Composable
 private fun ModelPickerRow(
     provider: Provider,
@@ -1442,12 +1362,8 @@ private fun ModelPickerRow(
     isNestedUnderVendor: Boolean,
     isSelected: Boolean,
     onClick: () -> Unit,
-    isManagedFreeTier: Boolean,
 ) {
     val v2 = rememberV2PickerColors()
-    
-    
-    val showsPaidOnlyBadge = false
     val pricing = remember(model.priceTier, model.promptPrice, model.completionPrice, model.pricingUnit) {
         model.modelPickerPricePresentation()
     }
@@ -1477,8 +1393,7 @@ private fun ModelPickerRow(
             ),
         )
     }
-    
-    
+
     val capabilityBadges = remember(provider, model, capabilityObservationRevision, toolCallMemoryVerdict) {
         modelPickerCapabilityBadges(provider, model, toolCallMemoryVerdict = toolCallMemoryVerdict)
     }
@@ -1535,14 +1450,11 @@ private fun ModelPickerRow(
                     maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
-                if (showsPaidOnlyBadge || sourceName != null || visibleCapabilities.isNotEmpty()) {
+                if (sourceName != null || visibleCapabilities.isNotEmpty()) {
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        if (showsPaidOnlyBadge) {
-                            ModelPickerPaidBadge(v2 = v2)
-                        }
                         if (sourceName != null) {
                             Text(
                                 text = sourceName,
@@ -1717,7 +1629,7 @@ private fun ModelPickerPriceRow(
             }
         } else if (pricing.fallback != null) {
             Text(
-                
+
                 text = localizedPriceTier(pricing.fallback),
                 style = OriveoTheme.typography.footnote.copy(
                     fontSize = 11.sp,
@@ -1806,8 +1718,7 @@ fun buildProviderSections(
                     (model.summary?.contains(query, ignoreCase = true) == true)
             }
             .let { filteredModels ->
-                
-                
+
                 if (isHome || provider.kind.usesServerOrderedModels) {
                     filteredModels
                 } else {

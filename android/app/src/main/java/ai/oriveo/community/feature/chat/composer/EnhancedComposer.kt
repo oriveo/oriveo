@@ -144,7 +144,6 @@ import dev.chrisbanes.haze.materials.ExperimentalHazeMaterialsApi
 import kotlinx.coroutines.flow.StateFlow
 import org.koin.compose.koinInject
 
-
 @OptIn(
     ExperimentalMaterial3Api::class,
     ExperimentalFoundationApi::class,
@@ -164,7 +163,7 @@ internal fun EnhancedComposer(
     generationParameterProvider: Provider?,
     generationParameterConversationId: String,
     isExistingConversation: Boolean,
-    
+
     conversationSkillId: String?,
     /** Exact transport that the selected official model will use; null intentionally fails closed. */
     modelControlsFinalTransport: String?,
@@ -172,8 +171,7 @@ internal fun EnhancedComposer(
     supportsVideoAttachment: Boolean,
     supportsFileAttachment: Boolean,
     onSelectReasoningMode: (ReasoningMode) -> Unit,
-    onWebSearchToggled: (Boolean) -> Unit,
-    
+
     onSelectModel: (providerId: String, modelId: String) -> Unit,
     onOpenModelSwitcher: () -> Unit,
     showAttachmentSizeLimitDialog: Boolean,
@@ -184,18 +182,16 @@ internal fun EnhancedComposer(
     onStopGeneration: () -> Unit,
     providerKind: ProviderKind?,
     onNavigateToProviderSetup: () -> Unit,
-    
+
     onNavigateToProviderDetail: (providerId: String) -> Unit = {},
     onNavigateToSkillEdit: () -> Unit = {},
-    canUseKnowledgeBase: Boolean = false,
     isGenerating: Boolean,
     isReadOnly: Boolean,
-    managedQuotaPresentation: Any? = null,
-    
+
     transparentChrome: Boolean,
     hazeState: HazeState,
     trueTransparentBlurEnabled: Boolean,
-    
+
     attachedNotes: List<ai.oriveo.community.core.model.Note> = emptyList(),
     relatedNotes: List<ai.oriveo.community.core.model.Note> = emptyList(),
     onAttachNote: (ai.oriveo.community.core.model.Note) -> Unit = {},
@@ -281,7 +277,7 @@ internal fun EnhancedComposer(
         }
     }
     var showModelControls by remember { mutableStateOf(false) }
-    
+
     var modelBehaviorRevision by remember { mutableIntStateOf(0) }
     var selectedControlWeb by remember(generationParameterProvider?.id, currentModel?.id, generationParameterConversationId) {
         mutableStateOf(CapabilityWebPreference.Off)
@@ -289,18 +285,16 @@ internal fun EnhancedComposer(
     var selectedControlReasoning by remember(generationParameterProvider?.id, currentModel?.id, generationParameterConversationId) {
         mutableStateOf<String?>(null)
     }
-    
+
     var developerCustomOwners by remember(generationParameterProvider?.id, currentModel?.id, generationParameterConversationId) {
         mutableStateOf<Set<String>>(emptySet())
     }
-    
+
     fun restoredCapabilityPreferences(): CapabilityPreferenceValues {
         val provider = generationParameterProvider ?: return CapabilityPreferenceValues()
         currentModel ?: return CapabilityPreferenceValues()
         val identity = modelControlRuntimeIdentity ?: return CapabilityPreferenceValues()
-        
-        
-        
+
         return capabilityPreferenceStore.displayedForUi(
             providerID = provider.id,
             providerKind = provider.kind,
@@ -312,13 +306,11 @@ internal fun EnhancedComposer(
         )
     }
 
-    
     fun restoredCustomOwners(): Set<String> {
         val provider = generationParameterProvider ?: return emptySet()
         val model = currentModel ?: return emptySet()
         val identity = modelControlRuntimeIdentity ?: return emptySet()
-        
-        
+
         return localCustomFragmentStore.fragmentsByOwner(
             providerID = provider.id,
             modelID = identity.canonicalModelId,
@@ -355,7 +347,6 @@ internal fun EnhancedComposer(
         }
     }
 
-    
     fun promoteCapabilityPreferencesToModelDefault(values: CapabilityPreferenceValues) {
         val provider = generationParameterProvider ?: return
         currentModel ?: return
@@ -367,18 +358,14 @@ internal fun EnhancedComposer(
             identity.storageIdentity,
         )
     }
-    
-    
+
     val modelControlReadOnlyReasonRes = when {
-        
-        
-        
-        
+
         isGenerating -> R.string.ai_is_answering
         isReadOnly -> R.string.chat_read_only_placeholder
         else -> null
     }
-    
+
     val webPresentation = remember(
         generationParameterProvider,
         currentModel,
@@ -396,9 +383,7 @@ internal fun EnhancedComposer(
             )
         }
     }
-    
-    
-    
+
     LaunchedEffect(
         generationParameterProvider?.id,
         currentModel?.id,
@@ -406,27 +391,18 @@ internal fun EnhancedComposer(
         isExistingConversation,
         conversationSkillId,
         metadataRevision,
-        
-        
+
         capabilityObservationRevision,
         modelControlsFinalTransport,
     ) {
-        
+
         developerCustomOwners = restoredCustomOwners()
-        
-        
-        
-        
-        
-        
+
         val restored = restoredCapabilityPreferences()
         selectedControlWeb = restored.web
         selectedControlReasoning = restored.reasoningIntent
     }
-    
-    
-    
-    
+
     LaunchedEffect(
         showModelControls,
         generationParameterProvider,
@@ -441,8 +417,7 @@ internal fun EnhancedComposer(
         val provider = generationParameterProvider ?: return@LaunchedEffect
         currentModel ?: return@LaunchedEffect
         modelControlRuntimeIdentity ?: return@LaunchedEffect
-        
-        
+
         developerCustomOwners = restoredCustomOwners()
         val values = restoredCapabilityPreferences()
         selectedControlWeb = values.web
@@ -459,8 +434,7 @@ internal fun EnhancedComposer(
         generationParameterConversationId,
         modelBehaviorRevision,
     ) {
-        
-        
+
         composerGenerationOverrides = if (generationParameterProvider != null && currentModel != null) {
             val fingerprint = GenerationParameterProfileFingerprint.make(generationParameterProvider, currentModel)
             val modelDefaults = generationSettingsStore.modelDefaults(
@@ -499,7 +473,7 @@ internal fun EnhancedComposer(
             null
         }
     }
-    
+
     var modelBehaviorOverrideCount by remember(
         generationParameterProvider?.id,
         currentModel?.id,
@@ -511,8 +485,7 @@ internal fun EnhancedComposer(
         composerGenerationOverrides,
         composerGenerationProjection,
     ) {
-        
-        
+
         modelBehaviorOverrideCount = if (
             generationParameterProvider != null && currentModel != null && composerGenerationProjection != null
         ) {
@@ -540,20 +513,19 @@ internal fun EnhancedComposer(
             reasoningIntent = selectedControlReasoning,
             customOwners = developerCustomOwners,
             generationOverrideCount = modelBehaviorOverrideCount,
-            onSelectionChange = { web, intent, webLive ->
+            // The panel also publishes whether the web preference reaches the wire; the composer
+            // recomputes that itself where it matters (the outbound decision below), so the
+            // published copy is ignored here.
+            onSelectionChange = { web, intent, _ ->
                 selectedControlWeb = web
                 selectedControlReasoning = intent
-                
-                
-                onWebSearchToggled(web != CapabilityWebPreference.Off && webLive)
                 onSelectReasoningMode(ReasoningMode.fromIntent(intent))
             },
             onPersist = ::persistCapabilityPreferences,
             onPromoteToModelDefault = ::promoteCapabilityPreferencesToModelDefault,
             onAdvancedSettingsClosed = { modelBehaviorRevision += 1 },
             onChooseAnotherModel = onOpenModelSwitcher,
-            
-            
+
             onOpenConnectionSettings = {
                 generationParameterProvider?.id?.let(onNavigateToProviderDetail)
             },
@@ -561,8 +533,7 @@ internal fun EnhancedComposer(
             onSelectModel = onSelectModel,
             onDismiss = {
                 showModelControls = false
-                
-                
+
                 modelBehaviorRevision += 1
             },
         )
@@ -608,8 +579,7 @@ internal fun EnhancedComposer(
         controls = runtimeModelControls,
         dormantOwners = dormantCapabilityOwners,
         customOwners = developerCustomOwners,
-        
-        
+
         webReachesTheWire = CapabilityWebPreferenceLiveness.reachesTheWire(
             webPresentation,
             "web" in developerCustomOwners,
@@ -629,10 +599,7 @@ internal fun EnhancedComposer(
     val hasModeHighlights = hasReasoningHighlight || hasWebHighlight
     val hasDraftHighlight = hasComposerContent && !isGenerating
     val attachmentAccent = composerAttachmentAccent()
-    
-    
-    
-    
+
     val attachmentUploadBlocked = false
     val attachmentSyncBannerText: String? = null
     val modeHighlightAccent = when {
@@ -644,11 +611,6 @@ internal fun EnhancedComposer(
     var showAttachmentPickerUnavailableDialog by remember { mutableStateOf(false) }
     var composerFocused by remember { mutableStateOf(false) }
 
-    
-    
-    
-    
-    
     val imagePicker = rememberLauncherForActivityResult(
         ActivityResultContracts.PickMultipleVisualMedia(maxItems = 10),
     ) { uris ->
@@ -663,8 +625,6 @@ internal fun EnhancedComposer(
         uris.forEach(onProcessFileUri)
     }
 
-    
-    
     val composerContext = LocalContext.current
     var pendingCameraUri by remember { mutableStateOf<android.net.Uri?>(null) }
     val cameraLauncher = rememberLauncherForActivityResult(
@@ -723,15 +683,6 @@ internal fun EnhancedComposer(
         )
     }
 
-    
-    
-    
-    
-    
-    
-    
-    
-    
     val scrimBleedPx = with(LocalDensity.current) {
         WindowInsets.navigationBars.getBottom(this).toFloat()
     }
@@ -741,7 +692,7 @@ internal fun EnhancedComposer(
         Modifier
             .fillMaxWidth()
             .drawBehind {
-                
+
                 val scrimHeight = size.height + scrimBleedPx
                 drawRect(
                     brush = Brush.verticalGradient(
@@ -870,10 +821,6 @@ internal fun EnhancedComposer(
                             ComposerAttachmentThumbnail(
                                 attachment = attachment,
                                 onRemove = { onAttachmentRemove(attachment.id) },
-                                
-                                onTapKnowledgeCTA = if (
-                                    canUseKnowledgeBase && attachment.extractedTruncated == true
-                                ) onNavigateToSkillEdit else null,
                             )
                         }
                     }
@@ -892,10 +839,10 @@ internal fun EnhancedComposer(
                     else -> composerDynamicColor(light = 0xFFFFFF, dark = 0x07080A, lightAlpha = 0.11f, darkAlpha = 0.38f)
                 }
                 val composerShellBorder = when {
-                    
+
                     composerFocused -> Color.Transparent
                     hasDraftHighlight -> colors.primary.copy(alpha = 0.25f)
-                    
+
                     else -> colors.primary.copy(alpha = 0.16f)
                 }
                 val composerShellSurfaceModifier = Modifier.background(composerShellFill, composerShape)
@@ -917,17 +864,14 @@ internal fun EnhancedComposer(
                         modifier = Modifier
                         .fillMaxWidth()
                         .heightIn(min = 50.dp, max = 156.dp)
-                        
-                        
-                        
+
                         .clip(composerShape)
                         .then(composerShellSurfaceModifier)
                         .border(OriveoBorderWidth.standard, composerShellBorder, composerShape),
                     ) {
-                    
+
                     if (hasDraftHighlight) {
-                        
-                        
+
                         val draftGlowBrush = remember(colors.primaryGlow) {
                             Brush.radialGradient(
                                 colors = listOf(
@@ -945,8 +889,7 @@ internal fun EnhancedComposer(
                                     .offset(x = 12.dp)
                                     .size(74.dp)
                                     .graphicsLayer {
-                                        
-                                        
+
                                         alpha = DRAFT_GLOW_ALPHA_RATIO
                                     }
                                     .background(brush = draftGlowBrush, shape = androidx.compose.foundation.shape.CircleShape),
@@ -967,10 +910,9 @@ internal fun EnhancedComposer(
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         if (supportsAttachmentEntry) {
-                            
+
                             val attachmentEntryDisabled = !controlsEnabled || attachmentUploadBlocked
-                            
-                            
+
                             val showCameraOption = supportsImageAttachment && deviceHasCamera
                             val totalAttachmentOptions = (if (showCameraOption) 1 else 0) +
                                 (if (supportsImageAttachment) 1 else 0) +
@@ -1079,7 +1021,6 @@ internal fun EnhancedComposer(
                         )
                     }
 
-                    
                     if (composerFocused) {
                         ComposerAnimatedAiBorder(
                             cornerRadius = 22.dp,
@@ -1093,7 +1034,7 @@ internal fun EnhancedComposer(
                     isGenerating = isGenerating,
                     isPrimed = hasComposerContent && !isGenerating,
                     enabled = isGenerating || (!isReadOnly && hasComposerContent),
-                    
+
                     modifier = Modifier.padding(bottom = 7.dp),
                 ) {
                     @Suppress("DEPRECATION")
@@ -1110,14 +1051,9 @@ internal fun EnhancedComposer(
                     }
                 }
             }
-
-            if (managedQuotaPresentation != null) {
-                Unit
-            }
         }
     }
 }
-
 
 private const val DRAFT_GLOW_ALPHA_RATIO = 0.705f
 

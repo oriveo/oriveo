@@ -9,19 +9,15 @@ import ai.oriveo.community.core.model.RelayAuthMode
 import ai.oriveo.community.core.model.RelayRequestedConfig
 import ai.oriveo.community.core.provider.MetadataTestFixtures
 import ai.oriveo.community.core.provider.ProviderCatalogResolver
-import ai.oriveo.community.core.provider.ResolvedProviderCatalog
 import ai.oriveo.community.feature.providers.detail.providerSummaryAvailableModelCount
-import ai.oriveo.community.feature.providers.detail.usesManagedBlackGoldHero
 import ai.oriveo.community.feature.providers.detail.shouldShowHeroApiKeyEditor
 import ai.oriveo.community.feature.providers.detail.shouldShowResidualCredentialRemoval
 import org.junit.After
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
-
 
 class ProviderDetailFunctionsTest {
 
@@ -29,8 +25,6 @@ class ProviderDetailFunctionsTest {
     fun tearDown() {
         MetadataTestFixtures.clear()
     }
-
-    
 
     @Test
     fun `enabling model adds to models list`() {
@@ -57,13 +51,11 @@ class ProviderDetailFunctionsTest {
     @Test
     fun `cannot disable last model`() {
         val provider = makeProvider(models = listOf(makeModel("m1", isDefault = true)))
-        
+
         if (provider.models.size <= 1) {
             assertEquals(1, provider.models.size)
         }
     }
-
-    
 
     @Test
     fun `enabling recommended model adds to models list`() {
@@ -74,8 +66,6 @@ class ProviderDetailFunctionsTest {
         val updated = provider.copy(models = provider.models + rec)
         assertTrue(updated.models.any { it.id == "m3" })
     }
-
-    
 
     @Test
     fun `catalog models grouped by groupName`() {
@@ -112,8 +102,6 @@ class ProviderDetailFunctionsTest {
         assertEquals(1, available.size)
         assertEquals("m2", available.first().id)
     }
-
-    
 
     @Test
     fun `defaultModel returns isDefault model first`() {
@@ -155,30 +143,11 @@ class ProviderDetailFunctionsTest {
             models = listOf(makeModel("gpt-4o", isDefault = true)),
             catalogModels = emptyList(),
         )
-        val resolved = ResolvedProviderCatalog(
-            catalog = listOf(
-                resolvedModel("gpt-4o"),
-                resolvedModel("gpt-4.1"),
-                resolvedModel("o4-mini", isAvailable = false),
-            ),
-            enabledModels = listOf(resolvedModel("gpt-4o")),
-            recommendedModels = emptyList(),
-            defaultModel = resolvedModel("gpt-4o", isDefault = true),
-            availableModelCount = 2,
-            hasManualModels = false,
-        )
-
         ProviderCatalogResolver.debugResolveCallCount = 0
-        val count = providerSummaryAvailableModelCount(provider, resolved)
+        val count = providerSummaryAvailableModelCount(provider)
 
         assertEquals(1, count)
         assertEquals(0, ProviderCatalogResolver.debugResolveCallCount)
-    }
-
-    @Test
-    fun `no provider uses the managed black gold detail hero`() {
-        assertFalse(usesManagedBlackGoldHero(makeProvider(kind = ProviderKind.OpenAI)))
-        assertFalse(usesManagedBlackGoldHero(makeProvider(kind = ProviderKind.Anthropic)))
     }
 
     @Test
@@ -196,8 +165,6 @@ class ProviderDetailFunctionsTest {
         assertTrue(shouldShowResidualCredentialRemoval(unauthenticatedRelay))
         assertTrue(!shouldShowResidualCredentialRemoval(unauthenticatedRelay.copy(apiKey = "")))
     }
-
-    
 
     private fun makeModel(
         id: String,
@@ -224,15 +191,5 @@ class ProviderDetailFunctionsTest {
         status = ProviderConnectionState.Connected,
         models = models,
         catalogModels = catalogModels,
-    )
-
-    private fun resolvedModel(
-        id: String,
-        isDefault: Boolean = false,
-        isAvailable: Boolean = true,
-    ) = ai.oriveo.community.core.provider.ResolvedModel(
-        model = makeModel(id = id, isDefault = isDefault).copy(isAvailable = isAvailable),
-        isEnabled = true,
-        isManual = false,
     )
 }

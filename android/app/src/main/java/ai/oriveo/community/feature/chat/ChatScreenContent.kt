@@ -218,7 +218,6 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
-
 @OptIn(
     ExperimentalMaterial3Api::class,
     ExperimentalFoundationApi::class,
@@ -233,7 +232,7 @@ internal fun ChatScreenContent(
     onBack: () -> Unit,
     onNavigateToMemory: () -> Unit = {},
     onNavigateToProviderSetup: () -> Unit = {},
-    
+
     onNavigateToProviderDetail: (providerId: String) -> Unit = {},
     onNavigateToSkillEdit: () -> Unit = {},
     onNavigateToNoteDetail: (String) -> Unit = {},
@@ -243,15 +242,10 @@ internal fun ChatScreenContent(
     val providers by viewModel.providers.collectAsStateWithLifecycle()
     // The bridge is the sole metadata/TTL/credential invalidation input for capability controls.
     // Reading it here causes the existing resolver calls below to re-run without recreating the VM.
-    
-    
-    
-    
+
     val capabilityObservationRevision = CapabilityEvidenceObservationBridge.revision
         .collectAsStateWithLifecycle()
-    
-    
-    
+
     val streamingMessageId by viewModel.streamingMessageId.collectAsStateWithLifecycle()
     val hasMoreAbove by viewModel.hasMoreAbove.collectAsStateWithLifecycle()
     val hasMoreBelow by viewModel.hasMoreBelow.collectAsStateWithLifecycle()
@@ -265,7 +259,6 @@ internal fun ChatScreenContent(
     val screenH = OriveoTheme.layout.screenH
     val context = LocalContext.current
     val resources = LocalResources.current
-    
 
     val view = LocalView.current
     val density = LocalDensity.current
@@ -280,12 +273,12 @@ internal fun ChatScreenContent(
 
     val conversation = conversationRenderState.conversation ?: viewModel.bootstrapConversation
     val messages = conversation?.messages ?: emptyList()
-    
+
     val messagesEmpty = messages.isEmpty()
-    
+
     val chatLoadState = viewModel.chatLoadState
     val currentSkill by viewModel.currentSkill.collectAsStateWithLifecycle()
-    
+
     val attachedNotes by viewModel.noteCoordinator.attachedNotes.collectAsStateWithLifecycle()
     val relatedNotes by viewModel.noteCoordinator.relatedNotes.collectAsStateWithLifecycle()
     val savedNoteLinksByMessage by viewModel.noteCoordinator.savedNoteLinksByMessage.collectAsStateWithLifecycle()
@@ -293,18 +286,16 @@ internal fun ChatScreenContent(
     val listState = rememberLazyListState()
     val coroutineScope = rememberCoroutineScope()
     val latestMessageCount by rememberUpdatedState(messages.size)
-    
-    
+
     val latestMessages by rememberUpdatedState(messages)
-    
-    
+
     // Whether a finger is currently down on the list (observed on PointerEventPass.Initial, the
     // events are not consumed). All three consumers mean "yield while the finger is down, resume
     // after it lifts": follow-to-bottom, IME follow, and [decideAnchorTransition]'s Reclaim. The
     // reporting baseline has to stay inside the pointerInput block ([PointerPressTracker]);
     // a captured parameter freezes there and the release is never reported.
     var isPointerDown by remember { mutableStateOf(false) }
-    
+
     var noteFocusHighlightId by remember { mutableStateOf<String?>(null) }
 
     val providersById = remember(providers) { providers.associateBy { it.id } }
@@ -320,8 +311,7 @@ internal fun ChatScreenContent(
         }
     }
     val handleScreenLeaving by rememberUpdatedState(newValue = { viewModel.handleChatScreenLeaving() })
-    
-    
+
     val lastDeliveredAssistant = remember(messages) {
         messages.lastOrNull { it.role == ai.oriveo.community.core.model.ChatRole.Assistant && it.state == ai.oriveo.community.core.model.ChatMessageState.Delivered }
     }
@@ -333,8 +323,6 @@ internal fun ChatScreenContent(
         assistantMarkdownPrewarmFingerprint(messages)
     }
 
-    
-    
     val activeProvider by remember(providersById) {
         derivedStateOf {
             capabilityObservationRevision.value
@@ -355,7 +343,6 @@ internal fun ChatScreenContent(
             " · ${stringResource(R.string.local_model_via_ollama_cloud)}"
         } else ""
 
-    
     var showMoreMenu by remember { mutableStateOf(false) }
     var showDeleteConfirmation by remember { mutableStateOf(false) }
     var showMemorySheet by remember { mutableStateOf(false) }
@@ -372,14 +359,6 @@ internal fun ChatScreenContent(
         onBack = onBack,
     )
 
-     
-    
-    
-    
-    
-    
-    
-    
     val scrollController = rememberChatScrollController()
     val reserveDp = with(density) { scrollController.reservePx.toDp() }
     val minAssistantVisiblePx = with(density) { MIN_ASSISTANT_VISIBLE_HINT_DP.dp.roundToPx() }
@@ -392,7 +371,6 @@ internal fun ChatScreenContent(
         messages.isNotEmpty() &&
         initialBottomSettledConversationId != conversationId
 
-    
     // isDragging is passed down to MessageBubble's isUserDragging, which no longer reads it
     // (the parameter is kept for call-site compatibility).
     val isDragging by remember(listState) {
@@ -408,24 +386,14 @@ internal fun ChatScreenContent(
         consumePendingPin = viewModel::consumePendingPin,
     )
 
-    
-    
-    
-    
-    
     ChatFollowToBottomEffect(
         listState = listState,
         scrollController = scrollController,
         isPointerDown = isPointerDown,
     )
 
-    
     ChatStreamingModeEffect(viewModel.isGenerating, scrollController)
 
-    
-    
-    
-    
     ChatInitialScrollToBottomEffect(
         conversationId = conversationId,
         initialConversationId = initialConversationId,
@@ -447,8 +415,6 @@ internal fun ChatScreenContent(
         scrollController = scrollController,
     )
 
-    
-    
     ChatNoteEffects(
         focusMessageId = viewModel.noteCoordinator.focusMessageId,
         conversationId = conversationId,
@@ -469,17 +435,12 @@ internal fun ChatScreenContent(
         onMaybeShowHint = { viewModel.noteCoordinator.maybeShowNoteCaptureHint() },
     )
 
-
     ChatImeLatestTrackingEffect(
         listState = listState,
         imeBottomPx = imeBottomPx,
         onWasAtLatestBeforeImeChange = { wasAtLatestBeforeIme = it },
     )
 
-    
-    
-    
-    
     ChatImeFollowEffect(
         listState = listState,
         imeInsets = imeInsets,
@@ -489,9 +450,6 @@ internal fun ChatScreenContent(
         isPointerDown = isPointerDown,
     )
 
-    
-    
-    
     ChatAnchorTransitionEffect(
         listState = listState,
         scrollController = scrollController,
@@ -499,10 +457,6 @@ internal fun ChatScreenContent(
         hideKeyboard = { keyboardController?.hide() },
     )
 
-    
-    
-    
-    
     ChatLoadMoreAboveEffect(
         listState = listState,
         hasMoreAbove = viewModel.hasMoreAbove,
@@ -535,17 +489,13 @@ internal fun ChatScreenContent(
             .fillMaxSize()
             .testTag("chat_screen"),
     ) {
-        
+
         OriveoScreenBackground(
             modifier = Modifier.hazeSource(state = hazeState, zIndex = 0f),
         )
-        
+
         ChatAuroraBackground(prominent = messagesEmpty)
 
-        
-        
-        
-        
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -587,7 +537,6 @@ internal fun ChatScreenContent(
                 trueTransparentBlurEnabled = trueTransparentBlurEnabled,
             )
 
-            
             viewModel.noteCoordinator.returnToNoteId?.let { noteId ->
                 Row(
                     modifier = Modifier
@@ -632,8 +581,6 @@ internal fun ChatScreenContent(
                 )
             }
 
-
-            
             Box(
                 modifier = Modifier
                     .weight(1f)
@@ -655,10 +602,7 @@ internal fun ChatScreenContent(
                             .padding(bottom = composerOverlayHeightDp),
                     )
                 } else if (messages.isEmpty() && !viewModel.isGenerating) {
-                    
-                    
-                    
-                    
+
                     EmptyChatState(
                         skillIcon = currentSkill?.icon,
                         skillDescription = currentSkill?.localizedDescription(),
@@ -726,12 +670,10 @@ internal fun ChatScreenContent(
                     )
                 }
 
-                
             }
 
         }
 
-        
         Column(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
@@ -762,7 +704,6 @@ internal fun ChatScreenContent(
                 supportsVideoAttachment = viewModel.supportsVideo(),
                 supportsFileAttachment = viewModel.supportsFile(),
                 onSelectReasoningMode = viewModel::selectReasoningMode,
-                onWebSearchToggled = viewModel::updateWebSearchEnabled,
                 onSelectModel = viewModel::selectModel,
                 onOpenModelSwitcher = { viewModel.showModelSwitcher = true },
                 showAttachmentSizeLimitDialog = viewModel.showAttachmentSizeLimitDialog,
@@ -774,15 +715,11 @@ internal fun ChatScreenContent(
                 providerKind = activeProvider?.kind,
                 onNavigateToProviderSetup = onNavigateToProviderSetup,
                 onNavigateToProviderDetail = onNavigateToProviderDetail,
-                
+
                 onNavigateToSkillEdit = onNavigateToSkillEdit,
-                canUseKnowledgeBase = activeProvider?.kind == ProviderKind.OpenAI &&
-                    activeProvider?.apiKey?.isNotEmpty() == true,
                 isGenerating = viewModel.isGenerating,
-                
-                
+
                 isReadOnly = !viewModel.canSendMessages || chatLoadState.blocksSending(),
-                managedQuotaPresentation = null,
                 transparentChrome = messagesEmpty,
                 hazeState = hazeState,
                 trueTransparentBlurEnabled = trueTransparentBlurEnabled,
@@ -801,7 +738,6 @@ internal fun ChatScreenContent(
         NotePreviewSheet(note = note, onDismiss = viewModel.noteCoordinator::clearNotePreview)
     }
 
-    
     viewModel.noteCoordinator.crosscheckOrigin?.let { origin ->
         val crosscheckState by viewModel.noteCoordinator.crosscheckState.collectAsStateWithLifecycle()
         val sourceProvider = origin.message.providerID?.let { providersById[it] }
@@ -825,10 +761,6 @@ internal fun ChatScreenContent(
         )
     }
 
-
-    
-    
-
     // Model Switcher Bottom Sheet
     if (viewModel.showModelSwitcher) {
         val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -837,7 +769,7 @@ internal fun ChatScreenContent(
             sheetState = sheetState,
             dragHandle = null,
             contentWindowInsets = { WindowInsets(0) },
-            
+
             containerColor = ai.oriveo.community.ui.theme.OriveoTheme.colors.backgroundBase,
         ) {
             ModelPickerSheet(
@@ -854,7 +786,6 @@ internal fun ChatScreenContent(
         }
     }
 
-    
     viewModel.providerDisclosurePrompt?.let { prompt ->
         ProviderDisclosureSheet(
             prompt = prompt,
@@ -867,7 +798,7 @@ internal fun ChatScreenContent(
         AlertDialog(
             onDismissRequest = { showDeleteConfirmation = false },
             confirmButton = {
-                
+
                 TextButton(
                     onClick = {
                         showDeleteConfirmation = false
@@ -909,8 +840,6 @@ internal fun ChatScreenContent(
     }
 }
 
-
 internal const val MESSAGE_WINDOW_LOAD_MORE_THRESHOLD = 5
-
 
 internal const val MARKDOWN_PREWARM_RECENT_MESSAGE_LIMIT = 12

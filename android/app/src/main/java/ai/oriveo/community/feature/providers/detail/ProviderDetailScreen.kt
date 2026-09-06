@@ -153,12 +153,10 @@ import ai.oriveo.community.ui.util.formatRelativeTime
 import kotlinx.coroutines.delay
 import org.koin.androidx.compose.koinViewModel
 
-
 private data class RemovalBannerState(
     val modelName: String,
     val onUndo: () -> Unit,
 )
-
 
 private fun LazyListScope.detailSection(
     key: String,
@@ -171,7 +169,6 @@ private fun LazyListScope.detailSection(
     }
 }
 
-
 @Composable
 private fun CapabilityObservationRevisionScope(
     content: @Composable (Long) -> Unit,
@@ -179,7 +176,6 @@ private fun CapabilityObservationRevisionScope(
     val revision by CapabilityEvidenceObservationBridge.revision.collectAsStateWithLifecycle()
     content(revision)
 }
-
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -196,24 +192,18 @@ fun ProviderDetailScreen(
     val catalogViewState by viewModel.catalogViewState.collectAsStateWithLifecycle()
     val catalogGroups by viewModel.catalogGroups.collectAsStateWithLifecycle()
     val resolvedCatalog by viewModel.resolvedCatalog.collectAsStateWithLifecycle()
-    val managedWalletState by viewModel.managedWalletState.collectAsStateWithLifecycle()
-    val managedWeeklyQuotaOffer by viewModel.managedWeeklyQuotaOffer.collectAsStateWithLifecycle()
     val colors = OriveoTheme.colors
     val context = LocalContext.current
 
-    
     var highlightedModelID: String? by remember { mutableStateOf(null) }
     var showConnectionSettingsSheet by remember { mutableStateOf(false) }
     var showGenerationParameters by remember { mutableStateOf(false) }
     var renameProvider: Provider? by remember { mutableStateOf(null) }
 
-    
     var removalBanner: RemovalBannerState? by remember { mutableStateOf(null) }
 
-    
     var dismissedHealthBanner by remember { mutableStateOf(false) }
 
-    
     val vibrator = remember {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             val manager = context.getSystemService(VibratorManager::class.java)
@@ -228,7 +218,6 @@ fun ProviderDetailScreen(
         vibrator?.vibrate(VibrationEffect.createOneShot(20, VibrationEffect.DEFAULT_AMPLITUDE))
     }
 
-    
     LaunchedEffect(removalBanner) {
         if (removalBanner != null) {
             delay(4000)
@@ -236,7 +225,6 @@ fun ProviderDetailScreen(
         }
     }
 
-    
     LaunchedEffect(highlightedModelID) {
         if (highlightedModelID != null) {
             delay(1200)
@@ -266,8 +254,7 @@ fun ProviderDetailScreen(
                 } else {
                     null
                 }
-                
-                
+
                 val enabledSortedModels = remember(currentProvider.models) {
                     sortedEnabledModels(currentProvider)
                 }
@@ -286,13 +273,12 @@ fun ProviderDetailScreen(
                             start = OriveoTheme.layout.screenH,
                             end = OriveoTheme.layout.screenH,
                             top = OriveoTheme.spacing.sm,
-                            
+
                             bottom = OriveoTheme.spacing.lg,
                         ),
-                        
-                        
+
                     ) {
-                        
+
                         detailSection(key = "back_button") {
                             Row(
                                 modifier = Modifier
@@ -318,10 +304,6 @@ fun ProviderDetailScreen(
                             }
                         }
 
-                        
-                        
-                        
-                        
                         if (viewModel.isSubscriptionProvider(currentProvider)) {
                             if (currentProvider.kind == ProviderKind.OpenAI) {
                                 (viewModel.openAISubscriptionAvailability as? OpenAISubscriptionAvailability.Disabled)
@@ -346,7 +328,6 @@ fun ProviderDetailScreen(
                             }
                         }
 
-                        
                         if (currentProvider.effectiveStatusKind.isWarning && !dismissedHealthBanner) {
                             detailSection(key = "provider_connection_issue_recovery") {
                                 val canEditEndpoint = viewModel.canEditEndpoint(currentProvider)
@@ -367,10 +348,7 @@ fun ProviderDetailScreen(
                         }
 
                         detailSection(key = "brand_hero_card") {
-                            val enabledModelCount = providerSummaryAvailableModelCount(
-                                provider = currentProvider,
-                                resolvedCatalog = resolvedCatalog,
-                            )
+                            val enabledModelCount = providerSummaryAvailableModelCount(currentProvider)
                             ProviderDetailBrandHeroCard(
                                 provider = currentProvider,
                                 enabledModelCount = enabledModelCount,
@@ -398,8 +376,6 @@ fun ProviderDetailScreen(
                             )
                         }
 
-
-                        
                         if (currentProvider.kind in ai.oriveo.community.core.provider.BALANCE_CAPABLE_KINDS) {
                             detailSection(key = "provider_balance_card") {
                                 val balanceState by viewModel.balanceState.collectAsStateWithLifecycle()
@@ -414,8 +390,6 @@ fun ProviderDetailScreen(
                             }
                         }
 
-                        
-                        
                         providerDetailEnabledModels(
                             provider = currentProvider,
                             titleRes = viewModel.enabledModelsTitle(currentProvider),
@@ -457,7 +431,6 @@ fun ProviderDetailScreen(
                             },
                         )
 
-                        
                         val groups = catalogGroups
                         if (currentProvider.kind == ProviderKind.Relay &&
                             (relayCatalogState == ProviderDetailViewModel.RelayCatalogUiState.Loading ||
@@ -519,7 +492,6 @@ fun ProviderDetailScreen(
                                 }
                             }
 
-                            
                             when (catalogViewState) {
                                 ProviderDetailViewModel.CatalogViewState.Offline -> {
                                     detailSection(key = "catalog_offline") {
@@ -597,13 +569,7 @@ fun ProviderDetailScreen(
                                     }
                                 }
                             } else if (groups.isNotEmpty()) {
-                                
-                                
-                                
-                                
-                                
-                                
-                                
+
                                 providerCatalogGroups(
                                     provider = currentProvider,
                                     groups = groups,
@@ -664,8 +630,7 @@ fun ProviderDetailScreen(
                             val canEditEndpoint = viewModel.canEditEndpoint(currentProvider)
                             val canAccessAdvancedSettings = viewModel.canAccessAdvancedSettings(currentProvider)
                             val canDeleteProvider = viewModel.canDeleteProvider(currentProvider)
-                            
-                            
+
                             Column(
                                 verticalArrangement = Arrangement.spacedBy(OriveoTheme.spacing.md),
                             ) {
@@ -685,10 +650,7 @@ fun ProviderDetailScreen(
                                     } else {
                                         null
                                     },
-                                    
-                                    
-                                    
-                                    
+
                                     onGenerationParameters = { showGenerationParameters = true },
                                     onDeleteProvider = if (canDeleteProvider) {
                                         { viewModel.showDeleteConfirm = true }
@@ -717,7 +679,6 @@ fun ProviderDetailScreen(
             }
         }
 
-        
         AnimatedVisibility(
             visible = removalBanner != null,
             enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
@@ -781,12 +742,11 @@ fun ProviderDetailScreen(
         )
     }
 
-    
     if (viewModel.showGrokReauthorization) {
         val availability = viewModel.grokSubscriptionAvailability
         val config = (availability as? GrokSubscriptionAvailability.Available)?.config
         if (config == null) {
-            
+
             viewModel.showGrokReauthorization = false
         } else {
             val grokSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -802,8 +762,7 @@ fun ProviderDetailScreen(
                     config = config,
                     model = authorizationViewModel.grok,
                     onAuthorized = { tokens -> viewModel.completeGrokReauthorization(tokens) },
-                    
-                    
+
                     onDismiss = {
                         authorizationViewModel.grok.cancel()
                         viewModel.showGrokReauthorization = false
@@ -817,7 +776,7 @@ fun ProviderDetailScreen(
         val availability = viewModel.openAISubscriptionAvailability
         val config = (availability as? OpenAISubscriptionAvailability.Available)?.config
         if (config == null) {
-            
+
             viewModel.showOpenAIReauthorization = false
         } else {
             val openAISheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -833,8 +792,7 @@ fun ProviderDetailScreen(
                     config = config,
                     model = authorizationViewModel.openAI,
                     onAuthorized = { tokens -> viewModel.completeOpenAIReauthorization(tokens) },
-                    
-                    
+
                     onDismiss = {
                         authorizationViewModel.openAI.cancel()
                         viewModel.showOpenAIReauthorization = false
@@ -918,8 +876,7 @@ fun ProviderDetailScreen(
                     enabled = viewModel.editingApiKey.isNotBlank(),
                     loading = viewModel.isUpdatingApiKey,
                 )
-                
-                
+
                 if (provider?.let(viewModel::hasStoredKey) == true) {
                     TextButton(
                         onClick = { viewModel.removeApiKey() },
@@ -952,7 +909,7 @@ fun ProviderDetailScreen(
                 )
                 Spacer(modifier = Modifier.height(OriveoTheme.spacing.lg))
                 OriveoCard {
-                    
+
                     Column(verticalArrangement = Arrangement.spacedBy(OriveoTheme.spacing.xs)) {
                         Text(
                             text = provider!!.displayName,
@@ -1022,7 +979,6 @@ fun ProviderDetailScreen(
         }
     }
 
-    
     renameProvider?.let { targetProvider ->
         RenameProviderDialog(
             provider = targetProvider,
@@ -1034,7 +990,6 @@ fun ProviderDetailScreen(
         )
     }
 }
-
 
 @Composable
 private fun SearchField(
@@ -1081,7 +1036,6 @@ private fun SearchField(
         )
     }
 }
-
 
 @Composable
 private fun RemovalBanner(
@@ -1189,8 +1143,7 @@ private fun ProviderDetailConnectionSettingsSheet(
             .verticalScroll(scrollState),
         verticalArrangement = Arrangement.spacedBy(OriveoTheme.spacing.lg),
     ) {
-        
-        
+
         Text(
             text = stringResource(R.string.provider_detail_connection_settings),
             style = OriveoTheme.typography.title2,
@@ -1198,9 +1151,7 @@ private fun ProviderDetailConnectionSettingsSheet(
         )
 
         OriveoCard {
-            
-            
-            
+
             Column(verticalArrangement = Arrangement.spacedBy(OriveoTheme.spacing.md)) {
                 ConnectionInfoRow(
                     title = stringResource(R.string.provider_label),
@@ -1215,8 +1166,7 @@ private fun ProviderDetailConnectionSettingsSheet(
                         value = localizedProviderEndpointLabel(provider.kind, endpointOption),
                     )
                 }
-                
-                
+
                 ConnectionInfoRow(
                     title = stringResource(R.string.request_url_label),
                     value = provider.baseUrlText ?: stringResource(
@@ -1248,7 +1198,6 @@ private fun ProviderDetailConnectionSettingsSheet(
     }
 }
 
-
 @Composable
 private fun ConnectionInfoRow(title: String, value: String) {
     val colors = OriveoTheme.colors
@@ -1273,16 +1222,14 @@ private fun ConnectionInfoRow(title: String, value: String) {
     }
 }
 
-
-internal fun providerSummaryAvailableModelCount(
-    provider: Provider,
-    resolvedCatalog: ai.oriveo.community.core.provider.ResolvedProviderCatalog?,
-): Int {
-    @Suppress("UNUSED_VARIABLE")
-    val ignoredResolvedCatalog = resolvedCatalog
-    return provider.enabledModelCount
-}
-
+/**
+ * Model count shown in the detail hero.
+ *
+ * Reads the count the provider already carries instead of resolving the catalog: the hero renders
+ * on every recomposition of the detail screen, and resolving there would repeat work the catalog
+ * sections have already done.
+ */
+internal fun providerSummaryAvailableModelCount(provider: Provider): Int = provider.enabledModelCount
 
 @Composable
 private fun SubscriptionDisabledNotice(notice: String?, fallbackRes: Int) {

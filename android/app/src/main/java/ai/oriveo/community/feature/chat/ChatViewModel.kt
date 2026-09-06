@@ -94,19 +94,18 @@ class ChatViewModel(
 
     private val initialConversationId: String? =
         (savedStateHandle.get<String>("conversationId"))?.let(::normalizeUuid)
-    
+
     private var pendingHeroAutoSend: Boolean = savedStateHandle.get<Boolean>("autoSend") == true
     private val activeConversationId = MutableStateFlow(initialConversationId)
 
     private val messageWindowLoader: MessageWindowLoader =
         conversationRepository.createMessageWindowLoader()
-    
+
     private val messageWindowScope: CoroutineScope = messageWindowLoaderScope(viewModelScope)
     private val capabilityResolver = ChatModelCapabilityResolver()
     private val providerResolutionErrorReporter = ChatProviderResolutionErrorReporter(context, globalSnackbarManager)
     private val promptInjectionBuilder = ChatPromptInjectionBuilder(
         skillProvider = skillRepository::getById,
-        providersProvider = { providers.value },
         untitledNoteFallback = context.getString(R.string.notes_untitled),
     )
     private val sendCoordinator = ChatSendCoordinator(
@@ -233,7 +232,6 @@ class ChatViewModel(
         launchSend = sendLauncher,
     )
 
-    
     val conversation: StateFlow<ConversationRenderState> = activeConversationId
         .flatMapLatest { conversationId ->
             if (conversationId == null) {
@@ -259,43 +257,31 @@ class ChatViewModel(
             ConversationRenderState(conversation = null),
         )
 
-    
-    
-    
-    
-    
-    
-    
     val hasMoreAbove: StateFlow<Boolean> = conversation
         .map { it.windowState.hasMoreAbove }
         .distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
-    
     val isLoadingAbove: StateFlow<Boolean> = conversation
         .map { it.windowState.isLoadingAbove }
         .distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
-    
     val hasMoreBelow: StateFlow<Boolean> = conversation
         .map { it.windowState.hasMoreBelow }
         .distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
-    
     val isLoadingBelow: StateFlow<Boolean> = conversation
         .map { it.windowState.isLoadingBelow }
         .distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
-    
     val isInitialLoading: StateFlow<Boolean> = conversation
         .map { it.windowState.isInitialLoading }
         .distinctUntilChanged()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
-    
     fun loadMoreAbove() {
         messageWindowScope.launch { messageWindowLoader.extendUpward() }
     }
@@ -304,7 +290,6 @@ class ChatViewModel(
         messageWindowScope.launch { messageWindowLoader.extendDownward() }
     }
 
-    
     fun loadFocusMessageWindow(messageId: String) {
         val conversationId = activeConversationId.value ?: return
         viewModelScope.launch {
@@ -319,14 +304,12 @@ class ChatViewModel(
         }
     }
 
-    
     val providers: StateFlow<List<Provider>> = providerRepository.observeAll()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     private val lastUsedModelRef = appPreferencesRepository.lastUsedModelRef
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
-    
     val currentSkill: StateFlow<Skill?> = conversation
         .map { state ->
             val skillId = state.conversation?.skillId ?: return@map null
@@ -334,7 +317,6 @@ class ChatViewModel(
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
-    
     val streamingText: StateFlow<String> = combine(
         activeConversationId,
         chatStreamingManager.sessionsVersion,
@@ -355,7 +337,6 @@ class ChatViewModel(
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
-    
     val streamingReasoning: StateFlow<String> = combine(
         activeConversationId,
         chatStreamingManager.sessionsVersion,
@@ -366,36 +347,29 @@ class ChatViewModel(
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "")
 
-    
     val streamingReasoningActive: StateFlow<Boolean> = chatStreamingManager
         .reasoningActiveFlow(activeConversationId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
-    
     var inputText: String by mutableStateOf("")
 
     /** Single pending Ask snapshot; a later selection replaces it. */
     val pendingQuoteContext get() = quoteCoordinator.pending
 
-    
     var activeProviderId: String? by mutableStateOf(null)
         private set
     var activeModelId: String? by mutableStateOf(null)
         private set
 
-    
     var hasMissingInitialConversation: Boolean by mutableStateOf(false)
         private set
 
-    
     var isUserInitiatedExit: Boolean by mutableStateOf(false)
         private set
 
-    
     var bootstrapConversation: Conversation? by mutableStateOf(null)
         private set
 
-    
     private val conversationLoadCoordinator = ChatConversationLoadCoordinator(
         viewModelScope = viewModelScope,
         requestedConversationId = initialConversationId,
@@ -406,41 +380,32 @@ class ChatViewModel(
     internal val chatLoadState: ChatLoadState
         get() = conversationLoadCoordinator.chatLoadState
 
-    
     fun retryConversationLoad() = conversationLoadCoordinator.retry()
 
-    
     val isGenerating: Boolean
         get() = streamingMessageId.value != null
 
-    
     var expensiveModelHint: ExpensiveModelHint? by mutableStateOf(null)
         private set
 
-    
     var showModelSwitcher: Boolean by mutableStateOf(false)
 
-    
     var conversationState: ChatConversationState by mutableStateOf(
         ChatConversationState(provider = null, model = null),
     )
         private set
 
-     
     var pendingPinUserMessageId: String? by mutableStateOf(null)
         private set
 
-    
     private var pinRequested: Boolean = false
 
-    
     private var isSendSetupInFlight: Boolean = false
 
     /** C20: Reasoning mode */
     var reasoningMode: ReasoningMode by mutableStateOf(ReasoningMode.Automatic)
         private set
 
-    
     private fun disableWebSearchPreference() {
         val provider = activeProvider() ?: return
         val model = conversationState.model ?: return
@@ -459,11 +424,7 @@ class ChatViewModel(
             isExistingConversation = isExisting,
         )
         if (current.web == CapabilityWebPreference.Off) return
-        
-        
-        
-        
-        
+
         val existing = capabilityPreferenceStore.scopeValues(
             providerID = provider.id,
             modelID = modelControlIdentity.canonicalModelId,
@@ -498,7 +459,6 @@ class ChatViewModel(
         reasoningMode = mode
     }
 
-    
     val currentMemoryText: StateFlow<String> = appPreferencesRepository.memoryText
         .stateIn(viewModelScope, SharingStarted.Eagerly, "")
 
@@ -515,7 +475,6 @@ class ChatViewModel(
         memoryText.isNotBlank() && (conversationState.conversation?.useMemory ?: true)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
-    
     var pendingAttachments: List<Attachment> by mutableStateOf(emptyList())
         private set
 
@@ -536,7 +495,6 @@ class ChatViewModel(
     private val currentConversation: Conversation?
         get() = conversation.value.conversation ?: bootstrapConversation
 
-    
     val noteCoordinator = ChatNoteCoordinator(
         scope = viewModelScope,
         noteRepository = noteRepository,
@@ -554,8 +512,7 @@ class ChatViewModel(
     init {
         if (initialConversationId != null) {
             viewModelScope.launch {
-                
-                
+
                 val initialConversation = conversationRepository.getWithLatestMessageWindow(initialConversationId)
                 bootstrapConversation = initialConversation
                 hasMissingInitialConversation = initialConversation == null
@@ -605,8 +562,7 @@ class ChatViewModel(
                     if (activeConversationId.value == null) {
                         bootstrapConversation = null
                     }
-                    
-                    
+
                     val effectiveLastUsed = appPreferencesRepository.lastUsedModelRefSnapshot ?: lastUsed
                     val activeModel = resolveActiveModel(providerList, effectiveLastUsed)
                     activeProviderId = activeModel?.provider?.id
@@ -635,9 +591,6 @@ class ChatViewModel(
             }
         }
 
-        
-        
-        
         viewModelScope.launch {
             combine(streamingMessageId, conversation) { sid, state -> sid to state.conversation }
                 .collect { (streamingId, conv) ->
@@ -648,16 +601,13 @@ class ChatViewModel(
                 }
         }
 
-        
-        
-        
         if (pendingHeroAutoSend) {
             viewModelScope.launch {
                 conversation
                     .map { it.conversation }
                     .filterNotNull()
                     .first()
-                
+
                 var waitedMs = 0
                 while (
                     pendingHeroAutoSend &&
@@ -676,7 +626,7 @@ class ChatViewModel(
                     savedStateHandle["autoSend"] = false
                     sendMessage()
                 } else if (pendingHeroAutoSend) {
-                    
+
                     pendingHeroAutoSend = false
                     savedStateHandle["autoSend"] = false
                 }
@@ -693,7 +643,6 @@ class ChatViewModel(
                     return@collectLatest
                 }
 
-                
                 delay(350)
                 if (currentConversation?.id == conversationId) {
                     Unit
@@ -702,12 +651,10 @@ class ChatViewModel(
         }
     }
 
-    
     fun activeModelCapabilities(): List<ModelCapability> {
         return capabilityResolver.activeModelCapabilities(conversationState.model)
     }
 
-    
     fun supportsImage(): Boolean {
         return capabilityResolver.supportsImage(activeProvider(), conversationState.model)
     }
@@ -723,8 +670,6 @@ class ChatViewModel(
     /** Exact dispatch carrier exposed to the composer before it renders runtime controls. */
     fun modelControlsFinalTransport(): String? =
         capabilityResolver.finalTransport(activeProvider(), conversationState.model)
-
-    fun updateWebSearchEnabled(@Suppress("UNUSED_PARAMETER") enabled: Boolean) {}
 
     private fun activeProvider(): Provider? =
         capabilityResolver.activeProvider(conversationState.provider, providers.value, activeProviderId)
@@ -770,12 +715,10 @@ class ChatViewModel(
         chatStreamingManager.stopStream(convId)
     }
 
-    
     fun regenerateMessage(messageId: String) {
         retryCoordinator.regenerateMessage(messageId)
     }
 
-    
     fun retryMessage(messageId: String) {
         retryCoordinator.retryMessage(messageId)
     }
@@ -784,12 +727,10 @@ class ChatViewModel(
         retryCoordinator.retryWithoutLocalCustomFields(messageId)
     }
 
-    
     fun continueMessage(messageId: String) {
         retryCoordinator.continueMessage(messageId)
     }
 
-    
     fun editMessageInline(messageId: String): String? {
         val conversation = currentConversation
         val messages = conversation?.messages.orEmpty()
@@ -810,7 +751,6 @@ class ChatViewModel(
 
     fun removePendingQuote() = quoteCoordinator.remove()
 
-    
     fun selectModel(providerId: String, modelId: String) {
         expensiveModelHint = evaluateExpensiveModelHint(
             providers = providers.value,
@@ -838,9 +778,6 @@ class ChatViewModel(
         modelSelectionCoordinator.enableModel(providerId, modelId)
     }
 
-    
-
-    
     fun consumePendingPin() {
         pendingPinUserMessageId = null
     }
@@ -858,17 +795,12 @@ class ChatViewModel(
     }
 
     fun handleChatScreenLeaving() {
-        
-        
-        
-        
+
         flushDraft()
     }
 
-    
-
     fun addAttachment(attachment: Attachment, source: String = "file") {
-        
+
         if (!attachmentCoordinator.accepts(attachment)) return
         pendingAttachments = pendingAttachments + attachment
     }
@@ -890,21 +822,17 @@ class ChatViewModel(
         showAttachmentSizeLimitDialog = true
     }
 
-    
     fun processImageUri(context: android.content.Context, uri: android.net.Uri) {
         viewModelScope.launch {
             attachmentCoordinator.processImage(context, uri)
         }
     }
 
-    
     fun processFileUri(context: android.content.Context, uri: android.net.Uri) {
         viewModelScope.launch {
             attachmentCoordinator.processFile(context, uri)
         }
     }
-
-    
 
     fun copyMessage(message: ChatMessage, context: Context) {
         exportCoordinator.copyMessage(message, context)
@@ -914,8 +842,6 @@ class ChatViewModel(
         exportCoordinator.shareMessage(message, context)
     }
 
-    
-
     fun exportAsMarkdown(context: Context) {
         exportCoordinator.exportAsMarkdown(context)
     }
@@ -924,7 +850,6 @@ class ChatViewModel(
         exportCoordinator.exportAsJson(context)
     }
 
-    
     fun startNewChat() {
         val currentProvider = activeProviderId
         val currentModel = activeModelId
@@ -936,7 +861,6 @@ class ChatViewModel(
         pendingPinUserMessageId = null
         pinRequested = false
 
-        
         activeProviderId = currentProvider
         activeModelId = currentModel
     }
@@ -947,10 +871,7 @@ class ChatViewModel(
         }
     }
 
-    
-
     override fun onCleared() {
-        super.onCleared()
         conversationLoadCoordinator.stop()
         Unit
         messageWindowLoader.stop()

@@ -45,7 +45,7 @@ internal fun ChatPinToTopEffect(
 
     LaunchedEffect(pendingPinUserMessageId) {
         val pinId = pendingPinUserMessageId ?: return@LaunchedEffect
-        
+
         snapshotFlow {
             val idx = latestMessagesState.value.indexOfFirst { it.id == pinId }
             idx >= 0 && listState.layoutInfo.totalItemsCount > idx
@@ -121,7 +121,7 @@ internal fun ChatInitialScrollToBottomEffect(
         if (conversationId == null || conversationId != initialConversationId) return@LaunchedEffect
         onInitialBottomSettledConversationChange(null)
         scrollController.reset()
-        
+
         snapshotFlow { latestMessageCountState.value to composerOverlayHeightPxState.value }
             .filter { (size, h) -> size > 0 && h > 0 }
             .first()
@@ -154,20 +154,6 @@ internal fun ChatSearchScrollTargetEffect(
             listState.scrollToItem(targetIndex)
         } else {
             listState.scrollToItem(0)
-        }
-    }
-}
-
-@Composable
-internal fun ChatManagedLoginEffect(
-    loginRequests: SharedFlow<Unit>,
-    onRequireManagedLogin: () -> Unit,
-) {
-    val latestOnRequireManagedLogin = rememberUpdatedState(onRequireManagedLogin)
-
-    LaunchedEffect(loginRequests) {
-        loginRequests.collect {
-            latestOnRequireManagedLogin.value()
         }
     }
 }
@@ -262,7 +248,6 @@ internal fun ChatAnchorTransitionEffect(
     }
 }
 
-
 @Composable
 internal fun ChatLoadMoreAboveEffect(
     listState: LazyListState,
@@ -280,7 +265,7 @@ internal fun ChatLoadMoreAboveEffect(
         }
             .distinctUntilChanged()
             .collect { firstVisible ->
-                
+
                 if (firstVisible in 0..MESSAGE_WINDOW_LOAD_MORE_THRESHOLD &&
                     canLoadMore &&
                     !isLoading
@@ -352,7 +337,7 @@ internal fun ChatMissingConversationExitEffect(
     onBack: () -> Unit,
 ) {
     LaunchedEffect(conversationId, hasMissingInitialConversation, isGenerating) {
-        
+
         if (isUserInitiatedExit) return@LaunchedEffect
         if (conversation != null) {
             onHasLoadedConversationChange(true)
@@ -399,14 +384,13 @@ internal fun ChatMetricsEffect(
 internal fun ChatScreenLeavingEffect(
     handleScreenLeaving: () -> Unit,
 ) {
-    
+
     DisposableEffect(Unit) {
         onDispose {
             handleScreenLeaving()
         }
     }
 }
-
 
 @Composable
 internal fun ChatNoteEffects(
@@ -428,8 +412,7 @@ internal fun ChatNoteEffects(
     onNavigateToNoteDetail: (String) -> Unit,
     onMaybeShowHint: () -> Unit,
 ) {
-    
-    
+
     var focusHandled by remember(conversationId, focusMessageId) { mutableStateOf(false) }
     var focusHydrationRequested by remember(conversationId, focusMessageId) { mutableStateOf(false) }
     LaunchedEffect(focusMessageId, conversationId, messages, hasMoreAbove, isLoadingAbove, isInitialLoading) {
@@ -453,7 +436,6 @@ internal fun ChatNoteEffects(
         }
     }
 
-    
     LaunchedEffect(highlightId) {
         if (highlightId != null) {
             delay(2200)
@@ -461,12 +443,10 @@ internal fun ChatNoteEffects(
         }
     }
 
-    
     LaunchedEffect(Unit) {
         navToNoteDetail.collect { noteId -> onNavigateToNoteDetail(noteId) }
     }
 
-    
     LaunchedEffect(lastDeliveredAssistant?.id) {
         if (lastDeliveredAssistant != null && lastDeliveredAssistant.text.isNotBlank()) {
             onMaybeShowHint()
@@ -482,9 +462,7 @@ internal fun recentMarkdownPrewarmTargets(messages: List<ChatMessage>): List<Cha
 }
 
 internal fun assistantMarkdownPrewarmFingerprint(messages: List<ChatMessage>): Int {
-    
-    
-    
+
     var acc = 1
     recentPrewarmCandidatesReverse(messages) { message ->
         acc = (((acc * 31) + message.id.hashCode()) * 31) + message.text.length

@@ -491,7 +491,6 @@ class ProviderDetailViewModel(
         )
     }
 
-    
     private fun localizeProviderStatusDetail(detail: String): String =
         runCatching {
             ErrorMapper.localizeProviderErrorMessage(detail, get<android.content.Context>())
@@ -507,7 +506,7 @@ class ProviderDetailViewModel(
         if (provider.kind != ProviderKind.Relay || isTestingRelayConnection) return
         val trimmedEndpoint = endpoint.trim()
         val trimmedModelID = modelID.trim().ifEmpty { provider.defaultModel?.id.orEmpty() }
-        
+
         val missingCredential = requiresCredential(provider) && !hasStoredKey(provider)
         if (trimmedEndpoint.isEmpty() || trimmedModelID.isEmpty() || missingCredential) {
             relayConnectionTestResult = RelayConnectionTestResult(
@@ -578,7 +577,7 @@ class ProviderDetailViewModel(
                 if (generation != relayConnectionTestGeneration) return@launch
                 relayConnectionTestResult = RelayConnectionTestResult(
                     isSuccess = false,
-                    
+
                     message = localizedRelayFailure(e),
                     failurePresentation = RelayEditFailurePresenter.present(failureCandidate, e),
                 )
@@ -598,7 +597,6 @@ class ProviderDetailViewModel(
         }
     }
 
-    
     private fun isPersistedRelayConnection(
         provider: Provider,
         relayKind: RelayKind,
@@ -620,7 +618,6 @@ class ProviderDetailViewModel(
             )
     }
 
-    
     fun invalidateRelayConnectionTest() {
         relaySecurityModeGeneration += 1
         relayConnectionTestGeneration += 1
@@ -639,7 +636,6 @@ class ProviderDetailViewModel(
         relayConnectionTestResult = null
     }
 
-    
     fun changeRelaySecurityMode(
         provider: Provider,
         mode: RelayConnectionSecurityMode,
@@ -663,7 +659,7 @@ class ProviderDetailViewModel(
             securityMode = mode,
             headers = if (cleartext && hasPersistedCredentialMaterial) null else existingRequested.headers,
             queryParams = if (cleartext && hasPersistedCredentialMaterial) null else existingRequested.queryParams,
-            
+
             resolvedAPIBaseURL = null,
         )
         val effectiveKey = if (cleartext) "" else provider.apiKey
@@ -692,7 +688,7 @@ class ProviderDetailViewModel(
             relayRequested = nextRequested,
             status = ProviderConnectionState.Issue(ProviderRepository.RELAY_UNVERIFIED_MESSAGE),
             lastError = ProviderRepository.RELAY_UNVERIFIED_MESSAGE,
-            
+
             models = emptyList(),
             catalogModels = emptyList(),
             lastCheckedAt = null,
@@ -727,8 +723,6 @@ class ProviderDetailViewModel(
                 }.exceptionOrNull()
                 if (generation != relaySecurityModeGeneration) return@launch
 
-                
-                
                 val catalogOutcome = providerRepository.resyncProviderForModeTransition(providerID) {
                     generation == relaySecurityModeGeneration
                 }
@@ -786,14 +780,11 @@ class ProviderDetailViewModel(
         }.getOrDefault(source)
     }
 
-    
-
-    
     sealed interface BalanceUiState {
         data object Hidden : BalanceUiState
-        
+
         data object Loading : BalanceUiState
-        
+
         data class Loaded(val balance: ProviderBalance, val isRefreshing: Boolean = false) : BalanceUiState
         data class Error(val detail: String) : BalanceUiState
         data class KeyInvalid(val detail: String) : BalanceUiState
@@ -803,15 +794,6 @@ class ProviderDetailViewModel(
     private val _balanceState = MutableStateFlow<BalanceUiState>(BalanceUiState.Hidden)
     val balanceState: StateFlow<BalanceUiState> = _balanceState
 
-    val managedWalletState: StateFlow<Any?> = MutableStateFlow(null)
-
-    val managedWeeklyQuotaOffer: StateFlow<Any?> = MutableStateFlow(null)
-
-    private var managedBalanceRefreshJob: Job? = null
-    private var managedBalanceRefreshOwnerKey: String? = null
-    private var managedBalanceRefreshGeneration = 0
-
-    
     fun ensureBalanceLoaded() {
         val current = provider.value ?: return
         if (current.kind !in BALANCE_CAPABLE_KINDS) {
@@ -826,7 +808,6 @@ class ProviderDetailViewModel(
         refreshBalance(forceRefresh = false)
     }
 
-    
     fun refreshBalance(forceRefresh: Boolean = true) {
         val current = provider.value ?: return
         if (current.kind !in BALANCE_CAPABLE_KINDS) {
@@ -847,7 +828,7 @@ class ProviderDetailViewModel(
             _balanceState.value = BalanceUiState.KeyInvalid("API key is empty.")
             return
         }
-        
+
         val previousBalance = (_balanceState.value as? BalanceUiState.Loaded)?.balance
         _balanceState.value = if (previousBalance != null) {
             BalanceUiState.Loaded(balance = previousBalance, isRefreshing = true)
@@ -865,7 +846,7 @@ class ProviderDetailViewModel(
                 }
                 throw e
             } catch (e: ProviderServiceError.InvalidAPIKey) {
-                
+
                 _balanceState.value = when {
                     current.kind == ProviderKind.OpenRouter -> BalanceUiState.Hidden
                     previousBalance != null -> BalanceUiState.Loaded(previousBalance, isRefreshing = false)
@@ -916,7 +897,7 @@ class ProviderDetailViewModel(
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (_: Exception) {
-                
+
                 globalSnackbarManager.show(
                     GlobalSnackbarMessage(
                         message = UiText.Resource(R.string.snackbar_provider_delete_failed),
@@ -936,7 +917,7 @@ class ProviderDetailViewModel(
             val promotedModel = model.copy(
                 isDefault = current.defaultModel == null || current.models.isEmpty(),
             )
-            
+
             globalSnackbarManager.show(
                 GlobalSnackbarMessage(
                     message = UiText.Resource(R.string.snackbar_model_added, listOf(model.name)),
@@ -950,7 +931,7 @@ class ProviderDetailViewModel(
 
     fun enableAllCatalogModels() {
         val current = provider.value ?: return
-        
+
         val resolved = resolvedCatalog.value ?: ProviderCatalogResolver.resolve(current)
         val allCatalogModels = resolved.catalog.map { it.model }
         if (allCatalogModels.isEmpty()) return
@@ -978,30 +959,25 @@ class ProviderDetailViewModel(
             it.copy(isDefault = it.id == model.id)
         }
         updateModels(current, updated)
-        
+
         viewModelScope.launch {
             appPreferencesRepository.setLastUsedModel(current.id, model)
         }
     }
 
-    
     var showGrokReauthorization: Boolean by mutableStateOf(false)
 
-    
     var showOpenAIReauthorization: Boolean by mutableStateOf(false)
 
-    
     val grokSubscriptionAvailability: GrokSubscriptionAvailability
         get() = MetadataClient.grokSubscriptionAvailability()
 
-    
     val openAISubscriptionAvailability: OpenAISubscriptionAvailability
         get() = MetadataClient.openAISubscriptionAvailability()
 
     fun isSubscriptionProvider(provider: Provider): Boolean =
         provider.authMode == ProviderAuthMode.Subscription
 
-    
     fun canReauthorizeSubscription(provider: Provider): Boolean = when {
         !isSubscriptionProvider(provider) -> false
         provider.kind == ProviderKind.OpenAI ->
@@ -1009,7 +985,6 @@ class ProviderDetailViewModel(
         else -> grokSubscriptionAvailability is GrokSubscriptionAvailability.Available
     }
 
-    
     fun completeGrokReauthorization(tokens: GrokSubscriptionTokens) {
         showGrokReauthorization = false
         viewModelScope.launch {
@@ -1026,7 +1001,6 @@ class ProviderDetailViewModel(
         }
     }
 
-    
     fun completeOpenAIReauthorization(tokens: OpenAISubscriptionTokens) {
         showOpenAIReauthorization = false
         viewModelScope.launch {
@@ -1045,11 +1019,7 @@ class ProviderDetailViewModel(
 
     fun startEditApiKey() {
         val current = provider.value ?: return
-        
-        
-        
-        
-        
+
         if (canReauthorizeSubscription(current)) {
             if (current.kind == ProviderKind.OpenAI) {
                 showOpenAIReauthorization = true
@@ -1084,8 +1054,7 @@ class ProviderDetailViewModel(
         if (!canEditApiKey(current)) return
         val key = editingApiKey.trim()
         if (key.isBlank()) {
-            
-            
+
             if (requiresCredential(current) && !hasStoredKey(current)) {
                 apiKeyEditErrorRes = R.string.provider_detail_api_key_required
                 apiKeyEditError = null
@@ -1096,13 +1065,13 @@ class ProviderDetailViewModel(
             showApiKeyEditor = false
             return
         }
-        
+
         if (isCleartextConnection(current)) {
             apiKeyEditErrorRes = R.string.relay_credentials_cleartext_blocked
             apiKeyEditError = null
             return
         }
-        
+
         if (!ProviderKeyInput.isPrintableAsciiKey(key)) {
             apiKeyEditErrorRes = R.string.provider_api_key_illegal_chars
             apiKeyEditError = null
@@ -1189,9 +1158,8 @@ class ProviderDetailViewModel(
         )
     }
 
-    
     fun computeCatalogGroups(provider: Provider, searchQuery: String): List<ProviderCatalogGroup> {
-        
+
         val resolved = resolvedCatalogSnapshot.value
             ?.takeIf { it.providerId == provider.id }
             ?.catalog
@@ -1204,28 +1172,23 @@ class ProviderDetailViewModel(
         )
     }
 
-    
     fun enabledModelsTitle(provider: Provider): Int = when (provider.kind) {
         ProviderKind.Relay, ProviderKind.OpenAI -> R.string.provider_detail_models_title
         else -> R.string.added_models
     }
 
-    
     fun requiresCredential(provider: Provider): Boolean =
         if (provider.kind == ProviderKind.Relay) provider.relayRequested.requiresCredential else true
 
-    
     fun hasStoredKey(provider: Provider): Boolean = hasStoredCredential(provider.apiKey)
 
     fun isCleartextConnection(provider: Provider): Boolean =
         provider.kind == ProviderKind.Relay && provider.relayRequested.isCleartextConnection
 
-    
     fun canEditApiKey(provider: Provider): Boolean =
         provider.kind.allowsCredentialEditing &&
             (requiresCredential(provider) || hasStoredKey(provider))
 
-    
     fun removeApiKey() {
         val current = provider.value ?: return
         if (!current.kind.allowsCredentialEditing) return
@@ -1259,8 +1222,14 @@ class ProviderDetailViewModel(
         modelSearchQuery = value
     }
 
+    /**
+     * The endpoint picker is only offered where the choice can actually be stored. The catalog may
+     * publish regions for a provider whose endpoint is fixed in this build; showing a picker for it
+     * would collect an answer the repository then drops.
+     */
     fun canEditEndpoint(provider: Provider): Boolean =
         canEditApiKey(provider) &&
+            provider.kind.usesConfigurableBaseUrl &&
             ai.oriveo.community.feature.providers.setup.ProviderSetupCopy
                 .regionOptions(provider.kind).isNotEmpty()
 
@@ -1277,10 +1246,6 @@ class ProviderDetailViewModel(
 
     fun canDeleteProvider(provider: Provider): Boolean = provider.kind.allowsDeletion
 
-    fun canDeleteFreeData(provider: Provider): Boolean = provider.kind == ProviderKind.OpenAI
-
-    fun canReportFreeIssue(provider: Provider): Boolean = provider.kind == ProviderKind.OpenAI
-
     fun saveRelaySettings(
         provider: Provider,
         relayKind: RelayKind,
@@ -1290,8 +1255,7 @@ class ProviderDetailViewModel(
     ) {
         if (provider.kind != ProviderKind.Relay || isSavingRelaySettings) return
         val dropsCredential = !relayRequested.requiresCredential && hasStoredKey(provider)
-        
-        
+
         val normalizedBaseUrl = try {
             RelayEndpointPolicy.requireConfigured(
                 baseUrl = baseUrlText,
@@ -1302,7 +1266,7 @@ class ProviderDetailViewModel(
                 ),
             )
         } catch (e: ProviderServiceError.InvalidConfiguration) {
-            
+
             globalSnackbarManager.show(
                 GlobalSnackbarMessage(
                     message = UiText.Resource(relaySaveBlockedMessageRes(e.detail)),
@@ -1315,8 +1279,7 @@ class ProviderDetailViewModel(
         val preparedProvider = ensurePreferredModelInList(provider.copy(
             baseUrlText = normalizedBaseUrl,
             relayKind = relayKind,
-            
-            
+
             catalogModels = if (plan.refreshCatalog) emptyList() else provider.catalogModels,
             cachedAvailableModelCount = if (plan.refreshCatalog) null else provider.cachedAvailableModelCount,
             relayRequested = relayRequested.copy(
@@ -1371,7 +1334,7 @@ class ProviderDetailViewModel(
                         PendingRelayEdit(updatedProvider, uiMessage, revision, plan.refreshCatalog)
                     }
                     canSaveRelaySettingsUnverified = pendingRelayEdit != null
-                    
+
                     relayCatalogTransientState = null
                     relayConnectionTestResult = RelayConnectionTestResult(
                         isSuccess = false,
@@ -1384,8 +1347,7 @@ class ProviderDetailViewModel(
             } catch (error: Exception) {
                 if (generation == relayEditGeneration) {
                     val uiMessage = localizedRelayFailure(error)
-                    
-                    
+
                     pendingRelayEdit = null
                     canSaveRelaySettingsUnverified = false
                     relayCatalogTransientState = null
@@ -1400,7 +1362,6 @@ class ProviderDetailViewModel(
         }
     }
 
-    
     fun saveRelaySettingsUnverified(onSaved: () -> Unit = {}) {
         val pending = pendingRelayEdit ?: return
         if (isSavingRelaySettings) return
@@ -1445,7 +1406,6 @@ class ProviderDetailViewModel(
         }
     }
 
-    
     private fun launchRelayCatalogRefreshAfterSave(
         revision: ProviderRepository.RelayEditRevision,
         editGeneration: Long,
@@ -1476,7 +1436,6 @@ class ProviderDetailViewModel(
         }
     }
 
-    
     @androidx.annotation.VisibleForTesting
     internal fun relaySaveBlockedMessageRes(reason: String): Int = when (reason) {
         "cleartext_credentials" -> R.string.relay_credentials_cleartext_blocked
@@ -1498,7 +1457,7 @@ class ProviderDetailViewModel(
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (_: Exception) {
-                
+
                 if (_optimisticProvider.value?.id == provider.id) {
                     _optimisticProvider.value = null
                 }
@@ -1514,7 +1473,7 @@ class ProviderDetailViewModel(
     private fun ensurePreferredModelInList(provider: Provider, modelID: String?): Provider {
         val preferredId = modelID?.trim()?.takeIf { it.isNotEmpty() } ?: return provider
         val existing = (provider.models + provider.catalogModels).firstOrNull { it.id == preferredId }
-        
+
         val defaults = ProviderRepository.DEFAULT_MANUAL_MODEL_CAPABILITIES
         val baseModel = existing ?: AIModel(
             id = preferredId,
@@ -1547,13 +1506,13 @@ class ProviderDetailViewModel(
     }
 
     private fun updateProvider(updatedProvider: Provider) {
-        
+
         _optimisticProvider.value = updatedProvider
 
         viewModelScope.launch {
             try {
                 providerRepository.updateProvider(updatedProvider)
-                
+
                 delay(300)
                 if (_optimisticProvider.value === updatedProvider) {
                     _optimisticProvider.value = null
@@ -1561,9 +1520,7 @@ class ProviderDetailViewModel(
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (_: Exception) {
-                
-                
-                
+
                 if (_optimisticProvider.value === updatedProvider) {
                     _optimisticProvider.value = null
                 }
