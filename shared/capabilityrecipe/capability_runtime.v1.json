@@ -1,16 +1,18 @@
 {
-  "$comment": "The data plane for capability runtime revision 1: recipes / controlDefinitions / sourceIndex. Every recipe matches the recipeSchema of request_shape_contract.v2 field by field. officialUpdatedAt is always null when the official page shows no publish date — a scrape date must never stand in for an official one. A recipe id has the shape provider.transport.capability.vN; when a provider+transport+capability has two official wire shapes (Anthropic budget/adaptive, Gemini thinkingBudget/thinkingLevel), vN discriminates between the shapes and is not a registry revision. ⚠️ reviewedAt is recorded per entry, not as one shared date across the whole file — a single shared review date makes a real per-URL check and a one-time bulk-filled date look identical, and does not prove any specific URL was actually opened that day. Each recipe and each sourceIndex entry carries its own reviewedAt. What holds this file honest is the client contract suites that load it and drive their own production resolver, request builder and stream parser from it, case by case: web/apps/app/lib/core/chat/model-control-runtime-contract.test.ts and web/apps/app/lib/core/chat/capability-result-matrix.test.ts, ios/Oriveo/OriveoTests/CapabilityRuntimeRejectionTests.swift (via OriveoTests/Mocks/CapabilityRuntimeFixtures.swift), and android/app/src/test/java/ai/oriveo/community/core/provider/CapabilityRecipeRequestCompilerTest.kt. A recipe none of them can execute fails those suites.",
+  "$comment": "The data plane for capability runtime revision 1: recipes / controlDefinitions / sourceIndex. controlDefinitions is the envelope a recipe's controlRefs resolve against; it is empty in this snapshot, and the typed controls the clients ship are declared in the sibling file capabilityrecipe/capability_custom_controls.v2.json. Every recipe matches the recipeSchema of request_shape_contract.v2 field by field. officialUpdatedAt is always null when the official page shows no publish date — a scrape date must never stand in for an official one. A recipe id has the shape provider.transport.capability.vN; when a provider+transport+capability has two official wire shapes (Anthropic budget/adaptive, Gemini thinkingBudget/thinkingLevel), vN discriminates between the shapes and is not a registry revision. ⚠️ reviewedAt is recorded per entry, not as one shared date across the whole file — a single shared review date makes a real per-URL check and a one-time bulk-filled date look identical, and does not prove any specific URL was actually opened that day. Each recipe and each sourceIndex entry carries its own reviewedAt. What holds this file honest is the client contract suites that load it and drive their own production resolver, request builder and stream parser from it, case by case: web/apps/app/lib/core/chat/model-control-runtime-contract.test.ts and web/apps/app/lib/core/chat/capability-result-matrix.test.ts, ios/Oriveo/OriveoTests/CapabilityRuntimeRejectionTests.swift (via OriveoTests/Mocks/CapabilityRuntimeFixtures.swift), and android/app/src/test/java/ai/oriveo/community/core/provider/CapabilityRecipeRequestCompilerTest.kt. A recipe none of them can execute fails those suites.",
   "schemaVersion": 2,
   "sourceIndex": {
     "openai.web_search": {
       "kind": "official_doc",
       "url": "https://developers.openai.com/api/docs/guides/tools-web-search",
-      "reviewedAt": "2026-08-11"
+      "reviewedAt": "2026-08-11",
+      "officialUpdatedAt": null
     },
     "anthropic.web_search": {
       "kind": "official_doc",
       "url": "https://platform.claude.com/docs/en/agents-and-tools/tool-use/web-search-tool",
-      "reviewedAt": "2026-08-11"
+      "reviewedAt": "2026-08-11",
+      "officialUpdatedAt": null
     },
     "gemini.interactions": {
       "kind": "official_doc",
@@ -27,47 +29,56 @@
     "openrouter.server_tools": {
       "kind": "official_doc",
       "url": "https://openrouter.ai/docs/guides/features/server-tools/web-search",
-      "reviewedAt": "2026-08-11"
+      "reviewedAt": "2026-08-11",
+      "officialUpdatedAt": null
     },
     "grok.web_search": {
       "kind": "official_doc",
       "url": "https://docs.x.ai/developers/tools/web-search",
-      "reviewedAt": "2026-08-15"
+      "reviewedAt": "2026-08-15",
+      "officialUpdatedAt": null
     },
     "grok.retirement": {
       "kind": "official_doc",
       "url": "https://docs.x.ai/developers/migration/may-15-retirement",
-      "reviewedAt": "2026-08-15"
+      "reviewedAt": "2026-08-15",
+      "officialUpdatedAt": null
     },
     "zhipu.web_search": {
       "kind": "official_doc",
       "url": "https://docs.bigmodel.cn/cn/guide/tools/web-search",
-      "reviewedAt": "2026-08-15"
+      "reviewedAt": "2026-08-15",
+      "officialUpdatedAt": null
     },
     "qwen.web_search": {
       "kind": "official_doc",
       "url": "https://www.alibabacloud.com/help/en/model-studio/web-search",
-      "reviewedAt": "2026-08-11"
+      "reviewedAt": "2026-08-11",
+      "officialUpdatedAt": null
     },
     "kimi.official_tools": {
       "kind": "official_doc",
       "url": "https://platform.kimi.ai/docs/guide/use-official-tools",
-      "reviewedAt": "2026-08-15"
+      "reviewedAt": "2026-08-15",
+      "officialUpdatedAt": null
     },
     "mistral.web_search": {
       "kind": "official_doc",
       "url": "https://docs.mistral.ai/studio/agents/agent-tools/websearch",
-      "reviewedAt": "2026-08-15"
+      "reviewedAt": "2026-08-15",
+      "officialUpdatedAt": null
     },
     "mistral.agent_tools": {
       "kind": "official_doc",
       "url": "https://docs.mistral.ai/studio/agents/agent-tools",
-      "reviewedAt": "2026-08-15"
+      "reviewedAt": "2026-08-15",
+      "officialUpdatedAt": null
     },
     "groq.built_in_tools": {
       "kind": "official_doc",
       "url": "https://console.groq.com/docs/tool-use/built-in-tools/web-search",
-      "reviewedAt": "2026-08-11"
+      "reviewedAt": "2026-08-11",
+      "officialUpdatedAt": null
     },
     "deepseek.thinking_mode": {
       "kind": "official_doc",
@@ -78,137 +89,164 @@
     "deepseek.chat_api": {
       "kind": "official_doc",
       "url": "https://api-docs.deepseek.com/api/create-chat-completion",
-      "reviewedAt": "2026-08-15"
+      "reviewedAt": "2026-08-15",
+      "officialUpdatedAt": null
     },
     "together.chat_completions": {
       "kind": "official_doc",
       "url": "https://docs.together.ai/reference/chat-completions",
-      "reviewedAt": "2026-08-11"
+      "reviewedAt": "2026-08-11",
+      "officialUpdatedAt": null
     },
     "fireworks.chat_completions": {
       "kind": "official_doc",
       "url": "https://docs.fireworks.ai/api-reference/post-chatcompletions",
-      "reviewedAt": "2026-08-11"
+      "reviewedAt": "2026-08-11",
+      "officialUpdatedAt": null
     },
     "siliconflow.chat_completions": {
       "kind": "official_doc",
       "url": "https://docs.siliconflow.cn/en/api-reference/chat-completions/chat-completions",
-      "reviewedAt": "2026-08-11"
+      "reviewedAt": "2026-08-11",
+      "officialUpdatedAt": null
     },
     "minimax.text_api": {
       "kind": "official_doc",
       "url": "https://platform.minimax.io/docs/api-reference/text-post",
-      "reviewedAt": "2026-08-11"
+      "reviewedAt": "2026-08-11",
+      "officialUpdatedAt": null
     },
     "openai.reasoning": {
       "kind": "official_doc",
       "url": "https://developers.openai.com/api/docs/guides/latest-model",
-      "reviewedAt": "2026-08-11"
+      "reviewedAt": "2026-08-11",
+      "officialUpdatedAt": null
     },
     "anthropic.effort": {
       "kind": "official_doc",
       "url": "https://platform.claude.com/docs/en/build-with-claude/effort",
-      "reviewedAt": "2026-08-11"
+      "reviewedAt": "2026-08-11",
+      "officialUpdatedAt": null
     },
     "gemini.thinking": {
       "kind": "official_doc",
       "url": "https://ai.google.dev/gemini-api/docs/generate-content/thinking",
-      "reviewedAt": "2026-08-11"
+      "reviewedAt": "2026-08-11",
+      "officialUpdatedAt": null
     },
     "openrouter.reasoning_tokens": {
       "kind": "official_doc",
       "url": "https://openrouter.ai/docs/guides/best-practices/reasoning-tokens",
-      "reviewedAt": "2026-08-11"
+      "reviewedAt": "2026-08-11",
+      "officialUpdatedAt": null
     },
     "deepseek.pricing": {
       "kind": "official_doc",
       "url": "https://api-docs.deepseek.com/quick_start/pricing",
-      "reviewedAt": "2026-08-15"
+      "reviewedAt": "2026-08-15",
+      "officialUpdatedAt": null
     },
     "grok.reasoning": {
       "kind": "official_doc",
       "url": "https://docs.x.ai/developers/model-capabilities/text/reasoning",
-      "reviewedAt": "2026-08-15"
+      "reviewedAt": "2026-08-15",
+      "officialUpdatedAt": null
     },
     "grok.models": {
       "kind": "official_doc",
       "url": "https://docs.x.ai/developers/models",
-      "reviewedAt": "2026-08-15"
+      "reviewedAt": "2026-08-15",
+      "officialUpdatedAt": null
     },
     "mistral.reasoning": {
       "kind": "official_doc",
       "url": "https://docs.mistral.ai/studio/conversations/reasoning",
-      "reviewedAt": "2026-08-15"
+      "reviewedAt": "2026-08-15",
+      "officialUpdatedAt": null
     },
     "mistral.deprecations": {
       "kind": "official_doc",
       "url": "https://docs.mistral.ai/models",
-      "reviewedAt": "2026-08-15"
+      "reviewedAt": "2026-08-15",
+      "officialUpdatedAt": null
     },
     "groq.reasoning": {
       "kind": "official_doc",
       "url": "https://console.groq.com/docs/reasoning",
-      "reviewedAt": "2026-08-11"
+      "reviewedAt": "2026-08-11",
+      "officialUpdatedAt": null
     },
     "together.reasoning": {
       "kind": "official_doc",
       "url": "https://docs.together.ai/docs/inference/chat/reasoning",
-      "reviewedAt": "2026-08-11"
+      "reviewedAt": "2026-08-11",
+      "officialUpdatedAt": null
     },
     "fireworks.reasoning": {
       "kind": "official_doc",
       "url": "https://docs.fireworks.ai/guides/reasoning",
-      "reviewedAt": "2026-08-11"
+      "reviewedAt": "2026-08-11",
+      "officialUpdatedAt": null
     },
     "zhipu.migration": {
       "kind": "official_doc",
       "url": "https://docs.bigmodel.cn/cn/guide/start/migrate-to-glm-new",
-      "reviewedAt": "2026-08-11"
+      "reviewedAt": "2026-08-11",
+      "officialUpdatedAt": null
     },
     "zhipu.thinking": {
       "kind": "official_doc",
       "url": "https://docs.bigmodel.cn/cn/guide/capabilities/thinking",
-      "reviewedAt": "2026-09-04"
+      "reviewedAt": "2026-09-04",
+      "officialUpdatedAt": null
     },
     "zhipu.thinking_mode": {
       "kind": "official_doc",
       "url": "https://docs.bigmodel.cn/cn/guide/capabilities/thinking-mode",
-      "reviewedAt": "2026-08-15"
+      "reviewedAt": "2026-08-15",
+      "officialUpdatedAt": null
     },
     "qwen.deep_thinking": {
       "kind": "official_doc",
       "url": "https://www.alibabacloud.com/help/en/model-studio/deep-thinking",
-      "reviewedAt": "2026-08-11"
+      "reviewedAt": "2026-08-11",
+      "officialUpdatedAt": null
     },
     "qwen.responses_api": {
       "kind": "official_doc",
       "url": "https://www.alibabacloud.com/help/en/model-studio/qwen-api-via-openai-responses",
-      "reviewedAt": "2026-08-11"
+      "reviewedAt": "2026-08-11",
+      "officialUpdatedAt": null
     },
     "kimi.web_search": {
       "kind": "official_doc",
       "url": "https://platform.kimi.ai/docs/guide/use-web-search",
-      "reviewedAt": "2026-08-15"
+      "reviewedAt": "2026-08-15",
+      "officialUpdatedAt": null
     },
     "kimi.thinking_models": {
       "kind": "official_doc",
       "url": "https://platform.kimi.ai/docs/guide/use-thinking-models",
-      "reviewedAt": "2026-08-15"
+      "reviewedAt": "2026-08-15",
+      "officialUpdatedAt": null
     },
     "kimi.reasoning_effort": {
       "kind": "official_doc",
       "url": "https://platform.kimi.ai/docs/guide/use-reasoning-effort",
-      "reviewedAt": "2026-08-15"
+      "reviewedAt": "2026-08-15",
+      "officialUpdatedAt": null
     },
     "minimax.web_search_mcp": {
       "kind": "official_doc",
       "url": "https://platform.minimax.io/docs/token-plan/mcp-guide",
-      "reviewedAt": "2026-08-11"
+      "reviewedAt": "2026-08-11",
+      "officialUpdatedAt": null
     },
     "minimax.server_tools": {
       "kind": "official_doc",
       "url": "https://platform.minimax.io/docs/guides/server-tools",
-      "reviewedAt": "2026-08-23"
+      "reviewedAt": "2026-08-23",
+      "officialUpdatedAt": null
     }
   },
   "controlDefinitions": {},
