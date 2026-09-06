@@ -1,22 +1,15 @@
 package ai.oriveo.community.core.model
 
 import android.content.Context
-import android.content.SharedPreferences
-import android.os.Handler
-import android.os.Looper
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
-import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
-import kotlinx.serialization.json.decodeFromJsonElement
 import kotlinx.serialization.json.doubleOrNull
-import kotlinx.serialization.json.longOrNull
 import ai.oriveo.community.core.util.canonicalSyncId
 import ai.oriveo.community.core.util.normalizeUuid
 import java.time.Instant
@@ -92,7 +85,6 @@ class GenerationParameterSyncLedger internal constructor(
     @Synchronized
     fun clear(recordID: String) = replace(all().filterNot { it.recordId == recordID })
 
-    
     @Synchronized
     fun clearAll() = replace(emptyList())
 
@@ -114,9 +106,7 @@ class GenerationParameterSyncContract(
     private val settings: GenerationParameterSettingsStore,
     private val presets: GenerationParameterPresetStore,
     private val ledger: GenerationParameterSyncLedger,
-    
-    
-    
+
     private val json: Json = Json {
         ignoreUnknownKeys = true; encodeDefaults = true; explicitNulls = false; prettyPrint = true
     },
@@ -183,8 +173,7 @@ class GenerationParameterSyncContract(
     }
 
     fun merge(remote: GenerationParameterSyncPayload): GenerationParameterSyncPayload {
-        
-        
+
         val previousRecordTimestamps = settings.rawSyncRecords().associate { record ->
             syncVersionKey(
                 settings.recordID(record),
@@ -207,8 +196,7 @@ class GenerationParameterSyncContract(
             ) candidates[id] = value
         }
         fun add(payload: GenerationParameterSyncPayload) {
-            
-            
+
             payload.records.mapNotNull(::normalized).forEach { put(it.recordId, Candidate.Record(it)) }
             payload.presets.mapNotNull(::normalized).forEach { put("preset:${it.id}", Candidate.Preset(it)) }
             payload.tombstones.filter { it.recordId.isNotBlank() && it.revision > 0 && it.mutationId.isNotBlank() }
@@ -222,8 +210,7 @@ class GenerationParameterSyncContract(
             tombstones = candidates.values.mapNotNull { (it as? Candidate.Tombstone)?.value }.sortedBy { it.recordId }.takeLast(300),
         )
         val mergedAt = System.currentTimeMillis()
-        
-        
+
         settings.replaceSyncRecords(merged.records.map { record ->
             val timestampKey = syncVersionKey(record.recordId, record.revision, record.mutationId)
             val updatedAt = if (previousRecordTimestamps.containsKey(timestampKey)) {
@@ -262,13 +249,6 @@ class GenerationParameterSyncContract(
         ledger.replace(merged.tombstones)
         return merged
     }
-
-    fun decodeRemote(raw: Any?): GenerationParameterSyncPayload? = runCatching {
-        json.decodeFromJsonElement<GenerationParameterSyncPayload>(raw.toJsonElement())
-    }.getOrNull()?.takeIf { it.schemaVersion == 1 }
-
-    fun foundationValue(payload: GenerationParameterSyncPayload): Map<String, Any> =
-        json.parseToJsonElement(json.encodeToString(payload)).toFoundation() as Map<String, Any>
 
     private fun normalized(value: GenerationParameterSyncRecord): GenerationParameterSyncRecord? {
         if (value.scope !in VALID_SCOPES || value.providerId.isBlank() || value.revision < 1 || value.mutationId.isBlank()) return null
@@ -324,75 +304,17 @@ class GenerationParameterSyncContract(
     }
 }
 
+/**
+ * File export and import for the generation-parameter defaults, presets and their delete ledger.
+ *
+ * The settings sheet writes [exportJSON] to a document the user picks and feeds a document back
+ * through [importJSON], which merges it into the local stores by revision.
+ */
 class GenerationParameterSyncCoordinator(context: Context) {
-    private val appContext = context.applicationContext
-    private val contract = GenerationParameterSyncContract.from(appContext)
-    private val handler = Handler(Looper.getMainLooper())
-    
-    
-    @Volatile
-    private var writer: ((Map<String, Any>) -> Unit)? = null
-    private var publishQueued = false
-    private val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, _ -> queuePublish() }
-
-    init {
-        listOf(
-            GenerationParameterSettingsStore.PREFS_NAME,
-            GenerationParameterPresetStore.PREFS_NAME,
-            GenerationParameterSyncLedger.PREFS_NAME,
-        ).forEach { name ->
-            appContext.getSharedPreferences(name, Context.MODE_PRIVATE).registerOnSharedPreferenceChangeListener(listener)
-        }
-    }
-
-    fun bind(writer: (Map<String, Any>) -> Unit) {
-        this.writer = writer
-        queuePublish()
-    }
-
-    fun unbind() { writer = null }
-
-    fun mergeRemote(raw: Any?): GenerationParameterSyncPayload? =
-        contract.decodeRemote(raw)?.let(contract::merge)
-
-    fun convergeRemote(raw: Any?): Map<String, Any>? {
-        val remote = contract.decodeRemote(raw) ?: return null
-        val merged = contract.merge(remote)
-        return contract.foundationValue(merged).takeIf { merged != remote }
-    }
+    private val contract = GenerationParameterSyncContract.from(context.applicationContext)
 
     fun exportJSON(): String = contract.exportJSON()
+
     fun importJSON(raw: String): GenerationParameterSyncPayload = contract.importJSON(raw)
-    fun foundationValue(payload: GenerationParameterSyncPayload): Map<String, Any> = contract.foundationValue(payload)
-
-    
-    private fun queuePublish() {
-        if (publishQueued) return
-        publishQueued = true
-        handler.post {
-            publishQueued = false
-            val payload = contract.exportPayload()
-            if (payload.records.isEmpty() && payload.presets.isEmpty() && payload.tombstones.isEmpty()) {
-                return@post
-            }
-            writer?.invoke(contract.foundationValue(payload))
-        }
-    }
 }
 
-private fun Any?.toJsonElement(): JsonElement = when (this) {
-    null -> JsonNull
-    is JsonElement -> this
-    is Map<*, *> -> JsonObject(entries.mapNotNull { (key, value) -> (key as? String)?.let { it to value.toJsonElement() } }.toMap())
-    is List<*> -> JsonArray(map { it.toJsonElement() })
-    is Boolean -> JsonPrimitive(this)
-    is Number -> JsonPrimitive(this)
-    else -> JsonPrimitive(toString())
-}
-
-private fun JsonElement.toFoundation(): Any? = when (this) {
-    JsonNull -> null
-    is JsonObject -> entries.mapNotNull { (key, value) -> value.toFoundation()?.let { key to it } }.toMap()
-    is JsonArray -> mapNotNull { it.toFoundation() }
-    is JsonPrimitive -> booleanOrNull ?: longOrNull ?: doubleOrNull ?: content
-}

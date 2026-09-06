@@ -120,32 +120,27 @@ class AppPreferencesRepositoryTest {
     }
 
     @Test
-    fun `togglePinnedConversation persists and syncs updated pin list`() = runTest {
-        val syncedRepository = AppPreferencesRepository(
-            preferenceDao = preferenceDao,
-        )
+    fun `togglePinnedConversation persists the updated pin list`() = runTest {
+        val repository = AppPreferencesRepository(preferenceDao = preferenceDao)
 
-        val updated = syncedRepository.togglePinnedConversation("conversation-1", "2026-05-31T01:00:00Z")
+        val updated = repository.togglePinnedConversation("conversation-1", "2026-05-31T01:00:00Z")
 
         assertEquals(listOf("conversation-1"), updated)
-        assertEquals(listOf("conversation-1"), syncedRepository.getPinnedConversationIds())
+        assertEquals(listOf("conversation-1"), repository.getPinnedConversationIds())
     }
 
     @Test
     fun `primeLastUsedModel reflects synchronously and overrides stale room value`() = runTest {
         val scopedRepository = AppPreferencesRepository(preferenceDao)
-        
+
         preferenceDao.set(PreferenceEntity(AppPreferenceKeys.LAST_USED_PROVIDER_ID, "old-provider"))
         preferenceDao.set(PreferenceEntity(AppPreferenceKeys.LAST_USED_MODEL_ID, "old-model"))
 
-        
         scopedRepository.primeLastUsedModel("new-provider", "new-model")
 
-        
         assertEquals("new-provider", scopedRepository.lastUsedModelRefSnapshot?.providerID)
         assertEquals("new-model", scopedRepository.lastUsedModelRefSnapshot?.modelID)
 
-        
         val ref = scopedRepository.lastUsedModelRef.first()
         assertEquals("new-provider", ref?.providerID)
         assertEquals("new-model", ref?.modelID)

@@ -1,36 +1,40 @@
 package ai.oriveo.community.core.model
 
 import android.content.Context
-import android.os.Looper
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.longOrNull
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
-import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
-import org.robolectric.Shadows.shadowOf
 import java.nio.file.Files
 import java.nio.file.Paths
 
 /**
- * Cross-platform wire invariants.
+ * Cross-platform wire invariants for the exported preference documents.
  *
- * All platforms must encode the same content into byte-for-byte identical wire envelopes,
- * otherwise the side reading the other's envelope judges it "behind" and writes back, and the
- * other side writes back again -- an infinite ping-pong caused only by ordering or key-set
- * differences. This file locks down three invariants on the Android side:
- * 1. Top-level keys stay constant (schemaVersion and empty arrays must not be omitted by
- *    encodeDefaults).
- * 2. Null optional fields are omitted (matching the shape of Web's `...(x ? {x} : {})` and
- *    Swift's nil omission).
- * 3. Arrays sort by code point (`~` sorts after `z`, matching Web's `compareWireId` and
- *    Swift's `<`).
+ * Every platform has to encode the same content into byte-for-byte identical envelopes: if one side
+ * reorders a key set or writes an explicit null where another omits the field, importing the other's
+ * document looks like a change and writes back a document that looks like a change in turn. Two
+ * invariants are locked down here, both read from the contract files under shared/model-contracts
+ * rather than restated:
+ * 1. Top-level keys stay constant - schemaVersion and empty arrays are written, not omitted.
+ * 2. Null optional fields are omitted, matching Web's `...(x ? {x} : {})` and Swift's nil omission.
+ *
+ * A third invariant, that arrays sort by code point (`~` sorts after `z`, matching Web's
+ * `compareWireId` and Swift's `<`), is asserted on the store's own ordering.
  */
 @RunWith(RobolectricTestRunner::class)
 class PreferenceSyncWireInvariantTest {
@@ -56,61 +60,60 @@ class PreferenceSyncWireInvariantTest {
         return String(Files.readAllBytes(path), Charsets.UTF_8)
     }
 
-    @Test
-    fun `capability wire always carries schemaVersion and arrays and omits null fields`() {
-        val store = CapabilityPreferenceStore.from(context)
-        val coordinator = CapabilityPreferenceSyncCoordinator(context)
-        store.setConnectionModel(
-            CapabilityPreferenceValues(CapabilityWebPreference.Force, null),
-            "9A1195DE-3AF9-5888-ABC8-B8177C458C07", "gpt-test", transport,
-        )
-        val wire = coordinator.foundationValue(store.exportPayload())
-        assertEquals(topLevelKeys(CAPABILITY_CONTRACT), wire.keys)
-        assertEquals(2, (wire["schemaVersion"] as Number).toInt())
-        @Suppress("UNCHECKED_CAST")
-        val record = (wire["records"] as List<Map<String, Any>>).single()
-        omitWhenNull(CAPABILITY_CONTRACT).forEach { field ->
-            assertFalse("$field must be omitted entirely when empty, not written as an explicit null", field in record)
-        }
-        assertTrue("recordId" in record && "web" in record && "revision" in record)
+    /**
+     * The document as plain values, so a missing field and a field holding null are told apart by
+     * key presence. The JSON text comes from the production exporter, never from a Json instance
+     * configured here, or the test would only be checking its own settings.
+     */
+    private fun wireMap(exportedJson: String): Map<String, Any?> =
+        (Json.parseToJsonElement(exportedJson) as JsonObject).mapValues { (_, value) -> value.toPlainValue() }
+
+    private fun JsonElement.toPlainValue(): Any? = when (this) {
+        is JsonNull -> null
+        is JsonObject -> entries.associate { (key, value) -> key to value.toPlainValue() }
+        is JsonArray -> map { it.toPlainValue() }
+        is JsonPrimitive -> booleanOrNull ?: longOrNull ?: doubleOrNull ?: content
     }
 
     @Test
-    fun `empty capability wire still carries schemaVersion and arrays`() {
-        val wire = CapabilityPreferenceSyncCoordinator(context)
-            .foundationValue(CapabilityPreferenceSyncPayload())
-        assertEquals(topLevelKeys(CAPABILITY_CONTRACT), wire.keys)
+    fun `generation wire always carries schemaVersion and arrays and omits null fields`() {
+        GenerationParameterSettingsStore.from(context).setModelDefaults(
+            GenerationParameterOverrides(
+                mapOf("temperature" to GenerationParameterOverride(GenerationOverrideState.Value, JsonPrimitive(0.4))),
+            ),
+            providerID = PROVIDER, modelID = "gpt-test",
+        )
+        val wire = wireMap(GenerationParameterSyncContract.from(context).exportJSON())
+
+        assertEquals(topLevelKeys(GENERATION_CONTRACT), wire.keys)
+        assertEquals(1, (wire["schemaVersion"] as Number).toInt())
+        @Suppress("UNCHECKED_CAST")
+        val record = (wire["records"] as List<Map<String, Any?>>).single()
+        // A model_default record has no conversation, and the fields it does not carry have to be
+        // absent from the object rather than present holding null.
+        assertFalse("conversationId must be omitted entirely, not written as an explicit null", "conversationId" in record)
+        omitWhenNull(GENERATION_CONTRACT).forEach { field ->
+            assertFalse("$field is present but null; it must be omitted instead", field in record && record[field] == null)
+        }
+    }
+
+    @Test
+    fun `empty generation wire still carries schemaVersion and arrays`() {
+        val wire = wireMap(GenerationParameterSyncContract.from(context).exportJSON())
+
+        assertEquals(topLevelKeys(GENERATION_CONTRACT), wire.keys)
         assertEquals(emptyList<Any>(), wire["records"])
         assertEquals(emptyList<Any>(), wire["tombstones"])
     }
 
     @Test
-    fun `generation wire always carries schemaVersion and arrays and omits null fields`() {
-        val settings = GenerationParameterSettingsStore.from(context)
-        settings.setModelDefaults(
-            GenerationParameterOverrides(
-                mapOf("temperature" to GenerationParameterOverride(GenerationOverrideState.Value, JsonPrimitive(0.4))),
-            ),
-            providerID = "9A1195DE-3AF9-5888-ABC8-B8177C458C07", modelID = "gpt-test",
-        )
-        val contract = GenerationParameterSyncContract.from(context)
-        val wire = GenerationParameterSyncCoordinator(context).foundationValue(contract.exportPayload())
-        assertEquals(topLevelKeys(GENERATION_CONTRACT), wire.keys)
-        assertEquals(1, (wire["schemaVersion"] as Number).toInt())
-        @Suppress("UNCHECKED_CAST")
-        val record = (wire["records"] as List<Map<String, Any>>).single()
-        assertFalse("a model_default record has no conversation, must not be written as an explicit null", "conversationId" in record)
-    }
-
-    @Test
-    fun `capability tombstone wire order is code point ordered across the tilde boundary`() {
+    fun `capability tombstone order is code point ordered across the tilde boundary`() {
         val store = CapabilityPreferenceStore.from(context)
-        val provider = "9A1195DE-3AF9-5888-ABC8-B8177C458C07"
         listOf("~deepseek/deepseek-v4-flash", "z-ai/glm-5", "cohere/north-mini").forEach { model ->
             store.setConnectionModel(
-                CapabilityPreferenceValues(CapabilityWebPreference.Force, null), provider, model, transport,
+                CapabilityPreferenceValues(CapabilityWebPreference.Force, null), PROVIDER, model, transport,
             )
-            store.setConnectionModel(null, provider, model, transport)
+            store.setConnectionModel(null, PROVIDER, model, transport)
         }
         val ids = store.exportPayload().tombstones.map { it.recordID }
         assertEquals(3, ids.size)
@@ -121,102 +124,6 @@ class PreferenceSyncWireInvariantTest {
                 element.jsonPrimitive.content.substringAfter("07:").substringBefore(":r1.")
             }
         assertEquals(expected, ids.map { it.substringAfter("07:").substringBefore(":r1.") })
-    }
-
-    // ── emptyEnvelopeNeverOutbound ─────────────────────────────────────
-    //
-    // A `set(merge)` write treats array fields as a full replacement: publishing a completely
-    // empty envelope would wipe out the existing preferences. `bind` publishes immediately on
-    // binding, and a fresh install's first bind happens to be completely empty -- without this
-    // guard that would be a real path to losing existing preferences.
-
-    /** Both contracts must declare this invariant: if it's ever removed or renamed, this test fails first. */
-    @Test
-    fun `both contracts declare the empty envelope invariant`() {
-        listOf(CAPABILITY_CONTRACT, GENERATION_CONTRACT).forEach { name ->
-            assertTrue(
-                "$name must declare wireInvariants.emptyEnvelopeNeverOutbound",
-                "emptyEnvelopeNeverOutbound" in invariants(name),
-            )
-        }
-    }
-
-    @Test
-    fun `capability bind never publishes an empty envelope`() {
-        assertEquals(emptyList<Map<String, Any>>(), publishedOnCapabilityBind())
-    }
-
-    @Test
-    fun `capability bind publishes an envelope that carries records`() {
-        CapabilityPreferenceStore.from(context).setConnectionModel(
-            CapabilityPreferenceValues(CapabilityWebPreference.Force, null),
-            PROVIDER, "gpt-test", transport,
-        )
-        val published = publishedOnCapabilityBind()
-        assertEquals(1, published.size)
-        assertEquals(1, (published.single().getValue("records") as List<*>).size)
-    }
-
-    /** A legitimate "everything deleted" state carries tombstones, it isn't a fully empty envelope, and must still publish normally. */
-    @Test
-    fun `capability bind still publishes a tombstone only envelope`() {
-        val store = CapabilityPreferenceStore.from(context)
-        val values = CapabilityPreferenceValues(CapabilityWebPreference.Force, null)
-        store.setConnectionModel(values, PROVIDER, "gpt-test", transport)
-        store.setConnectionModel(null, PROVIDER, "gpt-test", transport)
-
-        val published = publishedOnCapabilityBind()
-        assertEquals(1, published.size)
-        assertEquals(emptyList<Any>(), published.single().getValue("records"))
-        assertEquals(1, (published.single().getValue("tombstones") as List<*>).size)
-    }
-
-    @Test
-    fun `generation bind never publishes an empty envelope`() {
-        assertEquals(emptyList<Map<String, Any>>(), publishedOnGenerationBind())
-    }
-
-    @Test
-    fun `generation bind publishes an envelope that carries records`() {
-        GenerationParameterSettingsStore.from(context).setModelDefaults(
-            GenerationParameterOverrides(
-                mapOf("temperature" to GenerationParameterOverride(GenerationOverrideState.Value, JsonPrimitive(0.4))),
-            ),
-            providerID = PROVIDER, modelID = "gpt-test",
-        )
-        val published = publishedOnGenerationBind()
-        assertEquals(1, published.size)
-        assertEquals(1, (published.single().getValue("records") as List<*>).size)
-    }
-
-    @Test
-    fun `generation bind still publishes a tombstone only envelope`() {
-        val settings = GenerationParameterSettingsStore.from(context)
-        val overrides = GenerationParameterOverrides(
-            mapOf("temperature" to GenerationParameterOverride(GenerationOverrideState.Value, JsonPrimitive(0.4))),
-        )
-        settings.setModelDefaults(overrides, providerID = PROVIDER, modelID = "gpt-test")
-        settings.setModelDefaults(null, providerID = PROVIDER, modelID = "gpt-test")
-
-        val published = publishedOnGenerationBind()
-        assertEquals(1, published.size)
-        assertEquals(emptyList<Any>(), published.single().getValue("records"))
-        assertEquals(1, (published.single().getValue("tombstones") as List<*>).size)
-    }
-
-    /** bind's immediate first publish runs on the main-thread handler; Robolectric defaults to PAUSED, so it must be drained explicitly. */
-    private fun publishedOnCapabilityBind(): List<Map<String, Any>> {
-        val published = mutableListOf<Map<String, Any>>()
-        CapabilityPreferenceSyncCoordinator(context).bind { published += it }
-        shadowOf(Looper.getMainLooper()).idle()
-        return published
-    }
-
-    private fun publishedOnGenerationBind(): List<Map<String, Any>> {
-        val published = mutableListOf<Map<String, Any>>()
-        GenerationParameterSyncCoordinator(context).bind { published += it }
-        shadowOf(Looper.getMainLooper()).idle()
-        return published
     }
 
     private companion object {
