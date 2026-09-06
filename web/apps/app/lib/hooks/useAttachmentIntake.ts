@@ -7,13 +7,6 @@ import { DEFAULT_LIMITS } from '../core/attachments/file-text-extractor';
 import { showToast } from '../../components/Toast';
 import { FALLBACK_ATTACHMENT_BYTES } from '../utils/attachment-size-policy';
 
-export interface AttachmentFilePolicy {
-  partitionFiles: (
-    files: File[],
-    existingAttachments: Attachment[],
-  ) => { accepted: File[]; rejected: File[] };
-}
-
 interface UseAttachmentIntakeParams {
   attachments: Attachment[];
   onAttachmentsChange?: (attachments: Attachment[]) => void;
@@ -21,11 +14,6 @@ interface UseAttachmentIntakeParams {
   supportsImage: boolean;
   /** Normalized provider.kind, used for attachment_added reporting. */
   providerKind?: string;
-  /**
-   * Provider-level attachment policy. Managed providers use the server-side ledger rather than the
-   * Pro 100MB entitlement, so they need a 20MB / 25MB / 3-file pre-check before conversion.
-   */
-  attachmentFilePolicy?: AttachmentFilePolicy;
 }
 
 /**
@@ -38,7 +26,6 @@ export function useAttachmentIntake({
   onAttachmentsChange,
   supportsImage,
   providerKind,
-  attachmentFilePolicy,
 }: UseAttachmentIntakeParams) {
   const [showAttachmentSizeLimit, setShowAttachmentSizeLimit] = useState(false);
   const tfe = useTranslations('pages.chat.fileExtraction');
@@ -46,25 +33,15 @@ export function useAttachmentIntake({
   const handleAddFiles = useCallback(
     async (files: File[]) => {
       if (!onAttachmentsChange) return;
-      let accepted: File[];
-      if (attachmentFilePolicy) {
-        const partition = attachmentFilePolicy.partitionFiles(files, attachments);
-        accepted = partition.accepted;
-        if (partition.rejected.length > 0) {
-          setShowAttachmentSizeLimit(true);
-        }
-      } else {
-        const { accepted: entitlementAccepted, oversized } = partitionFilesByAttachmentSize(files, FALLBACK_ATTACHMENT_BYTES);
-        accepted = entitlementAccepted;
-        if (oversized.length > 0) {
-          setShowAttachmentSizeLimit(true);
-        }
-        // Hard count limit: without a total cap, a few hundred images would push the message document past 1MiB.
-        const counted = limitAttachmentCount(attachments.length, accepted, DEFAULT_LIMITS.maxFiles);
-        accepted = counted.accepted;
-        if (counted.rejectedCount > 0) {
-          showToast(tfe('tooManyFiles', { maxFiles: DEFAULT_LIMITS.maxFiles }));
-        }
+      const sized = partitionFilesByAttachmentSize(files, FALLBACK_ATTACHMENT_BYTES);
+      if (sized.oversized.length > 0) {
+        setShowAttachmentSizeLimit(true);
+      }
+      // Hard count limit: without a total cap, a few hundred images would push the message document past 1MiB.
+      const counted = limitAttachmentCount(attachments.length, sized.accepted, DEFAULT_LIMITS.maxFiles);
+      const accepted = counted.accepted;
+      if (counted.rejectedCount > 0) {
+        showToast(tfe('tooManyFiles', { maxFiles: DEFAULT_LIMITS.maxFiles }));
       }
       if (accepted.length === 0) {
         return;
@@ -76,7 +53,7 @@ export function useAttachmentIntake({
         onAttachmentsChange([...attachments, ...newAttachments]);
       }
     },
-    [attachmentFilePolicy, attachments, onAttachmentsChange, providerKind, tfe],
+    [attachments, onAttachmentsChange, providerKind, tfe],
   );
 
   const handleFileInput = useCallback(

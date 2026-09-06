@@ -7,17 +7,11 @@ import styles from './AttachmentSizeLimitDialog.module.css';
 interface AttachmentSizeLimitDialogProps {
   open: boolean;
   onClose: () => void;
-  title?: string;
-  message?: string;
-  actionLabel?: string;
 }
 
 export function AttachmentSizeLimitDialog({
   open,
   onClose,
-  title,
-  message,
-  actionLabel,
 }: AttachmentSizeLimitDialogProps) {
   const t = useTranslations('pages.chat');
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -76,13 +70,13 @@ export function AttachmentSizeLimitDialog({
           </svg>
         </div>
         <h2 id="attachment-size-limit-title" className={styles.title}>
-          {title ?? t('attachmentTooLargeTitle')}
+          {t('attachmentTooLargeTitle')}
         </h2>
         <p id="attachment-size-limit-message" className={styles.message}>
-          {message ?? t('attachmentTooLargeMessage')}
+          {t('attachmentTooLargeMessage')}
         </p>
         <button type="button" className={styles.action} onClick={onClose} autoFocus>
-          {actionLabel ?? t('attachmentTooLargeAction')}
+          {t('attachmentTooLargeAction')}
         </button>
       </div>
     </div>
