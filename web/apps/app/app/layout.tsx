@@ -12,7 +12,7 @@ import { PersistentShellLayout } from '../components/PersistentShellLayout';
 import { ClientIntlProvider } from '../components/i18n/ClientIntlProvider';
 import { LocalePreferenceSync } from '../components/i18n/LocalePreferenceSync';
 import { isRTL } from '../lib/i18n/locale-utils';
-import { APP_PUBLIC_DESCRIPTION } from '../lib/seo/public-metadata';
+import { APP_OG_IMAGE, APP_PUBLIC_DESCRIPTION } from '../lib/seo/public-metadata';
 import 'katex/dist/katex.min.css';
 import './globals.css';
 
@@ -32,14 +32,31 @@ const jetbrainsMono = JetBrains_Mono({
 // dynamic; an explicit force-dynamic only disables RSC rendering optimizations, so scheduling is
 // left to the framework.
 export const metadata: Metadata = {
+  // Relative URLs in the metadata below resolve against this, so a self-hosted deployment must set
+  // NEXT_PUBLIC_APP_URL or every canonical and preview link points at the dev port.
   metadataBase: new URL(brand.appUrl),
   title: {
-    default: brand.name,
+    default: `${brand.name} - ${brand.tagline}`,
     template: `%s | ${brand.name}`,
   },
   description: APP_PUBLIC_DESCRIPTION,
   applicationName: brand.name,
   manifest: '/manifest.json',
+  // The locale is chosen from a cookie and Accept-Language rather than from the path, so there is
+  // no per-language URL to advertise and no hreflang set to publish.
+  openGraph: {
+    type: 'website',
+    siteName: brand.name,
+    title: `${brand.name} - ${brand.tagline}`,
+    description: APP_PUBLIC_DESCRIPTION,
+    images: [APP_OG_IMAGE],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: `${brand.name} - ${brand.tagline}`,
+    description: APP_PUBLIC_DESCRIPTION,
+    images: [APP_OG_IMAGE.url],
+  },
   icons: {
     icon: [
       { url: '/icon.svg', type: 'image/svg+xml' },
@@ -101,6 +118,7 @@ export default async function RootLayout({ children }: RootLayoutProps) {
       <head>
         <ThemeInitScript />
         <meta name="theme-color" content="#8B5CF6" />
+        <meta name="mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
       </head>

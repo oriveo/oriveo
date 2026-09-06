@@ -1,15 +1,17 @@
 import type { MetadataRoute } from 'next';
 import { brand } from '@oriveo/config';
 
-const LAST_MODIFIED = new Date('2026-04-19T00:00:00.000Z');
-
+/**
+ * The landing page is the only indexable route; everything else holds the user's own data and is
+ * served `noindex`. No `lastModified` is published: it would have to be a date baked into the
+ * build, which says nothing true about a deployment someone else runs.
+ */
 export default function sitemap(): MetadataRoute.Sitemap {
   return [
     {
       url: `${brand.appUrl}/welcome`,
-      lastModified: LAST_MODIFIED,
       changeFrequency: 'weekly',
-      priority: 0.9,
+      priority: 1,
     },
   ];
 }

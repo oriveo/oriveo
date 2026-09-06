@@ -1,8 +1,19 @@
 import type { Metadata } from 'next';
 import { brand } from '@oriveo/config';
 
+/**
+ * Social preview card. A 1.91:1 image is what Open Graph and a Twitter summary_large_image expect;
+ * declaring the card without one leaves an empty rectangle wherever the link is shared.
+ */
+export const APP_OG_IMAGE = {
+  url: '/og.png',
+  width: 1200,
+  height: 630,
+  alt: 'Oriveo - every model, one app',
+} as const;
+
 export const APP_PUBLIC_DESCRIPTION =
-  'BYOK multi-model AI client for OpenAI, Claude, Gemini, and OpenRouter. One app for web chat, sync, and real-time cost tracking.';
+  'BYOK multi-model AI client for OpenAI, Claude, Gemini, OpenRouter and more. Chat, notes and real-time cost tracking, with your keys kept in your own browser.';
 
 function normalizePath(path: string): string {
   if (!path || path === '/') return '/';
@@ -44,11 +55,13 @@ export function buildAppPageMetadata({
       title: fullTitle,
       description,
       url: canonical,
+      images: [APP_OG_IMAGE],
     },
     twitter: {
       card: 'summary_large_image',
       title: fullTitle,
       description,
+      images: [APP_OG_IMAGE.url],
     },
     robots: index ? { index: true, follow: true } : { index: false, follow: false },
   };
