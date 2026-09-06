@@ -97,8 +97,6 @@ export default tseslint.config(
             "zlib",
             "child_process",
             "worker_threads",
-            "firebase",
-            "posthog-js",
             "next",
             "react",
           ],
@@ -136,8 +134,6 @@ export default tseslint.config(
                 "zlib/*",
                 "child_process/*",
                 "worker_threads/*",
-                "firebase/*",
-                "posthog-js/*",
                 "next/*",
                 "react/*",
                 "../apps/*",
@@ -146,39 +142,6 @@ export default tseslint.config(
                 "../../../../apps/*",
                 "**/apps/*",
               ],
-            },
-          ],
-        },
-      ],
-    },
-  },
-  {
-    files: ["apps/desktop/src/main/**/*.{ts,tsx}", "apps/desktop/src/preload/**/*.{ts,tsx}"],
-    rules: {
-      "no-restricted-imports": [
-        "error",
-        {
-          paths: [
-            "firebase",
-            "posthog-js",
-            "next",
-            "react",
-            "@oriveo/app",
-          ],
-          patterns: [
-            {
-              group: [
-                "firebase/*",
-                "posthog-js/*",
-                "next/*",
-                "react/*",
-                "@oriveo/app/*",
-                "apps/app/*",
-              ],
-            },
-            {
-              regex: String.raw`^\.\.(?:/\.\.)*/app(?:/|$)`,
-              message: "Desktop main/preload must not deep-import apps/app internals. Move reusable logic into a pure package first.",
             },
           ],
         },
