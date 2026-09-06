@@ -376,6 +376,30 @@ public struct OpenAICompatibleChunk: Decodable, Sendable {
             public var content: String?
             public var reasoningContent: String?
             public var toolCalls: [ToolCallDelta]?
+
+            /// `content` is decoded leniently because it is not always a string.
+            ///
+            /// Mistral delivers reasoning as an array of typed content blocks under the same
+            /// `content` key. The synthesised `decodeIfPresent(String.self, …)` would throw on
+            /// that array rather than yield nil, which fails the whole chunk and silently drops
+            /// the `usage`, `tool_calls` and `finish_reason` sitting next to it. A recipe parser
+            /// reads the block form from the raw object instead, so leaving `content` nil here is
+            /// the correct outcome and the rest of the chunk still gets read.
+            /// Declared explicitly because writing `init(from:)` suppresses the synthesised
+            /// enum. The decoder still applies `.convertFromSnakeCase`, so `reasoning_content`
+            /// on the wire matches `reasoningContent` here.
+            private enum CodingKeys: String, CodingKey {
+                case content
+                case reasoningContent
+                case toolCalls
+            }
+
+            public init(from decoder: Decoder) throws {
+                let container = try decoder.container(keyedBy: CodingKeys.self)
+                content = try? container.decodeIfPresent(String.self, forKey: .content)
+                reasoningContent = try container.decodeIfPresent(String.self, forKey: .reasoningContent)
+                toolCalls = try container.decodeIfPresent([ToolCallDelta].self, forKey: .toolCalls)
+            }
         }
 
         public struct ToolCallDelta: Decodable, Sendable {

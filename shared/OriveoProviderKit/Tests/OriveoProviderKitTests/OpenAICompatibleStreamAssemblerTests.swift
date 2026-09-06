@@ -132,6 +132,33 @@ struct OpenAICompatibleStreamAssemblerTests {
         #expect(reason == "stop")
     }
 
+    @Test("a chunk whose content is an array still yields its usage, tool call and finish reason")
+    func arrayContentDoesNotDiscardTheRestOfTheChunk() throws {
+        // Mistral delivers reasoning as typed content blocks under the same `content` key that
+        // every other provider uses for a plain string. The blocks are read by the recipe parser,
+        // but `usage`, `tool_calls` and `finish_reason` ride along on that same chunk and are the
+        // assembler's job, so a non-string `content` must not cost the whole frame.
+        var assembler = OpenAICompatibleStreamAssembler(
+            profile: .mistral,
+            responseParserKinds: ["mistral_reasoning_v1"]
+        )
+        var events = try assembler.ingest(
+            #"data: {"choices":[{"delta":{"content":[{"type":"thinking","thinking":[{"text":"weighing it up"}]},{"type":"text","text":"the answer"}],"tool_calls":[{"index":0,"id":"call_mistral","function":{"name":"get_weather","arguments":"{\"city\":\"Melbourne\"}"}}]},"finish_reason":"tool_calls"}],"usage":{"prompt_tokens":11,"completion_tokens":4}}"#
+        )
+        events.append(contentsOf: try assembler.finish(requireTerminalEvidence: false))
+
+        #expect(reasoning(events) == "weighing it up")
+        #expect(text(events) == "the answer")
+        #expect(toolCalls(events).map(\.name) == ["get_weather"])
+        #expect(toolCalls(events).first?.rawArguments == #"{"city":"Melbourne"}"#)
+        #expect(usage(events) == ProviderTokenUsage(inputTokens: 11, outputTokens: 4, cachedInputTokens: nil))
+        guard case .finished(let reason) = events.last else {
+            Issue.record("last event must be finished, got \(String(describing: events.last))")
+            return
+        }
+        #expect(reason == "tool_calls")
+    }
+
     @Test("tool call fragments are assembled by index and emitted in index order")
     func toolCallsAssembleByIndex() {
         let events = drain([
