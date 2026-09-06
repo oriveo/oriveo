@@ -44,6 +44,7 @@ catalog, which you can point at your own host. Licensed AGPL-3.0-or-later.
 - [Security policy](https://github.com/oriveo/oriveo/blob/main/SECURITY.md): how to report a vulnerability privately, and what counts as one in a bring-your-own-key client
 - [Code of conduct](https://github.com/oriveo/oriveo/blob/main/CODE_OF_CONDUCT.md): Contributor Covenant 2.1
 - [License](https://github.com/oriveo/oriveo/blob/main/LICENSE): GNU Affero General Public License, version 3 or later
+- [Third-party notices](https://github.com/oriveo/oriveo/blob/main/THIRD-PARTY-NOTICES.md): bundled fonts, mathematics libraries, and the provider trademarks the clients display
 
 ## Optional
 
