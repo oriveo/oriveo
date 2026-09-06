@@ -17,7 +17,7 @@ class ModelPickerBenchmark {
     val benchmarkRule = MacrobenchmarkRule()
 
     @Test
-    fun openExpandAndScrollManagedModels() {
+    fun openExpandAndScrollSeededModels() {
         benchmarkRule.measureRepeated(
             packageName = TARGET_PACKAGE_NAME,
             metrics = listOf(FrameTimingMetric()),
@@ -44,7 +44,7 @@ class ModelPickerBenchmark {
                     Until.hasObject(By.textContains("Benchmark Model")),
                     UI_TIMEOUT_MS,
                 ),
-            ) { "Managed benchmark models were not rendered" }
+            ) { "Seeded benchmark models were not rendered" }
             repeat(3) {
                 device.swipe(
                     device.displayWidth / 2,
