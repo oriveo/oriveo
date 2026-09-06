@@ -6,9 +6,9 @@ import 'fake-indexeddb/auto';
  *
  * Rules:
  *   - The snapshot lives in IndexedDB, never in localStorage. In production it measures 3.3MB, so
- *     writing it to localStorage would eat 66% of the 5MB Chrome quota and squeeze out the
- *     `firestore_mutations_*` broadcast keys a sync SDK needs. The "not one byte in
- *     localStorage" assertion in this file guards that regression.
+ *     writing it to localStorage would eat 66% of the 5MB Chrome quota and leave nothing for the
+ *     preferences and model-control tables that do live there. The "not one byte in localStorage"
+ *     assertion in this file guards that regression.
  *   - The cache key prefix must carry `c{contractVersion}`, e.g. `oriveo:metadata:c1`.
  *   - A contractVersion change invalidates the old cache and forces a full fetch.
  *   - Startup clears every historical metadata remnant from localStorage (unbucketed, bucketed and

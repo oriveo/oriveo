@@ -168,7 +168,7 @@ describe('reportStorageHealth', () => {
  */
 describe('actionable context on storage.local_pressure', () => {
   it('keeps topGroups an array of strings, not flattened to "[Object]" by normalizeDepth, carrying group name, character count and key count', async () => {
-    localStorage.setItem('firestore_mutations_pfx_37289_uid', 'x'.repeat(3_400_000));
+    localStorage.setItem('vendor_mutations_pfx_37289_uid', 'x'.repeat(3_400_000));
     await detectStorageHealth();
     reportStorageHealth({
       local: 'available',
@@ -182,7 +182,7 @@ describe('actionable context on storage.local_pressure', () => {
     expect(topGroups.every((entry) => typeof entry === 'string')).toBe(true);
     expect(topGroups.join('|')).not.toContain('[Object]');
     // batchId is already normalized (`\d{3,}` becomes <n>) and the group name is still recognizable
-    expect(topGroups[0]).toContain('firestore_mutations_pfx_<n>_uid');
+    expect(topGroups[0]).toContain('vendor_mutations_pfx_<n>_uid');
     expect(topGroups[0]).toMatch(/\d+ chars/);
     expect(topGroups[0]).toMatch(/\d+ keys/);
   });
