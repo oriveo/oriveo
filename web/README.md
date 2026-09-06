@@ -89,13 +89,14 @@ this somehow; this one forwards through Next.js route handlers running in the No
 you run `npm run dev:app`, those handlers are on your own machine. When you deploy the app
 somewhere, they are on the machine you deployed to.
 
-There are twelve of them, not one: chat streaming, the relay forwarder, image generation, the model
-list, key validation, and the Grok and Codex device-login exchanges. Key validation matters here —
-it posts the key to your own server, which probes the provider with it.
+There is more than one handler: chat streaming, the relay forwarder, image generation, the model
+list, key validation, and the Grok and Codex device-login exchanges come to twelve route files in
+all. Key validation matters here — it posts the key to your own server, which probes the provider
+with it.
 
 A few endpoints *do* allow a browser, and those are called directly with no server in between:
-Moonshot's China endpoint for chat, and the balance endpoints of OpenRouter, SiliconFlow, DeepSeek
-and Moonshot.
+Kimi's China endpoint (`api.moonshot.cn`) for chat, and the balance endpoints of OpenRouter,
+SiliconFlow, DeepSeek and Kimi.
 
 **What the handler does and does not do.** It validates the request shape and caps its size, applies
 a per-IP rate limit to chat and relay traffic, refuses URLs that resolve to private or link-local

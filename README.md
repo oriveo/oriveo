@@ -55,7 +55,7 @@ web. You supply API keys you already own, and the client talks to the provider w
 no Oriveo account and no subscription, and nothing reports back to us.
 
 It speaks to **15 model providers** natively — OpenAI, Anthropic, Google Gemini, OpenRouter,
-DeepSeek, Grok, Mistral, Groq, Together AI, Fireworks AI, MiniMax, Z.ai, Qwen, Kimi and
+DeepSeek, Grok, Mistral, Groq, Together AI, Fireworks AI, MiniMax, Z.ai, Qwen, Kimi (Moonshot) and
 SiliconFlow — plus **any OpenAI-, Anthropic- or Gemini-compatible endpoint** you point it at,
 including llama.cpp, Ollama, LM Studio or vLLM running on your own machine.
 
@@ -152,7 +152,7 @@ Every provider below is reached with a key you create yourself.
 | MiniMax | [platform.minimax.io](https://platform.minimax.io/docs/guides/quickstart-preparation) |
 | Z.ai | [open.bigmodel.cn](https://open.bigmodel.cn/usercenter/apikeys) |
 | Qwen | [bailian.console.alibabacloud.com](https://bailian.console.alibabacloud.com/?apiKey=1#/api-key) |
-| Kimi | [platform.kimi.ai](https://platform.kimi.ai/console/api-keys) |
+| Kimi (Moonshot) | [platform.kimi.ai](https://platform.kimi.ai/console/api-keys) |
 | SiliconFlow | [cloud.siliconflow.cn](https://cloud.siliconflow.cn/account/ak) |
 | **Relay** | Any OpenAI-, Anthropic- or Gemini-compatible endpoint, including one on your own machine |
 
@@ -193,7 +193,7 @@ seam: the layer that turns *this model, this capability* into an HTTP request.
 The one asymmetry worth knowing about is the web client. Most provider APIs send no CORS headers,
 so a browser cannot call them directly; those requests pass through a Next.js route handler running
 on whatever machine serves the app — your own, when you run it locally. The handful of endpoints
-that do allow a browser (Moonshot's China endpoint, the balance endpoints of a few providers) and
+that do allow a browser (Kimi's China endpoint, the balance endpoints of a few providers) and
 relays on your own network are called directly. The iOS and Android clients have no such constraint
 and always go straight to the provider.
 
@@ -276,10 +276,10 @@ Serving the model catalog from your own host: [android/README.md](android/README
   uploaded anywhere.
 - **No account, and nothing reporting back to us.** There is nothing to sign in to. The web bundle
   includes Sentry, which stays silent unless you configure a DSN of your own.
-- **On iOS and Android, chat requests go straight from the device to the provider.** On the web they
-  pass through the Next.js server that serves the app, because provider APIs do not permit direct
-  browser calls; that server does not persist keys or messages, and when you run the app locally it
-  is your own machine.
+- **On iOS and Android, chat requests go straight from the device to the provider.** On the web most
+  of them pass through the Next.js server that serves the app, because most provider APIs do not
+  permit a direct browser call; that server does not persist keys or messages, and when you run the
+  app locally it is your own machine.
 - **One request of our own:** a read-only model catalog, fetched with no key, no conversation, and
   no identifier attached, so a model released today works without a new build. Point it at your own
   host if you would rather serve it yourself.
@@ -302,11 +302,12 @@ Oriveo is the client; it is not a reseller and takes no cut.
 
 <br>
 
-No. On iOS and Android the client calls the provider endpoint directly. On the web the request goes
-through the Next.js server that is serving the app — your own machine when you run it locally,
-because browsers cannot call provider APIs directly. Neither path involves a server operated by
-Oriveo. The only request Oriveo makes on its own behalf is a read-only fetch of the public model
-catalog, which carries no key, no conversation, and no identifier.
+No. On iOS and Android the client calls the provider endpoint directly. On the web most requests go
+through the Next.js server that is serving the app — your own machine when you run it locally —
+because most provider APIs refuse a direct browser call; the few that allow one are called
+directly. Neither path involves a server operated by Oriveo. The only request Oriveo makes on its
+own behalf is a read-only fetch of the public model catalog, which carries no key, no conversation,
+and no identifier.
 
 </details>
 
