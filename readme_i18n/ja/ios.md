@@ -63,7 +63,7 @@ flowchart TB
 
     subgraph provider ["プロバイダー層"]
         direction LR
-        services["15 の ProviderService"]
+        services["15 の ProviderService<br/>relay は OpenAI のものを再利用"]
         transports["TransportRegistry<br/>12 の戦略"]
         kit["OriveoProviderKit<br/>SSE · チャンク組み立て · 秘匿化"]
     end
@@ -122,7 +122,8 @@ flowchart LR
 クライアントは、モデルの機能をその名前から推測することを一切しません。読み取るのは**機能ランタイム**
 です。これは、あるプロバイダー・トランスポート・機能の組み合わせに対して、リクエストのどの JSON
 ポインタに何を書き込むかを正確に記述したレシピの集まりです。レシピは
-[`shared/capabilityrecipe`](shared.md) にあり、`CapabilityRecipeRequestCompiler` が適用します。
+[`shared/capabilityrecipe`](../../shared/capabilityrecipe/) にあり、
+`CapabilityRecipeRequestCompiler` が適用します。
 
 戻り側では、`CapabilityExecutionRuntime` が実際に何が起きたかを記録します。機能を*観測済み*へ昇格
 できるのは、選ばれた本番のストリームパーサーだけです。HTTP 200、空でない回答、リクエスト内のツール
@@ -158,6 +159,11 @@ Application Support/Oriveo/
 
 これがアプリ自身のために行う唯一のリクエストです。それ以外はすべて、あなたが設定したプロバイダーへ、
 あなたのキーで送られます。
+
+**Debug** ビルドを自分のカタログホストへ向けるには、`ORIVEO_METADATA_BASE_URL` を設定します。
+スキームの環境変数として渡すか、`ios/Oriveo/Config/Info.plist` のキーとして書くかのどちらかです。
+Android や Web のクライアントとは違い、Release ビルドはこれを無視して常に公開カタログを使います。
+そこを変えるには `BackendURLResolver` を編集する必要があります。
 
 ## プロジェクト構成
 
@@ -214,11 +220,11 @@ Xcode では開けないことがあります。プロジェクトのフォー�
 | [swift-markdown-ui](https://github.com/gonzalezreal/swift-markdown-ui) | 2.4.1 | Markdown のレンダリング |
 | [SwiftMath](https://github.com/mgriebling/SwiftMath) | 1.7.3 | LaTeX のレンダリング |
 | [ZIPFoundation](https://github.com/weichsel/ZIPFoundation) | 0.9.20 | バックアップアーカイブ、Office/EPUB/ODF の抽出 |
-| `OriveoProviderKit` | ローカル | プロバイダー通信カーネル。macOS と共有 |
+| `OriveoProviderKit` | ローカル | プロバイダー通信カーネル。[`shared/`](shared.md) にある |
 
 ## テスト
 
-Xcode から `OriveoTests` スキームを実行するか、リポジトリのルートで次を実行します。
+Xcode で `Oriveo` スキームのテストアクション（⌘U）を実行するか、リポジトリのルートで次を実行します。
 
 ```bash
 xcodebuild test -project ios/Oriveo/Oriveo.xcodeproj -scheme Oriveo \

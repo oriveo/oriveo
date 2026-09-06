@@ -38,8 +38,8 @@
 檯面。
 
 `shared/` 就是對這件事的回答：行為以資料的形式寫下一次，而每個用戶端的測試套件都對著同一批檔案做
-斷言。供應商的怪癖修一次就好。一次契約變更會同時弄紅三套測試，而不是在兩個平台上順利出貨、把第三個
-搞壞。
+斷言。住在那份資料裡的怪癖修一次就好。住在解析器裡的那種，會被三套測試同時抓到，而不是在兩個平台上
+順利出貨、把第三個搞壞。
 
 ```mermaid
 flowchart LR
@@ -84,9 +84,10 @@ JSON pointer 寫進送出的請求裡，以及該怎麼把答案讀回來。
 黃金測試資料：錄製的上游工具呼叫流量、relay 路由與探索情境、model-facts 與能力證據快照，以及本機
 引擎情境。
 
-`.sse` 檔案是**真實捕捉到的上游流量**，逐位元組原封不動保留。手寫的 mock 編碼的是你以為供應商會做的
-事；一段錄下來的串流編碼的則是它當時實際做了什麼，包含那個星期二它送來的那個格式錯誤的區塊。當一個
-供應商協定修正需要測試時，一段錄製比一個 mock 值錢得多。
+`recorded/` 底下的 `.sse` 檔案是**真實捕捉到的上游流量**，逐位元組原封不動保留；其餘的是手寫的
+fixture，用來釘住某一條特定的解析路徑。這個區分很要緊：手寫的 mock 編碼的是你以為供應商會做的事，而
+一段錄下來的串流編碼的則是它當時實際做了什麼，包含那個星期二它送來的那個格式錯誤的區塊。當一個供應商
+協定修正需要測試時，優先用錄製。
 
 ## OriveoProviderKit
 
@@ -110,14 +111,17 @@ cd shared/OriveoProviderKit && swift build && swift test
 這裡的一次變更，就是對每一個用戶端的變更。請把讀了你所改檔案的每個用戶端的契約測試都跑過一遍，而不
 只是你剛好正在做的那一個：
 
+從儲存庫根目錄執行：
+
 ```bash
-cd web && npm run test:run
-cd shared/OriveoProviderKit && swift test
+(cd web && npm run test:run)
+(cd shared/OriveoProviderKit && swift test)
 # plus the iOS and Android suites — see their READMEs
 ```
 
-iOS 與 Android 兩套測試都是從測試檔一路往上走、直到找到 `shared/` 來定位這個目錄，而網頁測試則是
-相對於 workspace 解析它。因此它們全都需要儲存庫的完整 checkout。
+iOS 那套測試是從測試檔一路往上走、直到看見 `shared/` 來定位這個目錄；Android 那套是從 Gradle 模組
+目錄解析 `../../shared`；網頁那套則是相對於 workspace 解析它。因此它們全都需要儲存庫的完整
+checkout。
 
 ## 授權條款
 

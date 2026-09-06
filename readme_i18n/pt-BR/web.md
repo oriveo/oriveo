@@ -91,13 +91,14 @@ Next.js rodando no runtime Node. Quando você roda `npm run dev:app`, esses hand
 própria máquina. Quando você faz deploy do app em algum lugar, eles estão na máquina para a qual você
 fez o deploy.
 
-São doze deles, não um: streaming de chat, o encaminhador de relay, geração de imagens, a lista de
-modelos, a validação de chave e as trocas de device login do Grok e do Codex. A validação de chave
-importa aqui — ela manda a chave para o seu próprio servidor, que sonda o provedor com ela.
+Não é um handler só: o streaming de chat, o encaminhador de relay, a geração de imagens, a lista de
+modelos, a validação de chave e as trocas de device login do Grok e do Codex dão doze arquivos de
+rota no total. A validação de chave importa aqui — ela manda a chave para o seu próprio servidor,
+que sonda o provedor com ela.
 
 Alguns poucos endpoints *aceitam* um navegador, e esses são chamados diretamente, sem servidor no
-meio: o endpoint chinês da Moonshot para chat, e os endpoints de saldo de OpenRouter, SiliconFlow,
-DeepSeek e Moonshot.
+meio: o endpoint chinês do Kimi (`api.moonshot.cn`) para chat, e os endpoints de saldo de
+OpenRouter, SiliconFlow, DeepSeek e Kimi.
 
 **O que o handler faz e o que não faz.** Ele valida o formato da requisição e limita o seu tamanho,
 aplica um rate limit por IP ao tráfego de chat e de relay, recusa URLs que resolvem para endereços

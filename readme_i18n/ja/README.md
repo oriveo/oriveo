@@ -7,7 +7,7 @@
 **すべてのモデルを、ひとつのアプリで。**
 
 iOS・Android・Web 向けの、オープンソースな BYOK（自分の API キーを使う）AI チャットです。
-アカウントもサブスクリプションも不要で、あなたとモデルの間に私たちのサーバーは入りません。
+アカウントもサブスクリプションも不要で、リクエストの経路に私たちのサービスは入りません。
 
 <a href="../../LICENSE"><img alt="ライセンス AGPL-3.0-or-later" src="https://img.shields.io/badge/license-AGPL--3.0--or--later-8B5CF6?style=flat-square&labelColor=black"></a>
 <a href="ios.md"><img alt="iOS 18 以降" src="https://img.shields.io/badge/iOS-18+-A78BFA?style=flat-square&labelColor=black&logo=apple&logoColor=white"></a>
@@ -52,12 +52,13 @@ iOS・Android・Web 向けの、オープンソースな BYOK（自分の API �
 
 Oriveo Community Edition は、iOS・Android・Web 向けの BYOK（bring-your-own-key）AI チャット
 クライアントです。すでにお持ちの API キーを登録すると、クライアントがそのキーでプロバイダーと直接
-やり取りします。Oriveo のアカウントも、サブスクリプションも、アナリティクスもありません。
+やり取りします。Oriveo のアカウントもサブスクリプションもなく、こちらへ何かを報告してくるものも
+ありません。
 
 **15 のモデルプロバイダー**（OpenAI、Anthropic、Google Gemini、OpenRouter、DeepSeek、Grok、
-Mistral、Groq、Together AI、Fireworks AI、MiniMax、Z.ai、Qwen、Kimi、SiliconFlow）にネイティブ対応
-しており、さらに **OpenAI・Anthropic・Gemini のいずれかと互換のエンドポイント**であれば何でも
-指定できます。手元のマシンで動かしている llama.cpp、Ollama、LM Studio、vLLM も含みます。
+Mistral、Groq、Together AI、Fireworks AI、MiniMax、Z.ai、Qwen、Kimi（Moonshot）、SiliconFlow）に
+ネイティブ対応しており、さらに **OpenAI・Anthropic・Gemini のいずれかと互換のエンドポイント**であれば
+何でも指定できます。手元のマシンで動かしている llama.cpp、Ollama、LM Studio、vLLM も含みます。
 
 | | |
 |---|---|
@@ -65,22 +66,23 @@ Mistral、Groq、Together AI、Fireworks AI、MiniMax、Z.ai、Qwen、Kimi、Sil
 | **クライアント** | iOS（SwiftUI）· Android（Jetpack Compose）· Web（Next.js） |
 | **UI 言語** | 16 |
 | **アカウントの要否** | 不要 |
-| **自分自身のために行う通信** | 1 つだけ。読み取り専用のモデルカタログ取得で、キーも識別子も付きません |
+| **自分自身のために行う通信** | 1 種類だけ、リクエスト 2 本。読み取り専用のモデルカタログ取得で、キーも識別子も付きません |
 | **ライセンス** | AGPL-3.0-or-later |
 
 ## なぜ作ったのか
 
-チャットクライアントが、あなたと、あなたがお金を払っているモデルの間に立ちはだかるべきではありません。
+あなたがお金を払っているモデルを、誰かが計測したり、記録したり、上乗せしたりできてよいはずが
+ありません。
 
 - **あなたのキー、あなたの請求。** 支払うのはプロバイダーの定価です。上乗せも、二重計測も、再販も
   ありません。
 - **既定でローカル。** 会話、ノート、フォルダ、Skills、添付ファイルは端末上に保存されます。いつでも
   ファイルに書き出せますし、アクセスを失うようなクラウド上のコピーは存在しません。
 - **ひとつの挙動を、3 つのクライアントで。** あるプロバイダー・トランスポート・機能に対してリクエスト
-  をどう組み立てるかは [`shared/`](shared.md) に一度だけ定義され、3 つのクライアントすべてが同じ
-  JSON フィクスチャに対してアサーションします。プロバイダーの癖への対応は 1 回で済み、3 回書く必要は
-  ありません。
-- **たった 1 本のリクエストについても正直に。** 今日リリースされたモデルがアプリの更新なしで使えるよう、
+  をどう組み立てるかは [`shared/`](shared.md) に一度だけ書き下され、3 つのクライアントすべてが同じ
+  JSON フィクスチャに対してアサーションします。そのデータの中にある癖なら修正は 1 回で済み、パーサー
+  の中にある癖なら 3 つのテストスイートが同時に捕まえます。
+- **アプリが行うたった 1 本のリクエスト。** 今日リリースされたモデルがアプリの更新なしで使えるよう、
   アプリは公開のモデルカタログを取得します。これは読み取り専用で、キーも識別子も付いておらず、
   自分のホストに向けることもできます。
 
@@ -91,8 +93,8 @@ Mistral、Groq、Together AI、Fireworks AI、MiniMax、Z.ai、Qwen、Kimi、Sil
 - **プロバイダー** — 15 種類を内蔵し、それぞれ自分のキーを使用。プロバイダーごとにエンドポイント・
   モデル・パラメーターを上書き可能
 - **Relay** — OpenAI・Anthropic・Gemini 互換のエンドポイントなら何でも。LAN 内のものも含みます
-- **ローカルのモデルサーバー** — llama.cpp、Ollama、LM Studio、vLLM。ローカルネットワーク上での
-  検出にも対応
+- **ローカルのモデルサーバー** — llama.cpp、Ollama、LM Studio、vLLM。iOS と Android は mDNS で
+  ローカルネットワーク上のものを見つけます
 - **サブスクリプションでのサインイン** — API キーの代わりに、すでに契約している Codex や Grok の
   サブスクリプションを利用
 - **Skills** — 専用のモデル・パラメーター・参考ドキュメントを持たせられる、再利用可能なシステム
@@ -116,17 +118,17 @@ Mistral、Groq、Together AI、Fireworks AI、MiniMax、Z.ai、Qwen、Kimi、Sil
 | ソース | このリポジトリ、AGPL-3.0-or-later | プロプライエタリ |
 | 自分のプロバイダーキーでのチャット | あり | あり |
 | Relay とローカルのモデルサーバー | あり | あり |
-| ノート、フォルダ、Skills、添付ファイル | あり、無制限 | あり |
+| ノート、フォルダ、Skills、添付ファイル | あり | あり |
 | 端末上でのコスト集計 | あり | あり |
 | アカウント | なし | Oriveo アカウント |
 | ストレージ | 端末上。書き出しと復元は手動 | ローカルファースト、加えて端末間のクラウド同期 |
 | 利用状況の分析と予算アラート | — | あり |
 | Oriveo が費用を負担するモデル | — | あり |
-| アナリティクスとクラッシュレポート | なし | あり |
+| アナリティクスとクラッシュレポート | 既定でオフ — Web のバンドルには Sentry が含まれますが、DSN がなければ何も送りません | あり |
 
 Community Edition のビルドは識別子のプレフィックスに `ai.oriveo.community` を使うため、ストア版と
-並べてインストールしても、キーチェーン・更新経路・ローカルデータを共有することはありません。この
-エディションが受け入れるもの・受け入れないものは [COMMUNITY.md](../../COMMUNITY.md) に書かれています。
+並べてインストールしても、キーチェーンやローカルデータを共有することはありません。このエディション
+が受け入れるもの・受け入れないものは [COMMUNITY.md](../../COMMUNITY.md) に書かれています。
 
 **製品版の Oriveo:**
 [iPhone と iPad](https://apps.apple.com/app/oriveo/id6775370458) &nbsp;·&nbsp;
@@ -153,7 +155,7 @@ Community Edition のビルドは識別子のプレフィックスに `ai.oriveo
 | MiniMax | [platform.minimax.io](https://platform.minimax.io/docs/guides/quickstart-preparation) |
 | Z.ai | [open.bigmodel.cn](https://open.bigmodel.cn/usercenter/apikeys) |
 | Qwen | [bailian.console.alibabacloud.com](https://bailian.console.alibabacloud.com/?apiKey=1#/api-key) |
-| Kimi | [platform.kimi.ai](https://platform.kimi.ai/console/api-keys) |
+| Kimi (Moonshot) | [platform.kimi.ai](https://platform.kimi.ai/console/api-keys) |
 | SiliconFlow | [cloud.siliconflow.cn](https://cloud.siliconflow.cn/account/ak) |
 | **Relay** | OpenAI・Anthropic・Gemini 互換のエンドポイントなら何でも。自分のマシン上のものも含みます |
 
@@ -191,11 +193,12 @@ flowchart LR
 各クライアントは自前の UI・ストレージ・ナビゲーションを持ち、共有コントラクトと接するのはただ 1 か所
 だけです。すなわち、*このモデルの、この機能*を HTTP リクエストに変換する層です。
 
-知っておく価値のある非対称性は Web クライアントにひとつだけあります。プロバイダーの API は CORS
-ヘッダーを返さないため、ブラウザから直接呼び出せません。そのため 15 の公式プロバイダーへのリクエスト
-は、アプリを配信しているマシン上で動く Next.js の route handler を経由します。ローカルで動かしている
-なら、それはあなた自身のマシンです。iOS と Android のクライアントにはこの制約がなく、プロバイダーへ
-直接つなぎます。自分のネットワーク上の relay エンドポイントも、ブラウザから直接呼び出されます。
+知っておく価値のある非対称性は Web クライアントにひとつだけあります。ほとんどのプロバイダーの API は
+CORS ヘッダーを返さないため、ブラウザから直接呼び出せません。そうしたリクエストは、アプリを配信して
+いるマシン上で動く Next.js の route handler を経由します。ローカルで動かしているなら、それはあなた
+自身のマシンです。ブラウザからの呼び出しを許可している少数のエンドポイント（Kimi の中国向け
+エンドポイント、いくつかのプロバイダーの残高エンドポイント）と、自分のネットワーク上の relay は直接
+呼び出されます。iOS と Android のクライアントにはこの制約がなく、常にプロバイダーへ直接つなぎます。
 
 **各クライアントのアーキテクチャ:**
 
@@ -207,6 +210,10 @@ flowchart LR
 | **Shared** | コントラクト、録画済みフィクスチャ、Swift 製の通信カーネル | [shared.md](shared.md) |
 
 ## はじめかた
+
+ここにビルド済みのバイナリはありません。APK も `.ipa` も、リリースもありません。Community Edition は
+自分でビルドするソースであり、ストアのアプリはもう一方の製品です。動くアプリに最短でたどり着けるのは
+Web クライアントです。
 
 <details open>
 <summary><b>Web</b> — いちばん手早く試せる方法</summary>
@@ -248,7 +255,7 @@ Xcode がプロジェクトを開けない場合の対処も含む詳しい手�
 
 <br>
 
-JDK 17 以降と Android SDK が必要です。ビルドには AGP 9.3、Gradle 9.5、Kotlin 2.3 を使うため、
+JDK 21 と Android SDK が必要です。ビルドには AGP 9.3、Gradle 9.5、Kotlin 2.3 を使うため、
 Android Studio はこれらを同期できるリリースである必要があります。コマンドラインからなら JDK と SDK
 だけで足ります。
 
@@ -263,19 +270,18 @@ cd android
 
 ## プライバシー
 
-- **プロバイダーのキー**は、プラットフォーム自身の仕組み（iOS の Keychain、Android の Keystore
-  （`EncryptedSharedPreferences`）、ブラウザの IndexedDB）に保存され、そのキーが属するプロバイダーへ
-  到達するためだけに使われます。Web では暗号化されずに保存されます。これはブラウザベースの BYOK
-  クライアントが一般に採る方式です。最も強い保証が欲しい場合は iOS か Android のクライアントを
-  お使いください。
+- **プロバイダーのキー**は、iOS では Keychain に、Android では Android Keystore が保持する鍵で
+  保護された `EncryptedSharedPreferences` に保存されます。ブラウザには相当する仕組みがないため、
+  Web では暗号化されないまま IndexedDB に置かれます。これはブラウザベースの BYOK クライアントが
+  一般に採る方式です。最も強い保証が欲しい場合は iOS か Android のクライアントをお使いください。
 - **会話、ノート、フォルダ、Skills、添付ファイル**は端末上に保存されます。どこにもアップロードされ
   ません。
-- **アカウントなし、アナリティクスなし、クラッシュレポートなし。** サインインする対象もなければ、
-  裏で通信しているものもありません。
+- **アカウントなし、こちらへ報告してくるものもなし。** サインインする対象はありません。Web の
+  バンドルには Sentry が含まれますが、自分で DSN を設定しない限り何も送りません。
 - **iOS と Android では、チャットのリクエストは端末からプロバイダーへ直接送られます。** Web では、
-  プロバイダーの API がブラウザからの直接呼び出しを許可していないため、アプリを配信している Next.js
-  サーバーを経由します。そのサーバーはキーもメッセージも保存しませんし、ローカルで動かしているなら
-  それはあなた自身のマシンです。
+  ほとんどのプロバイダーの API がブラウザからの直接呼び出しを許可していないため、その大半はアプリを
+  配信している Next.js サーバーを経由します。そのサーバーはキーもメッセージも保存しませんし、
+  ローカルで動かしているならそれはあなた自身のマシンです。
 - **私たち自身のリクエストは 1 本だけ:** 読み取り専用のモデルカタログの取得です。キーも、会話も、
   識別子も付きません。おかげで今日リリースされたモデルが新しいビルドなしで使えます。自分で配信したい
   場合は、自分のホストに向けてください。
@@ -299,9 +305,10 @@ Bring your own key、つまり「自分のキーを持ち込む」ことです�
 <br>
 
 しません。iOS と Android では、クライアントがプロバイダーのエンドポイントを直接呼び出します。Web で
-は、ブラウザからプロバイダーの API を直接呼び出せないため、アプリを配信している Next.js サーバーを
-経由します。ローカルで動かしていれば、それはあなた自身のマシンです。どちらの経路にも Oriveo が運用
-するサーバーは関与しません。Oriveo 自身が行う唯一のリクエストは、公開モデルカタログの読み取り専用の
+は、ほとんどのプロバイダーの API がブラウザからの直接呼び出しを拒むため、リクエストの大半はアプリを
+配信している Next.js サーバーを経由します。ローカルで動かしていれば、それはあなた自身のマシンです。
+呼び出しを許可している少数のエンドポイントは直接呼び出されます。どちらの経路にも Oriveo が運用する
+サーバーは関与しません。Oriveo 自身が行う唯一のリクエストは、公開モデルカタログの読み取り専用の
 取得で、キーも会話も識別子も含みません。
 
 </details>
@@ -312,9 +319,10 @@ Bring your own key、つまり「自分のキーを持ち込む」ことです�
 <br>
 
 使えます。OpenAI・Anthropic・Gemini 互換のサーバー（llama.cpp、Ollama、LM Studio、vLLM、あるいは
-それらのプロトコルを話すものなら何でも）を指す Relay 接続を追加してください。Android と Web の
-クライアントは、そうしたサーバーをローカルネットワーク上で検出することもできます。ローカルの HTTP は
-認証情報を一切使わず、あなたのネットワークから出ることもありません。
+それらのプロトコルを話すものなら何でも）を指す Relay 接続を追加してください。iOS と Android の
+クライアントは、そうしたサーバーを mDNS でローカルネットワーク上から検出できます。Web クライアントは
+各エンジンの既定のアドレスを提示し、そこに疎通確認を行います。ローカルの HTTP は認証情報を一切使わず、
+あなたのネットワークから出ることもありません。
 
 </details>
 
@@ -325,8 +333,8 @@ Bring your own key、つまり「自分のキーを持ち込む」ことです�
 
 ストアのアプリは Oriveo で、アカウント、端末間のクラウド同期、利用状況の分析、そして Oriveo が費用を
 負担するモデルを備えたプロプライエタリ製品です。Community Edition は同じ 3 つのクライアントから
-それらを取り除いたもので、アカウントも、同期サービスも、課金も、アナリティクスもありません。詳しい
-比較は [Community Edition と Oriveo](#community-edition-と-oriveo) をご覧ください。
+それらを取り除いたもので、アカウントも、同期サービスも、課金も、こちらへ報告してくるものもありません。
+詳しい比較は [Community Edition と Oriveo](#community-edition-と-oriveo) をご覧ください。
 
 </details>
 
@@ -336,7 +344,7 @@ Bring your own key、つまり「自分のキーを持ち込む」ことです�
 <br>
 
 このリポジトリにはありません。当面は、Web クライアントがどのブラウザでもデスクトップアプリとして
-十分に使えますし、iOS 版のビルドは Apple シリコンの Mac でそのまま動きます。
+十分に使えますし、iOS 版のビルドもたいていは Apple シリコンの Mac で動かせます。
 
 </details>
 
@@ -354,11 +362,13 @@ Bring your own key、つまり「自分のキーを持ち込む」ことです�
 ## リポジトリ構成
 
 ```
-ios/       iOS client (SwiftUI)
-android/   Android client (Jetpack Compose)
-web/       Web client (Next.js)
-macos/     Reserved for a macOS client
-shared/    Cross-client contracts, recorded fixtures, and the Swift wire kernel
+ios/           iOS client (SwiftUI)
+android/       Android client (Jetpack Compose)
+web/           Web client (Next.js)
+macos/         Reserved for a macOS client
+shared/        Cross-client contracts, recorded fixtures, and the Swift wire kernel
+readme_i18n/   These READMEs in fifteen more languages
+docs/assets/   Images used by the READMEs
 ```
 
 ## コントリビュート

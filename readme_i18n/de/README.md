@@ -56,9 +56,9 @@ spricht damit direkt mit dem Anbieter. Es gibt kein Oriveo-Konto und kein Abo, u
 etwas an uns zurück.
 
 Er spricht **15 Modellanbieter** nativ – OpenAI, Anthropic, Google Gemini, OpenRouter, DeepSeek,
-Grok, Mistral, Groq, Together AI, Fireworks AI, MiniMax, Z.ai, Qwen, Kimi und SiliconFlow – dazu
-**jeden OpenAI-, Anthropic- oder Gemini-kompatiblen Endpunkt**, auf den du ihn zeigen lässt, auch
-llama.cpp, Ollama, LM Studio oder vLLM auf deinem eigenen Rechner.
+Grok, Mistral, Groq, Together AI, Fireworks AI, MiniMax, Z.ai, Qwen, Kimi (Moonshot) und
+SiliconFlow – dazu **jeden OpenAI-, Anthropic- oder Gemini-kompatiblen Endpunkt**, auf den du ihn
+zeigen lässt, auch llama.cpp, Ollama, LM Studio oder vLLM auf deinem eigenen Rechner.
 
 | | |
 |---|---|
@@ -159,7 +159,7 @@ Jeden Anbieter unten erreichst du mit einem Key, den du dir selbst anlegst.
 | MiniMax | [platform.minimax.io](https://platform.minimax.io/docs/guides/quickstart-preparation) |
 | Z.ai | [open.bigmodel.cn](https://open.bigmodel.cn/usercenter/apikeys) |
 | Qwen | [bailian.console.alibabacloud.com](https://bailian.console.alibabacloud.com/?apiKey=1#/api-key) |
-| Kimi | [platform.kimi.ai](https://platform.kimi.ai/console/api-keys) |
+| Kimi (Moonshot) | [platform.kimi.ai](https://platform.kimi.ai/console/api-keys) |
 | SiliconFlow | [cloud.siliconflow.cn](https://cloud.siliconflow.cn/account/ak) |
 | **Relay** | Jeder OpenAI-, Anthropic- oder Gemini-kompatible Endpunkt, auch einer auf deinem eigenen Rechner |
 
@@ -201,7 +201,7 @@ in einen HTTP-Request verwandelt.
 Die eine Asymmetrie, die man kennen sollte, ist der Web-Client. Die meisten Anbieter-APIs senden
 keine CORS-Header, ein Browser kann sie also nicht direkt aufrufen; diese Requests laufen über einen
 Next.js Route Handler auf dem Rechner, der die App ausliefert – deinem eigenen, wenn du sie lokal
-betreibst. Die wenigen Endpunkte, die einen Browser doch zulassen (Moonshots China-Endpunkt, die
+betreibst. Die wenigen Endpunkte, die einen Browser doch zulassen (Kimis China-Endpunkt, die
 Guthaben-Endpunkte einiger Anbieter), und Relays in deinem eigenen Netz werden direkt aufgerufen.
 Der iOS- und der Android-Client haben diese Einschränkung nicht und gehen immer direkt zum
 Anbieter.
@@ -285,10 +285,10 @@ Den Modellkatalog von deinem eigenen Host ausliefern: [android.md](android.md).
   irgendwohin hochgeladen.
 - **Kein Konto, und nichts, was an uns zurückmeldet.** Es gibt nichts, wo man sich anmelden müsste.
   Das Web-Bundle enthält Sentry, das stumm bleibt, solange du keine eigene DSN konfigurierst.
-- **Auf iOS und Android gehen Chat-Requests direkt vom Gerät zum Anbieter.** Im Web laufen sie über
-  den Next.js-Server, der die App ausliefert, weil Anbieter-APIs direkte Browser-Aufrufe nicht
-  zulassen; dieser Server speichert weder Keys noch Nachrichten, und wenn du die App lokal
-  betreibst, ist er dein eigener Rechner.
+- **Auf iOS und Android gehen Chat-Requests direkt vom Gerät zum Anbieter.** Im Web laufen die
+  meisten über den Next.js-Server, der die App ausliefert, weil die meisten Anbieter-APIs einen
+  direkten Browser-Aufruf nicht zulassen; dieser Server speichert weder Keys noch Nachrichten, und
+  wenn du die App lokal betreibst, ist er dein eigener Rechner.
 - **Ein einziger Request auf eigene Rechnung:** ein nur lesbarer Modellkatalog, abgerufen ohne Key,
   ohne Unterhaltung und ohne Kennung, damit ein heute veröffentlichtes Modell ohne neuen Build
   funktioniert. Richte ihn auf deinen eigenen Host, wenn du ihn lieber selbst ausliefern willst.
@@ -312,12 +312,12 @@ und behält nichts ein.
 
 <br>
 
-Nein. Auf iOS und Android ruft der Client den Anbieter-Endpunkt direkt auf. Im Web geht der Request
-über den Next.js-Server, der die App ausliefert – dein eigener Rechner, wenn du sie lokal betreibst,
-weil Browser Anbieter-APIs nicht direkt aufrufen können. An keinem der beiden Wege ist ein von
-Oriveo betriebener Server beteiligt. Der einzige Request, den Oriveo auf eigene Rechnung stellt, ist
-ein nur lesender Abruf des öffentlichen Modellkatalogs, der weder Key noch Unterhaltung noch Kennung
-mitträgt.
+Nein. Auf iOS und Android ruft der Client den Anbieter-Endpunkt direkt auf. Im Web gehen die meisten
+Requests über den Next.js-Server, der die App ausliefert – dein eigener Rechner, wenn du sie lokal
+betreibst –, weil die meisten Anbieter-APIs einen direkten Browser-Aufruf verweigern; die wenigen,
+die ihn erlauben, werden direkt aufgerufen. An keinem der beiden Wege ist ein von Oriveo betriebener
+Server beteiligt. Der einzige Request, den Oriveo auf eigene Rechnung stellt, ist ein nur lesender
+Abruf des öffentlichen Modellkatalogs, der weder Key noch Unterhaltung noch Kennung mitträgt.
 
 </details>
 

@@ -38,8 +38,9 @@ Sessizce uzaklaşırlar, en son kimin test ettiği istemcinin yönüne doğru; v
 tekrarlanan, diğerlerinde tekrarlanmayan bir hata olarak yüzeye çıkar.
 
 `shared/` bunun cevabıdır: davranış bir kez veri olarak yazılır ve her istemcinin test paketi aynı
-dosyalara karşı doğrulama yapar. Bir sağlayıcı tuhaflığı bir kez düzeltilir. Bir sözleşme değişikliği,
-iki platformda yayına çıkıp üçüncüsünü kırmak yerine üç test paketini aynı anda düşürür.
+dosyalara karşı doğrulama yapar. O verinin içinde yaşayan bir tuhaflık bir kez düzeltilir. Bir
+ayrıştırıcının içinde yaşayan tuhaflık ise, iki platformda yayına çıkıp üçüncüsünü kırmak yerine üç
+test paketi tarafından aynı anda yakalanır.
 
 ```mermaid
 flowchart LR
@@ -91,10 +92,12 @@ istemcinin birden değişmesidir.
 Altın test verisi: kaydedilmiş upstream tool call trafiği, relay yönlendirme ve keşif senaryoları,
 model facts ve yetenek kanıtı anlık görüntüleri ve yerel motor senaryoları.
 
-`.sse` dosyaları **gerçekten yakalanmış upstream trafiğidir** ve bayt bayt dokunulmadan bırakılır.
-Elle yazılmış bir mock, sağlayıcının ne yaptığına dair inancınızı kodlar; kaydedilmiş bir akış ise
-onun gerçekte ne yaptığını kodlar — o salı günü gönderdiği bozuk chunk dahil. Bir sağlayıcı protokolü
-düzeltmesinin teste ihtiyacı olduğunda, bir kayıt bir mock'tan daha değerlidir.
+`recorded/` altındaki `.sse` dosyaları **gerçekten yakalanmış upstream trafiğidir** ve bayt bayt
+dokunulmadan bırakılır; geri kalanlar ise belirli bir ayrıştırma yolunu sabitleyen, elle yazılmış
+fixture'lardır. Bu ayrım önemlidir: elle yazılmış bir mock, sağlayıcının ne yaptığına dair
+inancınızı kodlar; kaydedilmiş bir akış ise onun gerçekte ne yaptığını kodlar — o salı günü
+gönderdiği bozuk chunk dahil. Bir sağlayıcı protokolü düzeltmesinin teste ihtiyacı olduğunda, bir
+kaydı tercih edin.
 
 ## OriveoProviderKit
 
@@ -122,15 +125,17 @@ cd shared/OriveoProviderKit && swift build && swift test
 Buradaki bir değişiklik, her istemcide bir değişikliktir. Yalnızca içinde çalıştığınız istemcinin
 değil, dokunduğunuz dosyayı okuyan her istemcinin sözleşme test paketlerini çalıştırın:
 
+Depo kökünden:
+
 ```bash
-cd web && npm run test:run
-cd shared/OriveoProviderKit && swift test
+(cd web && npm run test:run)
+(cd shared/OriveoProviderKit && swift test)
 # plus the iOS and Android suites — see their READMEs
 ```
 
-Hem iOS hem de Android test paketleri bu dizini, test dosyasından yukarı çıkıp `shared/` dizinini
-bulana kadar arayarak konumlandırır; web test paketleri ise onu workspace'e göre çözer. Bu yüzden
-hepsi deponun tam bir kopyasını gerektirir.
+iOS test paketleri bu dizini, test dosyasından yukarı çıkıp `shared/` dizinini görene kadar arayarak
+bulur; Android test paketleri Gradle modül dizininden `../../shared` yolunu çözer; web test
+paketleri ise onu workspace'e göre çözer. Bu yüzden hepsi deponun tam bir kopyasını gerektirir.
 
 ## Lisans
 

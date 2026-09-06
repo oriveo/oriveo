@@ -37,7 +37,8 @@
 那一个的方向漂，而漂移最终会以一个「在某个平台上能复现、在另外两个上不能」的 bug 浮出水面。
 
 `shared/` 就是对这件事的回答：行为以数据的形式写下一次，每个客户端的测试套件都对着同一批文件做断言。
-供应商的怪癖修一次就够。一次契约变更会同时让三套测试变红，而不是在两个平台上顺利发布、把第三个搞坏。
+住在这份数据里的怪癖修一次就够。住在解析器里的那种，会被三套测试同时抓住，而不是在两个平台上顺利
+发布、把第三个搞坏。
 
 ```mermaid
 flowchart LR
@@ -82,9 +83,10 @@ flowchart LR
 黄金测试数据：录制的上游工具调用流量、relay 路由与发现场景、model-facts 和能力证据快照，以及本地
 引擎场景。
 
-`.sse` 文件是**真实捕获的上游流量**，逐字节原样保留。手写的 mock 编码的是你以为供应商会做什么；一份
-录制下来的流编码的是它当时实际做了什么，包括那个星期二它发来的那个畸形分片。当一个供应商协议修复需要
-测试时，一份录制比一个 mock 值钱得多。
+`recorded/` 下面的 `.sse` 文件是**真实捕获的上游流量**，逐字节原样保留；其余的是手写的 fixture，用来
+钉住某一条具体的解析路径。这个区分是要紧的：手写的 mock 编码的是你以为供应商会做什么，而一份录制下来
+的流编码的是它当时实际做了什么，包括那个星期二它发来的那个畸形分片。当一个供应商协议修复需要测试时，
+优先用录制。
 
 ## OriveoProviderKit
 
@@ -108,14 +110,17 @@ cd shared/OriveoProviderKit && swift build && swift test
 这里的一处改动就是对每个客户端的改动。请把读了你所改文件的每个客户端的契约测试都跑一遍，而不是只跑
 你恰好正在做的那个：
 
+从仓库根目录运行：
+
 ```bash
-cd web && npm run test:run
-cd shared/OriveoProviderKit && swift test
+(cd web && npm run test:run)
+(cd shared/OriveoProviderKit && swift test)
 # plus the iOS and Android suites — see their READMEs
 ```
 
-iOS 和 Android 两套测试都是从测试文件一路向上走、直到找到 `shared/` 来定位这个目录的，而 Web 测试是
-相对 workspace 解析它。因此它们全都要求仓库的完整 checkout。
+iOS 那套测试是从测试文件一路向上走、直到看见 `shared/` 来定位这个目录的；Android 那套是从 Gradle
+模块目录解析 `../../shared`；Web 那套则是相对 workspace 解析它。因此它们全都要求仓库的完整
+checkout。
 
 ## 许可证
 

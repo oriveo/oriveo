@@ -63,7 +63,7 @@ flowchart TB
 
     subgraph provider ["Sağlayıcı katmanı"]
         direction LR
-        services["15 ProviderService"]
+        services["15 ProviderService<br/>relay OpenAI servisini yeniden kullanır"]
         transports["TransportRegistry<br/>12 strateji"]
         kit["OriveoProviderKit<br/>SSE · chunk birleştirme · sır gizleme"]
     end
@@ -120,8 +120,9 @@ değil tek bir yerde test edilebilir kılan da budur.
 
 İstemci, bir modelin yeteneklerini adından asla tahmin etmez. Bir **yetenek çalışma zamanı** okur —
 belirli bir sağlayıcı, transport ve yetenek için isteğe tam olarak hangi JSON pointer'ların
-yazılacağını anlatan reçeteler kümesi. Bu reçeteler [`shared/capabilityrecipe`](shared.md) içinde
-durur ve `CapabilityRecipeRequestCompiler` tarafından uygulanır.
+yazılacağını anlatan reçeteler kümesi. Bu reçeteler
+[`shared/capabilityrecipe`](../../shared/capabilityrecipe/) içinde durur ve
+`CapabilityRecipeRequestCompiler` tarafından uygulanır.
 
 Dönüş yolunda `CapabilityExecutionRuntime` gerçekte ne olduğunu kaydeder. Bir yeteneği *observed*
 seviyesine yalnızca seçili bir üretim akış ayrıştırıcısı yükseltebilir. HTTP 200, boş olmayan bir
@@ -158,6 +159,12 @@ adlandırılmış ve maliyeti ne. Ne anahtar, ne sohbet, ne de tanımlayıcı ek
 
 Uygulamanın kendi adına yaptığı tek istek budur. Geri kalan her şey, sizin yapılandırdığınız bir
 sağlayıcıya, sizin anahtarınızla gider.
+
+Bir **Debug** derlemesini kendi katalog sunucunuza yönlendirmek için `ORIVEO_METADATA_BASE_URL`
+değerini ayarlayın — ister bir scheme ortam değişkeni olarak, ister `ios/Oriveo/Config/Info.plist`
+içinde bir anahtar olarak. Android ve web istemcilerinden farklı olarak bir Release derlemesi bunu
+yok sayar ve her zaman yayınlanmış kataloğu kullanır; bunu değiştirmek `BackendURLResolver`'ı
+düzenlemek demektir.
 
 ## Proje yapısı
 
@@ -214,11 +221,11 @@ bir Xcode dosyayı açmayı reddedebilir. Proje biçimini düzenlemek yerine Xco
 | [swift-markdown-ui](https://github.com/gonzalezreal/swift-markdown-ui) | 2.4.1 | Markdown render'ı |
 | [SwiftMath](https://github.com/mgriebling/SwiftMath) | 1.7.3 | LaTeX render'ı |
 | [ZIPFoundation](https://github.com/weichsel/ZIPFoundation) | 0.9.20 | yedek arşivleri, Office/EPUB/ODF çıkarımı |
-| `OriveoProviderKit` | yerel | sağlayıcı ağ çekirdeği, macOS ile ortak |
+| `OriveoProviderKit` | yerel | sağlayıcı ağ çekirdeği, [`shared/`](shared.md) içinde |
 
 ## Testler
 
-Xcode'dan `OriveoTests` scheme'ini çalıştırın veya depo kökünden:
+Xcode'da `Oriveo` scheme'inin test action'ını (⌘U) çalıştırın veya depo kökünden:
 
 ```bash
 xcodebuild test -project ios/Oriveo/Oriveo.xcodeproj -scheme Oriveo \

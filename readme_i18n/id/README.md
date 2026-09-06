@@ -7,7 +7,7 @@
 **Semua model, satu aplikasi.**
 
 Klien chat AI open source berbasis bring-your-own-key untuk iOS, Android, dan web.
-Tanpa akun, tanpa langganan, tanpa server kami di antara Anda dan model.
+Tanpa akun, tanpa langganan, dan tanpa layanan kami di jalur permintaan.
 
 <a href="../../LICENSE"><img alt="Lisensi AGPL-3.0-or-later" src="https://img.shields.io/badge/license-AGPL--3.0--or--later-8B5CF6?style=flat-square&labelColor=black"></a>
 <a href="ios.md"><img alt="iOS 18 ke atas" src="https://img.shields.io/badge/iOS-18+-A78BFA?style=flat-square&labelColor=black&logo=apple&logoColor=white"></a>
@@ -52,13 +52,14 @@ Tanpa akun, tanpa langganan, tanpa server kami di antara Anda dan model.
 
 Oriveo Community Edition adalah klien chat AI bring-your-own-key (BYOK) untuk iOS, Android, dan
 web. Anda menyediakan API key yang sudah Anda miliki, dan klien memakainya untuk berbicara langsung
-dengan provider. Tidak ada akun Oriveo, tidak ada langganan, dan tidak ada analytics.
+dengan provider. Tidak ada akun Oriveo dan tidak ada langganan, dan tidak ada apa pun yang melapor
+balik ke kami.
 
 Aplikasi ini berbicara secara native dengan **15 provider model** — OpenAI, Anthropic, Google
 Gemini, OpenRouter, DeepSeek, Grok, Mistral, Groq, Together AI, Fireworks AI, MiniMax, Z.ai, Qwen,
-Kimi, dan SiliconFlow — ditambah **endpoint apa pun yang kompatibel dengan OpenAI, Anthropic, atau
-Gemini** yang Anda arahkan, termasuk llama.cpp, Ollama, LM Studio, atau vLLM yang berjalan di mesin
-Anda sendiri.
+Kimi (Moonshot), dan SiliconFlow — ditambah **endpoint apa pun yang kompatibel dengan OpenAI,
+Anthropic, atau Gemini** yang Anda arahkan, termasuk llama.cpp, Ollama, LM Studio, atau vLLM yang
+berjalan di mesin Anda sendiri.
 
 | | |
 |---|---|
@@ -66,21 +67,23 @@ Anda sendiri.
 | **Klien** | iOS (SwiftUI) · Android (Jetpack Compose) · Web (Next.js) |
 | **Bahasa antarmuka** | 16 |
 | **Perlu akun** | Tidak |
-| **Panggilan yang dibuatnya atas namanya sendiri** | Satu: katalog model read-only, tanpa key dan tanpa identifier yang dilampirkan |
+| **Panggilan yang dibuatnya atas namanya sendiri** | Satu hal, dalam dua permintaan: katalog model read-only, tanpa key dan tanpa identifier yang dilampirkan |
 | **Lisensi** | AGPL-3.0-or-later |
 
 ## Mengapa ini ada
 
-Sebuah klien chat tidak seharusnya berdiri di antara Anda dan model yang Anda bayar.
+Tidak seorang pun seharusnya bisa melakukan metering, mencatat, atau mengambil markup atas model
+yang Anda bayar.
 
 - **Key Anda, tagihan Anda.** Anda membayar harga resmi provider. Tidak ada markup, tidak ada
   metering, tidak ada penjualan ulang.
 - **Lokal secara bawaan.** Percakapan, catatan, folder, skill, dan lampiran tersimpan di perangkat.
   Ekspor ke berkas kapan pun Anda mau; tidak ada salinan cloud yang bisa hilang aksesnya.
 - **Satu perilaku, tiga klien.** Bagaimana sebuah permintaan dibentuk untuk provider, transport, dan
-  capability tertentu didefinisikan sekali di [`shared/`](shared.md), dan ketiga klien menguji diri
-  terhadap fixture JSON yang sama. Keanehan satu provider diperbaiki sekali, bukan tiga kali.
-- **Jujur soal satu panggilan yang dibuatnya.** Aplikasi mengambil katalog model publik supaya model
+  capability tertentu dituliskan sekali di [`shared/`](shared.md), dan ketiga klien menguji diri
+  terhadap fixture JSON yang sama. Keanehan yang hidup di dalam data itu diperbaiki sekali; keanehan
+  yang hidup di dalam sebuah parser tertangkap oleh tiga suite sekaligus.
+- **Satu panggilan yang dibuatnya.** Aplikasi mengambil katalog model publik supaya model
   yang rilis hari ini langsung bisa dipakai tanpa pembaruan aplikasi. Katalog itu read-only, tidak
   membawa key maupun identifier, dan Anda bisa mengarahkannya ke host Anda sendiri.
 
@@ -92,7 +95,8 @@ Sebuah klien chat tidak seharusnya berdiri di antara Anda dan model yang Anda ba
   parameter per provider
 - **Relay** — endpoint apa pun yang kompatibel dengan OpenAI, Anthropic, atau Gemini, termasuk yang
   ada di LAN Anda
-- **Server model lokal** — llama.cpp, Ollama, LM Studio, vLLM, lengkap dengan penemuan di jaringan lokal
+- **Server model lokal** — llama.cpp, Ollama, LM Studio, vLLM; iOS dan Android menemukannya di
+  jaringan lokal lewat mDNS
 - **Masuk dengan langganan** — pakai langganan Codex atau Grok yang sudah Anda miliki, bukan API key
 - **Skill** — system prompt yang bisa dipakai ulang, dengan model, parameter, dan dokumen referensinya sendiri
 - **Catatan dan folder** — simpan sebuah balasan sebagai catatan, rapikan percakapan, cari teks penuh
@@ -115,18 +119,17 @@ akun di atasnya.
 | Sumber | Repositori ini, AGPL-3.0-or-later | Proprietary |
 | Chat dengan key provider Anda sendiri | Ya | Ya |
 | Relay dan server model lokal | Ya | Ya |
-| Catatan, folder, skill, lampiran | Ya, tanpa batas | Ya |
+| Catatan, folder, skill, lampiran | Ya | Ya |
 | Pelacakan biaya di perangkat | Ya | Ya |
 | Akun | Tidak ada | Akun Oriveo |
 | Penyimpanan | Di perangkat; ekspor dan pulihkan manual | Local-first, plus sinkronisasi cloud lintas perangkat |
 | Wawasan pemakaian dan peringatan anggaran | — | Ya |
 | Model yang dibayari Oriveo | — | Ya |
-| Analytics dan pelaporan crash | Tidak ada | Ya |
+| Analytics dan pelaporan crash | Mati secara bawaan — bundel web menyertakan Sentry, yang diam tanpa DSN | Ya |
 
 Build Community Edition memakai awalan identifier `ai.oriveo.community`, sehingga satu build bisa
-berdampingan dengan build dari toko tanpa keduanya berbagi keychain, feed pembaruan, atau data
-lokal. Apa yang akan dan tidak akan diterima edisi ini tertulis di
-[COMMUNITY.md](../../COMMUNITY.md).
+berdampingan dengan build dari toko tanpa keduanya berbagi keychain atau data lokal. Apa yang akan
+dan tidak akan diterima edisi ini tertulis di [COMMUNITY.md](../../COMMUNITY.md).
 
 **Oriveo, produk lengkapnya:**
 [iPhone dan iPad](https://apps.apple.com/app/oriveo/id6775370458) &nbsp;·&nbsp;
@@ -153,7 +156,7 @@ Setiap provider di bawah ini dijangkau dengan key yang Anda buat sendiri.
 | MiniMax | [platform.minimax.io](https://platform.minimax.io/docs/guides/quickstart-preparation) |
 | Z.ai | [open.bigmodel.cn](https://open.bigmodel.cn/usercenter/apikeys) |
 | Qwen | [bailian.console.alibabacloud.com](https://bailian.console.alibabacloud.com/?apiKey=1#/api-key) |
-| Kimi | [platform.kimi.ai](https://platform.kimi.ai/console/api-keys) |
+| Kimi (Moonshot) | [platform.kimi.ai](https://platform.kimi.ai/console/api-keys) |
 | SiliconFlow | [cloud.siliconflow.cn](https://cloud.siliconflow.cn/account/ak) |
 | **Relay** | Endpoint apa pun yang kompatibel dengan OpenAI, Anthropic, atau Gemini, termasuk yang ada di mesin Anda sendiri |
 
@@ -191,12 +194,13 @@ flowchart LR
 Setiap klien punya UI, penyimpanan, dan navigasinya sendiri, dan bertemu kontrak bersama di tepat
 satu titik sambung: lapisan yang mengubah *model ini, capability ini* menjadi sebuah permintaan HTTP.
 
-Satu-satunya ketidaksimetrisan yang perlu Anda tahu ada pada klien web. API provider tidak mengirim
-header CORS, jadi browser tidak bisa memanggilnya langsung; permintaan ke 15 provider resmi karena
-itu melewati sebuah route handler Next.js yang berjalan di mesin mana pun yang menyajikan aplikasi —
-mesin Anda sendiri, saat Anda menjalankannya secara lokal. Klien iOS dan Android tidak punya batasan
-seperti itu dan langsung menuju provider. Endpoint relay di jaringan Anda sendiri juga dipanggil
-langsung dari browser.
+Satu-satunya ketidaksimetrisan yang perlu Anda tahu ada pada klien web. Sebagian besar API provider
+tidak mengirim header CORS, jadi browser tidak bisa memanggilnya langsung; permintaan itu melewati
+sebuah route handler Next.js yang berjalan di mesin mana pun yang menyajikan aplikasi — mesin Anda
+sendiri, saat Anda menjalankannya secara lokal. Segelintir endpoint yang memang mengizinkan browser
+(endpoint Tiongkok milik Kimi, endpoint saldo beberapa provider) dan relay di jaringan Anda
+sendiri dipanggil langsung. Klien iOS dan Android tidak punya batasan seperti itu dan selalu
+langsung menuju provider.
 
 **Arsitektur masing-masing klien:**
 
@@ -208,6 +212,10 @@ langsung dari browser.
 | **Shared** | Kontrak, fixture terekam, dan wire kernel Swift | [shared.md](shared.md) |
 
 ## Mulai
+
+Tidak ada biner siap pakai di sini — tidak ada APK, tidak ada `.ipa`, tidak ada rilis. Community
+Edition adalah kode sumber yang Anda build sendiri, dan aplikasi di toko adalah produk yang satunya.
+Klien web adalah jalur terpendek menuju aplikasi yang berjalan.
 
 <details open>
 <summary><b>Web</b> — cara tercepat mencobanya</summary>
@@ -250,9 +258,9 @@ Panduan lengkap, termasuk apa yang harus dilakukan jika Xcode menolak membuka pr
 
 <br>
 
-Membutuhkan JDK 17 atau lebih baru dan Android SDK. Build memakai AGP 9.3, Gradle 9.5, dan Kotlin
-2.3, jadi Android Studio harus versi rilis yang bisa menyinkronkannya; dari command line hanya JDK
-dan SDK yang dibutuhkan.
+Membutuhkan JDK 21 dan Android SDK. Build memakai AGP 9.3, Gradle 9.5, dan Kotlin 2.3, jadi Android
+Studio harus versi rilis yang bisa menyinkronkannya; dari command line hanya JDK dan SDK yang
+dibutuhkan.
 
 ```bash
 cd android
@@ -265,18 +273,18 @@ Menyajikan katalog model dari host Anda sendiri: [android.md](android.md).
 
 ## Privasi
 
-- **Key provider** disimpan oleh fasilitas milik platform itu sendiri — iOS Keychain, Android
-  Keystore (`EncryptedSharedPreferences`), atau IndexedDB browser — dan hanya dipakai untuk
-  menjangkau provider yang bersangkutan. Di web key disimpan tanpa enkripsi, model yang sama yang
-  umumnya dipakai klien BYOK berbasis browser; untuk jaminan terkuat, gunakan klien iOS atau Android.
+- **Key provider** masuk ke iOS Keychain, dan di Android ke `EncryptedSharedPreferences` di bawah
+  sebuah key yang dipegang Android Keystore. Browser tidak punya fasilitas yang setara, jadi di web
+  key tersimpan tanpa enkripsi di IndexedDB — model yang sama yang umumnya dipakai klien BYOK
+  berbasis browser. Untuk jaminan terkuat, gunakan klien iOS atau Android.
 - **Percakapan, catatan, folder, skill, dan lampiran** disimpan di perangkat. Tidak ada yang diunggah
   ke mana pun.
-- **Tanpa akun, tanpa analytics, tanpa pelaporan crash.** Tidak ada yang perlu dimasuki dan tidak ada
-  yang diam-diam menelepon pulang.
-- **Di iOS dan Android, permintaan chat langsung dari perangkat ke provider.** Di web permintaan
-  melewati server Next.js yang menyajikan aplikasi, karena API provider tidak mengizinkan panggilan
-  langsung dari browser; server itu tidak menyimpan key maupun pesan, dan saat Anda menjalankan
-  aplikasi secara lokal, server itu adalah mesin Anda sendiri.
+- **Tanpa akun, dan tanpa apa pun yang melapor balik ke kami.** Tidak ada yang perlu dimasuki.
+  Bundel web menyertakan Sentry, yang tetap diam kecuali Anda mengonfigurasi DSN Anda sendiri.
+- **Di iOS dan Android, permintaan chat langsung dari perangkat ke provider.** Di web sebagian besar
+  permintaan melewati server Next.js yang menyajikan aplikasi, karena sebagian besar API provider
+  tidak mengizinkan panggilan langsung dari browser; server itu tidak menyimpan key maupun pesan,
+  dan saat Anda menjalankan aplikasi secara lokal, server itu adalah mesin Anda sendiri.
 - **Satu permintaan milik kami sendiri:** katalog model read-only, diambil tanpa key, tanpa
   percakapan, dan tanpa identifier apa pun, supaya model yang rilis hari ini bisa dipakai tanpa build
   baru. Arahkan ke host Anda sendiri kalau Anda lebih suka menyajikannya sendiri.
@@ -300,12 +308,13 @@ potongan.
 
 <br>
 
-Tidak. Di iOS dan Android klien memanggil endpoint provider secara langsung. Di web permintaan
-melewati server Next.js yang sedang menyajikan aplikasi — mesin Anda sendiri saat Anda
-menjalankannya secara lokal — karena browser tidak bisa memanggil API provider secara langsung.
-Tidak satu pun jalur itu melibatkan server yang dioperasikan Oriveo. Satu-satunya permintaan yang
-dibuat Oriveo atas namanya sendiri adalah pengambilan read-only katalog model publik, yang tidak
-membawa key, percakapan, maupun identifier.
+Tidak. Di iOS dan Android klien memanggil endpoint provider secara langsung. Di web sebagian besar
+permintaan melewati server Next.js yang sedang menyajikan aplikasi — mesin Anda sendiri saat Anda
+menjalankannya secara lokal — karena sebagian besar API provider menolak panggilan langsung dari
+browser; segelintir yang mengizinkannya dipanggil langsung. Tidak satu pun jalur itu melibatkan
+server yang dioperasikan Oriveo. Satu-satunya permintaan yang dibuat Oriveo atas namanya sendiri
+adalah pengambilan read-only katalog model publik, yang tidak membawa key, percakapan, maupun
+identifier.
 
 </details>
 
@@ -316,8 +325,9 @@ membawa key, percakapan, maupun identifier.
 
 Bisa. Tambahkan koneksi Relay yang mengarah ke server mana pun yang kompatibel dengan OpenAI,
 Anthropic, atau Gemini — llama.cpp, Ollama, LM Studio, vLLM, atau apa pun yang berbicara salah satu
-protokol tersebut. Klien Android dan web juga bisa menemukan server semacam itu di jaringan lokal.
-HTTP lokal tidak memakai kredensial apa pun dan tidak pernah keluar dari jaringan Anda.
+protokol tersebut. Klien iOS dan Android bisa menemukannya di jaringan lokal lewat mDNS; klien web
+menawarkan alamat bawaan tiap engine lalu melakukan probing ke alamat itu. HTTP lokal tidak memakai
+kredensial apa pun dan tidak pernah keluar dari jaringan Anda.
 
 </details>
 
@@ -328,8 +338,9 @@ HTTP lokal tidak memakai kredensial apa pun dan tidak pernah keluar dari jaringa
 
 Aplikasi di toko adalah Oriveo, produk proprietary yang menambahkan akun, sinkronisasi cloud lintas
 perangkat, wawasan pemakaian, dan model yang dibayari Oriveo. Community Edition adalah tiga klien
-yang sama tanpa semua itu: tanpa akun, tanpa layanan sinkronisasi, tanpa penagihan, tanpa analytics.
-Lihat [Community Edition dan Oriveo](#community-edition-dan-oriveo) untuk perbandingan lengkapnya.
+yang sama tanpa semua itu: tanpa akun, tanpa layanan sinkronisasi, tanpa penagihan, dan tidak ada
+yang melapor balik ke kami. Lihat [Community Edition dan Oriveo](#community-edition-dan-oriveo)
+untuk perbandingan lengkapnya.
 
 </details>
 
@@ -339,7 +350,7 @@ Lihat [Community Edition dan Oriveo](#community-edition-dan-oriveo) untuk perban
 <br>
 
 Tidak di repositori ini. Sementara itu klien web bekerja dengan baik sebagai aplikasi desktop di
-browser mana pun, dan build iOS berjalan di Mac dengan Apple silicon.
+browser mana pun, dan build iOS biasanya bisa dijalankan di Mac dengan Apple silicon.
 
 </details>
 
@@ -357,11 +368,13 @@ mendapat tata letak right-to-left penuh.
 ## Struktur repositori
 
 ```
-ios/       iOS client (SwiftUI)
-android/   Android client (Jetpack Compose)
-web/       Web client (Next.js)
-macos/     Reserved for a macOS client
-shared/    Cross-client contracts, recorded fixtures, and the Swift wire kernel
+ios/           iOS client (SwiftUI)
+android/       Android client (Jetpack Compose)
+web/           Web client (Next.js)
+macos/         Reserved for a macOS client
+shared/        Cross-client contracts, recorded fixtures, and the Swift wire kernel
+readme_i18n/   These READMEs in fifteen more languages
+docs/assets/   Images used by the READMEs
 ```
 
 ## Kontribusi

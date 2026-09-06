@@ -92,13 +92,14 @@ handlers de Next.js que corren en el runtime de Node. Cuando ejecutas `npm run d
 handlers están en tu propia máquina. Cuando despliegas la app en algún lado, están en la máquina
 donde la desplegaste.
 
-Son doce, no uno: streaming de chat, el reenviador de relay, generación de imágenes, la lista de
-modelos, la validación de claves y los intercambios de device login de Grok y Codex. La validación de
-claves importa aquí: le manda la clave a tu propio servidor, que sondea al proveedor con ella.
+No es uno solo: el streaming de chat, el reenviador de relay, la generación de imágenes, la lista de
+modelos, la validación de claves y los intercambios de device login de Grok y Codex suman doce
+archivos de ruta en total. La validación de claves importa aquí: le manda la clave a tu propio
+servidor, que sondea al proveedor con ella.
 
 Unos pocos endpoints *sí* admiten un navegador, y esos se llaman directamente, sin ningún servidor en
-medio: el endpoint chino de Moonshot para chat, y los endpoints de saldo de OpenRouter, SiliconFlow,
-DeepSeek y Moonshot.
+medio: el endpoint chino de Kimi (`api.moonshot.cn`) para chat, y los endpoints de saldo de
+OpenRouter, SiliconFlow, DeepSeek y Kimi.
 
 **Qué hace y qué no hace el handler.** Valida la forma de la solicitud y limita su tamaño, aplica un
 límite de tasa por IP al tráfico de chat y de relay, rechaza las URL que resuelven a direcciones

@@ -62,7 +62,7 @@ flowchart TB
 
     subgraph provider ["공급자 계층"]
         direction LR
-        services["ProviderService 15종"]
+        services["ProviderService 15종<br/>릴레이는 OpenAI 것을 재사용"]
         transports["TransportRegistry<br/>전략 12종"]
         kit["OriveoProviderKit<br/>SSE · 청크 조립 · 비밀 값 가림"]
     end
@@ -119,7 +119,7 @@ flowchart LR
 
 클라이언트는 모델의 기능을 이름으로 추측하지 않습니다. 대신 **capability runtime**을 읽습니다.
 특정 공급자·transport·기능에 대해, 요청에 어떤 JSON 포인터를 써넣을지 정확히 기술한 레시피
-모음입니다. 이 레시피들은 [`shared/capabilityrecipe`](shared.md)에 있고
+모음입니다. 이 레시피들은 [`shared/capabilityrecipe`](../../shared/capabilityrecipe/)에 있고
 `CapabilityRecipeRequestCompiler`가 적용합니다.
 
 돌아오는 길에는 `CapabilityExecutionRuntime`이 실제로 무슨 일이 일어났는지 기록합니다. 지정된
@@ -156,6 +156,11 @@ Application Support/Oriveo/
 
 앱이 자기 자신을 위해 보내는 요청은 이것뿐입니다. 나머지는 전부 사용자가 설정한 공급자에게,
 사용자의 키로 갑니다.
+
+**Debug** 빌드를 자신의 카탈로그 호스트로 향하게 하려면 `ORIVEO_METADATA_BASE_URL`을 설정하세요.
+scheme 환경 변수로 넘기거나 `ios/Oriveo/Config/Info.plist`의 키로 적으면 됩니다. Android나 웹
+클라이언트와 달리 Release 빌드는 이 값을 무시하고 언제나 게시된 카탈로그를 씁니다. 이를 바꾸려면
+`BackendURLResolver`를 손봐야 합니다.
 
 ## 프로젝트 구조
 
@@ -210,11 +215,11 @@ ios/Oriveo/
 | [swift-markdown-ui](https://github.com/gonzalezreal/swift-markdown-ui) | 2.4.1 | 마크다운 렌더링 |
 | [SwiftMath](https://github.com/mgriebling/SwiftMath) | 1.7.3 | LaTeX 렌더링 |
 | [ZIPFoundation](https://github.com/weichsel/ZIPFoundation) | 0.9.20 | 백업 아카이브, Office/EPUB/ODF 추출 |
-| `OriveoProviderKit` | 로컬 | macOS와 공유하는 공급자 wire 커널 |
+| `OriveoProviderKit` | 로컬 | [`shared/`](shared.md)에 있는 공급자 wire 커널 |
 
 ## 테스트
 
-Xcode에서 `OriveoTests` scheme을 실행하거나, 저장소 루트에서 다음을 쓰세요.
+Xcode에서 `Oriveo` scheme의 테스트 액션(⌘U)을 실행하거나, 저장소 루트에서 다음을 쓰세요.
 
 ```bash
 xcodebuild test -project ios/Oriveo/Oriveo.xcodeproj -scheme Oriveo \

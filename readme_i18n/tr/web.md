@@ -56,8 +56,8 @@ npm run dev:app     # http://localhost:3001
 
 ## Bir istek gerçekte nasıl yol alır
 
-Her şeyden önce okunmaya değer kısım burasıdır, çünkü web istemcisi, isteğin istemciden sağlayıcıya
-doğrudan gitmediği **tek** yerdir.
+Her şeyden önce okunmaya değer kısım burasıdır, çünkü web istemcisi, bir isteğin istemciden
+sağlayıcıya genellikle doğrudan gitmediği **tek** yerdir.
 
 ```mermaid
 flowchart LR
@@ -67,6 +67,7 @@ flowchart LR
         direction TB
         chat["/api/chat/stream"]
         fwd["/api/relay/forward"]
+        prov["/api/providers/*"]
     end
 
     official["15 resmi sağlayıcı"]
@@ -74,25 +75,39 @@ flowchart LR
     lan["Ağınızdaki bir model sunucusu"]
     catalog[("Herkese açık model kataloğu<br/>salt okunur · anahtarsız")]
 
-    browser ==>|"resmi sağlayıcı"| chat ==> official
+    browser ==>|"resmi sağlayıcıların çoğu"| chat ==> official
+    browser ==>|"model listesi · anahtar kontrolü · OAuth"| prov
     browser ==>|"relay, genel sunucu"| fwd ==> pubrelay
-    browser ==>|"relay, LAN veya localhost"| lan
+    browser ==>|"ağınızdaki relay"| lan
+    browser ==>|"CORS'a izin veren endpoint'ler"| official
     catalog -.-> browser
     catalog -.-> chat
 ```
 
-**Bu dolambaç neden var.** Sağlayıcı API'leri CORS başlıkları göndermez, bu yüzden bir tarayıcı
+**Bu dolambaç neden var.** Sağlayıcı API'lerinin çoğu CORS başlığı göndermez, bu yüzden bir tarayıcı
 `api.openai.com` ve benzerlerini doğrudan çağıramaz — preflight başarısız olur. Tarayıcıda çalışan
 her BYOK istemcisinin bunu bir biçimde çözmesi gerekir; bu istemci, Node çalışma ortamında çalışan
-bir Next.js route handler'ı üzerinden iletir. `npm run dev:app` çalıştırdığınızda o handler sizin
+Next.js route handler'ları üzerinden iletir. `npm run dev:app` çalıştırdığınızda o handler'lar sizin
 makinenizdedir. Uygulamayı bir yere dağıttığınızda ise dağıttığınız makinededir.
 
-**Handler ne yapar, ne yapmaz.** İsteğin biçimini doğrular ve boyutunu sınırlar, IP başına hız
-sınırı uygular, özel veya link-local adreslere çözülen URL'leri reddeder, sağlayıcıya özgü gövdeyi
-kurar ve yanıtı akış hâlinde geri verir. Anahtarınızı, mesajlarınızı veya bunlardan türetilmiş hiçbir
-şeyi saklamaz — bu davranışı özel bir test (`server-never-learns.test.ts`) sabitler. Relay
-iletici ayrıca DNS'i çözdüğü adrese sabitler, yanıt boyutunu sınırlar, her zaman aşımına sınır koyar,
-yönlendirmeleri aynı origin ile sınırlar ve hop-by-hop başlıkları geçirmeyi reddeder.
+Tek bir handler yok: sohbet akışı, relay iletici, görsel üretimi, model listesi, anahtar doğrulama
+ve Grok ile Codex cihaz girişi takasları toplamda on iki route dosyası eder. Anahtar doğrulama
+burada önemlidir — anahtarı kendi sunucunuza gönderir, o da onunla sağlayıcıyı yoklar.
+
+Birkaç endpoint tarayıcıya *izin verir* ve bunlar arada hiçbir sunucu olmadan doğrudan çağrılır:
+sohbet için Kimi'nin Çin endpoint'i (`api.moonshot.cn`) ve OpenRouter, SiliconFlow, DeepSeek ile
+Kimi'nin bakiye endpoint'leri.
+
+**Handler ne yapar, ne yapmaz.** İsteğin biçimini doğrular ve boyutunu sınırlar, sohbet ve relay
+trafiğine IP başına hız sınırı uygular, özel veya link-local adreslere çözülen URL'leri reddeder,
+sağlayıcıya özgü gövdeyi kurar ve yanıtı akış hâlinde geri verir. `app/api` altında hiçbir yerde
+veritabanı, dosya sistemine yazma ya da istek gövdesi günlükleme yoktur — anahtarınız ve
+mesajlarınız iletilir ve unutulur. Route, her ziyaretçinin paylaştığı tek bir süreç olduğu için özel
+bir test (`server-never-learns.test.ts`), bir kullanıcının reddedilen bir parametresini önbelleğe
+alıp başkasının isteğine uygulamadığını sabitler.
+
+Relay iletici ayrıca DNS'i çözdüğü adrese sabitler, yanıt boyutunu sınırlar, her zaman aşımına sınır
+koyar, yönlendirmeleri aynı origin ile sınırlar ve hop-by-hop başlıkları geçirmeyi reddeder.
 
 **Yerel endpoint'ler bunu tümüyle atlar.** Özel bir adreste, `.local` bir adda, `localhost`'ta ya da
 yerel HTTP veya özel VPN kipinde yapılandırılmış bir relay, `credentials: 'omit'` ve
@@ -128,10 +143,10 @@ flowchart TB
 ```
 
 `packages/core`, sağlayıcı protokolü bilgisinin her baytını barındırır ve tarayıcı global'lerinden
-bilinçli olarak uzak tutulur — eslint, içinde `window`, `document`, `fetch`, `crypto`,
-`localStorage` ve `indexedDB` kullanımını yasaklar. Ortamdan ihtiyaç duyduğu her şey `CorePorts`
-üzerinden gelir. Aynı kodun bir tarayıcıda, bir Node route handler'ında ve DOM'suz bir testte
-çalışabilmesini sağlayan da budur.
+bilinçli olarak uzak tutulur — eslint, hem onun hem de `packages/ipc-contract`'ın içinde `window`,
+`document`, `fetch`, `crypto`, `localStorage`, `sessionStorage` ve `indexedDB` kullanımını yasaklar.
+Ortamdan ihtiyaç duyduğu her şey `CorePorts` üzerinden gelir. Aynı kodun bir tarayıcıda, bir Node
+route handler'ında ve DOM'suz bir testte çalışabilmesini sağlayan da budur.
 
 Sağlayıcı desteği iki bağımsız eksendir. `providerKind` bir **istek kurucusu** seçer (gövdenin bu
 sağlayıcı için nasıl göründüğü). `model.transport` ise on iki seçenek arasından bir **transport
@@ -163,7 +178,7 @@ Her şey bölümlere ayrılmıştır ve varsayılanı `guest` olan etkin bir id 
 |---|---|
 | Sohbetler, mesajlar, klasörler, notlar, sağlayıcılar | IndexedDB `oriveo--{id}`, 8 object store |
 | Model kataloğu anlık görüntüsü (~3 MB) ve model facts | IndexedDB blob deposu, bilinçli olarak localStorage değil |
-| Tercihler ve model denetim tabloları | `localStorage`, her zaman asla hata fırlatmayan bir sarmalayıcı üzerinden |
+| Tercihler ve model denetim tabloları | `localStorage`, hata fırlattığı görülen yolları `safeLocalStorage` sarmalar |
 | Üretilen ve eklenen görseller | ayrı bir IndexedDB veritabanı |
 
 Zevkten değil, gerçek arızalardan gelen iki ayrıntı. Katalog anlık görüntüsü IndexedDB'de yaşıyor,
@@ -213,13 +228,24 @@ Tek bir test dosyasını çalıştırmak için bunu, dosyanın ait olduğu works
 test paketi fixture'ları çalışma dizinine göre çözer:
 
 ```bash
-cd apps/app && npx vitest run lib/core/chat/stream-options.test.ts
+cd apps/app && npx vitest run lib/core/chat/__tests__/stream-options.test.ts
 ```
 
 ## Yapılandırma
 
 Her şey isteğe bağlıdır. [`.env.example`](../../web/.env.example) dosyasını `.env.local` olarak
-kopyalayın ve yalnızca ihtiyacınız olanı ayarlayın; her anahtar orada belgelenmiştir.
+kopyalayın ve yalnızca ihtiyacınız olanı ayarlayın; her anahtar orada belgelenmiştir. Kodun okuduğu
+birkaç değişken o dosyada yer almaz: `BACKEND_URL` (`NEXT_PUBLIC_BACKEND_URL`'in yalnızca sunucu
+tarafında geçerli ikizi), `NEXT_PUBLIC_LIBRARY_ENABLED`, `ORIVEO_DESKTOP` ve `NEXT_DIST_DIR`.
+
+### Hata raporlama
+
+Uygulama Sentry SDK'sını paketler. **DSN olmadan atıldır** — `NEXT_PUBLIC_SENTRY_DSN` yoksa taşıma
+yok, olay yok, hiçbir yere hiçbir şey gönderilmez; bu depodan yapılan bir derlemenin varsayılanı da
+budur. Bir DSN ayarlarsanız hata raporlaması, %10 performans izleme ve %1 oturum tekrarı elde
+edersiniz; üstelik bir olay tarayıcıdan çıkmadan önce sağlayıcı anahtarlarını, endpoint'leri ve
+mesaj içeriğini temizleyen hook'larla birlikte. Burada olmasının nedeni bu derlemenin eve telefon
+etmesi değil, hata raporlaması isteyen bir dağıtımın buna sahip olabilmesidir.
 
 ## Testler
 

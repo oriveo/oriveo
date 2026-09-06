@@ -55,8 +55,8 @@ Màn hình đầu tiên hỏi khóa API của một nhà cung cấp. Không cầ
 
 ## Một yêu cầu thực sự đi đường nào
 
-Đây là phần đáng đọc trước hết, vì client web là nơi duy nhất mà yêu cầu **không** đi thẳng từ
-client tới nhà cung cấp.
+Đây là phần đáng đọc trước hết, vì client web là nơi duy nhất mà một yêu cầu thường **không** đi
+thẳng từ client tới nhà cung cấp.
 
 ```mermaid
 flowchart LR
@@ -66,6 +66,7 @@ flowchart LR
         direction TB
         chat["/api/chat/stream"]
         fwd["/api/relay/forward"]
+        prov["/api/providers/*"]
     end
 
     official["15 nhà cung cấp chính thức"]
@@ -73,26 +74,43 @@ flowchart LR
     lan["Máy chủ mô hình trong mạng bạn"]
     catalog[("Danh mục mô hình công khai<br/>chỉ đọc · không khóa")]
 
-    browser ==>|"nhà cung cấp chính thức"| chat ==> official
+    browser ==>|"phần lớn nhà cung cấp chính thức"| chat ==> official
+    browser ==>|"danh sách mô hình · kiểm khóa · OAuth"| prov
     browser ==>|"relay · host công khai"| fwd ==> pubrelay
-    browser ==>|"relay · LAN hoặc localhost"| lan
+    browser ==>|"relay trong mạng bạn"| lan
+    browser ==>|"endpoint thân thiện với CORS"| official
     catalog -.-> browser
     catalog -.-> chat
 ```
 
-**Vì sao phải đi vòng.** API của các nhà cung cấp không gửi header CORS, nên trình duyệt không thể
-gọi thẳng `api.openai.com` và các dịch vụ tương tự — lệnh preflight thất bại. Mọi client BYOK chạy
-trong trình duyệt đều phải giải quyết chuyện này bằng cách nào đó; client này chuyển tiếp qua một
-Next.js route handler chạy trong runtime Node. Khi bạn chạy `npm run dev:app`, handler đó nằm trên
-chính máy bạn. Khi bạn triển khai ứng dụng ở đâu đó, nó nằm trên máy bạn đã triển khai tới.
+**Vì sao phải đi vòng.** Phần lớn API của các nhà cung cấp không gửi header CORS, nên trình duyệt
+không thể gọi thẳng `api.openai.com` và các dịch vụ tương tự — lệnh preflight thất bại. Mọi client
+BYOK chạy trong trình duyệt đều phải giải quyết chuyện này bằng cách nào đó; client này chuyển tiếp
+qua các Next.js route handler chạy trong runtime Node. Khi bạn chạy `npm run dev:app`, những handler
+đó nằm trên chính máy bạn. Khi bạn triển khai ứng dụng ở đâu đó, chúng nằm trên máy bạn đã triển
+khai tới.
+
+Không phải chỉ có một handler: stream chat, bộ chuyển tiếp relay, tạo ảnh, danh sách mô hình, kiểm
+chứng khóa, và hai lượt trao đổi đăng nhập theo thiết bị của Grok và Codex cộng lại thành mười hai
+tệp route. Kiểm chứng khóa mới là chỗ đáng lưu ý — nó gửi khóa lên chính máy chủ của bạn, rồi máy
+chủ đó dùng khóa để thăm dò nhà cung cấp.
+
+Có một vài endpoint *thực sự* cho phép trình duyệt gọi, và những endpoint đó được gọi trực tiếp,
+không có máy chủ nào ở giữa: endpoint Trung Quốc của Kimi (`api.moonshot.cn`) dùng cho chat, và các
+endpoint số dư của OpenRouter, SiliconFlow, DeepSeek và Kimi.
 
 **Handler làm gì và không làm gì.** Nó kiểm chứng hình dạng của yêu cầu và giới hạn kích thước, áp
-giới hạn tần suất theo từng IP, từ chối các URL phân giải ra địa chỉ riêng tư hoặc link-local, dựng
-thân yêu cầu riêng cho từng nhà cung cấp, rồi stream phản hồi trở lại. Nó không lưu lại khóa của
-bạn, tin nhắn của bạn, hay bất cứ thứ gì dẫn xuất từ chúng — có một bài test chuyên biệt
-(`server-never-learns.test.ts`) ghim chặt hành vi đó. Bộ chuyển tiếp relay còn ghim DNS vào đúng địa
-chỉ nó đã phân giải, giới hạn kích thước phản hồi, chặn trên mọi timeout, giới hạn chuyển hướng
-trong cùng origin, và từ chối cho đi qua các header hop-by-hop.
+giới hạn tần suất theo từng IP cho lưu lượng chat và relay, từ chối các URL phân giải ra địa chỉ
+riêng tư hoặc link-local, dựng thân yêu cầu riêng cho từng nhà cung cấp, rồi stream phản hồi trở
+lại. Không có cơ sở dữ liệu nào, không có lượt ghi xuống hệ thống tệp nào và không có chỗ nào dưới
+`app/api` ghi log thân yêu cầu — khóa và tin nhắn của bạn được chuyển tiếp rồi quên đi. Vì route là
+một tiến trình duy nhất dùng chung cho mọi khách truy cập, có một bài test chuyên biệt
+(`server-never-learns.test.ts`) ghim chặt rằng nó không bao giờ nhớ tham số đã bị từ chối của người
+này rồi đem áp vào yêu cầu của người khác.
+
+Bộ chuyển tiếp relay còn ghim DNS vào đúng địa chỉ nó đã phân giải, giới hạn kích thước phản hồi,
+chặn trên mọi timeout, giới hạn chuyển hướng trong cùng origin, và từ chối cho đi qua các header
+hop-by-hop.
 
 **Endpoint cục bộ bỏ qua hoàn toàn bước này.** Một relay nằm trên địa chỉ riêng tư, một tên `.local`,
 `localhost`, hay được cấu hình ở chế độ local-HTTP hoặc private-VPN sẽ được gọi **trực tiếp từ trình
@@ -129,9 +147,9 @@ flowchart TB
 
 `packages/core` giữ từng byte kiến thức về giao thức của các nhà cung cấp, và được cố ý giữ sạch
 khỏi mọi biến toàn cục của trình duyệt — eslint cấm dùng `window`, `document`, `fetch`, `crypto`,
-`localStorage` và `indexedDB` bên trong nó. Bất cứ thứ gì nó cần từ môi trường đều đi vào qua
-`CorePorts`. Chính điều đó cho phép cùng một đoạn mã chạy được trong trình duyệt, trong một Node
-route handler, và trong một bài test không có DOM.
+`localStorage`, `sessionStorage` và `indexedDB` bên trong nó và trong `packages/ipc-contract`. Bất
+cứ thứ gì nó cần từ môi trường đều đi vào qua `CorePorts`. Chính điều đó cho phép cùng một đoạn mã
+chạy được trong trình duyệt, trong một Node route handler, và trong một bài test không có DOM.
 
 Hỗ trợ nhà cung cấp có hai trục độc lập. `providerKind` chọn một **bộ dựng yêu cầu** (thân yêu cầu
 của nhà cung cấp này trông ra sao). `model.transport` chọn một **chiến lược transport** (giao thức
@@ -163,7 +181,7 @@ Mọi thứ đều theo từng phân vùng, đánh chỉ mục bằng một id �
 |---|---|
 | Cuộc trò chuyện, tin nhắn, thư mục, ghi chú, nhà cung cấp | IndexedDB `oriveo--{id}`, 8 object store |
 | Snapshot danh mục mô hình (~3 MB) và model facts | blob store trong IndexedDB, cố ý không dùng localStorage |
-| Tùy chọn và các bảng điều khiển mô hình | `localStorage`, luôn qua một lớp bọc không bao giờ ném lỗi |
+| Tùy chọn và các bảng điều khiển mô hình | `localStorage`, với `safeLocalStorage` bọc những đường đã từng thấy ném lỗi |
 | Ảnh được tạo ra và ảnh đính kèm | một cơ sở dữ liệu IndexedDB riêng |
 
 Có hai chi tiết đến từ hỏng hóc thật chứ không phải từ sở thích. Snapshot danh mục nằm trong
@@ -211,13 +229,24 @@ Muốn chạy một tệp test đơn lẻ thì hãy chạy từ workspace sở h
 fixture theo thư mục làm việc hiện tại:
 
 ```bash
-cd apps/app && npx vitest run lib/core/chat/stream-options.test.ts
+cd apps/app && npx vitest run lib/core/chat/__tests__/stream-options.test.ts
 ```
 
 ## Cấu hình
 
 Mọi thứ đều tùy chọn. Sao chép [`.env.example`](../../web/.env.example) thành `.env.local` và chỉ
-đặt những gì bạn cần; từng khóa đều có tài liệu ngay trong tệp đó.
+đặt những gì bạn cần; từng khóa đều có tài liệu ngay trong tệp đó. Có vài biến mà mã nguồn có đọc
+nhưng không nằm trong tệp đó: `BACKEND_URL` (bản song sinh chỉ dùng phía máy chủ của
+`NEXT_PUBLIC_BACKEND_URL`), `NEXT_PUBLIC_LIBRARY_ENABLED`, `ORIVEO_DESKTOP` và `NEXT_DIST_DIR`.
+
+### Báo cáo lỗi
+
+Ứng dụng có đóng gói sẵn SDK của Sentry. Nó **trơ hoàn toàn khi không có DSN** — không có
+`NEXT_PUBLIC_SENTRY_DSN` nghĩa là không có transport, không có sự kiện, không có gì được gửi đi đâu
+cả, và đó chính là mặc định của một bản dựng từ kho mã này. Đặt một DSN vào thì bạn có báo cáo lỗi,
+10% lượt tracing hiệu năng và 1% session replay, kèm các hook lược bỏ khóa nhà cung cấp, endpoint và
+nội dung tin nhắn trước khi một sự kiện rời khỏi trình duyệt. Nó có mặt ở đây để một bản triển khai
+nào muốn báo cáo lỗi thì có sẵn mà dùng, chứ không phải vì bản dựng này gọi điện về nhà.
 
 ## Kiểm thử
 

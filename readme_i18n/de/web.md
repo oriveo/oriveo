@@ -90,13 +90,14 @@ Browser-BYOK-Client muss das irgendwie lösen; dieser leitet über Next.js Route
 Node-Runtime weiter. Wenn du `npm run dev:app` startest, laufen diese Handler auf deinem eigenen
 Rechner. Wenn du die App irgendwo deployst, laufen sie auf der Maschine, auf die du deployt hast.
 
-Es sind zwölf davon, nicht einer: Chat-Streaming, der Relay-Forwarder, Bildgenerierung, die
-Modellliste, die Key-Prüfung sowie die Device-Login-Austausche für Grok und Codex. Die Key-Prüfung
-ist hier wichtig – sie schickt den Key an deinen eigenen Server, der damit beim Anbieter anklopft.
+Es ist nicht nur ein Handler: Chat-Streaming, der Relay-Forwarder, Bildgenerierung, die Modellliste,
+die Key-Prüfung sowie die Device-Login-Austausche für Grok und Codex kommen zusammen auf zwölf
+Route-Dateien. Die Key-Prüfung ist hier wichtig – sie schickt den Key an deinen eigenen Server, der
+damit beim Anbieter anklopft.
 
 Ein paar Endpunkte *erlauben* einen Browser, und die werden ohne Server dazwischen direkt aufgerufen:
-Moonshots China-Endpunkt für Chat und die Guthaben-Endpunkte von OpenRouter, SiliconFlow, DeepSeek
-und Moonshot.
+Kimis China-Endpunkt (`api.moonshot.cn`) für Chat und die Guthaben-Endpunkte von OpenRouter,
+SiliconFlow, DeepSeek und Kimi.
 
 **Was der Handler tut und was nicht.** Er prüft die Form des Requests und begrenzt seine Größe,
 wendet auf Chat- und Relay-Verkehr ein Rate-Limit pro IP an, weist URLs ab, die auf private oder

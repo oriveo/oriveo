@@ -55,8 +55,8 @@ npm run dev:app     # http://localhost:3001
 
 ## एक रिक्वेस्ट असल में किस रास्ते जाती है
 
-बाक़ी सब से पहले पढ़ने लायक़ हिस्सा यही है, क्योंकि वेब क्लाइंट इकलौती ऐसी जगह है जहाँ रिक्वेस्ट
-क्लाइंट से प्रोवाइडर तक सीधे **नहीं** जाती।
+बाक़ी सब से पहले पढ़ने लायक़ हिस्सा यही है, क्योंकि वेब क्लाइंट इकलौती ऐसी जगह है जहाँ कोई रिक्वेस्ट
+आम तौर पर क्लाइंट से प्रोवाइडर तक सीधे **नहीं** जाती।
 
 ```mermaid
 flowchart LR
@@ -66,6 +66,7 @@ flowchart LR
         direction TB
         chat["/api/chat/stream"]
         fwd["/api/relay/forward"]
+        prov["/api/providers/*"]
     end
 
     official["15 आधिकारिक प्रोवाइडर"]
@@ -73,24 +74,38 @@ flowchart LR
     lan["आपके नेटवर्क पर एक मॉडल सर्वर"]
     catalog[("सार्वजनिक मॉडल कैटलॉग<br/>सिर्फ़ पढ़ने के लिए · बिना key")]
 
-    browser ==>|"आधिकारिक प्रोवाइडर"| chat ==> official
+    browser ==>|"ज़्यादातर आधिकारिक प्रोवाइडर"| chat ==> official
+    browser ==>|"मॉडल सूची · key जाँच · OAuth"| prov
     browser ==>|"relay, सार्वजनिक होस्ट"| fwd ==> pubrelay
-    browser ==>|"relay, LAN या localhost"| lan
+    browser ==>|"आपके नेटवर्क पर relay"| lan
+    browser ==>|"CORS-फ़्रेंडली endpoint"| official
     catalog -.-> browser
     catalog -.-> chat
 ```
 
-**यह चक्कर क्यों है।** प्रोवाइडर API, CORS हेडर नहीं भेजते, इसलिए ब्राउज़र `api.openai.com` और उस जैसों
-को सीधे कॉल नहीं कर सकता — preflight ही फ़ेल हो जाता है। हर ब्राउज़र-आधारित BYOK क्लाइंट को यह समस्या
-किसी न किसी तरह हल करनी पड़ती है; यह वाला Node runtime में चलते एक Next.js route handler से आगे भेजता
-है। जब आप `npm run dev:app` चलाते हैं, वह handler आपकी अपनी मशीन पर होता है। जब आप ऐप कहीं deploy
-करते हैं, वह उसी मशीन पर होता है जहाँ आपने deploy किया।
+**यह चक्कर क्यों है।** ज़्यादातर प्रोवाइडर API कोई CORS हेडर नहीं भेजते, इसलिए ब्राउज़र
+`api.openai.com` और उस जैसों को सीधे कॉल नहीं कर सकता — preflight ही फ़ेल हो जाता है। हर
+ब्राउज़र-आधारित BYOK क्लाइंट को यह समस्या किसी न किसी तरह हल करनी पड़ती है; यह वाला Node runtime में
+चलते Next.js route handlers से आगे भेजता है। जब आप `npm run dev:app` चलाते हैं, वे handler आपकी अपनी
+मशीन पर होते हैं। जब आप ऐप कहीं deploy करते हैं, वे उसी मशीन पर होते हैं जहाँ आपने deploy किया।
 
-**Handler क्या करता है और क्या नहीं।** वह रिक्वेस्ट का shape जाँचता है और उसका आकार सीमित करता है,
-प्रति-IP rate limit लगाता है, ऐसे URL अस्वीकार करता है जो प्राइवेट या link-local पतों पर resolve होते
-हैं, प्रोवाइडर-विशिष्ट body बनाता है, और response वापस stream करता है। वह न आपकी key सहेजता है, न आपके
-मैसेज, न उनसे निकला कुछ भी — एक समर्पित टेस्ट (`server-never-learns.test.ts`) इस व्यवहार को pin करता
-है। Relay forwarder इसके अलावा DNS को उसी पते पर pin करता है जिस पर उसने resolve किया, response पर सीमा
+handler एक नहीं है: चैट streaming, relay forwarder, इमेज जनरेशन, मॉडल सूची, key वैलिडेशन, और Grok
+तथा Codex के device-login exchange — ये सब मिलकर कुल बारह route फ़ाइलें बनती हैं। key वैलिडेशन यहाँ
+मायने रखता है — वह key आपके अपने सर्वर पर पोस्ट करता है, और वही सर्वर उससे प्रोवाइडर को जाँचता है।
+
+कुछ endpoint ब्राउज़र को *इजाज़त देते ही हैं*, और उन्हें बीच में किसी सर्वर के बिना सीधे कॉल किया जाता
+है: चैट के लिए Kimi का चीन वाला endpoint (`api.moonshot.cn`), और OpenRouter, SiliconFlow, DeepSeek
+तथा Kimi के बैलेंस endpoint।
+
+**Handler क्या करता है और क्या नहीं।** वह रिक्वेस्ट का shape जाँचता है और उसका आकार सीमित करता है, चैट
+और relay ट्रैफ़िक पर प्रति-IP rate limit लगाता है, ऐसे URL अस्वीकार करता है जो प्राइवेट या link-local
+पतों पर resolve होते हैं, प्रोवाइडर-विशिष्ट body बनाता है, और response वापस stream करता है। `app/api`
+के नीचे कहीं भी न कोई डेटाबेस है, न फ़ाइल-सिस्टम पर कोई लिखाई, न रिक्वेस्ट body की कोई लॉगिंग — आपकी key
+और आपके मैसेज आगे भेजकर भुला दिए जाते हैं। चूँकि यह route हर विज़िटर के लिए एक ही process है, इसलिए एक
+समर्पित टेस्ट (`server-never-learns.test.ts`) यह pin करता है कि वह किसी एक उपयोगकर्ता का अस्वीकार हुआ
+पैरामीटर cache करके किसी और की रिक्वेस्ट पर लागू न कर दे।
+
+Relay forwarder इसके अलावा DNS को उसी पते पर pin करता है जिस पर उसने resolve किया, response पर सीमा
 लगाता है, हर timeout को बाँधता है, redirect को उसी origin तक सीमित रखता है, और hop-by-hop हेडर आगे
 नहीं जाने देता।
 
@@ -128,9 +143,10 @@ flowchart TB
 ```
 
 `packages/core` में प्रोवाइडर-प्रोटोकॉल की हर बात रहती है, और इसे जानबूझकर ब्राउज़र globals से मुक्त
-रखा गया है — eslint इसके भीतर `window`, `document`, `fetch`, `crypto`, `localStorage` और `indexedDB`
-पर रोक लगाता है। पर्यावरण से जो कुछ भी उसे चाहिए वह `CorePorts` के रास्ते आता है। इसी वजह से एक ही कोड
-ब्राउज़र में, Node route handler में, और बिना DOM वाले टेस्ट में चल सकता है।
+रखा गया है — eslint इसके भीतर और `packages/ipc-contract` में `window`, `document`, `fetch`, `crypto`,
+`localStorage`, `sessionStorage` और `indexedDB` पर रोक लगाता है। पर्यावरण से जो कुछ भी उसे चाहिए वह
+`CorePorts` के रास्ते आता है। इसी वजह से एक ही कोड ब्राउज़र में, Node route handler में, और बिना DOM
+वाले टेस्ट में चल सकता है।
 
 प्रोवाइडर सपोर्ट दो स्वतंत्र अक्ष हैं। `providerKind` एक **request builder** चुनता है (इस vendor के
 लिए body कैसी दिखती है)। `model.transport` बारह में से एक **transport strategy** चुनता है (कौन-सा wire
@@ -162,7 +178,7 @@ desktop shell बँधेगा; इस रिपॉज़िटरी मे�
 |---|---|
 | बातचीत, मैसेज, फ़ोल्डर, नोट्स, प्रोवाइडर | IndexedDB `oriveo--{id}`, 8 object stores |
 | मॉडल कैटलॉग snapshot (~3 MB) और model facts | IndexedDB blob store, जानबूझकर localStorage नहीं |
-| प्राथमिकताएँ और model-control टेबल | `localStorage`, हमेशा एक ऐसे wrapper से जो कभी throw नहीं करता |
+| प्राथमिकताएँ और model-control टेबल | `localStorage`, जिन रास्तों पर throw होते देखा गया उन्हें `safeLocalStorage` लपेटता है |
 | जनरेट की गई और अटैच की गई इमेज | एक अलग IndexedDB डेटाबेस |
 
 दो बातें पसंद से नहीं, असली टूट-फूट से आई हैं। कैटलॉग snapshot IndexedDB में इसलिए रहता है कि ~3 MB
@@ -210,13 +226,24 @@ GET {backend}/api/metadata/model-facts
 fixtures working directory के सापेक्ष resolve करती हैं:
 
 ```bash
-cd apps/app && npx vitest run lib/core/chat/stream-options.test.ts
+cd apps/app && npx vitest run lib/core/chat/__tests__/stream-options.test.ts
 ```
 
 ## कॉन्फ़िगरेशन
 
 सब कुछ वैकल्पिक है। [`.env.example`](../../web/.env.example) को `.env.local` में कॉपी करें और सिर्फ़
-वही सेट करें जो आपको चाहिए; हर key का दस्तावेज़ीकरण वहीं है।
+वही सेट करें जो आपको चाहिए; हर key का दस्तावेज़ीकरण वहीं है। कुछ variable ऐसे भी हैं जिन्हें कोड पढ़ता है
+पर वे उस फ़ाइल में नहीं हैं: `BACKEND_URL` (`NEXT_PUBLIC_BACKEND_URL` का सिर्फ़ सर्वर-साइड वाला जुड़वाँ),
+`NEXT_PUBLIC_LIBRARY_ENABLED`, `ORIVEO_DESKTOP` और `NEXT_DIST_DIR`।
+
+### एरर रिपोर्टिंग
+
+ऐप Sentry SDK बंडल करता है। DSN के बिना वह **निष्क्रिय** है — `NEXT_PUBLIC_SENTRY_DSN` न हो तो न कोई
+transport बनता है, न कोई event, कुछ भी कहीं नहीं भेजा जाता, और इस रिपॉज़िटरी से बने बिल्ड के लिए यही
+डिफ़ॉल्ट है। एक DSN सेट कर दें तो एरर रिपोर्टिंग, 10% परफ़ॉर्मेंस ट्रेसिंग और 1% session replay मिलते
+हैं, साथ में ऐसे hooks जो कोई event ब्राउज़र छोड़ने से पहले प्रोवाइडर key, endpoint और मैसेज की सामग्री
+हटा देते हैं। यह इसलिए यहाँ है कि जो deployment एरर रिपोर्टिंग चाहता है उसे वह मिल सके, इसलिए नहीं कि
+यह बिल्ड घर फ़ोन करता है।
 
 ## टेस्टिंग
 

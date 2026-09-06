@@ -38,9 +38,9 @@ Chúng sẽ trôi dạt trong im lặng, theo hướng của bản mà ai đó �
 dưới dạng một lỗi tái hiện được trên một nền tảng nhưng không trên các nền tảng còn lại.
 
 `shared/` là câu trả lời cho chuyện đó: hành vi được ghi lại đúng một lần dưới dạng dữ liệu, và bộ
-test của từng client đều kiểm chứng với cùng những tệp ấy. Một điểm kỳ quặc của nhà cung cấp chỉ
-phải sửa một lần. Một thay đổi contract làm ba bộ test cùng đỏ một lúc, thay vì lên được hai nền
-tảng rồi làm hỏng nền tảng thứ ba.
+test của từng client đều kiểm chứng với cùng những tệp ấy. Một điểm kỳ quặc nằm trong chính dữ liệu
+đó chỉ phải sửa một lần. Một điểm kỳ quặc nằm trong bộ phân tích thì bị cả ba bộ test bắt cùng một
+lúc, thay vì lên được hai nền tảng rồi làm hỏng nền tảng thứ ba.
 
 ```mermaid
 flowchart LR
@@ -91,10 +91,11 @@ client cùng lúc.
 Dữ liệu test chuẩn: lưu lượng gọi công cụ từ upstream đã ghi lại, các kịch bản định tuyến và dò tìm
 relay, các snapshot model-facts và bằng chứng khả năng, cùng các kịch bản engine cục bộ.
 
-Những tệp `.sse` là **lưu lượng upstream thật đã bắt được** và được giữ nguyên đến từng byte. Một
-mock viết tay mã hóa lại điều bạn *tin rằng* nhà cung cấp làm; một luồng đã ghi mã hóa lại điều nó
-*thực sự đã làm*, kể cả cái chunk méo mó nó gửi đi hôm thứ Ba nọ. Khi một bản sửa giao thức nhà cung
-cấp cần một bài test, một bản ghi có giá trị hơn một mock.
+Những tệp `.sse` nằm dưới `recorded/` là **lưu lượng upstream thật đã bắt được**, giữ nguyên đến
+từng byte; số còn lại là fixture viết tay, ghim chặt một đường phân tích cụ thể. Khác biệt ấy có ý
+nghĩa: một mock viết tay mã hóa lại điều bạn *tin rằng* nhà cung cấp làm, còn một bản ghi mã hóa lại
+điều nó *thực sự đã làm*, kể cả cái chunk méo mó nó gửi đi hôm thứ Ba nọ. Khi một bản sửa giao thức
+nhà cung cấp cần một bài test, hãy ưu tiên một bản ghi.
 
 ## OriveoProviderKit
 
@@ -122,15 +123,17 @@ cd shared/OriveoProviderKit && swift build && swift test
 Một thay đổi ở đây là thay đổi cho mọi client. Hãy chạy bộ test contract của từng client có đọc tệp
 mà bạn vừa động vào, chứ không chỉ client bạn tình cờ đang làm việc trong đó:
 
+Từ thư mục gốc của kho mã:
+
 ```bash
-cd web && npm run test:run
-cd shared/OriveoProviderKit && swift test
+(cd web && npm run test:run)
+(cd shared/OriveoProviderKit && swift test)
 # plus the iOS and Android suites — see their READMEs
 ```
 
-Cả bộ test iOS lẫn Android đều định vị thư mục này bằng cách đi ngược lên từ tệp test cho tới khi
-tìm thấy `shared/`, còn bộ test web thì phân giải tương đối theo workspace. Vì vậy tất cả đều cần
-một bản checkout đầy đủ của kho mã.
+Bộ test iOS định vị thư mục này bằng cách đi ngược lên từ tệp test cho tới khi thấy `shared/`; bộ
+test Android phân giải `../../shared` từ thư mục module Gradle; còn bộ test web phân giải tương đối
+theo workspace. Vì vậy tất cả đều cần một bản checkout đầy đủ của kho mã.
 
 ## Giấy phép
 

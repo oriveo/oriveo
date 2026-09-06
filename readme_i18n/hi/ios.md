@@ -62,7 +62,7 @@ flowchart TB
 
     subgraph provider ["प्रोवाइडर लेयर"]
         direction LR
-        services["15 ProviderService"]
+        services["15 ProviderService<br/>relay, OpenAI वाली सर्विस ही दोबारा इस्तेमाल करता है"]
         transports["TransportRegistry<br/>12 strategies"]
         kit["OriveoProviderKit<br/>SSE · chunk असेंबली · redaction"]
     end
@@ -118,7 +118,8 @@ recipe, generation पैरामीटर और कस्टम फ़ील�
 
 क्लाइंट कभी किसी मॉडल की क्षमताएँ उसके नाम से नहीं भाँपता। वह एक **capability runtime** पढ़ता है —
 recipes का एक सेट जो बताता है कि किसी दिए गए प्रोवाइडर, transport और capability के लिए रिक्वेस्ट में
-ठीक कौन-से JSON pointer लिखने हैं। वे recipes [`shared/capabilityrecipe`](shared.md) में रहते हैं और
+ठीक कौन-से JSON pointer लिखने हैं। वे recipes
+[`shared/capabilityrecipe`](../../shared/capabilityrecipe/) में रहते हैं और
 `CapabilityRecipeRequestCompiler` उन्हें लागू करता है।
 
 वापसी में `CapabilityExecutionRuntime` दर्ज करता है कि असल में हुआ क्या। किसी capability को *observed*
@@ -154,6 +155,11 @@ Cold start पर ऐप `https://api.oriveoai.com` को दो unauthenticate
 
 ऐप अपनी ओर से बस यही एक रिक्वेस्ट करता है। बाक़ी सब कुछ आपके कॉन्फ़िगर किए प्रोवाइडर तक, आपकी key के
 साथ जाता है।
+
+किसी **Debug** बिल्ड को अपने ही कैटलॉग होस्ट की ओर मोड़ना हो तो `ORIVEO_METADATA_BASE_URL` सेट करें —
+या तो scheme environment variable के रूप में, या `ios/Oriveo/Config/Info.plist` में एक key के रूप में।
+Android और वेब क्लाइंट के उलट, Release बिल्ड इसे नज़रअंदाज़ करता है और हमेशा प्रकाशित कैटलॉग ही इस्तेमाल
+करता है; इसे बदलने के लिए `BackendURLResolver` में बदलाव करना पड़ेगा।
 
 ## प्रोजेक्ट का ढाँचा
 
@@ -209,11 +215,11 @@ Xcode इसे खोलने से मना कर सकता है। �
 | [swift-markdown-ui](https://github.com/gonzalezreal/swift-markdown-ui) | 2.4.1 | Markdown रेंडरिंग |
 | [SwiftMath](https://github.com/mgriebling/SwiftMath) | 1.7.3 | LaTeX रेंडरिंग |
 | [ZIPFoundation](https://github.com/weichsel/ZIPFoundation) | 0.9.20 | बैकअप आर्काइव, Office/EPUB/ODF एक्सट्रैक्शन |
-| `OriveoProviderKit` | लोकल | प्रोवाइडर wire kernel, macOS के साथ साझा |
+| `OriveoProviderKit` | लोकल | प्रोवाइडर wire kernel, [`shared/`](shared.md) में |
 
 ## टेस्टिंग
 
-Xcode से `OriveoTests` scheme चलाएँ, या रिपॉज़िटरी की जड़ से:
+Xcode में `Oriveo` scheme का test action (⌘U) चलाएँ, या रिपॉज़िटरी की जड़ से:
 
 ```bash
 xcodebuild test -project ios/Oriveo/Oriveo.xcodeproj -scheme Oriveo \

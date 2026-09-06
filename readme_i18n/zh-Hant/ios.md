@@ -61,7 +61,7 @@ flowchart TB
 
     subgraph provider ["供應商層"]
         direction LR
-        services["15 個 ProviderService"]
+        services["15 個 ProviderService<br/>relay 沿用 OpenAI 那個"]
         transports["TransportRegistry<br/>12 種策略"]
         kit["OriveoProviderKit<br/>SSE · chunk 組裝 · 憑證遮蔽"]
     end
@@ -114,7 +114,8 @@ flowchart LR
 
 用戶端從不從模型名稱去猜它的能力。它讀取一套**能力執行期** —— 一組配方，描述在給定的供應商、傳輸
 方式與能力下，究竟該把哪些 JSON pointer 寫進請求裡。這些配方放在
-[`shared/capabilityrecipe`](shared.md)，由 `CapabilityRecipeRequestCompiler` 套用。
+[`shared/capabilityrecipe`](../../shared/capabilityrecipe/)，
+由 `CapabilityRecipeRequestCompiler` 套用。
 
 在回程上，`CapabilityExecutionRuntime` 記錄實際發生了什麼。只有被選定的正式串流解析器可以把一項能力
 提升為*已觀測*。HTTP 200、一個非空的答案，以及請求裡的工具宣告，都明確**不算證據**。終端狀態依訊息
@@ -144,6 +145,10 @@ Application Support/Oriveo/
 快取在 SQLite 裡，所以目錄連不上時，應用程式仍能靠快取副本運作。
 
 這是應用程式唯一為自己發出的請求。其餘一切都送往你設定的供應商，用你的 Key。
+
+想讓 **Debug** 建置指向你自己的目錄主機，設定 `ORIVEO_METADATA_BASE_URL` —— 可以放在 scheme 的環境
+變數裡，也可以當成 `ios/Oriveo/Config/Info.plist` 裡的一個鍵。和 Android 與網頁用戶端不同，Release
+建置會忽略它，一律使用官方發布的目錄；想改這點，就得動 `BackendURLResolver`。
 
 ## 專案結構
 
@@ -198,11 +203,11 @@ ios/Oriveo/
 | [swift-markdown-ui](https://github.com/gonzalezreal/swift-markdown-ui) | 2.4.1 | Markdown 渲染 |
 | [SwiftMath](https://github.com/mgriebling/SwiftMath) | 1.7.3 | LaTeX 渲染 |
 | [ZIPFoundation](https://github.com/weichsel/ZIPFoundation) | 0.9.20 | 備份封存、Office/EPUB/ODF 擷取 |
-| `OriveoProviderKit` | 本機 | 供應商通訊核心，與 macOS 共用 |
+| `OriveoProviderKit` | 本機 | 供應商通訊核心，位於 [`shared/`](shared.md) |
 
 ## 測試
 
-在 Xcode 裡執行 `OriveoTests` scheme，或是從儲存庫根目錄執行：
+在 Xcode 裡執行 `Oriveo` scheme 的 test action（⌘U），或是從儲存庫根目錄執行：
 
 ```bash
 xcodebuild test -project ios/Oriveo/Oriveo.xcodeproj -scheme Oriveo \

@@ -82,10 +82,12 @@ flowchart TB
 इस डायग्राम की तीन बातें सोच-समझकर लिए गए डिज़ाइन फ़ैसले हैं, इत्तेफ़ाक़न बना ढाँचा नहीं।
 
 **Streaming स्क्रीन के ऊपर रहती है।** `ChatStreamingManager` हर conversation id के लिए एक
-`StreamingSession` को `ConcurrentHashMap` में रखता है, और हर एक का अपना application-scoped
-`CoroutineScope(SupervisorJob() + Dispatchers.IO)` होता है। चैट से हटकर कहीं और जाने से जवाब रद्द नहीं
-होता, और `StreamingTokenBuffer` समय-समय पर अधूरा टेक्स्ट SQLite में flush करता रहता है, इसलिए जवाब के
-बीच में ऐप बंद कर देने से जो आ चुका है वह नहीं खोता।
+`StreamingSession` को `ConcurrentHashMap` में रखता है, और हर एक अपने `Job` के रूप में एक ही
+application-scoped `CoroutineScope(SupervisorJob() + Dispatchers.IO)` पर चलता है — supervisor ही यहाँ
+असल बात है, ताकि एक stream के गिरने से बाक़ी साथ में न गिरें। चैट से हटकर कहीं और जाने से जवाब रद्द नहीं
+होता, और जब भी `StreamingTokenBuffer` कहता है कि इतना जमा हो चुका है (4,000 वर्ण या 60 सेकंड),
+`ChatRepository` अधूरा टेक्स्ट SQLite में flush कर देता है, इसलिए जवाब के बीच में ऐप बंद कर देने से जो
+आ चुका है वह नहीं खोता।
 
 **दो डेटाबेस, एक नहीं।** `oriveo.db` में बातचीत, मैसेज, अटैचमेंट, नोट्स, फ़ोल्डर, skills और मॉडल-कैटलॉग
 cache रहते हैं। `message_continuations.db` भौतिक रूप से अलग फ़ाइल है जिसमें प्रोवाइडर की अपारदर्शी
@@ -152,9 +154,10 @@ Ollama, LM Studio, vLLM — आपकी अपनी मशीन या LAN �
 असली सीमा manifest में नहीं, कोड में है, और होनी भी वहीं चाहिए। `RelayEndpointPolicy` होस्ट को resolve
 करता है, माँग करता है कि **हर** resolve हुआ पता प्राइवेट हो (loopback, RFC 1918, link-local,
 unique-local, और VPN मोड में CGNAT रेंज), ऐसे होस्ट को अस्वीकार करता है जो सार्वजनिक और प्राइवेट पतों
-के मिश्रण में resolve होता हो, DNS rebinding के ख़िलाफ़ resolve हुए पतों के सेट को pin करता है और भेजते
-समय दोबारा जाँचता है, credential लेकर चलने वाली किसी भी cleartext रिक्वेस्ट से इनकार करता है, और
-cross-origin या scheme बदलने वाले redirect रोक देता है।
+के मिश्रण में resolve होता हो, DNS rebinding के ख़िलाफ़ resolve हुए पतों के सेट को pin करता है, और भेजते
+समय उसे दोबारा जाँचता है। credential लेकर चलने वाली किसी भी cleartext रिक्वेस्ट से वह इनकार करता है।
+discovery और local-engine क्लाइंट पर redirect बिल्कुल भी फ़ॉलो नहीं किए जाते, और पते वाला वही pin इसका
+आख़िरी सहारा है।
 
 Android की network security config उस पूरे सेट को व्यक्त नहीं कर सकती: वह सिर्फ़ hostname पर मैच करती
 है, पता-रेंज के लिए उसके पास कोई syntax नहीं है, और यहाँ के पते runtime पर उपयोगकर्ता के अपने नेटवर्क से
@@ -187,8 +190,8 @@ Response ETag से revalidate होते हैं और `oriveo.db` मे
 >
 > - 15 में से किसी भी बिल्ट-इन प्रोवाइडर को मॉडल सूची नहीं मिलती, और ऐप प्रोवाइडर से वह माँगता भी नहीं —
 >   कैटलॉग ही इकलौता स्रोत है;
-> - यह विफलता **चुपचाप** होती है। key जोड़ने पर सफलता ही दिखती है, और मॉडल picker बिना किसी सफ़ाई के
->   बस ख़ाली रहता है;
+> - प्रोवाइडर detail स्क्रीन "आधिकारिक मॉडल लोड नहीं हो सके" बैनर दिखाती है, लेकिन key जोड़ने पर
+>   सफलता ही दिखती है और मॉडल picker बस ख़ाली रहता है;
 > - **OpenAI इस्तेमाल के लायक़ नहीं रह जाता**, क्योंकि उस प्रोवाइडर के लिए मैन्युअल मॉडल एंट्री बंद है;
 > - Relay endpoint और लोकल मॉडल सर्वर पूरी तरह काम करते रहते हैं, और वही इकलौता सही-सलामत रास्ता हैं।
 >
@@ -215,7 +218,7 @@ android/
 
 ## बिल्डिंग
 
-ज़रूरतें: **JDK 17 या उससे नया** और Android SDK। बिल्ड AGP 9.3, Gradle 9.5 और Kotlin 2.3 इस्तेमाल करता
+ज़रूरतें: **JDK 21** और Android SDK। बिल्ड AGP 9.3, Gradle 9.5 और Kotlin 2.3 इस्तेमाल करता
 है, इसलिए Android Studio का वही रिलीज़ चाहिए जो AGP 9.3 को sync कर सके; कमांड लाइन से सिर्फ़ JDK और
 SDK काफ़ी हैं।
 
@@ -269,9 +272,9 @@ capability recipe execution, कैटलॉग caching और contract-version 
 के round-trip।
 
 > [!IMPORTANT]
-> क़रीब 38 suites, working directory से ऊपर चढ़ते हुए `shared/` से contract fixtures लोड करती हैं,
-> इसलिए **टेस्ट सिर्फ़ पूरे checkout में ही पास होते हैं** — अकेले `android/` को कॉपी करके ले जाना काम
-> नहीं करेगा।
+> क़रीब 38 suites, Gradle मॉड्यूल डायरेक्टरी से `../../shared` resolve करके contract fixtures लोड करती
+> हैं, इसलिए **टेस्ट सिर्फ़ पूरे checkout में ही पास होते हैं** — अकेले `android/` को कॉपी करके ले जाना
+> काम नहीं करेगा।
 
 तीन instrumented टेस्ट भी हैं — एक local-engine रिलीज़ मैट्रिक्स, एक cleartext-socket टेस्ट, और एक
 keystore isolation टेस्ट। ये आत्मनिर्भर नहीं हैं: local-engine वाले टेस्ट को ऐसे instrumentation

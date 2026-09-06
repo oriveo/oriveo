@@ -7,7 +7,7 @@
 **所有模型，一個應用程式。**
 
 開源、自備金鑰的 AI 聊天應用，支援 iOS、Android 與網頁。
-不需要帳號，不需要訂閱，你和模型之間沒有我們的伺服器。
+不需要帳號，不需要訂閱，請求路徑上沒有我們的任何服務。
 
 <a href="../../LICENSE"><img alt="授權條款 AGPL-3.0-or-later" src="https://img.shields.io/badge/license-AGPL--3.0--or--later-8B5CF6?style=flat-square&labelColor=black"></a>
 <a href="ios.md"><img alt="iOS 18 以上" src="https://img.shields.io/badge/iOS-18+-A78BFA?style=flat-square&labelColor=black&logo=apple&logoColor=white"></a>
@@ -51,11 +51,11 @@
 ## Oriveo 是什麼
 
 Oriveo 社群版是一個自備金鑰（BYOK）的 AI 聊天用戶端，支援 iOS、Android 與網頁。你提供自己既有的
-API Key，用戶端就直接拿它去跟供應商溝通。沒有 Oriveo 帳號、沒有訂閱，也沒有任何分析追蹤。
+API Key，用戶端就直接拿它去跟供應商溝通。沒有 Oriveo 帳號、沒有訂閱，也沒有任何東西回報給我們。
 
 它原生支援 **15 家模型供應商** —— OpenAI、Anthropic、Google Gemini、OpenRouter、DeepSeek、Grok、
-Mistral、Groq、Together AI、Fireworks AI、MiniMax、Z.ai、Qwen、Kimi 與 SiliconFlow —— 再加上
-**任何 OpenAI、Anthropic 或 Gemini 相容的端點**，包括跑在你自己機器上的 llama.cpp、Ollama、
+Mistral、Groq、Together AI、Fireworks AI、MiniMax、Z.ai、Qwen、Kimi（Moonshot）與 SiliconFlow ——
+再加上 **任何 OpenAI、Anthropic 或 Gemini 相容的端點**，包括跑在你自己機器上的 llama.cpp、Ollama、
 LM Studio 或 vLLM。
 
 | | |
@@ -64,21 +64,21 @@ LM Studio 或 vLLM。
 | **用戶端** | iOS（SwiftUI）· Android（Jetpack Compose）· 網頁（Next.js） |
 | **介面語言** | 16 種 |
 | **是否需要帳號** | 不需要 |
-| **它為自己發出的呼叫** | 只有一個：唯讀的模型目錄，不帶 Key、也不帶任何識別資訊 |
+| **它為自己發出的呼叫** | 只有一件事，分成兩個請求：唯讀的模型目錄，不帶 Key、也不帶任何識別資訊 |
 | **授權條款** | AGPL-3.0-or-later |
 
 ## 為什麼會有它
 
-聊天用戶端不該擋在你和你正在付費的模型中間。
+沒有人該有辦法對你正在付費的模型計量、記錄或加價。
 
 - **你的 Key，你的帳單。** 你按供應商的公開價格付費。沒有加價、沒有二次計量，也沒有轉售。
 - **預設留在本機。** 對話、筆記、資料夾、Skills 與附件都留在裝置上。想匯出成檔案隨時都可以；不存在
   哪天會失去存取權的雲端副本。
 - **一套行為，三個用戶端。** 針對某家供應商、某種傳輸方式與某項能力該如何組出請求，只在
-  [`shared/`](shared.md) 裡定義一次，三個用戶端都對著同一批 JSON fixture 做斷言。供應商的怪癖修一次
-  就好，不必修三次。
-- **對它唯一發出的那個請求誠實以告。** 應用程式會抓取一份公開的模型目錄，讓今天剛發表的模型不必更新
-  應用程式就能使用。這個請求是唯讀的，不帶 Key 也不帶任何識別資訊，你也可以把它指向自己的主機。
+  [`shared/`](shared.md) 裡寫下一次，三個用戶端都對著同一批 JSON fixture 做斷言。住在那份資料裡的
+  怪癖修一次就好；住在解析器裡的那種，會被三套測試同時抓到。
+- **它唯一發出的那個請求。** 應用程式會抓取一份公開的模型目錄，讓今天剛發表的模型不必更新應用程式
+  就能使用。這個請求是唯讀的，不帶 Key 也不帶任何識別資訊，你也可以把它指向自己的主機。
 
 ## 功能
 
@@ -86,7 +86,8 @@ LM Studio 或 vLLM。
   選取引用、重試、重新產生、回答被中斷後繼續
 - **供應商** —— 內建 15 家，每一家都用你自己的 Key；可依供應商覆寫端點、模型與參數
 - **Relay** —— 任何 OpenAI、Anthropic 或 Gemini 相容的端點，包括你區域網路裡的那一個
-- **本機模型伺服器** —— llama.cpp、Ollama、LM Studio、vLLM，並支援在區域網路上自動探索
+- **本機模型伺服器** —— llama.cpp、Ollama、LM Studio、vLLM；iOS 與 Android 會透過 mDNS 在區域網路
+  上找到它們
 - **訂閱登入** —— 用你已持有的 Codex 或 Grok 訂閱取代 API Key
 - **Skills** —— 可重複使用的系統提示詞，各自帶有專屬的模型、參數與參考文件
 - **筆記與資料夾** —— 把回覆存成筆記、整理對話、全文搜尋
@@ -107,16 +108,16 @@ Google Play 上的應用程式以及託管的網頁版則是 **Oriveo** —— �
 | 原始碼 | 本儲存庫，AGPL-3.0-or-later | 專有 |
 | 用自己的供應商 Key 聊天 | 是 | 是 |
 | Relay 與本機模型伺服器 | 是 | 是 |
-| 筆記、資料夾、Skills、附件 | 是，無上限 | 是 |
+| 筆記、資料夾、Skills、附件 | 是 | 是 |
 | 裝置端費用追蹤 | 是 | 是 |
 | 帳號 | 無 | Oriveo 帳號 |
 | 儲存 | 在裝置上；手動匯出與還原 | 本機優先，另有跨裝置雲端同步 |
 | 用量洞察與預算提醒 | — | 是 |
 | 由 Oriveo 付費的模型 | — | 是 |
-| 分析追蹤與當機回報 | 無 | 有 |
+| 分析追蹤與當機回報 | 預設關閉 —— 網頁版套件內含 Sentry，沒有 DSN 就不會送出任何東西 | 有 |
 
-社群版建置使用 `ai.oriveo.community` 這個識別碼前綴，因此它可以和商店版並存，兩者不共用鑰匙圈、
-更新來源或本機資料。這個版本會接受什麼、不接受什麼，都寫在 [COMMUNITY.md](../../COMMUNITY.md) 裡。
+社群版建置使用 `ai.oriveo.community` 這個識別碼前綴，因此它可以和商店版並存，兩者不共用鑰匙圈或
+本機資料。這個版本會接受什麼、不接受什麼，都寫在 [COMMUNITY.md](../../COMMUNITY.md) 裡。
 
 **Oriveo 完整產品：**
 [iPhone 與 iPad](https://apps.apple.com/app/oriveo/id6775370458) &nbsp;·&nbsp;
@@ -143,7 +144,7 @@ Google Play 上的應用程式以及託管的網頁版則是 **Oriveo** —— �
 | MiniMax | [platform.minimax.io](https://platform.minimax.io/docs/guides/quickstart-preparation) |
 | Z.ai | [open.bigmodel.cn](https://open.bigmodel.cn/usercenter/apikeys) |
 | Qwen | [bailian.console.alibabacloud.com](https://bailian.console.alibabacloud.com/?apiKey=1#/api-key) |
-| Kimi | [platform.kimi.ai](https://platform.kimi.ai/console/api-keys) |
+| Kimi (Moonshot) | [platform.kimi.ai](https://platform.kimi.ai/console/api-keys) |
 | SiliconFlow | [cloud.siliconflow.cn](https://cloud.siliconflow.cn/account/ak) |
 | **Relay** | 任何 OpenAI、Anthropic 或 Gemini 相容的端點，包括你自己機器上的那一個 |
 
@@ -181,10 +182,10 @@ flowchart LR
 每個用戶端各自擁有自己的介面、儲存與導覽，只在唯一一處接縫上與共用契約相接：把*這個模型、這項能力*
 轉成一個 HTTP 請求的那一層。
 
-唯一值得知道的不對稱在網頁用戶端。供應商 API 不送 CORS 標頭，瀏覽器無法直接呼叫它們；因此送往 15 家
-官方供應商的請求會經過一個 Next.js route handler，它跑在提供該應用的那台機器上 —— 你在本機執行時，
-那就是你自己的機器。iOS 與 Android 用戶端沒有這個限制，直接連上供應商。指向你自己網路的 relay 端點
-同樣由瀏覽器直連。
+唯一值得知道的不對稱在網頁用戶端。多數供應商 API 不送 CORS 標頭，瀏覽器無法直接呼叫它們；這些請求
+會經過一個 Next.js route handler，它跑在提供該應用的那台機器上 —— 你在本機執行時，那就是你自己的
+機器。少數確實允許瀏覽器直連的端點（Kimi 的中國區端點、幾家供應商的餘額端點），以及你自己網路裡
+的 relay，則是直連。iOS 與 Android 用戶端沒有這個限制，一律直連供應商。
 
 **各用戶端的架構：**
 
@@ -196,6 +197,9 @@ flowchart LR
 | **Shared** | 契約、錄製的 fixture，以及 Swift 通訊核心 | [shared.md](shared.md) |
 
 ## 開始使用
+
+這裡沒有預先建置好的二進位檔 —— 沒有 APK、沒有 `.ipa`，也沒有 release。社群版是你自己建置的原始碼，
+商店裡的應用程式是另一個產品。想最快跑起來，網頁用戶端是最短的一條路。
 
 <details open>
 <summary><b>網頁版</b> —— 最快的試用方式</summary>
@@ -237,8 +241,8 @@ npm run dev:app        # http://localhost:3001
 
 <br>
 
-需要 JDK 17 以上與 Android SDK。建置使用 AGP 9.3、Gradle 9.5 與 Kotlin 2.3，所以 Android Studio
-必須是能同步它們的版本；若走命令列，只需要 JDK 與 SDK。
+需要 JDK 21 與 Android SDK。建置使用 AGP 9.3、Gradle 9.5 與 Kotlin 2.3，所以 Android Studio 必須
+是能同步它們的版本；若走命令列，只需要 JDK 與 SDK。
 
 ```bash
 cd android
@@ -251,15 +255,16 @@ cd android
 
 ## 隱私
 
-- **供應商 Key** 交由平台自身的機制保管 —— iOS Keychain、Android Keystore
-  （`EncryptedSharedPreferences`）或瀏覽器的 IndexedDB —— 而且只用來連上它所屬的那家供應商。在網頁上
-  它們是未加密儲存的，這也是瀏覽器 BYOK 用戶端普遍採用的做法；若要最強的保障，請使用 iOS 或
+- **供應商 Key** 在 iOS 上交給 Keychain，在 Android 上存進 `EncryptedSharedPreferences`，用來加密
+  它的金鑰則由 Android Keystore 保管。瀏覽器沒有對等的機制，所以在網頁上它們是未加密地躺在
+  IndexedDB 裡 —— 這也是瀏覽器 BYOK 用戶端普遍採用的做法。若要最強的保障，請使用 iOS 或
   Android 用戶端。
 - **對話、筆記、資料夾、Skills 與附件** 都存在裝置上。不會上傳到任何地方。
-- **沒有帳號、沒有分析追蹤、沒有當機回報。** 沒有東西可以登入，也沒有東西在偷偷回報。
-- **在 iOS 與 Android 上，聊天請求從裝置直達供應商。** 在網頁上，它們會經過提供該應用的那台
-  Next.js 伺服器，因為供應商 API 不允許瀏覽器直接呼叫；那台伺服器不會保存 Key 或訊息，而當你在本機
-  執行時，它就是你自己的機器。
+- **沒有帳號，也沒有東西在回報給我們。** 沒有東西可以登入。網頁版套件內含 Sentry，除非你自己設定
+  一組 DSN，否則它不會出聲。
+- **在 iOS 與 Android 上，聊天請求從裝置直達供應商。** 在網頁上，它們大多會經過提供該應用的那台
+  Next.js 伺服器，因為多數供應商 API 不允許瀏覽器直接呼叫；那台伺服器不會保存 Key 或訊息，而當你在
+  本機執行時，它就是你自己的機器。
 - **我們自己只發一個請求：** 一次唯讀的模型目錄抓取，不帶 Key、不帶對話，也不帶任何識別資訊，讓今天
   剛發表的模型不必重新建置就能使用。如果你比較想自己提供這份目錄，把它指向你自己的主機即可。
 
@@ -281,10 +286,10 @@ Google 等等 —— 然後貼進 Oriveo。請求由那家供應商依其公開�
 
 <br>
 
-不會。在 iOS 與 Android 上，用戶端直接呼叫供應商端點。在網頁上，請求會經過提供該應用的那台
-Next.js 伺服器 —— 你在本機執行時那就是你自己的機器 —— 因為瀏覽器無法直接呼叫供應商 API。兩條路徑都
-不涉及由 Oriveo 營運的伺服器。Oriveo 唯一為自己發出的請求，是唯讀地抓取公開模型目錄，其中不帶 Key、
-不帶對話，也不帶任何識別資訊。
+不會。在 iOS 與 Android 上，用戶端直接呼叫供應商端點。在網頁上，多數請求會經過提供該應用的那台
+Next.js 伺服器 —— 你在本機執行時那就是你自己的機器 —— 因為多數供應商 API 不接受瀏覽器直接呼叫；
+少數允許的則是直連。兩條路徑都不涉及由 Oriveo 營運的伺服器。Oriveo 唯一為自己發出的請求，是唯讀地
+抓取公開模型目錄，其中不帶 Key、不帶對話，也不帶任何識別資訊。
 
 </details>
 
@@ -294,8 +299,9 @@ Next.js 伺服器 —— 你在本機執行時那就是你自己的機器 ——
 <br>
 
 可以。新增一個 Relay 連線，指向任何 OpenAI、Anthropic 或 Gemini 相容的伺服器 —— llama.cpp、Ollama、
-LM Studio、vLLM，或任何說這幾種協定的東西。Android 與網頁用戶端還能在區域網路上探索這樣的伺服器。
-本機 HTTP 不使用任何憑證，流量也不會離開你的網路。
+LM Studio、vLLM，或任何說這幾種協定的東西。iOS 與 Android 用戶端能透過 mDNS 在區域網路上探索到這樣
+的伺服器；網頁用戶端則會提供每個引擎的預設位址並去探測它。本機 HTTP 不使用任何憑證，流量也不會離開
+你的網路。
 
 </details>
 
@@ -305,8 +311,8 @@ LM Studio、vLLM，或任何說這幾種協定的東西。Android 與網頁用�
 <br>
 
 商店裡的應用程式是 Oriveo，一個專有產品，額外提供帳號、跨裝置雲端同步、用量洞察，以及由 Oriveo 付費
-的模型。社群版是同樣的三個用戶端，但沒有這些：沒有帳號、沒有同步服務、沒有計費、沒有分析追蹤。完整
-比較請見[社群版與 Oriveo](#社群版與-oriveo)。
+的模型。社群版是同樣的三個用戶端，但沒有這些：沒有帳號、沒有同步服務、沒有計費，也沒有東西在回報給
+我們。完整比較請見[社群版與 Oriveo](#社群版與-oriveo)。
 
 </details>
 
@@ -315,7 +321,7 @@ LM Studio、vLLM，或任何說這幾種協定的東西。Android 與網頁用�
 
 <br>
 
-這個儲存庫裡沒有。在那之前，網頁用戶端在任何瀏覽器裡都很適合當桌面應用使用，而 iOS 版建置可以直接
+這個儲存庫裡沒有。在那之前，網頁用戶端在任何瀏覽器裡都很適合當桌面應用使用，而 iOS 版建置通常也能
 跑在 Apple 晶片的 Mac 上。
 
 </details>
@@ -333,11 +339,13 @@ LM Studio、vLLM，或任何說這幾種協定的東西。Android 與網頁用�
 ## 儲存庫結構
 
 ```
-ios/       iOS client (SwiftUI)
-android/   Android client (Jetpack Compose)
-web/       Web client (Next.js)
-macos/     Reserved for a macOS client
-shared/    Cross-client contracts, recorded fixtures, and the Swift wire kernel
+ios/           iOS client (SwiftUI)
+android/       Android client (Jetpack Compose)
+web/           Web client (Next.js)
+macos/         Reserved for a macOS client
+shared/        Cross-client contracts, recorded fixtures, and the Swift wire kernel
+readme_i18n/   These READMEs in fifteen more languages
+docs/assets/   Images used by the READMEs
 ```
 
 ## 參與貢獻

@@ -55,9 +55,10 @@ propias claves (BYOK). Tú aportas claves de API que ya tienes, y el cliente hab
 usándolas. No hay cuenta de Oriveo ni suscripción, y nada nos informa de vuelta.
 
 Habla de forma nativa con **15 proveedores de modelos** —OpenAI, Anthropic, Google Gemini,
-OpenRouter, DeepSeek, Grok, Mistral, Groq, Together AI, Fireworks AI, MiniMax, Z.ai, Qwen, Kimi y
-SiliconFlow— y además con **cualquier endpoint compatible con OpenAI, Anthropic o Gemini** al que lo
-apuntes, incluidos llama.cpp, Ollama, LM Studio o vLLM corriendo en tu propia máquina.
+OpenRouter, DeepSeek, Grok, Mistral, Groq, Together AI, Fireworks AI, MiniMax, Z.ai, Qwen,
+Kimi (Moonshot) y SiliconFlow— y además con **cualquier endpoint compatible con OpenAI, Anthropic o
+Gemini** al que lo apuntes, incluidos llama.cpp, Ollama, LM Studio o vLLM corriendo en tu propia
+máquina.
 
 | | |
 |---|---|
@@ -159,7 +160,7 @@ A cada proveedor de abajo se llega con una clave que creas tú.
 | MiniMax | [platform.minimax.io](https://platform.minimax.io/docs/guides/quickstart-preparation) |
 | Z.ai | [open.bigmodel.cn](https://open.bigmodel.cn/usercenter/apikeys) |
 | Qwen | [bailian.console.alibabacloud.com](https://bailian.console.alibabacloud.com/?apiKey=1#/api-key) |
-| Kimi | [platform.kimi.ai](https://platform.kimi.ai/console/api-keys) |
+| Kimi (Moonshot) | [platform.kimi.ai](https://platform.kimi.ai/console/api-keys) |
 | SiliconFlow | [cloud.siliconflow.cn](https://cloud.siliconflow.cn/account/ak) |
 | **Relay** | Cualquier endpoint compatible con OpenAI, Anthropic o Gemini, incluido uno en tu propia máquina |
 
@@ -201,8 +202,8 @@ capacidad* en una solicitud HTTP.
 La única asimetría que vale la pena conocer es el cliente web. La mayoría de las API de los
 proveedores no envían encabezados CORS, así que un navegador no puede llamarlas directamente; esas
 solicitudes pasan por un route handler de Next.js que corre en la máquina que sirva la app, la tuya
-cuando la ejecutas localmente. Los pocos endpoints que sí permiten un navegador (el endpoint chino de
-Moonshot, los endpoints de saldo de algunos proveedores) y los relays de tu propia red se llaman
+cuando la ejecutas localmente. Los pocos endpoints que sí permiten un navegador (el endpoint chino
+de Kimi, los endpoints de saldo de algunos proveedores) y los relays de tu propia red se llaman
 directamente. Los clientes de iOS y Android no tienen esa restricción y siempre van directo al
 proveedor.
 
@@ -285,9 +286,9 @@ Servir el catálogo de modelos desde tu propio host: [android.md](android.md).
 - **Sin cuenta y sin nada que nos informe de vuelta.** No hay dónde iniciar sesión. El bundle web
   incluye Sentry, que se queda mudo mientras no configures un DSN propio.
 - **En iOS y Android, las solicitudes de chat van directo del dispositivo al proveedor.** En la web
-  pasan por el servidor Next.js que sirve la app, porque las API de los proveedores no permiten
-  llamadas directas desde el navegador; ese servidor no persiste claves ni mensajes, y cuando
-  ejecutas la app localmente es tu propia máquina.
+  la mayoría pasa por el servidor Next.js que sirve la app, porque la mayoría de las API de los
+  proveedores no permiten una llamada directa desde el navegador; ese servidor no persiste claves ni
+  mensajes, y cuando ejecutas la app localmente es tu propia máquina.
 - **Una sola solicitud propia:** un catálogo de modelos de solo lectura, descargado sin clave, sin
   conversación y sin identificador, para que un modelo lanzado hoy funcione sin una build nueva.
   Apúntalo a tu propio host si prefieres servirlo tú.
@@ -310,12 +311,13 @@ precio de lista. Oriveo es el cliente; no es un revendedor y no se lleva ninguna
 
 <br>
 
-No. En iOS y Android el cliente llama al endpoint del proveedor directamente. En la web la solicitud
-pasa por el servidor Next.js que está sirviendo la app —tu propia máquina cuando la ejecutas
-localmente—, porque los navegadores no pueden llamar a las API de los proveedores directamente.
-Ninguno de los dos caminos involucra un servidor operado por Oriveo. La única solicitud que Oriveo
-hace por cuenta propia es una descarga de solo lectura del catálogo público de modelos, que no lleva
-clave, ni conversación, ni identificador.
+No. En iOS y Android el cliente llama al endpoint del proveedor directamente. En la web la mayoría
+de las solicitudes pasa por el servidor Next.js que está sirviendo la app —tu propia máquina cuando
+la ejecutas localmente—, porque la mayoría de las API de los proveedores rechazan una llamada
+directa desde el navegador; las pocas que la admiten se llaman directamente. Ninguno de los dos
+caminos involucra un servidor operado por Oriveo. La única solicitud que Oriveo hace por cuenta
+propia es una descarga de solo lectura del catálogo público de modelos, que no lleva clave, ni
+conversación, ni identificador.
 
 </details>
 

@@ -57,7 +57,7 @@ Layar pertama meminta sebuah API key provider. Tidak ada syarat lain untuk mulai
 ## Bagaimana sebuah permintaan benar-benar berjalan
 
 Inilah bagian yang layak dibaca sebelum yang lain, karena klien web adalah satu-satunya tempat di
-mana permintaan **tidak** langsung dari klien ke provider.
+mana sebuah permintaan biasanya **tidak** langsung dari klien ke provider.
 
 ```mermaid
 flowchart LR
@@ -67,6 +67,7 @@ flowchart LR
         direction TB
         chat["/api/chat/stream"]
         fwd["/api/relay/forward"]
+        prov["/api/providers/*"]
     end
 
     official["15 provider resmi"]
@@ -74,27 +75,43 @@ flowchart LR
     lan["Server model di jaringan Anda"]
     catalog[("Katalog model publik<br/>read-only · tanpa key")]
 
-    browser ==>|"provider resmi"| chat ==> official
+    browser ==>|"sebagian besar provider resmi"| chat ==> official
+    browser ==>|"daftar model · cek key · OAuth"| prov
     browser ==>|"relay, host publik"| fwd ==> pubrelay
-    browser ==>|"relay, LAN atau localhost"| lan
+    browser ==>|"relay di jaringan Anda"| lan
+    browser ==>|"endpoint yang ramah CORS"| official
     catalog -.-> browser
     catalog -.-> chat
 ```
 
-**Mengapa jalan memutar ini ada.** API provider tidak mengirim header CORS, jadi browser tidak bisa
-memanggil `api.openai.com` dan kawan-kawannya secara langsung — preflight-nya gagal. Setiap klien
-BYOK berbasis browser harus menyelesaikan ini dengan cara tertentu; yang ini meneruskannya lewat
-sebuah route handler Next.js yang berjalan di runtime Node. Saat Anda menjalankan
-`npm run dev:app`, handler itu ada di mesin Anda sendiri. Saat Anda men-deploy aplikasinya ke suatu
-tempat, ia ada di mesin tujuan deploy Anda.
+**Mengapa jalan memutar ini ada.** Sebagian besar API provider tidak mengirim header CORS, jadi
+browser tidak bisa memanggil `api.openai.com` dan kawan-kawannya secara langsung — preflight-nya
+gagal. Setiap klien BYOK berbasis browser harus menyelesaikan ini dengan cara tertentu; yang ini
+meneruskannya lewat route handler Next.js yang berjalan di runtime Node. Saat Anda menjalankan
+`npm run dev:app`, handler-handler itu ada di mesin Anda sendiri. Saat Anda men-deploy aplikasinya
+ke suatu tempat, mereka ada di mesin tujuan deploy Anda.
+
+Handler-nya bukan cuma satu: streaming chat, penerus relay, pembuatan gambar, daftar model, validasi
+key, serta pertukaran device-login Grok dan Codex seluruhnya berjumlah dua belas berkas route.
+Validasi key penting di sini — ia mengirimkan key ke server Anda sendiri, yang lalu melakukan
+probing ke provider dengan key itu.
+
+Segelintir endpoint memang *mengizinkan* browser, dan yang seperti itu dipanggil langsung tanpa
+server di tengahnya: endpoint Tiongkok milik Kimi (`api.moonshot.cn`) untuk chat, dan endpoint saldo
+OpenRouter, SiliconFlow, DeepSeek, dan Kimi.
 
 **Apa yang dilakukan dan tidak dilakukan handler itu.** Ia memvalidasi bentuk permintaan dan
-membatasi ukurannya, menerapkan rate limit per IP, menolak URL yang me-resolve ke alamat privat atau
-link-local, membangun body khusus provider, dan mengalirkan response kembali. Ia tidak menyimpan key
-Anda, pesan Anda, maupun apa pun yang diturunkan darinya — sebuah pengujian khusus
-(`server-never-learns.test.ts`) mengunci perilaku itu. Penerus relay tambahan juga mem-pin DNS ke
-alamat yang sudah ia resolve, membatasi ukuran response, membatasi setiap timeout, membatasi
-redirect ke origin yang sama, dan menolak meneruskan header hop-by-hop.
+membatasi ukurannya, menerapkan rate limit per IP pada trafik chat dan relay, menolak URL yang
+me-resolve ke alamat privat atau link-local, membangun body khusus provider, dan mengalirkan
+response kembali. Tidak ada basis data, tidak ada penulisan ke filesystem, dan tidak ada pencatatan
+body permintaan di mana pun di bawah `app/api` — key Anda dan pesan Anda diteruskan lalu dilupakan.
+Karena route-nya adalah satu proses yang dipakai bersama oleh setiap pengunjung, sebuah pengujian
+khusus (`server-never-learns.test.ts`) mengunci bahwa ia tidak pernah menyimpan parameter yang
+ditolak milik satu pengguna lalu menerapkannya pada permintaan orang lain.
+
+Penerus relay tambahan juga mem-pin DNS ke alamat yang sudah ia resolve, membatasi ukuran response,
+membatasi setiap timeout, membatasi redirect ke origin yang sama, dan menolak meneruskan header
+hop-by-hop.
 
 **Endpoint lokal melewatinya sama sekali.** Sebuah relay pada alamat privat, nama `.local`,
 `localhost`, atau yang dikonfigurasi dalam mode local-HTTP atau private-VPN diambil **langsung dari
@@ -131,9 +148,9 @@ flowchart TB
 
 `packages/core` menyimpan setiap byte pengetahuan tentang protokol provider dan dengan sengaja
 dijaga bebas dari global milik browser — eslint melarang `window`, `document`, `fetch`, `crypto`,
-`localStorage`, dan `indexedDB` di dalamnya. Apa pun yang ia butuhkan dari lingkungannya datang
-lewat `CorePorts`. Itulah yang membuat kode yang sama bisa berjalan di browser, di route handler
-Node, dan di pengujian tanpa DOM.
+`localStorage`, `sessionStorage`, dan `indexedDB` di dalamnya dan di `packages/ipc-contract`.
+Apa pun yang ia butuhkan dari lingkungannya datang lewat `CorePorts`. Itulah yang membuat kode yang
+sama bisa berjalan di browser, di route handler Node, dan di pengujian tanpa DOM.
 
 Dukungan provider adalah dua sumbu independen. `providerKind` memilih sebuah **request builder**
 (seperti apa bentuk body untuk vendor ini). `model.transport` memilih sebuah **strategi transport**
@@ -165,7 +182,7 @@ Semuanya per partisi, di-key oleh sebuah id aktif yang bernilai bawaan `guest`.
 |---|---|
 | Percakapan, pesan, folder, catatan, provider | IndexedDB `oriveo--{id}`, 8 object store |
 | Snapshot katalog model (~3 MB) dan model facts | Blob store IndexedDB, sengaja bukan localStorage |
-| Preferensi dan tabel model control | `localStorage`, selalu lewat wrapper yang tidak pernah melempar error |
+| Preferensi dan tabel model control | `localStorage`, dengan `safeLocalStorage` membungkus jalur-jalur yang pernah kedapatan melempar error |
 | Gambar yang dihasilkan dan yang dilampirkan | Basis data IndexedDB terpisah |
 
 Dua detail yang lahir dari kerusakan nyata, bukan dari selera. Snapshot katalog tinggal di IndexedDB
@@ -214,13 +231,24 @@ Untuk menjalankan satu berkas pengujian, lakukan dari workspace pemiliknya, kare
 me-resolve fixture-nya relatif terhadap direktori kerja:
 
 ```bash
-cd apps/app && npx vitest run lib/core/chat/stream-options.test.ts
+cd apps/app && npx vitest run lib/core/chat/__tests__/stream-options.test.ts
 ```
 
 ## Konfigurasi
 
 Semuanya opsional. Salin [`.env.example`](../../web/.env.example) menjadi `.env.local` dan setel
-hanya apa yang Anda butuhkan; setiap key didokumentasikan di sana.
+hanya apa yang Anda butuhkan; setiap key didokumentasikan di sana. Beberapa variabel yang dibaca
+kode tidak ada di berkas itu: `BACKEND_URL` (kembaran khusus sisi server dari
+`NEXT_PUBLIC_BACKEND_URL`), `NEXT_PUBLIC_LIBRARY_ENABLED`, `ORIVEO_DESKTOP`, dan `NEXT_DIST_DIR`.
+
+### Pelaporan error
+
+Aplikasi membundel SDK Sentry. Ia **tidak aktif tanpa DSN** — tanpa `NEXT_PUBLIC_SENTRY_DSN` berarti
+tidak ada transport, tidak ada event, tidak ada apa pun yang terkirim ke mana pun, dan itulah
+kondisi bawaan untuk build dari repositori ini. Setel satu DSN dan Anda mendapat pelaporan error,
+performance tracing 10%, serta session replay 1%, dengan hook yang membuang key provider, endpoint,
+dan isi pesan sebelum sebuah event meninggalkan browser. Ini ada supaya sebuah deployment yang
+memang menginginkan pelaporan error bisa memilikinya, bukan karena build ini menelepon pulang.
 
 ## Pengujian
 

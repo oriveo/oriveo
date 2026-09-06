@@ -82,10 +82,12 @@ flowchart TB
 이 다이어그램에서 셋은 우연히 그렇게 된 구조가 아니라 의도한 설계 결정입니다.
 
 **스트리밍은 화면 위쪽에 삽니다.** `ChatStreamingManager`는 `ConcurrentHashMap` 안에 대화 id마다
-`StreamingSession`을 하나씩 두고, 각각에 앱 범위의
-`CoroutineScope(SupervisorJob() + Dispatchers.IO)`를 붙입니다. 채팅에서 나가도 답변이 취소되지
-않고, `StreamingTokenBuffer`가 부분 텍스트를 주기적으로 SQLite에 내려쓰므로 답변 도중에 앱을 죽여도
-이미 도착한 내용은 잃지 않습니다.
+`StreamingSession`을 하나씩 두고, 각각을 앱 범위의 단일
+`CoroutineScope(SupervisorJob() + Dispatchers.IO)` 위에서 별도의 `Job`으로 돌립니다 — 핵심은
+supervisor로, 스트림 하나가 실패해도 나머지를 끌고 내려가지 않습니다. 채팅에서 나가도 답변이
+취소되지 않고, `StreamingTokenBuffer`가 충분히 쌓였다고 판단할 때마다(4,000자 또는 60초)
+`ChatRepository`가 부분 텍스트를 SQLite에 내려쓰므로 답변 도중에 앱을 죽여도 이미 도착한 내용은
+잃지 않습니다.
 
 **데이터베이스는 하나가 아니라 둘입니다.** `oriveo.db`는 대화, 메시지, 첨부 파일, 노트, 폴더,
 스킬, 모델 카탈로그 캐시를 담습니다. `message_continuations.db`는 공급자의 불투명한 continuation
@@ -151,8 +153,8 @@ llama.cpp, Ollama, LM Studio, vLLM — 는 내 컴퓨터나 LAN에서 평문 HTT
 `RelayEndpointPolicy`는 호스트를 해석하고, 해석된 **모든** 주소가 사설이어야 한다고 요구하며
 (loopback, RFC 1918, link-local, unique-local, 그리고 VPN 모드에서는 CGNAT 대역), 공인 주소와 사설
 주소가 섞여 나오는 호스트는 거부하고, DNS 리바인딩에 대비해 해석된 주소 집합을 고정한 뒤 전송
-시점에 다시 검증하며, 자격 증명이 실린 평문 요청은 거부하고, 출처를 넘나들거나 스킴을 바꾸는
-리다이렉트를 막습니다.
+시점에 다시 검증합니다. 자격 증명이 실린 평문 요청은 거부합니다. 디스커버리와 로컬 엔진
+클라이언트에서는 리다이렉트를 아예 따라가지 않으며, 그 주소 고정이 최후의 방어선입니다.
 
 Android network security config로는 그런 집합을 표현할 수 없습니다. 호스트 이름으로만 매칭하고,
 주소 대역을 쓸 문법이 없으며, 여기서 다루는 주소는 런타임에 사용자의 네트워크에서 나오기
@@ -185,8 +187,8 @@ GET {base}/api/metadata/model-facts
 >
 > - 내장 공급자 15곳 중 어느 곳도 모델 목록을 받지 못하고, 앱이 공급자에게 목록을 물어보지도
 >   않습니다 — 카탈로그가 유일한 출처입니다.
-> - 실패가 **조용합니다.** 키를 추가해도 성공했다고 보고하고, 모델 선택기는 아무 설명 없이 그냥
->   비어 있습니다.
+> - 공급자 상세 화면에는 「공식 모델을 불러올 수 없습니다」 배너가 뜨지만, 키를 추가하면 여전히
+>   성공했다고 보고하고 모델 선택기는 그냥 비어 있습니다.
 > - 해당 공급자에서는 모델을 수동 입력할 수 없기 때문에 **OpenAI는 쓸 수 없게 됩니다.**
 > - 릴레이 엔드포인트와 로컬 모델 서버는 그대로 온전히 동작하며, 유일하게 멀쩡한 경로입니다.
 >
@@ -214,7 +216,7 @@ android/
 
 ## 빌드
 
-요구 사항: **JDK 17 이상**과 Android SDK. 빌드는 AGP 9.3, Gradle 9.5, Kotlin 2.3을 쓰므로 Android
+요구 사항: **JDK 21**과 Android SDK. 빌드는 AGP 9.3, Gradle 9.5, Kotlin 2.3을 쓰므로 Android
 Studio는 AGP 9.3을 sync할 수 있는 릴리스여야 합니다. 명령줄에서는 JDK와 SDK만 있으면 됩니다.
 
 ```bash
@@ -267,7 +269,7 @@ Studio는 AGP 9.3을 sync할 수 있는 릴리스여야 합니다. 명령줄에�
 실행, 카탈로그 캐싱과 계약 버전 처리, Room 영속화, 백업 왕복이 그렇습니다.
 
 > [!IMPORTANT]
-> 약 38개 스위트가 작업 디렉터리에서 위로 거슬러 올라가며 `shared/`에서 계약 fixture를 읽으므로
+> 약 38개 스위트가 Gradle 모듈 디렉터리에서 `../../shared`를 해석해 계약 fixture를 읽으므로
 > **테스트는 전체 체크아웃에서만 통과합니다** — `android/`만 따로 복사해 내면 동작하지 않습니다.
 
 계측 테스트도 셋 있습니다. 로컬 엔진 릴리스 매트릭스, 평문 소켓 테스트, keystore 격리 테스트입니다.

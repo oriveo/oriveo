@@ -80,10 +80,11 @@ flowchart TB
 這張圖裡有三處是刻意的設計決定，而不是順手長成的結構。
 
 **串流活在畫面之上。** `ChatStreamingManager` 在一個 `ConcurrentHashMap` 裡，依對話 id 各保留一個
-`StreamingSession`，每一個都有自己應用程式層級的
-`CoroutineScope(SupervisorJob() + Dispatchers.IO)`。離開聊天畫面不會取消這次回答，而
-`StreamingTokenBuffer` 會定期把部分文字沖進 SQLite，所以在回答到一半時把應用程式砍掉，也不會弄丟
-已經到手的內容。
+`StreamingSession`，每一個都以自己的 `Job` 跑在同一個應用程式層級的
+`CoroutineScope(SupervisorJob() + Dispatchers.IO)` 上 —— supervisor 正是重點，一條串流失敗不會把其他
+幾條一起拖垮。離開聊天畫面不會取消這次回答，而每當 `StreamingTokenBuffer` 判斷累積夠了（4,000 個
+字元或 60 秒），`ChatRepository` 就把部分文字沖進 SQLite，所以在回答到一半時把應用程式砍掉，也不會
+弄丟已經到手的內容。
 
 **兩個資料庫，不是一個。** `oriveo.db` 放對話、訊息、附件、筆記、資料夾、Skills 與模型目錄快取。
 `message_continuations.db` 是一個實體上獨立的檔案，存放供應商那邊不透明的續傳狀態，正是為了讓
@@ -142,8 +143,9 @@ Ollama、LM Studio、vLLM —— 在你自己的機器或區域網路上說的�
 
 真正的邊界在程式碼裡，不在 manifest 裡，而且也只能如此。`RelayEndpointPolicy` 會解析主機名稱，要求
 解析出的**每一個**位址都是私有位址（loopback、RFC 1918、link-local、unique-local，以及 VPN 模式下的
-CGNAT 範圍），拒絕那些解析結果混雜公開與私有位址的主機，把解析出的位址集合釘住以防 DNS rebinding
-並在送出時再驗證一次，拒絕任何攜帶憑證資料的明文請求，並擋下跨來源或變更協定的重新導向。
+CGNAT 範圍），拒絕那些解析結果混雜公開與私有位址的主機，把解析出的位址集合釘住以防 DNS rebinding，
+並在送出時再驗證一次。它拒絕任何攜帶憑證資料的明文請求。而在探索與本機引擎那兩個 client 上，重新
+導向根本不跟隨，釘住的位址集合就是最後那道防線。
 
 Android 的 network security config 表達不出這套規則：它只比對主機名稱，沒有描述位址範圍的語法，而
 這裡的位址是執行期從使用者自己的網路來的。而且 config 嚴格來說更弱，因為它永遠看不到一個名稱解析成
@@ -173,7 +175,8 @@ base URL 是一個建置期屬性，預設為 `https://api.oriveoai.com`：
 > 這樣建出來的版本，在全新安裝時：
 >
 > - 15 家內建供應商都拿不到模型清單，而且應用程式也不會轉頭去向供應商索取 —— 目錄是唯一來源；
-> - 失敗是**無聲的**。加入 Key 依然會回報成功，模型選擇器只是空的，沒有任何說明；
+> - 供應商詳情頁會顯示一條「無法載入官方模型」橫幅，但加入 Key 依然會回報成功，模型
+>   選擇器只是空的；
 > - **OpenAI 會變得不能用**，因為那家供應商禁止手動輸入模型；
 > - Relay 端點與本機模型伺服器仍然完全可用，也是唯一完好的那條路。
 >
@@ -200,7 +203,7 @@ android/
 
 ## 建置
 
-需求：**JDK 17 以上**與 Android SDK。建置使用 AGP 9.3、Gradle 9.5 與 Kotlin 2.3，所以 Android
+需求：**JDK 21** 與 Android SDK。建置使用 AGP 9.3、Gradle 9.5 與 Kotlin 2.3，所以 Android
 Studio 必須是能同步 AGP 9.3 的版本；若走命令列，只需要 JDK 與 SDK。
 
 ```bash
@@ -251,8 +254,8 @@ Android Studio 產生，不會提交。正式版簽署方式見 [SIGNING.md](../
 一致性。
 
 > [!IMPORTANT]
-> 大約有 38 套測試從工作目錄一路往上找到 `shared/` 並載入契約 fixture，所以**測試只有在完整
-> checkout 下才會通過** —— 把 `android/` 單獨複製出去是行不通的。
+> 大約有 38 套測試是以 Gradle 模組目錄為基準解析 `../../shared` 來載入契約 fixture，所以**測試只有
+> 在完整 checkout 下才會通過** —— 把 `android/` 單獨複製出去是行不通的。
 
 另外還有三個插樁測試 —— 一個本機引擎的釋出矩陣、一個明文 socket 測試，以及一個 keystore 隔離測試。
 它們不是自足的：本機引擎那幾個需要用插樁參數指出你網路上一台真正在跑的模型伺服器，所以

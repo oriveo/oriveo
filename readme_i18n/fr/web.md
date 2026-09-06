@@ -92,14 +92,14 @@ par des route handlers Next.js tournant dans le runtime Node. Quand vous lancez 
 ces handlers sont sur votre propre machine. Quand vous déployez l'app quelque part, ils sont sur la
 machine où vous avez déployé.
 
-Il y en a douze, pas un : le streaming de chat, le forwarder de relais, la génération d'images, la
-liste de modèles, la validation de clé, et les échanges de device login de Grok et de Codex. La
-validation de clé compte ici — elle envoie la clé à votre propre serveur, qui s'en sert pour sonder
-le fournisseur.
+Il y a plus d'un handler : le streaming de chat, le forwarder de relais, la génération d'images, la
+liste de modèles, la validation de clé, et les échanges de device login de Grok et de Codex font
+douze fichiers de route au total. La validation de clé compte ici — elle envoie la clé à votre
+propre serveur, qui s'en sert pour sonder le fournisseur.
 
 Quelques endpoints *autorisent* bel et bien un navigateur, et ceux-là sont appelés directement, sans
-serveur au milieu : l'endpoint chinois de Moonshot pour le chat, et les endpoints de solde
-d'OpenRouter, SiliconFlow, DeepSeek et Moonshot.
+serveur au milieu : l'endpoint chinois de Kimi (`api.moonshot.cn`) pour le chat, et les endpoints
+de solde d'OpenRouter, SiliconFlow, DeepSeek et Kimi.
 
 **Ce que le handler fait et ne fait pas.** Il valide la forme de la requête et plafonne sa taille,
 applique une limitation de débit par IP au trafic de chat et de relais, refuse les URL qui résolvent

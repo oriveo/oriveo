@@ -80,10 +80,11 @@ flowchart TB
 这张图里有三处是刻意的设计决定，不是顺手长成的结构。
 
 **流式处理活在界面之上。** `ChatStreamingManager` 在一个 `ConcurrentHashMap` 里按会话 id 各保留一个
-`StreamingSession`，每个都有自己的应用级
-`CoroutineScope(SupervisorJob() + Dispatchers.IO)`。离开聊天界面不会取消这次回答，而
-`StreamingTokenBuffer` 会周期性地把部分文本刷进 SQLite，所以回答到一半杀掉 App 也不会丢掉已经到手的
-内容。
+`StreamingSession`，每个都作为自己的 `Job` 跑在同一个应用级的
+`CoroutineScope(SupervisorJob() + Dispatchers.IO)` 上 —— supervisor 正是关键所在，一条流失败不会把
+其他几条一起带走。离开聊天界面不会取消这次回答，而每当 `StreamingTokenBuffer` 判断攒够了
+（4,000 个字符或 60 秒），`ChatRepository` 就把部分文本刷进 SQLite，所以回答到一半杀掉 App 也不会丢掉
+已经到手的内容。
 
 **两个数据库，不是一个。** `oriveo.db` 存对话、消息、附件、笔记、文件夹、Skills 和模型目录缓存。
 `message_continuations.db` 是一个物理上独立的文件，存放供应商那边不透明的续传状态，正是为了让
@@ -142,8 +143,9 @@ Ollama、LM Studio、vLLM —— 在你自己的机器或局域网上说的是�
 
 真正的边界在代码里，不在 manifest 里，而且只能在代码里。`RelayEndpointPolicy` 解析主机名，要求解析
 出的**每一个**地址都是私有地址（回环、RFC 1918、链路本地、唯一本地，以及 VPN 模式下的 CGNAT 段），
-拒绝那些解析结果里公网地址和私有地址混在一起的主机，把解析出的地址集合钉死以防 DNS 重绑定并在发送时
-再校验一次，拒绝任何携带凭证材料的明文请求，并拦截跨源或改变协议的重定向。
+拒绝那些解析结果里公网地址和私有地址混在一起的主机，把解析出的地址集合钉死以防 DNS 重绑定，并在发送
+时再校验一次。它拒绝任何携带凭证材料的明文请求。而在发现和本地引擎那两个 client 上，重定向根本不跟
+随，钉死的地址集合就是最后那道兜底。
 
 Android 的 network security config 表达不了这套规则：它只按主机名匹配，没有描述地址段的语法，而这里
 的地址是运行时从用户自己的网络来的。而且 config 严格来说更弱，因为它永远看不到一个名字解析成了哪个
@@ -173,7 +175,8 @@ base URL 是一个构建期属性，默认是 `https://api.oriveoai.com`：
 > 这样构建出来的包，在全新安装时：
 >
 > - 15 家内置供应商都拿不到模型列表，而且 App 也不会转头去问供应商要 —— 目录是唯一来源；
-> - 失败是**静默的**。添加 Key 依然会报成功，模型选择器只是空的，没有任何解释；
+> - 供应商详情页会显示一条「无法加载官方模型」横幅，但添加 Key 依然会报成功，模型
+>   选择器只是空的；
 > - **OpenAI 会变得不可用**，因为那家供应商禁止手动填写模型；
 > - Relay 端点和本地模型服务器仍然完全可用，也是唯一完好的那条路径。
 >
@@ -200,7 +203,7 @@ android/
 
 ## 构建
 
-要求：**JDK 17 或更高版本**以及 Android SDK。构建使用 AGP 9.3、Gradle 9.5 和 Kotlin 2.3，所以
+要求：**JDK 21** 以及 Android SDK。构建使用 AGP 9.3、Gradle 9.5 和 Kotlin 2.3，所以
 Android Studio 得是能同步 AGP 9.3 的版本；用命令行的话只需要 JDK 和 SDK。
 
 ```bash
@@ -250,8 +253,8 @@ Ktor 的 mock engine。覆盖最密的地方也是出错代价最高的地方：
 往返一致性。
 
 > [!IMPORTANT]
-> 大约 38 个套件从工作目录一路向上找到 `shared/` 并从中加载契约 fixture，所以**测试只有在完整
-> checkout 里才能通过** —— 把 `android/` 单独拷出来是跑不起来的。
+> 大约 38 个套件是从 Gradle 模块目录解析 `../../shared` 来加载契约 fixture 的，所以**测试只有在
+> 完整 checkout 里才能通过** —— 把 `android/` 单独拷出来是跑不起来的。
 
 另外还有三个插桩测试 —— 一个本地引擎的发布矩阵、一个明文 socket 测试，以及一个 keystore 隔离测试。
 它们不是自包含的：本地引擎那几个需要用插桩参数指明你网络上一台真正在跑的模型服务器，所以

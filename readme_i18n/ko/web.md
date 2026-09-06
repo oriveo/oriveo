@@ -55,7 +55,7 @@ npm run dev:app     # http://localhost:3001
 
 ## 요청은 실제로 어떤 길로 가는가
 
-무엇보다 먼저 읽어 둘 만한 부분입니다. 웹 클라이언트는 요청이 클라이언트에서 공급자로 **곧장
+무엇보다 먼저 읽어 둘 만한 부분입니다. 웹 클라이언트는 요청이 클라이언트에서 공급자로 대개 **곧장
 가지 않는** 유일한 곳이기 때문입니다.
 
 ```mermaid
@@ -66,6 +66,7 @@ flowchart LR
         direction TB
         chat["/api/chat/stream"]
         fwd["/api/relay/forward"]
+        prov["/api/providers/*"]
     end
 
     official["공식 공급자 15곳"]
@@ -73,25 +74,39 @@ flowchart LR
     lan["내 네트워크의 모델 서버"]
     catalog[("공개 모델 카탈로그<br/>읽기 전용 · 키 없음")]
 
-    browser ==>|"공식 공급자"| chat ==> official
+    browser ==>|"대부분의 공식 공급자"| chat ==> official
+    browser ==>|"모델 목록 · 키 검증 · OAuth"| prov
     browser ==>|"릴레이 · 공개 호스트"| fwd ==> pubrelay
-    browser ==>|"릴레이 · LAN 또는 localhost"| lan
+    browser ==>|"내 네트워크의 릴레이"| lan
+    browser ==>|"CORS 허용 엔드포인트"| official
     catalog -.-> browser
     catalog -.-> chat
 ```
 
-**왜 우회하는가.** 공급자 API는 CORS 헤더를 보내지 않으므로 브라우저가 `api.openai.com` 같은 곳을
-직접 호출할 수 없습니다 — preflight가 실패합니다. 브라우저 기반 BYOK 클라이언트는 어떻게든 이
-문제를 풀어야 하고, 이 앱은 Node 런타임에서 도는 Next.js route handler로 포워딩합니다.
-`npm run dev:app`을 실행하면 그 핸들러는 당신의 컴퓨터에 있습니다. 앱을 어딘가에 배포하면 배포한
+**왜 우회하는가.** 대부분의 공급자 API는 CORS 헤더를 보내지 않으므로 브라우저가 `api.openai.com`
+같은 곳을 직접 호출할 수 없습니다 — preflight가 실패합니다. 브라우저 기반 BYOK 클라이언트는
+어떻게든 이 문제를 풀어야 하고, 이 앱은 Node 런타임에서 도는 Next.js route handler들로 포워딩합니다.
+`npm run dev:app`을 실행하면 그 핸들러들은 당신의 컴퓨터에 있습니다. 앱을 어딘가에 배포하면 배포한
 그 머신에 있습니다.
 
-**핸들러가 하는 일과 하지 않는 일.** 요청 형태를 검증하고 크기를 제한하며, IP별 rate limit을
-적용하고, 사설 주소나 link-local 주소로 해석되는 URL을 거부하고, 공급자별 본문을 만들고, 응답을
-스트리밍으로 돌려줍니다. 당신의 키도, 메시지도, 거기서 파생된 어떤 것도 저장하지 않으며, 전용
-테스트(`server-never-learns.test.ts`)가 그 동작을 못 박아 둡니다. 릴레이 포워더는 여기에 더해
-자기가 해석한 주소로 DNS를 고정하고, 응답 크기를 제한하고, 모든 타임아웃에 상한을 두고,
-리다이렉트를 같은 출처로만 한정하며, hop-by-hop 헤더를 그대로 통과시키기를 거부합니다.
+핸들러는 하나가 아닙니다. 채팅 스트리밍, 릴레이 포워더, 이미지 생성, 모델 목록, 키 검증, 그리고
+Grok과 Codex의 기기 로그인 교환을 합치면 route 파일이 모두 열두 개입니다. 여기서 짚어 둘 것은 키
+검증인데, 키를 당신 자신의 서버로 보내고 그 서버가 그 키로 공급자를 찔러 봅니다.
+
+브라우저 호출을 *허용하는* 엔드포인트도 몇 개 있고, 그런 것들은 중간에 서버 없이 직접 호출합니다.
+채팅용 Kimi 중국 엔드포인트(`api.moonshot.cn`), 그리고 OpenRouter · SiliconFlow · DeepSeek ·
+Kimi의 잔액 엔드포인트입니다.
+
+**핸들러가 하는 일과 하지 않는 일.** 요청 형태를 검증하고 크기를 제한하며, 채팅과 릴레이 트래픽에
+IP별 rate limit을 적용하고, 사설 주소나 link-local 주소로 해석되는 URL을 거부하고, 공급자별 본문을
+만들고, 응답을 스트리밍으로 돌려줍니다. `app/api` 아래 어디에도 데이터베이스가 없고, 파일 쓰기가
+없고, 요청 본문 로깅이 없습니다 — 당신의 키와 메시지는 전달되고 잊힙니다. 이 라우트는 모든 방문자가
+공유하는 하나의 프로세스이므로, 한 사용자의 거부된 파라미터를 캐시해 다른 사람의 요청에 적용하는 일이
+결코 없다는 것을 전용 테스트(`server-never-learns.test.ts`)가 못 박아 둡니다.
+
+릴레이 포워더는 여기에 더해 자기가 해석한 주소로 DNS를 고정하고, 응답 크기를 제한하고, 모든
+타임아웃에 상한을 두고, 리다이렉트를 같은 출처로만 한정하며, hop-by-hop 헤더를 그대로 통과시키기를
+거부합니다.
 
 **로컬 엔드포인트는 이 과정을 통째로 건너뜁니다.** 사설 주소, `.local` 이름, `localhost`에 있는
 릴레이나 로컬 HTTP 또는 사설 VPN 모드로 설정된 릴레이는 `credentials: 'omit'`과
@@ -127,9 +142,10 @@ flowchart TB
 ```
 
 `packages/core`는 공급자 프로토콜 지식을 한 바이트도 빠짐없이 담고 있으며, 브라우저 전역에서
-의도적으로 자유롭게 유지됩니다 — eslint가 그 안에서 `window`, `document`, `fetch`, `crypto`,
-`localStorage`, `indexedDB`를 금지합니다. 환경에서 필요한 것은 모두 `CorePorts`를 통해 들어옵니다.
-같은 코드가 브라우저에서도, Node route handler에서도, DOM이 없는 테스트에서도 돌아가는 이유입니다.
+의도적으로 자유롭게 유지됩니다 — eslint가 그 안과 `packages/ipc-contract` 안에서 `window`,
+`document`, `fetch`, `crypto`, `localStorage`, `sessionStorage`, `indexedDB`를 금지합니다. 환경에서
+필요한 것은 모두 `CorePorts`를 통해 들어옵니다. 같은 코드가 브라우저에서도, Node route
+handler에서도, DOM이 없는 테스트에서도 돌아가는 이유입니다.
 
 공급자 지원은 서로 독립적인 두 개의 축입니다. `providerKind`는 **요청 빌더**(이 벤더에서 본문이
 어떤 모습인가)를 고릅니다. `model.transport`는 열두 개 중에서 **transport 전략**(어떤 wire
@@ -161,7 +177,7 @@ packages/ipc-contract/  typed channel contract for a desktop shell
 |---|---|
 | 대화, 메시지, 폴더, 노트, 공급자 | IndexedDB `oriveo--{id}`, 오브젝트 스토어 8개 |
 | 모델 카탈로그 스냅샷(약 3 MB)과 model facts | IndexedDB blob 스토어. 의도적으로 localStorage가 아님 |
-| 환경 설정과 모델 제어 테이블 | `localStorage`. 항상 예외를 던지지 않는 래퍼를 거침 |
+| 환경 설정과 모델 제어 테이블 | `localStorage`. 예외를 던지는 것으로 확인된 경로를 `safeLocalStorage`가 감쌈 |
 | 생성된 이미지와 첨부된 이미지 | 별도의 IndexedDB 데이터베이스 |
 
 취향이 아니라 실제로 겪은 고장에서 나온 두 가지가 있습니다. 카탈로그 스냅샷이 IndexedDB에 있는
@@ -209,13 +225,24 @@ GET {backend}/api/metadata/model-facts
 디렉터리를 기준으로 fixture를 찾기 때문입니다.
 
 ```bash
-cd apps/app && npx vitest run lib/core/chat/stream-options.test.ts
+cd apps/app && npx vitest run lib/core/chat/__tests__/stream-options.test.ts
 ```
 
 ## 설정
 
 전부 선택 사항입니다. [`.env.example`](../../web/.env.example)을 `.env.local`로 복사하고 필요한
-것만 설정하세요. 각 키는 그 파일에 설명되어 있습니다.
+것만 설정하세요. 각 키는 그 파일에 설명되어 있습니다. 코드가 읽지만 그 파일에는 없는 변수도 몇 개
+있습니다: `BACKEND_URL`(`NEXT_PUBLIC_BACKEND_URL`의 서버 전용 쌍둥이), `NEXT_PUBLIC_LIBRARY_ENABLED`,
+`ORIVEO_DESKTOP`, `NEXT_DIST_DIR`.
+
+### 오류 보고
+
+앱은 Sentry SDK를 함께 번들합니다. **DSN이 없으면 아무 일도 하지 않습니다** —
+`NEXT_PUBLIC_SENTRY_DSN`이 없으면 transport도, 이벤트도 없고 어디로도 아무것도 보내지 않으며, 이
+저장소에서 빌드하면 그것이 기본값입니다. DSN을 설정하면 오류 보고와 10% 성능 추적, 1% 세션 리플레이를
+얻고, 이벤트가 브라우저를 떠나기 전에 공급자 키·엔드포인트·메시지 내용을 걷어내는 훅이 붙습니다.
+오류 보고를 원하는 배포가 그것을 쓸 수 있도록 여기 있는 것이지, 이 빌드가 어딘가로 신호를 보내기
+때문이 아닙니다.
 
 ## 테스트
 

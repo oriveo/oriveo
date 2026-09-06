@@ -63,7 +63,7 @@ flowchart TB
 
     subgraph provider ["Lapisan provider"]
         direction LR
-        services["15 ProviderService"]
+        services["15 ProviderService<br/>relay memakai ulang milik OpenAI"]
         transports["TransportRegistry<br/>12 strategi"]
         kit["OriveoProviderKit<br/>SSE · perakitan chunk · redaksi"]
     end
@@ -122,7 +122,8 @@ format wire bisa diuji di satu tempat, bukan lima belas.
 Klien tidak pernah menebak kemampuan sebuah model dari namanya. Ia membaca sebuah **capability
 runtime** — sekumpulan resep yang menjelaskan, untuk provider, transport, dan capability tertentu,
 persis JSON pointer mana yang harus ditulis ke dalam permintaan. Resep-resep itu ada di
-[`shared/capabilityrecipe`](shared.md) dan diterapkan oleh `CapabilityRecipeRequestCompiler`.
+[`shared/capabilityrecipe`](../../shared/capabilityrecipe/) dan diterapkan oleh
+`CapabilityRecipeRequestCompiler`.
 
 Dalam perjalanan pulang, `CapabilityExecutionRuntime` mencatat apa yang sebenarnya terjadi. Hanya
 parser stream produksi terpilih yang boleh menaikkan sebuah capability menjadi *observed*. HTTP 200,
@@ -160,6 +161,11 @@ ketika katalog tidak terjangkau.
 
 Ini satu-satunya permintaan yang dibuat aplikasi atas namanya sendiri. Semua yang lain menuju
 provider yang Anda konfigurasi, dengan key Anda.
+
+Untuk mengarahkan build **Debug** ke host katalog Anda sendiri, setel `ORIVEO_METADATA_BASE_URL` —
+entah sebagai variabel lingkungan scheme atau sebagai key di `ios/Oriveo/Config/Info.plist`. Tidak
+seperti klien Android dan web, build Release mengabaikannya dan selalu memakai katalog yang
+dipublikasikan; mengubahnya berarti menyunting `BackendURLResolver`.
 
 ## Struktur proyek
 
@@ -216,11 +222,11 @@ Xcode versi lama mungkin menolak membukanya. Perbarui Xcode, jangan mengedit for
 | [swift-markdown-ui](https://github.com/gonzalezreal/swift-markdown-ui) | 2.4.1 | rendering Markdown |
 | [SwiftMath](https://github.com/mgriebling/SwiftMath) | 1.7.3 | rendering LaTeX |
 | [ZIPFoundation](https://github.com/weichsel/ZIPFoundation) | 0.9.20 | arsip cadangan, ekstraksi Office/EPUB/ODF |
-| `OriveoProviderKit` | lokal | wire kernel provider, dipakai bersama macOS |
+| `OriveoProviderKit` | lokal | wire kernel provider, di [`shared/`](shared.md) |
 
 ## Pengujian
 
-Jalankan scheme `OriveoTests` dari Xcode, atau dari akar repositori:
+Jalankan test action scheme `Oriveo` (⌘U) di Xcode, atau dari akar repositori:
 
 ```bash
 xcodebuild test -project ios/Oriveo/Oriveo.xcodeproj -scheme Oriveo \

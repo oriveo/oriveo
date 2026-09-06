@@ -83,11 +83,12 @@ Tiga hal dalam diagram ini adalah keputusan desain yang disengaja, bukan struktu
 terbentuk.
 
 **Streaming hidup di atas layar.** `ChatStreamingManager` menyimpan satu `StreamingSession` per id
-percakapan di dalam `ConcurrentHashMap`, masing-masing dengan
-`CoroutineScope(SupervisorJob() + Dispatchers.IO)` sendiri yang application-scoped. Berpindah keluar
-dari sebuah chat tidak membatalkan jawaban, dan `StreamingTokenBuffer` secara berkala membuang teks
-parsial ke SQLite, jadi menutup paksa aplikasi di tengah jawaban tidak menghilangkan apa yang sudah
-tiba.
+percakapan di dalam `ConcurrentHashMap`, masing-masing berjalan sebagai `Job`-nya sendiri di atas
+satu `CoroutineScope(SupervisorJob() + Dispatchers.IO)` yang application-scoped — supervisor itulah
+intinya, jadi satu stream yang gagal tidak menjatuhkan yang lain. Berpindah keluar dari sebuah chat
+tidak membatalkan jawaban, dan `ChatRepository` membuang teks parsial ke SQLite setiap kali
+`StreamingTokenBuffer` menyatakan sudah cukup banyak yang terkumpul (4.000 karakter atau 60 detik),
+jadi menutup paksa aplikasi di tengah jawaban tidak menghilangkan apa yang sudah tiba.
 
 **Dua basis data, bukan satu.** `oriveo.db` menampung percakapan, pesan, lampiran, catatan, folder,
 skill, dan cache katalog model. `message_continuations.db` adalah berkas yang terpisah secara fisik
@@ -159,8 +160,9 @@ Batas yang sesungguhnya ada di kode, bukan di manifest, dan memang harus begitu.
 `RelayEndpointPolicy` me-resolve host, mensyaratkan **setiap** alamat hasil resolusi bersifat privat
 (loopback, RFC 1918, link-local, unique-local, dan rentang CGNAT dalam mode VPN), menolak host yang
 me-resolve ke campuran alamat publik dan privat, mem-pin himpunan alamat hasil resolusi terhadap DNS
-rebinding lalu memverifikasinya ulang saat pengiriman, menolak permintaan cleartext apa pun yang
-membawa materi kredensial, serta memblokir redirect lintas origin atau yang mengubah skema.
+rebinding, lalu memverifikasinya ulang saat pengiriman. Ia menolak permintaan cleartext apa pun yang
+membawa materi kredensial. Redirect sama sekali tidak diikuti pada klien penemuan dan local engine,
+dengan pin alamat itu sebagai jaring pengamannya.
 
 Network security config Android tidak bisa mengungkapkan himpunan aturan itu: ia hanya mencocokkan
 hostname, tidak punya sintaks untuk rentang alamat, dan alamat di sini datang dari jaringan pengguna
@@ -194,8 +196,8 @@ aplikasi tetap bekerja dari salinan cache ketika katalog kelak tidak terjangkau.
 >
 > - tidak satu pun dari 15 provider bawaan mendapat daftar model, dan aplikasi tidak meminta daftar
 >   itu ke provider — katalog adalah satu-satunya sumber;
-> - kegagalannya **senyap**. Menambahkan key tetap dilaporkan berhasil, dan pemilih model sekadar
->   kosong tanpa penjelasan apa pun;
+> - layar detail provider menampilkan banner "Tidak dapat memuat model resmi", tetapi menambahkan
+>   key tetap dilaporkan berhasil dan pemilih model sekadar kosong;
 > - **OpenAI menjadi tidak bisa dipakai**, karena entri model manual diblokir untuk provider itu;
 > - endpoint Relay dan server model lokal tetap berfungsi penuh, dan itulah satu-satunya jalur yang
 >   masih utuh.
@@ -224,9 +226,9 @@ android/
 
 ## Membangun
 
-Persyaratan: **JDK 17 atau lebih baru** dan Android SDK. Build memakai AGP 9.3, Gradle 9.5, dan
-Kotlin 2.3, jadi Android Studio harus versi rilis yang bisa menyinkronkan AGP 9.3; dari command line
-hanya JDK dan SDK yang dibutuhkan.
+Persyaratan: **JDK 21** dan Android SDK. Build memakai AGP 9.3, Gradle 9.5, dan Kotlin 2.3, jadi
+Android Studio harus versi rilis yang bisa menyinkronkan AGP 9.3; dari command line hanya JDK dan
+SDK yang dibutuhkan.
 
 ```bash
 ./gradlew :app:assembleDebug
@@ -279,8 +281,8 @@ mode keamanan, eksekusi resep capability, caching katalog dan penanganan versi k
 Room, serta round-trip cadangan.
 
 > [!IMPORTANT]
-> Sekitar 38 suite memuat fixture kontrak dari `shared/` dengan menelusuri ke atas dari direktori
-> kerja, jadi **pengujian hanya lolos pada checkout penuh** — menyalin `android/` sendirian tidak
+> Sekitar 38 suite memuat fixture kontrak dengan me-resolve `../../shared` dari direktori modul
+> Gradle, jadi **pengujian hanya lolos pada checkout penuh** — menyalin `android/` sendirian tidak
 > akan berhasil.
 
 Ada juga tiga instrumented test — sebuah matriks rilis local engine, sebuah pengujian socket

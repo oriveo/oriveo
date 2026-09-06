@@ -7,7 +7,7 @@
 **Mọi mô hình, một ứng dụng.**
 
 Ứng dụng chat AI mã nguồn mở, dùng khóa của chính bạn, cho iOS, Android và web.
-Không tài khoản, không thuê bao, không có máy chủ nào của chúng tôi chen giữa bạn và mô hình.
+Không tài khoản, không thuê bao, và không có dịch vụ nào của chúng tôi trên đường đi của yêu cầu.
 
 <a href="../../LICENSE"><img alt="Giấy phép AGPL-3.0-or-later" src="https://img.shields.io/badge/license-AGPL--3.0--or--later-8B5CF6?style=flat-square&labelColor=black"></a>
 <a href="ios.md"><img alt="iOS 18 trở lên" src="https://img.shields.io/badge/iOS-18+-A78BFA?style=flat-square&labelColor=black&logo=apple&logoColor=white"></a>
@@ -52,12 +52,13 @@ Không tài khoản, không thuê bao, không có máy chủ nào của chúng t
 
 Oriveo Community Edition là ứng dụng chat AI theo mô hình bring-your-own-key (BYOK) cho iOS,
 Android và web. Bạn cung cấp khóa API mà bạn đã sở hữu, và ứng dụng dùng chính khóa đó để nói
-chuyện với nhà cung cấp. Không có tài khoản Oriveo, không có thuê bao, không có analytics.
+chuyện với nhà cung cấp. Không có tài khoản Oriveo, không có thuê bao, và không có gì gửi dữ liệu
+về cho chúng tôi.
 
 Ứng dụng nói chuyện trực tiếp với **15 nhà cung cấp mô hình** — OpenAI, Anthropic, Google Gemini,
-OpenRouter, DeepSeek, Grok, Mistral, Groq, Together AI, Fireworks AI, MiniMax, Z.ai, Qwen, Kimi và
-SiliconFlow — cùng với **bất kỳ endpoint nào tương thích OpenAI, Anthropic hoặc Gemini** mà bạn trỏ
-tới, kể cả llama.cpp, Ollama, LM Studio hay vLLM đang chạy trên máy của bạn.
+OpenRouter, DeepSeek, Grok, Mistral, Groq, Together AI, Fireworks AI, MiniMax, Z.ai, Qwen,
+Kimi (Moonshot) và SiliconFlow — cùng với **bất kỳ endpoint nào tương thích OpenAI, Anthropic hoặc
+Gemini** mà bạn trỏ tới, kể cả llama.cpp, Ollama, LM Studio hay vLLM đang chạy trên máy của bạn.
 
 | | |
 |---|---|
@@ -65,12 +66,12 @@ tới, kể cả llama.cpp, Ollama, LM Studio hay vLLM đang chạy trên máy c
 | **Client** | iOS (SwiftUI) · Android (Jetpack Compose) · Web (Next.js) |
 | **Ngôn ngữ giao diện** | 16 |
 | **Cần tài khoản không** | Không |
-| **Lệnh gọi ứng dụng tự thực hiện** | Đúng một: danh mục mô hình chỉ đọc, không kèm khóa và không kèm định danh |
+| **Lệnh gọi ứng dụng tự thực hiện** | Đúng một việc, qua hai yêu cầu: danh mục mô hình chỉ đọc, không kèm khóa và không kèm định danh |
 | **Giấy phép** | AGPL-3.0-or-later |
 
 ## Vì sao nó tồn tại
 
-Một ứng dụng chat không nên đứng chắn giữa bạn và mô hình mà bạn đang trả tiền để dùng.
+Không ai được phép đo đếm, ghi log hay cộng giá vào mô hình mà bạn đang trả tiền để dùng.
 
 - **Khóa của bạn, hóa đơn của bạn.** Bạn trả đúng giá niêm yết của nhà cung cấp. Không cộng thêm,
   không đo đếm, không bán lại.
@@ -78,12 +79,12 @@ Một ứng dụng chat không nên đứng chắn giữa bạn và mô hình m�
   bị. Xuất ra tệp bất cứ lúc nào bạn muốn; không có bản sao trên đám mây nào để bạn mất quyền truy
   cập.
 - **Một hành vi, ba client.** Cách dựng một yêu cầu cho một nhà cung cấp, một transport và một khả
-  năng cụ thể được định nghĩa đúng một lần trong [`shared/`](shared.md), và cả ba client đều kiểm
-  chứng với cùng bộ JSON fixture. Một điểm kỳ quặc của nhà cung cấp chỉ phải sửa một lần, không
-  phải ba.
-- **Trung thực về lệnh gọi duy nhất mà nó thực hiện.** Ứng dụng tải một danh mục mô hình công khai
-  để một mô hình ra mắt hôm nay chạy được ngay mà không cần cập nhật ứng dụng. Nó chỉ đọc, không
-  kèm khóa và không kèm định danh, và bạn có thể trỏ nó về host của riêng mình.
+  năng cụ thể được ghi lại đúng một lần trong [`shared/`](shared.md), và cả ba client đều kiểm
+  chứng với cùng bộ JSON fixture. Một điểm kỳ quặc nằm trong chính dữ liệu đó chỉ phải sửa một lần;
+  một điểm kỳ quặc nằm trong bộ phân tích thì bị cả ba bộ test bắt cùng một lúc.
+- **Lệnh gọi duy nhất mà nó thực hiện.** Ứng dụng tải một danh mục mô hình công khai để một mô hình
+  ra mắt hôm nay chạy được ngay mà không cần cập nhật ứng dụng. Nó chỉ đọc, không kèm khóa và không
+  kèm định danh, và bạn có thể trỏ nó về host của riêng mình.
 
 ## Tính năng
 
@@ -93,7 +94,8 @@ Một ứng dụng chat không nên đứng chắn giữa bạn và mô hình m�
   mô hình và tham số theo từng nhà cung cấp
 - **Relay** — bất kỳ endpoint nào tương thích OpenAI, Anthropic hoặc Gemini, kể cả endpoint trong
   mạng LAN của bạn
-- **Máy chủ mô hình cục bộ** — llama.cpp, Ollama, LM Studio, vLLM, có dò tìm trong mạng nội bộ
+- **Máy chủ mô hình cục bộ** — llama.cpp, Ollama, LM Studio, vLLM; iOS và Android dò tìm chúng
+  trong mạng nội bộ qua mDNS
 - **Đăng nhập bằng gói thuê bao** — dùng gói Codex hay Grok bạn đã có thay cho khóa API
 - **Kỹ năng** — các system prompt dùng lại được, kèm mô hình, tham số và tài liệu tham chiếu riêng
 - **Ghi chú và thư mục** — lưu một câu trả lời thành ghi chú, sắp xếp cuộc trò chuyện, tìm kiếm
@@ -118,18 +120,17 @@ sung một lớp tài khoản lên trên.
 | Mã nguồn | Kho mã này, AGPL-3.0-or-later | Độc quyền |
 | Chat bằng khóa nhà cung cấp của bạn | Có | Có |
 | Relay và máy chủ mô hình cục bộ | Có | Có |
-| Ghi chú, thư mục, kỹ năng, tệp đính kèm | Có, không giới hạn | Có |
+| Ghi chú, thư mục, kỹ năng, tệp đính kèm | Có | Có |
 | Theo dõi chi phí ngay trên thiết bị | Có | Có |
 | Tài khoản | Không | Tài khoản Oriveo |
 | Lưu trữ | Trên thiết bị; xuất và khôi phục thủ công | Ưu tiên cục bộ, kèm đồng bộ đám mây giữa các thiết bị |
 | Thống kê sử dụng và cảnh báo ngân sách | — | Có |
 | Mô hình do Oriveo trả tiền | — | Có |
-| Analytics và báo cáo sự cố | Không | Có |
+| Analytics và báo cáo sự cố | Mặc định tắt — gói web có kèm Sentry, im lặng khi không có DSN | Có |
 
 Các bản dựng Community Edition dùng tiền tố định danh `ai.oriveo.community`, nên một bản có thể nằm
-cạnh bản từ cửa hàng mà hai bên không dùng chung keychain, luồng cập nhật hay dữ liệu cục bộ. Phiên
-bản này chấp nhận và không chấp nhận những gì đều được ghi rõ trong
-[COMMUNITY.md](../../COMMUNITY.md).
+cạnh bản từ cửa hàng mà hai bên không dùng chung keychain hay dữ liệu cục bộ. Phiên bản này chấp
+nhận và không chấp nhận những gì đều được ghi rõ trong [COMMUNITY.md](../../COMMUNITY.md).
 
 **Oriveo, sản phẩm đầy đủ:**
 [iPhone và iPad](https://apps.apple.com/app/oriveo/id6775370458) &nbsp;·&nbsp;
@@ -156,7 +157,7 @@ Mọi nhà cung cấp bên dưới đều được truy cập bằng khóa do ch
 | MiniMax | [platform.minimax.io](https://platform.minimax.io/docs/guides/quickstart-preparation) |
 | Z.ai | [open.bigmodel.cn](https://open.bigmodel.cn/usercenter/apikeys) |
 | Qwen | [bailian.console.alibabacloud.com](https://bailian.console.alibabacloud.com/?apiKey=1#/api-key) |
-| Kimi | [platform.kimi.ai](https://platform.kimi.ai/console/api-keys) |
+| Kimi (Moonshot) | [platform.kimi.ai](https://platform.kimi.ai/console/api-keys) |
 | SiliconFlow | [cloud.siliconflow.cn](https://cloud.siliconflow.cn/account/ak) |
 | **Relay** | Bất kỳ endpoint nào tương thích OpenAI, Anthropic hoặc Gemini, kể cả endpoint trên máy bạn |
 
@@ -194,11 +195,12 @@ flowchart LR
 Mỗi client sở hữu giao diện, kho lưu trữ và điều hướng riêng, và chỉ gặp các contract dùng chung tại
 đúng một đường ghép: lớp biến *mô hình này, khả năng này* thành một yêu cầu HTTP.
 
-Điểm bất đối xứng duy nhất đáng biết là client web. API của các nhà cung cấp không gửi header CORS,
-nên trình duyệt không thể gọi thẳng; vì vậy các yêu cầu tới 15 nhà cung cấp chính thức đi qua một
-Next.js route handler chạy trên chính máy đang phục vụ ứng dụng — là máy của bạn, khi bạn chạy nó
-cục bộ. Client iOS và Android không vướng ràng buộc đó nên đi thẳng tới nhà cung cấp. Các endpoint
-relay nằm trong mạng của bạn cũng được gọi trực tiếp từ trình duyệt.
+Điểm bất đối xứng duy nhất đáng biết là client web. Phần lớn API của các nhà cung cấp không gửi
+header CORS, nên trình duyệt không thể gọi thẳng; những yêu cầu đó đi qua một Next.js route handler
+chạy trên chính máy đang phục vụ ứng dụng — là máy của bạn, khi bạn chạy nó cục bộ. Số ít endpoint
+có cho phép trình duyệt (endpoint Trung Quốc của Kimi, endpoint số dư của vài nhà cung cấp)
+cùng với các relay nằm trong mạng của bạn thì được gọi trực tiếp. Client iOS và Android không vướng
+ràng buộc đó nên luôn đi thẳng tới nhà cung cấp.
 
 **Kiến trúc của từng client:**
 
@@ -210,6 +212,10 @@ relay nằm trong mạng của bạn cũng được gọi trực tiếp từ tr�
 | **Shared** | Contract, fixture đã ghi và Swift wire kernel | [shared/README.md](shared.md) |
 
 ## Bắt đầu
+
+Ở đây không có bản dựng sẵn nào — không APK, không `.ipa`, không release. Community Edition là mã
+nguồn để bạn tự dựng, còn các ứng dụng trên cửa hàng là sản phẩm kia. Client web là con đường ngắn
+nhất để có một ứng dụng chạy được.
 
 <details open>
 <summary><b>Web</b> — cách nhanh nhất để thử</summary>
@@ -252,8 +258,8 @@ Hướng dẫn đầy đủ, gồm cả việc phải làm khi Xcode không ch�
 
 <br>
 
-Cần JDK 17 trở lên và Android SDK. Bản dựng dùng AGP 9.3, Gradle 9.5 và Kotlin 2.3, nên Android
-Studio phải là bản có thể sync được chúng; còn từ dòng lệnh thì chỉ cần JDK và SDK.
+Cần JDK 21 và Android SDK. Bản dựng dùng AGP 9.3, Gradle 9.5 và Kotlin 2.3, nên Android Studio
+phải là bản có thể sync được chúng; còn từ dòng lệnh thì chỉ cần JDK và SDK.
 
 ```bash
 cd android
@@ -266,18 +272,18 @@ Tự phục vụ danh mục mô hình từ host của bạn: [android/README.md]
 
 ## Quyền riêng tư
 
-- **Khóa nhà cung cấp** được lưu bằng chính cơ chế của nền tảng — iOS Keychain, Android Keystore
-  (`EncryptedSharedPreferences`), hoặc IndexedDB của trình duyệt — và chỉ dùng để truy cập đúng nhà
-  cung cấp mà chúng thuộc về. Trên web, khóa được lưu không mã hóa, đúng như cách các client BYOK
-  chạy trong trình duyệt vẫn làm; muốn đảm bảo mạnh nhất thì hãy dùng client iOS hoặc Android.
+- **Khóa nhà cung cấp** đi vào iOS Keychain, còn trên Android thì vào `EncryptedSharedPreferences`
+  dưới một khóa do Android Keystore giữ. Trình duyệt không có cơ chế tương đương, nên trên web khóa
+  nằm không mã hóa trong IndexedDB — đúng như cách các client BYOK chạy trong trình duyệt vẫn làm.
+  Muốn đảm bảo mạnh nhất thì hãy dùng client iOS hoặc Android.
 - **Cuộc trò chuyện, ghi chú, thư mục, kỹ năng và tệp đính kèm** được lưu trên thiết bị. Không có gì
   được tải lên bất cứ đâu.
-- **Không tài khoản, không analytics, không báo cáo sự cố.** Không có gì để đăng nhập và không có gì
-  âm thầm gửi dữ liệu về nhà.
-- **Trên iOS và Android, yêu cầu chat đi thẳng từ thiết bị tới nhà cung cấp.** Trên web, chúng đi
-  qua máy chủ Next.js đang phục vụ ứng dụng, vì API của các nhà cung cấp không cho phép trình duyệt
-  gọi trực tiếp; máy chủ đó không lưu lại khóa hay tin nhắn, và khi bạn chạy ứng dụng cục bộ thì đó
-  chính là máy của bạn.
+- **Không tài khoản, và không có gì gửi dữ liệu về cho chúng tôi.** Không có gì để đăng nhập. Gói
+  web có kèm Sentry, nhưng nó im lặng trừ khi bạn tự cấu hình một DSN của riêng mình.
+- **Trên iOS và Android, yêu cầu chat đi thẳng từ thiết bị tới nhà cung cấp.** Trên web, phần lớn
+  chúng đi qua máy chủ Next.js đang phục vụ ứng dụng, vì phần lớn API của các nhà cung cấp không cho
+  phép trình duyệt gọi trực tiếp; máy chủ đó không lưu lại khóa hay tin nhắn, và khi bạn chạy ứng
+  dụng cục bộ thì đó chính là máy của bạn.
 - **Một yêu cầu duy nhất của riêng chúng tôi:** một danh mục mô hình chỉ đọc, tải về mà không kèm
   khóa, không kèm cuộc trò chuyện và không kèm định danh, để một mô hình ra mắt hôm nay chạy được
   ngay mà không cần bản dựng mới. Nếu muốn tự phục vụ, hãy trỏ nó về host của bạn.
@@ -300,11 +306,12 @@ tiền theo giá niêm yết của họ. Oriveo là client; nó không phải đ
 
 <br>
 
-Không. Trên iOS và Android, client gọi thẳng endpoint của nhà cung cấp. Trên web, yêu cầu đi qua máy
-chủ Next.js đang phục vụ ứng dụng — chính là máy của bạn khi bạn chạy cục bộ — vì trình duyệt không
-thể gọi trực tiếp API của các nhà cung cấp. Cả hai đường đi đều không có máy chủ nào do Oriveo vận
-hành. Yêu cầu duy nhất Oriveo tự gửi đi là một lượt tải chỉ đọc danh mục mô hình công khai, không
-kèm khóa, không kèm cuộc trò chuyện và không kèm định danh.
+Không. Trên iOS và Android, client gọi thẳng endpoint của nhà cung cấp. Trên web, phần lớn yêu cầu
+đi qua máy chủ Next.js đang phục vụ ứng dụng — chính là máy của bạn khi bạn chạy cục bộ — vì phần
+lớn API của các nhà cung cấp từ chối lời gọi trực tiếp từ trình duyệt; số ít cho phép thì được gọi
+thẳng. Cả hai đường đi đều không có máy chủ nào do Oriveo vận hành. Yêu cầu duy nhất Oriveo tự gửi
+đi là một lượt tải chỉ đọc danh mục mô hình công khai, không kèm khóa, không kèm cuộc trò chuyện và
+không kèm định danh.
 
 </details>
 
@@ -315,8 +322,9 @@ kèm khóa, không kèm cuộc trò chuyện và không kèm định danh.
 
 Có. Thêm một kết nối Relay trỏ tới bất kỳ máy chủ nào tương thích OpenAI, Anthropic hoặc Gemini —
 llama.cpp, Ollama, LM Studio, vLLM, hay bất cứ thứ gì nói được một trong các giao thức đó. Client
-Android và web còn có thể dò tìm một máy chủ như vậy trong mạng nội bộ. HTTP cục bộ không dùng thông
-tin xác thực nào và không bao giờ rời khỏi mạng của bạn.
+iOS và Android có thể dò tìm một máy chủ như vậy trong mạng nội bộ qua mDNS; còn client web đưa sẵn
+địa chỉ mặc định của từng engine rồi tự thăm dò. HTTP cục bộ không dùng thông tin xác thực nào và
+không bao giờ rời khỏi mạng của bạn.
 
 </details>
 
@@ -328,7 +336,7 @@ tin xác thực nào và không bao giờ rời khỏi mạng của bạn.
 Ứng dụng trên cửa hàng là Oriveo, một sản phẩm độc quyền bổ sung tài khoản, đồng bộ đám mây giữa các
 thiết bị, thống kê sử dụng và các mô hình do Oriveo trả tiền. Community Edition là đúng ba client đó
 nhưng không có bất kỳ thứ nào kể trên: không tài khoản, không dịch vụ đồng bộ, không thanh toán,
-không analytics. Xem bảng so sánh đầy đủ tại
+và không có gì gửi dữ liệu về cho chúng tôi. Xem bảng so sánh đầy đủ tại
 [Community Edition và Oriveo](#community-edition-và-oriveo).
 
 </details>
@@ -339,7 +347,7 @@ không analytics. Xem bảng so sánh đầy đủ tại
 <br>
 
 Không có trong kho mã này. Trong lúc chờ, client web dùng như một ứng dụng desktop trên trình duyệt
-bất kỳ vẫn rất tốt, và bản dựng iOS chạy được trên các máy Mac dùng Apple silicon.
+bất kỳ vẫn rất tốt, và bản dựng iOS thường có thể chạy được trên một máy Mac dùng Apple silicon.
 
 </details>
 
@@ -357,11 +365,13 @@ Thái, Thổ Nhĩ Kỳ, Việt, Trung giản thể và Trung phồn thể. Tiế
 ## Cấu trúc kho mã
 
 ```
-ios/       iOS client (SwiftUI)
-android/   Android client (Jetpack Compose)
-web/       Web client (Next.js)
-macos/     Reserved for a macOS client
-shared/    Cross-client contracts, recorded fixtures, and the Swift wire kernel
+ios/           iOS client (SwiftUI)
+android/       Android client (Jetpack Compose)
+web/           Web client (Next.js)
+macos/         Reserved for a macOS client
+shared/        Cross-client contracts, recorded fixtures, and the Swift wire kernel
+readme_i18n/   These READMEs in fifteen more languages
+docs/assets/   Images used by the READMEs
 ```
 
 ## Đóng góp

@@ -53,7 +53,7 @@ npm run dev:app     # http://localhost:3001
 
 ## 一个请求实际是怎么走的
 
-这一节值得先于其它任何内容读，因为 Web 客户端是唯一一处请求**不是**从客户端直达供应商的地方。
+这一节值得先于其它任何内容读，因为 Web 客户端是唯一一处请求通常**不是**从客户端直达供应商的地方。
 
 ```mermaid
 flowchart LR
@@ -63,6 +63,7 @@ flowchart LR
         direction TB
         chat["/api/chat/stream"]
         fwd["/api/relay/forward"]
+        prov["/api/providers/*"]
     end
 
     official["15 家官方供应商"]
@@ -70,23 +71,35 @@ flowchart LR
     lan["你网络里的模型服务器"]
     catalog[("公开模型目录<br/>只读 · 不带 Key")]
 
-    browser ==>|"官方供应商"| chat ==> official
+    browser ==>|"多数官方供应商"| chat ==> official
+    browser ==>|"模型列表 · Key 校验 · OAuth"| prov
     browser ==>|"relay，公网主机"| fwd ==> pubrelay
-    browser ==>|"relay，局域网或 localhost"| lan
+    browser ==>|"你网络里的 relay"| lan
+    browser ==>|"CORS 友好的端点"| official
     catalog -.-> browser
     catalog -.-> chat
 ```
 
-**为什么要绕这一下。** 供应商的 API 不发 CORS 头，浏览器没法直接调用 `api.openai.com` 之流 ——
-预检请求就会失败。每一个浏览器 BYOK 客户端都得想办法解决这件事；这一个的做法是转发给一个跑在 Node
-runtime 里的 Next.js route handler。当你跑 `npm run dev:app` 时，那个 handler 就在你自己机器上。
-当你把应用部署到某处时，它就在你部署到的那台机器上。
+**为什么要绕这一下。** 多数供应商的 API 不发 CORS 头，浏览器没法直接调用 `api.openai.com` 之流 ——
+预检请求就会失败。每一个浏览器 BYOK 客户端都得想办法解决这件事；这一个的做法是转发给几个跑在 Node
+runtime 里的 Next.js route handler。当你跑 `npm run dev:app` 时，这些 handler 就在你自己机器上。
+当你把应用部署到某处时，它们就在你部署到的那台机器上。
 
-**这个 handler 做什么、不做什么。** 它校验请求形状并限制大小，施加按 IP 的限流，拒绝解析到私有地址或
-链路本地地址的 URL，构造供应商特有的请求体，然后把响应流式传回。它不保存你的 Key、你的消息，也不保存
-任何由它们派生出来的东西 —— 有一个专门的测试（`server-never-learns.test.ts`）钉死了这个行为。relay
-转发器还额外把 DNS 钉在它解析出的那个地址上，限制响应大小，给每个超时设上界，把重定向限制在同源
-范围内，并拒绝透传逐跳（hop-by-hop）头部。
+handler 不止一个：聊天流式、relay 转发器、图像生成、模型列表、Key 校验，以及 Grok 和 Codex 的设备
+登录交换，加起来一共十二个 route 文件。Key 校验在这里值得留意 —— 它把 Key 发给你自己的服务器，由
+后者拿它去探测供应商。
+
+少数端点*确实*允许浏览器直连，这些是直接调用、中间不经过任何服务器的：Kimi 用于聊天的中国区端点
+（`api.moonshot.cn`），以及 OpenRouter、SiliconFlow、DeepSeek 和 Kimi 的余额端点。
+
+**这些 handler 做什么、不做什么。** 它校验请求形状并限制大小，对聊天和 relay 流量施加按 IP 的限流，
+拒绝解析到私有地址或链路本地地址的 URL，构造供应商特有的请求体，然后把响应流式传回。`app/api` 底下
+任何地方都没有数据库、没有写文件，也没有记录请求体 —— 你的 Key 和你的消息只是被转发，然后被忘掉。
+因为这条路由是所有访客共用的同一个进程，有一个专门的测试（`server-never-learns.test.ts`）钉死了它绝
+不会把某个用户被拒绝的参数缓存下来、再套到别人的请求上。
+
+relay 转发器还额外把 DNS 钉在它解析出的那个地址上，限制响应大小，给每个超时设上界，把重定向限制在
+同源范围内，并拒绝透传逐跳（hop-by-hop）头部。
 
 **本地端点完全跳过它。** 位于私有地址、`.local` 名称、`localhost` 上的 relay，或者配置成本地 HTTP
 或私有 VPN 模式的 relay，都是**由浏览器直接**请求的，带 `credentials: 'omit'` 和
@@ -121,7 +134,8 @@ flowchart TB
 ```
 
 `packages/core` 持有关于供应商协议的每一个字节的知识，并被刻意保持得不碰任何浏览器全局对象 ——
-eslint 在它内部禁用了 `window`、`document`、`fetch`、`crypto`、`localStorage` 和 `indexedDB`。它需要
+eslint 在它内部以及 `packages/ipc-contract` 里禁用了 `window`、`document`、`fetch`、`crypto`、
+`localStorage`、`sessionStorage` 和 `indexedDB`。它需要
 从环境里拿的一切都经由 `CorePorts` 到达。正是这一点，让同一份代码可以跑在浏览器里、跑在 Node route
 handler 里，也可以跑在一个没有 DOM 的测试里。
 
@@ -153,7 +167,7 @@ packages/ipc-contract/  typed channel contract for a desktop shell
 |---|---|
 | 对话、消息、文件夹、笔记、供应商 | IndexedDB `oriveo--{id}`，8 个 object store |
 | 模型目录快照（约 3 MB）和 model facts | IndexedDB blob store，刻意不放 localStorage |
-| 偏好设置和模型控制项表 | `localStorage`，一律经由一个永不抛异常的包装层 |
+| 偏好设置和模型控制项表 | `localStorage`，实测会抛异常的那些路径由 `safeLocalStorage` 包住 |
 | 生成的和附加的图片 | 一个单独的 IndexedDB 数据库 |
 
 有两个细节来自真实的翻车，而不是审美偏好。目录快照放在 IndexedDB 里，是因为它约 3 MB，会吃掉一个
@@ -197,13 +211,22 @@ GET {backend}/api/metadata/model-facts
 要跑单个测试文件，请在拥有它的那个 workspace 里跑，因为有几套测试是相对工作目录解析 fixture 的：
 
 ```bash
-cd apps/app && npx vitest run lib/core/chat/stream-options.test.ts
+cd apps/app && npx vitest run lib/core/chat/__tests__/stream-options.test.ts
 ```
 
 ## 配置
 
 所有配置都是可选的。把 [`.env.example`](../../web/.env.example) 复制成 `.env.local`，只设置你需要的
-那些；每个键在那里都有说明。
+那些；每个键在那里都有说明。还有几个代码会读、但不在那个文件里的变量：`BACKEND_URL`
+（`NEXT_PUBLIC_BACKEND_URL` 的仅服务端孪生版）、`NEXT_PUBLIC_LIBRARY_ENABLED`、`ORIVEO_DESKTOP`
+和 `NEXT_DIST_DIR`。
+
+### 错误上报
+
+这个应用打包了 Sentry SDK。**没有 DSN 时它是惰性的** —— 没有 `NEXT_PUBLIC_SENTRY_DSN` 就没有
+transport、没有事件、什么都不会发出去，而这正是从本仓库构建出来的默认状态。配上一个 DSN，你就得到
+错误上报、10% 的性能追踪和 1% 的会话回放，并且有钩子会在事件离开浏览器之前把供应商 Key、端点和消息
+内容剥掉。它在这里，是为了让想要错误上报的部署能有，而不是因为这个构建会回传什么。
 
 ## 测试
 

@@ -39,9 +39,9 @@ dan penyimpangan itu akan muncul sebagai bug yang bisa direproduksi di satu plat
 platform lain.
 
 `shared/` adalah jawaban atas itu: perilakunya ditulis sekali sebagai data, dan suite pengujian
-setiap klien menguji diri terhadap berkas yang sama. Keanehan satu provider diperbaiki sekali.
-Sebuah perubahan kontrak menggagalkan tiga suite pada saat yang sama, alih-alih lolos di dua
-platform dan merusak yang ketiga.
+setiap klien menguji diri terhadap berkas yang sama. Keanehan yang hidup di dalam data itu
+diperbaiki sekali. Keanehan yang hidup di dalam sebuah parser tertangkap oleh tiga suite pada saat
+yang sama, alih-alih lolos di dua platform dan merusak yang ketiga.
 
 ```mermaid
 flowchart LR
@@ -93,10 +93,12 @@ perubahan pada ketiga klien sekaligus.
 Data pengujian golden: trafik tool-call upstream yang terekam, skenario routing dan penemuan relay,
 snapshot model-facts dan capability-evidence, serta skenario local engine.
 
-Berkas `.sse` adalah **trafik upstream sungguhan yang direkam** dan dibiarkan utuh byte demi byte.
-Mock yang ditulis tangan meng-encode apa yang Anda yakini dilakukan provider; stream yang terekam
-meng-encode apa yang benar-benar ia lakukan, termasuk chunk cacat yang ia kirim pada Selasa itu.
-Ketika sebuah perbaikan protokol provider butuh pengujian, rekaman lebih berharga daripada mock.
+Berkas `.sse` di bawah `recorded/` adalah **trafik upstream sungguhan yang direkam**, dibiarkan utuh
+byte demi byte; sisanya adalah fixture yang ditulis tangan untuk mengunci sebuah jalur parse
+tertentu. Bedanya penting: mock yang ditulis tangan meng-encode apa yang Anda yakini dilakukan
+provider, sedangkan rekaman meng-encode apa yang benar-benar ia lakukan, termasuk chunk cacat yang
+ia kirim pada Selasa itu. Ketika sebuah perbaikan protokol provider butuh pengujian, utamakan
+rekaman.
 
 ## OriveoProviderKit
 
@@ -123,15 +125,17 @@ cd shared/OriveoProviderKit && swift build && swift test
 Perubahan di sini adalah perubahan pada setiap klien. Jalankan suite kontrak dari setiap klien yang
 membaca berkas yang Anda sentuh, bukan hanya klien yang kebetulan sedang Anda kerjakan:
 
+Dari akar repositori:
+
 ```bash
-cd web && npm run test:run
-cd shared/OriveoProviderKit && swift test
+(cd web && npm run test:run)
+(cd shared/OriveoProviderKit && swift test)
 # plus the iOS and Android suites — see their READMEs
 ```
 
-Suite iOS dan Android sama-sama menemukan direktori ini dengan menelusuri ke atas dari berkas
-pengujian sampai menemukan `shared/`, sedangkan suite web me-resolve-nya relatif terhadap
-workspace. Karena itu semuanya membutuhkan checkout penuh dari repositori.
+Suite iOS menemukan direktori ini dengan menelusuri ke atas dari berkas pengujian sampai menemukan
+`shared/`; suite Android me-resolve `../../shared` dari modul Gradle; suite web me-resolve-nya
+relatif terhadap workspace. Karena itu semuanya membutuhkan checkout penuh dari repositori.
 
 ## Lisensi
 

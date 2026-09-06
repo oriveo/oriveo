@@ -63,7 +63,7 @@ flowchart TB
 
     subgraph provider ["طبقة المزود"]
         direction LR
-        services["15 ProviderService"]
+        services["15 ProviderService<br/>relay يعيد استخدام خدمة OpenAI"]
         transports["TransportRegistry<br/>12 استراتيجية"]
         kit["OriveoProviderKit<br/>SSE · تجميع الأجزاء · حجب البيانات"]
     end
@@ -119,7 +119,7 @@ flowchart LR
 
 لا يخمّن العميل قدرات نموذج من اسمه أبدا. بل يقرأ **زمن تشغيل للقدرات** — مجموعة وصفات تصف، لمزود
 ونقل وقدرة معينة، أي مؤشرات JSON بالضبط تُكتب في الطلب. وتوجد تلك الوصفات في
-[`shared/capabilityrecipe`](shared.md) ويطبّقها `CapabilityRecipeRequestCompiler`.
+[`shared/capabilityrecipe`](../../shared/capabilityrecipe/) ويطبّقها `CapabilityRecipeRequestCompiler`.
 
 وفي طريق العودة يسجّل `CapabilityExecutionRuntime` ما حدث فعلا. ولا يجوز إلا لمحلل بث إنتاجي مختار
 أن يرفع قدرة إلى حالة *مرصودة*. أما استجابة HTTP 200 أو إجابة غير فارغة أو تصريح بأداة في الطلب
@@ -151,6 +151,10 @@ Application Support/Oriveo/
 SQLite فيعمل التطبيق من النسخة المخزّنة حين يتعذّر الوصول إلى الفهرس.
 
 هذا هو الطلب الوحيد الذي يجريه التطبيق لحسابه هو. وكل ما عداه يذهب إلى مزود أعددته أنت، بمفتاحك.
+
+ولتوجيه بناء **Debug** إلى مضيف الفهرس الخاص بك، اضبط `ORIVEO_METADATA_BASE_URL` — إما كمتغيّر بيئة
+في المخطط وإما كمفتاح في `ios/Oriveo/Config/Info.plist`. وخلافا لعميلي Android والويب، يتجاهله بناء
+Release ويستخدم دائما الفهرس المنشور؛ وتغيير ذلك يعني تعديل `BackendURLResolver`.
 
 ## هيكل المشروع
 
@@ -205,11 +209,11 @@ ios/Oriveo/
 | [swift-markdown-ui](https://github.com/gonzalezreal/swift-markdown-ui) | 2.4.1 | عرض Markdown |
 | [SwiftMath](https://github.com/mgriebling/SwiftMath) | 1.7.3 | عرض LaTeX |
 | [ZIPFoundation](https://github.com/weichsel/ZIPFoundation) | 0.9.20 | أرشيفات النسخ الاحتياطي واستخراج Office/EPUB/ODF |
-| `OriveoProviderKit` | محلية | نواة الاتصال بالمزودين، مشتركة مع macOS |
+| `OriveoProviderKit` | محلية | نواة الاتصال بالمزودين، في [`shared/`](shared.md) |
 
 ## الاختبارات
 
-شغّل مخطط `OriveoTests` من Xcode، أو من جذر المستودع:
+شغّل إجراء الاختبار في مخطط `Oriveo` (⌘U) من Xcode، أو من جذر المستودع:
 
 ```bash
 xcodebuild test -project ios/Oriveo/Oriveo.xcodeproj -scheme Oriveo \

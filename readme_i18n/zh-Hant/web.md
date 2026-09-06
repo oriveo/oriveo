@@ -53,7 +53,7 @@ npm run dev:app     # http://localhost:3001
 
 ## 一個請求實際上是怎麼跑的
 
-這一節值得比其他任何內容都先讀，因為網頁用戶端是唯一一處請求**不會**從用戶端直達供應商的地方。
+這一節值得比其他任何內容都先讀，因為網頁用戶端是唯一一處請求通常**不會**從用戶端直達供應商的地方。
 
 ```mermaid
 flowchart LR
@@ -63,6 +63,7 @@ flowchart LR
         direction TB
         chat["/api/chat/stream"]
         fwd["/api/relay/forward"]
+        prov["/api/providers/*"]
     end
 
     official["15 家官方供應商"]
@@ -70,23 +71,35 @@ flowchart LR
     lan["你網路上的模型伺服器"]
     catalog[("公開模型目錄<br/>唯讀 · 不帶 Key")]
 
-    browser ==>|"官方供應商"| chat ==> official
+    browser ==>|"多數官方供應商"| chat ==> official
+    browser ==>|"模型清單 · Key 驗證 · OAuth"| prov
     browser ==>|"relay，公開主機"| fwd ==> pubrelay
-    browser ==>|"relay，區域網路或 localhost"| lan
+    browser ==>|"你網路上的 relay"| lan
+    browser ==>|"CORS 放行的端點"| official
     catalog -.-> browser
     catalog -.-> chat
 ```
 
-**為什麼要繞這一段。** 供應商 API 不送 CORS 標頭，所以瀏覽器無法直接呼叫 `api.openai.com` 之類的
-端點 —— preflight 就會失敗。每一個瀏覽器 BYOK 用戶端都得想辦法解決這件事；這一個的做法是轉送給一個
-跑在 Node runtime 裡的 Next.js route handler。當你執行 `npm run dev:app` 時，那個 handler 就在你自己
-的機器上。當你把應用部署到某處時，它就在你部署到的那台機器上。
+**為什麼要繞這一段。** 多數供應商 API 不送 CORS 標頭，所以瀏覽器無法直接呼叫 `api.openai.com` 之類
+的端點 —— preflight 就會失敗。每一個瀏覽器 BYOK 用戶端都得想辦法解決這件事；這一個的做法是轉送給
+幾個跑在 Node runtime 裡的 Next.js route handler。當你執行 `npm run dev:app` 時，這些 handler 就在
+你自己的機器上。當你把應用部署到某處時，它們就在你部署到的那台機器上。
 
-**這個 handler 做什麼、不做什麼。** 它驗證請求形狀並限制大小，套用依 IP 的速率限制，拒絕解析到私有
-或連結本地位址的 URL，組出供應商特定的請求主體，然後把回應串流回來。它不會保存你的 Key、你的訊息，
-也不保存任何由它們衍生出來的東西 —— 有一個專門的測試（`server-never-learns.test.ts`）把這個行為釘
-住。relay 轉送器還額外把 DNS 釘在它解析出的那個位址上、限制回應大小、為每個逾時設上界、把重新導向
-限制在同源範圍內，並拒絕轉送逐跳（hop-by-hop）標頭。
+handler 不只一個：聊天串流、relay 轉送器、圖片生成、模型清單、Key 驗證，以及 Grok 與 Codex 的裝置
+登入交換，加起來一共十二個 route 檔案。Key 驗證在這裡特別值得留意 —— 它會把 Key 送到你自己的
+伺服器，由它拿去探測供應商。
+
+少數端點*確實*允許瀏覽器直連，這些就直接呼叫、中間不經過任何伺服器：Kimi 用於聊天的中國區端點
+（`api.moonshot.cn`），以及 OpenRouter、SiliconFlow、DeepSeek 與 Kimi 的餘額端點。
+
+**這些 handler 做什麼、不做什麼。** 它驗證請求形狀並限制大小，對聊天與 relay 流量套用依 IP 的速率
+限制，拒絕解析到私有或連結本地位址的 URL，組出供應商特定的請求主體，然後把回應串流回來。`app/api`
+底下任何地方都沒有資料庫、沒有寫入檔案，也沒有記錄請求主體 —— 你的 Key 與訊息只是被轉送，然後就被
+忘掉。由於這條路由是所有訪客共用的同一個行程，有一個專門的測試（`server-never-learns.test.ts`）釘住
+了它絕不會把某位使用者被拒絕的參數快取下來、再套到別人的請求上。
+
+relay 轉送器還額外把 DNS 釘在它解析出的那個位址上、限制回應大小、為每個逾時設上界、把重新導向限制
+在同源範圍內，並拒絕轉送逐跳（hop-by-hop）標頭。
 
 **本機端點完全略過它。** 位於私有位址、`.local` 名稱、`localhost` 上的 relay，或設定為本機 HTTP 或
 私有 VPN 模式的 relay，都是**由瀏覽器直接**抓取的，帶著 `credentials: 'omit'` 與
@@ -121,7 +134,8 @@ flowchart TB
 ```
 
 `packages/core` 持有關於供應商協定的每一個位元組的知識，並且被刻意保持得完全不碰瀏覽器全域物件 ——
-eslint 在它裡面禁用了 `window`、`document`、`fetch`、`crypto`、`localStorage` 與 `indexedDB`。它需要
+eslint 在它裡面以及 `packages/ipc-contract` 裡禁用了 `window`、`document`、`fetch`、`crypto`、
+`localStorage`、`sessionStorage` 與 `indexedDB`。它需要
 從環境取得的一切，都經由 `CorePorts` 抵達。正是這一點，讓同一份程式碼能跑在瀏覽器裡、跑在 Node
 route handler 裡，也能跑在一個沒有 DOM 的測試裡。
 
@@ -153,7 +167,7 @@ packages/ipc-contract/  typed channel contract for a desktop shell
 |---|---|
 | 對話、訊息、資料夾、筆記、供應商 | IndexedDB `oriveo--{id}`，8 個 object store |
 | 模型目錄快照（約 3 MB）與 model facts | IndexedDB blob store，刻意不放 localStorage |
-| 偏好設定與模型控制項表 | `localStorage`，一律經由一個永不拋例外的包裝層 |
+| 偏好設定與模型控制項表 | `localStorage`，實測會拋例外的那些路徑由 `safeLocalStorage` 包住 |
 | 產生的與附加的圖片 | 一個獨立的 IndexedDB 資料庫 |
 
 有兩個細節來自真實的災情，而不是品味。目錄快照放在 IndexedDB，是因為它約 3 MB，會吃掉一個瀏覽器
@@ -198,13 +212,22 @@ GET {backend}/api/metadata/model-facts
 的：
 
 ```bash
-cd apps/app && npx vitest run lib/core/chat/stream-options.test.ts
+cd apps/app && npx vitest run lib/core/chat/__tests__/stream-options.test.ts
 ```
 
 ## 設定
 
 所有設定都是選用的。把 [`.env.example`](../../web/.env.example) 複製成 `.env.local`，只設定你需要的
-項目；每一個鍵在那裡都有說明。
+項目；每一個鍵在那裡都有說明。另外有幾個程式會讀、但不在那個檔案裡的變數：`BACKEND_URL`
+（`NEXT_PUBLIC_BACKEND_URL` 的伺服器端專用孿生版）、`NEXT_PUBLIC_LIBRARY_ENABLED`、`ORIVEO_DESKTOP`
+與 `NEXT_DIST_DIR`。
+
+### 錯誤回報
+
+這個應用打包了 Sentry SDK。**沒有 DSN 時它是惰性的** —— 沒有 `NEXT_PUBLIC_SENTRY_DSN` 就沒有
+transport、沒有事件，什麼都不會送出去，而這正是從本儲存庫建置出來的預設狀態。設上一組 DSN，你就會
+得到錯誤回報、10% 的效能追蹤與 1% 的工作階段重播，並且有 hook 會在事件離開瀏覽器之前把供應商 Key、
+端點與訊息內容剝掉。它擺在這裡，是為了讓想要錯誤回報的部署能有，而不是因為這個建置會回傳什麼。
 
 ## 測試
 

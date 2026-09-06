@@ -63,7 +63,7 @@ flowchart TB
 
     subgraph provider ["ชั้นผู้ให้บริการ"]
         direction LR
-        services["ProviderService 15 ตัว"]
+        services["ProviderService 15 ตัว<br/>relay ใช้ตัวของ OpenAI ซ้ำ"]
         transports["TransportRegistry<br/>12 กลยุทธ์"]
         kit["OriveoProviderKit<br/>SSE · ประกอบ chunk · ปกปิดคีย์"]
     end
@@ -119,7 +119,8 @@ flowchart LR
 
 ไคลเอนต์ไม่เดาความสามารถของโมเดลจากชื่อของมันเด็ดขาด แต่จะอ่าน **capability runtime** —
 ชุด recipe ที่อธิบายว่าสำหรับผู้ให้บริการ transport และความสามารถหนึ่ง ๆ ต้องเขียน JSON pointer
-ตัวไหนลงในคำขอบ้าง recipe เหล่านั้นอยู่ใน [`shared/capabilityrecipe`](shared.md) และถูกนำไปใช้โดย
+ตัวไหนลงในคำขอบ้าง recipe เหล่านั้นอยู่ใน
+[`shared/capabilityrecipe`](../../shared/capabilityrecipe/) และถูกนำไปใช้โดย
 `CapabilityRecipeRequestCompiler`
 
 ขากลับ `CapabilityExecutionRuntime` จะบันทึกว่าเกิดอะไรขึ้นจริง มีเพียง stream parser
@@ -157,6 +158,11 @@ Application Support/Oriveo/
 
 นี่คือคำขอเดียวที่แอปส่งในนามของตัวเอง ที่เหลือทั้งหมดวิ่งไปหาผู้ให้บริการที่คุณตั้งค่าไว้
 ด้วยคีย์ของคุณ
+
+ถ้าจะให้บิลด์แบบ **Debug** ชี้ไปยังโฮสต์แคตตาล็อกของคุณเอง ให้ตั้ง `ORIVEO_METADATA_BASE_URL`
+โดยตั้งเป็นตัวแปรสภาพแวดล้อมของ scheme หรือเป็นคีย์ใน `ios/Oriveo/Config/Info.plist` ก็ได้
+ต่างจากไคลเอนต์ Android และเว็บตรงที่บิลด์แบบ Release จะไม่สนใจค่านี้
+และใช้แคตตาล็อกที่เผยแพร่ไว้เสมอ ถ้าจะเปลี่ยนพฤติกรรมนั้นต้องไปแก้ `BackendURLResolver`
 
 ## โครงสร้างโปรเจกต์
 
@@ -212,11 +218,11 @@ ios/Oriveo/
 | [swift-markdown-ui](https://github.com/gonzalezreal/swift-markdown-ui) | 2.4.1 | เรนเดอร์ Markdown |
 | [SwiftMath](https://github.com/mgriebling/SwiftMath) | 1.7.3 | เรนเดอร์ LaTeX |
 | [ZIPFoundation](https://github.com/weichsel/ZIPFoundation) | 0.9.20 | ไฟล์สำรองข้อมูล, แตกข้อความจาก Office/EPUB/ODF |
-| `OriveoProviderKit` | ในเครื่อง | เคอร์เนล wire ของผู้ให้บริการ ใช้ร่วมกับ macOS |
+| `OriveoProviderKit` | ในเครื่อง | เคอร์เนล wire ของผู้ให้บริการ อยู่ใน [`shared/`](shared.md) |
 
 ## การทดสอบ
 
-รัน scheme `OriveoTests` จาก Xcode หรือรันจากรากของที่เก็บโค้ด:
+รัน test action (⌘U) ของ scheme `Oriveo` ใน Xcode หรือรันจากรากของที่เก็บโค้ด:
 
 ```bash
 xcodebuild test -project ios/Oriveo/Oriveo.xcodeproj -scheme Oriveo \

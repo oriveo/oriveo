@@ -63,7 +63,7 @@ flowchart TB
 
     subgraph provider ["Lớp nhà cung cấp"]
         direction LR
-        services["15 ProviderService"]
+        services["15 ProviderService<br/>relay dùng lại cái của OpenAI"]
         transports["TransportRegistry<br/>12 chiến lược"]
         kit["OriveoProviderKit<br/>SSE · ghép chunk · che khóa"]
     end
@@ -121,7 +121,8 @@ dạng wire có thể kiểm thử ở một chỗ thay vì mười lăm chỗ.
 Client không bao giờ đoán khả năng của một mô hình từ tên của nó. Nó đọc một **capability runtime** —
 một tập công thức mô tả, với một nhà cung cấp, một transport và một khả năng cụ thể, chính xác những
 JSON pointer nào cần ghi vào yêu cầu. Các công thức đó nằm trong
-[`shared/capabilityrecipe`](shared.md) và được `CapabilityRecipeRequestCompiler` áp dụng.
+[`shared/capabilityrecipe`](../../shared/capabilityrecipe/) và được
+`CapabilityRecipeRequestCompiler` áp dụng.
 
 Ở chiều về, `CapabilityExecutionRuntime` ghi lại điều thực sự đã xảy ra. Chỉ một bộ phân tích luồng
 trên đường chạy production đã được chọn mới có quyền nâng một khả năng lên mức *observed*. Một HTTP
@@ -158,6 +159,11 @@ phản hồi được lưu đệm trong SQLite nên ứng dụng vẫn chạy t�
 
 Đây là yêu cầu duy nhất ứng dụng thực hiện cho chính nó. Mọi thứ khác đều đi tới một nhà cung cấp mà
 bạn đã cấu hình, bằng khóa của bạn.
+
+Muốn trỏ một bản dựng **Debug** về host danh mục của riêng bạn thì hãy đặt
+`ORIVEO_METADATA_BASE_URL` — hoặc như một biến môi trường của scheme, hoặc như một khóa trong
+`ios/Oriveo/Config/Info.plist`. Khác với client Android và web, bản dựng Release bỏ qua nó và luôn
+dùng danh mục đã phát hành; muốn đổi điều đó thì phải sửa `BackendURLResolver`.
 
 ## Cấu trúc dự án
 
@@ -214,11 +220,11 @@ có thể từ chối mở nó. Hãy cập nhật Xcode thay vì sửa định d
 | [swift-markdown-ui](https://github.com/gonzalezreal/swift-markdown-ui) | 2.4.1 | kết xuất Markdown |
 | [SwiftMath](https://github.com/mgriebling/SwiftMath) | 1.7.3 | kết xuất LaTeX |
 | [ZIPFoundation](https://github.com/weichsel/ZIPFoundation) | 0.9.20 | kho lưu trữ sao lưu, bóc tách Office/EPUB/ODF |
-| `OriveoProviderKit` | cục bộ | nhân wire của nhà cung cấp, dùng chung với macOS |
+| `OriveoProviderKit` | cục bộ | nhân wire của nhà cung cấp, trong [`shared/`](shared.md) |
 
 ## Kiểm thử
 
-Chạy scheme `OriveoTests` từ Xcode, hoặc từ thư mục gốc của kho mã:
+Chạy test action (⌘U) của scheme `Oriveo` trong Xcode, hoặc từ thư mục gốc của kho mã:
 
 ```bash
 xcodebuild test -project ios/Oriveo/Oriveo.xcodeproj -scheme Oriveo \

@@ -82,10 +82,12 @@ flowchart TB
 Ba điều trong sơ đồ này là quyết định thiết kế có chủ đích, chứ không phải cấu trúc ngẫu nhiên.
 
 **Streaming sống ở tầng trên màn hình.** `ChatStreamingManager` giữ một `StreamingSession` cho mỗi
-id cuộc trò chuyện trong một `ConcurrentHashMap`, mỗi phiên có
-`CoroutineScope(SupervisorJob() + Dispatchers.IO)` phạm vi ứng dụng của riêng nó. Rời khỏi một cuộc
-chat không hủy câu trả lời, và `StreamingTokenBuffer` định kỳ đẩy phần văn bản đã có xuống SQLite,
-nên tắt ứng dụng giữa chừng cũng không làm mất những gì đã về tới.
+id cuộc trò chuyện trong một `ConcurrentHashMap`, mỗi phiên chạy như một `Job` riêng trên đúng một
+`CoroutineScope(SupervisorJob() + Dispatchers.IO)` phạm vi ứng dụng — supervisor mới là điểm mấu
+chốt, vì một luồng hỏng không kéo theo những luồng còn lại. Rời khỏi một cuộc chat không hủy câu trả
+lời, và `ChatRepository` đẩy phần văn bản đã có xuống SQLite mỗi khi `StreamingTokenBuffer` báo là
+đã dồn đủ (4.000 ký tự hoặc 60 giây), nên tắt ứng dụng giữa chừng cũng không làm mất những gì đã về
+tới.
 
 **Hai cơ sở dữ liệu, không phải một.** `oriveo.db` chứa cuộc trò chuyện, tin nhắn, tệp đính kèm, ghi
 chú, thư mục, kỹ năng và bộ đệm danh mục mô hình. `message_continuations.db` là một tệp tách rời về
@@ -154,8 +156,9 @@ Ranh giới thật nằm trong mã nguồn chứ không phải trong manifest, v
 `RelayEndpointPolicy` phân giải host, đòi **mọi** địa chỉ phân giải được đều phải là địa chỉ riêng
 tư (loopback, RFC 1918, link-local, unique-local, và dải CGNAT khi ở chế độ VPN), từ chối một host
 phân giải ra hỗn hợp cả địa chỉ công khai lẫn riêng tư, ghim tập địa chỉ đã phân giải để chống DNS
-rebinding rồi kiểm chứng lại vào lúc gửi, từ chối mọi yêu cầu không mã hóa có mang theo thông tin
-xác thực, và chặn các chuyển hướng khác origin hoặc đổi scheme.
+rebinding, rồi kiểm chứng lại vào lúc gửi. Nó từ chối mọi yêu cầu không mã hóa có mang theo thông
+tin xác thực. Còn chuyển hướng thì client dò tìm và client engine cục bộ không đi theo cái nào cả,
+với chính tập địa chỉ đã ghim làm lớp chặn cuối.
 
 Một network security config của Android không thể diễn đạt được tập điều kiện đó: nó chỉ khớp theo
 tên host, không có cú pháp cho dải địa chỉ, và các địa chỉ ở đây đến từ chính mạng của người dùng
@@ -189,8 +192,8 @@ một lần, ứng dụng vẫn chạy từ bản đệm khi về sau không v�
 >
 > - không nhà cung cấp nào trong số 15 nhà tích hợp sẵn có danh sách mô hình, và ứng dụng cũng không
 >   đi hỏi nhà cung cấp — danh mục là nguồn duy nhất;
-> - lỗi này **im lặng**. Thêm khóa vẫn báo thành công, còn danh sách chọn mô hình thì đơn giản là
->   rỗng, không một lời giải thích;
+> - màn hình chi tiết nhà cung cấp hiện một biểu ngữ "Không thể tải mô hình chính thức", nhưng thêm
+>   khóa thì vẫn báo thành công và danh sách chọn mô hình thì đơn giản là rỗng;
 > - **OpenAI trở nên không dùng được**, vì việc nhập mô hình thủ công bị chặn với nhà cung cấp đó;
 > - các endpoint Relay và máy chủ mô hình cục bộ vẫn hoạt động đầy đủ, và là đường duy nhất còn
 >   nguyên vẹn.
@@ -219,8 +222,8 @@ android/
 
 ## Dựng
 
-Yêu cầu: **JDK 17 trở lên** và Android SDK. Bản dựng dùng AGP 9.3, Gradle 9.5 và Kotlin 2.3, nên
-Android Studio phải là bản có thể sync được AGP 9.3; còn từ dòng lệnh thì chỉ cần JDK và SDK.
+Yêu cầu: **JDK 21** và Android SDK. Bản dựng dùng AGP 9.3, Gradle 9.5 và Kotlin 2.3, nên Android
+Studio phải là bản có thể sync được AGP 9.3; còn từ dòng lệnh thì chỉ cần JDK và SDK.
 
 ```bash
 ./gradlew :app:assembleDebug
@@ -273,9 +276,9 @@ nhất: hình dạng yêu cầu theo từng nhà cung cấp, phân tích SSE, ch
 Room, và các vòng sao lưu — khôi phục.
 
 > [!IMPORTANT]
-> Khoảng 38 bộ test nạp contract fixture từ `shared/` bằng cách đi ngược lên từ thư mục làm việc,
-> nên **các bài test chỉ chạy đúng khi bạn checkout toàn bộ kho mã** — sao chép riêng thư mục
-> `android/` ra sẽ không hoạt động.
+> Khoảng 38 bộ test nạp contract fixture bằng cách phân giải `../../shared` từ thư mục module
+> Gradle, nên **các bài test chỉ chạy đúng khi bạn checkout toàn bộ kho mã** — sao chép riêng thư
+> mục `android/` ra sẽ không hoạt động.
 
 Ngoài ra còn ba bài instrumented test — một ma trận release cho engine cục bộ, một bài test socket
 không mã hóa, và một bài test cô lập keystore. Chúng không tự đứng một mình: các bài về engine cục

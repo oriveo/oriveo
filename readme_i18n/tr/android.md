@@ -82,10 +82,12 @@ flowchart TB
 Bu diyagramdaki üç şey rastgele oluşmuş yapı değil, bilinçli tasarım kararlarıdır.
 
 **Akış, ekranın üstünde yaşar.** `ChatStreamingManager`, bir `ConcurrentHashMap` içinde sohbet
-kimliği başına bir `StreamingSession` tutar; her birinin kendi uygulama kapsamlı
-`CoroutineScope(SupervisorJob() + Dispatchers.IO)` nesnesi vardır. Bir sohbetten çıkmak yanıtı iptal
-etmez ve `StreamingTokenBuffer` kısmi metni düzenli aralıklarla SQLite'a yazar; böylece yanıtın
-ortasında uygulamayı öldürmek, o ana kadar gelenleri kaybettirmez.
+kimliği başına bir `StreamingSession` tutar; her biri tek bir uygulama kapsamlı
+`CoroutineScope(SupervisorJob() + Dispatchers.IO)` üzerinde kendi `Job`'u olarak çalışır — asıl
+mesele supervisor'dır: bir akışın düşmesi diğerlerini de beraberinde götürmez. Bir sohbetten çıkmak
+yanıtı iptal etmez ve `StreamingTokenBuffer` yeterince biriktiğini söylediğinde (4.000 karakter ya
+da 60 saniye) `ChatRepository` kısmi metni SQLite'a yazar; böylece yanıtın ortasında uygulamayı
+öldürmek, o ana kadar gelenleri kaybettirmez.
 
 **Bir değil, iki veritabanı.** `oriveo.db`; sohbetleri, mesajları, ekleri, notları, klasörleri,
 skill'leri ve model kataloğu önbelleğini tutar. `message_continuations.db` ise sağlayıcıya ait
@@ -153,9 +155,9 @@ konuşur ve genellikle sertifikaları yoktur.
 Asıl sınır manifest'te değil kodda; başka türlü de olamazdı. `RelayEndpointPolicy` sunucu adını
 çözer, çözülen adreslerin **hepsinin** özel olmasını şart koşar (loopback, RFC 1918, link-local,
 unique-local ve VPN kipinde CGNAT aralığı), genel ve özel adreslerin karışımına çözülen bir sunucuyu
-reddeder, çözülen adres kümesini DNS rebinding'e karşı sabitler ve gönderim anında yeniden doğrular,
-kimlik bilgisi taşıyan hiçbir düz metin isteğine izin vermez ve origin değiştiren veya şema değiştiren
-yönlendirmeleri engeller.
+reddeder, çözülen adres kümesini DNS rebinding'e karşı sabitler ve gönderim anında yeniden doğrular.
+Kimlik bilgisi taşıyan hiçbir düz metin isteğini kabul etmez. Keşif ve yerel motor istemcilerinde
+yönlendirmeler hiç izlenmez; o adres sabitlemesi de son güvencedir.
 
 Bir Android network security config bu kümeyi ifade edemez: yalnızca sunucu adına göre eşleşir, adres
 aralıkları için bir söz dizimi yoktur ve buradaki adresler çalışma zamanında kullanıcının kendi
@@ -190,8 +192,8 @@ kopyayla çalışmaya devam eder.
 >
 > - 15 yerleşik sağlayıcının hiçbiri model listesi alamaz ve uygulama sağlayıcıdan liste istemez —
 >   tek kaynak katalogdur;
-> - hata **sessizdir**. Anahtar eklemek yine başarılı olduğunu bildirir, model seçici ise hiçbir
->   açıklama olmadan boş kalır;
+> - sağlayıcı detay ekranı "Resmi modeller yüklenemedi" uyarısı gösterir, ama anahtar eklemek
+>   yine başarılı olduğunu bildirir ve model seçici basitçe boş kalır;
 > - **OpenAI kullanılamaz hâle gelir**, çünkü o sağlayıcı için elle model girişi engellidir;
 > - Relay endpoint'leri ve yerel model sunucuları tam olarak çalışmayı sürdürür ve bozulmayan tek
 >   yol onlardır.
@@ -220,9 +222,9 @@ android/
 
 ## Derleme
 
-Gereksinimler: **JDK 17 veya sonrası** ve Android SDK. Derleme AGP 9.3, Gradle 9.5 ve Kotlin 2.3
-kullanır; dolayısıyla Android Studio AGP 9.3'ü senkronize edebilen bir sürüm olmalıdır. Komut
-satırından yalnızca JDK ve SDK yeterlidir.
+Gereksinimler: **JDK 21** ve Android SDK. Derleme AGP 9.3, Gradle 9.5 ve Kotlin 2.3 kullanır;
+dolayısıyla Android Studio AGP 9.3'ü senkronize edebilen bir sürüm olmalıdır. Komut satırından
+yalnızca JDK ve SDK yeterlidir.
 
 ```bash
 ./gradlew :app:assembleDebug
@@ -276,9 +278,9 @@ reçetesi yürütme, katalog önbellekleme ve sözleşme sürümü işleme, Room
 gidiş-dönüşleri.
 
 > [!IMPORTANT]
-> Yaklaşık 38 test paketi, çalışma dizininden yukarı çıkarak `shared/` içinden sözleşme fixture'ları
-> yükler; dolayısıyla **testler yalnızca deponun tamamı elinizdeyken geçer** — tek başına `android/`
-> klasörünü dışarı kopyalamak işe yaramaz.
+> Yaklaşık 38 test paketi, sözleşme fixture'larını Gradle modül dizininden `../../shared` yolunu
+> çözerek yükler; dolayısıyla **testler yalnızca deponun tamamı elinizdeyken geçer** — tek başına
+> `android/` klasörünü dışarı kopyalamak işe yaramaz.
 
 Ayrıca üç enstrümanlı test vardır — bir yerel motor yayın matrisi, bir düz metin soket testi ve bir
 keystore yalıtım testi. Bunlar kendi kendine yeterli değildir: yerel motor testleri, ağınızda

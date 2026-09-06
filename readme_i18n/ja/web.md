@@ -57,7 +57,7 @@ npm run dev:app     # http://localhost:3001
 ## リクエストが実際にたどる経路
 
 ここは何よりも先に読む価値があります。Web クライアントは、リクエストがクライアントからプロバイダーへ
-直接**行かない**唯一の場所だからです。
+直接**行かない**ことが多い唯一の場所だからです。
 
 ```mermaid
 flowchart LR
@@ -67,6 +67,7 @@ flowchart LR
         direction TB
         chat["/api/chat/stream"]
         fwd["/api/relay/forward"]
+        prov["/api/providers/*"]
     end
 
     official["15 の公式プロバイダー"]
@@ -74,24 +75,41 @@ flowchart LR
     lan["自分のネットワーク上のモデルサーバー"]
     catalog[("公開モデルカタログ<br/>読み取り専用 · キーなし")]
 
-    browser ==>|"公式プロバイダー"| chat ==> official
+    browser ==>|"ほとんどの公式プロバイダー"| chat ==> official
+    browser ==>|"モデル一覧 · キー検証 · OAuth"| prov
     browser ==>|"relay、公開ホスト"| fwd ==> pubrelay
-    browser ==>|"relay、LAN または localhost"| lan
+    browser ==>|"自分のネットワーク上の relay"| lan
+    browser ==>|"CORS が通るエンドポイント"| official
     catalog -.-> browser
     catalog -.-> chat
 ```
 
-**なぜ回り道が必要なのか。** プロバイダーの API は CORS ヘッダーを返さないため、ブラウザから
-`api.openai.com` などを直接呼び出せません。プリフライトで失敗します。ブラウザ上の BYOK クライアントは
-どれも何らかの形でこれを解決する必要があり、このアプリは Node ランタイムで動く Next.js の route
-handler に転送する方式を採っています。`npm run dev:app` を実行しているときは、その handler は
-あなた自身のマシンにあります。どこかにデプロイしたなら、デプロイ先のマシンにあります。
+**なぜ回り道が必要なのか。** ほとんどのプロバイダーの API は CORS ヘッダーを返さないため、ブラウザ
+から `api.openai.com` などを直接呼び出せません。プリフライトで失敗します。ブラウザ上の BYOK
+クライアントはどれも何らかの形でこれを解決する必要があり、このアプリは Node ランタイムで動く
+Next.js の route handler に転送する方式を採っています。`npm run dev:app` を実行しているときは、
+それらの handler はあなた自身のマシンにあります。どこかにデプロイしたなら、デプロイ先のマシンに
+あります。
 
-**この handler がすること、しないこと。** リクエストの形を検証してサイズに上限を設け、IP ごとの
-レート制限をかけ、プライベートアドレスやリンクローカルアドレスに解決される URL を拒否し、
-プロバイダー固有のボディを組み立て、レスポンスをストリームで返します。あなたのキーも、メッセージも、
-そこから派生したものも保存しません。専用のテスト（`server-never-learns.test.ts`）がこの挙動を固定して
-います。relay の転送処理はさらに、解決したアドレスに DNS を固定し、レスポンスに上限を設け、すべての
+handler は 1 つではありません。チャットのストリーミング、relay の転送、画像生成、モデル一覧、キーの
+検証、そして Grok と Codex のデバイスログインのやり取りで、route ファイルは全部で 12 個になります。
+ここで効いてくるのがキーの検証で、これはキーをあなた自身のサーバーに送り、そのサーバーがそのキーで
+プロバイダーを叩きます。
+
+ブラウザからの呼び出しを*許可している*エンドポイントもいくつかあり、それらは間にサーバーを挟まず
+直接呼び出されます。チャット用の Kimi の中国向けエンドポイント（`api.moonshot.cn`）と、
+OpenRouter・SiliconFlow・DeepSeek・Kimi の残高エンドポイントです。
+
+**これらの handler がすること、しないこと。** リクエストの形を検証してサイズに上限を設け、チャットと
+relay のトラフィックに IP ごとのレート制限をかけ、プライベートアドレスやリンクローカルアドレスに
+解決される URL を拒否し、プロバイダー固有のボディを組み立て、レスポンスをストリームで返します。
+`app/api` の下にはデータベースもファイルへの書き込みもなく、リクエストボディのログも一切ありません。
+あなたのキーとメッセージは転送され、そして忘れられます。このルートは訪問者全員が共有する 1 つの
+プロセスなので、あるユーザーの拒否されたパラメーターをキャッシュして別のユーザーのリクエストに
+適用してしまうことが決してない、という点を専用のテスト（`server-never-learns.test.ts`）が固定して
+います。
+
+relay の転送処理はさらに、解決したアドレスに DNS を固定し、レスポンスに上限を設け、すべての
 タイムアウトに上界を与え、リダイレクトを同一オリジンに限定し、hop-by-hop ヘッダーの通過を拒否します。
 
 **ローカルのエンドポイントはこれを完全に迂回します。** プライベートアドレス、`.local` 名、
@@ -128,10 +146,10 @@ flowchart TB
 ```
 
 `packages/core` はプロバイダーのプロトコルに関する知識を 1 バイト残らず抱えており、ブラウザの
-グローバルからは意図的に切り離されています。eslint がその中での `window`、`document`、`fetch`、
-`crypto`、`localStorage`、`indexedDB` を禁止しています。環境から必要になるものはすべて `CorePorts`
-経由で届きます。だからこそ、同じコードがブラウザでも、Node の route handler でも、DOM のない
-テストでも動きます。
+グローバルからは意図的に切り離されています。eslint が、その中と `packages/ipc-contract` の中での
+`window`、`document`、`fetch`、`crypto`、`localStorage`、`sessionStorage`、`indexedDB` を禁止して
+います。環境から必要になるものはすべて `CorePorts` 経由で届きます。だからこそ、同じコードが
+ブラウザでも、Node の route handler でも、DOM のないテストでも動きます。
 
 プロバイダー対応は 2 本の独立した軸です。`providerKind` が**リクエストビルダー**（このベンダーでは
 ボディがどういう形になるか）を選びます。`model.transport` が 12 種類の中から**トランスポート戦略**
@@ -163,7 +181,7 @@ packages/ipc-contract/  typed channel contract for a desktop shell
 |---|---|
 | 会話、メッセージ、フォルダ、ノート、プロバイダー | IndexedDB `oriveo--{id}`、8 つのオブジェクトストア |
 | モデルカタログのスナップショット（約 3 MB）と model facts | IndexedDB の blob ストア。意図的に localStorage を使いません |
-| 設定とモデルコントロールのテーブル | `localStorage`。必ず例外を投げないラッパー経由 |
+| 設定とモデルコントロールのテーブル | `localStorage`。例外を投げると分かっている経路を `safeLocalStorage` で包んでいます |
 | 生成された画像と添付された画像 | 別の IndexedDB データベース |
 
 好みではなく実際の障害から来た詳細が 2 つあります。カタログのスナップショットを IndexedDB に置いて
@@ -212,13 +230,24 @@ GET {backend}/api/metadata/model-facts
 スイートは作業ディレクトリを基準にフィクスチャを解決するためです。
 
 ```bash
-cd apps/app && npx vitest run lib/core/chat/stream-options.test.ts
+cd apps/app && npx vitest run lib/core/chat/__tests__/stream-options.test.ts
 ```
 
 ## 設定
 
 すべて任意です。[`.env.example`](../../web/.env.example) を `.env.local` にコピーし、必要なものだけを
-設定してください。各キーの説明はそこにあります。
+設定してください。各キーの説明はそこにあります。コードが読むもののそのファイルには載っていない変数も
+いくつかあります。`BACKEND_URL`（`NEXT_PUBLIC_BACKEND_URL` のサーバーサイド専用の双子）、
+`NEXT_PUBLIC_LIBRARY_ENABLED`、`ORIVEO_DESKTOP`、`NEXT_DIST_DIR` です。
+
+### エラーレポート
+
+このアプリは Sentry SDK を同梱しています。**DSN がなければ何も動きません。** `NEXT_PUBLIC_SENTRY_DSN`
+が未設定ならトランスポートもイベントもなく、どこにも何も送られません。このリポジトリからビルドした
+場合はこれが既定です。DSN を設定すれば、エラーレポート、10% のパフォーマンストレース、1% のセッション
+リプレイが有効になり、イベントがブラウザを出る前にプロバイダーのキー・エンドポイント・メッセージ本文を
+取り除くフックが働きます。これは、エラーレポートが欲しいデプロイのために置いてあるのであって、この
+ビルドが勝手に通信するからではありません。
 
 ## テスト
 

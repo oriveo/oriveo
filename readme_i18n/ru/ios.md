@@ -62,7 +62,7 @@ flowchart TB
 
     subgraph provider ["Слой провайдера"]
         direction LR
-        services["15 ProviderService"]
+        services["15 ProviderService<br/>relay переиспользует сервис OpenAI"]
         transports["TransportRegistry<br/>12 стратегий"]
         kit["OriveoProviderKit<br/>SSE · сборка чанков · сокрытие секретов"]
     end
@@ -119,8 +119,9 @@ flowchart LR
 
 Клиент никогда не угадывает возможности модели по её имени. Он читает **runtime возможностей** —
 набор рецептов, которые для конкретного провайдера, транспорта и возможности описывают, какие именно
-JSON pointer'ы записать в запрос. Эти рецепты лежат в [`shared/capabilityrecipe`](shared.md) и
-применяются `CapabilityRecipeRequestCompiler`.
+JSON pointer'ы записать в запрос. Эти рецепты лежат в
+[`shared/capabilityrecipe`](../../shared/capabilityrecipe/) и применяются
+`CapabilityRecipeRequestCompiler`.
 
 На обратном пути `CapabilityExecutionRuntime` фиксирует, что произошло на самом деле. Повысить
 возможность до *observed* может только выбранный продакшен-парсер потока. HTTP 200, непустой ответ и
@@ -158,6 +159,11 @@ Application Support/Oriveo/
 
 Это единственный запрос, который приложение делает от своего имени. Всё остальное уходит провайдеру,
 которого настроили вы, с вашим ключом.
+
+Чтобы направить **Debug**-сборку на свой хост каталога, задайте `ORIVEO_METADATA_BASE_URL` — либо
+переменной окружения в схеме, либо ключом в `ios/Oriveo/Config/Info.plist`. В отличие от клиентов
+Android и веба, Release-сборка её игнорирует и всегда берёт опубликованный каталог; чтобы это
+изменить, придётся править `BackendURLResolver`.
 
 ## Структура проекта
 
@@ -215,11 +221,11 @@ entitlements.
 | [swift-markdown-ui](https://github.com/gonzalezreal/swift-markdown-ui) | 2.4.1 | рендеринг Markdown |
 | [SwiftMath](https://github.com/mgriebling/SwiftMath) | 1.7.3 | рендеринг LaTeX |
 | [ZIPFoundation](https://github.com/weichsel/ZIPFoundation) | 0.9.20 | архивы резервных копий, разбор Office/EPUB/ODF |
-| `OriveoProviderKit` | локальный | сетевое ядро провайдеров, общее с macOS |
+| `OriveoProviderKit` | локальный | сетевое ядро провайдеров, в [`shared/`](shared.md) |
 
 ## Тесты
 
-Запустите схему `OriveoTests` из Xcode или из корня репозитория:
+Запустите тестовое действие схемы `Oriveo` (⌘U) в Xcode или из корня репозитория:
 
 ```bash
 xcodebuild test -project ios/Oriveo/Oriveo.xcodeproj -scheme Oriveo \

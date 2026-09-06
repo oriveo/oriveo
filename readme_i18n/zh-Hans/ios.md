@@ -61,7 +61,7 @@ flowchart TB
 
     subgraph provider ["供应商层"]
         direction LR
-        services["15 个 ProviderService"]
+        services["15 个 ProviderService<br/>relay 复用 OpenAI 那个"]
         transports["TransportRegistry<br/>12 种策略"]
         kit["OriveoProviderKit<br/>SSE · 分片组装 · 脱敏"]
     end
@@ -114,7 +114,8 @@ flowchart LR
 
 客户端从不根据模型的名字去猜它的能力。它读取一套**能力运行时** —— 一组配方，描述在给定的供应商、
 传输方式和能力下，究竟该往请求里写入哪些 JSON pointer。这些配方放在
-[`shared/capabilityrecipe`](shared.md) 里，由 `CapabilityRecipeRequestCompiler` 应用。
+[`shared/capabilityrecipe`](../../shared/capabilityrecipe/) 里，
+由 `CapabilityRecipeRequestCompiler` 应用。
 
 回来的路上，`CapabilityExecutionRuntime` 记录实际发生了什么。只有被选定的生产流解析器才可以把一项
 能力提升为*已观测*。HTTP 200、一个非空的答案，以及请求里带了工具声明，都被明确规定**不算证据**。
@@ -144,6 +145,10 @@ Application Support/Oriveo/
 在 SQLite 里，所以目录不可达时 App 仍能靠缓存副本工作。
 
 这是 App 唯一为自己发起的请求。其余一切都发往你配置的供应商，用你的 Key。
+
+想让 **Debug** 构建指向你自己的目录服务器，设置 `ORIVEO_METADATA_BASE_URL` —— 可以作为 scheme 的
+环境变量，也可以作为 `ios/Oriveo/Config/Info.plist` 里的一个键。和 Android 与 Web 客户端不同，
+Release 构建会忽略它，始终使用官方发布的目录；想改这一点，就得改 `BackendURLResolver`。
 
 ## 工程结构
 
@@ -197,11 +202,11 @@ Xcode，不要去改工程文件格式。
 | [swift-markdown-ui](https://github.com/gonzalezreal/swift-markdown-ui) | 2.4.1 | Markdown 渲染 |
 | [SwiftMath](https://github.com/mgriebling/SwiftMath) | 1.7.3 | LaTeX 渲染 |
 | [ZIPFoundation](https://github.com/weichsel/ZIPFoundation) | 0.9.20 | 备份归档，Office/EPUB/ODF 解析 |
-| `OriveoProviderKit` | 本地 | 供应商协议内核，与 macOS 共用 |
+| `OriveoProviderKit` | 本地 | 供应商协议内核，位于 [`shared/`](shared.md) |
 
 ## 测试
 
-在 Xcode 里运行 `OriveoTests` scheme，或者从仓库根目录运行：
+在 Xcode 里运行 `Oriveo` scheme 的 test action（⌘U），或者从仓库根目录运行：
 
 ```bash
 xcodebuild test -project ios/Oriveo/Oriveo.xcodeproj -scheme Oriveo \
