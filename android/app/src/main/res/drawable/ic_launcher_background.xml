@@ -1,13 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Background layer for the adaptive icon. The flat color used before, #09091A (near black),
-  sat at about 4% lightness and blended straight into a dark wallpaper.
+  Background layer for the adaptive icon: a radial gradient in the logo's base violet
+  (#3B2A86 -> #231657 -> #120B33) sitting at roughly 18% lightness, so the icon still reads as a
+  shape on a dark wallpaper instead of blending into it.
 
-  Switched to a radial gradient matching the master logo's base color
-  (cx=50% cy=40% r=72%, #3B2A86 -> #231657 -> #120B33, lightness raised to about 18%).
-  Vector drawable radial gradients need API 24+; this module's minSdk is 26, so it is safe.
-
-  Geometry converted to the 108dp adaptive canvas: cx=54, cy=43.2, r=77.76.
+  The gradient is placed at cx=50% cy=40% r=72% of the 108dp adaptive canvas, i.e. cx=54, cy=43.2,
+  r=77.76. Radial gradients in vector drawables need API 24; minSdk here is 26.
 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:aapt="http://schemas.android.com/aapt"
