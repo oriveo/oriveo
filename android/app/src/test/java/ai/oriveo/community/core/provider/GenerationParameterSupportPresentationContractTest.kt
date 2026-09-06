@@ -104,7 +104,7 @@ class GenerationParameterSupportPresentationContractTest {
         val unknown = GenerationParameterSupportPresentation.entryForRegistered("unknown")!!
         val future = GenerationParameterSupportPresentation.entryForRegistered("future_supported")!!
         assertNotEquals("'this parameter is not accepted' must not share a sentence with 'no information'", unsupported.detailRes, unknown.detailRes)
-        assertNotEquals("'not open yet' must not share a sentence with 'no information'", future.detailRes, unknown.detailRes)
+        assertNotEquals("'announced but not available' must not share a sentence with 'no information'", future.detailRes, unknown.detailRes)
         assertNotEquals(unsupported.labelRes, unknown.labelRes)
         // 'not adjustable' has to actually grey the control out and offer a primary action.
         assertEquals(GenerationParameterSupportPresentation.Control.Disabled, unsupported.control)
