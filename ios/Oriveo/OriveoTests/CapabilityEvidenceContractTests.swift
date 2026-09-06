@@ -918,10 +918,11 @@ struct CapabilityEvidenceContractTests {
         ))
     }
 
-    @Test("Incomplete Runtime Identity Still Schedules Producer Side Effects")
-    func incompleteRuntimeIdentityStillSchedulesProducerSideEffects() async {
+    @Test("A Recovery Without A Runtime Identity Is Never Cached")
+    func recoveryWithoutRuntimeIdentityIsNeverCached() {
+        // No identity means no scope the entry could safely be reused in, so the parameter must
+        // not be remembered as unsupported for the next request.
         UnsupportedParamCache.shared.resetForTesting()
-        GenerationParameterDiagnosticStore.shared.clear()
         #expect(!UnsupportedParamSelfHealReporter.markDropped(
             providerKind: .relay, modelID: "private-model", param: "temperature",
             endpointFingerprint: "ep_final", identity: nil
@@ -929,17 +930,10 @@ struct CapabilityEvidenceContractTests {
         #expect(!UnsupportedParamCache.shared.isUnsupported(
             providerKind: .relay, modelID: "private-model", param: "temperature", endpointFingerprint: "ep_final"
         ))
-        let deadline = Date().addingTimeInterval(1)
-        while Date() < deadline {
-            if GenerationParameterDiagnosticStore.shared.list().contains(where: { $0.parameter == "temperature" && $0.status == "recovered" }) {
-                return
-            }
-            try? await Task.sleep(for: .milliseconds(10))
-        }
-        Issue.record("Successful self-heal missing identity must still dispatch existing diagnostic side effects")
     }
 
-    /// shape; lack of runtime identity can never authorize a strip/retry").
+    /// The wrapper must hand the upstream failure back untouched: without a runtime identity there
+    /// is no scope in which stripping a parameter and retrying could be justified.
     @Test("Identityless Stream Wrapper Never Strips Or Retries")
     func identitylessStreamWrapperNeverStripsOrRetries() async throws {
         UnsupportedParamCache.shared.resetForTesting()

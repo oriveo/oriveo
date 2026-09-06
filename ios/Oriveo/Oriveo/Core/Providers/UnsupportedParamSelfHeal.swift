@@ -474,7 +474,7 @@ final class UnsupportedParamCache: @unchecked Sendable {
         endpointFingerprint: String?,
         identity: CapabilityEvidenceRequestIdentity
     ) -> Bool {
-        _ = endpointFingerprint // Endpoint/metadata/generation revisions are not R3 identity fields.
+        _ = endpointFingerprint // Endpoint, metadata and generation revisions are not part of the identity.
         guard let exact = capabilityIdentity(
             providerKind: providerKind, modelID: modelID, identity: identity
         ), !owner.isEmpty, !setting.isEmpty,
@@ -751,17 +751,6 @@ final class UnsupportedParamCache: @unchecked Sendable {
 }
 
 enum UnsupportedParamSelfHealReporter {
-    static func telemetryTransport(providerKind: ProviderKind, modelID: String) -> String {
-        let raw = MetadataClient.shared.syncResolveCatalogModel(
-            modelID: modelID,
-            providerKind: providerKind
-        )?.transport?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? ""
-        guard raw.range(of: #"^[a-z][a-z0-9_]{0,63}$"#, options: .regularExpression) != nil else {
-            return "unknown"
-        }
-        return raw
-    }
-
     @discardableResult
     static func markDropped(
         providerKind: ProviderKind,
@@ -786,18 +775,6 @@ enum UnsupportedParamSelfHealReporter {
         // Missing identity/revision is no-cache only: the successful retry remains a real producer event.
         // A complete identity may suppress side effects only after its exact cache entry already exists.
         if firstTime || !canReuseAcrossRequests {
-            let transport = telemetryTransport(providerKind: providerKind, modelID: modelID)
-
-            Task(priority: .utility) {
-                GenerationParameterDiagnosticStore.shared.record(
-                    parameter: param,
-                    status: "recovered",
-                    transport: transport,
-                    errorClass: "unsupported_parameter",
-                    phase: "before_first_token",
-                    modelID: modelID
-                )
-            }
             Task(priority: .utility) {
                 await MetadataClient.shared.forceRefresh()
             }
@@ -805,120 +782,7 @@ enum UnsupportedParamSelfHealReporter {
         return firstTime
     }
 
-    static func markExhausted(
-        providerKind: ProviderKind,
-        modelID: String,
-        param: String
-    ) {
-        let transport = telemetryTransport(providerKind: providerKind, modelID: modelID)
-        GenerationParameterDiagnosticStore.shared.record(
-            parameter: param,
-            status: "retry_exhausted",
-            transport: transport,
-            errorClass: "unsupported_parameter",
-            phase: "before_first_token",
-            modelID: modelID
-        )
-        AppLog.warning(
-            "provider self-heal param retry exhausted",
-            module: "provider.self_heal",
-            context: [
-                "self_heal": "exhausted",
-                "transport": transport,
-                "parameter": param,
-                "error.class": "unsupported_parameter",
-            ]
-        )
-    }
-
-    static func markRecovered(param: String) {
-        Task { @MainActor in
-            ToastManager.shared.show(
-                String(
-                    format: L10n.tr(
-                        "This model rejected %@. Retried with its default setting.",
-                        table: .chat
-                    ),
-                    param
-                ),
-                style: .warning,
-                duration: 5
-            )
-        }
-    }
 }
-
-nonisolated struct GenerationParameterDiagnosticEntry: Codable, Equatable, Sendable, Identifiable {
-    let id: UUID
-    let createdAt: Date
-    let parameter: String
-    let status: String
-    let transport: String
-    let errorClass: String
-    let phase: String
-    let modelID: String?
-}
-
-final class GenerationParameterDiagnosticStore: @unchecked Sendable {
-    static let shared = GenerationParameterDiagnosticStore()
-    private let lock = NSLock()
-    private let defaults: UserDefaults
-    private let key = "generation_parameter_diagnostics.v1"
-
-    init(defaults: UserDefaults = .standard) { self.defaults = defaults }
-
-    func record(
-        parameter: String,
-        status: String,
-        transport: String,
-        errorClass: String,
-        phase: String,
-        modelID: String?
-    ) {
-        guard parameter.range(of: #"^[A-Za-z0-9_.-]{1,80}$"#, options: .regularExpression) != nil else { return }
-        lock.lock(); defer { lock.unlock() }
-        let entry = GenerationParameterDiagnosticEntry(
-            id: UUID(), createdAt: Date(), parameter: parameter, status: status,
-            transport: transport, errorClass: errorClass, phase: phase, modelID: modelID
-        )
-        writeLocked(Array(([entry] + readLocked()).prefix(50)))
-    }
-
-    func list(modelID: String? = nil) -> [GenerationParameterDiagnosticEntry] {
-        lock.lock(); defer { lock.unlock() }
-        return readLocked().filter { modelID == nil || $0.modelID == nil || $0.modelID == modelID }
-    }
-
-    func clear() {
-        lock.lock(); defer { lock.unlock() }
-        defaults.removeObject(forKey: key)
-    }
-
-    func redactedJSON() throws -> Data {
-        struct Redacted: Encodable {
-            let id: UUID; let createdAt: Date; let parameter: String; let status: String
-            let transport: String; let errorClass: String; let phase: String
-        }
-        let values = list().map {
-            Redacted(
-                id: $0.id, createdAt: $0.createdAt, parameter: $0.parameter, status: $0.status,
-                transport: $0.transport, errorClass: $0.errorClass, phase: $0.phase
-            )
-        }
-        let encoder = JSONEncoder(); encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        return try encoder.encode(values)
-    }
-
-    private func readLocked() -> [GenerationParameterDiagnosticEntry] {
-        guard let data = defaults.data(forKey: key) else { return [] }
-        return (try? JSONDecoder().decode([GenerationParameterDiagnosticEntry].self, from: data)) ?? []
-    }
-
-    private func writeLocked(_ values: [GenerationParameterDiagnosticEntry]) {
-        if let data = try? JSONEncoder().encode(values) { defaults.set(data, forKey: key) }
-    }
-}
-
 
 enum UnsupportedParamSelfHeal {
     /// the original shape; lack of runtime identity can never authorize a strip/retry.

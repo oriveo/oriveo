@@ -42,7 +42,6 @@ struct GenerationParameterDefaultsSheet: View {
     @State private var didClearLearnedCapabilities = false
     @State private var exportDocument: GenerationParameterJSONDocument?
     @State private var exportFilename = "oriveo-generation-parameters.v1"
-    @State private var diagnosticRevision = 0
     @State private var dormantExpanded = false
     @State private var expandedGroups: Set<String> = []
     @State private var dormantSnapshots: [String: [String]] = [:]
@@ -420,44 +419,6 @@ struct GenerationParameterDefaultsSheet: View {
                             Label(L10n.tr("Import Backup", table: .backup), systemImage: "square.and.arrow.down")
                         }
                     }
-                    .listRowBackground(OriveoTheme.Palette.surface)
-                }
-
-                if presentation.showsConnectionTools,
-                   true {
-                    let diagnostics = GenerationParameterDiagnosticStore.shared.list(modelID: modelID)
-                    Section(L10n.tr("Recent")) {
-                        if diagnostics.isEmpty {
-                            Text(L10n.tr("No usage yet"))
-                                .foregroundStyle(.secondary)
-                        }
-                        ForEach(diagnostics.prefix(20)) { entry in
-                            let statusText = entry.status == "recovered"
-                                ? L10n.tr("Connected", table: .providers)
-                                : L10n.tr("Issue", table: .providers)
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text(GenerationParameterVocabulary.title(entry.parameter))
-                                Text("\(statusText) • \(CapabilityTransportLabel.display(entry.transport))")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                        if !diagnostics.isEmpty {
-                            Button {
-                                exportFilename = "oriveo-generation-diagnostics.redacted"
-                                exportDocument = try? .init(data: GenerationParameterDiagnosticStore.shared.redactedJSON())
-                                showExporter = exportDocument != nil
-                                exportFailed = exportDocument == nil
-                            } label: {
-                                Label(L10n.tr("Export Backup", table: .backup), systemImage: "square.and.arrow.up")
-                            }
-                            Button(L10n.tr("Delete"), role: .destructive) {
-                                GenerationParameterDiagnosticStore.shared.clear()
-                                diagnosticRevision += 1
-                            }
-                        }
-                    }
-                    .id(diagnosticRevision)
                     .listRowBackground(OriveoTheme.Palette.surface)
                 }
 
