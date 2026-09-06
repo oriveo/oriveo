@@ -2,6 +2,14 @@ import Combine
 import SwiftUI
 import UIKit
 
+/// The answer a cross-check was started from. Being `Identifiable` is what drives the cover.
+private struct ChatCrosscheckTarget: Identifiable {
+    let conversationID: UUID
+    let message: ChatMessage
+    let prompt: String?
+    var id: UUID { message.id }
+}
+
 enum ChatNoteReferences {
     nonisolated static func groupByMessageID(
         _ summaries: [NoteSummary],
@@ -151,6 +159,7 @@ struct ChatMessageList: View {
     @State private var outlineScrollRequest: UInt = 0
     @State private var outlineScrollMessageID: UUID?
     @State private var outlineScrollShouldFlash = false
+    @State private var crosscheckTarget: ChatCrosscheckTarget?
     @State private var noteReferenceChoices: [NoteSummary] = []
     @State private var showNoteReferenceChoices = false
     @State private var cachedRowsKey = RowsCacheKey(
@@ -267,6 +276,7 @@ struct ChatMessageList: View {
                     onContinueMessage: handleContinueMessage,
                     onSaveNoteMessage: handleSaveNote,
                     onOpenNoteReferences: openNoteReferences,
+                    onCrosscheckMessage: handleCrosscheck,
                     onSaveSelectionMessage: handleSaveSelection,
                     onAskSelectionMessage: handleAskSelection,
                     canReplaceCurrentNoteSelection: canReplaceCurrentNote,
@@ -312,6 +322,15 @@ struct ChatMessageList: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .fullScreenCover(item: $crosscheckTarget) { target in
+            CrosscheckSheet(origin: .chatMessage(
+                conversationID: target.conversationID,
+                message: target.message,
+                prompt: target.prompt
+            ))
+            .environment(appState)
+            .interactiveDismissDisabled(true)
+        }
         .confirmationDialog(
             L10n.tr("Saved notes", table: .notes),
             isPresented: $showNoteReferenceChoices,
@@ -470,6 +489,12 @@ struct ChatMessageList: View {
 
     private func noteReferencesByMessageID() -> [UUID: [NoteSummary]] {
         ChatNoteReferences.groupByMessageID(appState.noteSummaries, conversationID: conversationID)
+    }
+
+    private func handleCrosscheck(_ message: ChatMessage) {
+        guard let conversationID else { return }
+        let prompt = NoteSourceResolver.previousUserPrompt(before: message.id, in: projection.messages)
+        crosscheckTarget = ChatCrosscheckTarget(conversationID: conversationID, message: message, prompt: prompt)
     }
 
     private func openNoteReferences(_ notes: [NoteSummary]) {

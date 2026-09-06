@@ -68,6 +68,15 @@ struct Note: Identifiable, Hashable, Codable, Sendable {
         captureKind != .blank && (sourceProviderKind != nil || sourceModelName != nil)
     }
 
+    /// A cross-check needs the original question, the model that answered it and a live note to
+    /// hang the second opinion off, so all three are required before the action is offered.
+    nonisolated var canCrosscheck: Bool {
+        !isTrashed && captureKind != .blank
+            && (sourcePrompt?.isEmpty == false)
+            && sourceModelName != nil
+            && sourceProviderKind != nil
+    }
+
     nonisolated var isTrashed: Bool { deletedAt != nil }
 }
 

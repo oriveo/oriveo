@@ -22,6 +22,7 @@ struct ChatListViewControllerRepresentable: UIViewControllerRepresentable {
     var onContinueMessage: (ChatMessage) -> Void
     var onSaveNoteMessage: (ChatMessage) -> Void = { _ in }
     var onOpenNoteReferences: ([NoteSummary]) -> Void = { _ in }
+    var onCrosscheckMessage: (ChatMessage) -> Void = { _ in }
     var onSaveSelectionMessage: (ChatMessage, String) -> Void = { _, _ in }
     var onAskSelectionMessage: (ChatMessage, QuoteSelectionContent) -> Void = { _, _ in }
     var canReplaceCurrentNoteSelection = false
@@ -54,6 +55,7 @@ struct ChatListViewControllerRepresentable: UIViewControllerRepresentable {
             onContinue: onContinueMessage,
             onSaveNote: onSaveNoteMessage,
             onOpenNoteReferences: onOpenNoteReferences,
+            onCrosscheck: onCrosscheckMessage,
             onSaveSelection: onSaveSelectionMessage,
             onAskSelection: onAskSelectionMessage,
             canReplaceCurrentNoteSelection: canReplaceCurrentNoteSelection,

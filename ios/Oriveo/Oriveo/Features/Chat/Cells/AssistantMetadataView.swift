@@ -31,6 +31,7 @@ final class AssistantMetadataView: UIStackView {
     private var onContinue: (() -> Void)?
     private var onSaveNote: (() -> Void)?
     private var onOpenNoteReferences: (() -> Void)?
+    private var onCrosscheck: (() -> Void)?
     private var messageStateAllowsFooterActions = false
     private var hasConfiguredFooterActions = false
     private var isVisualRenderPending = false
@@ -58,12 +59,14 @@ final class AssistantMetadataView: UIStackView {
         onContinue: (() -> Void)?,
         onSaveNote: (() -> Void)? = nil,
         onOpenNoteReferences: (() -> Void)? = nil,
+        onCrosscheck: (() -> Void)? = nil,
         isVisualRenderPending: Bool = false
     ) {
         self.onRetry = onRetry
         self.onContinue = onContinue
         self.onSaveNote = onSaveNote
         self.onOpenNoteReferences = onOpenNoteReferences
+        self.onCrosscheck = onCrosscheck
 
         providerLabel.text = providerName
         modelLabel.text = modelName
@@ -109,10 +112,11 @@ final class AssistantMetadataView: UIStackView {
         saveNoteButton.isHidden = !showSaveNote
 
         let showRetry = isDeliveredWithText && onRetry != nil
+        let showCrosscheck = isDeliveredWithText && onCrosscheck != nil
 
         let showMore = true
         moreButton.isHidden = !showMore
-        configureMoreMenu(showRetry: showRetry)
+        configureMoreMenu(showRetry: showRetry, showCrosscheck: showCrosscheck)
 
         messageStateAllowsFooterActions = model.message.state != .generating
         hasConfiguredFooterActions = showCopy || showSaveNote || showMore || !continueButton.isHidden
@@ -140,6 +144,7 @@ final class AssistantMetadataView: UIStackView {
         onContinue = nil
         onSaveNote = nil
         onOpenNoteReferences = nil
+        onCrosscheck = nil
         messageStateAllowsFooterActions = false
         hasConfiguredFooterActions = false
         isVisualRenderPending = false
@@ -368,7 +373,7 @@ final class AssistantMetadataView: UIStackView {
         button.setContentCompressionResistancePriority(.required, for: .horizontal)
     }
 
-    private func configureMoreMenu(showRetry: Bool) {
+    private func configureMoreMenu(showRetry: Bool, showCrosscheck: Bool) {
         var actions: [UIMenuElement] = []
         actions.append(UIAction(
             title: L10n.tr("Token usage", table: .chat),
@@ -400,6 +405,14 @@ final class AssistantMetadataView: UIStackView {
                 image: UIImage(systemName: "arrow.counterclockwise")
             ) { [weak self] _ in
                 self?.onRetry?()
+            })
+        }
+        if showCrosscheck {
+            actions.append(UIAction(
+                title: L10n.tr("Cross-check", table: .notes),
+                image: UIImage(systemName: "checklist")
+            ) { [weak self] _ in
+                self?.onCrosscheck?()
             })
         }
         moreButton.menu = actions.isEmpty ? nil : UIMenu(children: actions)

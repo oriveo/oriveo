@@ -3,6 +3,7 @@ import UIKit
 
 nonisolated enum NoteDetailSourceActionKind: Equatable, Sendable {
     case backToConversation
+    case crosscheck
 }
 
 nonisolated struct NoteDetailSourceAction: Equatable, Sendable {
@@ -38,7 +39,16 @@ nonisolated struct NoteDetailSourceActions: RandomAccessCollection, Equatable, S
                 isEnabled: true
             )
         }
-        return Self(primary: primary, secondary: [])
+        let secondary = note.canCrosscheck ? [
+            NoteDetailSourceAction(
+                kind: .crosscheck,
+                titleKey: "Cross-check",
+                systemImage: "arrow.triangle.2.circlepath",
+                style: .neutral,
+                isEnabled: true
+            )
+        ] : []
+        return Self(primary: primary, secondary: secondary)
     }
 
     static func shouldRenderSourceCard(note: Note) -> Bool {
@@ -75,6 +85,7 @@ struct NoteDetailView: View {
     @State private var contentPane = 0
     @State private var showDeleteConfirm = false
     @State private var showMoveSheet = false
+    @State private var showCrosscheck = false
     @FocusState private var titleFocused: Bool
 
     // MARK: - Body
@@ -102,6 +113,12 @@ struct NoteDetailView: View {
         }
         .sheet(isPresented: $showMoveSheet) {
             if let note { MoveToNoteFolderSheet(noteID: note.id, current: note.noteFolderID) }
+        }
+        .fullScreenCover(isPresented: $showCrosscheck) {
+            Group {
+                if let note { CrosscheckSheet(origin: .note(note)) }
+            }
+            .interactiveDismissDisabled(true)
         }
     }
 
@@ -467,6 +484,16 @@ struct NoteDetailView: View {
                                 L10n.tr("Back to conversation", table: .notes),
                                 systemImage: "arrow.uturn.left",
                                 tint: hasBrand ? brand : OriveoTheme.Palette.primary
+                            )
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    if actions.secondary.contains(where: { $0.kind == .crosscheck }) {
+                        Button { showCrosscheck = true } label: {
+                            sourceActionBadge(
+                                L10n.tr("Cross-check", table: .notes),
+                                systemImage: "text.magnifyingglass",
+                                tint: OriveoTheme.Palette.primary
                             )
                         }
                         .buttonStyle(.plain)

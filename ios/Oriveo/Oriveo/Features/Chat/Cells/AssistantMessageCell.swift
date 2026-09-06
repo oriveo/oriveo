@@ -165,6 +165,7 @@ final class AssistantMessageCell: UICollectionViewCell {
         onContinue: (() -> Void)?,
         onSaveNote: (() -> Void)? = nil,
         onOpenNoteReferences: (() -> Void)? = nil,
+        onCrosscheck: (() -> Void)? = nil,
         onSaveSelection: ((String) -> Void)? = nil,
         onAskSelection: ((QuoteSelectionContent) -> Void)? = nil,
         onReplaceSelection: ((String) -> Void)? = nil,
@@ -307,6 +308,7 @@ final class AssistantMessageCell: UICollectionViewCell {
                 onContinue: onContinue,
                 onSaveNote: onSaveNote,
                 onOpenNoteReferences: onOpenNoteReferences,
+                onCrosscheck: onCrosscheck,
                 isVisualRenderPending: shouldDeferFinalBody
             )
         } else {

@@ -23,7 +23,9 @@ struct NoteReturnToConversationTests {
         #expect(actions.primary?.titleKey == "Back to conversation")
         #expect(actions.primary?.kind == .backToConversation)
         #expect(actions.primary?.isEnabled == true)
-        #expect(actions.secondary.isEmpty)
+        // Cross-check is a separate action, not a variant of "back to conversation".
+        #expect(actions.secondary.map(\.kind) == [.crosscheck])
+        #expect(actions.secondary.first?.style == .neutral)
     }
 
     @Test("NoteDetail keeps return action enabled when the source anchor exists")

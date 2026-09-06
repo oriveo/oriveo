@@ -12,6 +12,7 @@ final class ChatListDataSource: NSObject, UICollectionViewDataSource {
         let onContinue: (ChatMessage) -> Void
         var onSaveNote: (ChatMessage) -> Void = { _ in }
         var onOpenNoteReferences: ([NoteSummary]) -> Void = { _ in }
+        var onCrosscheck: (ChatMessage) -> Void = { _ in }
         var onSaveSelection: (ChatMessage, String) -> Void = { _, _ in }
         var onAskSelection: (ChatMessage, QuoteSelectionContent) -> Void = { _, _ in }
         var canReplaceCurrentNoteSelection = false
@@ -140,6 +141,7 @@ final class ChatListDataSource: NSObject, UICollectionViewDataSource {
             onOpenNoteReferences: model.noteReferences.isEmpty
                 ? nil
                 : { context.onOpenNoteReferences(model.noteReferences) },
+            onCrosscheck: { context.onCrosscheck(message) },
             onSaveSelection: { text in context.onSaveSelection(message, text) },
             onAskSelection: message.state == .generating
                 || message.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
