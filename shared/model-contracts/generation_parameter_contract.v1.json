@@ -117,7 +117,7 @@
         "renders": true,
         "control": "editable",
         "labelKey": "generationParameterClassUnverified",
-        "en": "Will send - effect unverified",
+        "en": "Sent, effect unverified",
         "rationale": "Unverified does not mean unsupported: the value still goes out on the wire as-is; the label only states honestly that it has not been verified."
       },
       {
@@ -176,7 +176,7 @@
       "future_supported": {
         "class": "not_adjustable",
         "detailKey": "generationParameterDetailFutureSupported",
-        "en": "Officially planned, but not open yet."
+        "en": "Announced by the provider, but not available yet."
       }
     }
   },
