@@ -1,8 +1,7 @@
 import type { RelayRequestedConfig } from '../types/relay';
 
 /**
- * Explicit allowlist of `RelayRequestedConfig` fields that may leave the device (cloud sync or backup
- * export).
+ * Explicit allowlist of `RelayRequestedConfig` fields that may leave the device in a backup archive.
  *
  * This has to be an allowlist, not a "spread everything then delete a few" denylist: under a denylist
  * every new field goes out by default and only stays private if someone remembers to add a delete.
@@ -29,7 +28,7 @@ const RELAY_REQUESTED_PORTABILITY: Record<keyof RelayRequestedConfig, boolean> =
   hasWebSearch: true,
   webSearchProfile: true,
   transportKind: true,
-  /** Stored in the user's own partition, so it syncs under the general rule; userInfo, query and fragment are stripped before it leaves. */
+  /** Travels under the general rule; userInfo, query and fragment are stripped before it leaves. */
   resolvedAPIBaseURL: true,
   engineProfile: true,
 
@@ -53,7 +52,7 @@ export const ALL_RELAY_REQUESTED_FIELDS: readonly string[] = Object.keys(
   RELAY_REQUESTED_PORTABILITY,
 );
 
-/** Keeps only the explicitly portable fields before backup or cloud sync. */
+/** Keeps only the explicitly portable fields before a backup archive is written. */
 export function credentialFreeRelayRequested(
   requested: RelayRequestedConfig | null | undefined,
 ): RelayRequestedConfig | undefined {

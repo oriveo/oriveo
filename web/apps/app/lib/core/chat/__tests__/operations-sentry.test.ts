@@ -37,7 +37,7 @@ describe('chat operations Sentry provider error handling', () => {
   });
 
   it('does not report a user-owned provider rate limiting, which reaches us with source=oriveo', () => {
-    // Payload from a real production event: the free tier passes an OpenRouter shared-pool 429 straight through.
+    // Payload from a real event: a relay passes an OpenRouter shared-pool 429 straight through.
     expect(shouldReportProviderError(providerError('rateLimited', {
       source: 'oriveo',
       status: 429,

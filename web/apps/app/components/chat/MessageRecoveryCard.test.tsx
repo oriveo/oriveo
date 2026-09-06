@@ -146,8 +146,8 @@ describe("MessageRecoveryCard", () => {
       expect(screen.queryByText("network.message")).toBeNull();
     });
 
-    // The free tier returns OpenRouter's `429 | Provider returned error` verbatim, so that English string
-    // ends up in the user-facing body, and the server rate-limit copy is a hardcoded string of its own.
+    // A relay can pass OpenRouter's `429 | Provider returned error` through verbatim, so that
+    // English string ends up in the body while the title has to be localized copy of our own.
     it("replaces Oriveo-owned technical text with localized copy and keeps the raw string for diagnosis", () => {
       const { container } = render(
         <MessageRecoveryCard

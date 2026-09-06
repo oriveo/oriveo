@@ -291,7 +291,7 @@ describe('note-ops', () => {
     });
   });
 
-  describe('unlimited locally on the free tier, with no sync adapter attached', () => {
+  describe('unlimited locally when no sync adapter is installed', () => {
     it('without a sync adapter, creating several notes writes locally only and triggers no cloud write', () => {
       createNote(store, { body: 'first', captureKind: 'blank' });
       createNote(store, { body: 'second', captureKind: 'blank' });

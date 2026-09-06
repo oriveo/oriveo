@@ -7,16 +7,6 @@ import {
   initMetadata,
 } from '../../metadata/metadata-client';
 
-const { mockBuildFreeRequestHeaders, mockResolveFreeBackendURL } = vi.hoisted(() => ({
-  mockBuildFreeRequestHeaders: vi.fn(),
-  mockResolveFreeBackendURL: vi.fn(),
-}));
-
-vi.mock('../../free/api', () => ({
-  buildFreeRequestHeaders: (...args: unknown[]) => mockBuildFreeRequestHeaders(...args),
-  resolveFreeBackendURL: (...args: unknown[]) => mockResolveFreeBackendURL(...args),
-}));
-
 async function collectEvents(stream: ReadableStream<StreamEvent>): Promise<StreamEvent[]> {
   const reader = stream.getReader();
   const events: StreamEvent[] = [];
@@ -35,13 +25,6 @@ describe('proxy-client', () => {
     vi.restoreAllMocks();
     localStorage.clear();
     __resetMetadataClientForTest();
-    mockBuildFreeRequestHeaders.mockReset();
-    mockResolveFreeBackendURL.mockReset();
-    mockBuildFreeRequestHeaders.mockResolvedValue({
-      'Content-Type': 'application/json',
-      'X-Oriveo-Free-Session': 'guest-session-token',
-    });
-    mockResolveFreeBackendURL.mockReturnValue('https://api.test.com');
   });
 
   describe('Grok subscription outbound', () => {

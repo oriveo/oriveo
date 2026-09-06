@@ -4,7 +4,7 @@ import { RootRedirect } from './RootRedirect';
 export const metadata = buildAppPageMetadata({
   title: 'Open App',
   description:
-    'Open the Oriveo web app for BYOK multi-model AI chat, sync, and cost tracking.',
+    'Open the Oriveo web app for BYOK multi-model AI chat with real-time cost tracking.',
   path: '/',
   index: false,
   canonicalPath: '/chat',
