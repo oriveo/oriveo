@@ -110,9 +110,16 @@ credential redaction, upstream error classification, thinking-tag parsing, strea
 extraction, an explicit `URLSession` redirect policy, and per-provider quirk profiles.
 
 Its scope is drawn deliberately tight. **In:** Foundation-only wire knowledge. **Out:** app models,
-UI, database, telemetry, localization. The iOS client keeps a thin binding around it so that wire
-behaviour has exactly one implementation, and the package itself depends on nothing beyond the
-standard library and Foundation.
+UI, database, telemetry, localization. The package depends on nothing beyond the standard library and
+Foundation, and each Apple client keeps a thin binding around it so that wire behaviour has exactly
+one implementation.
+
+It implements the whole request-and-streaming path for Apple platforms. The iOS app currently links a
+subset of it — the stream assemblers, the wire profiles, the tool-name codec and the error
+classifiers — and keeps its own request builders; the macOS client under development is the second
+consumer, which is why the recipe compiler and the transport-neutral request builder live here rather
+than inside one app. The suite below covers the parts every consumer shares: SSE splitting,
+OpenAI-compatible assembly, the tool-name codec and the redirect policy.
 
 ```bash
 cd shared/OriveoProviderKit && swift build && swift test
