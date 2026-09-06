@@ -30,8 +30,8 @@ export type ModelControlMessageKey = `common.${string}` | `pages.chat.reasoning.
 /**
  * Where tapping an unavailable status row leads.
  *
- * `none` is only allowed when the reason is already stated elsewhere in the panel (a managed
- * banner, a read-only note at the top of the page, the custom-override note, or a status row
+ * `none` is only allowed when the reason is already stated elsewhere in the panel (a read-only
+ * note at the top of the page, the custom-override note, or a status row
  * that is a complete sentence on its own). Otherwise there must be a route that actually changes
  * the situation: before adding a branch, answer whether the state really changes after the user
  * takes that action.
@@ -49,8 +49,8 @@ export type ModelControlEscape = 'none' | 'supportedModels' | 'advancedSettings'
 export type ModelControlStatus =
   | 'automaticAvailable'
   | 'forceUnsupported'
-  | 'managedFree'
-  | 'managedBalance'
+  /** The catalog reports the capability as fixed for this model, so the client sends nothing for it. */
+  | 'fixedByConnection'
   | 'customOnly'
   | 'pending'
   | 'externalConnectorOnly'
@@ -68,8 +68,7 @@ export function resolveModelControlStatus(
 ): ModelControlStatus {
   switch (control.state) {
     case 'auto_available': return 'automaticAvailable';
-    case 'managed_only':
-      return control.reasonCode === 'managed_balance_server_authority' ? 'managedBalance' : 'managedFree';
+    case 'managed_only': return 'fixedByConnection';
     case 'custom_only': return 'customOnly';
     case 'unavailable':
       return control.reasonCode === 'external_connector_only' ? 'externalConnectorOnly' : 'unsupported';
@@ -78,8 +77,8 @@ export function resolveModelControlStatus(
   }
 }
 
-export function modelControlStatusIsManaged(status: ModelControlStatus): boolean {
-  return status === 'managedFree' || status === 'managedBalance';
+export function modelControlStatusIsFixedByConnection(status: ModelControlStatus): boolean {
+  return status === 'fixedByConnection';
 }
 
 /**
@@ -135,7 +134,7 @@ export function modelControlShowsSupportedModelsAction(status: ModelControlStatu
 /** Status text for the footer when `!isConfigurable`; only the advanced settings context uses it. */
 export function modelControlStatusTextKey(status: ModelControlStatus): ModelControlMessageKey {
   switch (status) {
-    case 'managedFree': case 'managedBalance': return 'common.managedByOriveo';
+    case 'fixedByConnection': return 'common.capabilityControlFixedByConnection';
     case 'customOnly': return 'common.capabilityControlCustomOnlyReason';
     case 'pending': return 'common.capabilityControlReasonPending';
     case 'externalConnectorOnly': return 'common.capabilityControlReasonExternalConnector';
@@ -146,13 +145,13 @@ export function modelControlStatusTextKey(status: ModelControlStatus): ModelCont
 
 // MARK: -  
 
-export type ModelControlBadgeClassification = 'none' | 'managed' | 'manual' | 'notReady' | 'unavailable';
+export type ModelControlBadgeClassification = 'none' | 'fixedByConnection' | 'manual' | 'notReady' | 'unavailable';
 
 /** Available is the normal case and carries no badge: three green "automatic" badges at once would drown the amber one that matters. */
 export function modelControlBadgeClassification(status: ModelControlStatus): ModelControlBadgeClassification {
   switch (status) {
     case 'automaticAvailable': case 'forceUnsupported': return 'none';
-    case 'managedFree': case 'managedBalance': return 'managed';
+    case 'fixedByConnection': return 'fixedByConnection';
     case 'customOnly': return 'manual';
     case 'pending': case 'unknown': return 'notReady';
     default: return 'unavailable';
@@ -186,8 +185,8 @@ export function modelControlCardBadgeClassification(status: ModelControlStatus):
  * status right next to its own "N adjusted" summary.
  *
  * Only `notReady` is flattened. `unsupported` / `externalConnectorOnly` mean the server says it
- * cannot be done and there is no status row to say so, so that badge stays. `managed` / `manual`
- * describe ownership and who is overriding, which "N adjusted" cannot express.
+ * cannot be done and there is no status row to say so, so that badge stays. `fixedByConnection` /
+ * `manual` describe ownership and who is overriding, which "N adjusted" cannot express.
  */
 export function modelControlAdvancedSettingsBadgeClassification(
   status: ModelControlStatus,
@@ -208,7 +207,7 @@ export function modelControlBadge(
   if (overridden) return { tone: 'manual', textKey: 'common.capabilityControlBadgeCustom' };
   switch (classification) {
     case 'none': return null;
-    case 'managed': return { tone: 'manual', textKey: 'common.managedByOriveo' };
+    case 'fixedByConnection': return { tone: 'manual', textKey: 'common.capabilityControlFixedByConnection' };
     case 'manual': return { tone: 'manual', textKey: 'common.capabilityControlBadgeManual' };
     case 'notReady': return { tone: 'manual', textKey: 'pages.chat.reasoning.notReady' };
     case 'unavailable': return { tone: 'unavailable', textKey: 'pages.chat.reasoning.unavailable' };
@@ -303,11 +302,10 @@ export function modelControlReasoningLayout(input: {
   const hasCustomSchema = input.hasCustomSchema ?? true;
   const selection = input.selectedIntent ?? MODEL_CONTROL_AUTOMATIC_INTENT;
   switch (status) {
-    case 'managedFree':
-    case 'managedBalance':
-      // A managed connection is configured upstream: state that, and offer no control the client
+    case 'fixedByConnection':
+      // The value is decided by the connection itself: say so, and offer no control the client
       // would not be able to apply.
-      return reasoningStatusRow('common.managedByOriveo', undefined, 'none', selection);
+      return reasoningStatusRow('common.capabilityControlFixedByConnection', undefined, 'none', selection);
     case 'unsupported':
     case 'externalConnectorOnly':
       return reasoningStatusRow(
@@ -477,9 +475,8 @@ export function modelControlWebLayout(input: {
   const hasCustomSchema = input.hasCustomSchema ?? true;
   const selection = clampModelControlWebPreference(input.selection, status, availableIntents);
   switch (status) {
-    case 'managedFree':
-    case 'managedBalance':
-      return webStatusRow('common.managedByOriveo', undefined, 'none', selection);
+    case 'fixedByConnection':
+      return webStatusRow('common.capabilityControlFixedByConnection', undefined, 'none', selection);
     case 'unsupported':
     case 'externalConnectorOnly':
       return webStatusRow(
@@ -666,7 +663,7 @@ export function modelControlFooterEntries(input: ModelControlFooterInput): Model
 
 /** Whether the panel is writable. Entry-point visibility does not consume this; only in-page controls and persistence do. */
 export type ModelControlsEditability =
-  | 'writable' | 'managedFree' | 'managedBalance' | 'runtimeIdentityUnavailable' | 'runtimeReadOnly';
+  | 'writable' | 'runtimeIdentityUnavailable' | 'runtimeReadOnly';
 
 export function resolveModelControlsEditability(input: {
   providerKind?: ProviderKind;

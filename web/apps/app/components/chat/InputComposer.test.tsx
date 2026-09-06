@@ -19,7 +19,7 @@ const legacyEnglishTestCopy: Record<string, string> = {
   'pages.chat.attachFile': 'Attach file', 'pages.chat.attachmentTooLargeTitle': 'File too large', 'pages.chat.attachmentTooLargeMessage': 'Files and images over 50 MB cannot be uploaded. Large uploads are slow on your network and are difficult for AI models to read reliably.', 'pages.chat.attachmentTooLargeAction': 'OK',
   'pages.chat.quoteSelectedContent': 'Selected content', 'pages.chat.quoteFullContext': 'Full quoted context', 'pages.chat.quoteRemove': 'Remove quote', 'pages.chat.relatedNotesTitle': 'Related notes', 'pages.chat.attachNoteContext': 'Attach', 'pages.chat.dismissNoteSuggestion': 'Dismiss',
   'pages.chat.reasoning.auto': 'Search when needed', 'pages.chat.reasoning.fast': 'Fast', 'pages.chat.reasoning.balanced': 'Balanced', 'pages.chat.reasoning.deep': 'Deep', 'pages.chat.reasoning.max': 'Max', 'pages.chat.reasoning.off': 'Off', 'pages.chat.reasoning.supplierDefault': 'Automatic', 'pages.chat.reasoning.force': 'Search every message', 'pages.chat.reasoning.unavailable': 'Unavailable',
-  'capability.reasoning': 'Reasoning', 'capability.web': 'Web', 'common.modelBehavior': 'Advanced Settings', 'common.currentConversation': 'Current Conversation', 'common.managedByOriveo': 'Managed by Oriveo',
+  'capability.reasoning': 'Reasoning', 'capability.web': 'Web', 'common.modelBehavior': 'Advanced Settings', 'common.currentConversation': 'Current Conversation', 'common.capabilityControlFixedByConnection': 'Set by this connection',
   'capability.customRequestFieldsConfigurationMode': 'Request field configuration', 'capability.customRequestFieldsAutomatic': 'Oriveo automatic configuration', 'capability.customRequestFieldsCustom': 'Custom request fields', 'capability.customRequestFieldsUnavailable': 'No reviewed custom fields are available for this exact request transport.',
   'library.title': 'Library', 'library.researchButton': 'Research Library', 'library.addContext': 'Add context', 'library.contextDocumentsLabel': 'Document context', 'library.removeDocumentContext': 'Remove document context',
 };
@@ -457,12 +457,14 @@ describe('InputComposer', () => {
     expect(card.queryByRole('button')).toBeNull();
   });
 
-  it('MG2-MG5 view-only managed_only controls', () => {
+  // The catalog can report a capability as fixed for a model. The panel then states that once and
+  // offers no control, because nothing the user set here would reach the wire.
+  it('renders managed_only controls as view-only', () => {
     const onOpenModelSwitcher = vi.fn();
     renderPanel({
-      generationParameterProvider: connectedProvider('openAI'), managedModelControls: true,
-      webControl: control('managed_only', [], 'managed_balance_server_authority'),
-      reasoningControl: control('managed_only', [], 'managed_balance_server_authority'),
+      generationParameterProvider: connectedProvider('openAI'),
+      webControl: control('managed_only', []),
+      reasoningControl: control('managed_only', []),
       generationControl: control('managed_only'),
       webPreference: 'force', onWebPreferenceChange: vi.fn(), onReasoningIntentChange: vi.fn(),
       onOpenModelSwitcher,
@@ -695,10 +697,6 @@ describe('InputComposer', () => {
     expect(rejectedEntry.querySelector('[data-capability="reasoning"]')).toBeNull();
     expect(rejectedEntry.getAttribute('aria-description')).toBeNull();
 
-    cleanup();
-    render(<InputComposer {...props} managedModelControls webOutboundActive reasoningOutboundActive />);
-    const managedEntry = screen.getByRole('button', { name: 'Model Options' });
-    expect(managedEntry.querySelector('[data-capability]')).toBeNull();
   });
 
   it('renders this panel in all 16 locales without leaking a single key', () => {
@@ -773,11 +771,11 @@ describe('InputComposer', () => {
   });
 
   // Rule: an unavailable chip is hidden, and an available chip always has content behind it.
-  // Session scope deliberately ignores entitlements, so a model that only declares engine_runtime
-  // parameters still shows the chip while the entitlement is off. A second entitlement filter here
+  // Session scope ignores the engine_runtime permission, so a model that only declares
+  // engine_runtime parameters still shows the chip when a host withholds it. A second filter here
   // would produce "the chip says yes, opening it says no".
-  // Entitlement filtering belongs to connection scope only (the detail page container).
-  it('keeps the model behavior entry for engine_runtime parameters while the entitlement is off (session scope ignores entitlements)', () => {
+  // That filter belongs to connection scope only (the detail page container).
+  it('keeps the model behavior entry for engine_runtime parameters even when a host withholds them', () => {
     const provider = connectedProvider();
     const model = {
       id: 'model-2', name: 'Model 2', capabilities: ['text'], reasoningModeAvailable: false,
@@ -1009,7 +1007,6 @@ describe('InputComposer', () => {
     expect(screen.getByRole('button', { name: 'Attach file' })).toBeTruthy();
   });
 
-
   it('shows attachment button for textFileInline provider with file capability (SiliconFlow VL)', () => {
     render(
       <InputComposer
@@ -1103,57 +1100,6 @@ describe('InputComposer', () => {
       expect(mockValidateAndConvertFiles).toHaveBeenCalledWith([file], 'file', undefined);
       expect(onAttachmentsChange).toHaveBeenCalledWith([
         expect.objectContaining({ id: 'attachment-1', kind: 'image' }),
-      ]);
-    });
-  });
-
-  it('applies custom attachment file policy before conversion', async () => {
-    const onAttachmentsChange = vi.fn();
-    const acceptedFile = new File(['ok'], 'ok.txt', { type: 'text/plain' });
-    const rejectedFile = new File(['no'], 'no.txt', { type: 'text/plain' });
-    const policy = {
-      partitionFiles: vi.fn(() => ({ accepted: [acceptedFile], rejected: [rejectedFile] })),
-    };
-
-    render(
-      <InputComposer
-        value=""
-        onChange={vi.fn()}
-        onSend={vi.fn()}
-        isStreaming={false}
-        attachments={[{
-          id: 'existing',
-          kind: 'file',
-          fileName: 'existing.pdf',
-          mimeType: 'application/pdf',
-          originalSizeBytes: 10 * 1024 * 1024,
-        }]}
-        onAttachmentsChange={onAttachmentsChange}
-        currentModel={{
-          id: 'model-1',
-          name: 'Model 1',
-          capabilities: ['text', 'file'],
-          reasoningModeAvailable: false,
-          isAvailable: true,
-          isDefault: true,
-          priceTier: '$',
-        }}
-        providerAttachmentSupport={{ image: false, nativeFile: true, textFileInline: true }}
-        attachmentFilePolicy={policy}
-      />,
-    );
-
-    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
-    fireEvent.change(fileInput, { target: { files: [acceptedFile, rejectedFile] } });
-
-    await vi.waitFor(() => {
-      expect(policy.partitionFiles).toHaveBeenCalledWith([acceptedFile, rejectedFile], [
-        expect.objectContaining({ originalSizeBytes: 10 * 1024 * 1024 }),
-      ]);
-      expect(mockValidateAndConvertFiles).toHaveBeenCalledWith([acceptedFile], 'file', undefined);
-      expect(onAttachmentsChange).toHaveBeenCalledWith([
-        expect.objectContaining({ id: 'existing' }),
-        expect.objectContaining({ id: 'attachment-1' }),
       ]);
     });
   });
@@ -1346,7 +1292,7 @@ describe('model control vocabulary', () => {
   it('ships the panel copy in all 16 locales, with no non-English bundle left in English', () => {
     expect(Object.keys(localeMessages)).toHaveLength(16);
     const keys = [
-      'modelControls', 'modelBehavior', 'managedByOriveo',
+      'modelControls', 'modelBehavior', 'capabilityControlFixedByConnection',
       'capabilityControlWebSearch', 'capabilityControlThinking', 'capabilityControlWebSwitchNote',
       'capabilityControlSearchTiming', 'capabilityControlNotSupportedByModel',
       'capabilityControlCannotAdjustYet', 'capabilityControlWebNoOfficialConfig',
@@ -1354,7 +1300,7 @@ describe('model control vocabulary', () => {
       'capabilityControlReasoningOffUnavailable', 'capabilityControlCustomOnlyReason',
       'capabilityControlUnavailableForConnection', 'capabilityControlViewSupportedModels',
       'capabilityControlNoSupportedModels', 'capabilityControlGoToAdvancedSettings',
-      'capabilityControlManagedViewOnly', 'capabilityControlChooseAnotherModel',
+      'capabilityControlChooseAnotherModel',
       'capabilityControlSupportedModelsIntro', 'capabilityControlSwitchToModel',
       'capabilityControlBadgeCustom', 'capabilityControlBadgeManual',
       'capabilityControlUpstreamRejected', 'capabilityControlAdjustedCount',

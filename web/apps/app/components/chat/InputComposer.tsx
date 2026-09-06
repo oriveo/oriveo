@@ -13,7 +13,7 @@ import { AttachmentSizeLimitDialog } from './AttachmentSizeLimitDialog';
 import { NoteReferencePreview } from './NoteReferencePreview';
 import { resolveAttachmentCapabilities, buildAcceptAttribute } from '../../lib/core/chat/attachment-policy';
 import { useAppStore } from '../../providers/StoreProvider';
-import { useAttachmentIntake, type AttachmentFilePolicy } from '../../lib/hooks/useAttachmentIntake';
+import { useAttachmentIntake } from '../../lib/hooks/useAttachmentIntake';
 import type { ProviderAttachmentSupport } from '../../lib/core/metadata/metadata-client';
 import styles from './InputComposer.module.css';
 import type { LibraryDocumentRef } from '../../lib/core/library/types';
@@ -70,7 +70,6 @@ interface InputComposerProps {
   generationParameterProvider?: Provider;
   generationParameterConversationId?: string;
   /** When true, the three model-control entries are view-only for this connection. */
-  managedModelControls?: boolean;
   /**
    * Server decision for the three controls on the current model (state + reasonCode +
    * availableIntents). The whole object is passed down rather than a set of booleans: the panel
@@ -100,13 +99,6 @@ interface InputComposerProps {
   providerAttachmentSupport?: ProviderAttachmentSupport | null;
   /** Current conversation provider.kind normalized to snake_case by telemetryProviderKind(), used for attachment_added reporting. */
   providerKind?: string;
-  /** Provider-level attachment limits (managed: 20MB / 25MB / 3 files). */
-  attachmentFilePolicy?: AttachmentFilePolicy;
-  attachmentLimitDialogCopy?: {
-    title: string;
-    message: string;
-    actionLabel: string;
-  };
   /** Visual placement. "home" lifts the composer into the empty-chat workspace. */
   presentation?: 'docked' | 'home';
   relatedNotes?: Array<{ id: string; title: string; score: number; sourceLabel?: string }>;
@@ -286,7 +278,6 @@ export function InputComposer({
   currentModel,
   generationParameterProvider,
   generationParameterConversationId,
-  managedModelControls = false,
   webControl,
   reasoningControl,
   generationControl,
@@ -299,8 +290,6 @@ export function InputComposer({
   onFindModelsSupportingParameter,
   providerAttachmentSupport,
   providerKind,
-  attachmentFilePolicy,
-  attachmentLimitDialogCopy,
   presentation = 'docked',
   relatedNotes = [],
   onAttachRelatedNote,
@@ -360,7 +349,7 @@ export function InputComposer({
   }, [modelControlsOpen]);
 
   useEffect(() => {
-    if (managedModelControls || !generationParameterProvider || !currentModel || !generationParameterConversationId) {
+    if (!generationParameterProvider || !currentModel || !generationParameterConversationId) {
       setHasModelBehaviorOverride(false);
       return;
     }
@@ -381,7 +370,7 @@ export function InputComposer({
         }).active
       : undefined;
     setHasModelBehaviorOverride(Boolean(active && Object.values(active).some((item) => item?.state !== 'inherit')));
-  }, [currentModel, generationParameterConversationId, generationParameterProvider, managedModelControls]);
+  }, [currentModel, generationParameterConversationId, generationParameterProvider]);
 
   const { supportsImage, supportsAttachment } = resolveAttachmentCapabilities(
     generationParameterProvider,
@@ -401,7 +390,6 @@ export function InputComposer({
     onAttachmentsChange,
     supportsImage,
     providerKind,
-    attachmentFilePolicy,
   });
 
   // Keep controlled updates, draft restore, and send/reset in sync with the textarea height.
@@ -522,12 +510,9 @@ export function InputComposer({
     ? t('aiAnswering')
     : tCommon('capabilityControlsReadOnlyConversation');
   const closeModelControls = closeModelControlsWithFocus;
-  const webModelControlGlyphActive = !managedModelControls && webOutboundActive && !webRuntimeRejected;
-  const reasoningModelControlGlyphActive = !managedModelControls
-    && reasoningOutboundActive
-    && !reasoningRuntimeRejected;
-  const modelBehaviorGlyphActive = !managedModelControls
-    && generationControl?.state !== 'unavailable'
+  const webModelControlGlyphActive = webOutboundActive && !webRuntimeRejected;
+  const reasoningModelControlGlyphActive = reasoningOutboundActive && !reasoningRuntimeRejected;
+  const modelBehaviorGlyphActive = generationControl?.state !== 'unavailable'
     && hasModelBehaviorOverride;
   const modelControlGlyphActive = webModelControlGlyphActive
     || reasoningModelControlGlyphActive
@@ -550,9 +535,6 @@ export function InputComposer({
       <AttachmentSizeLimitDialog
         open={showAttachmentSizeLimit}
         onClose={() => setShowAttachmentSizeLimit(false)}
-        title={attachmentLimitDialogCopy?.title}
-        message={attachmentLimitDialogCopy?.message}
-        actionLabel={attachmentLimitDialogCopy?.actionLabel}
       />
       <div ref={composerRef} className={styles.composer} data-focused={undefined}>
         {quoteContext ? (
@@ -709,7 +691,6 @@ export function InputComposer({
               buttonRef={modelControlsTriggerRef}
               icon={<SlidersHorizontal size={16} />}
               label={tCommon('modelControls')}
-              value={managedModelControls ? tCommon('managedByOriveo') : undefined}
               active={modelControlsOpen}
               emphasized={modelControlGlyphActive}
               capabilityIcons={modelControlCapabilityIcons}

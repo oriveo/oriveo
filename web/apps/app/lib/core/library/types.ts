@@ -45,7 +45,6 @@ export interface LibraryResearchIdentity {
 export interface LibraryEnvelope<T> {
   contractVersion?: number;
   requestId?: string;
-  entitlement?: unknown;
   quota?: LibraryQuota;
   connectionQuota?: LibraryConnectionQuota;
   warnings?: string[];

@@ -298,7 +298,7 @@ describe('WSM-17 - expanding a customOnly status line does not repeat the same s
   });
 });
 
-describe('AQA-11 - the advanced settings row does not hang a false "not ready" badge', () => {
+describe('the advanced settings row does not hang a false "not ready" badge', () => {
   beforeEach(() => localStorage.clear());
   afterEach(cleanup);
 
@@ -315,12 +315,14 @@ describe('AQA-11 - the advanced settings row does not hang a false "not ready" b
     expect(within(advancedRow()).getByText('pages.chat.reasoning.unavailable')).toBeTruthy();
   });
 
-  it('a managed connection still shows the "managed by Oriveo" badge', () => {
+  // managed_only is a catalog verdict: the capability works but the connection fixes it, so the row
+  // has to say so rather than fall through to "unavailable".
+  it('a capability the connection fixes keeps its own badge', () => {
     open({
       generationControl: {
         state: 'managed_only' as const, availableIntents: [], viaLegacyProfile: false,
       },
     });
-    expect(within(advancedRow()).getByText('common.managedByOriveo')).toBeTruthy();
+    expect(within(advancedRow()).getByText('common.capabilityControlFixedByConnection')).toBeTruthy();
   });
 });

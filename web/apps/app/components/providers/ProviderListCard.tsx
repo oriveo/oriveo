@@ -21,7 +21,6 @@ import styles from './ProviderListCard.module.css';
 interface ProviderListCardProps {
   provider: Provider;
   monthlyCost: number;
-  managedBalanceMicroUSD?: number | null;
   providerBalance?: ProviderBalance | null;
   onClick: () => void;
 }
@@ -39,11 +38,9 @@ interface ProviderListTrailingAmount {
 export function resolveProviderListTrailingAmount(
   providerKind: Provider['kind'],
   monthlyCost: number,
-  managedBalanceMicroUSD: number | null | undefined,
   providerBalance: ProviderBalance | null | undefined,
   locale: string,
 ): ProviderListTrailingAmount | null {
-  void managedBalanceMicroUSD;
   if (isBalanceCapable(providerKind)) {
     return {
       label: 'balanceLabel',
@@ -75,7 +72,6 @@ function formatRelativeTimeShort(iso: string, t: ReturnType<typeof useTranslatio
 export function ProviderListCard({
   provider,
   monthlyCost,
-  managedBalanceMicroUSD,
   providerBalance,
   onClick,
 }: ProviderListCardProps) {
@@ -94,7 +90,6 @@ export function ProviderListCard({
   const trailingAmount = resolveProviderListTrailingAmount(
     provider.kind,
     monthlyCost,
-    managedBalanceMicroUSD,
     providerBalance,
     locale,
   );

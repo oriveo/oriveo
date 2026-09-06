@@ -10,7 +10,6 @@ import { selectIsStreamingFor } from '../../lib/core/store/selectors';
 import { useNotifications } from '../../lib/hooks/useNotifications';
 import { useMediaQuery } from '../../lib/hooks/useMediaQuery';
 import { useAttachmentDragDrop } from '../../lib/hooks/useAttachmentDragDrop';
-import type { AttachmentFilePolicy } from '../../lib/hooks/useAttachmentIntake';
 import { useStreamChat } from '../../lib/hooks/useStreamChat';
 import { loadSyncCore } from '../../lib/core/sync-lazy';
 import { getVanillaStore } from '../../providers/StoreProvider';
@@ -229,8 +228,6 @@ export function ChatView({ conversationId, searchQuery }: ChatViewProps) {
   const handleOversizedFiles = useCallback(() => {
     setShowAttachmentSizeLimit(true);
   }, []);
-  const attachmentFilePolicy = useMemo<AttachmentFilePolicy | undefined>(() => undefined, [provider?.kind, currentModel]);
-  const attachmentLimitDialogCopy: any = undefined;
   const { dragActive, dragHandlers } = useAttachmentDragDrop(
     handleFilesAccepted,
     handleOversizedFiles,
@@ -239,7 +236,6 @@ export function ChatView({ conversationId, searchQuery }: ChatViewProps) {
       canAcceptAttachment: canAcceptDropped,
       providerKind: telemetryProviderKind(provider?.kind),
       existingAttachments: attachments,
-      attachmentFilePolicy,
     },
   );
 
@@ -303,7 +299,6 @@ export function ChatView({ conversationId, searchQuery }: ChatViewProps) {
   // Panel status copy is not pre-translated here: shape and wording are decided together
   // from state + reasonCode by the pure helpers in `model-control-capability-layout`
   // (`capabilityControlReasonMessageKey` is still used by the model list badges).
-  const controlsManagedByOriveo = false;
   const capabilityPreferenceIdentity = useMemo(
     () => provider && currentModel ? capabilityRuntimeIdentity(provider, currentModel) : null,
     [metadataVersion, provider, currentModel],
@@ -325,7 +320,7 @@ export function ChatView({ conversationId, searchQuery }: ChatViewProps) {
       capability: 'web' | 'reasoning' | 'generation',
       control: { state: string },
     ): AIModel[] => (
-      provider && !controlsManagedByOriveo && control.state !== 'auto_available' && control.state !== 'managed_only'
+      provider && control.state !== 'auto_available' && control.state !== 'managed_only'
         ? provider.models.filter((model) => model.id !== currentModel?.id
           && presentCapabilityControl(provider, model, capability).state === 'auto_available'
           // The candidate's own recipe must be written for this transport. Without this
@@ -342,7 +337,7 @@ export function ChatView({ conversationId, searchQuery }: ChatViewProps) {
     };
     // metadataVersion is the change signal for the
     // metadata snapshot; presentCapabilityControl reads from that same snapshot on demand
-  }, [controlsManagedByOriveo, currentModel, generationControl, metadataVersion, provider, reasoningControl, webControl]);
+  }, [currentModel, generationControl, metadataVersion, provider, reasoningControl, webControl]);
   const handleSelectAlternativeModel = useCallback((model: AIModel) => {
     if (!provider) return;
     handleModelSelect(model, provider);
@@ -565,7 +560,7 @@ export function ChatView({ conversationId, searchQuery }: ChatViewProps) {
     reasoningDormant: reasoningRuntimeRejected,
   });
   // One decision object drives both the chip and the actual send: a local dormant state or a reverse intent gate no longer only closes the wire.
-  const effectiveWebSearchEnabled = !controlsManagedByOriveo && capabilityOutboundDecision.webSearchEnabled;
+  const effectiveWebSearchEnabled = capabilityOutboundDecision.webSearchEnabled;
 
   const recalledNotes = useRelatedNoteRecall(inputText, notes);
   const relatedNotes = useMemo(() => {
@@ -1082,9 +1077,6 @@ export function ChatView({ conversationId, searchQuery }: ChatViewProps) {
       <AttachmentSizeLimitDialog
         open={showAttachmentSizeLimit}
         onClose={() => setShowAttachmentSizeLimit(false)}
-        title={attachmentLimitDialogCopy?.title}
-        message={attachmentLimitDialogCopy?.message}
-        actionLabel={attachmentLimitDialogCopy?.actionLabel}
       />
       {libraryFeatureEnabled ? (
         <LibraryContextPicker
@@ -1234,7 +1226,6 @@ export function ChatView({ conversationId, searchQuery }: ChatViewProps) {
         currentModel={currentModel}
         generationParameterProvider={provider}
         generationParameterConversationId={effectiveId ?? generationParameterDraftSessionId}
-        managedModelControls={controlsManagedByOriveo}
         webControl={webControl}
         reasoningControl={reasoningControl}
         generationControl={generationControl}
@@ -1247,8 +1238,6 @@ export function ChatView({ conversationId, searchQuery }: ChatViewProps) {
         onFindModelsSupportingParameter={handleFindModelsSupportingParameter}
         providerAttachmentSupport={providerAttachmentSupport}
         providerKind={telemetryProviderKind(provider?.kind)}
-        attachmentFilePolicy={attachmentFilePolicy}
-        attachmentLimitDialogCopy={attachmentLimitDialogCopy}
         presentation={showHomeComposer ? 'home' : 'docked'}
         relatedNotes={relatedNotes}
         onAttachRelatedNote={handleAttachRelatedNote}

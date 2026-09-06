@@ -293,7 +293,6 @@ export function ModelOptionsPopover({
 
   const readOnlyReason = useMemo(() => {
     switch (editability) {
-      case 'managedFree': case 'managedBalance': return tCommon('capabilityControlManagedViewOnly');
       case 'runtimeIdentityUnavailable': return tr(modelControlsIdentityGapReasonKey(identityGap));
       case 'runtimeReadOnly': return runtimeReadOnlyReason ?? tCommon('capabilityControlNotReadyReason');
       case 'writable': return undefined;
@@ -865,11 +864,6 @@ export function ModelOptionsPopover({
         <Lock size={13} aria-hidden="true" />
         {readOnlyReason}
       </p>
-      {(editability === 'managedFree' || editability === 'managedBalance') && onOpenModelSwitcher && (
-        <button type="button" className={styles.modelControlInlineAction} onClick={onOpenModelSwitcher}>
-          {tCommon('capabilityControlChooseAnotherModel')}
-        </button>
-      )}
       {editability === 'runtimeIdentityUnavailable' && identityRecoveryAction()}
     </div>
   ) : null;

@@ -107,7 +107,7 @@ vi.mock('../../lib/core/store/selectors', () => ({
 
 describe('ProviderListCard rendering', () => {
   it('uses provider balance for capable BYOK kinds and never falls back to consumption', () => {
-    expect(resolveProviderListTrailingAmount('siliconFlow', 42, null, {
+    expect(resolveProviderListTrailingAmount('siliconFlow', 42, {
       currency: 'CNY',
       total: 88.88,
       fetchedAt: new Date(),
@@ -116,7 +116,7 @@ describe('ProviderListCard rendering', () => {
       text: '¥88.88',
       isZero: false,
     });
-    expect(resolveProviderListTrailingAmount('deepseek', 42, null, null, 'en-US')).toEqual({
+    expect(resolveProviderListTrailingAmount('deepseek', 42, null, 'en-US')).toEqual({
       label: 'balanceLabel',
       text: '--',
       isZero: false,
@@ -124,7 +124,7 @@ describe('ProviderListCard rendering', () => {
   });
 
   it('labels non-capable BYOK amounts as usage', () => {
-    expect(resolveProviderListTrailingAmount('openAI', 2.5, null, null, 'en-US')).toEqual({
+    expect(resolveProviderListTrailingAmount('openAI', 2.5, null, 'en-US')).toEqual({
       label: 'usageLabel',
       text: '$2.50',
       isZero: false,
@@ -133,12 +133,12 @@ describe('ProviderListCard rendering', () => {
 
   // Per-provider spend is local estimatedCost; it is not a hosted usage report.
   it('shows local per-provider spend', () => {
-    expect(resolveProviderListTrailingAmount('openAI', 31.2, null, null, 'en-US')).toEqual({
+    expect(resolveProviderListTrailingAmount('openAI', 31.2, null, 'en-US')).toEqual({
       label: 'usageLabel',
       text: '$31.20',
       isZero: false,
     });
-    expect(resolveProviderListTrailingAmount('anthropic', 0, null, null, 'en-US')).toEqual({
+    expect(resolveProviderListTrailingAmount('anthropic', 0, null, 'en-US')).toEqual({
       label: 'usageLabel',
       text: '$0',
       isZero: true,
