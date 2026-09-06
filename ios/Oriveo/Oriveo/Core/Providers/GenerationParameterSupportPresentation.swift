@@ -69,7 +69,7 @@ enum GenerationParameterSupportPresentation {
     private static func classLabel(_ presentationClass: PresentationClass) -> String? {
         switch presentationClass {
         case .silent: return nil
-        case .unverified: return L10n.tr("Will be sent • effect unverified", table: .providers)
+        case .unverified: return L10n.tr("Sent, effect unverified", table: .providers)
         case .notAdjustable: return L10n.tr("Not adjustable", table: .providers)
         case .noData: return L10n.tr("No data yet", table: .providers)
         }
@@ -106,7 +106,7 @@ enum GenerationParameterSupportPresentation {
         case "unknown":
             return L10n.tr("We do not have official documentation for this parameter yet.", table: .providers)
         case "future_supported":
-            return L10n.tr("The provider has announced it but has not shipped it yet.", table: .providers)
+            return L10n.tr("Announced by the provider, but not available yet.", table: .providers)
         default:
             return nil
         }

@@ -1670,107 +1670,6 @@
         }
       }
     },
-    "Add another provider": {
-      "extractionState": "manual",
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "إضافة مزود آخر"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Weiteren Anbieter hinzufügen"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Add another provider"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Añadir otro proveedor"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ajouter un autre fournisseur"
-          }
-        },
-        "hi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "एक और प्रदाता जोड़ें"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tambah penyedia lain"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "別のプロバイダーを追加"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "다른 제공업체 추가"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Adicionar outro provedor"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Добавить ещё поставщика"
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "เพิ่มผู้ให้บริการอื่น"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Başka sağlayıcı ekle"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Thêm nhà cung cấp khác"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "添加另一个服务商"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "新增另一個服務商"
-          }
-        }
-      }
-    },
     "Add header": {
       "extractionState": "manual",
       "localizations": {
@@ -2266,107 +2165,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "已加入的模型會顯示在首頁的模型選擇器"
-          }
-        }
-      }
-    },
-    "Address": {
-      "extractionState": "stale",
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "العنوان"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Adresse"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Address"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dirección"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Adresse"
-          }
-        },
-        "hi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "पता"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Alamat"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "アドレス"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "주소"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Endereço"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Адрес"
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ที่อยู่"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Adres"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Địa chỉ"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "地址"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "位址"
           }
         }
       }
@@ -2971,107 +2769,6 @@
         }
       }
     },
-    "Another computer": {
-      "extractionState": "manual",
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "كمبيوتر آخر"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Anderer Computer"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Another computer"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Otro ordenador"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Un autre ordinateur"
-          }
-        },
-        "hi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "दूसरा कंप्यूटर"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Komputer lain"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "別のコンピュータ"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "다른 컴퓨터"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Outro computador"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Другой компьютер"
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "คอมพิวเตอร์เครื่องอื่น"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Başka bir bilgisayar"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Máy tính khác"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "另一台电脑"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "另一台電腦"
-          }
-        }
-      }
-    },
     "Anthropic Messages": {
       "extractionState": "manual",
       "localizations": {
@@ -3371,107 +3068,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "對這條連線上使用此模型的新訊息生效，直到你在某個對話中另行覆寫。"
-          }
-        }
-      }
-    },
-    "Apply pairing code": {
-      "extractionState": "stale",
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "تطبيق رمز الاقتران"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Kopplungscode anwenden"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Apply pairing code"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Aplicar código de vinculación"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Appliquer le code de jumelage"
-          }
-        },
-        "hi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "पेयरिंग कोड लागू करें"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Terapkan kode penyandingan"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ペアリングコードを適用"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "페어링 코드 적용"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Aplicar código de pareamento"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Применить код сопряжения"
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ใช้รหัสจับคู่"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Eşleştirme kodunu uygula"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Áp dụng mã ghép nối"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "应用配对码"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "套用配對碼"
           }
         }
       }
@@ -4072,101 +3668,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "用 x.ai 帳號完成授權，即可使用你的 SuperGrok 或 X Premium 額度，不消耗 API credit。"
-          }
-        }
-      }
-    },
-    "Auto-detect": {
-      "extractionState": "stale",
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "اكتشاف تلقائي"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Automatische Erkennung"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Detección automática"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Détection automatique"
-          }
-        },
-        "hi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ऑटो का पता लगाने"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Deteksi otomatis"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "自動検出"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "자동 감지"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Detecção automática"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Автообнаружение"
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ตรวจจับอัตโนมัติ"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Otomatik algılama"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tự động phát hiện"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "自动检测"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "自動偵測"
           }
         }
       }
@@ -5157,40 +4658,6 @@
         }
       }
     },
-    "Cache name": {
-      "extractionState": "stale",
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "缓存名称"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "快取名稱"
-          }
-        }
-      }
-    },
-    "Cache reuse tokens": {
-      "extractionState": "stale",
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "缓存复用 Token 数"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "快取重用 Token 數"
-          }
-        }
-      }
-    },
     "Can search the web": {
       "extractionState": "manual",
       "localizations": {
@@ -5377,107 +4844,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "可思考"
-          }
-        }
-      }
-    },
-    "Capabilities": {
-      "extractionState": "manual",
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "القدرات"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Funktionen"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Capabilities"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Capacidades"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Capacités"
-          }
-        },
-        "hi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "क्षमताएँ"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Kemampuan"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "機能"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "기능"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Recursos"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Возможности"
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ความสามารถ"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Yetenekler"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Khả năng"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "能力"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "能力"
           }
         }
       }
@@ -5876,23 +5242,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "修改"
-          }
-        }
-      }
-    },
-    "Changing context or speculative decoding can reload the model and increase memory use.": {
-      "extractionState": "stale",
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "更改上下文或推测解码可能重新加载模型，并增加内存占用。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "更改上下文或推測解碼可能重新載入模型，並增加記憶體佔用。"
           }
         }
       }
@@ -8374,107 +7723,6 @@
         }
       }
     },
-    "Connect local engine": {
-      "extractionState": "stale",
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "الاتصال بالمحرك المحلي"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Lokale Engine verbinden"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Connect local engine"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Conectar motor local"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Connecter le moteur local"
-          }
-        },
-        "hi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "लोकल इंजन कनेक्ट करें"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Hubungkan mesin lokal"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ローカルエンジンに接続"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "로컬 엔진 연결"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Conectar mecanismo local"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Подключить локальный движок"
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "เชื่อมต่อเอนจินในเครื่อง"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Yerel motoru bağla"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Kết nối engine cục bộ"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "连接本地引擎"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "連接本機引擎"
-          }
-        }
-      }
-    },
     "Connect over plain LAN HTTP": {
       "extractionState": "manual",
       "localizations": {
@@ -9568,107 +8816,6 @@
         }
       }
     },
-    "Connection scenario": {
-      "extractionState": "manual",
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "طريقة الاتصال"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Verbindungsmethode"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Connection method"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Método de conexión"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Mode de connexion"
-          }
-        },
-        "hi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "कनेक्शन विधि"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Metode koneksi"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "接続方法"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "연결 방식"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Método de conexão"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Способ подключения"
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "วิธีเชื่อมต่อ"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bağlantı yöntemi"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Phương thức kết nối"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "接入方式"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "接入方式"
-          }
-        }
-      }
-    },
     "Connection security": {
       "extractionState": "manual",
       "localizations": {
@@ -9975,6 +9122,84 @@
     "Context": {
       "extractionState": "stale",
       "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "السياق"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kontext"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Contexto"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Contexte"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "कॉन्टेक्स्ट"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Konteks"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "コンテキスト"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "컨텍스트"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Contexto"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Контекст"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "บริบท"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bağlam"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ngữ cảnh"
+          }
+        },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
@@ -9985,23 +9210,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "上下文"
-          }
-        }
-      }
-    },
-    "Context length": {
-      "extractionState": "stale",
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "上下文长度"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "上下文長度"
           }
         }
       }
@@ -10103,107 +9311,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "費用"
-          }
-        }
-      }
-    },
-    "Could not connect to the local engine.": {
-      "extractionState": "stale",
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "تعذر الاتصال بالمحرك المحلي."
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Verbindung zur lokalen Engine fehlgeschlagen."
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Could not connect to the local engine."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "No se pudo conectar al motor local."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Impossible de se connecter au moteur local."
-          }
-        },
-        "hi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "लोकल इंजन से कनेक्ट नहीं हो सका।"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tidak dapat terhubung ke mesin lokal."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ローカルエンジンに接続できません。"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "로컬 엔진에 연결할 수 없습니다."
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Não foi possível conectar ao mecanismo local."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Не удалось подключиться к локальному движку."
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "เชื่อมต่อเอนจินในเครื่องไม่ได้"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Yerel motora bağlanılamadı."
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Không thể kết nối với engine cục bộ."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "无法连接本地引擎。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "無法連接本機引擎。"
           }
         }
       }
@@ -11004,107 +10111,6 @@
         }
       }
     },
-    "Custom LLM": {
-      "extractionState": "manual",
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "نموذج لغوي مخصص"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Benutzerdefiniertes LLM"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Custom LLM"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "LLM personalizado"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "LLM personnalisé"
-          }
-        },
-        "hi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "कस्टम LLM"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "LLM kustom"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "カスタム LLM"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "사용자 정의 LLM"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "LLM personalizado"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Пользовательская LLM"
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "LLM แบบกำหนดเอง"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Özel LLM"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "LLM tùy chỉnh"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "自定义 LLM"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "自訂 LLM"
-          }
-        }
-      }
-    },
     "Custom Query Params": {
       "extractionState": "manual",
       "localizations": {
@@ -11303,107 +10309,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "自訂中轉站"
-          }
-        }
-      }
-    },
-    "Custom endpoint": {
-      "extractionState": "manual",
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "نموذج لغوي مخصص"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Benutzerdefiniertes LLM"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Custom LLM"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "LLM personalizado"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "LLM personnalisé"
-          }
-        },
-        "hi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "कस्टम LLM"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "LLM kustom"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "カスタム LLM"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "사용자 정의 LLM"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "LLM personalizado"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Пользовательская LLM"
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "LLM แบบกำหนดเอง"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Özel LLM"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "LLM tùy chỉnh"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "自定义 LLM"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "自訂 LLM"
           }
         }
       }
@@ -12008,107 +10913,6 @@
         }
       }
     },
-    "Delete this provider?": {
-      "extractionState": "stale",
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "هل تريد حذف هذا المزوّد؟"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Diesen Anbieter löschen?"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Delete this provider?"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "¿Eliminar este proveedor?"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Supprimer ce fournisseur ?"
-          }
-        },
-        "hi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "इस प्रदाता को हटाएं?"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Hapus penyedia ini?"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "このプロバイダーを削除しますか?"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "이 제공업체를 삭제하시겠습니까?"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Excluir este provedor?"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Удалить этого провайдера?"
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ลบผู้ให้บริการรายนี้ใช่ไหม"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bu sağlayıcı silinsin mi?"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Xóa nhà cung cấp này?"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "删除此服务商？"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "刪除該服務商？"
-          }
-        }
-      }
-    },
     "Delete “%@”?": {
       "extractionState": "manual",
       "localizations": {
@@ -12206,101 +11010,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "刪除「%@」？"
-          }
-        }
-      }
-    },
-    "Deleting this provider also removes its related chats and default model configuration.": {
-      "extractionState": "stale",
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "يؤدي حذف هذا المزوّد أيضًا إلى إزالة الدردشات ذات الصلة وتكوين النموذج الافتراضي."
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Durch das Löschen dieses Anbieters werden auch die zugehörigen Chats und die Standardmodellkonfiguration entfernt."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Al eliminar este proveedor también se eliminan sus chats relacionados y la configuración del modelo predeterminado."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "La suppression de ce fournisseur supprime également ses discussions associées et la configuration du modèle par défaut."
-          }
-        },
-        "hi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "इस प्रदाता को हटाने से इसकी संबंधित चैट और डिफ़ॉल्ट मॉडल कॉन्फ़िगरेशन भी हट जाता है।"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Menghapus penyedia ini juga menghapus obrolan terkait dan konfigurasi model defaultnya."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "このプロバイダーを削除すると、関連するチャットとデフォルトのモデル設定も削除されます。"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "이 제공업체를 삭제하면 관련 채팅 및 기본 모델 구성도 제거됩니다."
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "A exclusão deste provedor também remove os chats relacionados e a configuração do modelo padrão."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Удаление этого поставщика также удаляет связанные с ним чаты и конфигурацию модели по умолчанию."
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "การลบผู้ให้บริการรายนี้จะลบการแชทที่เกี่ยวข้องและการกำหนดค่าโมเดลเริ่มต้นด้วย"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bu sağlayıcının silinmesi aynı zamanda ilgili sohbetleri ve varsayılan model yapılandırmasını da kaldırır."
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Việc xóa nhà cung cấp này cũng sẽ xóa các cuộc trò chuyện liên quan và cấu hình mô hình mặc định của nó."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "删除此服务商同时会移除相关的对话和默认模型配置。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "刪除此服務商也會刪除其相關的聊天和預設模型配置。"
           }
         }
       }
@@ -13590,107 +12299,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "編輯 API 金鑰"
-          }
-        }
-      }
-    },
-    "Edit Relay": {
-      "extractionState": "stale",
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "تحرير التتابع"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Relais bearbeiten"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Edit Relay"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Editar retransmisión"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Modifier le relais"
-          }
-        },
-        "hi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "रिले संपादित करें"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sunting Relai"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "リレーの編集"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "릴레이 편집"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Editar retransmissão"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Редактировать реле"
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "แก้ไขรีเลย์"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Röleyi Düzenle"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Chỉnh sửa chuyển tiếp"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "编辑中转站"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "編輯中轉站"
           }
         }
       }
@@ -16475,107 +15083,6 @@
         }
       }
     },
-    "Full address": {
-      "extractionState": "manual",
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "العنوان الكامل"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Vollständige Adresse"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Full address"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dirección completa"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Adresse complète"
-          }
-        },
-        "hi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "पूरा पता"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Alamat lengkap"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "完全なアドレス"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "전체 주소"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Endereço completo"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Полный адрес"
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ที่อยู่แบบเต็ม"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tam adres"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Địa chỉ đầy đủ"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "完整地址"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "完整位址"
-          }
-        }
-      }
-    },
     "Fully custom (advanced)": {
       "extractionState": "manual",
       "localizations": {
@@ -19356,23 +17863,6 @@
         }
       }
     },
-    "Keep alive": {
-      "extractionState": "stale",
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "模型驻留"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "模型駐留"
-          }
-        }
-      }
-    },
     "Keep editing": {
       "extractionState": "stale",
       "localizations": {
@@ -19672,23 +18162,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "舊協定名。僅當自訂 LLM拒絕 web_search 時啟用。"
-          }
-        }
-      }
-    },
-    "Loaded models": {
-      "extractionState": "stale",
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "已加载模型"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "已載入模型"
           }
         }
       }
@@ -21287,107 +19760,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "已找到模型目錄"
-          }
-        }
-      }
-    },
-    "Model state: Unknown": {
-      "extractionState": "manual",
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "حالة النموذج: غير معروفة"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Modellstatus: Unbekannt"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Model state: Unknown"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Estado del modelo: desconocido"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "État du modèle : inconnu"
-          }
-        },
-        "hi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "मॉडल स्थिति: अज्ञात"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Status model: Tidak diketahui"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "モデル状態：不明"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "모델 상태: 알 수 없음"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Estado do modelo: desconhecido"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Состояние модели: неизвестно"
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "สถานะโมเดล: ไม่ทราบ"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Model durumu: Bilinmiyor"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Trạng thái mô hình: Không rõ"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "模型状态：未知"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "模型狀態：未知"
           }
         }
       }
@@ -24576,107 +22948,6 @@
         }
       }
     },
-    "Pairing code": {
-      "extractionState": "stale",
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "رمز الاقتران"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Kopplungscode"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pairing code"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Código de vinculación"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Code de jumelage"
-          }
-        },
-        "hi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "पेयरिंग कोड"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Kode penyandingan"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ペアリングコード"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "페어링 코드"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Código de pareamento"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Код сопряжения"
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "รหัสจับคู่"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Eşleştirme kodu"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Mã ghép nối"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "配对码"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "配對碼"
-          }
-        }
-      }
-    },
     "Parameters": {
       "extractionState": "manual",
       "localizations": {
@@ -25568,208 +23839,6 @@
         }
       }
     },
-    "Private VPN connection": {
-      "extractionState": "manual",
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "اتصال VPN خاص"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Private VPN-Verbindung"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Private VPN connection"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Conexión VPN privada"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Connexion VPN privée"
-          }
-        },
-        "hi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "निजी VPN कनेक्शन"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Koneksi VPN pribadi"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "プライベートVPN接続"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "비공개 VPN 연결"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Conexão VPN privada"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Подключение через частный VPN"
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "การเชื่อมต่อ VPN ส่วนตัว"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Özel VPN bağlantısı"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Kết nối VPN riêng"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "私有 VPN 连接"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "私人 VPN 連線"
-          }
-        }
-      }
-    },
-    "Probing engine and loading model...": {
-      "extractionState": "manual",
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "جارٍ فحص المحرك وتحميل النموذج…"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Engine wird geprüft und Modell geladen…"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Probing engine and loading model..."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Detectando el motor y cargando el modelo…"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Détection du moteur et chargement du modèle…"
-          }
-        },
-        "hi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "इंजन जाँचा और मॉडल लोड किया जा रहा है…"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Mendeteksi mesin dan memuat model…"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "エンジンを確認してモデルを読み込み中…"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "엔진 확인 및 모델 로딩 중…"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Detectando o mecanismo e carregando o modelo…"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Проверка движка и загрузка модели…"
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "กำลังตรวจหาเอนจินและโหลดโมเดล…"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Motor denetleniyor ve model yükleniyor…"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Đang dò công cụ và tải mô hình…"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "正在探测引擎并加载模型…"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "正在探測引擎並載入模型…"
-          }
-        }
-      }
-    },
     "Protocol": {
       "extractionState": "stale",
       "localizations": {
@@ -26164,23 +24233,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "查詢鍵"
-          }
-        }
-      }
-    },
-    "Queue": {
-      "extractionState": "stale",
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "队列"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "佇列"
           }
         }
       }
@@ -26880,107 +24932,6 @@
         }
       }
     },
-    "Relay detected": {
-      "extractionState": "manual",
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Relay detected"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Relay detected"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Relay detected"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Relay detected"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Relay detected"
-          }
-        },
-        "hi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Relay detected"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Relay detected"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Relay detected"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Relay detected"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Relay detected"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Relay detected"
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Relay detected"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Relay detected"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Relay detected"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "已发现中转站"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "已發現中轉站"
-          }
-        }
-      }
-    },
     "Relay type": {
       "extractionState": "manual",
       "localizations": {
@@ -27274,107 +25225,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "移除衝突項"
-          }
-        }
-      }
-    },
-    "Remove query parameters from the Endpoint. Query-based API keys are never tried automatically.": {
-      "extractionState": "manual",
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "قم بإزالة معلمات الاستعلام من نقطة النهاية. لا يتم مطلقًا تجربة مفاتيح واجهة برمجة التطبيقات (API) المستندة إلى الاستعلام تلقائيًا."
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Entfernen Sie Abfrageparameter vom Endpunkt. Abfragebasierte API-Schlüssel werden nie automatisch ausprobiert."
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Remove query parameters from the Endpoint. Query-based API keys are never tried automatically."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Elimine los parámetros de consulta del Endpoint. Las claves API basadas en consultas nunca se prueban automáticamente."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Supprimez les paramètres de requête du point de terminaison. Les clés API basées sur des requêtes ne sont jamais essayées automatiquement."
-          }
-        },
-        "hi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "समापन बिंदु से क्वेरी पैरामीटर हटाएँ। क्वेरी-आधारित API कुंजियाँ कभी भी स्वचालित रूप से आज़माई नहीं जातीं।"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Hapus parameter kueri dari Titik Akhir. Kunci API berbasis kueri tidak pernah dicoba secara otomatis."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "エンドポイントからクエリ パラメーターを削除します。クエリベースの API キーが自動的に試行されることはありません。"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "엔드포인트에서 쿼리 매개변수를 제거합니다. 쿼리 기반 API 키는 자동으로 시도되지 않습니다."
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Remova os parâmetros de consulta do endpoint. As chaves de API baseadas em consulta nunca são testadas automaticamente."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Удалите параметры запроса из конечной точки. Ключи API на основе запроса никогда не проверяются автоматически."
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ลบพารามิเตอร์แบบสอบถามออกจากจุดสิ้นสุด คีย์ API ที่ยึดตามคำสืบค้นจะไม่พยายามโดยอัตโนมัติ"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sorgu parametrelerini Uç Noktadan kaldırın. Sorgu tabanlı API anahtarları hiçbir zaman otomatik olarak denenmez."
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Xóa tham số truy vấn khỏi Điểm cuối. Khóa API dựa trên truy vấn không bao giờ được thử tự động."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "请移除 Endpoint 中的查询参数。Oriveo 不会自动尝试 Query API Key。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "請移除 Endpoint 中的查詢參數。Oriveo 不會自動嘗試 Query API Key。"
           }
         }
       }
@@ -28086,23 +25936,6 @@
         }
       }
     },
-    "Restore cache": {
-      "extractionState": "stale",
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "恢复缓存"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "還原快取"
-          }
-        }
-      }
-    },
     "Restored %d parameters": {
       "extractionState": "manual",
       "localizations": {
@@ -28396,23 +26229,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "重試同步"
-          }
-        }
-      }
-    },
-    "Runtime settings": {
-      "extractionState": "stale",
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "运行时设置"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "執行階段設定"
           }
         }
       }
@@ -29011,23 +26827,6 @@
         }
       }
     },
-    "Save cache": {
-      "extractionState": "stale",
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "保存缓存"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "儲存快取"
-          }
-        }
-      }
-    },
     "Saved without a model catalog": {
       "extractionState": "manual",
       "localizations": {
@@ -29422,107 +27221,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "儲存中…"
-          }
-        }
-      }
-    },
-    "Scan QR code": {
-      "extractionState": "manual",
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "مسح رمز QR"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "QR-Code scannen"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Scan QR code"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Escanear código QR"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Scanner le code QR"
-          }
-        },
-        "hi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "QR कोड स्कैन करें"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pindai kode QR"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "QRコードをスキャン"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "QR 코드 스캔"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ler código QR"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Сканировать QR-код"
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "สแกนคิวอาร์โค้ด"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "QR kodunu tara"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Quét mã QR"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "扫描二维码"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "掃描 QR Code"
           }
         }
       }
@@ -30929,40 +28627,6 @@
         }
       }
     },
-    "Slot": {
-      "extractionState": "stale",
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "槽位"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "槽位"
-          }
-        }
-      }
-    },
-    "Speculative model": {
-      "extractionState": "stale",
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "推测模型"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "推測模型"
-          }
-        }
-      }
-    },
     "Start with safe defaults, then adjust transport, auth, headers, and query parameters.": {
       "extractionState": "manual",
       "localizations": {
@@ -31565,107 +29229,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "建議"
-          }
-        }
-      }
-    },
-    "Supports web search": {
-      "extractionState": "manual",
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "يدعم البحث على شبكة الإنترنت"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Unterstützt die Websuche"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Supports web search"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Soporta búsqueda web"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Prend en charge la recherche sur le Web"
-          }
-        },
-        "hi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "वेब खोज का समर्थन करता है"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Mendukung pencarian web"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Web検索をサポート"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "웹 검색 지원"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Suporta pesquisa na web"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Поддерживает веб-поиск"
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "รองรับการค้นหาเว็บ"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Web aramasını destekler"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Hỗ trợ tìm kiếm trên web"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "支持联网搜索"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "支援聯網搜尋"
           }
         }
       }
@@ -34159,97 +31722,103 @@
         }
       }
     },
-    "The provider has announced it but has not shipped it yet.": {
+    "Announced by the provider, but not available yet.": {
       "extractionState": "manual",
       "localizations": {
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "أعلن المزوّد عنها لكنه لم يُطلقها بعد."
+            "value": "أعلن عنه المزوّد، لكنه غير متاح بعد."
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Der Anbieter hat es angekündigt, aber noch nicht bereitgestellt."
+            "value": "Vom Anbieter angekündigt, aber noch nicht verfügbar."
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Announced by the provider, but not available yet."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "El proveedor lo ha anunciado, pero aún no está disponible."
+            "value": "Anunciado por el proveedor, pero aún no disponible."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Le fournisseur l'a annoncé, mais ce n'est pas encore disponible."
+            "value": "Annoncé par le fournisseur, mais pas encore disponible."
           }
         },
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "प्रदाता ने घोषणा की है, पर अभी उपलब्ध नहीं है।"
+            "value": "प्रदाता ने घोषणा की है, पर यह अभी उपलब्ध नहीं है।"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Penyedia telah mengumumkannya tetapi belum merilisnya."
+            "value": "Diumumkan oleh penyedia, tetapi belum tersedia."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "提供元は予定として発表済みですが、まだ公開されていません。"
+            "value": "プロバイダーが発表していますが、まだ利用できません。"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "공급자가 예고했지만 아직 제공되지 않습니다."
+            "value": "프로바이더가 발표했지만 아직 사용할 수 없습니다."
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "O provedor anunciou, mas ainda não disponibilizou."
+            "value": "Anunciado pelo provedor, mas ainda não disponível."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Провайдер анонсировал, но ещё не выпустил."
+            "value": "Объявлено провайдером, но пока недоступно."
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "ผู้ให้บริการประกาศไว้แล้วแต่ยังไม่เปิดให้ใช้"
+            "value": "ผู้ให้บริการประกาศแล้ว แต่ยังใช้งานไม่ได้"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sağlayıcı duyurdu ancak henüz sunmadı."
+            "value": "Sağlayıcı tarafından duyuruldu ancak henüz kullanılamıyor."
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Nhà cung cấp đã công bố nhưng chưa phát hành."
+            "value": "Nhà cung cấp đã công bố nhưng chưa khả dụng."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "官方已列入计划，尚未开放"
+            "value": "服务商已公布，但尚未开放使用。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "官方已列入計畫，尚未開放"
+            "value": "服務商已公布，但尚未開放使用。"
           }
         }
       }
@@ -36244,107 +33813,6 @@
         }
       }
     },
-    "This device": {
-      "extractionState": "manual",
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "هذا الجهاز"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dieses Gerät"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "This device"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Este dispositivo"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Cet appareil"
-          }
-        },
-        "hi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "यह डिवाइस"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Perangkat ini"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "このデバイス"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "이 기기"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Este dispositivo"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Это устройство"
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "อุปกรณ์นี้"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bu cihaz"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Thiết bị này"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "这台设备"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "這台裝置"
-          }
-        }
-      }
-    },
     "This engine requires an encrypted connection for its access token.": {
       "extractionState": "manual",
       "localizations": {
@@ -37042,107 +34510,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "該模型參數已由官方目錄接管，暫不可在此自訂。"
-          }
-        }
-      }
-    },
-    "This pairing code is invalid or contains a credential.": {
-      "extractionState": "stale",
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "رمز الاقتران غير صالح أو يحتوي على بيانات اعتماد."
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dieser Kopplungscode ist ungültig oder enthält Zugangsdaten."
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "This pairing code is invalid or contains a credential."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Este código de vinculación no es válido o contiene credenciales."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ce code de jumelage est invalide ou contient un identifiant."
-          }
-        },
-        "hi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "यह पेयरिंग कोड अमान्य है या इसमें क्रेडेंशियल है।"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Kode penyandingan ini tidak valid atau berisi kredensial."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "このペアリングコードは無効か、認証情報を含んでいます。"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "이 페어링 코드는 유효하지 않거나 자격 증명을 포함합니다."
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Este código de pareamento é inválido ou contém uma credencial."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Код сопряжения недействителен или содержит учётные данные."
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "รหัสจับคู่นี้ไม่ถูกต้องหรือมีข้อมูลรับรอง"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bu eşleştirme kodu geçersiz veya kimlik bilgisi içeriyor."
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Mã ghép nối này không hợp lệ hoặc chứa thông tin đăng nhập."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "此配对码无效或包含凭据。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "此配對碼無效或包含憑證。"
           }
         }
       }
@@ -38341,23 +35708,6 @@
         }
       }
     },
-    "Tokens per second": {
-      "extractionState": "stale",
-      "localizations": {
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "每秒 Token"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "每秒 Token"
-          }
-        }
-      }
-    },
     "Top-up": {
       "extractionState": "manual",
       "localizations": {
@@ -39043,107 +36393,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "復原"
-          }
-        }
-      }
-    },
-    "Unencrypted local connection": {
-      "extractionState": "manual",
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "اتصال محلي غير مشفر"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Unverschlüsselte lokale Verbindung"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Unencrypted local connection"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Conexión local sin cifrar"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Connexion locale non chiffrée"
-          }
-        },
-        "hi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "अनएन्क्रिप्टेड स्थानीय कनेक्शन"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Koneksi lokal tidak terenkripsi"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "暗号化されていないローカル接続"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "암호화되지 않은 로컬 연결"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Conexão local não criptografada"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Незашифрованное локальное подключение"
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "การเชื่อมต่อภายในที่ไม่ได้เข้ารหัส"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Şifrelenmemiş yerel bağlantı"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Kết nối cục bộ không mã hóa"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "未加密的本地连接"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "未加密的本機連線"
           }
         }
       }
@@ -39940,107 +37189,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "請使用本機、區域網路、連結本機或支援的私有 VPN 位址。"
-          }
-        }
-      }
-    },
-    "Use a supported private VPN address": {
-      "extractionState": "stale",
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "استخدام عنوان VPN خاص مدعوم"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Unterstützte private VPN-Adresse verwenden"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Use a supported private VPN address"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Usar una dirección VPN privada compatible"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Utiliser une adresse VPN privée prise en charge"
-          }
-        },
-        "hi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "समर्थित निजी VPN पता इस्तेमाल करें"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Gunakan alamat VPN privat yang didukung"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "対応するプライベート VPN アドレスを使用"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "지원되는 사설 VPN 주소 사용"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Usar um endereço de VPN privada compatível"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Использовать поддерживаемый адрес частной VPN"
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ใช้ที่อยู่ VPN ส่วนตัวที่รองรับ"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Desteklenen özel VPN adresini kullan"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dùng địa chỉ VPN riêng được hỗ trợ"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "使用受支持的私有 VPN 地址"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "使用支援的私人 VPN 位址"
           }
         }
       }
@@ -42629,107 +39777,6 @@
         }
       }
     },
-    "Web search profile": {
-      "extractionState": "manual",
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ملف تعريف بحث الويب"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Websuchprofil"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Web search profile"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "perfil de búsqueda web"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Profil de recherche sur le Web"
-          }
-        },
-        "hi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "वेब खोज प्रोफ़ाइल"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Profil pencarian web"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ウェブ検索プロファイル"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "웹 검색 프로필"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Perfil de pesquisa na web"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Профиль веб-поиска"
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "โปรไฟล์การค้นหาเว็บ"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Web arama profili"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Hồ sơ tìm kiếm trên web"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "联网搜索协议"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "聯網搜尋協議"
-          }
-        }
-      }
-    },
     "Web search tool name": {
       "extractionState": "manual",
       "localizations": {
@@ -42932,85 +39979,91 @@
         }
       }
     },
-    "Will be sent • effect unverified": {
+    "Sent, effect unverified": {
       "extractionState": "manual",
       "localizations": {
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "سيتم الإرسال • التأثير غير مُتحقَّق منه"
+            "value": "يُرسَل - الأثر غير مُتحقَّق منه"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Wird gesendet • Wirkung ungeprüft"
+            "value": "Wird gesendet - Wirkung ungeprüft"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sent, effect unverified"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Se enviará • efecto sin verificar"
+            "value": "Se envía - efecto sin verificar"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sera envoyé • effet non vérifié"
+            "value": "Envoyé - effet non vérifié"
           }
         },
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "भेजा जाएगा • प्रभाव असत्यापित"
+            "value": "भेजा जाता है - प्रभाव असत्यापित"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Akan dikirim • efek belum diverifikasi"
+            "value": "Dikirim - efek belum diverifikasi"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "送信されます • 効果は未検証"
+            "value": "送信されます · 効果は未検証"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "전송됨 • 효과 미검증"
+            "value": "전송됨 - 효과 미검증"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Será enviado • efeito não verificado"
+            "value": "É enviado - efeito não verificado"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Будет отправлено • эффект не проверен"
+            "value": "Отправляется - эффект не проверен"
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "จะถูกส่ง • ยังไม่ได้ตรวจสอบผล"
+            "value": "ส่งจริง - ยังไม่ได้ตรวจสอบผล"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Gönderilecek • etkisi doğrulanmadı"
+            "value": "Gönderilir - etki doğrulanmadı"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sẽ được gửi • hiệu quả chưa xác minh"
+            "value": "Được gửi - chưa kiểm chứng hiệu lực"
           }
         },
         "zh-Hans": {
@@ -43022,7 +40075,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "會發送 · 效果未驗證"
+            "value": "會傳送 · 效果未驗證"
           }
         }
       }
@@ -45037,107 +42090,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "可選"
-          }
-        }
-      }
-    },
-    "optional; you can add later": {
-      "extractionState": "manual",
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "اختياري؛ يمكنك إضافته لاحقًا"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "optional; du kannst es später ergänzen"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "optional; you can add later"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "opcional; puedes añadirlo después"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "facultatif ; vous pouvez l'ajouter plus tard"
-          }
-        },
-        "hi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "वैकल्पिक; आप बाद में जोड़ सकते हैं"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "opsional; bisa ditambahkan nanti"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "任意。後で追加することもできます"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "선택 사항입니다. 나중에 추가할 수 있습니다"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "opcional; você pode adicionar depois"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "необязательно; можно добавить позже"
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ไม่บังคับ เพิ่มภายหลังได้"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "isteğe bağlı; sonra ekleyebilirsiniz"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "tùy chọn; có thể thêm sau"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "可选，稍后可补充"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "可選；可之後再新增"
           }
         }
       }
