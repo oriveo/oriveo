@@ -43,7 +43,7 @@ skills और आपकी प्रोवाइडर key ब्राउज़
 
 ## जल्दी शुरू करें
 
-Node 22 चाहिए ([`.nvmrc`](../../web/.nvmrc) देखें)। npm उसी के साथ आता है; और किसी package manager
+Node 22.22 या उससे नया चाहिए ([`.nvmrc`](../../web/.nvmrc) देखें)। npm उसी के साथ आता है; और किसी package manager
 की ज़रूरत नहीं।
 
 ```bash
@@ -90,7 +90,7 @@ flowchart LR
 मशीन पर होते हैं। जब आप ऐप कहीं deploy करते हैं, वे उसी मशीन पर होते हैं जहाँ आपने deploy किया।
 
 handler एक नहीं है: चैट streaming, relay forwarder, इमेज जनरेशन, मॉडल सूची, key वैलिडेशन, और Grok
-तथा Codex के device-login exchange — ये सब मिलकर कुल बारह route फ़ाइलें बनती हैं। key वैलिडेशन यहाँ
+तथा ChatGPT के device-login exchange — ये सब मिलकर कुल बारह route फ़ाइलें बनती हैं। key वैलिडेशन यहाँ
 मायने रखता है — वह key आपके अपने सर्वर पर पोस्ट करता है, और वही सर्वर उससे प्रोवाइडर को जाँचता है।
 
 कुछ endpoint ब्राउज़र को *इजाज़त देते ही हैं*, और उन्हें बीच में किसी सर्वर के बिना सीधे कॉल किया जाता
@@ -170,6 +170,11 @@ utility-class फ़्रेमवर्क नहीं है। `packages/ip
 desktop shell बँधेगा; इस रिपॉज़िटरी में ऐसा कोई shell नहीं आता, इसलिए वेब बिल्ड में यह सिर्फ़ types और
 ऐसी branches देता है जिन पर कभी अमल नहीं होता।
 
+इसी तरह की एक और सीवन है। `apps/app/lib/core/sync-port.ts` उस interface की घोषणा करता है जिसे कोई
+synchronisation backend लागू करेगा, और हर call site उस तक optional chaining से पहुँचता है। ऐसा कोई
+backend लगाया नहीं गया है, इसलिए `getSyncAdapter()` `null` लौटाता है और IndexedDB आपके डेटा की एकमात्र
+कॉपी बनी रहती है — व्यवहार में “न कोई अकाउंट, न साइन-इन” का ठीक यही मतलब है।
+
 ## स्टोरेज
 
 सब कुछ per-partition है, और एक active id से keyed है जिसका डिफ़ॉल्ट `guest` है।
@@ -222,6 +227,8 @@ GET {backend}/api/metadata/model-facts
 | `npm run test` | vitest, watch मोड में |
 | `npm run lint` | `apps/` और `packages/` पर eslint |
 
+`npm start --workspace @oriveo/app` बने हुए बिल्ड को पोर्ट 3001 पर सर्व करता है।
+
 किसी एक टेस्ट फ़ाइल को चलाना हो तो उसे उसी workspace से चलाएँ जिसकी वह है, क्योंकि कई suites अपने
 fixtures working directory के सापेक्ष resolve करती हैं:
 
@@ -232,9 +239,7 @@ cd apps/app && npx vitest run lib/core/chat/__tests__/stream-options.test.ts
 ## कॉन्फ़िगरेशन
 
 सब कुछ वैकल्पिक है। [`.env.example`](../../web/.env.example) को `.env.local` में कॉपी करें और सिर्फ़
-वही सेट करें जो आपको चाहिए; हर key का दस्तावेज़ीकरण वहीं है। कुछ variable ऐसे भी हैं जिन्हें कोड पढ़ता है
-पर वे उस फ़ाइल में नहीं हैं: `BACKEND_URL` (`NEXT_PUBLIC_BACKEND_URL` का सिर्फ़ सर्वर-साइड वाला जुड़वाँ),
-`NEXT_PUBLIC_LIBRARY_ENABLED`, `ORIVEO_DESKTOP` और `NEXT_DIST_DIR`।
+वही सेट करें जो आपको चाहिए; कोड जो भी variable पढ़ता है, वह सब वहीं सूचीबद्ध और समझाया हुआ है।
 
 ### एरर रिपोर्टिंग
 
@@ -245,17 +250,50 @@ transport बनता है, न कोई event, कुछ भी कही�
 हटा देते हैं। यह इसलिए यहाँ है कि जो deployment एरर रिपोर्टिंग चाहता है उसे वह मिल सके, इसलिए नहीं कि
 यह बिल्ड घर फ़ोन करता है।
 
+## ख़ुद होस्ट करना
+
+कोई Dockerfile नहीं है और कोई deploy स्क्रिप्ट नहीं; ऐप एक आम Next.js सर्वर है।
+
+```bash
+npm ci
+npm run build:app
+npm start --workspace @oriveo/app     # 127.0.0.1:3001
+```
+
+इसे किसी reverse proxy के पीछे रखने से पहले तीन बातें जान लेना ठीक रहेगा।
+
+`npm start` `127.0.0.1` पर bind होता है, इसलिए proxy को उसी होस्ट पर चलना होगा, या bind पता बदलना
+होगा।
+
+`NEXT_PUBLIC_APP_URL` को उस origin पर सेट करें जहाँ से आप वाक़ई सर्व करते हैं। canonical लिंक, sitemap
+और social preview इमेज सब उसी के सापेक्ष तय होते हैं, और उसका डिफ़ॉल्ट development पोर्ट है।
+
+`TRUSTED_PROXY_HOP_COUNT` को ऐप के आगे लगे proxy की संख्या पर सेट करें। चैट का rate limiter क्लाइंट का
+पता `X-Forwarded-For` के *दाएँ* छोर से उतने hop गिनकर पढ़ता है — बाएँ से कभी नहीं, क्योंकि बायाँ छोर
+क्लाइंट के नियंत्रण में है और गढ़ा जा सकता है। एक ही proxy के लिए डिफ़ॉल्ट 1 सही है; दो के पीछे इसे कम
+छोड़ दें तो हर विज़िटर एक ही rate-limit bucket साझा करने लगता है, क्योंकि जो पता पढ़ा जाता है वह आपके
+ही भीतरी proxy का होता है।
+
+ऐप HSTS, `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy` और
+`Cross-Origin-Opener-Policy` पहले से ही `next.config.ts` से भेजता है, इसलिए proxy को उन्हें जोड़ने की
+ज़रूरत नहीं। TLS termination और रिक्वेस्ट के आकार की सीमाएँ proxy का काम हैं।
+
+एक आख़िरी बात, जिसे सोच-समझकर तय करना चाहिए: जो कोई भी इस deployment तक पहुँच सकता है, वह इसके route
+handlers से अपनी दी हुई key के साथ किसी प्रोवाइडर को कॉल कर सकता है। इन handlers के पास अपनी कोई key
+नहीं होती और वे कुछ सहेजते नहीं, लेकिन वे बाहर जाने वाला एक HTTP रास्ता हैं; इसलिए सार्वजनिक रूप से
+पहुँच योग्य deployment को उसी access control के पीछे रखना चाहिए जो आप किसी भी अन्य आंतरिक टूल को देंगे।
+
 ## टेस्टिंग
 
-461 फ़ाइलों में क़रीब 4,600 टेस्ट, vitest पर। कवरेज वहाँ सबसे भारी है जहाँ ग़लती सबसे महँगी पड़ती है:
+460 फ़ाइलों में क़रीब 5,600 टेस्ट, vitest पर। कवरेज वहाँ सबसे भारी है जहाँ ग़लती सबसे महँगी पड़ती है:
 हर प्रोवाइडर के लिए request shape, हर wire protocol के लिए transport व्यवहार, SSE और proxy chunk
 parsing, usage और cost parsing, error classification, relay probing और security modes, SSRF guard,
 capability recipe execution, कैटलॉग caching और contract-version invalidation, IndexedDB persistence,
 storage partitioning, बैकअप के round-trip, और ख़ुद route handlers।
 
 > [!IMPORTANT]
-> क़रीब 24 suites, `../shared` से contract fixtures लोड करती हैं, इसलिए **टेस्ट सिर्फ़ पूरे checkout
-> में ही पास होते हैं** — अकेले `web/` को कॉपी करके ले जाना काम नहीं करेगा।
+> तीस से ज़्यादा suites, `../shared` से contract fixtures लोड करती हैं, इसलिए **टेस्ट सिर्फ़ पूरे
+> checkout में ही पास होते हैं** — अकेले `web/` को कॉपी करके ले जाना काम नहीं करेगा।
 
 ## स्थानीयकरण
 

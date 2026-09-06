@@ -44,8 +44,8 @@ definição de como falar com um provedor de modelos.
 
 ## Início rápido
 
-Requer Node 22 (veja [`.nvmrc`](../../web/.nvmrc)). O npm vem junto; nenhum outro gerenciador de
-pacotes é necessário.
+Requer Node 22.22 ou mais recente (veja [`.nvmrc`](../../web/.nvmrc)). O npm vem junto; nenhum outro
+gerenciador de pacotes é necessário.
 
 ```bash
 npm install
@@ -92,7 +92,7 @@ própria máquina. Quando você faz deploy do app em algum lugar, eles estão na
 fez o deploy.
 
 Não é um handler só: o streaming de chat, o encaminhador de relay, a geração de imagens, a lista de
-modelos, a validação de chave e as trocas de device login do Grok e do Codex dão doze arquivos de
+modelos, a validação de chave e as trocas de device login do Grok e do ChatGPT dão doze arquivos de
 rota no total. A validação de chave importa aqui — ela manda a chave para o seu próprio servidor,
 que sonda o provedor com ela.
 
@@ -174,6 +174,11 @@ A estilização é feita com CSS Modules sobre uma única folha de tokens em cus
 superfície de canal a que um shell de desktop se ligaria; nenhum shell desses é publicado neste
 repositório, então no build web ele contribui apenas com tipos e ramos que nunca são tomados.
 
+Há mais uma costura do mesmo tipo. O `apps/app/lib/core/sync-port.ts` declara a interface que um
+backend de sincronização implementaria, e todos os pontos de chamada o alcançam por optional
+chaining. Nada instala um, então `getSyncAdapter()` retorna `null` e o IndexedDB segue sendo a única
+cópia dos seus dados — que é exatamente o que "sem conta, sem login" significa na prática.
+
 ## Armazenamento
 
 Tudo é por partição, indexado por um id ativo cujo padrão é `guest`.
@@ -227,6 +232,8 @@ Rode estes comandos a partir deste diretório.
 | `npm run test` | vitest em modo watch |
 | `npm run lint` | eslint sobre `apps/` e `packages/` |
 
+`npm start --workspace @oriveo/app` serve um build finalizado na porta 3001.
+
 Para rodar um único arquivo de teste, faça isso a partir do workspace que o contém, porque várias
 suítes resolvem fixtures relativas ao diretório de trabalho:
 
@@ -237,9 +244,7 @@ cd apps/app && npx vitest run lib/core/chat/__tests__/stream-options.test.ts
 ## Configuração
 
 Tudo é opcional. Copie [`.env.example`](../../web/.env.example) para `.env.local` e defina só o que
-você precisa; cada chave está documentada lá. Algumas variáveis que o código lê não estão nesse
-arquivo: `BACKEND_URL` (um gêmeo só do lado do servidor de `NEXT_PUBLIC_BACKEND_URL`),
-`NEXT_PUBLIC_LIBRARY_ENABLED`, `ORIVEO_DESKTOP` e `NEXT_DIST_DIR`.
+você precisa; toda variável que o código lê está listada e explicada lá.
 
 ### Relatório de erros
 
@@ -250,9 +255,44 @@ partir deste repositório. Defina um e você ganha relatório de erros, 10% de t
 antes de um evento sair do navegador. Está aqui para que um deploy que queira relatório de erros
 possa tê-lo, não porque este build liga de volta para casa.
 
+## Auto-hospedagem
+
+Não há Dockerfile nem script de deploy; o app é um servidor Next.js comum.
+
+```bash
+npm ci
+npm run build:app
+npm start --workspace @oriveo/app     # 127.0.0.1:3001
+```
+
+Três coisas vale saber antes de colocá-lo atrás de um proxy reverso.
+
+O `npm start` faz bind em `127.0.0.1`, então o proxy tem que rodar no mesmo host, ou o endereço de
+bind precisa ser alterado.
+
+Defina `NEXT_PUBLIC_APP_URL` com a origem de onde você realmente serve. Links canônicos, o sitemap e
+a imagem de preview social são todos resolvidos em relação a ela, e o padrão é a porta de
+desenvolvimento.
+
+Defina `TRUSTED_PROXY_HOP_COUNT` com o número de proxies na frente do app. O rate limiter do chat lê
+o endereço do cliente a essa quantidade de saltos a partir da *direita* de `X-Forwarded-For` — nunca
+da esquerda, que o cliente controla e pode falsificar. O padrão de 1 está certo para um único proxy;
+deixe-o baixo demais atrás de dois e todos os visitantes passam a compartilhar um único bucket de
+rate limit, porque o endereço lido é o do seu próprio proxy interno.
+
+O app já envia HSTS, `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`,
+`Permissions-Policy` e `Cross-Origin-Opener-Policy` a partir do `next.config.ts`, então o proxy não
+precisa adicioná-los. A terminação TLS e os limites de tamanho de requisição são trabalho do proxy.
+
+Uma última coisa que vale decidir de forma deliberada: qualquer pessoa que consiga alcançar o deploy
+pode usar os route handlers dele para chamar um provedor com uma chave que ela mesma fornece. Os
+handlers não guardam chaves próprias e não armazenam nada, mas são um caminho HTTP de saída, então um
+deploy alcançável publicamente pertence atrás do mesmo controle de acesso que você daria a qualquer
+outra ferramenta interna.
+
 ## Testes
 
-Cerca de 4.600 testes em 461 arquivos, no vitest. A cobertura mais densa está onde um erro custa
+Cerca de 5.600 testes em 460 arquivos, no vitest. A cobertura mais densa está onde um erro custa
 mais caro: formato da requisição por provedor, comportamento do transporte por protocolo de rede,
 parsing de chunks de SSE e de proxy, parsing de uso e de custo, classificação de erros, sondagem de
 relay e modos de segurança, a proteção contra SSRF, execução de receitas de capacidade, cache do
@@ -260,7 +300,7 @@ catálogo e invalidação por versão de contrato, persistência no IndexedDB, p
 armazenamento, ciclos completos de backup e os próprios route handlers.
 
 > [!IMPORTANT]
-> Cerca de 24 suítes carregam fixtures de contrato de `../shared`, então **os testes só passam em um
+> Mais de trinta suítes carregam fixtures de contrato de `../shared`, então **os testes só passam em um
 > checkout completo** — copiar só `web/` para fora não vai funcionar.
 
 ## Localização

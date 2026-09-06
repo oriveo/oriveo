@@ -143,8 +143,12 @@ yeni cihazda zaten çözülemezdi. **Yeni bir telefona geçtikten sonra API anah
 girer ve varsa sağlayıcı aboneliklerinize yeniden giriş yaparsınız**; sohbetler ve notlar normal
 şekilde gelir.
 
-Kendiniz dışa aktardığınız yedek arşivleri ayrıca şifrelenir: sizin seçtiğiniz bir parolayla,
-600.000 yinelemeli PBKDF2-HMAC-SHA256 ve AES-GCM kullanılarak.
+Kendiniz dışa aktardığınız bir arşiv, `data.json` ile birlikte ek dosyalarını taşıyan bir zip'tir.
+Seçtiğiniz parola içindeki **yalnızca sağlayıcı API anahtarlarını** korur: bunlar 600.000 yinelemeli
+PBKDF2-HMAC-SHA256 ve AES-GCM ile şifrelenir ve `data.json` içinde tek bir alan olarak saklanır.
+Sohbetler, mesajlar, notlar, klasörler, skill'ler, tercihler ve ekler her durumda düz JSON ve düz
+dosya olarak yazılır; yani bir arşivi, eline geçen herkesin okuyabileceği bir şey olarak görün.
+Yalnızca geçmişinizi istiyorsanız anahtarlar olmadan dışa aktarın.
 
 ## Kendi ağınızdaki bir model sunucusuna erişmek
 
@@ -271,7 +275,7 @@ sabitlenmiştir.
 ./gradlew :app:testDebugUnitTest
 ```
 
-319 dosyada yaklaşık 3.000 birim testi; JUnit 4, MockK, Turbine, `kotlinx-coroutines-test` ve
+318 dosyada yaklaşık 3.000 birim testi; JUnit 4, MockK, Robolectric, `kotlinx-coroutines-test` ve
 Ktor'un mock engine'i ile. Kapsam, hataların en pahalıya patladığı yerlerde en yoğundur: sağlayıcı
 başına istek biçimi, SSE ayrıştırma, transport seçimi, relay sondalama ve güvenlik kipleri, yetenek
 reçetesi yürütme, katalog önbellekleme ve sözleşme sürümü işleme, Room kalıcılığı ve yedekleme
@@ -299,7 +303,7 @@ düşecektir.
 ## Yerelleştirme
 
 On altı dil: `values/` (kaynak dil İngilizce) artı on beş `values-*` dizini, her birinde yaklaşık
-1.700 metin ve her dilde birebir aynı anahtar kümesi. Uygulama içi dil değiştirme
+1.300 metin ve her dilde birebir aynı anahtar kümesi. Uygulama içi dil değiştirme
 `AppLanguageManager` ve `android:localeConfig` üzerinden yürür. Bundle'da dil bölmeleri kapalıdır;
 böylece tek bir artefakt bütün çevirileri taşır.
 

@@ -36,8 +36,13 @@
 
 Oriveo iOS istemcisi, kendi anahtarınızı getirdiğiniz bir yapay zekâ sohbet uygulamasıdır. Zaten
 sahip olduğunuz API anahtarlarını eklersiniz, uygulama da her sağlayıcıyı doğrudan telefondan
-çağırır. Sohbetler, notlar, klasörler, skill'ler ve ekler cihazda SQLite içinde saklanır; API
-anahtarları iOS Keychain'e gider. Hesap da yok, giriş de.
+çağırır. Sohbetler, mesajlar, notlar ve not klasörleri cihaz üzerindeki bir SQLite veritabanında
+yaşar; ek blob'ları onun yanındaki dosyalardır; skill'ler, tercihler, sağlayıcı listesi ve sohbet
+klasörleri ise cihaz üzerinde JSON'dur. API anahtarları iOS Keychain'e gider.
+
+Oriveo hesabı yok: hiçbir şey yüklenmez ve giriş yapılacak bir yer de yok. İki sağlayıcı, anahtar
+yapıştırmak yerine zaten sahip olduğunuz bir abonelikle giriş yapmayı gerçekten sunuyor — ChatGPT ve
+Grok — ve o giriş OpenAI ile xAI'ye gider, bize değil.
 
 Bu, [Oriveo Community Edition](README.md)'ın bir parçasıdır — bir model sağlayıcısıyla nasıl
 konuşulacağına dair tek bir tanımı paylaşan üç istemci.
@@ -93,8 +98,8 @@ belgeliyor.
 | GRDB `ValueObservation` | SQLite'tan geri okunan kalıcı durum | yazmadan sonra tek doğruluk kaynağı, yeniden başlatmayı atlatır |
 | Sohbet başına Combine `PassthroughSubject` | akan metin ve akıl yürütme delta'ları | token hızında SwiftUI diffing'ini tümüyle atlar |
 
-**Sağlayıcı desteği tek bir enum değil, dört bağımsız eksendir.** `ProviderKind` (16 durum)
-*kullanıcının neyi yapılandırdığıdır*. `ProviderServiceProtocol` *çağrı yüzeyidir*. `TransportKind`
+**Sağlayıcı desteği tek bir enum değil, dört bağımsız eksendir.** `ProviderKind` (16 durum: on beş sağlayıcı
+artı relay) *kullanıcının neyi yapılandırdığıdır*. `ProviderServiceProtocol` *çağrı yüzeyidir*. `TransportKind`
 (12 durum) *gerçekte hangi ağ protokolünün konuşulduğudur* — ve **model başına, katalogdan** çözülür,
 yani aynı anahtarın arkasındaki iki model birbiriyle anlaşmayabilir. `RelayKind`, kullanıcının
 verdiği endpoint'leri kapsar. Yeni bir modelin yeni bir derleme olmadan çalışabilmesi, tam da bu
@@ -112,9 +117,11 @@ flowchart LR
     parse --> cells["Akan sohbet dökümü"]
 ```
 
-`BaseAPIService.encodeChatBody`, bir istek gövdesinin bayta dönüştüğü tek noktadır. Her yetenek
-reçetesi, her üretim parametresi ve her özel alan buradan geçmek zorundadır; ağ biçimini on beş yerde
-değil tek bir yerde test edilebilir kılan da budur.
+`BaseAPIService.encodeChatBody`, OpenAI uyumlu bir isteğin bayta dönüşmeden önceki son durağıdır —
+on altı durumun on ikisi buradan geçer, dolayısıyla bir yetenek reçetesi, üretim parametresi ya
+da özel alan on iki yerde değil tek bir yerde test edilebilir. OpenAI, Anthropic ve Gemini kendi
+biçimlerini konuşur ve kendi servislerinde serileştirir; o noktaların her biri kendi istek-biçimi
+test paketiyle kapsanır.
 
 ## Bir modelin neye izni var
 
@@ -136,40 +143,58 @@ yaramış gibi göstermez.
 Application Support/Oriveo/
   active-uid                     # storage partition, "guest" by default
   users/<uid>/
-    oriveo.sqlite                # conversations, messages, notes, catalog cache
+    oriveo.sqlite                # conversations, messages, notes and folders, catalog cache
     Images/  Files/              # attachment blobs, referenced by id
-    session-snapshot.json        # preferences, provider list (never API keys)
+    session-snapshot.json        # preferences, provider list, folders, last used model
 ```
 
 - **GRDB üzerinden SQLite**; WAL açık, foreign key'ler açık ve her şema değişikliğini kapsayan bir
   `DatabaseMigrator` ile. Mesajlar ve notlar üzerindeki tam metin arama, trigram tokenizer'lı FTS5
   kullanır.
 - **API anahtarları Keychain'de yaşar**, sağlayıcı ve bölüm anahtarlarıyla saklanır ve oturum
-  anlık görüntüsü yazılmadan önce oradan temizlenir.
+  anlık görüntüsü yazılmadan önce oradan temizlenir. Skill'ler ayrı olarak, `UserDefaults` içinde
+  JSON olarak saklanır.
 - **Ek blob'ları satır değil, diskteki dosyalardır**; böylece büyük bir PDF veritabanını asla
   şişirmez.
 
-## Uygulamanın kendisi için yaptığı tek ağ çağrısı
+Bir yedek, `data.json` ile birlikte görsel dosyalarını taşıyan bir `.oriveo` ZIP'idir. İsteğe bağlı
+parola arşivi şifrelemez: yalnızca içindeki sağlayıcı API anahtarlarını şifreler (AES-GCM, anahtar
+600.000 tur PBKDF2-HMAC-SHA256 ile türetilir). Sohbetler, notlar, skill'ler ve tercihler her durumda
+arşivde düz JSON olarak durur; yani bir yedek dosyasını, eline geçen herkesin okuyabileceği bir şey
+olarak görün.
 
-Soğuk açılışta uygulama, `https://api.oriveoai.com` adresine kimlik doğrulamasız ve ETag koşullu iki
-`GET` isteği yapar — `/api/metadata?view=lean` ve `/api/metadata/model-facts`. Bunlar herkese açık
-model kataloğunu çeker: hangi modeller var, her biri neyi destekliyor, akıl yürütme denetimleri nasıl
-adlandırılmış ve maliyeti ne. Ne anahtar, ne sohbet, ne de tanımlayıcı eklenir; yanıt SQLite'ta
-önbelleğe alınır, böylece katalog erişilemez olduğunda uygulama önbellekteki kopyayla çalışır.
+## Uygulamanın kendisi için yaptığı istekler
 
-Uygulamanın kendi adına yaptığı tek istek budur. Geri kalan her şey, sizin yapılandırdığınız bir
+Soğuk açılışta uygulama, `https://api.oriveoai.com/api/metadata?view=lean` adresine kimlik
+doğrulamasız ve ETag koşullu bir `GET` isteği yapar. Bu istek herkese açık model kataloğunu çeker:
+hangi modeller var, her biri neyi destekliyor, akıl yürütme denetimleri nasıl adlandırılmış ve
+maliyeti ne. Ne anahtar, ne sohbet, ne de tanımlayıcı eklenir; yanıt SQLite'ta önbelleğe alınır,
+böylece katalog erişilemez olduğunda uygulama önbellekteki kopyayla çalışır. İkinci bir endpoint,
+`/api/metadata/model-facts`, yalnızca bir ChatGPT veya Grok aboneliğiyle giriş yaptıktan sonra
+okunur; o aboneliğin modellerinin neler yapabildiğini öğrenmek için.
+
+Uygulamanın kendi adına yaptığı istekler bunlardır. Geri kalan her şey, sizin yapılandırdığınız bir
 sağlayıcıya, sizin anahtarınızla gider.
 
-Bir **Debug** derlemesini kendi katalog sunucunuza yönlendirmek için `ORIVEO_METADATA_BASE_URL`
-değerini ayarlayın — ister bir scheme ortam değişkeni olarak, ister `ios/Oriveo/Config/Info.plist`
-içinde bir anahtar olarak. Android ve web istemcilerinden farklı olarak bir Release derlemesi bunu
-yok sayar ve her zaman yayınlanmış kataloğu kullanır; bunu değiştirmek `BackendURLResolver`'ı
-düzenlemek demektir.
+Kataloğu kendi sunucunuza yönlendirmek bir **Debug derlemesi kolaylığıdır** ve
+`Oriveo/Core/Providers/BackendURLResolver.swift` içinde şu sırayla çözülür:
+
+1. scheme'in Run action'ında ayarlanan `ORIVEO_METADATA_BASE_URL` ortam değişkeni; sonra
+2. `ios/Oriveo/Config/Info.plist` içindeki `ORIVEO_METADATA_BASE_URL` dizesi — anahtar zaten orada ve
+   boş, yani doldurmanız yeterli; sonra
+3. `https://api.oriveoai.com`.
+
+Bilinmesi gereken iki şey var. Bir Release derlemesi ikisini de yok sayar ve her zaman yayınlanmış
+kataloğu kullanır; bunu değiştirmek `BackendURLResolver`'ı düzenlemek demektir. Ayrıca test bundle'ı
+çalışırken veya `CI=true` ile, özel bir adresi (localhost, `10/8`, `192.168/16`, `172.16/12`,
+`.local`, link-local IPv6) gösteren bir geçersiz kılma yok sayılır; böylece geride kalmış bir yerel
+sunucu, test paketini o an hangi makinenin başında oturuyorsanız ona bağımlı kılamaz.
 
 ## Proje yapısı
 
 ```
 ios/Oriveo/
+  Config/Info.plist    the app's Info.plist; GENERATE_INFOPLIST_FILE is off
   Oriveo.xcodeproj/
   Oriveo/
     Core/
@@ -179,20 +204,31 @@ ios/Oriveo/
       Models/          domain types
       Attachments/     import limits, budgets, per-format text extraction
       Tools/           tool-call loop and per-protocol adapters
+      Cache/ Localization/ Observability/ Reachability/ Routing/ Usage/
     Features/
-      Chat/            transcript, composer, model controls, export
+      App/             root view and tab shell
+      Chat/            transcript, composer, model controls, cross-check, export
       Providers/       setup, detail, relay, local engines, subscription sign-in
       Home/ Notes/ Skills/ Settings/ Backup/ Onboarding/
     Shared/Components/ shared views
     DesignSystem/      theme, colour, haptics
+    Preview/           sample data for SwiftUI previews
+    *.xcstrings        ten string catalogs
+    Assets.xcassets · PrivacyInfo.xcprivacy · Oriveo.entitlements
   OriveoTests/
 ```
 
 ## Derleme ve çalıştırma
 
-**Xcode 26** kurulu bir Mac ve **iOS 18 veya sonrasını** çalıştıran bir cihaza ihtiyacınız var.
-Ücretsiz bir Apple Developer hesabı yeterlidir; uygulama ücretli hiçbir capability kullanmaz ve boş
-bir entitlements dosyasıyla gelir.
+**Xcode 26**'ya, donanımda çalıştırmak için de **iOS 18 veya sonrasını** çalıştıran bir cihaza
+ihtiyacınız var. Ücretsiz bir Apple Developer hesabı yeterlidir: entitlements dosyası boştur ve
+uygulama ücretli hiçbir capability kullanmaz — push yok, iCloud yok, app group yok, associated
+domain yok.
+
+Proje biçiminin ve Swift tools sürümünün fiilen dayattığı alt sınır Xcode 16.3'tür, ama target
+`SWIFT_APPROACHABLE_CONCURRENCY` ve `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor` ayarlarını yapar ve
+daha eski Xcode sürümleri bunları söylemeden yok sayar. Actor izolasyonunun sessizce değişmesi bunu
+öğrenmenin kötü bir yoludur; o yüzden Xcode 26 ile derleyin.
 
 1. `ios/Oriveo/Oriveo.xcodeproj` dosyasını açın
 2. `Oriveo` scheme'ini seçin
@@ -204,13 +240,17 @@ bir entitlements dosyasıyla gelir.
 Bunun yerine Simulator için derlemek isterseniz herhangi bir iPhone simülatörünü seçip çalıştırın.
 Paket bağımlılıkları, depoya işlenmiş `Package.resolved` dosyasından çözülür.
 
+**Apple silicon bir Mac'te** iPhone derlemesi doğal olarak da çalışır: **My Mac (Designed for iPad)**
+hedefini seçin. Mac Catalyst bilinçli olarak kapalıdır (`SUPPORTS_MACCATALYST = NO`), yani bu bir Mac
+uygulaması değil, iPad uyumluluk çalışma zamanı altındaki iOS uygulamasıdır — kamera çekimi gibi
+yalnızca cihazda olan yollar, bir Mac'te nasıl davranıyorlarsa öyle davranır.
+
 Proje dosyası, dosya sistemiyle senkron gruplar ve `objectVersion = 77` kullanır; bu yüzden daha eski
 bir Xcode dosyayı açmayı reddedebilir. Proje biçimini düzenlemek yerine Xcode'u güncelleyin.
 
 > [!NOTE]
-> Uygulama target'ı, `SWIFT_APPROACHABLE_CONCURRENCY` ve
-> `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor` ile Swift 5 dil kipinde derlenir. Yerel
-> `OriveoProviderKit` paketi `swift-tools-version: 6.1` bildirir ve Swift 6 dil kipinde derlenir.
+> Uygulama target'ı Swift 5 dil kipinde derlenir; yerel `OriveoProviderKit` paketi
+> `swift-tools-version: 6.1` bildirir ve Swift 6 dil kipinde derlenir.
 
 ## Bağımlılıklar
 
@@ -223,27 +263,32 @@ bir Xcode dosyayı açmayı reddedebilir. Proje biçimini düzenlemek yerine Xco
 | [ZIPFoundation](https://github.com/weichsel/ZIPFoundation) | 0.9.20 | yedek arşivleri, Office/EPUB/ODF çıkarımı |
 | `OriveoProviderKit` | yerel | sağlayıcı ağ çekirdeği, [`shared/`](shared.md) içinde |
 
+`Package.resolved`, swift-markdown-ui'ın getirdiği iki geçişli bağımlılığı da sabitler:
+[NetworkImage](https://github.com/gonzalezreal/NetworkImage) 6.0.1 ve
+[swift-cmark](https://github.com/swiftlang/swift-cmark) 0.8.0. Her doğrudan bağımlılık MIT
+lisanslıdır, swift-cmark ise BSD-2-Clause; hepsi AGPL-3.0-or-later ile uyumlu.
+
 ## Testler
 
 Xcode'da `Oriveo` scheme'inin test action'ını (⌘U) çalıştırın veya depo kökünden:
 
 ```bash
 xcodebuild test -project ios/Oriveo/Oriveo.xcodeproj -scheme Oriveo \
-  -destination 'platform=iOS Simulator,name=iPhone 17'
+  -destination 'platform=iOS Simulator,name=iPhone 16'
 ```
 
-Gerçekten sahip olduğunuz bir simülatörü yazın — `xcrun simctl list devices available` bunları
-listeler.
+Gerçekten sahip olduğunuz bir simülatörü yazın; aynı proje ve scheme ile
+`xcodebuild -showdestinations`, bu checkout'un derleyebileceği her şeyi listeler.
 
 > [!IMPORTANT]
 > Test target'ı, `#filePath` konumundan yukarı doğru çıkarak `shared/` dizinini bulur ve sözleşme
-> fixture'larını oradan okur. Yaklaşık 29 test paketi buna bağlıdır, dolayısıyla **testler yalnızca
-> deponun tamamı elinizdeyken geçer** — tek başına `ios/` klasörünü dışarı kopyalamak işe yaramaz.
+> fixture'larını oradan okur; dolayısıyla **testler yalnızca deponun tamamı elinizdeyken geçer** —
+> tek başına `ios/` klasörünü dışarı kopyalamak işe yaramaz.
 
-Test paketi geniş: 273 dosyada yaklaşık 2.900 test, çoğunlukla [Swift
-Testing](https://github.com/swiftlang/swift-testing) ile. Sağlayıcı başına istek biçimini, kaydedilmiş
-upstream SSE yeniden oynatımını, relay ve yerel motor politikasını, sohbet dökümü ölçümünü ve akış
-davranışını, depolamayı ve yedekleme gidiş-dönüşlerini kapsar.
+Test paketi geniş: 274 dosyada yaklaşık 2.900 [Swift
+Testing](https://github.com/swiftlang/swift-testing) vakası ve 76 XCTest vakası. Sağlayıcı başına
+istek biçimini, kaydedilmiş upstream SSE yeniden oynatımını, relay ve yerel motor politikasını,
+sohbet dökümü ölçümünü ve akış davranışını, depolamayı ve yedekleme gidiş-dönüşlerini kapsar.
 
 `shared/OriveoProviderKit`'in kendi test paketi vardır:
 
@@ -253,10 +298,12 @@ cd shared/OriveoProviderKit && swift test
 
 ## Yerelleştirme
 
-On altı dil, Xcode String Catalog (`.xcstrings`) olarak saklanıyor — on katalog, yaklaşık 1.900
-anahtar, kaynak dil İngilizce. Metinler, kullanıcının uygulama içi dil ayarına göre seçilen bir
-`.lproj` bundle'ı üzerinden `L10n.tr(_:table:)` ile çözülür; bu yüzden dil değiştirmek uygulamayı
-yeniden başlatmadan etkili olur. Arapça için sağdan sola yerleşim açıkça ele alınır.
+On altı dil, Xcode String Catalog (`.xcstrings`) olarak saklanıyor — on katalog, yaklaşık 1.340
+anahtar, kaynak dil İngilizce. `shouldTranslate: false` işaretli birkaçı dışında her anahtar on altı
+dile de çevrilmiştir: ürün adı, noktalama, biçim iskeletleri ve yerelleştirilmesi yanlış olacak
+protokol değerleri. Metinler, kullanıcının uygulama içi dil ayarına göre seçilen bir `.lproj`
+bundle'ı üzerinden `L10n.tr(_:table:)` ile çözülür; bu yüzden dil değiştirmek uygulamayı yeniden
+başlatmadan etkili olur. Arapça için sağdan sola yerleşim açıkça ele alınır.
 
 ## Katkıda bulunma
 

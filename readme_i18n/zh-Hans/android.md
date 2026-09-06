@@ -133,8 +133,11 @@ HTTP 200 和工具声明都明确不算数。每条消息的结果都会持久�
 必然结果，不是疏漏 —— 密文换到新设备上本来也解不开。**换新手机之后，你需要重新填一遍 API Key、重新
 登录各家供应商的订阅**；对话和笔记会正常迁过去。
 
-你自己导出的备份归档是单独加密的，用 PBKDF2-HMAC-SHA256 迭代 600,000 次加 AES-GCM，密码由你自己
-设定。
+你自己导出的归档是一个 zip，里面装着 `data.json` 加上附件文件。你设定的密码**只保护里面的供应商
+API Key**：它们用 PBKDF2-HMAC-SHA256 迭代 600,000 次加 AES-GCM 加密，并作为 `data.json` 的一个字段
+保存。对话、消息、笔记、文件夹、Skills、偏好设置和附件，不论如何都是以明文 JSON 和普通文件写入的，
+所以要把一份归档当作「拿到这个文件的人都能读」来对待。如果你只想要自己的历史记录，就选择不带 Key
+导出。
 
 ## 访问你自己网络里的模型服务器
 
@@ -247,8 +250,8 @@ Android Studio 生成，不会提交。发布签名见 [SIGNING.md](../../androi
 ./gradlew :app:testDebugUnitTest
 ```
 
-319 个文件里大约 3,000 个单元测试，用的是 JUnit 4、MockK、Turbine、`kotlinx-coroutines-test` 和
-Ktor 的 mock engine。覆盖最密的地方也是出错代价最高的地方：每家供应商的请求形状、SSE 解析、
+318 个文件里大约 3,000 个单元测试，用的是 JUnit 4、MockK、Robolectric、`kotlinx-coroutines-test`
+和 Ktor 的 mock engine。覆盖最密的地方也是出错代价最高的地方：每家供应商的请求形状、SSE 解析、
 传输方式选择、relay 探测与安全模式、能力配方执行、目录缓存与契约版本处理、Room 持久化，以及备份的
 往返一致性。
 
@@ -268,7 +271,7 @@ Ktor 的 mock engine。覆盖最密的地方也是出错代价最高的地方：
 
 ## 本地化
 
-十六种语言：`values/`（英语，源语言）加上十五个 `values-*` 目录，每个约 1,700 条字符串，每个 locale
+十六种语言：`values/`（英语，源语言）加上十五个 `values-*` 目录，每个约 1,300 条字符串，每个 locale
 都持有完全相同的键集。App 内切换语言走 `AppLanguageManager` 和 `android:localeConfig`。bundle 里
 禁用了按语言拆分，所以单个产物就带着全部翻译。
 

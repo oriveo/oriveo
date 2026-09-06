@@ -147,8 +147,12 @@ Keystore, no un descuido: el texto cifrado sería indescifrable en el dispositiv
 modos. **Después de cambiar de teléfono vuelves a introducir tus claves de API y a iniciar sesión en
 cualquier suscripción de proveedor**; las conversaciones y las notas pasan con normalidad.
 
-Los archivos de copia de seguridad que exportas tú se cifran aparte, con PBKDF2-HMAC-SHA256 a 600.000
-iteraciones y AES-GCM, usando una contraseña que tú eliges.
+Un archivo que exportas tú es un zip que contiene `data.json` más los archivos de los adjuntos. La
+contraseña que eliges protege **solo las claves de API de proveedor** que hay dentro: se cifran con
+PBKDF2-HMAC-SHA256 a 600.000 iteraciones y AES-GCM y se guardan como un campo de `data.json`. Las
+conversaciones, los mensajes, las notas, las carpetas, los Skills, las preferencias y los adjuntos se
+escriben como JSON en claro y archivos en claro en cualquier caso, así que trata un archivo como
+legible por cualquiera que lo tenga. Exporta sin claves si solo quieres tu historial.
 
 ## Llegar a un servidor de modelos en tu propia red
 
@@ -279,7 +283,7 @@ Las versiones exactas están fijadas en
 ./gradlew :app:testDebugUnitTest
 ```
 
-Unas 3.000 pruebas unitarias repartidas en 319 archivos, con JUnit 4, MockK, Turbine,
+Unas 3.000 pruebas unitarias repartidas en 318 archivos, con JUnit 4, MockK, Robolectric,
 `kotlinx-coroutines-test` y el mock engine de Ktor. La cobertura es más densa donde los errores salen
 más caros: forma de la solicitud por proveedor, parseo de SSE, selección de transporte, sondeo de
 relay y modos de seguridad, ejecución de recetas de capacidad, caché del catálogo y manejo de
@@ -305,7 +309,7 @@ a `app/schemas/` y se versionan, que es donde aterrizará el `2.json` de la prim
 
 ## Localización
 
-Dieciséis idiomas: `values/` (inglés, la fuente) más quince directorios `values-*`, con unas 1.700
+Dieciséis idiomas: `values/` (inglés, la fuente) más quince directorios `values-*`, con unas 1.300
 cadenas cada uno y un conjunto de claves idéntico en todas las configuraciones regionales. El cambio
 de idioma dentro de la app pasa por `AppLanguageManager` y `android:localeConfig`. Los splits por
 idioma están desactivados en el bundle, así que un solo artefacto lleva todas las traducciones.

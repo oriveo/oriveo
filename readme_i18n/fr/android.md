@@ -148,8 +148,13 @@ chiffré serait de toute façon indéchiffrable sur le nouvel appareil. **Après
 téléphone, vous ressaisissez vos clés API et vous vous reconnectez à tout abonnement fournisseur** ;
 les conversations et les notes suivent normalement.
 
-Les archives de sauvegarde que vous exportez vous-même sont chiffrées séparément, avec
-PBKDF2-HMAC-SHA256 à 600 000 itérations et AES-GCM, à partir d'un mot de passe de votre choix.
+Une archive que vous exportez vous-même est un zip contenant `data.json` et les fichiers des pièces
+jointes. Le mot de passe que vous choisissez protège **les seules clés API des fournisseurs** qui s'y
+trouvent : elles sont chiffrées avec PBKDF2-HMAC-SHA256 à 600 000 itérations et AES-GCM et stockées
+comme un champ de `data.json`. Conversations, messages, notes, dossiers, Skills, préférences et
+pièces jointes sont écrits en JSON en clair et en fichiers en clair dans tous les cas ; traitez donc
+une archive comme lisible par quiconque détient le fichier. Exportez sans les clés si vous ne voulez
+que votre historique.
 
 ## Joindre un serveur de modèles sur votre propre réseau
 
@@ -282,7 +287,7 @@ Les versions exactes sont figées dans
 ./gradlew :app:testDebugUnitTest
 ```
 
-Environ 3 000 tests unitaires répartis sur 319 fichiers, avec JUnit 4, MockK, Turbine,
+Environ 3 000 tests unitaires répartis sur 318 fichiers, avec JUnit 4, MockK, Robolectric,
 `kotlinx-coroutines-test` et le mock engine de Ktor. La couverture est la plus dense là où les
 erreurs coûtent le plus cher : forme des requêtes par fournisseur, analyse SSE, choix du transport,
 sondage des relais et modes de sécurité, exécution des recettes de capacités, mise en cache du
@@ -308,7 +313,7 @@ vers `app/schemas/` et versionnés, et c'est là qu'atterrira le `2.json` de la 
 
 ## Localisation
 
-Seize langues : `values/` (l'anglais, la source) plus quinze répertoires `values-*`, environ 1 700
+Seize langues : `values/` (l'anglais, la source) plus quinze répertoires `values-*`, environ 1 300
 chaînes chacun, chaque locale détenant un jeu de clés identique. Le changement de langue dans l'app
 passe par `AppLanguageManager` et `android:localeConfig`. Les splits par langue sont désactivés dans
 le bundle, si bien qu'un seul artefact porte toutes les traductions.

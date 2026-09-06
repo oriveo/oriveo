@@ -72,9 +72,10 @@ receitas em si; `capability_result_definitions.v1.json` e `capability_custom_con
 definem como resultados e controles voltados ao usuário são interpretados.
 
 Cada receita declara um `executionKind` — `request_overlay`, `server_tool`, `client_tool_loop`,
-`endpoint_route`, `model_route` — e o compilador de cada cliente valida que a receita combina com o
-provedor, a capacidade e o transporte antes de aplicá-la, rejeitando com um motivo nomeado em vez de
-enviar uma requisição que ninguém revisou.
+`endpoint_route`, `model_route`, `external_connector`, `unavailable` — e o compilador de cada cliente
+valida que a receita combina com o provedor, a capacidade e o transporte antes de aplicá-la,
+rejeitando com um motivo nomeado em vez de enviar uma requisição que ninguém revisou. A lista é um
+conjunto fechado: uma receita que nomeie qualquer outra coisa é recusada, não adivinhada.
 
 ## model-contracts
 
@@ -88,27 +89,41 @@ nos três clientes de uma vez.
 
 ## test-fixtures
 
-Dados de teste de referência: tráfego de tool call upstream gravado, cenários de roteamento e
-descoberta de relay, snapshots de model facts e de evidências de capacidade, e cenários de engines
-locais.
+Dados de teste de referência: tráfego de tool call upstream gravado, roteamento de relay, validação
+de formulário, classificação de endereços locais, cenários de catálogo e de configuração portátil,
+snapshots de model facts e de evidências de capacidade, e cenários de engines locais.
 
-Os arquivos `.sse` que ficam sob `recorded/` são **tráfego upstream real capturado**, mantidos
-intocados byte a byte; os demais são fixtures escritas à mão que fixam um caminho de parsing
-específico. A distinção importa: um mock escrito à mão codifica o que você acreditava que o provedor
-faz, enquanto uma gravação codifica o que ele de fato fez, incluindo o chunk malformado que ele
-mandou naquela terça-feira. Quando uma correção de protocolo de provedor precisa de um teste,
-prefira uma gravação.
+Os arquivos `.sse` que ficam sob `recorded/` são **tráfego upstream real capturado**, mantidos byte a
+byte como chegaram — só os cabeçalhos de resposta foram descartados, e os corpos nunca levaram uma
+chave. Os demais são fixtures escritas à mão que fixam um caminho de parsing específico. A distinção
+importa: um mock escrito à mão codifica o que você acreditava que o provedor faz, enquanto uma
+gravação codifica o que ele de fato fez, incluindo o chunk malformado que ele mandou naquela
+terça-feira. Quando uma correção de protocolo de provedor precisa de um teste, prefira uma gravação.
+
+O `$comment` de uma fixture, ou o manifesto `expected.json` ao lado dela, diz o que as entradas em
+volta fixam. Leia isso antes de adicionar um caso.
 
 ## OriveoProviderKit
 
 Um pacote Swift com o núcleo do protocolo de rede dos provedores: montagem de linhas SSE, parsing de
-chunks compatíveis com OpenAI, codificação de nomes de tool, ocultação de credenciais, classificação
-de erros upstream, parsing de tags de thinking, extração de caminhos JSON em streaming e perfis de
-peculiaridades por provedor.
+chunks compatíveis com OpenAI, montagem baseada em eventos para os protocolos Responses / Anthropic
+Messages / Gemini, construção de requisições neutra quanto ao transporte, compilação de receitas e as
+suas travas de execução, codificação de nomes de tool, ocultação de credenciais, classificação de
+erros upstream, parsing de tags de thinking, extração de caminhos JSON em streaming, uma política
+explícita de redirecionamento do `URLSession` e perfis de peculiaridades por provedor.
 
 O escopo dele é deliberadamente estreito. **Dentro:** conhecimento de rede que usa só o Foundation.
-**Fora:** modelos do app, UI, banco de dados, telemetria, localização. Cada cliente Apple mantém uma
-casca fina em volta dele, para que o comportamento de rede tenha exatamente uma implementação.
+**Fora:** modelos do app, UI, banco de dados, telemetria, localização. O pacote não depende de nada
+além da biblioteca padrão e do Foundation, e cada cliente Apple mantém uma casca fina em volta dele,
+para que o comportamento de rede tenha exatamente uma implementação.
+
+Ele implementa todo o caminho de requisição e streaming para as plataformas Apple. O app iOS hoje usa
+apenas um subconjunto dele — os montadores de stream, os perfis de rede, o codec de nomes de tool e os
+classificadores de erro — e mantém os seus próprios construtores de requisição; o cliente macOS em
+desenvolvimento é o segundo consumidor, e é por isso que o compilador de receitas e o construtor de
+requisições neutro quanto ao transporte moram aqui, e não dentro de um app. A suíte abaixo cobre as
+partes que todo consumidor compartilha: divisão de SSE, montagem compatível com OpenAI, o codec de
+nomes de tool e a política de redirecionamento.
 
 ```bash
 cd shared/OriveoProviderKit && swift build && swift test

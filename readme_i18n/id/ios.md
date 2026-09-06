@@ -35,9 +35,14 @@
 ---
 
 Klien iOS Oriveo adalah aplikasi chat AI bring-your-own-key. Anda menambahkan API key yang sudah
-Anda miliki, dan aplikasi memanggil setiap provider langsung dari ponsel. Percakapan, catatan,
-folder, skill, dan lampiran disimpan di perangkat dalam SQLite; API key masuk ke iOS Keychain. Tidak
-ada akun dan tidak ada proses masuk.
+Anda miliki, dan aplikasi memanggil setiap provider langsung dari ponsel. Percakapan, pesan, catatan,
+dan folder catatan tinggal di basis data SQLite di perangkat; blob lampiran adalah berkas di
+sebelahnya; skill, preferensi, daftar provider, dan folder percakapan adalah JSON di perangkat. API
+key masuk ke iOS Keychain.
+
+Tidak ada akun Oriveo: tidak ada apa pun yang diunggah, dan tidak ada yang perlu dimasuki. Dua
+provider memang menawarkan masuk dengan langganan yang sudah Anda miliki alih-alih menempelkan sebuah
+key — ChatGPT dan Grok — dan proses masuk itu menuju OpenAI dan xAI, bukan ke kami.
 
 Ini bagian dari [Oriveo Community Edition](README.md) — tiga klien yang berbagi satu definisi
 tentang cara berbicara dengan provider model.
@@ -94,8 +99,8 @@ mendokumentasikan batas itu.
 | GRDB `ValueObservation` | state permanen yang dibaca ulang dari SQLite | satu sumber kebenaran setelah penulisan, bertahan setelah aplikasi dibuka ulang |
 | Combine `PassthroughSubject` per percakapan | teks streaming dan delta reasoning | melewati diffing SwiftUI sepenuhnya pada laju token |
 
-**Dukungan provider adalah empat sumbu independen, bukan satu enum.** `ProviderKind` (16 kasus)
-adalah *siapa yang dikonfigurasi pengguna*. `ProviderServiceProtocol` adalah *permukaan
+**Dukungan provider adalah empat sumbu independen, bukan satu enum.** `ProviderKind` (16 kasus:
+kelima belas provider ditambah relay) adalah *siapa yang dikonfigurasi pengguna*. `ProviderServiceProtocol` adalah *permukaan
 pemanggilan*. `TransportKind` (12 kasus) adalah *wire protocol mana yang sebenarnya dipakai* — dan
 itu ditentukan **per model, dari katalog**, sehingga dua model di balik key yang sama bisa berbeda.
 `RelayKind` mencakup endpoint yang disediakan pengguna. Memisahkan keempatnya itulah yang membuat
@@ -113,9 +118,11 @@ flowchart LR
     parse --> cells["Transkrip streaming"]
 ```
 
-`BaseAPIService.encodeChatBody` adalah satu-satunya titik di mana request body menjadi byte. Setiap
-resep capability, parameter generation, dan field kustom harus melewatinya, dan itulah yang membuat
-format wire bisa diuji di satu tempat, bukan lima belas.
+`BaseAPIService.encodeChatBody` adalah perhentian terakhir sebelum sebuah permintaan yang kompatibel
+dengan OpenAI menjadi byte — dua belas dari enam belas jenis melewatinya, jadi sebuah resep
+capability, parameter generation, atau field kustom bisa diuji di satu tempat, bukan dua belas.
+OpenAI, Anthropic, dan Gemini memakai bentuknya sendiri dan melakukan serialisasi di service-nya
+masing-masing; masing-masing titik itu dicakup oleh suite bentuk permintaannya sendiri.
 
 ## Apa yang boleh dilakukan sebuah model
 
@@ -137,40 +144,58 @@ tapi tidak pernah dikonfirmasi, alih-alih diam-diam menyiratkan bahwa itu berhas
 Application Support/Oriveo/
   active-uid                     # storage partition, "guest" by default
   users/<uid>/
-    oriveo.sqlite                # conversations, messages, notes, catalog cache
+    oriveo.sqlite                # conversations, messages, notes and folders, catalog cache
     Images/  Files/              # attachment blobs, referenced by id
-    session-snapshot.json        # preferences, provider list (never API keys)
+    session-snapshot.json        # preferences, provider list, folders, last used model
 ```
 
 - **SQLite lewat GRDB** dengan WAL, foreign key aktif, dan sebuah `DatabaseMigrator` yang mencakup
   setiap perubahan skema. Pencarian teks penuh atas pesan dan catatan memakai FTS5 dengan tokenizer
   trigram.
 - **API key tinggal di Keychain**, di-key berdasarkan provider dan partisi, dan dikosongkan dari
-  session snapshot sebelum snapshot itu ditulis.
+  session snapshot sebelum snapshot itu ditulis. Skill disimpan terpisah sebagai JSON di
+  `UserDefaults`.
 - **Blob lampiran adalah berkas di disk**, bukan baris tabel, jadi PDF besar tidak pernah
   menggelembungkan basis data.
 
-## Satu-satunya panggilan jaringan yang dibuat aplikasi untuk dirinya sendiri
+Sebuah cadangan adalah ZIP `.oriveo` yang memuat `data.json` plus berkas-berkas gambar. Kata sandi
+opsionalnya tidak mengenkripsi arsipnya: ia hanya mengenkripsi API key provider di dalamnya (AES-GCM,
+dengan key yang diturunkan oleh PBKDF2-HMAC-SHA256 lewat 600.000 iterasi). Percakapan, catatan,
+skill, dan preferensi tetap berupa JSON biasa di dalam arsip, jadi anggaplah sebuah berkas cadangan
+bisa dibaca siapa pun yang memilikinya.
 
-Saat cold start aplikasi mengirim dua permintaan `GET` tanpa autentikasi dan ber-ETag-conditional ke
-`https://api.oriveoai.com` — `/api/metadata?view=lean` dan `/api/metadata/model-facts`. Keduanya
-mengambil katalog model publik: model apa saja yang ada, apa yang didukung masing-masing, bagaimana
-kontrol reasoning-nya dinamai, dan berapa biayanya. Tidak ada key, percakapan, maupun identifier
-yang dilampirkan, dan response di-cache di SQLite sehingga aplikasi tetap bekerja dari salinan cache
-ketika katalog tidak terjangkau.
+## Permintaan yang dibuat aplikasi untuk dirinya sendiri
 
-Ini satu-satunya permintaan yang dibuat aplikasi atas namanya sendiri. Semua yang lain menuju
+Saat cold start aplikasi mengirim satu permintaan `GET` tanpa autentikasi dan ber-ETag-conditional ke
+`https://api.oriveoai.com/api/metadata?view=lean`. Permintaan itu mengambil katalog model publik:
+model apa saja yang ada, apa yang didukung masing-masing, bagaimana kontrol reasoning-nya dinamai,
+dan berapa biayanya. Tidak ada key, percakapan, maupun identifier yang dilampirkan, dan response
+di-cache di SQLite sehingga aplikasi tetap bekerja dari salinan cache ketika katalog tidak
+terjangkau. Endpoint kedua, `/api/metadata/model-facts`, hanya dibaca setelah Anda masuk dengan
+langganan ChatGPT atau Grok, untuk mengetahui apa yang bisa dilakukan model-model langganan itu.
+
+Inilah satu-satunya permintaan yang dibuat aplikasi atas namanya sendiri. Semua yang lain menuju
 provider yang Anda konfigurasi, dengan key Anda.
 
-Untuk mengarahkan build **Debug** ke host katalog Anda sendiri, setel `ORIVEO_METADATA_BASE_URL` —
-entah sebagai variabel lingkungan scheme atau sebagai key di `ios/Oriveo/Config/Info.plist`. Tidak
-seperti klien Android dan web, build Release mengabaikannya dan selalu memakai katalog yang
-dipublikasikan; mengubahnya berarti menyunting `BackendURLResolver`.
+Mengarahkan katalog ke host Anda sendiri adalah **kemudahan untuk build Debug**, yang ditentukan di
+`Oriveo/Core/Providers/BackendURLResolver.swift` dengan urutan ini:
+
+1. variabel lingkungan `ORIVEO_METADATA_BASE_URL`, disetel di Run action milik scheme; lalu
+2. sebuah string `ORIVEO_METADATA_BASE_URL` di `ios/Oriveo/Config/Info.plist` — key-nya sudah ada di
+   sana dan kosong, jadi cukup mengisinya; lalu
+3. `https://api.oriveoai.com`.
+
+Ada dua hal yang perlu diketahui. Build Release mengabaikan keduanya dan selalu memakai katalog yang
+dipublikasikan; mengubahnya berarti menyunting `BackendURLResolver`. Dan ketika bundle pengujian
+sedang berjalan, atau dengan `CI=true`, override yang mengarah ke alamat privat (localhost, `10/8`,
+`192.168/16`, `172.16/12`, `.local`, IPv6 link-local) diabaikan, sehingga host lokal yang tertinggal
+tidak bisa membuat suite bergantung pada mesin mana pun yang sedang Anda pakai.
 
 ## Struktur proyek
 
 ```
 ios/Oriveo/
+  Config/Info.plist    the app's Info.plist; GENERATE_INFOPLIST_FILE is off
   Oriveo.xcodeproj/
   Oriveo/
     Core/
@@ -180,20 +205,32 @@ ios/Oriveo/
       Models/          domain types
       Attachments/     import limits, budgets, per-format text extraction
       Tools/           tool-call loop and per-protocol adapters
+      Cache/ Localization/ Observability/ Reachability/ Routing/ Usage/
     Features/
-      Chat/            transcript, composer, model controls, export
+      App/             root view and tab shell
+      Chat/            transcript, composer, model controls, cross-check, export
       Providers/       setup, detail, relay, local engines, subscription sign-in
       Home/ Notes/ Skills/ Settings/ Backup/ Onboarding/
     Shared/Components/ shared views
     DesignSystem/      theme, colour, haptics
+    Preview/           sample data for SwiftUI previews
+    *.xcstrings        ten string catalogs
+    Assets.xcassets · PrivacyInfo.xcprivacy · Oriveo.entitlements
   OriveoTests/
 ```
 
 ## Build dan jalankan
 
-Anda butuh Mac dengan **Xcode 26** dan perangkat dengan **iOS 18 atau lebih baru**. Akun Apple
-Developer gratis sudah cukup; aplikasi ini tidak memakai capability berbayar dan mengirimkan berkas
-entitlements yang kosong.
+Anda butuh **Xcode 26**, dan untuk menjalankannya di perangkat keras, sebuah perangkat dengan
+**iOS 18 atau lebih baru**. Akun Apple Developer gratis sudah cukup: berkas entitlements-nya kosong
+dan aplikasi ini tidak memakai capability berbayar apa pun — tanpa push, tanpa iCloud, tanpa app
+group, tanpa associated domain.
+
+Xcode 16.3 adalah batas bawah yang sebenarnya dipaksakan oleh format proyek dan versi Swift tools,
+tapi target-nya menyetel `SWIFT_APPROACHABLE_CONCURRENCY` dan
+`SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor`, yang diabaikan Xcode versi lama tanpa memberi tahu.
+Mengubah actor isolation secara diam-diam adalah cara yang buruk untuk mengetahuinya, jadi build-lah
+dengan Xcode 26.
 
 1. Buka `ios/Oriveo/Oriveo.xcodeproj`
 2. Pilih scheme `Oriveo`
@@ -205,13 +242,17 @@ entitlements yang kosong.
 Untuk mem-build ke Simulator, pilih simulator iPhone mana pun lalu Run. Dependensi package
 di-resolve dari `Package.resolved` yang sudah di-commit.
 
+**Di Mac dengan Apple silicon** build iPhone-nya juga berjalan secara native: pilih destination
+**My Mac (Designed for iPad)**. Mac Catalyst sengaja dimatikan (`SUPPORTS_MACCATALYST = NO`), jadi
+ini adalah aplikasi iOS di bawah runtime kompatibilitas iPad, bukan aplikasi Mac — jalur yang khusus
+perangkat, seperti pengambilan gambar dari kamera, berperilaku sebagaimana di Mac.
+
 Berkas proyek memakai `objectVersion = 77` dengan grup yang tersinkron dengan sistem berkas, jadi
 Xcode versi lama mungkin menolak membukanya. Perbarui Xcode, jangan mengedit format proyeknya.
 
 > [!NOTE]
-> Target aplikasi dikompilasi dalam mode bahasa Swift 5 dengan `SWIFT_APPROACHABLE_CONCURRENCY` dan
-> `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor`. Package `OriveoProviderKit` lokal mendeklarasikan
-> `swift-tools-version: 6.1` dan di-build dalam mode bahasa Swift 6.
+> Target aplikasi dikompilasi dalam mode bahasa Swift 5; package `OriveoProviderKit` lokal
+> mendeklarasikan `swift-tools-version: 6.1` dan di-build dalam mode bahasa Swift 6.
 
 ## Dependensi
 
@@ -224,27 +265,32 @@ Xcode versi lama mungkin menolak membukanya. Perbarui Xcode, jangan mengedit for
 | [ZIPFoundation](https://github.com/weichsel/ZIPFoundation) | 0.9.20 | arsip cadangan, ekstraksi Office/EPUB/ODF |
 | `OriveoProviderKit` | lokal | wire kernel provider, di [`shared/`](shared.md) |
 
+`Package.resolved` juga menyematkan dua dependensi transitif yang dibawa swift-markdown-ui:
+[NetworkImage](https://github.com/gonzalezreal/NetworkImage) 6.0.1 dan
+[swift-cmark](https://github.com/swiftlang/swift-cmark) 0.8.0. Setiap dependensi langsung berlisensi
+MIT dan swift-cmark berlisensi BSD-2-Clause, semuanya kompatibel dengan AGPL-3.0-or-later.
+
 ## Pengujian
 
 Jalankan test action scheme `Oriveo` (⌘U) di Xcode, atau dari akar repositori:
 
 ```bash
 xcodebuild test -project ios/Oriveo/Oriveo.xcodeproj -scheme Oriveo \
-  -destination 'platform=iOS Simulator,name=iPhone 17'
+  -destination 'platform=iOS Simulator,name=iPhone 16'
 ```
 
-Ganti dengan simulator yang benar-benar Anda punya — `xcrun simctl list devices available`
-menampilkan daftarnya.
+Ganti dengan simulator yang benar-benar Anda punya; `xcodebuild -showdestinations` dengan project dan
+scheme yang sama menampilkan semua yang bisa di-build dari checkout ini.
 
 > [!IMPORTANT]
 > Target pengujian membaca fixture kontrak dari `shared/` dengan menelusuri ke atas dari `#filePath`
-> sampai menemukan direktori tersebut. Sekitar 29 suite bergantung padanya, jadi **pengujian hanya
-> lolos pada checkout penuh** — menyalin `ios/` sendirian tidak akan berhasil.
+> sampai menemukan direktori tersebut, jadi **pengujian hanya lolos pada checkout penuh** — menyalin
+> `ios/` sendirian tidak akan berhasil.
 
-Suite-nya besar: sekitar 2.900 pengujian di 273 berkas, sebagian besar dengan [Swift
-Testing](https://github.com/swiftlang/swift-testing). Cakupannya meliputi bentuk permintaan per
-provider, pemutaran ulang SSE upstream yang terekam, kebijakan relay dan local engine, pengukuran
-transkrip dan perilaku streaming, penyimpanan, serta round-trip cadangan.
+Suite-nya besar: sekitar 2.900 kasus [Swift Testing](https://github.com/swiftlang/swift-testing)
+ditambah 76 kasus XCTest, di 274 berkas. Cakupannya meliputi bentuk permintaan per provider,
+pemutaran ulang SSE upstream yang terekam, kebijakan relay dan local engine, pengukuran transkrip dan
+perilaku streaming, penyimpanan, serta round-trip cadangan.
 
 `shared/OriveoProviderKit` punya suite-nya sendiri:
 
@@ -255,7 +301,9 @@ cd shared/OriveoProviderKit && swift test
 ## Pelokalan
 
 Enam belas bahasa, disimpan sebagai Xcode String Catalog (`.xcstrings`) — sepuluh katalog, sekitar
-1.900 key, dengan bahasa Inggris sebagai sumber. String di-resolve lewat `L10n.tr(_:table:)`
+1.340 key, dengan bahasa Inggris sebagai sumber. Setiap key diterjemahkan ke keenam belas bahasa,
+kecuali beberapa yang ditandai `shouldTranslate: false`: nama produk, tanda baca, kerangka format,
+dan nilai protokol yang akan salah kalau dilokalkan. String di-resolve lewat `L10n.tr(_:table:)`
 terhadap bundle `.lproj` yang dipilih dari pengaturan bahasa di dalam aplikasi, jadi pergantian
 bahasa langsung berlaku tanpa membuka ulang aplikasi. Tata letak right-to-left untuk bahasa Arab
 ditangani secara eksplisit.

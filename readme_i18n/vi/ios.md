@@ -36,8 +36,13 @@
 
 Client iOS của Oriveo là một ứng dụng chat AI theo mô hình bring-your-own-key. Bạn thêm những khóa
 API mà bạn đã sở hữu, và ứng dụng gọi thẳng từng nhà cung cấp ngay từ điện thoại. Cuộc trò chuyện,
-ghi chú, thư mục, kỹ năng và tệp đính kèm được lưu trên thiết bị trong SQLite; khóa API đi vào iOS
-Keychain. Không có tài khoản và không cần đăng nhập.
+tin nhắn, ghi chú và thư mục ghi chú nằm trong một cơ sở dữ liệu SQLite trên thiết bị; phần nội dung
+nhị phân của tệp đính kèm là các tệp nằm cạnh nó; còn kỹ năng, tùy chọn, danh sách nhà cung cấp và
+thư mục cuộc trò chuyện là JSON trên thiết bị. Khóa API đi vào iOS Keychain.
+
+Không có tài khoản Oriveo: không có gì được tải lên, và cũng không có gì để đăng nhập. Đúng là có hai
+nhà cung cấp cho phép đăng nhập bằng một gói thuê bao bạn đã có thay vì dán khóa vào — ChatGPT và
+Grok — và lượt đăng nhập đó đi tới OpenAI và xAI, không phải tới chúng tôi.
 
 Đây là một phần của [Oriveo Community Edition](README.md) — ba client dùng chung một định nghĩa duy
 nhất về cách nói chuyện với nhà cung cấp mô hình.
@@ -93,8 +98,8 @@ SwiftUI không cho được. Ranh giới đó được ghi lại trong
 | GRDB `ValueObservation` | trạng thái bền vững đọc ngược lại từ SQLite | một nguồn sự thật duy nhất sau khi ghi, còn nguyên sau khi khởi động lại |
 | Combine `PassthroughSubject` cho mỗi cuộc trò chuyện | văn bản streaming và các delta suy luận | né hoàn toàn diffing của SwiftUI ở tốc độ token |
 
-**Hỗ trợ nhà cung cấp là bốn trục độc lập, không phải một enum.** `ProviderKind` (16 trường hợp) là
-*người dùng đã cấu hình cái gì*. `ProviderServiceProtocol` là *bề mặt gọi*. `TransportKind`
+**Hỗ trợ nhà cung cấp là bốn trục độc lập, không phải một enum.** `ProviderKind` (16 trường hợp: mười lăm nhà cung
+cấp cộng thêm relay) là *người dùng đã cấu hình cái gì*. `ProviderServiceProtocol` là *bề mặt gọi*. `TransportKind`
 (12 trường hợp) là *giao thức wire thực sự được nói* — và nó được quyết định **theo từng mô hình,
 từ danh mục**, nên hai mô hình sau cùng một khóa vẫn có thể khác nhau. `RelayKind` lo các endpoint
 do người dùng tự cung cấp. Chính việc giữ chúng tách biệt là thứ khiến một mô hình mới chạy được mà
@@ -112,9 +117,11 @@ flowchart LR
     parse --> cells["Transcript streaming"]
 ```
 
-`BaseAPIService.encodeChatBody` là điểm duy nhất nơi thân yêu cầu trở thành byte. Mọi công thức khả
-năng, mọi tham số sinh và mọi trường tùy chỉnh đều phải đi qua đó, và chính điều này làm cho định
-dạng wire có thể kiểm thử ở một chỗ thay vì mười lăm chỗ.
+`BaseAPIService.encodeChatBody` là chặng cuối trước khi một yêu cầu tương thích OpenAI trở thành
+byte — mười hai trong số mười sáu trường hợp đi qua đó, nên một công thức khả năng, một tham số
+sinh hay một trường tùy chỉnh có thể kiểm thử ở một chỗ thay vì mười hai chỗ. OpenAI, Anthropic và
+Gemini nói bằng hình dạng riêng của chúng và tuần tự hóa trong service riêng của chúng; mỗi điểm đó
+đều có bộ test hình dạng yêu cầu riêng.
 
 ## Mô hình được phép làm gì
 
@@ -137,38 +144,57 @@ rằng nó đã hoạt động.
 Application Support/Oriveo/
   active-uid                     # storage partition, "guest" by default
   users/<uid>/
-    oriveo.sqlite                # conversations, messages, notes, catalog cache
+    oriveo.sqlite                # conversations, messages, notes and folders, catalog cache
     Images/  Files/              # attachment blobs, referenced by id
-    session-snapshot.json        # preferences, provider list (never API keys)
+    session-snapshot.json        # preferences, provider list, folders, last used model
 ```
 
 - **SQLite thông qua GRDB** với WAL, bật khóa ngoại, và một `DatabaseMigrator` bao trọn mọi thay đổi
   schema. Tìm kiếm toàn văn trên tin nhắn và ghi chú dùng FTS5 với bộ tách từ trigram.
 - **Khóa API nằm trong Keychain**, đánh chỉ mục theo nhà cung cấp và phân vùng, và bị xóa trắng khỏi
-  session snapshot trước khi snapshot được ghi xuống.
+  session snapshot trước khi snapshot được ghi xuống. Kỹ năng được lưu riêng dưới dạng JSON trong
+  `UserDefaults`.
 - **Tệp đính kèm là các tệp trên đĩa**, không phải hàng trong bảng, nên một file PDF lớn không bao
   giờ làm phình cơ sở dữ liệu.
 
-## Lệnh gọi mạng duy nhất ứng dụng tự thực hiện
+Một bản sao lưu là một tệp ZIP `.oriveo` chứa `data.json` cùng các tệp ảnh. Mật khẩu tùy chọn không mã
+hóa cả kho lưu trữ: nó chỉ mã hóa các khóa API của nhà cung cấp nằm bên trong (AES-GCM, với khóa được
+dẫn xuất bằng PBKDF2-HMAC-SHA256 qua 600.000 vòng). Dù có mật khẩu hay không, cuộc trò chuyện, ghi
+chú, kỹ năng và tùy chọn vẫn là JSON thuần trong kho lưu trữ, nên hãy coi một tệp sao lưu là thứ mà
+bất cứ ai có nó đều đọc được.
 
-Khi khởi động nguội, ứng dụng phát hai yêu cầu `GET` không cần xác thực, có điều kiện ETag, tới
-`https://api.oriveoai.com` — `/api/metadata?view=lean` và `/api/metadata/model-facts`. Chúng tải
-danh mục mô hình công khai: có những mô hình nào, mỗi mô hình hỗ trợ gì, các điều khiển suy luận của
-nó tên là gì, và giá bao nhiêu. Không kèm khóa, không kèm cuộc trò chuyện và không kèm định danh, và
-phản hồi được lưu đệm trong SQLite nên ứng dụng vẫn chạy từ bản đệm khi không với tới được danh mục.
+## Những yêu cầu ứng dụng tự thực hiện
 
-Đây là yêu cầu duy nhất ứng dụng thực hiện cho chính nó. Mọi thứ khác đều đi tới một nhà cung cấp mà
-bạn đã cấu hình, bằng khóa của bạn.
+Khi khởi động nguội, ứng dụng phát một yêu cầu `GET` không cần xác thực, có điều kiện ETag, tới
+`https://api.oriveoai.com/api/metadata?view=lean`. Nó tải danh mục mô hình công khai: có những mô
+hình nào, mỗi mô hình hỗ trợ gì, các điều khiển suy luận của nó tên là gì, và giá bao nhiêu. Không
+kèm khóa, không kèm cuộc trò chuyện và không kèm định danh, và phản hồi được lưu đệm trong SQLite nên
+ứng dụng vẫn chạy từ bản đệm khi không với tới được danh mục. Một endpoint thứ hai,
+`/api/metadata/model-facts`, chỉ được đọc sau khi bạn đăng nhập bằng gói thuê bao ChatGPT hoặc Grok,
+để biết các mô hình của gói đó làm được những gì.
 
-Muốn trỏ một bản dựng **Debug** về host danh mục của riêng bạn thì hãy đặt
-`ORIVEO_METADATA_BASE_URL` — hoặc như một biến môi trường của scheme, hoặc như một khóa trong
-`ios/Oriveo/Config/Info.plist`. Khác với client Android và web, bản dựng Release bỏ qua nó và luôn
-dùng danh mục đã phát hành; muốn đổi điều đó thì phải sửa `BackendURLResolver`.
+Đó là toàn bộ những yêu cầu ứng dụng thực hiện cho chính nó. Mọi thứ khác đều đi tới một nhà cung cấp
+mà bạn đã cấu hình, bằng khóa của bạn.
+
+Trỏ danh mục về host của riêng bạn là **một tiện lợi của bản dựng Debug**, được phân giải trong
+`Oriveo/Core/Providers/BackendURLResolver.swift` theo thứ tự sau:
+
+1. biến môi trường `ORIVEO_METADATA_BASE_URL`, đặt trong Run action của scheme; rồi
+2. một chuỗi `ORIVEO_METADATA_BASE_URL` trong `ios/Oriveo/Config/Info.plist` — khóa này đã có ở đó và
+   để rỗng, nên chỉ cần điền vào là đủ; rồi
+3. `https://api.oriveoai.com`.
+
+Có hai điều cần biết. Bản dựng Release bỏ qua cả hai và luôn dùng danh mục đã phát hành; muốn đổi
+điều đó thì phải sửa `BackendURLResolver`. Và khi test bundle đang chạy, hoặc với `CI=true`, một giá
+trị ghi đè trỏ tới địa chỉ riêng tư (localhost, `10/8`, `192.168/16`, `172.16/12`, `.local`, IPv6
+link-local) sẽ bị bỏ qua, nên một host cục bộ còn sót lại không thể làm cho bộ test phụ thuộc vào
+chiếc máy mà bạn đang ngồi trước.
 
 ## Cấu trúc dự án
 
 ```
 ios/Oriveo/
+  Config/Info.plist    the app's Info.plist; GENERATE_INFOPLIST_FILE is off
   Oriveo.xcodeproj/
   Oriveo/
     Core/
@@ -178,20 +204,30 @@ ios/Oriveo/
       Models/          domain types
       Attachments/     import limits, budgets, per-format text extraction
       Tools/           tool-call loop and per-protocol adapters
+      Cache/ Localization/ Observability/ Reachability/ Routing/ Usage/
     Features/
-      Chat/            transcript, composer, model controls, export
+      App/             root view and tab shell
+      Chat/            transcript, composer, model controls, cross-check, export
       Providers/       setup, detail, relay, local engines, subscription sign-in
       Home/ Notes/ Skills/ Settings/ Backup/ Onboarding/
     Shared/Components/ shared views
     DesignSystem/      theme, colour, haptics
+    Preview/           sample data for SwiftUI previews
+    *.xcstrings        ten string catalogs
+    Assets.xcassets · PrivacyInfo.xcprivacy · Oriveo.entitlements
   OriveoTests/
 ```
 
 ## Dựng và chạy
 
-Bạn cần một máy Mac có **Xcode 26** và một thiết bị chạy **iOS 18 trở lên**. Tài khoản Apple
-Developer miễn phí là đủ; ứng dụng không dùng capability trả phí nào và đi kèm một tệp entitlements
-rỗng.
+Bạn cần **Xcode 26**, và để chạy trên thiết bị thật thì cần một máy chạy **iOS 18 trở lên**. Tài
+khoản Apple Developer miễn phí là đủ: tệp entitlements để rỗng và ứng dụng không dùng capability trả
+phí nào — không push, không iCloud, không app group, không associated domain.
+
+Xcode 16.3 là mức sàn mà định dạng dự án và phiên bản Swift tools thực sự đòi hỏi, nhưng target có
+đặt `SWIFT_APPROACHABLE_CONCURRENCY` và `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor`, những thứ mà các
+bản Xcode cũ hơn bỏ qua mà không nói gì. Để actor isolation bị đổi lặng lẽ là một cách tệ để phát
+hiện ra điều đó, nên hãy dựng bằng Xcode 26.
 
 1. Mở `ios/Oriveo/Oriveo.xcodeproj`
 2. Chọn scheme `Oriveo`
@@ -203,12 +239,16 @@ rỗng.
 Nếu muốn dựng cho Simulator, chọn bất kỳ simulator iPhone nào rồi nhấn Run. Các phụ thuộc package
 được resolve từ tệp `Package.resolved` đã commit.
 
+**Trên một máy Mac dùng Apple silicon**, bản dựng iPhone cũng chạy native được: chọn đích **My Mac
+(Designed for iPad)**. Mac Catalyst bị tắt một cách có chủ ý (`SUPPORTS_MACCATALYST = NO`), nên đây là
+ứng dụng iOS chạy dưới môi trường tương thích iPad chứ không phải một ứng dụng Mac — những đường đi
+chỉ có trên thiết bị, như chụp ảnh bằng camera, hành xử đúng như cách chúng hành xử trên một máy Mac.
+
 Tệp dự án dùng `objectVersion = 77` với các nhóm đồng bộ theo hệ thống tệp, nên một bản Xcode cũ hơn
 có thể từ chối mở nó. Hãy cập nhật Xcode thay vì sửa định dạng dự án.
 
 > [!NOTE]
-> Target ứng dụng biên dịch ở chế độ ngôn ngữ Swift 5 với `SWIFT_APPROACHABLE_CONCURRENCY` và
-> `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor`. Package `OriveoProviderKit` cục bộ khai báo
+> Target ứng dụng biên dịch ở chế độ ngôn ngữ Swift 5; package `OriveoProviderKit` cục bộ khai báo
 > `swift-tools-version: 6.1` và được dựng ở chế độ ngôn ngữ Swift 6.
 
 ## Phụ thuộc
@@ -222,26 +262,32 @@ có thể từ chối mở nó. Hãy cập nhật Xcode thay vì sửa định d
 | [ZIPFoundation](https://github.com/weichsel/ZIPFoundation) | 0.9.20 | kho lưu trữ sao lưu, bóc tách Office/EPUB/ODF |
 | `OriveoProviderKit` | cục bộ | nhân wire của nhà cung cấp, trong [`shared/`](shared.md) |
 
+`Package.resolved` cũng ghim hai phụ thuộc bắc cầu mà swift-markdown-ui mang theo:
+[NetworkImage](https://github.com/gonzalezreal/NetworkImage) 6.0.1 và
+[swift-cmark](https://github.com/swiftlang/swift-cmark) 0.8.0. Mọi phụ thuộc trực tiếp đều dùng giấy
+phép MIT còn swift-cmark là BSD-2-Clause, tất cả đều tương thích với AGPL-3.0-or-later.
+
 ## Kiểm thử
 
 Chạy test action (⌘U) của scheme `Oriveo` trong Xcode, hoặc từ thư mục gốc của kho mã:
 
 ```bash
 xcodebuild test -project ios/Oriveo/Oriveo.xcodeproj -scheme Oriveo \
-  -destination 'platform=iOS Simulator,name=iPhone 17'
+  -destination 'platform=iOS Simulator,name=iPhone 16'
 ```
 
-Hãy thay bằng một simulator bạn thực sự có — `xcrun simctl list devices available` liệt kê chúng.
+Hãy thay bằng một simulator bạn thực sự có; `xcodebuild -showdestinations` với cùng project và
+scheme đó liệt kê mọi thứ mà bản checkout này dựng được.
 
 > [!IMPORTANT]
 > Target kiểm thử đọc các contract fixture từ `shared/` bằng cách đi ngược lên từ `#filePath` cho
-> tới khi tìm thấy thư mục đó. Khoảng 29 bộ test phụ thuộc vào nó, nên **các bài test chỉ chạy đúng
-> khi bạn checkout toàn bộ kho mã** — sao chép riêng thư mục `ios/` ra sẽ không hoạt động.
+> tới khi tìm thấy thư mục đó, nên **các bài test chỉ chạy đúng khi bạn checkout toàn bộ kho mã** —
+> sao chép riêng thư mục `ios/` ra sẽ không hoạt động.
 
-Bộ test rất lớn: khoảng 2.900 bài test trải trên 273 tệp, chủ yếu dùng
-[Swift Testing](https://github.com/swiftlang/swift-testing). Nó bao phủ hình dạng yêu cầu theo từng
-nhà cung cấp, phát lại SSE upstream đã ghi, chính sách relay và engine cục bộ, việc đo đạc transcript
-và hành vi streaming, lưu trữ, và các vòng sao lưu — khôi phục.
+Bộ test rất lớn: khoảng 2.900 ca [Swift Testing](https://github.com/swiftlang/swift-testing) cộng
+thêm 76 ca XCTest, trải trên 274 tệp. Nó bao phủ hình dạng yêu cầu theo từng nhà cung cấp, phát lại
+SSE upstream đã ghi, chính sách relay và engine cục bộ, việc đo đạc transcript và hành vi streaming,
+lưu trữ, và các vòng sao lưu — khôi phục.
 
 `shared/OriveoProviderKit` có bộ test riêng:
 
@@ -251,10 +297,12 @@ cd shared/OriveoProviderKit && swift test
 
 ## Bản địa hóa
 
-Mười sáu ngôn ngữ, lưu dưới dạng Xcode String Catalog (`.xcstrings`) — mười catalog, khoảng 1.900
-khóa, tiếng Anh là nguồn. Chuỗi được phân giải qua `L10n.tr(_:table:)` dựa trên một bundle `.lproj`
-chọn theo thiết lập ngôn ngữ trong ứng dụng, nên đổi ngôn ngữ có hiệu lực ngay mà không cần khởi
-động lại. Bố cục phải-sang-trái cho tiếng Ả Rập được xử lý một cách tường minh.
+Mười sáu ngôn ngữ, lưu dưới dạng Xcode String Catalog (`.xcstrings`) — mười catalog, khoảng 1.340
+khóa, tiếng Anh là nguồn. Mọi khóa đều được dịch sang cả mười sáu ngôn ngữ, trừ một số ít được đánh
+dấu `shouldTranslate: false`: tên sản phẩm, dấu câu, khung định dạng và những giá trị giao thức mà
+dịch đi là sai. Chuỗi được phân giải qua `L10n.tr(_:table:)` dựa trên một bundle `.lproj` chọn theo
+thiết lập ngôn ngữ trong ứng dụng, nên đổi ngôn ngữ có hiệu lực ngay mà không cần khởi động lại. Bố
+cục phải-sang-trái cho tiếng Ả Rập được xử lý một cách tường minh.
 
 ## Đóng góp
 

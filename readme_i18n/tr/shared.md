@@ -73,9 +73,10 @@ bir yeteneği model adından tahmin etmemesinin nedeni de budur. Reçetelerin ke
 yorumlanacağını tanımlar.
 
 Her reçete bir `executionKind` bildirir — `request_overlay`, `server_tool`, `client_tool_loop`,
-`endpoint_route`, `model_route` — ve her istemcinin derleyicisi, reçeteyi uygulamadan önce
-sağlayıcı, yetenek ve transport ile eşleştiğini doğrular; eşleşmiyorsa kimsenin gözden geçirmediği
-bir isteği göndermek yerine adı konmuş bir gerekçeyle reddeder.
+`endpoint_route`, `model_route`, `external_connector`, `unavailable` — ve her istemcinin derleyicisi,
+reçeteyi uygulamadan önce sağlayıcı, yetenek ve transport ile eşleştiğini doğrular; eşleşmiyorsa
+kimsenin gözden geçirmediği bir isteği göndermek yerine adı konmuş bir gerekçeyle reddeder. Bu liste
+kapalı bir kümedir: başka bir şey adlandıran bir reçete, tahmin edilmek yerine reddedilir.
 
 ## model-contracts
 
@@ -89,26 +90,40 @@ istemcinin birden değişmesidir.
 
 ## test-fixtures
 
-Altın test verisi: kaydedilmiş upstream tool call trafiği, relay yönlendirme ve keşif senaryoları,
-model facts ve yetenek kanıtı anlık görüntüleri ve yerel motor senaryoları.
+Altın test verisi: kaydedilmiş upstream tool call trafiği, relay yönlendirme, form doğrulama, yerel
+adres sınıflandırma, katalog ve taşınabilir yapılandırma senaryoları, model facts ve yetenek kanıtı
+anlık görüntüleri ve yerel motor senaryoları.
 
-`recorded/` altındaki `.sse` dosyaları **gerçekten yakalanmış upstream trafiğidir** ve bayt bayt
-dokunulmadan bırakılır; geri kalanlar ise belirli bir ayrıştırma yolunu sabitleyen, elle yazılmış
-fixture'lardır. Bu ayrım önemlidir: elle yazılmış bir mock, sağlayıcının ne yaptığına dair
-inancınızı kodlar; kaydedilmiş bir akış ise onun gerçekte ne yaptığını kodlar — o salı günü
-gönderdiği bozuk chunk dahil. Bir sağlayıcı protokolü düzeltmesinin teste ihtiyacı olduğunda, bir
-kaydı tercih edin.
+`recorded/` altındaki `.sse` dosyaları **gerçekten yakalanmış upstream trafiğidir** ve geldiği hâliyle
+bayt bayt tutulur — yalnızca yanıt başlıkları atılmıştır ve gövdeler hiçbir zaman anahtar taşımadı.
+Geri kalanlar ise belirli bir ayrıştırma yolunu sabitleyen, elle yazılmış fixture'lardır. Bu ayrım
+önemlidir: elle yazılmış bir mock, sağlayıcının ne yaptığına dair inancınızı kodlar; kaydedilmiş bir
+akış ise onun gerçekte ne yaptığını kodlar — o salı günü gönderdiği bozuk chunk dahil. Bir sağlayıcı
+protokolü düzeltmesinin teste ihtiyacı olduğunda, bir kaydı tercih edin.
+
+Bir fixture'ın `$comment` alanı ya da yanındaki `expected.json` manifest'i, çevresindeki girdilerin
+neyi sabitlediğini söyler. Yeni bir vaka eklemeden önce onu okuyun.
 
 ## OriveoProviderKit
 
 Sağlayıcı ağ protokolü çekirdeğini barındıran bir Swift paketi: SSE satır birleştirme,
-OpenAI uyumlu chunk ayrıştırma, tool adı kodlama, kimlik bilgisi gizleme, upstream hata
-sınıflandırma, thinking etiketi ayrıştırma, akış hâlinde JSON yolu çıkarma ve sağlayıcı başına
-tuhaflık profilleri.
+OpenAI uyumlu chunk ayrıştırma, Responses / Anthropic Messages / Gemini protokolleri için olay tabanlı
+birleştirme, transport'tan bağımsız istek kurma, reçete derleme ve onun yürütme korumaları, tool adı
+kodlama, kimlik bilgisi gizleme, upstream hata sınıflandırma, thinking etiketi ayrıştırma, akış
+hâlinde JSON yolu çıkarma, açıkça tanımlanmış bir `URLSession` yönlendirme politikası ve sağlayıcı
+başına tuhaflık profilleri.
 
 Kapsamı bilinçli olarak dar çizilmiştir. **İçeride:** yalnızca Foundation'a dayanan ağ bilgisi.
-**Dışarıda:** uygulama modelleri, arayüz, veritabanı, telemetri, yerelleştirme. Her Apple istemcisi
-onun etrafında ince bir bağlayıcı tutar; böylece ağ davranışının tam olarak tek bir uygulaması olur.
+**Dışarıda:** uygulama modelleri, arayüz, veritabanı, telemetri, yerelleştirme. Paket, standart
+kütüphane ve Foundation dışında hiçbir şeye bağımlı değildir ve her Apple istemcisi onun etrafında
+ince bir bağlayıcı tutar; böylece ağ davranışının tam olarak tek bir uygulaması olur.
+
+Apple platformları için istek ve streaming yolunun tamamını uygular. iOS uygulaması şu anda onun bir
+altkümesini bağlar — akış birleştiricileri, ağ profilleri, tool adı codec'i ve hata sınıflandırıcıları
+— ve kendi istek kurucularını kullanmaya devam eder; geliştirme aşamasındaki macOS istemcisi ikinci
+tüketicidir ve reçete derleyicisiyle transport'tan bağımsız istek kurucusunun tek bir uygulamanın
+içinde değil burada durmasının nedeni de budur. Aşağıdaki test paketi, her tüketicinin paylaştığı
+parçaları kapsar: SSE bölme, OpenAI uyumlu birleştirme, tool adı codec'i ve yönlendirme politikası.
 
 ```bash
 cd shared/OriveoProviderKit && swift build && swift test

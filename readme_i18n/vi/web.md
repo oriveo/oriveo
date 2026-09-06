@@ -44,7 +44,7 @@ nhất về cách nói chuyện với nhà cung cấp mô hình.
 
 ## Bắt đầu nhanh
 
-Cần Node 22 (xem [`.nvmrc`](../../web/.nvmrc)). npm đi kèm sẵn; không cần trình quản lý gói nào khác.
+Cần Node 22.22 trở lên (xem [`.nvmrc`](../../web/.nvmrc)). npm đi kèm sẵn; không cần trình quản lý gói nào khác.
 
 ```bash
 npm install
@@ -91,7 +91,7 @@ qua các Next.js route handler chạy trong runtime Node. Khi bạn chạy `npm 
 khai tới.
 
 Không phải chỉ có một handler: stream chat, bộ chuyển tiếp relay, tạo ảnh, danh sách mô hình, kiểm
-chứng khóa, và hai lượt trao đổi đăng nhập theo thiết bị của Grok và Codex cộng lại thành mười hai
+chứng khóa, và hai lượt trao đổi đăng nhập theo thiết bị của Grok và ChatGPT cộng lại thành mười hai
 tệp route. Kiểm chứng khóa mới là chỗ đáng lưu ý — nó gửi khóa lên chính máy chủ của bạn, rồi máy
 chủ đó dùng khóa để thăm dò nhà cung cấp.
 
@@ -173,6 +173,11 @@ không có framework utility-class nào. `packages/ipc-contract` mô tả bề m
 sẽ gắn vào; kho mã này không kèm shell nào như vậy, nên trên bản dựng web nó chỉ đóng góp các kiểu
 và những nhánh mã không bao giờ được chạy tới.
 
+Còn một đường ghép cùng loại nữa. `apps/app/lib/core/sync-port.ts` khai báo giao diện mà một backend đồng bộ
+sẽ hiện thực, và mọi nơi gọi tới nó đều đi qua optional chaining. Không có gì cài một backend như
+vậy, nên `getSyncAdapter()` trả về `null` và IndexedDB vẫn là bản sao duy nhất của dữ liệu của bạn —
+đó chính là ý nghĩa thực tế của "không tài khoản, không đăng nhập".
+
 ## Lưu trữ
 
 Mọi thứ đều theo từng phân vùng, đánh chỉ mục bằng một id đang hoạt động, mặc định là `guest`.
@@ -225,6 +230,8 @@ Chạy các lệnh này từ thư mục hiện tại.
 | `npm run test` | vitest ở chế độ watch |
 | `npm run lint` | eslint trên `apps/` và `packages/` |
 
+`npm start --workspace @oriveo/app` phục vụ một bản dựng đã hoàn tất ở cổng 3001.
+
 Muốn chạy một tệp test đơn lẻ thì hãy chạy từ workspace sở hữu nó, vì nhiều bộ test phân giải
 fixture theo thư mục làm việc hiện tại:
 
@@ -235,9 +242,7 @@ cd apps/app && npx vitest run lib/core/chat/__tests__/stream-options.test.ts
 ## Cấu hình
 
 Mọi thứ đều tùy chọn. Sao chép [`.env.example`](../../web/.env.example) thành `.env.local` và chỉ
-đặt những gì bạn cần; từng khóa đều có tài liệu ngay trong tệp đó. Có vài biến mà mã nguồn có đọc
-nhưng không nằm trong tệp đó: `BACKEND_URL` (bản song sinh chỉ dùng phía máy chủ của
-`NEXT_PUBLIC_BACKEND_URL`), `NEXT_PUBLIC_LIBRARY_ENABLED`, `ORIVEO_DESKTOP` và `NEXT_DIST_DIR`.
+đặt những gì bạn cần; mọi biến mà mã nguồn có đọc đều được liệt kê và giải thích ngay trong tệp đó.
 
 ### Báo cáo lỗi
 
@@ -248,9 +253,43 @@ cả, và đó chính là mặc định của một bản dựng từ kho mã n�
 nội dung tin nhắn trước khi một sự kiện rời khỏi trình duyệt. Nó có mặt ở đây để một bản triển khai
 nào muốn báo cáo lỗi thì có sẵn mà dùng, chứ không phải vì bản dựng này gọi điện về nhà.
 
+## Tự vận hành
+
+Không có Dockerfile và cũng không có script triển khai; ứng dụng chỉ là một máy chủ Next.js thông
+thường.
+
+```bash
+npm ci
+npm run build:app
+npm start --workspace @oriveo/app     # 127.0.0.1:3001
+```
+
+Có ba điều đáng biết trước khi đặt nó sau một reverse proxy.
+
+`npm start` gắn vào `127.0.0.1`, nên proxy phải chạy trên cùng máy, hoặc phải đổi địa chỉ gắn.
+
+Đặt `NEXT_PUBLIC_APP_URL` thành đúng origin mà bạn thực sự phục vụ. Các liên kết canonical, sitemap
+và ảnh xem trước khi chia sẻ đều phân giải theo nó, còn mặc định của nó là cổng phát triển.
+
+Đặt `TRUSTED_PROXY_HOP_COUNT` thành số proxy đứng trước ứng dụng. Bộ giới hạn tốc độ của chat đọc địa
+chỉ client cách bấy nhiêu chặng tính từ *bên phải* của `X-Forwarded-For` — không bao giờ tính từ bên
+trái, vì bên trái do client kiểm soát và có thể giả mạo. Mặc định là 1, đúng cho trường hợp một
+proxy; để nó thấp quá khi có hai proxy thì mọi khách truy cập sẽ dùng chung một xô giới hạn, vì địa
+chỉ đọc được chính là của proxy nội bộ của bạn.
+
+Ứng dụng đã tự gửi HSTS, `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`,
+`Permissions-Policy` và `Cross-Origin-Opener-Policy` từ `next.config.ts`, nên proxy không cần thêm
+chúng. Việc kết thúc TLS và giới hạn kích thước yêu cầu là việc của proxy.
+
+Một điều cuối cùng nên quyết định một cách có ý thức: bất cứ ai với tới được bản triển khai đều có
+thể dùng các route handler của nó để gọi một nhà cung cấp bằng khóa do chính họ đưa vào. Các handler
+không giữ khóa nào của riêng chúng và không lưu gì cả, nhưng chúng là một đường HTTP đi ra, nên một
+bản triển khai công khai với tới được nên nằm sau đúng lớp kiểm soát truy cập mà bạn dành cho bất kỳ
+công cụ nội bộ nào khác.
+
 ## Kiểm thử
 
-Khoảng 4.600 bài test trải trên 461 tệp, chạy bằng vitest. Độ bao phủ dày nhất ở chỗ mà sai lầm tốn
+Khoảng 5.600 bài test trải trên 460 tệp, chạy bằng vitest. Độ bao phủ dày nhất ở chỗ mà sai lầm tốn
 kém nhất: hình dạng yêu cầu theo từng nhà cung cấp, hành vi transport theo từng giao thức wire, phân
 tích chunk của SSE và proxy, phân tích mức sử dụng và chi phí, phân loại lỗi, dò relay và các chế độ
 bảo mật, lớp chắn SSRF, thực thi capability recipe, lưu đệm danh mục và việc vô hiệu hóa theo phiên
@@ -258,7 +297,7 @@ bản contract, lưu trữ trong IndexedDB, phân vùng kho lưu trữ, các vò
 các route handler.
 
 > [!IMPORTANT]
-> Khoảng 24 bộ test nạp contract fixture từ `../shared`, nên **các bài test chỉ chạy đúng khi bạn
+> Hơn ba mươi bộ test nạp contract fixture từ `../shared`, nên **các bài test chỉ chạy đúng khi bạn
 > checkout toàn bộ kho mã** — sao chép riêng thư mục `web/` ra sẽ không hoạt động.
 
 ## Bản địa hóa

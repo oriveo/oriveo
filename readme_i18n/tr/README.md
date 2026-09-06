@@ -1,23 +1,30 @@
 <div align="center">
 
-<img src="../../docs/assets/logo.png" width="104" height="104" alt="">
+<img src="../../docs/assets/logo.png" width="104" height="104" alt="Oriveo logosu">
 
-# Oriveo
+# Oriveo Community Edition
 
 **Her model, tek uygulama.**
 
-iOS, Android ve web için açık kaynaklı, kendi anahtarınızı getirdiğiniz yapay zekâ sohbeti.
+iOS, Android ve web için açık kaynaklı, kendi anahtarınızı getirdiğiniz yapay zekâ sohbeti;
+yerel bir macOS istemcisi de geliştirme aşamasında.
 Hesap yok, abonelik yok, istek yolunda bize ait bir servis yok.
 
 <a href="../../LICENSE"><img alt="AGPL-3.0-or-later lisansı" src="https://img.shields.io/badge/license-AGPL--3.0--or--later-8B5CF6?style=flat-square&labelColor=black"></a>
 <a href="ios.md"><img alt="iOS 18 ve sonrası" src="https://img.shields.io/badge/iOS-18+-A78BFA?style=flat-square&labelColor=black&logo=apple&logoColor=white"></a>
 <a href="android.md"><img alt="Android 8 ve sonrası" src="https://img.shields.io/badge/Android-8+-A78BFA?style=flat-square&labelColor=black&logo=android&logoColor=white"></a>
 <a href="web.md"><img alt="Next.js ile yapılmış web" src="https://img.shields.io/badge/Web-Next.js-A78BFA?style=flat-square&labelColor=black&logo=nextdotjs&logoColor=white"></a>
+<a href="macos.md"><img alt="macOS istemcisi geliştirme aşamasında" src="https://img.shields.io/badge/macOS-in_development-6D5FA6?style=flat-square&labelColor=black&logo=apple&logoColor=white"></a>
 <img alt="15 sağlayıcı artı relay" src="https://img.shields.io/badge/providers-15_+_relay-8B5CF6?style=flat-square&labelColor=black">
 <img alt="16 arayüz dili" src="https://img.shields.io/badge/languages-16-8B5CF6?style=flat-square&labelColor=black">
 
-<a href="https://oriveoai.com">Web sitesi</a> &nbsp;·&nbsp;
-<a href="#başlarken">Başlarken</a> &nbsp;·&nbsp;
+**Oriveo'yu edinin:**
+<a href="https://oriveoai.com"><b>oriveoai.com</b></a> &nbsp;·&nbsp;
+<a href="https://apps.apple.com/app/oriveo/id6775370458">App Store</a> &nbsp;·&nbsp;
+<a href="https://play.google.com/store/apps/details?id=com.kenny.oriveo">Google Play</a> &nbsp;·&nbsp;
+<a href="https://app.oriveoai.com">Web uygulaması</a>
+
+<a href="#başlarken">Kaynaktan derleme</a> &nbsp;·&nbsp;
 <a href="#mimari">Mimari</a> &nbsp;·&nbsp;
 <a href="#community-edition-ve-oriveo">Sürümler</a> &nbsp;·&nbsp;
 <a href="#sss">SSS</a> &nbsp;·&nbsp;
@@ -50,10 +57,13 @@ Hesap yok, abonelik yok, istek yolunda bize ait bir servis yok.
 
 ## Oriveo nedir?
 
-Oriveo Community Edition; iOS, Android ve web için kendi anahtarınızı getirdiğiniz (BYOK) bir yapay
-zekâ sohbet istemcisidir. Zaten sahip olduğunuz API anahtarlarını siz verirsiniz, istemci de
-sağlayıcıyla bu anahtarlarla konuşur. Oriveo hesabı yok, abonelik yok ve bize geri bilgi gönderen
-hiçbir şey yok.
+Oriveo Community Edition; iOS, Android ve web için açık kaynaklı, kendi anahtarınızı getirdiğiniz
+(BYOK) bir yapay zekâ sohbet istemcisidir; yerel bir macOS istemcisi de geliştirme aşamasındadır.
+Modelin önünde duran her ne varsa ona abonelik ödemek yerine parayı doğrudan model sağlayıcısına
+vermeyi yeğleyenler için: zaten sahip olduğunuz API anahtarlarını siz verirsiniz, istemci de
+sağlayıcıyla bu anahtarlarla konuşur. Bu da onu, barındırılan bir ChatGPT veya Claude planına
+local-first ve çok modelli bir alternatif yapar — Oriveo hesabı yok, abonelik yok, bize geri bilgi
+gönderen hiçbir şey yok ve web istemcisini kendiniz barındırabilirsiniz.
 
 **15 model sağlayıcısıyla** doğrudan konuşur — OpenAI, Anthropic, Google Gemini, OpenRouter,
 DeepSeek, Grok, Mistral, Groq, Together AI, Fireworks AI, MiniMax, Z.ai, Qwen, Kimi (Moonshot) ve
@@ -63,10 +73,10 @@ kendi makinenizde çalışan llama.cpp, Ollama, LM Studio veya vLLM dahil.
 | | |
 |---|---|
 | **Sağlayıcılar** | 15 yerleşik, ayrıca özel relay endpoint'leri ve yerel model sunucuları |
-| **İstemciler** | iOS (SwiftUI) · Android (Jetpack Compose) · Web (Next.js) |
+| **İstemciler** | iOS (SwiftUI) · Android (Jetpack Compose) · Web (Next.js) · macOS geliştirme aşamasında |
 | **Arayüz dilleri** | 16 |
 | **Hesap gerekiyor mu** | Hayır |
-| **Kendi adına yaptığı çağrılar** | Tek bir şey, iki istekte: salt okunur bir model kataloğu, anahtar ve tanımlayıcı eklenmeden |
+| **Kendi adına yaptığı çağrılar** | Tek bir şey, iki istekte: salt okunur bir model kataloğu; ne anahtar taşır ne de bizim eklediğimiz bir tanımlayıcı |
 | **Lisans** | AGPL-3.0-or-later |
 
 ## Neden var?
@@ -81,30 +91,34 @@ Parasını ödediğiniz modele kimse sayaç takamamalı, onun kaydını tutamama
   kurulacağı [`shared/`](shared.md) içinde bir kez yazıya dökülür ve üç istemci de aynı JSON
   fixture'larına karşı doğrulama yapar. O verinin içinde yaşayan bir tuhaflık bir kez düzeltilir;
   bir ayrıştırıcının içinde yaşayan tuhaflık ise aynı anda üç test paketi tarafından yakalanır.
-- **Yaptığı tek çağrı.** Uygulama, bugün çıkan bir modelin uygulama güncellemesi olmadan çalışması
-  için herkese açık bir model kataloğu çeker. Salt okunurdur, anahtar ve tanımlayıcı taşımaz ve onu
-  kendi sunucunuza yönlendirebilirsiniz.
+- **Çektiği tek şey.** Uygulama, bugün çıkan bir modelin uygulama güncellemesi olmadan çalışması
+  için herkese açık bir model kataloğu okur. İki isteği de salt okunurdur; ne anahtar taşır ne de
+  bizim eklediğimiz bir tanımlayıcı, ve web ile Android istemcileri kendi sunucunuza
+  yönlendirilebilir.
 
 ## Özellikler
 
-- **Sohbet** — streaming, akıl yürütme blokları, kaynak atıfları, ekler (görsel, PDF, Office, EPUB,
-  HTML, düz metin), seçili bir yeri alıntılama, yeniden deneme, yeniden üretme, yarıda kesilen bir
-  yanıtı sürdürme
-- **Sağlayıcılar** — 15 yerleşik, her biri kendi anahtarınızla; sağlayıcı başına endpoint, model ve
-  parametre geçersiz kılmaları
+- **Sohbet** — streaming, akıl yürütme blokları, kaynak atıfları, ekler (görsel ve video, PDF,
+  Office (docx, xlsx, pptx), OpenDocument, EPUB, RTF, HTML ve her türlü düz metin ya da kaynak kod
+  dosyası), seçili bir yeri alıntılama, yeniden deneme, yeniden üretme, yarıda kesilen bir yanıtı
+  sürdürme
+- **Sağlayıcılar** — 15 yerleşik, her biri kendi anahtarınızla; sağlayıcı başına model ve üretim
+  parametresi geçersiz kılmaları, ayrıca sağlayıcı sunuyorsa bölgesel endpoint seçimi
 - **Relay** — OpenAI, Anthropic veya Gemini uyumlu her endpoint; yerel ağınızdakiler dahil
-- **Yerel model sunucuları** — llama.cpp, Ollama, LM Studio, vLLM; iOS ve Android bunları yerel
-  ağda mDNS ile bulur
-- **Abonelikle giriş** — API anahtarı yerine hâlihazırda sahip olduğunuz bir Codex veya Grok
-  aboneliğini kullanın
-- **Skills** — kendi modeli, parametreleri ve referans belgeleri olan, yeniden kullanılabilir sistem
-  prompt'ları
-- **Notlar ve klasörler** — bir yanıtı not olarak kaydedin, sohbetleri düzenleyin, tam metin arama
-- **Çapraz kontrol** — aynı soruyu ikinci bir modele yeniden sorun ve iki yanıtı yan yana tutun
+- **Yerel model sunucuları** — llama.cpp, Ollama, LM Studio, vLLM, Open WebUI; iOS ve Android
+  bunları yerel ağda mDNS ile bulur
+- **Abonelikle giriş** — API anahtarı yerine hâlihazırda sahip olduğunuz bir ChatGPT veya Grok
+  aboneliğini, her sağlayıcının kendi cihaz yetkilendirme akışı üzerinden kullanın
+- **Skills** — kendi modeli, akıl yürütme ayarı ve referans belgeleri olan, yeniden kullanılabilir
+  sistem prompt'ları
+- **Notlar ve klasörler** — bir yanıtı not olarak kaydedin, sohbetleri düzenleyin, ikisinde birlikte
+  arama yapın
+- **Çapraz kontrol** — bir yanıtı incelemesi için ikinci bir modele verin ve ikisini bir arada tutun
 - **Maliyet** — mesaj ve sağlayıcı başına harcama; her yanıtın gerçekte bildirdiği değerlerden
-  cihazda hesaplanır, önbellek indirim kademeleri dahil
+  cihazda hesaplanır, önbellek okuma ve önbellek yazma kademeleri dahil
 - **Görsel üretimi** — sağlayıcının desteklediği yerlerde
-- **Yedekleme** — her şeyi bir dosyaya aktarın, isterseniz seçtiğiniz bir parolayla şifreleyin
+- **Yedekleme** — her şeyi bir dosyaya aktarın; içindeki sağlayıcı anahtarları, dahil etmeyi
+  seçerseniz, sizin belirlediğiniz bir parolayla şifrelenir
 - **16 arayüz dili**, Arapça için tam sağdan sola yerleşim dahil
 
 ## Community Edition ve Oriveo
@@ -124,11 +138,11 @@ aynı istemcilerden üretilmiş, üstüne bir hesap katmanı eklenmiş, ayrı ve
 | Depolama | Cihazda; elle dışa aktarma ve geri yükleme | Local-first, ayrıca cihazlar arası bulut senkronizasyonu |
 | Kullanım analizleri ve bütçe uyarıları | — | Evet |
 | Parasını Oriveo'nun ödediği modeller | — | Evet |
-| Analitik ve çökme raporlama | Varsayılan olarak kapalı — web paketinde Sentry var, DSN olmadan sessiz | Evet |
+| Analitik ve çökme raporlama | Yok. Web paketi Sentry taşır; kendi DSN'inizi ayarlayana kadar sessiz kalır | Evet |
 
 Community Edition derlemeleri `ai.oriveo.community` tanımlayıcı önekini kullanır; böylece bir mağaza
-derlemesinin yanında durabilir, ikisi ne keychain'i ne de yerel veriyi paylaşır. Bu sürümün neyi
-kabul edip neyi etmeyeceği [COMMUNITY.md](../../COMMUNITY.md) içinde yazılıdır.
+derlemesiyle aynı cihazda durabilir, ikisi ne keychain'i ne de herhangi bir yerel veriyi paylaşır. Bu
+sürümün neyi kabul edip neyi etmeyeceği [COMMUNITY.md](../../COMMUNITY.md) içinde yazılıdır.
 
 **Oriveo, tam ürün:**
 [iPhone ve iPad](https://apps.apple.com/app/oriveo/id6775370458) &nbsp;·&nbsp;
@@ -138,12 +152,14 @@ kabul edip neyi etmeyeceği [COMMUNITY.md](../../COMMUNITY.md) içinde yazılıd
 
 ## Sağlayıcılar
 
-Aşağıdaki her sağlayıcıya, kendi oluşturduğunuz bir anahtarla erişilir.
+Aşağıdaki her sağlayıcıya, kendi oluşturduğunuz bir anahtarla erişilir. Bunlardan ikisine, anahtar
+yerine hâlihazırda sahip olduğunuz bir abonelikle giriş yaparak da erişilebilir: bir ChatGPT planıyla
+OpenAI, ve Grok.
 
 | Sağlayıcı | Anahtarı nereden alırsınız |
 |---|---|
 | OpenAI | [platform.openai.com](https://platform.openai.com/api-keys) |
-| Anthropic | [console.anthropic.com](https://console.anthropic.com/settings/keys) |
+| Anthropic | [platform.claude.com](https://platform.claude.com/settings/keys) |
 | Google Gemini | [aistudio.google.com](https://aistudio.google.com/apikey) |
 | OpenRouter | [openrouter.ai](https://openrouter.ai/keys) |
 | DeepSeek | [platform.deepseek.com](https://platform.deepseek.com/api_keys) |
@@ -207,6 +223,7 @@ istemcilerinde böyle bir kısıt yoktur; onlar her zaman doğrudan sağlayıcı
 | **iOS** | UIKit sohbet dökümlü SwiftUI, GRDB | [ios/README.md](ios.md) |
 | **Android** | Jetpack Compose, Room, Koin, Ktor/OkHttp | [android/README.md](android.md) |
 | **Web** | Next.js App Router, React, Zustand, TypeScript | [web/README.md](web.md) |
+| **macOS** | Geliştirme aşamasında, önümüzdeki aylarda geliyor | [macos/README.md](macos.md) |
 | **Shared** | Sözleşmeler, kayıtlı fixture'lar ve Swift protokol çekirdeği | [shared/README.md](shared.md) |
 
 ## Başlarken
@@ -220,7 +237,7 @@ giden en kısa yol web istemcisidir.
 
 <br>
 
-Node 22 gerekir (bkz. [`web/.nvmrc`](../../web/.nvmrc)).
+Node 22.22 veya sonrası gerekir (bkz. [`web/.nvmrc`](../../web/.nvmrc)).
 
 ```bash
 cd web
@@ -277,15 +294,22 @@ Model kataloğunu kendi sunucunuzdan sunma: [android/README.md](android.md).
   genelde kullandığı modeldir. En güçlü garanti için iOS veya Android istemcisini kullanın.
 - **Sohbetler, notlar, klasörler, skill'ler ve ekler** cihazda saklanır. Hiçbir yere hiçbir şey
   yüklenmez.
-- **Hesap yok, bize geri bilgi gönderen bir şey yok.** Giriş yapılacak bir yer yok. Web paketinde
-  Sentry vardır; kendi DSN'inizi yapılandırmadığınız sürece sessiz kalır.
+- **Hesap yok, analitik yok.** Giriş yapılacak bir yer yok ve ne yaptığınızı sayan bir şey de yok.
+  Web paketinde hata raporlama için Sentry vardır; `NEXT_PUBLIC_SENTRY_DSN` değerini kendi
+  projenize ayarlayana kadar sessiz kalır, ayarlarsanız da yığın izlerinin yanı sıra oturum
+  kayıtlarını yakalayacak biçimde yapılandırılmıştır. iOS ve Android istemcilerinde hiçbir
+  raporlama SDK'sı yoktur.
 - **iOS ve Android'de sohbet istekleri doğrudan cihazdan sağlayıcıya gider.** Web'de, sağlayıcı
   API'lerinin çoğu doğrudan tarayıcı çağrısına izin vermediği için isteklerin çoğu uygulamayı sunan
   Next.js sunucusundan geçer; o sunucu anahtarları veya mesajları saklamaz ve uygulamayı yerelde
   çalıştırdığınızda o sunucu sizin makinenizdir.
-- **Kendimiz için tek bir istek:** salt okunur bir model kataloğu; anahtar, sohbet ve tanımlayıcı
-  eklenmeden çekilir, böylece bugün çıkan bir model yeni bir derleme gerektirmeden çalışır. Kendiniz
-  sunmayı tercih ederseniz onu kendi sunucunuza yönlendirin.
+- **Kendimiz için iki istek:** salt okunur bir model kataloğu, iki çağrıda okunur — biri her modele
+  nasıl seslenilmesi gerektiği, diğeri tek tek modellere ilişkin bilgiler için ve iOS bu ikincisini
+  yalnızca bir abonelik girişinden sonra okur — böylece bugün çıkan bir model yeni bir derleme
+  gerektirmeden çalışır. İkisi de ne anahtar, ne sohbet, ne de bizim
+  eklediğimiz bir tanımlayıcı taşır. Web istemcisi (`NEXT_PUBLIC_BACKEND_URL`) ve Android derlemesi
+  (`-PORIVEO_METADATA_BASE_URL`) kendi sunucunuza yönlendirilebilir; iOS'ta bu geçersiz kılma
+  yalnızca Debug derlemesine ait bir kolaylıktır.
 
 ## SSS
 
@@ -301,6 +325,18 @@ kendi liste fiyatı üzerinden faturalandırır. Oriveo istemcidir; bayi değild
 </details>
 
 <details>
+<summary><b>Ücretsiz mi?</b></summary>
+
+<br>
+
+İstemci ücretsiz. AGPL-3.0-or-later altında açık kaynak, abone olunacak bir şey yok ve hiçbir parçası
+bir ödemenin arkasında tutulmuyor. Ödediğiniz şey, yaptığınız istekler için model sağlayıcısının
+kendi liste fiyatıdır; faturayı o çıkarır, anahtarın bağlı olduğu hesaba. Oriveo o faturayı hiç
+görmez.
+
+</details>
+
+<details>
 <summary><b>Sohbetlerim bir Oriveo sunucusundan geçiyor mu?</b></summary>
 
 <br>
@@ -309,8 +345,8 @@ Hayır. iOS ve Android'de istemci sağlayıcı endpoint'ini doğrudan çağırı
 uygulamayı sunan Next.js sunucusundan geçer — yerelde çalıştırdığınızda bu sizin makinenizdir —
 çünkü sağlayıcı API'lerinin çoğu doğrudan tarayıcı çağrısını reddeder; izin veren birkaçı doğrudan
 çağrılır. Bu yolların hiçbirinde Oriveo'nun işlettiği bir sunucu yoktur. Oriveo'nun kendi adına
-yaptığı tek istek, herkese açık model kataloğunun salt okunur biçimde çekilmesidir; bu istek
-anahtar, sohbet ve tanımlayıcı taşımaz.
+çektiği tek şey, herkese açık model kataloğudur; ne anahtar, ne sohbet, ne de bizim eklediğimiz bir
+tanımlayıcı taşıyan iki salt okunur istekle.
 
 </details>
 
@@ -320,10 +356,24 @@ anahtar, sohbet ve tanımlayıcı taşımaz.
 <br>
 
 Evet. OpenAI, Anthropic veya Gemini uyumlu herhangi bir sunucuyu — llama.cpp, Ollama, LM Studio,
-vLLM ya da bu protokollerden birini konuşan başka bir şeyi — gösteren bir Relay bağlantısı ekleyin.
-iOS ve Android istemcileri böyle bir sunucuyu yerel ağda mDNS ile keşfedebilir; web istemcisi her
-motorun varsayılan adresini önerir ve onu yoklar. Yerel HTTP hiçbir kimlik bilgisi kullanmaz ve
-ağınızdan asla çıkmaz.
+vLLM, Open WebUI ya da bu protokollerden birini konuşan başka bir şeyi — gösteren bir Relay bağlantısı
+ekleyin. iOS ve Android istemcileri böyle bir sunucuyu yerel ağda mDNS ile keşfedebilir; web
+istemcisi her motorun alışılmış adresini önerir ve onu yoklar. Yerel HTTP hiçbir kimlik bilgisi
+kullanmaz ve ağınızdan asla çıkmaz.
+
+</details>
+
+<details>
+<summary><b>Her şeyi kendim çalıştırabilir miyim?</b></summary>
+
+<br>
+
+Evet. Web istemcisi, kendiniz derleyip kendi makinenizden sunduğunuz bir Next.js uygulamasıdır;
+projede sunucu tarafı olan tek parça odur ve ne anahtar ne de mesaj saklar. Onu kendi donanımınızdaki
+bir model sunucusuna yönlendirin, hiçbir istek ağınızdan çıkmaz. Model kataloğu da kendinizde
+barındırılabilir: web derlemesine kendi `NEXT_PUBLIC_BACKEND_URL` değerinizi, ya da Android
+derlemesine bir `-PORIVEO_METADATA_BASE_URL` verin; böylece uygulamadaki hiçbir şey ağınızın dışına
+uzanmaz.
 
 </details>
 
@@ -345,8 +395,11 @@ geri bilgi gönderen bir şey yok. Tam karşılaştırma için bkz.
 
 <br>
 
-Bu depoda yok. Bu arada web istemcisi herhangi bir tarayıcıda masaüstü uygulaması gibi gayet iyi
-çalışır ve iOS derlemesi genellikle bir Apple silicon Mac'te çalıştırılabilir.
+Yerel bir macOS istemcisi geliştirme aşamasında ve önümüzdeki aylarda yayınlanacak; `macos/` onun
+ineceği yer. O zamana kadar web istemcisi herhangi bir tarayıcıda iyi bir masaüstü uygulaması olur ve
+iOS derlemesi doğrudan Xcode'dan bir Apple silicon Mac'te çalışır. Sağlayıcılarla konuşan Swift
+paketi macOS 15'i zaten desteklenen bir platform olarak bildiriyor; yani bir Mac istemcisinin
+ihtiyaç duyduğu protokol katmanı bugün yazılmış ve test altında. Bkz. [macos/README.md](macos.md).
 
 </details>
 
@@ -367,7 +420,7 @@ Korece, Brezilya Portekizcesi, Rusça, Tayca, Türkçe, Vietnamca, Basitleştiri
 ios/           iOS client (SwiftUI)
 android/       Android client (Jetpack Compose)
 web/           Web client (Next.js)
-macos/         Reserved for a macOS client
+macos/         macOS client — in development, arriving in the coming months
 shared/        Cross-client contracts, recorded fixtures, and the Swift wire kernel
 readme_i18n/   These READMEs in fifteen more languages
 docs/assets/   Images used by the READMEs
@@ -388,3 +441,9 @@ açığı sayıp neyi saymadığını anlatır. Katılan herkesin
 ## Lisans
 
 [AGPL-3.0-or-later](../../LICENSE). Katkılar aynı lisans altında kabul edilir.
+
+Sağlayıcı adları ve logoları kendi sahiplerine aittir ve burada yalnızca bu istemcinin
+yönlendirilebileceği servisleri belirtmek için yer alır. Bu deponun lisansı onları kapsamaz ve
+buradaki varlıkları kimsenin onayı anlamına gelmez. İstemcilerin birlikte paketlediği yazı tipleri ve
+kütüphaneler ile bunların tabi olduğu koşullar
+[THIRD-PARTY-NOTICES.md](../../THIRD-PARTY-NOTICES.md) içinde listelenmiştir.

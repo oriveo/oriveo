@@ -35,9 +35,14 @@
 ---
 
 ไคลเอนต์ iOS ของ Oriveo คือแอปแชท AI แบบ bring-your-own-key คุณเพิ่ม API key
-ที่คุณเป็นเจ้าของอยู่แล้ว แล้วแอปจะเรียกผู้ให้บริการแต่ละรายตรงจากเครื่องโทรศัพท์ บทสนทนา โน้ต
-โฟลเดอร์ สกิล และไฟล์แนบ ถูกเก็บบนอุปกรณ์ใน SQLite ส่วน API key เข้าไปอยู่ใน iOS Keychain
-ไม่มีบัญชีและไม่ต้องเข้าสู่ระบบ
+ที่คุณเป็นเจ้าของอยู่แล้ว แล้วแอปจะเรียกผู้ให้บริการแต่ละรายตรงจากเครื่องโทรศัพท์ บทสนทนา ข้อความ
+โน้ต และโฟลเดอร์โน้ต อยู่ในฐานข้อมูล SQLite บนอุปกรณ์ ส่วนเนื้อไฟล์แนบเป็นไฟล์ที่วางอยู่ข้าง ๆ มัน
+ขณะที่สกิล การตั้งค่า รายชื่อผู้ให้บริการ และโฟลเดอร์บทสนทนา เป็น JSON บนอุปกรณ์ ส่วน API key
+เข้าไปอยู่ใน iOS Keychain
+
+ไม่มีบัญชี Oriveo ไม่มีอะไรถูกอัปโหลด และไม่มีอะไรให้เข้าสู่ระบบ
+มีผู้ให้บริการสองรายที่เปิดให้เข้าสู่ระบบด้วยแพ็กเกจสมาชิกที่คุณมีอยู่แล้วแทนการวางคีย์ลงไป —
+ChatGPT และ Grok — และการเข้าสู่ระบบนั้นวิ่งไปหา OpenAI และ xAI ไม่ได้มาหาเรา
 
 แอปนี้เป็นส่วนหนึ่งของ [Oriveo Community Edition](README.md) —
 ไคลเอนต์สามตัวที่ใช้นิยามเดียวกันว่าจะคุยกับผู้ให้บริการโมเดลอย่างไร
@@ -93,7 +98,7 @@ flowchart TB
 | GRDB `ValueObservation` | สถานะถาวรที่อ่านกลับมาจาก SQLite | เป็นแหล่งความจริงเดียวหลังการเขียน และอยู่รอดข้ามการเปิดแอปใหม่ |
 | Combine `PassthroughSubject` หนึ่งตัวต่อบทสนทนา | ข้อความและ delta ของการให้เหตุผลที่สตรีมเข้ามา | เลี่ยง diffing ของ SwiftUI ทั้งหมดที่ความเร็วระดับ token |
 
-**การรองรับผู้ให้บริการเป็นสี่แกนอิสระ ไม่ใช่ enum เดียว** `ProviderKind` (16 กรณี) คือ
+**การรองรับผู้ให้บริการเป็นสี่แกนอิสระ ไม่ใช่ enum เดียว** `ProviderKind` (16 กรณี คือผู้ให้บริการสิบห้าราย บวก relay) คือ
 *ผู้ใช้ตั้งค่าอะไรไว้* `ProviderServiceProtocol` คือ *พื้นผิวสำหรับเรียกใช้* `TransportKind`
 (12 กรณี) คือ *โปรโตคอล wire ที่ใช้พูดจริง ๆ* และถูกระบุ **รายโมเดล จากแคตตาล็อก**
 สองโมเดลที่อยู่หลังคีย์เดียวกันจึงต่างกันได้ ส่วน `RelayKind` ดูแลปลายทางที่ผู้ใช้ใส่เอง
@@ -111,9 +116,10 @@ flowchart LR
     parse --> cells["transcript แบบสตรีม"]
 ```
 
-`BaseAPIService.encodeChatBody` คือจุดเดียวที่ body ของคำขอกลายเป็นไบต์ ทุก recipe ความสามารถ
-ทุกพารามิเตอร์การสร้าง และทุกฟิลด์ที่กำหนดเอง ต้องผ่านจุดนี้ ซึ่งทำให้ทดสอบรูปแบบ wire
-ได้ในที่เดียวแทนที่จะเป็นสิบห้าที่
+`BaseAPIService.encodeChatBody` คือด่านสุดท้ายก่อนที่คำขอแบบเข้ากันได้กับ OpenAI จะกลายเป็นไบต์ —
+สิบสองจากทั้งสิบหกกรณีผ่านจุดนี้ recipe ความสามารถ พารามิเตอร์การสร้าง
+หรือฟิลด์ที่กำหนดเองจึงทดสอบได้ในที่เดียวแทนที่จะเป็นสิบสองที่ ส่วน OpenAI, Anthropic และ Gemini
+พูดรูปแบบของตัวเองและ serialize ใน service ของตัวเอง แต่ละจุดเหล่านั้นมีชุดทดสอบรูปแบบคำขอของตัวเอง
 
 ## โมเดลได้รับอนุญาตให้ทำอะไรบ้าง
 
@@ -135,9 +141,9 @@ flowchart LR
 Application Support/Oriveo/
   active-uid                     # storage partition, "guest" by default
   users/<uid>/
-    oriveo.sqlite                # conversations, messages, notes, catalog cache
+    oriveo.sqlite                # conversations, messages, notes and folders, catalog cache
     Images/  Files/              # attachment blobs, referenced by id
-    session-snapshot.json        # preferences, provider list (never API keys)
+    session-snapshot.json        # preferences, provider list, folders, last used model
 ```
 
 - **SQLite ผ่าน GRDB** โดยเปิด WAL เปิด foreign key และมี `DatabaseMigrator`
@@ -145,29 +151,47 @@ Application Support/Oriveo/
   กับ trigram tokenizer
 - **API key อยู่ใน Keychain** แยกตามผู้ให้บริการและพาร์ทิชัน
   และถูกลบออกจาก session snapshot ก่อนที่ snapshot นั้นจะถูกเขียนลงดิสก์
+  ส่วนสกิลถูกเก็บแยกเป็น JSON ใน `UserDefaults`
 - **ไฟล์แนบเป็นไฟล์บนดิสก์** ไม่ใช่แถวในตาราง ไฟล์ PDF ขนาดใหญ่จึงไม่ทำให้ฐานข้อมูลบวม
 
-## คำขอเครือข่ายเดียวที่แอปส่งเพื่อตัวเอง
+ไฟล์สำรองข้อมูลคือ ZIP นามสกุล `.oriveo` ที่บรรจุ `data.json` พร้อมไฟล์รูปภาพ
+รหัสผ่านที่ตั้งได้นั้นไม่ได้เข้ารหัสตัวไฟล์สำรองทั้งก้อน มันเข้ารหัสเฉพาะ API key
+ของผู้ให้บริการที่อยู่ข้างใน (AES-GCM โดยคีย์ได้มาจาก PBKDF2-HMAC-SHA256 จำนวน 600,000 รอบ)
+ไม่ว่าจะตั้งรหัสผ่านหรือไม่ บทสนทนา โน้ต สกิล และการตั้งค่า ก็ยังเป็น JSON ธรรมดาในไฟล์สำรอง
+ดังนั้นให้ถือว่าไฟล์สำรองเป็นสิ่งที่ใครได้ไปก็อ่านได้
 
-ตอนเปิดแอปแบบ cold start แอปจะยิงคำขอ `GET` แบบไม่ต้องยืนยันตัวตนและมีเงื่อนไข ETag สองรายการ
-ไปยัง `https://api.oriveoai.com` — `/api/metadata?view=lean` และ `/api/metadata/model-facts`
-ทั้งสองรายการดึงแคตตาล็อกโมเดลสาธารณะ ว่ามีโมเดลอะไรบ้าง แต่ละตัวรองรับอะไร
-ตัวควบคุมการให้เหตุผลของมันชื่ออะไร และราคาเท่าไร ไม่มีคีย์ ไม่มีบทสนทนา
-และไม่มีตัวระบุตัวตนแนบไปด้วย ส่วนคำตอบถูกแคชไว้ใน SQLite
-แอปจึงทำงานจากสำเนาที่แคชไว้ได้เมื่อเข้าถึงแคตตาล็อกไม่ได้
+## คำขอที่แอปส่งเพื่อตัวเอง
 
-นี่คือคำขอเดียวที่แอปส่งในนามของตัวเอง ที่เหลือทั้งหมดวิ่งไปหาผู้ให้บริการที่คุณตั้งค่าไว้
+ตอนเปิดแอปแบบ cold start แอปจะยิงคำขอ `GET` แบบไม่ต้องยืนยันตัวตนและมีเงื่อนไข ETag หนึ่งรายการ
+ไปยัง `https://api.oriveoai.com/api/metadata?view=lean` มันดึงแคตตาล็อกโมเดลสาธารณะ
+ว่ามีโมเดลอะไรบ้าง แต่ละตัวรองรับอะไร ตัวควบคุมการให้เหตุผลของมันชื่ออะไร และราคาเท่าไร ไม่มีคีย์
+ไม่มีบทสนทนา และไม่มีตัวระบุตัวตนแนบไปด้วย ส่วนคำตอบถูกแคชไว้ใน SQLite
+แอปจึงทำงานจากสำเนาที่แคชไว้ได้เมื่อเข้าถึงแคตตาล็อกไม่ได้ ส่วนปลายทางที่สอง
+`/api/metadata/model-facts` จะถูกอ่านเฉพาะหลังจากคุณเข้าสู่ระบบด้วยแพ็กเกจสมาชิก ChatGPT หรือ Grok
+เพื่อดูว่าโมเดลของแพ็กเกจนั้นทำอะไรได้
+
+นี่คือคำขอทั้งหมดที่แอปส่งในนามของตัวเอง ที่เหลือทั้งหมดวิ่งไปหาผู้ให้บริการที่คุณตั้งค่าไว้
 ด้วยคีย์ของคุณ
 
-ถ้าจะให้บิลด์แบบ **Debug** ชี้ไปยังโฮสต์แคตตาล็อกของคุณเอง ให้ตั้ง `ORIVEO_METADATA_BASE_URL`
-โดยตั้งเป็นตัวแปรสภาพแวดล้อมของ scheme หรือเป็นคีย์ใน `ios/Oriveo/Config/Info.plist` ก็ได้
-ต่างจากไคลเอนต์ Android และเว็บตรงที่บิลด์แบบ Release จะไม่สนใจค่านี้
-และใช้แคตตาล็อกที่เผยแพร่ไว้เสมอ ถ้าจะเปลี่ยนพฤติกรรมนั้นต้องไปแก้ `BackendURLResolver`
+การชี้แคตตาล็อกไปยังโฮสต์ของคุณเองเป็น**ความสะดวกของบิลด์แบบ Debug** ซึ่ง
+`Oriveo/Core/Providers/BackendURLResolver.swift` แก้ค่าตามลำดับนี้:
+
+1. ตัวแปรสภาพแวดล้อม `ORIVEO_METADATA_BASE_URL` ที่ตั้งไว้ใน Run action ของ scheme แล้วจึง
+2. สตริง `ORIVEO_METADATA_BASE_URL` ใน `ios/Oriveo/Config/Info.plist` — คีย์นี้อยู่ที่นั่นแล้ว
+   และปล่อยว่างไว้ แค่เติมค่าลงไปก็พอ แล้วจึง
+3. `https://api.oriveoai.com`
+
+มีสองเรื่องที่ควรรู้ บิลด์แบบ Release จะไม่สนใจทั้งสองอย่างและใช้แคตตาล็อกที่เผยแพร่ไว้เสมอ
+ถ้าจะเปลี่ยนพฤติกรรมนั้นต้องไปแก้ `BackendURLResolver` และอีกเรื่องคือ เมื่อ test bundle กำลังรัน
+หรือเมื่อมี `CI=true` ค่าที่ตั้งทับซึ่งชี้ไปยังที่อยู่ส่วนตัว (localhost, `10/8`, `192.168/16`,
+`172.16/12`, `.local`, IPv6 แบบ link-local) จะถูกละเลย
+โฮสต์ในเครื่องที่ค้างอยู่จึงไม่ทำให้ชุดทดสอบต้องพึ่งพาเครื่องที่คุณกำลังนั่งอยู่หน้ามัน
 
 ## โครงสร้างโปรเจกต์
 
 ```
 ios/Oriveo/
+  Config/Info.plist    the app's Info.plist; GENERATE_INFOPLIST_FILE is off
   Oriveo.xcodeproj/
   Oriveo/
     Core/
@@ -177,19 +201,30 @@ ios/Oriveo/
       Models/          domain types
       Attachments/     import limits, budgets, per-format text extraction
       Tools/           tool-call loop and per-protocol adapters
+      Cache/ Localization/ Observability/ Reachability/ Routing/ Usage/
     Features/
-      Chat/            transcript, composer, model controls, export
+      App/             root view and tab shell
+      Chat/            transcript, composer, model controls, cross-check, export
       Providers/       setup, detail, relay, local engines, subscription sign-in
       Home/ Notes/ Skills/ Settings/ Backup/ Onboarding/
     Shared/Components/ shared views
     DesignSystem/      theme, colour, haptics
+    Preview/           sample data for SwiftUI previews
+    *.xcstrings        ten string catalogs
+    Assets.xcassets · PrivacyInfo.xcprivacy · Oriveo.entitlements
   OriveoTests/
 ```
 
 ## บิลด์และรัน
 
-คุณต้องมี Mac ที่ติดตั้ง **Xcode 26** และอุปกรณ์ที่รัน **iOS 18 ขึ้นไป** บัญชี Apple Developer
-แบบฟรีก็เพียงพอ แอปไม่ได้ใช้ capability ที่ต้องเสียเงิน และแนบไฟล์ entitlements เปล่ามาให้
+คุณต้องมี **Xcode 26** และถ้าจะรันบนเครื่องจริงก็ต้องมีอุปกรณ์ที่รัน **iOS 18 ขึ้นไป** บัญชี Apple
+Developer แบบฟรีก็เพียงพอ ไฟล์ entitlements เป็นไฟล์เปล่า และแอปไม่ได้ใช้ capability ที่ต้องเสียเงิน
+— ไม่มี push ไม่มี iCloud ไม่มี app group ไม่มี associated domain
+
+ขั้นต่ำที่รูปแบบไฟล์โปรเจกต์และเวอร์ชันของ Swift tools บังคับจริง ๆ คือ Xcode 16.3 แต่ target นี้ตั้ง
+`SWIFT_APPROACHABLE_CONCURRENCY` และ `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor` ไว้
+ซึ่ง Xcode รุ่นเก่ากว่าจะละเลยมันโดยไม่บอกอะไรเลย
+การให้ actor isolation ถูกเปลี่ยนไปเงียบ ๆ ไม่ใช่วิธีที่ดีในการรู้เรื่องนี้ จึงควรบิลด์ด้วย Xcode 26
 
 1. เปิด `ios/Oriveo/Oriveo.xcodeproj`
 2. เลือก scheme ชื่อ `Oriveo`
@@ -201,12 +236,16 @@ ios/Oriveo/
 ถ้าจะบิลด์ลงซิมูเลเตอร์แทน ให้เลือกซิมูเลเตอร์ iPhone ตัวใดก็ได้แล้วกด Run
 ส่วน dependency ของ package จะถูก resolve จาก `Package.resolved` ที่ commit ไว้
 
+**บน Mac ที่ใช้ Apple silicon** บิลด์สำหรับ iPhone ก็รันแบบเนทีฟได้ด้วย โดยเลือกปลายทาง
+**My Mac (Designed for iPad)** ส่วน Mac Catalyst ถูกปิดไว้อย่างตั้งใจ (`SUPPORTS_MACCATALYST = NO`)
+ฉะนั้นนี่คือแอป iOS ที่รันอยู่ใต้รันไทม์ความเข้ากันได้ของ iPad ไม่ใช่แอปของ Mac —
+เส้นทางที่มีแต่บนอุปกรณ์ เช่น การถ่ายภาพด้วยกล้อง จึงทำงานแบบเดียวกับที่มันทำบน Mac
+
 ไฟล์โปรเจกต์ใช้ `objectVersion = 77` พร้อม file-system synchronized group
 ดังนั้น Xcode รุ่นเก่ากว่านี้อาจไม่ยอมเปิด ให้อัปเดต Xcode แทนที่จะไปแก้รูปแบบไฟล์โปรเจกต์
 
 > [!NOTE]
-> เป้าหมายของแอปคอมไพล์ในโหมดภาษา Swift 5 พร้อม `SWIFT_APPROACHABLE_CONCURRENCY` และ
-> `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor` ส่วน package `OriveoProviderKit` ในเครื่องประกาศ
+> เป้าหมายของแอปคอมไพล์ในโหมดภาษา Swift 5 ส่วน package `OriveoProviderKit` ในเครื่องประกาศ
 > `swift-tools-version: 6.1` และบิลด์ในโหมดภาษา Swift 6
 
 ## ไลบรารีที่ใช้
@@ -220,24 +259,30 @@ ios/Oriveo/
 | [ZIPFoundation](https://github.com/weichsel/ZIPFoundation) | 0.9.20 | ไฟล์สำรองข้อมูล, แตกข้อความจาก Office/EPUB/ODF |
 | `OriveoProviderKit` | ในเครื่อง | เคอร์เนล wire ของผู้ให้บริการ อยู่ใน [`shared/`](shared.md) |
 
+`Package.resolved` ยังตรึง dependency ทางอ้อมสองตัวที่ swift-markdown-ui ลากมาด้วย ได้แก่
+[NetworkImage](https://github.com/gonzalezreal/NetworkImage) 6.0.1 และ
+[swift-cmark](https://github.com/swiftlang/swift-cmark) 0.8.0 dependency ตรงทุกตัวใช้สัญญาอนุญาต MIT
+ส่วน swift-cmark เป็น BSD-2-Clause ทั้งหมดเข้ากันได้กับ AGPL-3.0-or-later
+
 ## การทดสอบ
 
 รัน test action (⌘U) ของ scheme `Oriveo` ใน Xcode หรือรันจากรากของที่เก็บโค้ด:
 
 ```bash
 xcodebuild test -project ios/Oriveo/Oriveo.xcodeproj -scheme Oriveo \
-  -destination 'platform=iOS Simulator,name=iPhone 17'
+  -destination 'platform=iOS Simulator,name=iPhone 16'
 ```
 
-เปลี่ยนไปใช้ซิมูเลเตอร์ที่คุณมีจริง — `xcrun simctl list devices available` จะแสดงรายการให้
+เปลี่ยนไปใช้ซิมูเลเตอร์ที่คุณมีจริง ส่วน `xcodebuild -showdestinations` ที่ใช้ project และ scheme
+เดียวกัน จะแสดงทุกปลายทางที่ checkout ชุดนี้บิลด์ได้
 
 > [!IMPORTANT]
 > เป้าหมายทดสอบอ่าน contract fixture จาก `shared/` โดยไล่ขึ้นไปจาก `#filePath`
-> จนกว่าจะเจอไดเรกทอรีนั้น มีชุดทดสอบราว 29 ชุดที่พึ่งพาสิ่งนี้ ดังนั้น
+> จนกว่าจะเจอไดเรกทอรีนั้น ดังนั้น
 > **เทสต์จะผ่านก็ต่อเมื่อ checkout มาทั้งที่เก็บโค้ด** — คัดลอกเฉพาะ `ios/` ออกไปจะไม่ทำงาน
 
-ชุดทดสอบมีขนาดใหญ่ ราว 2,900 เทสต์ กระจายอยู่ใน 273 ไฟล์ ส่วนใหญ่เป็น
-[Swift Testing](https://github.com/swiftlang/swift-testing) ครอบคลุมรูปแบบคำขอรายผู้ให้บริการ
+ชุดทดสอบมีขนาดใหญ่ ราว 2,900 เคสของ [Swift Testing](https://github.com/swiftlang/swift-testing)
+บวกอีก 76 เคสของ XCTest กระจายอยู่ใน 274 ไฟล์ ครอบคลุมรูปแบบคำขอรายผู้ให้บริการ
 การเล่นซ้ำ SSE จาก upstream ที่บันทึกไว้ นโยบายของ relay และเอนจินในเครื่อง
 การวัดขนาด transcript และพฤติกรรมการสตรีม การจัดเก็บข้อมูล และการสำรอง–กู้คืนแบบไปกลับ
 
@@ -249,9 +294,11 @@ cd shared/OriveoProviderKit && swift test
 
 ## การแปลภาษา
 
-สิบหกภาษา เก็บเป็น Xcode String Catalog (`.xcstrings`) — สิบแคตตาล็อก คีย์ราว 1,900 รายการ
-โดยใช้ภาษาอังกฤษเป็นต้นทาง สตริงถูก resolve ผ่าน `L10n.tr(_:table:)` จาก bundle `.lproj`
-ที่เลือกตามการตั้งค่าภาษาในแอปของผู้ใช้ การสลับภาษาจึงมีผลทันทีโดยไม่ต้องเปิดแอปใหม่
+สิบหกภาษา เก็บเป็น Xcode String Catalog (`.xcstrings`) — สิบแคตตาล็อก คีย์ราว 1,340 รายการ
+โดยใช้ภาษาอังกฤษเป็นต้นทาง ทุกคีย์ถูกแปลครบทั้งสิบหกภาษา
+ยกเว้นไม่กี่รายการที่ทำเครื่องหมาย `shouldTranslate: false` ไว้ ได้แก่ ชื่อผลิตภัณฑ์ เครื่องหมายวรรคตอน
+โครงรูปแบบ และค่าของโปรโตคอลที่แปลไปแล้วจะผิด สตริงถูก resolve ผ่าน `L10n.tr(_:table:)` จาก bundle
+`.lproj` ที่เลือกตามการตั้งค่าภาษาในแอปของผู้ใช้ การสลับภาษาจึงมีผลทันทีโดยไม่ต้องเปิดแอปใหม่
 ส่วนเลย์เอาต์ขวาไปซ้ายสำหรับภาษาอาหรับถูกจัดการไว้อย่างชัดเจน
 
 ## การมีส่วนร่วม

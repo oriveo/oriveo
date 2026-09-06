@@ -44,7 +44,7 @@ konuşulacağına dair tek bir tanımı paylaşan üç istemci.
 
 ## Hızlı başlangıç
 
-Node 22 gerekir (bkz. [`.nvmrc`](../../web/.nvmrc)). npm onunla birlikte gelir; başka bir paket
+Node 22.22 veya sonrası gerekir (bkz. [`.nvmrc`](../../web/.nvmrc)). npm onunla birlikte gelir; başka bir paket
 yöneticisine gerek yoktur.
 
 ```bash
@@ -91,7 +91,7 @@ Next.js route handler'ları üzerinden iletir. `npm run dev:app` çalıştırdı
 makinenizdedir. Uygulamayı bir yere dağıttığınızda ise dağıttığınız makinededir.
 
 Tek bir handler yok: sohbet akışı, relay iletici, görsel üretimi, model listesi, anahtar doğrulama
-ve Grok ile Codex cihaz girişi takasları toplamda on iki route dosyası eder. Anahtar doğrulama
+ve Grok ile ChatGPT cihaz girişi takasları toplamda on iki route dosyası eder. Anahtar doğrulama
 burada önemlidir — anahtarı kendi sunucunuza gönderir, o da onunla sağlayıcıyı yoklar.
 
 Birkaç endpoint tarayıcıya *izin verir* ve bunlar arada hiçbir sunucu olmadan doğrudan çağrılır:
@@ -170,6 +170,11 @@ yapılır; utility-class çerçevesi yoktur. `packages/ipc-contract`, bir masaü
 kanal yüzeyini tanımlar; bu depoda öyle bir kabuk yayınlanmadığı için web derlemesinde yalnızca hiç
 girilmeyen tipler ve dallar katar.
 
+Aynı türden bir dikiş daha var. `apps/app/lib/core/sync-port.ts`, bir senkronizasyon arka ucunun uygulayacağı
+arayüzü bildirir ve her çağrı yeri ona optional chaining ile erişir. Böyle bir arka uç kurulmadığı
+için `getSyncAdapter()` `null` döner ve verilerinizin tek kopyası IndexedDB olarak kalır — "hesap
+yok, giriş yok" pratikte tam olarak bu demektir.
+
 ## Depolama
 
 Her şey bölümlere ayrılmıştır ve varsayılanı `guest` olan etkin bir id ile anahtarlanır.
@@ -224,6 +229,8 @@ Bunları bu dizinden çalıştırın.
 | `npm run test` | izleme kipinde vitest |
 | `npm run lint` | `apps/` ve `packages/` üzerinde eslint |
 
+`npm start --workspace @oriveo/app`, bitmiş bir derlemeyi 3001 portunda sunar.
+
 Tek bir test dosyasını çalıştırmak için bunu, dosyanın ait olduğu workspace içinden yapın; birkaç
 test paketi fixture'ları çalışma dizinine göre çözer:
 
@@ -234,9 +241,8 @@ cd apps/app && npx vitest run lib/core/chat/__tests__/stream-options.test.ts
 ## Yapılandırma
 
 Her şey isteğe bağlıdır. [`.env.example`](../../web/.env.example) dosyasını `.env.local` olarak
-kopyalayın ve yalnızca ihtiyacınız olanı ayarlayın; her anahtar orada belgelenmiştir. Kodun okuduğu
-birkaç değişken o dosyada yer almaz: `BACKEND_URL` (`NEXT_PUBLIC_BACKEND_URL`'in yalnızca sunucu
-tarafında geçerli ikizi), `NEXT_PUBLIC_LIBRARY_ENABLED`, `ORIVEO_DESKTOP` ve `NEXT_DIST_DIR`.
+kopyalayın ve yalnızca ihtiyacınız olanı ayarlayın; kodun okuduğu her değişken orada listelenmiş ve
+açıklanmıştır.
 
 ### Hata raporlama
 
@@ -247,9 +253,43 @@ edersiniz; üstelik bir olay tarayıcıdan çıkmadan önce sağlayıcı anahtar
 mesaj içeriğini temizleyen hook'larla birlikte. Burada olmasının nedeni bu derlemenin eve telefon
 etmesi değil, hata raporlaması isteyen bir dağıtımın buna sahip olabilmesidir.
 
+## Kendi sunucunuzda barındırma
+
+Dockerfile yok, dağıtım betiği yok; uygulama sıradan bir Next.js sunucusudur.
+
+```bash
+npm ci
+npm run build:app
+npm start --workspace @oriveo/app     # 127.0.0.1:3001
+```
+
+Onu bir ters proxy'nin arkasına koymadan önce bilinmeye değer üç şey var.
+
+`npm start`, `127.0.0.1` adresine bağlanır; dolayısıyla proxy'nin aynı makinede çalışması ya da bağlanma
+adresinin değiştirilmesi gerekir.
+
+`NEXT_PUBLIC_APP_URL` değerini, gerçekten hizmet verdiğiniz origin'e ayarlayın. Canonical bağlantılar,
+sitemap ve sosyal önizleme görseli hep ona göre çözülür ve varsayılanı geliştirme portudur.
+
+`TRUSTED_PROXY_HOP_COUNT` değerini, uygulamanın önündeki proxy sayısına ayarlayın. Sohbet hız
+sınırlayıcı, istemci adresini `X-Forwarded-For` başlığının *sağından* o kadar atlama sayarak okur —
+asla solundan, çünkü solu istemci denetler ve uydurabilir. Varsayılan olan 1, tek bir proxy için
+doğrudur; iki proxy varken onu fazla düşük bırakırsanız her ziyaretçi tek bir hız sınırı kovasını
+paylaşır, çünkü okunan adres sizin kendi iç proxy'nizin adresidir.
+
+Uygulama HSTS, `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy` ve
+`Cross-Origin-Opener-Policy` başlıklarını `next.config.ts` içinden zaten gönderir; proxy'nin bunları
+eklemesi gerekmez. TLS sonlandırma ve istek boyutu sınırları proxy'nin işidir.
+
+Bilinçli karar vermeye değer son bir şey: dağıtıma erişebilen herkes, onun route handler'larını
+kullanarak kendi verdiği bir anahtarla bir sağlayıcıyı çağırabilir. Handler'lar kendilerine ait
+anahtar tutmaz ve hiçbir şey saklamaz, ama dışa doğru bir HTTP yoludur; bu yüzden herkese açık
+erişilebilir bir dağıtım, başka herhangi bir dahili araca uygulayacağınız erişim denetiminin arkasında
+durmalıdır.
+
 ## Testler
 
-461 dosyada yaklaşık 4.600 test, vitest üzerinde. En yoğun kapsam, bir hatanın en pahalıya patladığı
+460 dosyada yaklaşık 5.600 test, vitest üzerinde. En yoğun kapsam, bir hatanın en pahalıya patladığı
 yerlerdedir: sağlayıcı başına istek biçimi, ağ protokolü başına transport davranışı, SSE ve proxy
 chunk ayrıştırma, kullanım ve maliyet ayrıştırma, hata sınıflandırma, relay sondalama ve güvenlik
 kipleri, SSRF koruması, yetenek reçetesi yürütme, katalog önbellekleme ve sözleşme sürümüne göre
@@ -257,7 +297,7 @@ geçersizleştirme, IndexedDB kalıcılığı, depolama bölümlemesi, yedekleme
 handler'ların kendisi.
 
 > [!IMPORTANT]
-> Yaklaşık 24 test paketi sözleşme fixture'larını `../shared` içinden yükler; dolayısıyla **testler
+> Otuzdan fazla test paketi sözleşme fixture'larını `../shared` içinden yükler; dolayısıyla **testler
 > yalnızca deponun tamamı elinizdeyken geçer** — tek başına `web/` klasörünü dışarı kopyalamak işe
 > yaramaz.
 

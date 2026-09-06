@@ -42,7 +42,7 @@ Oriveo 網頁用戶端是一個以 Next.js 打造、自備金鑰的 AI 聊天應
 
 ## 快速開始
 
-需要 Node 22（見 [`.nvmrc`](../../web/.nvmrc)）。npm 隨附其中；不需要其他套件管理器。
+需要 Node 22.22 或更新版本（見 [`.nvmrc`](../../web/.nvmrc)）。npm 隨附其中；不需要其他套件管理器。
 
 ```bash
 npm install
@@ -85,7 +85,7 @@ flowchart LR
 幾個跑在 Node runtime 裡的 Next.js route handler。當你執行 `npm run dev:app` 時，這些 handler 就在
 你自己的機器上。當你把應用部署到某處時，它們就在你部署到的那台機器上。
 
-handler 不只一個：聊天串流、relay 轉送器、圖片生成、模型清單、Key 驗證，以及 Grok 與 Codex 的裝置
+handler 不只一個：聊天串流、relay 轉送器、圖片生成、模型清單、Key 驗證，以及 Grok 與 ChatGPT 的裝置
 登入交換，加起來一共十二個 route 檔案。Key 驗證在這裡特別值得留意 —— 它會把 Key 送到你自己的
 伺服器，由它拿去探測供應商。
 
@@ -159,6 +159,10 @@ packages/ipc-contract/  typed channel contract for a desktop shell
 `packages/ipc-contract` 描述的是一個桌面外殼會綁定的通道介面；這個儲存庫裡並沒有這樣的外殼，所以在
 網頁建置上，它只貢獻一些永遠走不到的型別與分支。
 
+還有一處同類的接縫。`apps/app/lib/core/sync-port.ts` 宣告了一個同步後端要實作的介面，而每一處呼叫點都透過
+optional chaining 去存取它。沒有任何東西裝上這樣的後端，所以 `getSyncAdapter()` 回傳 `null`，
+IndexedDB 始終是你資料的唯一一份副本 —— 這正是「沒有帳號、沒有登入」在實際上的意思。
+
 ## 儲存
 
 一切都依分區隔離，以一個預設為 `guest` 的作用中 id 作為鍵。
@@ -208,6 +212,8 @@ GET {backend}/api/metadata/model-facts
 | `npm run test` | vitest 監看模式 |
 | `npm run lint` | 對 `apps/` 與 `packages/` 執行 eslint |
 
+`npm start --workspace @oriveo/app` 會在連接埠 3001 上提供一份已建置完成的成品。
+
 若要執行單一測試檔，請在擁有它的那個 workspace 裡執行，因為有幾套測試是相對於工作目錄解析 fixture
 的：
 
@@ -218,9 +224,7 @@ cd apps/app && npx vitest run lib/core/chat/__tests__/stream-options.test.ts
 ## 設定
 
 所有設定都是選用的。把 [`.env.example`](../../web/.env.example) 複製成 `.env.local`，只設定你需要的
-項目；每一個鍵在那裡都有說明。另外有幾個程式會讀、但不在那個檔案裡的變數：`BACKEND_URL`
-（`NEXT_PUBLIC_BACKEND_URL` 的伺服器端專用孿生版）、`NEXT_PUBLIC_LIBRARY_ENABLED`、`ORIVEO_DESKTOP`
-與 `NEXT_DIST_DIR`。
+項目；程式會讀取的每一個變數都列在那裡，並附有說明。
 
 ### 錯誤回報
 
@@ -229,15 +233,44 @@ transport、沒有事件，什麼都不會送出去，而這正是從本儲存�
 得到錯誤回報、10% 的效能追蹤與 1% 的工作階段重播，並且有 hook 會在事件離開瀏覽器之前把供應商 Key、
 端點與訊息內容剝掉。它擺在這裡，是為了讓想要錯誤回報的部署能有，而不是因為這個建置會回傳什麼。
 
+## 自行架設
+
+這裡沒有 Dockerfile，也沒有部署腳本；這個應用就是一台普通的 Next.js 伺服器。
+
+```bash
+npm ci
+npm run build:app
+npm start --workspace @oriveo/app     # 127.0.0.1:3001
+```
+
+在把它擺到反向代理後面之前，有三件事值得先知道。
+
+`npm start` 綁定的是 `127.0.0.1`，所以代理得跑在同一台主機上，否則就得改綁定位址。
+
+把 `NEXT_PUBLIC_APP_URL` 設成你實際對外提供服務的 origin。canonical 連結、sitemap 與社群預覽圖都是
+相對它解析的，而它的預設值是開發用的連接埠。
+
+把 `TRUSTED_PROXY_HOP_COUNT` 設成應用前面代理的層數。聊天流量限制器讀的是 `X-Forwarded-For` 從*右*
+邊數過來那麼多跳的用戶端位址 —— 絕不從左邊數，因為左邊由用戶端控制、可以偽造。預設值 1 對單層代理是
+正確的；前面有兩層卻把它留得太小，所有訪客就會共用同一個限流桶，因為讀到的位址是你自己內層代理的。
+
+應用已經在 `next.config.ts` 裡送出 HSTS、`X-Content-Type-Options`、`X-Frame-Options`、
+`Referrer-Policy`、`Permissions-Policy` 與 `Cross-Origin-Opener-Policy`，所以代理不需要再加。TLS
+終結與請求大小上限則是代理的工作。
+
+最後一件值得慎重決定的事：任何能連到這個部署的人，都可以用它的 route handler、拿自己提供的 Key 去
+呼叫供應商。這些 handler 自己不持有任何 Key，也不保存任何東西，但它們是一條對外的 HTTP 通路，所以
+一個公開可連的部署，應該像你對待任何其他內部工具那樣，擺在存取控制之後。
+
 ## 測試
 
-461 個檔案裡大約 4,600 個測試，跑在 vitest 上。覆蓋最密的地方，正是出錯代價最高的地方：每家供應商的
+460 個檔案裡大約 5,600 個測試，跑在 vitest 上。覆蓋最密的地方，正是出錯代價最高的地方：每家供應商的
 請求形狀、每種通訊協定的傳輸行為、SSE 與 proxy 區塊解析、用量與費用解析、錯誤分類、relay 探測與安全
 模式、SSRF 防護、能力配方執行、目錄快取與契約版本失效、IndexedDB 持久化、儲存分區、備份來回一致性，
 以及 route handler 本身。
 
 > [!IMPORTANT]
-> 大約有 24 套測試從 `../shared` 載入契約 fixture，所以**測試只有在完整 checkout 下才會通過** ——
+> 有三十多套測試從 `../shared` 載入契約 fixture，所以**測試只有在完整 checkout 下才會通過** ——
 > 把 `web/` 單獨複製出去是行不通的。
 
 ## 在地化

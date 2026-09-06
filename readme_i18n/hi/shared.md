@@ -72,9 +72,10 @@ Recipe रजिस्ट्री। किसी दिए गए प्रो
 और उपयोगकर्ता को दिखने वाले कंट्रोल की व्याख्या कैसे हो।
 
 हर recipe एक `executionKind` घोषित करती है — `request_overlay`, `server_tool`, `client_tool_loop`,
-`endpoint_route`, `model_route` — और हर क्लाइंट का compiler recipe लागू करने से पहले जाँचता है कि वह
-प्रोवाइडर, capability और transport से मेल खाती है, और न मिलने पर नामज़द वजह के साथ अस्वीकार कर देता है,
-बजाय ऐसी रिक्वेस्ट भेजने के जिसे किसी ने देखा ही न हो।
+`endpoint_route`, `model_route`, `external_connector`, `unavailable` — और हर क्लाइंट का compiler recipe
+लागू करने से पहले जाँचता है कि वह प्रोवाइडर, capability और transport से मेल खाती है, और न मिलने पर
+नामज़द वजह के साथ अस्वीकार कर देता है, बजाय ऐसी रिक्वेस्ट भेजने के जिसे किसी ने देखा ही न हो। यह सूची
+एक बंद समुच्चय है: इनके अलावा कुछ और नाम लेने वाली recipe भाँपी नहीं जाती, अस्वीकार कर दी जाती है।
 
 ## model-contracts
 
@@ -88,24 +89,39 @@ JSON fixtures जो क्लाइंट-दर-क्लाइंट व्�
 
 ## test-fixtures
 
-Golden टेस्ट डेटा: रिकॉर्ड किया गया upstream tool-call ट्रैफ़िक, relay routing और discovery के
-परिदृश्य, model-facts और capability-evidence के snapshot, और local-engine परिदृश्य।
+Golden टेस्ट डेटा: रिकॉर्ड किया गया upstream tool-call ट्रैफ़िक, relay routing, फ़ॉर्म validation,
+लोकल-पते का वर्गीकरण, कैटलॉग और portable-config के परिदृश्य, model-facts और capability-evidence के
+snapshot, और local-engine परिदृश्य।
 
-`recorded/` के नीचे की `.sse` फ़ाइलें **असली, कैप्चर किया गया upstream ट्रैफ़िक** हैं, बाइट-दर-बाइट
-अछूती छोड़ी गईं; बाक़ी हाथ से लिखे fixtures हैं जो किसी एक ख़ास parse path को pin करते हैं। यह फ़र्क़
+`recorded/` के नीचे की `.sse` फ़ाइलें **असली, कैप्चर किया गया upstream ट्रैफ़िक** हैं, जैसी आईं वैसी ही
+बाइट-दर-बाइट रखी गईं — सिर्फ़ response हेडर हटाए गए, और उनके body में कभी कोई key नहीं थी। बाक़ी हाथ से
+लिखे fixtures हैं जो किसी एक ख़ास parse path को pin करते हैं। यह फ़र्क़
 मायने रखता है: हाथ से लिखा mock वह encode करता है जो आपको लगता था कि प्रोवाइडर करता है, जबकि रिकॉर्डिंग
 वह encode करती है जो उसने वाक़ई किया — उस मंगलवार को भेजा गया वह टूटा-फूटा chunk भी शामिल। जब प्रोवाइडर
 प्रोटोकॉल के किसी फ़िक्स को टेस्ट चाहिए, तो रिकॉर्डिंग को तरजीह दें।
 
+किसी fixture का `$comment`, या उसके बग़ल में रखा `expected.json` manifest, बताता है कि उसके आस-पास की
+entries किस चीज़ को pin करती हैं। कोई नया केस जोड़ने से पहले उसे पढ़ लें।
+
 ## OriveoProviderKit
 
 एक Swift package जिसमें प्रोवाइडर wire-protocol का kernel है: SSE लाइन असेंबली, OpenAI-कम्पैटिबल chunk
-parsing, tool-name encoding, credential redaction, upstream error classification, thinking-tag parsing,
-streaming JSON path extraction, और हर vendor की ख़ास आदतों वाली profiles।
+parsing, Responses / Anthropic Messages / Gemini प्रोटोकॉल के लिए event-आधारित असेंबली, transport से
+निरपेक्ष request निर्माण, recipe compilation और उसके execution guards, tool-name encoding, credential
+redaction, upstream error classification, thinking-tag parsing, streaming JSON path extraction, एक
+स्पष्ट `URLSession` redirect नीति, और हर vendor की ख़ास आदतों वाली profiles।
 
 इसका दायरा जानबूझकर तंग खींचा गया है। **भीतर:** सिर्फ़ Foundation पर टिकी wire जानकारी। **बाहर:** ऐप
-मॉडल, UI, डेटाबेस, telemetry, स्थानीयकरण। Apple का हर क्लाइंट इसके इर्द-गिर्द एक पतली binding रखता है,
-ताकि wire व्यवहार का ठीक एक ही implementation रहे।
+मॉडल, UI, डेटाबेस, telemetry, स्थानीयकरण। यह package standard library और Foundation के अलावा किसी चीज़
+पर निर्भर नहीं है, और Apple का हर क्लाइंट इसके इर्द-गिर्द एक पतली binding रखता है, ताकि wire व्यवहार का
+ठीक एक ही implementation रहे।
+
+यह Apple प्लैटफ़ॉर्म के लिए पूरा request-और-streaming रास्ता लागू करता है। iOS ऐप फ़िलहाल इसका एक
+हिस्सा ही लिंक करता है — stream assemblers, wire profiles, tool-name codec और error classifiers — और
+अपने request builders ख़ुद रखता है; बन रहा macOS क्लाइंट दूसरा उपभोक्ता है, और इसीलिए recipe compiler
+तथा transport से निरपेक्ष request builder किसी एक ऐप के भीतर नहीं, बल्कि यहाँ रहते हैं। नीचे दी सुइट
+उन हिस्सों को कवर करती है जो हर उपभोक्ता साझा करता है: SSE splitting, OpenAI-कम्पैटिबल असेंबली,
+tool-name codec और redirect नीति।
 
 ```bash
 cd shared/OriveoProviderKit && swift build && swift test

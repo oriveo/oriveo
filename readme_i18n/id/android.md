@@ -147,8 +147,12 @@ akan bisa didekripsi di perangkat baru. **Setelah pindah ke ponsel baru Anda mem
 Anda dan masuk lagi ke langganan provider mana pun**; percakapan dan catatan ikut berpindah seperti
 biasa.
 
-Arsip cadangan yang Anda ekspor sendiri dienkripsi terpisah, dengan PBKDF2-HMAC-SHA256 pada 600.000
-iterasi dan AES-GCM, memakai kata sandi pilihan Anda.
+Arsip yang Anda ekspor sendiri adalah zip yang memuat `data.json` plus berkas-berkas lampiran. Kata
+sandi yang Anda pilih melindungi **hanya API key provider** di dalamnya: key itu dienkripsi dengan
+PBKDF2-HMAC-SHA256 pada 600.000 iterasi dan AES-GCM, lalu disimpan sebagai satu field di `data.json`.
+Percakapan, pesan, catatan, folder, skill, preferensi, dan lampiran ditulis sebagai JSON biasa dan
+berkas biasa dalam kondisi apa pun, jadi anggaplah sebuah arsip bisa dibaca siapa pun yang memegang
+berkasnya. Ekspor tanpa key kalau yang Anda inginkan hanya riwayat Anda.
 
 ## Menjangkau server model di jaringan Anda sendiri
 
@@ -274,7 +278,7 @@ Versi persisnya di-pin di [`gradle/libs.versions.toml`](../../android/gradle/lib
 ./gradlew :app:testDebugUnitTest
 ```
 
-Sekitar 3.000 unit test di 319 berkas, memakai JUnit 4, MockK, Turbine,
+Sekitar 3.000 unit test di 318 berkas, memakai JUnit 4, MockK, Robolectric,
 `kotlinx-coroutines-test`, dan mock engine milik Ktor. Cakupan paling tebal di tempat kesalahan
 paling mahal: bentuk permintaan per provider, parsing SSE, pemilihan transport, probing relay dan
 mode keamanan, eksekusi resep capability, caching katalog dan penanganan versi kontrak, persistensi
@@ -301,7 +305,7 @@ dan di-commit, dan di sanalah `2.json` dari migrasi pertama nanti akan mendarat.
 ## Pelokalan
 
 Enam belas bahasa: `values/` (bahasa Inggris, sumbernya) plus lima belas direktori `values-*`,
-masing-masing sekitar 1.700 string, dengan setiap locale memuat himpunan key yang identik.
+masing-masing sekitar 1.300 string, dengan setiap locale memuat himpunan key yang identik.
 Pergantian bahasa di dalam aplikasi melewati `AppLanguageManager` dan `android:localeConfig`.
 Language split dimatikan pada bundle sehingga satu artefak membawa semua terjemahan.
 

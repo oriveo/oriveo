@@ -73,9 +73,10 @@ la que ningún cliente adivina una capacidad a partir del nombre de un modelo.
 interpretan los resultados y los controles visibles para el usuario.
 
 Cada receta declara un `executionKind` —`request_overlay`, `server_tool`, `client_tool_loop`,
-`endpoint_route`, `model_route`— y el compilador de cada cliente valida que la receta coincida con el
-proveedor, la capacidad y el transporte antes de aplicarla, rechazándola con un motivo con nombre en
-lugar de enviar una solicitud que nadie revisó.
+`endpoint_route`, `model_route`, `external_connector`, `unavailable`— y el compilador de cada cliente
+valida que la receta coincida con el proveedor, la capacidad y el transporte antes de aplicarla,
+rechazándola con un motivo con nombre en lugar de enviar una solicitud que nadie revisó. La lista es
+un conjunto cerrado: una receta que nombre cualquier otra cosa se rechaza en lugar de adivinarse.
 
 ## model-contracts
 
@@ -89,27 +90,44 @@ clientes a la vez.
 
 ## test-fixtures
 
-Datos de prueba de referencia: tráfico upstream grabado de llamadas a herramientas, escenarios de
-enrutamiento y descubrimiento de relay, snapshots de model facts y de evidencia de capacidades, y
-escenarios de motores locales.
+Datos de prueba de referencia: tráfico upstream grabado de llamadas a herramientas, enrutamiento de
+relay, validación de formularios, clasificación de direcciones locales, escenarios de catálogo y de
+configuración portable, snapshots de model facts y de evidencia de capacidades, y escenarios de
+motores locales.
 
-Los archivos `.sse` que están bajo `recorded/` son **tráfico upstream real capturado** y se dejan
-intactos byte a byte; el resto son fixtures escritos a mano que fijan una ruta de parseo concreta. La
+Los archivos `.sse` que están bajo `recorded/` son **tráfico upstream real capturado**, conservado
+byte a byte tal como llegó: solo se quitaron las cabeceras de la respuesta, y los cuerpos nunca
+llevaron una clave. El resto son fixtures escritos a mano que fijan una ruta de parseo concreta. La
 distinción importa: un mock escrito a mano codifica lo que tú creías que hace el proveedor, mientras
 que una grabación codifica lo que realmente hizo, incluido el chunk mal formado que envió aquel
 martes. Cuando una corrección de protocolo de proveedor necesita una prueba, prefiere una grabación.
 
+El `$comment` de un fixture, o el manifiesto `expected.json` que está a su lado, dice qué fijan las
+entradas de alrededor. Lee eso antes de añadir un caso.
+
 ## OriveoProviderKit
 
 Un paquete de Swift con el núcleo del protocolo de red de los proveedores: ensamblado de líneas SSE,
-parseo de chunks compatibles con OpenAI, codificación de nombres de herramientas, ocultamiento de
+parseo de chunks compatibles con OpenAI, ensamblado basado en eventos para los protocolos Responses /
+Anthropic Messages / Gemini, construcción de solicitudes neutral respecto al transporte, compilación
+de recetas y sus guardas de ejecución, codificación de nombres de herramientas, ocultamiento de
 credenciales, clasificación de errores del upstream, parseo de etiquetas de razonamiento, extracción
-de rutas JSON en streaming y perfiles de rarezas por proveedor.
+de rutas JSON en streaming, una política explícita de redirecciones de `URLSession` y perfiles de
+rarezas por proveedor.
 
 Su alcance está trazado deliberadamente estrecho. **Dentro:** conocimiento de red basado solo en
-Foundation. **Fuera:** modelos de la app, interfaz, base de datos, telemetría, localización. Cada
-cliente de Apple mantiene un enlace fino alrededor de él, para que el comportamiento de red tenga
-exactamente una implementación.
+Foundation. **Fuera:** modelos de la app, interfaz, base de datos, telemetría, localización. El
+paquete no depende de nada más allá de la biblioteca estándar y Foundation, y cada cliente de Apple
+mantiene un enlace fino alrededor de él, para que el comportamiento de red tenga exactamente una
+implementación.
+
+Implementa toda la ruta de solicitud y streaming para las plataformas de Apple. La app de iOS enlaza
+hoy un subconjunto de él —los ensambladores de streams, los perfiles de red, el códec de nombres de
+herramientas y los clasificadores de errores— y mantiene sus propios constructores de solicitudes; el
+cliente de macOS en desarrollo es el segundo consumidor, y por eso el compilador de recetas y el
+constructor de solicitudes neutral respecto al transporte viven aquí y no dentro de una sola app. La
+suite de abajo cubre las partes que comparte todo consumidor: división de SSE, ensamblado compatible
+con OpenAI, el códec de nombres de herramientas y la política de redirecciones.
 
 ```bash
 cd shared/OriveoProviderKit && swift build && swift test

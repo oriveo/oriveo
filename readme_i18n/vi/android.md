@@ -143,8 +143,12 @@ bản mã cũng không giải được trên máy mới. **Sau khi chuyển sang
 API và đăng nhập lại vào mọi gói thuê bao của nhà cung cấp**; cuộc trò chuyện và ghi chú thì chuyển
 sang bình thường.
 
-Các bản sao lưu do bạn tự xuất ra được mã hóa riêng, bằng PBKDF2-HMAC-SHA256 với 600.000 vòng lặp và
-AES-GCM, dùng mật khẩu do bạn chọn.
+Một bản sao lưu do bạn tự xuất ra là một tệp zip chứa `data.json` cùng các tệp đính kèm. Mật khẩu
+bạn chọn chỉ bảo vệ **các khóa API của nhà cung cấp** nằm bên trong: chúng được mã hóa bằng
+PBKDF2-HMAC-SHA256 với 600.000 vòng lặp và AES-GCM, rồi lưu thành một trường của `data.json`. Cuộc
+trò chuyện, tin nhắn, ghi chú, thư mục, kỹ năng, tùy chọn và tệp đính kèm đều được ghi dưới dạng
+JSON thuần và tệp thuần dù thế nào, nên hãy coi một bản sao lưu là thứ mà bất cứ ai có tệp đó đều
+đọc được. Nếu bạn chỉ muốn lịch sử của mình thì hãy xuất mà không kèm khóa.
 
 ## Kết nối tới máy chủ mô hình trong mạng của bạn
 
@@ -269,7 +273,7 @@ Các phiên bản chính xác được ghim trong
 ./gradlew :app:testDebugUnitTest
 ```
 
-Khoảng 3.000 unit test trải trên 319 tệp, dùng JUnit 4, MockK, Turbine,
+Khoảng 3.000 unit test trải trên 318 tệp, dùng JUnit 4, MockK, Robolectric,
 `kotlinx-coroutines-test` và mock engine của Ktor. Độ bao phủ dày nhất ở chỗ mà sai lầm tốn kém
 nhất: hình dạng yêu cầu theo từng nhà cung cấp, phân tích SSE, chọn transport, dò relay và các chế
 độ bảo mật, thực thi capability recipe, lưu đệm danh mục và xử lý phiên bản contract, lưu trữ bằng
@@ -296,7 +300,7 @@ và đã commit, đó cũng là nơi tệp `2.json` của migration đầu tiên
 ## Bản địa hóa
 
 Mười sáu ngôn ngữ: `values/` (tiếng Anh, nguồn) cộng mười lăm thư mục `values-*`, mỗi thư mục khoảng
-1.700 chuỗi, và mọi locale đều giữ đúng cùng một tập khóa. Việc đổi ngôn ngữ trong ứng dụng đi qua
+1.300 chuỗi, và mọi locale đều giữ đúng cùng một tập khóa. Việc đổi ngôn ngữ trong ứng dụng đi qua
 `AppLanguageManager` và `android:localeConfig`. Cơ chế tách gói theo ngôn ngữ bị tắt trong bundle,
 nên một artifact duy nhất mang theo mọi bản dịch.
 

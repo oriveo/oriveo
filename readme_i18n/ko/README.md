@@ -1,23 +1,30 @@
 <div align="center">
 
-<img src="../../docs/assets/logo.png" width="104" height="104" alt="">
+<img src="../../docs/assets/logo.png" width="104" height="104" alt="Oriveo 로고">
 
-# Oriveo
+# Oriveo Community Edition
 
 **모든 모델을, 하나의 앱에서.**
 
-iOS, Android, 웹을 위한 오픈소스 BYOK AI 채팅 클라이언트.
+iOS, Android, 웹을 위한 오픈소스 BYOK AI 채팅 클라이언트이며,
+네이티브 macOS 클라이언트도 개발 중입니다.
 계정도, 구독도 없고, 요청 경로에 저희 서비스가 끼어들지도 않습니다.
 
 <a href="../../LICENSE"><img alt="라이선스 AGPL-3.0-or-later" src="https://img.shields.io/badge/license-AGPL--3.0--or--later-8B5CF6?style=flat-square&labelColor=black"></a>
 <a href="ios.md"><img alt="iOS 18 이상" src="https://img.shields.io/badge/iOS-18+-A78BFA?style=flat-square&labelColor=black&logo=apple&logoColor=white"></a>
 <a href="android.md"><img alt="Android 8 이상" src="https://img.shields.io/badge/Android-8+-A78BFA?style=flat-square&labelColor=black&logo=android&logoColor=white"></a>
 <a href="web.md"><img alt="Next.js로 만든 웹" src="https://img.shields.io/badge/Web-Next.js-A78BFA?style=flat-square&labelColor=black&logo=nextdotjs&logoColor=white"></a>
+<a href="macos.md"><img alt="macOS 클라이언트 개발 중" src="https://img.shields.io/badge/macOS-in_development-6D5FA6?style=flat-square&labelColor=black&logo=apple&logoColor=white"></a>
 <img alt="공급자 15곳과 릴레이" src="https://img.shields.io/badge/providers-15_+_relay-8B5CF6?style=flat-square&labelColor=black">
 <img alt="인터페이스 언어 16개" src="https://img.shields.io/badge/languages-16-8B5CF6?style=flat-square&labelColor=black">
 
-<a href="https://oriveoai.com">웹사이트</a> &nbsp;·&nbsp;
-<a href="#시작하기">시작하기</a> &nbsp;·&nbsp;
+**Oriveo 받기:**
+<a href="https://oriveoai.com"><b>oriveoai.com</b></a> &nbsp;·&nbsp;
+<a href="https://apps.apple.com/app/oriveo/id6775370458">App Store</a> &nbsp;·&nbsp;
+<a href="https://play.google.com/store/apps/details?id=com.kenny.oriveo">Google Play</a> &nbsp;·&nbsp;
+<a href="https://app.oriveoai.com">웹 앱</a>
+
+<a href="#시작하기">소스에서 빌드</a> &nbsp;·&nbsp;
 <a href="#아키텍처">아키텍처</a> &nbsp;·&nbsp;
 <a href="#community-edition과-oriveo">에디션</a> &nbsp;·&nbsp;
 <a href="#자주-묻는-질문">자주 묻는 질문</a> &nbsp;·&nbsp;
@@ -50,9 +57,12 @@ iOS, Android, 웹을 위한 오픈소스 BYOK AI 채팅 클라이언트.
 
 ## Oriveo란
 
-Oriveo Community Edition은 iOS, Android, 웹을 위한 BYOK(bring-your-own-key) AI 채팅
-클라이언트입니다. 이미 가지고 있는 API 키를 직접 넣으면, 클라이언트가 그 키로 공급자와
-통신합니다. Oriveo 계정도 구독도 없고, 저희 쪽으로 보고되는 것도 없습니다.
+Oriveo Community Edition은 iOS, Android, 웹을 위한 오픈소스 BYOK(bring-your-own-key) AI 채팅
+클라이언트이며, 네이티브 macOS 클라이언트도 개발 중입니다. 앞단에 끼어 있는 무언가에 구독료를
+내기보다 모델 공급자에게 직접 돈을 내고 싶은 사람을 위한 것입니다. 이미 가지고 있는 API 키를 직접
+넣으면, 클라이언트가 그 키로 공급자와 통신합니다. 그래서 호스팅형 ChatGPT나 Claude 요금제를
+대신하는, 로컬 우선의 멀티 모델 대안이 됩니다 — Oriveo 계정도, 구독도 없고, 저희 쪽으로 보고되는
+것도 없으며, 웹 클라이언트는 직접 호스팅할 수 있습니다.
 
 **모델 공급자 15곳**과 네이티브로 통신합니다 — OpenAI, Anthropic, Google Gemini, OpenRouter,
 DeepSeek, Grok, Mistral, Groq, Together AI, Fireworks AI, MiniMax, Z.ai, Qwen, Kimi (Moonshot),
@@ -62,10 +72,10 @@ SiliconFlow. 여기에 더해 **OpenAI · Anthropic · Gemini 호환 엔드포�
 | | |
 |---|---|
 | **공급자** | 15곳 기본 내장, 여기에 사용자 지정 릴레이 엔드포인트와 로컬 모델 서버 |
-| **클라이언트** | iOS(SwiftUI) · Android(Jetpack Compose) · 웹(Next.js) |
+| **클라이언트** | iOS(SwiftUI) · Android(Jetpack Compose) · 웹(Next.js) · macOS 개발 중 |
 | **인터페이스 언어** | 16개 |
 | **계정 필요 여부** | 없음 |
-| **앱이 자기 자신을 위해 보내는 호출** | 한 가지, 요청 두 번: 읽기 전용 모델 카탈로그. 키도 식별자도 붙지 않음 |
+| **앱이 자기 자신을 위해 보내는 호출** | 한 가지, 요청 두 번: 읽기 전용 모델 카탈로그. 키도, 저희가 붙이는 식별자도 실려 있지 않음 |
 | **라이선스** | AGPL-3.0-or-later |
 
 ## 왜 만들었나
@@ -80,26 +90,30 @@ SiliconFlow. 여기에 더해 **OpenAI · Anthropic · Gemini 호환 엔드포�
   [`shared/`](shared.md)에 한 번만 적어 두고, 세 클라이언트 모두 같은 JSON fixture에 대고
   검증합니다. 그 데이터 안에 있는 특이 동작은 한 번만 고치면 되고, 파서 안에 있는 것은 세 테스트
   스위트가 동시에 잡아냅니다.
-- **앱이 보내는 단 한 번의 호출.** 오늘 나온 모델이 앱 업데이트 없이도 동작하도록, 앱은 공개
-  모델 카탈로그를 받아옵니다. 읽기 전용이고 키도 식별자도 붙지 않으며, 원한다면 직접 운영하는
-  호스트를 가리키게 할 수 있습니다.
+- **앱이 받아오는 단 한 가지.** 오늘 나온 모델이 앱 업데이트 없이도 동작하도록, 앱은 공개 모델
+  카탈로그를 읽습니다. 두 요청 모두 읽기 전용이고 키도, 저희가 붙이는 식별자도 실려 있지 않으며,
+  웹과 Android 클라이언트는 직접 운영하는 호스트를 가리키게 할 수 있습니다.
 
 ## 기능
 
-- **채팅** — 스트리밍, 추론 블록, 인용, 첨부 파일(이미지, PDF, Office, EPUB, HTML, 일반 텍스트),
-  선택 영역 인용, 재시도, 다시 생성, 끊긴 답변 이어받기
-- **공급자** — 15곳 기본 내장, 각각 본인의 키로 연결. 공급자별 엔드포인트·모델·파라미터 재정의
+- **채팅** — 스트리밍, 추론 블록, 인용, 첨부 파일(이미지와 동영상, PDF, Office(docx, xlsx, pptx),
+  OpenDocument, EPUB, RTF, HTML, 그리고 모든 일반 텍스트 또는 소스 파일), 선택 영역 인용, 재시도,
+  다시 생성, 끊긴 답변 이어받기
+- **공급자** — 15곳 기본 내장, 각각 본인의 키로 연결. 공급자별 모델·생성 파라미터 재정의, 그리고
+  공급자가 제공하는 경우 지역별 엔드포인트 선택
 - **릴레이** — OpenAI · Anthropic · Gemini 호환 엔드포인트라면 무엇이든, LAN 안의 것도 포함
-- **로컬 모델 서버** — llama.cpp, Ollama, LM Studio, vLLM. iOS와 Android는 mDNS로 로컬
-  네트워크에서 찾아냅니다
-- **구독 로그인** — API 키 대신 이미 가지고 있는 Codex 또는 Grok 구독을 그대로 사용
-- **스킬** — 전용 모델·파라미터·참고 문서를 가진 재사용 가능한 시스템 프롬프트
-- **노트와 폴더** — 답변을 노트로 저장하고, 대화를 정리하고, 전문 검색
-- **교차 검증** — 같은 질문을 두 번째 모델에 다시 물어보고 두 답변을 나란히 보관
-- **비용** — 메시지별·공급자별 지출을 각 응답이 실제로 보고한 값으로 기기에서 계산하며, 캐시 할인
-  구간도 반영
+- **로컬 모델 서버** — llama.cpp, Ollama, LM Studio, vLLM, Open WebUI. iOS와 Android는 mDNS로
+  로컬 네트워크에서 찾아냅니다
+- **구독 로그인** — API 키 대신 이미 가지고 있는 ChatGPT 또는 Grok 구독을, 각 공급자 자체의 기기
+  인증 흐름으로 사용
+- **스킬** — 전용 모델·추론 설정·참고 문서를 가진 재사용 가능한 시스템 프롬프트
+- **노트와 폴더** — 답변을 노트로 저장하고, 대화를 정리하고, 둘 모두를 검색
+- **교차 검증** — 답변을 두 번째 모델에 넘겨 검토하게 하고 둘을 함께 보관
+- **비용** — 메시지별·공급자별 지출을 각 응답이 실제로 보고한 값으로 기기에서 계산하며, 캐시 읽기와
+  캐시 쓰기 구간도 반영
 - **이미지 생성** — 공급자가 지원하는 경우
-- **백업** — 전체를 파일로 내보내며, 원하면 직접 정한 비밀번호로 암호화
+- **백업** — 전체를 파일로 내보내며, 그 안의 공급자 키는 포함하기로 선택한 경우 본인이 정한
+  비밀번호로 암호화됩니다
 - **인터페이스 언어 16개**, 아랍어는 완전한 오른쪽에서 왼쪽 레이아웃까지 지원
 
 ## Community Edition과 Oriveo
@@ -119,11 +133,11 @@ App Store와 Google Play의 앱, 그리고 호스팅되는 웹 앱은 **Oriveo**
 | 저장 | 기기 안. 수동 내보내기와 복원 | 로컬 우선 + 기기 간 클라우드 동기화 |
 | 사용량 분석과 예산 알림 | — | 예 |
 | Oriveo가 비용을 부담하는 모델 | — | 예 |
-| 분석과 크래시 리포트 | 기본값은 꺼짐 — 웹 번들에 Sentry가 들어 있지만 DSN이 없으면 아무것도 보내지 않음 | 예 |
+| 분석과 크래시 리포트 | 없음. 웹 번들에 Sentry가 실려 있지만, 직접 DSN을 설정할 때까지는 아무것도 보내지 않음 | 예 |
 
-Community Edition 빌드는 `ai.oriveo.community` 식별자 접두사를 쓰므로, 스토어 빌드와 나란히
-설치해도 둘이 keychain이나 로컬 데이터를 공유하지 않습니다. 이 에디션이 무엇을 받아들이고 무엇을
-받아들이지 않는지는 [COMMUNITY.md](../../COMMUNITY.md)에 적혀 있습니다.
+Community Edition 빌드는 `ai.oriveo.community` 식별자 접두사를 쓰므로, 스토어 빌드와 같은 기기에
+설치해도 둘이 keychain이나 로컬 데이터를 전혀 공유하지 않습니다. 이 에디션이 무엇을 받아들이고
+무엇을 받아들이지 않는지는 [COMMUNITY.md](../../COMMUNITY.md)에 적혀 있습니다.
 
 **Oriveo 정식 제품:**
 [iPhone과 iPad](https://apps.apple.com/app/oriveo/id6775370458) &nbsp;·&nbsp;
@@ -133,12 +147,13 @@ Community Edition 빌드는 `ai.oriveo.community` 식별자 접두사를 쓰므�
 
 ## 공급자
 
-아래 모든 공급자는 사용자가 직접 발급한 키로 연결합니다.
+아래 모든 공급자는 사용자가 직접 발급한 키로 연결합니다. 그중 두 곳은 키 대신 이미 가지고 있는
+구독으로 로그인해서 연결할 수도 있습니다. OpenAI는 ChatGPT 플랜으로, 그리고 Grok입니다.
 
 | 공급자 | 키 발급처 |
 |---|---|
 | OpenAI | [platform.openai.com](https://platform.openai.com/api-keys) |
-| Anthropic | [console.anthropic.com](https://console.anthropic.com/settings/keys) |
+| Anthropic | [platform.claude.com](https://platform.claude.com/settings/keys) |
 | Google Gemini | [aistudio.google.com](https://aistudio.google.com/apikey) |
 | OpenRouter | [openrouter.ai](https://openrouter.ai/keys) |
 | DeepSeek | [platform.deepseek.com](https://platform.deepseek.com/api_keys) |
@@ -202,6 +217,7 @@ route handler를 거칩니다. 로컬에서 실행한다면 그 머신은 당신
 | **iOS** | SwiftUI + UIKit 트랜스크립트, GRDB | [ios/README.md](ios.md) |
 | **Android** | Jetpack Compose, Room, Koin, Ktor/OkHttp | [android/README.md](android.md) |
 | **웹** | Next.js App Router, React, Zustand, TypeScript | [web/README.md](web.md) |
+| **macOS** | 개발 중, 앞으로 몇 달 안에 출시 | [macos/README.md](macos.md) |
 | **공유** | 계약, 녹화된 fixture, Swift wire 커널 | [shared/README.md](shared.md) |
 
 ## 시작하기
@@ -215,7 +231,7 @@ route handler를 거칩니다. 로컬에서 실행한다면 그 머신은 당신
 
 <br>
 
-Node 22가 필요합니다([`web/.nvmrc`](../../web/.nvmrc) 참고).
+Node 22.22 이상이 필요합니다([`web/.nvmrc`](../../web/.nvmrc) 참고).
 
 ```bash
 cd web
@@ -270,14 +286,19 @@ cd android
   암호화되지 않은 채로 IndexedDB에 놓이며, 이는 브라우저 기반 BYOK 클라이언트가 보통 쓰는 방식과
   같습니다. 가장 강한 보장을 원한다면 iOS나 Android 클라이언트를 쓰세요.
 - **대화, 노트, 폴더, 스킬, 첨부 파일**은 기기에 저장됩니다. 어디로도 업로드되지 않습니다.
-- **계정 없음, 저희 쪽으로 보고되는 것도 없음.** 로그인할 대상이 없습니다. 웹 번들에는 Sentry가
-  들어 있지만, 직접 DSN을 설정하지 않는 한 아무것도 보내지 않습니다.
+- **계정 없음, 분석 없음.** 로그인할 대상이 없고, 무엇을 하는지 세는 것도 없습니다. 웹 번들에는
+  오류 리포트용 Sentry가 들어 있지만, `NEXT_PUBLIC_SENTRY_DSN`을 본인 프로젝트로 설정하기 전까지는
+  아무것도 보내지 않습니다. 설정하면 스택 트레이스와 함께 세션 리플레이도 수집하도록 구성되어
+  있습니다. iOS와 Android 클라이언트에는 리포트용 SDK가 전혀 들어 있지 않습니다.
 - **iOS와 Android에서는 채팅 요청이 기기에서 공급자로 곧장 갑니다.** 웹에서는 대부분의 공급자 API가
   브라우저의 직접 호출을 허용하지 않기 때문에 요청 대부분이 앱을 서비스하는 Next.js 서버를 거칩니다.
   그 서버는 키도 메시지도 저장하지 않으며, 앱을 로컬에서 실행하면 그 서버는 당신의 컴퓨터입니다.
-- **저희가 스스로 보내는 요청은 하나:** 읽기 전용 모델 카탈로그입니다. 키도, 대화도, 식별자도
-  붙지 않은 채로 받아오고, 덕분에 오늘 나온 모델이 새 빌드 없이도 동작합니다. 직접 서비스하고
-  싶다면 자신의 호스트를 가리키게 하면 됩니다.
+- **저희가 스스로 보내는 요청은 둘:** 읽기 전용 모델 카탈로그를 두 번의 호출로 읽습니다 — 하나는
+  각 모델을 어떻게 호출해야 하는지, 하나는 개별 모델에 관한 사실이며, iOS는 후자를 구독으로 로그인한
+  뒤에만 읽습니다 — 덕분에 오늘 나온 모델이 새 빌드 없이도 동작합니다. 둘 다 키도, 대화도, 저희가
+  붙이는 식별자도 싣지 않습니다. 웹
+  클라이언트(`NEXT_PUBLIC_BACKEND_URL`)와 Android 빌드(`-PORIVEO_METADATA_BASE_URL`)는 직접
+  운영하는 호스트를 가리키게 할 수 있고, iOS에서 그 재정의는 Debug 빌드용 편의 기능일 뿐입니다.
 
 ## 자주 묻는 질문
 
@@ -293,6 +314,17 @@ Oriveo는 클라이언트일 뿐, 리셀러가 아니며 수수료를 떼지 않
 </details>
 
 <details>
+<summary><b>무료인가요?</b></summary>
+
+<br>
+
+클라이언트는 무료입니다. AGPL-3.0-or-later 오픈소스이고, 구독할 것이 없으며, 어떤 부분도 결제 뒤에
+숨겨 두지 않았습니다. 지불하는 것은 보낸 요청에 대한 모델 공급자 자신의 정가이며, 청구는 그 공급자가
+키가 속한 계정으로 합니다. Oriveo는 그 청구서를 보지 않습니다.
+
+</details>
+
+<details>
 <summary><b>제 대화가 Oriveo 서버를 거치나요?</b></summary>
 
 <br>
@@ -300,9 +332,9 @@ Oriveo는 클라이언트일 뿐, 리셀러가 아니며 수수료를 떼지 않
 아니요. iOS와 Android에서는 클라이언트가 공급자 엔드포인트를 직접 호출합니다. 웹에서는 대부분의
 공급자 API가 브라우저의 직접 호출을 거부하기 때문에 요청 대부분이 앱을 서비스하는 Next.js 서버를
 거치는데, 로컬에서 실행한다면 그 서버는 당신의 컴퓨터입니다. 직접 호출을 허용하는 몇 안 되는 곳은
-그대로 직접 호출합니다. 어느 경로에도 Oriveo가 운영하는 서버는 없습니다. Oriveo가 스스로 보내는
-유일한 요청은 공개 모델 카탈로그를 읽기 전용으로 받아오는 것이며, 여기에는 키도, 대화도, 식별자도
-붙지 않습니다.
+그대로 직접 호출합니다. 어느 경로에도 Oriveo가 운영하는 서버는 없습니다. Oriveo가 스스로 받아오는
+것은 공개 모델 카탈로그뿐이고, 읽기 전용 요청 두 번으로 이루어지며, 키도, 대화도, 저희가 붙이는
+식별자도 실려 있지 않습니다.
 
 </details>
 
@@ -312,10 +344,23 @@ Oriveo는 클라이언트일 뿐, 리셀러가 아니며 수수료를 떼지 않
 <br>
 
 네. OpenAI · Anthropic · Gemini 호환 서버를 가리키는 릴레이 연결을 추가하세요 — llama.cpp,
-Ollama, LM Studio, vLLM 등 그 프로토콜 중 하나를 쓰는 것이면 무엇이든 됩니다. iOS와 Android
-클라이언트는 mDNS로 로컬 네트워크에서 그런 서버를 찾아낼 수 있고, 웹 클라이언트는 각 엔진의 기본
-주소를 제시하고 그 주소를 탐지해 봅니다. 로컬 HTTP는 자격 증명을 쓰지 않으며 네트워크 밖으로
-나가지 않습니다.
+Ollama, LM Studio, vLLM, Open WebUI 등 그 프로토콜 중 하나를 쓰는 것이면 무엇이든 됩니다. iOS와
+Android 클라이언트는 mDNS로 로컬 네트워크에서 그런 서버를 찾아낼 수 있고, 웹 클라이언트는 각 엔진이
+흔히 쓰는 주소를 제안하고 그 주소를 탐지해 봅니다. 로컬 HTTP는 자격 증명을 쓰지 않으며 네트워크
+밖으로 나가지 않습니다.
+
+</details>
+
+<details>
+<summary><b>전체를 직접 운영할 수 있나요?</b></summary>
+
+<br>
+
+네. 웹 클라이언트는 본인 컴퓨터에서 빌드해 서비스하는 Next.js 앱입니다. 이 프로젝트에서 서버 쪽이
+있는 부분은 그것뿐이고, 키도 메시지도 저장하지 않습니다. 본인 하드웨어에서 돌아가는 모델 서버를
+가리키게 하면 어떤 요청도 네트워크를 벗어나지 않습니다. 모델 카탈로그도 직접 호스팅할 수 있습니다.
+웹 빌드에 본인의 `NEXT_PUBLIC_BACKEND_URL`을, Android 빌드에 `-PORIVEO_METADATA_BASE_URL`을 주면,
+앱에서 네트워크 밖으로 나가는 것이 하나도 없게 됩니다.
 
 </details>
 
@@ -336,8 +381,11 @@ Ollama, LM Studio, vLLM 등 그 프로토콜 중 하나를 쓰는 것이면 무�
 
 <br>
 
-이 저장소에는 없습니다. 그때까지는 웹 클라이언트를 아무 브라우저에서나 데스크톱 앱처럼 쓸 수 있고,
-iOS 빌드도 대체로 Apple silicon Mac에서 실행할 수 있습니다.
+네이티브 macOS 클라이언트는 개발 중이고 앞으로 몇 달 안에 출시됩니다. `macos/`가 그 자리입니다.
+그때까지는 웹 클라이언트를 아무 브라우저에서나 데스크톱 앱처럼 쓸 수 있고, iOS 빌드는 Apple silicon
+Mac에서 Xcode로 바로 실행됩니다. 공급자와 통신하는 Swift 패키지는 이미 macOS 15를 지원 플랫폼으로
+선언해 두었으므로, Mac 클라이언트에 필요한 wire 계층은 이미 작성되어 오늘도 테스트되고 있습니다.
+[macos/README.md](macos.md)를 보세요.
 
 </details>
 
@@ -358,7 +406,7 @@ iOS 빌드도 대체로 Apple silicon Mac에서 실행할 수 있습니다.
 ios/           iOS client (SwiftUI)
 android/       Android client (Jetpack Compose)
 web/           Web client (Next.js)
-macos/         Reserved for a macOS client
+macos/         macOS client — in development, arriving in the coming months
 shared/        Cross-client contracts, recorded fixtures, and the Swift wire kernel
 readme_i18n/   These READMEs in fifteen more languages
 docs/assets/   Images used by the READMEs
@@ -378,3 +426,8 @@ docs/assets/   Images used by the READMEs
 ## 라이선스
 
 [AGPL-3.0-or-later](../../LICENSE). 기여물도 같은 라이선스로 받습니다.
+
+공급자 이름과 로고는 각 소유자의 것이며, 이 클라이언트가 연결할 수 있는 서비스를 가리키기 위해서만
+여기에 등장합니다. 이들은 이 저장소의 라이선스가 적용되는 대상이 아니고, 등장 자체가 누군가의 보증을
+뜻하지도 않습니다. 클라이언트가 함께 배포하는 폰트와 라이브러리, 그리고 그 이용 조건은
+[THIRD-PARTY-NOTICES.md](../../THIRD-PARTY-NOTICES.md)에 정리되어 있습니다.

@@ -44,8 +44,8 @@ tentang cara berbicara dengan provider model.
 
 ## Mulai cepat
 
-Membutuhkan Node 22 (lihat [`.nvmrc`](../../web/.nvmrc)). npm sudah ikut di dalamnya; tidak perlu
-package manager lain.
+Membutuhkan Node 22.22 atau lebih baru (lihat [`.nvmrc`](../../web/.nvmrc)). npm sudah ikut di
+dalamnya; tidak perlu package manager lain.
 
 ```bash
 npm install
@@ -92,7 +92,7 @@ meneruskannya lewat route handler Next.js yang berjalan di runtime Node. Saat An
 ke suatu tempat, mereka ada di mesin tujuan deploy Anda.
 
 Handler-nya bukan cuma satu: streaming chat, penerus relay, pembuatan gambar, daftar model, validasi
-key, serta pertukaran device-login Grok dan Codex seluruhnya berjumlah dua belas berkas route.
+key, serta pertukaran device-login Grok dan ChatGPT seluruhnya berjumlah dua belas berkas route.
 Validasi key penting di sini — ia mengirimkan key ke server Anda sendiri, yang lalu melakukan
 probing ke provider dengan key itu.
 
@@ -174,6 +174,12 @@ framework berbasis utility class. `packages/ipc-contract` menjelaskan permukaan 
 diikat oleh sebuah shell desktop; shell semacam itu tidak dikirimkan di repositori ini, jadi pada
 build web ia hanya menyumbang tipe dan cabang kode yang tidak pernah diambil.
 
+Ada satu jahitan lagi yang sejenis. `apps/app/lib/core/sync-port.ts` mendeklarasikan antarmuka yang
+akan diimplementasikan oleh sebuah backend sinkronisasi, dan setiap tempat pemanggilan mencapainya
+lewat optional chaining. Tidak ada yang memasang backend semacam itu, jadi `getSyncAdapter()`
+mengembalikan `null` dan IndexedDB tetap menjadi satu-satunya salinan data Anda — dan itu tepatnya
+arti dari "tanpa akun, tanpa masuk" dalam praktik.
+
 ## Penyimpanan
 
 Semuanya per partisi, di-key oleh sebuah id aktif yang bernilai bawaan `guest`.
@@ -227,6 +233,8 @@ Jalankan perintah berikut dari direktori ini.
 | `npm run test` | vitest dalam mode watch |
 | `npm run lint` | eslint atas `apps/` dan `packages/` |
 
+`npm start --workspace @oriveo/app` menyajikan build yang sudah selesai di port 3001.
+
 Untuk menjalankan satu berkas pengujian, lakukan dari workspace pemiliknya, karena beberapa suite
 me-resolve fixture-nya relatif terhadap direktori kerja:
 
@@ -237,9 +245,7 @@ cd apps/app && npx vitest run lib/core/chat/__tests__/stream-options.test.ts
 ## Konfigurasi
 
 Semuanya opsional. Salin [`.env.example`](../../web/.env.example) menjadi `.env.local` dan setel
-hanya apa yang Anda butuhkan; setiap key didokumentasikan di sana. Beberapa variabel yang dibaca
-kode tidak ada di berkas itu: `BACKEND_URL` (kembaran khusus sisi server dari
-`NEXT_PUBLIC_BACKEND_URL`), `NEXT_PUBLIC_LIBRARY_ENABLED`, `ORIVEO_DESKTOP`, dan `NEXT_DIST_DIR`.
+hanya apa yang Anda butuhkan; setiap variabel yang dibaca kode terdaftar dan dijelaskan di sana.
 
 ### Pelaporan error
 
@@ -250,16 +256,51 @@ performance tracing 10%, serta session replay 1%, dengan hook yang membuang key 
 dan isi pesan sebelum sebuah event meninggalkan browser. Ini ada supaya sebuah deployment yang
 memang menginginkan pelaporan error bisa memilikinya, bukan karena build ini menelepon pulang.
 
+## Hosting sendiri
+
+Tidak ada Dockerfile dan tidak ada skrip deploy; aplikasi ini adalah server Next.js biasa.
+
+```bash
+npm ci
+npm run build:app
+npm start --workspace @oriveo/app     # 127.0.0.1:3001
+```
+
+Ada tiga hal yang perlu diketahui sebelum menaruhnya di belakang reverse proxy.
+
+`npm start` mengikat ke `127.0.0.1`, jadi proxy harus berjalan di host yang sama, atau alamat bind-nya
+harus diubah.
+
+Setel `NEXT_PUBLIC_APP_URL` ke origin tempat Anda benar-benar menyajikannya. Tautan canonical,
+sitemap, dan gambar pratinjau untuk media sosial semuanya di-resolve terhadapnya, dan nilai
+bawaannya adalah port pengembangan.
+
+Setel `TRUSTED_PROXY_HOP_COUNT` ke jumlah proxy yang berada di depan aplikasi. Rate limiter chat
+membaca alamat klien sebanyak hop itu dari *kanan* `X-Forwarded-For` — jangan pernah dari kiri, yang
+dikendalikan klien dan bisa dipalsukan. Nilai bawaan 1 benar untuk satu proxy; kalau dibiarkan
+terlalu rendah di belakang dua proxy, semua pengunjung berbagi satu bucket rate limit, karena alamat
+yang terbaca adalah alamat proxy dalam Anda sendiri.
+
+Aplikasi sudah mengirim HSTS, `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`,
+`Permissions-Policy`, dan `Cross-Origin-Opener-Policy` dari `next.config.ts`, jadi proxy tidak perlu
+menambahkannya. Terminasi TLS dan batas ukuran permintaan adalah tugas proxy.
+
+Satu hal terakhir yang sebaiknya diputuskan secara sadar: siapa pun yang bisa menjangkau deployment
+itu bisa memakai route handler-nya untuk memanggil provider dengan key yang ia sediakan sendiri.
+Handler tidak memegang key milik sendiri dan tidak menyimpan apa pun, tapi mereka adalah jalur HTTP
+keluar, jadi deployment yang bisa dijangkau publik sebaiknya berada di belakang kontrol akses yang
+sama seperti yang Anda berikan ke perkakas internal lain.
+
 ## Pengujian
 
-Sekitar 4.600 pengujian di 461 berkas, dengan vitest. Cakupan paling tebal ada di tempat kesalahan
+Sekitar 5.600 pengujian di 460 berkas, dengan vitest. Cakupan paling tebal ada di tempat kesalahan
 paling mahal: bentuk permintaan per provider, perilaku transport per wire protocol, parsing chunk
 SSE dan proxy, parsing usage dan biaya, klasifikasi error, probing relay dan mode keamanan, penjaga
 SSRF, eksekusi resep capability, caching katalog dan invalidasi versi kontrak, persistensi
 IndexedDB, partisi penyimpanan, round-trip cadangan, dan route handler itu sendiri.
 
 > [!IMPORTANT]
-> Sekitar 24 suite memuat fixture kontrak dari `../shared`, jadi **pengujian hanya lolos pada
+> Lebih dari tiga puluh suite memuat fixture kontrak dari `../shared`, jadi **pengujian hanya lolos pada
 > checkout penuh** — menyalin `web/` sendirian tidak akan berhasil.
 
 ## Pelokalan

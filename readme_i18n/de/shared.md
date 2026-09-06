@@ -72,9 +72,11 @@ Rezepte selbst; `capability_result_definitions.v1.json` und `capability_custom_c
 legen fest, wie Ergebnisse und Bedienelemente für Nutzer interpretiert werden.
 
 Jedes Rezept deklariert eine `executionKind` – `request_overlay`, `server_tool`,
-`client_tool_loop`, `endpoint_route`, `model_route` – und der Compiler jedes Clients prüft, dass das
-Rezept zu Anbieter, Fähigkeit und Transport passt, bevor er es anwendet, und lehnt mit einem
-benannten Grund ab, statt einen Request zu senden, den niemand geprüft hat.
+`client_tool_loop`, `endpoint_route`, `model_route`, `external_connector`, `unavailable` – und der
+Compiler jedes Clients prüft, dass das Rezept zu Anbieter, Fähigkeit und Transport passt, bevor er es
+anwendet, und lehnt mit einem benannten Grund ab, statt einen Request zu senden, den niemand geprüft
+hat. Die Liste ist eine geschlossene Menge: ein Rezept, das etwas anderes nennt, wird abgelehnt und
+nicht erraten.
 
 ## model-contracts
 
@@ -88,26 +90,42 @@ Clients auf einmal.
 
 ## test-fixtures
 
-Golden-Testdaten: aufgezeichneter Upstream-Verkehr von Tool-Calls, Szenarien für Relay-Routing und
--Erkennung, Snapshots von Model Facts und Capability-Belegen sowie Szenarien für lokale Engines.
+Golden-Testdaten: aufgezeichneter Upstream-Verkehr von Tool-Calls, Relay-Routing,
+Formularvalidierung, Klassifikation lokaler Adressen, Szenarien für den Katalog und für portable
+Konfiguration, Snapshots von Model Facts und Capability-Belegen sowie Szenarien für lokale Engines.
 
-Die `.sse`-Dateien unter `recorded/` sind **echt mitgeschnittener Upstream-Verkehr** und bleiben Byte
-für Byte unangetastet; die übrigen sind handgeschriebene Fixtures, die einen bestimmten Parse-Pfad
+Die `.sse`-Dateien unter `recorded/` sind **echt mitgeschnittener Upstream-Verkehr**, Byte für Byte
+so gehalten, wie er angekommen ist – nur die Response-Header wurden entfernt, und die Bodies haben
+nie einen Key getragen. Die übrigen sind handgeschriebene Fixtures, die einen bestimmten Parse-Pfad
 festnageln. Der Unterschied zählt: Ein handgeschriebener Mock kodiert, was du geglaubt hast, was der
 Anbieter tut, eine Aufzeichnung dagegen kodiert, was er tatsächlich getan hat, inklusive des kaputten
 Chunks, den er an jenem Dienstag geschickt hat. Wenn eine Korrektur am Anbieter-Protokoll einen Test
 braucht, nimm lieber eine Aufzeichnung.
 
+Der `$comment` eines Fixtures, oder das `expected.json`-Manifest daneben, sagt, was die Einträge
+ringsum festnageln. Lies das, bevor du einen Fall hinzufügst.
+
 ## OriveoProviderKit
 
 Ein Swift-Paket mit dem Kern des Anbieter-Wire-Protokolls: SSE-Zeilenaufbau, OpenAI-kompatibles
-Chunk-Parsing, Kodierung von Tool-Namen, Schwärzung von Zugangsdaten, Klassifikation von
-Upstream-Fehlern, Parsen von Thinking-Tags, Extraktion von JSON-Pfaden im Stream und Quirk-Profile
-pro Anbieter.
+Chunk-Parsing, ereignisbasierter Aufbau für die Protokolle Responses / Anthropic Messages / Gemini,
+transportneutraler Request-Bau, Kompilierung der Rezepte samt ihrer Ausführungs-Guards, Kodierung von
+Tool-Namen, Schwärzung von Zugangsdaten, Klassifikation von Upstream-Fehlern, Parsen von
+Thinking-Tags, Extraktion von JSON-Pfaden im Stream, eine explizite `URLSession`-Redirect-Policy und
+Quirk-Profile pro Anbieter.
 
 Sein Zuschnitt ist bewusst eng. **Drin:** reines Foundation-Wire-Wissen. **Draußen:** App-Modelle,
-UI, Datenbank, Telemetrie, Lokalisierung. Jeder Apple-Client hält eine dünne Bindung darum, damit
-Wire-Verhalten genau eine Implementierung hat.
+UI, Datenbank, Telemetrie, Lokalisierung. Das Paket hängt von nichts außer der Standardbibliothek und
+Foundation ab, und jeder Apple-Client hält eine dünne Bindung darum, damit Wire-Verhalten genau eine
+Implementierung hat.
+
+Es implementiert den gesamten Request- und Streaming-Pfad für Apple-Plattformen. Die iOS-App bindet
+derzeit eine Teilmenge davon ein – die Stream-Assembler, die Wire-Profile, den Codec für Tool-Namen
+und die Fehlerklassifizierer – und behält ihre eigenen Request Builder; der macOS-Client in
+Entwicklung ist der zweite Konsument, und deshalb liegen der Rezept-Compiler und der
+transportneutrale Request Builder hier und nicht in einer einzelnen App. Die Suite unten deckt die
+Teile ab, die jeder Konsument teilt: SSE-Aufteilung, OpenAI-kompatibler Aufbau, den Codec für
+Tool-Namen und die Redirect-Policy.
 
 ```bash
 cd shared/OriveoProviderKit && swift build && swift test

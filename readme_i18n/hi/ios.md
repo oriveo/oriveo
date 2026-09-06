@@ -35,8 +35,13 @@
 ---
 
 Oriveo का iOS क्लाइंट एक bring-your-own-key AI चैट ऐप है। आप अपनी पहले से मौजूद API key जोड़ते हैं,
-और ऐप हर प्रोवाइडर को सीधे फ़ोन से कॉल करता है। बातचीत, नोट्स, फ़ोल्डर, skills और अटैचमेंट डिवाइस पर
-SQLite में रखे जाते हैं; API key iOS Keychain में जाती हैं। न कोई अकाउंट है, न साइन-इन।
+और ऐप हर प्रोवाइडर को सीधे फ़ोन से कॉल करता है। बातचीत, मैसेज, नोट्स और नोट फ़ोल्डर डिवाइस पर मौजूद एक
+SQLite डेटाबेस में रहते हैं; अटैचमेंट blob उसके बग़ल में फ़ाइलें हैं; skills, प्राथमिकताएँ, प्रोवाइडर
+सूची और बातचीत के फ़ोल्डर डिवाइस पर JSON हैं। API key iOS Keychain में जाती हैं।
+
+कोई Oriveo अकाउंट नहीं है: कुछ भी अपलोड नहीं होता, और साइन-इन करने को कुछ है ही नहीं। हाँ, दो
+प्रोवाइडर key चिपकाने के बजाय अपनी पहले से मौजूद सब्सक्रिप्शन से साइन-इन करने की सुविधा देते हैं —
+ChatGPT और Grok — और वह साइन-इन OpenAI तथा xAI के पास जाता है, हमारे पास नहीं।
 
 यह [Oriveo Community Edition](README.md) का हिस्सा है — तीन क्लाइंट, जिनके पास मॉडल प्रोवाइडर से
 बात करने की एक ही साझा परिभाषा है।
@@ -92,11 +97,12 @@ measurement और reuse पर cell-स्तर का नियंत्र�
 | GRDB `ValueObservation` | SQLite से वापस पढ़ी गई टिकाऊ स्थिति | लिखने के बाद सत्य का एक ही स्रोत, relaunch के बाद भी बना रहता है |
 | हर बातचीत के लिए Combine `PassthroughSubject` | streaming टेक्स्ट और reasoning delta | token की रफ़्तार पर SwiftUI diffing को पूरी तरह बायपास करता है |
 
-**प्रोवाइडर सपोर्ट चार स्वतंत्र अक्ष हैं, एक enum नहीं।** `ProviderKind` (16 केस) बताता है *उपयोगकर्ता
-ने किसे कॉन्फ़िगर किया*। `ProviderServiceProtocol` है *कॉल सरफ़ेस*। `TransportKind` (12 केस) है *असल
-में कौन-सा wire protocol बोला जाता है* — और यह **हर मॉडल के लिए, कैटलॉग से** तय होता है, इसलिए एक ही
-key के पीछे दो मॉडल अलग-अलग हो सकते हैं। `RelayKind` उपयोगकर्ता के दिए endpoint संभालता है। इन्हें अलग
-रखना ही वह बात है जिससे नया मॉडल बिना नए बिल्ड के काम कर जाता है।
+**प्रोवाइडर सपोर्ट चार स्वतंत्र अक्ष हैं, एक enum नहीं।** `ProviderKind` (16 केस: पंद्रह प्रोवाइडर
+और relay) बताता है *उपयोगकर्ता ने किसे कॉन्फ़िगर किया*। `ProviderServiceProtocol` है *कॉल सरफ़ेस*।
+`TransportKind` (12 केस) है *असल में कौन-सा wire protocol बोला जाता है* — और यह **हर मॉडल के लिए,
+कैटलॉग से** तय होता है, इसलिए एक ही key के पीछे दो मॉडल अलग-अलग हो सकते हैं। `RelayKind` उपयोगकर्ता
+के दिए endpoint संभालता है। इन्हें अलग रखना ही वह बात है जिससे नया मॉडल बिना नए बिल्ड के काम कर जाता
+है।
 
 ### एक मैसेज कैसे भेजा जाता है
 
@@ -110,9 +116,11 @@ flowchart LR
     parse --> cells["Streaming transcript"]
 ```
 
-`BaseAPIService.encodeChatBody` वह इकलौती जगह है जहाँ request body बाइट्स में बदलती है। हर capability
-recipe, generation पैरामीटर और कस्टम फ़ील्ड को इसी से गुज़रना पड़ता है, और यही वजह है कि wire format
-पंद्रह जगह नहीं, एक ही जगह टेस्ट किया जा सकता है।
+`BaseAPIService.encodeChatBody` वह आख़िरी पड़ाव है जहाँ से OpenAI-कम्पैटिबल रिक्वेस्ट बाइट्स में
+बदलती है — सोलह केस में से बारह इसी से गुज़रते हैं, इसलिए कोई capability recipe, generation
+पैरामीटर या कस्टम फ़ील्ड बारह जगह नहीं, एक ही जगह टेस्ट किया जा सकता है। OpenAI, Anthropic और Gemini
+अपने-अपने आकार बोलते हैं और अपनी-अपनी services में serialize होते हैं; इनमें से हर जगह की अपनी
+request-shape suite है।
 
 ## एक मॉडल क्या कर सकता है
 
@@ -134,37 +142,55 @@ recipes का एक सेट जो बताता है कि किस�
 Application Support/Oriveo/
   active-uid                     # storage partition, "guest" by default
   users/<uid>/
-    oriveo.sqlite                # conversations, messages, notes, catalog cache
+    oriveo.sqlite                # conversations, messages, notes and folders, catalog cache
     Images/  Files/              # attachment blobs, referenced by id
-    session-snapshot.json        # preferences, provider list (never API keys)
+    session-snapshot.json        # preferences, provider list, folders, last used model
 ```
 
 - **GRDB के ज़रिए SQLite**, WAL के साथ, foreign key चालू, और हर schema बदलाव को कवर करता एक
   `DatabaseMigrator`। मैसेज और नोट्स पर फ़ुल-टेक्स्ट सर्च FTS5 और trigram tokenizer से होती है।
 - **API key Keychain में रहती हैं**, प्रोवाइडर और partition से keyed, और session snapshot लिखे जाने से
-  पहले उसमें से मिटा दी जाती हैं।
+  पहले उसमें से मिटा दी जाती हैं। Skills अलग से `UserDefaults` में JSON के रूप में रखे जाते हैं।
 - **अटैचमेंट blob डिस्क पर फ़ाइलें हैं**, rows नहीं, इसलिए कोई बड़ी PDF डेटाबेस को कभी फुलाती नहीं।
 
-## ऐप अपनी ओर से जो एकमात्र नेटवर्क कॉल करता है
+बैकअप एक `.oriveo` ZIP है जिसमें `data.json` और इमेज फ़ाइलें होती हैं। वैकल्पिक पासवर्ड आर्काइव को
+एन्क्रिप्ट नहीं करता: वह उसके भीतर मौजूद प्रोवाइडर API key को ही एन्क्रिप्ट करता है (AES-GCM, और key
+PBKDF2-HMAC-SHA256 से 600,000 iteration पर व्युत्पन्न होती है)। बातचीत, नोट्स, skills और
+प्राथमिकताएँ आर्काइव में हर हाल में सादे JSON के रूप में रहती हैं, इसलिए बैकअप फ़ाइल को ऐसा ही मानें कि
+जिसके पास वह है, वह उसे पढ़ सकता है।
 
-Cold start पर ऐप `https://api.oriveoai.com` को दो unauthenticated, ETag-conditional `GET` रिक्वेस्ट
-भेजता है — `/api/metadata?view=lean` और `/api/metadata/model-facts`। ये सार्वजनिक मॉडल कैटलॉग लाती हैं:
-कौन-से मॉडल मौजूद हैं, हर एक क्या सपोर्ट करता है, उसके reasoning कंट्रोल के नाम क्या हैं, और उसकी क़ीमत
-क्या है। इनमें न key जुड़ती है, न बातचीत, न कोई पहचानकर्ता, और response SQLite में cache हो जाता है
-ताकि कैटलॉग तक न पहुँच पाने पर ऐप cache की कॉपी से काम करता रहे।
+## ऐप अपनी ओर से जो रिक्वेस्ट करता है
 
-ऐप अपनी ओर से बस यही एक रिक्वेस्ट करता है। बाक़ी सब कुछ आपके कॉन्फ़िगर किए प्रोवाइडर तक, आपकी key के
+Cold start पर ऐप `https://api.oriveoai.com/api/metadata?view=lean` को एक unauthenticated,
+ETag-conditional `GET` भेजता है। वह सार्वजनिक मॉडल कैटलॉग लाता है: कौन-से मॉडल मौजूद हैं, हर एक क्या
+सपोर्ट करता है, उसके reasoning कंट्रोल के नाम क्या हैं, और उसकी क़ीमत क्या है। इसमें न key जुड़ती है,
+न बातचीत, न कोई पहचानकर्ता, और response SQLite में cache हो जाता है ताकि कैटलॉग तक न पहुँच पाने पर ऐप
+cache की कॉपी से काम करता रहे। दूसरा endpoint, `/api/metadata/model-facts`, सिर्फ़ तब पढ़ा जाता है जब
+आप ChatGPT या Grok सब्सक्रिप्शन से साइन-इन कर लेते हैं, ताकि पता चले कि उस सब्सक्रिप्शन के मॉडल क्या
+कर सकते हैं।
+
+ऐप अपनी ओर से बस ये ही रिक्वेस्ट करता है। बाक़ी सब कुछ आपके कॉन्फ़िगर किए प्रोवाइडर तक, आपकी key के
 साथ जाता है।
 
-किसी **Debug** बिल्ड को अपने ही कैटलॉग होस्ट की ओर मोड़ना हो तो `ORIVEO_METADATA_BASE_URL` सेट करें —
-या तो scheme environment variable के रूप में, या `ios/Oriveo/Config/Info.plist` में एक key के रूप में।
-Android और वेब क्लाइंट के उलट, Release बिल्ड इसे नज़रअंदाज़ करता है और हमेशा प्रकाशित कैटलॉग ही इस्तेमाल
-करता है; इसे बदलने के लिए `BackendURLResolver` में बदलाव करना पड़ेगा।
+कैटलॉग को अपने ही होस्ट की ओर मोड़ना **Debug बिल्ड की सुविधा** है, जो
+`Oriveo/Core/Providers/BackendURLResolver.swift` में इस क्रम से तय होती है:
+
+1. `ORIVEO_METADATA_BASE_URL` environment variable, जो scheme के Run action में सेट होती है; फिर
+2. `ios/Oriveo/Config/Info.plist` में `ORIVEO_METADATA_BASE_URL` नाम की एक string — वह key वहाँ पहले
+   से मौजूद और ख़ाली है, इसलिए उसे भर देना ही काफ़ी है; फिर
+3. `https://api.oriveoai.com`।
+
+दो बातें जान लें। Release बिल्ड दोनों को नज़रअंदाज़ करता है और हमेशा प्रकाशित कैटलॉग ही इस्तेमाल करता
+है; इसे बदलने के लिए `BackendURLResolver` में बदलाव करना पड़ेगा। और जब test bundle चल रहा हो, या
+`CI=true` हो, तो किसी निजी पते (localhost, `10/8`, `192.168/16`, `172.16/12`, `.local`, link-local
+IPv6) की ओर इशारा करता override नज़रअंदाज़ किया जाता है, ताकि पीछे छूट गया कोई लोकल होस्ट suite को उस
+मशीन पर निर्भर न बना दे जिस पर आप बैठे हैं।
 
 ## प्रोजेक्ट का ढाँचा
 
 ```
 ios/Oriveo/
+  Config/Info.plist    the app's Info.plist; GENERATE_INFOPLIST_FILE is off
   Oriveo.xcodeproj/
   Oriveo/
     Core/
@@ -174,19 +200,30 @@ ios/Oriveo/
       Models/          domain types
       Attachments/     import limits, budgets, per-format text extraction
       Tools/           tool-call loop and per-protocol adapters
+      Cache/ Localization/ Observability/ Reachability/ Routing/ Usage/
     Features/
-      Chat/            transcript, composer, model controls, export
+      App/             root view and tab shell
+      Chat/            transcript, composer, model controls, cross-check, export
       Providers/       setup, detail, relay, local engines, subscription sign-in
       Home/ Notes/ Skills/ Settings/ Backup/ Onboarding/
     Shared/Components/ shared views
     DesignSystem/      theme, colour, haptics
+    Preview/           sample data for SwiftUI previews
+    *.xcstrings        ten string catalogs
+    Assets.xcassets · PrivacyInfo.xcprivacy · Oriveo.entitlements
   OriveoTests/
 ```
 
 ## बिल्ड और रन
 
-आपको **Xcode 26** वाला एक Mac और **iOS 18 या उससे नया** डिवाइस चाहिए। मुफ़्त Apple Developer अकाउंट
-काफ़ी है; ऐप कोई पेड capability इस्तेमाल नहीं करता और ख़ाली entitlements फ़ाइल के साथ ship होता है।
+आपको **Xcode 26** चाहिए, और हार्डवेयर पर चलाने के लिए **iOS 18 या उससे नया** डिवाइस। मुफ़्त
+Apple Developer अकाउंट काफ़ी है: entitlements फ़ाइल ख़ाली है और ऐप कोई पेड capability इस्तेमाल नहीं
+करता — न push, न iCloud, न app group, न associated domain।
+
+प्रोजेक्ट फ़ॉर्मैट और Swift tools version असल में जो न्यूनतम थोपते हैं वह Xcode 16.3 है, लेकिन target
+`SWIFT_APPROACHABLE_CONCURRENCY` और `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor` सेट करता है, जिन्हें
+पुराने Xcode बिना कुछ कहे नज़रअंदाज़ कर देते हैं। actor isolation का चुपचाप बदल जाना यह पता करने का
+बुरा तरीक़ा है, तो बिल्ड Xcode 26 से ही करें।
 
 1. `ios/Oriveo/Oriveo.xcodeproj` खोलें
 2. `Oriveo` scheme चुनें
@@ -198,12 +235,16 @@ ios/Oriveo/
 इसके बजाय Simulator के लिए बिल्ड करना हो तो कोई भी iPhone simulator चुनकर Run करें। Package
 dependencies कमिट की गई `Package.resolved` से resolve होती हैं।
 
+**Apple silicon वाले Mac पर** iPhone बिल्ड नेटिव रूप से भी चलता है: **My Mac (Designed for iPad)**
+destination चुनें। Mac Catalyst जानबूझकर बंद है (`SUPPORTS_MACCATALYST = NO`), इसलिए यह iPad
+कम्पैटिबिलिटी runtime के तहत चलता iOS ऐप है, कोई Mac ऐप नहीं — कैमरा कैप्चर जैसे सिर्फ़ डिवाइस पर
+मौजूद रास्ते वैसा ही व्यवहार करते हैं जैसा वे Mac पर करते हैं।
+
 प्रोजेक्ट फ़ाइल `objectVersion = 77` और file-system synchronized groups इस्तेमाल करती है, इसलिए पुराना
 Xcode इसे खोलने से मना कर सकता है। प्रोजेक्ट फ़ॉर्मैट बदलने के बजाय Xcode अपडेट करें।
 
 > [!NOTE]
-> ऐप target, `SWIFT_APPROACHABLE_CONCURRENCY` और `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor` के साथ
-> Swift 5 language mode में कंपाइल होता है। लोकल `OriveoProviderKit` package
+> ऐप target, Swift 5 language mode में कंपाइल होता है; लोकल `OriveoProviderKit` package
 > `swift-tools-version: 6.1` घोषित करता है और Swift 6 language mode में बिल्ड होता है।
 
 ## Dependencies
@@ -217,24 +258,31 @@ Xcode इसे खोलने से मना कर सकता है। �
 | [ZIPFoundation](https://github.com/weichsel/ZIPFoundation) | 0.9.20 | बैकअप आर्काइव, Office/EPUB/ODF एक्सट्रैक्शन |
 | `OriveoProviderKit` | लोकल | प्रोवाइडर wire kernel, [`shared/`](shared.md) में |
 
+swift-markdown-ui जो दो transitive dependencies साथ लाता है, उन्हें भी `Package.resolved` पिन करता है:
+[NetworkImage](https://github.com/gonzalezreal/NetworkImage) 6.0.1 और
+[swift-cmark](https://github.com/swiftlang/swift-cmark) 0.8.0। हर सीधी dependency MIT लाइसेंस वाली है
+और swift-cmark BSD-2-Clause वाली, और ये सब AGPL-3.0-or-later के साथ संगत हैं।
+
 ## टेस्टिंग
 
 Xcode में `Oriveo` scheme का test action (⌘U) चलाएँ, या रिपॉज़िटरी की जड़ से:
 
 ```bash
 xcodebuild test -project ios/Oriveo/Oriveo.xcodeproj -scheme Oriveo \
-  -destination 'platform=iOS Simulator,name=iPhone 17'
+  -destination 'platform=iOS Simulator,name=iPhone 16'
 ```
 
-वहाँ अपने पास वाक़ई मौजूद कोई simulator डालें — `xcrun simctl list devices available` उन्हें सूचीबद्ध करता है।
+वहाँ अपने पास वाक़ई मौजूद कोई simulator डालें; उसी project और scheme के साथ
+`xcodebuild -showdestinations` वह सब सूचीबद्ध करता है जिसके लिए यह checkout बिल्ड कर सकता है।
 
 > [!IMPORTANT]
 > Test target, `shared/` से contract fixtures पढ़ता है और इसके लिए `#filePath` से ऊपर चढ़ते हुए वह
-> डायरेक्टरी खोजता है। क़रीब 29 suites इस पर निर्भर हैं, इसलिए **टेस्ट सिर्फ़ पूरे checkout में ही पास
-> होते हैं** — अकेले `ios/` को कॉपी करके ले जाना काम नहीं करेगा।
+> डायरेक्टरी खोजता है, इसलिए **टेस्ट सिर्फ़ पूरे checkout में ही पास होते हैं** — अकेले `ios/` को कॉपी
+> करके ले जाना काम नहीं करेगा।
 
-Suite बड़ी है: 273 फ़ाइलों में क़रीब 2,900 टेस्ट, ज़्यादातर [Swift
-Testing](https://github.com/swiftlang/swift-testing) पर। इसमें हर प्रोवाइडर के लिए request shape,
+Suite बड़ी है: 274 फ़ाइलों में क़रीब 2,900 [Swift
+Testing](https://github.com/swiftlang/swift-testing) केस और 76 XCTest केस। इसमें हर प्रोवाइडर के लिए
+request shape,
 रिकॉर्ड किए गए upstream SSE का replay, relay और local-engine policy, transcript measurement और
 streaming व्यवहार, स्टोरेज, और बैकअप के round-trip शामिल हैं।
 
@@ -246,9 +294,12 @@ cd shared/OriveoProviderKit && swift test
 
 ## स्थानीयकरण
 
-सोलह भाषाएँ, Xcode String Catalogs (`.xcstrings`) के रूप में रखी गई हैं — दस catalog, क़रीब 1,900 key,
-और अंग्रेज़ी स्रोत भाषा। Strings, उपयोगकर्ता की in-app भाषा सेटिंग से चुने गए `.lproj` bundle के विरुद्ध
-`L10n.tr(_:table:)` से resolve होती हैं, इसलिए भाषा बदलने के लिए ऐप दोबारा शुरू करने की ज़रूरत नहीं।
+सोलह भाषाएँ, Xcode String Catalogs (`.xcstrings`) के रूप में रखी गई हैं — दस catalog, क़रीब 1,340 key,
+और अंग्रेज़ी स्रोत भाषा। हर key सभी सोलह भाषाओं में अनूदित है, सिवाय उन थोड़ी-सी के जिन पर
+`shouldTranslate: false` लगा है: प्रोडक्ट का नाम, विराम-चिह्न, format skeleton और protocol मान, जिनका
+स्थानीयकरण करना ग़लत होगा। Strings, उपयोगकर्ता की in-app भाषा सेटिंग से चुने गए `.lproj` bundle के
+विरुद्ध `L10n.tr(_:table:)` से resolve होती हैं, इसलिए भाषा बदलने के लिए ऐप दोबारा शुरू करने की ज़रूरत
+नहीं।
 अरबी के लिए right-to-left लेआउट स्पष्ट रूप से संभाला गया है।
 
 ## योगदान

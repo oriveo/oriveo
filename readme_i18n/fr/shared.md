@@ -73,9 +73,10 @@ pourquoi aucun client ne devine une capacité d'après le nom d'un modèle.
 les résultats et les contrôles visibles par l'utilisateur sont interprétés.
 
 Chaque recette déclare un `executionKind` — `request_overlay`, `server_tool`, `client_tool_loop`,
-`endpoint_route`, `model_route` — et le compilateur de chaque client vérifie que la recette
-correspond au fournisseur, à la capacité et au transport avant de l'appliquer, en rejetant avec un
-motif nommé plutôt qu'en envoyant une requête que personne n'a relue.
+`endpoint_route`, `model_route`, `external_connector`, `unavailable` — et le compilateur de chaque
+client vérifie que la recette correspond au fournisseur, à la capacité et au transport avant de
+l'appliquer, en rejetant avec un motif nommé plutôt qu'en envoyant une requête que personne n'a relue.
+La liste est un ensemble fermé : une recette qui nomme autre chose est refusée plutôt que devinée.
 
 ## model-contracts
 
@@ -89,28 +90,45 @@ les trois clients à la fois.
 
 ## test-fixtures
 
-Des données de test de référence : trafic amont d'appels d'outils enregistré, scénarios de routage
-et de découverte de relais, instantanés de model facts et de preuves de capacités, et scénarios de
+Des données de test de référence : trafic amont d'appels d'outils enregistré, routage de relais,
+validation de formulaires, classification des adresses locales, scénarios de catalogue et de
+configuration portable, instantanés de model facts et de preuves de capacités, et scénarios de
 moteurs locaux.
 
-Les fichiers `.sse` situés sous `recorded/` sont du **vrai trafic amont capturé**, laissé intact
-octet pour octet ; les autres sont des fixtures écrites à la main qui figent un chemin d'analyse
+Les fichiers `.sse` situés sous `recorded/` sont du **vrai trafic amont capturé**, gardé octet pour
+octet tel qu'il est arrivé — seuls les en-têtes de réponse ont été retirés, et les corps n'ont jamais
+transporté de clé. Les autres sont des fixtures écrites à la main qui figent un chemin d'analyse
 précis. La distinction compte : un mock écrit à la main encode ce que vous croyiez que le
 fournisseur fait, alors qu'un enregistrement encode ce qu'il a réellement fait, y compris le chunk
 malformé qu'il a envoyé ce mardi-là. Quand une correction de protocole fournisseur a besoin d'un
 test, préférez un enregistrement.
 
+Le `$comment` d'une fixture, ou le manifeste `expected.json` posé à côté, dit ce que figent les
+entrées autour de lui. Lisez-le avant d'ajouter un cas.
+
 ## OriveoProviderKit
 
 Un paquet Swift contenant le noyau du protocole réseau fournisseur : assemblage des lignes SSE,
-analyse des chunks compatibles OpenAI, encodage des noms d'outils, masquage des identifiants de
-connexion, classification des erreurs amont, analyse des balises de réflexion, extraction de chemins
-JSON en streaming, et profils de bizarreries par fournisseur.
+analyse des chunks compatibles OpenAI, assemblage événementiel pour les protocoles Responses /
+Anthropic Messages / Gemini, construction de requêtes neutre au transport, compilation des recettes et
+ses garde-fous d'exécution, encodage des noms d'outils, masquage des identifiants de connexion,
+classification des erreurs amont, analyse des balises de réflexion, extraction de chemins JSON en
+streaming, une politique de redirection `URLSession` explicite, et profils de bizarreries par
+fournisseur.
 
 Son périmètre est délibérément serré. **Dedans :** de la connaissance réseau à base de Foundation
-uniquement. **Dehors :** modèles de l'app, interface, base de données, télémétrie, localisation.
-Chaque client Apple garde une fine liaison autour de lui, pour que le comportement réseau ait
-exactement une implémentation.
+uniquement. **Dehors :** modèles de l'app, interface, base de données, télémétrie, localisation. Le
+paquet ne dépend de rien au-delà de la bibliothèque standard et de Foundation, et chaque client Apple
+garde une fine liaison autour de lui, pour que le comportement réseau ait exactement une
+implémentation.
+
+Il implémente tout le chemin de requête et de streaming pour les plateformes Apple. L'app iOS en lie
+aujourd'hui un sous-ensemble — les assembleurs de flux, les profils réseau, le codec de noms d'outils
+et les classificateurs d'erreurs — et garde ses propres constructeurs de requêtes ; le client macOS en
+développement est le second consommateur, et c'est pourquoi le compilateur de recettes et le
+constructeur de requêtes neutre au transport vivent ici plutôt que dans une seule app. La suite
+ci-dessous couvre les parties que tout consommateur partage : découpage SSE, assemblage compatible
+OpenAI, le codec de noms d'outils et la politique de redirection.
 
 ```bash
 cd shared/OriveoProviderKit && swift build && swift test

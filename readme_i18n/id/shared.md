@@ -74,9 +74,11 @@ alasannya tidak ada klien yang menebak sebuah capability dari nama model.
 bagaimana hasil dan kontrol yang dilihat pengguna ditafsirkan.
 
 Setiap resep mendeklarasikan sebuah `executionKind` — `request_overlay`, `server_tool`,
-`client_tool_loop`, `endpoint_route`, `model_route` — dan compiler di setiap klien memvalidasi bahwa
-resep itu cocok dengan provider, capability, dan transport sebelum menerapkannya, lalu menolak
-dengan alasan bernama alih-alih mengirim permintaan yang tidak pernah ditinjau siapa pun.
+`client_tool_loop`, `endpoint_route`, `model_route`, `external_connector`, `unavailable` — dan
+compiler di setiap klien memvalidasi bahwa resep itu cocok dengan provider, capability, dan transport
+sebelum menerapkannya, lalu menolak dengan alasan bernama alih-alih mengirim permintaan yang tidak
+pernah ditinjau siapa pun. Daftarnya adalah himpunan tertutup: resep yang menyebut apa pun selain itu
+ditolak, bukan ditebak.
 
 ## model-contracts
 
@@ -90,25 +92,41 @@ perubahan pada ketiga klien sekaligus.
 
 ## test-fixtures
 
-Data pengujian golden: trafik tool-call upstream yang terekam, skenario routing dan penemuan relay,
-snapshot model-facts dan capability-evidence, serta skenario local engine.
+Data pengujian golden: trafik tool-call upstream yang terekam, routing relay, validasi formulir,
+klasifikasi alamat lokal, skenario katalog dan portable config, snapshot model-facts dan
+capability-evidence, serta skenario local engine.
 
-Berkas `.sse` di bawah `recorded/` adalah **trafik upstream sungguhan yang direkam**, dibiarkan utuh
-byte demi byte; sisanya adalah fixture yang ditulis tangan untuk mengunci sebuah jalur parse
-tertentu. Bedanya penting: mock yang ditulis tangan meng-encode apa yang Anda yakini dilakukan
-provider, sedangkan rekaman meng-encode apa yang benar-benar ia lakukan, termasuk chunk cacat yang
-ia kirim pada Selasa itu. Ketika sebuah perbaikan protokol provider butuh pengujian, utamakan
-rekaman.
+Berkas `.sse` di bawah `recorded/` adalah **trafik upstream sungguhan yang direkam**, disimpan byte
+demi byte sebagaimana ia tiba — hanya header response yang dibuang, dan body-nya tidak pernah membawa
+key. Sisanya adalah fixture yang ditulis tangan untuk mengunci sebuah jalur parse tertentu. Bedanya
+penting: mock yang ditulis tangan meng-encode apa yang Anda yakini dilakukan provider, sedangkan
+rekaman meng-encode apa yang benar-benar ia lakukan, termasuk chunk cacat yang ia kirim pada Selasa
+itu. Ketika sebuah perbaikan protokol provider butuh pengujian, utamakan rekaman.
+
+`$comment` sebuah fixture, atau manifes `expected.json` di sebelahnya, menyebutkan apa yang dikunci
+oleh entri-entri di sekitarnya. Bacalah itu sebelum menambahkan kasus baru.
 
 ## OriveoProviderKit
 
 Sebuah package Swift yang memuat kernel wire protocol provider: perakitan baris SSE, parsing chunk
-yang kompatibel dengan OpenAI, encoding nama tool, redaksi kredensial, klasifikasi error upstream,
-parsing thinking tag, ekstraksi path JSON saat streaming, dan profil keanehan per vendor.
+yang kompatibel dengan OpenAI, perakitan berbasis event untuk protokol Responses / Anthropic Messages
+/ Gemini, penyusunan permintaan yang netral terhadap transport, kompilasi resep beserta penjaga
+eksekusinya, encoding nama tool, redaksi kredensial, klasifikasi error upstream, parsing thinking tag,
+ekstraksi path JSON saat streaming, kebijakan redirect `URLSession` yang eksplisit, dan profil
+keanehan per vendor.
 
 Cakupannya digambar sengaja sempit. **Masuk:** pengetahuan wire yang hanya bergantung pada
-Foundation. **Keluar:** model aplikasi, UI, basis data, telemetri, pelokalan. Setiap klien Apple
-menyimpan binding tipis di sekitarnya sehingga perilaku wire punya tepat satu implementasi.
+Foundation. **Keluar:** model aplikasi, UI, basis data, telemetri, pelokalan. Package ini tidak
+bergantung pada apa pun di luar standard library dan Foundation, dan setiap klien Apple menyimpan
+binding tipis di sekitarnya sehingga perilaku wire punya tepat satu implementasi.
+
+Ia mengimplementasikan seluruh jalur permintaan-dan-streaming untuk platform Apple. Aplikasi iOS saat
+ini menautkan sebagiannya — stream assembler, profil wire, codec nama tool, dan pengklasifikasi error
+— dan tetap memakai request builder-nya sendiri; klien macOS yang sedang dikembangkan adalah konsumen
+kedua, dan itulah alasan compiler resep serta request builder yang netral terhadap transport tinggal
+di sini alih-alih di dalam satu aplikasi. Suite di bawah ini mencakup bagian yang dipakai bersama
+oleh setiap konsumen: pemisahan SSE, perakitan kompatibel OpenAI, codec nama tool, dan kebijakan
+redirect.
 
 ```bash
 cd shared/OriveoProviderKit && swift build && swift test

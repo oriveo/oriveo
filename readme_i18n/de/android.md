@@ -147,8 +147,13 @@ Ciphertext wäre auf dem neuen Gerät ohnehin nicht entschlüsselbar. **Nach dem
 Telefon trägst du deine API-Keys erneut ein und meldest dich bei Anbieter-Abos neu an**;
 Unterhaltungen und Notizen kommen normal mit.
 
-Backup-Archive, die du selbst exportierst, werden separat verschlüsselt, mit PBKDF2-HMAC-SHA256 bei
-600.000 Iterationen und AES-GCM, mit einem Passwort deiner Wahl.
+Ein Archiv, das du selbst exportierst, ist ein Zip mit `data.json` und den Anhangdateien. Das
+Passwort, das du wählst, schützt darin **allein die Anbieter-API-Keys**: sie werden mit
+PBKDF2-HMAC-SHA256 bei 600.000 Iterationen und AES-GCM verschlüsselt und als ein Feld von
+`data.json` gespeichert. Unterhaltungen, Nachrichten, Notizen, Ordner, Skills, Einstellungen und
+Anhänge werden so oder so als reines JSON und als gewöhnliche Dateien geschrieben – behandle ein
+Archiv also als lesbar für jeden, der die Datei hat. Exportiere ohne Keys, wenn du nur deinen
+Verlauf willst.
 
 ## Einen Modellserver im eigenen Netz erreichen
 
@@ -278,11 +283,11 @@ festgenagelt.
 ./gradlew :app:testDebugUnitTest
 ```
 
-Rund 3.000 Unit-Tests über 319 Dateien, mit JUnit 4, MockK, Turbine, `kotlinx-coroutines-test` und
-Ktors Mock-Engine. Die Abdeckung ist dort am dichtesten, wo Fehler am teuersten sind: Request-Form
-pro Anbieter, SSE-Parsing, Transportauswahl, Relay-Probing und Sicherheitsmodi, Ausführung von
-Capability-Rezepten, Katalog-Caching und Umgang mit Kontraktversionen, Room-Persistenz und
-Backup-Rundläufe.
+Rund 3.000 Unit-Tests über 318 Dateien, mit JUnit 4, MockK, Robolectric,
+`kotlinx-coroutines-test` und Ktors Mock-Engine. Die Abdeckung ist dort am dichtesten, wo Fehler am
+teuersten sind: Request-Form pro Anbieter, SSE-Parsing, Transportauswahl, Relay-Probing und
+Sicherheitsmodi, Ausführung von Capability-Rezepten, Katalog-Caching und Umgang mit
+Kontraktversionen, Room-Persistenz und Backup-Rundläufe.
 
 > [!IMPORTANT]
 > Rund 38 Suites laden Kontrakt-Fixtures, indem sie `../../shared` relativ zum
@@ -305,7 +310,7 @@ Beide Datenbanken stehen auf `version = 1` und haben noch keine Migrationen; die
 ## Lokalisierung
 
 Sechzehn Sprachen: `values/` (Englisch, die Quelle) plus fünfzehn `values-*`-Verzeichnisse, je rund
-1.700 Strings, wobei jede Locale denselben Schlüsselsatz hält. Der Sprachwechsel in der App läuft
+1.300 Strings, wobei jede Locale denselben Schlüsselsatz hält. Der Sprachwechsel in der App läuft
 über `AppLanguageManager` und `android:localeConfig`. Language-Splits sind im Bundle deaktiviert,
 sodass ein einziges Artefakt alle Übersetzungen trägt.
 

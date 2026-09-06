@@ -147,8 +147,12 @@ texto cifrado seria indecifrável no aparelho novo de qualquer forma. **Depois d
 você digita as suas chaves de API de novo e faz login outra vez em qualquer assinatura de
 provedor**; conversas e notas passam normalmente.
 
-Os arquivos de backup que você mesmo exporta são criptografados à parte, com PBKDF2-HMAC-SHA256 a
-600.000 iterações e AES-GCM, usando uma senha escolhida por você.
+Um arquivo que você mesmo exporta é um zip com o `data.json` mais os arquivos de anexo. A senha que
+você escolhe protege **apenas as chaves de API de provedor** que estão dentro dele: elas são
+criptografadas com PBKDF2-HMAC-SHA256 a 600.000 iterações e AES-GCM e guardadas como um campo do
+`data.json`. Conversas, mensagens, notas, pastas, skills, preferências e anexos são escritos como
+JSON puro e arquivos puros de qualquer forma, então trate um arquivo desses como legível por qualquer
+pessoa que o tenha. Exporte sem as chaves se você só quer o seu histórico.
 
 ## Alcançando um servidor de modelo na sua própria rede
 
@@ -278,7 +282,7 @@ As versões exatas estão fixadas em
 ./gradlew :app:testDebugUnitTest
 ```
 
-Cerca de 3.000 testes unitários em 319 arquivos, usando JUnit 4, MockK, Turbine,
+Cerca de 3.000 testes unitários em 318 arquivos, usando JUnit 4, MockK, Robolectric,
 `kotlinx-coroutines-test` e o mock engine do Ktor. A cobertura é mais densa onde os erros custam
 mais caro: formato da requisição por provedor, parsing de SSE, seleção de transporte, sondagem de
 relay e modos de segurança, execução de receitas de capacidade, cache do catálogo e tratamento de
@@ -305,7 +309,7 @@ Os dois bancos de dados estão em `version = 1`, ainda sem migrações; os schem
 ## Localização
 
 Dezesseis idiomas: `values/` (inglês, a origem) mais quinze diretórios `values-*`, com cerca de
-1.700 strings cada, e todos os locales mantendo um conjunto de chaves idêntico. A troca de idioma
+1.300 strings cada, e todos os locales mantendo um conjunto de chaves idêntico. A troca de idioma
 dentro do app passa por `AppLanguageManager` e `android:localeConfig`. Os splits por idioma estão
 desativados no bundle, para que um único artefato carregue todas as traduções.
 

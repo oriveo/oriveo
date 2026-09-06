@@ -133,8 +133,11 @@ HTTP 200 與工具宣告都明確不算數。每則訊息的結果都會被保�
 的必然結果，不是疏漏 —— 密文換到新裝置上本來也解不開。**換新手機之後，你要重新輸入 API Key、重新
 登入各家供應商的訂閱**；對話與筆記會正常帶過去。
 
-你自己匯出的備份封存則是另外加密的，使用 PBKDF2-HMAC-SHA256 迭代 600,000 次搭配 AES-GCM，密碼由你
-自訂。
+你自己匯出的封存是一個 zip，裡面裝著 `data.json` 加上附件檔案。你自訂的密碼**只保護裡面的供應商
+API Key**：它們以 PBKDF2-HMAC-SHA256 迭代 600,000 次搭配 AES-GCM 加密，並作為 `data.json` 的一個欄位
+保存。對話、訊息、筆記、資料夾、Skills、偏好設定與附件，不論如何都是以純 JSON 與普通檔案寫入的，
+所以請把一份封存當作「拿到這個檔案的人都讀得到」來看待。如果你只想要自己的歷史紀錄，就選擇不帶 Key
+匯出。
 
 ## 連上你自己網路上的模型伺服器
 
@@ -248,8 +251,8 @@ Android Studio 產生，不會提交。正式版簽署方式見 [SIGNING.md](../
 ./gradlew :app:testDebugUnitTest
 ```
 
-319 個檔案裡大約 3,000 個單元測試，使用 JUnit 4、MockK、Turbine、`kotlinx-coroutines-test` 與 Ktor
-的 mock engine。覆蓋最密的地方，正是出錯代價最高的地方：每家供應商的請求形狀、SSE 解析、傳輸方式
+318 個檔案裡大約 3,000 個單元測試，使用 JUnit 4、MockK、Robolectric、`kotlinx-coroutines-test`
+與 Ktor 的 mock engine。覆蓋最密的地方，正是出錯代價最高的地方：每家供應商的請求形狀、SSE 解析、傳輸方式
 選擇、relay 探測與安全模式、能力配方執行、目錄快取與契約版本處理、Room 持久化，以及備份的來回
 一致性。
 
@@ -269,7 +272,7 @@ Android Studio 產生，不會提交。正式版簽署方式見 [SIGNING.md](../
 
 ## 在地化
 
-十六種語言：`values/`（英文，來源語言）加上十五個 `values-*` 目錄，每個約 1,700 條字串，而且每個
+十六種語言：`values/`（英文，來源語言）加上十五個 `values-*` 目錄，每個約 1,300 條字串，而且每個
 locale 都持有完全相同的鍵集。應用內語言切換走 `AppLanguageManager` 與 `android:localeConfig`。
 bundle 停用了語言分割，所以單一產物就帶著全部翻譯。
 

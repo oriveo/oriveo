@@ -72,9 +72,10 @@ các công thức; `capability_result_definitions.v1.json` và `capability_custo
 nghĩa cách diễn giải kết quả và các điều khiển mà người dùng nhìn thấy.
 
 Mỗi công thức khai báo một `executionKind` — `request_overlay`, `server_tool`, `client_tool_loop`,
-`endpoint_route`, `model_route` — và trình biên dịch của từng client kiểm chứng rằng công thức khớp
-với nhà cung cấp, khả năng và transport trước khi áp dụng, từ chối kèm một lý do có tên thay vì gửi
-đi một yêu cầu chẳng ai xem qua.
+`endpoint_route`, `model_route`, `external_connector`, `unavailable` — và trình biên dịch của từng
+client kiểm chứng rằng công thức khớp với nhà cung cấp, khả năng và transport trước khi áp dụng, từ
+chối kèm một lý do có tên thay vì gửi đi một yêu cầu chẳng ai xem qua. Danh sách này là một tập đóng:
+một công thức nêu tên bất cứ thứ gì khác sẽ bị từ chối chứ không được đoán.
 
 ## model-contracts
 
@@ -88,25 +89,41 @@ client cùng lúc.
 
 ## test-fixtures
 
-Dữ liệu test chuẩn: lưu lượng gọi công cụ từ upstream đã ghi lại, các kịch bản định tuyến và dò tìm
-relay, các snapshot model-facts và bằng chứng khả năng, cùng các kịch bản engine cục bộ.
+Dữ liệu test chuẩn: lưu lượng gọi công cụ từ upstream đã ghi lại, định tuyến relay, kiểm tra tính
+hợp lệ của biểu mẫu, phân loại địa chỉ cục bộ, các kịch bản danh mục và cấu hình di động, các
+snapshot model-facts và bằng chứng khả năng, cùng các kịch bản engine cục bộ.
 
-Những tệp `.sse` nằm dưới `recorded/` là **lưu lượng upstream thật đã bắt được**, giữ nguyên đến
-từng byte; số còn lại là fixture viết tay, ghim chặt một đường phân tích cụ thể. Khác biệt ấy có ý
-nghĩa: một mock viết tay mã hóa lại điều bạn *tin rằng* nhà cung cấp làm, còn một bản ghi mã hóa lại
-điều nó *thực sự đã làm*, kể cả cái chunk méo mó nó gửi đi hôm thứ Ba nọ. Khi một bản sửa giao thức
-nhà cung cấp cần một bài test, hãy ưu tiên một bản ghi.
+Những tệp `.sse` nằm dưới `recorded/` là **lưu lượng upstream thật đã bắt được**, giữ nguyên từng
+byte đúng như lúc nó tới — chỉ có phần header phản hồi bị bỏ đi, và phần thân thì chưa bao giờ mang
+khóa. Số còn lại là fixture viết tay, ghim chặt một đường phân tích cụ thể. Khác biệt ấy có ý nghĩa:
+một mock viết tay mã hóa lại điều bạn *tin rằng* nhà cung cấp làm, còn một bản ghi mã hóa lại điều nó
+*thực sự đã làm*, kể cả cái chunk méo mó nó gửi đi hôm thứ Ba nọ. Khi một bản sửa giao thức nhà cung
+cấp cần một bài test, hãy ưu tiên một bản ghi.
+
+Trường `$comment` của một fixture, hoặc bản kê `expected.json` nằm cạnh nó, cho biết những mục quanh
+đó ghim chặt điều gì. Hãy đọc phần đó trước khi thêm một trường hợp mới.
 
 ## OriveoProviderKit
 
 Một package Swift chứa nhân giao thức wire của nhà cung cấp: ghép dòng SSE, phân tích chunk theo
-chuẩn OpenAI-compatible, mã hóa tên công cụ, che thông tin xác thực, phân loại lỗi từ upstream, phân
-tích thẻ thinking, trích xuất theo đường dẫn JSON trong lúc stream, và các hồ sơ kỳ quặc theo từng
-nhà cung cấp.
+chuẩn OpenAI-compatible, ghép theo sự kiện cho các giao thức Responses / Anthropic Messages / Gemini,
+dựng yêu cầu độc lập với transport, biên dịch công thức cùng các lớp chắn khi thực thi nó, mã hóa tên
+công cụ, che thông tin xác thực, phân loại lỗi từ upstream, phân tích thẻ thinking, trích xuất theo
+đường dẫn JSON trong lúc stream, một chính sách chuyển hướng `URLSession` được khai báo rõ ràng, và
+các hồ sơ kỳ quặc theo từng nhà cung cấp.
 
 Phạm vi của nó được vạch hẹp một cách có chủ đích. **Nằm trong:** kiến thức về wire chỉ dùng
-Foundation. **Nằm ngoài:** mô hình ứng dụng, giao diện, cơ sở dữ liệu, telemetry, bản địa hóa. Mỗi
-client Apple giữ một lớp ràng buộc mỏng quanh nó, để hành vi wire có đúng một hiện thực duy nhất.
+Foundation. **Nằm ngoài:** mô hình ứng dụng, giao diện, cơ sở dữ liệu, telemetry, bản địa hóa.
+Package này không phụ thuộc vào bất cứ gì ngoài standard library và Foundation, và mỗi client Apple
+giữ một lớp ràng buộc mỏng quanh nó, để hành vi wire có đúng một hiện thực duy nhất.
+
+Nó hiện thực toàn bộ đường yêu cầu và streaming cho các nền tảng Apple. Ứng dụng iOS hiện chỉ liên
+kết một tập con của nó — các bộ ghép stream, các hồ sơ wire, bộ codec tên công cụ và các bộ phân loại
+lỗi — và vẫn giữ bộ dựng yêu cầu riêng; client macOS đang được phát triển là người tiêu thụ thứ hai,
+và đó chính là lý do trình biên dịch công thức cùng bộ dựng yêu cầu độc lập với transport nằm ở đây
+chứ không nằm bên trong một ứng dụng nào. Bộ test bên dưới bao phủ những phần mà mọi người tiêu thụ
+đều dùng chung: tách SSE, ghép theo chuẩn OpenAI-compatible, bộ codec tên công cụ và chính sách
+chuyển hướng.
 
 ```bash
 cd shared/OriveoProviderKit && swift build && swift test

@@ -43,7 +43,7 @@ Oriveo 웹 클라이언트는 Next.js로 만든 BYOK(bring-your-own-key) AI 채�
 
 ## 빠른 시작
 
-Node 22가 필요합니다([`.nvmrc`](../../web/.nvmrc) 참고). npm은 함께 딸려 오므로 다른 패키지
+Node 22.22 이상이 필요합니다([`.nvmrc`](../../web/.nvmrc) 참고). npm은 함께 딸려 오므로 다른 패키지
 매니저는 필요 없습니다.
 
 ```bash
@@ -90,7 +90,7 @@ flowchart LR
 그 머신에 있습니다.
 
 핸들러는 하나가 아닙니다. 채팅 스트리밍, 릴레이 포워더, 이미지 생성, 모델 목록, 키 검증, 그리고
-Grok과 Codex의 기기 로그인 교환을 합치면 route 파일이 모두 열두 개입니다. 여기서 짚어 둘 것은 키
+Grok과 ChatGPT의 기기 로그인 교환을 합치면 route 파일이 모두 열두 개입니다. 여기서 짚어 둘 것은 키
 검증인데, 키를 당신 자신의 서버로 보내고 그 서버가 그 키로 공급자를 찔러 봅니다.
 
 브라우저 호출을 *허용하는* 엔드포인트도 몇 개 있고, 그런 것들은 중간에 서버 없이 직접 호출합니다.
@@ -169,6 +169,11 @@ packages/ipc-contract/  typed channel contract for a desktop shell
 기술하는데, 이 저장소에는 그런 셸이 들어 있지 않으므로 웹 빌드에서는 타입과 결코 실행되지 않는
 분기만 보탤 뿐입니다.
 
+같은 종류의 이음새가 하나 더 있습니다. `apps/app/lib/core/sync-port.ts`는 동기화 백엔드가 구현하게
+될 인터페이스를 선언하고, 모든 호출 지점은 옵셔널 체이닝으로 그것에 닿습니다. 아무것도 그런 백엔드를
+끼워 넣지 않으므로 `getSyncAdapter()`는 `null`을 반환하고, IndexedDB가 당신 데이터의 유일한 사본으로
+남습니다 — "계정 없음, 로그인 없음"이 실제로 뜻하는 것이 바로 이것입니다.
+
 ## 저장
 
 모든 것이 파티션 단위이며, 기본값이 `guest`인 활성 id로 구분됩니다.
@@ -221,6 +226,8 @@ GET {backend}/api/metadata/model-facts
 | `npm run test` | vitest watch 모드 |
 | `npm run lint` | `apps/`와 `packages/`에 eslint |
 
+`npm start --workspace @oriveo/app`은 완성된 빌드를 3001 포트에서 서비스합니다.
+
 테스트 파일 하나만 돌리려면 그 파일을 소유한 워크스페이스에서 실행하세요. 몇몇 스위트가 작업
 디렉터리를 기준으로 fixture를 찾기 때문입니다.
 
@@ -231,9 +238,7 @@ cd apps/app && npx vitest run lib/core/chat/__tests__/stream-options.test.ts
 ## 설정
 
 전부 선택 사항입니다. [`.env.example`](../../web/.env.example)을 `.env.local`로 복사하고 필요한
-것만 설정하세요. 각 키는 그 파일에 설명되어 있습니다. 코드가 읽지만 그 파일에는 없는 변수도 몇 개
-있습니다: `BACKEND_URL`(`NEXT_PUBLIC_BACKEND_URL`의 서버 전용 쌍둥이), `NEXT_PUBLIC_LIBRARY_ENABLED`,
-`ORIVEO_DESKTOP`, `NEXT_DIST_DIR`.
+것만 설정하세요. 코드가 읽는 모든 변수가 그 파일에 나열되고 설명되어 있습니다.
 
 ### 오류 보고
 
@@ -244,15 +249,48 @@ cd apps/app && npx vitest run lib/core/chat/__tests__/stream-options.test.ts
 오류 보고를 원하는 배포가 그것을 쓸 수 있도록 여기 있는 것이지, 이 빌드가 어딘가로 신호를 보내기
 때문이 아닙니다.
 
+## 직접 호스팅
+
+Dockerfile도 배포 스크립트도 없습니다. 이 앱은 평범한 Next.js 서버입니다.
+
+```bash
+npm ci
+npm run build:app
+npm start --workspace @oriveo/app     # 127.0.0.1:3001
+```
+
+리버스 프록시 뒤에 두기 전에 알아둘 것이 세 가지 있습니다.
+
+`npm start`는 `127.0.0.1`에 바인드하므로, 프록시가 같은 호스트에서 돌아야 하거나 바인드 주소를
+바꿔야 합니다.
+
+`NEXT_PUBLIC_APP_URL`에는 실제로 서비스하는 오리진을 설정하세요. canonical 링크, 사이트맵, 소셜
+미리보기 이미지가 모두 이 값을 기준으로 해석되며, 기본값은 개발용 포트입니다.
+
+`TRUSTED_PROXY_HOP_COUNT`에는 앱 앞에 있는 프록시 개수를 설정하세요. 채팅 레이트 리미터는
+`X-Forwarded-For`의 *오른쪽*에서 그만큼 거슬러 온 클라이언트 주소를 읽습니다 — 왼쪽에서는 절대 읽지
+않는데, 왼쪽은 클라이언트가 통제하고 위조할 수 있기 때문입니다. 기본값 1은 프록시가 하나일 때
+맞습니다. 프록시가 둘인데 값을 그대로 두면, 읽히는 주소가 본인의 내부 프록시 주소가 되기 때문에 모든
+방문자가 하나의 레이트 리밋 버킷을 공유하게 됩니다.
+
+앱은 HSTS, `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`, `Permissions-Policy`,
+`Cross-Origin-Opener-Policy`를 `next.config.ts`에서 이미 보내므로 프록시가 따로 추가할 필요는
+없습니다. TLS 종료와 요청 크기 제한은 프록시의 몫입니다.
+
+마지막으로 의식적으로 결정해야 할 것이 하나 있습니다. 그 배포에 접근할 수 있는 사람은 누구나 자기가
+준 키로 공급자를 호출하는 데 그 route handler를 쓸 수 있습니다. 핸들러는 자체 키를 갖지 않고 아무것도
+저장하지 않지만, 바깥으로 나가는 HTTP 경로이기는 합니다. 그러니 공개적으로 접근 가능한 배포는 다른
+내부 도구에 걸어 둘 만한 접근 통제 뒤에 두는 것이 맞습니다.
+
 ## 테스트
 
-461개 파일에 걸쳐 약 4,600개 테스트가 vitest로 돌아갑니다. 실수의 대가가 가장 큰 곳에 커버리지가
+460개 파일에 걸쳐 약 5,600개 테스트가 vitest로 돌아갑니다. 실수의 대가가 가장 큰 곳에 커버리지가
 가장 두텁습니다. 공급자별 요청 형태, wire 프로토콜별 transport 동작, SSE와 프록시 청크 파싱, 사용량
 과 비용 파싱, 오류 분류, 릴레이 프로빙과 보안 모드, SSRF 가드, 기능 레시피 실행, 카탈로그 캐싱과
 계약 버전 무효화, IndexedDB 영속화, 저장 파티셔닝, 백업 왕복, 그리고 route handler 자체가 그렇습니다.
 
 > [!IMPORTANT]
-> 약 24개 스위트가 `../shared`에서 계약 fixture를 읽으므로 **테스트는 전체 체크아웃에서만
+> 서른 개가 넘는 스위트가 `../shared`에서 계약 fixture를 읽으므로 **테스트는 전체 체크아웃에서만
 > 통과합니다** — `web/`만 따로 복사해 내면 동작하지 않습니다.
 
 ## 현지화
