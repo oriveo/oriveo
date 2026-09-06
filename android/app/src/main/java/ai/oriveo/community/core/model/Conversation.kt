@@ -32,9 +32,6 @@ data class Conversation(
     val skillId: String? = null,
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis(),
-    /** Soft delete. Null means the conversation is live. */
-    @kotlinx.serialization.Transient
-    val deletedAt: Long? = null,
     /** Up to three notes pinned into this conversation's prompt. */
     val pinnedNoteIds: List<String> = emptyList(),
 ) {
@@ -100,7 +97,7 @@ fun makeAutoConversationTitle(message: ChatMessage): String {
             text = when {
                 hasImage -> "📷 Photo"
                 hasVideo -> "🎬 ${attachments.firstOrNull { it.kind == AttachmentKind.Video }?.fileName ?: "Video"}"
-                else -> "📎 ${attachments.first()?.fileName ?: "File"}"
+                else -> "📎 ${attachments.first().fileName}"
             }
         } else {
             var prefix = ""

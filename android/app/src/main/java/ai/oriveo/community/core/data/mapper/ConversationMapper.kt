@@ -10,7 +10,6 @@ import ai.oriveo.community.core.util.normalizeUuid
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
-
 object ConversationMapper {
 
     private val json = Json { ignoreUnknownKeys = true; coerceInputValues = true }
@@ -37,7 +36,6 @@ object ConversationMapper {
             skillId = skillId,
             createdAt = createdAt,
             updatedAt = updatedAt,
-            deletedAt = deletedAt,
             pinnedNoteIds = pinnedNoteIdsJson?.let {
                 runCatching { json.decodeFromString<List<String>>(it) }.getOrDefault(emptyList())
             }?.map(::normalizeUuid) ?: emptyList(),
@@ -60,7 +58,6 @@ object ConversationMapper {
         createdAt = createdAt,
         updatedAt = updatedAt,
         accountId = accountId,
-        deletedAt = deletedAt,
         pinnedNoteIdsJson = pinnedNoteIds.map(::normalizeUuid).distinct()
             .takeIf { it.isNotEmpty() }
             ?.let { json.encodeToString(it) },

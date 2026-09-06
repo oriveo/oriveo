@@ -18,7 +18,6 @@ import androidx.room.Index
         Index("accountId"),
         Index(value = ["accountId", "updatedAt"]),
         Index("folderID"),
-        Index("deletedAt"),
     ],
 )
 data class ConversationEntity(
@@ -45,8 +44,6 @@ data class ConversationEntity(
     val skillId: String? = null,
     /** See [ai.oriveo.community.core.data.database.LOCAL_PARTITION_ID]. */
     val accountId: String = "local",
-    /** Soft delete. A row with a timestamp here is hidden from every list. */
-    val deletedAt: Long? = null,
     /** Up to three notes pinned into this conversation's prompt, as a JSON id array. */
     val pinnedNoteIdsJson: String? = null,
 )

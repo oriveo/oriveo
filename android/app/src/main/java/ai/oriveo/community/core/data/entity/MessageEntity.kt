@@ -21,7 +21,6 @@ import androidx.room.Index
         // The chat screen only ever reads one conversation ordered by sortOrder, so the composite
         // index answers that query without a sort step.
         Index(value = ["conversationId", "accountId", "sortOrder"]),
-        Index("deletedAt"),
     ],
 )
 data class MessageEntity(
@@ -55,8 +54,6 @@ data class MessageEntity(
     val quoteContextJson: String? = null,
     val createdAt: Long?,
     val sortOrder: Int,
-    /** Soft delete. A row with a timestamp here is hidden from the conversation. */
-    val deletedAt: Long? = null,
     /** Cited sources as JSON. Only ever set on an assistant message. */
     val citationsJson: String? = null,
     /** Which capabilities actually ran for this message, as JSON. Diagnostics only. */
