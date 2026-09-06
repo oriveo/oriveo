@@ -13,7 +13,6 @@ import {
   connectionConfigurable,
   resolveGenerationProfileForModel,
   sessionActionable,
-  type GenerationAccessGrant,
   type GenerationParameterEntryScope,
 } from './stream-options';
 
@@ -22,42 +21,37 @@ type ProfileParameter = NonNullable<
 >['parameters'][number];
 
 /**
- * The four empty states. They are mutually exclusive and **every trigger is decidable locally on the
- * client**, consuming no additional server-provided field.
+ * The three empty states. They are mutually exclusive and **every trigger is decidable locally on
+ * the client**, consuming no additional server-provided field.
  *
- * Four states rather than one, because the next user action differs completely: A leaves nothing to
- * do, B is an authority change, C can be resolved by paying, D is a fact about this connection.
+ * Three states rather than one, because the next user action differs completely: A leaves nothing to
+ * do, B is an authority change, C is a fact about this connection.
  */
 export type GenerationParameterEmptyState =
   /** A - not verified yet: this model on this connection has never returned a non-empty profile (fail-safe). */
   | 'notVerified'
   /** B - taken over or withdrawn by the catalog: the user saw a non-empty profile on this machine before, and it is empty now. */
   | 'catalogManaged'
-  /** C - entitlement off: the profile is non-empty but entitlement filtering cleared it. Threshold and verdict both come from the server. */
-  | 'entitlementLocked'
-  /** D - nothing accepted: the profile is non-empty but the current scope can set none of it. */
+  /** C - nothing accepted: the profile is non-empty but the current scope can set none of it. */
   | 'allUnsupported';
 
 /**
  * Visible parameter set for the current scope. The panel **may only ask this function** and must not
  * inline another copy of the support rules.
  *
- * **Session scope deliberately ignores entitlement**, which closes the gap between the composer chip
- * and the panel: the chip asks `entryVisible(..., 'session')` -> `sessionActionable`, so a panel that
- * additionally filtered session scope through `engine_runtime && canManageRuntime` would report
- * nothing right after the chip reported something. The generation parameter contract fixture settles
- * it: in the four `*.session.engine_runtime.entitlement_off` cases `inScope/entryVisible/editable`
- * are all true, and entitlement filtering happens only in connection scope.
+ * The two scopes answer with different sets on purpose: connection defaults really are sent with
+ * every request, while the session set is the narrower "adjustable for this one turn" list the
+ * composer chip also asks for. Both entry points read the same function so the chip can never
+ * promise a row the panel then refuses to show.
  */
 export function generationPanelVisibleParameters(
   provider: Provider,
   model: AIModel,
   scope: GenerationParameterEntryScope,
-  entitlement: GenerationAccessGrant,
 ): ProfileParameter[] {
   return scope === 'session'
     ? sessionActionable(provider, model)
-    : connectionConfigurable(provider, model, entitlement);
+    : connectionConfigurable(provider, model);
 }
 
 /**
@@ -72,26 +66,16 @@ export function generationPanelEmptyState(input: {
   provider: Provider;
   model: AIModel;
   scope: GenerationParameterEntryScope;
-  entitlement: GenerationAccessGrant;
   hasSeenNonEmptyProfile: boolean;
 }): GenerationParameterEmptyState | null {
-  const { provider, model, scope, entitlement, hasSeenNonEmptyProfile } = input;
-  if (generationPanelVisibleParameters(provider, model, scope, entitlement).length > 0) return null;
+  const { provider, model, scope, hasSeenNonEmptyProfile } = input;
+  if (generationPanelVisibleParameters(provider, model, scope).length > 0) return null;
 
   const declared = resolveGenerationProfileForModel(provider, model)?.parameters ?? [];
   // (a) The profile is absent or declared empty. Only the local history knows whether it never existed or existed once.
   if (declared.length === 0) return hasSeenNonEmptyProfile ? 'catalogManaged' : 'notVerified';
 
-  // (b) The profile is non-empty but the visible set is empty. C has to be checked before D:
-  // entitlement is the only one of the four states a user can resolve themselves, and rendering it as D turns a state with an exit into a dead end.
-  if (
-    scope === 'connectionDefaults'
-    && !entitlement.canManageRuntime
-    && connectionConfigurable(provider, model, { canManageRuntime: true }).length > 0
-  ) {
-    return 'entitlementLocked';
-  }
-
+  // (b) The profile is non-empty but this scope can set none of it.
   return 'allUnsupported';
 }
 

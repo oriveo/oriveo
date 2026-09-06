@@ -34,6 +34,7 @@ interface AvailabilityCase {
     providerKind: 'official' | 'relay';
     scope: 'session' | 'connectionDefaults';
     parameter: { id: string; group?: string; support: string; wire?: string | null };
+    /** Whether the host in this case lets its users configure the `engine_runtime` group. */
     entitlement: { canManageRuntime: boolean };
   };
   expect: { inScope: boolean; entryVisible: boolean; editable: boolean };
@@ -53,7 +54,7 @@ describe('generation_parameter_contract.v1 availabilityCases - Web production co
     localStorage.clear();
   });
 
-  it('locks the shared availability golden rather than the retired H2 subset', () => {
+  it('locks the whole shared availability golden, not a subset of it', () => {
     expect(contract.version).toBe(1);
     expect(contract.availabilityCases).toHaveLength(58);
     expect(new Set(contract.availabilityCases.map((item) => item.caseId)).size).toBe(58);

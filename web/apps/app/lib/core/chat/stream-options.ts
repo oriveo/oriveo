@@ -355,11 +355,17 @@ export function filterGenerationParameterOverrides(
 
 export type GenerationParameterEntryScope = 'session' | 'connectionDefaults';
 
-/** Entitlement input for the connection scope. Treated as closed when it cannot be determined (fail-safe); never assumed true. */
-export interface GenerationAccessGrant {
-  /** Server-granted entitlement to manage runtime parameters (engine_runtime group). */
+/**
+ * Per-host permission to expose the `engine_runtime` group, which reconfigures the serving engine
+ * itself rather than one request. A host that must not let its users do that passes it closed; this
+ * build imposes no such restriction and leaves it open.
+ */
+export interface EngineRuntimePermission {
   canManageRuntime: boolean;
 }
+
+/** Default permission: `engine_runtime` rows are configurable. */
+export const ENGINE_RUNTIME_ALLOWED: EngineRuntimePermission = { canManageRuntime: true };
 
 type ProfileParameter = NonNullable<
   ReturnType<typeof resolveGenerationProfileForModel>
@@ -391,9 +397,10 @@ export function sessionActionable(provider: Provider, model: AIModel): ProfilePa
 }
 
 /**
- * Connection-scope render set: entitlement filtering only. Rows are not dropped by support, and
- * the reasoning group is kept (connection-level reasoning defaults really are sent, they are not
- * a read-only projection).
+ * Connection-scope render set: every declared parameter that has a wire name, minus the
+ * `engine_runtime` group when the host withholds it. Rows are not dropped by support, and the
+ * reasoning group is kept (connection-level reasoning defaults really are sent, they are not a
+ * read-only projection).
  *
  * A check such as `if (evidence.support === 'unsupported') return false;` must not be added
  * here. It drops every row that has official evidence of non-support, which makes the shared
@@ -412,13 +419,13 @@ export function sessionActionable(provider: Provider, model: AIModel): ProfilePa
 export function connectionConfigurable(
   provider: Provider,
   model: AIModel,
-  entitlement: GenerationAccessGrant,
+  permission: EngineRuntimePermission = ENGINE_RUNTIME_ALLOWED,
 ): ProfileParameter[] {
   const profile = resolveGenerationProfileForModel(provider, model);
   if (!profile) return [];
   return profile.parameters.filter((parameter) => {
     if (!parameter.id) return false;
-    return parameter.group !== 'engine_runtime' || entitlement.canManageRuntime;
+    return parameter.group !== 'engine_runtime' || permission.canManageRuntime;
   });
 }
 
@@ -473,11 +480,11 @@ export function entryVisible(
   provider: Provider,
   model: AIModel,
   scope: GenerationParameterEntryScope,
-  entitlement: GenerationAccessGrant = { canManageRuntime: false },
+  permission: EngineRuntimePermission = ENGINE_RUNTIME_ALLOWED,
 ): boolean {
   return scope === 'session'
     ? sessionActionable(provider, model).length > 0
-    : connectionConfigurable(provider, model, entitlement).length > 0;
+    : connectionConfigurable(provider, model, permission).length > 0;
 }
 
 /** Reasoning group membership: `group` wins, the id prefix is the fallback for snapshots that carry no group. */

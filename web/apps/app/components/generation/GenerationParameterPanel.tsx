@@ -230,8 +230,6 @@ export function GenerationParameterPanel({
   /** Previous frame's dormant ids; null means the first frame, which never reports a restore. */
   const previousDormantIDs = useRef<string[] | null>(null);
   const importInput = useRef<HTMLInputElement>(null);
-  const canViewDiagnostics = true;
-  const canManageRuntime = true;
 
   useEffect(() => {
     setValues(loadGenerationParameterOverrides(key) ?? {});
@@ -253,18 +251,15 @@ export function GenerationParameterPanel({
     recordSeenGenerationProfile(provider.id, model.id, declaredCount);
   }, [declaredCount, model.id, provider.id]);
 
-  // The visible set may only be asked of this one function, matching the composer chip's
-  // entryVisible. Session scope deliberately skips entitlement filtering (see the note in
-  // generation-panel-presentation): the chip uses sessionActionable, so an extra filter here
-  // would make the chip promise what the panel then denies. Entitlement filtering happens
-  // only in connection scope, so state C can only appear in the detail page container.
+  // The visible set may only be asked of this one function, which is also what the composer chip's
+  // entryVisible calls. Any second copy of the rules here would let the chip promise a row the
+  // panel then refuses to draw.
   const entryScope = scope === 'session' ? 'session' : 'connectionDefaults';
-  const visible = generationPanelVisibleParameters(provider, model, entryScope, { canManageRuntime });
+  const visible = generationPanelVisibleParameters(provider, model, entryScope);
   const emptyState = generationPanelEmptyState({
     provider,
     model,
     scope: entryScope,
-    entitlement: { canManageRuntime },
     hasSeenNonEmptyProfile: hasSeenNonEmptyGenerationProfile(provider.id, model.id),
   });
   const visibleEvidence = profile ? visible.map((parameter) => resolveGenerationParameterEvidence({
@@ -421,12 +416,6 @@ export function GenerationParameterPanel({
           {state === 'notVerified' && (
             <p className={styles.scopeHint}>{tc('generationParameterEmptyNotVerifiedBody')}</p>
           )}
-          {state === 'entitlementLocked' && (
-            // The one empty state with a way out: if the user can fix it themselves, give them the entry.
-            <p className={styles.portableActions}>
-              <a href="/providers">{tc('generationParameterEmptyAccessGrantAction')}</a>
-            </p>
-          )}
           {/* Bottom of the empty state: a one-line summary with view and clear actions, shown only when dormant values exist. */}
           {dormantSummary}
         </div>
@@ -443,9 +432,8 @@ export function GenerationParameterPanel({
     .map((parameter) => [parameter.id!, parameter.id!]));
   const presets = listGenerationParameterPresets({ ...key, portableParameterIds: Object.keys(portableMapping) });
   const compatibilityIssues = previewGenerationCompatibility({ profile, overrides: values, streaming: true });
-  const diagnostics = canViewDiagnostics
-    ? listGenerationParameterDiagnostics().filter((entry) => !entry.modelId || entry.modelId === model.id)
-    : [];
+  const diagnostics = listGenerationParameterDiagnostics()
+    .filter((entry) => !entry.modelId || entry.modelId === model.id);
   return (
     <section className={styles.panel} data-embedded={embedded ? 'true' : undefined} aria-label={tc('modelBehavior')}>
       {panelHeader(reset)}
@@ -574,7 +562,7 @@ export function GenerationParameterPanel({
           have no row. The summary must appear here too, or dormant values in the non-empty
           state become silent orphans. */}
       {dormantSummary}
-      {showsConnectionTools && canViewDiagnostics && <details className={styles.group} key={diagnosticRevision}>
+      {showsConnectionTools && <details className={styles.group} key={diagnosticRevision}>
         <summary>{tc('generationDiagnosticsHistory')}</summary>
         <div className={styles.diagnostics}>
           {diagnostics.length === 0 && <p>{tc('generationDiagnosticsEmpty')}</p>}
@@ -816,17 +804,15 @@ function supportedModelNames(provider: Provider, current: AIModel, parameterId: 
 }
 
 /**
- * Titles for the four empty states, worded identically across clients.
+ * Titles for the three empty states, worded identically across clients.
  *
  * Copy rules: attribute to this connection rather than to the model, because evidence is
  * measured per provider and model and "the model does not support it" would be a claim without
- * evidence. No percentages, no progress numbers, no promised timelines. State B reuses the
- * existing translation keys rather than creating a second set.
+ * evidence. No percentages, no progress numbers, no promised timelines.
  */
 const EMPTY_STATE_TITLE_KEY: Record<GenerationParameterEmptyState, string> = {
   notVerified: 'generationParameterEmptyNotVerified',
   catalogManaged: 'generationParameterCatalogManaged',
-  entitlementLocked: 'generationParameterEmptyAccessGrant',
   allUnsupported: 'generationParameterEmptyAllUnsupported',
 };
 

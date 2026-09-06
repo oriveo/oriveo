@@ -86,9 +86,6 @@ function modelWith(parameters: { id: string; support: string }[] | undefined): A
   } as unknown as AIModel;
 }
 
-const ENTITLED = { canManageRuntime: true };
-const UNENTITLED = { canManageRuntime: false };
-
 afterEach(() => {
   __resetMetadataClientForTest();
   localStorage.clear();
@@ -105,7 +102,7 @@ describe('Empty states: the container never collapses', () => {
     expect(resolveGenerationProfileForModel(provider, model)).toBeUndefined();
 
     expect(generationPanelEmptyState({
-      provider, model, scope: 'connectionDefaults', entitlement: ENTITLED, hasSeenNonEmptyProfile: false,
+      provider, model, scope: 'connectionDefaults', hasSeenNonEmptyProfile: false,
     })).toBe('notVerified');
   });
 
@@ -122,7 +119,6 @@ describe('Empty states: the container never collapses', () => {
       provider,
       model,
       scope: 'connectionDefaults',
-      entitlement: ENTITLED,
       hasSeenNonEmptyProfile: hasSeenNonEmptyGenerationProfile(provider.id, model.id),
     })).toBe('catalogManaged');
   });
@@ -133,30 +129,14 @@ describe('Empty states: the container never collapses', () => {
     expect(hasSeenNonEmptyGenerationProfile(provider.id, 'panel-model')).toBe(false);
   });
 
-  it('C, entitlement: the profile is non-empty but entitlement filters it to nothing, and it must be decided before D as the only state with a way out', async () => {
-    await primeMetadata({ n_ctx: { group: 'engine_runtime' } }, { n_ctx: 'n_ctx' });
-    const provider = officialProvider();
-    const model = modelWith([{ id: 'n_ctx', support: 'supported' }]);
-
-    expect(generationPanelEmptyState({
-      provider, model, scope: 'connectionDefaults', entitlement: UNENTITLED, hasSeenNonEmptyProfile: false,
-    })).toBe('entitlementLocked');
-    // Once the entitlement is on, the empty state goes away.
-    expect(generationPanelEmptyState({
-      provider, model, scope: 'connectionDefaults', entitlement: ENTITLED, hasSeenNonEmptyProfile: false,
-    })).toBeNull();
-  });
-
   it('D, nothing accepted: the conversation scope is still an empty state, because nothing behind the chip is adjustable', async () => {
     await primeMetadata({ temperature: { group: 'sampling' } }, { temperature: 'temperature' });
     const provider = officialProvider();
     const model = modelWith([{ id: 'temperature', support: 'unsupported' }]);
 
-    for (const entitlement of [ENTITLED, UNENTITLED]) {
-      expect(generationPanelEmptyState({
-        provider, model, scope: 'session', entitlement, hasSeenNonEmptyProfile: true,
-      })).toBe('allUnsupported');
-    }
+    expect(generationPanelEmptyState({
+      provider, model, scope: 'session', hasSeenNonEmptyProfile: true,
+    })).toBe('allUnsupported');
   });
 
   /**
@@ -172,27 +152,24 @@ describe('Empty states: the container never collapses', () => {
     const provider = officialProvider();
     const model = modelWith([{ id: 'temperature', support: 'unsupported' }]);
 
-    for (const entitlement of [ENTITLED, UNENTITLED]) {
-      expect(generationPanelVisibleParameters(provider, model, 'connectionDefaults', entitlement).map((item) => item.id))
-        .toEqual(['temperature']);
-      expect(generationPanelEmptyState({
-        provider, model, scope: 'connectionDefaults', entitlement, hasSeenNonEmptyProfile: true,
-      })).toBeNull();
-    }
+    expect(generationPanelVisibleParameters(provider, model, 'connectionDefaults').map((item) => item.id))
+      .toEqual(['temperature']);
+    expect(generationPanelEmptyState({
+      provider, model, scope: 'connectionDefaults', hasSeenNonEmptyProfile: true,
+    })).toBeNull();
   });
 
-  // The C state can only appear in the detail page container; the conversation scope in the
-  // composer is not entitlement-gated, so whenever the chip is visible the panel behind it has
-  // content and never opens onto an empty shell.
-  it('never produces the C state in conversation scope: engine_runtime parameters stay visible when the entitlement is off', async () => {
+  // A supported engine_runtime parameter is adjustable in both scopes, so the chip is drawn and the
+  // panel behind it has content: opening it must never land on an empty shell.
+  it('keeps a supported engine_runtime parameter visible in conversation scope', async () => {
     await primeMetadata({ n_ctx: { group: 'engine_runtime' } }, { n_ctx: 'n_ctx' });
     const provider = officialProvider();
     const model = modelWith([{ id: 'n_ctx', support: 'supported' }]);
 
-    expect(generationPanelVisibleParameters(provider, model, 'session', UNENTITLED).map((item) => item.id))
+    expect(generationPanelVisibleParameters(provider, model, 'session').map((item) => item.id))
       .toEqual(['n_ctx']);
     expect(generationPanelEmptyState({
-      provider, model, scope: 'session', entitlement: UNENTITLED, hasSeenNonEmptyProfile: false,
+      provider, model, scope: 'session', hasSeenNonEmptyProfile: false,
     })).toBeNull();
   });
 
@@ -212,15 +189,13 @@ describe('Empty states: the container never collapses', () => {
     ];
 
     for (const scope of ['session', 'connectionDefaults'] as const) {
-      for (const entitlement of [ENTITLED, UNENTITLED]) {
-        for (const { provider, model } of cases) {
-          for (const hasSeen of [true, false]) {
-            const visible = generationPanelVisibleParameters(provider, model, scope, entitlement);
-            const state = generationPanelEmptyState({
-              provider, model, scope, entitlement, hasSeenNonEmptyProfile: hasSeen,
-            });
-            expect(visible.length === 0, `${provider.kind}/${scope}/${String(hasSeen)}`).toBe(state !== null);
-          }
+      for (const { provider, model } of cases) {
+        for (const hasSeen of [true, false]) {
+          const visible = generationPanelVisibleParameters(provider, model, scope);
+          const state = generationPanelEmptyState({
+            provider, model, scope, hasSeenNonEmptyProfile: hasSeen,
+          });
+          expect(visible.length === 0, `${provider.kind}/${scope}/${String(hasSeen)}`).toBe(state !== null);
         }
       }
     }
@@ -251,7 +226,7 @@ describe('Primary action: the "supports this parameter" filter dimension in the 
     // Reverse assertion: the predicate is not "does this row render". Unsupported rows do render
     // now, so a filter that mistakenly used connectionConfigurable would pass this while letting
     // through a model that cannot be adjusted.
-    expect(generationPanelVisibleParameters(provider, modelWith([{ id: 'temperature', support: 'unsupported' }]), 'connectionDefaults', ENTITLED))
+    expect(generationPanelVisibleParameters(provider, modelWith([{ id: 'temperature', support: 'unsupported' }]), 'connectionDefaults'))
       .toHaveLength(1);
   });
 
