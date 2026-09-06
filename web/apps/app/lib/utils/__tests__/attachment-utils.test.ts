@@ -61,6 +61,24 @@ describe('fileToAttachment', () => {
     expect(attachment.downloadBase64Data).toBe(btoa('PKDOCX'));
   });
 
+  // A saved web page is mostly markup. Forwarding it verbatim spends the context window on tags,
+  // so it goes through the HTML extractor exactly as on the other clients.
+  it('extracts prose from an HTML attachment instead of forwarding the markup', async () => {
+    const html = '<html><head><style>p{color:red}</style></head><body><script>ignored()</script><p>Visible prose.</p></body></html>';
+    const file = new File([html], 'page.html', { type: 'text/html' });
+
+    const attachment = await fileToAttachment(file);
+
+    expect(attachment.base64Data).toContain('Visible prose.');
+    expect(attachment.base64Data).not.toContain('<p>');
+    expect(attachment.base64Data).not.toContain('ignored()');
+  });
+
+  it('accepts .htm and .xhtml, which reach the extractor rather than validation', () => {
+    expect(validateFile(new File(['<p>hi</p>'], 'page.htm', { type: 'text/html' })).valid).toBe(true);
+    expect(validateFile(new File(['<p>hi</p>'], 'page.xhtml', { type: 'application/xhtml+xml' })).valid).toBe(true);
+  });
+
   it('should convert video files into video attachments', async () => {
     const file = new File(['VIDEO'], 'clip.mp4', { type: 'video/mp4' });
 
@@ -105,7 +123,7 @@ describe('fileToAttachment', () => {
       expect(attachment.mimeType).toBe('image/png');
       expect(attachment.fileName).toBe('huge.png');
 
-      // ImageStore  
+      // The ImageStore call carries the uncompressed bytes and no thumbnail.
       const [, imageBlob, thumbBlob, storedMime] = mocks.saveImage.mock.calls[0];
       expect(imageBlob.size).toBe(rawBytes.length);
       expect(thumbBlob).toBeNull();

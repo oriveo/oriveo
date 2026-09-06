@@ -81,7 +81,10 @@ export function validateFile(file: File): ValidationResult {
     !ALLOWED_FILE_TYPES.includes(file.type) &&
     !isTextFileByExtension(file.name) &&
     !isOfficeFileByExtension(file.name) &&
-    !isEpubByExtension(file.name)
+    !isEpubByExtension(file.name) &&
+    // .htm and .xhtml are not in the text extension list, because HTML is extracted rather than
+    // forwarded; they still have to get past validation to reach the extractor.
+    !isHtmlFile(file)
   ) {
     return { valid: false, error: `Unsupported file type: ${file.type || file.name}` };
   }
@@ -95,6 +98,20 @@ function isEpubByExtension(name: string): boolean {
 /** Whether the file can be read as text. */
 export function isTextFile(file: File): boolean {
   return TEXT_MIME_TYPES.includes(file.type) || isTextFileByExtension(file.name);
+}
+
+/**
+ * HTML is readable as text but must not be *sent* as text.
+ *
+ * A saved web page is mostly markup: scripts, inline styles and attributes swamp the prose, so
+ * forwarding it verbatim spends the context window on tags and leaves the model guessing at the
+ * article. It goes through the HTML extractor instead, the same as on the other clients.
+ */
+export function isHtmlFile(file: File): boolean {
+  const lower = file.name.toLowerCase();
+  return file.type === 'text/html'
+    || file.type === 'application/xhtml+xml'
+    || ['.html', '.htm', '.xhtml'].some((ext) => lower.endsWith(ext));
 }
 
 /** Whether the file is an Office binary format that needs officeParser. */
@@ -164,8 +181,9 @@ export async function fileToAttachment(file: File): Promise<Attachment> {
     };
   }
 
-  // Text files: decoded to UTF-8 plain text and sent as a text content part.
-  if (isTextFile(file)) {
+  // Text files: decoded to UTF-8 plain text and sent as a text content part. HTML is excluded
+  // deliberately; it is extracted further down instead of being forwarded as markup.
+  if (isTextFile(file) && !isHtmlFile(file)) {
     const textContent = await file.text();
     return {
       id: createCanonicalUUID(),
@@ -197,11 +215,15 @@ export async function fileToAttachment(file: File): Promise<Attachment> {
         extractedSizeBytes: file.size,
       };
     } catch (e: unknown) {
-      const err = e as { message?: string };
+      const err = e as { name?: string; code?: string; message?: string };
       const msg = String(err?.message ?? '').toLowerCase();
-      const errorCode = (msg.includes('encrypted') || msg.includes('password') || msg.includes('protected'))
-        ? 'password_protected_office'
-        : 'corrupted_file';
+      // A classified ExtractionError keeps its own code: an oversized archive must not be reported
+      // to the model as a corrupted one.
+      const errorCode = err?.name === 'ExtractionError' && err.code
+        ? err.code
+        : (msg.includes('encrypted') || msg.includes('password') || msg.includes('protected'))
+          ? 'password_protected_office'
+          : 'corrupted_file';
       return {
         id: createCanonicalUUID(),
         kind,
@@ -219,7 +241,7 @@ export async function fileToAttachment(file: File): Promise<Attachment> {
   // PDF / EPUB / HTML: extracted locally through FileTextExtractor.
   const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
   const isEpub = file.type === 'application/epub+zip' || file.name.toLowerCase().endsWith('.epub');
-  const isHtml = file.type === 'text/html' || ['html', 'htm', 'xhtml'].some((ext) => file.name.toLowerCase().endsWith(`.${ext}`));
+  const isHtml = isHtmlFile(file);
 
   if (isPdf || isEpub || isHtml) {
     try {
