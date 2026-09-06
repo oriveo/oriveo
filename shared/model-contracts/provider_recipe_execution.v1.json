@@ -1,5 +1,5 @@
 {
-  "$comment": "Shared fixture for execution/continuation/safe-fragment. Every recipe body must be read from registryPath; this file only freezes the input/output of the production builder, loop, and local-only continuation. If a client's test only assembles a body and compares it against itself, that does not count as passing.",
+  "$comment": "Shared fixture for execution/continuation/safe-fragment. Every recipe body must be read from registryPath; this file only freezes the input/output of the production builder, loop, and local-only continuation. A test that assembles a body and compares it against itself does not satisfy this contract.",
   "contractId": "provider_recipe_execution.v1",
   "version": 1,
   "registryPath": "shared/capabilityrecipe/capability_runtime.v1.json",

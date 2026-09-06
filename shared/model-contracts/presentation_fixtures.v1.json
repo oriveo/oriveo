@@ -1,5 +1,5 @@
 {
-  "$comment": "Golden fixture shared by all three clients for the presentation contract. All three clients are only allowed to implement one shared set of rendering components; the structural elements a given fixture renders on iOS / Web / Android (whether the vendor subtitle appears, the recommended badge, capability badge order, which pricing copy branch is used, whether the reasoning selector appears, the number of group headers, empty/offline banners) must be identical.",
+  "$comment": "Golden fixture shared by all three clients for the presentation contract. All three clients must implement exactly one shared set of rendering components; the structural elements a given fixture renders on iOS / Web / Android (whether the vendor subtitle appears, the recommended badge, capability badge order, which pricing copy branch is used, whether the reasoning selector appears, the number of group headers, empty/offline banners) must be identical.",
   "contractVersion": 1,
   "leafCases": [
     {
@@ -466,7 +466,7 @@
           "Anthropic",
           "OpenAI"
         ],
-        "$comment": "Ordered by the order vendorName appears; within the same vendor, ordered by rank descending.",
+        "$comment": "Ordered by first appearance of vendorName; within a vendor, by rank descending.",
         "modelOrderWithinGroups": {
           "Anthropic": [
             "anthropic/claude-sonnet-4",
@@ -613,7 +613,7 @@
     },
     {
       "id": "manual_retained_section_visible_during_pre_launch",
-      "$intent": "Manual-Retained only appears during the initial pre-launch migration window, and must be its own group, never mixed into the official catalog.",
+      "$intent": "A manually retained model must render as its own group and must never be merged into a catalog group.",
       "providerKind": "qwen",
       "metadataSource": "freshNetwork",
       "providerData": {

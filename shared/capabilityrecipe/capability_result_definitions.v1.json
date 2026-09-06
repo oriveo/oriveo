@@ -605,7 +605,7 @@
     }
   },
   "errorRecoveryDefinitions": {
-    "$comment": "Each key is required to equal an evidence definition key and inherits its capability/protocol/parser binding. locatorRules must be an explicitly reviewed structured 400 locator; the current empty maps are an intentional fail-closed baseline.",
+    "$comment": "Every key must match an evidence definition key, and inherits its capability, protocol and parser binding. locatorRules must be an explicitly reviewed structured 400 locator; the current empty maps are an intentional fail-closed baseline.",
     "locatorRules": {}
   }
 }

@@ -17,7 +17,7 @@
     "provider_default"
   ],
   "runtimeIdentity": {
-    "$comment": "Runtime identity and mutation ordering are orthogonal. mutationRevision orders LWW writes; it must never stand in for the Server runtime revision.",
+    "$comment": "Runtime identity and mutation ordering are orthogonal. mutationRevision orders LWW writes; it must never stand in for the catalog's own runtime revision.",
     "requiredFields": [
       "connectionId",
       "canonicalModelId",

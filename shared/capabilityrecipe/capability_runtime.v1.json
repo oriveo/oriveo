@@ -262,7 +262,7 @@
       "reviewedAt": "2026-08-11"
     },
     "openai.chat.web_model.v1": {
-      "$comment": "gpt-5-search-api itself is a search-dedicated model on OpenAI Chat Completions. model_route does not rewrite the model the user picked here: the server only sends this recipe down for the exact gpt-5-search-api model; after the client validates provider/transport it executes with an empty body delta, avoiding another local model-id guess. This model searches on a bare request, so requestOps must stay empty.",
+      "$comment": "gpt-5-search-api itself is a search-dedicated model on OpenAI Chat Completions. model_route does not rewrite the model the user picked here: this recipe is published only for the exact gpt-5-search-api model; after the client validates provider/transport it executes with an empty body delta, avoiding another local model-id guess. This model searches on a bare request, so requestOps must stay empty.",
       "id": "openai.chat.web_model.v1",
       "providerKind": "openAI",
       "transport": {
@@ -317,7 +317,7 @@
       "reviewedAt": "2026-08-11"
     },
     "minimax.messages.web.v1": {
-      "$comment": "MiniMax-M3 is an exact-model alternate route: a normal chat still goes through OpenAI Chat; only when the server's web control selects this recipe does the client switch, by route, to the official Anthropic Messages endpoint. The source/target protocol, method, auth/header, mapper, parser, and replay contract are all sent down by the server — the client must never guess any of it from the model id.",
+      "$comment": "MiniMax-M3 is an exact-model alternate route: a normal chat still goes through OpenAI Chat; only when the catalog's web control selects this recipe does the client switch, by route, to the official Anthropic Messages endpoint. The source/target protocol, method, auth/header, mapper, parser, and replay contract are all declared by the recipe — the client must never guess any of it from the model id.",
       "id": "minimax.messages.web.v1",
       "providerKind": "miniMax",
       "transport": {
@@ -426,7 +426,7 @@
       "reviewedAt": "2026-08-11"
     },
     "gemini.interactions.web.v1": {
-      "$comment": "The Interactions API endpoint route. Oriveo's current default is still generateContent, so this revision has no verdict pointing at it; production request builders are used to verify the current GA /v1/interactions endpoint, its steps/step.delta responses, and replaying a previous interaction, before this is activated on real behavioral evidence.",
+      "$comment": "The Interactions API endpoint route. Oriveo's current default is still generateContent, so no model routes to this recipe. It is exercised through the production request builders — the GA /v1/interactions endpoint, its steps/step.delta responses, and replaying a previous interaction — but is never selected.",
       "id": "gemini.interactions.web.v1",
       "providerKind": "gemini",
       "transport": {
@@ -619,7 +619,7 @@
       "reviewedAt": "2026-08-15"
     },
     "moonshot.formula.web.v1": {
-      "$comment": "The official Formula/Fiber tool channel, the officially recommended path. Tool declarations must be read dynamically from /formulas/{uri}/tools first, never hardcoded against an assumed schema; the model's returned name+arguments is POSTed to fibers as-is, and the encrypted_output from context.output or search is sent back as role=tool unchanged.",
+      "$comment": "The official Formula/Fiber tool channel, the officially recommended path. Tool declarations must be read dynamically from /formulas/{uri}/tools first, never hardcoded against an assumed schema; the name and arguments the model returns are POSTed to fibers unchanged, and the encrypted_output from context.output or search is sent back as role=tool unchanged.",
       "id": "moonshot.formula.web.v1",
       "providerKind": "moonshot",
       "transport": {
@@ -913,7 +913,7 @@
       "reviewedAt": "2026-08-11"
     },
     "gemini.generate_content.reasoning.v2": {
-      "$comment": "The thinkingLevel shape (Gemini 3 and Gemma 4): the official value range is minimal/low/medium/high. off→minimal is backed by measurement (a hard gemma-4 problem showed a 10-for-10 reasoning-token count of 0); which tiers are available for a given model is decided by that model's availableIntents, and the registry never fills in a middle tier for any model.",
+      "$comment": "The thinkingLevel shape (Gemini 3 and Gemma 4): the official value range is minimal/low/medium/high. off→minimal is backed by measurement (ten out of ten runs on a hard gemma-4 problem reported zero reasoning tokens); which tiers are available for a given model is decided by that model's availableIntents, and the registry never fills in a middle tier for any model.",
       "id": "gemini.generate_content.reasoning.v2",
       "providerKind": "gemini",
       "transport": {
@@ -1010,7 +1010,7 @@
       "reviewedAt": "2026-08-15"
     },
     "openrouter.chat.reasoning.v1": {
-      "$comment": "OpenRouter's /api/v1/models.reasoning is the source of truth for a given exact model's tiers. This shape uses low/max; off sends none exactly. The selector only emits an intent when supported_efforts actually contains the corresponding value.",
+      "$comment": "OpenRouter's /api/v1/models.reasoning is the source of truth for a given exact model's tiers. This shape uses low and max; off sends the literal value none. The selector only emits an intent when supported_efforts actually contains the corresponding value.",
       "id": "openrouter.chat.reasoning.v1",
       "providerKind": "openRouter",
       "transport": {
@@ -1222,7 +1222,7 @@
       "reviewedAt": "2026-08-23"
     },
     "grok.responses.reasoning.v1": {
-      "$comment": "xhigh only exists from grok-4.6 onward (the official docs note: 'On models that do not support it, such as grok-4.5, requests with xhigh are treated as high'), so max→xhigh is added and is only ever selected by an exact model that declares max (currently only grok-4.6). grok-4.3 is officially documented to also support 'none (disables reasoning completely)' and medium, four tiers in total; this revision deliberately does not add off/balanced as separate ops — doing so would require changing the legacy grok_effort_responses tier semantics and any already-shipped client's stored tier state in the same change, which is out of scope here. Declaring fewer tiers is not misrepresentation; this official fact is recorded here so it isn't rediscovered on the next review. Which tiers are available is decided entirely by availableIntents; this recipe never fills in a tier for any model.",
+      "$comment": "xhigh only exists from grok-4.6 onward (the official docs note: 'On models that do not support it, such as grok-4.5, requests with xhigh are treated as high'), so max→xhigh is added and is only ever selected by an exact model that declares max (currently only grok-4.6). grok-4.3 is officially documented to also support 'none (disables reasoning completely)' and medium, four tiers in total; this revision deliberately does not add off/balanced as separate ops — doing so would require changing the legacy grok_effort_responses tier semantics and any already-shipped client's stored tier state in the same change. Declaring fewer tiers than the provider documents is deliberate, and the official fact is recorded here so it is not mistaken for an oversight. Which tiers are available is decided entirely by availableIntents; this recipe never fills in a tier for any model.",
       "id": "grok.responses.reasoning.v1",
       "providerKind": "grok",
       "transport": {
@@ -1270,7 +1270,7 @@
       "reviewedAt": "2026-08-15"
     },
     "grok.chat.reasoning.v1": {
-      "$comment": "No exact model currently defaults to this recipe (grok's defaultTransport only ever produces openai_responses, and chat/completions's search_parameters now returns 410); this recipe is only selected when an admin override switches a model's transport back to openai_chat, and is kept to cover that case. The official summary table lists grok-4.6 as 'low / medium / high (default) / xhigh' and grok-4.5 as 'low / medium / high (default)', both noted as 'cannot be disabled' — so this recipe **provides no off**; there is no such thing as turning off thinking on Chat in the official vocabulary. max→xhigh only takes effect for an exact model that declares max.",
+      "$comment": "No exact model currently defaults to this recipe (grok's defaultTransport only ever produces openai_responses, and the search_parameters field on /chat/completions now returns 410); no model routes here by default; the recipe is kept for the case where a model's transport is explicitly set back to openai_chat. The official summary table lists grok-4.6 as 'low / medium / high (default) / xhigh' and grok-4.5 as 'low / medium / high (default)', both noted as 'cannot be disabled' — so this recipe **provides no off**; there is no such thing as turning off thinking on Chat in the official vocabulary. max→xhigh only takes effect for an exact model that declares max.",
       "id": "grok.chat.reasoning.v1",
       "providerKind": "grok",
       "transport": {
@@ -1318,7 +1318,7 @@
       "reviewedAt": "2026-08-15"
     },
     "zhipu.chat.reasoning.v1": {
-      "$comment": "GLM's thinking.type is a hard on/off switch (enabled/disabled, default enabled). reasoning_effort is officially supported only on GLM-5.2 and above; glm-5.1 does not support it. GLM-5.2's valid enum has seven values — max/xhigh/high/medium/low/minimal/none. The conclusion \"do not expose reasoning_effort as a slider\" still holds, for this reason: the official docs state that on 5.2, low and medium map to high, and xhigh maps to max, so four of the seven values are compatibility aliases, and a slider built on them would show fake tiers. One more official fact worth recording: GLM-5.3 forces thinking on, and sending thinking.type=disabled is an error per the official migration notice, so 5.3 uses zhipu.chat.reasoning.v2 and must never reuse this v1's off tier.",
+      "$comment": "GLM's thinking.type is a hard on/off switch (enabled/disabled, default enabled). reasoning_effort is officially supported only on GLM-5.2 and above; glm-5.1 does not support it. GLM-5.2's valid enum has seven values — max/xhigh/high/medium/low/minimal/none. The conclusion \"do not expose reasoning_effort as a slider\" still holds, for this reason: the official docs state that on 5.2, low and medium map to high, and xhigh maps to max, so three of the seven values are compatibility aliases, and a slider built on them would show fake tiers. One more official fact worth recording: GLM-5.3 forces thinking on, and sending thinking.type=disabled is an error per the official migration notice, so 5.3 uses zhipu.chat.reasoning.v2 and must never reuse this v1's off tier.",
       "id": "zhipu.chat.reasoning.v1",
       "providerKind": "zhipu",
       "transport": {
@@ -1424,7 +1424,7 @@
       "reviewedAt": "2026-09-04"
     },
     "qwen.chat.reasoning.v1": {
-      "$comment": "The official docs only guarantee the enable_thinking switch for hybrid thinking; thinking_budget's default ceiling varies by model and region, with no single set of four tiers across the board. The unsupported 1024/4096/16384/38000 automatic budgets are removed here, keeping only the two real semantics, off and on. A numeric budget can only be exposed once an exact model's constraints reach a typed control.",
+      "$comment": "The official docs only guarantee the enable_thinking switch for hybrid thinking; thinking_budget's default ceiling varies by model and region, with no single set of four tiers across the board. The unsupported 1024/4096/16384/38000 automatic budgets are removed here, keeping only the two real semantics, off and on. A numeric budget can only be exposed once a typed control declares that model's constraints.",
       "id": "qwen.chat.reasoning.v1",
       "providerKind": "qwen",
       "transport": {
@@ -1517,7 +1517,7 @@
       "reviewedAt": "2026-08-15"
     },
     "mistral.chat.reasoning.v1": {
-      "$comment": "The official narrative docs only spell out two tiers, none/high, so no middle tier is invented from the OpenAPI enum. The models currently adjustable are mistral-small-latest and mistral-medium-3-5; an older reasoning=true probe is not the current reasoning_effort wire and can no longer be used to rule anything out. A multi-turn request must replay the complete assistant message as-is, including ordered thinking/text content blocks and tool_calls.",
+      "$comment": "The official narrative docs only spell out two tiers, none/high, so no middle tier is invented from the OpenAPI enum. The models currently adjustable are mistral-small-latest and mistral-medium-3-5. A multi-turn request must replay the complete assistant message as-is, including ordered thinking/text content blocks and tool_calls.",
       "id": "mistral.chat.reasoning.v1",
       "providerKind": "mistral",
       "transport": {
@@ -1732,7 +1732,7 @@
       "reviewedAt": "2026-08-11"
     },
     "openai.responses.generation.v1": {
-      "$comment": "At this stage, the generation-family recipe only carries a transport-template reference into the v1 generation table; parameter schema, wire mapping, and typed-control definitions still live in the legacy payload's generationProfiles, and only split out into controlDefinitions once the compiler takes over.",
+      "$comment": "A generation-family recipe carries only a transport-template reference into the v1 generation table. Parameter schema, wire mapping and typed-control definitions live in the generationProfiles payload; controlDefinitions does not carry them.",
       "id": "openai.responses.generation.v1",
       "providerKind": "openAI",
       "transport": {
@@ -1865,7 +1865,7 @@
       "reviewedAt": "2026-08-11"
     },
     "grok.chat.generation.v1": {
-      "$comment": "No exact model currently defaults to this recipe (grok's defaultTransport is openai_responses across the board); it only serves the case where an admin override switches a model back to openai_chat, and is kept rather than retired.",
+      "$comment": "No exact model currently defaults to this recipe (grok's defaultTransport is openai_responses across the board); it is kept only for the case where a model's transport is explicitly set back to openai_chat.",
       "id": "grok.chat.generation.v1",
       "providerKind": "grok",
       "transport": {

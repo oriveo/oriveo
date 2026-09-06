@@ -1,5 +1,5 @@
 {
-  "$comment": "Phase 5 metadata authoritative contract fixture. Shape matches /api/metadata response so server, web, ios, and android resolvers consume the same input and reach the same conclusions. Adding a case here makes all four platform tests assert on it.",
+  "$comment": "The authoritative model-metadata contract. Its shape matches the /api/metadata response, so every client's resolver consumes the same input and has to reach the same conclusion. Adding a case here makes the iOS, Android and Web suites all assert on it.",
   "contractVersion": 1,
   "version": 999,
   "metadata": {
@@ -644,7 +644,7 @@
         "reasoning",
         "image"
       ],
-      "$capabilitiesNote": "The order is decided by the Web/Android client's normalizeCapabilities: text is always first, and the rest follow badgeOrder. This fixture's metadata.providers[].models[].capabilities is also written in this order, so reading the server output directly matches what the client's normalize step produces.",
+      "$capabilitiesNote": "The order is decided by the Web/Android client's normalizeCapabilities: text is always first, and the rest follow badgeOrder. This fixture's metadata.providers[].models[].capabilities is also written in this order, so reading the catalog payload directly matches what the client's normalize step produces.",
       "expectedReasoningProfile": "qwen_hybrid",
       "expectedWebSearchProfile": null,
       "expectedImageGenProfile": null,
@@ -717,7 +717,7 @@
     },
     {
       "id": "qwen_reasoning_capability_without_profile",
-      "$intent": "One of the spot-check matrix cases: capabilities includes reasoning but profiles.reasoning=null. Expected: no client shows the reasoning-effort selector; the backend contract test checks that profiles.reasoning is indeed null.",
+      "$intent": "capabilities includes reasoning but profiles.reasoning is null. No client may show the reasoning-effort selector, and each client's contract suite asserts that profiles.reasoning is null here.",
       "providerKind": "qwen",
       "query": "qwen-reasoning-no-profile",
       "expectedCanonicalModelId": "qwen-reasoning-no-profile",
@@ -995,7 +995,7 @@
     }
   ],
   "vendorIntegrityExpectations": {
-    "$comment": "An aggregated provider's vendor must be explicitly declared by the backend contract; no client may parse it from the model id slug. Every assertion here must be readable directly from metadata.providers[provider].models[modelId].vendorKey/vendorName.",
+    "$comment": "An aggregated provider's vendor must be declared explicitly in the catalog payload; no client may parse it from the model id slug. Every assertion here must be readable directly from metadata.providers[provider].models[modelId].vendorKey/vendorName.",
     "aggregatorProviders": [
       "openRouter",
       "siliconFlow"
@@ -1063,7 +1063,7 @@
     ]
   },
   "rawEffectiveExpectations": {
-    "$comment": "raw → effective must stay explainable. effective count = raw count - excluded - non-chat. This fixture simulates each source of the difference, so a client that recomputes the summary locally must land on the same numbers the catalog reports.",
+    "$comment": "raw → effective must stay explainable. effective count = raw count - excluded - non-chat; the canonical count additionally collapses dated snapshots of the same model onto a single entry. This fixture simulates each source of the difference, so a client that recomputes the summary locally must land on the same numbers the catalog reports.",
     "snapshotId": 999,
     "raw": [
       {

@@ -1,8 +1,7 @@
 {
-  "$comment": "Request shape contract v2. v1 stays frozen as the live outbound wire lock for every client; v2 is additive and freezes a different surface: the versioned capabilityRuntime envelope Server ships inside the metadata snapshot, the minimal recipe structure, the per-model capabilityControls states, result definitions, and the fail-safe rules that keep plain chat alive when any of it is unknown. Vocabularies shared with request_preference_contract.v2 (executionKinds, continuationKinds, controlStates) are byte-identical by construction, and each client's request-preference contract suite asserts that: web/packages/core/src/providers/request-preference/__tests__/request-preference-contract.test.ts, ios/Oriveo/OriveoTests/RequestPreferenceContractTests.swift and android/app/src/test/java/ai/oriveo/community/core/model/RequestPreferenceContractTest.kt.",
+  "$comment": "Request shape contract v2. v1 stays frozen as the live outbound wire lock for every client; v2 is additive and freezes a different surface: the versioned capabilityRuntime envelope the model catalog ships inside the metadata snapshot, the minimal recipe structure, the per-model capabilityControls states, result definitions, and the fail-safe rules that keep plain chat alive when any of it is unknown. Vocabularies shared with request_preference_contract.v2 (executionKinds, continuationKinds, controlStates) are byte-identical by construction, and each client's request-preference contract suite asserts that: web/packages/core/src/providers/request-preference/__tests__/request-preference-contract.test.ts, ios/Oriveo/OriveoTests/RequestPreferenceContractTests.swift and android/app/src/test/java/ai/oriveo/community/core/model/RequestPreferenceContractTest.kt.",
   "contractId": "request_shape_contract.v2",
   "version": 2,
-  "phase": "P1",
   "relatedContracts": [
     {
       "contractId": "request_shape_contract.v1",
@@ -74,7 +73,7 @@
     "unreviewedStructuredLocator": "surface_error"
   },
   "providerKindUniverse": {
-    "$comment": "BYOK provider kinds plus relay. Hosted product lines are not part of this universe.",
+    "$comment": "Every provider kind a user can bring a key for, plus relay for a user-supplied endpoint. A client that adds a kind without registering it here fails its request-preference contract suite.",
     "count": 16,
     "kinds": [
       "openRouter",
@@ -112,7 +111,7 @@
     "unknown"
   ],
   "stateRequirements": {
-    "$comment": "auto_available is the only state that may carry a recipeRef and the only state that sends fields automatically. Every other state must explain itself: a reasonCode plus at least one resolvable source key, so that a downgrade is auditable instead of anonymous. Two provider kinds are exempt from the source requirement because no official third-party source exists to cite: relay resolves against a catalog on the user's own machine, and the managed free tier carries no field at all. Their fixed verdict blocks auto_available specifically; any other declared state still goes through the ordinary reasonCode and source checks, so the exemption cannot be borrowed by a different provider or a different state.",
+    "$comment": "auto_available is the only state that may carry a recipeRef and the only state that sends fields automatically. Every other state must explain itself: a reasonCode plus at least one resolvable source key, so that a downgrade is auditable instead of anonymous. One provider kind is exempt from the source requirement because no official third-party source exists to cite: relay resolves against a catalog on the user's own machine. Its fixed verdict blocks auto_available specifically; any other declared state still goes through the ordinary reasonCode and source checks, so the exemption cannot be borrowed by a different provider or a different state.",
     "autoAvailableRequiresRecipeRef": true,
     "nonAutoMustNotCarryRecipeRef": true,
     "nonAutoRequiresReasonCode": true,
@@ -124,7 +123,7 @@
         "providerKind": "relay",
         "state": "custom_only",
         "reasonCode": "relay_user_directory",
-        "why": "the relay catalog comes from the user's own machine; Server performs no exact selector resolution, so there is no official source to cite"
+        "why": "the relay catalog comes from the user's own machine, which the model catalog cannot see and therefore cannot resolve an exact selector against, so there is no official source to cite"
       }
     ],
     "fixedVerdicts": [
@@ -152,7 +151,7 @@
     "reasonCodeListIsClosed": false
   },
   "recipeSchema": {
-    "$comment": "The minimal structure a production recipe must carry. executionKinds and continuationKinds are byte-identical to request_preference_contract.v2 vocabulary: there is no separate plugin kind (plugin-style fields are request_overlay target roots) and no separate fiber kind (fiber is a tool_loop variant). An earlier illustrative continuationKind string predates the frozen enum below; the enum is authoritative.",
+    "$comment": "The minimal structure a production recipe must carry. executionKinds and continuationKinds are byte-identical to request_preference_contract.v2 vocabulary: there is no separate plugin kind (plugin-style fields are request_overlay target roots) and no separate fiber kind (fiber is a tool_loop variant). The enum below is authoritative.",
     "requiredFields": [
       "id",
       "providerKind",
@@ -202,7 +201,7 @@
         "minToolLoops": 1,
         "maxToolLoops": 8,
         "defaultToolLoops": 6,
-        "$comment": "One shared formula for every client tool loop (Moonshot web search, future MCP) — effective maxSteps = min(server value, 8), default 6 when the server sends nothing. Server-side recipe validation accepts 1..8; the old Moonshot-only 1..5 clamp is retired."
+        "$comment": "One shared formula for every client tool loop, Moonshot web search among them: effective maxSteps = min(published value, 8), and 6 by default when the catalog sends nothing. Published recipes only ever carry 1..8."
       },
       "endpoint_route": {
         "requiredFields": [
@@ -308,7 +307,7 @@
     }
   },
   "controlDefinitionSchema": {
-    "$comment": "One entry of capabilityRuntime.controlDefinitions. Server ships localization keys, type, value domain, owner and risk label; the three clients never invent a field or a range. Pointer legality (forbidden channels, builder-owned roots) is owned by request_preference_contract.v2 safeOverlay and is not restated here.",
+    "$comment": "One entry of capabilityRuntime.controlDefinitions. The model catalog ships localization keys, type, value domain, owner and risk label; the three clients never invent a field or a range. Pointer legality (forbidden channels, builder-owned roots) is owned by request_preference_contract.v2 safeOverlay and is not restated here.",
     "requiredFields": [
       "id",
       "owner",
@@ -386,7 +385,7 @@
     "pointerOwnershipAuthority": "request_preference_contract.v2#safeOverlay"
   },
   "customControlReferenceSchema": {
-    "$comment": "CapabilityControl.customControlRefs is the only official-provider authority for Custom mode. Clients resolve refs against the same capabilityRuntime.controlDefinitions envelope and must never derive writable paths from recipe requestOps. auto_available and non-auto states may carry refs; managed_only may not. A non-Relay custom_only control with no resolvable refs keeps Custom visible but disabled. Relay uses only its local exact-transport schema because Server cannot resolve the user's catalog.",
+    "$comment": "CapabilityControl.customControlRefs is the only official-provider authority for Custom mode. Clients resolve refs against the same capabilityRuntime.controlDefinitions envelope and must never derive writable paths from recipe requestOps. auto_available and non-auto states may carry refs; managed_only may not. A non-Relay custom_only control with no resolvable refs keeps Custom visible but disabled. Relay uses only its local exact-transport schema, because the model catalog cannot see a catalog that lives on the user's own machine.",
     "field": "customControlRefs",
     "resolveAgainst": "capabilityRuntime.controlDefinitions",
     "definitionOwnerMustEqualCapability": true,
@@ -429,61 +428,52 @@
     "automaticAndOffArePreferenceValues": true
   },
   "goldenFixtureSchema": {
-    "$comment": "The per-provider golden fixture roster. Each category is bound to the phase that owns it, so a later phase's evidence cannot be faked early. A fixture that builds its own request body and compares it to itself proves nothing: every request-shape fixture must compare against an object produced by the production builder path.",
+    "$comment": "The per-provider golden fixture roster. A fixture that builds its own request body and compares it to itself proves nothing: every request-shape fixture must compare against an object produced by the production builder path.",
     "coversProviderKinds": "providerKindUniverse.kinds",
     "categories": [
       {
         "index": 1,
         "id": "default_chat_all_namespaces_omitted",
-        "phase": "P3",
         "summary": "plain chat with web, reasoning and generation all omitted"
       },
       {
         "index": 2,
         "id": "valid_auto_recipe_redacted_delta",
-        "phase": "P3",
         "summary": "one working auto recipe, captured as the production builder's redacted request delta"
       },
       {
         "index": 3,
         "id": "no_recipe_or_wrong_transport_sends_nothing",
-        "phase": "P3",
         "summary": "no auto recipe or mismatched transport: nothing is sent and plain chat continues"
       },
       {
         "index": 4,
         "id": "custom_fragment_allow_and_reject",
-        "phase": "P3",
         "summary": "a safe custom fragment accepted, and an out-of-ownership fragment rejected"
       },
       {
         "index": 5,
         "id": "streaming_and_non_streaming_paths",
-        "phase": "P3",
         "summary": "at least one request/response path each for streaming and non-streaming"
       },
       {
         "index": 6,
         "id": "model_and_transport_boundary_hit_and_miss",
-        "phase": "P3",
         "summary": "exact model and transport selector hit, plus a deliberate miss"
       },
       {
         "index": 7,
         "id": "response_evidence_observed_and_unconfirmed",
-        "phase": "P5",
         "summary": "observed via recipe-declared evidence, and HTTP success without evidence staying unconfirmed"
       },
       {
         "index": 8,
         "id": "pre_token_400_recovery_and_non_recovery",
-        "phase": "P5",
         "summary": "a located 400 before first token offers explicit resend without that setting; no error path silently retries, and 401/429/5xx/mid-stream errors never create negative capability evidence"
       },
       {
         "index": 9,
         "id": "source_reviewed_at_revision_consistency",
-        "phase": "P2",
         "summary": "official source, reviewedAt and recipe revision agree"
       }
     ],
@@ -497,7 +487,7 @@
       "oneSuccessCaseMayNotStandInForAllEndpoints": true
     },
     "selfBuiltBodyComparedToItself": "not_a_pass",
-    "productionBuilderProofRequiredFromPhase": "P3"
+    "productionBuilderProofRequired": true
   },
   "failSafe": {
     "$comment": "Every unknown degrades to sending nothing for that one item, never to breaking the send. The dangling recipeRef rule is the cross-revision window guard: clients cache metadata for up to 24h, so a control can legitimately point at a recipe the local snapshot does not have. In that window the item shows as no automatic configuration; partially applying a half-known recipe is forbidden.",

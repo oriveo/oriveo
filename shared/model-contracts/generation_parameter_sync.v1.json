@@ -88,7 +88,7 @@
   },
   "idCasing": {
     "wireCanonical": "lowercase-uuid-segments",
-    "note": "On the wire, providerId / conversationId / preset.id, and the UUID segment inside recordId are always lowercase; local storage on each client keeps its own native canonical form (iOS's UUID type, Android/Web's uppercase UUID), and the conversion only happens at the import/export boundary. Both keyed merge conflicts and tombstone matching must canonicalize first, or an existing uppercase recordId can never converge with a new lowercase record and the two fork permanently.",
+    "note": "On the wire, providerId / conversationId / preset.id, and the UUID segment inside recordId are always lowercase; local storage on each client keeps its own native canonical form (iOS's UUID type, Android/Web's uppercase UUID), and the conversion only happens at the import/export boundary. Both keyed merge conflicts and tombstone matching must canonicalize first, or an existing uppercase recordId can never converge with a new lowercase record, and the two diverge permanently.",
     "uuidSegmentPattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$",
     "canonicalCases": [
       {

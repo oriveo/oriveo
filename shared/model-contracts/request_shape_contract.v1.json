@@ -1,5 +1,5 @@
 {
-  "$comment": "Request-shape contract v1 — the full matrix across every official provider. Each case feeds the same metadata and user intent into every runtime request builder. endpointPath, headers, query params, body includes/excludes lock the upstream wire shape. If the catalog's profile table or transport output changes, update this fixture and all platform harnesses in the same change. metadata.profiles is a byte-for-byte copy of the profile table the catalog serves, and the copy is exhaustive **both ways**: nothing served may be missing here, and nothing may appear here that is not served (gem_contract_conflict_web is the one explicit exception, as a Conflict canary). Every profile in the reasoning/webSearch/imageGen groups must additionally be driven end to end by at least one case, so a profile no client can actually execute cannot sit here unnoticed. The suites that enforce all of this are web/packages/core/src/providers/request-builders/__tests__/request-shape-contract.test.ts, ios/Oriveo/OriveoTests/RequestShapeContractTests.swift and android/app/src/test/java/ai/oriveo/community/core/provider/RequestShapeContractTest.kt. Explicitly out of scope for v1: fallback/responseAdapter/moonshotMaxToolLoops assertions (each client covers those with its own tests). The numeric evidence behind these decisions comes from direct measurement (61 probes) rather than from reading model names. A later addition covers the generation outbound surface (a v1-additive key; older consumers can simply ignore the new key): metadata.profiles.generation is copied byte for byte from the generation group of the catalog's profile table; every official providerKind has at least one intent.generationOverrides case, asserting that the value the user set appears in the real body a production builder produces, using the upstream field name from template.wire (bodyExcludes locks, in the other direction, that a canonical parameter id is never sent out verbatim); generationProviderKindUniverse × generationOutboundExemptions is a structural gate — every providerKind in the full set either has an outbound case or is on the exemption list with a reason.",
+  "$comment": "Request-shape contract v1 — the full matrix across every official provider. Each case feeds the same metadata and user intent into every runtime request builder. endpointPath, headers, query params, body includes/excludes lock the upstream wire shape. If the catalog's profile table or transport output changes, update this fixture and all platform harnesses in the same change. metadata.profiles is a byte-for-byte copy of the profile table the catalog serves, and the copy is exhaustive **both ways**: nothing served may be missing here, and nothing may appear here that is not served (gem_contract_conflict_web is the one explicit exception, as a Conflict canary). Every profile in the reasoning/webSearch/imageGen groups must additionally be driven end to end by at least one case, so a profile no client can actually execute cannot sit here unnoticed. The suites that enforce all of this are web/packages/core/src/providers/request-builders/__tests__/request-shape-contract.test.ts, ios/Oriveo/OriveoTests/RequestShapeContractTests.swift and android/app/src/test/java/ai/oriveo/community/core/provider/RequestShapeContractTest.kt. v1 does not assert fallback, responseAdapter or moonshotMaxToolLoops; each client covers those in its own tests. The numeric evidence behind these decisions comes from direct measurement (61 probes) rather than from reading model names. The generation outbound surface is covered by an additive key that older consumers can ignore: metadata.profiles.generation is copied byte for byte from the generation group of the catalog's profile table; every official providerKind has at least one intent.generationOverrides case, asserting that the value the user set appears in the real body a production builder produces, using the upstream field name from template.wire (bodyExcludes locks, in the other direction, that a canonical parameter id is never sent out verbatim); generationProviderKindUniverse × generationOutboundExemptions is a structural gate — every providerKind in the full set either has an outbound case or is on the exemption list with a reason.",
   "version": 1,
   "generationSnapshotEvidence": [
     {
@@ -1912,7 +1912,7 @@
             }
           },
           "grok-4.5": {
-            "$comment": "grok's defaultTransport is unified to openai_responses across the family (chat/completions's search_parameters now returns 410); 4.5's reasoning legacy profile switches accordingly to the Responses-shaped grok_effort_responses, and its generation template switches to openai_responses. grok_effort_45 is retired at the same time, since no model is assigned to it anymore.",
+            "$comment": "grok's defaultTransport is unified to openai_responses across the family (the search_parameters field on /chat/completions now returns 410); 4.5's reasoning legacy profile is therefore the Responses-shaped grok_effort_responses and its generation template is openai_responses. No model is assigned to grok_effort_45.",
             "canonicalModelId": "grok-4.5",
             "displayName": "Grok 4.5",
             "capabilities": [
@@ -2771,7 +2771,7 @@
     },
     {
       "caseId": "grok.chat.reasoning.fast",
-      "$comment": "The caseId keeps its historical name so the three clients' test-case lists don't drift. grok-3-mini goes through /v1/responses (the same shape as grok.responses.web_reasoning.deep: the legacy oai_chat profile still sends a top-level reasoning_effort on the Responses body).",
+      "$comment": "caseId is stable API for the three client suites and must not be renamed. grok-3-mini goes through /v1/responses (the same shape as grok.responses.web_reasoning.deep: the legacy oai_chat profile still sends a top-level reasoning_effort on the Responses body).",
       "intent": {
         "providerKind": "grok",
         "modelId": "grok-3-mini",
@@ -2841,7 +2841,7 @@
         "imageGen": false
       },
       "expect": {
-        "$comment": "reasoning.summary moved from bodyIncludes to bodyExcludes: the oai_responses profile does not send summary:\"auto\", and none of the three clients injects it on the direct BYOK path. The evidence: o4-mini with reasoning:{effort:\"medium\",summary:\"auto\"} returns 400 \"Your organization must be verified to generate reasoning summaries\"; the same request without summary returns 200. Note that the relay path deliberately **keeps** summary and is unrelated to this case (this case covers the official BYOK direct path only).",
+        "$comment": "The oai_responses profile does not send summary:\"auto\", and none of the three clients injects it on the direct BYOK path. The evidence: o4-mini with reasoning:{effort:\"medium\",summary:\"auto\"} returns 400 \"Your organization must be verified to generate reasoning summaries\"; the same request without summary returns 200. Note that the relay path deliberately **keeps** summary and is unrelated to this case (this case covers the official BYOK direct path only).",
         "endpointPath": "/v1/responses",
         "headersInclude": {
           "Authorization": "*"
@@ -2873,7 +2873,7 @@
         "imageGen": false
       },
       "expect": {
-        "$comment": "Formerly named openai.responses.automatic_summary_only — this case existed to assert that \"automatic keeps summary on\"; once summary was removed the meaning flips entirely, so it was renamed and the whole reasoning object moved into bodyExcludes. oai_responses has no defaultLevel, so automatic now means literally zero injection.",
+        "$comment": "oai_responses has no defaultLevel, so automatic means literally zero injection: the whole reasoning object stays out of the body.",
         "endpointPath": "/v1/responses",
         "headersInclude": {
           "Authorization": "*"
@@ -3092,7 +3092,7 @@
         "imageGen": true
       },
       "expect": {
-        "$comment": "Grok image generation is dispatched uniformly through route. It was previously excluded (web dispatch was unreachable, routed through a separate image service) — this has been fixed so all three clients dispatch uniformly via the imageGen profile's route=images_api. requestDefaults authoritatively sends {n,response_format}; size is forbidden (measured on xAI: 400 Argument not supported: size).",
+        "$comment": "All three clients dispatch Grok image generation through the imageGen profile's route=images_api. requestDefaults authoritatively sends {n,response_format}; size is forbidden (measured on xAI: 400 Argument not supported: size).",
         "endpointPath": "/v1/images/generations",
         "headersInclude": {
           "Authorization": "*"
@@ -3629,7 +3629,7 @@
     },
     {
       "caseId": "grok45.chat.effort.fast",
-      "$comment": "The caseId keeps its historical name; grok-4.5 goes through /v1/responses + grok_effort_responses (reasoning.effort), and the chat-shaped reasoning_effort must never be sent for it anymore.",
+      "$comment": "caseId is stable API for the three client suites; grok-4.5 goes through /v1/responses + grok_effort_responses (reasoning.effort), and the chat-shaped reasoning_effort must never be sent for it anymore.",
       "intent": {
         "providerKind": "grok",
         "modelId": "grok-4.5",
@@ -4704,7 +4704,7 @@
         }
       },
       "expect": {
-        "$comment": "The original site of a real bug: the OpenRouter panel showed the setting as visible and editable, while iOS/Android sent zero injection on the wire. route_require_parameters is the one the catalog only sends down for openRouter, with the wire nested at provider.require_parameters.",
+        "$comment": "Regression lock: route_require_parameters must never be presented as editable unless the value actually goes out. It is the one setting the catalog publishes for openRouter alone, with the wire nested at provider.require_parameters.",
         "endpointPath": "/api/v1/chat/completions",
         "headersInclude": {
           "Authorization": "*"
@@ -4728,7 +4728,7 @@
     },
     {
       "caseId": "grok.generation.chat_wire",
-      "$comment": "The caseId keeps its historical name; grok-4.5 goes through the openai_responses generation template: max_output_tokens keeps its name on the wire, and max_tokens must never appear.",
+      "$comment": "caseId is stable API for the three client suites; grok-4.5 goes through the openai_responses generation template: max_output_tokens keeps its name on the wire, and max_tokens must never appear.",
       "intent": {
         "providerKind": "grok",
         "modelId": "grok-4.5",
@@ -5203,7 +5203,7 @@
   "generationOutboundExemptions": [
     {
       "providerKind": "relay",
-      "reason": "relay's generation profile does not come from /api/metadata; it is synthesized locally on-device from engineProfile/transport (relayGenerationProfile in web/apps/app/lib/core/chat/stream-options.ts, LocalEngineContract on iOS and Android). This fixture's metadata.providers only describes what the catalog sends down, so adding a fake relay provider entry here would be fabricating server output. relay's outbound injection is covered separately by the relay case in generation_parameter_contract.v1.json."
+      "reason": "relay's generation profile does not come from /api/metadata; it is synthesized locally on-device from engineProfile/transport (relayGenerationProfile in web/apps/app/lib/core/chat/stream-options.ts, LocalEngineContract on iOS and Android). This fixture's metadata.providers only describes what the catalog sends down, so adding a fake relay provider entry here would be fabricating catalog output. relay's outbound injection is covered separately by the relay case in generation_parameter_contract.v1.json."
     }
   ]
 }

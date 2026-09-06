@@ -99,7 +99,7 @@
     "lastWriteWins": false
   },
   "selectionPolicy": {
-    "preset": "Requires an active Server recipe. managed_only presets may only be selected by managed access.",
+    "preset": "Requires an active recipe in the model catalog. A preset whose availability is managed_only is not selectable through a key the user brought themselves.",
     "custom": "Requires BYOK or Relay developer access and an availability state that permits custom fragments.",
     "customOnlyDoesNotImplyPreset": true,
     "presetAndCustomAreMutuallyExclusive": true,

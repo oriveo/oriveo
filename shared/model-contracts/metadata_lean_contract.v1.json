@@ -1,5 +1,5 @@
 {
-  "$comment": "Lean metadata wire fixture. The catalog service and all clients read this one shape; missing view still means the byte-compatible full contract.",
+  "$comment": "Lean metadata wire fixture. The catalog service and all clients read this one shape; when the view parameter is absent the response is the byte-for-byte full contract.",
   "contractVersion": 1,
   "leanResponse": {
     "code": 0,
@@ -146,7 +146,7 @@
     "message": "ok"
   },
   "treeCompletion": {
-    "$comment": "Lean candidates inherit identity only from the containing provider/model tree. Clients reject any future explicit identity field that conflicts before filling absent fields.",
+    "$comment": "Lean candidates inherit identity only from the containing provider/model tree. Before filling in absent fields, clients reject any explicit identity field that conflicts with the tree containing it.",
     "scope": "provider_model_transport",
     "providerKindPath": "data.providers.<providerKind>",
     "modelIdPath": "data.providers.<providerKind>.models.<modelId>",

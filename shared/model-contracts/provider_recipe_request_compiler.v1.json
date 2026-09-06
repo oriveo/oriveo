@@ -1,10 +1,10 @@
 {
-  "$comment": "Shared fixture for the production request compiler. recipeRef must be read from the server registry's capability_runtime.v1.json; this file only freezes the semantic delta the same input should produce in the real Web/iOS/Android request builders, and does not maintain a second copy of the production recipe. baseOwnedArrays lists the array elements the builder already owns; expectedDelta's arrays must be base-first.",
+  "$comment": "Shared fixture for the production request compiler. recipeRef must be resolved against shared/capabilityrecipe/capability_runtime.v1.json; this file only freezes the semantic delta the same input should produce in the real Web/iOS/Android request builders, and does not maintain a second copy of the production recipe. baseOwnedArrays lists the array elements the builder already owns; expectedDelta's arrays must be base-first.",
   "contractId": "provider_recipe_request_compiler.v1",
   "version": 1,
   "registryPath": "shared/capabilityrecipe/capability_runtime.v1.json",
   "requestOpMerge": {
-    "$comment": "requestOps's intent field previously had no defined semantics, so each client guessed independently, and the force tier compiled into three different and all-incorrect wire shapes across the three clients. This is the one rule now fixed here; every client runs the same merge before compiling.",
+    "$comment": "The semantics of the intent field of requestOps are defined here, so every client runs the same merge before compiling and the force tier can only compile to one wire shape.",
     "rule": "last-specific-wins",
     "notRule": "last-write-wins",
     "opKinds": [
@@ -83,7 +83,7 @@
         "tool_choice": "required"
       },
       "expectedBodyIsExact": true,
-      "regressionGuard": "Reverting to the naive compiler from before this rule (no pointer merge, no append dedupe): both the base op and the force op on /tools/- would run, turning tools into two web_search entries, and this case fails. ⚠️ Reverting only last-specific-wins to last-write-wins while keeping dedupe still leaves this case passing — the duplicate web_search gets eaten by dedupe — so the behavioral line between last-specific-wins and last-write-wins must be pinned down by the synthetic case base_op_written_after_specific_op_is_still_discarded below."
+      "regressionGuard": "Without pointer merge and append dedupe, both the base op and the force op on /tools/- run, turning tools into two web_search entries, and this case fails. ⚠️ Reverting only last-specific-wins to last-write-wins while keeping dedupe still leaves this case passing — the duplicate web_search gets eaten by dedupe — so the behavioral line between last-specific-wins and last-write-wins must be pinned down by the synthetic case base_op_written_after_specific_op_is_still_discarded below."
     },
     {
       "caseId": "d8.openai.responses.web.no_intent_keeps_base_ops",

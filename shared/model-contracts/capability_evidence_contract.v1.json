@@ -194,7 +194,7 @@
         ]
       },
       {
-        "$comment": "The three clients' presentation mirror. These files never decide support themselves; they only look up the support value the facade has already resolved and map it to a user-visible class (a line-by-line projection of generation_parameter_contract.v1.json#presentationClasses, reconciled word-for-word by each client's *SupportPresentationContract* test). accepted_unverified is registered here only because it is **a key in that table**, not a new decision of its own — hence it is listed as a presentation_consumer rather than something needing a broader scan. The anchors pin down the fact that this table's source of truth is the shared contract: whoever turns the mapping into a hand-written switch loses the anchor and turns the test red.",
+        "$comment": "The three clients' presentation mirror. These files never decide support themselves; they only look up the support value the facade has already resolved and map it to a user-visible class (a line-by-line projection of generation_parameter_contract.v1.json#presentationClasses, reconciled word for word by web/apps/app/lib/core/chat/__tests__/generation-support-presentation.contract.test.ts, ios/Oriveo/OriveoTests/GenerationParameterSupportPresentationTests.swift and android/app/src/test/java/ai/oriveo/community/core/provider/GenerationParameterSupportPresentationContractTest.kt). accepted_unverified is registered here only because it is **a key in that table**, not a new decision of its own — hence it is listed as a presentation_consumer. The anchors pin down the fact that this table's source of truth is the shared contract: whoever turns the mapping into a hand-written switch loses the anchor and turns the test red.",
         "path": "web/apps/app/lib/core/chat/generation-support-presentation.ts",
         "role": "presentation_consumer",
         "anchors": [
@@ -808,7 +808,7 @@
       }
     },
     {
-      "$comment": "An official provider + explicit user intent + no evidence against it → allow. Before this case existed, every hasExplicitValue:true case in this file was a relay case, with no coverage at all for \"official provider + explicit\"; as a result, iOS/Web read that single relay case as the whole rule while Android only checked the grade condition, and both implementations passed the contract anyway — the three clients diverged because of this coverage gap, not because anyone copied it wrong. In production, 257 out of 764 model combinations fall into official_source_insufficient, which is exactly the \"no candidate at all\" case this covers.",
+      "$comment": "An official provider + explicit user intent + no evidence against it → allow. Regression lock: without it, \"official provider + explicit\" is unconstrained and each client can read the rule differently — one generalising from a relay case, another checking only the grade condition — while all of them still pass. In the 2026-08 catalog snapshot, 257 of 764 model combinations fall into official_source_insufficient, which is exactly the \"no candidate at all\" case this covers.",
       "caseId": "official.explicit.no_evidence_allows",
       "query": {
         "partitionId": "u1",
@@ -836,7 +836,7 @@
       }
     },
     {
-      "$comment": "A capability on an official provider that is only propped up by a legacy profile (89 combinations in production, 44 of them qwen/web). Once the user explicitly turns it on, it must actually be sent — this used to fall through to omit_unknown, the same shape of bug as a light that's always on but never actually connected.",
+      "$comment": "A capability on an official provider that is only propped up by a legacy profile (89 combinations in the 2026-08 catalog snapshot, 44 of them qwen/web). Once the user explicitly turns it on it must actually be sent: without this case the value falls through to omit_unknown, so the toggle reads as on while nothing goes out on the wire.",
       "caseId": "official.explicit.legacy_unverified_allows",
       "query": {
         "partitionId": "u1",
@@ -918,7 +918,7 @@
       }
     },
     {
-      "$comment": "When same-tier evidence conflicts with itself, an explicit toggle still does not allow it. conflict is not \"we don't know\" — one of the two conflicting pieces of evidence might well be an explicit non-support, and allowing it anyway would mean picking the answer that's worse for the user. This case was missing at first: reading the rule literally, Web allowed conflict too while Android explicitly excluded it, and the three clients disagreed immediately; this case has to be settled by the contract, not decided independently by each client.",
+      "$comment": "When same-tier evidence conflicts with itself, an explicit toggle still does not allow it. conflict is not \"we don't know\" — one of the two conflicting pieces of evidence might well be an explicit non-support, and allowing it anyway would mean picking the answer that's worse for the user. Read literally, the rule above permits conflict, so it has to be settled here rather than independently by each client.",
       "caseId": "official.explicit.conflict_still_omits",
       "query": {
         "partitionId": "u1",
@@ -971,7 +971,7 @@
       }
     },
     {
-      "$comment": "The contract anchor for the hard boundary: once the upstream has actually rejected something, it is never sent again even if the user explicitly turns it on — an upstream rejection is real evidence, stronger than anything our own metadata can guess at. The panel uses this to show \"already rejected upstream\" with a one-tap retry action.",
+      "$comment": "The contract anchor for the hard boundary: once the upstream has actually rejected something, it is never sent again even if the user explicitly turns it on — an upstream rejection is real evidence, stronger than any inference drawn from catalog metadata. The panel uses this to show \"already rejected upstream\" with a one-tap retry action.",
       "caseId": "official.explicit.runtime_rejected_still_omits",
       "query": {
         "partitionId": "u1",

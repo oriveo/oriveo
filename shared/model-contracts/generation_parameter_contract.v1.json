@@ -103,13 +103,13 @@
     ]
   },
   "presentationClasses": {
-    "$comment": "Engineering support states collapse into 3 user-visible classes plus one silent class. All clients read this table only — no client keeps a separate support-label switch of its own. zhHans carries the single source of literal copy that every client localizes from; labelKey/detailKey are the stable per-client localization keys. Adding a new engineering state must register it in both schema.support and supportMap in the same change; the presentation suites on all three clients (web/apps/app/lib/core/chat/__tests__/generation-support-presentation.contract.test.ts, ios/Oriveo/OriveoTests/GenerationParameterSupportPresentationTests.swift, android/app/src/test/java/ai/oriveo/community/core/provider/GenerationParameterSupportPresentationContractTest.kt) walk this table entry by entry and fail on an unmapped state — silently falling back to \"no data\" is not allowed.",
+    "$comment": "Engineering support states collapse into 3 user-visible classes plus one silent class. All clients read this table only — no client keeps a separate support-label switch of its own. `en` records the English copy each key resolves to, so the table is readable without opening the localization files; labelKey and detailKey are the stable per-client localization keys and remain the only thing a client reads. Adding a new engineering state must register it in both schema.support and supportMap in the same change; the presentation suites on all three clients (web/apps/app/lib/core/chat/__tests__/generation-support-presentation.contract.test.ts, ios/Oriveo/OriveoTests/GenerationParameterSupportPresentationTests.swift, android/app/src/test/java/ai/oriveo/community/core/provider/GenerationParameterSupportPresentationContractTest.kt) walk this table entry by entry and fail on an unmapped state — silently falling back to \"no data\" is not allowed.",
     "classes": [
       {
         "classId": "silent",
         "renders": false,
         "control": "editable",
-        "zhHans": null,
+        "en": null,
         "rationale": "Silent by default: printing an \"already supported\" line under every parameter would drown out the states that actually need attention."
       },
       {
@@ -117,7 +117,7 @@
         "renders": true,
         "control": "editable",
         "labelKey": "generationParameterClassUnverified",
-        "zhHans": "会发送 · 效果未验证",
+        "en": "Will send - effect unverified",
         "rationale": "Unverified does not mean unsupported: the value still goes out on the wire as-is; the label only states honestly that it has not been verified."
       },
       {
@@ -125,10 +125,10 @@
         "renders": true,
         "control": "disabled",
         "labelKey": "generationParameterClassNotAdjustable",
-        "zhHans": "不可调整",
+        "en": "Not adjustable",
         "primaryAction": {
           "actionKey": "generationParameterFindSupportedModels",
-          "zhHans": "查看支持该参数的模型"
+          "en": "See models that support this parameter"
         },
         "rationale": "Graying a control out must come with an actionable next step, otherwise it is a dead end for the user."
       },
@@ -137,7 +137,7 @@
         "renders": true,
         "control": "editable",
         "labelKey": "generationParameterClassNoData",
-        "zhHans": "暂无资料",
+        "en": "No data yet",
         "rationale": "\"We don't know\" is shown as exactly that, not rendered as a false conclusion."
       }
     ],
@@ -151,32 +151,32 @@
       "accepted_unverified": {
         "class": "unverified",
         "detailKey": "generationParameterDetailAcceptedUnverified",
-        "zhHans": "这个值会照原样发给供应商，但我们没有验证过它是否生效"
+        "en": "This value is sent to the provider as-is, but we have not verified that it takes effect."
       },
       "fixed": {
         "class": "not_adjustable",
         "detailKey": "generationParameterDetailFixed",
-        "zhHans": "由模型固定，改了不会生效"
+        "en": "Fixed by the model; changing it has no effect."
       },
       "unsupported": {
         "class": "not_adjustable",
         "detailKey": "generationParameterDetailUnsupported",
-        "zhHans": "此模型不接受这个参数，发送会被拒绝"
+        "en": "This model does not accept this parameter; sending it will be rejected."
       },
       "mode_dependent": {
         "class": "not_adjustable",
         "detailKey": "generationParameterDetailModeDependent",
-        "zhHans": "取决于当前思考档位，切换档位后可能变化"
+        "en": "Depends on the current thinking tier; it may change when you switch tiers."
       },
       "unknown": {
         "class": "no_data",
         "detailKey": "generationParameterDetailUnknown",
-        "zhHans": "我们还没有这个参数的官方资料"
+        "en": "We do not have official information about this parameter yet."
       },
       "future_supported": {
         "class": "not_adjustable",
         "detailKey": "generationParameterDetailFutureSupported",
-        "zhHans": "官方已列入计划，尚未开放"
+        "en": "Officially planned, but not open yet."
       }
     }
   },
@@ -940,7 +940,7 @@
     }
   ],
   "wireHardening": {
-    "$comment": "The wire path the server sends down is the write path; clients trust its semantics, not its shape: thresholds, enums, and tiers remain 100% server-authoritative, but a structurally invalid write path must be rejected by the same rule on every client. A violating parameter is dropped and logged as a local diagnostic; it must never throw and abort the whole request.",
+    "$comment": "The wire path declared in the catalog is the write path; clients trust its semantics, not its shape: thresholds, enums and tiers are entirely catalog-authoritative, but a structurally invalid write path must be rejected by the same rule on every client. A violating parameter is dropped and logged as a local diagnostic; it must never throw and abort the whole request.",
     "segmentPattern": "^[A-Za-z_][A-Za-z0-9_]*$",
     "blockedSegments": [
       "__proto__",
@@ -1867,7 +1867,7 @@
         "entryVisible": false,
         "editable": false
       },
-      "note": "The server declared the parameter but did not supply a write path. The session scope requires a non-empty wire path; the connection scope still renders the row, but with editable=false."
+      "note": "The catalog declares the parameter but supplies no write path. The session scope requires a non-empty wire path; the connection scope still renders the row, but with editable=false."
     },
     {
       "caseId": "official.connectionDefaults.wire_missing",
@@ -1889,7 +1889,7 @@
         "entryVisible": true,
         "editable": false
       },
-      "note": "The server declared the parameter but did not supply a write path. The session scope requires a non-empty wire path; the connection scope still renders the row, but with editable=false."
+      "note": "The catalog declares the parameter but supplies no write path. The session scope requires a non-empty wire path; the connection scope still renders the row, but with editable=false."
     },
     {
       "caseId": "relay.session.wire_missing",
@@ -1911,7 +1911,7 @@
         "entryVisible": false,
         "editable": false
       },
-      "note": "The server declared the parameter but did not supply a write path. The session scope requires a non-empty wire path; the connection scope still renders the row, but with editable=false."
+      "note": "The catalog declares the parameter but supplies no write path. The session scope requires a non-empty wire path; the connection scope still renders the row, but with editable=false."
     },
     {
       "caseId": "relay.connectionDefaults.wire_missing",
@@ -1933,7 +1933,7 @@
         "entryVisible": true,
         "editable": false
       },
-      "note": "The server declared the parameter but did not supply a write path. The session scope requires a non-empty wire path; the connection scope still renders the row, but with editable=false."
+      "note": "The catalog declares the parameter but supplies no write path. The session scope requires a non-empty wire path; the connection scope still renders the row, but with editable=false."
     },
     {
       "caseId": "official.session.engine_runtime.entitlement_on",
@@ -1976,7 +1976,7 @@
         "entryVisible": true,
         "editable": true
       },
-      "note": "When a capability group is turned off, the whole group becomes unconfigurable in the connection scope; the session-scope predicate's signature does not factor in that toggle — filtering for it is applied by each client's own panel — so the session predicate still evaluates to true."
+      "note": "When a capability group is turned off, the whole group becomes unconfigurable in the connection scope; the session-scope predicate does not take that toggle as an input — filtering for it is applied by each client's own panel — so the session predicate still evaluates to true."
     },
     {
       "caseId": "official.connectionDefaults.engine_runtime.entitlement_on",
@@ -2019,7 +2019,7 @@
         "entryVisible": false,
         "editable": false
       },
-      "note": "When a capability group is turned off, the whole group becomes unconfigurable in the connection scope; the session-scope predicate's signature does not factor in that toggle — filtering for it is applied by each client's own panel — so the session predicate still evaluates to true."
+      "note": "When a capability group is turned off, the whole group becomes unconfigurable in the connection scope; the session-scope predicate does not take that toggle as an input — filtering for it is applied by each client's own panel — so the session predicate still evaluates to true."
     },
     {
       "caseId": "relay.session.engine_runtime.entitlement_on",
@@ -2062,7 +2062,7 @@
         "entryVisible": true,
         "editable": true
       },
-      "note": "When a capability group is turned off, the whole group becomes unconfigurable in the connection scope; the session-scope predicate's signature does not factor in that toggle — filtering for it is applied by each client's own panel — so the session predicate still evaluates to true."
+      "note": "When a capability group is turned off, the whole group becomes unconfigurable in the connection scope; the session-scope predicate does not take that toggle as an input — filtering for it is applied by each client's own panel — so the session predicate still evaluates to true."
     },
     {
       "caseId": "relay.connectionDefaults.engine_runtime.entitlement_on",
@@ -2105,7 +2105,7 @@
         "entryVisible": false,
         "editable": false
       },
-      "note": "When a capability group is turned off, the whole group becomes unconfigurable in the connection scope; the session-scope predicate's signature does not factor in that toggle — filtering for it is applied by each client's own panel — so the session predicate still evaluates to true."
+      "note": "When a capability group is turned off, the whole group becomes unconfigurable in the connection scope; the session-scope predicate does not take that toggle as an input — filtering for it is applied by each client's own panel — so the session predicate still evaluates to true."
     },
     {
       "caseId": "official.session.reasoning_effort",
@@ -2498,7 +2498,7 @@
       "expect": {
         "lifecycle": "active"
       },
-      "note": "unknown means \"we have not found official documentation for this yet\", not \"the upstream refuses it\". Treating every such case as \"you can't use this\" was the old, overly strict behavior. unknown belongs to the \"no data\" class with control: editable — the panel says it is editable while the outbound value stays dormant and unsent, which is exactly the gap this rule closes between what the UI shows and what actually happens on the wire. The risk of a hard upstream rejection is covered separately by the 400-rejection chain (reject → negative cache → show \"upstream already rejected\" → one tap to resend without that setting), so no second strategy is needed here."
+      "note": "unknown means \"we have not found official documentation for this yet\", not \"the upstream refuses it\". unknown belongs to the \"no data\" class with control: editable — the panel says it is editable while the outbound value stays dormant and unsent, which is exactly the gap this rule closes between what the UI shows and what actually happens on the wire. The risk of a hard upstream rejection is covered separately by the 400-rejection chain (reject → negative cache → show \"upstream already rejected\" → one tap to resend without that setting), so no second strategy is needed here."
     },
     {
       "caseId": "official.declared.fixed",
@@ -2543,7 +2543,7 @@
       "expect": {
         "lifecycle": "dormant"
       },
-      "note": "**The counter-example that must stay dormant**: an explicit, officially-evidenced unsupported case is never sent even if the user set a value. This keeps the relaxed \"we don't know\" rule above from being implemented as always-true — the same boundary has a matching anchor at capability_evidence_contract.v1.json#official.explicit.official_unsupported_still_omits (omit_unsupported). Changing this case removes that boundary entirely, so treat it as a deliberate, reviewed change."
+      "note": "**The counter-example that must stay dormant**: an explicit, officially-evidenced unsupported case is never sent even if the user set a value. This keeps the relaxed \"we don't know\" rule above from being implemented as always-true — the same boundary has a matching anchor at capability_evidence_contract.v1.json#official.explicit.official_unsupported_still_omits (omit_unsupported). Changing this case removes that boundary entirely."
     },
     {
       "caseId": "official.declared.future_supported",
@@ -2600,7 +2600,7 @@
       "expect": {
         "lifecycle": "active"
       },
-      "note": "unknown synthesized from a relay's local template: it is only attempted on the wire once the user explicitly sets a value, and still counts as active, with the UI tagging the row \"unverified\". This case and official.declared.unknown are two instances of the same rule and must reach the same conclusion — relay is no longer treated as a special case."
+      "note": "unknown synthesized from a relay's local template: it is only attempted on the wire once the user explicitly sets a value, and still counts as active, with the UI tagging the row \"unverified\". This case and official.declared.unknown are two instances of the same rule and must reach the same conclusion; providerKind plays no part in this decision."
     },
     {
       "caseId": "relay.declared.unknown_without_wire",
@@ -2689,13 +2689,13 @@
     }
   ],
   "lifecycleRules": {
-    "$comment": "Defines the lifecycle of a parameter value. Web owns the final semantics. dormant is a **derived state**: it equals the current device's judgment of a stored value under the current profile; it is never written to local storage or into the generation_parameter_sync.v1 envelope — each client computes it for itself. iOS/Android only consume this table and must not duplicate the rule elsewhere. ⚠️ This table and capability_evidence_contract.v1.json's official.explicit.* are two projections of the same policy: that one decides requestPolicy (allow_explicit_unverified vs omit_*), this one decides lifecycle (active vs dormant). The two must stay in lockstep — \"explicit intent + no official counter-evidence → allow\" and \"officially-evidenced unsupported / conflict / already rejected upstream → do not allow\". Changing the rule on only one side reopens the exact gap this table exists to close.",
+    "$comment": "Defines the lifecycle of a parameter value. dormant is a **derived state**: it equals the current device's judgment of a stored value under the current profile; it is never written to local storage or into the generation_parameter_sync.v1 envelope — each client computes it for itself. Every client consumes this table and must not duplicate the rule elsewhere. ⚠️ This table and capability_evidence_contract.v1.json's official.explicit.* are two projections of the same policy: that one decides requestPolicy (allow_explicit_unverified vs omit_*), this one decides lifecycle (active vs dormant). The two must stay in lockstep — \"explicit intent + no official counter-evidence → allow\" and \"officially-evidenced unsupported / conflict / already rejected upstream → do not allow\". Changing the rule on only one side reopens the exact gap this table exists to close.",
     "definition": "active means the parameter id still goes out on the wire under the current profile; dormant means the value stays in storage and sync but is not currently sent. The two are mutually exclusive and exhaustive.",
     "lifecycle": [
       "the profile does not declare this parameter id → dormant",
       "the wire path is missing or empty → dormant",
       "support ∈ outboundSupport → active",
-      "the user has expressed explicit intent for this parameter (storedState ∈ {value, omit}; inherit does not count) and there is no official evidence against it — support ∈ {unknown, accepted, accepted_unverified} — → active (unverified does not mean unsupported. **providerKind plays no part in this decision**; relay is no longer treated as a special case — a relay's unknown state is just one instance of this same rule. The UI still labels it via presentationClasses as \"sent · unverified\" / \"no data\")",
+      "the user has expressed explicit intent for this parameter (storedState ∈ {value, omit}; inherit does not count) and there is no official evidence against it — support ∈ {unknown, accepted, accepted_unverified} — → active (unverified does not mean unsupported. **providerKind plays no part in this decision**; a relay's unknown state is just one instance of this same rule. The UI labels it through presentationClasses, whose labelKey and detailKey resolve to the localized copy.)",
       "everything else (unsupported / fixed / mode_dependent / future_supported — these four states are all **conclusions backed by official evidence**, not a metadata gap) → dormant",
       "once the upstream runtime has deterministically rejected this parameter (a negative-cache hit, or the facade judging it omit_runtime_rejected) → dormant; the panel shows \"already rejected upstream\" with a one-tap resend action"
     ],
@@ -2704,10 +2704,10 @@
     "storage": [
       "A dormant value is **never deleted**: it stays in the local record and automatically becomes active again once the profile matches, with no need for the user to re-enter it.",
       "A scope record's identity equals connection × model × session, **and never includes the profile fingerprint**. Folding the fingerprint into that identity would cause whole-record invalidation and orphaned records that can no longer be read back.",
-      "The fingerprint is a property of the record: it is updated with the current scope on write (this is where a migration lands), and on read it is handed to this table to be judged field by field."
+      "The fingerprint is a property of the record: it is updated with the current scope on write, and on read it is handed to this table to be judged field by field."
     ],
     "sync": [
-      "The envelope adds no new dormant field, and schemaVersion stays at 1; an older client reads exactly the same payload shape as today.",
+      "The envelope adds no new dormant field, and schemaVersion stays at 1; an older client reads exactly the same payload shape.",
       "Reason: dormancy is derived locally on each device. Writing it onto the wire would let device A's profile turn off a value on device B that B could actually still send — a cross-device silent substitution.",
       "A dormant value still takes part in export/merge/tombstoning as normal; deletion follows the existing tombstone rule, and an old record is never revived."
     ],
@@ -2716,13 +2716,13 @@
       "Both the empty and non-empty states **must be rendered**: after the runtime corrects the transport, the panel is usually non-empty and only missing a subset of parameters; rendering only the empty state would leave dormant values in the non-empty state as silent orphans.",
       "\"Clear\" only removes the dormant half; the active values are left untouched.",
       "Once the profile matches again, a one-time toast reports how many values were restored.",
-      "Copy always reads \"kept · not currently in effect\"; implementation words like dormant/sleeping/frozen must never appear in it."
+      "Copy is resolved from the generationParameterDormant* localization keys; implementation words like dormant, sleeping or frozen must never appear in it."
     ],
     "presets": [
       "A preset's identity equals connection × model, matching the scope record's identity, and **never includes the profile fingerprint**. Folding the fingerprint into the match would mean a whole preset becomes unreadable after switching endpoint or protocol, even while the underlying record stays on disk and keeps syncing.",
       "Copying a preset across models is only ever allowed through a field-by-field portable mapping declared for the same provider and the target profile; any field without a mapping is never copied.",
       "Neither saving nor applying a preset **filters values by the current device's active/dormant judgment**: dormancy is a locally derived state, and using it to trim a preset that gets synced elsewhere would let device A's profile turn off a value on device B that B could still send; also, when the profile can't be evaluated at all, every value is judged dormant, so filtering by active would save the preset as empty.",
-      "Once applied, the values that land in a scope record are judged field by field by this same table as usual: the ones that don't take effect stay in storage and count toward the \"kept · not currently in effect\" summary, with the outbound gate guaranteeing they are not sent."
+      "Once applied, the values that land in a scope record are judged field by field by this same table as usual: the ones that don't take effect stay in storage and count toward the dormant-value summary the panel shows, with the outbound gate guaranteeing they are not sent."
     ]
   }
 }
