@@ -1,4 +1,33 @@
+<div align="center">
+
 # Oriveo for macOS
+
+**A native Mac client, in development.**
+
+<sub>
+
+**English** ·
+<a href="../readme_i18n/ar/macos.md">العربية</a> ·
+<a href="../readme_i18n/de/macos.md">Deutsch</a> ·
+<a href="../readme_i18n/es/macos.md">Español</a> ·
+<a href="../readme_i18n/fr/macos.md">Français</a> ·
+<a href="../readme_i18n/hi/macos.md">हिन्दी</a> ·
+<a href="../readme_i18n/id/macos.md">Indonesia</a> ·
+<a href="../readme_i18n/ja/macos.md">日本語</a> ·
+<a href="../readme_i18n/ko/macos.md">한국어</a> ·
+<a href="../readme_i18n/pt-BR/macos.md">Português</a> ·
+<a href="../readme_i18n/ru/macos.md">Русский</a> ·
+<a href="../readme_i18n/th/macos.md">ไทย</a> ·
+<a href="../readme_i18n/tr/macos.md">Türkçe</a> ·
+<a href="../readme_i18n/vi/macos.md">Tiếng Việt</a> ·
+<a href="../readme_i18n/zh-Hans/macos.md">简体中文</a> ·
+<a href="../readme_i18n/zh-Hant/macos.md">繁體中文</a>
+
+</sub>
+
+</div>
+
+---
 
 A native macOS client is in development and will be released in the coming months. It is not in
 this repository yet — this directory is where it will land, next to the other three clients.

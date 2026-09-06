@@ -300,8 +300,9 @@ Serving the model catalog from your own host: [android/README.md](android/README
   permit a direct browser call; that server does not persist keys or messages, and when you run the
   app locally it is your own machine.
 - **Two requests of our own:** a read-only model catalog, read in two calls — one for how each
-  model wants to be addressed, one for the facts about individual models — so a model released today
-  works without a new build. Neither carries a key, a conversation, or an identifier we attach. The
+  model wants to be addressed, one for the facts about individual models, which iOS reads only after
+  a subscription sign-in — so a model released today works without a new build. Neither carries a
+  key, a conversation, or an identifier we attach. The
   web client (`NEXT_PUBLIC_BACKEND_URL`) and the Android build (`-PORIVEO_METADATA_BASE_URL`) can be
   pointed at a host of your own; on iOS that override is a Debug-build convenience only.
 

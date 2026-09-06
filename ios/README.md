@@ -158,7 +158,7 @@ encrypt the archive: it encrypts only the provider API keys inside it (AES-GCM, 
 by PBKDF2-HMAC-SHA256 over 600,000 iterations). Conversations, notes, skills and preferences are
 plain JSON in the archive either way, so treat a backup file as readable by anyone who has it.
 
-## The one network call the app makes for itself
+## The requests the app makes for itself
 
 On cold start the app issues one unauthenticated, ETag-conditional `GET` to
 `https://api.oriveoai.com/api/metadata?view=lean`. It fetches the public model catalog: which models
@@ -271,8 +271,8 @@ xcodebuild test -project ios/Oriveo/Oriveo.xcodeproj -scheme Oriveo \
   -destination 'platform=iOS Simulator,name=iPhone 16'
 ```
 
-Substitute a simulator you actually have. `xcodebuild -project ios/Oriveo/Oriveo.xcodeproj -scheme Oriveo
--showdestinations` lists everything this checkout can build for.
+Substitute a simulator you actually have; `xcodebuild -showdestinations` with the same project and
+scheme lists everything this checkout can build for.
 
 > [!IMPORTANT]
 > The test target reads contract fixtures from `shared/` by walking up from `#filePath` until it
