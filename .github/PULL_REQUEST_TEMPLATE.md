@@ -10,6 +10,7 @@
 
 - [ ] Tests for the client(s) I touched pass
 - [ ] If I changed anything under `shared/`, I ran the contract tests of **every** client that reads it
+- [ ] If I changed an English README, I said so here so the translations can be brought back into line
 
 ## Notes for the reviewer
 

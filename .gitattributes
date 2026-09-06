@@ -1,0 +1,15 @@
+# Store and check out text with LF everywhere, so a contributor on Windows does not
+# turn a whole file into a diff. Binary files are detected and left alone.
+* text=auto eol=lf
+
+# Recorded provider byte streams. These fixtures are asserted byte for byte, including
+# the CR that some upstreams put in front of an SSE line break, so git must not touch
+# them on the way in or out.
+shared/test-fixtures/** -text
+
+# The Windows Gradle launcher only runs with CRLF.
+*.bat text eol=crlf
+
+# Translations of the READMEs. Marking them as documentation keeps the fifteen locale
+# copies out of the repository's language statistics and collapses them in diffs.
+readme_i18n/** linguist-documentation

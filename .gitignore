@@ -1,4 +1,10 @@
+# Editor and operating-system noise
 .DS_Store
+Thumbs.db
+.vscode/
+*.swp
+*.log
+.eslintcache
 
 # Secrets and machine-local configuration
 .env
