@@ -66,6 +66,9 @@ class SecureKeyStoreAccountIsolationTest {
         assertNull(store.getApiKey("user-b", "PROVIDER-1"))
     }
 
+    // Mirrors SecureKeyStore's own use of the deprecated androidx.security.crypto API; see the note
+    // on SecureKeyStore.createEncryptedPrefs.
+    @Suppress("DEPRECATION")
     private fun encryptedPrefs() = EncryptedSharedPreferences.create(
         context,
         PREFS_NAME,

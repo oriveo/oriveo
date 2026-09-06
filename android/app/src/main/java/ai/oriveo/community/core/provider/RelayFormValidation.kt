@@ -97,7 +97,7 @@ object RelayFormValidation {
          * always-present read-only summary row, so it must reference the real connection-mode
          * resource rather than hiding behind a null.
          */
-        @StringRes val labelRes: Int?,
+        @param:StringRes val labelRes: Int?,
         /**
          * Placeholder text. Address, key and key/value rows use unlocalised example literals;
          * the default-model placeholder is dynamic (it shows a flagship model id from the
@@ -177,7 +177,7 @@ object RelayFormValidation {
 
     enum class IssueCode(
         val value: String,
-        @StringRes val messageRes: Int,
+        @param:StringRes val messageRes: Int,
         /**
          * A "required" issue only keeps the primary button disabled. An empty field is already
          * the hint, and floating a red line on open is noise. Everything else means the user

@@ -26,18 +26,16 @@ import kotlinx.coroutines.withContext
 import kotlin.math.max
 import kotlin.math.roundToInt
 
-
 @Stable
 class BrandImageBitmapCache(private val resources: Resources) {
-    private data class CacheKey(@DrawableRes val resId: Int, val sampleSize: Int)
+    private data class CacheKey(@param:DrawableRes val resId: Int, val sampleSize: Int)
     private data class BitmapResourceInfo(val displayMaxEdgePx: Int)
 
     private val cache = ConcurrentHashMap<CacheKey, ImageBitmap>()
     private val resourceInfo = ConcurrentHashMap<Int, BitmapResourceInfo>()
-    
+
     private val nonBitmap = ConcurrentHashMap.newKeySet<Int>()
 
-    
     fun getOrNull(@DrawableRes resId: Int, targetEdgePx: Int): ImageBitmap? {
         if (nonBitmap.contains(resId)) return null
 
@@ -65,12 +63,10 @@ class BrandImageBitmapCache(private val resources: Resources) {
             return null
         }
         val imageBitmap = decoded.asImageBitmap()
-        
-        
+
         return cache.putIfAbsent(key, imageBitmap) ?: imageBitmap
     }
 
-    
     internal suspend fun preload(requests: List<BrandImageRequest>) = withContext(Dispatchers.IO) {
         requests.forEach { getOrNull(it.resId, it.targetEdgePx) }
     }
@@ -99,10 +95,9 @@ class BrandImageBitmapCache(private val resources: Resources) {
     }.getOrNull()
 }
 
-internal data class BrandImageRequest(@DrawableRes val resId: Int, val targetEdgePx: Int)
+internal data class BrandImageRequest(@param:DrawableRes val resId: Int, val targetEdgePx: Int)
 
-internal data class BrandPreloadSpec(@DrawableRes val resId: Int, val targetSize: Dp)
-
+internal data class BrandPreloadSpec(@param:DrawableRes val resId: Int, val targetSize: Dp)
 
 internal fun calculateResourceSampleSize(sourceEdgePx: Int, targetEdgePx: Int): Int {
     if (sourceEdgePx <= 0 || targetEdgePx <= 0 || sourceEdgePx <= targetEdgePx) return 1
@@ -116,16 +111,13 @@ internal fun calculateResourceSampleSize(sourceEdgePx: Int, targetEdgePx: Int): 
 
 val LocalBrandImageBitmapCache = staticCompositionLocalOf<BrandImageBitmapCache?> { null }
 
-
 private object EmptyPainter : Painter() {
     override val intrinsicSize: Size = Size.Unspecified
     override fun DrawScope.onDraw() = Unit
 }
 
-
 internal fun canResolveResource(resources: Resources, @DrawableRes resId: Int): Boolean =
     runCatching { resources.getValue(resId, TypedValue(), true) }.isSuccess
-
 
 @Composable
 fun rememberBrandPainter(@DrawableRes resId: Int, targetSize: Dp): Painter {
@@ -145,10 +137,9 @@ fun rememberBrandPainter(@DrawableRes resId: Int, targetSize: Dp): Painter {
     return remember(bitmap) { BitmapPainter(bitmap) }
 }
 
-
 internal object BrandLogoResources {
     val commonBrandLogos: List<BrandPreloadSpec> = listOf(
-        
+
         BrandPreloadSpec(R.drawable.ic_provider_openai, 64.dp),
         BrandPreloadSpec(R.drawable.ic_provider_openai_dark, 64.dp),
         BrandPreloadSpec(R.drawable.ic_provider_anthropic, 64.dp),
@@ -175,14 +166,14 @@ internal object BrandLogoResources {
         BrandPreloadSpec(R.drawable.ic_provider_qwen_dark, 64.dp),
         BrandPreloadSpec(R.drawable.ic_provider_kimi, 64.dp),
         BrandPreloadSpec(R.drawable.ic_provider_kimi_dark, 64.dp),
-        
+
         BrandPreloadSpec(R.drawable.ic_provider_mistral, 64.dp),
         BrandPreloadSpec(R.drawable.ic_provider_siliconflow, 64.dp),
         BrandPreloadSpec(R.drawable.ic_provider_siliconflow_dark, 64.dp),
-        
+
         BrandPreloadSpec(R.drawable.ic_oriveo_logo, 92.dp),
         BrandPreloadSpec(R.drawable.ic_guest_avatar, 72.dp),
-        
+
         BrandPreloadSpec(R.drawable.ic_vendor_meta, 24.dp),
         BrandPreloadSpec(R.drawable.ic_vendor_mistral, 24.dp),
         BrandPreloadSpec(R.drawable.ic_vendor_perplexity, 24.dp),

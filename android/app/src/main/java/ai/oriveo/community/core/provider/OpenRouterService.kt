@@ -238,7 +238,7 @@ class OpenRouterService(
                     if (event is StreamEvent.Done) {
                         continuationAccumulator?.stateOrNull()?.let { state ->
                             emit(StreamEvent.RecipeContinuation(
-                                "replay_reasoning", continuationRecipe?.continuationVariant, state,
+                                "replay_reasoning", continuationRecipe.continuationVariant, state,
                             ))
                         }
                     }

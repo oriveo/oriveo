@@ -113,15 +113,12 @@ fun NoteDetailScreen(
     }
     BackHandler { leaveDetail() }
 
-    
     LaunchedEffect(Unit) {
         viewModel.navToNoteDetail.collect { id -> onNavigateToNoteDetail(id) }
     }
     val screenH = OriveoTheme.layout.screenH
     val colors = OriveoTheme.colors
 
-    
-    
     var loadTimedOut by remember(noteID) { mutableStateOf(false) }
     LaunchedEffect(noteID) {
         loadTimedOut = false
@@ -142,7 +139,7 @@ fun NoteDetailScreen(
             topBar = {
                 val current = note
                 CenterAlignedTopAppBar(
-                    colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = Color.Transparent),
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
                     title = {},
                     navigationIcon = {
                         IconButton(onClick = { leaveDetail() }) {
@@ -259,8 +256,7 @@ fun NoteDetailScreen(
     if (viewModel.crosscheckActive) {
         val current = note
         val crosscheckState by viewModel.crosscheckState.collectAsStateWithLifecycle()
-        
-        
+
         val crosscheckProviders by viewModel.providers.collectAsStateWithLifecycle()
         CrosscheckSheet(
             originalAnswer = current?.bodySnapshot?.takeIf { it.isNotBlank() } ?: current?.body.orEmpty(),
@@ -309,10 +305,8 @@ private fun NoteDetailBody(
             TrashBanner()
         }
 
-        
         NoteTitleSection(note = note, editable = editable, folderName = folderName, onUpdateTitle = onUpdateTitle)
 
-        
         NoteTagsSection(
             note = note,
             availableTags = availableTags,
@@ -321,11 +315,10 @@ private fun NoteDetailBody(
             onRemoveTag = onRemoveTag,
         )
 
-        
         NoteSourceCard(
             note = note,
             onReturnToConversation = onReturnToConversation,
-            
+
             onCrosscheck = if (note.canCrosscheck) onCrosscheck else null,
         )
 
@@ -333,7 +326,6 @@ private fun NoteDetailBody(
 
         Spacer(Modifier.height(OriveoTheme.spacing.md))
 
-        
         if (note.isTrashed) {
             OriveoPrimaryButton(text = stringResource(R.string.notes_trash_restore), onClick = onRestore)
         } else {
@@ -359,7 +351,6 @@ private fun NoteDetailBody(
     }
 }
 
-
 @Composable
 private fun NoteSectionHeader(
     title: String,
@@ -376,7 +367,6 @@ private fun NoteSectionHeader(
         )
     }
 }
-
 
 internal fun stripStandaloneRules(text: String): String {
     val kept = text.split("\n").filter { line ->
@@ -436,13 +426,13 @@ private fun NoteTitleSection(
     var draft by remember(note.id) { mutableStateOf(note.title) }
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        
+
         val date = rememberFormattedNoteDate(note.createdAt)
         Row(verticalAlignment = Alignment.CenterVertically) {
             if (note.showsBadge()) {
                 NoteSourceBadge(note)
             } else if (!folderName.isNullOrBlank()) {
-                
+
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                     Icon(Icons.Outlined.Folder, contentDescription = null, modifier = Modifier.size(14.dp), tint = colors.textTertiary)
                     Text(folderName, style = OriveoTheme.typography.footnote, color = colors.textTertiary, maxLines = 1)
@@ -550,8 +540,7 @@ private fun NoteContentCard(
                 modifier = Modifier.padding(top = 6.dp),
             )
         } else {
-            
-            
+
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -595,7 +584,6 @@ private fun NoteContentCard(
     }
 }
 
-
 @Composable
 private fun Modifier.brandImmersiveCard(radius: androidx.compose.ui.unit.Dp): Modifier {
     val isDark = OriveoTheme.isDark
@@ -604,10 +592,10 @@ private fun Modifier.brandImmersiveCard(radius: androidx.compose.ui.unit.Dp): Mo
     val shape = RoundedCornerShape(radius)
     val gradientTop = if (isDark) Color(0xFF1E2230) else Color(0xFFFFFFFF)
     val gradientBottom = if (isDark) Color(0xFF232845) else Color(0xFFF1EBFD)
-    
+
     val topHighlight = if (isDark) Color.White.copy(alpha = 0.04f) else Color.White.copy(alpha = 0.275f)
     return this
-        
+
         .shadow(
             elevation = if (isDark) 24.dp else 16.dp,
             shape = shape,
@@ -627,13 +615,13 @@ private fun Modifier.brandImmersiveCard(radius: androidx.compose.ui.unit.Dp): Mo
             val glowRadius = 240.dp.toPx()
             val highlightHeight = 60.dp.toPx()
             val base = Brush.verticalGradient(listOf(gradientTop, gradientBottom))
-            
+
             val glow = Brush.radialGradient(
                 colors = listOf(primary.copy(alpha = 0.12f), Color.Transparent),
                 center = Offset(size.width, 0f),
                 radius = glowRadius,
             )
-            
+
             val highlight = Brush.verticalGradient(
                 colors = listOf(topHighlight, Color.Transparent),
                 startY = 0f,
@@ -647,7 +635,6 @@ private fun Modifier.brandImmersiveCard(radius: androidx.compose.ui.unit.Dp): Mo
         }
         .border(1.dp, primary.copy(alpha = 0.12f), shape)
 }
-
 
 @Composable
 private fun NoteColophon(note: Note) {
@@ -727,7 +714,7 @@ private fun NoteTagsSection(
                 }
                 if (editable && !showEditor) {
                     val isDark = OriveoTheme.isDark
-                    
+
                     val addTint = if (isDark) Color(0xFFB4BAC6) else Color(0xFF52525B)
                     Row(
                         modifier = Modifier
@@ -779,7 +766,6 @@ private fun InlineTagChip(tag: String, brand: Color, hasSource: Boolean, editabl
         hasSource = hasSource,
         onRemove = if (editable) onRemove else null,
     )
-
 
 @Composable
 private fun TagInputRow(

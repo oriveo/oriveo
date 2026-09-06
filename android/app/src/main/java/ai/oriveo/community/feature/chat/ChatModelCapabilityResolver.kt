@@ -112,7 +112,7 @@ class ChatModelCapabilityResolver(
         if (!hasGovernedMetadataCapability(provider, model, ModelCapability.Web)) return false
         // Relay transport envelope is a capability-specific eligibility gate, not a second
         // source of support truth. The facade has already decided support/source/grade.
-        return provider?.takeIf { it.kind == ProviderKind.Relay }?.let {
+        return provider.takeIf { it.kind == ProviderKind.Relay }?.let {
             RelayRuntimeSupport.supportsWebSearch(
                 provider = it,
                 runtimeConfig = runtimeConfigProvider(),
@@ -210,7 +210,6 @@ class ChatModelCapabilityResolver(
             generationReasonCode = generation?.reasonCode ?: generation?.reason,
         )
     }
-
 
     /**
      * The candidate catalog behind the model-controls sheet's primary action.

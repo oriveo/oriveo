@@ -16,28 +16,26 @@ import ai.oriveo.community.R
 import ai.oriveo.community.core.model.RelayKind
 import ai.oriveo.community.ui.theme.OriveoTheme
 
-
 @Immutable
 data class RelayKindMeta(
-    @StringRes val titleRes: Int,
-    @StringRes val subtitleRes: Int,
-    
+    @param:StringRes val titleRes: Int,
+    @param:StringRes val subtitleRes: Int,
+
     val endpointPath: String? = null,
-    
-    @DrawableRes val logoRes: Int? = null,
-    
+
+    @param:DrawableRes val logoRes: Int? = null,
+
     val systemIcon: ImageVector,
-    
+
     val tint: Color,
-    
+
     val tintDeep: Color,
 ) {
-    
+
     @get:DrawableRes
     val watermarkRes: Int
         get() = logoRes ?: R.drawable.ic_provider_relay
 }
-
 
 @Composable
 fun relayKindMeta(kind: RelayKind): RelayKindMeta {
@@ -80,7 +78,7 @@ fun relayKindMeta(kind: RelayKind): RelayKindMeta {
         RelayKind.Custom -> RelayKindMeta(
             titleRes = R.string.relay_kind_custom,
             subtitleRes = R.string.relay_kind_custom_subtitle,
-            
+
             systemIcon = Icons.Filled.Tune,
             tint = if (dark) Color(0xFF94A3B8) else Color(0xFF64748B),
             tintDeep = if (dark) Color(0xFF64748B) else Color(0xFF475569),

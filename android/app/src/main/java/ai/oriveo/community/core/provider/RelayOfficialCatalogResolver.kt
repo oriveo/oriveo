@@ -85,7 +85,7 @@ object RelayOfficialCatalogResolver {
             imageGenProfile = imageGenProfile,
             // Once the catalog has matched, we do not fall back to the relay's previously stored
             // profile: a null here means the catalog has withdrawn that capability.
-            generationProfile = match.metadata.profiles?.generation,
+            generationProfile = match.metadata.profiles.generation,
         )
     }
 

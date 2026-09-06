@@ -45,11 +45,11 @@ object GenerationParameterSupportPresentation {
         val renders: Boolean,
         val control: Control,
         /** Class-level label, such as "will be sent, effect unverified", "not adjustable" or "no data"; null for `silent`. */
-        @StringRes val labelRes: Int?,
+        @param:StringRes val labelRes: Int?,
         /** Value-level detail line, one per engineering value, kept separate from the class label. */
-        @StringRes val detailRes: Int?,
+        @param:StringRes val detailRes: Int?,
         /** The actionable primary action a disabled row has to offer. */
-        @StringRes val primaryActionRes: Int?,
+        @param:StringRes val primaryActionRes: Int?,
     )
 
     /** Class-level copy. The keys correspond one to one with the contract's `classes[].labelKey`. */

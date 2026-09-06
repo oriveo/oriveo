@@ -87,10 +87,10 @@ object CatalogModelBuilder {
         val pricing = pricePresentation(metadata)
 
         return model.copy(
-            canonicalModelId = metadata.canonicalModelId ?: model.canonicalModelId,
+            canonicalModelId = metadata.canonicalModelId,
             name = metadata.displayName ?: model.name,
             capabilities = capabilities,
-            reasoningModeAvailable = metadata.profiles?.reasoning != null,
+            reasoningModeAvailable = metadata.profiles.reasoning != null,
             isRecommended = metadata.uiHints?.recommended == true,
             priceTier = pricing.priceTier,
             summary = model.summary ?: compactContextText(metadata.contextLength ?: model.contextLength),
@@ -116,12 +116,12 @@ object CatalogModelBuilder {
             supportsServiceTier = metadata.supportsServiceTier,
             contextLength = metadata.contextLength ?: model.contextLength,
             maxOutputTokens = metadata.maxOutputTokens ?: model.maxOutputTokens,
-            reasoningProfile = metadata.profiles?.reasoning,
-            webSearchProfile = metadata.profiles?.webSearch,
-            imageGenProfile = metadata.profiles?.imageGen,
+            reasoningProfile = metadata.profiles.reasoning,
+            webSearchProfile = metadata.profiles.webSearch,
+            imageGenProfile = metadata.profiles.imageGen,
             // When the catalog does have an entry, a null here is an authoritative withdrawal;
             // the old profile must not be left behind in the local snapshot.
-            generationProfile = metadata.profiles?.generation,
+            generationProfile = metadata.profiles.generation,
             // On a v2 catalog hit an explicit null is an authoritative unknown and has to clear
             // the previous verdict. Only a missing version or v1 keeps the historical fallback,
             // so behaviour does not change abruptly while the catalog is mid-upgrade.

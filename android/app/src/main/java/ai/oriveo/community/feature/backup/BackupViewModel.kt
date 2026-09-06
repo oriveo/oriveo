@@ -23,15 +23,12 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.File
 
-
 class BackupViewModel(
     private val backupService: BackupService,
     private val appPreferencesRepository: ai.oriveo.community.core.app.AppPreferencesRepository,
     private val exportScratchDir: File,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : ViewModel() {
-
-    
 
     var includeKeys: Boolean by mutableStateOf(false)
     var exportPassword: String by mutableStateOf("")
@@ -55,16 +52,12 @@ class BackupViewModel(
             exportPasswordConfirm.isNotEmpty() &&
             exportPassword != exportPasswordConfirm
 
-    
-
     var conversationCount: Int by mutableStateOf(0)
         private set
     var providerCount: Int by mutableStateOf(0)
         private set
     var totalMessageCount: Int by mutableStateOf(0)
         private set
-
-    
 
     var showImportPreview: Boolean by mutableStateOf(false)
         private set
@@ -112,20 +105,16 @@ class BackupViewModel(
                 providerCount = summary.providers
                 totalMessageCount = summary.messages
             } catch (_: Exception) {
-                
+
             }
         }
     }
 
-    
     var exportedFile: File? by mutableStateOf(null)
         private set
 
-    
     var shouldTriggerSave: Boolean by mutableStateOf(false)
         private set
-
-    
 
     fun performExport() {
         if (!canExport) return
@@ -133,7 +122,7 @@ class BackupViewModel(
             isExporting = true
             exportError = null
             exportSuccess = false
-            
+
             discardExportedFile()
             var target: File? = null
             try {
@@ -153,10 +142,7 @@ class BackupViewModel(
                 target?.delete()
                 exportError = mapError(e)
             } catch (e: OutOfMemoryError) {
-                
-                
-                
-                
+
                 target?.delete()
                 exportError = mapError(e)
             } finally {
@@ -165,7 +151,6 @@ class BackupViewModel(
         }
     }
 
-    
     fun handleExportSaveTarget(uri: Uri?, writeFile: suspend (Uri, File) -> Unit) {
         val file = exportedFile
         if (uri == null || file == null) {
@@ -174,8 +159,7 @@ class BackupViewModel(
         }
         viewModelScope.launch {
             try {
-                
-                
+
                 withContext(NonCancellable + ioDispatcher) { writeFile(uri, file) }
                 onExportFileSaved()
             } catch (e: CancellationException) {
@@ -188,8 +172,7 @@ class BackupViewModel(
 
     fun onExportFileSaved() {
         shouldTriggerSave = false
-        
-        
+
         discardExportedFile()
         exportSuccess = true
     }
@@ -201,8 +184,7 @@ class BackupViewModel(
     }
 
     override fun onCleared() {
-        super.onCleared()
-        
+
         discardExportedFile()
     }
 
@@ -220,14 +202,12 @@ class BackupViewModel(
         exportSuccess = false
     }
 
-    
-
     fun handleFileSelected(uri: Uri, readBytes: suspend (Uri) -> ByteArray) {
         viewModelScope.launch {
             importError = null
             importErrorDetail = null
             try {
-                
+
                 val bytes = withContext(ioDispatcher) { readBytes(uri) }
                 val inspection = withContext(ioDispatcher) { backupService.inspectBackup(bytes) }
                 parsedFileUri = uri
@@ -287,9 +267,7 @@ class BackupViewModel(
                 val bytes = parsedFileBytes
                     ?: throw IllegalStateException("No backup file loaded")
                 val result = withContext(ioDispatcher) {
-                    
-                    
-                    
+
                     val replaceAllSnapshot = if (selectedImportMode == ImportMode.ReplaceAll) {
                         null
                     } else {
@@ -305,18 +283,18 @@ class BackupViewModel(
                         Unit
                         imported
                     } catch (e: Throwable) {
-                        
+
                         Unit
                         throw e
                     }
                 }
                 importResult = result
                 showImportResult = true
-                
+
                 appPreferencesRepository.completeOnboarding()
                 loadDataSummary()
             } catch (e: BackupError.WrongPassword) {
-                
+
                 importPassword = ""
                 passwordError = UiText.Resource(R.string.backup_error_wrong_password)
                 showPasswordPrompt = true
@@ -369,7 +347,7 @@ class BackupViewModel(
 
     private fun mapError(error: Throwable): UiText = when (error) {
         is BackupError.NoDataToExport -> UiText.Resource(R.string.backup_error_no_data_to_export)
-        
+
         is InputSizeLimitExceededException -> UiText.Resource(R.string.backup_error_too_large)
         is BackupError.ResourceLimitExceeded -> UiText.Resource(R.string.backup_error_too_large)
         is BackupError.UnrecognizedFormat -> UiText.Resource(R.string.backup_error_invalid_format)

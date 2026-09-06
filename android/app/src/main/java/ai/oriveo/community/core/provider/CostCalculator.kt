@@ -124,12 +124,12 @@ object CostCalculator {
             breakdown = breakdown,
             promptPerToken = inputRate,
             completionPerToken = completionPerToken ?: 0.0,
-            cachedReadPerToken = model?.cacheReadInputPerMToken?.div(1_000_000)
+            cachedReadPerToken = model.cacheReadInputPerMToken?.div(1_000_000)
                 ?: (inputRate * CACHED_READ_DEFAULT_MULTIPLIER),
-            cacheWrite5mPerToken = model?.cacheWrite5mPerMToken?.div(1_000_000)
-                ?: model?.cacheCreationInputPerMToken?.div(1_000_000)
+            cacheWrite5mPerToken = model.cacheWrite5mPerMToken?.div(1_000_000)
+                ?: model.cacheCreationInputPerMToken?.div(1_000_000)
                 ?: (inputRate * ANTHROPIC_CACHE_5M_MULTIPLIER),
-            cacheWrite1hPerToken = model?.cacheWrite1hPerMToken?.div(1_000_000)
+            cacheWrite1hPerToken = model.cacheWrite1hPerMToken?.div(1_000_000)
                 ?: (inputRate * ANTHROPIC_CACHE_1H_MULTIPLIER),
         ) to CostSource.LOCAL_ESTIMATE
     }

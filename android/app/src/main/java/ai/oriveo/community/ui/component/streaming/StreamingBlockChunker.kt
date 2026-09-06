@@ -113,7 +113,7 @@ internal object StreamingBlockChunker {
         if (lineComplete) {
             return commitCompletedLines(
                 target = target, tLen = tLen, vLen = vLen,
-                firstLineEndNL = lineEndNL!!, firstLineBlank = lineSoFar.isBlank(),
+                firstLineEndNL = lineEndNL, firstLineBlank = lineSoFar.isBlank(),
                 cadence = cadence,
             )
         }

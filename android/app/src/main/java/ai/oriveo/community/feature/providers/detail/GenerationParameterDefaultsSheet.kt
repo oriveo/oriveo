@@ -108,22 +108,21 @@ import ai.oriveo.community.core.provider.GenerationParameterDiagnosticStore
 import org.koin.compose.koinInject
 import kotlinx.coroutines.launch
 
-
 @Composable
 fun GenerationParameterDefaultsSheet(
     provider: Provider,
     initialModelId: String? = null,
     conversationId: String? = null,
     modifier: Modifier = Modifier,
-    
+
     isReadOnly: Boolean = false,
-    
+
     containerProvidesTitle: Boolean = false,
-    
+
     onSubPageVisibleChange: (Boolean) -> Unit = {},
-    
+
     capabilityHeader: (@Composable () -> Unit)? = null,
-    
+
     onSelectCandidateModel: ((ai.oriveo.community.core.model.AIModel) -> Unit)? = null,
 ) {
     val context = LocalContext.current
@@ -212,8 +211,7 @@ fun GenerationParameterDefaultsSheet(
             )
         }
     }
-    
-    
+
     // It receives the same UI projection as row editing and dormant partitioning.
     val lifecycleVisibleParameters = model?.let {
         GenerationParameterPanelPresentation.visibleParameters(
@@ -226,14 +224,12 @@ fun GenerationParameterDefaultsSheet(
     }.orEmpty()
     val parameters = lifecycleVisibleParameters
     val profileHistory = remember(context) { GenerationParameterProfileHistory.from(context) }
-    
-    
+
     LaunchedEffect(provider.id, modelId, activeProfile?.parameters?.size) {
         profileHistory.recordSeenProfile(provider.id, modelId, activeProfile?.parameters?.size ?: 0)
     }
-    
-    
-    val declaredEmptyState = model?.let {
+
+    val emptyState = model?.let {
         GenerationParameterPanelPresentation.emptyState(
             provider = provider,
             model = it,
@@ -243,11 +239,6 @@ fun GenerationParameterDefaultsSheet(
             capabilityProjection = capabilityProjection ?: return@let GenerationParameterEmptyState.NotVerified,
         )
     } ?: GenerationParameterEmptyState.NotVerified
-    val emptyState = if (parameters.isEmpty()) {
-        declaredEmptyState ?: GenerationParameterEmptyState.NotVerified
-    } else {
-        declaredEmptyState
-    }
     val persist: (GenerationParameterOverrides) -> Unit = { updated ->
         if (conversationId != null) {
             store.setSessionOverrides(updated, provider.id, modelId, conversationId, profileFingerprint)
@@ -287,8 +278,7 @@ fun GenerationParameterDefaultsSheet(
     ) { uri ->
         uri?.let { context.contentResolver.openOutputStream(it)?.bufferedWriter()?.use { writer -> writer.write(GenerationParameterDiagnosticStore.redactedJSON()) } }
     }
-    
-    
+
     val partition = model?.let {
         GenerationParameterLifecycleRules.partition(
             provider = provider,
@@ -299,26 +289,24 @@ fun GenerationParameterDefaultsSheet(
     }
     val dormantIds = partition?.dormantIds.orEmpty()
     var dormantExpanded by remember(modelId) { mutableStateOf(false) }
-    
+
     var page by remember(modelId) { mutableStateOf<GenerationParameterPage?>(null) }
-    
-    
+
     val notifySubPageVisible by rememberUpdatedState(onSubPageVisibleChange)
     LaunchedEffect(page != null) { notifySubPageVisible(page != null) }
     DisposableEffect(Unit) { onDispose { notifySubPageVisible(false) } }
     BackHandler(enabled = page != null) { page = null }
     var showsCustomFieldsUnsupportedAlert by remember(modelId) { mutableStateOf(false) }
-    
+
     var pendingDestruction by remember(modelId) { mutableStateOf<GenerationDestructiveAction?>(null) }
-    
+
     var customFieldsEntry by remember(modelId) { mutableStateOf(CustomFieldsEntry.Unsupported) }
-    
-    
+
     val customFieldsIdentity = remember(provider, model, capabilityObservationRevision) {
         model?.let { ModelControlRuntimeIdentityResolver.resolve(provider, it) }
     }
     val customFieldsStore = remember(context) { LocalCapabilityCustomFragmentStore.from(context) }
-    
+
     val customFieldsCandidates = remember(provider, capabilityObservationRevision) {
         run {
             provider.models.filter { candidate ->
@@ -336,7 +324,7 @@ fun GenerationParameterDefaultsSheet(
         }
     }
     LaunchedEffect(provider.id, modelId, conversationId, customFieldsIdentity, page) {
-        
+
         if (page != null) return@LaunchedEffect
         customFieldsEntry = resolveCustomFieldsEntry(
             store = customFieldsStore,
@@ -347,10 +335,9 @@ fun GenerationParameterDefaultsSheet(
             activeProfile = activeProfile,
         )
     }
-    
+
     var previousDormantIds by remember(provider.id, modelId, conversationId) { mutableStateOf<List<String>?>(null) }
-    
-    
+
     LaunchedEffect(dormantIds.joinToString("|")) {
         val previous = previousDormantIds
         previousDormantIds = dormantIds
@@ -375,22 +362,9 @@ fun GenerationParameterDefaultsSheet(
         parameter.id?.takeIf { parameter.portability == "portable" }?.let { it to it }
     }.toMap()
 
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    
     val supportedModelsTransitionMillis =
         OriveoMotion.modelControlPageMillis(isReduceMotionEnabled(context))
-    
-    
+
     pendingDestruction?.let { action ->
         val conflictTitles = mutableListOf<String>()
         if (action == GenerationDestructiveAction.RemoveConflicts) {
@@ -402,8 +376,7 @@ fun GenerationParameterDefaultsSheet(
             title = { Text(confirmLabel) },
             text = {
                 Text(
-                    
-                    
+
                     if (action == GenerationDestructiveAction.RemoveConflicts) {
                         conflictTitles.joinToString(" · ")
                     } else {
@@ -439,8 +412,7 @@ fun GenerationParameterDefaultsSheet(
         )
     }
     if (showsCustomFieldsUnsupportedAlert) {
-        
-        
+
         val base = stringResource(R.string.generation_parameter_custom_fields_requires_schema)
         val noCandidates = stringResource(R.string.model_control_no_supported_models)
         AlertDialog(
@@ -532,32 +504,21 @@ fun GenerationParameterDefaultsSheet(
                     .padding(horizontal = 20.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                
-                
-                
-                
+
                 if (!containerProvidesTitle) {
                     Text(
                         stringResource(R.string.generation_model_behavior),
                         style = OriveoTheme.typography.title2,
                     )
                 }
-                
-                
+
                 capabilityHeader?.invoke()
                 if (conversationId == null) {
                     Text(
                         stringResource(R.string.generation_connection_defaults, provider.displayName),
                         style = OriveoTheme.typography.caption,
                     )
-                    
-                    
-                    
-                    
-                    
-                    
-                    
-                    
+
                     LazyRow(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -580,12 +541,7 @@ fun GenerationParameterDefaultsSheet(
                         style = OriveoTheme.typography.caption,
                     )
                 }
-                
-                
-                
-                
-                
-                
+
                 if (!isReadOnly && conversationId == null && profileFingerprint != null) {
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedTextField(
@@ -599,8 +555,7 @@ fun GenerationParameterDefaultsSheet(
                             colors = modelControlTextButtonColors(),
                             enabled = presetName.isNotBlank(),
                             onClick = {
-                                
-                                
+
                                 presetStore.save(presetName, provider.id, modelId, profileFingerprint, values)
                                 presetName = ""
                                 presetRevision += 1
@@ -656,7 +611,7 @@ fun GenerationParameterDefaultsSheet(
                         }
                     }
                 }
-                
+
                 if (conversationId == null && true) {
                     val diagnostics = GenerationParameterDiagnosticStore.list(modelId)
                     Text(stringResource(R.string.provider_detail_badge_recent), style = OriveoTheme.typography.title3)
@@ -691,19 +646,14 @@ fun GenerationParameterDefaultsSheet(
                     diagnosticRevision.hashCode()
                 }
                 if (compatibilityConflicts.isNotEmpty()) {
-                    
-                    
-                    
+
                     val localizedConflictTitles = mutableListOf<String>()
                     for (id in compatibilityConflicts.sorted()) {
                         localizedConflictTitles += generationParameterTitle(id)
                     }
                     val conflictSummary = localizedConflictTitles.joinToString(" · ")
                     val removeLabel = stringResource(R.string.generation_parameter_remove_conflicts)
-                    
-                    
-                    
-                    
+
                     Text(
                         stringResource(R.string.generation_parameter_compatibility),
                         style = OriveoTheme.typography.title3,
@@ -717,7 +667,7 @@ fun GenerationParameterDefaultsSheet(
                         Icon(
                             imageVector = Icons.Outlined.Warning,
                             contentDescription = null,
-                            
+
                             tint = OriveoTheme.colors.warning,
                             modifier = Modifier.padding(end = 6.dp).size(14.dp),
                         )
@@ -728,7 +678,7 @@ fun GenerationParameterDefaultsSheet(
                             modifier = Modifier.weight(1f),
                         )
                     }
-                    
+
                     if (!isReadOnly) {
                         TextButton(
                             colors = ButtonDefaults.textButtonColors(
@@ -741,7 +691,7 @@ fun GenerationParameterDefaultsSheet(
                         ) { Text(removeLabel) }
                     }
                 }
-                
+
                 if (!isReadOnly && conversationId == null && provider.kind == ProviderKind.Relay) {
                     TextButton(colors = modelControlTextButtonColors(), onClick = {
                         coroutineScope.launch {
@@ -769,7 +719,7 @@ fun GenerationParameterDefaultsSheet(
                         Text(stringResource(R.string.generation_parameter_clear_learned_capabilities))
                     }
                 }
-                
+
                 if (parameters.isEmpty()) {
                     Text(stringResource(R.string.generation_parameters_section), style = OriveoTheme.typography.title3)
                     Text(stringResource(emptyState.titleRes), style = OriveoTheme.typography.body)
@@ -777,7 +727,7 @@ fun GenerationParameterDefaultsSheet(
                         Text(stringResource(detail), style = OriveoTheme.typography.caption)
                     }
                 }
-                
+
                 if (capabilityProjection != null &&
                     GenerationParameterPanelPresentation.showsUnverifiedGroupNote(parameters, capabilityProjection)
                 ) {
@@ -805,9 +755,7 @@ fun GenerationParameterDefaultsSheet(
                     // not a capability re-interpretation, so it still keeps this control read-only.
                     val editable = decision?.editable == true && !isReadOnly &&
                         !activeProfile?.wire?.get(id).isNullOrEmpty()
-                    
-                    
-                    
+
                     val supportKey = GenerationParameterSupportPresentation
                         .effectiveSupport(parameter.support, decision?.resolution?.support)
                     val supportPresentation = GenerationParameterSupportPresentation.entry(supportKey)
@@ -818,7 +766,7 @@ fun GenerationParameterDefaultsSheet(
                             localizedSource = generationParameterSourceTitle(decision?.resolution?.source),
                         )
                     }
-                    
+
                     val supportDetail = supportPresentation.detailRes
                         ?.takeIf { supportPresentation.renders }
                         ?.let { stringResource(it) }
@@ -833,13 +781,11 @@ fun GenerationParameterDefaultsSheet(
                         Row(
                             horizontalArrangement = Arrangement.spacedBy(6.dp),
                             verticalAlignment = Alignment.CenterVertically,
-                            
-                            
+
                             modifier = Modifier.semantics(mergeDescendants = true) { contentDescription = rowLabel },
                         ) {
                             Text(parameterTitle, style = OriveoTheme.typography.body)
-                            
-                            
+
                             if (unverifiedBadge != null) {
                                 Text(
                                     unverifiedBadge,
@@ -853,8 +799,7 @@ fun GenerationParameterDefaultsSheet(
                                 )
                             }
                         }
-                        
-                        
+
                         basicParameterAnnotationRes(id)?.let { annotationRes ->
                             Text(stringResource(annotationRes), style = OriveoTheme.typography.caption)
                         }
@@ -864,9 +809,7 @@ fun GenerationParameterDefaultsSheet(
                         if (supportDetail != null) {
                             Text(supportDetail, style = OriveoTheme.typography.caption)
                         }
-                        
-                        
-                        
+
                         supportPresentation.primaryActionRes
                             ?.takeIf { supportPresentation.renders }
                             ?.let { actionRes ->
@@ -880,7 +823,7 @@ fun GenerationParameterDefaultsSheet(
                                 ) { Text(actionLabel) }
                             }
                     if (parameter.fixedValue != null) {
-                        Text(parameter.fixedValue?.toString().orEmpty(), modifier = Modifier.fillMaxWidth())
+                        Text(parameter.fixedValue.toString().orEmpty(), modifier = Modifier.fillMaxWidth())
                     } else if (parameter.valueSchema == "enum" && parameter.enumValues.isNotEmpty()) {
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             val choices = (parameter.enumValues + listOfNotNull(current)).distinct()
@@ -891,7 +834,7 @@ fun GenerationParameterDefaultsSheet(
                                     enabled = editable && currentOverride?.state != GenerationOverrideState.Omit,
                                     onClick = { updateValue(values, id, choice, parameter, parameters, persist) { values = it } },
                                     label = { Text(choiceText) },
-                                    
+
                                     modifier = Modifier.semantics { contentDescription = "$parameterTitle · $choiceText" },
                                 )
                             }
@@ -937,7 +880,7 @@ fun GenerationParameterDefaultsSheet(
                                 onCheckedChange = { checked ->
                                     updateValue(values, id, JsonPrimitive(checked), parameter, parameters, persist) { values = it }
                                 },
-                                
+
                                 modifier = Modifier.semantics { contentDescription = parameterTitle },
                             )
                         }
@@ -979,7 +922,7 @@ fun GenerationParameterDefaultsSheet(
                         )
                     }
                         if (editable) {
-                            
+
                             val defaultLabel = stringResource(R.string.generation_parameter_default)
                             val omitLabel = stringResource(R.string.generation_parameter_omit)
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
@@ -1012,16 +955,12 @@ fun GenerationParameterDefaultsSheet(
                         }
                     }
                 }
-                
-                
-                
+
                 Text(
                     stringResource(R.string.generation_parameter_unset_note),
                     style = OriveoTheme.typography.caption,
                 )
-                
-                
-                
+
                 if (dormantIds.isNotEmpty() && partition != null) {
                     Text(
                         stringResource(R.string.generation_parameter_dormant_summary, dormantIds.size),
@@ -1032,9 +971,7 @@ fun GenerationParameterDefaultsSheet(
                             Text(stringResource(R.string.generation_parameter_dormant_view))
                         }
                         if (!isReadOnly) {
-                            
-                            
-                            
+
                             TextButton(
                                 colors = ButtonDefaults.textButtonColors(
                                     contentColor = OriveoTheme.colors.danger,
@@ -1053,7 +990,7 @@ fun GenerationParameterDefaultsSheet(
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    
+
                                     .semantics(mergeDescendants = true) {
                                         contentDescription = listOf(dormantTitle, dormantValue)
                                             .filter(String::isNotBlank)
@@ -1069,7 +1006,7 @@ fun GenerationParameterDefaultsSheet(
                     }
                 }
                 if (!isReadOnly && values.values.isNotEmpty()) {
-                    
+
                     TextButton(
                         colors = ButtonDefaults.textButtonColors(contentColor = OriveoTheme.colors.danger),
                         onClick = { pendingDestruction = GenerationDestructiveAction.RestoreDefaults },
@@ -1077,17 +1014,14 @@ fun GenerationParameterDefaultsSheet(
                         Text(stringResource(R.string.restore_defaults))
                     }
                 }
-                
-                
-                
-                
+
                 Text(
                     stringResource(R.string.generation_parameter_developer),
                     style = OriveoTheme.typography.title3,
                 )
                 CustomFieldsEntryRow(
                     entry = customFieldsEntry,
-                    
+
                     isReadOnly = isReadOnly,
                     onClick = {
                         if (customFieldsEntry == CustomFieldsEntry.Unsupported) {
@@ -1102,7 +1036,6 @@ fun GenerationParameterDefaultsSheet(
     }
 }
 
-
 internal enum class GenerationDestructiveAction {
     RestoreDefaults,
     ClearDormant,
@@ -1116,7 +1049,6 @@ internal enum class GenerationDestructiveAction {
             RemoveConflicts -> R.string.generation_parameter_remove_conflicts
         }
 
-    
     @get:androidx.annotation.StringRes
     val messageRes: Int
         get() = when (this) {
@@ -1126,18 +1058,14 @@ internal enum class GenerationDestructiveAction {
         }
 }
 
-
 internal sealed interface GenerationParameterPage {
-    
+
     data class SupportedModels(val parameterId: String) : GenerationParameterPage
 
-    
     data object CustomFields : GenerationParameterPage
 
-    
     data object CustomFieldsSupportedModels : GenerationParameterPage
 }
-
 
 internal enum class CustomFieldsEntry {
     Unsupported,
@@ -1152,7 +1080,6 @@ internal enum class CustomFieldsEntry {
             InUse -> R.string.generation_parameter_custom_fields_in_use
         }
 }
-
 
 internal fun resolveCustomFieldsEntry(
     store: LocalCapabilityCustomFragmentStore,
@@ -1177,10 +1104,7 @@ internal fun resolveCustomFieldsEntry(
             reachable = true
         }
         val namespace = LocalCapabilityCustomFragmentStore.namespaceForOwner(owner) ?: return@forEach
-        
-        
-        
-        
+
         val configuration = store.effectiveConfiguration(
             providerID = provider.id,
             modelID = identity.canonicalModelId,
@@ -1247,7 +1171,6 @@ private fun CustomFieldsEntryRow(
         }
     }
 }
-
 
 @Composable
 private fun CustomFieldsSupportedModelsPage(
@@ -1326,14 +1249,12 @@ private fun CustomFieldsSupportedModelsPage(
     }
 }
 
-
 @androidx.annotation.StringRes
 internal fun basicParameterAnnotationRes(id: String): Int? = when (id) {
     "temperature" -> R.string.generation_parameter_temperature_note
     "max_output_tokens" -> R.string.generation_parameter_max_tokens_note
     else -> null
 }
-
 
 @Composable
 private fun GenerationParameterSupportedModelsPage(
@@ -1343,7 +1264,7 @@ private fun GenerationParameterSupportedModelsPage(
     access: GenerationAccess,
     onBack: () -> Unit,
 ) {
-    
+
     val candidates = remember(provider, parameterId, scope, access) {
         GenerationParameterPanelPresentation.modelsAcceptingParameter(
             provider = provider,
@@ -1359,7 +1280,7 @@ private fun GenerationParameterSupportedModelsPage(
             .padding(horizontal = 20.dp, vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        
+
         Row(verticalAlignment = Alignment.CenterVertically) {
             TextButton(colors = modelControlTextButtonColors(), onClick = onBack) { Text(stringResource(R.string.back)) }
             Text(generationParameterTitle(parameterId), style = OriveoTheme.typography.title3)
@@ -1367,7 +1288,7 @@ private fun GenerationParameterSupportedModelsPage(
         Text(
             stringResource(
                 if (candidates.isEmpty()) {
-                    
+
                     R.string.generation_parameter_supported_models_empty
                 } else {
                     R.string.generation_parameter_supported_models_intro
@@ -1504,7 +1425,6 @@ internal fun generationTransportTitleRes(raw: String): Int = when (raw.trim().lo
     else -> R.string.generation_parameter_transport_other
 }
 
-
 internal fun generationParameterStatusText(
     supportLabel: String,
     sourceLabel: String,
@@ -1513,7 +1433,6 @@ internal fun generationParameterStatusText(
     val text = localizedSource.orEmpty().trim()
     return if (text.isEmpty()) supportLabel else "$supportLabel · $sourceLabel: $text"
 }
-
 
 internal fun generationParameterAccessibilityLabel(
     parameterTitle: String,

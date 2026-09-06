@@ -7,23 +7,18 @@ import ai.oriveo.community.core.model.CapabilityWebPreference
 import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.core.provider.CapabilityControlPresentation
 
-
 enum class ModelControlCapabilityEscape {
     None,
 
-    
     SupportedModels,
 
-    
     AdvancedSettings,
 }
 
-
 data class ModelControlIntentOption(
     val id: String,
-    @StringRes val labelRes: Int,
+    @param:StringRes val labelRes: Int,
 )
-
 
 @StringRes
 internal fun modelControlCapabilityTitleRes(capability: String): Int = when (capability) {
@@ -31,7 +26,6 @@ internal fun modelControlCapabilityTitleRes(capability: String): Int = when (cap
     "reasoning" -> R.string.model_control_thinking
     else -> R.string.generation_model_behavior
 }
-
 
 @StringRes
 internal fun intentLabelRes(intent: String): Int = when (intent) {
@@ -43,7 +37,6 @@ internal fun intentLabelRes(intent: String): Int = when (intent) {
     else -> R.string.model_control_supplier_default
 }
 
-
 @StringRes
 internal fun webIntentLabelRes(preference: CapabilityWebPreference): Int = when (preference) {
     CapabilityWebPreference.Off -> R.string.model_control_off
@@ -52,14 +45,10 @@ internal fun webIntentLabelRes(preference: CapabilityWebPreference): Int = when 
     CapabilityWebPreference.Custom -> R.string.model_control_state_custom
 }
 
-
 @StringRes
 internal fun modelControlStatusTextRes(status: CapabilityControlPresentation): Int = when (status) {
     CapabilityControlPresentation.AutomaticAvailable -> R.string.model_control_status_automatic_available
-    
-    
-    
-    
+
     CapabilityControlPresentation.ForceUnsupported -> R.string.model_control_force_unavailable
     CapabilityControlPresentation.CustomOnly -> R.string.model_control_custom_only_reason
     CapabilityControlPresentation.Pending -> R.string.model_control_status_pending
@@ -67,7 +56,6 @@ internal fun modelControlStatusTextRes(status: CapabilityControlPresentation): I
     CapabilityControlPresentation.Unsupported -> R.string.model_control_capability_unavailable_here
     CapabilityControlPresentation.Unknown -> R.string.model_control_status_unknown_route
 }
-
 
 internal fun modelControlShowsSupportedModelsAction(status: CapabilityControlPresentation): Boolean =
     when (status) {
@@ -81,7 +69,6 @@ internal fun modelControlShowsSupportedModelsAction(status: CapabilityControlPre
         CapabilityControlPresentation.ForceUnsupported,
         -> false
     }
-
 
 enum class ModelControlBadgeClassification {
     None,
@@ -101,16 +88,13 @@ enum class ModelControlBadgeClassification {
             -> Unavailable
         }
 
-        
         fun capabilityCard(status: CapabilityControlPresentation): ModelControlBadgeClassification =
             resolve(status).takeIf { it != Unavailable } ?: None
 
-        
         fun advancedSettingsCard(status: CapabilityControlPresentation): ModelControlBadgeClassification =
             resolve(status).takeIf { it != NotReady } ?: None
     }
 }
-
 
 enum class ModelControlsEditability {
     Writable,
@@ -131,25 +115,20 @@ enum class ModelControlsEditability {
     }
 }
 
-
 enum class ModelControlsIdentityGap {
-    
+
     RuntimeSnapshotMissing,
 
-    
     RelayTransportUndecided,
 
-    
     ModelNotInCatalog;
 
     enum class RecoveryAction {
-        
+
         RefetchRuntime,
 
-        
         OpenConnectionSettings,
 
-        
         ChooseAnotherModel,
     }
 
@@ -169,7 +148,7 @@ enum class ModelControlsIdentityGap {
         }
 
     companion object {
-        
+
         fun resolve(
             providerKind: ProviderKind,
             relayTransportIsDecided: Boolean,
@@ -182,17 +161,16 @@ enum class ModelControlsIdentityGap {
     }
 }
 
-
 object CapabilityTransportLabel {
     fun display(transport: String): String? = when (canonicalCapabilityTransport(transport)) {
         "openai_responses" -> "Responses"
-        
+
         "openai_chat", "openai_chat_completions" -> "Chat Completions"
         "anthropic_messages" -> "Messages"
-        
+
         "gemini_generate_content" -> "generateContent"
         "dashscope_native" -> "DashScope"
-        
+
         "openai_images" -> "Images"
         "gemini_image" -> "imageGen"
         "qwen_image" -> "DashScope Image"
@@ -203,33 +181,30 @@ object CapabilityTransportLabel {
     }
 }
 
-
 object ModelControlReasoningLayout {
-    
+
     const val AUTOMATIC_INTENT: String = "automatic"
 
-    
     val tierOrder: List<String> = listOf("off", "low", "balanced", "deep", "max")
 
     enum class Form { PillRow, StatusRow }
 
     data class Layout(
         val form: Form,
-        
+
         val options: List<ModelControlIntentOption>,
         val selection: String,
-        
-        @StringRes val selectedAnnotationRes: Int?,
-        
-        @StringRes val footnoteRes: Int?,
-        
-        @StringRes val statusTextRes: Int?,
-        
-        @StringRes val explanationRes: Int?,
+
+        @param:StringRes val selectedAnnotationRes: Int?,
+
+        @param:StringRes val footnoteRes: Int?,
+
+        @param:StringRes val statusTextRes: Int?,
+
+        @param:StringRes val explanationRes: Int?,
         val escape: ModelControlCapabilityEscape,
     )
 
-    
     fun layout(
         status: CapabilityControlPresentation,
         intents: List<String>,
@@ -239,7 +214,7 @@ object ModelControlReasoningLayout {
     ): Layout {
         val selection = selectedIntent ?: AUTOMATIC_INTENT
         return when (status) {
-            
+
             CapabilityControlPresentation.Unsupported, CapabilityControlPresentation.ExternalConnectorOnly ->
                 statusRow(
                     R.string.model_control_not_supported_by_model,
@@ -255,9 +230,7 @@ object ModelControlReasoningLayout {
                     else ModelControlCapabilityEscape.SupportedModels,
                     selection,
                 )
-            
-            
-            
+
             CapabilityControlPresentation.Pending, CapabilityControlPresentation.Unknown ->
                 statusRow(
                     R.string.model_control_cannot_adjust_yet,
@@ -270,8 +243,7 @@ object ModelControlReasoningLayout {
                     !isEditable -> statusRow(
                         intentLabelRes(selection), null, ModelControlCapabilityEscape.None, selection,
                     )
-                    
-                    
+
                     intents.isEmpty() -> statusRow(
                         R.string.model_control_reasoning_fixed_level,
                         null,
@@ -283,7 +255,6 @@ object ModelControlReasoningLayout {
         }
     }
 
-    
     @StringRes
     fun captionRes(intent: String): Int? = when (intent) {
         "off" -> R.string.model_control_reasoning_note_off
@@ -298,22 +269,19 @@ object ModelControlReasoningLayout {
     private fun pillRow(intents: List<String>, selection: String): Layout {
         val available = intents.toSet()
         val options = mutableListOf<ModelControlIntentOption>()
-        
+
         if ("off" in available) options += option("off")
-        
+
         options += option(AUTOMATIC_INTENT)
         tierOrder.filter { it != "off" && it in available }.forEach { options += option(it) }
-        
-        
-        
+
         val effective = if (options.any { it.id == selection }) selection else AUTOMATIC_INTENT
         return Layout(
             form = Form.PillRow,
             options = options,
             selection = effective,
             selectedAnnotationRes = captionRes(effective),
-            
-            
+
             footnoteRes = if ("off" in available) null else R.string.model_control_reasoning_off_unavailable,
             statusTextRes = null,
             explanationRes = null,
@@ -340,29 +308,27 @@ object ModelControlReasoningLayout {
     )
 }
 
-
 object ModelControlWebLayout {
     enum class Form { Toggle, StatusRow }
 
     data class Layout(
         val form: Form,
-        
+
         val isOn: Boolean,
-        
-        @StringRes val captionRes: Int?,
-        
+
+        @param:StringRes val captionRes: Int?,
+
         val timingOptions: List<ModelControlIntentOption>,
         val timingSelection: String,
-        
-        @StringRes val statusTextRes: Int?,
-        
-        @StringRes val explanationRes: Int?,
+
+        @param:StringRes val statusTextRes: Int?,
+
+        @param:StringRes val explanationRes: Int?,
         val escape: ModelControlCapabilityEscape,
-        
+
         val effectiveSelection: CapabilityWebPreference,
     )
 
-    
     fun clamp(
         selection: CapabilityWebPreference,
         status: CapabilityControlPresentation,
@@ -382,7 +348,6 @@ object ModelControlWebLayout {
         }
     }
 
-    
     fun layout(
         status: CapabilityControlPresentation,
         availableIntents: List<String>,
@@ -407,8 +372,7 @@ object ModelControlWebLayout {
                     else ModelControlCapabilityEscape.SupportedModels,
                     selection,
                 )
-            
-            
+
             CapabilityControlPresentation.Pending, CapabilityControlPresentation.Unknown ->
                 statusRow(
                     R.string.model_control_cannot_adjust_yet,
@@ -427,7 +391,6 @@ object ModelControlWebLayout {
         }
     }
 
-    
     fun preferenceFor(tierId: String): CapabilityWebPreference =
         CapabilityWebPreference.entries.firstOrNull { it.name == tierId } ?: CapabilityWebPreference.Off
 
@@ -447,7 +410,6 @@ object ModelControlWebLayout {
         )
     }
 
-    
     private fun timingOptions(): List<ModelControlIntentOption> = listOf(
         ModelControlIntentOption(
             CapabilityWebPreference.Automatic.name, R.string.model_control_web_search_when_needed,
@@ -479,45 +441,41 @@ object ModelControlWebLayout {
     )
 }
 
-
 object ModelControlCapabilityFooter {
     enum class Context { PanelCard, BehaviorPageHeader }
 
-    
     enum class Tone { Tertiary, Warning }
 
-    
     enum class NoteIcon { Lock, CustomFields, UpstreamRejected, Privacy, Cost }
 
     sealed interface Entry {
         data class Note(
-            @StringRes val textRes: Int,
+            @param:StringRes val textRes: Int,
             val icon: NoteIcon?,
             val tone: Tone,
         ) : Entry
 
         data object SupportedModelsLink : Entry
 
-        
         data object AdvancedSettingsLink : Entry
     }
 
     data class Input(
         val context: Context = Context.PanelCard,
-        
+
         val overridden: Boolean = false,
-        
-        @StringRes val readOnlyReasonRes: Int? = null,
+
+        @param:StringRes val readOnlyReasonRes: Int? = null,
         val isConfigurable: Boolean = true,
-        
-        @StringRes val statusTextRes: Int? = null,
+
+        @param:StringRes val statusTextRes: Int? = null,
         val upstreamRejected: Boolean = false,
         val riskTiers: List<String> = emptyList(),
         val showsSupportedModelsAction: Boolean = false,
         val hasSupportedModelCandidates: Boolean = false,
-        
+
         val showsAdvancedSettingsAction: Boolean = false,
-        
+
         val statusRowEscape: ModelControlCapabilityEscape = ModelControlCapabilityEscape.None,
     )
 
@@ -526,8 +484,7 @@ object ModelControlCapabilityFooter {
 
         val showsSupportedModels = !input.overridden && input.showsSupportedModelsAction &&
             input.statusRowEscape != ModelControlCapabilityEscape.SupportedModels
-        
-        
+
         val saysNoCandidates = showsSupportedModels && !input.hasSupportedModelCandidates
 
         when {
@@ -538,23 +495,18 @@ object ModelControlCapabilityFooter {
                 if (input.context == Context.BehaviorPageHeader) {
                     entries += Entry.Note(input.readOnlyReasonRes, NoteIcon.Lock, Tone.Tertiary)
                 }
-            
-            
+
             !input.isConfigurable && !saysNoCandidates &&
                 input.context == Context.BehaviorPageHeader && input.statusTextRes != null ->
                 entries += Entry.Note(input.statusTextRes, null, Tone.Tertiary)
         }
 
-        
         if (input.upstreamRejected) {
             entries += Entry.Note(
                 R.string.model_control_upstream_rejected, NoteIcon.UpstreamRejected, Tone.Warning,
             )
         }
 
-        
-        
-        
         if (input.overridden || input.context == Context.BehaviorPageHeader) {
             input.riskTiers.forEach { tier ->
                 val privacy = tier == "privacy_impacting"
@@ -579,7 +531,6 @@ object ModelControlCapabilityFooter {
         return entries
     }
 }
-
 
 fun modelControlWebAvailableIntents(
     control: ai.oriveo.community.core.data.remote.MetadataClient.CapabilityControlPresentation?,

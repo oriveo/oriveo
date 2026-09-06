@@ -11,7 +11,6 @@ import java.security.SecureRandom
 import java.util.concurrent.ConcurrentHashMap
 import javax.crypto.AEADBadTagException
 
-
 class SecureKeyStore private constructor(
     context: Context,
     initialPrefs: SharedPreferences?,
@@ -33,7 +32,6 @@ class SecureKeyStore private constructor(
     @Volatile
     private var subscriptionPrefsRef: SharedPreferences? = null
 
-    
     private val apiKeyCache = ConcurrentHashMap<String, String>()
 
     fun prewarm() {
@@ -42,8 +40,7 @@ class SecureKeyStore private constructor(
 
     @Synchronized
     fun saveApiKey(accountId: String, providerID: String, key: String) {
-        
-        
+
         if (key.isBlank()) {
             deleteApiKey(accountId, providerID)
             return
@@ -67,7 +64,6 @@ class SecureKeyStore private constructor(
         return stored
     }
 
-    
     @Synchronized
     internal fun migrateLegacyApiKey(accountId: String, providerID: String) {
         val storageKey = keyFor(accountId, providerID)
@@ -87,7 +83,7 @@ class SecureKeyStore private constructor(
     fun deleteApiKey(accountId: String, providerID: String) {
         val storageKey = keyFor(accountId, providerID)
         if (getApiKey(accountId, providerID) == null) {
-            
+
             prefs().edit().remove(storageKey).apply()
             apiKeyCache[storageKey] = ""
             return
@@ -98,7 +94,6 @@ class SecureKeyStore private constructor(
         CapabilityEvidenceObservationBridge.invalidate()
     }
 
-    
     data class CapabilityEpochs(
         val connectionGeneration: String,
         val credentialEpoch: String,
@@ -120,7 +115,6 @@ class SecureKeyStore private constructor(
         return CapabilityEpochs(connection, credential)
     }
 
-    
     @Synchronized
     fun beginCapabilityConnection(accountId: String, providerID: String): CapabilityEpochs {
         val next = CapabilityEpochs(newCapabilityToken(), newCapabilityToken())
@@ -132,12 +126,10 @@ class SecureKeyStore private constructor(
         return next
     }
 
-    
     @Synchronized
     fun advanceCapabilityConnection(accountId: String, providerID: String): CapabilityEpochs =
         beginCapabilityConnection(accountId, providerID)
 
-    
     @Synchronized
     fun advanceCapabilityConnectionGeneration(accountId: String, providerID: String): CapabilityEpochs {
         val current = capabilityEpochs(accountId, providerID)
@@ -164,9 +156,6 @@ class SecureKeyStore private constructor(
 
     private fun newCapabilityToken(): String = java.util.UUID.randomUUID().toString()
 
-    
-
-    
     fun saveSubscriptionCredential(accountId: String, providerID: String, payload: String) {
         subscriptionPrefs().edit()
             .putString(subscriptionKeyFor(accountId, providerID), payload)
@@ -202,6 +191,15 @@ class SecureKeyStore private constructor(
             createEncryptedPrefs(SUBSCRIPTION_PREFS_FILE_NAME)
         }.getOrThrow()
 
+    /**
+     * Opens one AES-256-GCM preferences file, keyed by a master key held in the Android Keystore.
+     *
+     * `androidx.security:security-crypto` marks this whole API deprecated and points at plain
+     * `SharedPreferences`, which is not an alternative for API keys: it would put them on disk in
+     * clear text. There is no drop-in replacement in AndroidX yet, so the suppression stays until a
+     * Keystore-backed replacement exists and a migration for existing files is written.
+     */
+    @Suppress("DEPRECATION")
     private fun createEncryptedPrefs(fileName: String): SharedPreferences {
         val masterKey = MasterKey.Builder(appContext)
             .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
@@ -216,9 +214,6 @@ class SecureKeyStore private constructor(
         )
     }
 
-    
-
-    
     fun getOrCreateArchiveMasterKey(uid: String): ByteArray {
         val prefs = archivePrefs()
         val key = archiveKeyForUid(uid)
@@ -228,14 +223,13 @@ class SecureKeyStore private constructor(
                 val bytes = Base64.decode(existing, Base64.NO_WRAP)
                 if (bytes.size == 32) return bytes
             }
-            
+
         }
         val generated = ByteArray(32).also { SecureRandom().nextBytes(it) }
         prefs.edit().putString(key, Base64.encodeToString(generated, Base64.NO_WRAP)).apply()
         return generated
     }
 
-    
     fun deleteArchiveMasterKey(uid: String) {
         archivePrefs().edit().remove(archiveKeyForUid(uid)).apply()
     }
@@ -256,19 +250,7 @@ class SecureKeyStore private constructor(
             createArchivePrefs()
         }.getOrThrow()
 
-    private fun createArchivePrefs(): SharedPreferences {
-        val masterKey = MasterKey.Builder(appContext)
-            .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
-            .build()
-
-        return EncryptedSharedPreferences.create(
-            appContext,
-            ARCHIVE_PREFS_FILE_NAME,
-            masterKey,
-            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
-        )
-    }
+    private fun createArchivePrefs(): SharedPreferences = createEncryptedPrefs(ARCHIVE_PREFS_FILE_NAME)
 
     private fun clearCorruptedArchivePrefs() {
         archivePrefsRef = null
@@ -277,8 +259,6 @@ class SecureKeyStore private constructor(
             File(appContext.applicationInfo.dataDir, "shared_prefs/$ARCHIVE_PREFS_FILE_NAME.xml").delete()
         }
     }
-
-    
 
     private fun prefs(): SharedPreferences =
         prefsRef ?: synchronized(this) {
@@ -296,19 +276,7 @@ class SecureKeyStore private constructor(
             createPrefs()
         }.getOrThrow()
 
-    private fun createPrefs(): SharedPreferences {
-        val masterKey = MasterKey.Builder(appContext)
-            .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
-            .build()
-
-        return EncryptedSharedPreferences.create(
-            appContext,
-            PREFS_FILE_NAME,
-            masterKey,
-            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
-        )
-    }
+    private fun createPrefs(): SharedPreferences = createEncryptedPrefs(PREFS_FILE_NAME)
 
     private fun clearCorruptedPrefs() {
         prefsRef = null
@@ -330,7 +298,6 @@ class SecureKeyStore private constructor(
         private fun subscriptionKeyFor(accountId: String, providerID: String) =
             "subscription_oauth_v1_${accountId.length}:$accountId:$providerID"
 
-        
         fun maskApiKey(key: String): String {
             val trimmed = key.trim()
             if (trimmed.isEmpty()) return ""

@@ -40,9 +40,12 @@ class LocalEngineDiscoverySession(context: Context) {
                 override fun onDiscoveryStopped(serviceType: String?) = Unit
                 override fun onServiceLost(serviceInfo: NsdServiceInfo?) = Unit
                 override fun onServiceFound(serviceInfo: NsdServiceInfo) {
+                    // resolveService/ResolveListener are deprecated in favour of registerServiceInfoCallback,
+                    // which needs API 34; minSdk here is 26, so this is still the only path that works
+                    // everywhere the app runs.
+                    @Suppress("DEPRECATION")
                     nsd.resolveService(serviceInfo, object : NsdManager.ResolveListener {
                         override fun onResolveFailed(serviceInfo: NsdServiceInfo?, errorCode: Int) = Unit
-                        @Suppress("DEPRECATION")
                         override fun onServiceResolved(info: NsdServiceInfo) {
                             val host = info.host?.hostAddress ?: return
                             onResult(LocalEngineDiscoveryResult("http://$host:${info.port}", "mdns"))

@@ -8,18 +8,16 @@ import ai.oriveo.community.core.model.Provider
 import ai.oriveo.community.core.provider.CapabilityControlResolution
 import ai.oriveo.community.core.provider.CapabilityEvidenceProductionAdapter
 
-
 enum class ModelPickerCapabilityFilterKind(
-    
+
     val owner: String,
-    @StringRes val filterLabelRes: Int,
-    @StringRes val badgeLabelRes: Int,
+    @param:StringRes val filterLabelRes: Int,
+    @param:StringRes val badgeLabelRes: Int,
 ) {
     Web("web", R.string.model_picker_filter_web, R.string.web_search),
     Reasoning("reasoning", R.string.model_picker_filter_reasoning, R.string.capability_reasoning),
     Tool("tool_call", R.string.capability_tool_call, R.string.capability_tool_call),
 }
-
 
 fun modelPickerCapabilityBadges(
     provider: Provider,
@@ -40,7 +38,6 @@ fun modelPickerCapabilityBadges(
         }
     }
 
-
 fun modelPickerCapabilityFilterCounts(
     sections: List<ModelPickerSection>,
     metadata: MetadataClient = MetadataClient.instance,
@@ -57,7 +54,6 @@ fun modelPickerCapabilityFilterCounts(
         }
     }
 }
-
 
 fun applyModelPickerCapabilityFilter(
     sections: List<ModelPickerSection>,

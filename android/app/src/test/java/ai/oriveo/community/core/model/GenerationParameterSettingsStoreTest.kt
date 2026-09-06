@@ -15,12 +15,14 @@ import kotlinx.serialization.json.jsonPrimitive
 import java.nio.file.Files
 import java.nio.file.Path
 
-
 private const val UPPER_PROVIDER = "9A1195DE-3AF9-5888-ABC8-B8177C458C07"
 private const val UPPER_CONVERSATION = "7C9E6679-7425-40DE-944B-E07FC1F90AE7"
 
 class GenerationParameterSettingsStoreTest {
-    
+
+    /** One instance for the whole class: building a Json format per call is measurably slow. */
+    private val lenientJson = Json { ignoreUnknownKeys = true }
+
     @Test
     fun `connection scoped reasoning defaults merge only while the chip stays automatic`() {
         var payload: String? = null
@@ -43,7 +45,6 @@ class GenerationParameterSettingsStoreTest {
         assertEquals(JsonPrimitive(0.4), explicitChip?.values?.get("temperature")?.value)
     }
 
-    
     @Test
     fun `session scoped reasoning never merges into generation overrides`() {
         var payload: String? = null
@@ -111,10 +112,7 @@ class GenerationParameterSettingsStoreTest {
             modelID = "model-a",
             profileFingerprint = "endpoint-a|openai_chat_completions",
         )
-        
-        
-        
-        
+
         assertEquals(
             JsonPrimitive(0.4),
             store.modelDefaults("provider-a", "model-a", "endpoint-b|anthropic_messages")
@@ -210,7 +208,7 @@ class GenerationParameterSettingsStoreTest {
         )
         val contract = GenerationParameterSyncContract(settings, presets, ledger)
         val fixture = Json.parseToJsonElement(String(Files.readAllBytes(findSharedFixture()))).jsonObject
-        val remote = Json { ignoreUnknownKeys = true }.decodeFromJsonElement<GenerationParameterSyncPayload>(fixture.getValue("payload"))
+        val remote = lenientJson.decodeFromJsonElement<GenerationParameterSyncPayload>(fixture.getValue("payload"))
 
         val merged = contract.merge(remote)
         assertEquals(2, merged.records.size)
@@ -248,8 +246,6 @@ class GenerationParameterSettingsStoreTest {
         assertFalse(deleted.records.any { it.recordId == recordID })
         assertFalse(contract.merge(remote).records.any { it.recordId == recordID })
     }
-
-    
 
     private class SyncHarness {
         var settingsPayload: String? = null
@@ -299,13 +295,11 @@ class GenerationParameterSettingsStoreTest {
             conversationID = conversationID,
         )
 
-        
         val wire = harness.contract.exportPayload()
         assertTrue(wire.records.all { it.providerId == providerID.lowercase() })
         assertTrue(wire.records.all { it.recordId == it.recordId.lowercase() })
         harness.contract.merge(wire)
 
-        
         assertEquals(
             JsonPrimitive(0.4),
             harness.settings.modelDefaults(providerID, "gpt-test")?.values?.get("temperature")?.value,
@@ -381,7 +375,7 @@ class GenerationParameterSettingsStoreTest {
             modelID = "gpt-test",
             profileFingerprint = "endpoint|openai_chat_completions||gpt-test",
         )
-        
+
         val sameVersionRemote = harness.contract.exportPayload()
         val expiredAt = System.currentTimeMillis() - 181L * 24 * 60 * 60 * 1000
         harness.settings.replaceSyncRecords(
@@ -417,7 +411,6 @@ class GenerationParameterSettingsStoreTest {
         val fixture = Json.parseToJsonElement(String(Files.readAllBytes(findSharedFixture()))).jsonObject
         val idCasing = fixture.getValue("idCasing").jsonObject
 
-        
         idCasing.getValue("canonicalCases").jsonArray.forEach { element ->
             val case = element.jsonObject
             val caseID = case.getValue("caseId").jsonPrimitive.content
@@ -471,7 +464,6 @@ class GenerationParameterSettingsStoreTest {
         val legacyRecordID = "scope:model:$UPPER_PROVIDER:gpt-test"
         assertTrue(legacyRecordID != canonicalRecordID)
 
-        
         fun legacyRemote(revision: Int) = GenerationParameterSyncPayload(
             records = listOf(GenerationParameterSyncRecord(
                 recordId = legacyRecordID,
@@ -494,14 +486,12 @@ class GenerationParameterSettingsStoreTest {
             harness.settings.modelDefaults(UPPER_PROVIDER, "gpt-test")?.values?.get("temperature")?.value,
         )
 
-        
         val deleted = harness.contract.merge(GenerationParameterSyncPayload(
             tombstones = listOf(GenerationParameterSyncTombstone(legacyRecordID, 6, "device-legacy-delete")),
         ))
         assertEquals(emptyList<GenerationParameterSyncRecord>(), deleted.records)
         assertNull(harness.settings.modelDefaults(UPPER_PROVIDER, "gpt-test"))
 
-        
         assertEquals(emptyList<GenerationParameterSyncRecord>(), harness.contract.merge(legacyRemote(5)).records)
     }
 

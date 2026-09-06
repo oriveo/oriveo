@@ -24,10 +24,10 @@ enum class GenerationParameterEmptyState(
      * is a claim we have no evidence for - it is a false capability reading in reverse.
      * Never show a percentage or a progress number here, and never promise a timeline.
      */
-    @StringRes val titleRes: Int,
+    @param:StringRes val titleRes: Int,
     /** Only state A needs to expand on why there is nothing here right now; the other three
      *  already say what to do next in a single line. */
-    @StringRes val detailRes: Int? = null,
+    @param:StringRes val detailRes: Int? = null,
 ) {
     /** A - not verified yet: this model on this connection has never returned a non-empty
      *  profile. Fail safe rather than guess. */

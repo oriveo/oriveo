@@ -29,7 +29,6 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 
-
 class NoteRepository(
     private val noteDao: NoteDao,
     private val noteFolderDao: NoteFolderDao,
@@ -39,7 +38,6 @@ class NoteRepository(
 
     private fun writeCloudIfBound(expectedAccountId: String, write: () -> Unit) {}
 
-    
     @OptIn(ExperimentalCoroutinesApi::class)
     fun observeActive(): Flow<List<Note>> =
         noteDao.observeActive(accountId).map { list -> list.map { it.toDomain() } }
@@ -66,13 +64,12 @@ class NoteRepository(
 
     suspend fun getActiveNotes(): List<Note> = noteDao.getAllActive(accountId).map { it.toDomain() }
 
-    
     suspend fun createNote(input: CreateNoteInput): Note {
         val scopedAccountId = accountId
         val now = NoteTime.nowIso()
         val manual = !input.title.isNullOrBlank()
         val title = if (manual) {
-            input.title!!.trim()
+            input.title.trim()
         } else {
             NoteTitle.placeholderTitleFromSource(input.sourcePrompt, input.body)
         }
@@ -106,7 +103,6 @@ class NoteRepository(
         CreateNoteInput(body = "", captureKind = NoteCaptureKind.Blank, noteFolderID = folderId),
     )
 
-    
     suspend fun discardEmptyBlankNoteIfNeeded(id: String): Boolean {
         val scopedAccountId = accountId
         val nid = normalizeUuid(id)
@@ -117,7 +113,6 @@ class NoteRepository(
         return true
     }
 
-    
     suspend fun updateTitle(id: String, title: String): Note? {
         val scopedAccountId = accountId
         val existing = getScopedNoteEntity(id, scopedAccountId)?.toDomain() ?: return null
@@ -214,7 +209,6 @@ class NoteRepository(
         return updated
     }
 
-    
     suspend fun softDeleteNote(id: String) {
         val scopedAccountId = accountId
         val nid = normalizeUuid(id)
@@ -245,7 +239,6 @@ class NoteRepository(
         noteDao.hardDeleteTrash(scopedAccountId)
     }
 
-    
     suspend fun permanentlyDeleteNote(id: String) {
         val scopedAccountId = accountId
         val nid = normalizeUuid(id)
@@ -254,7 +247,6 @@ class NoteRepository(
         noteDao.hardDeleteWithIndex(scopedAccountId, nid)
     }
 
-    
     suspend fun createFolder(name: String, colorTag: String? = null): NoteFolder? {
         val scopedAccountId = accountId
         val trimmed = name.trim().take(30).takeIf { it.isNotEmpty() } ?: return null
@@ -307,7 +299,6 @@ class NoteRepository(
         noteDao.clearNoteFolder(scopedAccountId, nid, now)
     }
 
-    
     suspend fun searchNotes(
         query: String,
         folderId: String? = null,
@@ -334,7 +325,6 @@ class NoteRepository(
         minScore: Int = NoteRecall.DEFAULT_MIN_SCORE,
     ): List<NoteRecall.Result> = NoteRecall.findRelatedNotes(inputText, notes, limit, minScore)
 
-    
     suspend fun recallCandidateIds(terms: List<String>, limit: Int): List<String> {
         if (limit <= 0) return emptyList()
         val query = NoteFtsQuery.buildAnyTermPrefix(terms.filter { it.length >= 3 }) ?: return emptyList()
@@ -346,8 +336,6 @@ class NoteRepository(
     fun exportMarkdownFilename(note: Note, untitled: String): String =
         NoteExport.buildNoteMarkdownFilename(note, untitled)
 
-    
-    
     private suspend fun writeNote(scopedAccountId: String, note: Note, forUpdate: Boolean): Boolean {
         if (!isCurrentAccount(scopedAccountId)) return false
         noteDao.upsertWithIndex(
@@ -403,7 +391,6 @@ class NoteRepository(
         private const val SORT_STEP = 1000
     }
 }
-
 
 data class CreateNoteInput(
     val title: String? = null,

@@ -1,6 +1,6 @@
 package ai.oriveo.community.core.streaming
 
-import java.util.concurrent.atomic.AtomicReference
+import java.util.concurrent.atomic.AtomicLong
 import kotlinx.coroutines.flow.MutableStateFlow
 
 /**
@@ -20,6 +20,16 @@ data class ConversationStreamingOutputs(
      * timing from that shows a thinking indicator for a model that never thought.
      */
     val reasoningStartedAtMs: MutableStateFlow<Long?> = MutableStateFlow(null),
-    /** When the first visible token arrived, which is what ends the reasoning phase. */
-    val reasoningEndedAtMs: AtomicReference<Long?> = AtomicReference(null),
-)
+    /**
+     * When the first visible token arrived, which is what ends the reasoning phase.
+     *
+     * [NOT_SET] stands in for "no token yet": an epoch-millisecond stamp is never 0, and an
+     * [AtomicLong] compares by value, so the set-once compare-and-set below is exact.
+     */
+    val reasoningEndedAtMs: AtomicLong = AtomicLong(NOT_SET),
+) {
+    companion object {
+        /** Sentinel for [reasoningEndedAtMs]: no visible token has arrived yet. */
+        const val NOT_SET = 0L
+    }
+}

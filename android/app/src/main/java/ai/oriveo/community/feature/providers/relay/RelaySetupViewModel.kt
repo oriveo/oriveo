@@ -65,7 +65,6 @@ enum class RelaySetupMode { Quick, Manual }
 
 enum class RelayQuickAction { Detect, ConnectAndSave, SaveAndContinue }
 
-
 class RelaySetupViewModel(
     private val context: Context,
     private val providerRepository: ProviderRepository,
@@ -77,8 +76,7 @@ class RelaySetupViewModel(
     }
 
     private fun requestSafeRelayEndpoint(raw: String): String? {
-        
-        
+
         if (raw != endpoint) return null
         val normalized = RelayFormValidation.normalizedEndpoint(formDraft, RelayFormValidation.FormMode.Create)
             ?: return null
@@ -91,7 +89,7 @@ class RelaySetupViewModel(
     var endpoint: String by mutableStateOf("")
     var endpointHighlightRange: IntRange? by mutableStateOf(null)
         private set
-    
+
     val securityMode: RelayConnectionSecurityMode = RelayConnectionSecurityMode.RemoteHttps
     var apiKey: String by mutableStateOf("")
     var defaultModel: String by mutableStateOf("")
@@ -114,15 +112,13 @@ class RelaySetupViewModel(
     var customUserAgent: String by mutableStateOf("")
     var customHeaders: List<RelayKeyValue> by mutableStateOf(emptyList())
     var customQueryParams: List<RelayKeyValue> by mutableStateOf(emptyList())
-    
+
     var customWebSearchToolName: RelayWebSearchToolName? by mutableStateOf(null)
 
-    
-    
     var customHasWebSearch: Boolean by mutableStateOf(false)
-    
+
     var customWebSearchProfile: String? by mutableStateOf(null)
-    
+
     var customTransportKindOverride: String? by mutableStateOf(null)
 
     var testConnectionResult: RelayConnectionTestResult? by mutableStateOf(null)
@@ -137,8 +133,6 @@ class RelaySetupViewModel(
     var completionTarget: RelaySetupCompletionTarget? by mutableStateOf(null)
         private set
 
-    
-    
     val customLLMCoordinator = CustomLLMSetupCoordinator()
 
     val isDiscovering: Boolean
@@ -159,7 +153,6 @@ class RelaySetupViewModel(
             else -> RelayQuickAction.Detect
         }
 
-    
     private val draftAuthMode: RelayAuthMode
         get() = when (val kind = selectedRelayKind) {
             null -> RelayAuthMode.Auto
@@ -167,11 +160,9 @@ class RelaySetupViewModel(
             else -> RelayKindDefaults.makeRequested(kind).authMode
         }
 
-    
     val requiresCredential: Boolean
         get() = draftAuthMode.requiresCredential
 
-    
     val formDraft: RelayFormDraft
         get() = RelayFormDraft(
             endpoint = endpoint,
@@ -185,11 +176,9 @@ class RelaySetupViewModel(
             hasSavedCredential = false,
         )
 
-    
     val formIssues: List<RelayFormValidation.FieldIssue>
         get() = RelayFormValidation.validate(formDraft, RelayFormValidation.FormMode.Create)
 
-    
     val displayableFormIssues: List<RelayFormValidation.FieldIssue>
         get() = RelayFormValidation.displayableIssues(formIssues)
 
@@ -213,7 +202,6 @@ class RelaySetupViewModel(
 
     override fun onCleared() {
         customLLMCoordinator.invalidate()
-        super.onCleared()
     }
 
     fun updateEndpoint(value: String) {
@@ -311,8 +299,7 @@ class RelaySetupViewModel(
                     customLLMCoordinator.acceptEvidence(
                         attempt,
                         CustomLLMConnectionEvidence(
-                            
-                            
+
                             verification = if (selectedDetection?.generationVerified == true) {
                                 CustomLLMVerificationEvidence.GenerationVerified
                             } else {
@@ -448,14 +435,13 @@ class RelaySetupViewModel(
         else -> context.getString(R.string.relay_quick_route_unavailable)
     }
 
-    
     private fun stableRelayFailureMessage(error: Throwable): String = when (error) {
         is ProviderServiceError -> ErrorMapper.localizeProviderErrorMessage(error, context)
         else -> context.getString(R.string.error_generic_message)
     }
 
     private fun clearDiscovery(cancelRunning: Boolean = true) {
-        
+
         if (cancelRunning) customLLMCoordinator.invalidate()
         discoveryResult = null
         selectedDetection = null
@@ -507,7 +493,6 @@ class RelaySetupViewModel(
             }
             if (!customLLMCoordinator.isCurrent(attempt)) return@launch
 
-            
             if (apiKey.trim().let { it.isNotEmpty() && !ProviderKeyInput.isPrintableAsciiKey(it) }) {
                 testConnectionResult = RelayConnectionTestResult(
                     isSuccess = false,
@@ -571,8 +556,7 @@ class RelaySetupViewModel(
         val job = viewModelScope.launch {
             val normalizedEndpoint = requestSafeRelayEndpoint(endpoint)
             if (normalizedEndpoint == null) {
-                
-                
+
                 error = OriveoError(
                     title = context.getString(R.string.relay_setup_invalid_endpoint_title),
                     message = context.getString(R.string.relay_setup_invalid_endpoint_message),
@@ -580,11 +564,10 @@ class RelaySetupViewModel(
                     severity = OriveoErrorSeverity.Warning,
                 )
                 customLLMCoordinator.acceptFailure(attempt)
-                
+
                 return@launch
             }
 
-            
             if (apiKey.trim().let { it.isNotEmpty() && !ProviderKeyInput.isPrintableAsciiKey(it) }) {
                 error = OriveoError(
                     title = context.getString(R.string.provider_api_key_illegal_chars_title),
@@ -664,11 +647,11 @@ class RelaySetupViewModel(
                 if (!customLLMCoordinator.finishCommit(persistAttempt)) return@launch
                 registeredProvider = provider
                 completionTarget = relaySetupCompletionTarget(provider)
-                
+
             } catch (e: ProviderServiceError) {
                 if (!customLLMCoordinator.isCurrent(attempt)) return@launch
                 error = OriveoError(
-                    
+
                     title = ErrorMapper.localizeProviderErrorTitle(e.title, context),
                     message = ErrorMapper.localizeProviderErrorMessage(e, context),
                     detail = e.technicalDetail,
@@ -687,7 +670,6 @@ class RelaySetupViewModel(
         }
         customLLMCoordinator.registerCancellation(attempt, job)
     }
-
 
     private fun buildRelayRequested(relayKind: RelayKind, modelID: String?): RelayRequestedConfig {
         val preserving = RelayRequestedConfig(modelID = modelID?.trim()?.takeIf { it.isNotEmpty() })
@@ -710,12 +692,12 @@ class RelaySetupViewModel(
             headers = customHeaders.cleanRelayPairs(),
             queryParams = customQueryParams.cleanRelayPairs(),
             customUserAgent = customUserAgent.trim().takeIf { it.isNotEmpty() },
-            
+
             webSearchToolName = if (customTransport == RelayTransport.OpenAIResponses
                 && customWebSearchToolName != null
                 && customWebSearchToolName != RelayWebSearchToolName.WebSearch
             ) customWebSearchToolName else null,
-            
+
             hasWebSearch = customHasWebSearch,
             webSearchProfile = customWebSearchProfile?.takeIf { customHasWebSearch && it.isNotBlank() },
             transportKind = customTransportKindOverride?.takeIf { it.isNotBlank() },

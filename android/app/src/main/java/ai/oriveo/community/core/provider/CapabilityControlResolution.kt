@@ -190,7 +190,7 @@ object CapabilityControlResolution {
 
     fun subscriptionDefaultReasoningLevel(providerKind: ProviderKind, model: AIModel?): String? {
         val declaredDefault = model?.upstreamDefaultReasoningLevel ?: return null
-        val levels = model?.let { subscriptionDeclaredReasoningLevels(providerKind, it) }.orEmpty()
+        val levels = model.let { subscriptionDeclaredReasoningLevels(providerKind, it) }.orEmpty()
         return declaredDefault.takeIf { it in levels }
     }
 

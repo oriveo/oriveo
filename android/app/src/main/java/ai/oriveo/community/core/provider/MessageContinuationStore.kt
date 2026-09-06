@@ -58,7 +58,7 @@ class MessageContinuationStore(
             dao.delete(accountId, messageId)
         }
         return decoded?.let {
-            Loaded(accountId, messageId, it, record.updatedAt, record.processSessionToken!!, record.stateJson)
+            Loaded(accountId, messageId, it, record.updatedAt, record.processSessionToken, record.stateJson)
         }
     }
 

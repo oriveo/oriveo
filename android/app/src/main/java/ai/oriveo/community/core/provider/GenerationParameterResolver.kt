@@ -272,7 +272,7 @@ internal object GenerationParameterResolver {
         if (properties != null && properties !is JsonObject) return false
         val required = schema["required"]
         if (required != null && (required !is JsonArray || required.any { (it as? JsonPrimitive)?.isString != true })) return false
-        return (properties as? JsonObject)?.values?.all {
+        return properties?.values?.all {
             it is JsonObject && isValidJsonSchema(it, depth + 1)
         } != false
     }
