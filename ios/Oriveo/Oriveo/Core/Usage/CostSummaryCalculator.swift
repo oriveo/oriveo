@@ -1,15 +1,9 @@
 import Foundation
 
-enum CostSummarySource: Equatable {
-    case localDevice
-    case accountAPI
-}
-
 struct MonthlyCostSummary: Equatable {
     var totalCost: Double = 0
     var providers: [MonthlyCostSummaryProviderEntry] = []
     var hiddenProviderCount: Int = 0
-    var source: CostSummarySource = .localDevice
 
     var isVisible: Bool {
         totalCost > CostFormatter.costEpsilon && !providers.isEmpty
@@ -73,8 +67,7 @@ enum CostSummaryCalculator {
         return MonthlyCostSummary(
             totalCost: sortedProviders.map(\.cost).reduce(0, +),
             providers: Array(sortedProviders.prefix(visibleProviderLimit)),
-            hiddenProviderCount: max(0, sortedProviders.count - visibleProviderLimit),
-            source: .localDevice
+            hiddenProviderCount: max(0, sortedProviders.count - visibleProviderLimit)
         )
     }
 
@@ -110,11 +103,6 @@ enum CostSummaryCalculator {
         }
 
         return costs
-    }
-
-    static func resolve(remote: MonthlyCostSummary?, local: MonthlyCostSummary) -> MonthlyCostSummary {
-        guard let remote else { return local }
-        return remote.totalCost >= local.totalCost ? remote : local
     }
 
     private static func utcMonthWindow(containing date: Date) -> DateInterval {

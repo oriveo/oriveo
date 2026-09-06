@@ -2,17 +2,11 @@ import SwiftUI
 
 struct ProvidersCostSummaryCard: View {
     let summary: MonthlyCostSummary
-    var onOpenDetails: (() -> Void)? = nil
 
     @Environment(\.colorScheme) private var colorScheme
 
     private var subtitle: String {
-        switch summary.source {
-        case .localDevice:
-            return L10n.tr("Based on usage on this device")
-        case .accountAPI:
-            return L10n.tr("Across all providers in this account")
-        }
+        L10n.tr("Based on usage on this device")
     }
 
     private var costFont: Font {
@@ -47,7 +41,7 @@ struct ProvidersCostSummaryCard: View {
     }
 
     var body: some View {
-        let content = VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 16) {
             titleRow
 
             heroBlock
@@ -72,21 +66,9 @@ struct ProvidersCostSummaryCard: View {
         .padding(.horizontal, 18)
         .padding(.top, 18)
         .padding(.bottom, 16)
-        //   5. panel overlays (cornerGlow / insetBottomReflection / borderStroke)
         .background(watermark, alignment: .topTrailing)
         .background(brandSheen)
         .oriveoGradientPanel(radius: 22)
-
-        if let onOpenDetails {
-            Button {
-                onOpenDetails()
-            } label: {
-                content
-            }
-            .buttonStyle(CostCardButtonStyle())
-        } else {
-            content
-        }
     }
 
     private var brandSheen: some View {
@@ -142,14 +124,6 @@ struct ProvidersCostSummaryCard: View {
             }
 
             Spacer(minLength: 0)
-
-            if onOpenDetails != nil {
-                OriveoIconPlate(size: 24, cornerRadius: 8) {
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(OriveoTheme.Palette.textSecondary)
-                }
-            }
         }
     }
 
@@ -453,17 +427,6 @@ private struct ProviderBreakdownOverflowRow: View {
             Spacer(minLength: 0)
         }
         .padding(.vertical, 8)
-    }
-}
-
-// MARK: - Button Style
-
-private struct CostCardButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .scaleEffect(configuration.isPressed ? 0.98 : 1)
-            .opacity(configuration.isPressed ? 0.92 : 1)
-            .animation(.easeInOut(duration: 0.15), value: configuration.isPressed)
     }
 }
 

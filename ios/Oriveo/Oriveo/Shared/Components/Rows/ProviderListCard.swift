@@ -3,7 +3,6 @@ import SwiftUI
 struct ProviderListCard: View {
     let provider: Provider
     var monthlyEstimatedCost: Double = 0
-    var managedBalanceMicrousd: Int64? = nil
     var providerBalance: ProviderBalance? = nil
     @Environment(\.colorScheme) private var colorScheme
 
@@ -27,7 +26,6 @@ struct ProviderListCard: View {
         ProviderListCardPresentation.trailingAmount(
             providerKind: provider.kind,
             monthlyEstimatedCost: monthlyEstimatedCost,
-            managedBalanceMicrousd: managedBalanceMicrousd,
             providerBalance: providerBalance
         )
     }
@@ -216,25 +214,23 @@ enum ProviderListCardPresentation {
     static func trailingAmount(
         providerKind: ProviderKind,
         monthlyEstimatedCost: Double,
-        managedBalanceMicrousd: Int64?,
         providerBalance: ProviderBalance?
     ) -> ProviderListTrailingAmount? {
-        switch providerKind {
-        default:
-            if balanceCapableProviderKinds.contains(providerKind) {
-                return ProviderListTrailingAmount(
-                    label: .balance,
-                    text: providerBalance.map(providerBalanceText) ?? "--",
-                    isZero: providerBalance?.total == 0
-                )
-            }
-            let formatted = CostFormatter.format(monthlyEstimatedCost)
+        // Providers that expose a prepaid balance show what is left; everyone else shows
+        // what this device has spent with them this month.
+        if balanceCapableProviderKinds.contains(providerKind) {
             return ProviderListTrailingAmount(
-                label: .usage,
-                text: formatted.isEmpty ? "$0" : compactCurrencyText(formatted),
-                isZero: monthlyEstimatedCost <= CostFormatter.costEpsilon
+                label: .balance,
+                text: providerBalance.map(providerBalanceText) ?? "--",
+                isZero: providerBalance?.total == 0
             )
         }
+        let formatted = CostFormatter.format(monthlyEstimatedCost)
+        return ProviderListTrailingAmount(
+            label: .usage,
+            text: formatted.isEmpty ? "$0" : compactCurrencyText(formatted),
+            isZero: monthlyEstimatedCost <= CostFormatter.costEpsilon
+        )
     }
 
     private static let balanceAmountFormatter: NumberFormatter = {
@@ -253,9 +249,6 @@ enum ProviderListCardPresentation {
         return "\(balance.total < 0 ? "-" : "")\(symbol)\(number)"
     }
 
-    static func showsErrorCopy(for provider: Provider) -> Bool {
-        false
-    }
 }
 
 

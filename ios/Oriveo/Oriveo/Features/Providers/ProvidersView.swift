@@ -3,10 +3,6 @@ import SwiftUI
 struct ProvidersView: View {
     @Environment(AppState.self) private var appState
     @State private var providerToDelete: Provider?
-    @State private var lastCachedUID: String = AppSessionStore.activeUID
-    @State private var budgetCacheUID: String?
-    @State private var lastBudgetRefreshAt: Date?
-    @State private var managedBalanceLoadedUID: String?
     @State private var providerBalancesByID: [UUID: ProviderBalance] = [:]
     @State private var spotlightIndex: Int = 0
 
@@ -14,14 +10,8 @@ struct ProvidersView: View {
         appState.localMonthlyCostByProvider
     }
 
-    private var dailyCostsLast7DaysByProvider: [UUID: [Double]] { [:] }
-
     private var localMonthlyCostSummary: MonthlyCostSummary {
         appState.localMonthlyCostSummary
-    }
-
-    private var monthlyCostSummary: MonthlyCostSummary {
-        localMonthlyCostSummary
     }
 
     private var providerBalancesRefreshKey: String {
@@ -41,12 +31,6 @@ struct ProvidersView: View {
             AppSessionStore.activeUID,
             providersKey,
         ].joined(separator: "|")
-    }
-
-    private var managedBalanceMicrousd: Int64? { nil }
-
-    private var usageInsightsEntryAction: () -> Void {
-        { }
     }
 
     private struct ProviderMetrics {
@@ -100,8 +84,7 @@ struct ProvidersView: View {
     var body: some View {
         let metrics = providerMetrics
         let costByProvider = monthlyCostByProvider
-        let dailyCosts = dailyCostsLast7DaysByProvider
-        let costSummary = monthlyCostSummary
+        let costSummary = localMonthlyCostSummary
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
                 HeaderBar(
@@ -113,7 +96,7 @@ struct ProvidersView: View {
                         onAdd: { appState.openProviderSetup(from: .providers) }
                     )
                 } else {
-                    spotlightSection(costByProvider: costByProvider, dailyCosts: dailyCosts)
+                    spotlightSection(costByProvider: costByProvider)
                     summaryStrip(metrics: metrics)
                     allProvidersSection(costByProvider: costByProvider)
                 }
@@ -128,8 +111,6 @@ struct ProvidersView: View {
         }
         .scrollIndicators(.hidden)
         .background(ProvidersScreenBackground())
-        .onAppear {
-        }
         .task(id: providerBalancesRefreshKey, priority: .utility) {
             guard appState.selectedTab == .providers else { return }
             await refreshProviderBalances()
@@ -156,10 +137,7 @@ struct ProvidersView: View {
     // MARK: - Spotlight section
 
     @ViewBuilder
-    private func spotlightSection(
-        costByProvider: [UUID: Double],
-        dailyCosts: [UUID: [Double]]
-    ) -> some View {
+    private func spotlightSection(costByProvider: [UUID: Double]) -> some View {
         let hero = spotlightProviders(costByProvider: costByProvider)
         if !hero.isEmpty {
             VStack(alignment: .leading, spacing: 10) {
@@ -171,8 +149,7 @@ struct ProvidersView: View {
                     } label: {
                         ProviderHeroCard(
                             provider: hero[0],
-                            monthlyEstimatedCost: costByProvider[hero[0].id] ?? 0,
-                            dailyCostsLast7Days: dailyCosts[hero[0].id] ?? []
+                            monthlyEstimatedCost: costByProvider[hero[0].id] ?? 0
                         )
                         .frame(maxWidth: .infinity)
                     }
@@ -182,7 +159,6 @@ struct ProvidersView: View {
                         providers: hero,
                         currentIndex: $spotlightIndex,
                         costForProvider: { costByProvider[$0.id] ?? 0 },
-                        dailyCostsForProvider: { dailyCosts[$0.id] ?? [] },
                         onTap: { appState.openProviderDetail(providerID: $0.id) }
                     )
                 }
@@ -220,7 +196,6 @@ struct ProvidersView: View {
                         ProviderListCard(
                             provider: provider,
                             monthlyEstimatedCost: costByProvider[provider.id] ?? 0,
-                            managedBalanceMicrousd: managedBalanceMicrousd,
                             providerBalance: providerBalancesByID[provider.id]
                         )
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -245,10 +220,7 @@ struct ProvidersView: View {
     private func costsSection(summary: MonthlyCostSummary) -> some View {
         VStack(alignment: .leading, spacing: 12) {
             SectionHeader(title: L10n.tr("Costs", table: .providers), systemImage: "creditcard.fill", tone: .costs)
-            ProvidersCostSummaryCard(
-                summary: summary,
-                onOpenDetails: usageInsightsEntryAction
-            )
+            ProvidersCostSummaryCard(summary: summary)
         }
     }
 
@@ -553,7 +525,6 @@ private struct SpotlightCarousel: View {
     let providers: [Provider]
     @Binding var currentIndex: Int
     let costForProvider: (Provider) -> Double
-    let dailyCostsForProvider: (Provider) -> [Double]
     let onTap: (Provider) -> Void
 
     var body: some View {
@@ -563,8 +534,7 @@ private struct SpotlightCarousel: View {
                     Button { onTap(provider) } label: {
                         ProviderHeroCard(
                             provider: provider,
-                            monthlyEstimatedCost: costForProvider(provider),
-                            dailyCostsLast7Days: dailyCostsForProvider(provider)
+                            monthlyEstimatedCost: costForProvider(provider)
                         )
                         .padding(.horizontal, 2)
                     }

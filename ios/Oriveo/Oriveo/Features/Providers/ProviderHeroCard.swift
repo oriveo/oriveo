@@ -41,10 +41,6 @@ struct ProviderHeroCard: View {
         provider.lastCheckedAt.map { relativeTimeText(from: $0) } ?? L10n.tr("Never")
     }
 
-    private var shouldDisplayCost: Bool {
-        true
-    }
-
     private var monthlyCostText: String {
         let formatted = CostFormatter.format(monthlyEstimatedCost)
         return formatted.isEmpty ? "$0" : formatted
@@ -224,51 +220,22 @@ struct ProviderHeroCard: View {
         }
     }
 
-    @ViewBuilder
     private var costView: some View {
-        if shouldDisplayCost {
-            VStack(alignment: .trailing, spacing: 4) {
-                VStack(alignment: .trailing, spacing: 1) {
-                    Text(L10n.tr("This Month", table: .providers))
-                        .font(.system(size: 9.5, weight: .semibold))
-                        .tracking(0.8)
-                        .textCase(.uppercase)
-                        .foregroundStyle(.white.opacity(0.65))
-                    Text(monthlyCostText)
-                        .font(.system(size: 28, weight: .bold, design: .rounded))
-                        .foregroundStyle(.white.opacity(isZeroCost ? 0.78 : 1.0))
-                        .monospacedDigit()
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.65)
-                        .shadow(color: OriveoTheme.Palette.shadow, radius: 1.5, x: 0, y: 1)
-                }
-
-                if hasWeeklySignal {
-                    weeklyBarChart
-                }
-            }
-            .fixedSize(horizontal: true, vertical: true)
-        } else {
-            HStack(spacing: 4) {
-                Image(systemName: "sparkles")
-                    .font(.system(size: 11, weight: .semibold))
-                Text(L10n.tr("Free"))
-                    .font(.system(size: 11.5, weight: .bold))
-                    .tracking(0.6)
-                    .textCase(.uppercase)
-            }
-            .foregroundStyle(.white)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .background(
-                Capsule(style: .continuous)
-                    .fill(Color.white.opacity(0.22))
-            )
-            .overlay(
-                Capsule(style: .continuous)
-                    .stroke(Color.white.opacity(0.30), lineWidth: 0.6)
-            )
+        VStack(alignment: .trailing, spacing: 1) {
+            Text(L10n.tr("This Month", table: .providers))
+                .font(.system(size: 9.5, weight: .semibold))
+                .tracking(0.8)
+                .textCase(.uppercase)
+                .foregroundStyle(.white.opacity(0.65))
+            Text(monthlyCostText)
+                .font(.system(size: 28, weight: .bold, design: .rounded))
+                .foregroundStyle(.white.opacity(isZeroCost ? 0.78 : 1.0))
+                .monospacedDigit()
+                .lineLimit(1)
+                .minimumScaleFactor(0.65)
+                .shadow(color: OriveoTheme.Palette.shadow, radius: 1.5, x: 0, y: 1)
         }
+        .fixedSize(horizontal: true, vertical: true)
     }
 
     private var subInfoText: String {
@@ -321,85 +288,6 @@ struct ProviderHeroCard: View {
         }
         .fixedSize(horizontal: true, vertical: true)
     }
-
-    var dailyCostsLast7Days: [Double] = []
-
-    private var resolvedWeekly: [Double] {
-        if !dailyCostsLast7Days.isEmpty {
-            return Array(dailyCostsLast7Days.suffix(7))
-        }
-        let total = monthlyEstimatedCost
-        guard total > CostFormatter.costEpsilon else {
-            return Array(repeating: 0, count: 7)
-        }
-        let weights: [Double] = [0.45, 0.62, 0.38, 0.78, 0.50, 0.85, 1.00]
-        let sum = weights.reduce(0, +)
-        let dailyBudget = total * 0.32
-        return weights.map { ($0 / sum) * dailyBudget }
-    }
-
-    private var hasWeeklySignal: Bool {
-        resolvedWeekly.contains { $0 > CostFormatter.costEpsilon }
-    }
-
-    private var todayCost: Double {
-        resolvedWeekly.last ?? 0
-    }
-
-    private var todayCostText: String {
-        let formatted = CostFormatter.format(todayCost)
-        return formatted.isEmpty ? "$0" : formatted
-    }
-
-    private var weeklyBarChart: some View {
-        let values = resolvedWeekly
-        let maxValue = max(values.max() ?? 0, 0.0001)
-        let barWidth: CGFloat = 8
-        let maxHeight: CGFloat = 24
-        let gap: CGFloat = 5
-
-        return VStack(alignment: .trailing, spacing: 6) {
-            HStack(alignment: .bottom, spacing: gap) {
-                ForEach(Array(values.enumerated()), id: \.offset) { idx, value in
-                    let ratio = value / maxValue
-                    let isLast = idx == values.count - 1
-                    Capsule(style: .continuous)
-                        .fill(
-                            isLast
-                                ? AnyShapeStyle(
-                                    LinearGradient(
-                                        colors: [Color.white, Color.white.opacity(0.88)],
-                                        startPoint: .top,
-                                        endPoint: .bottom
-                                    )
-                                )
-                                : AnyShapeStyle(Color.white.opacity(0.38))
-                        )
-                        .frame(width: barWidth, height: max(3, maxHeight * ratio))
-                        .shadow(
-                            color: isLast ? Color.white.opacity(0.45) : .clear,
-                            radius: isLast ? 4 : 0,
-                            x: 0,
-                            y: 0
-                        )
-                }
-            }
-            .frame(height: maxHeight, alignment: .bottom)
-
-            HStack(spacing: 4) {
-                Text(L10n.tr("Today"))
-                    .font(.system(size: 9, weight: .semibold))
-                    .tracking(0.6)
-                    .textCase(.uppercase)
-                    .foregroundStyle(.white.opacity(0.55))
-                Text(todayCostText)
-                    .font(.system(size: 11, weight: .bold, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.92))
-                    .monospacedDigit()
-            }
-        }
-    }
-
 }
 
 // MARK: - Color blend helper
@@ -480,44 +368,3 @@ fileprivate enum ModelFamilyIcon {
     }
 }
 
-
-struct ProviderHeroGhostCard: View {
-    let action: () -> Void
-
-    @Environment(\.colorScheme) private var colorScheme
-
-    var body: some View {
-        Button(action: action) {
-            VStack(spacing: 10) {
-                ZStack {
-                    Circle()
-                        .fill(OriveoTheme.Palette.primary.opacity(colorScheme == .dark ? 0.22 : 0.12))
-                        .frame(width: 44, height: 44)
-                    Image(systemName: "plus")
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundStyle(OriveoTheme.Palette.primary)
-                }
-                Text(L10n.tr("Add another provider", table: .providers))
-                    .font(.system(size: 13.5, weight: .semibold))
-                    .foregroundStyle(OriveoTheme.Palette.textSecondary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.85)
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .frame(height: 172)
-            .background(
-                RoundedRectangle(cornerRadius: 24, style: .continuous)
-                    .fill(OriveoTheme.Palette.surface.opacity(colorScheme == .dark ? 0.55 : 0.70))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 24, style: .continuous)
-                    .strokeBorder(
-                        OriveoTheme.Palette.textTertiary.opacity(colorScheme == .dark ? 0.40 : 0.32),
-                        style: StrokeStyle(lineWidth: 1.2, dash: [5, 4])
-                    )
-            )
-        }
-        .buttonStyle(.plain)
-        .contentShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
-    }
-}
