@@ -171,6 +171,11 @@ utility-class framework. `packages/ipc-contract` describes the channel surface a
 bind to; no such shell ships in this repository, so on the web build it contributes types and
 branches that are never taken.
 
+There is one more seam of the same kind. `lib/core/sync-port.ts` declares the interface a
+synchronisation backend would implement, and every call site reaches it through optional chaining.
+Nothing installs one, so `getSyncAdapter()` returns `null` and IndexedDB stays the only copy of your
+data — which is exactly what "no account, no sign-in" means in practice.
+
 ## Storage
 
 Everything is per-partition, keyed by an active id that defaults to `guest`.
@@ -223,6 +228,8 @@ Run these from this directory.
 | `npm run test` | vitest in watch mode |
 | `npm run lint` | eslint over `apps/` and `packages/` |
 
+`npm start --workspace @oriveo/app` serves a finished build on port 3001.
+
 To run a single test file, do it from the workspace that owns it, because several suites resolve
 fixtures relative to the working directory:
 
@@ -233,9 +240,7 @@ cd apps/app && npx vitest run lib/core/chat/__tests__/stream-options.test.ts
 ## Configuration
 
 Everything is optional. Copy [`.env.example`](.env.example) to `.env.local` and set only what you
-need; each key is documented there. A few variables the code reads are not in that file:
-`BACKEND_URL` (a server-side-only twin of `NEXT_PUBLIC_BACKEND_URL`), `NEXT_PUBLIC_LIBRARY_ENABLED`,
-`ORIVEO_DESKTOP` and `NEXT_DIST_DIR`.
+need; every variable the code reads is listed and explained there.
 
 ### Error reporting
 
@@ -245,16 +250,49 @@ Set one and you get error reporting, 10% performance tracing and 1% session repl
 strip provider keys, endpoints and message content before an event leaves the browser. It is here so
 that a deployment which wants error reporting can have it, not because this build phones home.
 
+## Self-hosting
+
+There is no Dockerfile and no deploy script; the app is an ordinary Next.js server.
+
+```bash
+npm ci
+npm run build:app
+npm start --workspace @oriveo/app     # 127.0.0.1:3001
+```
+
+Three things are worth knowing before putting it behind a reverse proxy.
+
+`npm start` binds to `127.0.0.1`, so the proxy has to run on the same host, or the bind address has
+to be changed.
+
+Set `NEXT_PUBLIC_APP_URL` to the origin you actually serve from. Canonical links, the sitemap and the
+social preview image all resolve against it, and it defaults to the development port.
+
+Set `TRUSTED_PROXY_HOP_COUNT` to the number of proxies in front of the app. The chat rate limiter
+reads the client address that many hops from the *right* of `X-Forwarded-For` — never from the left,
+which the client controls and can forge. The default of 1 is correct for a single proxy; leave it too
+low behind two and every visitor shares one rate-limit bucket, because the address read is your own
+inner proxy's.
+
+The app already sends HSTS, `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy`,
+`Permissions-Policy` and `Cross-Origin-Opener-Policy` from `next.config.ts`, so a proxy does not need
+to add them. TLS termination and request size limits are the proxy's job.
+
+One last thing worth deciding deliberately: anyone who can reach the deployment can use its route
+handlers to call a provider with a key they supply. The handlers hold no keys of their own and store
+nothing, but they are an outbound HTTP path, so a publicly reachable deployment belongs behind
+whatever access control you would give any other internal tool.
+
 ## Testing
 
-Around 4,600 tests across 461 files, on vitest. The heaviest coverage is where a mistake is most
+Around 5,600 tests across 460 files, on vitest. The heaviest coverage is where a mistake is most
 expensive: request shape per provider, transport behaviour per wire protocol, SSE and proxy chunk
 parsing, usage and cost parsing, error classification, relay probing and security modes, the SSRF
 guard, capability recipe execution, catalog caching and contract-version invalidation, IndexedDB
 persistence, storage partitioning, backup round-trips, and the route handlers themselves.
 
 > [!IMPORTANT]
-> Around 24 suites load contract fixtures from `../shared`, so **the tests only pass in a full
+> Over thirty suites load contract fixtures from `../shared`, so **the tests only pass in a full
 > checkout** — copying `web/` out on its own will not work.
 
 ## Localization
