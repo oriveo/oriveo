@@ -99,9 +99,10 @@ boundary.
 | Combine `PassthroughSubject` per conversation | streaming text and reasoning deltas | bypasses SwiftUI diffing entirely at token rate |
 
 **Provider support is four independent axes, not one enum.** `ProviderKind` (16 cases: the fifteen
-providers plus relay) is *who the user configured*. `ProviderServiceProtocol` is *the call surface*. `TransportKind` (12 cases) is
-*which wire protocol is actually spoken* — and it is resolved **per model, from the catalog**, so
-two models behind the same key can disagree. `RelayKind` covers user-supplied endpoints. Keeping
+providers plus relay) is *who the user configured*. `ProviderServiceProtocol` is *the call surface*.
+`TransportKind` (12 cases) is *which wire protocol is actually spoken* — and it is resolved **per
+model, from the catalog**, so two models behind the same key can disagree. `RelayKind` covers
+user-supplied endpoints. Keeping
 them separate is what lets a new model work without a new build.
 
 ### How one message is sent
@@ -142,7 +143,7 @@ silently implying it worked.
 Application Support/Oriveo/
   active-uid                     # storage partition, "guest" by default
   users/<uid>/
-    oriveo.sqlite                # conversations, messages, notes, catalog cache
+    oriveo.sqlite                # conversations, messages, notes and folders, catalog cache
     Images/  Files/              # attachment blobs, referenced by id
     session-snapshot.json        # preferences, provider list, folders, last used model
 ```

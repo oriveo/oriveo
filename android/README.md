@@ -270,9 +270,10 @@ Exact versions are pinned in [`gradle/libs.versions.toml`](gradle/libs.versions.
 ```
 
 Roughly 3,000 unit tests across 318 files, using JUnit 4, MockK, Robolectric,
-`kotlinx-coroutines-test` and Ktor's mock engine. Coverage is heaviest where mistakes are most expensive: request shape per
-provider, SSE parsing, transport selection, relay probing and security modes, capability recipe
-execution, catalog caching and contract-version handling, Room persistence, and backup round-trips.
+`kotlinx-coroutines-test` and Ktor's mock engine. Coverage is heaviest where mistakes are most
+expensive: request shape per provider, SSE parsing, transport selection, relay probing and security
+modes, capability recipe execution, catalog caching and contract-version handling, Room persistence,
+and backup round-trips.
 
 > [!IMPORTANT]
 > Around 38 suites load contract fixtures by resolving `../../shared` from the Gradle module

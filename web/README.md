@@ -91,7 +91,7 @@ you run `npm run dev:app`, those handlers are on your own machine. When you depl
 somewhere, they are on the machine you deployed to.
 
 There is more than one handler: chat streaming, the relay forwarder, image generation, the model
-list, key validation, and the Grok and Codex device-login exchanges come to twelve route files in
+list, key validation, and the Grok and ChatGPT device-login exchanges come to twelve route files in
 all. Key validation matters here — it posts the key to your own server, which probes the provider
 with it.
 
