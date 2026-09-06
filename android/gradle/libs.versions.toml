@@ -42,16 +42,15 @@ jsoup = "1.23.2"
 metricsPerformance = "1.0.0"
 profileinstaller = "1.4.1"
 
-# LaTeX rendering inside Markdown. The upstream opencollab/jlatexmath is GPL with the classpath
-# exception; noties/jlatexmath-android is the Apache-2.0 Android port, archived but stable.
+# LaTeX rendering inside Markdown. ru.noties:jlatexmath-android is the Android port of JLaTeXMath,
+# archived but stable, and carries JLaTeXMath's GPL-2.0-or-later licence with the linking exception
+# that permits linking from a differently licensed program.
 jlatexmath = "0.2.0"
 
 # Testing
 junit = "4.13.2"
 junitVersion = "1.3.0"
-espressoCore = "3.7.0"
 mockk = "1.14.11"
-turbine = "1.2.1"
 coroutinesTest = "1.11.0"
 benchmark = "1.4.1"
 uiautomator = "2.4.0"
@@ -117,11 +116,9 @@ jlatexmath-android-font-greek = { group = "ru.noties", name = "jlatexmath-androi
 # Testing
 junit = { group = "junit", name = "junit", version.ref = "junit" }
 androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junitVersion" }
-androidx-espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espressoCore" }
 androidx-benchmark-macro-junit4 = { group = "androidx.benchmark", name = "benchmark-macro-junit4", version.ref = "benchmark" }
 androidx-test-uiautomator = { group = "androidx.test.uiautomator", name = "uiautomator", version.ref = "uiautomator" }
 mockk = { group = "io.mockk", name = "mockk", version.ref = "mockk" }
-turbine = { group = "app.cash.turbine", name = "turbine", version.ref = "turbine" }
 kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test", version.ref = "coroutinesTest" }
 
 [plugins]

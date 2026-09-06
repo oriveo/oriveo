@@ -97,8 +97,6 @@ android {
     }
 
     buildTypes {
-        debug {
-        }
         create("benchmark") {
             initWith(getByName("release"))
             signingConfig = getByName("debug").signingConfig
@@ -116,6 +114,7 @@ android {
                 signingConfigs.getByName("debug")
             }
             isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -248,10 +247,8 @@ dependencies {
     // Testing
     testImplementation(libs.junit)
     testImplementation(libs.mockk)
-    testImplementation(libs.turbine)
     testImplementation(libs.ktor.client.mock)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.robolectric)
     androidTestImplementation(libs.androidx.junit)
-    androidTestImplementation(libs.androidx.espresso.core)
 }
