@@ -150,7 +150,7 @@ export const selectStreamingConversationIdSet = (s: AppStore): Set<string> => {
 export const selectStreamingConversationIds = (s: AppStore): string[] =>
   s.streamingConversationIds;
 
-/* ── Provider stats (Phase 3.3) ────────────────────────── */
+/* ── Provider stats ────────────────────────────────────── */
 
 export function selectProviderStats(
   s: Pick<AppStore, 'conversations'>,

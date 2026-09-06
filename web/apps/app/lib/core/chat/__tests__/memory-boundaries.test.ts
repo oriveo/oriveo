@@ -1,7 +1,6 @@
 /**
- * Phase 4 - boundary, error and concurrency unit tests
+ * Memory boundary, error and concurrency unit tests.
  *
- * Covers the automatable cases in MEM-4-01 through MEM-4-26.
  * Exercises very long input, empty-value handling, emoji/CJK counting, preview truncation and
  */
 import { describe, it, expect } from 'vitest';
@@ -69,9 +68,9 @@ function simulateUpdateMemory(
   };
 }
 
-// -- MEM-4-01: empty string input --
+// -- empty string input --
 
-describe('MEM-4-01: empty string input', () => {
+describe('empty string input', () => {
   it('saves an empty string as the empty state with no stray data', () => {
     const result = simulateUpdateMemory('', true, 'some summary');
     expect(result.memoryText).toBeUndefined();
@@ -87,9 +86,9 @@ describe('MEM-4-01: empty string input', () => {
   });
 });
 
-// -- MEM-4-02: leading and trailing whitespace --
+// -- leading and trailing whitespace --
 
-describe('MEM-4-02: leading and trailing whitespace', () => {
+describe('leading and trailing whitespace', () => {
   it('saves normally after surrounding whitespace is trimmed', () => {
     const result = simulateUpdateMemory('  Hello World  ', false, '');
     expect(result.memoryText).toBe('  Hello World  ');
@@ -111,9 +110,9 @@ describe('MEM-4-02: leading and trailing whitespace', () => {
   });
 });
 
-// -- MEM-4-03: newline or tab only input --
+// -- newline or tab only input --
 
-describe('MEM-4-03: newline or tab only input', () => {
+describe('newline or tab only input', () => {
   it('treats newlines only as unset', () => {
     const result = simulateUpdateMemory('\n\n\n', false, '');
     expect(result.memoryText).toBeUndefined();
@@ -136,9 +135,9 @@ describe('MEM-4-03: newline or tab only input', () => {
   });
 });
 
-// -- MEM-4-04: multi-line body --
+// -- multi-line body --
 
-describe('MEM-4-04: multi-line body', () => {
+describe('multi-line body', () => {
   it('keeps newlines after saving', () => {
     const multiline = 'Line 1\nLine 2\nLine 3';
     const result = simulateUpdateMemory(multiline, false, '');
@@ -153,9 +152,9 @@ describe('MEM-4-04: multi-line body', () => {
   });
 });
 
-// -- MEM-4-06: emoji counting --
+// -- emoji counting --
 
-describe('MEM-4-06: emoji grapheme cluster counting', () => {
+describe('emoji grapheme cluster counting', () => {
   it('counts the family emoji as one grapheme', () => {
     expect(graphemeCount('👨‍👩‍👧‍👦')).toBe(1);
   });
@@ -177,9 +176,9 @@ describe('MEM-4-06: emoji grapheme cluster counting', () => {
   });
 });
 
-// -- MEM-4-07: CJK, combining and Arabic characters --
+// -- CJK, combining and Arabic characters --
 
-describe('MEM-4-07: CJK, combining and Arabic character counting', () => {
+describe('CJK, combining and Arabic character counting', () => {
   it('counts Chinese characters', () => {
     expect(graphemeCount('こんにちは')).toBe(5);
   });
@@ -206,9 +205,9 @@ describe('MEM-4-07: CJK, combining and Arabic character counting', () => {
   });
 });
 
-// -- MEM-4-08: 30 and 300 character preview truncation --
+// -- 30 and 300 character preview truncation --
 
-describe('MEM-4-08: preview truncation never splits a surrogate pair', () => {
+describe('preview truncation never splits a surrogate pair', () => {
   it('truncates at 30 characters: plain text', () => {
     const text = 'a'.repeat(50);
     const preview = takeGraphemes(text, 30);
@@ -245,9 +244,9 @@ describe('MEM-4-08: preview truncation never splits a surrogate pair', () => {
   });
 });
 
-// -- MEM-4-13: drafts longer than 2000 characters are truncated --
+// -- drafts longer than 2000 characters are truncated --
 
-describe('MEM-4-13: draft results longer than 2000 characters are truncated', () => {
+describe('draft results longer than 2000 characters are truncated', () => {
   const MAX_MEMORY_CHARS = 2000;
 
   it('truncates 5000 characters down to 2000', () => {
@@ -269,9 +268,9 @@ describe('MEM-4-13: draft results longer than 2000 characters are truncated', ()
   });
 });
 
-// -- MEM-4-26: the reminder context never appears in the original messages --
+// -- the reminder context never appears in the original messages --
 
-describe('MEM-4-26: the reminder context exists only in the request copy', () => {
+describe('the reminder context exists only in the request copy', () => {
   it('does not append the context to the original message array', () => {
     // Build the original messages first, then inject into a copy.
     const originalMessages: ChatHistoryMsg[] = makeUserMessages(10);
@@ -307,9 +306,9 @@ describe('MEM-4-26: the reminder context exists only in the request copy', () =>
   });
 });
 
-// -- MEM-4-05: very long strings with no whitespace --
+// -- very long strings with no whitespace --
 
-describe('MEM-4-05: very long strings with no whitespace', () => {
+describe('very long strings with no whitespace', () => {
   const MAX_MEMORY_CHARS = 2000;
 
   it('counts graphemes correctly in a 2000-character string with no spaces', () => {
@@ -377,7 +376,7 @@ describe('MEM-4-05: very long strings with no whitespace', () => {
   });
 });
 
-// -- MEM-4-09: generating a draft with no provider available --
+// -- generating a draft with no provider available --
 
 /** Preconditions for generating a draft: at least one provider and some conversation history. */
 function canGenerateDraft(
@@ -389,7 +388,7 @@ function canGenerateDraft(
   return hasRecentConversations && hasProviderForDraft;
 }
 
-describe('MEM-4-09: no draft can be generated without an available provider', () => {
+describe('no draft can be generated without an available provider', () => {
   it('an empty providers array gives canGenerateDraft = false', () => {
     const result = canGenerateDraft(
       [],
@@ -431,9 +430,9 @@ describe('MEM-4-09: no draft can be generated without an available provider', ()
   });
 });
 
-// -- MEM-4-10: generating a draft with no conversation history --
+// -- generating a draft with no conversation history --
 
-describe('MEM-4-10: no draft can be generated without conversation history', () => {
+describe('no draft can be generated without conversation history', () => {
   it('an empty conversations array gives canGenerateDraft = false', () => {
     const result = canGenerateDraft(
       [{ models: [{ id: 'gpt-4' }] }],
@@ -487,9 +486,9 @@ describe('MEM-4-10: no draft can be generated without conversation history', () 
   });
 });
 
-// -- MEM-4-11: network failure during draft generation --
+// -- network failure during draft generation --
 
-describe('MEM-4-11: a failed draft request does not damage saved memory', () => {
+describe('a failed draft request does not damage saved memory', () => {
   it('simulateUpdateMemory state stays valid after a network error', () => {
     // Save a valid memory value first.
     const savedState = simulateUpdateMemory('I am a developer', true, 'Be concise');
@@ -538,9 +537,9 @@ describe('MEM-4-11: a failed draft request does not damage saved memory', () => 
   });
 });
 
-// -- MEM-4-12: draft cancellation --
+// -- draft cancellation --
 
-describe('MEM-4-12: draft cancellation through a requestId mismatch', () => {
+describe('draft cancellation through a requestId mismatch', () => {
   it('ignores the result when the requestId does not match', () => {
     // Simulate the requestId mechanism.
     let activeDraftRequestId: string | null = 'req-001';
@@ -584,7 +583,7 @@ describe('MEM-4-12: draft cancellation through a requestId mismatch', () => {
   });
 });
 
-// -- MEM-4-14: user edits during draft generation --
+// -- user edits during draft generation --
 
 /** Whether the draft result should be applied automatically (no conflict). */
 function shouldAutoApplyDraft(
@@ -596,7 +595,7 @@ function shouldAutoApplyDraft(
   return currentRevision === baselineRevision && currentText === baselineText;
 }
 
-describe('MEM-4-14: user edits during draft generation cause a conflict', () => {
+describe('user edits during draft generation cause a conflict', () => {
   it('no user edit: revision and text match, so the draft applies automatically', () => {
     const result = shouldAutoApplyDraft(1, 1, 'original', 'original');
     expect(result).toBe(true);
@@ -635,9 +634,9 @@ describe('MEM-4-14: user edits during draft generation cause a conflict', () => 
   });
 });
 
-// -- MEM-4-18: rapid repeated saves --
+// -- rapid repeated saves --
 
-describe('MEM-4-18: rapid repeated saves are idempotent', () => {
+describe('rapid repeated saves are idempotent', () => {
   it('five calls with identical arguments produce an identical result', () => {
     const results = [];
     for (let i = 0; i < 5; i++) {
@@ -681,9 +680,9 @@ describe('MEM-4-18: rapid repeated saves are idempotent', () => {
   });
 });
 
-// -- MEM-4-21: sending immediately after a save --
+// -- sending immediately after a save --
 
-describe('MEM-4-21: sending right after a save injects the newest value', () => {
+describe('sending right after a save injects the newest value', () => {
   it('the injected text matches the value that was just saved', () => {
     const savedText = 'I prefer Chinese responses';
     const saved = simulateUpdateMemory(savedText, false, '');
@@ -742,9 +741,9 @@ describe('MEM-4-21: sending right after a save injects the newest value', () => 
   });
 });
 
-// -- MEM-4-22: sign-out or account switch during draft generation --
+// -- sign-out or account switch during draft generation --
 
-describe('MEM-4-22: sign-out or account switch during draft generation', () => {
+describe('sign-out or account switch during draft generation', () => {
   it('sign-out clears activeDraftRequestId so a late result is ignored', () => {
     let activeDraftRequestId: string | null = 'req-draft-001';
 
@@ -783,9 +782,9 @@ describe('MEM-4-22: sign-out or account switch during draft generation', () => {
   });
 });
 
-// -- MEM-4-25: memory operations are unaffected by provider removal --
+// -- memory operations are unaffected by provider removal --
 
-describe('MEM-4-25: memory operations are unaffected after a provider is removed', () => {
+describe('memory operations are unaffected after a provider is removed', () => {
   it('simulateUpdateMemory does not depend on any provider information', () => {
     // Saving memory is purely a preference operation and has nothing to do with a provider.
     const result = simulateUpdateMemory('I am a developer who uses GPT-4', true, 'Be concise');

@@ -1,5 +1,5 @@
 /**
- * Phase 3 Memory tests - sync, account and migration
+ * Memory persistence: defaults for older records, last-writer-wins merging and migration.
  *
  * Covers:
  * - An old conversation without useMemory defaults to true.
@@ -114,7 +114,7 @@ function makeConversation(overrides: Partial<Conversation> = {}): Conversation {
   };
 }
 
-describe('MEM-3-08: old conversation missing useMemory field — defaults to true', () => {
+describe('old conversation missing useMemory field — defaults to true', () => {
   it('useMemory undefined is treated as true, so memory is injected', () => {
     const conv = makeConversation({ useMemory: undefined });
     // Injection condition: conversation?.useMemory !== false
@@ -154,7 +154,7 @@ describe('MEM-3-08: old conversation missing useMemory field — defaults to tru
   });
 });
 
-describe('MEM-3-20: old version data missing memory fields — no crash, correct defaults', () => {
+describe('old version data missing memory fields — no crash, correct defaults', () => {
   it('does not crash when preferences has no memory fields', () => {
     const store = createAppStore();
     const prefs = store.getState().preferences;

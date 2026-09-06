@@ -80,14 +80,14 @@ export interface AppState {
   streamingMessageIds: Record<string, string>;
   streamingConversationIds: string[];
 
-  /* Search (Phase 3.1) */
+  /* Search */
   searchQuery: string;
   searchMatchIndex: number;
 
-  /* Image generation (Phase 3.5) */
+  /* Image generation */
   imageGenMode: boolean;
 
-  /* Pin & order (Phase 3.6) */
+  /* Pin & order */
   pinnedConversationIds: string[];
   /** LWW timestamp for the pin list (ISO 8601). Local pin changes update it through
    *  togglePinConversation/removeConversations; remote LWW sync sets it through
@@ -95,7 +95,7 @@ export interface AppState {
   pinnedConversationIdsUpdatedAt: string | undefined;
   conversationOrder: string[];
 
-  /* Folders (Phase 4) */
+  /* Folders */
   folders: Folder[];
   expandedFolderIds: string[];
 
@@ -197,14 +197,14 @@ export interface AppActions {
   /* Session */
   setLastUsedModelRef: (ref: LastUsedModelRef | null) => void;
 
-  /* Search (Phase 3.1) */
+  /* Search */
   setSearchQuery: (query: string) => void;
   setSearchMatchIndex: (index: number) => void;
 
-  /* Image generation (Phase 3.5) */
+  /* Image generation */
   setImageGenMode: (mode: boolean) => void;
 
-  /* Pin & order (Phase 3.6) */
+  /* Pin & order */
   togglePinConversation: (id: string, limit?: number) => boolean;
   setConversationOrder: (order: string[]) => void;
   removeConversations: (ids: string[]) => void;

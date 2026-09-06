@@ -57,7 +57,7 @@ function makeUserMessages(count: number): ChatHistoryMsg[] {
 
 // ── Contract constants ────────────────────────────────────────
 
-describe('Phase 0 contract: anti-forget format', () => {
+describe('Contract: anti-forget format', () => {
   it('appends the anti-forget reminder as "\\n\\n[Reminder: ...]", not [Context: ...]', () => {
     const chatHistory = makeUserMessages(10);
     chatHistory.push({ role: 'user', content: 'Latest' });
@@ -76,7 +76,7 @@ describe('Phase 0 contract: anti-forget format', () => {
   });
 });
 
-describe('Phase 0 contract: anti-forget threshold', () => {
+describe('Contract: anti-forget threshold', () => {
   it('triggers at exactly 10 user messages', () => {
     const chatHistory = makeUserMessages(9);
     chatHistory.push({ role: 'user', content: 'Tenth' });
@@ -104,7 +104,7 @@ describe('Phase 0 contract: anti-forget threshold', () => {
   });
 });
 
-describe('Phase 0 contract: useMemory defaults', () => {
+describe('Contract: useMemory defaults', () => {
   it('treats an undefined useMemory as enabled', () => {
     const chatHistory: ChatHistoryMsg[] = [{ role: 'user', content: 'Hi' }];
     const result = applyMemoryInjection(chatHistory, {
@@ -125,7 +125,7 @@ describe('Phase 0 contract: useMemory defaults', () => {
   });
 });
 
-describe('Phase 0 contract: empty/whitespace memory', () => {
+describe('Contract: empty/whitespace memory', () => {
   it('does not inject an empty memoryText', () => {
     const chatHistory: ChatHistoryMsg[] = [{ role: 'user', content: 'Hi' }];
     const result = applyMemoryInjection(chatHistory, { memoryText: '' }, undefined);
@@ -145,7 +145,7 @@ describe('Phase 0 contract: empty/whitespace memory', () => {
   });
 });
 
-describe('Phase 0 contract: token estimation formula', () => {
+describe('Contract: token estimation formula', () => {
   it('uses the formula Math.ceil(graphemeCount * 0.35)', () => {
     // Checks the agreed coefficient and rounding
     const formula = (count: number) => Math.ceil(count * 0.35);

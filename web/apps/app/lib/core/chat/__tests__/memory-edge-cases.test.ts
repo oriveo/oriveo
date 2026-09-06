@@ -1,5 +1,5 @@
 /**
- * Phase 4+ boundary and edge-case unit tests.
+ * Further Memory boundary and edge-case unit tests.
  *
  * Covers the automatable cases: paste truncation over the limit, zero-width characters, 2000 pure
  * emoji, mixed RTL text, Markdown treated as plain text and anti-forget on multimodal messages.

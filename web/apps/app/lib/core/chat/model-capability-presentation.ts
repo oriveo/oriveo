@@ -112,9 +112,9 @@ export function modelSupportsCapabilityFilter(
     return presentation?.tool ?? isSupported(provider, model, 'tool_call');
   }
 
-  // file/video/imageGeneration are presentation metadata, not one of H2's
-  // evidence keys. Preserve those existing filters without pretending they
-  // prove vision input, tool calling, Web search, or a reasoning level.
+  // file/video/imageGeneration are catalog presentation metadata, not evidence-backed
+  // capabilities. Preserve those existing filters without pretending they prove vision
+  // input, tool calling, web search, or a reasoning level.
   return model.capabilities.includes(filter as never);
 }
 

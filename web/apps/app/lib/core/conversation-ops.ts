@@ -39,7 +39,7 @@ export function deleteConversation(store: StoreApi<AppStore>, convId: string) {
   deleteLocalConversationContinuation(convId);
   // The delete intent is queued in IDB and replayed, and only cleared once acknowledged. Calling
   // didDeleteConversations directly silently dropped the delete whenever the adapter was null,
-  // which is the case until the entitlement bootstrap finishes.
+  // which is the case until bootstrap has hydrated the store.
   void flushPendingConversationDeletions([convId]);
   trackEvent('conversation_deleted', {
     conversation_id: convId,

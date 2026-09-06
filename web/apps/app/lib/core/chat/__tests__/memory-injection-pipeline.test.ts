@@ -1,5 +1,5 @@
 /**
- * Phase 2 Memory tests - conversation pipeline and provider adapters
+ * Memory in the conversation pipeline and in each provider's request shape.
  *
  * Covers:
  * - Memory injected as a system message for new and continued conversations
@@ -133,7 +133,7 @@ function buildGeminiRequest(messages: ChatHistoryMsg[]): {
   };
 }
 
-describe('MEM-2-01: new conversation first message — Memory injected as system message at position 0', () => {
+describe('new conversation first message — Memory injected as system message at position 0', () => {
   it('non-empty memoryText with default useMemory is injected as chatHistory[0] system', () => {
     const chatHistory: ChatHistoryMsg[] = [
       { role: 'user', content: 'Hello, this is my first message' },
@@ -152,7 +152,7 @@ describe('MEM-2-01: new conversation first message — Memory injected as system
   });
 });
 
-describe('MEM-2-02: existing conversation continue — Memory continues to inject', () => {
+describe('existing conversation continue — Memory continues to inject', () => {
   it('injects Memory at the front of an existing multi-turn conversation', () => {
     const chatHistory: ChatHistoryMsg[] = [
       { role: 'user', content: 'First question' },
@@ -170,7 +170,7 @@ describe('MEM-2-02: existing conversation continue — Memory continues to injec
   });
 });
 
-describe('MEM-2-05: useMemory = false — no injection, no usageCount increment', () => {
+describe('useMemory = false — no injection, no usageCount increment', () => {
   it('does not inject a system message when useMemory = false', () => {
     const chatHistory: ChatHistoryMsg[] = [
       { role: 'user', content: 'Hello' },
@@ -201,7 +201,7 @@ describe('MEM-2-05: useMemory = false — no injection, no usageCount increment'
   });
 });
 
-describe('MEM-2-06: empty/whitespace-only memory — no injection, no indicator', () => {
+describe('empty/whitespace-only memory — no injection, no indicator', () => {
   it('does not inject an empty string', () => {
     const chatHistory: ChatHistoryMsg[] = [{ role: 'user', content: 'Hi' }];
     const result = applyMemoryInjection(chatHistory, { memoryText: '' }, undefined);
@@ -228,7 +228,7 @@ describe('MEM-2-06: empty/whitespace-only memory — no injection, no indicator'
   });
 });
 
-describe('MEM-2-13: anti-forget exactly 10 user messages — starts appending Context', () => {
+describe('anti-forget exactly 10 user messages — starts appending Context', () => {
   it('appends Context at 10 user messages, counted after system injection', () => {
     // 9 user+assistant rounds plus 1 new user message = 10 user messages
     const chatHistory = makeUserMessages(9);
@@ -260,7 +260,7 @@ describe('MEM-2-13: anti-forget exactly 10 user messages — starts appending Co
   });
 });
 
-describe('MEM-2-14: anti-forget < 10 user messages — no Context appended', () => {
+describe('anti-forget < 10 user messages — no Context appended', () => {
   it('does not trigger at 9 user messages', () => {
     const chatHistory = makeUserMessages(8);
     chatHistory.push({ role: 'user', content: 'Ninth' });
@@ -291,7 +291,7 @@ describe('MEM-2-14: anti-forget < 10 user messages — no Context appended', () 
   });
 });
 
-describe('MEM-2-15: anti-forget disabled or summary empty — no Context', () => {
+describe('anti-forget disabled or summary empty — no Context', () => {
   it('memoryAntiForgetEnabled = false does not append', () => {
     const chatHistory = makeUserMessages(10);
     chatHistory.push({ role: 'user', content: 'Latest' });
@@ -356,7 +356,7 @@ describe('MEM-2-15: anti-forget disabled or summary empty — no Context', () =>
   });
 });
 
-describe('MEM-2-16: anti-forget only in request copy, not in local messages/UI/export', () => {
+describe('anti-forget only in request copy, not in local messages/UI/export', () => {
   it('modifies the request copy while local messages stay unchanged', () => {
     // Mirrors operations.ts: buildChatHistory makes a deep copy of chatHistory and
     // applyMemoryInjection mutates that copy.
@@ -382,7 +382,7 @@ describe('MEM-2-16: anti-forget only in request copy, not in local messages/UI/e
   });
 });
 
-describe('MEM-2-18: anti-forget with content parts (image+text) — flatten to text to avoid breaking format', () => {
+describe('anti-forget with content parts (image+text) — flatten to text to avoid breaking format', () => {
   it('flattens ContentPart[] to plain text before appending Context', () => {
     const chatHistory = makeUserMessages(9);
     // The last user message holds both an image and text
@@ -427,7 +427,7 @@ describe('MEM-2-18: anti-forget with content parts (image+text) — flatten to t
   });
 });
 
-describe('MEM-2-19: retry/regenerate uses current latest Memory', () => {
+describe('retry/regenerate uses current latest Memory', () => {
   it('retry re-injects the memoryText that is current at injection time', () => {
     // retry calls sendMessage, which reads the current memoryText from store.getState().preferences.
     // Simulated here: send with the old memory, update it, then retry.
@@ -444,7 +444,7 @@ describe('MEM-2-19: retry/regenerate uses current latest Memory', () => {
   });
 });
 
-describe('MEM-2-20: continue/edit & resend follows Memory rules', () => {
+describe('continue/edit & resend follows Memory rules', () => {
   it('edit and resend uses the current Memory', () => {
     // editAndResend ends up in sendMessage, so the injection logic is the same
     const chatHistory: ChatHistoryMsg[] = [
@@ -472,7 +472,7 @@ describe('MEM-2-20: continue/edit & resend follows Memory rules', () => {
   });
 });
 
-describe('MEM-2-22: OpenAI/OpenRouter/Groq/Together/Fireworks/Relay — messages[0] is system', () => {
+describe('OpenAI/OpenRouter/Groq/Together/Fireworks/Relay — messages[0] is system', () => {
   it('messages[0].role === system after Memory injection', () => {
     const chatHistory: ChatHistoryMsg[] = [
       { role: 'user', content: 'Hello' },
@@ -496,7 +496,7 @@ describe('MEM-2-22: OpenAI/OpenRouter/Groq/Together/Fireworks/Relay — messages
   });
 });
 
-describe('MEM-2-23: Anthropic — system field separate from messages', () => {
+describe('Anthropic — system field separate from messages', () => {
   it('lifts the system field out so messages carries no system role', () => {
     const chatHistory: ChatHistoryMsg[] = [
       { role: 'user', content: 'Hello' },
@@ -520,9 +520,9 @@ describe('MEM-2-23: Anthropic — system field separate from messages', () => {
   });
 });
 
-// ── MEM-2-24: Gemini → systemInstruction.parts[0].text ────
+// ── Gemini → systemInstruction.parts[0].text ────
 
-describe('MEM-2-24: Gemini — systemInstruction.parts[0].text', () => {
+describe('Gemini — systemInstruction.parts[0].text', () => {
   it('systemInstruction contains the Memory text after injection', () => {
     const chatHistory: ChatHistoryMsg[] = [
       { role: 'user', content: 'Hello' },
@@ -550,7 +550,7 @@ describe('MEM-2-24: Gemini — systemInstruction.parts[0].text', () => {
 // The Responses API is not used here (only Chat Completions); this checks that an
 // instructions field would be populated from the injected Memory.
 
-describe('MEM-2-25: OpenAI Responses API — instructions field (future-proof)', () => {
+describe('OpenAI Responses API — instructions field (future-proof)', () => {
   it('the injected system message can be extracted into an instructions field', () => {
     const chatHistory: ChatHistoryMsg[] = [
       { role: 'user', content: 'Hello' },
@@ -565,7 +565,7 @@ describe('MEM-2-25: OpenAI Responses API — instructions field (future-proof)',
   });
 });
 
-describe('MEM-2-27: usageCount increments once per conversation, not per message', () => {
+describe('usageCount increments once per conversation, not per message', () => {
   it('shouldIncrementUsage = true on successful injection', () => {
     const chatHistory: ChatHistoryMsg[] = [{ role: 'user', content: 'Hi' }];
     const result = applyMemoryInjection(chatHistory, { memoryText: 'Context' }, undefined);

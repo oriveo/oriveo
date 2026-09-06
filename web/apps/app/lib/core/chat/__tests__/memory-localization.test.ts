@@ -1,8 +1,6 @@
 /**
- * Phase 5 -- localization, accessibility, performance and release regression unit tests.
- * Phase 5+ -- performance-focused unit tests.
+ * Memory localization, accessibility and performance regression unit tests.
  *
- * Covers the automatable cases in MEM-5-01 ~ MEM-5-18, MEM-P-04 and MEM-P-07 (prompt build).
  * Cases that cannot be automated (UI layout, screen readers, keyboard navigation, device
  * performance) are skipped with the reason noted.
  */
@@ -149,13 +147,9 @@ function simulateMarkMemoryUsed(
   return { newCount: true, updatedIds: updated };
 }
 
-// ==========================================================
-// Phase 5: MEM-5-01 ~ MEM-5-18
-// ==========================================================
+// ── full localization coverage ──────────────────────────────
 
-// ── MEM-5-01: full localization coverage ──────────────────────────────
-
-describe('MEM-5-01: full localization coverage - Memory copy is translated in every locale', () => {
+describe('full localization coverage - Memory copy is translated in every locale', () => {
   // The web client uses next-intl messages/*.json.
   const SUPPORTED_LOCALES = ['en', 'zh-Hans', 'zh-Hant', 'ja', 'ko', 'es', 'fr', 'de', 'pt-BR', 'ar', 'hi', 'id', 'vi', 'th', 'tr', 'ru'];
 
@@ -198,9 +192,9 @@ describe('MEM-5-01: full localization coverage - Memory copy is translated in ev
   }
 });
 
-// ── MEM-5-02: switching language takes effect immediately ──────────────────────────────
+// ── switching language takes effect immediately ──────────────────────────────
 
-describe('MEM-5-02: language switching - Memory copy differs between locales', () => {
+describe('language switching - Memory copy differs between locales', () => {
   it('the Memory title differs between en and zh-Hans', async () => {
     const en = (await import('../../../../messages/en.json')).default ?? await import('../../../../messages/en.json');
     const zhHans = (await import('../../../../messages/zh-Hans.json')).default ?? await import('../../../../messages/zh-Hans.json');
@@ -222,9 +216,9 @@ describe('MEM-5-02: language switching - Memory copy differs between locales', (
   });
 });
 
-// ── MEM-5-03: Arabic RTL - injection and truncation must not break RTL text ──────
+// ── Arabic RTL - injection and truncation must not break RTL text ──────
 
-describe('MEM-5-03: Arabic RTL text - injection and grapheme handling', () => {
+describe('Arabic RTL text - injection and grapheme handling', () => {
   const arabicMemory = 'أنا مطور يعمل على تطبيق ذكاء اصطناعي';
   const arabicAntiForget = 'مطور ويب';
 
@@ -259,9 +253,9 @@ describe('MEM-5-03: Arabic RTL text - injection and grapheme handling', () => {
   });
 });
 
-// ── MEM-5-04: CJK line breaking - graphemes handled correctly ────────────
+// ── CJK line breaking - graphemes handled correctly ────────────
 
-describe('MEM-5-04: CJK text grapheme correctness', () => {
+describe('CJK text grapheme correctness', () => {
   it('truncates CJK text at exactly 2000 characters', () => {
     const text = 'あ'.repeat(2001);
     const truncated = takeGraphemes(text, 2000);
@@ -285,9 +279,9 @@ describe('MEM-5-04: CJK text grapheme correctness', () => {
   });
 });
 
-// ── MEM-5-05: number formatting is correct in every locale ──────────────────────
+// ── number formatting is correct in every locale ──────────────────────
 
-describe('MEM-5-05: usage counts and number formatting', () => {
+describe('usage counts and number formatting', () => {
   it('formats usageCount = 0 correctly', () => {
     const count = 0;
     expect(count).toBe(0);
@@ -314,9 +308,9 @@ describe('MEM-5-05: usage counts and number formatting', () => {
   });
 });
 
-// ── MEM-5-06: switching language does not translate user content ──────────────────────
+// ── switching language does not translate user content ──────────────────────
 
-describe('MEM-5-06: switching language does not translate user Memory content', () => {
+describe('switching language does not translate user Memory content', () => {
   const userMemory = 'わたしはシニア Go エンジニアで、かんけつなへんとうがすきです';
 
   it('injection keeps memoryText verbatim, whatever the locale', () => {
@@ -352,14 +346,14 @@ describe('MEM-5-06: switching language does not translate user Memory content', 
   });
 });
 
-// ── MEM-5-07/08/09: multilingual draft generation (prompt carries the language context) ──
+// ── /08/09: multilingual draft generation (prompt carries the language context) ──
 
-describe('MEM-5-07/08/09: draft generation - multilingual conversation history', () => {
+describe('draft generation - multilingual conversation history', () => {
   // The draft prompt should carry the conversation history in whatever language it is in, and
   // the model should reply in that language. A unit test can only check that the conversation is
   // assembled correctly; matching the actual reply language needs an end-to-end test.
 
-  it('MEM-5-07: a Korean conversation injects memory unchanged', () => {
+  it('a Korean conversation injects memory unchanged', () => {
     const history: ChatHistoryMsg[] = [
       { role: 'user', content: '이 코드를 분석해 주세요' },
       { role: 'assistant', content: '네, 구조를 살펴보겠습니다...' },
@@ -372,7 +366,7 @@ describe('MEM-5-07/08/09: draft generation - multilingual conversation history',
     expect(history[0].content).toBe('저는 프론트엔드 개발자입니다');
   });
 
-  it('MEM-5-08: an English conversation injects memory unchanged', () => {
+  it('an English conversation injects memory unchanged', () => {
     const history: ChatHistoryMsg[] = [
       { role: 'user', content: 'Help me optimize this React component' },
       { role: 'assistant', content: 'Sure, I can see a few areas for improvement...' },
@@ -382,7 +376,7 @@ describe('MEM-5-07/08/09: draft generation - multilingual conversation history',
     expect(history[0].content).toBe('I am a senior React developer');
   });
 
-  it('MEM-5-09: a Japanese conversation injects memory unchanged', () => {
+  it('a Japanese conversation injects memory unchanged', () => {
     const history: ChatHistoryMsg[] = [
       { role: 'user', content: 'このコードをさいてきかしてください' },
       { role: 'assistant', content: 'はい、いくつかのかいぜんてんがあります...' },
@@ -392,7 +386,7 @@ describe('MEM-5-07/08/09: draft generation - multilingual conversation history',
     expect(history[0].content).toBe('わたしはシニアエンジニアです');
   });
 
-  it('MEM-5-09: an Arabic conversation injects memory unchanged', () => {
+  it('an Arabic conversation injects memory unchanged', () => {
     const history: ChatHistoryMsg[] = [
       { role: 'user', content: 'ساعدني في تحسين هذا الكود' },
       { role: 'assistant', content: 'بالطبع، يمكنني رؤية بعض التحسينات...' },
@@ -403,9 +397,9 @@ describe('MEM-5-07/08/09: draft generation - multilingual conversation history',
   });
 });
 
-// ── MEM-5-15: anti-forget stability in long conversations (automated) ──────────────────
+// ── anti-forget stability in long conversations (automated) ──────────────────
 
-describe('MEM-5-15: anti-forget in long conversations - at most one Context appended per turn', () => {
+describe('anti-forget in long conversations - at most one Context appended per turn', () => {
   const memoryText = 'I am a developer';
   const antiForgetText = 'Senior engineer, prefers concise code';
 
@@ -502,9 +496,9 @@ describe('MEM-5-15: anti-forget in long conversations - at most one Context appe
   });
 });
 
-// ── MEM-5-16: log / toast / Sentry safety ──────────────────
+// ── log / toast / Sentry safety ──────────────────
 
-describe('MEM-5-16: Memory content does not leak into error messages or logs', () => {
+describe('Memory content does not leak into error messages or logs', () => {
   it('replaces the API key with *** in error messages', () => {
     const apiKey = 'sk-ant-api03-abcdef123456';
     const errorMsg = `Error: 401 Unauthorized for key ${apiKey}`;
@@ -536,9 +530,9 @@ describe('MEM-5-16: Memory content does not leak into error messages or logs', (
   });
 });
 
-// ── MEM-5-17: full 8-provider smoke ──────────────────────
+// ── full 8-provider smoke ──────────────────────
 
-describe('MEM-5-17: 8-provider smoke - Memory is injected correctly in every provider format', () => {
+describe('8-provider smoke - Memory is injected correctly in every provider format', () => {
   const memoryText = 'I am a full-stack developer specializing in TypeScript and Go.';
   const prefs = { memoryText, memoryAntiForgetEnabled: false };
 
@@ -623,93 +617,11 @@ describe('MEM-5-17: 8-provider smoke - Memory is injected correctly in every pro
   });
 });
 
-// ── MEM-5-18: Guest / Free / Pro role smoke ──────────
-
-describe('MEM-5-18: Guest / Free / Pro Memory behavior', () => {
-  // The roles differ in storage: one syncs, the others stay local only.
-  // Injection itself is role-independent, which is what these cases check.
-
-  type UserRole = 'guest' | 'free' | 'pro';
-
-  /** Simulates Memory being injected normally for each role. */
-  function simulateRoleSendMessage(role: UserRole, memoryText: string) {
-    const chatHistory: ChatHistoryMsg[] = [{ role: 'user', content: 'Hello' }];
-    const result = applyMemoryInjection(chatHistory, { memoryText }, true);
-    return { role, result, chatHistory };
-  }
-
-  /** Simulates the sync behavior of each role. */
-  function simulateSyncBehavior(role: UserRole): { syncsToCloud: boolean; localOnly: boolean } {
-    switch (role) {
-      case 'pro': return { syncsToCloud: true, localOnly: false };
-      case 'free': return { syncsToCloud: false, localOnly: true };
-      case 'guest': return { syncsToCloud: false, localOnly: true };
-    }
-  }
-
-  it('Guest: Memory injection works', () => {
-    const { result, chatHistory } = simulateRoleSendMessage('guest', 'I like Python');
-    expect(result.injected).toBe(true);
-    expect(chatHistory[0].content).toBe('I like Python');
-  });
-
-  it('Free: Memory injection works', () => {
-    const { result, chatHistory } = simulateRoleSendMessage('free', 'I like Java');
-    expect(result.injected).toBe(true);
-    expect(chatHistory[0].content).toBe('I like Java');
-  });
-
-  it('Pro: Memory injection works', () => {
-    const { result, chatHistory } = simulateRoleSendMessage('pro', 'I like Rust');
-    expect(result.injected).toBe(true);
-    expect(chatHistory[0].content).toBe('I like Rust');
-  });
-
-  it('Guest: local storage only, no cloud sync', () => {
-    const sync = simulateSyncBehavior('guest');
-    expect(sync.syncsToCloud).toBe(false);
-    expect(sync.localOnly).toBe(true);
-  });
-
-  it('Free: local storage only, no cloud sync', () => {
-    const sync = simulateSyncBehavior('free');
-    expect(sync.syncsToCloud).toBe(false);
-    expect(sync.localOnly).toBe(true);
-  });
-
-  it('records the memory text for a role that syncs', () => {
-    const sync = simulateSyncBehavior('pro');
-    expect(sync.syncsToCloud).toBe(true);
-    expect(sync.localOnly).toBe(false);
-  });
-
-  it('usageCount is counted per conversation for every role', () => {
-    const ids = new Set<string>();
-    // First use.
-    const r1 = simulateMarkMemoryUsed('conv-1', ids);
-    expect(r1.newCount).toBe(true);
-    // A repeat in the same conversation does not count again.
-    const r2 = simulateMarkMemoryUsed('conv-1', r1.updatedIds);
-    expect(r2.newCount).toBe(false);
-    // A new conversation counts.
-    const r3 = simulateMarkMemoryUsed('conv-2', r2.updatedIds);
-    expect(r3.newCount).toBe(true);
-  });
-
-  it('useMemory=false skips injection for every role', () => {
-    for (const role of ['guest', 'free', 'pro'] as UserRole[]) {
-      const chatHistory: ChatHistoryMsg[] = [{ role: 'user', content: 'Hello' }];
-      const result = applyMemoryInjection(chatHistory, { memoryText: 'Some memory' }, false);
-      expect(result.injected).toBe(false);
-    }
-  });
-});
-
 // ==========================================================
-// Phase 5+: MEM-P-04 - anti-forget request body size in long conversations
+// Anti-forget request body size in long conversations
 // ==========================================================
 
-describe('MEM-P-04: anti-forget request body size - 50 turns add <= 10KB', () => {
+describe('anti-forget request body size - 50 turns add <= 10KB', () => {
   it('50 turns plus a 200 character Context grow the request body by < 10KB', () => {
     const antiForgetText = 'A'.repeat(200); // 200 characters
     const msgs = makeUserMessages(50);
@@ -765,23 +677,21 @@ describe('MEM-P-04: anti-forget request body size - 50 turns add <= 10KB', () =>
   });
 });
 
-// ==========================================================
-// The cases below are manual only; the skip reason is noted on each.
-// ==========================================================
-
-describe('Phase 5 - manual-only cases (skip reason noted)', () => {
-  it.skip('MEM-5-10: VoiceOver / TalkBack / screen readers - needs a real device and assistive technology', () => {});
-  it.skip('MEM-5-11: Web keyboard accessibility - needs a browser to verify Tab/Enter/Esc', () => {});
-  it.skip('MEM-5-12: large text / system font scaling - needs device settings changed', () => {});
-  it.skip('MEM-5-13: small screen layout - needs a narrow device or browser emulation', () => {});
-  it.skip('MEM-5-14: 2000 character performance - needs response time measured in a real environment', () => {});
+// Recorded rather than silently missing: each of these needs a real device or a browser, so no
+// automated assertion here could stand in for it.
+describe('manual-only cases', () => {
+  it.skip('screen readers (VoiceOver / TalkBack) - needs a device with assistive technology', () => {});
+  it.skip('keyboard accessibility - needs a browser to verify Tab / Enter / Esc', () => {});
+  it.skip('large text and system font scaling - needs device settings changed', () => {});
+  it.skip('small screen layout - needs a narrow device or browser emulation', () => {});
+  it.skip('2000-character input latency - needs response time measured on real hardware', () => {});
 });
 
 // ==========================================================
-// Phase 5+: MEM-P-07 - first message injection latency (system prompt build)
+// First-message injection latency (system prompt build)
 // ==========================================================
 
-describe('MEM-P-07: system prompt build time - Memory injection adds no more than 50ms to the first message', () => {
+describe('system prompt build time - Memory injection adds no more than 50ms to the first message', () => {
   // These three are skipped rather than asserting < 50ms / < 1ms with performance.now(), for two
   // reasons:
   //
@@ -798,15 +708,15 @@ describe('MEM-P-07: system prompt build time - Memory injection adds no more tha
   // The property worth guarding, that injection does not slow down as history grows, is
   // structural: the memory text appears once no matter how long the history is, rather than
   // being copied per message. That assertion belongs on buildPromptInjectionContext.
-  it.skip('MEM-P-07a: injection cost for a 2000 character Memory across 50 turns - needs a structural assertion on the production buildPromptInjectionContext', () => {});
-  it.skip('MEM-P-07b: injection cost for a 2000 character Memory without anti-forget - as above', () => {});
-  it.skip('MEM-P-07c: injection cost when Memory is empty and injection is skipped - as above', () => {});
+  it.skip('injection cost for a 2000-character memory across 50 turns - needs a structural assertion on the production buildPromptInjectionContext', () => {});
+  it.skip('injection cost for a 2000-character memory without anti-forget - as above', () => {});
+  it.skip('injection cost when memory is empty and injection is skipped - as above', () => {});
 });
 
-describe('Phase 5+ - manual-only performance cases (skip reason noted)', () => {
-  it.skip('MEM-P-01: cold start hydration latency - needs real startup time measured', () => {});
-  it.skip('MEM-P-02: per-keystroke editor latency - needs frame rate measured at 1900 characters', () => {});
-  it.skip('MEM-P-03: large payload write latency - needs a real network', () => {});
-  it.skip('MEM-P-05: Memory editor on low-end devices - needs an iPhone SE 2 / entry-level Android', () => {});
-  it.skip('MEM-P-06: Memory editing across browser tabs - needs multi-tab memory monitoring', () => {});
+describe('manual-only performance cases', () => {
+  it.skip('cold start hydration latency - needs real startup time measured', () => {});
+  it.skip('per-keystroke editor latency - needs frame rate measured at 1900 characters', () => {});
+  it.skip('large payload write latency - needs a real network', () => {});
+  it.skip('memory editor on low-end devices - needs entry-level hardware', () => {});
+  it.skip('memory editing across browser tabs - needs multi-tab memory monitoring', () => {});
 });

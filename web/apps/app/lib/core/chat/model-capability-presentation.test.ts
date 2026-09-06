@@ -148,7 +148,7 @@ describe('model capability presentation', () => {
     expect(model.capabilities).not.toContain('toolCall');
   });
 
-  it('keeps non-H2 badges but fails H2 dimensions closed without a Provider', () => {
+  it('keeps catalog-declared badges but fails evidence-backed dimensions closed without a Provider', () => {
     const model = makeModel();
     expect(visibleModelCapabilityBadges(undefined, model)).toEqual([
       'text',

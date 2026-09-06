@@ -6,7 +6,7 @@ import 'fake-indexeddb/auto';
  *
  * Failure shape: step 1 of `bootstrapApp`, `migrateToPartitionedStorage()`, read localStorage directly,
  * the getter threw SecurityError, the outer try jumped straight to catch, and steps 2 to 6 (auth,
- * metadata, provider recomputation, entitlement, cloud sync) **never ran at all**, leaving an empty shell.
+ * metadata refresh, provider recomputation) **never ran at all**, leaving an empty shell.
  *
  * Two independent assertions are locked here:
  *   1. The migration function does not throw when storage is denied (it is the first link of the startup chain, so throwing breaks everything)
