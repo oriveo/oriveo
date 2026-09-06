@@ -232,9 +232,9 @@ final class AppState {
         set { pendingWorkItems.navigationPathCommit = newValue }
     }
     private let conversationPersistQueue = DispatchQueue(label: "com.oriveo.conversation-persist", qos: .utility)
-    private static let conversationPersistFailureThrottle = AppLog.FailureThrottle()
+    nonisolated(unsafe) private static let conversationPersistFailureThrottle = AppLog.FailureThrottle()
 
-    private static func reportConversationPersistFailure(_ error: Error, op: String) {
+    nonisolated private static func reportConversationPersistFailure(_ error: Error, op: String) {
         let result = conversationPersistFailureThrottle.shouldReport(key: op)
         guard result.shouldReport else { return }
         var context = ["persist.op": op]
@@ -242,6 +242,19 @@ final class AppState {
             context["persist.suppressed_since_last_report"] = String(result.suppressedSinceLastReport)
         }
         AppLog.error(error, module: "persistence", context: context)
+    }
+
+    /// Run a conversation persist write with SQLITE_BUSY/LOCKED/INTERRUPT retried in place.
+    /// Call only on `conversationPersistQueue` so retry sleeps stay off the main thread.
+    nonisolated private static func runConversationPersistWrite(op: String, _ write: () throws -> Void) {
+        do {
+            try SQLitePersistRetry.run(write)
+        } catch {
+            #if DEBUG
+            AppLog.error(error, module: "AppState", context: ["op": op])
+            #endif
+            reportConversationPersistFailure(error, op: op)
+        }
     }
     @ObservationIgnored private var providerLookup: [UUID: Provider] = [:]
     @ObservationIgnored private var conversationLookup: [UUID: Conversation] = [:]
@@ -532,7 +545,8 @@ final class AppState {
     func upsertConversationProjection(_ conversation: Conversation, expectedUID: String? = nil) {
         guard partitionIsStillBound(expectedUID) else { return }
 
-        //  DB (auto-title,previewText), DB 
+        // Keep the in-memory array in sync with the metadata the DB write derives
+        // (auto-title, previewText) so list UI and persistence stay aligned.
         var derived = conversation
         ConversationListMetadata.apply(to: &derived)
         #if DEBUG
@@ -546,14 +560,9 @@ final class AppState {
 
         let persistedUID = boundPartitionUID
         let bridge = conversationRuntimeBridge
-        conversationPersistQueue.async {
-            do {
+        conversationPersistQueue.async(qos: .userInitiated) {
+            Self.runConversationPersistWrite(op: "upsert_conversation_projection") {
                 try bridge.upsertConversationWithoutReadback(conversation, uid: persistedUID)
-            } catch {
-                #if DEBUG
-                AppLog.error(error, module: "AppState", context: ["op": "upsertConversation"])
-                #endif
-                Self.reportConversationPersistFailure(error, op: "upsert_conversation_projection")
             }
         }
     }
@@ -577,14 +586,9 @@ final class AppState {
 
         let persistedUID = boundPartitionUID
         let bridge = conversationRuntimeBridge
-        conversationPersistQueue.async {
-            do {
+        conversationPersistQueue.async(qos: .userInitiated) {
+            Self.runConversationPersistWrite(op: "upsert_conversation_projections") {
                 _ = try bridge.upsertConversations(updatedConversations, uid: persistedUID)
-            } catch {
-                #if DEBUG
-                AppLog.error(error, module: "AppState", context: ["op": "upsertConversations"])
-                #endif
-                Self.reportConversationPersistFailure(error, op: "upsert_conversation_projections")
             }
         }
     }
@@ -604,14 +608,9 @@ final class AppState {
 
         let persistedUID = boundPartitionUID
         let bridge = conversationRuntimeBridge
-        conversationPersistQueue.async {
-            do {
+        conversationPersistQueue.async(qos: .userInitiated) {
+            Self.runConversationPersistWrite(op: "update_conversation_model_projections") {
                 _ = try bridge.updateConversationModels(updates, uid: persistedUID)
-            } catch {
-                #if DEBUG
-                AppLog.error(error, module: "AppState", context: ["op": "updateConversationModels"])
-                #endif
-                Self.reportConversationPersistFailure(error, op: "update_conversation_model_projections")
             }
         }
     }
@@ -643,14 +642,9 @@ final class AppState {
 
         let persistedUID = boundPartitionUID
         let bridge = conversationRuntimeBridge
-        conversationPersistQueue.async {
-            do {
+        conversationPersistQueue.async(qos: .userInitiated) {
+            Self.runConversationPersistWrite(op: "replace_conversation_projection") {
                 _ = try bridge.replaceAllConversations(replacement, uid: persistedUID)
-            } catch {
-                #if DEBUG
-                AppLog.error(error, module: "AppState", context: ["op": "replaceAllConversations"])
-                #endif
-                Self.reportConversationPersistFailure(error, op: "replace_conversation_projection")
             }
         }
     }
@@ -703,14 +697,9 @@ final class AppState {
         let conversationsSnapshot = conversations
         let persistedUID = boundPartitionUID
         let bridge = conversationRuntimeBridge
-        conversationPersistQueue.async {
-            do {
+        conversationPersistQueue.async(qos: .userInitiated) {
+            Self.runConversationPersistWrite(op: "persist_recovery_snapshot_after_destructive_change") {
                 try bridge.persistRecoveryProjectionOnly(conversationsSnapshot, for: persistedUID)
-            } catch {
-                #if DEBUG
-                AppLog.error(error, module: "AppState", context: ["op": "postDestructiveRecoveryPersist"])
-                #endif
-                Self.reportConversationPersistFailure(error, op: "persist_recovery_snapshot_after_destructive_change")
             }
         }
     }
@@ -1499,12 +1488,8 @@ final class AppState {
         let uid = persistedUID ?? boundPartitionUID
         let bridge = conversationRuntimeBridge
         return {
-            do {
+            Self.runConversationPersistWrite(op: "persist_recovery_projection_immediate") {
                 try bridge.persistRecoveryProjectionOnly(conversationsSnapshot, for: uid)
-            } catch {
-                #if DEBUG
-                AppLog.error(error, module: "AppState", context: ["op": "recoveryImmediatePersist"])
-                #endif
             }
             AppSessionStore.save(snapshot, for: uid)
         }
@@ -1532,24 +1517,14 @@ final class AppState {
             holder.endOnMain()
         }
 
-        conversationPersistQueue.async {
-            do {
+        conversationPersistQueue.async(qos: .userInitiated) {
+            Self.runConversationPersistWrite(op: "persist_lifecycle_recovery") {
                 try bridge.persistRecoveryProjectionOnly(conversationsSnapshot, for: persistedUID)
-            } catch {
-                #if DEBUG
-                AppLog.error(error, module: "AppState", context: ["op": "lifecycleRecoveryPersist"])
-                #endif
-                Self.reportConversationPersistFailure(error, op: "persist_lifecycle_recovery")
             }
             AppSessionStore.save(snapshot, for: persistedUID)
             if checkpoint {
-                do {
+                Self.runConversationPersistWrite(op: "persist_lifecycle_checkpoint") {
                     try bridge.checkpoint()
-                } catch {
-                    #if DEBUG
-                    AppLog.error(error, module: "AppState", context: ["op": "lifecycleCheckpoint"])
-                    #endif
-                    Self.reportConversationPersistFailure(error, op: "persist_lifecycle_checkpoint")
                 }
             }
             holder.endOnMain()

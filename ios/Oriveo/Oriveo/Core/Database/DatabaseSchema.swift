@@ -6,6 +6,12 @@ enum DatabaseSchema {
 
     nonisolated static func makeConfiguration() -> Configuration {
         var configuration = Configuration()
+        // GRDB defaults to `.immediate`, so BEGIN IMMEDIATE fails at the first SQLITE_BUSY.
+        // A short lock is normal in WAL: another connection, or iOS snapshotting the
+        // sqlite/WAL files while the app is inactive. Five seconds matches the other
+        // GRDB stores. If the wait still ends in BUSY/LOCKED/INTERRUPT, SQLitePersistRetry
+        // retries the conversation persist so a just-finished reply is not dropped.
+        configuration.busyMode = .timeout(5)
         configuration.prepareDatabase { db in
             try db.execute(sql: "PRAGMA foreign_keys = ON")
             try db.execute(sql: "PRAGMA journal_mode = WAL")
@@ -354,5 +360,48 @@ enum DatabaseSchema {
                 tokenize='trigram'
             )
             """)
+    }
+}
+
+/// Application-level retry for SQLITE_BUSY / LOCKED / INTERRUPT on conversation persist.
+///
+/// `busyMode = .timeout(5)` only covers the current BEGIN IMMEDIATE wait.
+/// After that timeout, or after the connection is interrupted, a failed write
+/// would drop the update: memory already has the new message, GRDB does not,
+/// and killing the process loses the reply. Retry in place on the serial
+/// persist queue so an older snapshot cannot overtake a newer write already queued.
+enum SQLitePersistRetry {
+    static let maxAttempts = 3
+
+    static func isRetryable(_ error: Error) -> Bool {
+        guard let dbError = error as? DatabaseError else { return false }
+        switch dbError.resultCode {
+        case .SQLITE_BUSY, .SQLITE_LOCKED, .SQLITE_INTERRUPT, .SQLITE_ABORT:
+            return true
+        default:
+            return false
+        }
+    }
+
+    static func delay(beforeAttempt attempt: Int) -> TimeInterval {
+        attempt <= 2 ? 0.05 : 0.15
+    }
+
+    static func run(
+        sleep: (TimeInterval) -> Void = { Thread.sleep(forTimeInterval: $0) },
+        _ write: () throws -> Void
+    ) throws {
+        var lastError: Error?
+        for attempt in 1...maxAttempts {
+            do {
+                try write()
+                return
+            } catch {
+                lastError = error
+                guard attempt < maxAttempts, isRetryable(error) else { throw error }
+                sleep(delay(beforeAttempt: attempt + 1))
+            }
+        }
+        throw lastError!
     }
 }

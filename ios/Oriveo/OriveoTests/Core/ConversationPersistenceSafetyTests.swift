@@ -743,6 +743,99 @@ struct ConversationPersistenceSafetyTests {
         #expect(restored.displayMessageCount == 1)
     }
 
+    @Test("makeConfiguration waits on SQLITE_BUSY instead of failing immediately")
+    func busyTimeoutAllowsContendedWrite() throws {
+        let configuration = DatabaseSchema.makeConfiguration()
+        guard case .timeout(let seconds) = configuration.busyMode else {
+            Issue.record("expected busyMode.timeout, got \(String(describing: configuration.busyMode))")
+            return
+        }
+        #expect(seconds == 5)
+
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent("oriveo-busy-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let path = directory.appendingPathComponent("busy.sqlite").path
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let holder = try DatabasePool(path: path, configuration: configuration)
+        let contender = try DatabasePool(path: path, configuration: configuration)
+        try holder.write { db in
+            try db.execute(sql: "CREATE TABLE t(id INTEGER PRIMARY KEY)")
+        }
+
+        let started = DispatchSemaphore(value: 0)
+        let release = DispatchSemaphore(value: 0)
+        let holderFinished = DispatchSemaphore(value: 0)
+        defer {
+            release.signal()
+            _ = holderFinished.wait(timeout: .now() + 2)
+            try? holder.close()
+            try? contender.close()
+        }
+        DispatchQueue.global(qos: .userInitiated).async {
+            defer { holderFinished.signal() }
+            do {
+                try holder.write { db in
+                    try db.execute(sql: "INSERT INTO t(id) VALUES (1)")
+                    started.signal()
+                    release.wait()
+                }
+            } catch {
+                started.signal()
+            }
+        }
+        #expect(started.wait(timeout: .now() + 2) == .success)
+
+        DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + 0.2) {
+            release.signal()
+        }
+        try contender.write { db in
+            try db.execute(sql: "INSERT INTO t(id) VALUES (2)")
+        }
+
+        let ids = try contender.read { db in
+            try Int.fetchAll(db, sql: "SELECT id FROM t ORDER BY id")
+        }
+        #expect(ids == [1, 2])
+    }
+
+    @Test("SQLitePersistRetry succeeds after SQLITE_BUSY")
+    func sqlitePersistRetrySucceedsAfterBusy() throws {
+        let busy = DatabaseError(resultCode: .SQLITE_BUSY, message: "database is locked")
+        var attempts = 0
+        var slept: [TimeInterval] = []
+        try SQLitePersistRetry.run(sleep: { slept.append($0) }) {
+            attempts += 1
+            if attempts < 3 { throw busy }
+        }
+        #expect(attempts == 3)
+        #expect(slept == [
+            SQLitePersistRetry.delay(beforeAttempt: 2),
+            SQLitePersistRetry.delay(beforeAttempt: 3)
+        ])
+    }
+
+    @Test("SQLitePersistRetry fails immediately on a non-retryable error")
+    func sqlitePersistRetryDoesNotRetryConstraint() throws {
+        let constraint = DatabaseError(resultCode: .SQLITE_CONSTRAINT, message: "UNIQUE")
+        var attempts = 0
+        do {
+            try SQLitePersistRetry.run(sleep: { _ in Issue.record("should not sleep") }) {
+                attempts += 1
+                throw constraint
+            }
+            Issue.record("expected throw")
+        } catch let error as DatabaseError {
+            #expect(error.resultCode == .SQLITE_CONSTRAINT)
+        }
+        #expect(attempts == 1)
+        #expect(SQLitePersistRetry.isRetryable(DatabaseError(resultCode: .SQLITE_BUSY)))
+        #expect(SQLitePersistRetry.isRetryable(DatabaseError(resultCode: .SQLITE_LOCKED)))
+        #expect(SQLitePersistRetry.isRetryable(DatabaseError(resultCode: .SQLITE_INTERRUPT)))
+        #expect(!SQLitePersistRetry.isRetryable(constraint))
+    }
+
     private func makeStore(uid: String) throws -> ConversationStore {
         let dbPool = try DatabasePool(
             path: AppSessionStore.databasePath(for: uid).path,
