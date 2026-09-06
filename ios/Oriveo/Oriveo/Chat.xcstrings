@@ -1,101 +1,6 @@
 {
   "sourceLanguage": "en",
   "strings": {
-    "“Search every message” needs an official recipe for this connection; this model can only decide on its own.": {
-      "extractionState": "manual",
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "يتطلب خيار «في كل مرة» وصفة رسمية لهذا الاتصال؛ هذا النموذج يقرر بنفسه فقط."
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "„Jedes Mal“ erfordert ein offizielles Rezept für diese Verbindung; dieses Modell entscheidet nur selbst."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "«Cada vez» requiere una receta oficial para esta conexión; este modelo solo puede decidir por su cuenta."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "« À chaque fois » nécessite une recette officielle pour cette connexion ; ce modèle ne peut que décider seul."
-          }
-        },
-        "hi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "«हर बार» के लिए इस कनेक्शन की आधिकारिक रेसिपी चाहिए; यह मॉडल केवल स्वयं तय कर सकता है।"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "«Setiap kali» memerlukan resep resmi untuk koneksi ini; model ini hanya bisa memutuskan sendiri."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "「毎回」にはこの接続の公式レシピが必要です。このモデルはモデル自身の判断でのみ動作します。"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "\"매번\"에는 이 연결의 공식 레시피가 필요합니다. 이 모델은 스스로 판단만 할 수 있습니다."
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "«Sempre» exige uma receita oficial para esta conexão; este modelo só pode decidir sozinho."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Режим «Каждый раз» требует официального рецепта для этого подключения; эта модель может решать только сама."
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ตัวเลือก «ทุกครั้ง» ต้องมีสูตรอย่างเป็นทางการสำหรับการเชื่อมต่อนี้ โมเดลนี้ตัดสินใจเองได้เท่านั้น"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "«Her seferinde» için bu bağlantıya ait resmi bir tarif gerekir; bu model yalnızca kendi karar verebilir."
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "«Mỗi lần» cần công thức chính thức cho kết nối này; mô hình này chỉ có thể tự quyết định."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "「每条消息都搜索」需要这条连接的官方配方；这个模型只能自行决定。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "「每則訊息都搜尋」需要這條連線的官方配方；這個模型只能自行決定。"
-          }
-        }
-      }
-    },
     "(Attachment)": {
       "extractionState": "manual",
       "localizations": {
@@ -298,101 +203,6 @@
         }
       }
     },
-    "%d active": {
-      "extractionState": "manual",
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%d نشط"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%d aktiv"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%d activos"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%d actifs"
-          }
-        },
-        "hi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%d सक्रिय"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%d aktif"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%d 件有効"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%d개 활성"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%d ativos"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Активно: %d"
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ใช้งาน %d รายการ"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%d etkin"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%d đang bật"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%d 项启用"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "%d 項啟用"
-          }
-        }
-      }
-    },
     "%d adjusted": {
       "extractionState": "manual",
       "localizations": {
@@ -484,101 +294,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "已調整 %d 項"
-          }
-        }
-      }
-    },
-    "Add My API Key": {
-      "extractionState": "stale",
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "أضف مفتاح API الخاص بي"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Meinen API-Schlüssel hinzufügen"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Añadir mi clave API"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ajouter ma clé API"
-          }
-        },
-        "hi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "मेरी API कुंजी जोड़ें"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tambahkan Kunci API Saya"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "自分の API キーを追加"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "내 API 키 추가"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Adicionar minha chave de API"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Добавить мой API-ключ"
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "เพิ่ม API Key ของฉัน"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "API Anahtarımı Ekle"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Thêm API Key của tôi"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "添加我的 API 密钥"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "新增我的 API 金鑰"
           }
         }
       }
@@ -684,101 +399,6 @@
         }
       }
     },
-    "AI can make mistakes. Please verify important info.": {
-      "extractionState": "stale",
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "يمكن للذكاء الاصطناعي أن يرتكب الأخطاء. يرجى التحقق من المعلومات الهامة."
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "KI kann Fehler machen. Bitte überprüfe wichtige Informationen."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "La IA puede cometer errores. Por favor verifique información importante."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "L'IA peut faire des erreurs. Veuillez vérifier les informations importantes."
-          }
-        },
-        "hi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "एआई गलतियाँ कर सकता है। कृपया महत्वपूर्ण जानकारी सत्यापित करें."
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "AI bisa membuat kesalahan. Harap verifikasi informasi penting."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "AI は間違いを犯す可能性があります。重要な情報をご確認ください。"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "AI는 실수를 할 수 있습니다. 중요정보를 확인해 주세요."
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "A IA pode cometer erros. Verifique informações importantes."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ИИ может совершать ошибки. Пожалуйста, проверьте важную информацию."
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "AI สามารถทำผิดพลาดได้ กรุณาตรวจสอบข้อมูลสำคัญ"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Yapay zeka hata yapabilir. Lütfen önemli bilgileri doğrulayın."
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "AI có thể phạm sai lầm. Vui lòng xác minh thông tin quan trọng."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "AI 可能会出错，请核实重要信息。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "AI 可能會出錯，請核實重要資訊。"
-          }
-        }
-      }
-    },
     "AI is answering...": {
       "extractionState": "stale",
       "localizations": {
@@ -870,196 +490,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "AI 正在回答..."
-          }
-        }
-      }
-    },
-    "Applies to the next conversation you start with this model.": {
-      "extractionState": "manual",
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ينطبق على المحادثة التالية التي تبدؤها بهذا النموذج."
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Gilt für die nächste Unterhaltung, die du mit diesem Modell startest."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Se aplica a la próxima conversación que inicies con este modelo."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "S'applique à la prochaine conversation que vous démarrerez avec ce modèle."
-          }
-        },
-        "hi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "इस मॉडल से शुरू की जाने वाली अगली बातचीत पर लागू होता है।"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Berlaku untuk percakapan berikutnya yang Anda mulai dengan model ini."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "このモデルで次に始める会話に適用されます。"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "이 모델로 새로 시작하는 대화에 적용됩니다."
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Aplica-se à próxima conversa que você iniciar com este modelo."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Применяется к следующему чату, начатому с этой моделью."
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ใช้กับการสนทนาถัดไปที่คุณเริ่มด้วยโมเดลนี้"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bu modelle başlatacağın sonraki sohbete uygulanır."
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Áp dụng cho cuộc trò chuyện tiếp theo bạn bắt đầu với mô hình này."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "作用于下次用这个模型开启的新对话。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "作用於下次用這個模型開啟的新對話。"
-          }
-        }
-      }
-    },
-    "Applies to this conversation while it uses this model.": {
-      "extractionState": "manual",
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ينطبق على هذه المحادثة طالما تستخدم هذا النموذج."
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Gilt für diese Unterhaltung, solange sie dieses Modell verwendet."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Se aplica a esta conversación mientras use este modelo."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "S'applique à cette conversation tant qu'elle utilise ce modèle."
-          }
-        },
-        "hi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "यह इस बातचीत पर लागू होता है, जब तक वह इस मॉडल का उपयोग करती है।"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Berlaku untuk percakapan ini selama menggunakan model ini."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "この会話がこのモデルを使っている間、適用されます。"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "이 대화가 이 모델을 사용하는 동안 적용됩니다."
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Aplica-se a esta conversa enquanto ela usar este modelo."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Применяется к этому чату, пока в нём используется эта модель."
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ใช้กับการสนทนานี้ตราบใดที่ยังใช้โมเดลนี้"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bu sohbet bu modeli kullandığı sürece geçerlidir."
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Áp dụng cho cuộc trò chuyện này khi dùng mô hình này."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "仅作用于本对话中的这个模型。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "僅作用於本對話中的這個模型。"
           }
         }
       }
@@ -1266,107 +696,6 @@
         }
       }
     },
-    "Attachments stay in the cloud and aren't restored.": {
-      "extractionState": "manual",
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "تبقى المرفقات في السحابة ولا تتم استعادتها."
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Anhänge bleiben in der Cloud und werden nicht wiederhergestellt."
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Attachments stay in the cloud and aren't restored."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Los archivos adjuntos permanecen en la nube y no se restauran."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Les pièces jointes restent dans le cloud et ne sont pas restaurées."
-          }
-        },
-        "hi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "अटैचमेंट क्लाउड में ही रहते हैं और पुनर्स्थापित नहीं किए जाते।"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Lampiran tetap di cloud dan tidak dipulihkan."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "添付ファイルはクラウドに残り、復元されません。"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "첨부 파일은 클라우드에 남아 있으며 복원되지 않습니다."
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Os anexos permanecem na nuvem e não são restaurados."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Вложения остаются в облаке и не восстанавливаются."
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ไฟล์แนบยังคงอยู่บนคลาวด์และจะไม่ถูกกู้คืน"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ekler bulutta kalır ve geri yüklenmez."
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tệp đính kèm vẫn ở trên đám mây và không được khôi phục."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "附件仍留在云端，不会一起取回。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "附件仍留在雲端，不會一併取回。"
-          }
-        }
-      }
-    },
     "Automatic configuration is not ready for this connection yet.": {
       "extractionState": "manual",
       "localizations": {
@@ -1565,107 +894,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "此模型或傳輸方式不支援此請求的自動設定。"
-          }
-        }
-      }
-    },
-    "Automatic configuration is unavailable until official support is confirmed.": {
-      "extractionState": "manual",
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "التكوين التلقائي بانتظار مراجعة توافق رسمية."
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Die automatische Konfiguration wartet auf eine offizielle Kompatibilitätsprüfung."
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Automatic configuration is unavailable until official support is confirmed."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "La configuración automática está pendiente de una revisión oficial de compatibilidad."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "La configuration automatique attend une vérification officielle de compatibilité."
-          }
-        },
-        "hi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "स्वचालित कॉन्फ़िगरेशन आधिकारिक संगतता समीक्षा की प्रतीक्षा में है।"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Konfigurasi otomatis menunggu tinjauan kompatibilitas resmi."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "自動設定は公式の互換性確認を待っています。"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "자동 구성은 공식 호환성 검토를 기다리고 있습니다."
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "A configuração automática aguarda uma análise oficial de compatibilidade."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Автоматическая настройка ожидает официальной проверки совместимости."
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "การกำหนดค่าอัตโนมัติกำลังรอการตรวจสอบความเข้ากันได้อย่างเป็นทางการ"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Otomatik yapılandırma resmî uyumluluk incelemesini bekliyor."
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Cấu hình tự động đang chờ đánh giá tương thích chính thức."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "自动配置正在等待官方兼容性审核。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "自動設定正在等待官方相容性審核。"
           }
         }
       }
@@ -1973,202 +1201,6 @@
         }
       }
     },
-    "ChatGPT can make mistakes. Please verify important info.": {
-      "extractionState": "stale",
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ChatGPT يمكن أن يرتكب أخطاء. يرجى التحقق من المعلومات الهامة."
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ChatGPT kann Fehler machen. Bitte überprüfe wichtige Informationen."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ChatGPT puede cometer errores. Por favor verifique información importante."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ChatGPT peut faire des erreurs. Veuillez vérifier les informations importantes."
-          }
-        },
-        "hi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ChatGPT गलतियाँ कर सकता है। कृपया महत्वपूर्ण जानकारी सत्यापित करें."
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ChatGPT bisa membuat kesalahan. Harap verifikasi informasi penting."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ChatGPT は間違いを犯す可能性があります。重要な情報をご確認ください。"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ChatGPT는 실수를 할 수 있습니다. 중요정보를 확인해 주세요."
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ChatGPT pode cometer erros. Verifique informações importantes."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ChatGPT может допускать ошибки. Пожалуйста, проверьте важную информацию."
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ChatGPT สามารถทำผิดพลาดได้ กรุณาตรวจสอบข้อมูลสำคัญ"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ChatGPT hata yapabilir. Lütfen önemli bilgileri doğrulayın."
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ChatGPT có thể mắc lỗi. Vui lòng xác minh thông tin quan trọng."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ChatGPT 可能会出错，请核实重要信息。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ChatGPT 可能會出錯。請核實重要資訊。"
-          }
-        }
-      }
-    },
-    "Choose a BYOK connection": {
-      "extractionState": "manual",
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "اختيار اتصال BYOK"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "BYOK-Verbindung auswählen"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Choose a BYOK connection"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Elegir conexión BYOK"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Choisir une connexion BYOK"
-          }
-        },
-        "hi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "BYOK कनेक्शन चुनें"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pilih koneksi BYOK"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "BYOK 接続を選択"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "BYOK 연결 선택"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Escolher conexão BYOK"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Выбрать подключение BYOK"
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "เลือกการเชื่อมต่อ BYOK"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "BYOK bağlantısı seç"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Chọn kết nối BYOK"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "选择 BYOK 连接"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "選擇 BYOK 連線"
-          }
-        }
-      }
-    },
     "Choose another model": {
       "extractionState": "manual",
       "localizations": {
@@ -2266,101 +1298,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "選擇其他模型"
-          }
-        }
-      }
-    },
-    "Claude can make mistakes. Please verify important info.": {
-      "extractionState": "stale",
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "كلود يمكن أن يرتكب الأخطاء. يرجى التحقق من المعلومات الهامة."
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Claude kann Fehler machen. Bitte überprüfe wichtige Informationen."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Claude puede cometer errores. Por favor verifique información importante."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Claude peut faire des erreurs. Veuillez vérifier les informations importantes."
-          }
-        },
-        "hi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Claude गलतियाँ कर सकता है। कृपया महत्वपूर्ण जानकारी सत्यापित करें."
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Claude bisa membuat kesalahan. Harap verifikasi informasi penting."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Claudeは間違える可能性があります。重要な情報をご確認ください。"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Claude는 실수를 할 수 있습니다. 중요한 정보를 확인해 주세요."
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Claude pode cometer erros. Verifique informações importantes."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Claude может допускать ошибки. Пожалуйста, проверьте важную информацию."
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Claude สามารถทำผิดพลาดได้ กรุณาตรวจสอบข้อมูลสำคัญ"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Claude hata yapabilir. Lütfen önemli bilgileri doğrulayın."
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Claude có thể mắc lỗi. Vui lòng xác minh thông tin quan trọng."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Claude 可能会出错，请核实重要信息。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Claude 可能會出錯，請核實重要資訊。"
           }
         }
       }
@@ -2959,107 +1896,6 @@
         }
       }
     },
-    "Custom fields never replace the managed request structure. Invalid or conflicting fields cannot be applied.": {
-      "extractionState": "manual",
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "هذا JSON غير صالح أو يتعارض مع حقل مُدار أو غير مسموح لهذا النقل."
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dieses JSON ist ungültig, steht im Konflikt mit einem verwalteten Feld oder ist für diesen Transport nicht zulässig."
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Custom fields never replace the managed request structure. Invalid or conflicting fields cannot be applied."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Este JSON no es válido, entra en conflicto con un campo gestionado o no está permitido para este transporte."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ce JSON est invalide, entre en conflit avec un champ géré ou n’est pas autorisé pour ce transport."
-          }
-        },
-        "hi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "यह JSON अमान्य है, प्रबंधित फ़ील्ड से टकराता है, या इस ट्रांसपोर्ट के लिए अनुमत नहीं है।"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "JSON ini tidak valid, bertentangan dengan kolom terkelola, atau tidak diizinkan untuk transport ini."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "この JSON は無効、管理項目と競合、またはこの転送方式では許可されていません。"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "이 JSON은 잘못되었거나 관리 필드와 충돌하거나 이 전송 방식에서 허용되지 않습니다."
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Este JSON é inválido, entra em conflito com um campo gerenciado ou não é permitido para este transporte."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Этот JSON недействителен, конфликтует с управляемым полем или не разрешён для этого транспорта."
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "JSON นี้ไม่ถูกต้อง ขัดแย้งกับฟิลด์ที่จัดการ หรือไม่อนุญาตสำหรับการรับส่งนี้"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bu JSON geçersiz, yönetilen bir alanla çakışıyor veya bu aktarım için izin verilmiyor."
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "JSON này không hợp lệ, xung đột với trường được quản lý hoặc không được phép cho phương thức truyền này."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "此 JSON 无效、与托管字段冲突，或不允许用于此传输方式。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "此 JSON 無效、與代管欄位衝突，或不允許用於此傳輸方式。"
-          }
-        }
-      }
-    },
     "Custom is selected but empty, so messages using this control will fail to send.": {
       "extractionState": "manual",
       "localizations": {
@@ -3650,107 +2486,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "刪除對話"
-          }
-        }
-      }
-    },
-    "Developer Request Fields": {
-      "extractionState": "manual",
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "حقول طلب المطور"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Entwickler-Anforderungsfelder"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Developer Request Fields"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Campos de solicitud para desarrolladores"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Champs de requête développeur"
-          }
-        },
-        "hi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "डेवलपर अनुरोध फ़ील्ड"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Kolom permintaan pengembang"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "開発者向けリクエスト項目"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "개발자 요청 필드"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Campos de solicitação do desenvolvedor"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Поля запроса разработчика"
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ฟิลด์คำขอสำหรับนักพัฒนา"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Geliştirici istek alanları"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Trường yêu cầu của nhà phát triển"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "开发者请求字段"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "開發者請求欄位"
           }
         }
       }
@@ -5448,101 +4183,6 @@
         }
       }
     },
-    "Gemini can make mistakes. Please verify important info.": {
-      "extractionState": "stale",
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "قد يرتكب Gemini أخطاء. يرجى التحقق من المعلومات المهمة."
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Gemini kann Fehler machen. Bitte überprüfe wichtige Informationen."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Gemini puede cometer errores. Por favor, verifica la información importante."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Gemini peut faire des erreurs. Veuillez vérifier les informations importantes."
-          }
-        },
-        "hi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Gemini गलतियाँ कर सकता है। कृपया महत्वपूर्ण जानकारी सत्यापित करें."
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Gemini bisa membuat kesalahan. Harap verifikasi informasi penting."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Geminiは間違える可能性があります。重要な情報をご確認ください。"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Gemini는 실수를 할 수 있습니다. 중요한 정보를 확인해 주세요."
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Gemini pode cometer erros. Verifique informações importantes."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Gemini может допускать ошибки. Пожалуйста, проверьте важную информацию."
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Gemini สามารถทำผิดพลาดได้ กรุณาตรวจสอบข้อมูลสำคัญ"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Gemini hata yapabilir. Lütfen önemli bilgileri doğrulayın."
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Gemini có thể mắc lỗi. Vui lòng xác minh thông tin quan trọng."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Gemini 可能会出错，请核实重要信息。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Gemini 可能會出錯，請核實重要資訊。"
-          }
-        }
-      }
-    },
     "Hide thinking": {
       "extractionState": "manual",
       "localizations": {
@@ -6139,101 +4779,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "保留自訂欄位"
-          }
-        }
-      }
-    },
-    "Let the model look things up online before answering.": {
-      "extractionState": "manual",
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "اسمح للنموذج بالبحث على الإنترنت قبل الإجابة."
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Lass das Modell vor der Antwort online nachschlagen."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Deja que el modelo consulte en línea antes de responder."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Laissez le modèle chercher en ligne avant de répondre."
-          }
-        },
-        "hi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "उत्तर देने से पहले मॉडल को ऑनलाइन जानकारी देखने दें।"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Biarkan model mencari informasi online sebelum menjawab."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "回答の前にモデルがオンラインで調べます。"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "답변 전에 모델이 온라인에서 정보를 찾습니다."
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Deixe o modelo pesquisar on-line antes de responder."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Позволяет модели искать в интернете перед ответом."
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ให้โมเดลค้นข้อมูลออนไลน์ก่อนตอบ"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Yanıt vermeden önce modelin çevrimiçi arama yapmasına izin ver."
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Cho mô hình tra cứu trực tuyến trước khi trả lời."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "让模型回答前先联网查资料。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "讓模型回答前先連網查資料。"
           }
         }
       }
@@ -7135,101 +5680,6 @@
         }
       }
     },
-    "No custom request fields are sent for managed models.": {
-      "extractionState": "manual",
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "لا تُرسل أي حقول طلب مخصصة للنماذج المُدارة."
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Für verwaltete Modelle werden keine eigenen Anfragefelder gesendet."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "No se envían campos de solicitud personalizados para modelos gestionados."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Aucun champ de requête personnalisé n'est envoyé pour les modèles gérés."
-          }
-        },
-        "hi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "प्रबंधित मॉडल के लिए कोई कस्टम अनुरोध फ़ील्ड नहीं भेजा जाता।"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tidak ada bidang permintaan kustom yang dikirim untuk model terkelola."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "マネージドモデルではカスタムリクエストフィールドを一切送信しません。"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "관리형 모델에는 사용자 지정 요청 필드를 보내지 않습니다."
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Nenhum campo de requisição personalizado é enviado para modelos gerenciados."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Для управляемых моделей пользовательские поля запроса не отправляются."
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ไม่มีการส่งฟิลด์คำขอที่กำหนดเองสำหรับโมเดลที่จัดการโดย Oriveo"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Yönetilen modeller için özel istek alanı gönderilmez."
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Không gửi trường yêu cầu tùy chỉnh nào cho mô hình được quản lý."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "托管模型不会发送任何自定义请求字段。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "託管模型不會傳送任何自訂請求欄位。"
-          }
-        }
-      }
-    },
     "Context": {
       "extractionState": "manual",
       "localizations": {
@@ -8032,101 +6482,6 @@
         }
       }
     },
-    "Off. Advanced users can send extra request fields.": {
-      "extractionState": "manual",
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "متوقف. يمكن للمستخدمين المتقدمين إرسال حقول طلب إضافية."
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Aus. Fortgeschrittene können zusätzliche Anfragefelder senden."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Desactivado. Los usuarios avanzados pueden enviar campos adicionales."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Désactivé. Les utilisateurs avancés peuvent envoyer des champs supplémentaires."
-          }
-        },
-        "hi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "बंद। उन्नत उपयोगकर्ता अतिरिक्त अनुरोध फ़ील्ड भेज सकते हैं।"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Nonaktif. Pengguna tingkat lanjut dapat mengirim bidang permintaan tambahan."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "オフ。上級ユーザーは追加のリクエストフィールドを送れます。"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "꺼짐. 고급 사용자는 추가 요청 필드를 보낼 수 있습니다."
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Desativado. Usuários avançados podem enviar campos extras."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Выключено. Опытные пользователи могут отправлять дополнительные поля."
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ปิดอยู่ ผู้ใช้ขั้นสูงส่งฟิลด์คำขอเพิ่มเติมได้"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Kapalı. İleri düzey kullanıcılar ek istek alanları gönderebilir."
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Đang tắt. Người dùng nâng cao có thể gửi thêm trường yêu cầu."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "已关闭。高级用户可发送额外请求字段。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "已關閉。進階使用者可傳送額外請求欄位。"
-          }
-        }
-      }
-    },
     "Official configuration": {
       "extractionState": "manual",
       "localizations": {
@@ -8325,101 +6680,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "開啟供應商官方文件"
-          }
-        }
-      }
-    },
-    "Oriveo owns the whole request for this model.": {
-      "extractionState": "manual",
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "تتولى Oriveo الطلب بالكامل لهذا النموذج."
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bei diesem Modell verantwortet Oriveo die gesamte Anfrage."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Oriveo gestiona toda la solicitud de este modelo."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Oriveo gère l'intégralité de la requête pour ce modèle."
-          }
-        },
-        "hi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "इस मॉडल का पूरा अनुरोध Oriveo संभालता है।"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Oriveo mengelola seluruh permintaan untuk model ini."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "このモデルのリクエストは Oriveo がすべて管理します。"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "이 모델의 요청은 Oriveo가 전부 관리합니다."
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "A Oriveo controla toda a requisição deste modelo."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Для этой модели весь запрос формирует Oriveo."
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Oriveo เป็นผู้จัดการคำขอทั้งหมดของโมเดลนี้"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bu model için isteğin tamamını Oriveo yönetir."
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Oriveo quản lý toàn bộ yêu cầu cho mô hình này."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "这个模型的请求完全由 Oriveo 负责。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "這個模型的請求完全由 Oriveo 負責。"
           }
         }
       }
@@ -8824,101 +7084,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "隨機種子"
-          }
-        }
-      }
-    },
-    "Reason before answering. Slower, usually more careful.": {
-      "extractionState": "manual",
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "التفكير قبل الإجابة. أبطأ لكنه عادةً أدق."
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Vor dem Antworten nachdenken. Langsamer, meist sorgfältiger."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Razona antes de responder. Más lento, normalmente más cuidadoso."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Réfléchir avant de répondre. Plus lent, généralement plus rigoureux."
-          }
-        },
-        "hi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "उत्तर से पहले तर्क करें। धीमा, पर आमतौर पर अधिक सावधान।"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Berpikir dulu sebelum menjawab. Lebih lambat, biasanya lebih cermat."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "回答前に推論します。遅くなりますが、通常はより慎重です。"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "답변 전에 추론합니다. 더 느리지만 대체로 더 신중합니다."
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Raciocina antes de responder. Mais lento, geralmente mais cuidadoso."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Обдумывает ответ заранее. Медленнее, но обычно точнее."
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "คิดก่อนตอบ ช้ากว่าแต่มักรอบคอบกว่า"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Yanıtlamadan önce düşünür. Daha yavaş, genelde daha dikkatli."
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Suy luận trước khi trả lời. Chậm hơn nhưng thường cẩn thận hơn."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "回答前先推理，更慢但通常更严谨。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "回答前先推理，更慢但通常更嚴謹。"
           }
         }
       }
@@ -10331,107 +8496,6 @@
         }
       }
     },
-    "Resets at %1$@ in your local time.": {
-      "extractionState": "stale",
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "موعد إعادة التعيين المحلي التالي هو %1$@."
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Deine nächste lokale Zurücksetzung ist um %1$@."
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Your next local reset is %1$@."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tu próximo reinicio local será a las %1$@."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Votre prochaine réinitialisation locale aura lieu à %1$@."
-          }
-        },
-        "hi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "आपका अगला स्थानीय रीसेट %1$@ पर है।"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Reset lokal Anda berikutnya adalah %1$@."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "あなたの次回の現地時間リセットは %1$@ です。"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "다음 현지 시간 초기화는 %1$@입니다."
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sua próxima redefinição local será às %1$@."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Следующий локальный сброс будет в %1$@."
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "การรีเซ็ตครั้งถัดไปตามเวลาท้องถิ่นของคุณคือ %1$@"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bir sonraki yerel sıfırlama saatiniz %1$@."
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Lần đặt lại cục bộ tiếp theo của bạn là %1$@."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "你的本地下次重置时间为 %1$@。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "你的本地下次重設時間為 %1$@。"
-          }
-        }
-      }
-    },
     "Response format": {
       "extractionState": "manual",
       "localizations": {
@@ -10624,202 +8688,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "回應中斷"
-          }
-        }
-      }
-    },
-    "Restoring messages from the cloud…": {
-      "extractionState": "manual",
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "جارٍ استعادة الرسائل من السحابة…"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Nachrichten werden aus der Cloud wiederhergestellt …"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Restoring messages from the cloud…"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Restaurando mensajes desde la nube…"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Restauration des messages depuis le cloud…"
-          }
-        },
-        "hi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "क्लाउड से संदेश पुनर्स्थापित किए जा रहे हैं…"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Memulihkan pesan dari cloud…"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "クラウドからメッセージを復元しています…"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "클라우드에서 메시지를 복원하는 중…"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Restaurando mensagens da nuvem…"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Восстановление сообщений из облака…"
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "กำลังกู้คืนข้อความจากคลาวด์…"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Mesajlar buluttan geri yükleniyor…"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Đang khôi phục tin nhắn từ đám mây…"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "正在从云端取回消息…"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "正在從雲端取回訊息…"
-          }
-        }
-      }
-    },
-    "Restricted JSON for fields this connection declares.": {
-      "extractionState": "manual",
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "JSON مقيّد بالحقول التي يعلن عنها هذا الاتصال."
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Eingeschränktes JSON für Felder, die diese Verbindung deklariert."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "JSON restringido a los campos que declara esta conexión."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "JSON restreint aux champs déclarés par cette connexion."
-          }
-        },
-        "hi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "इस कनेक्शन द्वारा घोषित फ़ील्ड के लिए सीमित JSON।"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "JSON terbatas untuk bidang yang dideklarasikan koneksi ini."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "この接続が宣言したフィールドに限定した JSON。"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "이 연결이 선언한 필드로 제한된 JSON."
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "JSON restrito aos campos declarados por esta conexão."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ограниченный JSON для полей, объявленных этим подключением."
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "JSON แบบจำกัดสำหรับฟิลด์ที่การเชื่อมต่อนี้ประกาศ"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bu bağlantının tanımladığı alanlar için kısıtlı JSON."
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "JSON giới hạn theo các trường kết nối này khai báo."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "受限 JSON，只认这条连接声明的字段。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "受限 JSON，只認這條連線宣告的欄位。"
           }
         }
       }
@@ -11228,107 +9096,6 @@
         }
       }
     },
-    "Selected": {
-      "extractionState": "manual",
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Selected"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Selected"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Selected"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Selected"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Selected"
-          }
-        },
-        "hi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Selected"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Selected"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Selected"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Selected"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Selected"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Selected"
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Selected"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Selected"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Selected"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "已选择"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "已选择"
-          }
-        }
-      }
-    },
     "Selected content": {
       "extractionState": "manual",
       "localizations": {
@@ -11631,14 +9398,14 @@
       "localizations": {
         "ar": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Show less"
+            "state": "translated",
+            "value": "إظهار أقل"
           }
         },
         "de": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Show less"
+            "state": "translated",
+            "value": "Weniger anzeigen"
           }
         },
         "en": {
@@ -11649,68 +9416,68 @@
         },
         "es": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Show less"
+            "state": "translated",
+            "value": "Mostrar menos"
           }
         },
         "fr": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Show less"
+            "state": "translated",
+            "value": "Afficher moins"
           }
         },
         "hi": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Show less"
+            "state": "translated",
+            "value": "कम दिखाएँ"
           }
         },
         "id": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Show less"
+            "state": "translated",
+            "value": "Tampilkan lebih sedikit"
           }
         },
         "ja": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Show less"
+            "state": "translated",
+            "value": "折りたたむ"
           }
         },
         "ko": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Show less"
+            "state": "translated",
+            "value": "간략히 보기"
           }
         },
         "pt-BR": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Show less"
+            "state": "translated",
+            "value": "Mostrar menos"
           }
         },
         "ru": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Show less"
+            "state": "translated",
+            "value": "Свернуть"
           }
         },
         "th": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Show less"
+            "state": "translated",
+            "value": "แสดงน้อยลง"
           }
         },
         "tr": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Show less"
+            "state": "translated",
+            "value": "Daha az göster"
           }
         },
         "vi": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Show less"
+            "state": "translated",
+            "value": "Thu gọn"
           }
         },
         "zh-Hans": {
@@ -11828,120 +9595,19 @@
         }
       }
     },
-    "Shows models in this connection that support this capability automatically.": {
-      "extractionState": "manual",
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "يعرض النماذج في هذا الاتصال التي تدعم هذه الإمكانية تلقائيًا."
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Zeigt Modelle in dieser Verbindung, die diese Fähigkeit automatisch unterstützen."
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Shows models in this connection that support this capability automatically."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Muestra los modelos de esta conexión que admiten esta función automáticamente."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Affiche les modèles de cette connexion qui prennent en charge automatiquement cette fonctionnalité."
-          }
-        },
-        "hi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "इस कनेक्शन के उन मॉडल दिखाता है जो इस क्षमता का स्वचालित रूप से समर्थन करते हैं।"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Menampilkan model di koneksi ini yang mendukung kemampuan ini secara otomatis."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "この接続内でこの機能を自動的にサポートするモデルを表示します。"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "이 연결에서 이 기능을 자동으로 지원하는 모델을 표시합니다."
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Mostra os modelos desta conexão que são compatíveis automaticamente com este recurso."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Показывает модели в этом подключении, которые автоматически поддерживают эту функцию."
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "แสดงโมเดลในการเชื่อมต่อนี้ที่รองรับความสามารถนี้โดยอัตโนมัติ"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bu bağlantıda bu özelliği otomatik olarak destekleyen modelleri gösterir."
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Hiển thị các mô hình trong kết nối này tự động hỗ trợ tính năng này."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "显示此连接下自动支持此能力的模型。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "顯示此連線下自動支援此能力的模型。"
-          }
-        }
-      }
-    },
     "Sources": {
       "extractionState": "manual",
       "localizations": {
         "ar": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Sources"
+            "state": "translated",
+            "value": "المصادر"
           }
         },
         "de": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Sources"
+            "state": "translated",
+            "value": "Quellen"
           }
         },
         "en": {
@@ -11952,68 +9618,68 @@
         },
         "es": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Sources"
+            "state": "translated",
+            "value": "Fuentes"
           }
         },
         "fr": {
           "stringUnit": {
-            "state": "needs_review",
+            "state": "translated",
             "value": "Sources"
           }
         },
         "hi": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Sources"
+            "state": "translated",
+            "value": "स्रोत"
           }
         },
         "id": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Sources"
+            "state": "translated",
+            "value": "Sumber"
           }
         },
         "ja": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Sources"
+            "state": "translated",
+            "value": "出典"
           }
         },
         "ko": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Sources"
+            "state": "translated",
+            "value": "출처"
           }
         },
         "pt-BR": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Sources"
+            "state": "translated",
+            "value": "Fontes"
           }
         },
         "ru": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Sources"
+            "state": "translated",
+            "value": "Источники"
           }
         },
         "th": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Sources"
+            "state": "translated",
+            "value": "แหล่งที่มา"
           }
         },
         "tr": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Sources"
+            "state": "translated",
+            "value": "Kaynaklar"
           }
         },
         "vi": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "Sources"
+            "state": "translated",
+            "value": "Nguồn"
           }
         },
         "zh-Hans": {
@@ -12222,107 +9888,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "停止"
-          }
-        }
-      }
-    },
-    "Stop restoring": {
-      "extractionState": "manual",
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "إيقاف الاستعادة"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Wiederherstellen beenden"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Stop restoring"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Detener la restauración"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Arrêter la restauration"
-          }
-        },
-        "hi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "पुनर्स्थापना रोकें"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Hentikan pemulihan"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "復元を停止"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "복원 중지"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Parar a restauração"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Остановить восстановление"
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "หยุดการกู้คืน"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Geri yüklemeyi durdur"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dừng khôi phục"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "停止恢复"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "停止復原"
           }
         }
       }
@@ -12721,101 +10286,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "溫度"
-          }
-        }
-      }
-    },
-    "Temperature, output limit and other request parameters.": {
-      "extractionState": "manual",
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "درجة العشوائية وحد الإخراج ومعاملات الطلب الأخرى."
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Temperatur, Ausgabelimit und weitere Anfrageparameter."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Temperatura, límite de salida y otros parámetros de solicitud."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Température, limite de sortie et autres paramètres de requête."
-          }
-        },
-        "hi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "तापमान, आउटपुट सीमा और अन्य अनुरोध पैरामीटर।"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Temperatur, batas keluaran, dan parameter permintaan lainnya."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Temperature、出力上限などのリクエストパラメータ。"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Temperature, 출력 제한 등 요청 파라미터."
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Temperatura, limite de saída e outros parâmetros da requisição."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Temperature, лимит вывода и другие параметры запроса."
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Temperature ขีดจำกัดเอาต์พุต และพารามิเตอร์คำขออื่น ๆ"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Temperature, çıktı sınırı ve diğer istek parametreleri."
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Temperature, giới hạn đầu ra và các tham số yêu cầu khác."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "温度、输出上限等请求参数。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "溫度、輸出上限等請求參數。"
           }
         }
       }
@@ -13499,101 +10969,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "思考中…"
-          }
-        }
-      }
-    },
-    "This cannot be undone.": {
-      "extractionState": "manual",
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "لا يمكن التراجع عن هذا الإجراء."
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dies kann nicht rückgängig gemacht werden."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Esta acción no se puede deshacer."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Cette action est irréversible."
-          }
-        },
-        "hi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "इसे पूर्ववत नहीं किया जा सकता।"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tindakan ini tidak dapat dibatalkan."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "この操作は取り消せません。"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "이 작업은 되돌릴 수 없습니다."
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Esta ação não pode ser desfeita."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Это действие нельзя отменить."
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "การกระทำนี้ไม่สามารถย้อนกลับได้"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bu işlem geri alınamaz."
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Không thể hoàn tác thao tác này."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "此操作无法撤销。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "此操作無法復原。"
           }
         }
       }
@@ -14602,101 +11977,6 @@
         }
       }
     },
-    "This model and endpoint declare no custom fields, so no editor appears in Model Controls.": {
-      "extractionState": "manual",
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "لا يعلن هذا النموذج ونقطة النهاية عن حقول مخصّصة، لذا لن يظهر أي محرّر في «عناصر التحكم بالنموذج»."
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dieses Modell und dieser Endpunkt deklarieren keine benutzerdefinierten Felder, daher erscheint kein Editor in den Modellsteuerungen."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Este modelo y este endpoint no declaran campos personalizados, por lo que no aparece ningún editor en Controles del modelo."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ce modèle et ce point de terminaison ne déclarent aucun champ personnalisé ; aucun éditeur n'apparaît dans les contrôles du modèle."
-          }
-        },
-        "hi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "यह मॉडल और एंडपॉइंट कोई कस्टम फ़ील्ड घोषित नहीं करते, इसलिए «मॉडल नियंत्रण» में कोई संपादक नहीं दिखेगा।"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Model dan endpoint ini tidak mendeklarasikan bidang khusus, jadi tidak ada editor di Kontrol Model."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "このモデルとエンドポイントはカスタムフィールドを宣言していないため、「モデル制御」にエディタは表示されません。"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "이 모델과 엔드포인트는 사용자 지정 필드를 선언하지 않으므로 \"모델 제어\"에 편집기가 나타나지 않습니다."
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Este modelo e endpoint não declaram campos personalizados, então nenhum editor aparece nos Controles do modelo."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Эта модель и эндпоинт не объявляют пользовательских полей, поэтому редактор в «Управлении моделью» не появится."
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "โมเดลและปลายทางนี้ไม่ได้ประกาศฟิลด์ที่กำหนดเอง จึงไม่มีตัวแก้ไขใน «การควบคุมโมเดล»"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bu model ve uç nokta özel alan bildirmiyor; bu yüzden Model Denetimleri'nde düzenleyici görünmez."
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Mô hình và endpoint này không khai báo trường tuỳ chỉnh, nên sẽ không có trình chỉnh sửa trong Điều khiển mô hình."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "这个模型与端点没有声明可自定义字段，所以「模型控制」里不会出现编辑器。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "這個模型與端點沒有宣告可自訂欄位，所以「模型控制」裡不會出現編輯器。"
-          }
-        }
-      }
-    },
     "This model cannot turn thinking off.": {
       "extractionState": "manual",
       "localizations": {
@@ -14887,107 +12167,6 @@
         }
       }
     },
-    "This model rejected %@. Retried with its default setting.": {
-      "extractionState": "manual",
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "رفض هذا النموذج المعلمة %@. تمت إعادة المحاولة باستخدام إعدادها الافتراضي."
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Dieses Modell hat %@ abgelehnt. Es wurde mit der Modelleinstellung erneut versucht."
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "This model rejected %@. Retried with its default setting."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Este modelo rechazó %@. Se reintentó con su ajuste predeterminado."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ce modèle a refusé %@. Nouvel essai avec son réglage par défaut."
-          }
-        },
-        "hi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "इस मॉडल ने %@ को अस्वीकार किया। इसकी डिफ़ॉल्ट सेटिंग के साथ फिर प्रयास किया गया।"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Model ini menolak %@. Dicoba lagi dengan pengaturan default model."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "このモデルは %@ を拒否しました。モデルのデフォルト設定で再試行しました。"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "이 모델이 %@을(를) 거부했습니다. 모델 기본 설정으로 다시 시도했습니다."
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Este modelo recusou %@. Tentamos novamente com a configuração padrão dele."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Эта модель отклонила %@. Повторная попытка выполнена с настройкой модели по умолчанию."
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "โมเดลนี้ปฏิเสธ %@ จึงลองใหม่ด้วยการตั้งค่าเริ่มต้นของโมเดล"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bu model %@ parametresini reddetti. Modelin varsayılan ayarıyla yeniden denendi."
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Mô hình này đã từ chối %@. Đã thử lại với cài đặt mặc định của mô hình."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "该模型拒绝了 %@，已按模型默认设置重试。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "該模型拒絕了 %@，已按模型預設設定重試。"
-          }
-        }
-      }
-    },
     "This reply": {
       "extractionState": "manual",
       "localizations": {
@@ -15085,107 +12264,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "這則回覆"
-          }
-        }
-      }
-    },
-    "This model request": {
-      "extractionState": "manual",
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "طلب النموذج هذا"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Diese Modellanfrage"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "This model request"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Esta solicitud al modelo"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Cette requête au modèle"
-          }
-        },
-        "hi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "यह मॉडल अनुरोध"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Permintaan model ini"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "このモデルリクエスト"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "이 모델 요청"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Esta solicitação ao modelo"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Этот запрос к модели"
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "คำขอโมเดลครั้งนี้"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bu model isteği"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Yêu cầu mô hình này"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "本次模型请求"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "本次模型請求"
           }
         }
       }
@@ -16603,14 +13681,14 @@
       "localizations": {
         "ar": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "View all %d citations"
+            "state": "translated",
+            "value": "عرض كل المصادر (%d)"
           }
         },
         "de": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "View all %d citations"
+            "state": "translated",
+            "value": "Alle %d Quellen anzeigen"
           }
         },
         "en": {
@@ -16621,68 +13699,68 @@
         },
         "es": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "View all %d citations"
+            "state": "translated",
+            "value": "Ver las %d fuentes"
           }
         },
         "fr": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "View all %d citations"
+            "state": "translated",
+            "value": "Voir les %d sources"
           }
         },
         "hi": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "View all %d citations"
+            "state": "translated",
+            "value": "सभी %d स्रोत देखें"
           }
         },
         "id": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "View all %d citations"
+            "state": "translated",
+            "value": "Lihat semua %d sumber"
           }
         },
         "ja": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "View all %d citations"
+            "state": "translated",
+            "value": "%d件の出典をすべて表示"
           }
         },
         "ko": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "View all %d citations"
+            "state": "translated",
+            "value": "출처 %d개 모두 보기"
           }
         },
         "pt-BR": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "View all %d citations"
+            "state": "translated",
+            "value": "Ver todas as %d fontes"
           }
         },
         "ru": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "View all %d citations"
+            "state": "translated",
+            "value": "Показать все источники (%d)"
           }
         },
         "th": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "View all %d citations"
+            "state": "translated",
+            "value": "ดูแหล่งที่มาทั้งหมด %d รายการ"
           }
         },
         "tr": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "View all %d citations"
+            "state": "translated",
+            "value": "%d kaynağın tümünü göster"
           }
         },
         "vi": {
           "stringUnit": {
-            "state": "needs_review",
-            "value": "View all %d citations"
+            "state": "translated",
+            "value": "Xem tất cả %d nguồn"
           }
         },
         "zh-Hans": {
@@ -17507,107 +14585,6 @@
         }
       }
     },
-    "Your message will be processed by Oriveo's platform and routed to a backend AI provider. Oriveo does not store your conversations on our servers.": {
-      "extractionState": "manual",
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ستتم معالجة رسالتك بواسطة منصة Oriveo وتوجيهها إلى مزود الذكاء الاصطناعي الخلفي. لا يقوم Oriveo بتخزين محادثاتك على خوادمنا."
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ihre Nachricht wird von der Oriveo-Plattform verarbeitet und an einen Backend-KI-Anbieter weitergeleitet. Oriveo speichert Ihre Gespräche nicht auf unseren Servern."
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Your message will be processed by Oriveo's platform and routed to a backend AI provider. Oriveo does not store your conversations on our servers."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Su mensaje será procesado por la plataforma de Oriveo y enviado a un proveedor backend de IA. Oriveo no almacena tus conversaciones en nuestros servidores."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Votre message sera traité par la plateforme Oriveo et acheminé vers un fournisseur d'IA backend. Oriveo ne stocke pas vos conversations sur nos serveurs."
-          }
-        },
-        "hi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "आपका संदेश ओरिवियो के प्लेटफ़ॉर्म द्वारा संसाधित किया जाएगा और बैकएंड एआई प्रदाता को भेजा जाएगा। ओरिवियो आपकी बातचीत को हमारे सर्वर पर संग्रहीत नहीं करता है।"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pesan Anda akan diproses oleh platform Oriveo dan diteruskan ke penyedia AI backend. Oriveo tidak menyimpan percakapan Anda di server kami."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "メッセージは Oriveo のプラットフォームによって処理され、バックエンド AI プロバイダーにルーティングされます。 Oriveo はあなたの会話をサーバーに保存しません。"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "귀하의 메시지는 Oriveo 플랫폼에 의해 처리되어 백엔드 AI 제공업체로 라우팅됩니다. Oriveo는 귀하의 대화를 당사 서버에 저장하지 않습니다."
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sua mensagem será processada pela plataforma da Oriveo e roteada para um provedor de back-end de IA. Oriveo não armazena suas conversas em nossos servidores."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ваше сообщение будет обработано платформой Oriveo и перенаправлено серверному провайдеру искусственного интеллекта. Oriveo не сохраняет ваши разговоры на наших серверах."
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ข้อความของคุณจะถูกประมวลผลโดยแพลตฟอร์มของ Oriveo และกำหนดเส้นทางไปยังผู้ให้บริการ AI แบ็กเอนด์ Oriveo ไม่ได้จัดเก็บการสนทนาของคุณบนเซิร์ฟเวอร์ของเรา"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Mesajınız Oriveo'nun platformu tarafından işlenecek ve bir arka uç yapay zeka sağlayıcısına yönlendirilecek. Oriveo konuşmalarınızı sunucularımızda saklamaz."
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tin nhắn của bạn sẽ được nền tảng của Oriveo xử lý và chuyển đến nhà cung cấp AI phụ trợ. Oriveo không lưu trữ cuộc trò chuyện của bạn trên máy chủ của chúng tôi."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "您的消息将由 Oriveo 平台处理并路由到后端 AI 提供商。 Oriveo 不会将您的对话存储在我们的服务器上。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "您的訊息將由 Oriveo 平台處理並路由到後端 AI 供應商。 Oriveo 不會將您的對話儲存在我們的伺服器上。"
-          }
-        }
-      }
-    },
     "Your message will be sent to %@ to generate a response. Oriveo does not store your messages or API keys on our servers.": {
       "extractionState": "manual",
       "localizations": {
@@ -18109,107 +15086,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Когда включено, модель при необходимости ищет в интернете перед ответом."
-          }
-        }
-      }
-    },
-    "Search timing": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Search timing"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "搜索时机"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "搜尋時機"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "検索のタイミング"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "검색 시점"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Cuándo buscar"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Quand chercher"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Suchzeitpunkt"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Quando buscar"
-          }
-        },
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "توقيت البحث"
-          }
-        },
-        "hi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "खोज का समय"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Waktu pencarian"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Thời điểm tìm kiếm"
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "จังหวะการค้นหา"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Arama zamanı"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Когда искать"
           }
         }
       }
@@ -20735,107 +17611,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "已截斷"
-          }
-        }
-      }
-    },
-    "This connection doesn't support tools, so the Library wasn't searched.": {
-      "extractionState": "manual",
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "هذا الاتصال لا يدعم الأدوات، لذلك لم يتم البحث في المكتبة."
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Diese Verbindung unterstützt keine Tools, daher wurde die Bibliothek nicht durchsucht."
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "This connection doesn't support tools, so the Library wasn't searched."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Esta conexión no admite herramientas, así que no se buscó en la Biblioteca."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Cette connexion ne prend pas en charge les outils, la Bibliothèque n'a donc pas été consultée."
-          }
-        },
-        "hi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "यह कनेक्शन टूल का समर्थन नहीं करता, इसलिए लाइब्रेरी में खोज नहीं की गई।"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Koneksi ini tidak mendukung alat, jadi Pustaka tidak dicari."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "この接続はツールに対応していないため、ライブラリは検索されませんでした。"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "이 연결은 도구를 지원하지 않아 라이브러리를 검색하지 않았습니다."
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Esta conexão não oferece suporte a ferramentas, então a Biblioteca não foi pesquisada."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Это подключение не поддерживает инструменты, поэтому поиск по Библиотеке не выполнялся."
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "การเชื่อมต่อนี้ไม่รองรับเครื่องมือ จึงไม่ได้ค้นหาในคลังข้อมูล"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bu bağlantı araçları desteklemediği için Kitaplık'ta arama yapılmadı."
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Kết nối này không hỗ trợ công cụ nên Thư viện chưa được tìm kiếm."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "当前连接不支持工具调用，本次未检索资料库。"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "目前連線不支援工具呼叫，本次未檢索資料庫。"
           }
         }
       }
