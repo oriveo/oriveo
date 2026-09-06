@@ -148,7 +148,6 @@ struct ChatView: View {
     @State private var showsMissingProviderKeyPrompt = false
     @State private var bootstrapWatchdogExpired = false
     @State private var historyRetryGeneration = 0
-    @State private var showsHistoryUnavailableSheet = false
     @State private var generationParameterDraftSessionID = UUID()
 
     private static let bootstrapWatchdogSeconds: Double = 12
@@ -156,7 +155,6 @@ struct ChatView: View {
     private struct WatchdogKey: Equatable {
         let conversationID: UUID?
         let generation: Int
-        let messagesListenerActive: Bool
     }
 
     private struct PendingSendPayload: Equatable {
@@ -174,8 +172,7 @@ struct ChatView: View {
             hasLoadedSummary: conversationObservation.hasLoadedInitialValue,
             messageRevision: windowLoader.revision,
             localLoadFailed: hasBootstrapFailure,
-            bootstrapWatchdogExpired: bootstrapWatchdogExpired,
-            backfillPhase: .idle
+            bootstrapWatchdogExpired: bootstrapWatchdogExpired
         )
     }
 
@@ -183,15 +180,9 @@ struct ChatView: View {
         bootstrapLoadFailed || conversationObservation.initialLoadFailed || windowLoader.initialLoadFailed
     }
 
-    private var messageBackfillTriggerKey: String {
-        let id = conversationID?.uuidString ?? "none"
-        let listenerActive = false
-        return "\(id):\(conversationObservation.hasLoadedInitialValue):\(windowLoader.messages.isEmpty):\(listenerActive)"
-    }
-
     private var isComposerReadOnly: Bool {
         switch projection.loadState {
-        case .stalled, .bootstrapping, .backfilling, .localFailure:
+        case .stalled, .bootstrapping, .localFailure:
             return true
         case .content, .empty, .deleted:
             return false
@@ -336,7 +327,6 @@ struct ChatView: View {
         quoteContext: QuoteContext?,
         capabilitySelection: ChatCapabilitySelection
     ) {
-        let quoteAttachedAt = pendingQuoteAttachedAt
         autoScrollEnabled = true
         composerFocused = false
         if let resolvedChatContext {
@@ -593,8 +583,7 @@ struct ChatView: View {
         }
         .task(id: WatchdogKey(
             conversationID: conversationID,
-            generation: historyRetryGeneration,
-            messagesListenerActive: false
+            generation: historyRetryGeneration
         )) {
             bootstrapWatchdogExpired = false
             guard conversationID != nil else { return }
@@ -875,13 +864,7 @@ struct ChatView: View {
         }
         .onDisappear(perform: handleDisappear)
 
-        let synchronizedContent = lifecycleContent
-        .onChange(of: appState.partitionSwitchGeneration) { _, _ in
-            conversationObservation.stop()
-            windowLoader.stop()
-        }
-
-        return synchronizedContent
+        return lifecycleContent
         .photosPicker(isPresented: $showPhotoPicker, selection: $selectedPhotoItems, matching: .images)
         .onChange(of: selectedPhotoItems) { _, items in
             handleSelectedPhotoItems(items)
@@ -971,34 +954,6 @@ struct ChatView: View {
                 .padding(.vertical, OriveoTheme.Spacing.sm)
                 .background(OriveoTheme.Palette.warning.opacity(0.08))
                 .transition(.move(edge: .bottom).combined(with: .opacity))
-            }
-
-            if projection.loadState == .backfilling {
-                HStack(spacing: OriveoTheme.Spacing.sm) {
-                    ProgressView()
-                        .controlSize(.mini)
-
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(L10n.tr("Restoring messages from the cloud…", table: .chat))
-                            .font(OriveoTheme.Typography.footnote)
-                            .foregroundStyle(OriveoTheme.Palette.textSecondary)
-                        Text(L10n.tr("Attachments stay in the cloud and aren't restored.", table: .chat))
-                            .font(OriveoTheme.Typography.caption)
-                            .foregroundStyle(OriveoTheme.Palette.textTertiary)
-                    }
-
-                    Spacer(minLength: 0)
-
-                    if conversationID != nil {
-                        Button(L10n.tr("Stop restoring", table: .chat)) {
-                        }
-                        .font(OriveoTheme.Typography.caption)
-                        .foregroundStyle(OriveoTheme.Palette.primary)
-                        .buttonStyle(.plain)
-                    }
-                }
-                .padding(.horizontal, OriveoTheme.Spacing.lg)
-                .padding(.vertical, OriveoTheme.Spacing.sm)
             }
 
             ChatComposerBar(
@@ -1246,10 +1201,6 @@ struct ChatView: View {
         if !limited.accepted.isEmpty {
             pendingAttachments += limited.accepted
             pruneUnsupportedPendingAttachments()
-            let providerKind = resolvedChatContext?.provider.kind.telemetryName ?? "unknown"
-            for attachment in limited.accepted {
-                let estimatedSize = Int(Double(attachment.base64Data?.count ?? 0) * 0.75)
-            }
         }
         if limited.rejectedCount > 0 {
             ToastManager.shared.show(
@@ -1260,13 +1211,6 @@ struct ChatView: View {
             )
         }
         isProcessingAttachment = false
-    }
-
-    private func resolveModel(in provider: Provider, modelID: String?) -> AIModel? {
-        ProviderSelectionSnapshot.currentModel(
-            storedModelID: modelID,
-            in: provider
-        )
     }
 
     private func resolveModelDetails(in provider: Provider, modelID: String) -> (name: String, promptPrice: Double?)? {
@@ -1306,8 +1250,6 @@ struct ChatView: View {
         composerText = projection.draftText
         syncCapabilitySelection(for: currentModel)
         pruneUnsupportedPendingAttachments()
-        if let conversationID {
-        }
     }
 
     private func flushDraftIfNeeded() {
@@ -1315,115 +1257,6 @@ struct ChatView: View {
         syncDraftIfNeeded(composerText, in: conversationID)
     }
 }
-
-struct MessageRecoveryCard: View {
-    let title: String
-    let message: String
-    let primaryTitle: String
-    let secondaryTitle: String?
-    let tertiaryTitle: String?
-    let tone: StatusTone
-    let technicalDetail: String?
-    let actionsEnabled: Bool
-    let primaryAction: () -> Void
-    let secondaryAction: (() -> Void)?
-    let tertiaryAction: (() -> Void)?
-    var onDismiss: (() -> Void)?
-
-    @State private var showsTechnicalDetail = false
-
-    private var iconName: String {
-        tone == .danger ? "xmark.circle.fill" : "exclamationmark.circle.fill"
-    }
-
-    var body: some View {
-        ZStack(alignment: .topTrailing) {
-            VStack(alignment: .leading, spacing: OriveoTheme.Spacing.md) {
-                HStack(alignment: .top, spacing: OriveoTheme.Spacing.sm) {
-                    Image(systemName: iconName)
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(tone.foreground)
-
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(title)
-                            .font(OriveoTheme.Typography.title3)
-                            .foregroundStyle(OriveoTheme.Palette.textPrimary)
-                            .padding(.trailing, onDismiss != nil ? 28 : 0)
-
-                        Text(message)
-                            .font(OriveoTheme.Typography.body)
-                            .foregroundStyle(OriveoTheme.Palette.textSecondary)
-                    }
-                }
-
-                HStack(spacing: OriveoTheme.Spacing.sm) {
-                    Button(primaryTitle, action: primaryAction)
-                        .buttonStyle(OriveoPrimaryButtonStyle())
-                        .disabled(!actionsEnabled)
-
-                    if let secondaryTitle, let secondaryAction {
-                        Button(secondaryTitle, action: secondaryAction)
-                            .buttonStyle(OriveoSecondaryButtonStyle())
-                            .disabled(!actionsEnabled)
-                    }
-                }
-
-                if let tertiaryTitle, let tertiaryAction {
-                    Button(tertiaryTitle, action: tertiaryAction)
-                        .buttonStyle(OriveoTextButtonStyle())
-                        .disabled(!actionsEnabled)
-                }
-
-                if let technicalDetail, !technicalDetail.isEmpty {
-                    Button(showsTechnicalDetail ? L10n.tr("Hide technical details") : L10n.tr("Technical details")) {
-                        withAnimation(.easeInOut(duration: 0.18)) {
-                            showsTechnicalDetail.toggle()
-                        }
-                    }
-                    .buttonStyle(OriveoTextButtonStyle())
-
-                    if showsTechnicalDetail {
-                        Text(technicalDetail)
-                            .font(OriveoTheme.Typography.code)
-                            .foregroundStyle(OriveoTheme.Palette.textSecondary)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(OriveoTheme.Spacing.md)
-                            .oriveoRoundedSurface(
-                                fill: OriveoTheme.Palette.surfaceInset,
-                                border: OriveoTheme.Palette.border,
-                                radius: OriveoTheme.Radius.sm,
-                                shadow: .none
-                            )
-                            .transition(.opacity.combined(with: .move(edge: .top)))
-                    }
-                }
-            }
-            .padding(OriveoTheme.Spacing.lg)
-
-            if let onDismiss {
-                Button {
-                    onDismiss()
-                } label: {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(OriveoTheme.Palette.textTertiary)
-                        .frame(width: 32, height: 32)
-                        .contentShape(Circle())
-                }
-                .buttonStyle(.plain)
-                .padding(OriveoTheme.Spacing.sm)
-            }
-        }
-        .oriveoRoundedSurface(
-            fill: tone.background,
-            border: tone.foreground.opacity(0.24),
-            radius: 20,
-            shadow: .soft
-        )
-    }
-}
-
-
 struct ExpensiveModelHintData: Equatable {
     let newModelName: String
     let oldModelName: String

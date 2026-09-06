@@ -122,16 +122,3 @@ extension AssistantMessageCell {
 }
 
 // MARK: - SwiftUI Wrapper
-
-struct StaticMarkdownContentWrapper: View {
-    let text: String
-    let renderHint: MarkdownRenderHint?
-
-    var body: some View {
-        MarkdownMessageView(
-            text: text,
-            isStreaming: false,
-            renderHint: renderHint
-        )
-    }
-}

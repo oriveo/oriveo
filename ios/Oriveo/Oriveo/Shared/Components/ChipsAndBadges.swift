@@ -244,50 +244,6 @@ struct StatusPill: View {
         return compact ? 4 : OriveoTheme.Spacing.xs
     }
 }
-
-struct ModelRowActionPill: View {
-    var title: String = L10n.tr("Add")
-    var tone: StatusTone = .primary
-
-    var body: some View {
-        HStack(spacing: 5) {
-            Image(systemName: "plus")
-                .font(.system(size: 11, weight: .semibold))
-
-            Text(title)
-                .lineLimit(1)
-                .font(OriveoTheme.Typography.footnote.weight(.semibold))
-        }
-        .foregroundStyle(tone.foreground)
-        .padding(.horizontal, 10)
-        .padding(.vertical, 5)
-        .background(
-            Capsule(style: .continuous)
-                .fill(tone.background)
-        )
-        .overlay(
-            Capsule(style: .continuous)
-                .stroke(tone.foreground.opacity(0.18), lineWidth: 1)
-        )
-    }
-}
-
-struct AddModelsNavigationRow: View {
-    var title: String = L10n.tr("Add Models")
-
-    var body: some View {
-        HStack(spacing: OriveoTheme.Spacing.sm) {
-            Image(systemName: "plus")
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(OriveoTheme.Palette.primary)
-
-            Text(title)
-                .font(OriveoTheme.Typography.body.weight(.semibold))
-                .foregroundStyle(OriveoTheme.Palette.primary)
-        }
-    }
-}
-
 struct HeroIconTextItem: Identifiable {
     let id: String
     let title: String
@@ -579,101 +535,6 @@ enum RelayKindAssetResolver {
         }
     }
 }
-
-struct CostPill: View {
-    let text: String
-
-    var body: some View {
-        Text(text)
-            .font(OriveoTheme.Typography.footnote)
-            .foregroundStyle(OriveoTheme.Palette.primary)
-            .padding(.horizontal, OriveoTheme.Spacing.sm)
-            .padding(.vertical, 6)
-            .background(
-                Capsule(style: .continuous)
-                    .fill(OriveoTheme.Palette.primarySoft)
-            )
-            .overlay(
-                Capsule(style: .continuous)
-                    .stroke(OriveoTheme.Palette.primary.opacity(0.18), lineWidth: 1)
-            )
-    }
-}
-
-struct ProviderModelChip: View {
-    let kind: ProviderKind
-    let modelName: String
-
-    var body: some View {
-        HStack(spacing: 5) {
-            ProviderBadgeIcon(kind: kind, size: 14)
-
-            Text(modelName)
-                .lineLimit(1)
-                .truncationMode(.tail)
-        }
-        .font(OriveoTheme.Typography.footnote.weight(.medium))
-        .foregroundStyle(OriveoTheme.Palette.textPrimary)
-        .padding(.horizontal, 7)
-        .padding(.vertical, 3)
-        .background(
-            Capsule(style: .continuous)
-                .fill(kind.brandBackground)
-        )
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(kind.displayName), \(modelName)")
-    }
-}
-
-struct ModelMetadataInlineStrip: View {
-    let model: AIModel
-    let provider: Provider
-    let capabilityEvidenceRevision: UInt64
-    var maxCapabilities: Int = 3
-    var prominentPrice: Bool = false
-    var compact: Bool = false
-
-    private var normalizedPrice: String {
-        model.normalizedPriceTier
-    }
-
-    private func projectedCapabilities(at revision: UInt64) -> [ModelCapability] {
-        _ = revision
-        return model.visibleMetadataCapabilities(
-            provider: provider,
-            maxCapabilities: maxCapabilities
-        )
-    }
-
-    var body: some View {
-        let visibleCapabilities = projectedCapabilities(at: capabilityEvidenceRevision)
-        if !normalizedPrice.isEmpty || !visibleCapabilities.isEmpty {
-            ViewThatFits(in: .horizontal) {
-                metadataRow(capabilities: visibleCapabilities, includePrice: true)
-                metadataRow(capabilities: Array(visibleCapabilities.prefix(max(1, maxCapabilities - 1))), includePrice: true)
-                metadataRow(capabilities: Array(visibleCapabilities.prefix(1)), includePrice: !normalizedPrice.isEmpty)
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func metadataRow(capabilities: [ModelCapability], includePrice: Bool) -> some View {
-        HStack(spacing: OriveoTheme.Spacing.sm) {
-            if includePrice, !normalizedPrice.isEmpty {
-                Text(normalizedPrice)
-                    .font(OriveoTheme.Typography.footnote.weight(.medium))
-                    .foregroundStyle(prominentPrice ? OriveoTheme.Palette.primary : OriveoTheme.Palette.textSecondary)
-                    .fixedSize()
-            }
-
-            if !capabilities.isEmpty {
-                HeroModelCapabilityStrip(capabilities: capabilities, compact: compact)
-                    .fixedSize()
-            }
-        }
-    }
-}
-
 struct ModelListMetadataRow: View {
     let model: AIModel
     let provider: Provider
@@ -764,14 +625,6 @@ struct ModelListMetadataRow: View {
 }
 
 extension ProviderKind {
-    var brandSymbolName: String? {
-        return nil
-    }
-
-    var brandSymbolScale: CGFloat {
-        return 0.38
-    }
-
     var brandAssetName: String {
         switch self {
         case .openAI:
@@ -847,39 +700,6 @@ extension ProviderKind {
             return Color.dynamic(light: 0xF3ECFF, dark: 0x1E1245)
         default:
             return Color.dynamic(light: 0xFFFFFF, dark: 0x1E2433)
-        }
-    }
-
-    var brandBorder: Color {
-        switch self {
-        case .anthropic:
-            return Color.dynamic(light: 0xE7DDCD, dark: 0x4A3F33)
-        case .openRouter:
-            return Color.dynamic(light: 0xD4D5FE, dark: 0x2E2D50)
-        case .deepseek:
-            return Color.dynamic(light: 0xC8D8F7, dark: 0x2C4B73)
-        case .grok:
-            return Color.dynamic(light: 0xD5D8DC, dark: 0x2E3033)
-        case .groq:
-            return Color.dynamic(light: 0xFBCFC6, dark: 0x4A2E28)
-        case .together:
-            return Color.dynamic(light: 0xC4DAFE, dark: 0x2A3D5C)
-        case .fireworks:
-            return Color.dynamic(light: 0xFBD3C1, dark: 0x4A3228)
-        case .miniMax:
-            return Color.dynamic(light: 0xFBC8D4, dark: 0x4A2833)
-        case .zhipu:
-            return Color.dynamic(light: 0xD5D6DB, dark: 0x353740)
-        case .qwen:
-            return Color.dynamic(light: 0xC5C3F5, dark: 0x33306A)
-        case .moonshot:
-            return Color.dynamic(light: 0xBFD3F7, dark: 0x28466F)
-        case .mistral:
-            return Color.dynamic(light: 0xFBD2B6, dark: 0x4A3018)
-        case .siliconFlow:
-            return Color.dynamic(light: 0xD4C4F6, dark: 0x3B2A80)
-        default:
-            return Color.dynamic(light: 0xE5E7EB, dark: 0x333D50)
         }
     }
 
@@ -983,53 +803,6 @@ enum ModelRecency {
             return "sparkles"
         case .recent:
             return "clock"
-        }
-    }
-}
-
-struct ModelRecencyBadge: View {
-    let recency: ModelRecency
-
-    var body: some View {
-        Label(recency.title, systemImage: recency.systemImage)
-            .font(OriveoTheme.Typography.footnote)
-            .foregroundStyle(foregroundColor)
-            .padding(.horizontal, OriveoTheme.Spacing.sm)
-            .padding(.vertical, 5)
-            .background(
-                Capsule(style: .continuous)
-                    .fill(backgroundColor)
-            )
-            .overlay(
-                Capsule(style: .continuous)
-                    .stroke(borderColor, lineWidth: 1)
-            )
-    }
-
-    private var foregroundColor: Color {
-        switch recency {
-        case .new:
-            return OriveoTheme.Palette.success
-        case .recent:
-            return OriveoTheme.Palette.info
-        }
-    }
-
-    private var backgroundColor: Color {
-        switch recency {
-        case .new:
-            return Color.dynamic(light: 0xECFDF5, dark: 0x0F766E, lightAlpha: 1, darkAlpha: 0.18)
-        case .recent:
-            return Color.dynamic(light: 0xEFF6FF, dark: 0x1D4ED8, lightAlpha: 1, darkAlpha: 0.18)
-        }
-    }
-
-    private var borderColor: Color {
-        switch recency {
-        case .new:
-            return Color.dynamic(light: 0xA7F3D0, dark: 0x0F766E, lightAlpha: 1, darkAlpha: 0.32)
-        case .recent:
-            return Color.dynamic(light: 0xBFDBFE, dark: 0x1D4ED8, lightAlpha: 1, darkAlpha: 0.32)
         }
     }
 }

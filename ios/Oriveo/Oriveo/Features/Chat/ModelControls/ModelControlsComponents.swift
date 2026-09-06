@@ -455,40 +455,6 @@ struct ModelControlSegmentedPicker: View {
 
     static func trackAlpha(isDark: Bool) -> Double { isDark ? 0.06 : 0.05 }
 }
-
-
-struct ModelControlListRow: View {
-    let title: String
-    let status: String
-    var badge: (tone: ModelControlStatusTone, text: String)?
-
-    var body: some View {
-        HStack(spacing: 8) {
-            Text(title)
-                .font(.body.weight(.medium))
-                .foregroundStyle(OriveoTheme.Palette.textPrimary)
-
-            Spacer(minLength: 8)
-
-            if let badge {
-                ModelControlStatusBadge(tone: badge.tone, text: badge.text)
-            } else if !status.isEmpty {
-                Text(status)
-                    .font(.subheadline)
-                    .foregroundStyle(OriveoTheme.Palette.textSecondary)
-                    .multilineTextAlignment(.trailing)
-            }
-
-            Image(systemName: "chevron.right")
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(OriveoTheme.Palette.textTertiary)
-        }
-        .padding(.horizontal, 16)
-        .frame(minHeight: 52)
-        .contentShape(Rectangle())
-    }
-}
-
 struct ModelControlHairline: View {
     var leadingInset: CGFloat = 16
 
@@ -696,48 +662,5 @@ struct ModelControlNavigationRow: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .modelControlSurface()
         .contentShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-    }
-}
-
-struct ModelControlToggleRow: View {
-    let icon: String
-    let title: String
-    let subtitle: String
-    @Binding var isOn: Bool
-    var note: String?
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 11) {
-            HStack(spacing: 10) {
-                Image(systemName: icon)
-                    .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(OriveoTheme.Palette.textSecondary)
-                    .frame(width: 20)
-
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(title)
-                        .font(.body.weight(.semibold))
-                        .foregroundStyle(OriveoTheme.Palette.textPrimary)
-                    Text(subtitle)
-                        .font(.caption)
-                        .foregroundStyle(OriveoTheme.Palette.textTertiary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                Spacer(minLength: 8)
-
-                Toggle("", isOn: $isOn)
-                    .labelsHidden()
-                    .tint(OriveoTheme.Palette.primaryTextSafe)
-                    .accessibilityLabel(Text(title))
-            }
-
-            if let note {
-                ModelControlNote(text: note)
-            }
-        }
-        .padding(16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .modelControlSurface()
     }
 }

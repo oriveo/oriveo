@@ -1218,33 +1218,3 @@ private struct HomeConversationEmptyState: View {
         .padding(.vertical, 24)
     }
 }
-
-private struct HomeSkeletonShimmer: ViewModifier {
-    @State private var phase: CGFloat = -1
-
-    func body(content: Content) -> some View {
-        content.overlay {
-            GeometryReader { proxy in
-                LinearGradient(
-                    colors: [
-                        Color.clear,
-                        OriveoTheme.Palette.cardHighlight,
-                        Color.clear
-                    ],
-                    startPoint: .leading,
-                    endPoint: .trailing
-                )
-                .frame(width: proxy.size.width * 0.45)
-                .offset(x: phase * (proxy.size.width + proxy.size.width * 0.45))
-                .blendMode(.plusLighter)
-                .allowsHitTesting(false)
-            }
-            .mask(content)
-        }
-        .onAppear {
-            withAnimation(.linear(duration: 1.5).repeatForever(autoreverses: false)) {
-                phase = 1
-            }
-        }
-    }
-}

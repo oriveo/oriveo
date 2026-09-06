@@ -76,29 +76,6 @@ actor MetadataClient {
         }
     }
 
-    struct LibraryRuntimeConfig: Codable, Sendable {
-        let version: Int
-        let toolDescriptions: [String: String]
-        let maxSteps: Int
-        let toolTimeoutMs: Int
-        let maxEmptyHits: Int
-        let maxSelfCorrections: Int
-        let tokenBudget: Int
-        let estimatedTokensPerStep: Int
-        let highCostConfirmationUSD: Double
-        let weakModelDenylist: [String]
-        let sensitiveGateEnabled: Bool
-        let enabled: Bool?
-        let availableProviders: [String]?
-        let directMaxDocuments: Int?
-        let directContextMaxChars: Int?
-        let serverResearchEnabled: Bool?
-        let serverResearchProviderDenylist: [String]?
-        let serverResearchMaxDocuments: Int?
-
-        static let fallback = LibraryRuntimeConfig(version: 6, toolDescriptions: [:], maxSteps: 6, toolTimeoutMs: 15_000, maxEmptyHits: 2, maxSelfCorrections: 3, tokenBudget: 0, estimatedTokensPerStep: 2_000, highCostConfirmationUSD: 0.25, weakModelDenylist: [], sensitiveGateEnabled: true, enabled: nil, availableProviders: nil, directMaxDocuments: nil, directContextMaxChars: nil, serverResearchEnabled: nil, serverResearchProviderDenylist: nil, serverResearchMaxDocuments: nil)
-    }
-
     struct StreamShape: Codable, Sendable, Equatable {
         let reasoningDeltaPath: String?
         let citationsBlockType: String?
@@ -499,30 +476,19 @@ actor MetadataClient {
         let showSoftFailHint: Bool
     }
 
-    struct ReviewPromptPolicy: Codable, Equatable, Sendable {
-        var enabled: Bool = false
-        var policyVersion: Int = 0
-    }
-
     fileprivate struct RawRuntimeConfig: Codable, Sendable {
-        let featureFlags: [String: Bool]?
         let selfHealPatterns: [SelfHealPatternDefinition]?
-        let reviewPrompt: ReviewPromptPolicy?
 
         private enum CodingKeys: String, CodingKey {
-            case featureFlags
             case selfHealPatterns
-            case reviewPrompt
         }
 
         init(from decoder: Decoder) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
-            featureFlags = try? container.decode([String: Bool].self, forKey: .featureFlags)
             selfHealPatterns = try? container.decode(
                 [SelfHealPatternDefinition].self,
                 forKey: .selfHealPatterns
             )
-            reviewPrompt = try? container.decode(ReviewPromptPolicy.self, forKey: .reviewPrompt)
         }
     }
 
@@ -871,7 +837,6 @@ actor MetadataClient {
         let providerConfigs: [PublicProviderConfig]?
         let relayRuntimeConfig: RawRelayRuntimeConfig?
         let runtimeConfig: RawRuntimeConfig?
-        let libraryRuntimeConfig: LibraryRuntimeConfig?
         let capabilityRuntime: CapabilityRuntimeEnvelope?
         let modelFacts: [String: ModelFacts]?
         let modelFactsRevision: String?
@@ -1579,18 +1544,6 @@ actor MetadataClient {
             }
             return nil
         }
-    }
-
-    nonisolated func syncFeatureFlag(_ key: String, defaultValue: Bool) -> Bool {
-        Self.withSharedSnapshot { $0?.runtimeConfig?.featureFlags?[key] } ?? defaultValue
-    }
-
-    nonisolated func syncReviewPromptPolicy() -> ReviewPromptPolicy? {
-        Self.withSharedSnapshot { $0?.runtimeConfig?.reviewPrompt }
-    }
-
-    nonisolated func syncLibraryRuntimeConfig() -> LibraryRuntimeConfig {
-        Self.withSharedSnapshot { $0?.libraryRuntimeConfig } ?? .fallback
     }
 
     nonisolated func syncSnapshotConfirmedThisSession() -> Bool {
@@ -2418,7 +2371,6 @@ actor MetadataClient {
             providerConfigs: response.providerConfigs,
             relayRuntimeConfig: response.relayRuntimeConfig,
             runtimeConfig: response.runtimeConfig,
-            libraryRuntimeConfig: response.libraryRuntimeConfig,
             capabilityRuntime: response.capabilityRuntime,
             modelFacts: response.modelFacts,
             modelFactsRevision: response.modelFactsRevision
@@ -2452,7 +2404,6 @@ actor MetadataClient {
             providerConfigs: response.providerConfigs,
             relayRuntimeConfig: response.relayRuntimeConfig,
             runtimeConfig: response.runtimeConfig,
-            libraryRuntimeConfig: response.libraryRuntimeConfig,
             capabilityRuntime: response.capabilityRuntime,
             modelFacts: facts,
             modelFactsRevision: revision
@@ -2474,7 +2425,6 @@ actor MetadataClient {
             providerConfigs: response.providerConfigs,
             relayRuntimeConfig: response.relayRuntimeConfig,
             runtimeConfig: response.runtimeConfig,
-            libraryRuntimeConfig: response.libraryRuntimeConfig,
             capabilityRuntime: response.capabilityRuntime,
             modelFacts: nil,
             modelFactsRevision: nil
@@ -2640,75 +2590,6 @@ actor MetadataClient {
         } catch {
             return false
         }
-    }
-}
-
-extension MetadataClient.LibraryRuntimeConfig {
-    init(from decoder: any Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        let fallback = Self.fallback
-        self.init(
-            version: try container.decodeIfPresent(Int.self, forKey: .version) ?? fallback.version,
-            toolDescriptions: try container.decodeIfPresent(
-                [String: String].self,
-                forKey: .toolDescriptions
-            ) ?? fallback.toolDescriptions,
-            maxSteps: try container.decodeIfPresent(Int.self, forKey: .maxSteps) ?? fallback.maxSteps,
-            toolTimeoutMs: try container.decodeIfPresent(
-                Int.self,
-                forKey: .toolTimeoutMs
-            ) ?? fallback.toolTimeoutMs,
-            maxEmptyHits: try container.decodeIfPresent(
-                Int.self,
-                forKey: .maxEmptyHits
-            ) ?? fallback.maxEmptyHits,
-            maxSelfCorrections: try container.decodeIfPresent(
-                Int.self,
-                forKey: .maxSelfCorrections
-            ) ?? fallback.maxSelfCorrections,
-            tokenBudget: try container.decodeIfPresent(
-                Int.self,
-                forKey: .tokenBudget
-            ) ?? fallback.tokenBudget,
-            estimatedTokensPerStep: try container.decodeIfPresent(
-                Int.self,
-                forKey: .estimatedTokensPerStep
-            ) ?? fallback.estimatedTokensPerStep,
-            highCostConfirmationUSD: try container.decodeIfPresent(
-                Double.self,
-                forKey: .highCostConfirmationUSD
-            ) ?? fallback.highCostConfirmationUSD,
-            weakModelDenylist: try container.decodeIfPresent(
-                [String].self,
-                forKey: .weakModelDenylist
-            ) ?? fallback.weakModelDenylist,
-            sensitiveGateEnabled: try container.decodeIfPresent(
-                Bool.self,
-                forKey: .sensitiveGateEnabled
-            ) ?? fallback.sensitiveGateEnabled,
-            enabled: try container.decodeIfPresent(Bool.self, forKey: .enabled),
-            availableProviders: try container.decodeIfPresent(
-                [String].self,
-                forKey: .availableProviders
-            ),
-            directMaxDocuments: try container.decodeIfPresent(Int.self, forKey: .directMaxDocuments),
-            directContextMaxChars: try container.decodeIfPresent(
-                Int.self,
-                forKey: .directContextMaxChars
-            ),
-            serverResearchEnabled: try container.decodeIfPresent(
-                Bool.self,
-                forKey: .serverResearchEnabled
-            ),
-            serverResearchProviderDenylist: try container.decodeIfPresent(
-                [String].self,
-                forKey: .serverResearchProviderDenylist
-            ),
-            serverResearchMaxDocuments: try container.decodeIfPresent(
-                Int.self,
-                forKey: .serverResearchMaxDocuments
-            )
-        )
     }
 }
 

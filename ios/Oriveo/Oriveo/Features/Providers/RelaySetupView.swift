@@ -49,9 +49,6 @@ struct RelaySetupView: View {
     @State private var isTestingConnection = false
     @State private var testConnectionResult: TestConnectionResult?
     @State private var testTask: Task<Void, Never>?
-    @State private var completionState = CustomLLMSetupCompletionState()
-    @State private var connectionAttempts = 0
-    @State private var submissionWasFirstProvider = false
     @State private var discoveryResult: RelayDiscoveryResult?
     @State private var selectedDetectionID: String?
     @State private var verifiedDetectionID: String?
@@ -151,7 +148,6 @@ struct RelaySetupView: View {
                                 selectedRelayKind = kind
                                 probeFailureNote = nil
                                 setupError = nil
-                                connectionAttempts = 0
                             }
                         }
                     }
@@ -178,12 +174,6 @@ struct RelaySetupView: View {
             submitTask = nil
             testTask?.cancel()
             testTask = nil
-            let stillInStack = appState.navigation.path.contains { route in
-                if case .relaySetup = route { return true }
-                return false
-            }
-            if completionState.shouldReportAbandoned(stillInNavigationStack: stillInStack) {
-            }
         }
         .onChange(of: customTransport) { _, newTransport in
             if newTransport != .openaiResponses {
@@ -201,8 +191,6 @@ struct RelaySetupView: View {
 
     @MainActor
     private func completeProviderSetup(_ provider: Provider) {
-        // Set this before the navigation mutation removes the page and triggers onDisappear.
-        completionState.markCompleted()
         appState.completeProviderSetup(providerID: provider.id, entryPoint: entryPoint)
     }
 
@@ -377,7 +365,6 @@ struct RelaySetupView: View {
                             selectedRelayKind = nil
                             probeFailureNote = nil
                             setupError = nil
-                            connectionAttempts = 0
                         }
                     } else if showsManualProfiles {
                         withAnimation(.snappy(duration: 0.18)) {
@@ -875,7 +862,6 @@ struct RelaySetupView: View {
 
         isSubmitting = true
         setupError = nil
-        connectionAttempts += 1
         defer { isSubmitting = false }
 
         do {
@@ -923,7 +909,6 @@ struct RelaySetupView: View {
         selectedDetectionID = nil
         verifiedDetectionID = nil
         testConnectionResult = nil
-        connectionAttempts += 1
         defer { isTestingConnection = false }
 
         let preferredModel = defaultModelID.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -1031,7 +1016,6 @@ struct RelaySetupView: View {
         }
 
         guard ProviderSelectionSnapshot.defaultModel(in: provider) != nil else {
-            completionState.markCompleted()
             if entryPoint == .welcome {
                 appState.navigation.path = [
                     .manualModelEntry(providerID: provider.id, context: .onboarding)
@@ -1126,7 +1110,6 @@ struct RelaySetupView: View {
     @MainActor
     private func runTestConnection() async {
         guard !isTestingConnection else { return }
-        connectionAttempts += 1
 
         let trimmedEndpoint = endpoint.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedEndpoint.isEmpty else {
@@ -1185,8 +1168,6 @@ struct RelaySetupView: View {
         let kind = selectedRelayKind ?? .custom
 
         guard formIssues.isEmpty else { return }
-        connectionAttempts += 1
-        submissionWasFirstProvider = appState.providers.isEmpty
 
         guard trimmedKey.isEmpty || ProviderKeyInput.isPrintableASCII(trimmedKey) else {
             setupError = ProviderKeyInput.illegalCharsError()
@@ -1283,7 +1264,6 @@ struct RelaySetupView: View {
         if let probeFailedReason {
             probeFailureNote = probeFailedReason
         }
-        completionState.markCompleted()
         appState.selectedTab = .providers
         appState.navigation.path = [relaySetupCompletionRoute(for: provider)]
     }
@@ -1417,126 +1397,4 @@ private struct RelayQuickSetupBackdrop: View {
         }
         .accessibilityHidden(true)
     }
-}
-
-struct RelaySetupOrbIcon: View {
-    var systemImage: String
-    var badgeSystemImage: String? = nil
-    var tone: StatusTone = .primary
-    var size: CGFloat = 72
-
-    var body: some View {
-        ZStack {
-            Circle()
-                .fill(orbGradient)
-                .frame(width: size, height: size)
-                .overlay(
-                    Circle()
-                        .stroke(OriveoTheme.Palette.hairline, lineWidth: 1)
-                )
-                .shadow(color: tone.foreground.opacity(0.18), radius: 10, y: 5)
-
-            Circle()
-                .fill(OriveoTheme.Palette.cardHighlight)
-                .frame(width: size * 0.45, height: size * 0.45)
-                .offset(x: -size * 0.16, y: -size * 0.18)
-
-            Image(systemName: systemImage)
-                .font(.system(size: size * 0.32, weight: .semibold))
-                .foregroundStyle(Color.white)
-
-            if let badgeSystemImage {
-                Circle()
-                    .fill(OriveoTheme.Palette.surfaceChrome)
-                    .frame(width: size * 0.34, height: size * 0.34)
-                    .overlay(
-                        Circle()
-                            .stroke(OriveoTheme.Palette.border, lineWidth: 1)
-                    )
-                    .overlay {
-                        Image(systemName: badgeSystemImage)
-                            .font(.system(size: size * 0.14, weight: .bold))
-                            .foregroundStyle(tone.foreground)
-                    }
-                    .offset(x: size * 0.26, y: size * 0.26)
-            }
-        }
-        .frame(width: size + 12, height: size + 12)
-    }
-
-    private var orbGradient: LinearGradient {
-        switch tone {
-        case .primary:
-            return LinearGradient(
-                colors: [
-                    Color.dynamic(light: 0xA78BFA, dark: 0xC4B5FD),
-                    Color.dynamic(light: 0x7C3AED, dark: 0x8B5CF6)
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-        case .success:
-            return LinearGradient(
-                colors: [
-                    Color.dynamic(light: 0x34D399, dark: 0x4ADE80),
-                    Color.dynamic(light: 0x059669, dark: 0x16A34A)
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-        case .warning:
-            return LinearGradient(
-                colors: [
-                    Color.dynamic(light: 0xFBBF24, dark: 0xFCD34D),
-                    Color.dynamic(light: 0xD97706, dark: 0xF59E0B)
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-        case .danger:
-            return LinearGradient(
-                colors: [
-                    Color.dynamic(light: 0xFB7185, dark: 0xFB7185),
-                    Color.dynamic(light: 0xE11D48, dark: 0xE11D48)
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-        case .neutral:
-            return LinearGradient(
-                colors: [
-                    Color.dynamic(light: 0xCBD5E1, dark: 0x64748B),
-                    Color.dynamic(light: 0x94A3B8, dark: 0x475569)
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-        }
-    }
-}
-
-func relaySetupFeatureItems() -> [HeroIconTextItem] {
-    [
-        HeroIconTextItem(
-            id: "endpoint",
-            title: L10n.tr("Request URL", table: .providers),
-            systemImage: "point.bottomleft.forward.to.point.topright.scurvepath",
-            gradientColors: [Color.dynamic(light: 0x818CF8, dark: 0xA78BFA), Color.dynamic(light: 0x5B21B6, dark: 0x7C3AED)],
-            shadowColor: Color.dynamic(light: 0x4338CA, dark: 0x000000, lightAlpha: 0.10, darkAlpha: 0.12)
-        ),
-        HeroIconTextItem(
-            id: "model",
-            title: L10n.tr("Model", table: .providers),
-            systemImage: "cpu",
-            gradientColors: [Color.dynamic(light: 0x22C55E, dark: 0x4ADE80), Color.dynamic(light: 0x15803D, dark: 0x16A34A)],
-            shadowColor: Color.dynamic(light: 0x166534, dark: 0x000000, lightAlpha: 0.10, darkAlpha: 0.12)
-        ),
-        HeroIconTextItem(
-            id: "transport",
-            title: L10n.tr("Transport", table: .providers),
-            systemImage: "arrow.triangle.branch",
-            gradientColors: [Color.dynamic(light: 0xF59E0B, dark: 0xFBBF24), Color.dynamic(light: 0xD97706, dark: 0xD97706)],
-            shadowColor: Color.dynamic(light: 0xB45309, dark: 0x000000, lightAlpha: 0.10, darkAlpha: 0.12)
-        ),
-    ]
 }
