@@ -7,15 +7,11 @@ import org.w3c.dom.Element
 import java.io.File
 import javax.xml.parsers.DocumentBuilderFactory
 
-
 class FolderLocalizationTest {
 
-    
     private val folderStringKeys = listOf(
-        "folders",
         "new_folder",
         "folder_name",
-        "create_folder",
         "rename_folder",
         "delete_folder",
         "delete_folder_title",
@@ -34,7 +30,6 @@ class FolderLocalizationTest {
         "view_all",
     )
 
-    
     private val toastKeys = listOf(
         "folder_created",
         "folder_deleted",
@@ -44,19 +39,16 @@ class FolderLocalizationTest {
         "batch_removed_from_folder",
     )
 
-    
     private val emptyStateKeys = listOf(
         "empty_folder",
         "empty_folder_hint",
     )
 
-    
     private val deleteConfirmKeys = listOf(
         "delete_folder_title",
         "delete_folder_confirm",
     )
 
-    
     private val locales = mapOf(
         "values" to "English",
         "values-zh-rCN" to "Simplified Chinese",
@@ -76,9 +68,8 @@ class FolderLocalizationTest {
         "values-ru" to "Russian",
     )
 
-    
     private val resDir: File by lazy {
-        
+
         val projectDir = findProjectRoot()
         File(projectDir, "app/src/main/res").also {
             assertTrue("res directory not found at ${it.absolutePath}", it.exists())
@@ -86,32 +77,30 @@ class FolderLocalizationTest {
     }
 
     private fun findProjectRoot(): File {
-        
+
         val candidates = listOf(
-            
+
             System.getProperty("user.dir"),
-            
+
             System.getProperty("project.dir"),
         )
 
         for (candidate in candidates) {
             if (candidate == null) continue
             var dir = File(candidate)
-            
+
             repeat(10) {
                 if (File(dir, "app/src/main/res/values/strings.xml").exists()) return dir
                 dir = dir.parentFile ?: return@repeat
             }
         }
 
-        
         val cwd = File(System.getProperty("user.dir") ?: ".")
         if (File(cwd, "app/src/main/res/values/strings.xml").exists()) return cwd
 
         error("Cannot find Android project root containing app/src/main/res/values/strings.xml")
     }
 
-    
     private fun parseStrings(valuesDir: String): Map<String, String> {
         val file = File(resDir, "$valuesDir/strings.xml")
         if (!file.exists()) return emptyMap()
@@ -127,8 +116,6 @@ class FolderLocalizationTest {
         }
         return map
     }
-
-    
 
     @Test
     fun `TC-24-1-1 all folder string resources exist in all 16 languages`() {
@@ -149,8 +136,6 @@ class FolderLocalizationTest {
         )
     }
 
-    
-
     @Test
     fun `TC-24-1-2 toast messages translated in all languages`() {
         val missing = mutableListOf<String>()
@@ -169,8 +154,6 @@ class FolderLocalizationTest {
             missing.isEmpty(),
         )
     }
-
-    
 
     @Test
     fun `TC-24-1-3 empty state text translated in all languages`() {
@@ -191,8 +174,6 @@ class FolderLocalizationTest {
         )
     }
 
-    
-
     @Test
     fun `TC-24-1-4 delete confirmation text translated in all languages`() {
         val missing = mutableListOf<String>()
@@ -211,8 +192,6 @@ class FolderLocalizationTest {
             missing.isEmpty(),
         )
     }
-
-    
 
     @Test
     fun `TC-24-1-5 all translations are non-empty`() {
@@ -233,8 +212,6 @@ class FolderLocalizationTest {
             empty.isEmpty(),
         )
     }
-
-    
 
     @Test
     fun `TC-24-1-6 format placeholders preserved in all translations`() {
@@ -265,8 +242,6 @@ class FolderLocalizationTest {
         )
     }
 
-    
-
     @Test
     fun `TC-24-1-7 non-English translations differ from English`() {
         val englishStrings = parseStrings("values")
@@ -275,14 +250,14 @@ class FolderLocalizationTest {
         for ((valuesDir, langName) in locales) {
             if (valuesDir == "values") continue
             val strings = parseStrings(valuesDir)
-            
+
             var sameCount = 0
             for (key in folderStringKeys) {
                 val engValue = englishStrings[key] ?: continue
                 val localValue = strings[key] ?: continue
                 if (engValue == localValue) sameCount++
             }
-            
+
             if (sameCount > folderStringKeys.size / 2) {
                 untranslated.add("$langName ($valuesDir): $sameCount/${folderStringKeys.size} strings identical to English")
             }

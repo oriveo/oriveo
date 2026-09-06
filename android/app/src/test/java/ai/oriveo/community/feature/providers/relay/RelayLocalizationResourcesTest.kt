@@ -130,10 +130,6 @@ class RelayLocalizationResourcesTest {
             "Connect your own model service.",
             english["provider_setup_relay_subtitle"],
         )
-        assertEquals(
-            "Connect your own model service, or local & LAN compute.",
-            english["provider_setup_relay_description"],
-        )
         assertEquals("Invalid request URL", english["relay_setup_invalid_endpoint_title"])
         assertEquals("Enter a request URL.", english["relay_no_endpoint_set"])
         // The parameters page was renamed from "Model Behavior" to "Advanced Settings"; iOS

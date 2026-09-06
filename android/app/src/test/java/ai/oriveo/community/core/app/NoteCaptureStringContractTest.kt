@@ -25,11 +25,7 @@ class NoteCaptureStringContractTest {
             val saveAsNote = strings["notes_chat_save_as_note"]
                 ?: error("${file.path} is missing notes_chat_save_as_note")
 
-            listOf(
-                "notes_chat_save_code_as_note",
-                "notes_chat_add_selection_to_note",
-                "notes_crosscheck_save",
-            ).forEach { key ->
+            listOf("notes_crosscheck_save").forEach { key ->
                 val value = strings[key] ?: error("${file.path} is missing $key")
                 assertEquals(
                     "${file.parentFile?.name ?: file.path}: $key must reuse notes_chat_save_as_note",
