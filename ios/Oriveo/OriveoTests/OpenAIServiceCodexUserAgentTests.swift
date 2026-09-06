@@ -99,11 +99,9 @@ struct OpenAIServiceCodexUserAgentTests {
 
     @Test("Codex subscription outbound includes web search and reasoning effort from upstream declarations")
     func codexSubscriptionSendsWebSearchAndReasoningEffort() async {
-        // 2026-08-20 on-device report: "web search is on but it still doesn't work".
-        // Root cause: the subscription body hard-coded tools and reasoning.effort
-        // to nil, so the UI toggle never reached the wire — the same "decide in
-        // one place, execute in another" split described in ChatModels. Capability
-        // comes from per-model declarations on upstream /models.
+        // The subscription body must not hard-code tools and reasoning.effort to nil: that is
+        // how a UI toggle ends up never reaching the wire. Capability comes from the per-model
+        // declarations upstream /models returns.
         CapturingProtocol.reset()
         let service = OpenAIService(session: makeMockSession())
 

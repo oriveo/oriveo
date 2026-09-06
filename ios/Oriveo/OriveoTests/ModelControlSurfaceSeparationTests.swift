@@ -32,22 +32,18 @@ struct ModelControlSurfaceSeparationTests {
     /// here — the shadow owns that theme; see `lightThemeKeepsShadow`.
     private static let minimumLightDeltaLStar = 1.0
 
-    /// ⚠️ **2026-08-13: color values are parsed from the `OriveoTheme.swift` declarations,
-    /// not via `UIColor(Color)`.**
+    /// Colours are parsed out of the `OriveoTheme.swift` declarations rather than resolved
+    /// through `UIColor(Color)`, and that is deliberate: bridging
+    /// `Color(uiColor: UIColor { trait in ... })` back to `UIColor` drops the dynamic provider,
+    /// so both themes resolve to the same light value (`traits.performAsCurrent` does not
+    /// recover it either). Measuring through the bridge fails silently — a colour still comes
+    /// back and every assertion still runs, they just measure the wrong object. Reading the two
+    /// numbers written in the product avoids the bridge entirely.
     ///
-    /// The previous form was `UIColor(OriveoTheme.Palette.surface).resolvedColor(with: darkTraits)`.
-    /// Measured locally: bridging `Color(uiColor: UIColor { trait in ... })` back to `UIColor`
-    /// drops the dynamic provider, so **both themes resolve to the same light value**
-    /// (`traits.performAsCurrent { UIColor(color) }` does not recover it either). This suite
-    /// was therefore running the light value against the dark floor; the dark theme was never
-    /// actually measured. A later toolchain update turned it red and exposed the bug.
-    /// The symptom is extremely quiet: the function still returns a color, the assertions
-    /// still run, they just measure the wrong object.
-    /// Now measure **the two numbers written in the product**, independent of the runtime bridge.
-    /// ⚠️ **2026-08-15: the dark theme measures `surfaceElevated`.** `ModelControlSurface`'s
-    /// dark fill moved from `surface` (#1B1F2A, ΔL* 3.7) to `surfaceElevated` (#252937, ΔL* 8.6).
-    /// The token name follows the component; hard-coding `surface` would measure a card that
-    /// is not on screen.
+    /// The dark theme measures `surfaceElevated` (#252937, ΔL* 8.6), not `surface`
+    /// (#1B1F2A, ΔL* 3.7), because that is what `ModelControlSurface` fills with in dark mode.
+    /// The token this reads has to follow the component, or it measures a card that is not on
+    /// screen.
     @Test("Card and page stay separable by luminance in both themes")
     func surfaceSeparatesFromBackground() throws {
         for (theme, floor) in [

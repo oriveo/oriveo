@@ -460,11 +460,9 @@ struct CapabilityRecipeExecutionTests {
             "en", "zh-Hans", "zh-Hant", "ar", "de", "es", "fr", "hi", "id", "ja", "ko",
             "pt-BR", "ru", "th", "tr", "vi",
         ])
-        // Active list after the 2026-08-16 UX redefinition: the triple gate (settings-page
-        // master switch / capability-card entry / in-page two-step toggle) was removed. The
-        // editor is now a single multi-owner page, and non-empty content takes effect. The
-        // old master-switch and configuration-method strings were deleted from xcstrings;
-        // this list pins only the user-visible copy that production actually uses.
+        // The editor is a single multi-owner page with no master switch: non-empty content
+        // simply takes effect. This list pins the copy production actually renders, so a
+        // string that stops being used has to be removed from here too.
         let keys = [
             "Custom request fields", "Custom request fields JSON",
             "Scope: this conversation, connection, model, and transport.",
@@ -501,14 +499,10 @@ struct CapabilityRecipeExecutionTests {
             }
         }
 
-        // 2026-08-16: the check above only required "has a translation, and it is not the
-        // English source", so a subtler defect survived as a batch — English splits rejection
-        // copy into syntax / size / conflict, but all 15 non-English locales collapsed onto
-        // one old generic sentence ("This JSON is invalid, conflicts with a managed field,
-        // or is not allowed for this transport."). Each string "has a translation and is not
-        // English", so parity passed, while non-English users always saw the same sentence
-        // and the three categories did not exist. **Semantically distinct sentences in the
-        // same locale must differ from each other**; that is the criterion this pins.
+        // "Has a translation, and it is not the English source" is too weak on its own: a
+        // locale can pass it while collapsing several distinct sentences onto one generic
+        // line, which quietly erases the categories for everyone but English readers. So
+        // sentences that mean different things must also differ from each other per locale.
         let mustDifferPerLocale = [
             "Enter valid JSON with no duplicate keys.",
             "This JSON fragment is too large or complex to apply.",
@@ -527,11 +521,11 @@ struct CapabilityRecipeExecutionTests {
         }
     }
 
-    /// 2026-08-16: the global developer master switch was retired. It belonged to no model
-    /// and could not explain "I turned it on, why is nothing here?". The real gate is whether
-    /// a schema was issued. This panel must keep two invariants: **never read any master
-    /// switch**, and **when a preference is overridden the card must show that in place and
-    /// offer a way back**. Rewriting a preference without saying so is the UI lying.
+    /// There is no global developer switch: a switch that belongs to no model cannot explain
+    /// "I turned it on, why is nothing here?". The only gate is whether a schema was issued.
+    /// Two invariants follow — the panel never reads a master switch, and an overridden
+    /// preference is shown in place with a way back. Rewriting a preference silently would be
+    /// the UI lying about what it is going to send.
     @Test("Model Controls surfaces an overridden owner in place, with no global gate left")
     func customEditorStructureIsGatedAndAccessible() throws {
         let page = try Self.customFieldsPageSource()
@@ -540,7 +534,7 @@ struct CapabilityRecipeExecutionTests {
             "localCustomDeveloperModeDefaultsKey", "customDeveloperModeEnabled",
             "setLocalCustomDeveloperModeEnabled(",
         ] {
-            #expect(!sheet.contains(gate), "panel reads the retired global master switch again: \(gate)")
+            #expect(!sheet.contains(gate), "panel reads a global master switch again: \(gate)")
         }
         // Same predicate as the outbound gate: outbound treats `mode == .custom` as selected.
         #expect(sheet.contains("customModes[owner, default: .automatic] == .custom"))
@@ -555,14 +549,10 @@ struct CapabilityRecipeExecutionTests {
         #expect(sheet.contains("isReadOnly: !editability.canPersist"))
     }
 
-    /// 2026-08-16: "one owner at a time" was overturned. The entry collapsed from three
-    /// capability cards into Advanced Settings → Developer → Custom request fields, so the
-    /// editor must carry every owner on one page.
-    ///
-    /// The old shape's real bug was not "three owners on one page"; it was that those three
-    /// owners duplicated **the three cards on the previous page** — the hierarchy was inverted.
-    /// The previous page is now the parameter table; sectioning this page by owner no longer
-    /// repeats any other page.
+    /// The editor is reached through Advanced Settings → Developer → Custom request fields and
+    /// carries every owner on one page. Sectioning by owner is only safe because the page above
+    /// is the parameter table: repeating the previous page's own cards here would invert the
+    /// hierarchy rather than describe it.
     @Test("Custom request fields page carries every owner in one page, entered from Advanced Settings")
     func customFieldsPageCarriesEveryOwner() throws {
         let page = try Self.customFieldsPageSource()
@@ -610,32 +600,32 @@ struct CapabilityRecipeExecutionTests {
         // actually consumes them.
         #expect(sheet.contains("ModelControlReasoningLayout.layout("))
         #expect(sheet.contains("ModelControlWebLayout.layout("))
-        // 2026-08-16: writability only affects **shape** (interactive vs read-only status row); it no longer produces a disabled control.
+        // Writability only affects shape — interactive control vs read-only status row. It
+        // never produces a disabled control, which explains nothing to the reader.
         #expect(sheet.contains("isEditable: editability.canPersist && !overridden"))
         #expect(sheet.contains("var isConfigurable: Bool"))
         // The force reason stays visible; it is no longer gated on "a selected-but-unselectable tier", which is unreachable.
         #expect(!sheet.contains("forceRequested"))
-        // Rule 3: subpages always push; never dismiss this sheet and open another.
+        // Subpages always push. Dismissing this sheet to open another loses the reader's place.
         #expect(sheet.contains("NavigationLink(value: ModelControlsRoute.modelBehavior)"))
         #expect(!sheet.contains("opensModelBehavior"))
         // Detents belong to the panel. The composer **must not declare another copy**:
         // presentation preferences let the outer sheet override the inner one, and the
-        // composer's copy silently kills the panel's own declaration — the 2026-08-16
-        // full suite caught this live.
+        // composer's copy silently kills the panel's own declaration.
         let composer = try String(contentsOf: Self.findFile([
             "ios", "Oriveo", "Oriveo", "Features", "Chat", "ChatComposerBar.swift",
         ]), encoding: .utf8)
         #expect(!composer.contains(".presentationDetents("))
-        // 2026-08-16 owner increment: keep only the `.large` detent. Extra detents let
-        // the sheet's expand recognizer swallow "drag up in the content area" and fight
-        // ScrollView (device: bottom content is clipped and cannot be scrolled).
+        // Keep only the `.large` detent. Extra detents let the sheet's expand recognizer
+        // swallow an upward drag inside the content area and fight the ScrollView, which
+        // clips the bottom of the page and makes it unreachable.
         #expect(sheet.contains(".presentationDetents([.large])"))
         #expect(!sheet.contains(".fraction("), "multi-detent came back; upward drags will be eaten by the expand gesture")
     }
 
     /// Visual rule: panel hierarchy comes only from background contrast, spacing, and a very
-    /// light shadow. Stacking card strokes + pill strokes + callout fills turns the page into
-    /// a grid (2026-08-13 device feedback).
+    /// light shadow. Stacking card strokes, pill strokes and callout fills turns the page into
+    /// a grid.
     @Test("Model Controls surfaces carry no borders")
     func modelControlSurfacesAreBorderless() throws {
         for name in ["ModelControlsSheet", "ModelControlsComponents", "CustomRequestFieldsPage",

@@ -2,7 +2,10 @@ import Foundation
 import Testing
 @testable import Oriveo
 
-/// `tools:[{"type":"web_search"}]`**.
+/// When web search is enabled for an official Grok connection on the `openai_responses` transport,
+/// the outbound request must really carry `tools: [{"type": "web_search"}]`. Without it the model
+/// narrates the tool call it wanted to make instead of answering, which reads like a rendering bug
+/// but is the model reporting that it was given no tools.
 @Suite("Grok Official Web Search Injection Tests", .serialized)
 struct GrokOfficialWebSearchInjectionTests {
     private static func productionSnapshot() throws -> String {

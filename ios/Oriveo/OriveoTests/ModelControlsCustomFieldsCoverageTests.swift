@@ -4,17 +4,13 @@ import Testing
 
 /// Coverage regression for **Custom request fields**.
 ///
-/// 2026-08-13 on-device bug: the entry only checked the developer master gate,
-/// not whether that owner actually had a schema, so 13 of 15 providers grew an
-/// entry on each of the three capability cards; tapping it opened a greyed-out
-/// Custom pane that could change nothing.
+/// Only three provider-and-transport pairs publish a custom schema, so the other forty-two
+/// combinations are the case almost every user meets. Asserting the three that work says
+/// nothing about the forty-two that must show an empty state instead of an entry that opens a
+/// pane which can change nothing.
 ///
-/// The existing suite was green because **every assert verified the 3 pairs that
-/// do have a schema** (`registry_test.go` checks which two openAI owns and which
-/// one qwen owns) and none asked "what does the UI look like for the other 42
-/// combinations". Real users mostly land on the empty side, so this suite
-/// inverts that: **assert only the empty state**, with the few schema-bearing
-/// pairs as a control so the predicate cannot be hard-coded to always-false.
+/// This suite therefore asserts the empty state, and keeps the schema-bearing pairs only as a
+/// control, so the predicate cannot pass by being hard-coded to always-false.
 @Suite("Custom request fields coverage", .serialized)
 struct ModelControlsCustomFieldsCoverageTests {
     /// The fifteen-provider BYOK matrix. Relay has its own branch and is tested separately.
@@ -162,14 +158,13 @@ struct ModelControlsCustomFieldsCoverageTests {
 
     // MARK: - UI "in use" must equal outbound truth
 
-    /// 2026-08-16 decision: the developer master gate is retired; outbound
-    /// depends only on `mode == .custom`. The entry moved from the three
-    /// capability cards to a single place: Advanced Settings → Developer →
+    /// There is no developer master gate: whether custom fields go out depends only on
+    /// `mode == .custom`, and the entry lives in one place, Advanced Settings → Developer →
     /// Custom request fields.
     ///
-    /// This assert pins the UI predicate on the **outbound condition itself**,
-    /// not on the wording of any one UI line: the entry row's "In use / Not in
-    /// use" can only come from `mode == .custom`, the same predicate as outbound.
+    /// This pins the UI predicate to the outbound condition itself rather than to the wording
+    /// of any one line: "In use / Not in use" can only come from `mode == .custom`, the same
+    /// predicate the wire uses.
     @Test("The stored custom mode alone decides both the outbound fragment and the entry state")
     func customModeAloneDrivesTheOutbound() throws {
         let suiteName = "custom-fields-entry-\(UUID().uuidString)"
@@ -480,8 +475,7 @@ struct ModelControlsCustomFieldsCoverageTests {
     /// Build only the **wire the client actually consumes**: the model's
     /// `capabilityControls` and `capabilityRuntime`. `controlDefinitions` /
     /// `sourceIndex` come from Server's authoritative JSON, not a rewrite in the
-    /// test — synthesizing a definition and then proving we parse it only tests
-    /// the test (the 2026-08-01 `cache_hit` class of bug).
+    /// test — synthesizing a definition and then proving we parse it only tests the test.
     private static func metadata(
         providerKind: ProviderKind, modelID: String, transport: String,
         customControlRefs: [String: [String]], includeLegacyProfiles: Bool = true
