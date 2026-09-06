@@ -2,7 +2,6 @@ package ai.oriveo.community.feature.settings
 
 import ai.oriveo.community.R
 import ai.oriveo.community.core.app.AppPreferencesRepository
-import ai.oriveo.community.core.app.GlobalSnackbarManager
 import ai.oriveo.community.core.data.dao.PreferenceDao
 import ai.oriveo.community.core.data.entity.PreferenceEntity
 import ai.oriveo.community.core.data.repository.ConversationRepository
@@ -21,8 +20,6 @@ import ai.oriveo.community.core.model.StreamEvent
 import ai.oriveo.community.core.provider.ProviderService
 import io.mockk.coEvery
 import io.mockk.every
-import io.mockk.runs
-import io.mockk.just
 import io.mockk.mockk
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
@@ -55,7 +52,6 @@ class MemoryViewModelTest {
     private lateinit var preferenceDao: FakePreferenceDao
     private val conversationRepository = mockk<ConversationRepository>()
     private val providerRepository = mockk<ProviderRepository>()
-    private val globalSnackbarManager = mockk<GlobalSnackbarManager>()
     private val providerService = mockk<ProviderService>()
 
     private val conversationListFlow = MutableStateFlow(emptyList<Conversation>())
@@ -70,7 +66,6 @@ class MemoryViewModelTest {
         every { conversationRepository.observeHasAnyWithMessages() } returns conversationListFlow.map { conversations -> conversations.any { it.messageCount > 0 } }
         every { providerRepository.observeAll() } returns providerListFlow
 
-        every { globalSnackbarManager.show(any()) } just runs
     }
 
     @After
@@ -374,7 +369,6 @@ class MemoryViewModelTest {
         appPreferencesRepository = appPreferencesRepository,
         conversationRepository = conversationRepository,
         providerRepository = providerRepository,
-        globalSnackbarManager = globalSnackbarManager,
     )
 
     private fun sampleDraftProvider(

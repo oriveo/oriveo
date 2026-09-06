@@ -11,7 +11,6 @@ import ai.oriveo.community.core.provider.ProviderBalance
 import ai.oriveo.community.ui.component.ProviderListTrailingAmount
 import ai.oriveo.community.ui.component.formatProviderBalanceAmount
 import ai.oriveo.community.ui.component.providerListTrailingAmount
-import ai.oriveo.community.ui.component.shouldShowProviderListErrorCopy
 import java.io.File
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -179,18 +178,6 @@ class ProvidersScreenFunctionsTest {
             false,
             hero.contains("provider.availableModelCount"),
         )
-    }
-
-    @Test
-    fun `provider list rows do not show separate error copy for issue providers`() {
-        val provider = Provider(
-            id = "provider-1",
-            kind = ProviderKind.OpenAI,
-            status = ProviderConnectionState.Issue("invalid_key"),
-            lastError = "API key invalid",
-        )
-
-        assertEquals(false, shouldShowProviderListErrorCopy(provider))
     }
 
 }

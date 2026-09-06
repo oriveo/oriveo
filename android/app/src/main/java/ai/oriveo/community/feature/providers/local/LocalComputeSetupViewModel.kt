@@ -36,7 +36,6 @@ enum class LocalComputeScenario { ThisDevice, AnotherComputer, FullAddress }
 
 enum class LocalComputeSecurityModeChangeResult { Applied, NeedsConfirmation, Rejected }
 
-
 internal fun automaticPairingCandidates(
     candidates: List<LocalPairingCandidate>,
     fingerprint: String?,
@@ -51,9 +50,8 @@ class LocalComputeSetupViewModel(
     private val providerRepository: ProviderRepository,
     private val runtimeClient: LocalEngineRuntimeClient,
 ) : ViewModel() {
-    
-    private lateinit var coordinator: CustomLLMSetupCoordinator
 
+    private lateinit var coordinator: CustomLLMSetupCoordinator
 
     var engine by mutableStateOf(LocalEngineKind.Ollama)
         private set
@@ -61,9 +59,9 @@ class LocalComputeSetupViewModel(
         private set
     var scenario by mutableStateOf(LocalComputeScenario.ThisDevice)
         private set
-    var securityMode by mutableStateOf(defaultSecurityModeFor(engine))
+    var securityMode by mutableStateOf(DEFAULT_SECURITY_MODE)
         private set
-    
+
     var endpointHighlightRange by mutableStateOf<IntRange?>(null)
         private set
     var modelId by mutableStateOf("")
@@ -101,9 +99,13 @@ class LocalComputeSetupViewModel(
         }.let { coordinator }
 
     companion object {
-        
-        fun defaultSecurityModeFor(@Suppress("UNUSED_PARAMETER") engine: LocalEngineKind): RelayConnectionSecurityMode =
-            RelayConnectionSecurityMode.RemoteHttps
+        /**
+         * The security mode a newly configured local engine starts on.
+         *
+         * Every engine starts at the strictest setting regardless of which one it is; loosening it
+         * to plain HTTP is an explicit choice the user makes in the form.
+         */
+        val DEFAULT_SECURITY_MODE: RelayConnectionSecurityMode = RelayConnectionSecurityMode.RemoteHttps
     }
 
     val hasCredentialMaterial: Boolean
@@ -118,7 +120,7 @@ class LocalComputeSetupViewModel(
     fun selectEngine(value: LocalEngineKind) {
         invalidateConnectionAttempt()
         engine = value
-        securityMode = defaultSecurityModeFor(value)
+        securityMode = DEFAULT_SECURITY_MODE
         if (value != LocalEngineKind.OpenWebUI) apiKey = ""
         endpointHighlightRange = null
         pairingCandidates = emptyList()
@@ -130,7 +132,7 @@ class LocalComputeSetupViewModel(
         invalidateConnectionAttempt()
         scenario = value
         if (value == LocalComputeScenario.AnotherComputer) endpoint = ""
-        securityMode = defaultSecurityModeFor(engine)
+        securityMode = DEFAULT_SECURITY_MODE
         endpointHighlightRange = null
         pairingCandidates = emptyList()
         pairingFingerprint = null
@@ -164,7 +166,6 @@ class LocalComputeSetupViewModel(
         failure = null
     }
 
-    
     fun setSecurityMode(
         mode: RelayConnectionSecurityMode,
         assessment: RelaySecurityModePolicy.Assessment,
@@ -208,13 +209,13 @@ class LocalComputeSetupViewModel(
                 endpointHighlightRange = null
                 val automaticCandidates = automaticPairingCandidates(it.candidates, it.fingerprint)
                 if (automaticCandidates.isEmpty()) {
-                    
+
                     endpoint = it.endpoint
                     securityMode = RelayConnectionSecurityMode.RemoteHttps
                     pairingCandidates = emptyList()
                     pairingFingerprint = null
                 } else {
-                    
+
                     endpoint = automaticCandidates.first().endpoint
                     securityMode = RelayConnectionSecurityMode.TofuHttps
                     pairingCandidates = automaticCandidates
@@ -252,7 +253,7 @@ class LocalComputeSetupViewModel(
             }
         }.getOrElse { error ->
             failure = LocalEngineConnector.configurationFailure(error)
-            
+
             return
         }
         val normalizedEndpoint = normalizedCandidates.firstOrNull()?.endpoint ?: return

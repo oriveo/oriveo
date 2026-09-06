@@ -19,22 +19,15 @@ interface MessageDao {
     fun observeByConversation(accountId: String, conversationId: String): Flow<List<MessageEntity>>
 
     // ──────────────────────────────────────────────────────────────────
-    
-    
-    
-    
-    
+
     // ──────────────────────────────────────────────────────────────────
 
-    
     @Query("SELECT id, accountId, length(attachmentsJson) AS len FROM messages WHERE length(attachmentsJson) > :thresholdChars")
     suspend fun findOversizedAttachmentsJsonRows(thresholdChars: Int): List<OversizedAttachmentsJsonRow>
 
-    
     @Query("SELECT substr(attachmentsJson, :start, :length) FROM messages WHERE accountId = :accountId AND id = :id")
     suspend fun readAttachmentsJsonChunk(accountId: String, id: String, start: Int, length: Int): String?
 
-    
     @Query("UPDATE messages SET attachmentsJson = :attachmentsJson WHERE accountId = :accountId AND id = :id")
     suspend fun updateAttachmentsJson(accountId: String, id: String, attachmentsJson: String?): Int
 
@@ -42,13 +35,9 @@ interface MessageDao {
     suspend fun getByConversation(accountId: String, conversationId: String): List<MessageEntity>
 
     // ──────────────────────────────────────────────────────────────────
-    
-    
-    
-    
+
     // ──────────────────────────────────────────────────────────────────
 
-    
     @Query(
         """
         SELECT * FROM (
@@ -62,7 +51,6 @@ interface MessageDao {
     )
     fun observeLatestMessageWindow(accountId: String, conversationId: String, limit: Int): Flow<List<MessageEntity>>
 
-    
     @Query(
         """
         WITH anchor AS (
@@ -112,7 +100,6 @@ interface MessageDao {
         afterLimit: Int,
     ): Flow<List<MessageEntity>>
 
-    
     @Query(
         """
         SELECT * FROM (
@@ -126,7 +113,6 @@ interface MessageDao {
     )
     suspend fun fetchLatestMessageWindow(accountId: String, conversationId: String, limit: Int): List<MessageEntity>
 
-    
     @Query(
         """
         SELECT * FROM (
@@ -148,7 +134,6 @@ interface MessageDao {
         limit: Int,
     ): List<MessageEntity>
 
-    
     @Query(
         """
         SELECT * FROM messages
@@ -167,7 +152,6 @@ interface MessageDao {
         limit: Int,
     ): List<MessageEntity>
 
-    
     @Query(
         """
         SELECT EXISTS(
@@ -186,7 +170,6 @@ interface MessageDao {
         boundaryId: String,
     ): Boolean
 
-    
     @Query(
         """
         SELECT EXISTS(
@@ -205,8 +188,6 @@ interface MessageDao {
         boundaryId: String,
     ): Boolean
 
-    
-    
     @Query(
         """
         SELECT * FROM messages
@@ -226,7 +207,6 @@ interface MessageDao {
     )
     suspend fun getByIdForConversation(accountId: String, conversationId: String, id: String): MessageEntity?
 
-    
     @Query(
         """
         SELECT * FROM messages
@@ -237,7 +217,6 @@ interface MessageDao {
     )
     suspend fun lastDelivered(accountId: String, conversationId: String): MessageEntity?
 
-    
     @Query(
         """
         SELECT * FROM messages
@@ -248,7 +227,6 @@ interface MessageDao {
     )
     suspend fun lastDeliveredUser(accountId: String, conversationId: String): MessageEntity?
 
-    
     @Query(
         """
         SELECT * FROM messages
@@ -260,7 +238,6 @@ interface MessageDao {
     )
     suspend fun lastDeliveredUserBefore(accountId: String, conversationId: String, beforeSortOrder: Int): MessageEntity?
 
-    
     @Query("SELECT COUNT(*) FROM messages WHERE accountId = :accountId AND conversationId = :conversationId AND state = 'Delivered'")
     suspend fun countDeliveredByConversation(accountId: String, conversationId: String): Int
 
@@ -319,8 +296,7 @@ interface MessageDao {
         id: String,
         inputTokens: Int,
         outputTokens: Int,
-        
-        
+
         cacheReadTokens: Int?,
         cacheWriteTokens: Int?,
     ): Int
@@ -334,15 +310,12 @@ interface MessageDao {
     @Query("SELECT MAX(sortOrder) FROM messages WHERE accountId = :accountId AND conversationId = :conversationId")
     suspend fun maxSortOrder(accountId: String, conversationId: String): Int?
 
-    
     @Query("SELECT MAX(createdAt) FROM messages WHERE accountId = :accountId AND conversationId = :conversationId")
     suspend fun latestMessageTimestamp(accountId: String, conversationId: String): Long?
 
-    
     @Query("SELECT COUNT(*) FROM messages WHERE accountId = :accountId AND conversationId = :conversationId")
     suspend fun countByConversation(accountId: String, conversationId: String): Int
 
-    
     @Query(
         """
         SELECT COALESCE(SUM(estimatedCost), 0.0)
@@ -355,7 +328,6 @@ interface MessageDao {
     )
     suspend fun sumDeliveredCost(accountId: String, conversationId: String, minimumCostExclusive: Double): Double
 
-    
     @Query(
         """
         SELECT DISTINCT m.conversationId
@@ -380,7 +352,6 @@ interface MessageDao {
     )
     fun observeCountByProvider(providerId: String, accountId: String): Flow<Int>
 
-    
     @Query(
         """
         SELECT m.providerKind,
@@ -405,7 +376,11 @@ interface MessageDao {
         windowEndMillis: Long,
     ): Flow<List<MonthlyCostRow>>
 
-    /** Exclude legacy official free provider rows from local aggregates. */
+    /**
+     * One-shot form of [observeMonthlyCostByProviderKind], for callers that only need the current
+     * total. Drafts and undelivered messages are excluded, so the figures match what the user sees
+     * in the conversation.
+     */
     @Query(
         """
         SELECT m.providerKind,
@@ -430,7 +405,6 @@ interface MessageDao {
         windowEndMillis: Long,
     ): List<MonthlyCostRow>
 
-    
     @Query(
         """
         SELECT COALESCE(m.providerID, c.providerID) AS providerId, SUM(m.estimatedCost) AS totalCost
@@ -453,7 +427,6 @@ interface MessageDao {
         windowEndMillis: Long,
     ): Flow<List<MonthlyProviderCostRow>>
 
-    
     @Query(
         """
         SELECT m.modelName AS modelName,

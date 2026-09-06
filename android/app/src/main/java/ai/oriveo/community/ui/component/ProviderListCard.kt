@@ -448,10 +448,6 @@ private fun compactCurrencyText(text: String): String {
     return prefix + suffix
 }
 
-fun shouldShowProviderListErrorCopy(
-    @Suppress("UNUSED_PARAMETER") provider: Provider,
-): Boolean = false
-
 /** Maps a persisted English error key onto its localized message in the current language. */
 @Composable
 fun localizedProviderError(key: String): String = when (key) {

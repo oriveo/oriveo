@@ -34,13 +34,10 @@ class AppPreferencesRepository(
         const val MEMORY_CHARACTER_LIMIT = 2_000
         const val MEMORY_ANTI_FORGET_CHARACTER_LIMIT = 200
 
-        
         private const val STARTUP_CACHE_PREFS = "oriveo_prefs"
 
-        
         private const val STARTUP_CACHE_ONBOARDING_COMPLETED = "onboarding_completed_cache"
 
-        
         fun readOnboardingCompletedSync(context: Context): Boolean =
             context.getSharedPreferences(STARTUP_CACHE_PREFS, Context.MODE_PRIVATE)
                 .getBoolean(STARTUP_CACHE_ONBOARDING_COMPLETED, false)
@@ -83,7 +80,6 @@ class AppPreferencesRepository(
             LanguageOption.Russian -> "russian"
         }
 
-        
         fun serializeLanguageSyncTag(option: LanguageOption): String? = when (option) {
             LanguageOption.System -> null
             LanguageOption.English -> "en"
@@ -104,7 +100,6 @@ class AppPreferencesRepository(
             LanguageOption.Russian -> "ru"
         }
 
-        
         fun parseLanguageSyncTag(value: String?): LanguageOption? {
             if (value.isNullOrBlank()) return null
             when (value) {
@@ -132,13 +127,12 @@ class AppPreferencesRepository(
     val hasCompletedOnboarding: Flow<Boolean> = observeDeviceScoped(AppPreferenceKeys.ONBOARDING_COMPLETED)
         .map { it == "true" }
 
-    
     val initialOnboardingCompleted: Boolean
         get() = appContext?.let { readOnboardingCompletedSync(it) } ?: false
 
     val theme: Flow<ThemeOption> = observeDeviceScoped(AppPreferenceKeys.THEME)
         .map { value ->
-            
+
             parseThemePreference(value) ?: ThemeOption.Dark
         }
 
@@ -167,11 +161,9 @@ class AppPreferencesRepository(
     val memoryHasSeen: Flow<Boolean> = observeUserState(AppPreferenceKeys.MEMORY_HAS_SEEN)
         .map { it?.toBooleanStrictOrNull() ?: false }
 
-    
     val pinnedConversationIds: Flow<List<String>> = observeUserState(AppPreferenceKeys.PINNED_CONVERSATION_IDS)
         .map(::decodePinnedConversationIds)
 
-    
     val pinnedConversationIdsUpdatedAt: Flow<String?> = observeUserState(AppPreferenceKeys.PINNED_CONVERSATION_IDS_UPDATED_AT)
 
     val preference: Flow<AppPreference> = combine(
@@ -192,8 +184,6 @@ class AppPreferencesRepository(
         )
     }
 
-    
-    
     private val lastUsedModelOverride = MutableStateFlow<Pair<String, LastUsedModelRef>?>(null)
 
     val lastUsedModelRef: Flow<LastUsedModelRef?> = combine(
@@ -215,7 +205,6 @@ class AppPreferencesRepository(
         override?.takeIf { it.first == currentAccountId() }?.second ?: stored
     }
 
-    
     val lastUsedModelRefSnapshot: LastUsedModelRef?
         get() = lastUsedModelOverride.value?.takeIf { it.first == currentAccountId() }?.second
 
@@ -240,7 +229,7 @@ class AppPreferencesRepository(
 
     suspend fun setLanguage(option: LanguageOption) {
         preferenceDao.set(PreferenceEntity(AppPreferenceKeys.LANGUAGE, option.name))
-        
+
         appContext?.getSharedPreferences("oriveo_prefs", Context.MODE_PRIVATE)
             ?.edit()
             ?.putString("app_language", option.name)
@@ -248,7 +237,6 @@ class AppPreferencesRepository(
 
     }
 
-    
     suspend fun hasAcceptedProviderDisclosure(kind: ProviderKind): Boolean =
         acceptedProviderDisclosureRawValues().contains(kind.rawValue)
 
@@ -266,7 +254,6 @@ class AppPreferencesRepository(
     private suspend fun acceptedProviderDisclosureRawValues(): Set<String> =
         acceptedRawValues(AppPreferenceKeys.PROVIDER_DISCLOSURE_ACCEPTED_LIST)
 
-    
     private suspend fun acceptedRawValues(key: String): Set<String> {
         val raw = observeDeviceScopedValue(key).orEmpty()
         if (raw.isBlank()) return emptySet()
@@ -286,7 +273,6 @@ class AppPreferencesRepository(
     suspend fun getLanguage(): LanguageOption =
         parseLanguagePreference(observeDeviceScopedValue(AppPreferenceKeys.LANGUAGE)) ?: LanguageOption.System
 
-    
     fun primeLastUsedModel(providerId: String, modelId: String) {
         lastUsedModelOverride.value =
             currentAccountId() to LastUsedModelRef(providerID = providerId, modelID = modelId)
@@ -320,27 +306,14 @@ class AppPreferencesRepository(
         preferenceDao.delete(storageKeyForCurrentAccount(AppPreferenceKeys.LAST_USED_MODEL_ID))
     }
 
-    suspend fun getMemoryText(accountId: String = currentAccountId()): String =
-        accountScopedValue(AppPreferenceKeys.MEMORY_TEXT, accountId).orEmpty()
+    suspend fun getMemoryText(): String =
+        accountScopedValue(AppPreferenceKeys.MEMORY_TEXT).orEmpty()
 
-    suspend fun getMemoryAntiForgetEnabled(accountId: String = currentAccountId()): Boolean =
-        accountScopedValue(AppPreferenceKeys.MEMORY_ANTI_FORGET_ENABLED, accountId)?.toBooleanStrictOrNull() ?: false
+    suspend fun getMemoryAntiForgetEnabled(): Boolean =
+        accountScopedValue(AppPreferenceKeys.MEMORY_ANTI_FORGET_ENABLED)?.toBooleanStrictOrNull() ?: false
 
-    suspend fun getMemoryAntiForgetText(accountId: String = currentAccountId()): String =
-        accountScopedValue(AppPreferenceKeys.MEMORY_ANTI_FORGET_TEXT, accountId).orEmpty()
-
-    suspend fun getMemoryUpdatedAt(accountId: String = currentAccountId()): String? =
-        accountScopedValue(AppPreferenceKeys.MEMORY_UPDATED_AT, accountId)
-
-    suspend fun getLastUsedModelRef(accountId: String = currentAccountId()): LastUsedModelRef? {
-        val providerId = accountScopedValue(AppPreferenceKeys.LAST_USED_PROVIDER_ID, accountId)
-        val modelId = accountScopedValue(AppPreferenceKeys.LAST_USED_MODEL_ID, accountId)
-        if (providerId.isNullOrBlank() || modelId.isNullOrBlank()) return null
-        return LastUsedModelRef(
-            providerID = providerId,
-            modelID = modelId,
-        )
-    }
+    suspend fun getMemoryAntiForgetText(): String =
+        accountScopedValue(AppPreferenceKeys.MEMORY_ANTI_FORGET_TEXT).orEmpty()
 
     suspend fun setMemoryText(text: String) {
         preferenceDao.set(
@@ -387,7 +360,6 @@ class AppPreferencesRepository(
         )
     }
 
-    
     suspend fun setPinnedConversationIds(ids: List<String>, updatedAt: String = Instant.now().toString()) {
         persistPinnedConversationIds(ids, updatedAt)
 
@@ -421,23 +393,15 @@ class AppPreferencesRepository(
         }
     }
 
-    
-    suspend fun applyRemotePinnedConversationIds(ids: List<String>, remoteUpdatedAt: String) {
-        persistPinnedConversationIds(ids = ids, updatedAt = remoteUpdatedAt)
-    }
-
-    suspend fun getPinnedConversationIds(accountId: String = currentAccountId()): List<String> =
-        decodePinnedConversationIds(accountScopedValue(AppPreferenceKeys.PINNED_CONVERSATION_IDS, accountId))
-
-    suspend fun getPinnedConversationIdsUpdatedAt(accountId: String = currentAccountId()): String? =
-        accountScopedValue(AppPreferenceKeys.PINNED_CONVERSATION_IDS_UPDATED_AT, accountId)
+    suspend fun getPinnedConversationIds(): List<String> =
+        decodePinnedConversationIds(accountScopedValue(AppPreferenceKeys.PINNED_CONVERSATION_IDS))
 
     suspend fun markMemoryUsedInConversation(conversationId: String) {
         val normalizedId = conversationId.trim()
         if (normalizedId.isEmpty()) return
 
         val current = decodeMemoryUsageConversationIds(
-            accountScopedValue(AppPreferenceKeys.MEMORY_USAGE_CONVERSATION_IDS, currentAccountId()),
+            accountScopedValue(AppPreferenceKeys.MEMORY_USAGE_CONVERSATION_IDS),
         ).toMutableSet()
         if (!current.add(normalizedId)) return
 
@@ -497,10 +461,7 @@ class AppPreferencesRepository(
         return preferenceDao.get(key)
     }
 
-    private suspend fun accountScopedValue(
-        key: String,
-        @Suppress("UNUSED_PARAMETER") accountId: String,
-    ): String? {
+    private suspend fun accountScopedValue(key: String): String? {
         check(AppPreferenceKeys.isUserState(key)) { "Unsupported user-state key: $key" }
         return preferenceDao.get(key)
     }
@@ -519,7 +480,6 @@ class AppPreferencesRepository(
         }.getOrDefault(emptySet())
     }
 
-    
     private fun decodePinnedConversationIds(rawValue: String?): List<String> {
         val raw = rawValue?.takeIf { it.isNotBlank() } ?: return emptyList()
         return runCatching {

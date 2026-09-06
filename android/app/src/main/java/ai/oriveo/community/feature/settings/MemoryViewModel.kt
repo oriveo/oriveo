@@ -9,7 +9,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import ai.oriveo.community.R
 import ai.oriveo.community.core.app.AppPreferencesRepository
-import ai.oriveo.community.core.app.GlobalSnackbarManager
 import ai.oriveo.community.core.data.repository.ConversationRepository
 import ai.oriveo.community.core.data.repository.ProviderRepository
 import ai.oriveo.community.core.error.ErrorMapper
@@ -35,12 +34,10 @@ import org.koin.core.component.KoinComponent
 import org.koin.core.component.get
 import java.time.Instant
 
-
 class MemoryViewModel(
     private val appPreferencesRepository: AppPreferencesRepository,
     private val conversationRepository: ConversationRepository,
     private val providerRepository: ProviderRepository,
-    @Suppress("unused") private val globalSnackbarManager: GlobalSnackbarManager,
 ) : ViewModel(), KoinComponent {
 
     var editText by mutableStateOf("")
@@ -62,7 +59,6 @@ class MemoryViewModel(
     var showSaveSuccessDialog by mutableStateOf(false)
         private set
 
-    
     var draftError by mutableStateOf<DraftError?>(null)
         private set
 
@@ -76,7 +72,6 @@ class MemoryViewModel(
     val hasRecentConversations: StateFlow<Boolean> = conversationRepository.observeHasAnyWithMessages()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
-    
     val hasChanges: Boolean
         get() = editText != originalText ||
             antiForgetEnabled != originalAntiForgetEnabled
@@ -90,7 +85,7 @@ class MemoryViewModel(
             originalAntiForgetEnabled = appPreferencesRepository.getMemoryAntiForgetEnabled()
             editText = originalText
             antiForgetEnabled = originalAntiForgetEnabled
-            
+
             antiForgetText = appPreferencesRepository.getMemoryAntiForgetText()
         }
     }
@@ -107,7 +102,7 @@ class MemoryViewModel(
         if (antiForgetEnabled == enabled) return
         antiForgetEnabled = enabled
         editRevision += 1
-        
+
         if (enabled) {
             antiForgetText = editText.takeGraphemes(
                 AppPreferencesRepository.MEMORY_ANTI_FORGET_CHARACTER_LIMIT,
@@ -120,7 +115,7 @@ class MemoryViewModel(
             val normalizedText = editText.trim()
                 .takeGraphemes(AppPreferencesRepository.MEMORY_CHARACTER_LIMIT)
             val normalizedAntiForgetEnabled = normalizedText.isNotBlank() && antiForgetEnabled
-            
+
             val normalizedAntiForgetText = if (normalizedText.isBlank()) {
                 ""
             } else {
@@ -128,7 +123,6 @@ class MemoryViewModel(
             }
             val updatedAt = Instant.now().toString()
 
-            
             val previousWasEmpty = originalText.isBlank()
             val newIsEmpty = normalizedText.isBlank()
             val operation = when {
@@ -174,7 +168,7 @@ class MemoryViewModel(
 
         draftGenerationJob = viewModelScope.launch {
             try {
-                
+
                 val allProviders = providerRepository.observeAll().first()
                 val candidates = allProviders
                     .filter { it.apiKey.isNotBlank() }
@@ -198,7 +192,6 @@ class MemoryViewModel(
                     return@launch
                 }
 
-                
                 val recent = conversationRepository.getRecentConversationsWithMessages(limit = 5)
                 if (recent.isEmpty()) {
                     presentDraftError(
@@ -210,7 +203,6 @@ class MemoryViewModel(
                     return@launch
                 }
 
-                
                 val excerpts = recent.joinToString("\n---\n") { conversation ->
                     conversation.messages
                         .filter { it.role == ChatRole.User || it.role == ChatRole.Assistant }
@@ -229,12 +221,10 @@ class MemoryViewModel(
                     return@launch
                 }
 
-                
                 val prompt = buildDraftPrompt(excerpts)
 
                 isGeneratingDraft = true
 
-                
                 var lastError: Throwable? = null
                 var attempts = 0
                 for (candidate in candidates) {
@@ -271,7 +261,7 @@ class MemoryViewModel(
                             .trim()
                             .takeGraphemes(AppPreferencesRepository.MEMORY_CHARACTER_LIMIT)
                         if (draft.isBlank()) {
-                            
+
                             lastError = ProviderServiceError.EmptyResponse
                             continue
                         }
@@ -290,11 +280,10 @@ class MemoryViewModel(
                         throw cancel
                     } catch (error: Throwable) {
                         lastError = error
-                        
+
                     }
                 }
 
-                
                 if (activeDraftRequestId != requestId) return@launch
                 presentDraftError(aggregateDraftError(attempts, lastError))
             } catch (cancel: CancellationException) {
@@ -334,11 +323,10 @@ class MemoryViewModel(
     override fun onCleared() {
         draftGenerationJob?.cancel()
         activeDraftRequestId = null
-        super.onCleared()
     }
 
     private fun aggregateDraftError(attempts: Int, lastError: Throwable?): DraftError {
-        
+
         if (attempts <= 1) {
             val detail = providerErrorDetail(lastError)
             return if (detail.isNullOrBlank()) {
@@ -354,7 +342,6 @@ class MemoryViewModel(
             }
         }
 
-        
         val detail = providerErrorDetail(lastError)
         return if (detail.isNullOrBlank()) {
             DraftError(
@@ -377,7 +364,6 @@ class MemoryViewModel(
         else -> error.message
     }
 
-    
     private fun localizeProviderMessage(error: ProviderServiceError): String =
         runCatching { ErrorMapper.localizeProviderErrorMessage(error, get<android.content.Context>()) }
             .getOrDefault(error.userMessage)
@@ -409,7 +395,6 @@ class MemoryViewModel(
         val model: AIModel,
     )
 
-    
     data class DraftError(
         @param:StringRes val titleRes: Int,
         @param:StringRes val messageRes: Int? = null,

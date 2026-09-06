@@ -1,6 +1,5 @@
 package ai.oriveo.community.ui.component
 
-
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -28,8 +27,7 @@ fun ModelVendorIcon(
     modifier: Modifier = Modifier,
     size: Dp = 38.dp,
 ) {
-    
-    
+
     val isDark = OriveoTheme.isDark
     val normalizedGroupKey = remember(groupKey) { normalizeModelVendorKey(groupKey) }
     val assetRes = remember(normalizedGroupKey, isDark) { vendorLogoRes(normalizedGroupKey, isDark) }
@@ -125,7 +123,6 @@ internal fun vendorLogoRes(groupKey: String, darkAppearance: Boolean = false): I
     "tencent" -> R.drawable.ic_vendor_tencent
     "amazon" -> R.drawable.ic_vendor_aws
     "x-ai" -> providerLogoRes(ProviderKind.Grok, darkAppearance)
-    "moonshotai" -> providerLogoRes(ProviderKind.Moonshot, darkAppearance)
     "inception" -> R.drawable.ic_vendor_inception
     "ai21" -> R.drawable.ic_vendor_ai21
     "nousresearch" -> R.drawable.ic_vendor_nousresearch
@@ -183,14 +180,14 @@ private fun vendorStyle(groupKey: String, isDark: Boolean, hasLogo: Boolean = fa
     }
 
     else -> if (hasLogo) {
-        
+
         if (isDark) {
             VendorIconStyle(Color(0xFF1E2433), Color(0xFF333D50), Color(0xFFF8FAFF))
         } else {
             VendorIconStyle(Color(0xFFF8FAFC), Color(0xFFE5E7EB), Color(0xFF111827))
         }
     } else {
-        
+
         val hue = stableHue(groupKey)
         VendorIconStyle(
             background = if (isDark) hslColor(hue, 0.22f, 0.18f) else hslColor(hue, 0.36f, 0.95f),

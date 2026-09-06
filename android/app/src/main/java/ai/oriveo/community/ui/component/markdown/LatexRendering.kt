@@ -285,7 +285,3 @@ fun hasOpenMathDelimiter(text: String): Boolean {
     val r = splitClosedAndOpenLatex(text)
     return r.tail.isNotEmpty()
 }
-
-/** Packs a Compose [Color] into an ARGB int for the drawing APIs. */
-@Suppress("unused")
-internal fun Color.argb(): Int = toArgb()

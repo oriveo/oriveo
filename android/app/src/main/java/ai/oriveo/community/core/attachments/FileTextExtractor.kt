@@ -9,7 +9,6 @@ import ai.oriveo.community.core.attachments.extractors.PlainTextExtractor
 import ai.oriveo.community.core.attachments.extractors.RtfTextExtractor
 import ai.oriveo.community.core.model.AIModel
 
-
 data class ExtractedText(
     val content: String,
     val totalLines: Int,
@@ -36,13 +35,11 @@ class ExtractionException(
     val underlying: String? = null,
 ) : Exception("[${code.raw}] ${underlying ?: ""}")
 
-
 enum class ExtractionSource(val rawValue: String) {
     FilePicker("file"),
     DragDrop("drag_drop"),
     Paste("paste"),
 }
-
 
 data class FileExtractionLimits(
     val maxLines: Int,
@@ -52,7 +49,7 @@ data class FileExtractionLimits(
     val maxFiles: Int,
 ) {
     companion object {
-        
+
         const val MAX_BYTES = 204_800
 
         val DEFAULT = FileExtractionLimits(
@@ -63,7 +60,6 @@ data class FileExtractionLimits(
             maxFiles = 3,
         )
 
-        
         fun resolve(model: AIModel?): FileExtractionLimits {
             val o = model?.attachmentExtraction ?: return DEFAULT
             return DEFAULT.copy(
@@ -71,12 +67,11 @@ data class FileExtractionLimits(
                 maxBytes = o.maxBytes ?: DEFAULT.maxBytes,
                 totalCap = o.totalCap ?: DEFAULT.totalCap,
                 maxInputFileBytes = o.maxInputFileBytes?.toLong() ?: DEFAULT.maxInputFileBytes,
-                
+
             )
         }
     }
 }
-
 
 object FileTextExtractor {
 
@@ -109,7 +104,6 @@ object FileTextExtractor {
         "gradle", "groovy", "proto", "graphql",
     )
 
-    
     @Throws(ExtractionException::class)
     fun extract(
         data: ByteArray,
@@ -128,7 +122,6 @@ object FileTextExtractor {
         }
     }
 
-    
     @Throws(ExtractionException::class)
     private fun extractInner(
         data: ByteArray,
@@ -136,7 +129,7 @@ object FileTextExtractor {
         mimeType: String,
         limits: FileExtractionLimits,
     ): ExtractedText {
-        
+
         if (data.size.toLong() > limits.maxInputFileBytes) {
             throw ExtractionException(ExtractionErrorCode.FileTooLarge)
         }
@@ -156,7 +149,7 @@ object FileTextExtractor {
             }
             ext in setOf("odt", "ods", "odp") ||
                 mime.startsWith("application/vnd.oasis.opendocument.") -> {
-                OdfTextExtractor.extract(data, ext)
+                OdfTextExtractor.extract(data)
             }
             mime in supportedMimes || ext in textExtensions -> PlainTextExtractor.extract(data)
             else -> throw ExtractionException(ExtractionErrorCode.UnsupportedFormat)
@@ -185,7 +178,7 @@ object FileTextExtractor {
 
         var joined = pickedLines.joinToString("\n")
         if (joined.toByteArray(Charsets.UTF_8).size > limits.maxBytes) {
-            
+
             var lo = 0
             var hi = pickedLines.size
             while (lo < hi) {
@@ -198,7 +191,7 @@ object FileTextExtractor {
                 }
             }
             pickedLines = pickedLines.take(lo)
-            
+
             pickedLines = alignToLogicalBoundary(pickedLines)
             joined = pickedLines.joinToString("\n")
             truncated = true
@@ -214,7 +207,6 @@ object FileTextExtractor {
         )
     }
 
-    
     private fun alignToLogicalBoundary(lines: List<String>): List<String> {
         val patterns = listOf("===Sheet:", "===Slide ", "## ")
         val lookbackMax = 50

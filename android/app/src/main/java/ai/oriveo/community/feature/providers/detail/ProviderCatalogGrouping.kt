@@ -67,7 +67,7 @@ fun buildProviderCatalogGroups(
             )
         }
         .filter { it.models.isNotEmpty() }
-        .sortedWith { lhs, rhs -> compareCatalogGroups(lhs, rhs, provider, groupScoresById) }
+        .sortedWith { lhs, rhs -> compareCatalogGroups(lhs, rhs, groupScoresById) }
 }
 
 fun sortedProvidersForModelPicker(providers: List<Provider>): List<Provider> {
@@ -193,16 +193,19 @@ fun comparePickerModels(lhs: AIModel, rhs: AIModel): Int {
 fun shouldAutoExpandCatalogGroups(searchQuery: String): Boolean =
     searchQuery.trim().isNotEmpty()
 
+/**
+ * Orders the vendor groups on the provider detail screen.
+ *
+ * Ordering consumes only the `uiHints.rank` published in the model catalog (surfaced as
+ * `model.sortRank`). It deliberately does not weight one vendor over another by provider kind, and
+ * does not fall back to parsing the model slug: adjusting the published rank is enough to change the
+ * order, with no app release required.
+ */
 private fun compareCatalogGroups(
     lhs: ProviderCatalogGroup,
     rhs: ProviderCatalogGroup,
-    @Suppress("UNUSED_PARAMETER") provider: Provider,
     groupScoresById: Map<String, Int>,
 ): Int {
-    // Group ordering consumes only the `uiHints.rank` published in the model catalog (surfaced as
-    // `model.sortRank`). It deliberately does not branch on `provider.kind` to weight one vendor over
-    // another, and does not fall back to parsing the model slug: adjusting the published rank is
-    // enough to change the order, with no app release required.
     val lhsScore = groupScoresById[lhs.id] ?: catalogGroupScore(lhs)
     val rhsScore = groupScoresById[rhs.id] ?: catalogGroupScore(rhs)
     val scoreDiff = rhsScore - lhsScore

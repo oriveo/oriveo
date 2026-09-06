@@ -11,10 +11,15 @@ import java.io.StringReader
 import java.util.zip.ZipInputStream
 import javax.xml.parsers.SAXParserFactory
 
-
 object OdfTextExtractor {
 
-    fun extract(data: ByteArray, @Suppress("UNUSED_PARAMETER") fileExtension: String): String {
+    /**
+     * Extracts the text of an OpenDocument file.
+     *
+     * `.odt`, `.ods` and `.odp` all store their text in `content.xml` inside the same zip container,
+     * so the extension does not change how it is read.
+     */
+    fun extract(data: ByteArray): String {
         val contentXml = readZipEntry(data, "content.xml")
             ?: throw ExtractionException(ExtractionErrorCode.CorruptedFile)
 
