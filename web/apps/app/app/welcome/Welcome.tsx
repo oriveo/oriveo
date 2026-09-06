@@ -38,7 +38,6 @@ export function Welcome() {
     trackEvent('onboarding_completed', {
       duration_ms: Date.now() - onboardingStartRef.current,
       skipped_provider_setup: !hasProviderSetup,
-      is_authenticated: false,
       source,
     });
   }

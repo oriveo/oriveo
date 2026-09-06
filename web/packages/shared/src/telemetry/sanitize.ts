@@ -37,7 +37,6 @@ const SAFE_KEY_ALLOWLIST = new Set([
   'message_count',
   'message_length',
   'has_image_output',
-  'is_authenticated',
   // The connection method submitted during setup (api_key / subscription). The name contains the
   // "auth" fragment, so without this exact allowance the substring scrubber silently drops it and
   // subscription links become invisible on the dashboard. The value is a fixed slug and carries no

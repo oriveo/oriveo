@@ -52,7 +52,6 @@ describe('sanitizeProperties', () => {
       message_count: 2,
       message_length: 100,
       has_image_output: false,
-      is_authenticated: true,
       oob_code: 'secret-code',
       provider_api_key: 'sk-secret',
     });
@@ -67,7 +66,6 @@ describe('sanitizeProperties', () => {
       message_count: 2,
       message_length: 100,
       has_image_output: false,
-      is_authenticated: true,
     });
   });
 
