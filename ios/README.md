@@ -63,7 +63,7 @@ flowchart TB
 
     subgraph provider ["Provider layer"]
         direction LR
-        services["15 ProviderService"]
+        services["15 ProviderService<br/>relay reuses the OpenAI one"]
         transports["TransportRegistry<br/>12 strategies"]
         kit["OriveoProviderKit<br/>SSE · chunk assembly · redaction"]
     end
@@ -120,7 +120,7 @@ makes the wire format testable in one place instead of fifteen.
 The client never guesses a model's capabilities from its name. It reads a **capability runtime** —
 a set of recipes describing, for a given provider, transport, and capability, exactly which JSON
 pointers to write into the request. Those recipes live in
-[`shared/capabilityrecipe`](../shared/README.md) and are applied by
+[`shared/capabilityrecipe`](../shared/capabilityrecipe/) and are applied by
 `CapabilityRecipeRequestCompiler`.
 
 On the way back, `CapabilityExecutionRuntime` records what actually happened. Only a selected
@@ -156,6 +156,11 @@ is cached in SQLite so the app works from the cached copy when the catalog is un
 
 This is the only request the app makes on its own behalf. Everything else goes to a provider you
 configured, with your key.
+
+To point a **Debug** build at your own catalog host, set `ORIVEO_METADATA_BASE_URL` — either as a
+scheme environment variable or as a key in `ios/Oriveo/Config/Info.plist`. Unlike the Android and
+web clients, a Release build ignores it and always uses the published catalog; changing that means
+editing `BackendURLResolver`.
 
 ## Project layout
 
@@ -210,11 +215,11 @@ may refuse to open it. Update Xcode rather than editing the project format.
 | [swift-markdown-ui](https://github.com/gonzalezreal/swift-markdown-ui) | 2.4.1 | Markdown rendering |
 | [SwiftMath](https://github.com/mgriebling/SwiftMath) | 1.7.3 | LaTeX rendering |
 | [ZIPFoundation](https://github.com/weichsel/ZIPFoundation) | 0.9.20 | backup archives, Office/EPUB/ODF extraction |
-| `OriveoProviderKit` | local | the provider wire kernel, shared with macOS |
+| `OriveoProviderKit` | local | the provider wire kernel, in [`shared/`](../shared/README.md) |
 
 ## Testing
 
-Run the `OriveoTests` scheme from Xcode, or from the repository root:
+Run the `Oriveo` scheme's test action (⌘U) in Xcode, or from the repository root:
 
 ```bash
 xcodebuild test -project ios/Oriveo/Oriveo.xcodeproj -scheme Oriveo \

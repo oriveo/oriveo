@@ -7,7 +7,7 @@
 **Every model, one app.**
 
 Open-source, bring-your-own-key AI chat for iOS, Android, and the web.
-No account, no subscription, no server of ours between you and the model.
+No account, no subscription, and no service of ours in the request path.
 
 <a href="LICENSE"><img alt="License AGPL-3.0-or-later" src="https://img.shields.io/badge/license-AGPL--3.0--or--later-8B5CF6?style=flat-square&labelColor=black"></a>
 <a href="ios/README.md"><img alt="iOS 18 and later" src="https://img.shields.io/badge/iOS-18+-A78BFA?style=flat-square&labelColor=black&logo=apple&logoColor=white"></a>
@@ -52,7 +52,7 @@ No account, no subscription, no server of ours between you and the model.
 
 Oriveo Community Edition is a bring-your-own-key (BYOK) AI chat client for iOS, Android, and the
 web. You supply API keys you already own, and the client talks to the provider with them. There is
-no Oriveo account, no subscription, and no analytics.
+no Oriveo account and no subscription, and nothing reports back to us.
 
 It speaks to **15 model providers** natively — OpenAI, Anthropic, Google Gemini, OpenRouter,
 DeepSeek, Grok, Mistral, Groq, Together AI, Fireworks AI, MiniMax, Z.ai, Qwen, Kimi and
@@ -65,21 +65,22 @@ including llama.cpp, Ollama, LM Studio or vLLM running on your own machine.
 | **Clients** | iOS (SwiftUI) · Android (Jetpack Compose) · Web (Next.js) |
 | **Interface languages** | 16 |
 | **Account required** | None |
-| **Calls it makes on its own behalf** | One: a read-only model catalog, with no key and no identifier attached |
+| **Calls it makes on its own behalf** | One thing, in two requests: a read-only model catalog, with no key and no identifier attached |
 | **License** | AGPL-3.0-or-later |
 
 ## Why it exists
 
-A chat client should not stand between you and the model you are paying for.
+Nobody should be able to meter, log, or mark up the model you are paying for.
 
 - **Your keys, your bill.** You pay the provider's list price. Nothing is marked up, metered, or
   resold.
 - **Local by default.** Conversations, notes, folders, skills, and attachments live on the device.
   Export them to a file whenever you want; there is no cloud copy to lose access to.
 - **One behaviour, three clients.** How a request is shaped for a given provider, transport, and
-  capability is defined once in [`shared/`](shared/README.md), and all three clients assert against
-  the same JSON fixtures. A provider quirk gets fixed once, not three times.
-- **Honest about the one call it makes.** The app fetches a public model catalog so that a model
+  capability is written down once in [`shared/`](shared/README.md), and all three clients assert
+  against the same JSON fixtures. A quirk that lives in that data is fixed once; one that lives in a
+  parser is caught by three suites at the same time.
+- **The one call it makes.** The app fetches a public model catalog so that a model
   released today works without an app update. It is read-only, carries no key and no identifier, and
   you can point it at your own host.
 
@@ -90,7 +91,8 @@ A chat client should not stand between you and the model you are paying for.
 - **Providers** — 15 built in, each with your own key; per-provider endpoint, model, and parameter
   overrides
 - **Relay** — any OpenAI-, Anthropic- or Gemini-compatible endpoint, including one on your LAN
-- **Local model servers** — llama.cpp, Ollama, LM Studio, vLLM, with discovery on the local network
+- **Local model servers** — llama.cpp, Ollama, LM Studio, vLLM; iOS and Android find them on the
+  local network over mDNS
 - **Subscription sign-in** — use a Codex or Grok subscription you already hold instead of an API key
 - **Skills** — reusable system prompts with their own model, parameters, and reference documents
 - **Notes and folders** — capture a reply as a note, organise conversations, full-text search
@@ -113,16 +115,16 @@ top.
 | Source | This repository, AGPL-3.0-or-later | Proprietary |
 | Chat with your own provider keys | Yes | Yes |
 | Relay and local model servers | Yes | Yes |
-| Notes, folders, skills, attachments | Yes, unlimited | Yes |
+| Notes, folders, skills, attachments | Yes | Yes |
 | On-device cost tracking | Yes | Yes |
 | Account | None | Oriveo account |
 | Storage | On the device; manual export and restore | Local-first, plus cross-device cloud sync |
 | Usage insights and budget alerts | — | Yes |
 | Models paid for by Oriveo | — | Yes |
-| Analytics and crash reporting | None | Yes |
+| Analytics and crash reporting | Off by default — the web bundle includes Sentry, silent without a DSN | Yes |
 
 Community Edition builds use the `ai.oriveo.community` identifier prefix, so one can sit next to a
-store build without the two sharing a keychain, an update feed, or local data. What this edition
+store build without the two sharing a keychain or local data. What this edition
 will and will not accept is written down in [COMMUNITY.md](COMMUNITY.md).
 
 **Oriveo, the full product:**
@@ -188,11 +190,12 @@ flowchart LR
 Each client owns its own UI, storage, and navigation, and meets the shared contracts at exactly one
 seam: the layer that turns *this model, this capability* into an HTTP request.
 
-The one asymmetry worth knowing about is the web client. Provider APIs do not send CORS headers, so
-a browser cannot call them directly; requests to the 15 official providers therefore pass through a
-Next.js route handler running on whatever machine serves the app — your own, when you run it
-locally. The iOS and Android clients have no such constraint and go straight to the provider.
-Relay endpoints on your own network are also called directly from the browser.
+The one asymmetry worth knowing about is the web client. Most provider APIs send no CORS headers,
+so a browser cannot call them directly; those requests pass through a Next.js route handler running
+on whatever machine serves the app — your own, when you run it locally. The handful of endpoints
+that do allow a browser (Moonshot's China endpoint, the balance endpoints of a few providers) and
+relays on your own network are called directly. The iOS and Android clients have no such constraint
+and always go straight to the provider.
 
 **The architecture of each client:**
 
@@ -204,6 +207,10 @@ Relay endpoints on your own network are also called directly from the browser.
 | **Shared** | Contracts, recorded fixtures, and the Swift wire kernel | [shared/README.md](shared/README.md) |
 
 ## Get started
+
+There are no prebuilt binaries here — no APK, no `.ipa`, no releases. Community Edition is source
+you build yourself, and the store apps are the other product. The web client is the shortest path to
+a running app.
 
 <details open>
 <summary><b>Web</b> — the quickest way to try it</summary>
@@ -246,7 +253,7 @@ Full walkthrough, including what to do if Xcode refuses to open the project:
 
 <br>
 
-Requires JDK 17 or later and the Android SDK. The build uses AGP 9.3, Gradle 9.5 and Kotlin 2.3, so
+Requires JDK 21 and the Android SDK. The build uses AGP 9.3, Gradle 9.5 and Kotlin 2.3, so
 Android Studio has to be a release that can sync them; from the command line only the JDK and the
 SDK are needed.
 
@@ -261,14 +268,14 @@ Serving the model catalog from your own host: [android/README.md](android/README
 
 ## Privacy
 
-- **Provider keys** are stored by the platform's own facility — the iOS Keychain, the Android
-  Keystore (`EncryptedSharedPreferences`), or the browser's IndexedDB — and are used only to reach
-  the provider they belong to. On the web they are stored unencrypted, the same model browser BYOK
-  clients generally use; for the strongest guarantee, use the iOS or Android client.
+- **Provider keys** go to the iOS Keychain, and on Android to `EncryptedSharedPreferences` under a
+  key held in the Android Keystore. A browser has no equivalent facility, so on the web they sit
+  unencrypted in IndexedDB — the same model browser BYOK clients generally use. For the strongest
+  guarantee, use the iOS or Android client.
 - **Conversations, notes, folders, skills, and attachments** are stored on the device. Nothing is
   uploaded anywhere.
-- **No account, no analytics, no crash reporting.** There is nothing to sign in to and nothing
-  phoning home.
+- **No account, and nothing reporting back to us.** There is nothing to sign in to. The web bundle
+  includes Sentry, which stays silent unless you configure a DSN of your own.
 - **On iOS and Android, chat requests go straight from the device to the provider.** On the web they
   pass through the Next.js server that serves the app, because provider APIs do not permit direct
   browser calls; that server does not persist keys or messages, and when you run the app locally it
@@ -309,9 +316,10 @@ catalog, which carries no key, no conversation, and no identifier.
 <br>
 
 Yes. Add a Relay connection pointing at any OpenAI-, Anthropic- or Gemini-compatible server —
-llama.cpp, Ollama, LM Studio, vLLM, or anything else speaking one of those protocols. The Android
-and web clients can also discover such a server on the local network. Local HTTP uses no credential
-and never leaves your network.
+llama.cpp, Ollama, LM Studio, vLLM, or anything else speaking one of those protocols. The iOS and
+Android clients can discover one on the local network over mDNS; the web client offers each
+engine's default address and probes it. Local HTTP uses no credential and never leaves your
+network.
 
 </details>
 
@@ -322,7 +330,7 @@ and never leaves your network.
 
 The store apps are Oriveo, a proprietary product that adds an account, cross-device cloud sync,
 usage insights, and models Oriveo pays for. Community Edition is the same three clients without any
-of that: no account, no sync service, no billing, no analytics. See
+of that: no account, no sync service, no billing, and nothing reporting back to us. See
 [Community Edition and Oriveo](#community-edition-and-oriveo) for the full comparison.
 
 </details>
@@ -333,7 +341,7 @@ of that: no account, no sync service, no billing, no analytics. See
 <br>
 
 Not in this repository. In the meantime the web client works well as a desktop app in any browser,
-and the iOS build runs on Apple silicon Macs.
+and the iOS build can usually be run on an Apple silicon Mac.
 
 </details>
 
@@ -351,11 +359,13 @@ gets a full right-to-left layout.
 ## Repository layout
 
 ```
-ios/       iOS client (SwiftUI)
-android/   Android client (Jetpack Compose)
-web/       Web client (Next.js)
-macos/     Reserved for a macOS client
-shared/    Cross-client contracts, recorded fixtures, and the Swift wire kernel
+ios/           iOS client (SwiftUI)
+android/       Android client (Jetpack Compose)
+web/           Web client (Next.js)
+macos/         Reserved for a macOS client
+shared/        Cross-client contracts, recorded fixtures, and the Swift wire kernel
+readme_i18n/   These READMEs in fifteen more languages
+docs/assets/   Images used by the READMEs
 ```
 
 ## Contributing

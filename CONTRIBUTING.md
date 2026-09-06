@@ -18,7 +18,7 @@ them:
 |---|---|---|
 | `web/` | Node 22 | `npm install && npm run build:app` |
 | `ios/` | Xcode 26 | open `ios/Oriveo/Oriveo.xcodeproj` |
-| `android/` | JDK 17+, Android SDK | `./gradlew :app:assembleDebug` |
+| `android/` | JDK 21, Android SDK | `./gradlew :app:assembleDebug` |
 | `shared/OriveoProviderKit/` | Swift 6.1 | `swift build && swift test` |
 
 Each client's README covers its architecture and the details of building it:
@@ -37,15 +37,17 @@ reads it, not just the one you are working in.
 
 Please include a test with a behaviour change, and run the suite for what you touched:
 
+Each block below runs from the repository root:
+
 ```bash
 # Web
-cd web && npm run test:run && npm run typecheck
+(cd web && npm run test:run && npm run typecheck)
 
 # Shared Swift package
-cd shared/OriveoProviderKit && swift test
+(cd shared/OriveoProviderKit && swift test)
 
 # Android
-cd android && ./gradlew :app:testDebugUnitTest
+(cd android && ./gradlew :app:testDebugUnitTest)
 
 # iOS — substitute a simulator you have (xcrun simctl list devices available)
 xcodebuild test -project ios/Oriveo/Oriveo.xcodeproj -scheme Oriveo \
@@ -58,16 +60,18 @@ hand-written mock. A real byte stream from the provider is what makes these test
 ## Style
 
 - Source, comments, tests, and commit messages are written in English.
-- Interface strings are translated. Add a new string to the English source first and leave the
-  other locales to follow; do not hand-translate sixteen files in the same pull request.
+- Interface strings are translated into sixteen locales. Add a new string to the English source
+  first and leave the others to follow; do not hand-translate sixteen files in the same pull
+  request.
 - Match the surrounding code. There is no separate formatting pass to hide behind.
 - Explain *why* in a comment, not *what*. The code already says what.
 
 ## Documentation
 
-The README files are translated into sixteen languages under `readme_i18n/`. If you change an
-English README, you do not have to update all fifteen translations — say so in the pull request and
-they will be brought back into line. Do not machine-translate them in bulk.
+The root and client READMEs are translated into fifteen other languages under `readme_i18n/` — a
+separate set from the sixteen locales the app's interface ships in. If you change an English README,
+you do not have to update all fifteen translations: say so in the pull request and they will be
+brought back into line. Do not machine-translate them in bulk.
 
 ## Commits and pull requests
 

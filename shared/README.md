@@ -38,8 +38,9 @@ quietly, in the direction of whichever one someone tested last, and the drift wi
 that reproduces on one platform and not the others.
 
 `shared/` is the answer to that: the behaviour is written down once as data, and each client's test
-suite asserts against the same files. A provider quirk gets fixed once. A contract change fails
-three suites at the same time instead of shipping on two platforms and breaking the third.
+suite asserts against the same files. A quirk that lives in that data is fixed once. A quirk that
+lives in a parser is caught by three suites at the same time, instead of shipping on two platforms
+and breaking the third.
 
 ```mermaid
 flowchart LR
@@ -88,10 +89,11 @@ Each client's tests load these directly, so a change here is a change to all thr
 Golden test data: recorded upstream tool-call traffic, relay routing and discovery scenarios,
 model-facts and capability-evidence snapshots, and local-engine scenarios.
 
-The `.sse` files are **real captured upstream traffic** and are left byte-for-byte untouched. A
-hand-written mock encodes what you believed the provider does; a recorded stream encodes what it
-actually did, including the malformed chunk it sent that Tuesday. When a provider protocol fix
-needs a test, a recording is worth more than a mock.
+The `.sse` files under `recorded/` are **real captured upstream traffic**, left byte-for-byte
+untouched; the rest are hand-written fixtures pinning a specific parse path. The distinction
+matters: a hand-written mock encodes what you believed the provider does, while a recording encodes
+what it actually did, including the malformed chunk it sent that Tuesday. When a provider protocol
+fix needs a test, prefer a recording.
 
 ## OriveoProviderKit
 
@@ -118,15 +120,17 @@ cd shared/OriveoProviderKit && swift build && swift test
 A change here is a change to every client. Run the contract suites of each client that reads the
 file you touched, not just the one you happen to be working in:
 
+From the repository root:
+
 ```bash
-cd web && npm run test:run
-cd shared/OriveoProviderKit && swift test
+(cd web && npm run test:run)
+(cd shared/OriveoProviderKit && swift test)
 # plus the iOS and Android suites — see their READMEs
 ```
 
-Both the iOS and Android suites locate this directory by walking up from the test file until they
-find `shared/`, and the web suites resolve it relative to the workspace. All of them therefore
-require a full checkout of the repository.
+The iOS suites find this directory by walking up from the test file until they see `shared/`; the
+Android suites resolve `../../shared` from the Gradle module; the web suites resolve it relative to
+the workspace. All of them therefore require a full checkout of the repository.
 
 ## License
 

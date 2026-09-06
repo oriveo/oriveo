@@ -82,10 +82,12 @@ flowchart TB
 Three things in this diagram are deliberate design decisions rather than incidental structure.
 
 **Streaming lives above the screen.** `ChatStreamingManager` keeps one `StreamingSession` per
-conversation id in a `ConcurrentHashMap`, each with its own application-scoped
-`CoroutineScope(SupervisorJob() + Dispatchers.IO)`. Navigating away from a chat does not cancel the
-answer, and `StreamingTokenBuffer` periodically flushes partial text to SQLite, so killing the app
-mid-answer does not lose what already arrived.
+conversation id in a `ConcurrentHashMap`, each running as its own `Job` on a single
+application-scoped `CoroutineScope(SupervisorJob() + Dispatchers.IO)` — the supervisor is the point,
+so one stream failing does not take the others down. Navigating away from a chat does not cancel the
+answer, and `ChatRepository` flushes partial text to SQLite whenever `StreamingTokenBuffer` says
+enough has accumulated (4,000 characters or 60 seconds), so killing the app mid-answer does not lose
+what already arrived.
 
 **Two databases, not one.** `oriveo.db` holds conversations, messages, attachments, notes,
 folders, skills, and the model-catalog cache. `message_continuations.db` is a physically separate
@@ -153,9 +155,9 @@ no certificate.
 The real boundary is in code, not in the manifest, because it has to be. `RelayEndpointPolicy`
 resolves the host, requires **every** resolved address to be private (loopback, RFC 1918, link-local,
 unique-local, and the CGNAT range in VPN mode), rejects a host that resolves to a mix of public and
-private addresses, pins the resolved address set against DNS rebinding and re-verifies it at send
-time, refuses any cleartext request carrying credential material, and blocks cross-origin or
-scheme-changing redirects.
+private addresses, pins the resolved address set against DNS rebinding, and re-verifies it at send
+time. It refuses any cleartext request carrying credential material. Redirects are not followed at
+all on the discovery and local-engine clients, with that address pin as the backstop.
 
 An Android network security config cannot express that set: it matches on hostname only, has no
 syntax for address ranges, and the addresses here come from the user's own network at runtime.
@@ -187,8 +189,8 @@ keeps working from the cached copy when the catalog is later unreachable.
 >
 > - none of the 15 built-in providers gets a model list, and the app does not ask the provider for
 >   one — the catalog is the only source;
-> - the failure is **silent**. Adding a key still reports success, and the model picker is simply
->   empty with no explanation;
+> - the provider detail screen shows an "Unable to load official models" banner, but adding the key
+>   still reports success and the model picker is simply empty;
 > - **OpenAI becomes unusable**, because manual model entry is blocked for that provider;
 > - Relay endpoints and local model servers still work fully, and are the only intact path.
 >
@@ -216,7 +218,7 @@ android/
 
 ## Building
 
-Requirements: **JDK 17 or later** and the Android SDK. The build uses AGP 9.3, Gradle 9.5 and
+Requirements: **JDK 21** and the Android SDK. The build uses AGP 9.3, Gradle 9.5 and
 Kotlin 2.3, so Android Studio has to be a release that can sync AGP 9.3; from the command line only
 the JDK and SDK are needed.
 
@@ -269,8 +271,9 @@ provider, SSE parsing, transport selection, relay probing and security modes, ca
 execution, catalog caching and contract-version handling, Room persistence, and backup round-trips.
 
 > [!IMPORTANT]
-> Around 38 suites load contract fixtures from `shared/` by walking up from the working directory,
-> so **the tests only pass in a full checkout** — copying `android/` out on its own will not work.
+> Around 38 suites load contract fixtures by resolving `../../shared` from the Gradle module
+> directory, so **the tests only pass in a full checkout** — copying `android/` out on its own will
+> not work.
 
 There are also three instrumented tests — a local-engine release matrix, a cleartext-socket test,
 and a keystore isolation test. They are not self-contained: the local-engine ones need

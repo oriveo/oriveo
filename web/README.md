@@ -56,7 +56,7 @@ The first screen asks for a provider API key. Nothing else is required to start 
 ## How a request actually travels
 
 This is the part worth reading before anything else, because the web client is the one place where
-the request does **not** go straight from the client to the provider.
+a request usually does **not** go straight from the client to the provider.
 
 ```mermaid
 flowchart LR
@@ -66,6 +66,7 @@ flowchart LR
         direction TB
         chat["/api/chat/stream"]
         fwd["/api/relay/forward"]
+        prov["/api/providers/*"]
     end
 
     official["15 official providers"]
@@ -73,25 +74,39 @@ flowchart LR
     lan["A model server on your network"]
     catalog[("Public model catalog<br/>read-only · no key")]
 
-    browser ==>|"official provider"| chat ==> official
+    browser ==>|"most official providers"| chat ==> official
+    browser ==>|"model list · key check · OAuth"| prov
     browser ==>|"relay, public host"| fwd ==> pubrelay
-    browser ==>|"relay, LAN or localhost"| lan
+    browser ==>|"relay on your network"| lan
+    browser ==>|"CORS-friendly endpoints"| official
     catalog -.-> browser
     catalog -.-> chat
 ```
 
-**Why the detour exists.** Provider APIs do not send CORS headers, so a browser cannot call
+**Why the detour exists.** Most provider APIs send no CORS headers, so a browser cannot call
 `api.openai.com` and friends directly — the preflight fails. Every browser BYOK client has to solve
-this somehow; this one forwards through a Next.js route handler running in the Node runtime. When
-you run `npm run dev:app`, that handler is on your own machine. When you deploy the app somewhere,
-it is on the machine you deployed to.
+this somehow; this one forwards through Next.js route handlers running in the Node runtime. When
+you run `npm run dev:app`, those handlers are on your own machine. When you deploy the app
+somewhere, they are on the machine you deployed to.
+
+There are twelve of them, not one: chat streaming, the relay forwarder, image generation, the model
+list, key validation, and the Grok and Codex device-login exchanges. Key validation matters here —
+it posts the key to your own server, which probes the provider with it.
+
+A few endpoints *do* allow a browser, and those are called directly with no server in between:
+Moonshot's China endpoint for chat, and the balance endpoints of OpenRouter, SiliconFlow, DeepSeek
+and Moonshot.
 
 **What the handler does and does not do.** It validates the request shape and caps its size, applies
-a per-IP rate limit, refuses URLs that resolve to private or link-local addresses, builds the
-provider-specific body, and streams the response back. It does not persist your key, your messages,
-or anything derived from them — a dedicated test (`server-never-learns.test.ts`) pins that
-behaviour. The relay forwarder additionally pins DNS to the address it resolved, caps the response,
-bounds every timeout, limits redirects to the same origin, and refuses to pass through hop-by-hop
+a per-IP rate limit to chat and relay traffic, refuses URLs that resolve to private or link-local
+addresses, builds the provider-specific body, and streams the response back. There is no database,
+no filesystem write and no logging of request bodies anywhere under `app/api` — your key and your
+messages are forwarded and forgotten. Because the route is one process shared by every visitor, a
+dedicated test (`server-never-learns.test.ts`) pins that it never caches one user's rejected
+parameter and applies it to somebody else's request.
+
+The relay forwarder additionally pins DNS to the address it resolved, caps the response, bounds
+every timeout, limits redirects to the same origin, and refuses to pass through hop-by-hop
 headers.
 
 **Local endpoints skip it entirely.** A relay on a private address, a `.local` name, `localhost`,
@@ -128,9 +143,10 @@ flowchart TB
 ```
 
 `packages/core` holds every byte of provider-protocol knowledge and is deliberately kept free of
-browser globals — eslint bans `window`, `document`, `fetch`, `crypto`, `localStorage` and
-`indexedDB` inside it. Anything it needs from the environment arrives through `CorePorts`. That is
-what lets the same code run in a browser, in a Node route handler, and in a test with no DOM.
+browser globals — eslint bans `window`, `document`, `fetch`, `crypto`, `localStorage`,
+`sessionStorage` and `indexedDB` inside it and in `packages/ipc-contract`. Anything it needs from
+the environment arrives through `CorePorts`. That is what lets the same code run in a browser, in a
+Node route handler, and in a test with no DOM.
 
 Provider support is two independent axes. `providerKind` picks a **request builder** (what the body
 looks like for this vendor). `model.transport` picks a **transport strategy** (which wire protocol
@@ -162,7 +178,7 @@ Everything is per-partition, keyed by an active id that defaults to `guest`.
 |---|---|
 | Conversations, messages, folders, notes, providers | IndexedDB `oriveo--{id}`, 8 object stores |
 | Model catalog snapshot (~3 MB) and model facts | IndexedDB blob store, deliberately not localStorage |
-| Preferences and model-control tables | `localStorage`, always through a wrapper that never throws |
+| Preferences and model-control tables | `localStorage`, with `safeLocalStorage` wrapping the paths that were seen to throw |
 | Generated and attached images | a separate IndexedDB database |
 
 Two details that came from real breakage rather than taste. The catalog snapshot lives in IndexedDB
@@ -210,13 +226,23 @@ To run a single test file, do it from the workspace that owns it, because severa
 fixtures relative to the working directory:
 
 ```bash
-cd apps/app && npx vitest run lib/core/chat/stream-options.test.ts
+cd apps/app && npx vitest run lib/core/chat/__tests__/stream-options.test.ts
 ```
 
 ## Configuration
 
 Everything is optional. Copy [`.env.example`](.env.example) to `.env.local` and set only what you
-need; each key is documented there.
+need; each key is documented there. A few variables the code reads are not in that file:
+`BACKEND_URL` (a server-side-only twin of `NEXT_PUBLIC_BACKEND_URL`), `NEXT_PUBLIC_LIBRARY_ENABLED`,
+`ORIVEO_DESKTOP` and `NEXT_DIST_DIR`.
+
+### Error reporting
+
+The app bundles the Sentry SDK. It is **inert without a DSN** — no `NEXT_PUBLIC_SENTRY_DSN` means no
+transport, no events, nothing sent anywhere, which is the default for a build from this repository.
+Set one and you get error reporting, 10% performance tracing and 1% session replay, with hooks that
+strip provider keys, endpoints and message content before an event leaves the browser. It is here so
+that a deployment which wants error reporting can have it, not because this build phones home.
 
 ## Testing
 
