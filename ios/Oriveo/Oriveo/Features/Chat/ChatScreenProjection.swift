@@ -4,19 +4,9 @@ enum ChatLoadState: Equatable {
     case localFailure
     case deleted
     case content
-    case backfilling
     case bootstrapping
     case stalled
     case empty
-}
-
-enum MessageBackfillPhase: Equatable {
-    case idle
-    case skipped
-    case running
-    case succeededWithDocs
-    case succeededEmpty
-    case failed
 }
 
 struct ChatScreenProjection: Equatable {
@@ -27,7 +17,6 @@ struct ChatScreenProjection: Equatable {
     let messageRevision: UInt
     var localLoadFailed: Bool = false
     var bootstrapWatchdogExpired: Bool = false
-    var backfillPhase: MessageBackfillPhase = .idle
 
     var activeConversationID: UUID? {
         summary?.id ?? requestedConversationID
@@ -83,32 +72,11 @@ struct ChatScreenProjection: Equatable {
            summary.isDraft || !summary.draftText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             return .empty
         }
-        if backfillPhase == .skipped, let summary, !Self.hasRemoteHistoryEvidence(summary) {
-            return .empty
-        }
-        // An in-flight one-time read remains a visible recovery state even if
-        // it takes longer than the bootstrap watchdog threshold.
-        if backfillPhase == .running { return .backfilling }
-        if backfillPhase == .failed { return .stalled }
         if bootstrapWatchdogExpired { return .stalled }
-        if backfillPhase == .succeededEmpty {
-            if let summary, Self.hasRemoteHistoryEvidence(summary) { return .stalled }
-            return .empty
-        }
         return .bootstrapping
     }
 
-    private static func hasRemoteHistoryEvidence(_ summary: ConversationSummary) -> Bool {
-        summary.remoteMessageCount > 0
-            || summary.messageCount > 0
-            || !summary.previewText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-    }
-
     var isBootstrappingPersistedConversation: Bool {
-        loadState == .bootstrapping || loadState == .backfilling
-    }
-
-    var isBootstrapStalled: Bool {
-        loadState == .stalled
+        loadState == .bootstrapping
     }
 }

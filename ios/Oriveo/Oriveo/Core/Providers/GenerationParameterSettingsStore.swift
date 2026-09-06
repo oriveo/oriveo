@@ -760,7 +760,7 @@ final class GenerationParameterSettingsStore: @unchecked Sendable {
     }
 
     /// The raw JSON escape hatch is deliberately local-only. It is isolated by the same complete
-    /// connection/model/transport identity but not exported, merged, logged or published to Firestore.
+    /// connection/model/transport identity, but it is never exported, merged or logged.
     func localCustomFragment(
         providerID: UUID,
         modelID: String,
@@ -1031,22 +1031,6 @@ final class GenerationParameterSettingsStore: @unchecked Sendable {
         })
     }
 
-    func clearLocalCustomCapabilityFragments() {
-        lock.lock()
-        defer { lock.unlock() }
-        defaults.removeObject(forKey: localCustomStorageKey)
-    }
-
-    func resetForAccountBoundary() {
-        lock.lock()
-        defer { lock.unlock() }
-        defaults.removeObject(forKey: storageKey)
-        defaults.removeObject(forKey: capabilityStorageKey)
-        defaults.removeObject(forKey: localCustomStorageKey)
-        GenerationParameterSyncLedger.removeAll(defaults: defaults)
-        CapabilityPreferenceSyncLedger.removeAll(defaults: defaults)
-    }
-
     func activeOverrideParameterIDs(
         providerID: UUID,
         modelID: String,
@@ -1255,7 +1239,6 @@ final class GenerationParameterSettingsStore: @unchecked Sendable {
     private func writeRecordsLocked(_ records: [Record]) {
         guard let data = try? JSONEncoder().encode(records) else { return }
         defaults.set(data, forKey: storageKey)
-        GenerationParameterSyncPublisher.localDidChange()
     }
 
     private func capabilityRecordsLocked() -> [CapabilityRecord] {
@@ -1267,7 +1250,6 @@ final class GenerationParameterSettingsStore: @unchecked Sendable {
         let capped = Array(records.sorted { $0.updatedAt > $1.updatedAt }.prefix(maximumRecordCount))
         guard let data = try? JSONEncoder().encode(capped) else { return }
         defaults.set(data, forKey: capabilityStorageKey)
-        CapabilityPreferenceSyncPublisher.localDidChange()
     }
 
     private func localCustomRecordsLocked() -> [LocalCustomFragmentRecord] {
@@ -1279,7 +1261,7 @@ final class GenerationParameterSettingsStore: @unchecked Sendable {
         let capped = Array(records.sorted { $0.updatedAt > $1.updatedAt }.prefix(maximumRecordCount))
         guard let data = try? JSONEncoder().encode(capped) else { return }
         defaults.set(data, forKey: localCustomStorageKey)
-        // Do not call the sync publisher: custom raw JSON must have no cloud/export/telemetry path.
+        // Deliberately does not mark the store dirty: custom raw JSON must have no export path.
     }
 
     fileprivate func capabilitySyncRecords() -> [CapabilityRecord] {
@@ -1430,6 +1412,8 @@ nonisolated struct GenerationParameterSyncPayload: Codable, Equatable, Sendable 
 }
 
 extension GenerationParameterSyncPayload {
+    /// True when the envelope carries nothing at all. The shared wire contract forbids writing
+    /// an empty envelope over a non-empty one, so callers check this before exporting.
     var isEmptyEnvelope: Bool { records.isEmpty && presets.isEmpty && tombstones.isEmpty }
 }
 
@@ -1639,20 +1623,6 @@ enum GenerationParameterSyncContract {
         return merge(remote, settings: settings, presets: presets, defaults: defaults)
     }
 
-    static func decodeFirestore(_ raw: Any) -> GenerationParameterSyncPayload? {
-        guard JSONSerialization.isValidJSONObject(raw),
-              let data = try? JSONSerialization.data(withJSONObject: raw),
-              let payload = try? JSONDecoder().decode(GenerationParameterSyncPayload.self, from: data),
-              payload.schemaVersion == 1 else { return nil }
-        return payload
-    }
-
-    static func foundationValue(_ payload: GenerationParameterSyncPayload) -> [String: Any]? {
-        guard let data = try? JSONEncoder().encode(payload),
-              let value = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
-        return value
-    }
-
     static let uuidSegmentPattern = #"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"#
 
     static func canonicalSyncID(_ raw: String) -> String {
@@ -1757,6 +1727,9 @@ nonisolated struct CapabilityPreferenceSyncPayload: Codable, Equatable, Sendable
 }
 
 extension CapabilityPreferenceSyncPayload {
+    /// See `GenerationParameterSyncPayload.isEmptyEnvelope`.
+    var isEmptyEnvelope: Bool { records.isEmpty && (tombstones?.isEmpty ?? true) }
+
     init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         self.init(
@@ -1765,8 +1738,6 @@ extension CapabilityPreferenceSyncPayload {
             tombstones: try container.decodeIfPresent([CapabilityPreferenceSyncTombstone].self, forKey: .tombstones)
         )
     }
-
-    var isEmptyEnvelope: Bool { records.isEmpty && (tombstones?.isEmpty ?? true) }
 }
 
 nonisolated struct CapabilityPreferenceSyncTombstone: Codable, Equatable, Sendable {
@@ -1833,13 +1804,15 @@ enum CapabilityPreferenceSyncContract {
         )
     }
 
-    static func foundationValue(_ payload: CapabilityPreferenceSyncPayload) -> [String: Any]? {
+    /// Bridges to and from a plain JSON object so the wire shape can be compared against the
+    /// shared contract fixture the other clients also validate against.
+    static func jsonObject(from payload: CapabilityPreferenceSyncPayload) -> [String: Any]? {
         guard let data = try? JSONEncoder().encode(payload),
               let value = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
         return value
     }
 
-    static func decodeFirestore(_ raw: Any) -> CapabilityPreferenceSyncPayload? {
+    static func decode(jsonObject raw: Any) -> CapabilityPreferenceSyncPayload? {
         guard JSONSerialization.isValidJSONObject(raw),
               let data = try? JSONSerialization.data(withJSONObject: raw),
               let payload = try? JSONDecoder().decode(CapabilityPreferenceSyncPayload.self, from: data),
@@ -2027,130 +2000,6 @@ private extension ISO8601DateFormatter {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         return formatter
-    }
-}
-
-@MainActor
-final class GenerationParameterSyncPublisher {
-    static let shared = GenerationParameterSyncPublisher()
-    private var writer: (([String: Any]) -> Void)?
-    private var publishQueued = false
-    private let makePayload: () -> GenerationParameterSyncPayload
-
-    init(makePayload: @escaping () -> GenerationParameterSyncPayload = {
-        GenerationParameterSyncContract.exportPayload()
-    }) {
-        self.makePayload = makePayload
-    }
-
-    func bind(_ writer: @escaping ([String: Any]) -> Void) {
-        self.writer = writer
-        publish()
-    }
-
-    func unbind() { writer = nil }
-
-    nonisolated static func localDidChange() {
-        Task { @MainActor in shared.publish() }
-    }
-
-    private func publish() {
-        guard !publishQueued else { return }
-        publishQueued = true
-        Task { @MainActor [weak self] in
-            guard let self else { return }
-            await Task.yield()
-            self.publishQueued = false
-            let payload = self.makePayload()
-            guard let writer = self.writer,
-                  !payload.isEmptyEnvelope,
-                  let value = GenerationParameterSyncContract.foundationValue(payload) else { return }
-            writer(value)
-        }
-    }
-}
-
-/// Separate publisher, not a new store: it keeps the frozen v1 writer contract unchanged while
-/// publishing the independent `capabilityPreferenceSettings` Firestore field additively.
-@MainActor
-final class CapabilityPreferenceSyncPublisher {
-    static let shared = CapabilityPreferenceSyncPublisher()
-    private var writer: (([String: Any]) -> Void)?
-    private var publishQueued = false
-    private let makePayload: () -> CapabilityPreferenceSyncPayload
-
-    init(makePayload: @escaping () -> CapabilityPreferenceSyncPayload = {
-        CapabilityPreferenceSyncContract.exportPayload()
-    }) {
-        self.makePayload = makePayload
-    }
-
-    func bind(_ writer: @escaping ([String: Any]) -> Void) {
-        self.writer = writer
-        publish()
-    }
-
-    func unbind() { writer = nil }
-
-    nonisolated static func localDidChange() {
-        Task { @MainActor in shared.publish() }
-    }
-
-    private func publish() {
-        guard !publishQueued else { return }
-        publishQueued = true
-        Task { @MainActor [weak self] in
-            guard let self else { return }
-            await Task.yield()
-            self.publishQueued = false
-            let payload = self.makePayload()
-            // `GenerationParameterSyncPublisher.publish()`.
-            guard let writer = self.writer,
-                  !payload.isEmptyEnvelope,
-                  let value = CapabilityPreferenceSyncContract.foundationValue(payload) else { return }
-            writer(value)
-        }
-    }
-}
-
-enum GenerationParameterAccountBoundary {
-    static let stampKey = "generation_parameter_account_stamp.v1"
-    private static let guestUID = "guest"
-
-    enum Decision: Equatable {
-        case skippedGuest
-        case adopted
-        case unchanged
-        case reset
-    }
-
-    static func resetForSignOut(
-        settings: GenerationParameterSettingsStore = .shared,
-        presets: GenerationParameterPresetStore = .shared,
-        defaults: UserDefaults = .standard
-    ) {
-        settings.resetForAccountBoundary()
-        presets.resetForAccountBoundary()
-        defaults.removeObject(forKey: stampKey)
-    }
-
-    @discardableResult
-    static func applyLoginBoundary(
-        uid: String,
-        settings: GenerationParameterSettingsStore = .shared,
-        presets: GenerationParameterPresetStore = .shared,
-        defaults: UserDefaults = .standard
-    ) -> Decision {
-        guard !uid.isEmpty, uid != guestUID else { return .skippedGuest }
-        guard let stamp = defaults.string(forKey: stampKey) else {
-            defaults.set(uid, forKey: stampKey)
-            return .adopted
-        }
-        guard stamp != uid else { return .unchanged }
-        settings.resetForAccountBoundary()
-        presets.resetForAccountBoundary()
-        defaults.set(uid, forKey: stampKey)
-        return .reset
     }
 }
 

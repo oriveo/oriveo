@@ -32,8 +32,6 @@ struct LocalComputeSetupView: View {
     @State private var modelID = ""
     @State private var apiKey = ""
     @State private var errorMessage: String?
-    @State private var connectionAttempts = 0
-    @State private var submissionWasFirstProvider = false
     @State private var recoveryAction: LocalConnectionRecoveryAction?
     @State private var showsLocalNetworkSettings = false
     @State private var isDiscovering = false
@@ -410,8 +408,6 @@ struct LocalComputeSetupView: View {
     }
 
     private func connect() {
-        connectionAttempts += 1
-        submissionWasFirstProvider = appState.providers.isEmpty
         guard !isVerificationInFlight else { return }
         if let connection = verifiedConnection,
            let evidence = verifiedEvidence,

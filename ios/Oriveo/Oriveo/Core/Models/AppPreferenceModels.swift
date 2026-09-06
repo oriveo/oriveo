@@ -185,17 +185,6 @@ extension LanguageOption {
         }
     }
 
-    var syncTag: String? {
-        guard self != .system else { return nil }
-        return effectiveLanguage.rawValue
-    }
-
-    static func fromSyncTag(_ raw: String) -> LanguageOption? {
-        if let lang = AppLanguage(rawValue: raw) {
-            return LanguageOption(appLanguage: lang)
-        }
-        return LanguageOption(rawValue: raw)
-    }
 }
 
 struct AppPreference: Hashable {

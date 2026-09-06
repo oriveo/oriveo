@@ -49,17 +49,6 @@ nonisolated struct AppSessionSnapshot: Codable {
         try container.encodeIfPresent(folders, forKey: .folders)
     }
 
-    func strippingConversations() -> AppSessionSnapshot {
-        AppSessionSnapshot(
-            selectedTab: selectedTab,
-            hasCompletedOnboarding: hasCompletedOnboarding,
-            providers: providers,
-            conversations: nil,
-            lastUsedModelRef: lastUsedModelRef,
-            folders: folders
-        )
-    }
-
     func hydratingProviderAPIKeys(for uid: String) -> AppSessionSnapshot {
         var hydrated = self
         hydrated.providers = providers.map { provider in
@@ -108,7 +97,7 @@ enum ProviderAPIKeyStore {
     }
 
     static func persistUnchanged(apiKey: String, providerID: UUID, uid: String) {
-        _ = write(apiKey: apiKey, providerID: providerID, uid: uid)
+        write(apiKey: apiKey, providerID: providerID, uid: uid)
     }
 
     private static func write(apiKey: String, providerID: UUID, uid: String) {
@@ -375,79 +364,6 @@ nonisolated enum AppSessionStore {
             withIntermediateDirectories: true
         )
         activeUID = uid
-    }
-
-    static func hasData(for uid: String) -> Bool {
-        let snapshot = snapshotPath(for: uid)
-        if FileManager.default.fileExists(atPath: snapshot.path),
-           let attrs = try? FileManager.default.attributesOfItem(atPath: snapshot.path),
-           let size = attrs[.size] as? UInt64,
-           size > 2 {
-            return true
-        }
-
-        let database = databasePath(for: uid)
-        if FileManager.default.fileExists(atPath: database.path),
-           let attrs = try? FileManager.default.attributesOfItem(atPath: database.path),
-           let size = attrs[.size] as? UInt64,
-           size > 0 {
-            return true
-        }
-
-        return false
-    }
-
-    static func guestHasSignificantData() -> Bool {
-        let saved = activeUID
-        defer { if activeUID != saved { activeUID = saved } }
-
-        let guestSnapshot = userDir(for: "guest").appendingPathComponent(fileName)
-        guard let data = try? Data(contentsOf: guestSnapshot) else { return false }
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
-        guard let snapshot = try? decoder.decode(AppSessionSnapshot.self, from: data) else { return false }
-        return !snapshot.providers.isEmpty || !(snapshot.conversations ?? []).isEmpty
-    }
-
-    static func adoptGuestData(to uid: String) {
-        let guestDir = userDir(for: "guest")
-        let targetDir = userDir(for: uid)
-
-        if FileManager.default.fileExists(atPath: targetDir.path) {
-            try? FileManager.default.removeItem(at: targetDir)
-        }
-
-        do {
-            try FileManager.default.moveItem(at: guestDir, to: targetDir)
-        } catch {
-            #if DEBUG
-            AppLog.error(error, module: "Session", context: ["op": "adoptGuestData"])
-            #endif
-        }
-
-        try? FileManager.default.createDirectory(at: guestDir, withIntermediateDirectories: true)
-        try? FileManager.default.createDirectory(
-            at: guestDir.appendingPathComponent("Images", isDirectory: true),
-            withIntermediateDirectories: true
-        )
-        try? FileManager.default.createDirectory(
-            at: guestDir.appendingPathComponent("Files", isDirectory: true),
-            withIntermediateDirectories: true
-        )
-    }
-
-    static func copyGuestImages(to uid: String) {
-        let guestImages = userDir(for: "guest").appendingPathComponent("Images", isDirectory: true)
-        let targetImages = userDir(for: uid).appendingPathComponent("Images", isDirectory: true)
-
-        guard let files = try? FileManager.default.contentsOfDirectory(atPath: guestImages.path) else { return }
-        for file in files {
-            let src = guestImages.appendingPathComponent(file)
-            let dst = targetImages.appendingPathComponent(file)
-            if !FileManager.default.fileExists(atPath: dst.path) {
-                try? FileManager.default.copyItem(at: src, to: dst)
-            }
-        }
     }
 
     static func clearPartition(for uid: String) {

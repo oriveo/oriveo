@@ -29,6 +29,7 @@ struct RelayResponsesFallbackTests {
         do {
             for try await ev in stream { events.append(ev) }
         } catch {
+            // A thrown error ends the stream; the events collected before it are what we assert on.
         }
         return events
     }

@@ -445,7 +445,7 @@ final class ChatManager {
     ) async -> UUID? {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty || !attachments.isEmpty else { return nil }
-        guard var index = conversations.firstIndex(where: { $0.id == conversationID }) else { return nil }
+        guard let index = conversations.firstIndex(where: { $0.id == conversationID }) else { return nil }
         guard let provider = appState.provider(for: conversations[index].providerID) else {
             ToastManager.shared.show(L10n.tr("The selected provider is no longer available."))
             return nil
@@ -559,7 +559,6 @@ final class ChatManager {
         // Mutate a local copy and publish once. Every assignment into `appState.conversations`
         // runs its `didSet`, which rebuilds the lookup and persists the session, so editing the
         // stored conversation field by field would pay that cost several times per send.
-        let isFirstMessage = conversations[index].messages.isEmpty
         var updatedConv = conversations[index]
         updatedConv.modelID = storedModelID
         updatedConv.messages.append(userMessage)
@@ -643,12 +642,6 @@ final class ChatManager {
         updated.updatedAt = ConversationListMetadata.computeActivityAt(for: updated)
         ConversationListMetadata.apply(to: &updated)
         appState.upsertConversationProjection(updated)
-
-        let elapsedMs: Int = {
-            guard let s = session else { return 0 }
-            return Int(Date().timeIntervalSince(s.startedAt) * 1000)
-        }()
-        let partialTextLength = session?.text.count ?? 0
 
         session?.sendTask?.cancel()
 
@@ -885,9 +878,6 @@ final class ChatManager {
         var updatedForRegen = conversations[convIndex]
         updatedForRegen.modelID = storedModelID
         let removedMessages = Array(updatedForRegen.messages[msgIndex...])
-        let removedDeliveredIDs = removedMessages
-            .filter { $0.state == .delivered }
-            .map(\.id)
         updatedForRegen.messages.removeSubrange(msgIndex...)
         updatedForRegen.messages.append(newAssistantMessage)
         updatedForRegen.updatedAt = ConversationListMetadata.computeActivityAt(for: updatedForRegen)
@@ -896,9 +886,6 @@ final class ChatManager {
         ConversationListMetadata.apply(to: &updatedForRegen)
         appState.upsertConversationProjection(updatedForRegen)
         appState.persistRecoverySnapshotAfterDestructiveChange()
-
-        if !removedDeliveredIDs.isEmpty {
-        }
 
         let requestSnapshot = prepareRequestSnapshot(
             conversation: updatedForRegen,
@@ -1114,9 +1101,6 @@ final class ChatManager {
         let resolvedModelID = ModelResolver.resolvedProviderModelIdentifier(model.id, providerKind: providerKind)
         let providerID = provider.id
         let baseURLText = provider.baseURLText
-        let telemetryModelID = providerKind.telemetryModelID(
-            ModelResolver.preferredStoredModelIdentifier(for: model, providerKind: providerKind)
-        )
 
         // A replacement send on the same conversation interrupts the previous stream first.
         if let oldSession = sessions[conversationID], oldSession.messageID != assistantMessageID {
@@ -1165,7 +1149,7 @@ final class ChatManager {
             let requestBuild = await Task.detached(priority: .userInitiated) {
                 ChatRequestBuilder.build(from: enrichedRequestSnapshot)
             }.value
-            var requestMessages = requestBuild.requestMessages
+            let requestMessages = requestBuild.requestMessages
             var requestOptions = requestBuild.requestOptions
             requestOptions.capabilityPreferences = capabilitySelection.typedPreferences
             requestOptions.localContinuationMessageID = assistantMessageID
@@ -2706,11 +2690,10 @@ final class ChatManager {
                 }
             } catch {
                 await flushBufferedDelta(force: true)
-                let shouldRefreshProviderAfterFailure = false
-                // facts/custom requests are privacy-sensitive once they crossed the actual
-                // dispatch boundary. Never attach provider/model/error/body-derived diagnostics
-                // to a crash reporter for that request.
-                let p5RequestDispatched = CapabilityExecutionRuntime.hasDispatchedFact()
+                // Once a request with custom capability facts has crossed the dispatch
+                // boundary its provider, model, error and body are all privacy-sensitive, so a
+                // failure on that path is not written to the log at all.
+                let hasDispatchedCustomFacts = CapabilityExecutionRuntime.hasDispatchedFact()
 
                 await MainActor.run {
                     if Task.isCancelled {
@@ -2763,8 +2746,8 @@ final class ChatManager {
                                 : (isLocatedSettingRejection
                                     ? L10n.tr("Model control setting rejected", table: .chat)
                                     : providerError.titleKey),
-                            // The raw JSON or upstream response must never enter the error card,
-                            // persistence, telemetry or diagnostics.  Keep only a stable safe code.
+                            // The raw JSON or upstream response must never reach the error card,
+                            // persistence or the log. Keep only a stable, safe code.
                             detail: isCustomFieldError
                                 ? (CapabilityExecutionRuntime.hasRejectedSource(.custom)
                                     ? "model_control_setting_rejected"
@@ -2775,7 +2758,7 @@ final class ChatManager {
                             errorCode: providerError.diagnosticCode
                         )
 
-                        if !p5RequestDispatched {
+                        if !hasDispatchedCustomFacts {
                             AppLog.error(
                                 error,
                                 module: "chat.stream",
@@ -2788,9 +2771,6 @@ final class ChatManager {
                     }
 
                     self.appState.conversationManager.refreshConversationCost(for: conversationID)
-                }
-
-                if shouldRefreshProviderAfterFailure {
                 }
             }
 
@@ -2817,13 +2797,6 @@ final class ChatManager {
               let messageIndex = conversations[conversationIndex].messages.firstIndex(where: { $0.id == messageID })
         else { return }
 
-        let transport = Self.unhandledToolCallTransport(provider: provider, model: model)
-        let providerKind = provider.kind.telemetryName
-        for call in calls {
-        }
-        if model.toolCall == false {
-        }
-
         rememberToolCallCapability(provider: provider, model: model, toolCall: true, reason: .structuredToolCalls)
 
         var updated = conversations[conversationIndex]
@@ -2843,20 +2816,6 @@ final class ChatManager {
     ) {
         guard ToolCallCapabilityPolicy.memoryEligible(provider: provider, model: model) else { return }
         toolCallMemory.record(connectionID: provider.id, modelID: model.id, toolCall: toolCall, reason: reason)
-    }
-
-    nonisolated private static func unhandledToolCallTransport(provider: Provider, model: AIModel) -> String {
-        if provider.kind == .relay, let relay = provider.relayRequested?.transport {
-            return relay.rawValue
-        }
-        return CapabilityPreferenceRuntimeIdentity.make(provider: provider, model: model)?.finalTransport
-            ?? CapabilityControlResolution.subscriptionFinalTransport(for: provider, model: model)
-            ?? ""
-    }
-
-    nonisolated private static func telemetryToolName(_ raw: String) -> String {
-        let filtered = raw.unicodeScalars.filter { $0.isASCII && !CharacterSet.whitespacesAndNewlines.contains($0) }
-        return String(String.UnicodeScalarView(filtered).prefix(64))
     }
 
     // MARK: - Request snapshot
@@ -2912,10 +2871,6 @@ final class ChatManager {
 
         let messageText = conversations[convIndex].messages[messageIndex].text
         var updated = conversations[convIndex]
-        let removedIDs = Array(updated.messages[messageIndex...])
-            .filter { $0.state == .delivered }
-            .map(\.id)
-        let truncatedSegment = Array(updated.messages[messageIndex...])
         updated.messages.removeSubrange(messageIndex...)
         updated.draftText = messageText
         updated.previewText = messageText
@@ -2924,17 +2879,6 @@ final class ChatManager {
         updated.isDraft = updated.messages.isEmpty
         appState.upsertConversationProjection(updated)
         appState.persistRecoverySnapshotAfterDestructiveChange()
-
-        if !removedIDs.isEmpty {
-        }
-
-        if !removedIDs.isEmpty {
-            let telemetryProviderKind = truncatedSegment.last(where: { $0.role == .assistant })?.providerKind
-                ?? appState.provider(for: updated.providerID)?.kind
-            let providerKindName = telemetryProviderKind?.telemetryName ?? "unknown"
-            let modelID = truncatedSegment.last(where: { $0.role == .assistant })?.modelID
-                ?? updated.modelID
-        }
 
         return messageText
     }
@@ -3295,18 +3239,6 @@ final class ChatManager {
         }
 
         if state == .delivered {
-            let assistantMsg = updated.messages[mi]
-            let latencyMs: Int = {
-                guard let session = sessions[conversationID] else { return 0 }
-                return Int(Date().timeIntervalSince(session.startedAt) * 1000)
-            }()
-            let conversationCost = updated.messages
-                .filter { $0.state == .delivered && $0.estimatedCost > CostFormatter.costEpsilon }
-                .map(\.estimatedCost)
-                .reduce(0, +)
-            if let pairedUser = updated.messages[..<mi].last(where: { $0.role == .user && $0.state == .delivered }) {
-            } else {
-            }
             // Persist generated images locally on this device.
             let uid = AppSessionStore.activeUID
             if !imageDiskWrites.isEmpty {
@@ -3399,10 +3331,6 @@ final class ChatManager {
         updated.updatedAt = ConversationListMetadata.computeActivityAt(for: updated)
         ConversationListMetadata.apply(to: &updated)
         appState.upsertConversationProjection(updated)
-        let failedLatencyMs: Int = {
-            guard let session = sessions[conversationID] else { return 0 }
-            return Int(Date().timeIntervalSince(session.startedAt) * 1000)
-        }()
     }
 
     /// Strips leading whitespace from the first visible delta so a reply never opens with a blank
@@ -3484,16 +3412,6 @@ final class ChatManager {
         att.base64Data = nil
         sessions[conversationID]?.attachments.append(att)
 
-        if sessions[conversationID]?.pendingImageData[att.id] != nil {
-            let telemetryProviderKind = appState.conversations
-                .first(where: { $0.id == conversationID })
-                .flatMap { conv in appState.providers.first(where: { $0.id == conv.providerID }) }?
-                .kind
-            let providerKind = telemetryProviderKind?.telemetryName ?? "unknown"
-            let modelID = appState.conversations
-                .first(where: { $0.id == conversationID })?
-                .modelID ?? "unknown"
-        }
     }
 
     /// Appends a reasoning chunk to the session and publishes the delta to its subscribers.

@@ -151,14 +151,6 @@ enum BackupService {
         }.value
     }
 
-    @MainActor
-    static func emitBackupExported(zipSize: Int, encrypted: Bool, conversationCount: Int) {
-    }
-
-    @MainActor
-    static func emitBackupImported(mode: String, importedCount: Int, conflictCount: Int) {
-    }
-
     nonisolated private struct BackupChunkManifest: Codable {
         struct Chunk: Codable {
             let filename: String

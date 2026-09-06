@@ -19,12 +19,6 @@ struct SkillEditDraft: Sendable, Equatable {
     var webSearchEnabled: Bool?
 }
 
-struct SkillKnowledgeDraftCleanupPlan: Sendable, Equatable {
-    let vectorStoreId: String
-    let deleteVectorStore: Bool
-    let openAIFileIDs: [String]
-}
-
 nonisolated enum SkillKnowledgeEditingSupport {
     static let maxReferenceFileSize = 3 * 1024 * 1024
     static let maxKnowledgeFileSize = 20 * 1024 * 1024
@@ -92,31 +86,6 @@ nonisolated enum SkillKnowledgeEditingSupport {
         return nil
     }
 
-    static func formatBytes(_ bytes: Int) -> String {
-        if bytes < 1024 { return "\(bytes) B" }
-        if bytes < 1024 * 1024 { return String(format: "%.1f KB", Double(bytes) / 1024) }
-        return String(format: "%.1f MB", Double(bytes) / (1024 * 1024))
-    }
-
-    static func isKnowledgeFileTypeSupported(
-        fileName: String,
-        mimeType: String,
-        supportedFileTypes: [String]
-    ) -> Bool {
-        let ext = URL(fileURLWithPath: fileName).pathExtension.lowercased()
-        if supportedFileTypes.contains(ext) {
-            return true
-        }
-        if supportedFileTypes.contains("txt") {
-            return mimeType.starts(with: "text/") || textFileExtensions.contains(ext)
-        }
-        return false
-    }
-
-    static func sumKnowledgeBaseBytes(_ knowledgeBase: SkillKnowledgeBase?) -> Int {
-        knowledgeBase?.files.reduce(0, { $0 + $1.sizeBytes }) ?? 0
-    }
-
     static func buildReferenceKnowledgeFile(
         id: UUID = UUID(),
         name: String,
@@ -134,101 +103,6 @@ nonisolated enum SkillKnowledgeEditingSupport {
             charCount: codePointCount(content),
             createdAt: now,
             updatedAt: now
-        )
-    }
-
-    static func buildLocalKnowledgeBaseFile(
-        id: String,
-        name: String,
-        mimeType: String,
-        sizeBytes: Int,
-        ingestionMode: SkillKnowledgeIngestionMode,
-        extractedFrom: SkillKnowledgeExtractedFrom? = nil,
-        openAIFileId: String? = nil,
-        status: SkillKnowledgeFileStatus,
-        errorCode: SkillKnowledgeErrorCode? = nil,
-        createdAt: Date? = nil,
-        updatedAt: Date = Date()
-    ) -> SkillKnowledgeBaseFile {
-        SkillKnowledgeBaseFile(
-            id: id,
-            name: sanitizeFileName(name),
-            mimeType: mimeType,
-            sizeBytes: sizeBytes,
-            ingestionMode: ingestionMode,
-            extractedFrom: extractedFrom,
-            openAIFileId: openAIFileId,
-            status: status,
-            errorCode: errorCode,
-            createdAt: createdAt ?? updatedAt,
-            updatedAt: updatedAt
-        )
-    }
-
-    static func upsertKnowledgeBase(
-        knowledgeBase: SkillKnowledgeBase?,
-        provider: String,
-        retrievalModel: String,
-        expiresAfterDays: Int,
-        vectorStoreId: String? = nil,
-        file: SkillKnowledgeBaseFile
-    ) -> SkillKnowledgeBase {
-        var files = knowledgeBase?.files ?? []
-        if let index = files.firstIndex(where: { $0.id == file.id }) {
-            files[index] = file
-        } else {
-            files.append(file)
-        }
-
-        return SkillKnowledgeBase(
-            provider: provider,
-            retrievalModel: retrievalModel,
-            vectorStoreId: vectorStoreId ?? knowledgeBase?.vectorStoreId ?? "",
-            expiresAfterDays: expiresAfterDays,
-            files: files,
-            updatedAt: Date()
-        )
-    }
-
-    static func removeKnowledgeBaseFile(
-        knowledgeBase: SkillKnowledgeBase?,
-        targetFileID: String
-    ) -> SkillKnowledgeBase? {
-        guard let knowledgeBase else { return nil }
-        let remaining = knowledgeBase.files.filter { $0.id != targetFileID }
-        guard !remaining.isEmpty else { return nil }
-        return SkillKnowledgeBase(
-            provider: knowledgeBase.provider,
-            retrievalModel: knowledgeBase.retrievalModel,
-            vectorStoreId: knowledgeBase.vectorStoreId,
-            expiresAfterDays: knowledgeBase.expiresAfterDays,
-            files: remaining,
-            updatedAt: Date()
-        )
-    }
-
-    static func buildDraftCleanupPlan(
-        originalKnowledgeBase: SkillKnowledgeBase?,
-        currentKnowledgeBase: SkillKnowledgeBase?
-    ) -> SkillKnowledgeDraftCleanupPlan? {
-        guard let currentKnowledgeBase else { return nil }
-
-        let originalOpenAIFileIDs = Set(
-            (originalKnowledgeBase?.files ?? [])
-                .compactMap { $0.openAIFileId?.trimmingCharacters(in: .whitespacesAndNewlines) }
-                .filter { !$0.isEmpty }
-        )
-        let openAIFileIDs = currentKnowledgeBase.files
-            .compactMap { $0.openAIFileId?.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty && !originalOpenAIFileIDs.contains($0) }
-
-        guard !openAIFileIDs.isEmpty else { return nil }
-
-        return SkillKnowledgeDraftCleanupPlan(
-            vectorStoreId: currentKnowledgeBase.vectorStoreId,
-            deleteVectorStore: originalKnowledgeBase == nil
-                && !currentKnowledgeBase.vectorStoreId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-            openAIFileIDs: openAIFileIDs
         )
     }
 

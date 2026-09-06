@@ -1002,14 +1002,14 @@ struct GenerationParameterSettingsStoreTests {
         )
         let omitWhenNull = try #require((invariants["omitWhenNull"] as? [String: Any])?["recordFields"] as? [String])
 
-        let empty = try #require(CapabilityPreferenceSyncContract.foundationValue(
+        let empty = try #require(CapabilityPreferenceSyncContract.jsonObject(from: 
             .init(schemaVersion: 2, records: [], tombstones: [])
         ))
         #expect(Set(empty.keys) == Set(expectedKeys))
 
         let fixturePayload = try #require(contract?["payload"])
-        let decodedFixture = try #require(CapabilityPreferenceSyncContract.decodeFirestore(fixturePayload))
-        let reEncoded = try #require(CapabilityPreferenceSyncContract.foundationValue(decodedFixture))
+        let decodedFixture = try #require(CapabilityPreferenceSyncContract.decode(jsonObject: fixturePayload))
+        let reEncoded = try #require(CapabilityPreferenceSyncContract.jsonObject(from: decodedFixture))
         let connectionRecord = try #require(
             (reEncoded["records"] as? [[String: Any]])?.first { ($0["scope"] as? String) == "connection" }
         )
@@ -1025,7 +1025,7 @@ struct GenerationParameterSettingsStoreTests {
                 "mutationId": "00000000-0000-4000-8000-000000000107",
             ]],
         ]
-        let legacy = try #require(CapabilityPreferenceSyncContract.decodeFirestore(legacyEnvelope))
+        let legacy = try #require(CapabilityPreferenceSyncContract.decode(jsonObject: legacyEnvelope))
         #expect(legacy.schemaVersion == 2)
         #expect(legacy.tombstones?.count == 1)
     }
@@ -1411,7 +1411,7 @@ struct GenerationParameterSettingsStoreTests {
         let fixture = try JSONDecoder().decode(CapabilitySyncFixture.self, from: data)
         let payloadObject = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
         let payloadJSON = try #require(payloadObject["payload"] as? [String: Any])
-        let decoded = try #require(CapabilityPreferenceSyncContract.decodeFirestore(payloadJSON))
+        let decoded = try #require(CapabilityPreferenceSyncContract.decode(jsonObject: payloadJSON))
         #expect(decoded == fixture.payload)
 
         let suiteName = "capability-sync-fixture-\(UUID().uuidString)"
@@ -1551,7 +1551,7 @@ struct GenerationParameterSettingsStoreTests {
             ]],
             "tombstones": [],
         ]
-        #expect(CapabilityPreferenceSyncContract.decodeFirestore(rawInvalid) == nil)
+        #expect(CapabilityPreferenceSyncContract.decode(jsonObject: rawInvalid) == nil)
         let fixture = try JSONDecoder().decode(
             CapabilitySyncFixture.self,
             from: Data(contentsOf: Self.capabilitySyncFixtureURL())
@@ -1565,7 +1565,7 @@ struct GenerationParameterSettingsStoreTests {
                 "records": [],
                 "tombstones": [rawTombstone],
             ]
-            #expect(CapabilityPreferenceSyncContract.decodeFirestore(rawPayload) == nil)
+            #expect(CapabilityPreferenceSyncContract.decode(jsonObject: rawPayload) == nil)
             let mergedInvalid = CapabilityPreferenceSyncContract.merge(
                 .init(schemaVersion: 1, records: [], tombstones: [tombstone]), settings: store
             )
@@ -1641,7 +1641,7 @@ struct GenerationParameterSettingsStoreTests {
         let rawPayload = try #require(
             JSONSerialization.jsonObject(with: JSONEncoder().encode(exported)) as? [String: Any]
         )
-        let decoded = try #require(CapabilityPreferenceSyncContract.decodeFirestore(rawPayload))
+        let decoded = try #require(CapabilityPreferenceSyncContract.decode(jsonObject: rawPayload))
         #expect(decoded == exported)
         let merged = CapabilityPreferenceSyncContract.merge(decoded, settings: store)
         #expect(merged.records.isEmpty)
@@ -2064,336 +2064,6 @@ struct GenerationParameterSettingsStoreTests {
         preconditionFailure("Unable to locate \(components.joined(separator: "/"))")
     }
 
-
-    @Test("Account Boundary Reset Clears Records And Tombstones")
-    func accountBoundaryResetClearsRecordsAndTombstones() {
-        let suiteName = "generation-parameter-account-boundary-\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suiteName)!
-        defer { defaults.removePersistentDomain(forName: suiteName) }
-        let settings = GenerationParameterSettingsStore(defaults: defaults)
-        let presets = GenerationParameterPresetStore(defaults: defaults)
-        let provider = UUID()
-        let conversation = UUID()
-        let identity = Self.runtimeIdentity("responses")
-
-        settings.setCapabilityPreferences(
-            .init(web: .force, reasoningIntent: "off"), providerID: provider, modelID: "model-a",
-            conversationID: conversation, transportIdentity: identity
-        )
-        settings.setCapabilityPreferences(
-            nil, providerID: provider, modelID: "model-a",
-            conversationID: conversation, transportIdentity: identity
-        )
-        settings.setCapabilityPreferences(
-            .init(web: .force, reasoningIntent: "off"), providerID: provider, modelID: "model-b",
-            conversationID: nil, transportIdentity: identity
-        )
-        settings.setSessionOverrides(
-            .init(values: ["temperature": .init(state: .value, value: .number(0.3))]),
-            providerID: provider, modelID: "model-a", conversationID: conversation
-        )
-        settings.setSessionOverrides(
-            nil, providerID: provider, modelID: "model-a", conversationID: conversation
-        )
-        settings.setModelDefaults(
-            .init(values: ["top_p": .init(state: .value, value: .number(0.9))]),
-            providerID: provider, modelID: "model-a"
-        )
-        settings.setLocalCustomFragment(
-            #"{"tools":["private"]}"#, providerID: provider, modelID: "model-a",
-            conversationID: conversation, transportIdentity: "responses", namespace: "webPatch"
-        )
-        _ = presets.save(
-            name: "A", providerID: provider, modelID: "model-a",
-            profileFingerprint: "ep_deadbeef|template|engine|model-a",
-            values: .init(values: ["temperature": .init(state: .value, value: .number(0.2))])
-        )
-
-        let beforeGeneration = GenerationParameterSyncContract.exportPayload(
-            settings: settings, presets: presets, defaults: defaults
-        )
-        #expect(!beforeGeneration.records.isEmpty)
-        #expect(!beforeGeneration.presets.isEmpty)
-        #expect(!beforeGeneration.tombstones.isEmpty)
-        let beforeCapability = CapabilityPreferenceSyncContract.exportPayload(settings: settings)
-        #expect(!beforeCapability.records.isEmpty)
-        #expect(!(beforeCapability.tombstones ?? []).isEmpty)
-
-        GenerationParameterAccountBoundary.resetForSignOut(
-            settings: settings, presets: presets, defaults: defaults
-        )
-
-        let afterGeneration = GenerationParameterSyncContract.exportPayload(
-            settings: settings, presets: presets, defaults: defaults
-        )
-        #expect(afterGeneration.records.isEmpty)
-        #expect(afterGeneration.presets.isEmpty)
-        #expect(afterGeneration.tombstones.isEmpty)
-        let afterCapability = CapabilityPreferenceSyncContract.exportPayload(settings: settings)
-        #expect(afterCapability.records.isEmpty)
-        #expect((afterCapability.tombstones ?? []).isEmpty)
-
-        #expect(presets.list(
-            providerID: provider, modelID: "model-a", profileFingerprint: "ep_deadbeef|template|engine|model-a"
-        ).isEmpty)
-        #expect(settings.modelDefaults(providerID: provider, modelID: "model-a") == nil)
-        #expect(settings.localCustomFragment(
-            providerID: provider, modelID: "model-a", conversationID: conversation,
-            transportIdentity: "responses", namespace: "webPatch"
-        ) == nil)
-        #expect(defaults.string(forKey: GenerationParameterAccountBoundary.stampKey) == nil)
-    }
-
-    @Test("Account Boundary Reset Does Not Inherit Revision Baseline")
-    func accountBoundaryResetDoesNotInheritRevisionBaseline() {
-        let suiteName = "generation-parameter-revision-baseline-\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suiteName)!
-        defer { defaults.removePersistentDomain(forName: suiteName) }
-        let settings = GenerationParameterSettingsStore(defaults: defaults)
-        let presets = GenerationParameterPresetStore(defaults: defaults)
-        let provider = UUID()
-        let identity = Self.runtimeIdentity("responses")
-
-        #expect(GenerationParameterAccountBoundary.applyLoginBoundary(
-            uid: "uid-a", settings: settings, presets: presets, defaults: defaults
-        ) == .adopted)
-
-        for _ in 0..<2 {
-            settings.setCapabilityPreferences(
-                .init(web: .force, reasoningIntent: "off"), providerID: provider, modelID: "model-a",
-                conversationID: nil, transportIdentity: identity
-            )
-            settings.setCapabilityPreferences(
-                nil, providerID: provider, modelID: "model-a",
-                conversationID: nil, transportIdentity: identity
-            )
-        }
-        #expect(CapabilityPreferenceSyncContract.exportPayload(settings: settings)
-            .tombstones?.first?.revision == 4)
-
-        #expect(GenerationParameterAccountBoundary.applyLoginBoundary(
-            uid: "uid-b", settings: settings, presets: presets, defaults: defaults
-        ) == .reset)
-
-        settings.setCapabilityPreferences(
-            .init(web: .automatic, reasoningIntent: "off"), providerID: provider, modelID: "model-a",
-            conversationID: nil, transportIdentity: identity
-        )
-        let exported = CapabilityPreferenceSyncContract.exportPayload(settings: settings)
-        #expect(exported.records.count == 1)
-        #expect(exported.records[0].revision == 1)
-        #expect((exported.tombstones ?? []).isEmpty)
-    }
-
-    @Test("Account Stamp Adoption Semantics")
-    func accountStampAdoptionSemantics() {
-        let suiteName = "generation-parameter-account-stamp-\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suiteName)!
-        defer { defaults.removePersistentDomain(forName: suiteName) }
-        let settings = GenerationParameterSettingsStore(defaults: defaults)
-        let presets = GenerationParameterPresetStore(defaults: defaults)
-        let provider = UUID()
-        let identity = Self.runtimeIdentity("responses")
-        func write() {
-            settings.setCapabilityPreferences(
-                .init(web: .force, reasoningIntent: "off"), providerID: provider, modelID: "model-a",
-                conversationID: nil, transportIdentity: identity
-            )
-        }
-        func recordCount() -> Int {
-            CapabilityPreferenceSyncContract.exportPayload(settings: settings).records.count
-        }
-
-        write()
-        #expect(GenerationParameterAccountBoundary.applyLoginBoundary(
-            uid: "guest", settings: settings, presets: presets, defaults: defaults
-        ) == .skippedGuest)
-        #expect(defaults.string(forKey: GenerationParameterAccountBoundary.stampKey) == nil)
-        #expect(recordCount() == 1)
-
-        #expect(GenerationParameterAccountBoundary.applyLoginBoundary(
-            uid: "uid-a", settings: settings, presets: presets, defaults: defaults
-        ) == .adopted)
-        #expect(defaults.string(forKey: GenerationParameterAccountBoundary.stampKey) == "uid-a")
-        #expect(recordCount() == 1)
-
-        #expect(GenerationParameterAccountBoundary.applyLoginBoundary(
-            uid: "uid-a", settings: settings, presets: presets, defaults: defaults
-        ) == .unchanged)
-        #expect(recordCount() == 1)
-
-        #expect(GenerationParameterAccountBoundary.applyLoginBoundary(
-            uid: "uid-b", settings: settings, presets: presets, defaults: defaults
-        ) == .reset)
-        #expect(defaults.string(forKey: GenerationParameterAccountBoundary.stampKey) == "uid-b")
-        #expect(recordCount() == 0)
-
-        write()
-        #expect(GenerationParameterAccountBoundary.applyLoginBoundary(
-            uid: "guest", settings: settings, presets: presets, defaults: defaults
-        ) == .skippedGuest)
-        #expect(defaults.string(forKey: GenerationParameterAccountBoundary.stampKey) == "uid-b")
-        #expect(recordCount() == 1)
-    }
-
-    @Test("Account Scope Invariants Are Contract Driven")
-    func accountScopeInvariantsAreContractDriven() throws {
-        for url in [Self.syncFixtureURL(), Self.capabilitySyncFixtureURL()] {
-            let contract = try JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any]
-            let invariants = try #require(
-                contract?["accountScopeInvariants"] as? [String: Any],
-                "\(url.lastPathComponent) is missing accountScopeInvariants"
-            )
-            let boundaryReset = try #require(invariants["boundaryReset"] as? [String: Any])
-            // bindWithMismatchedStamp / stampAdoption → applyLoginBoundary.
-            #expect(boundaryReset["signOut"] is String)
-            #expect(boundaryReset["bindWithMismatchedStamp"] is String)
-            #expect(boundaryReset["stampAdoption"] is String)
-            #expect(invariants["revisionBaselineNotInherited"] is String)
-        }
-
-        let suiteName = "generation-parameter-account-contract-\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suiteName)!
-        defer { defaults.removePersistentDomain(forName: suiteName) }
-        let settings = GenerationParameterSettingsStore(defaults: defaults)
-        let presets = GenerationParameterPresetStore(defaults: defaults)
-        let provider = UUID()
-        let identity = Self.runtimeIdentity("responses")
-
-        GenerationParameterAccountBoundary.applyLoginBoundary(
-            uid: "uid-a", settings: settings, presets: presets, defaults: defaults
-        )
-        settings.setModelDefaults(
-            .init(values: ["top_p": .init(state: .value, value: .number(0.9))]),
-            providerID: provider, modelID: "model-a"
-        )
-        settings.setModelDefaults(nil, providerID: provider, modelID: "model-a")
-        settings.setCapabilityPreferences(
-            .init(web: .force, reasoningIntent: "off"), providerID: provider, modelID: "model-a",
-            conversationID: nil, transportIdentity: identity
-        )
-        _ = presets.save(
-            name: "A", providerID: provider, modelID: "model-a",
-            profileFingerprint: "ep_deadbeef|template|engine|model-a",
-            values: .init(values: ["temperature": .init(state: .value, value: .number(0.2))])
-        )
-        #expect(!GenerationParameterSyncContract.exportPayload(
-            settings: settings, presets: presets, defaults: defaults
-        ).tombstones.isEmpty)
-
-        GenerationParameterAccountBoundary.resetForSignOut(
-            settings: settings, presets: presets, defaults: defaults
-        )
-        let signedOut = GenerationParameterSyncContract.exportPayload(
-            settings: settings, presets: presets, defaults: defaults
-        )
-        #expect(signedOut.records.isEmpty)
-        #expect(signedOut.presets.isEmpty)
-        #expect(signedOut.tombstones.isEmpty)
-        #expect(CapabilityPreferenceSyncContract.exportPayload(settings: settings).records.isEmpty)
-        #expect(defaults.string(forKey: GenerationParameterAccountBoundary.stampKey) == nil)
-
-        GenerationParameterAccountBoundary.applyLoginBoundary(
-            uid: "uid-b", settings: settings, presets: presets, defaults: defaults
-        )
-        settings.setModelDefaults(
-            .init(values: ["top_p": .init(state: .value, value: .number(0.5))]),
-            providerID: provider, modelID: "model-a"
-        )
-        #expect(GenerationParameterSyncContract.exportPayload(
-            settings: settings, presets: presets, defaults: defaults
-        ).records.first?.revision == 1)
-    }
-
-
-    @MainActor
-    private final class PublishCapture {
-        var payloads: [[String: Any]] = []
-        var count: Int { payloads.count }
-    }
-
-    @MainActor
-    private static func drainPublisherQueue() async {
-        for _ in 0..<8 { await Task.yield() }
-        try? await Task.sleep(for: .milliseconds(50))
-    }
-
-    @MainActor
-    @Test("Empty Envelope Never Reaches Writer")
-    func emptyEnvelopeNeverReachesWriter() async {
-        let generationCapture = PublishCapture()
-        let generation = GenerationParameterSyncPublisher(makePayload: {
-            .init(schemaVersion: 1, records: [], presets: [], tombstones: [])
-        })
-        generation.bind { generationCapture.payloads.append($0) }
-
-        let capabilityCapture = PublishCapture()
-        let capability = CapabilityPreferenceSyncPublisher(makePayload: {
-            .init(schemaVersion: 2, records: [], tombstones: [])
-        })
-        capability.bind { capabilityCapture.payloads.append($0) }
-
-        await Self.drainPublisherQueue()
-        #expect(generationCapture.count == 0)
-        #expect(capabilityCapture.count == 0)
-
-        let nilTombstoneCapture = PublishCapture()
-        let nilTombstone = CapabilityPreferenceSyncPublisher(makePayload: {
-            .init(schemaVersion: 2, records: [], tombstones: nil)
-        })
-        nilTombstone.bind { nilTombstoneCapture.payloads.append($0) }
-        await Self.drainPublisherQueue()
-        #expect(nilTombstoneCapture.count == 0)
-    }
-
-    @MainActor
-    @Test("Non Empty Envelope Still Publishes")
-    func nonEmptyEnvelopeStillPublishes() async {
-        let record = GenerationParameterSyncRecord(
-            recordId: "scope:model:9a1195de-3af9-5888-abc8-b8177c458c07:model-a",
-            scope: "model_default", providerId: "9a1195de-3af9-5888-abc8-b8177c458c07",
-            modelId: "model-a", conversationId: nil, profileKey: "template|engine|model-a",
-            values: ["top_p": .init(state: .value, value: .number(0.9))],
-            revision: 1, mutationId: "00000000-0000-4000-8000-000000000001"
-        )
-        let withRecord = PublishCapture()
-        let recordPublisher = GenerationParameterSyncPublisher(makePayload: {
-            .init(schemaVersion: 1, records: [record], presets: [], tombstones: [])
-        })
-        recordPublisher.bind { withRecord.payloads.append($0) }
-        await Self.drainPublisherQueue()
-        #expect(withRecord.count == 1)
-        #expect((withRecord.payloads.first?["records"] as? [[String: Any]])?.count == 1)
-
-        let generationTombstoneOnly = PublishCapture()
-        let generationPublisher = GenerationParameterSyncPublisher(makePayload: {
-            .init(
-                schemaVersion: 1, records: [], presets: [],
-                tombstones: [.init(
-                    recordId: "scope:model:9a1195de-3af9-5888-abc8-b8177c458c07:model-a",
-                    revision: 2, mutationId: "00000000-0000-4000-8000-000000000002"
-                )]
-            )
-        })
-        generationPublisher.bind { generationTombstoneOnly.payloads.append($0) }
-        await Self.drainPublisherQueue()
-        #expect(generationTombstoneOnly.count == 1)
-        #expect((generationTombstoneOnly.payloads.first?["tombstones"] as? [[String: Any]])?.count == 1)
-
-        let capabilityTombstoneOnly = PublishCapture()
-        let capabilityPublisher = CapabilityPreferenceSyncPublisher(makePayload: {
-            .init(
-                schemaVersion: 2, records: [],
-                tombstones: [.init(
-                    recordId: "scope:model:9a1195de-3af9-5888-abc8-b8177c458c07:model-a:r1.cmVzcG9uc2Vz.cnVudGltZS1yNw",
-                    revision: 2, mutationId: "00000000-0000-4000-8000-000000000003"
-                )]
-            )
-        })
-        capabilityPublisher.bind { capabilityTombstoneOnly.payloads.append($0) }
-        await Self.drainPublisherQueue()
-        #expect(capabilityTombstoneOnly.count == 1)
-    }
 
     @Test("Empty Envelope Invariant Is Contract Driven")
     func emptyEnvelopeInvariantIsContractDriven() throws {

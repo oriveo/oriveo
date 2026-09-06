@@ -5,15 +5,6 @@ enum ProviderSetupEntryPoint: String, Hashable {
     case providers
     case modelPicker
     case skillEdit
-
-    var telemetryName: String {
-        switch self {
-        case .welcome: "onboarding"
-        case .providers: "providers"
-        case .modelPicker: "model_picker"
-        case .skillEdit: "skill_edit"
-        }
-    }
 }
 
 enum ManualModelEntryContext: String, Hashable {

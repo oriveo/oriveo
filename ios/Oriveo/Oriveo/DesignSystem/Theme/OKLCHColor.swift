@@ -93,8 +93,6 @@ enum OriveoColorTokens {
         "kimi":        0x5B3AFF,
         "mistral":     0xFA500F,  // Mistral orange
         "siliconflow": 0x7C3AED,  // SiliconFlow purple
-        "oriveofree":  0xA855F7,  // community brand purple
-        "oriveo_free": 0xA855F7,
     ]
 
     static let fallbackPaletteHexes: [UInt32] = [

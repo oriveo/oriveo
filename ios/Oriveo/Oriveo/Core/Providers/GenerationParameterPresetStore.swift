@@ -120,12 +120,6 @@ final class GenerationParameterPresetStore: @unchecked Sendable {
         return mapped.isEmpty ? nil : GenerationParameterOverrides(values: mapped)
     }
 
-    func resetForAccountBoundary() {
-        lock.lock()
-        defer { lock.unlock() }
-        defaults.removeObject(forKey: key)
-    }
-
     private func records() -> [GenerationParameterPreset] {
         lock.lock()
         defer { lock.unlock() }
@@ -140,7 +134,6 @@ final class GenerationParameterPresetStore: @unchecked Sendable {
     private func writeLocked(_ records: [GenerationParameterPreset]) {
         if let data = try? JSONEncoder().encode(records) {
             defaults.set(data, forKey: key)
-            GenerationParameterSyncPublisher.localDidChange()
         }
     }
 

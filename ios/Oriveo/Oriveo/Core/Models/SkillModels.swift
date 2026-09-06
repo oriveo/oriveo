@@ -303,11 +303,6 @@ struct SkillCatalogResponse: Codable {
     let categories: [SkillCategory]?
 }
 
-struct SkillConflictResponse: Codable {
-    let error: String
-    let serverSkill: Skill
-}
-
 struct SkillCategory: Codable, Identifiable {
     let id: String
     let name: String
@@ -333,62 +328,15 @@ struct SkillCategory: Codable, Identifiable {
     }
 }
 
-struct UserSkillsResponse: Codable {
-    let skills: [Skill]
-    let usage: SkillUsage
-}
-
-struct SkillUsage: Codable {
-    let count: Int
-    let limit: Int?
-    let isPro: Bool
-
-    private enum CodingKeys: String, CodingKey {
-        case count, limit, isPro
-    }
-
-    init(count: Int = 0, limit: Int? = 5, isPro: Bool = false) {
-        self.count = count
-        self.limit = limit
-        self.isPro = isPro
-    }
-
-    init(from decoder: Decoder) throws {
-        let c = try decoder.container(keyedBy: CodingKeys.self)
-        count = try c.decodeIfPresent(Int.self, forKey: .count) ?? 0
-        limit = try c.decodeIfPresent(Int.self, forKey: .limit)
-        isPro = try c.decodeIfPresent(Bool.self, forKey: .isPro) ?? false
-    }
-}
-
-struct CreateSkillResponse: Codable {
-    let skill: Skill
-    let usage: SkillUsage
-}
-
-struct UpdateSkillResponse: Codable {
-    let skill: Skill
-}
-
-struct DeleteSkillResponse: Codable {
-    let usage: SkillUsage
-}
-
 // MARK: - SkillError
 
 enum SkillError: LocalizedError {
-    case notAuthenticated
-    case quotaExceeded(count: Int, limit: Int)
-    case conflict(serverSkill: Skill)
+    case notEditable
 
     var errorDescription: String? {
         switch self {
-        case .notAuthenticated:
+        case .notEditable:
             return L10n.tr("This Skill could not be updated.")
-        case .quotaExceeded:
-            return nil
-        case .conflict:
-            return nil
         }
     }
 }

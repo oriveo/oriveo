@@ -60,13 +60,6 @@ final class NoteManager {
         appState.noteFolders = (try? store.fetchNoteFolders(includeDeleted: false)) ?? []
     }
 
-    func clearMirror() {
-        guard isBound else { return }
-        appState.noteSummaries = []
-        appState.trashedNoteSummaries = []
-        appState.noteFolders = []
-    }
-
 
     func note(id: UUID) -> Note? {
         (try? makeStore().fetchNote(id: id)) ?? nil
@@ -233,14 +226,6 @@ final class NoteManager {
     }
 
     @discardableResult
-    func updateUserNote(id: UUID, userNote: String?) -> Note? {
-        mutate(id: id) { note in
-            let trimmed = userNote?.trimmingCharacters(in: .whitespacesAndNewlines)
-            note.userNote = (trimmed?.isEmpty ?? true) ? nil : trimmed
-        }
-    }
-
-    @discardableResult
     func setPinned(id: UUID, isPinned: Bool) -> Note? {
         mutate(id: id) { $0.isPinned = isPinned }
     }
@@ -248,6 +233,81 @@ final class NoteManager {
     @discardableResult
     func moveNote(id: UUID, toFolder folderID: UUID?) -> Note? {
         mutate(id: id) { $0.noteFolderID = folderID }
+    }
+
+    /// Keeps a cross-check as a single note with two sources: the body holds both answers and the
+    /// provenance records the model behind each one. The note's source fields still point at the
+    /// original answer, so opening it jumps back to the conversation it came from.
+    @discardableResult
+    func createNoteFromCrosscheck(
+        origin: CrosscheckOrigin,
+        crosscheckModel: CrosscheckModelOption,
+        crosscheckText: String
+    ) -> Note? {
+        let answer: String
+        let prompt: String?
+        let modelID: String?
+        let modelName: String?
+        let providerKind: ProviderKind?
+        let providerName: String?
+        let conversationId: UUID?
+        let messageId: UUID?
+        let originAt: Date
+
+        switch origin {
+        case .note(let note):
+            answer = note.bodySnapshot ?? note.body
+            prompt = note.sourcePrompt
+            modelID = note.sourceModelID
+            modelName = note.sourceModelName
+            providerKind = note.sourceProviderKind
+            providerName = note.sourceProviderName
+            conversationId = note.sourceConversationId
+            messageId = note.sourceMessageId
+            originAt = note.createdAt
+        case .chatMessage(let convID, let message, let sourcePrompt):
+            answer = message.text
+            prompt = sourcePrompt
+            modelID = message.modelID
+            modelName = message.modelName
+            providerKind = message.providerKind
+            providerName = message.providerName
+            conversationId = convID
+            messageId = message.id
+            originAt = message.createdAt ?? Date()
+        }
+
+        let trimmedAnswer = answer.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedCheck = crosscheckText.trimmingCharacters(in: .whitespacesAndNewlines)
+        // The section headings stay in English on every platform so an exported note reads and
+        // diffs the same everywhere.
+        let body = "## Original answer\n\n\(trimmedAnswer)\n\n## Cross-check (\(crosscheckModel.modelName))\n\n\(trimmedCheck)"
+
+        let provenance = [
+            ProvenanceEntry(kind: .origin, modelID: modelID, modelName: modelName,
+                            providerKind: providerKind, providerName: providerName,
+                            conversationId: conversationId, messageId: messageId, at: originAt),
+            // The second model answered outside any conversation, so it has no conversation or
+            // message to point at.
+            ProvenanceEntry(kind: .crosscheck, modelID: crosscheckModel.modelID,
+                            modelName: crosscheckModel.modelName,
+                            providerKind: crosscheckModel.providerKind,
+                            providerName: crosscheckModel.providerName,
+                            conversationId: nil, messageId: nil, at: Date())
+        ]
+
+        var draft = NoteDraft(body: body, captureKind: .fullAnswer)
+        draft.bodySnapshot = answer
+        draft.sourceConversationId = conversationId
+        draft.sourceMessageId = messageId
+        draft.sourceModelID = modelID
+        draft.sourceModelName = modelName
+        draft.sourceProviderKind = providerKind
+        draft.sourceProviderName = providerName
+        draft.sourcePrompt = prompt
+        draft.provenance = provenance
+
+        return createNote(from: draft)
     }
 
     func deleteNote(id: UUID) {
@@ -432,17 +492,6 @@ final class NoteManager {
         var fixed = note
         fixed.noteFolderID = nil
         return fixed
-    }
-
-    func migrateGuestNotes(_ notes: [Note], folders: [NoteFolder]) {
-        guard isBound, let store = try? makeStore() else { return }
-        let existingNoteIDs = Set(((try? store.fetchAllNotes()) ?? []).map(\.id))
-        let existingFolderIDs = Set(((try? store.fetchAllNoteFolders()) ?? []).map(\.id))
-        let foldersToAdd = folders.filter { !existingFolderIDs.contains($0.id) }
-        let notesToAdd = notes.filter { !existingNoteIDs.contains($0.id) }
-        try? store.upsertNoteFolders(foldersToAdd)
-        try? store.upsertNotes(notesToAdd)
-        reloadMirrorSync()
     }
 
 

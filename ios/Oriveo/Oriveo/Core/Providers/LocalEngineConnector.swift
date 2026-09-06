@@ -22,21 +22,6 @@ enum LocalEngineConnectionError: LocalizedError, Equatable {
     case localNetworkDenied
     case cleartextCredentials
 
-    var telemetryErrorCode: String {
-        switch self {
-        case .invalidEndpoint: return "invalid_endpoint"
-        case .wrongEngine: return "wrong_engine"
-        case .engineLoading: return "engine_loading"
-        case .noModels: return "no_models"
-        case .engineStopped: return "engine_stopped"
-        case .outOfMemory: return "out_of_memory"
-        case .contextExceeded: return "context_exceeded"
-        case .timeout: return "network_timeout"
-        case .localNetworkDenied: return "local_network_denied"
-        case .cleartextCredentials: return "cleartext_credentials"
-        }
-    }
-
     var errorDescription: String? {
         switch self {
         case .invalidEndpoint: return L10n.tr("Invalid local address", table: .providers)

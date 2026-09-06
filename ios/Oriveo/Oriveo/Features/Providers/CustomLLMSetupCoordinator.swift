@@ -238,18 +238,3 @@ final class CustomLLMSetupCoordinator {
     }
 }
 
-/// Owns the success/abandonment edge for the shared Relay + Local shell.
-/// Navigation removes the screen synchronously, so completion must be recorded before routing.
-@MainActor
-@Observable
-final class CustomLLMSetupCompletionState {
-    private(set) var didComplete = false
-
-    func markCompleted() {
-        didComplete = true
-    }
-
-    func shouldReportAbandoned(stillInNavigationStack: Bool) -> Bool {
-        !didComplete && !stillInNavigationStack
-    }
-}

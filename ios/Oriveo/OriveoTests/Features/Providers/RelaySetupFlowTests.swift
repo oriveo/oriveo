@@ -114,17 +114,6 @@ struct RelaySetupFlowTests {
         #expect(!coordinator.isCurrent(attempt))
     }
 
-    @Test("successful Local completion cannot be reported as abandoned when navigation removes the parent")
-    @MainActor
-    func completionPrecedesAbandonmentDecision() {
-        let completion = CustomLLMSetupCompletionState()
-
-        #expect(completion.shouldReportAbandoned(stillInNavigationStack: false))
-        completion.markCompleted()
-        #expect(!completion.shouldReportAbandoned(stillInNavigationStack: false))
-        #expect(!completion.shouldReportAbandoned(stillInNavigationStack: true))
-    }
-
     @Test("network revision is monotonic and provides an explicit invalidation boundary")
     @MainActor
     func networkRevisionChangesIdentity() {

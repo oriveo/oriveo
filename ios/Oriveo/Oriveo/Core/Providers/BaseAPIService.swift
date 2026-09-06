@@ -890,6 +890,11 @@ class BaseAPIService {
                                 break
                             }
                         } catch {
+                            // Providers occasionally emit a frame this decoder does not model.
+                            // Skipping it keeps the rest of the stream usable.
+                            #if DEBUG
+                            AppLog.error(error, module: "SSE", context: ["event": currentEvent])
+                            #endif
                         }
                         currentEvent = ""
                     }

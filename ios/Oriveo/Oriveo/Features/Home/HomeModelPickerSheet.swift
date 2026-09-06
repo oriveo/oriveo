@@ -140,17 +140,6 @@ struct ModelPickerSheet: View {
         isCrosscheck
     }
 
-    private var telemetryContext: String {
-        switch context {
-        case .home:
-            return "home"
-        case .chat:
-            return "chat"
-        case .crosscheck:
-            return "crosscheck"
-        }
-    }
-
     private var currentProviderID: UUID? {
         selectedProviderID
     }

@@ -136,6 +136,7 @@ final class AppState {
 
     // MARK: Notes — persisted in GRDB only, deliberately outside `AppSessionSnapshot`
     var noteManager = NoteManager()
+    let noteAIManager = NoteAIManager()
     var conversationPinnedNoteIds: [UUID: [UUID]] = [:]
     var pendingPinnedNoteIds: [UUID] = []
     var noteSummaries: [NoteSummary] = [] {
@@ -167,9 +168,6 @@ final class AppState {
 
     var memoryUsageCount: Int = 0
     var memoryUsageConversationIDs: Set<UUID> = []
-
-    private(set) var partitionSwitchGeneration: UInt = 0
-
 
     /// The assistant message ID currently streaming in `conversationID`, or nil when nothing is.
     func streamingMessageID(in conversationID: UUID) -> UUID? {
@@ -302,6 +300,7 @@ final class AppState {
         folderManager.bind(to: self)
         folderManager.assignColorsIfNeeded()
         noteManager.bind(to: self)
+        noteAIManager.bind(to: self)
         providerManager.bind(to: self)
         chatManager.bind(to: self)
         skillManager.bind(to: self)
@@ -328,10 +327,6 @@ final class AppState {
 
     nonisolated deinit {
         pendingWorkItems.cancelAll()
-    }
-
-    func prepareForPartitionSwitch() {
-        partitionSwitchGeneration &+= 1
     }
 
     private func resetTransientNoteContext() {
@@ -934,10 +929,7 @@ final class AppState {
 
         switch entryPoint {
         case .welcome:
-            let wasCompleted = hasCompletedOnboarding
             hasCompletedOnboarding = true
-            if !wasCompleted {
-            }
             selectedTab = .home
             commitNavigationPath([.chat(conversationID: nil)], deferringIfNeeded: !navigation.path.isEmpty)
         case .providers:
@@ -1011,7 +1003,7 @@ final class AppState {
 
     func updateBaseURL(providerID: UUID, baseURLText: String?) async throws {
         guard let provider = provider(for: providerID),
-              provider.kind.usesConfigurableBaseURL else { return }
+              ProviderSetupCatalog.current().usesConfigurableBaseURL(provider.kind) else { return }
         try await providerManager.updateBaseURL(providerID: providerID, baseURLText: baseURLText)
     }
 
@@ -1242,16 +1234,13 @@ final class AppState {
             )
         }
 
-        if provider(for: targetConversation.providerID) != nil {
-        }
-
-        guard let userMessageID = await chatManager.sendMessage(
+        guard await chatManager.sendMessage(
             text,
             attachments: attachments,
             quoteContext: quoteContext,
             in: targetConversationID,
             capabilitySelection: capabilitySelection
-        ) else {
+        ) != nil else {
             return nil
         }
         return targetConversationID

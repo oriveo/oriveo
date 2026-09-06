@@ -41,7 +41,6 @@ struct SkillEditView: View {
     @State private var showAdvanced = false
     @State private var activeTooltip: String?
     @State private var indexingPollTask: Task<Void, Never>?
-    @State private var showSkillLimitSheet = false
 
     private var isEditing: Bool { skillID != nil }
 
@@ -184,9 +183,6 @@ struct SkillEditView: View {
             Button(L10n.tr("OK")) { activeTooltip = nil }
         } message: {
             Text(activeTooltip ?? "")
-        }
-        .sheet(isPresented: $showSkillLimitSheet) {
-            EmptyView()
         }
         .onDisappear { indexingPollTask?.cancel() }
     }
@@ -597,22 +593,6 @@ struct SkillEditView: View {
             .padding(.horizontal, 16)
     }
 
-    private func inlineActionButton(_ title: String, disabled: Bool = false, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Text(title)
-                .font(OriveoTheme.V2.Typography.footnote)
-                .foregroundStyle(disabled ? Colors.textTertiary : Colors.primary)
-                .padding(.horizontal, Sp.s12)
-                .padding(.vertical, Sp.s8)
-                .background(
-                    Capsule(style: .continuous)
-                        .fill(disabled ? Colors.bgInset : Colors.primarySubtle)
-                )
-        }
-        .buttonStyle(.plain)
-        .disabled(disabled)
-    }
-
     // MARK: - Load
 
     private func loadExistingSkill() {
@@ -757,19 +737,6 @@ struct SkillEditView: View {
         }
     }
 
-    private var hasOpenRouterProvider: Bool {
-        appState.providers.contains {
-            $0.kind == .openRouter && (
-                !$0.apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                || !$0.apiKeyPreview.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            )
-        }
-    }
-
-    private var hasOpenAIProvider: Bool {
-        openAIProvider != nil
-    }
-
     private func localizedKnowledgeError(
         _ code: SkillKnowledgeErrorCode,
         requiredModel: String? = nil
@@ -792,13 +759,6 @@ struct SkillEditView: View {
             return resolved
         }
         return fallback
-    }
-
-    private func localizedKnowledgeOperationError(
-        _ error: Error,
-        fallback: SkillKnowledgeErrorCode
-    ) -> String {
-        return localizedKnowledgeError(resolveKnowledgeErrorCode(from: error, fallback: fallback))
     }
 
     private func decodeKnowledgeErrorCode(from detail: String) -> SkillKnowledgeErrorCode? {

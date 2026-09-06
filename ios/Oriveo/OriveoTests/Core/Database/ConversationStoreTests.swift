@@ -583,24 +583,6 @@ struct ConversationStoreTests {
         #expect(bodyHit.map(\.id.uuidString) == [convID])
     }
 
-    @Test("Metadata Patch Updates Search Title")
-    func metadataPatchUpdatesSearchTitle() async throws {
-        let harness = try TestHarness()
-        defer { harness.cleanup() }
-
-        let conversation = TestFactories.makeConversation(title: "OriginalTitleAlpha")
-        try harness.store.upsertConversation(conversation)
-
-        var summary = try #require(try harness.store.fetchConversationSummary(id: conversation.id))
-        summary.title = "PatchedTitleOmega"
-        try harness.store.applyRemoteConversationMetadataPatches([summary])
-
-        let newTitleHit = try await harness.store.search(query: "PatchedTitleOmega")
-        #expect(Set(newTitleHit.map(\.id)) == [conversation.id])
-        let oldTitleHit = try await harness.store.search(query: "OriginalTitleAlpha")
-        #expect(oldTitleHit.isEmpty)
-    }
-
     @Test("Fetch Home Conversation Buckets")
     func fetchHomeConversationBuckets() throws {
         let harness = try TestHarness()
@@ -899,36 +881,6 @@ struct ConversationStoreTests {
         #expect(refreshed?.title == "Updated Title")
     }
 
-    @Test("Apply Remote Metadata Patch Preserves Messages")
-    func applyRemoteMetadataPatchPreservesMessages() throws {
-        let harness = try TestHarness()
-        defer { harness.cleanup() }
-
-        let providerID = UUID()
-        let msg1 = TestFactories.makeMessage(role: .user, text: "msg1", providerKind: .openAI)
-        let msg2 = TestFactories.makeMessage(role: .assistant, text: "msg2", providerKind: .openAI)
-        let conversation = TestFactories.makeConversation(
-            providerID: providerID,
-            messages: [msg1, msg2]
-        )
-
-        try harness.store.replaceAllConversations([conversation])
-
-        var summary = try harness.store.fetchConversationSummary(id: conversation.id)!
-        summary.title = "Patched Title"
-        summary.estimatedCost = 0.42
-        try harness.store.applyRemoteConversationMetadataPatches([summary])
-
-        let messages = try harness.store.fetchMessages(for: conversation.id)
-        #expect(messages.count == 2)
-        #expect(messages[0].text == "msg1")
-        #expect(messages[1].text == "msg2")
-
-        let refreshed = try harness.store.fetchConversationSummary(id: conversation.id)
-        #expect(refreshed?.title == "Patched Title")
-        #expect(refreshed?.estimatedCost == 0.42)
-    }
-
     @Test("Upsert Hydrated Messages Preserves Summary Metadata")
     func upsertHydratedMessagesPreservesSummaryMetadata() throws {
         let harness = try TestHarness()
@@ -940,7 +892,7 @@ struct ConversationStoreTests {
         let updatedAt = Date(timeIntervalSince1970: 1_700_000_999)
         let metadataOnlySummary = ConversationSummary(
             id: conversationID,
-            title: "Original cloud title",
+            title: "Original title",
             hasCustomTitle: true,
             providerID: providerID,
             providerKind: .openAI,
@@ -972,7 +924,7 @@ struct ConversationStoreTests {
         try harness.store.upsertHydratedMessages(partialWindow, conversationID: conversationID)
 
         let refreshed = try #require(try harness.store.fetchConversationSummary(id: conversationID))
-        #expect(refreshed.title == "Original cloud title")
+        #expect(refreshed.title == "Original title")
         #expect(refreshed.previewText == "Original latest preview")
         #expect(refreshed.messageCount == 200)
         #expect(refreshed.messagesHydratedAt == nil)

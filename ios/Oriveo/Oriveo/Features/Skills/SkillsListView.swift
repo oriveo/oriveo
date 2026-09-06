@@ -6,8 +6,6 @@ struct SkillsListView: View {
     @State private var searchText = ""
     @State private var skillToDelete: Skill?
     @State private var isLoading = false
-    @State private var showLoginPrompt = false
-    @State private var showSkillLimitSheet = false
     @State private var activeCategory = "__all__"
     @State private var hasAppeared = false
     @FocusState private var isSearchFocused: Bool
@@ -21,18 +19,10 @@ struct SkillsListView: View {
         skillManager.totalSkillCount > 15
     }
 
-    private var requiresLoginForSkillManagement: Bool { false }
-
     private var openAIProviderForKnowledgeCleanup: Provider? {
         appState.providers.first {
             $0.kind == .openAI && !$0.apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         }
-    }
-
-    private func promptLoginIfNeeded() -> Bool {
-        guard requiresLoginForSkillManagement else { return false }
-        showLoginPrompt = true
-        return true
     }
 
     private func localizedDeleteErrorMessage(_ detail: String) -> String {
@@ -50,15 +40,6 @@ struct SkillsListView: View {
             return L10n.tr(matched.rawValue)
         }
         return detail
-    }
-
-    private var pinnedSkills: [Skill] {
-        let all = skillManager.catalogSkills + skillManager.userSkills
-        return all.filter(\.isPinned).sorted { $0.pinOrder < $1.pinOrder }
-    }
-
-    private func openSkillCreateWithGate() {
-        appState.openSkillEdit()
     }
 
     private var filteredUserSkills: [Skill] {
@@ -135,31 +116,7 @@ struct SkillsListView: View {
                 if let skill = skillToDelete {
                     Task {
                         do {
-                            let requiresKnowledgeCleanup = {
-                                guard let knowledgeBase = skill.knowledgeBase else { return false }
-                                if !knowledgeBase.vectorStoreId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                                    return true
-                                }
-                                return knowledgeBase.files.contains {
-                                    !($0.openAIFileId?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true)
-                                }
-                            }()
-
-                            var body: [String: Any]?
-                            if requiresKnowledgeCleanup {
-                                guard let openAIProvider = openAIProviderForKnowledgeCleanup else {
-                                    ToastManager.shared.show(L10n.tr("openai_not_configured", table: .skills))
-                                    return
-                                }
-                                var cleanupBody: [String: Any] = ["apiKey": openAIProvider.apiKey]
-                                if let baseURL = openAIProvider.baseURLText,
-                                   !baseURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                                    cleanupBody["baseURL"] = baseURL
-                                }
-                                body = cleanupBody
-                            }
-
-                            try await skillManager.deleteSkill(skill.id, body: body)
+                            try await skillManager.deleteSkill(skill.id)
                         } catch {
                             ToastManager.shared.show(localizedDeleteErrorMessage(error.localizedDescription))
                         }
@@ -169,9 +126,6 @@ struct SkillsListView: View {
             }
         } message: {
             Text(L10n.tr("This Skill will be permanently deleted.", table: .skills))
-        }
-        .sheet(isPresented: $showSkillLimitSheet) {
-            EmptyView()
         }
     }
 
@@ -192,7 +146,7 @@ struct SkillsListView: View {
             Spacer()
 
             navToneButton(systemName: "plus", tint: Colors.primary) {
-                openSkillCreateWithGate()
+                appState.openSkillEdit()
             }
         }
     }
@@ -268,10 +222,7 @@ struct SkillsListView: View {
 
     private var mySkillsSection: some View {
         VStack(alignment: .leading, spacing: Sp.s12) {
-            sectionHeader(
-                L10n.tr("My Skills", table: .skills),
-                trailing: skillManager.usage.map { "\($0.count) / \($0.limit.map(String.init) ?? "∞")" }
-            )
+            sectionHeader(L10n.tr("My Skills", table: .skills))
 
             if filteredUserSkills.isEmpty {
                 emptyStateCard
@@ -304,7 +255,7 @@ struct SkillsListView: View {
                 .foregroundStyle(Colors.textPrimary)
 
             Button {
-                openSkillCreateWithGate()
+                appState.openSkillEdit()
             } label: {
                 HStack(spacing: 5) {
                     Image(systemName: "plus")
@@ -462,9 +413,6 @@ struct SkillsListView: View {
         }
 
         Button {
-            if !skill.isPinned {
-
-            }
             _ = skillManager.togglePin(skill.id)
         } label: {
             Label(
@@ -504,7 +452,7 @@ struct SkillsListView: View {
 
     // MARK: - Shared Components
 
-    private func sectionHeader(_ title: String, trailing: String? = nil) -> some View {
+    private func sectionHeader(_ title: String) -> some View {
         HStack(alignment: .center, spacing: 10) {
             RoundedRectangle(cornerRadius: 1.5, style: .continuous)
                 .fill(Colors.primary)
@@ -512,17 +460,6 @@ struct SkillsListView: View {
             Text(title)
                 .font(.system(size: 16, weight: .semibold))
                 .foregroundStyle(Colors.textPrimary)
-            if let trailing {
-                Text(trailing)
-                    .font(.system(size: 12.5, weight: .medium))
-                    .foregroundStyle(Colors.textTertiary)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 2)
-                    .background(
-                        Capsule(style: .continuous)
-                            .fill(Colors.bgInset)
-                    )
-            }
             Spacer(minLength: 0)
         }
     }

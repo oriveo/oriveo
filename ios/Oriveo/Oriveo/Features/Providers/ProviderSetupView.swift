@@ -22,10 +22,6 @@ struct ProviderSetupView: View {
     @State private var providerSelectionIsManual = false
     @State private var selectedEndpointID = ""
     @State private var hasAppliedPreselection = false
-    @State private var didEmitSetupStarted = false
-    @State private var didCompleteSetup = false
-    @State private var connectionAttempts = 0
-    @State private var submissionWasFirstProvider = false
     @State private var didHandOffToRelay = false
     @State private var isAdditionalInstance = false
     @State private var connectedActionKind: ProviderKind?
@@ -166,10 +162,6 @@ struct ProviderSetupView: View {
             }
             applyPreselectedKindIfNeeded()
             SwipeBackCoordinator.shared.isBackSwipeEnabled = !isSubmitting
-            if !didEmitSetupStarted {
-                didEmitSetupStarted = true
-                let kindForTracking = preselectedKind ?? selectedKind
-            }
         }
         .onChange(of: isSubmitting) { _, newValue in
             SwipeBackCoordinator.shared.isBackSwipeEnabled = !newValue
@@ -178,14 +170,6 @@ struct ProviderSetupView: View {
             submitTask?.cancel()
             submitTask = nil
             SwipeBackCoordinator.shared.isBackSwipeEnabled = true
-            let stillInStack = appState.navigation.path.contains { route in
-                if case .providerSetup = route { return true }
-                return false
-            }
-            if didEmitSetupStarted, !didCompleteSetup, !didHandOffToRelay, !stillInStack {
-                let kind = selectedKind ?? preselectedKind
-                let endpoint = kind.flatMap { selectedBaseURLText(for: $0) }
-            }
         }
         .navigationTitle(isModelPickerContext ? L10n.tr("Add Provider") : "")
         .navigationBarTitleDisplayMode(.inline)
@@ -346,7 +330,6 @@ struct ProviderSetupView: View {
                 let inferredKind = ProviderKind.inferred(fromAPIKey: newValue)
                 if selectedKind != inferredKind {
                     selectedEndpointID = inferredKind.flatMap { setupCatalog.defaultSetupEndpointID(for: $0) } ?? ""
-                    connectionAttempts = 0
                 }
                 selectedKind = inferredKind
             }
@@ -403,9 +386,6 @@ struct ProviderSetupView: View {
     }
 
     private func selectProvider(_ kind: ProviderKind, manual: Bool) {
-        if selectedKind != kind {
-            connectionAttempts = 0
-        }
         providerSelectionIsManual = manual
         inlineStatusText = nil
         setupError = nil
@@ -432,8 +412,6 @@ struct ProviderSetupView: View {
 
     private func continueTapped() async {
         guard let selectedKind else { return }
-        connectionAttempts += 1
-        submissionWasFirstProvider = appState.providers.isEmpty
         let trimmedKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmedKey.isEmpty || ProviderKeyInput.isPrintableASCII(trimmedKey) else {
             setupError = ProviderKeyInput.illegalCharsError()
@@ -475,7 +453,6 @@ struct ProviderSetupView: View {
     private func finalizeSetup(provider: Provider, kind: ProviderKind) {
         inlineStatusText = nil
         isSubmitting = false
-        didCompleteSetup = true
 
         if ProviderManager.providerStatusIsIssue(provider.status) {
             ToastManager.shared.show(
@@ -507,8 +484,6 @@ struct ProviderSetupView: View {
     }
 
     private func completeGrokSubscriptionSetup(tokens: GrokSubscriptionTokens) async {
-        connectionAttempts += 1
-        submissionWasFirstProvider = appState.providers.isEmpty
         setupError = nil
         inlineStatusText = L10n.tr("Validating connection and syncing models...", table: .providers)
         isSubmitting = true
@@ -539,8 +514,6 @@ struct ProviderSetupView: View {
     }
 
     private func completeOpenAISubscriptionSetup(tokens: OpenAISubscriptionTokens) async {
-        connectionAttempts += 1
-        submissionWasFirstProvider = appState.providers.isEmpty
         setupError = nil
         inlineStatusText = L10n.tr("Validating connection and syncing models...", table: .providers)
         isSubmitting = true

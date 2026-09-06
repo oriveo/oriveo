@@ -62,22 +62,4 @@ nonisolated final class DatabaseManager: @unchecked Sendable {
         }
         return size > 0
     }
-
-    /// `conversation` / `message` / `attachment` / `search_index` / `note` / `note_folder` / `note_search_index`.
-    func deleteAllSyncableData_Allowlist() async throws {
-        let pool = try openCurrent()
-        try await pool.write { db in
-            if try db.tableExists("search_index") {
-                try db.execute(sql: "DELETE FROM search_index")
-            }
-            try db.execute(sql: "DELETE FROM attachment")
-            try db.execute(sql: "DELETE FROM message")
-            try db.execute(sql: "DELETE FROM conversation")
-            if try db.tableExists("note_search_index") {
-                try db.execute(sql: "DELETE FROM note_search_index")
-            }
-            try db.execute(sql: "DELETE FROM note")
-            try db.execute(sql: "DELETE FROM note_folder")
-        }
-    }
 }

@@ -73,7 +73,6 @@ final class SkillManager {
     private(set) var catalogSkills: [Skill] = []
     private(set) var catalogCategories: [SkillCategory] = []
     private(set) var userSkills: [Skill] = []
-    private(set) var usage: SkillUsage?
 
     private(set) var isRefreshing = false
     @ObservationIgnored private var hasLoadedInitialData = false
@@ -81,10 +80,6 @@ final class SkillManager {
     func bind(to appState: AppState) {
         self.appState = appState
         loadCache()
-    }
-
-    var homeSkills: [Skill] {
-        selectHomeSkills(catalogSkills: catalogSkills, userSkills: userSkills)
     }
 
     var catalogByCategory: [(category: SkillCategory, skills: [Skill])] {
@@ -112,14 +107,6 @@ final class SkillManager {
         hasLoadedInitialData = true
     }
 
-    func refreshCatalog() async {
-        loadCache()
-    }
-
-    func refreshUserSkills() async {
-        loadCache()
-    }
-
     func createSkill(_ body: [String: Any]) async throws -> Skill {
         let skill = try skillFromBody(body, existing: nil, forkedFromId: nil)
         userSkills.append(skill)
@@ -129,7 +116,7 @@ final class SkillManager {
 
     func updateSkill(_ id: UUID, _ body: [String: Any]) async throws -> Skill {
         guard let existing = skill(by: id), existing.isEditable else {
-            throw SkillError.notAuthenticated
+            throw SkillError.notEditable
         }
         let updated = try skillFromBody(body, existing: existing, forkedFromId: existing.forkedFromId)
         if let idx = userSkills.firstIndex(where: { $0.id == id }) {
@@ -141,15 +128,14 @@ final class SkillManager {
         return updated
     }
 
-    func deleteSkill(_ id: UUID, body: [String: Any]? = nil) async throws {
-        _ = body
+    func deleteSkill(_ id: UUID) async throws {
         userSkills.removeAll { $0.id == id }
         saveUserCache()
     }
 
     func forkSkill(_ id: UUID) async throws -> Skill {
         guard let origin = skill(by: id) else {
-            throw SkillError.notAuthenticated
+            throw SkillError.notEditable
         }
         let now = Date()
         let forked = Skill(
@@ -351,7 +337,6 @@ final class SkillManager {
         catalogSkills = []
         catalogCategories = []
         userSkills = []
-        usage = nil
         hasLoadedInitialData = false
     }
 }

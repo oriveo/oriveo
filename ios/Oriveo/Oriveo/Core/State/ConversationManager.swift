@@ -453,11 +453,7 @@ final class ConversationManager {
 
 
     func deleteConversation(id: UUID) {
-        var messageCount = 0
-        var ageHours = 0
         if let ci = conversations.firstIndex(where: { $0.id == id }) {
-            messageCount = conversations[ci].messages.count
-            ageHours = Int(Date().timeIntervalSince(conversations[ci].createdAt) / 3600)
             if conversations[ci].messages.contains(where: { $0.state == .generating }) {
                 appState.cancelGeneration(in: id)
             }

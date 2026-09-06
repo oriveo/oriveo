@@ -257,10 +257,6 @@ enum OnboardingOrbitCatalog {
 }
 
 
-enum OnboardingQuotaPolicy {
-    static func displayableWeeklyLimit() -> Int { 0 }
-}
-
 enum OnboardingMotionPolicy {
     static func isOrbitClockPaused(reduceMotion: Bool, isStageActive: Bool) -> Bool {
         reduceMotion || !isStageActive

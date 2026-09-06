@@ -19,10 +19,8 @@ enum TransportRegistry {
 
     static func getStrategy(
         for kindRaw: String?,
-        modelID: String? = nil,
-        providerKind: ProviderKind? = nil
+        modelID: String? = nil
     ) throws -> any TransportStrategy {
-        let telemetryModelID = providerKind.map { $0.telemetryModelID(modelID) } ?? "unknown"
         guard let kindRaw = kindRaw?.trimmingCharacters(in: .whitespacesAndNewlines),
               !kindRaw.isEmpty else {
             throw UnsupportedTransportError(kind: "", modelID: modelID)

@@ -44,7 +44,6 @@ struct OKLCHColorTests {
             "openai", "anthropic", "gemini", "deepseek", "grok", "xai",
             "groq", "together", "fireworks", "minimax",
             "zhipu", "qwen", "moonshot", "mistral", "siliconflow", "openrouter",
-            "oriveofree",
         ]
         let actual = Set(OriveoColorTokens.providerBrandHexes.keys)
         let missing = expected.subtracting(actual)

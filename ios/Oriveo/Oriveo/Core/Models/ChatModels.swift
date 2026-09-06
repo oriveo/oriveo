@@ -1005,19 +1005,6 @@ extension Conversation {
         if (deletedAt == nil) != (other.deletedAt == nil) { return false }
         return true
     }
-
-    nonisolated func asConflictCopy() -> Conversation {
-        var copy = self
-        copy.id = UUID()
-        copy.title = "🔀 " + title
-        copy.hasCustomTitle = true
-        copy.updatedAt = Date()
-        copy.isConflictCopy = true
-        copy.originalConversationId = id
-        copy.metadataUpdatedAt = nil
-        copy.deletedAt = nil
-        return copy
-    }
 }
 
 extension Folder {

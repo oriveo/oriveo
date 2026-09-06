@@ -419,7 +419,7 @@ struct CapabilityRuntimeRejectionTests {
             components: ["shared", "model-contracts", "capability_preference_sync.v1.json"]
         ))) as? [String: Any])
         let payloadObject = try #require(fixture["payload"] as? [String: Any])
-        let payload = try #require(CapabilityPreferenceSyncContract.decodeFirestore(payloadObject))
+        let payload = try #require(CapabilityPreferenceSyncContract.decode(jsonObject: payloadObject))
         #expect(payload.schemaVersion == 2)
         #expect(payload.records.count == 4)
 

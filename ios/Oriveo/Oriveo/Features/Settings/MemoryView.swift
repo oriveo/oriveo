@@ -968,20 +968,6 @@ struct MemoryView: View {
         let finalAntiForgetEnabled = trimmedText.isEmpty ? false : antiForgetEnabled
         let finalAntiForgetText = finalAntiForgetEnabled ? editText : ""
 
-        let previousText = appState.preferences.memoryText
-        let previousWasEmpty = previousText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        let nowEmpty = trimmedText.isEmpty
-        let operation: String
-        if previousWasEmpty, nowEmpty {
-            operation = "clear"
-        } else if previousWasEmpty {
-            operation = "create"
-        } else if nowEmpty {
-            operation = "clear"
-        } else {
-            operation = "update"
-        }
-
         appState.saveMemory(
             text: editText,
             antiForgetEnabled: finalAntiForgetEnabled,
@@ -990,7 +976,6 @@ struct MemoryView: View {
         isTextFieldFocused = false
         showSaveSuccessAlert = true
         editRevision = 0
-
     }
 
     private func generateDraft() {
@@ -1105,7 +1090,8 @@ struct MemoryView: View {
                         )
                         continue
                     }
-                    let baseURL = candidate.provider.kind.usesConfigurableBaseURL
+                    let baseURL = ProviderSetupCatalog.current()
+                        .usesConfigurableBaseURL(candidate.provider.kind)
                         ? candidate.provider.baseURLText
                         : nil
 

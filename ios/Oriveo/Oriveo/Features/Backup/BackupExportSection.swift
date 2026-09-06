@@ -156,17 +156,10 @@ struct BackupExportSection: View {
                     notes: appState.noteManager.allNotesForSync(),
                     noteFolders: appState.noteManager.allNoteFoldersForSync()
                 )
-                let conversationCount = appState.conversations.count
-                let encrypted = formState.includeKeys && !formState.password.isEmpty
                 await MainActor.run {
                     exportDocument = BackupDocument(data: data)
                     showExporter = true
                     isExporting = false
-                    BackupService.emitBackupExported(
-                        zipSize: data.count,
-                        encrypted: encrypted,
-                        conversationCount: conversationCount
-                    )
                 }
             } catch {
                 await MainActor.run {

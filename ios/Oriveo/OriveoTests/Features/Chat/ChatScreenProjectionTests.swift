@@ -77,51 +77,27 @@ struct ChatScreenProjectionTests {
         #expect(postObservation.isMissingPersistedConversation == false)
     }
 
-    @Test("Empty Persisted Conversation Shows Empty State Not Bootstrap")
-    func emptyPersistedConversationShowsEmptyStateNotBootstrap() {
-        // messageCount == 0 with an empty previewText means there is no history to hydrate at all
-        // (a brand new or emptied conversation), so the screen must not stay on the skeleton.
-        // Starting a conversation from a skill pre-creates an empty draft carrying the skill id
-        // (messageCount == 0 with a requested conversation id), and the empty-state gate reads
-        // `isDraft`/`draftText`, so the fixture has to model `isDraft` faithfully. An earlier
-        // version omitted it and only passed because the old rule fell back to
-        // "messageCount == 0 && empty previewText" and never read `isDraft` at all.
-        // The fixture also sets `.skipped` because production always carries it on this path:
-        // `ChatView.startMessageBackfillIfNeeded` marks the backfill skipped when it does not run.
-        // `.idle` means "the backfill has not started yet", and a skeleton is still correct there;
-        // what was wrong was staying on the skeleton for twelve seconds with no result, which the
-        // `.skipped` branch now ends.
+    @Test("A Persisted Conversation With Nothing To Load Shows The Skeleton Until The Watchdog")
+    func emptyPersistedConversationLeavesTheSkeletonOnlyAfterTheWatchdog() {
+        // The window loader reports an empty message list both while it is still reading and when
+        // the conversation really is empty, so the skeleton stays up until the watchdog decides
+        // the read is not going to produce anything.
         let summary = makeSummary(messageCount: 0, previewText: "")
 
-        let loadedEmpty = ChatScreenProjection(
-            requestedConversationID: summary.id,
-            summary: summary,
-            messages: [],
-            hasLoadedSummary: true,
-            messageRevision: 1,
-            backfillPhase: .skipped
-        )
-        #expect(loadedEmpty.isBootstrappingPersistedConversation == false)
-        #expect(loadedEmpty.loadState == .empty)
-        let stillIdle = ChatScreenProjection(
+        let stillLoading = ChatScreenProjection(
             requestedConversationID: summary.id,
             summary: summary,
             messages: [],
             hasLoadedSummary: true,
             messageRevision: 1
         )
-        #expect(stillIdle.loadState == .bootstrapping)
+        #expect(stillLoading.loadState == .bootstrapping)
+        #expect(stillLoading.isBootstrappingPersistedConversation == true)
 
-        let hasHistory = makeSummary(messageCount: 0, previewText: "we were halfway through last time")
-        let skippedWithEvidence = ChatScreenProjection(
-            requestedConversationID: hasHistory.id,
-            summary: hasHistory,
-            messages: [],
-            hasLoadedSummary: true,
-            messageRevision: 1,
-            backfillPhase: .skipped
-        )
-        #expect(skippedWithEvidence.loadState == .bootstrapping)
+        var expired = stillLoading
+        expired.bootstrapWatchdogExpired = true
+        #expect(expired.loadState == .stalled)
+        #expect(expired.isBootstrappingPersistedConversation == false)
     }
 
     @Test("Skill Draft Conversation Shows Empty State Not Bootstrap")
@@ -175,9 +151,9 @@ struct ChatScreenProjectionTests {
         #expect(hydrated.isBootstrappingPersistedConversation == false)
     }
 
-    @Test("Remote Message Count Keeps Bootstrap Even Without Preview")
-    func remoteMessageCountKeepsBootstrapEvenWithoutPreview() {
-        let summary = makeSummary(messageCount: 0, previewText: "", remoteMessageCount: 8)
+    @Test("A Persisted Message Count Keeps The Skeleton Up Even Without A Preview")
+    func persistedMessageCountKeepsBootstrapEvenWithoutPreview() {
+        let summary = makeSummary(messageCount: 8, previewText: "")
 
         let projection = ChatScreenProjection(
             requestedConversationID: summary.id,
@@ -189,41 +165,28 @@ struct ChatScreenProjectionTests {
         #expect(projection.isBootstrappingPersistedConversation == true)
     }
 
-    @Test("Measured Empty Does Not Win Over Metadata History Evidence")
-    func measuredEmptyDoesNotWinOverMetadataHistoryEvidence() {
-        let byCount = makeSummary(messageCount: 0, previewText: "", remoteMessageCount: 8)
+    @Test("A Draft Conversation Goes Straight To The Empty State")
+    func draftConversationGoesStraightToTheEmptyState() {
+        // A draft has nothing persisted to wait for, so showing a skeleton would be a lie.
+        let draft = makeSummary(messageCount: 0, previewText: "", isDraft: true)
         #expect(
             ChatScreenProjection(
-                requestedConversationID: byCount.id,
-                summary: byCount,
+                requestedConversationID: draft.id,
+                summary: draft,
                 messages: [],
                 hasLoadedSummary: true,
-                messageRevision: 1,
-                backfillPhase: .succeededEmpty
-            ).loadState == .stalled
+                messageRevision: 1
+            ).loadState == .empty
         )
 
-        let byPreview = makeSummary(messageCount: 0, previewText: "we were halfway through last time")
+        let withUnsentText = makeSummary(messageCount: 0, previewText: "", draftText: "half a question")
         #expect(
             ChatScreenProjection(
-                requestedConversationID: byPreview.id,
-                summary: byPreview,
+                requestedConversationID: withUnsentText.id,
+                summary: withUnsentText,
                 messages: [],
                 hasLoadedSummary: true,
-                messageRevision: 1,
-                backfillPhase: .succeededEmpty
-            ).loadState == .stalled
-        )
-
-        let genuinelyEmpty = makeSummary(messageCount: 0, previewText: "")
-        #expect(
-            ChatScreenProjection(
-                requestedConversationID: genuinelyEmpty.id,
-                summary: genuinelyEmpty,
-                messages: [],
-                hasLoadedSummary: true,
-                messageRevision: 1,
-                backfillPhase: .succeededEmpty
+                messageRevision: 1
             ).loadState == .empty
         )
     }
@@ -440,7 +403,6 @@ struct ChatScreenProjectionTests {
         modelID: String = "gpt-4o",
         messageCount: Int = 0,
         previewText: String = "preview",
-        remoteMessageCount: Int = 0,
         estimatedCost: Double = 0,
         draftText: String = "",
         useMemory: Bool = true,
@@ -456,7 +418,7 @@ struct ChatScreenProjectionTests {
             modelID: modelID,
             previewText: previewText,
             messageCount: messageCount,
-            remoteMessageCount: remoteMessageCount,
+            remoteMessageCount: 0,
             estimatedCost: estimatedCost,
             isDraft: isDraft,
             draftText: draftText,

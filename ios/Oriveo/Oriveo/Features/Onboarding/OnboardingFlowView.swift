@@ -16,7 +16,6 @@ struct OnboardingFlowView: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     @State private var progress: Double = 0
-    @State private var appearedAt: Date?
     @State private var isExiting = false
     @State private var isStageAnimating = true
 
@@ -321,12 +320,6 @@ struct OnboardingFlowView: View {
 
     private func handleAppear() {
         isStageAnimating = true
-
-        if appearedAt == nil {
-            appearedAt = Date()
-            if mode == .live {
-            }
-        }
 
         guard !OnboardingMotionPolicy.revealsInstantly(reduceMotion: reduceMotion) else {
             auroraRevealed = true

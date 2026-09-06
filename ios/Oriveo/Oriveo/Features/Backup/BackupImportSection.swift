@@ -615,15 +615,6 @@ struct BackupImportSection: View {
                     if !appState.hasCompletedOnboarding && result.hasChanges {
                         appState.hasCompletedOnboarding = true
                     }
-                    let importedCount = result.newConversations + result.mergedConversations
-                        + result.newSkills + result.mergedSkills + result.newProviders
-                    let conflictCount = result.skippedConversations + result.skippedSkills
-                        + result.skippedProviders + result.skippedImages
-                    BackupService.emitBackupImported(
-                        mode: selectedImportMode == .replaceAll ? "replace" : "merge",
-                        importedCount: importedCount,
-                        conflictCount: conflictCount
-                    )
                 }
             } catch is CryptoKitError {
                 await MainActor.run {
