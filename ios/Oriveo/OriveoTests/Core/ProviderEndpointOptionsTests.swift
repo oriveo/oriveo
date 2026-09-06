@@ -38,11 +38,33 @@ struct ProviderEndpointOptionsTests {
         #expect(ProviderKind.qwen.usesConfigurableBaseURL)
     }
 
+    @Test("Silicon Flow Official Endpoints")
+    func siliconFlowOfficialEndpoints() {
+        let options = ProviderKind.siliconFlow.setupEndpointOptions
+
+        #expect(options.map(\.id) == ["cn", "intl"])
+        #expect(ProviderKind.siliconFlow.defaultSetupEndpointID == "cn")
+        #expect(ProviderKind.siliconFlow.resolvedSetupBaseURLText(for: "intl") == "api.siliconflow.com/v1")
+        // Offering a region choice and refusing to save it is the bug this pins down.
+        #expect(ProviderKind.siliconFlow.usesConfigurableBaseURL)
+    }
+
     @Test("Other Providers Do Not Expose Endpoint Options")
     func otherProvidersDoNotExposeEndpointOptions() {
         #expect(ProviderKind.openAI.setupEndpointOptions.isEmpty)
         #expect(ProviderKind.openAI.defaultSetupEndpointID == nil)
         #expect(!ProviderKind.openAI.usesConfigurableBaseURL)
+    }
+
+    @Test("Every Provider That Offers Regions Can Persist The Choice")
+    func endpointPickerAndWriteGateAgree() {
+        for kind in ProviderKind.allCases {
+            let offersRegions = !kind.setupEndpointOptions.isEmpty
+            #expect(
+                kind.usesConfigurableBaseURL == (offersRegions || kind == .relay),
+                "\(kind.rawValue) renders a region picker the write path would ignore"
+            )
+        }
     }
 
     @Test("Direct Providers Exclude Open Router")

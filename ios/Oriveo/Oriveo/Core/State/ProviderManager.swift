@@ -619,7 +619,9 @@ final class ProviderManager {
                     let syncResult = try await svc.syncProvider(
                         apiKey: provider.apiKey,
                         preferredModelID: provider.defaultModel?.id,
-                        baseURL: provider.kind.usesConfigurableBaseURL ? provider.baseURLText : nil,
+                        baseURL: ProviderSetupCatalog.current().usesConfigurableBaseURL(provider.kind)
+                    ? provider.baseURLText
+                    : nil,
                         relayRequested: provider.relayRequested
                     )
                     try Task.checkCancellation()
@@ -902,7 +904,9 @@ final class ProviderManager {
             let syncResult = try await service.syncProvider(
                 apiKey: provider.apiKey,
                 preferredModelID: provider.defaultModel?.id,
-                baseURL: provider.kind.usesConfigurableBaseURL ? provider.baseURLText : nil,
+                baseURL: ProviderSetupCatalog.current().usesConfigurableBaseURL(provider.kind)
+                    ? provider.baseURLText
+                    : nil,
                 relayRequested: provider.relayRequested
             )
             try Task.checkCancellation()

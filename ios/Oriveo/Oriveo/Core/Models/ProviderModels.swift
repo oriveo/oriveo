@@ -447,13 +447,11 @@ enum ProviderKind: String, CaseIterable, Hashable, Identifiable, Codable, Sendab
         }
     }
 
+    /// Whether the endpoint may be chosen and later changed. This is derived from the region list
+    /// the setup screen actually renders, so the picker and the write path cannot disagree: a
+    /// hard-coded list of kinds here once let a provider offer a region choice that nothing saved.
     var usesConfigurableBaseURL: Bool {
-        switch self {
-        case .miniMax, .qwen, .moonshot, .relay:
-            return true
-        default:
-            return false
-        }
+        self == .relay || !setupEndpointOptions.isEmpty
     }
 
     var attachmentSupport: (image: Bool, video: Bool, nativeFile: Bool, textFileInline: Bool) {
@@ -1268,19 +1266,5 @@ extension Provider {
         try c.encodeIfPresent(relayRequested, forKey: .relayRequested)
         try c.encodeIfPresent(relayKind, forKey: .relayKind)
         try c.encode(authMode, forKey: .authMode)
-    }
-}
-
-// MARK: - Telemetry
-
-extension ProviderKind {
-    var telemetryName: String {
-        switch self {
-        default: return rawValue.lowercased()
-        }
-    }
-
-    func telemetryModelID(_ modelID: String?) -> String {
-        self == .relay ? "custom" : (modelID ?? "unknown")
     }
 }
