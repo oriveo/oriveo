@@ -87,6 +87,7 @@ final class ChatListViewController: UIViewController {
     private var onContinue: (ChatMessage) -> Void = { _ in }
     private var onSaveNote: (ChatMessage) -> Void = { _ in }
     private var onOpenNoteReferences: ([NoteSummary]) -> Void = { _ in }
+    private var onCrosscheck: (ChatMessage) -> Void = { _ in }
     private var onSaveSelection: (ChatMessage, String) -> Void = { _, _ in }
     private var onAskSelection: (ChatMessage, QuoteSelectionContent) -> Void = { _, _ in }
     private var canReplaceCurrentNoteSelection = false
@@ -200,7 +201,9 @@ final class ChatListViewController: UIViewController {
         deferralFlushScheduled = true
         deferralFallbackTimer?.invalidate()
         deferralFallbackTimer = nil
-        NSLog("[OPEN-TRACE] flush triggered source=%@", source)
+        #if DEBUG
+        AppLog.info("deferred rebuild flush triggered by \(source)", module: "ChatOpen")
+        #endif
         waitForPrewarmThenRebuild(start: CACurrentMediaTime())
     }
 
@@ -208,7 +211,12 @@ final class ChatListViewController: UIViewController {
         let waitedMs = (CACurrentMediaTime() - start) * 1000
         let prewarmDone = prewarmProgress?.isDone ?? true
         if prewarmDone || waitedMs >= 800 {
-            NSLog("[OPEN-TRACE] initial rebuild released prewarmWait=%.0fms done=%d", waitedMs, prewarmDone ? 1 : 0)
+            #if DEBUG
+            AppLog.info(
+                "initial rebuild released after \(Int(waitedMs))ms, prewarm done=\(prewarmDone)",
+                module: "ChatOpen"
+            )
+            #endif
             isDeferringInitialRebuildForTransition = false
             rebuildIfReady()
             return
@@ -223,9 +231,13 @@ final class ChatListViewController: UIViewController {
 
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
-        NSLog("[OPEN-TRACE] viewWillAppear animated=%d coordinator=%d deferring=%d",
-              animated ? 1 : 0, transitionCoordinator != nil ? 1 : 0,
-              isDeferringInitialRebuildForTransition ? 1 : 0)
+        #if DEBUG
+        AppLog.info(
+            "viewWillAppear animated=\(animated) coordinator=\(transitionCoordinator != nil) "
+            + "deferring=\(isDeferringInitialRebuildForTransition)",
+            module: "ChatOpen"
+        )
+        #endif
         guard isDeferringInitialRebuildForTransition, !deferralFlushScheduled,
               animated, let coordinator = transitionCoordinator else { return }
         coordinator.animate(alongsideTransition: nil) { [weak self] _ in
@@ -289,6 +301,7 @@ final class ChatListViewController: UIViewController {
         onContinue: @escaping (ChatMessage) -> Void,
         onSaveNote: @escaping (ChatMessage) -> Void = { _ in },
         onOpenNoteReferences: @escaping ([NoteSummary]) -> Void = { _ in },
+        onCrosscheck: @escaping (ChatMessage) -> Void = { _ in },
         onSaveSelection: @escaping (ChatMessage, String) -> Void = { _, _ in },
         onAskSelection: @escaping (ChatMessage, QuoteSelectionContent) -> Void = { _, _ in },
         canReplaceCurrentNoteSelection: Bool = false,
@@ -319,6 +332,7 @@ final class ChatListViewController: UIViewController {
         self.onContinue = onContinue
         self.onSaveNote = onSaveNote
         self.onOpenNoteReferences = onOpenNoteReferences
+        self.onCrosscheck = onCrosscheck
         self.onSaveSelection = onSaveSelection
         self.onAskSelection = onAskSelection
         self.canReplaceCurrentNoteSelection = canReplaceCurrentNoteSelection
@@ -652,7 +666,13 @@ final class ChatListViewController: UIViewController {
                                           viewportHeight: collectionView.bounds.height) {
             showSkeletonOverlay()
             if deferralFallbackTimer == nil, !deferralFlushScheduled {
-                NSLog("[OPEN-TRACE] initial rebuild deferred rows=%d (heavy conversation, skeleton shown, 0.8s fallback timer armed)", viewModel.rows.count)
+                #if DEBUG
+                AppLog.info(
+                    "initial rebuild deferred for \(viewModel.rows.count) rows; skeleton shown "
+                    + "with a 0.8s fallback timer",
+                    module: "ChatOpen"
+                )
+                #endif
                 let timer = Timer(timeInterval: 0.8, repeats: false) { [weak self] _ in
                     MainActor.assumeIsolated {
                         self?.endInitialRebuildTransitionDeferralAndFlush(source: "fallback-timer")
@@ -677,6 +697,7 @@ final class ChatListViewController: UIViewController {
             onContinue: onContinue,
             onSaveNote: onSaveNote,
             onOpenNoteReferences: onOpenNoteReferences,
+            onCrosscheck: onCrosscheck,
             onSaveSelection: onSaveSelection,
             onAskSelection: onAskSelection,
             canReplaceCurrentNoteSelection: canReplaceCurrentNoteSelection,
@@ -746,16 +767,22 @@ final class ChatListViewController: UIViewController {
             let reloadStart = CACurrentMediaTime()
             collectionView.reloadData()
             collectionView.layoutIfNeeded()
-            NSLog("[OPEN-TRACE] initial reload+layout %.0fms rows=%d",
-                  (CACurrentMediaTime() - reloadStart) * 1000, viewModel.rows.count)
+            #if DEBUG
+            AppLog.info(
+                "initial reload and layout took \(Int((CACurrentMediaTime() - reloadStart) * 1000))ms "
+                + "for \(viewModel.rows.count) rows",
+                module: "ChatOpen"
+            )
+            #endif
             stickController.reset()
             if viewModel.streamingMessageID != nil {
                 stickController.setStreamingMode(true)
                 startStreamingReconcileTick()
             }
-            if handlePendingSearchTargetIfNeeded(viewModel) {
-            } else if consumePendingOutlineScroll(conversationID: viewModel.conversationID) {
-            } else {
+            // Both jump handlers scroll on their own; only fall back to the bottom when
+            // neither of them claimed this first layout.
+            if !handlePendingSearchTargetIfNeeded(viewModel),
+               !consumePendingOutlineScroll(conversationID: viewModel.conversationID) {
                 scrollToBottomEnsuringFullLayout()
             }
         } else if diff.requiresFullReload {
@@ -1077,7 +1104,9 @@ final class ChatListViewController: UIViewController {
         isAwaitingReveal = false
         collectionView.alpha = 1
         hideSkeletonOverlay()
-        NSLog("[OPEN-TRACE] reveal (settle finished, skeleton hidden)")
+        #if DEBUG
+        AppLog.info("settle finished, skeleton hidden", module: "ChatOpen")
+        #endif
     }
 
     private static let bottomSettleFrameBudget = 30

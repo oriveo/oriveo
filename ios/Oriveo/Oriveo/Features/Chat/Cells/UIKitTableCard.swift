@@ -93,7 +93,10 @@ final class UIKitTableCard: UIView {
         if !ChatCardStableWidth.isTrustworthy(width: availableWidth, anchor: ChatCardStableWidth.anchor(for: self)) {
             #if DEBUG
             if ChatRenderDiagnostics.enabled {
-                NSLog("[CARDW] table card skip transient w=%.0f", availableWidth)
+                AppLog.info(
+                    "table card skipped a transient width of \(Int(availableWidth))",
+                    module: "ChatRender"
+                )
             }
             #endif
             return

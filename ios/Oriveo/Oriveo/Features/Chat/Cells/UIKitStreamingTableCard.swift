@@ -108,7 +108,10 @@ final class UIKitStreamingTableCard: UIView {
             if !ChatCardStableWidth.isTrustworthy(width: availableWidth, anchor: ChatCardStableWidth.anchor(for: self)) {
                 #if DEBUG
                 if ChatRenderDiagnostics.enabled {
-                    NSLog("[CARDW] streaming table skip transient w=%.0f", availableWidth)
+                    AppLog.info(
+                        "streaming table card skipped a transient width of \(Int(availableWidth))",
+                        module: "ChatRender"
+                    )
                 }
                 #endif
                 return

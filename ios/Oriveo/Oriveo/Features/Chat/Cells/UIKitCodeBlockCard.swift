@@ -184,7 +184,7 @@ final class UIKitCodeBlockCard: UIView {
         if !ChatCardStableWidth.isTrustworthy(width: width, anchor: ChatCardStableWidth.anchor(for: self)) {
             #if DEBUG
             if ChatRenderDiagnostics.enabled {
-                NSLog("[CARDW] code card skip transient w=%.0f", width)
+                AppLog.info("code card skipped a transient width of \(Int(width))", module: "ChatRender")
             }
             #endif
             return
@@ -205,7 +205,11 @@ final class UIKitCodeBlockCard: UIView {
         if heightChanged {
             #if DEBUG
             if ChatRenderDiagnostics.enabled {
-                NSLog("[CARDH] code card h %.0f→%.0f w=%.0f", codeHeightConstraint.constant, target, width)
+                AppLog.info(
+                    "code card height \(Int(codeHeightConstraint.constant)) -> \(Int(target)) "
+                    + "at width \(Int(width))",
+                    module: "ChatRender"
+                )
             }
             #endif
             codeHeightConstraint.constant = target

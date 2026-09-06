@@ -842,7 +842,7 @@ final class GrokService: BaseAPIService, ProviderServiceProtocol {
             for img in imageAttachments {
                 let b64 = img.resolvedBase64Data
                 guard !b64.isEmpty else { continue }
-                let mime = img.mimeType ?? "image/png"
+                let mime = img.mimeType
                 let dataURL = "data:\(mime);base64,\(b64)"
                 parts.append(["type": "image_url", "image_url": ["url": dataURL]])
             }
@@ -1081,9 +1081,14 @@ private struct GrokSSEFrameLog {
     mutating func recordDone() { sawDone = true }
 
     func flushSummary() {
-        NSLog("[Grok][SSE][%@] frames=%d content=%d reasoning=%d tool_calls=%d usage=%d undecodable=%d finish_reason=%@ done=%d",
-              lane, frames, contentFrames, reasoningFrames, toolCallFrames, usageFrames, undecodable,
-              finishReason ?? "-", sawDone ? 1 : 0)
+        #if DEBUG
+        AppLog.info(
+            "SSE summary on \(lane): frames=\(frames) content=\(contentFrames) "
+            + "reasoning=\(reasoningFrames) toolCalls=\(toolCallFrames) usage=\(usageFrames) "
+            + "undecodable=\(undecodable) finishReason=\(finishReason ?? "-") done=\(sawDone)",
+            module: "Grok"
+        )
+        #endif
     }
 }
 
@@ -1111,7 +1116,12 @@ struct GrokResponsesSSEFrameLog {
     }
 
     func flushSummary() {
-        NSLog("[Grok][Responses][%@] frames=%d done=%d %@", lane, frames, sawDone ? 1 : 0, summary)
+        #if DEBUG
+        AppLog.info(
+            "Responses summary on \(lane): frames=\(frames) done=\(sawDone) \(summary)",
+            module: "Grok"
+        )
+        #endif
     }
 }
 
