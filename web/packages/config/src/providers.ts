@@ -71,7 +71,7 @@ export const providerDefaults: Record<ConfiguredProviderKind, ProviderDefault> =
       shortName: "Claude",
       apiKeyPlaceholder: "sk-ant-...",
       defaultBaseURL: "https://api.anthropic.com/v1",
-      keyHelpUrl: "https://console.anthropic.com/settings/keys",
+      keyHelpUrl: "https://platform.claude.com/settings/keys",
     },
     gemini: {
       displayName: "Google Gemini",
