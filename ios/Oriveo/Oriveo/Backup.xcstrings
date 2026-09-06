@@ -31,13 +31,13 @@
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "%d %d बहाल किया गया"
+            "value": "%d API कुंजियाँ बहाल की गईं"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "%d %d dipulihkan"
+            "value": "%d kunci API dipulihkan"
           }
         },
         "ja": {
@@ -61,25 +61,25 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "%d %d восстановлен"
+            "value": "Восстановлено ключей API: %d"
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "%d %d กู้คืนแล้ว"
+            "value": "กู้คืนคีย์ API แล้ว %d รายการ"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "%d %d geri yüklendi"
+            "value": "%d API anahtarı geri yüklendi"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Đã khôi phục %d %d"
+            "value": "Đã khôi phục %d khóa API"
           }
         },
         "zh-Hans": {
@@ -6592,13 +6592,13 @@
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "इस बैकअप के लिए %d (प्रारूप संस्करण %d) के नए संस्करण की आवश्यकता है।"
+            "value": "इस बैकअप के लिए Oriveo के नए संस्करण की आवश्यकता है (प्रारूप संस्करण %d)।"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Cadangan ini memerlukan versi %d yang lebih baru (format versi %d)."
+            "value": "Cadangan ini memerlukan versi Oriveo yang lebih baru (versi format %d)."
           }
         },
         "ja": {
@@ -6622,25 +6622,25 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Для этой резервной копии требуется более новая версия %d (версия формата %d)."
+            "value": "Для этой резервной копии требуется более новая версия Oriveo (версия формата %d)."
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "การสำรองข้อมูลนี้ต้องใช้ %d เวอร์ชันใหม่กว่า (เวอร์ชันรูปแบบ %d)"
+            "value": "การสำรองข้อมูลนี้ต้องใช้ Oriveo เวอร์ชันใหม่กว่า (เวอร์ชันรูปแบบ %d)"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bu yedekleme, %d'nin daha yeni bir sürümünü (%d biçimlendirme sürümü) gerektirir."
+            "value": "Bu yedekleme, Oriveo'nun daha yeni bir sürümünü gerektirir (biçim sürümü %d)."
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bản sao lưu này yêu cầu phiên bản mới hơn của %d (phiên bản định dạng %d)."
+            "value": "Bản sao lưu này yêu cầu phiên bản Oriveo mới hơn (phiên bản định dạng %d)."
           }
         },
         "zh-Hans": {
