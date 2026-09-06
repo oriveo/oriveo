@@ -3,11 +3,12 @@
   "strings": {
     "CFBundleName": {
       "comment": "Bundle name",
-      "extractionState": "extracted_with_value",
+      "extractionState": "manual",
+      "shouldTranslate": false,
       "localizations": {
         "en": {
           "stringUnit": {
-            "state": "new",
+            "state": "translated",
             "value": "Oriveo"
           }
         }
@@ -15,12 +16,102 @@
     },
     "NSCameraUsageDescription": {
       "comment": "Privacy - Camera Usage Description",
-      "extractionState": "extracted_with_value",
+      "extractionState": "manual",
       "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "التقاط صور لإرفاقها برسائل المحادثة."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fotos aufnehmen, um sie an deine Chatnachrichten anzuhängen."
+          }
+        },
         "en": {
           "stringUnit": {
-            "state": "new",
-            "value": "Take photos to attach to your chat messages or update your profile avatar."
+            "state": "translated",
+            "value": "Take photos to attach to your chat messages."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tomar fotos para adjuntarlas a tus mensajes de chat."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Prendre des photos pour les joindre à vos messages."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "अपने चैट संदेशों में जोड़ने के लिए फ़ोटो लें।"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ambil foto untuk dilampirkan ke pesan obrolan Anda."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "チャットのメッセージに添付する写真を撮影します。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "채팅 메시지에 첨부할 사진을 촬영합니다."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tirar fotos para anexar às suas mensagens de conversa."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Съёмка фотографий для вложения в сообщения чата."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ถ่ายภาพเพื่อแนบไปกับข้อความแชทของคุณ"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sohbet mesajlarınıza eklemek için fotoğraf çekin."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chụp ảnh để đính kèm vào tin nhắn trò chuyện của bạn."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "拍照并附加到聊天消息中。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "拍照並附加到聊天訊息中。"
           }
         }
       }
@@ -128,17 +219,119 @@
     },
     "NSPhotoLibraryAddUsageDescription": {
       "comment": "Privacy - Photo Library Additions Usage Description",
-      "extractionState": "extracted_with_value",
+      "extractionState": "manual",
       "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "حفظ الصور المُولَّدة بالذكاء الاصطناعي في مكتبة الصور"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "KI-generierte Bilder in deiner Fotobibliothek speichern"
+          }
+        },
         "en": {
           "stringUnit": {
-            "state": "new",
+            "state": "translated",
             "value": "Save AI-generated images to your photo library"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Guardar imágenes generadas por IA en tu biblioteca de fotos"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Enregistrer les images générées par IA dans votre photothèque"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AI से बनी इमेज को अपनी फ़ोटो लाइब्रेरी में सेव करें"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Simpan gambar hasil AI ke pustaka foto Anda"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AI が生成した画像を写真ライブラリに保存します"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "AI가 생성한 이미지를 사진 라이브러리에 저장합니다"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Salvar imagens geradas por IA na sua biblioteca de fotos"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сохранение созданных ИИ изображений в медиатеку"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "บันทึกภาพที่ AI สร้างขึ้นไปยังคลังภาพของคุณ"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yapay zekâ ile oluşturulan görüntüleri fotoğraf kitaplığınıza kaydedin"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lưu ảnh do AI tạo vào thư viện ảnh của bạn"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "将 AI 生成的图片保存到照片图库"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "將 AI 產生的圖片儲存到照片圖庫"
           }
         }
       }
     },
-    "Oriveo Backup": {}
+    "Oriveo Backup": {
+      "comment": "Exported backup document type name",
+      "extractionState": "manual",
+      "shouldTranslate": false,
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oriveo Backup"
+          }
+        }
+      }
+    }
   },
   "version": "1.0"
 }
