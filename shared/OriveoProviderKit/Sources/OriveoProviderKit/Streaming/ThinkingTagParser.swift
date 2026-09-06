@@ -1,5 +1,16 @@
 import Foundation
 
+/// Splits `<think>...</think>` reasoning out of an answer body that carries both.
+///
+/// Some providers have no separate reasoning field and simply wrap the model's thinking in
+/// `<think>` tags inside the ordinary content stream. Deltas break wherever the network breaks
+/// them, so a tag can arrive as `<thi` in one delta and `nk>` in the next: any suffix that could
+/// still become a tag is held back until the next call, and released as plain text by
+/// `parse(_:final:)` once the stream ends and it is clear it never was one.
+///
+/// Tags inside a fenced code block are left alone. A model explaining `<think>` in a fenced
+/// example is quoting the syntax, not using it, and rewriting the fence contents would corrupt
+/// the very snippet the user asked for.
 public struct ThinkingTagParser: Sendable {
     public init() {}
 
