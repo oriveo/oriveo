@@ -121,9 +121,7 @@ class SkillRepository(
         return updated
     }
 
-    suspend fun delete(id: String, body: KnowledgeCleanupInput? = null) {
-        @Suppress("UNUSED_PARAMETER")
-        val ignored = body
+    suspend fun delete(id: String) {
         dao.deleteById(id)
     }
 

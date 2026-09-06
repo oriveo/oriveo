@@ -4,9 +4,7 @@ import ai.oriveo.community.core.model.ChatMessage
 import ai.oriveo.community.core.model.ChatRole
 import ai.oriveo.community.core.model.Conversation
 import ai.oriveo.community.core.model.Note
-import ai.oriveo.community.core.model.Provider
 import ai.oriveo.community.core.model.Skill
-import ai.oriveo.community.core.model.SkillKnowledgeRetrievalContext
 import ai.oriveo.community.core.util.graphemeCount
 import ai.oriveo.community.core.util.takeGraphemes
 import kotlinx.serialization.json.buildJsonObject
@@ -17,18 +15,15 @@ internal data class PromptInjectionContext(
     val remainingChars: Int,
     val useMemory: Boolean,
     val memoryInjected: Boolean,
-    val retrieval: SkillKnowledgeRetrievalContext? = null,
 )
 
 internal class ChatPromptInjectionBuilder(
     private val skillProvider: suspend (String) -> Skill?,
-    private val providersProvider: () -> List<Provider>,
     private val untitledNoteFallback: String,
 ) {
     suspend fun build(
         conversation: Conversation,
         memoryText: String,
-        latestUserText: String,
         pinnedNotes: List<Note> = emptyList(),
     ): PromptInjectionContext? {
         // Skip deleted/missing notes, cap at MAX_PINNED_NOTES entries.
@@ -45,27 +40,21 @@ internal class ChatPromptInjectionBuilder(
         val parts = mutableListOf<String>()
         var remainingChars = 12_000
         var memoryInjected = false
-        val retrievalContext = SkillKnowledgeRetrievalResolver.resolve(
-            latestUserText = latestUserText,
-            skill = skill,
-            providers = providersProvider(),
-        )
 
         parts.add(skill.systemPrompt)
         remainingChars = maxOf(0, remainingChars - skill.systemPrompt.graphemeCount())
 
-        val budgetedKnowledge = applySkillKnowledgeBudget(
+        val referenceFiles = applySkillReferenceFileBudget(
             referenceFiles = skill.knowledgeFiles.map { file ->
                 ReferencePromptFile(
                     fileName = file.name,
                     content = file.content,
                 )
             },
-            retrievalSnippets = retrievalContext?.snippets ?: emptyList(),
             maxPromptChars = remainingChars,
         )
 
-        for (file in budgetedKnowledge.referenceFiles) {
+        for (file in referenceFiles) {
             val block = fitWrappedSegment(
                 prefix = "--- Reference: ${file.fileName} ---\n",
                 content = file.content,
@@ -76,18 +65,7 @@ internal class ChatPromptInjectionBuilder(
             remainingChars = maxOf(0, remainingChars - block.graphemeCount())
         }
 
-        for (snippet in budgetedKnowledge.retrievalSnippets) {
-            val block = fitWrappedSegment(
-                prefix = "--- Knowledge Base: ${snippet.fileName} ---\n",
-                content = snippet.text,
-                suffix = "\n--- End ---",
-                remainingChars = remainingChars,
-            ) ?: break
-            parts.add(block)
-            remainingChars = maxOf(0, remainingChars - block.graphemeCount())
-        }
-
-        // Pinned notes go after knowledge blocks and before memory.
+        // Pinned notes go after the reference files and before memory.
         remainingChars = appendPinnedNoteBlocks(activePinned, parts, remainingChars)
 
         val useMemory = conversation.useMemory
@@ -110,7 +88,6 @@ internal class ChatPromptInjectionBuilder(
             remainingChars = remainingChars,
             useMemory = useMemory,
             memoryInjected = memoryInjected,
-            retrieval = retrievalContext?.copy(snippets = budgetedKnowledge.retrievalSnippets),
         )
     }
 

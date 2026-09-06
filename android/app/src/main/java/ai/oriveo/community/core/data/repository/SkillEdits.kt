@@ -53,16 +53,6 @@ data class UpdateSkillRequest(
     val useMemory: Boolean? = null,
     val isPinned: Boolean? = null,
     val pinOrder: Int? = null,
-    val knowledgeCleanup: KnowledgeCleanupInput? = null,
     val updatedAt: String? = null,
 )
 
-/**
- * Credentials for the model that summarises a removed reference document, so deleting a file can
- * also refresh the knowledge base it fed.
- */
-@Serializable
-data class KnowledgeCleanupInput(
-    val apiKey: String,
-    val baseURL: String? = null,
-)

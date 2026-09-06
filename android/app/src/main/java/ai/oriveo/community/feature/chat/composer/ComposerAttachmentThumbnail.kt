@@ -42,18 +42,15 @@ import ai.oriveo.community.ui.component.rememberAttachmentThumbnailBitmap
 import ai.oriveo.community.ui.theme.OriveoTheme
 import ai.oriveo.community.ui.theme.opacity
 
-
 @Composable
 internal fun ComposerAttachmentThumbnail(
     attachment: Attachment,
     onRemove: () -> Unit,
-    onTapKnowledgeCTA: (() -> Unit)? = null,
 ) {
     val colors = OriveoTheme.colors
     val imageFrameShape = RoundedCornerShape(18.dp)
     val imageShape = RoundedCornerShape(15.dp)
     val fileShape = RoundedCornerShape(16.dp)
-    val showCta = onTapKnowledgeCTA != null && attachment.extractedTruncated == true
 
     Box {
         if (attachment.kind == AttachmentKind.Image) {
@@ -126,11 +123,10 @@ internal fun ComposerAttachmentThumbnail(
                 )
             }
         } else {
-            
-            val chipHeight = if (showCta) 102.dp else 68.dp
+
             Column(
                 modifier = Modifier
-                    .size(width = 82.dp, height = chipHeight)
+                    .size(width = 82.dp, height = 68.dp)
                     .shadow(
                         elevation = 8.dp,
                         shape = fileShape,
@@ -213,21 +209,9 @@ internal fun ComposerAttachmentThumbnail(
                     text = composerDisplayFileName(attachment.fileName),
                     style = OriveoTheme.typography.footnote.copy(fontSize = 10.5.sp),
                     color = colors.textPrimary,
-                    maxLines = if (showCta) 1 else 2,
+                    maxLines = 2,
                     overflow = TextOverflow.Ellipsis,
                 )
-
-                
-                if (showCta) {
-                    Text(
-                        text = stringResource(R.string.file_extraction_truncated_cta_knowledge),
-                        style = OriveoTheme.typography.footnote.copy(fontSize = 8.5.sp),
-                        color = colors.primary,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.clickable(onClick = onTapKnowledgeCTA!!),
-                    )
-                }
             }
         }
 

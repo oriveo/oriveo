@@ -118,12 +118,11 @@ class ChatViewModelEditingTest {
         coEvery { conversationRepository.getWithMessages("conversation-1") } returns conversation
         coEvery { conversationRepository.getWithLatestMessageWindow("conversation-1", any()) } returns conversation
         windowStore.put("conversation-1", conversation.messages)
-        
-        
+
         every { chatStreamingManager.streamingText(any()) } returns MutableStateFlow("")
         every { chatStreamingManager.streamingMessageId(any()) } returns MutableStateFlow(null)
         ai.oriveo.community.testing.installChatStreamingManagerForwardingStub(chatStreamingManager, chatRepository)
-        
+
         coEvery { conversationRepository.deleteMessagesStartingAt(any(), any()) } returns Unit
         coEvery { conversationRepository.deleteMessagesAfter(any(), any()) } returns Unit
         coEvery { conversationRepository.updateDraft(any(), any()) } returns Unit
@@ -143,7 +142,6 @@ class ChatViewModelEditingTest {
                 webSearchEnabled = any(),
                 antiForgetText = any(),
                 requestOptions = any(),
-                retrieval = any(),
                 outputs = any(),
                 persistUserMessage = any(),
                 userMessageAlreadyInHistory = any(),
@@ -203,9 +201,8 @@ class ChatViewModelEditingTest {
         viewModel.regenerateMessage("assistant-1")
         advanceUntilIdle()
 
-        
         coVerify { conversationRepository.deleteMessagesAfter("conversation-1", "user-1") }
-        
+
         coVerify {
             chatRepository.sendMessage(
                 conversation = any(),
@@ -218,7 +215,6 @@ class ChatViewModelEditingTest {
                 webSearchEnabled = any(),
                 antiForgetText = any(),
                 requestOptions = any(),
-                retrieval = any(),
                 outputs = any(),
                 persistUserMessage = false,
                 userMessageAlreadyInHistory = any(),
@@ -272,7 +268,6 @@ class ChatViewModelEditingTest {
                 webSearchEnabled = any(),
                 antiForgetText = any(),
                 requestOptions = any(),
-                retrieval = any(),
                 outputs = any(),
                 persistUserMessage = false,
                 userMessageAlreadyInHistory = true,
@@ -301,9 +296,8 @@ class ChatViewModelEditingTest {
         viewModel.continueMessage("assistant-1")
         advanceUntilIdle()
 
-        
         coVerify(exactly = 0) { conversationRepository.deleteMessagesAfter(any(), any()) }
-        
+
         coVerify {
             chatRepository.sendMessage(
                 conversation = any(),
@@ -316,7 +310,6 @@ class ChatViewModelEditingTest {
                 webSearchEnabled = any(),
                 antiForgetText = any(),
                 requestOptions = any(),
-                retrieval = any(),
                 outputs = any(),
                 persistUserMessage = false,
                 userMessageAlreadyInHistory = any(),
@@ -345,8 +338,6 @@ class ChatViewModelEditingTest {
         viewModel.editMessageInline("user-1")
         advanceUntilIdle()
 
-        
-        
         coVerifyOrder {
             chatStreamingManager.stopStreamAndJoin("conversation-1")
             conversationRepository.deleteMessagesStartingAt("conversation-1", "user-1")
@@ -373,7 +364,6 @@ class ChatViewModelEditingTest {
         viewModel.regenerateMessage("assistant-1")
         advanceUntilIdle()
 
-        
         coVerifyOrder {
             chatStreamingManager.stopStreamAndJoin("conversation-1")
             conversationRepository.deleteMessagesAfter("conversation-1", "user-1")
@@ -400,15 +390,13 @@ class ChatViewModelEditingTest {
         viewModel.continueMessage("assistant-1")
         advanceUntilIdle()
 
-        
         coVerify { chatStreamingManager.stopStreamAndJoin("conversation-1") }
         coVerify(exactly = 0) { conversationRepository.deleteMessagesAfter(any(), any()) }
     }
 
     @Test
     fun `continue on an empty interrupted assistant falls back to regenerate`() = runTest {
-        
-        
+
         val emptyInterrupted = assistantMessage.copy(text = "", state = ChatMessageState.Interrupted)
         val convEmpty = conversation.copy(messages = listOf(userMessage, emptyInterrupted))
         every { conversationRepository.observeMetadata("conversation-1") } returns flowOf(convEmpty)
@@ -434,7 +422,6 @@ class ChatViewModelEditingTest {
         viewModel.continueMessage("assistant-1")
         advanceUntilIdle()
 
-        
         coVerify { conversationRepository.deleteMessagesAfter("conversation-1", "user-1") }
         coVerify {
             chatRepository.sendMessage(
@@ -448,7 +435,6 @@ class ChatViewModelEditingTest {
                 webSearchEnabled = any(),
                 antiForgetText = any(),
                 requestOptions = any(),
-                retrieval = any(),
                 outputs = any(),
                 persistUserMessage = false,
                 userMessageAlreadyInHistory = any(),
@@ -459,9 +445,7 @@ class ChatViewModelEditingTest {
 
     @Test
     fun `leaving chat screen flushes draft but does not stop active generation (L1)`() = runTest {
-        
-        
-        
+
         val streamingMessageIdFlow = MutableStateFlow<String?>("assistant-streaming-1")
         every { chatStreamingManager.streamingMessageId("conversation-1") } returns streamingMessageIdFlow
 
@@ -487,7 +471,7 @@ class ChatViewModelEditingTest {
         coVerify(exactly = 1) {
             conversationRepository.updateDraft("conversation-1", "draft before leaving")
         }
-        
+
         verify(exactly = 0) { chatStreamingManager.stopStream(any()) }
         verify(exactly = 0) { chatStreamingManager.stopAllStreams() }
     }

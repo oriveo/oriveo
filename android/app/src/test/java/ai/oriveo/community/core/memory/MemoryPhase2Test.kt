@@ -52,7 +52,6 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
-
 @OptIn(ExperimentalCoroutinesApi::class)
 class MemoryPhase2Test {
 
@@ -89,13 +88,11 @@ class MemoryPhase2Test {
         coEvery { providerRepository.getById("provider-1") } returns provider
         every { providerRepository.currentCapabilityPartitionId() } returns "test-partition"
         coEvery { providerRepository.capabilityEvidenceIdentity(any(), any(), "test-partition") } returns null
-        
-        
-        
+
         every { chatStreamingManager.streamingText(any()) } returns MutableStateFlow("")
         every { chatStreamingManager.streamingMessageId(any()) } returns MutableStateFlow(null)
         ai.oriveo.community.testing.installChatStreamingManagerForwardingStub(chatStreamingManager, chatRepository)
-        
+
         coEvery { appPreferencesRepository.setLastUsedModel(any<String>(), any<AIModel>()) } returns Unit
         coEvery { appPreferencesRepository.markMemoryUsedInConversation(any()) } returns Unit
         coEvery { appPreferencesRepository.hasAcceptedProviderDisclosure(any()) } returns true
@@ -117,7 +114,6 @@ class MemoryPhase2Test {
                 webSearchEnabled = any(),
                 antiForgetText = any(),
                 requestOptions = any(),
-                retrieval = any(),
                 outputs = any(),
             )
         } returns Unit
@@ -127,8 +123,6 @@ class MemoryPhase2Test {
     fun tearDown() {
         Dispatchers.resetMain()
     }
-
-    
 
     @Test
     fun `MEM-2-01 - new conversation first message injects memory as system prompt`() = runTest {
@@ -142,7 +136,7 @@ class MemoryPhase2Test {
                 conversation = any(), text = any(), provider = any(), modelID = any(),
                 existingMessages = any(), attachments = any(), reasoningMode = any(),
                 webSearchEnabled = any(), antiForgetText = any(),
-                requestOptions = capture(requestOptionsSlot), retrieval = any(), outputs = any(),
+                requestOptions = capture(requestOptionsSlot), outputs = any(),
                 persistUserMessage = any(), userMessageAlreadyInHistory = any(), appendToAssistant = any(),
             )
         } returns Unit
@@ -159,8 +153,6 @@ class MemoryPhase2Test {
         coVerify { appPreferencesRepository.markMemoryUsedInConversation("conversation-1") }
     }
 
-    
-
     @Test
     fun `MEM-2-02 - existing conversation continue sending still injects memory`() = runTest {
         val requestOptionsSlot = slot<ChatRequestOptions>()
@@ -173,7 +165,7 @@ class MemoryPhase2Test {
                 conversation = any(), text = any(), provider = any(), modelID = any(),
                 existingMessages = any(), attachments = any(), reasoningMode = any(),
                 webSearchEnabled = any(), antiForgetText = any(),
-                requestOptions = capture(requestOptionsSlot), retrieval = any(), outputs = any(),
+                requestOptions = capture(requestOptionsSlot), outputs = any(),
                 persistUserMessage = any(), userMessageAlreadyInHistory = any(), appendToAssistant = any(),
             )
         } returns Unit
@@ -190,8 +182,6 @@ class MemoryPhase2Test {
         coVerify { appPreferencesRepository.markMemoryUsedInConversation("conversation-1") }
     }
 
-    
-
     @Test
     fun `MEM-2-05 - useMemory false skips injection and does not increment usage count`() = runTest {
         val requestOptionsSlot = slot<ChatRequestOptions>()
@@ -204,7 +194,7 @@ class MemoryPhase2Test {
                 conversation = any(), text = any(), provider = any(), modelID = any(),
                 existingMessages = any(), attachments = any(), reasoningMode = any(),
                 webSearchEnabled = any(), antiForgetText = any(),
-                requestOptions = capture(requestOptionsSlot), retrieval = any(), outputs = any(),
+                requestOptions = capture(requestOptionsSlot), outputs = any(),
                 persistUserMessage = any(), userMessageAlreadyInHistory = any(), appendToAssistant = any(),
             )
         } returns Unit
@@ -221,8 +211,6 @@ class MemoryPhase2Test {
         coVerify(exactly = 0) { appPreferencesRepository.markMemoryUsedInConversation(any()) }
     }
 
-    
-
     @Test
     fun `MEM-2-06 - empty memory text skips injection`() = runTest {
         val requestOptionsSlot = slot<ChatRequestOptions>()
@@ -235,7 +223,7 @@ class MemoryPhase2Test {
                 conversation = any(), text = any(), provider = any(), modelID = any(),
                 existingMessages = any(), attachments = any(), reasoningMode = any(),
                 webSearchEnabled = any(), antiForgetText = any(),
-                requestOptions = capture(requestOptionsSlot), retrieval = any(), outputs = any(),
+                requestOptions = capture(requestOptionsSlot), outputs = any(),
                 persistUserMessage = any(), userMessageAlreadyInHistory = any(), appendToAssistant = any(),
             )
         } returns Unit
@@ -264,7 +252,7 @@ class MemoryPhase2Test {
                 conversation = any(), text = any(), provider = any(), modelID = any(),
                 existingMessages = any(), attachments = any(), reasoningMode = any(),
                 webSearchEnabled = any(), antiForgetText = any(),
-                requestOptions = capture(requestOptionsSlot), retrieval = any(), outputs = any(),
+                requestOptions = capture(requestOptionsSlot), outputs = any(),
                 persistUserMessage = any(), userMessageAlreadyInHistory = any(), appendToAssistant = any(),
             )
         } returns Unit
@@ -281,8 +269,6 @@ class MemoryPhase2Test {
         assertEquals("", requestOptionsSlot.captured.systemPrompt)
         coVerify(exactly = 0) { appPreferencesRepository.markMemoryUsedInConversation(any()) }
     }
-
-    
 
     @Test
     fun `MEM-2-13 - anti-forget triggers at exactly 10 user messages`() = runTest {
@@ -316,8 +302,6 @@ class MemoryPhase2Test {
         assertEquals("[Reminder: Prefer concise Chinese answers]", antiForgetSlot.captured)
     }
 
-    
-
     @Test
     fun `MEM-2-14 - anti-forget returns null when less than 10 user messages`() = runTest {
         val antiForgetSlot = slot<String?>()
@@ -349,8 +333,6 @@ class MemoryPhase2Test {
 
         assertNull(antiForgetSlot.captured)
     }
-
-    
 
     @Test
     fun `MEM-2-15 - anti-forget returns null when disabled`() = runTest {
@@ -445,39 +427,28 @@ class MemoryPhase2Test {
         assertNull(antiForgetSlot.captured)
     }
 
-    
-
     @Test
     fun `MEM-2-16 - anti-forget only in outbound copy not persisted to DB`() {
-        
-        
-        
-        
-        
+
         val userText = "What should I build?"
         val antiForgetContext = "Prefer concise Chinese answers"
 
-        
         val userMessage = userMessage(userText)
         val outbound = userMessage.copy(
             text = "${userMessage.text}\n\n[Reminder: $antiForgetContext]",
         )
 
-        
         assertEquals(userText, userMessage.text)
         assertFalse(userMessage.text.contains("[Reminder:"))
 
-        
         assertTrue(outbound.text.contains("[Reminder: $antiForgetContext]"))
         assertEquals("$userText\n\n[Reminder: $antiForgetContext]", outbound.text)
     }
 
-    
-
     @Test
     fun `MEM-2-19 - regenerate uses current latest memory text`() = runTest {
         val requestOptionsSlot = slot<ChatRequestOptions>()
-        
+
         val messages = listOf(
             userMessage("Original question", id = "user-0"),
             assistantMessage("Original answer", id = "assistant-0"),
@@ -492,7 +463,6 @@ class MemoryPhase2Test {
             messages = messages,
         )
 
-        
         stubMemoryFields(memoryText = "Updated memory: use Go instead")
         stubConversation(conversation)
         coEvery { conversationRepository.deleteMessagesAfter(any(), any()) } returns Unit
@@ -501,7 +471,7 @@ class MemoryPhase2Test {
                 conversation = any(), text = any(), provider = any(), modelID = any(),
                 existingMessages = any(), attachments = any(), reasoningMode = any(),
                 webSearchEnabled = any(), antiForgetText = any(),
-                requestOptions = capture(requestOptionsSlot), retrieval = any(), outputs = any(),
+                requestOptions = capture(requestOptionsSlot), outputs = any(),
                 persistUserMessage = any(), userMessageAlreadyInHistory = any(), appendToAssistant = any(),
             )
         } returns Unit
@@ -512,11 +482,8 @@ class MemoryPhase2Test {
         viewModel.regenerateMessage("assistant-0")
         advanceUntilIdle()
 
-        
         assertEquals("Updated memory: use Go instead", requestOptionsSlot.captured.systemPrompt)
     }
-
-    
 
     @Test
     fun `MEM-2-20 - continue message follows memory injection rules`() = runTest {
@@ -543,7 +510,7 @@ class MemoryPhase2Test {
                 conversation = any(), text = any(), provider = any(), modelID = any(),
                 existingMessages = any(), attachments = any(), reasoningMode = any(),
                 webSearchEnabled = any(), antiForgetText = any(),
-                requestOptions = capture(requestOptionsSlot), retrieval = any(), outputs = any(),
+                requestOptions = capture(requestOptionsSlot), outputs = any(),
                 persistUserMessage = any(), userMessageAlreadyInHistory = any(), appendToAssistant = any(),
             )
         } returns Unit
@@ -583,7 +550,7 @@ class MemoryPhase2Test {
                 conversation = any(), text = any(), provider = any(), modelID = any(),
                 existingMessages = any(), attachments = any(), reasoningMode = any(),
                 webSearchEnabled = any(), antiForgetText = any(),
-                requestOptions = capture(requestOptionsSlot), retrieval = any(), outputs = any(),
+                requestOptions = capture(requestOptionsSlot), outputs = any(),
                 persistUserMessage = any(), userMessageAlreadyInHistory = any(), appendToAssistant = any(),
             )
         } returns Unit
@@ -639,8 +606,6 @@ class MemoryPhase2Test {
         }
     }
 
-    
-
     @Test
     fun `MEM-2-23 - Anthropic system prompt produces correct format`() {
         val result = MessageBuilder.anthropicSystemJson("User prefers Kotlin and Go")
@@ -653,8 +618,6 @@ class MemoryPhase2Test {
         assertNull(MessageBuilder.anthropicSystemJson(""))
         assertNull(MessageBuilder.anthropicSystemJson("   "))
     }
-
-    //
 
     @Test
     fun `MEM-2-24 - Gemini system instruction produces correct nested structure`() {
@@ -672,8 +635,6 @@ class MemoryPhase2Test {
         assertNull(MessageBuilder.geminiSystemInstructionJson("  \n  "))
     }
 
-    
-
     @Test
     fun `MEM-2-27 - markMemoryUsedInConversation increments once per conversation`() = runTest {
         val preferenceDao = FakePreferenceDao()
@@ -682,11 +643,9 @@ class MemoryPhase2Test {
         repository.markMemoryUsedInConversation("conv-1")
         assertEquals("1", preferenceDao.get(AppPreferenceKeys.MEMORY_USAGE_COUNT))
 
-        
         repository.markMemoryUsedInConversation("conv-1")
         assertEquals("1", preferenceDao.get(AppPreferenceKeys.MEMORY_USAGE_COUNT))
 
-        
         repository.markMemoryUsedInConversation("conv-2")
         assertEquals("2", preferenceDao.get(AppPreferenceKeys.MEMORY_USAGE_COUNT))
     }
@@ -713,7 +672,7 @@ class MemoryPhase2Test {
         repository.markMemoryUsedInConversation("conv-c")
 
         val storedIds = preferenceDao.get(AppPreferenceKeys.MEMORY_USAGE_CONVERSATION_IDS)
-        
+
         assertEquals("""["conv-a","conv-b","conv-c"]""", storedIds)
         assertEquals("3", preferenceDao.get(AppPreferenceKeys.MEMORY_USAGE_COUNT))
     }

@@ -121,7 +121,7 @@ internal class ChatSendCoordinator(
                 forwardPort = LocalCapabilityCustomFragmentStore.ForwardPortContext(
                     providerKind = provider.kind,
                     schemaModelID = modelId,
-                    activeProfile = selectedModel?.generationProfile,
+                    activeProfile = selectedModel.generationProfile,
                 ),
             ).orEmpty()
         } else emptyMap()
@@ -199,7 +199,6 @@ internal class ChatSendCoordinator(
             val promptInjection = promptInjectionBuilder.build(
                 conversation = conversation,
                 memoryText = memoryText,
-                latestUserText = text,
                 pinnedNotes = pinnedNotes,
             )
             val antiForgetText = if (appendToAssistant != null) {
@@ -304,7 +303,6 @@ internal class ChatSendCoordinator(
                     webSearchEnabled = effectiveWebSearchEnabled && "web" !in customOwners,
                     antiForgetText = antiForgetText,
                     requestOptions = requestOptions,
-                    retrieval = promptInjection?.retrieval,
                     persistUserMessage = persistUserMessage,
                     userMessageAlreadyInHistory = userMessageAlreadyInHistory,
                     appendToAssistant = appendToAssistant,

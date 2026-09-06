@@ -2,7 +2,6 @@ package ai.oriveo.community.core.model
 
 import kotlinx.serialization.Serializable
 
-
 enum class ImportMode(
     val titleResId: Int,
     val descriptionResId: Int,
@@ -24,7 +23,6 @@ enum class ImportMode(
         get() = this == ImportNewOnly
 }
 
-
 data class ImportPreview(
     val backupCreatedAt: String,
     val backupPlatform: String,
@@ -45,7 +43,6 @@ data class BackupInspection(
     val requiresKeyPassword: Boolean,
 )
 
-
 data class ImportResult(
     val newConversations: Int = 0,
     val skippedConversations: Int = 0,
@@ -61,7 +58,6 @@ data class ImportResult(
     val newNoteFolders: Int = 0,
     val mergedNoteFolders: Int = 0,
     val skippedNoteFolders: Int = 0,
-    val skillsRequiringKnowledgeReupload: Int = 0,
     val restoredKeys: Int = 0,
     val restoredImages: Int = 0,
     val skippedImages: Int = 0,
@@ -84,10 +80,8 @@ sealed class BackupError(message: String) : IllegalArgumentException(message) {
     data object NoDataToExport : BackupError("NO_DATA_TO_EXPORT")
     data object AccountChanged : BackupError("ACCOUNT_CHANGED")
 
-    
     data object ResourceLimitExceeded : BackupError("RESOURCE_LIMIT_EXCEEDED")
 }
-
 
 @Serializable
 data class BackupFile(
@@ -102,7 +96,6 @@ data class BackupFile(
     val encryptedKeys: String? = null,
 )
 
-
 @Serializable
 data class BackupData(
     val providers: List<BackupProvider> = emptyList(),
@@ -114,7 +107,6 @@ data class BackupData(
     val notes: List<BackupNote> = emptyList(),
     val noteFolders: List<BackupNoteFolder> = emptyList(),
 )
-
 
 @Serializable
 data class BackupProvider(
@@ -138,7 +130,6 @@ data class BackupFolder(
     val updatedAt: Long,
 )
 
-
 @Serializable
 data class BackupConversation(
     val id: String,
@@ -157,7 +148,6 @@ data class BackupConversation(
     val updatedAt: Long = 0L,
     val pinnedNoteIds: List<String> = emptyList(),
 )
-
 
 @Serializable
 data class BackupNote(
@@ -184,7 +174,6 @@ data class BackupNote(
     val deletedAt: String? = null,
 )
 
-
 @Serializable
 data class BackupNoteFolder(
     val id: String,
@@ -196,7 +185,6 @@ data class BackupNoteFolder(
     val deletedAt: String? = null,
 )
 
-
 @Serializable
 data class BackupPreferences(
     val theme: String = "system",
@@ -207,7 +195,6 @@ data class BackupPreferences(
     val memoryUpdatedAt: String? = null,
 )
 
-
 @Serializable
 data class BackupKeyEntry(
     val providerID: String,
@@ -215,10 +202,7 @@ data class BackupKeyEntry(
     val apiKeyPreview: String,
 )
 
-
 @Serializable
 data class BackupKeysPayload(
     val keys: List<BackupKeyEntry>,
 )
-
-

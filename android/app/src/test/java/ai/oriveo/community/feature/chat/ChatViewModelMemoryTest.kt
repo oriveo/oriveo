@@ -77,12 +77,11 @@ class ChatViewModelMemoryTest {
         coEvery { providerRepository.getById("provider-1") } returns provider
         every { providerRepository.currentCapabilityPartitionId() } returns "test-partition"
         coEvery { providerRepository.capabilityEvidenceIdentity(any(), any(), "test-partition") } returns null
-        
-        
+
         every { chatStreamingManager.streamingText(any()) } returns MutableStateFlow("")
         every { chatStreamingManager.streamingMessageId(any()) } returns MutableStateFlow(null)
         ai.oriveo.community.testing.installChatStreamingManagerForwardingStub(chatStreamingManager, chatRepository)
-        
+
         coEvery { appPreferencesRepository.setLastUsedModel(any<String>(), any<AIModel>()) } returns Unit
         coEvery { appPreferencesRepository.markMemoryUsedInConversation(any()) } returns Unit
         coEvery { appPreferencesRepository.hasAcceptedProviderDisclosure(any()) } returns true
@@ -105,7 +104,6 @@ class ChatViewModelMemoryTest {
                 webSearchEnabled = any(),
                 antiForgetText = any(),
                 requestOptions = any(),
-                retrieval = any(),
                 outputs = any(),
                 persistUserMessage = any(),
                 userMessageAlreadyInHistory = any(),
@@ -145,7 +143,6 @@ class ChatViewModelMemoryTest {
                 webSearchEnabled = any(),
                 antiForgetText = captureNullable(antiForgetSlot),
                 requestOptions = capture(requestOptionsSlot),
-                retrieval = any(),
                 outputs = any(),
                 persistUserMessage = any(),
                 userMessageAlreadyInHistory = any(),
@@ -204,7 +201,6 @@ class ChatViewModelMemoryTest {
                 webSearchEnabled = any(),
                 antiForgetText = captureNullable(antiForgetSlot),
                 requestOptions = capture(requestOptionsSlot),
-                retrieval = any(),
                 outputs = any(),
                 persistUserMessage = any(),
                 userMessageAlreadyInHistory = any(),
@@ -269,7 +265,6 @@ class ChatViewModelMemoryTest {
                 webSearchEnabled = any(),
                 antiForgetText = any(),
                 requestOptions = capture(requestOptionsSlot),
-                retrieval = any(),
                 outputs = any(),
                 persistUserMessage = any(),
                 userMessageAlreadyInHistory = any(),

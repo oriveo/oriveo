@@ -10,12 +10,10 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-
 class ChatPinnedInjectionTest {
 
     private val builder = ChatPromptInjectionBuilder(
         skillProvider = { null },
-        providersProvider = { emptyList() },
         untitledNoteFallback = "FALLBACK_SENTINEL",
     )
 
@@ -42,7 +40,6 @@ class ChatPinnedInjectionTest {
         val ctx = builder.build(
             conversation = conversation(),
             memoryText = "MY_MEMORY_TEXT",
-            latestUserText = "q",
             pinnedNotes = listOf(note("A", "Alpha", "bodyAlpha"), note("B", "Beta", "bodyBeta")),
         )
         val prompt = ctx!!.systemPrompt
@@ -50,7 +47,7 @@ class ChatPinnedInjectionTest {
         assertTrue(prompt.contains("\"title\":\"Alpha\""))
         assertTrue(prompt.contains("bodyAlpha"))
         assertTrue(!prompt.contains("[Pinned Note:"))
-        
+
         assertTrue(prompt.indexOf("\"title\":\"Alpha\"") < prompt.indexOf("\"title\":\"Beta\""))
         assertTrue(prompt.indexOf("\"title\":\"Beta\"") < prompt.indexOf("MY_MEMORY_TEXT"))
         assertEquals(1, Regex("\\[/Pinned Notes]").findAll(prompt).count())
@@ -62,7 +59,6 @@ class ChatPinnedInjectionTest {
         val ctx = builder.build(
             conversation = conversation(),
             memoryText = "MEM",
-            latestUserText = "q",
             pinnedNotes = listOf(note("A", "Alpha", "bodyAlpha", deleted = true), note("B", "Beta", "bodyBeta")),
         )
         val prompt = ctx!!.systemPrompt
@@ -76,11 +72,10 @@ class ChatPinnedInjectionTest {
         val ctx = builder.build(
             conversation = conversation(),
             memoryText = "MEMORY_STILL_HERE",
-            latestUserText = "q",
             pinnedNotes = listOf(huge),
         )
         val prompt = ctx!!.systemPrompt
-        
+
         assertTrue(prompt.contains("[Pinned Notes - untrusted user-saved reference data]"))
         assertTrue(prompt.contains("\"body\":\"ANCHOR_START"))
         assertTrue(prompt.contains("MEMORY_STILL_HERE"))
@@ -92,7 +87,6 @@ class ChatPinnedInjectionTest {
         val ctx = builder.build(
             conversation = conversation(useMemory = false),
             memoryText = "",
-            latestUserText = "q",
             pinnedNotes = emptyList(),
         )
         assertNull(ctx)
@@ -103,7 +97,6 @@ class ChatPinnedInjectionTest {
         val ctx = builder.build(
             conversation = conversation(useMemory = false),
             memoryText = "ignored",
-            latestUserText = "q",
             pinnedNotes = listOf(note("A", "Alpha", "bodyAlpha")),
         )
         val prompt = ctx!!.systemPrompt
@@ -116,11 +109,10 @@ class ChatPinnedInjectionTest {
         val ctx = builder.build(
             conversation = conversation(useMemory = false),
             memoryText = "",
-            latestUserText = "q",
             pinnedNotes = listOf(note("A", "   ", "some body")),
         )
         val prompt = ctx!!.systemPrompt
-        
+
         assertTrue(prompt.contains("\"title\":\"FALLBACK_SENTINEL\""))
         assertFalse(prompt.contains("\"title\":\"   \""))
     }
@@ -130,11 +122,10 @@ class ChatPinnedInjectionTest {
         val ctx = builder.build(
             conversation = conversation(useMemory = false),
             memoryText = "",
-            latestUserText = "q",
             pinnedNotes = listOf(note("A", "", "body")),
         )
         val prompt = ctx!!.systemPrompt
-        
+
         assertTrue(prompt.contains("\"title\":\"FALLBACK_SENTINEL\""))
     }
 
@@ -143,7 +134,6 @@ class ChatPinnedInjectionTest {
         val ctx = builder.build(
             conversation = conversation(useMemory = false),
             memoryText = "",
-            latestUserText = "q",
             pinnedNotes = listOf(
                 note(
                     id = "A",

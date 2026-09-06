@@ -108,8 +108,7 @@ class BackupServiceTest {
 
     @Before
     fun setUp() {
-        
-        
+
         mockkStatic(android.util.Log::class)
         every { android.util.Log.w(any<String>(), any<String>(), any<Throwable>()) } returns 0
         every { android.util.Log.w(any<String>(), any<String>()) } returns 0
@@ -126,7 +125,7 @@ class BackupServiceTest {
         coEvery { providerDao.getAll(any()) } returns emptyList()
         coEvery { conversationDao.upsert(any()) } returns Unit
         coEvery { conversationDao.getAll(any()) } returns emptyList()
-        
+
         coEvery { conversationDao.getById(any(), any()) } returns null
         coEvery { providerDao.getById(any(), any()) } returns null
         coEvery { folderDao.getById(any(), any()) } returns null
@@ -241,8 +240,7 @@ class BackupServiceTest {
 
     @Test
     fun `exportBackup ships image bytes as zip entries and never inlines them into data json`() = runTest {
-        
-        
+
         every { attachmentStore.loadBase64(any()) } answers {
             throw AssertionError("backup must not inline image base64 into data.json")
         }
@@ -281,7 +279,7 @@ class BackupServiceTest {
             .messages.single()
             .attachments!!.single()
         assertNull(attachment.base64Data)
-        
+
         assertEquals("local-image-1", attachment.localImageId)
 
         val entries = zipEntryNames(bytes)
@@ -317,8 +315,7 @@ class BackupServiceTest {
 
     @Test
     fun `exportBackupToFile reads image bytes at write time and skips ones that vanished`() = runTest {
-        
-        
+
         every { attachmentStore.loadImageBytes("local-image-1") } returnsMany listOf(
             "image-bytes".toByteArray(),
             null,
@@ -336,7 +333,7 @@ class BackupServiceTest {
 
         val entries = zipEntryNames(target.readBytes())
         assertFalse(entries.contains("attachments/attachment-1.jpg"))
-        
+
         assertTrue(entries.contains("attachments/attachment-1.thumb.jpg"))
         assertTrue(entries.contains("data.json"))
     }
@@ -1555,8 +1552,7 @@ class BackupServiceTest {
 
     @Test
     fun merge_noteTie_keepsLocal() = runTest {
-        
-        
+
         coEvery { noteDao.getAll(LOCAL_PARTITION_ID) } returns listOf(
             note(id = "NOTE-TIE", body = "local-content").toEntity(LOCAL_PARTITION_ID),
         )
@@ -1580,18 +1576,16 @@ class BackupServiceTest {
             bytes = json.encodeToString(backupFile).toByteArray(),
         )
 
-        
         assertEquals(0, result.mergedNotes)
         assertEquals(1, result.skippedNotes)
         coVerify(exactly = 0) { noteDao.upsertWithIndex(any(), any(), any(), any(), any()) }
-        
+
         coVerify(exactly = 0) { noteDao.upsertWithIndex(match { it.body == "backup-content" }, any(), any(), any(), any()) }
     }
 
     @Test
     fun merge_noteFolderTie_keepsLocal() = runTest {
-        
-        
+
         coEvery { noteFolderDao.getAll(LOCAL_PARTITION_ID) } returns listOf(
             noteFolder(id = "FOLDER-TIE", name = "local-name").toEntity(LOCAL_PARTITION_ID),
         )
@@ -1615,11 +1609,10 @@ class BackupServiceTest {
             bytes = json.encodeToString(backupFile).toByteArray(),
         )
 
-        
         assertEquals(0, result.mergedNoteFolders)
         assertEquals(1, result.skippedNoteFolders)
         coVerify(exactly = 0) { noteFolderDao.upsert(any()) }
-        
+
         coVerify(exactly = 0) { noteFolderDao.upsert(match { it.name == "backup-name" }) }
     }
 
@@ -1914,8 +1907,7 @@ class BackupServiceTest {
             containsKeys = false,
             data = BackupData(conversations = emptyList()),
         )
-        
-        
+
         val oversized = ByteArray(33 * 1024 * 1024)
 
         try {
@@ -1928,7 +1920,7 @@ class BackupServiceTest {
             )
             error("Expected ResourceLimitExceeded")
         } catch (_: BackupError.ResourceLimitExceeded) {
-            
+
         }
     }
 
@@ -2312,7 +2304,6 @@ class BackupServiceTest {
         )
 
         assertEquals(1, result.newSkills)
-        assertEquals(1, result.skillsRequiringKnowledgeReupload)
         assertEquals(1, capturedSkills.size)
         assertEquals(null, capturedSkills.single().knowledgeBaseJson)
     }
@@ -2370,7 +2361,6 @@ class BackupServiceTest {
             ),
         )
 
-        
         val result = failingService.executeImport(
             mode = ImportMode.ImportNewOnly,
             bytes = json.encodeToString(backupFile).toByteArray(),
@@ -2456,8 +2446,7 @@ class BackupServiceTest {
 
     @Test
     fun `executeImport normalizes lowercase uuids so messages keep a consistent parent id`() = runTest {
-        
-        
+
         val lowerId = "0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d"
         val upsertedConvs = mutableListOf<ConversationEntity>()
         val upsertedMessages = mutableListOf<MessageEntity>()
@@ -2510,7 +2499,7 @@ class BackupServiceTest {
 
     @Test
     fun `executeImport preserves id colliding only in another account partition`() = runTest {
-        
+
         val collidingId = "AA1B2C3D-4E5F-4A6B-8C7D-9E0F1A2B3C4D"
         val originalMessageId = "1F2E3D4C-5B6A-4798-8123-456789ABCDEF"
         coEvery { conversationDao.getById("other-user", collidingId) } returns
@@ -2593,7 +2582,7 @@ class BackupServiceTest {
         assertEquals(originalMessageId, note.sourceMessageId)
         assertTrue(note.provenanceJson!!.contains(collidingId))
         assertTrue(note.provenanceJson!!.contains(originalMessageId))
-        
+
         coVerify(exactly = 0) { messageDao.deleteByConversation("other-user", collidingId) }
     }
 
@@ -2717,7 +2706,7 @@ class BackupServiceTest {
 
     @Test
     fun `importNewOnly restores iOS archive named by attachment id with png extension`() = runTest {
-        
+
         assertImageRestoredFromArchive(
             attachments = mapOf(
                 "attachments/attachment-2.png" to "image-bytes".toByteArray(),
@@ -2729,7 +2718,7 @@ class BackupServiceTest {
 
     @Test
     fun `importNewOnly restores png attachment stored with jpg extension`() = runTest {
-        
+
         assertImageRestoredFromArchive(
             attachments = mapOf(
                 "attachments/attachment-2.jpg" to "image-bytes".toByteArray(),
@@ -2741,9 +2730,7 @@ class BackupServiceTest {
 
     @Test
     fun `importNewOnly restores legacy web archive whose entries use lowercase uuids`() = runTest {
-        
-        
-        
+
         val lowerId = "6f1c2b7a-9d3e-4c58-8b21-0a5e7d4f1c93"
         val lowerLocalId = "b28d5f04-71a6-4e39-9c7d-3f05a1e6b842"
         var storedImage: ByteArray? = null
@@ -2796,7 +2783,6 @@ class BackupServiceTest {
         assertNull(storedImage)
     }
 
-    
     private suspend fun assertImageRestoredFromArchive(
         attachments: Map<String, ByteArray>,
         mimeType: String = "image/jpeg",

@@ -37,7 +37,6 @@ import org.junit.Assert.assertSame
 import org.junit.Before
 import org.junit.Test
 
-
 @OptIn(ExperimentalCoroutinesApi::class)
 class ChatViewModelSendGuardTest {
 
@@ -75,8 +74,7 @@ class ChatViewModelSendGuardTest {
         coEvery { providerRepository.capabilityEvidenceIdentity(any(), any(), "test-partition") } returns null
         every { providerRepository.toolCallMemoryVerdict(any(), any()) } returns null
         every { appPreferencesRepository.lastUsedModelRef } returns flowOf(null)
-        
-        
+
         every { appPreferencesRepository.lastUsedModelRefSnapshot } returns null
         every { appPreferencesRepository.memoryText } returns MutableStateFlow("")
         every { appPreferencesRepository.memoryAntiForgetEnabled } returns MutableStateFlow(false)
@@ -84,7 +82,7 @@ class ChatViewModelSendGuardTest {
         every { chatStreamingManager.streamingText(any()) } returns MutableStateFlow("")
         every { chatStreamingManager.streamingMessageId(any()) } returns MutableStateFlow(null)
         ai.oriveo.community.testing.installChatStreamingManagerForwardingStub(chatStreamingManager, chatRepository)
-        
+
         every { appPreferencesRepository.primeLastUsedModel(any(), any()) } just runs
         coEvery { appPreferencesRepository.setLastUsedModel(any<String>(), any<AIModel>()) } returns Unit
         coEvery { appPreferencesRepository.markMemoryUsedInConversation(any()) } returns Unit
@@ -106,7 +104,6 @@ class ChatViewModelSendGuardTest {
                 webSearchEnabled = any(),
                 antiForgetText = any(),
                 requestOptions = any(),
-                retrieval = any(),
                 outputs = any(),
                 persistUserMessage = any(),
                 userMessageAlreadyInHistory = any(),
@@ -128,12 +125,11 @@ class ChatViewModelSendGuardTest {
         advanceUntilIdle()
 
         viewModel.onInputTextChanged("hello twice")
-        
+
         viewModel.sendMessage()
         viewModel.sendMessage()
         advanceUntilIdle()
 
-        
         coVerify(exactly = 1) { conversationRepository.create(any(), any(), any(), any()) }
         verifySendMessageCount(1)
     }
@@ -158,7 +154,7 @@ class ChatViewModelSendGuardTest {
     @Test
     fun `failed send resets guard and allows resend`() = runTest {
         stubExistingConversation("conversation-1")
-        
+
         coEvery { providerRepository.getById("provider-1") } returns null
 
         val viewModel = createViewModel(conversationId = "conversation-1")
@@ -170,10 +166,9 @@ class ChatViewModelSendGuardTest {
         advanceUntilIdle()
 
         verifySendMessageCount(0)
-        
+
         assertEquals("hello again", viewModel.inputText)
 
-        
         coEvery { providerRepository.getById("provider-1") } returns provider
         viewModel.sendMessage()
         advanceUntilIdle()
@@ -194,12 +189,10 @@ class ChatViewModelSendGuardTest {
         viewModel.sendMessage()
         advanceUntilIdle()
 
-        
         verifySendMessageCount(0)
         assertEquals("needs disclosure", viewModel.inputText)
         assertNotNull(viewModel.providerDisclosurePrompt)
 
-        
         viewModel.confirmProviderDisclosure()
         viewModel.confirmProviderDisclosure()
         advanceUntilIdle()
@@ -246,7 +239,6 @@ class ChatViewModelSendGuardTest {
                 webSearchEnabled = any(),
                 antiForgetText = any(),
                 requestOptions = any(),
-                retrieval = any(),
                 outputs = any(),
                 persistUserMessage = any(),
                 userMessageAlreadyInHistory = any(),
@@ -289,7 +281,6 @@ class ChatViewModelSendGuardTest {
                 webSearchEnabled = any(),
                 antiForgetText = any(),
                 requestOptions = any(),
-                retrieval = any(),
                 outputs = any(),
                 persistUserMessage = any(),
                 userMessageAlreadyInHistory = any(),

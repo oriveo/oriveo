@@ -78,7 +78,6 @@ import java.util.zip.ZipEntry
 import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
 
-
 class BackupService(
     private val providerDao: ProviderDao,
     private val conversationDao: ConversationDao,
@@ -91,7 +90,7 @@ class BackupService(
     private val secureKeyStore: SecureKeyStore,
     private val attachmentStore: AttachmentStore,
     private val preferenceDao: PreferenceDao,
-    
+
     private val metadataRefresh: suspend () -> Unit = { MetadataClient.refresh() },
     private val runInTransaction: suspend (suspend () -> Unit) -> Unit = { transactionalBlock -> transactionalBlock() },
 ) {
@@ -99,21 +98,18 @@ class BackupService(
 
     companion object {
         const val CURRENT_VERSION = 1
-        
-        
+
         private const val MAX_BACKUP_ZIP_ENTRY_COUNT = 65_536
         private const val MAX_BACKUP_ZIP_ENTRY_BYTES = 32L * 1024L * 1024L
         private const val PREF_KEY_THEME = "theme"
         private const val PREF_KEY_LANGUAGE = "language"
     }
 
-    
     private val canonicalJson = Json {
         encodeDefaults = true
         prettyPrint = false
     }
 
-    
     data class DataSummary(
         val conversations: Int,
         val providers: Int,
@@ -123,11 +119,10 @@ class BackupService(
 
     private data class BackupArchivePayload(
         val backupFile: BackupFile,
-        
+
         val imageEntries: List<ImageEntryRef>,
     )
 
-    
     private data class ImageEntryRef(
         val filename: String,
         val localImageId: String,
@@ -146,7 +141,6 @@ class BackupService(
         val thumbnailBytes: ByteArray?,
     )
 
-    
     suspend fun getDataSummary(): DataSummary {
         val scopedAccountId = accountId
         val providers = providerDao.getAll(scopedAccountId)
@@ -165,9 +159,6 @@ class BackupService(
         )
     }
 
-    
-
-    
     suspend fun exportBackupToFile(
         target: java.io.File,
         includeKeys: Boolean = false,
@@ -183,7 +174,6 @@ class BackupService(
         }
     }
 
-    
     suspend fun exportBackup(
         includeKeys: Boolean = false,
         password: String? = null,
@@ -247,7 +237,7 @@ class BackupService(
         val conversations = conversationDao.getAll(targetAccountId).map { conv ->
             conv.toDomain(messageDao.getByConversation(targetAccountId, conv.id).map { it.toDomain() })
         }
-        
+
         val notes = noteDao.getAll(targetAccountId).map { it.toDomain() }
         val noteFolders = noteFolderDao.getAll(targetAccountId).map { it.toDomain() }
         return buildBackupArchivePayloadFromData(
@@ -306,20 +296,7 @@ class BackupService(
         val backupConversations = conversations
             .filter { conversation -> !conversation.isDraft || conversation.messages.isNotEmpty() }
             .map { conversation ->
-                
-                
-                
-                
-                
-                
-                
-                
-                
-                
-                
-                
-                
-                
+
                 val hydratedMessages = AttachmentHydrator.hydrate(
                     messages = conversation.messages,
                     loadImageBase64 = { null },
@@ -388,8 +365,6 @@ class BackupService(
         val dataJsonBytes = canonicalJson.encodeToString(backupData).toByteArray(Charsets.UTF_8)
         val checksum = sha256Checksum(dataJsonBytes)
 
-        
-        
         val attachmentChecksums = mutableMapOf<String, String>()
         val imageEntries = mutableListOf<ImageEntryRef>()
         for (conversation in backupConversations) {
@@ -457,7 +432,6 @@ class BackupService(
         )
     }
 
-    
     private fun writeBackupArchive(
         payload: BackupArchivePayload,
         output: OutputStream,
@@ -469,7 +443,6 @@ class BackupService(
             zos.write(backupFileJson)
             zos.closeEntry()
 
-            
             for (entry in payload.imageEntries) {
                 val data = if (entry.thumbnail) {
                     attachmentStore.loadThumbnailBytes(entry.localImageId)
@@ -477,8 +450,7 @@ class BackupService(
                     attachmentStore.loadImageBytes(entry.localImageId)
                 }
                 if (data == null) {
-                    
-                    
+
                     Log.w("BackupService", "backup entry vanished between checksum and write: ${entry.filename}")
                     continue
                 }
@@ -489,9 +461,6 @@ class BackupService(
         }
     }
 
-    
-
-    
     suspend fun inspectBackup(bytes: ByteArray): BackupInspection {
         val (backupFile, images) = parseBackup(bytes)
         validateVersion(backupFile)
@@ -502,7 +471,6 @@ class BackupService(
         val localConvIDs = localConversations.map { normalizeUuid(it.id) }.toSet()
         val localProviderIDs = localProviders.map { normalizeUuid(it.id) }.toSet()
 
-        
         val existingConvs = backupFile.data.conversations.count { localConvIDs.contains(normalizeUuid(it.id)) }
         var existingProvs = 0
         for (bp in backupFile.data.providers) {
@@ -535,9 +503,6 @@ class BackupService(
         )
     }
 
-    
-
-    
     private fun computeChecksumWarning(backupFile: BackupFile): Boolean {
         return try {
             val dataJsonBytes = canonicalJson.encodeToString(backupFile.data)
@@ -549,7 +514,6 @@ class BackupService(
         }
     }
 
-    
     private fun computeAttachmentIntegrityWarning(
         backupFile: BackupFile,
         images: Map<String, ByteArray>,
@@ -565,7 +529,6 @@ class BackupService(
         }
     }
 
-    
     suspend fun hasChecksumWarning(bytes: ByteArray): Boolean {
         return try {
             val (backupFile, _) = parseBackup(bytes)
@@ -595,9 +558,6 @@ class BackupService(
         }
     }
 
-    
-
-    
     suspend fun executeImport(
         mode: ImportMode,
         password: String? = null,
@@ -613,7 +573,6 @@ class BackupService(
         val (backupFile, images) = parseBackup(bytes)
         validateVersion(backupFile)
 
-        
         val restoredKeys = mutableMapOf<String, Pair<String, String>>() // providerID → (apiKey, preview)
         if (backupFile.containsKeys && !backupFile.encryptedKeys.isNullOrEmpty() && !password.isNullOrEmpty()) {
             try {
@@ -621,7 +580,7 @@ class BackupService(
                 val decrypted = BackupCrypto.decrypt(encData, password)
                 val payload = json.decodeFromString<BackupKeysPayload>(String(decrypted, Charsets.UTF_8))
                 for (entry in payload.keys) {
-                    
+
                     restoredKeys[normalizeUuid(entry.providerID)] = entry.apiKey to entry.apiKeyPreview
                 }
             } catch (_: Exception) {
@@ -651,10 +610,6 @@ class BackupService(
             )
         }
 
-        
-        
-        
-        
         try {
             metadataRefresh()
         } catch (error: Exception) {
@@ -663,8 +618,6 @@ class BackupService(
 
         return finalResult
     }
-
-    
 
     private suspend fun importNewOnly(
         targetAccountId: String,
@@ -685,7 +638,7 @@ class BackupService(
             val matchingProvider = localProvidersById[normalizeUuid(bp.id)]
 
             if (matchingProvider != null) {
-                
+
                 val localKey = secureKeyStore.getApiKey(targetAccountId, matchingProvider.id)
                 if (localKey.isNullOrEmpty()) {
                     restoredKeys[bp.id]?.let { (apiKey, preview) ->
@@ -722,7 +675,6 @@ class BackupService(
             }
         }
 
-        
         val localNoteFolders = noteFolderDao.getAll(targetAccountId)
         val localNoteFolderIDs = localNoteFolders.map { normalizeUuid(it.id) }.toSet()
         val activeNoteFolderIDs = localNoteFolders
@@ -766,19 +718,15 @@ class BackupService(
                 continue
             }
 
-            val (restoredSkill, requiresKnowledgeReupload) = restoreSkillFromBackup(backupSkill)
+            val restoredSkill = restoreSkillFromBackup(backupSkill)
             skillDao.upsert(restoredSkill.toEntity(targetAccountId))
             result = result.copy(
                 newSkills = result.newSkills + 1,
-                skillsRequiringKnowledgeReupload = result.skillsRequiringKnowledgeReupload +
-                    if (requiresKnowledgeReupload) 1 else 0,
             )
         }
 
         return result
     }
-
-    
 
     private suspend fun importMerge(
         targetAccountId: String,
@@ -795,12 +743,11 @@ class BackupService(
             .map { it.toDomain() }
             .associateBy { it.id }
 
-        
         for (bp in backupFile.data.providers) {
             val matchingProvider = localProvidersById[normalizeUuid(bp.id)]
 
             if (matchingProvider != null) {
-                
+
                 val existingModelIDs = matchingProvider.models.map { it.id }.toSet()
                 val mergedModels = matchingProvider.models +
                     bp.models.filter { it.id !in existingModelIDs }
@@ -824,7 +771,6 @@ class BackupService(
                     relayImage = if (isRelay) bp.relayImage ?: matchingProvider.relayImage else matchingProvider.relayImage,
                 )
 
-                
                 val localKey = secureKeyStore.getApiKey(targetAccountId, matchingProvider.id)
                 if (localKey.isNullOrEmpty()) {
                     restoredKeys[bp.id]?.let { (apiKey, preview) ->
@@ -862,7 +808,6 @@ class BackupService(
             }
         }
 
-        
         val localNoteFoldersById = noteFolderDao.getAll(targetAccountId).associateBy { normalizeUuid(it.id) }
         val resolvedNoteFoldersById = localNoteFoldersById.toMutableMap()
         val deletedNoteFolderIDs = mutableSetOf<String>()
@@ -913,17 +858,15 @@ class BackupService(
             }
         }
 
-        
         for (bc in backupFile.data.conversations) {
             val localConv = conversationDao.getById(targetAccountId, bc.id)
 
             if (localConv != null) {
-                
+
                 val localMessages = messageDao.getByConversation(targetAccountId, bc.id).map { it.toDomain() }
                 val merged = mergeMessages(localMessages, bc.messages)
                 val imageBatch = restoreImagesWithTracking(bc, images)
 
-                
                 val mergedUpdatedAt = maxOf(localConv.updatedAt, bc.updatedAt)
                 val updatedConv = if (bc.updatedAt > localConv.updatedAt) {
                     localConv.copy(
@@ -940,11 +883,8 @@ class BackupService(
                     localConv.copy(updatedAt = mergedUpdatedAt)
                 }
 
-                
-                
                 val slimmedMerged = merged.map { message -> slimMessageAttachmentsForImport(message) }
 
-                
                 try {
                     runAtomically {
                         messageDao.deleteByConversation(targetAccountId, bc.id)
@@ -969,23 +909,19 @@ class BackupService(
         for (backupSkill in backupFile.data.skills) {
             val localSkill = localUserSkillsById[backupSkill.id]
             if (localSkill == null) {
-                val (restoredSkill, requiresKnowledgeReupload) = restoreSkillFromBackup(backupSkill)
+                val restoredSkill = restoreSkillFromBackup(backupSkill)
                 skillDao.upsert(restoredSkill.toEntity(targetAccountId))
                 result = result.copy(
                     newSkills = result.newSkills + 1,
-                    skillsRequiringKnowledgeReupload = result.skillsRequiringKnowledgeReupload +
-                        if (requiresKnowledgeReupload) 1 else 0,
                 )
                 continue
             }
 
             if (backupSkill.updatedAt >= localSkill.updatedAt) {
-                val (restoredSkill, requiresKnowledgeReupload) = restoreSkillFromBackup(backupSkill)
+                val restoredSkill = restoreSkillFromBackup(backupSkill)
                 skillDao.upsert(restoredSkill.toEntity(targetAccountId))
                 result = result.copy(
                     mergedSkills = result.mergedSkills + 1,
-                    skillsRequiringKnowledgeReupload = result.skillsRequiringKnowledgeReupload +
-                        if (requiresKnowledgeReupload) 1 else 0,
                 )
             } else {
                 result = result.copy(skippedSkills = result.skippedSkills + 1)
@@ -994,8 +930,6 @@ class BackupService(
 
         return result
     }
-
-    
 
     private suspend fun importReplaceAll(
         targetAccountId: String,
@@ -1022,11 +956,10 @@ class BackupService(
             runAtomically {
                 var transactionalResult = ImportResult()
 
-                
                 conversationDao.deleteByAccount(targetAccountId)
                 providerDao.deleteByAccount(targetAccountId)
                 folderDao.deleteByAccount(targetAccountId)
-                
+
                 noteDao.getAll(targetAccountId).forEach { noteDao.deleteSearchIndex(targetAccountId, it.id) }
                 noteDao.deleteByAccount(targetAccountId)
                 noteFolderDao.deleteByAccount(targetAccountId)
@@ -1034,7 +967,6 @@ class BackupService(
                     skillDao.deleteBySource(targetAccountId, SkillSource.USER.value)
                 }
 
-                
                 for (bp in backupFile.data.providers) {
                     val newProvider = bp.toProvider()
                     val matchingExistingProvider = existingProviders.firstOrNull {
@@ -1086,7 +1018,6 @@ class BackupService(
                     folderDao.upsert(backupFolder.toFolderEntity(targetAccountId))
                 }
 
-                
                 val activeNoteFolderIDs = backupFile.data.noteFolders
                     .filter { it.deletedAt == null }
                     .map { normalizeUuid(it.id) }
@@ -1110,7 +1041,6 @@ class BackupService(
                     )
                 }
 
-                
                 for (bc in backupFile.data.conversations) {
                     transactionalResult = importConversation(
                         targetAccountId = targetAccountId,
@@ -1130,12 +1060,10 @@ class BackupService(
                 }
 
                 for (backupSkill in backupFile.data.skills) {
-                    val (restoredSkill, requiresKnowledgeReupload) = restoreSkillFromBackup(backupSkill)
+                    val restoredSkill = restoreSkillFromBackup(backupSkill)
                     skillDao.upsert(restoredSkill.toEntity(targetAccountId))
                     transactionalResult = transactionalResult.copy(
                         newSkills = transactionalResult.newSkills + 1,
-                        skillsRequiringKnowledgeReupload = transactionalResult.skillsRequiringKnowledgeReupload +
-                            if (requiresKnowledgeReupload) 1 else 0,
                     )
                 }
 
@@ -1168,14 +1096,11 @@ class BackupService(
         return result
     }
 
-    
-
-    
     private fun mergeMessages(
         local: List<ChatMessage>,
         backup: List<ChatMessage>,
     ): List<ChatMessage> {
-        
+
         fun ensureCreatedAt(messages: List<ChatMessage>): List<ChatMessage> {
             val base = messages.mapNotNull { it.createdAt }.maxOrNull() ?: System.currentTimeMillis()
             var offset = 0L
@@ -1207,17 +1132,15 @@ class BackupService(
         ),
     )
 
-    private fun restoreSkillFromBackup(skill: Skill): Pair<Skill, Boolean> {
-        val requiresKnowledgeReupload = skill.knowledgeBase?.files?.isNotEmpty() == true
-        return skill.copy(
-            source = SkillSource.USER,
-            knowledgeBase = null,
-        ) to requiresKnowledgeReupload
-    }
+    /**
+     * A skill from an archive becomes a local user skill, and its knowledge-base pointer is dropped:
+     * it names a vector store on whoever exported the archive, which this install cannot read.
+     */
+    private fun restoreSkillFromBackup(skill: Skill): Skill = skill.copy(
+        source = SkillSource.USER,
+        knowledgeBase = null,
+    )
 
-    
-
-    
     private suspend fun prepareBackupForImport(
         targetAccountId: String,
         backupFile: BackupFile,
@@ -1249,7 +1172,6 @@ class BackupService(
             }
         }
 
-        
         val noteFolderRemap = mutableMapOf<String, String>()
         val noteFolders = backupFile.data.noteFolders.map { bnf ->
             val normalizedId = normalizeUuid(bnf.id)
@@ -1290,8 +1212,7 @@ class BackupService(
                     providerID = resolvedProvider,
                     folderID = resolvedFolder,
                     pinnedNoteIds = resolvedPinned,
-                    
-                    
+
                     messages = bc.messages.map {
                         val normalized = normalizeMessageIds(it)
                         val newMessageId = generateUuidString()
@@ -1334,7 +1255,6 @@ class BackupService(
             )
         }
 
-        
         providerRemap.forEach { (oldId, newId) ->
             restoredKeys.remove(oldId)?.let { restoredKeys[newId] = it }
         }
@@ -1350,7 +1270,6 @@ class BackupService(
         )
     }
 
-    
     private suspend fun importConversation(
         targetAccountId: String,
         bc: BackupConversation,
@@ -1360,9 +1279,7 @@ class BackupService(
         onImageBatchCommitted: (RestoredImageBatch) -> Unit = {},
     ): ImportResult {
         val imageBatch = restoreImagesWithTracking(bc, images)
-        
-        
-        
+
         val slimmedMessages = bc.messages.map { message -> slimMessageAttachmentsForImport(message) }
 
         val convEntity = ai.oriveo.community.core.data.entity.ConversationEntity(
@@ -1408,7 +1325,6 @@ class BackupService(
         return currentResult.applyImageBatch(imageBatch)
     }
 
-    
     private fun restoreImages(
         bc: BackupConversation,
         images: Map<String, ByteArray>,
@@ -1417,14 +1333,13 @@ class BackupService(
         return currentResult.applyImageBatch(restoreImagesWithTracking(bc, images))
     }
 
-    
     private fun parseBackup(bytes: ByteArray): Pair<BackupFile, Map<String, ByteArray>> {
         return try {
             // ZIP magic bytes: PK (0x50 0x4B)
             if (bytes.size >= 2 && bytes[0] == 0x50.toByte() && bytes[1] == 0x4B.toByte()) {
                 parseZipBackup(bytes)
             } else if (bytes.isNotEmpty() && bytes[0] == 0x7B.toByte()) {
-                
+
                 parseJsonBackup(bytes)
             } else {
                 throw BackupError.UnrecognizedFormat
@@ -1464,7 +1379,7 @@ class BackupService(
                 }
             }
         } catch (_: InputSizeLimitExceededException) {
-            
+
             throw BackupError.ResourceLimitExceeded
         }
 
@@ -1476,12 +1391,11 @@ class BackupService(
     private fun parseJsonBackup(bytes: ByteArray): Pair<BackupFile, Map<String, ByteArray>> {
         val jsonString = String(bytes, Charsets.UTF_8)
 
-        
         return try {
             val backupFile = json.decodeFromString<BackupFile>(jsonString)
             backupFile to emptyMap()
         } catch (_: Exception) {
-            
+
             val legacy = json.decodeFromString<OriveoBackup>(jsonString)
             val isoFormatter = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US).apply {
                 timeZone = TimeZone.getTimeZone("UTC")
@@ -1529,7 +1443,7 @@ class BackupService(
         var result = importResult
 
         if (replaceAll) {
-            
+
             preferenceDao.delete(AppPreferenceKeys.THEME)
             preferenceDao.set(PreferenceEntity(AppPreferenceKeys.LANGUAGE, LanguageOption.System.name))
             clearUserStatePreferences()
@@ -1591,7 +1505,7 @@ class BackupService(
         var result: Result<T>? = null
         runInTransaction {
             result = runCatching { block() }
-            result!!.getOrThrow()
+            result.getOrThrow()
         }
         return result!!.getOrThrow()
     }
@@ -1625,19 +1539,12 @@ class BackupService(
                 for (att in atts) {
                     if (att.kind != AttachmentKind.Image) continue
                     val lid = att.localImageId ?: continue
-                    
-                    
+
                     if (!AttachmentStore.isSafeImageId(lid)) {
                         skippedImages += 1
                         continue
                     }
 
-                    
-                    
-                    
-                    
-                    
-                    
                     val candidateNames = listOf(att.id, lid)
                         .distinct()
                         .filter { AttachmentStore.isSafeImageId(it) }
@@ -1675,7 +1582,6 @@ class BackupService(
         )
     }
 
-    
     private fun imageExtensionCandidates(mimeType: String): List<String> {
         val mimeExtension = when (mimeType.substringAfter('/', "").lowercase()) {
             "png" -> "png"
@@ -1687,7 +1593,6 @@ class BackupService(
         return if (mimeExtension == "jpg") listOf("jpg") else listOf(mimeExtension, "jpg")
     }
 
-    
     private fun findAttachmentEntry(
         images: Map<String, ByteArray>,
         names: List<String>,
@@ -1699,11 +1604,7 @@ class BackupService(
                 images["$name$suffix.$extension"]?.let { return it }
             }
         }
-        
-        
-        
-        
-        
+
         val wanted = buildSet {
             for (name in names) {
                 for (extension in extensions) add("$name$suffix.$extension".lowercase())
@@ -1741,7 +1642,6 @@ class BackupService(
         AppPreferenceKeys.USER_STATE_KEYS.forEach { key -> preferenceDao.delete(key) }
     }
 
-    
     private fun BackupProvider.toProvider(): ai.oriveo.community.core.model.Provider {
         val isRelay = kind == ai.oriveo.community.core.model.ProviderKind.Relay
         return ai.oriveo.community.core.model.Provider(
@@ -1770,7 +1670,6 @@ class BackupService(
             accountId = accountId,
         )
 
-    
     private fun ai.oriveo.community.core.model.Note.toBackupNote() = BackupNote(
         id = id,
         title = title,
@@ -1854,7 +1753,6 @@ class BackupService(
     private fun BackupNoteFolder.toNoteFolderEntity(accountId: String) =
         EntityMapper.run { toNoteFolder().toEntity(accountId) }
 
-    
     private suspend fun importNoteEntity(entity: ai.oriveo.community.core.data.entity.NoteEntity) {
         if (entity.deletedAt == null) {
             val note = EntityMapper.run { entity.toDomain() }
@@ -1877,7 +1775,6 @@ class BackupService(
             this@toMessageEntity.toEntity(accountId, conversationId, sortOrder)
         }
 
-    
     private suspend fun slimMessageAttachmentsForImport(message: ChatMessage): ChatMessage {
         val attachments = message.attachments
         if (attachments.isNullOrEmpty()) return message
@@ -1921,7 +1818,7 @@ class BackupService(
     private suspend fun buildBackupPreferencesFromLocalState(
         targetAccountId: String,
     ): BackupPreferences {
-        
+
         val theme = AppPreferencesRepository.parseThemePreference(preferenceDao.get(PREF_KEY_THEME))
             ?: ThemeOption.Dark
         val language = AppPreferencesRepository.parseLanguagePreference(preferenceDao.get(PREF_KEY_LANGUAGE))
@@ -1969,7 +1866,6 @@ class BackupService(
         )
     }
 
-    
     private fun sha256Checksum(data: ByteArray): String {
         val digest = MessageDigest.getInstance("SHA-256")
         val hash = digest.digest(data)
@@ -1977,9 +1873,6 @@ class BackupService(
         return "sha256:$hex"
     }
 
-    
-
-    
     suspend fun createBackup(): String {
         val scopedAccountId = accountId
         val providers = providerDao.getAll(scopedAccountId).map { it.toDomain() }

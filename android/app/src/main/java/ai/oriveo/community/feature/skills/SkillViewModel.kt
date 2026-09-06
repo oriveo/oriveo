@@ -12,7 +12,6 @@ import ai.oriveo.community.core.app.GlobalSnackbarMessage
 import ai.oriveo.community.core.app.UiText
 import ai.oriveo.community.core.data.repository.CreateKnowledgeFileRequest
 import ai.oriveo.community.core.data.repository.CreateSkillRequest
-import ai.oriveo.community.core.data.repository.KnowledgeCleanupInput
 import ai.oriveo.community.core.data.repository.UpdateSkillRequest
 import ai.oriveo.community.core.data.repository.ConversationRepository
 import ai.oriveo.community.core.data.repository.ProviderRepository
@@ -27,7 +26,6 @@ import ai.oriveo.community.core.model.ProviderConnectionState
 import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.core.model.Skill
 import ai.oriveo.community.core.model.SkillCategory
-import ai.oriveo.community.core.model.SkillKnowledgeBase
 import ai.oriveo.community.core.model.SkillKnowledgeFile
 import ai.oriveo.community.core.model.resolveActiveModel
 
@@ -68,18 +66,14 @@ class SkillViewModel(
     private val lastUsedModelRef = appPreferencesRepository.lastUsedModelRef
         .stateIn(viewModelScope, SharingStarted.Eagerly, null)
 
-    
-
     var isRefreshing by mutableStateOf(false)
         private set
 
     var skillToDelete: Skill? by mutableStateOf(null)
 
-    
     var expandedCategories by mutableStateOf(emptySet<String>())
         private set
 
-    
     var editingSkill: Skill? by mutableStateOf(null)
         private set
     var isSaving by mutableStateOf(false)
@@ -93,7 +87,6 @@ class SkillViewModel(
     fun dismissSkillProviderPrompt() {
         showSkillProviderPrompt = false
     }
-
 
     init {
         viewModelScope.launch { refreshAllSafely() }
@@ -113,9 +106,8 @@ class SkillViewModel(
     private suspend fun refreshAllSafely() {
         try {
             skillRepository.refreshAll()
-        } catch (error: Exception) {
-            showGuardError(error)
-            // Keep screen interactive even when refresh fails.
+        } catch (_: Exception) {
+            // Keep the screen interactive even when a refresh fails.
         }
     }
 
@@ -129,7 +121,6 @@ class SkillViewModel(
 
     fun isCategoryExpanded(categoryId: String): Boolean =
         expandedCategories.contains(categoryId)
-
 
     /**
      * The server's legacy Skill capability fields are descriptive input only.  They remain
@@ -204,7 +195,6 @@ class SkillViewModel(
         webSearchEnabled: Boolean?,
         starterMessages: List<String>,
         knowledgeFiles: List<SkillKnowledgeFile>,
-        knowledgeBase: SkillKnowledgeBase?,
         useMemory: Boolean,
         onSuccess: (Skill) -> Unit,
         onError: (String) -> Unit,
@@ -230,16 +220,13 @@ class SkillViewModel(
                         knowledgeFiles = knowledgeFiles.map {
                             CreateKnowledgeFileRequest(name = it.name, content = it.content)
                         },
-                        knowledgeBase = knowledgeBase,
                         useMemory = useMemory,
                     )
                 )
                 onSuccess(skill)
             } catch (e: Exception) {
-                if (!showGuardError(e)) {
-                    saveError = e.message
-                    onError(e.message ?: "Unknown error")
-                }
+                saveError = e.message
+                onError(e.message ?: "Unknown error")
             } finally {
                 isSaving = false
             }
@@ -261,8 +248,6 @@ class SkillViewModel(
         webSearchEnabled: Boolean?,
         starterMessages: List<String>?,
         knowledgeFiles: List<SkillKnowledgeFile>?,
-        knowledgeBase: SkillKnowledgeBase?,
-        knowledgeCleanup: KnowledgeCleanupInput? = null,
         useMemory: Boolean?,
         onSuccess: (Skill) -> Unit,
         onError: (String) -> Unit,
@@ -289,8 +274,6 @@ class SkillViewModel(
                         knowledgeFiles = knowledgeFiles?.map {
                             CreateKnowledgeFileRequest(name = it.name, content = it.content)
                         },
-                        knowledgeBase = knowledgeBase,
-                        knowledgeCleanup = knowledgeCleanup,
                         useMemory = useMemory,
                     )
                 )
@@ -304,10 +287,8 @@ class SkillViewModel(
                 editingSkill = skill
                 onSuccess(skill)
             } catch (e: Exception) {
-                if (!showGuardError(e)) {
-                    saveError = e.message
-                    onError(e.message ?: "Unknown error")
-                }
+                saveError = e.message
+                onError(e.message ?: "Unknown error")
             } finally {
                 isSaving = false
             }
@@ -316,15 +297,14 @@ class SkillViewModel(
 
     fun deleteSkill(
         id: String,
-        knowledgeCleanup: KnowledgeCleanupInput? = null,
         onDone: () -> Unit = {},
         onError: (String) -> Unit = {},
     ) {
         viewModelScope.launch {
             try {
-                skillRepository.delete(id, knowledgeCleanup)
+                skillRepository.delete(id)
             } catch (e: Exception) {
-                if (!showGuardError(e)) onError(e.message ?: "Unknown error")
+                onError(e.message ?: "Unknown error")
             }
             skillToDelete = null
             onDone()
@@ -337,7 +317,7 @@ class SkillViewModel(
                 val skill = skillRepository.fork(id)
                 onSuccess(skill)
             } catch (e: Exception) {
-                if (!showGuardError(e)) onError(e.message ?: "Unknown error")
+                onError(e.message ?: "Unknown error")
             }
         }
     }
@@ -365,12 +345,6 @@ class SkillViewModel(
         saveError = null
     }
 
-    private fun showGuardError(error: Throwable): Boolean {
-        @Suppress("UNUSED_PARAMETER")
-        val ignored = error
-        return false
-    }
-
     private fun capabilityValuesFromExplicitConfirmation(skill: Skill): CapabilityPreferenceValues =
         CapabilityPreferenceValues(
             web = if (skill.webSearchEnabled == true) CapabilityWebPreference.Automatic else CapabilityWebPreference.Off,
@@ -382,18 +356,6 @@ class SkillViewModel(
     private fun capabilityTargetChanged(before: Skill, after: Skill): Boolean =
         !before.suggestedProviderId.orEmpty().equals(after.suggestedProviderId.orEmpty(), ignoreCase = true) ||
             before.suggestedModelId.orEmpty() != after.suggestedModelId.orEmpty()
-
-    val openAIKnowledgeProvider: StateFlow<Provider?> = providers.map { list ->
-        list.firstOrNull { it.kind == ProviderKind.OpenAI && it.apiKey.trim().isNotEmpty() }
-    }.stateIn(viewModelScope, SharingStarted.Eagerly, null)
-
-    val hasAnyOpenAIProvider: StateFlow<Boolean> = openAIKnowledgeProvider
-        .map { it != null }
-        .stateIn(viewModelScope, SharingStarted.Eagerly, false)
-
-    val hasOpenRouterProvider: StateFlow<Boolean> = providers.map { list ->
-        list.any { it.kind == ProviderKind.OpenRouter && hasProviderKey(it) }
-    }.stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
     /** Exposed only so the edit surface re-evaluates an exact confirmation target after catalog refresh. */
     val capabilityConfirmationProviders: StateFlow<List<Provider>> = providers
@@ -482,8 +444,7 @@ class SkillViewModel(
                 skillId = skill.id,
                 useMemory = skill.useMemory,
             )
-            
-            
+
             onCreated(conversation.id)
             skillRepository.recordUse(skill.id)
         }

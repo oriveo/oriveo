@@ -8,7 +8,6 @@ import io.mockk.every
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.runBlocking
 
-
 internal fun installChatStreamingManagerForwardingStub(
     chatStreamingManager: ChatStreamingManager,
     chatRepository: ChatRepository,
@@ -31,7 +30,6 @@ internal fun installChatStreamingManagerForwardingStub(
                 webSearchEnabled = req.webSearchEnabled,
                 antiForgetText = req.antiForgetText,
                 requestOptions = req.requestOptions,
-                retrieval = req.retrieval,
                 outputs = outputs,
                 persistUserMessage = req.persistUserMessage,
                 userMessageAlreadyInHistory = req.userMessageAlreadyInHistory,

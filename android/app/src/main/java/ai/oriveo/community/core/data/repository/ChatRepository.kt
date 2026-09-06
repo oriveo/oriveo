@@ -10,8 +10,6 @@ import ai.oriveo.community.core.error.isTransientNetworkFailure
 import ai.oriveo.community.core.model.Attachment
 import ai.oriveo.community.core.model.CapabilityExecutionCollector
 import ai.oriveo.community.core.model.CapabilityExecutionResult
-import ai.oriveo.community.core.model.ChatDeliveredUsageMetrics
-import ai.oriveo.community.core.model.ChatDeliveryAccounting
 import ai.oriveo.community.core.model.ChatMessage
 import ai.oriveo.community.core.model.ChatMessageState
 import ai.oriveo.community.core.model.ChatRole
@@ -35,7 +33,7 @@ import ai.oriveo.community.core.model.ProviderServiceError
 import ai.oriveo.community.core.model.RequestPreferenceResolver
 import ai.oriveo.community.core.provider.transport.CitationParser
 import ai.oriveo.community.core.model.ReasoningMode
-import ai.oriveo.community.core.model.SkillKnowledgeRetrievalContext
+import ai.oriveo.community.core.streaming.ConversationStreamingOutputs
 import ai.oriveo.community.core.model.StreamEvent
 import ai.oriveo.community.core.model.ToolCallDelta
 import ai.oriveo.community.core.provider.DeliveredCostResolver
@@ -127,8 +125,7 @@ class ChatRepository(
         webSearchEnabled: Boolean = false,
         antiForgetText: String? = null,
         requestOptions: ChatRequestOptions = ChatRequestOptions(),
-        retrieval: SkillKnowledgeRetrievalContext? = null,
-        outputs: ai.oriveo.community.core.streaming.ConversationStreamingOutputs,
+        outputs: ConversationStreamingOutputs,
         persistUserMessage: Boolean = true,
         userMessageAlreadyInHistory: Boolean = false,
         appendToAssistant: ChatMessage? = null,
@@ -146,7 +143,6 @@ class ChatRepository(
         val userCreatedAt = System.currentTimeMillis()
         val assistantCreatedAt = userCreatedAt + 1
 
-        
         val userMessage = ChatMessage(
             id = generateUuidString(),
             role = ChatRole.User,
@@ -168,10 +164,6 @@ class ChatRepository(
         val preservesGeneratedContent = appendToAssistant?.customRetryWithoutFieldsCode
             ?.startsWith("omit_capability_setting_once:") == true
 
-        
-        
-        
-        
         val assistantMessageId: String
         val assistantPlaceholder: ChatMessage
         val initialText: String
@@ -211,16 +203,11 @@ class ChatRepository(
             conversationRepository.addMessage(conversation.id, assistantPlaceholder)
         }
 
-        
         outputs.streamingMessageId.value = assistantMessageId
         outputs.streamingText.value = initialText
         val initialReasoning = appendToAssistant?.reasoningText.orEmpty().takeIf { preservesGeneratedContent }.orEmpty()
         outputs.streamingReasoning.value = initialReasoning
 
-        
-        
-        
-        
         // The buffer is seeded with whatever the message already had so that continuing an
         // interrupted answer appends to it instead of restarting from an empty string.
         val tokenBuffer = StreamingTokenBuffer(initialText, initialReasoning)
@@ -309,11 +296,6 @@ class ChatRepository(
             allMessages
         }
 
-        
-        
-        
-        
-        
         var relayUpstreamModelId = runtimeModelId
         var relayUseImagesEndpoint = false
         val relayTransport = provider.relayRequested?.transport ?: RelayTransport.Auto
@@ -350,7 +332,6 @@ class ChatRepository(
                     }
                 }
 
-                
                 RelayRuntimeSupport.ImageRoute.GeminiModality -> Unit
             }
         }
@@ -360,7 +341,7 @@ class ChatRepository(
         val useNonStreamingRelayRuntime =
             provider.kind == ProviderKind.Relay &&
                 effectiveRequestOptions.relayRequested?.stream == false &&
-                
+
                 !RelayRuntimeSupport.shouldForceStream(
                     relayTransport,
                     model?.capabilities ?: emptyList(),
@@ -368,12 +349,7 @@ class ChatRepository(
 
         try {
             withContext(Dispatchers.IO) {
-                
-                
-                
-                
-                
-                
+
                 if (provider.kind == ProviderKind.Grok &&
                     provider.authMode == ProviderAuthMode.Subscription
                 ) {
@@ -386,29 +362,21 @@ class ChatRepository(
                             } ?: ai.oriveo.community.core.provider.transport.TransportKind.OpenAIResponses.wireValue
                             effectiveRequestOptions = effectiveRequestOptions.copy(
                                 grokSubscription = prepared.prepared.context.withTransport(finalTransport),
-                                
-                                
+
                                 activeModel = activeSubscriptionModel,
                             )
                         }
                         is GrokSubscriptionRuntime.PrepareResult.Failure -> {
-                            
-                            
+
                             if (prepared.error.requiresConfigRefresh) {
-                                
-                                
+
                                 runCatching { MetadataClient.refresh() }
                             }
                             throw prepared.error.toProviderServiceError()
                         }
                     }
                 }
-                
-                
-                
-                
-                
-                
+
                 if (provider.kind == ProviderKind.OpenAI &&
                     provider.authMode == ProviderAuthMode.Subscription
                 ) {
@@ -422,8 +390,7 @@ class ChatRepository(
                         }
                         is OpenAISubscriptionRuntime.PrepareResult.Failure -> {
                             if (prepared.error is OpenAISubscriptionError.ClientVersionRejected) {
-                                
-                                
+
                                 runCatching { MetadataClient.refresh() }
                             }
                             throw prepared.error.toProviderServiceError()
@@ -469,7 +436,7 @@ class ChatRepository(
                         requestOptions = effectiveRequestOptions,
                     )
                     finalResult = done.result
-                    
+
                     outputs.streamingText.value = initialText + done.result.text
                     done.result.attachments?.let { streamingAttachments.addAll(it) }
                 } else if (useNonStreamingRelayRuntime) {
@@ -484,7 +451,7 @@ class ChatRepository(
                         requestOptions = effectiveRequestOptions,
                     )
                     finalResult = done.result
-                    
+
                     outputs.streamingText.value = initialText + done.result.text
                     done.result.attachments?.let { streamingAttachments.addAll(it) }
                 } else {
@@ -526,7 +493,10 @@ class ChatRepository(
                                 // the reasoning duration is measured for providers that do not
                                 // report one.
                                 if (outputs.reasoningStartedAtMs.value != null) {
-                                    outputs.reasoningEndedAtMs.compareAndSet(null, now)
+                                    outputs.reasoningEndedAtMs.compareAndSet(
+                                        ConversationStreamingOutputs.NOT_SET,
+                                        now,
+                                    )
                                 }
                                 val shouldFlush = tokenBuffer.appendDelta(event.text, now)
 
@@ -628,18 +598,13 @@ class ChatRepository(
                     initialText + result?.text.orEmpty()
                 }
 
-                
                 val resolvedAttachments = imageProcessor.downloadHttpUrls(streamingAttachments)
                 streamingAttachments.clear()
                 streamingAttachments.addAll(resolvedAttachments)
 
-                
                 val (cleanedText, inlineImageAttachments) = imageProcessor.extractInlineImages(finalText)
                 streamingAttachments.addAll(inlineImageAttachments)
 
-                
-                
-                
                 val persistedAttachments = imageProcessor.persistInlineBase64(streamingAttachments)
                 streamingAttachments.clear()
                 streamingAttachments.addAll(persistedAttachments)
@@ -666,10 +631,6 @@ class ChatRepository(
                 } else {
                     "priced"
                 }
-                val deliveredCost = ChatDeliveryAccounting.deliveredCost(
-                    baseCost = generationCost,
-                    retrieval = retrieval,
-                )
 
                 if (displayText.isBlank() && streamingAttachments.isEmpty() && unhandledToolCalls.isEmpty()) {
                     throw ProviderServiceError.EmptyResponse
@@ -680,14 +641,11 @@ class ChatRepository(
                     }
                 }
 
-                
-                
                 val finalCitations = mergeIncomingCitations(result?.citations.orEmpty())
-                
-                
-                
+
                 val reasoningStartedAt = outputs.reasoningStartedAtMs.value
                 val reasoningEndedAt = outputs.reasoningEndedAtMs.get()
+                    .takeIf { it != ConversationStreamingOutputs.NOT_SET }
                     ?: reasoningStartedAt?.let { System.currentTimeMillis() }
                 val computedDurationMs = if (reasoningStartedAt != null && reasoningEndedAt != null) {
                     (reasoningEndedAt - reasoningStartedAt).coerceAtLeast(0L)
@@ -712,7 +670,7 @@ class ChatRepository(
                 val finalReasoning = if (initialReasoning.isNotEmpty()) {
                     when {
                         accumulatedReasoning != null && accumulatedReasoning.length > initialReasoning.length -> accumulatedReasoning
-                        !result?.reasoningText.isNullOrEmpty() -> initialReasoning + result?.reasoningText.orEmpty()
+                        !result?.reasoningText.isNullOrEmpty() -> initialReasoning + result.reasoningText.orEmpty()
                         else -> initialReasoning
                     }
                 } else {
@@ -723,7 +681,7 @@ class ChatRepository(
                     reasoningText = finalReasoning,
                     reasoningDurationMs = computedDurationMs,
                     servedModelID = result?.servedModelID,
-                    estimatedCost = deliveredCost,
+                    estimatedCost = generationCost,
                     state = ChatMessageState.Delivered,
                     attachments = streamingAttachments.ifEmpty { result?.attachments },
                     citations = finalCitations.takeIf { it.isNotEmpty() },
@@ -760,6 +718,7 @@ class ChatRepository(
             }
             val cancelStartedAt = outputs.reasoningStartedAtMs.value
             val cancelEndedAt = outputs.reasoningEndedAtMs.get()
+                .takeIf { it != ConversationStreamingOutputs.NOT_SET }
                 ?: cancelStartedAt?.let { System.currentTimeMillis() }
             val cancelDurationMs = if (cancelStartedAt != null && cancelEndedAt != null) {
                 (cancelEndedAt - cancelStartedAt).coerceAtLeast(0L)
@@ -831,10 +790,9 @@ class ChatRepository(
                     }
                 }
             } else null
-            val canExplicitlyResend = locatedRejection?.let { located ->
-                canOfferExplicitModelControlResend(located, receivedUpstreamEvent, e)
-            } == true
-            if (canExplicitlyResend && locatedRejection != null) {
+            val canExplicitlyResend = locatedRejection != null &&
+                canOfferExplicitModelControlResend(locatedRejection, receivedUpstreamEvent, e)
+            if (canExplicitlyResend) {
                 effectiveRequestOptions.modelControlRuntimeIdentity?.let { identity ->
                     locatedRejection.locatedPointers.forEach { pointer ->
                         ModelControlRejectionCache.record(
@@ -941,8 +899,7 @@ internal fun resolveSendModelSelection(
         storedModelId = model?.let(ModelSelectionUtils::preferredStoredModelIdentifier)
             ?: ModelSelectionUtils.resolvedId(modelID),
         modelName = model?.name ?: modelID,
-        
-        
+
         supportsImageGen = model?.capabilities?.contains(ModelCapability.ImageGen) == true &&
             (provider.kind == ProviderKind.Relay || !model.imageGenProfile.isNullOrBlank()),
     )

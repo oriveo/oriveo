@@ -4,7 +4,6 @@ import ai.oriveo.community.R
 import ai.oriveo.community.core.app.AppPreferencesRepository
 import ai.oriveo.community.core.app.GlobalSnackbarManager
 import ai.oriveo.community.core.app.UiText
-import ai.oriveo.community.core.data.repository.KnowledgeCleanupInput
 import ai.oriveo.community.core.data.repository.ConversationRepository
 import ai.oriveo.community.core.data.repository.ProviderRepository
 import ai.oriveo.community.core.data.repository.SkillRepository
@@ -18,10 +17,7 @@ import ai.oriveo.community.core.model.ProviderConnectionState
 import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.core.model.Skill
 import ai.oriveo.community.core.model.SkillCategory
-import ai.oriveo.community.core.model.SkillKnowledgeBase
-import ai.oriveo.community.core.model.SkillKnowledgeBaseFile
-import ai.oriveo.community.core.model.SkillKnowledgeFileStatus
-import ai.oriveo.community.core.model.SkillKnowledgeIngestionMode
+import ai.oriveo.community.core.model.SkillKnowledgeFile
 import ai.oriveo.community.core.provider.MetadataTestFixtures
 import ai.oriveo.community.core.provider.ModelControlRuntimeIdentityResolver
 import io.mockk.coEvery
@@ -77,7 +73,7 @@ class SkillViewModelTest {
         every { skillRepository.observeAllSkills() } returns allSkillsFlow
         every { skillRepository.categories } returns categoriesFlow
         coEvery { skillRepository.refreshAll() } returns Unit
-        coEvery { skillRepository.delete(any(), any()) } returns Unit
+        coEvery { skillRepository.delete(any()) } returns Unit
         coEvery { skillRepository.togglePin(any(), any(), any()) } returns Unit
         coEvery { skillRepository.recordUse(any()) } returns Unit
 
@@ -105,10 +101,9 @@ class SkillViewModelTest {
     }
 
     @Test
-    fun `createSkill forwards knowledgeBase manifest to repository`() = runTest {
+    fun `createSkill forwards the skill to the repository`() = runTest {
         val requestSlot = slot<ai.oriveo.community.core.data.repository.CreateSkillRequest>()
         val createdSkill = sampleSkill("skill-created")
-        val knowledgeBase = sampleKnowledgeBase()
         coEvery { skillRepository.create(capture(requestSlot)) } returns createdSkill
 
         val viewModel = createViewModel()
@@ -127,27 +122,21 @@ class SkillViewModelTest {
             reasoningLevel = null,
             webSearchEnabled = null,
             starterMessages = emptyList(),
-            knowledgeFiles = emptyList(),
-            knowledgeBase = knowledgeBase,
+            knowledgeFiles = listOf(sampleReferenceFile()),
             useMemory = true,
             onSuccess = { receivedSkill = it },
             onError = { error("unexpected error: $it") },
         )
         advanceUntilIdle()
 
-        assertEquals(knowledgeBase, requestSlot.captured.knowledgeBase)
+        assertEquals(listOf("guide.txt"), requestSlot.captured.knowledgeFiles.map { it.name })
         assertEquals(createdSkill, receivedSkill)
     }
 
     @Test
-    fun `updateSkill forwards knowledgeBase manifest to repository`() = runTest {
+    fun `updateSkill forwards the reference files to the repository`() = runTest {
         val requestSlot = slot<ai.oriveo.community.core.data.repository.UpdateSkillRequest>()
         val updatedSkill = sampleSkill("skill-updated")
-        val knowledgeBase = sampleKnowledgeBase()
-        val knowledgeCleanup = KnowledgeCleanupInput(
-            apiKey = "sk-openai",
-            baseURL = "https://api.openai.com/v1",
-        )
         coEvery { skillRepository.update("skill-1", capture(requestSlot)) } returns updatedSkill
 
         val viewModel = createViewModel()
@@ -167,37 +156,25 @@ class SkillViewModelTest {
             reasoningLevel = null,
             webSearchEnabled = null,
             starterMessages = emptyList(),
-            knowledgeFiles = emptyList(),
-            knowledgeBase = knowledgeBase,
-            knowledgeCleanup = knowledgeCleanup,
+            knowledgeFiles = listOf(sampleReferenceFile()),
             useMemory = true,
             onSuccess = { receivedSkill = it },
             onError = { error("unexpected error: $it") },
         )
         advanceUntilIdle()
 
-        assertEquals(knowledgeBase, requestSlot.captured.knowledgeBase)
-        assertEquals(knowledgeCleanup, requestSlot.captured.knowledgeCleanup)
+        assertEquals(listOf("guide.txt"), requestSlot.captured.knowledgeFiles?.map { it.name })
         assertEquals(updatedSkill, receivedSkill)
     }
 
     @Test
-    fun `deleteSkill forwards cleanup input to repository`() = runTest {
+    fun `deleteSkill deletes by id`() = runTest {
         val viewModel = createViewModel()
-        val knowledgeCleanup = KnowledgeCleanupInput(
-            apiKey = "sk-openai",
-            baseURL = "https://api.openai.com/v1",
-        )
 
-        viewModel.deleteSkill(
-            id = "skill-1",
-            knowledgeCleanup = knowledgeCleanup,
-        )
+        viewModel.deleteSkill(id = "skill-1")
         advanceUntilIdle()
 
-        coVerify(exactly = 1) {
-            skillRepository.delete("skill-1", knowledgeCleanup)
-        }
+        coVerify(exactly = 1) { skillRepository.delete("skill-1") }
     }
 
     @Test
@@ -382,21 +359,11 @@ class SkillViewModelTest {
         canonicalModelId = canonicalModelId,
     )
 
-    private fun sampleKnowledgeBase() = SkillKnowledgeBase(
-        provider = "openai",
-        retrievalModel = "gpt-5.4-mini",
-        vectorStoreId = "vs_123",
-        expiresAfterDays = 90,
-        files = listOf(
-            SkillKnowledgeBaseFile(
-                id = "kb-1",
-                name = "guide.txt",
-                mimeType = "text/plain",
-                sizeBytes = 128,
-                ingestionMode = SkillKnowledgeIngestionMode.NATIVE_FILE,
-                status = SkillKnowledgeFileStatus.READY,
-            ),
-        ),
+    private fun sampleReferenceFile() = SkillKnowledgeFile(
+        id = "ref-1",
+        name = "guide.txt",
+        content = "Pack light.",
+        charCount = 11,
     )
 
 }

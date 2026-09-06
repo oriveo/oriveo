@@ -91,14 +91,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import ai.oriveo.community.R
 import ai.oriveo.community.core.util.launchExternalActivityOrNotify
-import ai.oriveo.community.core.data.repository.KnowledgeCleanupInput
-import ai.oriveo.community.core.model.SkillKnowledgeBase
-import ai.oriveo.community.core.model.SkillKnowledgeBaseFile
-import ai.oriveo.community.core.model.SkillKnowledgeEligibility
 import ai.oriveo.community.core.model.SkillKnowledgeErrorCode
-import ai.oriveo.community.core.model.SkillKnowledgeFileStatus
 import ai.oriveo.community.core.model.SkillKnowledgeFile
-import ai.oriveo.community.core.model.SkillKnowledgeRuntimeConfig
 import ai.oriveo.community.core.util.InputSizeLimitExceededException
 import ai.oriveo.community.core.util.readBytesLimited
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -130,7 +124,6 @@ private val capabilityOptions = listOf(
     "any", "reasoning", "vision", "fast", "large-context",
 )
 
-
 private fun parseHexColor(hex: String): Color {
     val clean = hex.removePrefix("#")
     return try {
@@ -139,22 +132,6 @@ private fun parseHexColor(hex: String): Color {
         Color(0xFF8C5FF8) // = LightOriveoColors.primary
     }
 }
-
-private enum class SkillKnowledgeCtaReason {
-    NoOpenAIKey,
-    OnlyOpenRouter,
-    OpenAIEndpointNotOfficial,
-    RetrievalModelNotEnabled,
-    ServiceUnavailable,
-}
-
-private data class SkillKnowledgeCtaContent(
-    val reason: SkillKnowledgeCtaReason,
-    val message: String,
-    val requiredModel: String? = null,
-    val primaryLabel: String,
-    val secondaryLabel: String,
-)
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -174,7 +151,6 @@ fun SkillEditScreen(
 
     val fileImportScope = rememberCoroutineScope()
     val isEditing = skillId != null
-    val knowledgeApi = Unit
 
     LaunchedEffect(skillId) {
         if (skillId != null) {
@@ -186,7 +162,6 @@ fun SkillEditScreen(
 
     val existingSkill = viewModel.editingSkill
 
-    
     var name by rememberSaveable { mutableStateOf("") }
     var description by rememberSaveable { mutableStateOf("") }
     var icon by rememberSaveable { mutableStateOf("\uD83E\uDD16") }
@@ -195,34 +170,13 @@ fun SkillEditScreen(
     var useMemory by rememberSaveable { mutableStateOf(true) }
     var modelCapabilityHint by rememberSaveable { mutableStateOf("any") }
     val knowledgeFiles = remember { mutableStateListOf<SkillKnowledgeFile>() }
-    var knowledgeBase by remember { mutableStateOf<SkillKnowledgeBase?>(null) }
-    var originalKnowledgeBase by remember { mutableStateOf<SkillKnowledgeBase?>(null) }
 
-    
     var showDiscardDialog by remember { mutableStateOf(false) }
     var showIconDialog by remember { mutableStateOf(false) }
     var iconInput by remember { mutableStateOf("") }
     var showAdvanced by rememberSaveable { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var initialized by remember { mutableStateOf(false) }
-    var knowledgeRuntime by remember { mutableStateOf<SkillKnowledgeRuntimeConfig?>(null) }
-    var knowledgeEligibility by remember { mutableStateOf<SkillKnowledgeEligibility?>(null) }
-    var knowledgePendingId by remember { mutableStateOf<String?>(null) }
-    var knowledgeReplaceTargetId by remember { mutableStateOf<String?>(null) }
-    var knowledgeRefreshTick by remember { mutableStateOf(0) }
-    var dismissedKnowledgeCtaReason by remember { mutableStateOf<SkillKnowledgeCtaReason?>(null) }
-    val knowledgeRetryCache = remember { mutableStateMapOf<String, ai.oriveo.community.core.model.SkillKnowledgeUploadPayload>() }
-
-    DisposableEffect(Unit) {
-        onDispose {
-            knowledgeRetryCache.clear()
-        }
-    }
-    val knowledgeUsedBytes = sumKnowledgeBaseBytes(knowledgeBase)
-    val knowledgeMutating = knowledgePendingId != null
-    val knowledgeEligible = knowledgeEligibility?.eligible == true
-    val openAIProvider by viewModel.openAIKnowledgeProvider.collectAsStateWithLifecycle()
-    val hasOpenRouterProvider by viewModel.hasOpenRouterProvider.collectAsStateWithLifecycle()
     // The confirmation target is intentionally derived from the live provider instance and its
     // current model catalog; legacy Skill web/reasoning fields alone never enable anything.
     val confirmationProviders by viewModel.capabilityConfirmationProviders.collectAsStateWithLifecycle()
@@ -237,7 +191,6 @@ fun SkillEditScreen(
         mutableStateOf(existingSkill?.let(viewModel::isSkillCapabilityConfirmed) == true)
     }
 
-    
     LaunchedEffect(existingSkill) {
         if (existingSkill != null && !initialized) {
             name = existingSkill.name
@@ -249,109 +202,10 @@ fun SkillEditScreen(
             modelCapabilityHint = existingSkill.modelCapabilityHint
             knowledgeFiles.clear()
             knowledgeFiles.addAll(existingSkill.knowledgeFiles)
-            knowledgeBase = existingSkill.knowledgeBase
-            originalKnowledgeBase = existingSkill.knowledgeBase
             initialized = true
-        } else if (existingSkill == null && skillId == null) {
-            originalKnowledgeBase = null
         }
     }
 
-    LaunchedEffect(openAIProvider?.id, openAIProvider?.apiKey, openAIProvider?.baseUrlText, openAIProvider?.models, knowledgeRefreshTick) {
-        try {
-            val runtime = null
-            knowledgeRuntime = runtime
-            val eligibility = null
-            knowledgeEligibility = eligibility
-            if (false) {
-                dismissedKnowledgeCtaReason = null
-            }
-        } catch (e: Exception) {
-            android.util.Log.w("SkillEdit", "Knowledge capability check failed", e)
-            knowledgeRuntime = null
-            knowledgeEligibility = SkillKnowledgeEligibility(
-                eligible = false,
-                errorCode = SkillKnowledgeErrorCode.KNOWLEDGE_SERVICE_UNAVAILABLE,
-                requiredModel = null,
-            )
-        }
-    }
-
-    val activeIndexingFile = knowledgeBase?.files?.firstOrNull {
-        it.status == SkillKnowledgeFileStatus.INDEXING && !it.openAIFileId.isNullOrBlank()
-    }
-    val knowledgeIndexingRefreshKey = if (
-        openAIProvider == null ||
-        knowledgeBase == null ||
-        knowledgeBase?.vectorStoreId.isNullOrBlank() ||
-        activeIndexingFile == null
-    ) {
-        "no-indexing"
-    } else {
-        listOf(
-            openAIProvider?.id.orEmpty(),
-            openAIProvider?.apiKey.orEmpty(),
-            openAIProvider?.baseUrlText.orEmpty(),
-            knowledgeBase?.vectorStoreId.orEmpty(),
-            activeIndexingFile.id,
-            activeIndexingFile.openAIFileId.orEmpty(),
-        ).joinToString("|")
-    }
-
-    fun applyKnowledgeIndexingStatus(fileId: String, status: SkillKnowledgeFileStatus) {
-        val currentKnowledgeBase = knowledgeBase ?: return
-        val updatedAt = java.time.Instant.now().toString()
-        knowledgeBase = currentKnowledgeBase.copy(
-            files = currentKnowledgeBase.files.map { file ->
-                if (file.id == fileId) {
-                    file.copy(
-                        status = status,
-                        errorCode = if (status == SkillKnowledgeFileStatus.FAILED) {
-                            SkillKnowledgeErrorCode.KNOWLEDGE_INDEX_FAILED
-                        } else {
-                            null
-                        },
-                        updatedAt = updatedAt,
-                    )
-                } else {
-                    file
-                }
-            },
-            updatedAt = updatedAt,
-        )
-    }
-
-    LaunchedEffect(knowledgeIndexingRefreshKey) {
-        val provider = openAIProvider ?: return@LaunchedEffect
-        val currentKnowledgeBase = knowledgeBase ?: return@LaunchedEffect
-        val indexingFile = activeIndexingFile ?: return@LaunchedEffect
-        val openAIFileId = indexingFile.openAIFileId ?: return@LaunchedEffect
-        if (currentKnowledgeBase.vectorStoreId.isBlank()) return@LaunchedEffect
-
-        repeat(30) {
-            delay(3_000)
-            if (!isActive) return@LaunchedEffect
-
-            val status = try {
-                null
-            } catch (error: Exception) {
-                errorMessage = error.message
-                return@LaunchedEffect
-            } ?: return@repeat
-
-            if (status == SkillKnowledgeFileStatus.READY || status == SkillKnowledgeFileStatus.FAILED) {
-                applyKnowledgeIndexingStatus(indexingFile.id, status)
-                return@LaunchedEffect
-            }
-        }
-
-        if (isActive) {
-            applyKnowledgeIndexingStatus(indexingFile.id, SkillKnowledgeFileStatus.FAILED)
-        }
-    }
-
-    
-    
     val hasChanges by remember {
         derivedStateOf {
             if (existingSkill != null) {
@@ -361,11 +215,10 @@ fun SkillEditScreen(
                     || color != existingSkill.color
                     || systemPrompt != existingSkill.systemPrompt
                     || knowledgeFiles.toList() != existingSkill.knowledgeFiles
-                    || knowledgeBase.normalizeForComparison() != originalKnowledgeBase.normalizeForComparison()
                     || useMemory != existingSkill.useMemory
                     || modelCapabilityHint != existingSkill.modelCapabilityHint
             } else {
-                name.isNotBlank() || systemPrompt.isNotBlank() || knowledgeBase != null
+                name.isNotBlank() || systemPrompt.isNotBlank()
             }
         }
     }
@@ -374,13 +227,6 @@ fun SkillEditScreen(
             && systemPrompt.isNotBlank()
             && systemPrompt.length <= 4000
             && !viewModel.isSaving
-            && !knowledgeMutating
-
-    fun buildKnowledgeCleanupInput(providerApiKey: String, providerBaseUrl: String?): KnowledgeCleanupInput =
-        KnowledgeCleanupInput(
-            apiKey = providerApiKey,
-            baseURL = providerBaseUrl?.takeIf { it.isNotBlank() },
-        )
 
     fun decodeKnowledgeErrorCode(value: String?): SkillKnowledgeErrorCode? = when (value?.trim()) {
         "openai_not_configured" -> SkillKnowledgeErrorCode.OPENAI_NOT_CONFIGURED
@@ -400,83 +246,15 @@ fun SkillEditScreen(
         else -> null
     }
 
-    fun resolveKnowledgeErrorCode(error: Throwable, fallback: SkillKnowledgeErrorCode): SkillKnowledgeErrorCode {
-        val direct = decodeKnowledgeErrorCode(error.message)
-        if (direct != null) return direct
-        val body = error.message
-        return body
-            ?.split('"', '{', '}', ',', ' ', '\n', '\r', '\t', ':')
-            ?.mapNotNull(::decodeKnowledgeErrorCode)
-            ?.firstOrNull()
-            ?: fallback
-    }
-
     fun localizedGuardError(error: Throwable): String? = null
 
-    fun localizedKnowledgeError(
-        code: SkillKnowledgeErrorCode,
-        requiredModel: String? = null,
-    ): String = when (code) {
-        SkillKnowledgeErrorCode.OPENAI_NOT_CONFIGURED -> context.getString(R.string.skills_knowledgeErrorOpenAI)
-        SkillKnowledgeErrorCode.OPENAI_ENDPOINT_NOT_OFFICIAL -> context.getString(R.string.skills_knowledgeErrorEndpoint)
-        SkillKnowledgeErrorCode.RETRIEVAL_MODEL_NOT_ENABLED -> context.getString(
-            R.string.skills_knowledgeErrorModelDisabled,
-            requiredModel ?: knowledgeRuntime?.retrievalModel.orEmpty(),
-        )
-        SkillKnowledgeErrorCode.KNOWLEDGE_SERVICE_UNAVAILABLE -> context.getString(R.string.skills_knowledgeErrorServiceUnavailable)
-        SkillKnowledgeErrorCode.UNSUPPORTED_FILE_TYPE -> context.getString(R.string.skills_knowledgeErrorUnsupportedType)
-        SkillKnowledgeErrorCode.REFERENCE_FILE_TOO_LARGE -> context.getString(R.string.skills_fileTooLarge)
+    /** Only the reference-file checks raise a code here; everything else surfaces its own message. */
+    fun localizedKnowledgeError(code: SkillKnowledgeErrorCode): String = when (code) {
+        SkillKnowledgeErrorCode.REFERENCE_FILE_TOO_LARGE,
         SkillKnowledgeErrorCode.REFERENCE_FILE_CHAR_LIMIT_EXCEEDED -> context.getString(R.string.skills_fileTooLarge)
-        SkillKnowledgeErrorCode.KNOWLEDGE_FILE_TOO_LARGE -> context.getString(R.string.skills_knowledgeErrorFileTooLarge)
-        SkillKnowledgeErrorCode.KNOWLEDGE_TOTAL_SIZE_EXCEEDED -> context.getString(R.string.skills_knowledgeErrorQuotaExceeded)
-        SkillKnowledgeErrorCode.KNOWLEDGE_EXTRACT_FAILED -> context.getString(R.string.skills_knowledgeErrorExtractFailed)
-        SkillKnowledgeErrorCode.KNOWLEDGE_UPLOAD_FAILED -> context.getString(R.string.skills_knowledgeErrorUploadFailed)
-        SkillKnowledgeErrorCode.KNOWLEDGE_INDEX_FAILED -> context.getString(R.string.skills_knowledgeErrorIndexFailed)
-        SkillKnowledgeErrorCode.KNOWLEDGE_RETRIEVE_FAILED -> context.getString(R.string.skills_knowledgeErrorRetrieveFailed)
-        SkillKnowledgeErrorCode.KNOWLEDGE_CLEANUP_FAILED -> context.getString(R.string.skills_knowledgeErrorCleanupFailed)
+        else -> context.getString(R.string.skills_knowledgeErrorUnsupportedType)
     }
 
-    fun localizedKnowledgeStatus(status: SkillKnowledgeFileStatus): String = when (status) {
-        SkillKnowledgeFileStatus.EXTRACTING,
-        SkillKnowledgeFileStatus.UPLOADING -> context.getString(R.string.skills_knowledgeStatusUploading)
-        SkillKnowledgeFileStatus.INDEXING -> context.getString(R.string.skills_knowledgeStatusIndexing)
-        SkillKnowledgeFileStatus.READY -> context.getString(R.string.skills_knowledgeStatusReady)
-        SkillKnowledgeFileStatus.FAILED -> context.getString(R.string.skills_knowledgeStatusFailed)
-        SkillKnowledgeFileStatus.REPLACING -> context.getString(R.string.skills_knowledgeStatusReplacing)
-        SkillKnowledgeFileStatus.DELETING -> context.getString(R.string.skills_knowledgeStatusDeleting)
-        SkillKnowledgeFileStatus.DISABLED -> context.getString(R.string.skills_knowledgeStatusUnavailable)
-    }
-
-    fun displayKnowledgeStatus(file: SkillKnowledgeBaseFile): SkillKnowledgeFileStatus =
-        if (file.status == SkillKnowledgeFileStatus.READY && !knowledgeEligible) {
-            SkillKnowledgeFileStatus.DISABLED
-        } else {
-            file.status
-        }
-
-    suspend fun cleanupDraftKnowledgeResources(): Boolean {
-        val plan = buildDraftKnowledgeCleanupPlan(
-            originalKnowledgeBase = originalKnowledgeBase,
-            currentKnowledgeBase = knowledgeBase,
-        ) ?: return true
-        val provider = openAIProvider
-        if (provider == null) {
-            errorMessage = localizedKnowledgeError(SkillKnowledgeErrorCode.OPENAI_NOT_CONFIGURED)
-            return false
-        }
-
-        return try {
-            null
-            true
-        } catch (error: Exception) {
-            errorMessage = localizedGuardError(error) ?: localizedKnowledgeError(
-                resolveKnowledgeErrorCode(error, SkillKnowledgeErrorCode.KNOWLEDGE_CLEANUP_FAILED),
-            )
-            false
-        }
-    }
-
-    
     suspend fun inspectImportedFile(uri: Uri): ImportedFileMetadata = withContext(Dispatchers.IO) {
         val contentResolver = androidContext.contentResolver
         val (displayName, declaredSize) = contentResolver.query(uri, null, null, null, null)?.use { cursor ->
@@ -513,333 +291,13 @@ fun SkillEditScreen(
         )
     }
 
-    val knowledgeEligibilityHint = when {
-        knowledgeEligibility == null ->
-            context.getString(R.string.skills_knowledgeEligibilityReady)
-        knowledgeEligible ->
-            context.getString(R.string.skills_knowledgeEligibilityReady)
-        else ->
-            localizedKnowledgeError(
-                knowledgeEligibility?.errorCode ?: SkillKnowledgeErrorCode.KNOWLEDGE_SERVICE_UNAVAILABLE,
-                knowledgeEligibility?.requiredModel,
-            )
-    }
-    val requiredKnowledgeModel = knowledgeEligibility?.requiredModel ?: knowledgeRuntime?.retrievalModel
-    val currentKnowledgeCtaReason = when {
-        knowledgeEligibility == null || knowledgeEligibility?.eligible == true -> null
-        knowledgeEligibility?.errorCode == SkillKnowledgeErrorCode.OPENAI_NOT_CONFIGURED && hasOpenRouterProvider && openAIProvider == null ->
-            SkillKnowledgeCtaReason.OnlyOpenRouter
-        knowledgeEligibility?.errorCode == SkillKnowledgeErrorCode.OPENAI_NOT_CONFIGURED ->
-            SkillKnowledgeCtaReason.NoOpenAIKey
-        knowledgeEligibility?.errorCode == SkillKnowledgeErrorCode.OPENAI_ENDPOINT_NOT_OFFICIAL ->
-            SkillKnowledgeCtaReason.OpenAIEndpointNotOfficial
-        knowledgeEligibility?.errorCode == SkillKnowledgeErrorCode.RETRIEVAL_MODEL_NOT_ENABLED ->
-            SkillKnowledgeCtaReason.RetrievalModelNotEnabled
-        else ->
-            SkillKnowledgeCtaReason.ServiceUnavailable
-    }
-    val knowledgeCta = when (currentKnowledgeCtaReason) {
-        SkillKnowledgeCtaReason.NoOpenAIKey -> SkillKnowledgeCtaContent(
-            reason = SkillKnowledgeCtaReason.NoOpenAIKey,
-            message = context.getString(R.string.skills_knowledgeCtaOpenAIRequired),
-            primaryLabel = context.getString(R.string.skills_knowledgeCtaConfigureOpenAI),
-            secondaryLabel = context.getString(R.string.skills_knowledgeCtaNotNow),
-        )
-        SkillKnowledgeCtaReason.OnlyOpenRouter -> SkillKnowledgeCtaContent(
-            reason = SkillKnowledgeCtaReason.OnlyOpenRouter,
-            message = context.getString(R.string.skills_knowledgeCtaOpenRouterOnly),
-            primaryLabel = context.getString(R.string.skills_knowledgeCtaAddOpenAIKey),
-            secondaryLabel = context.getString(R.string.skills_knowledgeCtaNotNow),
-        )
-        SkillKnowledgeCtaReason.OpenAIEndpointNotOfficial -> SkillKnowledgeCtaContent(
-            reason = SkillKnowledgeCtaReason.OpenAIEndpointNotOfficial,
-            message = context.getString(R.string.skills_knowledgeCtaEndpointNotOfficial),
-            primaryLabel = context.getString(R.string.skills_knowledgeCtaCheckOpenAIConfiguration),
-            secondaryLabel = context.getString(R.string.skills_knowledgeCtaNotNow),
-        )
-        SkillKnowledgeCtaReason.RetrievalModelNotEnabled -> SkillKnowledgeCtaContent(
-            reason = SkillKnowledgeCtaReason.RetrievalModelNotEnabled,
-            message = context.getString(R.string.skills_knowledgeCtaRetrievalModel),
-            requiredModel = requiredKnowledgeModel,
-            primaryLabel = context.getString(R.string.skills_knowledgeCtaAddModel),
-            secondaryLabel = context.getString(R.string.skills_knowledgeCtaNotNow),
-        )
-        SkillKnowledgeCtaReason.ServiceUnavailable -> SkillKnowledgeCtaContent(
-            reason = SkillKnowledgeCtaReason.ServiceUnavailable,
-            message = context.getString(R.string.skills_knowledgeCtaServiceUnavailable),
-            primaryLabel = context.getString(R.string.skills_knowledgeCtaTryAgain),
-            secondaryLabel = context.getString(R.string.skills_knowledgeCtaContinueEditingSkill),
-        )
-        null -> null
-    }
-    val shouldShowKnowledgeCta = knowledgeCta != null && dismissedKnowledgeCtaReason != knowledgeCta.reason
-
-    fun knowledgeFileSubtitle(file: SkillKnowledgeBaseFile): String {
-        val parts = mutableListOf(
-            formatKnowledgeBytes(file.sizeBytes),
-            localizedKnowledgeStatus(displayKnowledgeStatus(file)),
-        )
-        file.errorCode?.let { parts += localizedKnowledgeError(it) }
-        return parts.joinToString(" · ")
-    }
-
-    suspend fun startKnowledgeUpload(source: ImportedFileSource, replacing: String?) {
-        errorMessage = null
-        val runtime = knowledgeRuntime
-        if (runtime == null) {
-            errorMessage = localizedKnowledgeError(SkillKnowledgeErrorCode.KNOWLEDGE_SERVICE_UNAVAILABLE)
-            return
-        }
-        val provider = openAIProvider
-        if (provider == null) {
-            errorMessage = localizedKnowledgeError(SkillKnowledgeErrorCode.OPENAI_NOT_CONFIGURED)
-            return
-        }
-        if (!isKnowledgeFileTypeSupported(source.fileName, source.mimeType, runtime.supportedFileTypes)) {
-            errorMessage = localizedKnowledgeError(SkillKnowledgeErrorCode.UNSUPPORTED_FILE_TYPE)
-            return
-        }
-
-        val targetFile = replacing?.let { targetId ->
-            knowledgeBase?.files?.firstOrNull { it.id == targetId }
-        }
-        val previousKnowledgeBase = knowledgeBase
-        val originalOpenAIFileIds = originalKnowledgeBase
-            ?.files
-            ?.mapNotNull { it.openAIFileId?.trim()?.takeIf(String::isNotEmpty) }
-            ?.toSet()
-            ?: emptySet()
-        val targetIsPersistedRemoteFile = targetFile?.openAIFileId?.let { it in originalOpenAIFileIds } == true
-        val existingBytes = maxOf(0L, knowledgeUsedBytes - (targetFile?.sizeBytes ?: 0L))
-        val existingCount = maxOf(0, (knowledgeBase?.files?.size ?: 0) - if (targetFile == null) 0 else 1)
-        validateKnowledgeBaseQuota(
-            existingCount = existingCount,
-            existingBytes = existingBytes,
-            nextFileBytes = source.sizeBytes,
-        )?.let { quotaError ->
-            errorMessage = localizedKnowledgeError(quotaError)
-            return
-        }
-
-        val payload = buildKnowledgeUploadPayload(
-            data = source.bytes,
-            fileName = source.fileName,
-            mimeType = source.mimeType,
-            sizeBytes = source.sizeBytes,
-        )
-        val localFileId = targetFile?.id ?: UUID.randomUUID().toString()
-        knowledgeRetryCache[localFileId] = payload
-        knowledgePendingId = localFileId
-        knowledgeBase = upsertKnowledgeBase(
-            knowledgeBase = knowledgeBase,
-            provider = runtime.provider,
-            retrievalModel = runtime.retrievalModel,
-            expiresAfterDays = runtime.expiresAfterDays,
-            vectorStoreId = knowledgeBase?.vectorStoreId,
-            file = buildLocalKnowledgeBaseFile(
-                id = localFileId,
-                name = payload.displayName,
-                mimeType = payload.displayMimeType,
-                sizeBytes = payload.displaySizeBytes,
-                ingestionMode = payload.ingestionMode,
-                extractedFrom = payload.extractedFrom,
-                status = if (targetFile == null) SkillKnowledgeFileStatus.UPLOADING else SkillKnowledgeFileStatus.REPLACING,
-                createdAt = targetFile?.createdAt,
-            ),
-        )
-
-        try {
-            val nextKnowledgeBase = if (targetFile != null) {
-                if (targetIsPersistedRemoteFile) {
-                    null
-                } else {
-                    null
-                }
-            } else {
-                null
-            }
-            knowledgeBase = nextKnowledgeBase
-            knowledgeRetryCache.remove(localFileId)
-        } catch (error: Exception) {
-            val errorCode = resolveKnowledgeErrorCode(
-                error = error,
-                fallback = SkillKnowledgeErrorCode.KNOWLEDGE_UPLOAD_FAILED,
-            )
-            knowledgeBase = if (targetFile != null && targetIsPersistedRemoteFile) {
-                previousKnowledgeBase
-            } else if (targetFile != null) {
-                upsertKnowledgeBase(
-                    knowledgeBase = knowledgeBase,
-                    provider = runtime.provider,
-                    retrievalModel = runtime.retrievalModel,
-                    expiresAfterDays = runtime.expiresAfterDays,
-                    vectorStoreId = knowledgeBase?.vectorStoreId,
-                    file = buildLocalKnowledgeBaseFile(
-                        id = targetFile.id,
-                        name = payload.displayName,
-                        mimeType = payload.displayMimeType,
-                        sizeBytes = payload.displaySizeBytes,
-                        ingestionMode = payload.ingestionMode,
-                        extractedFrom = payload.extractedFrom,
-                        openAIFileId = targetFile.openAIFileId,
-                        status = SkillKnowledgeFileStatus.FAILED,
-                        errorCode = errorCode,
-                        createdAt = targetFile.createdAt,
-                    ),
-                )
-            } else {
-                upsertKnowledgeBase(
-                    knowledgeBase = knowledgeBase,
-                    provider = runtime.provider,
-                    retrievalModel = runtime.retrievalModel,
-                    expiresAfterDays = runtime.expiresAfterDays,
-                    vectorStoreId = knowledgeBase?.vectorStoreId,
-                    file = buildLocalKnowledgeBaseFile(
-                        id = localFileId,
-                        name = payload.displayName,
-                        mimeType = payload.displayMimeType,
-                        sizeBytes = payload.displaySizeBytes,
-                        ingestionMode = payload.ingestionMode,
-                        extractedFrom = payload.extractedFrom,
-                        status = SkillKnowledgeFileStatus.FAILED,
-                        errorCode = errorCode,
-                    ),
-                )
-            }
-            errorMessage = localizedGuardError(error) ?: localizedKnowledgeError(errorCode)
-        } finally {
-            knowledgePendingId = null
-            knowledgeReplaceTargetId = null
-        }
-    }
-
-    suspend fun retryKnowledgeFile(file: SkillKnowledgeBaseFile) {
-        val payload = knowledgeRetryCache[file.id]
-        if (payload == null) {
-            errorMessage = context.getString(R.string.skills_knowledgeRetryUnavailable)
-            return
-        }
-        val runtime = knowledgeRuntime
-        if (runtime == null) {
-            errorMessage = localizedKnowledgeError(SkillKnowledgeErrorCode.KNOWLEDGE_SERVICE_UNAVAILABLE)
-            return
-        }
-        val provider = openAIProvider
-        if (provider == null) {
-            errorMessage = localizedKnowledgeError(SkillKnowledgeErrorCode.OPENAI_NOT_CONFIGURED)
-            return
-        }
-
-        knowledgePendingId = file.id
-        knowledgeBase = upsertKnowledgeBase(
-            knowledgeBase = knowledgeBase,
-            provider = runtime.provider,
-            retrievalModel = runtime.retrievalModel,
-            expiresAfterDays = runtime.expiresAfterDays,
-            vectorStoreId = knowledgeBase?.vectorStoreId,
-            file = buildLocalKnowledgeBaseFile(
-                id = file.id,
-                name = payload.displayName,
-                mimeType = payload.displayMimeType,
-                sizeBytes = payload.displaySizeBytes,
-                ingestionMode = payload.ingestionMode,
-                extractedFrom = payload.extractedFrom,
-                openAIFileId = file.openAIFileId,
-                status = SkillKnowledgeFileStatus.UPLOADING,
-                createdAt = file.createdAt,
-            ),
-        )
-
-        try {
-            val nextKnowledgeBase = null
-            knowledgeBase = nextKnowledgeBase
-            knowledgeRetryCache.remove(file.id)
-        } catch (error: Exception) {
-            val errorCode = resolveKnowledgeErrorCode(
-                error = error,
-                fallback = SkillKnowledgeErrorCode.KNOWLEDGE_UPLOAD_FAILED,
-            )
-            knowledgeBase = upsertKnowledgeBase(
-                knowledgeBase = knowledgeBase,
-                provider = runtime.provider,
-                retrievalModel = runtime.retrievalModel,
-                expiresAfterDays = runtime.expiresAfterDays,
-                vectorStoreId = knowledgeBase?.vectorStoreId,
-                file = buildLocalKnowledgeBaseFile(
-                    id = file.id,
-                    name = payload.displayName,
-                    mimeType = payload.displayMimeType,
-                    sizeBytes = payload.displaySizeBytes,
-                    ingestionMode = payload.ingestionMode,
-                    extractedFrom = payload.extractedFrom,
-                    status = SkillKnowledgeFileStatus.FAILED,
-                    errorCode = errorCode,
-                    createdAt = file.createdAt,
-                ),
-            )
-            errorMessage = localizedGuardError(error) ?: localizedKnowledgeError(errorCode)
-        } finally {
-            knowledgePendingId = null
-        }
-    }
-
-    suspend fun deleteKnowledgeFile(file: SkillKnowledgeBaseFile) {
-        val previousKnowledgeBase = knowledgeBase
-        val originalOpenAIFileIds = originalKnowledgeBase
-            ?.files
-            ?.mapNotNull { it.openAIFileId?.trim()?.takeIf(String::isNotEmpty) }
-            ?.toSet()
-            ?: emptySet()
-        val isPersistedRemoteFile = file.openAIFileId?.let { it in originalOpenAIFileIds } == true
-        val hasRemoteDraftResource = !file.openAIFileId.isNullOrBlank() && !isPersistedRemoteFile
-        knowledgePendingId = file.id
-
-        if (hasRemoteDraftResource && previousKnowledgeBase != null) {
-            knowledgeBase = upsertKnowledgeBase(
-                knowledgeBase = previousKnowledgeBase,
-                provider = previousKnowledgeBase.provider,
-                retrievalModel = previousKnowledgeBase.retrievalModel,
-                expiresAfterDays = previousKnowledgeBase.expiresAfterDays,
-                vectorStoreId = previousKnowledgeBase.vectorStoreId,
-                file = file.copy(
-                    status = SkillKnowledgeFileStatus.DELETING,
-                ),
-            )
-        }
-
-        try {
-            val provider = openAIProvider
-            knowledgeBase = if (previousKnowledgeBase != null && hasRemoteDraftResource) {
-                if (provider == null) {
-                    throw IllegalStateException("openai_not_configured")
-                }
-                null
-                removeKnowledgeBaseFile(previousKnowledgeBase, file.id)
-            } else {
-                removeKnowledgeBaseFile(previousKnowledgeBase, file.id)
-            }
-            knowledgeRetryCache.remove(file.id)
-        } catch (error: Exception) {
-            knowledgeBase = previousKnowledgeBase
-            errorMessage = localizedGuardError(error) ?: localizedKnowledgeError(
-                resolveKnowledgeErrorCode(
-                    error = error,
-                    fallback = SkillKnowledgeErrorCode.KNOWLEDGE_CLEANUP_FAILED,
-                ),
-            )
-        } finally {
-            knowledgePendingId = null
-        }
-    }
-
     val referenceFilePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument(),
     ) { uri: Uri? ->
         if (uri == null) return@rememberLauncherForActivityResult
         fileImportScope.launch {
             try {
-                
-                
+
                 val metadata = inspectImportedFile(uri)
                 metadata.declaredSizeBytes?.let { declaredSize ->
                     validateReferenceFileSize(declaredSize)?.let { sizeError ->
@@ -899,70 +357,9 @@ fun SkillEditScreen(
         }
     }
 
-    val knowledgeFilePickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.OpenDocument(),
-    ) { uri: Uri? ->
-        if (uri == null) {
-            knowledgeReplaceTargetId = null
-            return@rememberLauncherForActivityResult
-        }
-        fileImportScope.launch {
-            try {
-                
-                
-                
-                val metadata = inspectImportedFile(uri)
-                metadata.declaredSizeBytes?.let { declaredSize ->
-                    val existing = knowledgeBase?.files
-                    val quotaError = validateKnowledgeBaseQuota(
-                        existingCount = existing?.size ?: 0,
-                        existingBytes = existing?.sumOf { it.sizeBytes } ?: 0L,
-                        nextFileBytes = declaredSize,
-                    )
-                    if (quotaError != null) {
-                        knowledgeReplaceTargetId = null
-                        errorMessage = localizedKnowledgeError(quotaError)
-                        return@launch
-                    }
-                }
-                val source = try {
-                    loadImportedFileSource(uri, MAX_KNOWLEDGE_FILE_SIZE_BYTES)
-                } catch (_: InputSizeLimitExceededException) {
-                    knowledgeReplaceTargetId = null
-                    errorMessage = localizedKnowledgeError(SkillKnowledgeErrorCode.KNOWLEDGE_FILE_TOO_LARGE)
-                    return@launch
-                }
-                startKnowledgeUpload(
-                    source = source,
-                    replacing = knowledgeReplaceTargetId,
-                )
-            } catch (error: Exception) {
-                knowledgeReplaceTargetId = null
-                errorMessage = error.message ?: context.getString(R.string.skills_knowledgeImportFailed)
-            }
-        }
-    }
-
-    
     fun save() {
         errorMessage = null
         if (skillId != null) {
-            val knowledgeCleanup = if (requiresRemoteKnowledgeCleanup(
-                    originalKnowledgeBase = originalKnowledgeBase,
-                    currentKnowledgeBase = knowledgeBase,
-                )) {
-                val provider = openAIProvider
-                if (provider == null) {
-                    errorMessage = localizedKnowledgeError(SkillKnowledgeErrorCode.OPENAI_NOT_CONFIGURED)
-                    return
-                }
-                buildKnowledgeCleanupInput(
-                    providerApiKey = provider.apiKey,
-                    providerBaseUrl = provider.baseUrlText,
-                )
-            } else {
-                null
-            }
             viewModel.updateSkill(
                 id = skillId,
                 name = name.trim(),
@@ -970,8 +367,6 @@ fun SkillEditScreen(
                 icon = icon,
                 color = color,
                 systemPrompt = systemPrompt,
-                
-                
                 suggestedProviderId = existingSkill?.suggestedProviderId,
                 suggestedModelId = existingSkill?.suggestedModelId,
                 modelCapabilityHint = modelCapabilityHint,
@@ -980,13 +375,9 @@ fun SkillEditScreen(
                 webSearchEnabled = existingSkill?.webSearchEnabled,
                 starterMessages = emptyList(),
                 knowledgeFiles = knowledgeFiles.toList(),
-                knowledgeBase = knowledgeBase,
-                knowledgeCleanup = knowledgeCleanup,
                 useMemory = useMemory,
                 onSuccess = { onBack() },
-                onError = {
-                    errorMessage = decodeKnowledgeErrorCode(it)?.let(::localizedKnowledgeError) ?: it
-                },
+                onError = { errorMessage = it },
             )
         } else {
             viewModel.createSkill(
@@ -1003,7 +394,6 @@ fun SkillEditScreen(
                 webSearchEnabled = null,
                 starterMessages = emptyList(),
                 knowledgeFiles = knowledgeFiles.toList(),
-                knowledgeBase = knowledgeBase,
                 useMemory = useMemory,
                 onSuccess = { onBack() },
                 onError = { errorMessage = it },
@@ -1046,7 +436,7 @@ fun SkillEditScreen(
                         }
                     },
                     actions = {
-                        
+
                         if (viewModel.isSaving) {
                             CircularProgressIndicator(
                                 modifier = Modifier
@@ -1120,12 +510,12 @@ fun SkillEditScreen(
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.spacedBy(spacing.s20),
                     ) {
-                        
+
                         Box(
                             modifier = Modifier.size(104.dp),
                             contentAlignment = Alignment.Center,
                         ) {
-                            
+
                             Box(
                                 modifier = Modifier
                                     .size(104.dp)
@@ -1134,7 +524,7 @@ fun SkillEditScreen(
                                         shape = RoundedCornerShape(28.dp),
                                     ),
                             )
-                            
+
                             Box(
                                 modifier = Modifier
                                     .size(80.dp)
@@ -1163,13 +553,12 @@ fun SkillEditScreen(
                             }
                         }
 
-                        
                         Column(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalAlignment = Alignment.CenterHorizontally,
                             verticalArrangement = Arrangement.spacedBy(spacing.sm),
                         ) {
-                            
+
                             BasicTextField(
                                 value = name,
                                 onValueChange = { if (it.length <= 50) name = it },
@@ -1196,7 +585,7 @@ fun SkillEditScreen(
                                     }
                                 },
                             )
-                            
+
                             BasicTextField(
                                 value = description,
                                 onValueChange = { if (it.length <= 100) description = it },
@@ -1225,13 +614,11 @@ fun SkillEditScreen(
                             )
                         }
 
-                        
                         HorizontalDivider(
                             color = colors.border.opacity(0.5f),
                             modifier = Modifier.padding(horizontal = spacing.lg),
                         )
 
-                        
                         FlowRow(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(spacing.md, Alignment.CenterHorizontally),
@@ -1309,7 +696,7 @@ fun SkillEditScreen(
                         trailing = stringResource(
                             R.string.skills_filesQuota,
                             knowledgeFiles.size,
-                            MAX_KNOWLEDGE_FILES,
+                            MAX_REFERENCE_FILES,
                         ),
                     )
 
@@ -1345,7 +732,7 @@ fun SkillEditScreen(
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.spacedBy(spacing.md),
                                     ) {
-                                        
+
                                         Box(
                                             modifier = Modifier
                                                 .size(34.dp)
@@ -1362,7 +749,7 @@ fun SkillEditScreen(
                                                 tint = colors.primary,
                                             )
                                         }
-                                        
+
                                         Column(modifier = Modifier.weight(1f)) {
                                             Text(
                                                 text = file.name,
@@ -1376,7 +763,7 @@ fun SkillEditScreen(
                                                 color = colors.textTertiary,
                                             )
                                         }
-                                        
+
                                         IconButton(
                                             onClick = { knowledgeFiles.removeAt(index) },
                                             modifier = Modifier.size(24.dp),
@@ -1392,7 +779,7 @@ fun SkillEditScreen(
                                 }
                             }
 
-                            if (knowledgeFiles.size < MAX_KNOWLEDGE_FILES) {
+                            if (knowledgeFiles.size < MAX_REFERENCE_FILES) {
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -1434,221 +821,6 @@ fun SkillEditScreen(
                     }
                 }
 
-                // ── Knowledge Base Files Section ──
-                Column(verticalArrangement = Arrangement.spacedBy(spacing.sm)) {
-                    SectionLabel(
-                        text = stringResource(R.string.skills_knowledgeBaseFiles),
-                        tooltip = stringResource(R.string.skills_tipKnowledgeBaseFiles),
-                        trailing = stringResource(
-                            R.string.skills_filesQuota,
-                            knowledgeBase?.files?.size ?: 0,
-                            MAX_KNOWLEDGE_FILES,
-                        ),
-                    )
-
-                    OriveoCard(contentPadding = PaddingValues(vertical = spacing.xs)) {
-                        Column {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = spacing.lg, vertical = 14.dp),
-                                horizontalArrangement = Arrangement.spacedBy(spacing.md),
-                            ) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = knowledgeRuntime?.let {
-                                            context.getString(
-                                                R.string.skills_knowledgeProviderSummary,
-                                                it.provider,
-                                                it.retrievalModel,
-                                            )
-                                        } ?: stringResource(R.string.skills_knowledgeErrorServiceUnavailable),
-                                        style = typography.footnote,
-                                        color = colors.textSecondary,
-                                    )
-                                    Spacer(Modifier.height(4.dp))
-                                    Text(
-                                        text = context.getString(
-                                            R.string.skills_knowledgeBytesSummary,
-                                            formatKnowledgeBytes(knowledgeUsedBytes),
-                                            formatKnowledgeBytes(MAX_KNOWLEDGE_TOTAL_BYTES),
-                                        ),
-                                        style = typography.footnote,
-                                        color = colors.textTertiary,
-                                    )
-                                    Spacer(Modifier.height(4.dp))
-                                    Text(
-                                        text = knowledgeEligibilityHint,
-                                        style = typography.caption,
-                                        color = colors.textTertiary,
-                                    )
-                                    if (shouldShowKnowledgeCta) {
-                                        Spacer(Modifier.height(spacing.sm))
-                                        KnowledgeCtaCard(
-                                            content = knowledgeCta,
-                                            onPrimaryClick = {
-                                                when (knowledgeCta.reason) {
-                                                    SkillKnowledgeCtaReason.NoOpenAIKey,
-                                                    SkillKnowledgeCtaReason.OnlyOpenRouter -> onOpenOpenAISetup()
-                                                    SkillKnowledgeCtaReason.OpenAIEndpointNotOfficial,
-                                                    SkillKnowledgeCtaReason.RetrievalModelNotEnabled -> {
-                                                        openAIProvider?.id?.let(onOpenOpenAIProviderDetail) ?: onOpenOpenAISetup()
-                                                    }
-                                                    SkillKnowledgeCtaReason.ServiceUnavailable -> {
-                                                        knowledgeRefreshTick += 1
-                                                    }
-                                                }
-                                            },
-                                            onSecondaryClick = {
-                                                dismissedKnowledgeCtaReason = knowledgeCta.reason
-                                            },
-                                        )
-                                    }
-                                }
-                            }
-
-                            CardDivider()
-
-                            if ((knowledgeBase?.files?.isEmpty() ?: true)) {
-                                Text(
-                                    text = stringResource(R.string.skills_noKnowledgeBaseFiles),
-                                    style = typography.caption,
-                                    color = colors.textTertiary,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(horizontal = spacing.lg, vertical = 14.dp),
-                                    textAlign = TextAlign.Center,
-                                )
-                                CardDivider()
-                            }
-
-                            knowledgeBase?.files?.forEach { file ->
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(horizontal = spacing.md, vertical = 4.dp),
-                                ) {
-                                    Column(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .background(
-                                                color = colors.surfaceInset.copy(alpha = 0.6f),
-                                                shape = RoundedCornerShape(10.dp),
-                                            )
-                                            .padding(horizontal = spacing.md, vertical = spacing.sm),
-                                        verticalArrangement = Arrangement.spacedBy(spacing.sm),
-                                    ) {
-                                        Row(
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(spacing.md),
-                                        ) {
-                                            Box(
-                                                modifier = Modifier
-                                                    .size(34.dp)
-                                                    .background(
-                                                        color = colors.primary.copy(alpha = 0.1f),
-                                                        shape = RoundedCornerShape(8.dp),
-                                                    ),
-                                                contentAlignment = Alignment.Center,
-                                            ) {
-                                                Icon(
-                                                    Icons.Filled.Description,
-                                                    contentDescription = null,
-                                                    modifier = Modifier.size(16.dp),
-                                                    tint = colors.primary,
-                                                )
-                                            }
-                                            Column(modifier = Modifier.weight(1f)) {
-                                                Text(
-                                                    text = file.name,
-                                                    style = typography.body,
-                                                    color = colors.textPrimary,
-                                                    maxLines = 1,
-                                                )
-                                                Text(
-                                                    text = knowledgeFileSubtitle(file),
-                                                    style = typography.footnote,
-                                                    color = colors.textTertiary,
-                                                )
-                                            }
-                                        }
-
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.End,
-                                        ) {
-                                            if (displayKnowledgeStatus(file) == SkillKnowledgeFileStatus.READY) {
-                                                TextButton(
-                                                    onClick = {
-                                                        knowledgeReplaceTargetId = file.id
-                                                        launchExternalActivityOrNotify(androidContext) {
-                                                            knowledgeFilePickerLauncher.launch(arrayOf("*/*"))
-                                                        }
-                                                    },
-                                                    enabled = !knowledgeMutating,
-                                                ) {
-                                                    Text(stringResource(R.string.skills_replaceFile))
-                                                }
-                                            }
-                                            if (file.status == SkillKnowledgeFileStatus.FAILED && knowledgeEligible) {
-                                                TextButton(
-                                                    onClick = { fileImportScope.launch { retryKnowledgeFile(file) } },
-                                                    enabled = !knowledgeMutating,
-                                                ) {
-                                                    Text(stringResource(R.string.skills_retryFile))
-                                                }
-                                            }
-                                            TextButton(
-                                                onClick = { fileImportScope.launch { deleteKnowledgeFile(file) } },
-                                                enabled = !knowledgeMutating,
-                                            ) {
-                                                Text(stringResource(R.string.skills_deleteFile))
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-
-                            if ((knowledgeBase?.files?.size ?: 0) < MAX_KNOWLEDGE_FILES) {
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clickable(enabled = !knowledgeMutating && knowledgeEligible) {
-                                            knowledgeReplaceTargetId = null
-                                            launchExternalActivityOrNotify(androidContext) {
-                                                knowledgeFilePickerLauncher.launch(arrayOf("*/*"))
-                                            }
-                                        }
-                                        .padding(vertical = 14.dp),
-                                    horizontalArrangement = Arrangement.Center,
-                                    verticalAlignment = Alignment.CenterVertically,
-                                ) {
-                                    Icon(
-                                        Icons.Filled.Add,
-                                        contentDescription = null,
-                                        modifier = Modifier.size(13.dp),
-                                        tint = if (knowledgeEligible && !knowledgeMutating) {
-                                            colors.primary
-                                        } else {
-                                            colors.textTertiary
-                                        },
-                                    )
-                                    Spacer(Modifier.width(spacing.xs))
-                                    Text(
-                                        text = stringResource(R.string.skills_addKnowledgeFile),
-                                        style = typography.caption,
-                                        color = if (knowledgeEligible && !knowledgeMutating) {
-                                            colors.primary
-                                        } else {
-                                            colors.textTertiary
-                                        },
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-
                 // ── Advanced Section ──
                 Column(verticalArrangement = Arrangement.spacedBy(spacing.sm)) {
                     SectionLabel(
@@ -1658,7 +830,7 @@ fun SkillEditScreen(
 
                     OriveoCard(contentPadding = PaddingValues(0.dp)) {
                         Column {
-                            
+
                             val chevronRotation by animateFloatAsState(
                                 targetValue = if (showAdvanced) 90f else 0f,
                                 label = "chevron",
@@ -1712,11 +884,7 @@ fun SkillEditScreen(
                                                     style = typography.body,
                                                     color = colors.textPrimary,
                                                 )
-                                                
-                                                
-                                                
-                                                
-                                                
+
                                                 Text(
                                                     text = stringResource(R.string.skill_capability_confirm_note),
                                                     style = typography.footnote,
@@ -1821,10 +989,8 @@ fun SkillEditScreen(
                 confirmButton = {
                     TextButton(onClick = {
                         fileImportScope.launch {
-                            if (cleanupDraftKnowledgeResources()) {
-                                showDiscardDialog = false
-                                onBack()
-                            }
+                            showDiscardDialog = false
+                            onBack()
                         }
                     }) {
                         Text(stringResource(R.string.discard))
@@ -1855,7 +1021,7 @@ fun SkillEditScreen(
                     TextButton(onClick = {
                         val trimmed = iconInput.trim()
                         if (trimmed.isNotEmpty()) {
-                            
+
                             val codePoint = trimmed.codePointAt(0)
                             icon = String(Character.toChars(codePoint))
                         }
@@ -1872,12 +1038,6 @@ fun SkillEditScreen(
             )
         }
 
-        
-        
-        
-        
-        
-
     }
 }
 
@@ -1888,87 +1048,11 @@ private data class ImportedFileSource(
     val sizeBytes: Long,
 )
 
-
 private data class ImportedFileMetadata(
     val fileName: String,
     val mimeType: String,
     val declaredSizeBytes: Long?,
 )
-
-
-@Composable
-private fun KnowledgeCtaCard(
-    content: SkillKnowledgeCtaContent,
-    onPrimaryClick: () -> Unit,
-    onSecondaryClick: () -> Unit,
-) {
-    val colors = OriveoTheme.colors
-    val spacing = OriveoTheme.spacing
-    val typography = OriveoTheme.typography
-
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(
-                color = colors.surfaceInset,
-                shape = RoundedCornerShape(12.dp),
-            )
-            .border(
-                width = OriveoBorderWidth.standard,
-                color = colors.border.opacity(0.6f),
-                shape = RoundedCornerShape(12.dp),
-            )
-            .padding(spacing.md),
-        verticalArrangement = Arrangement.spacedBy(spacing.sm),
-    ) {
-        Text(
-            text = content.message,
-            style = typography.caption,
-            color = colors.textSecondary,
-        )
-
-        val requiredModel = content.requiredModel?.trim().orEmpty()
-        if (requiredModel.isNotEmpty()) {
-            Text(
-                text = stringResource(R.string.skills_requiredModel, requiredModel),
-                style = typography.footnote,
-                color = colors.textSecondary,
-            )
-        }
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(spacing.sm),
-        ) {
-            TextButton(
-                onClick = onPrimaryClick,
-                modifier = Modifier
-                    .weight(1f)
-                    .background(colors.primary, RoundedCornerShape(999.dp)),
-            ) {
-                Text(
-                    text = content.primaryLabel,
-                    style = typography.caption,
-                    
-                    color = Color.White,
-                )
-            }
-
-            TextButton(
-                onClick = onSecondaryClick,
-                modifier = Modifier
-                    .weight(1f)
-                    .background(colors.surfaceElevated, RoundedCornerShape(999.dp)),
-            ) {
-                Text(
-                    text = content.secondaryLabel,
-                    style = typography.caption,
-                    color = colors.textSecondary,
-                )
-            }
-        }
-    }
-}
 
 @Composable
 private fun SectionLabel(

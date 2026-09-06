@@ -7,7 +7,6 @@ import ai.oriveo.community.core.model.ChatRequestOptions
 import ai.oriveo.community.core.model.Conversation
 import ai.oriveo.community.core.model.Provider
 import ai.oriveo.community.core.model.ReasoningMode
-import ai.oriveo.community.core.model.SkillKnowledgeRetrievalContext
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.AtomicReference
@@ -34,77 +33,58 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
-
 class ChatStreamingManager(
     private val chatRepository: ChatRepository,
-    
+
     dispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) {
     private class StreamingSession(
         val conversationId: String,
         val outputs: ConversationStreamingOutputs,
         @Volatile var job: Job? = null,
-        
+
         val startedAt: Long = System.currentTimeMillis(),
-        
+
         @Volatile var userStopRequested: Boolean = false,
     ) {
         val text: MutableStateFlow<String> get() = outputs.streamingText
         val messageIdState: MutableStateFlow<String?> get() = outputs.streamingMessageId
 
-        
         val reasoning: MutableStateFlow<String> get() = outputs.streamingReasoning
 
-        
         val reasoningStartedAt: MutableStateFlow<Long?> get() = outputs.reasoningStartedAtMs
     }
 
-    
-    
-    
-    
     private val streamingExceptionHandler = CoroutineExceptionHandler { _, e ->
         android.util.Log.e("ChatStreamingManager", "streaming coroutine crashed: ${e.localizedMessage}", e)
     }
     private val scope = CoroutineScope(SupervisorJob() + dispatcher + streamingExceptionHandler)
     private val mutex = Mutex()
 
-    
-    
     private val sessions = ConcurrentHashMap<String, StreamingSession>()
 
     private val _streamingConversationIds = MutableStateFlow<Set<String>>(emptySet())
 
-    
     val streamingConversationIds: StateFlow<Set<String>> = _streamingConversationIds.asStateFlow()
 
     private val _sessionsVersion = MutableStateFlow(0L)
 
-    
     val sessionsVersion: StateFlow<Long> = _sessionsVersion.asStateFlow()
 
-    
     val isAnyStreaming: Boolean get() = sessions.isNotEmpty()
 
-    
-
-    
     fun streamingText(conversationId: String): StateFlow<String> =
         sessions[conversationId]?.text?.asStateFlow() ?: EmptyTextFlow
 
-    
     fun streamingMessageId(conversationId: String): StateFlow<String?> =
         sessions[conversationId]?.messageIdState?.asStateFlow() ?: EmptyMessageIdFlow
 
-    
     fun streamingReasoning(conversationId: String): StateFlow<String> =
         sessions[conversationId]?.reasoning?.asStateFlow() ?: EmptyTextFlow
 
-    
     fun streamingReasoningStartedAt(conversationId: String): StateFlow<Long?> =
         sessions[conversationId]?.reasoningStartedAt?.asStateFlow() ?: EmptyReasoningStartedAtFlow
 
-    
     @OptIn(ExperimentalCoroutinesApi::class)
     fun reasoningActiveFlow(activeConversationId: StateFlow<String?>): Flow<Boolean> =
         combine(activeConversationId, sessionsVersion) { convId, _ -> convId }
@@ -113,23 +93,17 @@ class ChatStreamingManager(
             }
             .map { it != null }
 
-    
     fun isBusyStreaming(conversationId: String): Boolean =
         sessions.containsKey(conversationId)
 
-    
     fun streamStartedAt(conversationId: String): Long =
         sessions[conversationId]?.startedAt ?: 0L
 
-    
-
-    
     fun startStream(request: StreamRequest) {
         scope.launch {
             mutex.withLock {
                 val convId = request.conversation.id
 
-                
                 sessions[convId]?.let { old ->
                     val oldJob = old.job
                     oldJob?.cancel()
@@ -144,8 +118,7 @@ class ChatStreamingManager(
                 val session = StreamingSession(conversationId = convId, outputs = outputs)
                 sessions[convId] = session
                 _streamingConversationIds.value = sessions.keys.toSet()
-                
-                
+
                 _sessionsVersion.value = _sessionsVersion.value + 1
 
                 session.job = scope.launch {
@@ -162,20 +135,17 @@ class ChatStreamingManager(
                             webSearchEnabled = request.webSearchEnabled,
                             antiForgetText = request.antiForgetText,
                             requestOptions = request.requestOptions,
-                            retrieval = request.retrieval,
                             outputs = outputs,
                             persistUserMessage = request.persistUserMessage,
                             userMessageAlreadyInHistory = request.userMessageAlreadyInHistory,
                             appendToAssistant = request.appendToAssistant,
                         )
                     } finally {
-                        
-                        
-                        
+
                         if (sessions[convId] === session) {
                             sessions.remove(convId)
                             _streamingConversationIds.value = sessions.keys.toSet()
-                            
+
                             _sessionsVersion.value = _sessionsVersion.value + 1
                         }
                     }
@@ -184,21 +154,19 @@ class ChatStreamingManager(
         }
     }
 
-    
     fun stopStream(conversationId: String) {
         scope.launch {
             mutex.withLock {
-                
+
                 sessions[conversationId]?.let { session ->
                     session.userStopRequested = true
                     session.job?.cancel()
                 }
-                
+
             }
         }
     }
 
-    
     suspend fun stopStreamAndJoin(conversationId: String) {
         mutex.withLock {
             val session = sessions[conversationId] ?: return
@@ -232,7 +200,6 @@ class ChatStreamingManager(
         }
     }
 
-    
     suspend fun flushAllPartialsToMessage() {
         withContext(NonCancellable) {
             coroutineScope {
@@ -261,7 +228,6 @@ class ChatStreamingManager(
     }
 }
 
-
 data class StreamRequest(
     val conversation: Conversation,
     val text: String,
@@ -274,7 +240,6 @@ data class StreamRequest(
     val webSearchEnabled: Boolean = false,
     val antiForgetText: String? = null,
     val requestOptions: ChatRequestOptions = ChatRequestOptions(),
-    val retrieval: SkillKnowledgeRetrievalContext? = null,
     val persistUserMessage: Boolean = true,
     val userMessageAlreadyInHistory: Boolean = false,
     /** An existing assistant message to continue rather than starting a new one. */

@@ -38,7 +38,6 @@ import ai.oriveo.community.ui.component.OriveoCard
 import ai.oriveo.community.ui.component.OriveoPrimaryButton
 import ai.oriveo.community.ui.theme.OriveoTheme
 
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ImportResultSheet(
@@ -65,7 +64,6 @@ fun ImportResultSheet(
         ) {
             Spacer(modifier = Modifier.height(spacing.lg))
 
-            
             Icon(
                 imageVector = Icons.Filled.CheckCircle,
                 contentDescription = null,
@@ -75,7 +73,6 @@ fun ImportResultSheet(
 
             Spacer(modifier = Modifier.height(spacing.lg))
 
-            
             Text(
                 text = stringResource(R.string.import_complete),
                 style = OriveoTheme.typography.title1,
@@ -85,7 +82,6 @@ fun ImportResultSheet(
 
             Spacer(modifier = Modifier.height(layout.sectionGap))
 
-            
             OriveoCard {
                 Column(verticalArrangement = Arrangement.spacedBy(spacing.sm)) {
                     // Conversations
@@ -241,13 +237,6 @@ fun ImportResultSheet(
                             text = stringResource(R.string.result_restored_last_used_model),
                         )
                     }
-                    if (result.skillsRequiringKnowledgeReupload > 0) {
-                        ResultRow(
-                            icon = Icons.Filled.Warning,
-                            color = colors.warning,
-                            text = stringResource(R.string.knowledge_reupload_notice),
-                        )
-                    }
                     if (!result.hasChanges &&
                         result.skippedConversations == 0 &&
                         result.skippedProviders == 0 &&
@@ -267,7 +256,6 @@ fun ImportResultSheet(
 
             Spacer(modifier = Modifier.height(layout.sectionGap))
 
-            
             OriveoPrimaryButton(
                 text = stringResource(R.string.done),
                 onClick = onDone,

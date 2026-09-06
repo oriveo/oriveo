@@ -82,7 +82,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import ai.oriveo.community.R
-import ai.oriveo.community.core.data.repository.KnowledgeCleanupInput
 import ai.oriveo.community.core.model.Skill
 import ai.oriveo.community.core.model.SkillCategory
 import ai.oriveo.community.core.util.SkillL10n
@@ -120,7 +119,6 @@ fun SkillsListScreen(
     val catalogSkills by viewModel.catalogSkills.collectAsState()
     val userSkills by viewModel.userSkills.collectAsState()
     val categories by viewModel.categories.collectAsState()
-    val openAIProvider by viewModel.openAIKnowledgeProvider.collectAsState()
 
     var deleteErrorMessage by remember { mutableStateOf<String?>(null) }
     var searchText by rememberSaveable { mutableStateOf("") }
@@ -137,17 +135,6 @@ fun SkillsListScreen(
         animationSpec = tween(450, easing = FastOutSlowInEasing),
         label = "skills_page_translate",
     )
-    val knowledgeOpenAIError = stringResource(R.string.skills_knowledgeErrorOpenAI)
-    val knowledgeEndpointError = stringResource(R.string.skills_knowledgeErrorEndpoint)
-    val knowledgeCleanupError = stringResource(R.string.skills_knowledgeErrorCleanupFailed)
-
-    fun localizeDeleteError(message: String): String = when (message.trim()) {
-        "openai_not_configured" -> knowledgeOpenAIError
-        "openai_endpoint_not_official" -> knowledgeEndpointError
-        "knowledge_cleanup_failed" -> knowledgeCleanupError
-        else -> message
-    }
-
     val showSearchBar = remember(catalogSkills, userSkills) {
         catalogSkills.size + userSkills.size > 15
     }
@@ -394,30 +381,9 @@ fun SkillsListScreen(
                 },
                 confirmButton = {
                     TextButton(onClick = {
-                        val requiresKnowledgeCleanup = skill.knowledgeBase?.let { knowledgeBase ->
-                            knowledgeBase.vectorStoreId.isNotBlank() || knowledgeBase.files.any {
-                                !it.openAIFileId.isNullOrBlank()
-                            }
-                        } == true
-                        val cleanup = if (requiresKnowledgeCleanup) {
-                            val provider = openAIProvider
-                            if (provider == null) {
-                                deleteErrorMessage = knowledgeOpenAIError
-                                viewModel.skillToDelete = null
-                                return@TextButton
-                            }
-                            KnowledgeCleanupInput(
-                                apiKey = provider.apiKey,
-                                baseURL = provider.baseUrlText?.takeIf(String::isNotBlank),
-                            )
-                        } else {
-                            null
-                        }
-
                         viewModel.deleteSkill(
                             id = skill.id,
-                            knowledgeCleanup = cleanup,
-                            onError = { deleteErrorMessage = localizeDeleteError(it) },
+                            onError = { deleteErrorMessage = it },
                         )
                     }) {
                         Text(
@@ -447,7 +413,6 @@ fun SkillsListScreen(
         }
 
         // ── Login Prompt ──
-
 
         if (viewModel.showSkillProviderPrompt) {
             AlertDialog(
@@ -637,7 +602,6 @@ private fun NavToneButton(
         )
     }
 }
-
 
 // ── Filter Pill ──
 

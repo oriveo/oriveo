@@ -32,13 +32,11 @@ import ai.oriveo.community.R
 import ai.oriveo.community.core.model.Attachment
 import ai.oriveo.community.core.model.AttachmentKind
 
-
 @Composable
 fun AttachmentPreviewRow(
     attachments: List<Attachment>,
     onRemove: (Attachment) -> Unit,
     modifier: Modifier = Modifier,
-    onTapKnowledgeCTA: (() -> Unit)? = null,
 ) {
     if (attachments.isEmpty()) return
 
@@ -51,11 +49,9 @@ fun AttachmentPreviewRow(
             items = attachments,
             key = { it.id },
         ) { attachment ->
-            val showCta = onTapKnowledgeCTA != null && attachment.extractedTruncated == true
             AttachmentChip(
                 attachment = attachment,
                 onRemove = { onRemove(attachment) },
-                onTapKnowledgeCTA = if (showCta) onTapKnowledgeCTA else null,
             )
         }
     }
@@ -65,7 +61,6 @@ fun AttachmentPreviewRow(
 private fun AttachmentChip(
     attachment: Attachment,
     onRemove: () -> Unit,
-    onTapKnowledgeCTA: (() -> Unit)? = null,
 ) {
     Box {
         Column(
@@ -93,7 +88,6 @@ private fun AttachmentChip(
                 modifier = Modifier.padding(top = 4.dp),
             )
 
-            
             val lines = attachment.extractedTotalLines
             if (lines != null && lines > 0) {
                 val truncated = attachment.extractedTruncated == true
@@ -106,23 +100,8 @@ private fun AttachmentChip(
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-
-            
-            if (onTapKnowledgeCTA != null) {
-                Text(
-                    text = stringResource(R.string.file_extraction_truncated_cta_knowledge),
-                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
-                    color = MaterialTheme.colorScheme.primary,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier
-                        .padding(top = 2.dp)
-                        .clickable(onClick = onTapKnowledgeCTA),
-                )
-            }
         }
 
-        
         Box(
             modifier = Modifier
                 .align(Alignment.TopEnd)
