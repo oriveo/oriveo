@@ -15,6 +15,13 @@ anything else, including llama.cpp, Ollama, LM Studio, vLLM and Open WebUI. The 
 languages. The only request the app makes on its own behalf is a read-only, unauthenticated model
 catalog, which you can point at your own host. Licensed AGPL-3.0-or-later.
 
+## Get the app
+
+- [oriveoai.com](https://oriveoai.com): the official website, and the shortest path to the app on every platform
+- [App Store](https://apps.apple.com/app/oriveo/id6775370458): Oriveo for iPhone and iPad
+- [Google Play](https://play.google.com/store/apps/details?id=com.kenny.oriveo): Oriveo for Android
+- [Web app](https://app.oriveoai.com): Oriveo in the browser, nothing to install
+
 ## Start here
 
 - [README](https://github.com/oriveo/oriveo/blob/main/README.md): what Oriveo is, why it exists, the full feature list, the provider table, the architecture, and how to build each client
