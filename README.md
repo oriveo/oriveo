@@ -104,8 +104,8 @@ Nobody should be able to meter, log, or mark up the model you are paying for.
 - **Relay** — any OpenAI-, Anthropic- or Gemini-compatible endpoint, including one on your LAN
 - **Local model servers** — llama.cpp, Ollama, LM Studio, vLLM, Open WebUI; iOS and Android find
   them on the local network over mDNS
-- **Subscription sign-in** — use a Codex or Grok subscription you already hold instead of an API
-  key, over each provider's own device-authorization flow
+- **Subscription sign-in** — use a ChatGPT or Grok subscription you already hold instead of an
+  API key, over each provider's own device-authorization flow
 - **Skills** — reusable system prompts with their own model, reasoning setting, and reference
   documents
 - **Notes and folders** — capture a reply as a note, organise conversations, search across both
@@ -149,8 +149,9 @@ edition will and will not accept is written down in [COMMUNITY.md](COMMUNITY.md)
 
 ## Providers
 
-Every provider below is reached with a key you create yourself. Two of them, OpenAI and Grok, can
-also be reached by signing in to a subscription you already hold, instead of a key.
+Every provider below is reached with a key you create yourself. Two of them can also be reached by
+signing in with a subscription you already hold instead of a key: OpenAI with a ChatGPT plan, and
+Grok.
 
 | Provider | Where to get a key |
 |---|---|

@@ -171,7 +171,7 @@ utility-class framework. `packages/ipc-contract` describes the channel surface a
 bind to; no such shell ships in this repository, so on the web build it contributes types and
 branches that are never taken.
 
-There is one more seam of the same kind. `lib/core/sync-port.ts` declares the interface a
+There is one more seam of the same kind. `apps/app/lib/core/sync-port.ts` declares the interface a
 synchronisation backend would implement, and every call site reaches it through optional chaining.
 Nothing installs one, so `getSyncAdapter()` returns `null` and IndexedDB stays the only copy of your
 data — which is exactly what "no account, no sign-in" means in practice.

@@ -98,8 +98,8 @@ boundary.
 | GRDB `ValueObservation` | durable state read back from SQLite | one source of truth after a write, survives a relaunch |
 | Combine `PassthroughSubject` per conversation | streaming text and reasoning deltas | bypasses SwiftUI diffing entirely at token rate |
 
-**Provider support is four independent axes, not one enum.** `ProviderKind` (16 cases) is *who the
-user configured*. `ProviderServiceProtocol` is *the call surface*. `TransportKind` (12 cases) is
+**Provider support is four independent axes, not one enum.** `ProviderKind` (16 cases: the fifteen
+providers plus relay) is *who the user configured*. `ProviderServiceProtocol` is *the call surface*. `TransportKind` (12 cases) is
 *which wire protocol is actually spoken* — and it is resolved **per model, from the catalog**, so
 two models behind the same key can disagree. `RelayKind` covers user-supplied endpoints. Keeping
 them separate is what lets a new model work without a new build.
@@ -117,7 +117,7 @@ flowchart LR
 ```
 
 `BaseAPIService.encodeChatBody` is the last stop before an OpenAI-compatible request becomes
-bytes — twelve of the sixteen providers go through it, so a capability recipe, generation parameter
+bytes — twelve of the sixteen kinds go through it, so a capability recipe, generation parameter
 or custom field is testable in one place rather than twelve. OpenAI, Anthropic and Gemini speak
 their own shapes and serialize in their own services; each of those points is covered by its own
 request-shape suite.
@@ -242,8 +242,7 @@ The project file uses `objectVersion = 77` with file-system synchronized groups,
 may refuse to open it. Update Xcode rather than editing the project format.
 
 > [!NOTE]
-> The app target compiles in Swift 5 language mode with `SWIFT_APPROACHABLE_CONCURRENCY` and
-> `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor`. The local `OriveoProviderKit` package declares
+> The app target compiles in Swift 5 language mode; the local `OriveoProviderKit` package declares
 > `swift-tools-version: 6.1` and builds in Swift 6 language mode.
 
 ## Dependencies
