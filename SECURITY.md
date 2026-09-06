@@ -28,8 +28,12 @@ the ones worth reporting against:
   to — written to a log, included in an error report, sent to the wrong endpoint, left in an export
   that was supposed to exclude it, or readable by another app on the device.
 - **Request forgery.** Anything that makes a client issue a request to a host the user did not
-  configure. The relay forwarder in the web client pins DNS, refuses private and link-local
-  addresses, and bounds redirects; a way around any of that is a vulnerability.
+  configure. The relay forwarder in the web client resolves a hostname once and pins the resulting
+  address for the connection, refuses loopback, private and link-local ranges, accepts only a short
+  list of ports, and re-checks every redirect hop against the same rules. A way around any of that
+  is a vulnerability. Two things are deliberate and are not: the address pin is applied in a
+  production build, and the carrier-grade NAT range `100.64.0.0/10` is permitted on purpose, so a
+  host reached over a mesh VPN stays reachable.
 - **Data at rest.** Reading another storage partition's conversations or keys, or defeating the
   encryption on a password-protected backup archive.
 - **Untrusted content escaping its frame.** Model output, a note, or an attachment causing code
