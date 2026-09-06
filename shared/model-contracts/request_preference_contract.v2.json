@@ -20,6 +20,7 @@
     }
   ],
   "vocabulary": {
+    "$comment": "The closed vocabularies every client shares. Two of them describe more than this client implements, because the catalog is a shared read-only endpoint: controlAvailability includes managed_only and connectionAccess includes managed, both of which describe an offering this client does not provide. A connection the user owns never has managed access, so a managed_only capability resolves to sending nothing; the values stay in the vocabulary so that a client parses what the catalog publishes instead of failing on it.",
     "overrideStates": [
       "inherit",
       "value",

@@ -100,9 +100,6 @@
     },
     "excluded": []
   },
-  "managedProductPolicies": {
-    "$comment": "Catalog states that are not used by user-owned providers. Clients must not invent defaults for them."
-  },
   "controlStates": [
     "auto_available",
     "managed_only",
@@ -111,7 +108,7 @@
     "unknown"
   ],
   "stateRequirements": {
-    "$comment": "auto_available is the only state that may carry a recipeRef and the only state that sends fields automatically. Every other state must explain itself: a reasonCode plus at least one resolvable source key, so that a downgrade is auditable instead of anonymous. One provider kind is exempt from the source requirement because no official third-party source exists to cite: relay resolves against a catalog on the user's own machine. Its fixed verdict blocks auto_available specifically; any other declared state still goes through the ordinary reasonCode and source checks, so the exemption cannot be borrowed by a different provider or a different state.",
+    "$comment": "auto_available is the only state that may carry a recipeRef and the only state that sends fields automatically. managed_only is a state the catalog uses for capabilities configured for an offering this client does not implement: a connection the user owns treats it as unavailable, sends nothing for it, and must not invent a default in its place — the state exists in the vocabulary because the catalog is a shared read-only endpoint and a client has to parse every state it publishes. Every other state must explain itself: a reasonCode plus at least one resolvable source key, so that a downgrade is auditable instead of anonymous. One provider kind is exempt from the source requirement because no official third-party source exists to cite: relay resolves against a catalog on the user's own machine. Its fixed verdict blocks auto_available specifically; any other declared state still goes through the ordinary reasonCode and source checks, so the exemption cannot be borrowed by a different provider or a different state.",
     "autoAvailableRequiresRecipeRef": true,
     "nonAutoMustNotCarryRecipeRef": true,
     "nonAutoRequiresReasonCode": true,
