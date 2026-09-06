@@ -25,6 +25,10 @@ Each client's README covers its architecture and the details of building it:
 [iOS](ios/README.md) · [Android](android/README.md) · [Web](web/README.md) ·
 [Shared](shared/README.md).
 
+A native macOS client is in development and will land in [`macos/`](macos/README.md) in the coming
+months. Until it is here there is nothing to build there, so please do not open a pull request that
+starts one; changes to the other three clients and to `shared/` are what move it forward.
+
 > [!IMPORTANT]
 > Clone the whole repository. All three clients load contract fixtures from `shared/` by resolving
 > a path relative to the repository root, so their test suites do not pass in a partial checkout.
@@ -88,4 +92,7 @@ to report one privately.
 
 ## License
 
-Contributions are accepted under AGPL-3.0-or-later, the same license as the repository.
+Contributions are accepted under AGPL-3.0-or-later, the same license as the repository. There is no
+contributor license agreement to sign and no copyright to assign: opening a pull request is taken
+as agreeing that your work may be distributed under that license, and you keep the copyright in
+what you wrote.

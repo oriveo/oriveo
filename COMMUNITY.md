@@ -29,6 +29,7 @@ That catalog is read-only, unauthenticated, and carries no user data.
 - Local backup and export
 - Cost estimates derived from local message history
 - Interface translations
+- A native macOS client, which is in development and will arrive in the coming months
 - Anything that improves how the app speaks to a model provider
 
 ## Out of scope
