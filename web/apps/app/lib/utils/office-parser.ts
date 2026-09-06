@@ -2,7 +2,12 @@
  * Office file parsing.
  * Uses JSZip to turn DOCX/XLSX/PPTX/ODF into plain text; the import is dynamic so it does not
  * affect first paint. RTF is already plain text and is extracted with regular expressions.
+ *
+ * Every entry read from the archive goes through BoundedArchiveReader, so a document that declares
+ * gigabytes of output cannot exhaust the tab.
  */
+
+import { assertArchiveWithinBudget, BoundedArchiveReader } from './zip-budget';
 
 /** Parse an Office file into plain text */
 export async function parseOfficeFile(file: File): Promise<string> {
@@ -21,14 +26,16 @@ export async function parseOfficeFile(file: File): Promise<string> {
 
   const JSZip = (await import('jszip')).default;
   const zip = await JSZip.loadAsync(await file.arrayBuffer());
+  assertArchiveWithinBudget(zip.files);
+  const reader = new BoundedArchiveReader();
 
   switch (ext) {
-    case 'docx': return extractDocxText(zip);
-    case 'xlsx': return extractXlsxText(zip);
-    case 'pptx': return extractPptxText(zip);
+    case 'docx': return extractDocxText(zip, reader);
+    case 'xlsx': return extractXlsxText(zip, reader);
+    case 'pptx': return extractPptxText(zip, reader);
     case 'odt':
     case 'ods':
-    case 'odp':  return extractOdfText(zip);
+    case 'odp':  return extractOdfText(zip, reader);
     default:     return '[Unsupported office format]';
   }
 }
@@ -41,22 +48,22 @@ function xmlTextContent(xml: string): string {
 }
 
 /** DOCX: paragraph text from word/document.xml */
-async function extractDocxText(zip: any): Promise<string> {
+async function extractDocxText(zip: any, reader: BoundedArchiveReader): Promise<string> {
   const docXml = zip.file('word/document.xml');
   if (!docXml) return '';
-  const xml = await docXml.async('string');
+  const xml = await reader.readText(docXml);
     // Insert a newline at every </w:p> to preserve the paragraph structure
   const withBreaks = xml.replace(/<\/w:p>/g, '\n</w:p>');
   return xmlTextContent(withBreaks).replace(/\n{3,}/g, '\n\n').trim();
 }
 
 /** XLSX: shared strings plus the data of each sheet */
-async function extractXlsxText(zip: any): Promise<string> {
+async function extractXlsxText(zip: any, reader: BoundedArchiveReader): Promise<string> {
   // Read the shared string table
   const ssFile = zip.file('xl/sharedStrings.xml');
   const strings: string[] = [];
   if (ssFile) {
-    const ssXml = await ssFile.async('string');
+    const ssXml = await reader.readText(ssFile);
     const parser = new DOMParser();
     const doc = parser.parseFromString(ssXml, 'application/xml');
     const siNodes = doc.getElementsByTagName('si');
@@ -72,7 +79,7 @@ async function extractXlsxText(zip: any): Promise<string> {
     .sort();
 
   for (const path of sheetFiles) {
-    const sheetXml = await zip.file(path)!.async('string');
+    const sheetXml = await reader.readText(zip.file(path)!);
     const parser = new DOMParser();
     const doc = parser.parseFromString(sheetXml, 'application/xml');
     const rows = doc.getElementsByTagName('row');
@@ -98,14 +105,14 @@ async function extractXlsxText(zip: any): Promise<string> {
 }
 
 /** PPTX: text from ppt/slides/slide*.xml */
-async function extractPptxText(zip: any): Promise<string> {
+async function extractPptxText(zip: any, reader: BoundedArchiveReader): Promise<string> {
   const slideFiles = Object.keys(zip.files)
     .filter((n: string) => /^ppt\/slides\/slide\d+\.xml$/.test(n))
     .sort();
 
   const parts: string[] = [];
   for (const path of slideFiles) {
-    const xml = await zip.file(path)!.async('string');
+    const xml = await reader.readText(zip.file(path)!);
     const withBreaks = xml.replace(/<\/a:p>/g, '\n</a:p>');
     const text = xmlTextContent(withBreaks).trim();
     if (text) parts.push(text);
@@ -114,10 +121,10 @@ async function extractPptxText(zip: any): Promise<string> {
 }
 
 /** ODF (.odt/.ods/.odp): text from content.xml */
-async function extractOdfText(zip: any): Promise<string> {
+async function extractOdfText(zip: any, reader: BoundedArchiveReader): Promise<string> {
   const contentXml = zip.file('content.xml');
   if (!contentXml) return '';
-  const xml = await contentXml.async('string');
+  const xml = await reader.readText(contentXml);
   // Insert a newline at every text:p
   const withBreaks = xml.replace(/<\/text:p>/g, '\n</text:p>');
   return xmlTextContent(withBreaks).replace(/\n{3,}/g, '\n\n').trim();

@@ -32,11 +32,11 @@ export interface ExtractedText {
 export type ExtractionErrorCode =
   | 'encrypted_pdf'
   | 'scanned_pdf'
-  | 'password_protected_office'   // D9
+  | 'password_protected_office'
   | 'corrupted_file'
   | 'unsupported_format'
   | 'file_too_large'
-  | 'extraction_timeout'          // D9
+  | 'extraction_timeout'
   | 'extraction_error';
 
 export class ExtractionError extends Error {
@@ -84,7 +84,7 @@ export function resolveFileExtractionLimits(
   };
 }
 
-// MARK: -  
+// MARK: - Extractor
 
 export const FileTextExtractor = {
   supportedMimes: new Set<string>([
@@ -193,6 +193,9 @@ export const FileTextExtractor = {
         const { parseOfficeFile } = await import('../../utils/office-parser');
         raw = await parseOfficeFile(file);
       } catch (e: unknown) {
+        // The parser already classifies what it can, and relabelling that as corrupted would
+        // report "the file is damaged" for a document that is merely oversized.
+        if (e instanceof ExtractionError) throw e;
         const err = e as { message?: string };
         const msg = String(err?.message ?? '').toLowerCase();
         if (msg.includes('encrypted') || msg.includes('password') || msg.includes('protected')) {

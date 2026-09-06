@@ -57,7 +57,7 @@ const ERROR_INSTRUCTIONS: Record<ExtractionErrorCode, string> = {
   unsupported_format:
     'This file format is not supported by the local extractor. DO NOT fabricate content. Tell the user which formats are supported (PDF / DOCX / XLSX / PPTX / EPUB / HTML / plain text / code files).',
   file_too_large:
-    'This file exceeds the maximum size limit. DO NOT fabricate content. Tell the user the file is too large and ask them to split or shorten it.',
+    'This file is past the size the local extractor will read, either as stored or once unpacked. DO NOT fabricate content. Tell the user the file is too large and ask them to split or shorten it.',
   extraction_timeout:
     'Extraction of this file timed out (over 30 seconds). DO NOT fabricate content. Tell the user the file is too complex; ask them to simplify or split it.',
   extraction_error:
