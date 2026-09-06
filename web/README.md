@@ -44,7 +44,8 @@ how to talk to a model provider.
 
 ## Quick start
 
-Requires Node 22.22 or newer (see [`.nvmrc`](.nvmrc)). npm ships with it; no other package manager is needed.
+Requires Node 22.22 or newer (see [`.nvmrc`](.nvmrc)). npm ships with it; no other package manager
+is needed.
 
 ```bash
 npm install
