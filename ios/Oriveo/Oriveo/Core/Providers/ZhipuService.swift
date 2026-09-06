@@ -283,7 +283,7 @@ final class ZhipuService: BaseAPIService, ProviderServiceProtocol {
         for img in imageAtts {
             let b64 = img.resolvedBase64Data
             guard !b64.isEmpty else { continue }
-            let mime = img.mimeType ?? "image/jpeg"
+            let mime = img.mimeType
             contentParts.append([
                 "type": "image_url",
                 "image_url": ["url": "data:\(mime);base64,\(b64)"]

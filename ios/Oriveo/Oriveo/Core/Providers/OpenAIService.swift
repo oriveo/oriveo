@@ -624,6 +624,10 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
                                     continuation.yield(.delta(text))
                                 }
                             } catch {
+                                // One unreadable frame must not abort a stream that is otherwise fine.
+                                #if DEBUG
+                                AppLog.error(error, module: "OpenAI", context: ["frame": "output_text.delta"])
+                                #endif
                             }
                         case "response.output_image.done",
                              "response.image_generation_call.completed",
@@ -642,6 +646,9 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
                                     continuation.yield(.imagePart(attachment))
                                 }
                             } catch {
+                                #if DEBUG
+                                AppLog.error(error, module: "OpenAI", context: ["frame": "output_image.done"])
+                                #endif
                             }
                         case "response.completed":
                             do {
@@ -655,6 +662,9 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
                                 )
                                 #endif
                             } catch {
+                                #if DEBUG
+                                AppLog.error(error, module: "OpenAI", context: ["frame": "response.completed"])
+                                #endif
                             }
                         default:
                             break
@@ -1073,7 +1083,7 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
             size: "1024x1024",
             response_format: responseFormat
         )
-        var body = try JSONSerialization.jsonObject(with: JSONEncoder().encode(payload)) as? [String: Any] ?? [:]
+        let body = try JSONSerialization.jsonObject(with: JSONEncoder().encode(payload)) as? [String: Any] ?? [:]
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
         return request
     }
@@ -2074,7 +2084,7 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
         }
         return relayAuthModeFromRuntime(
             MetadataClient.shared.syncRelayRuntimeConfig()
-                .transportRules[relayEnvelopeKey(for: relayRequested.transport ?? .openaiChatCompletions)]?
+                .transportRules[relayEnvelopeKey(for: relayRequested.transport)]?
                 .defaultAuthMode
         ) ?? .bearer
     }
@@ -3262,7 +3272,7 @@ extension OpenAIService {
         cachedTokens: Int?,
         reasoningTokens: Int?
     ) -> UsageBreakdown {
-        var usage = OpenAIUsage(
+        let usage = OpenAIUsage(
             prompt_tokens: promptTokens,
             completion_tokens: completionTokens,
             total_tokens: nil,

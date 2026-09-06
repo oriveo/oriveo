@@ -3,8 +3,11 @@ import CryptoKit
 import Foundation
 import Security
 
-nonisolated(unsafe) let relaySecurityModeHeader = "X-Oriveo-Internal-Relay-Security-Mode"
-nonisolated(unsafe) let relayCertificateFingerprintHeader = "X-Oriveo-Internal-Relay-Certificate-Fingerprint"
+/// Carries the connection's security intent from the request builder to `RelayRequestSecurity`,
+/// which reads both and removes them again before the request is sent. Neither ever reaches the
+/// network.
+let relaySecurityModeHeader = "X-Oriveo-Internal-Relay-Security-Mode"
+let relayCertificateFingerprintHeader = "X-Oriveo-Internal-Relay-Certificate-Fingerprint"
 
 extension URLRequest {
     mutating func applyRelaySecurityMode(_ requested: RelayRequestedConfig?) {

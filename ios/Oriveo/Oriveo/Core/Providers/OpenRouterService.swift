@@ -404,7 +404,7 @@ final class OpenRouterService: BaseAPIService, ProviderServiceProtocol, BalanceQ
             response = try decoder.decode(OpenRouterChatResponse.self, from: data)
         } catch {
             #if DEBUG
-            let statusCode = (rawResponse as? HTTPURLResponse)?.statusCode ?? -1
+            let statusCode = rawResponse.statusCode
             AppLog.warning(
                 "Could not decode the response: model=\(modelID) status=\(statusCode) "
                 + "bytes=\(data.count) error=\(error)",
