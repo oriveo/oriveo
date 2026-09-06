@@ -262,3 +262,54 @@ describe('useProviderActions relay edit transaction', () => {
     expect(remounted.result.current.catalogLoadState).toBe('failed');
   });
 });
+
+describe('useProviderActions endpoint editing', () => {
+  function officialProvider(): Provider {
+    return {
+      id: 'official-hook',
+      kind: 'qwen',
+      customName: 'Qwen',
+      status: { kind: 'connected' },
+      models: [existingModel],
+      catalogModels: [existingModel],
+      apiKey: 'sk-official',
+      apiKeyPreview: '\u2022\u2022\u2022\u2022',
+      baseURLText: 'https://dashscope-intl.aliyuncs.com/compatible-mode/v1',
+    };
+  }
+
+  beforeEach(() => {
+    const store = createAppStore();
+    store.getState().addProvider(officialProvider());
+    storeHolder.current = store;
+    vi.stubGlobal('fetch', vi.fn());
+  });
+
+  // Regression: an official provider carries no relayRequested, and the editor used to bail out on
+  // that, so choosing the vendor's other published endpoint collapsed the row and changed nothing.
+  it('persists an endpoint change on an official provider, which has no relay request to verify', async () => {
+    const store = storeHolder.current as ReturnType<typeof createAppStore>;
+    const view = renderHook(() => useProviderActions(store.getState().providers[0]));
+
+    await act(async () => {
+      await expect(view.result.current.saveBaseURL('https://dashscope.aliyuncs.com/compatible-mode/v1'))
+        .resolves.toBe(true);
+    });
+
+    expect(store.getState().providers[0].baseURLText)
+      .toBe('https://dashscope.aliyuncs.com/compatible-mode/v1');
+    // No probe is fired: the vendor's own endpoints need no verification round trip.
+    expect(vi.mocked(fetch)).not.toHaveBeenCalled();
+  });
+
+  it('clears the endpoint back to the provider default when the field is emptied', async () => {
+    const store = storeHolder.current as ReturnType<typeof createAppStore>;
+    const view = renderHook(() => useProviderActions(store.getState().providers[0]));
+
+    await act(async () => {
+      await expect(view.result.current.saveBaseURL('   ')).resolves.toBe(true);
+    });
+
+    expect(store.getState().providers[0].baseURLText).toBeUndefined();
+  });
+});

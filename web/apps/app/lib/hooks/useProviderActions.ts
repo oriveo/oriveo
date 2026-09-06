@@ -224,7 +224,13 @@ export function useProviderActions(provider: Provider) {
 
   const saveBaseURL = useCallback(async (newURL: string): Promise<boolean> => {
     const requested = provider.relayRequested;
-    if (!requested) return false;
+    // Official providers have no relay request to re-plan: switching between a vendor's published
+    // endpoints is just a write. Going through saveRelaySettings would find nothing to verify and
+    // the chosen endpoint would be dropped without a word.
+    if (!requested) {
+      providerOps.updateProviderBaseURL(getVanillaStore(), provider, newURL);
+      return true;
+    }
     const relayRequested = { ...requested, resolvedAPIBaseURL: undefined };
     const runtime = resolveRelayRuntimeFields({ baseURLText: newURL, relayRequested });
     return saveRelaySettings({
@@ -233,7 +239,7 @@ export function useProviderActions(provider: Provider) {
       relayRequested,
       ...runtime,
     });
-  }, [provider.relayKind, provider.relayRequested, saveRelaySettings]);
+  }, [provider, saveRelaySettings]);
 
   const saveRelaySettingsUnverified = useCallback(async (): Promise<boolean> => {
     if (!pendingRelaySettingsSave || isSyncing) return false;
