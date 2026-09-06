@@ -21,7 +21,7 @@ import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.FolderOpen
-import androidx.compose.material.icons.filled.KeyboardArrowRight
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.outlined.Palette
 import androidx.compose.material.icons.outlined.Visibility
 import androidx.compose.material3.DropdownMenu
@@ -52,9 +52,10 @@ import ai.oriveo.community.ui.component.OriveoCard
 import ai.oriveo.community.ui.theme.OriveoTheme
 
 /**
- *  —  iOS V2 FolderRow
+ * One folder row on the home screen, laid out to match the iOS folder row.
  *
- *  icon (34dp) + folder name + count capsule + chevron
+ * Left to right: a 34dp colour icon, the folder name, a capsule with the conversation count, and a
+ * chevron that turns as the row expands.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -80,7 +81,7 @@ fun FolderRow(
         contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp),
     ) {
         Column {
-            
+
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -92,7 +93,7 @@ fun FolderRow(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                
+
                 val fc = FolderColor.fromTag(folder.colorTag)
                 Box(
                     modifier = Modifier
@@ -111,12 +112,11 @@ fun FolderRow(
                         imageVector = if (isExpanded) Icons.Outlined.FolderOpen else Icons.Outlined.Folder,
                         contentDescription = null,
                         modifier = Modifier.size(16.dp),
-                        
+
                         tint = Color.White,
                     )
                 }
 
-                
                 Text(
                     text = folder.name,
                     style = OriveoTheme.typography.title3.copy(fontWeight = FontWeight.SemiBold),
@@ -125,7 +125,6 @@ fun FolderRow(
                     maxLines = 1,
                 )
 
-                
                 if (count > 0) {
                     Text(
                         text = "$count",
@@ -138,9 +137,8 @@ fun FolderRow(
                     )
                 }
 
-                
                 Icon(
-                    imageVector = Icons.Filled.KeyboardArrowRight,
+                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
                     contentDescription = null,
                     modifier = Modifier
                         .size(14.dp)
@@ -148,8 +146,6 @@ fun FolderRow(
                     tint = colors.textTertiary,
                 )
 
-                
-                
                 if (showMenu) {
                     DropdownMenu(
                         expanded = true,
@@ -182,7 +178,6 @@ fun FolderRow(
                 }
             }
 
-            
             AnimatedVisibility(
                 visible = isExpanded,
                 enter = fadeIn() + expandVertically(),

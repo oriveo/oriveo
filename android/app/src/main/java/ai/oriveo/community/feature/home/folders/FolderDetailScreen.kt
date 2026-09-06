@@ -15,7 +15,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
-import androidx.compose.material.icons.outlined.ArrowBack
+import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.Inbox
 import androidx.compose.material3.CenterAlignedTopAppBar
@@ -58,7 +58,7 @@ fun FolderDetailScreen(
     onNavigateBack: () -> Unit,
     viewModel: HomeViewModel = koinViewModel(),
 ) {
-    
+
     @Suppress("NAME_SHADOWING")
     val folderID = normalizeUuid(folderID)
     val folders by viewModel.folders.collectAsStateWithLifecycle()
@@ -103,7 +103,7 @@ fun FolderDetailScreen(
                 },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.Outlined.ArrowBack, contentDescription = stringResource(R.string.back))
+                        Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = stringResource(R.string.back))
                     }
                 },
             )
@@ -186,7 +186,7 @@ private fun FolderDetailConversationRow(
     onClick: () -> Unit,
 ) {
     val provider = providersById[conversation.providerID]
-    
+
     val providerKind = conversation.providerKind
     val providerName = provider?.displayName ?: providerKind.displayName
     val modelName = remember(conversation.modelID, provider, modelDisplayLookup) {

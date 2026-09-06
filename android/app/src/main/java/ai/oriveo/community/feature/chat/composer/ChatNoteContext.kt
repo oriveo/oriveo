@@ -15,7 +15,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Close
-import androidx.compose.material.icons.outlined.StickyNote2
+import androidx.compose.material.icons.automirrored.outlined.StickyNote2
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -29,11 +29,9 @@ import ai.oriveo.community.R
 import ai.oriveo.community.core.model.Note
 import ai.oriveo.community.ui.theme.OriveoTheme
 
-
 @Composable
 private fun noteChipTitle(note: Note): String =
     note.title.trim().ifBlank { stringResource(R.string.notes_untitled) }
-
 
 @Composable
 fun NoteContextSection(
@@ -62,7 +60,7 @@ fun NoteContextSection(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 Icon(
-                    Icons.Outlined.StickyNote2,
+                    Icons.AutoMirrored.Outlined.StickyNote2,
                     contentDescription = null,
                     tint = colors.primary,
                     modifier = Modifier.size(16.dp),
@@ -115,7 +113,7 @@ fun NoteContextSection(
                         horizontalArrangement = Arrangement.spacedBy(4.dp),
                     ) {
                         Icon(
-                            Icons.Outlined.StickyNote2,
+                            Icons.AutoMirrored.Outlined.StickyNote2,
                             contentDescription = null,
                             tint = colors.primary,
                             modifier = Modifier.size(14.dp),

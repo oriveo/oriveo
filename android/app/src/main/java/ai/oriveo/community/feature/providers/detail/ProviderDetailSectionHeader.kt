@@ -14,7 +14,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.HelpOutline
+import androidx.compose.material.icons.automirrored.outlined.HelpOutline
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -32,7 +32,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import ai.oriveo.community.R
 import ai.oriveo.community.ui.theme.OriveoTheme
-
 
 @Composable
 fun ProviderDetailSectionHeader(
@@ -74,7 +73,7 @@ fun ProviderDetailSectionHeader(
                 contentAlignment = Alignment.Center,
             ) {
                 Icon(
-                    imageVector = Icons.Outlined.HelpOutline,
+                    imageVector = Icons.AutoMirrored.Outlined.HelpOutline,
                     contentDescription = title,
                     modifier = Modifier.size(16.dp),
                     tint = colors.textTertiary,
