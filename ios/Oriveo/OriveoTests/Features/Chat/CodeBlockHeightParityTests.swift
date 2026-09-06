@@ -30,9 +30,6 @@ struct CodeBlockHeightParityTests {
     }
 
     @Test func finalized() {
-        let mono = UIFont.monospacedSystemFont(ofSize: 14, weight: .regular)
-        NSLog("[CODEBLOCK-PARITY] mono14 lineHeight=\(mono.lineHeight) ascender=\(mono.ascender) descender=\(mono.descender)")
-
         for lines in [5, 10, 17, 18, 19, 20, 22, 25, 40] {
             let code = makeCode(lines: lines)
 
@@ -62,7 +59,6 @@ struct CodeBlockHeightParityTests {
             streamContainer.layoutIfNeeded()
             let sH = fittingHeight(streaming.view, width: Self.contentWidth)
 
-            NSLog("[CODEBLOCK-PARITY] lines=\(lines) streaming=\(sH) frozen=\(fH) delta=\(fH - sH)")
             #expect(abs(fH - sH) <= 2.0,
                     Comment(rawValue: "lines=\(lines): the finalized card is \(fH)pt but the streaming card is \(sH)pt (delta=\(fH - sH)); the handoff would shift everything below it"))
         }
