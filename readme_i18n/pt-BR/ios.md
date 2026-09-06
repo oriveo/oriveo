@@ -63,7 +63,7 @@ flowchart TB
 
     subgraph provider ["Camada de provedor"]
         direction LR
-        services["15 ProviderService"]
+        services["15 ProviderService<br/>o relay reaproveita o da OpenAI"]
         transports["TransportRegistry<br/>12 estratégias"]
         kit["OriveoProviderKit<br/>SSE · montagem de chunks · ocultação"]
     end
@@ -122,7 +122,8 @@ que torna o formato de rede testável em um lugar só, em vez de quinze.
 O cliente nunca adivinha as capacidades de um modelo pelo nome. Ele lê um **runtime de capacidades**
 — um conjunto de receitas que descrevem, para um dado provedor, transporte e capacidade, exatamente
 quais JSON pointers escrever na requisição. Essas receitas ficam em
-[`shared/capabilityrecipe`](shared.md) e são aplicadas pelo `CapabilityRecipeRequestCompiler`.
+[`shared/capabilityrecipe`](../../shared/capabilityrecipe/) e são aplicadas pelo
+`CapabilityRecipeRequestCompiler`.
 
 Na volta, o `CapabilityExecutionRuntime` registra o que de fato aconteceu. Só um parser de stream de
 produção selecionado pode promover uma capacidade a *observada*. Um HTTP 200, uma resposta não
@@ -160,6 +161,11 @@ quando o catálogo está inacessível.
 
 Essa é a única requisição que o app faz em nome próprio. Todo o resto vai para um provedor que você
 configurou, com a sua chave.
+
+Para apontar um build **Debug** para o seu próprio host de catálogo, defina
+`ORIVEO_METADATA_BASE_URL` — como variável de ambiente do scheme ou como chave em
+`ios/Oriveo/Config/Info.plist`. Diferente dos clientes Android e web, um build Release ignora a
+variável e sempre usa o catálogo publicado; mudar isso significa editar `BackendURLResolver`.
 
 ## Estrutura do projeto
 
@@ -217,11 +223,11 @@ projeto.
 | [swift-markdown-ui](https://github.com/gonzalezreal/swift-markdown-ui) | 2.4.1 | renderização de Markdown |
 | [SwiftMath](https://github.com/mgriebling/SwiftMath) | 1.7.3 | renderização de LaTeX |
 | [ZIPFoundation](https://github.com/weichsel/ZIPFoundation) | 0.9.20 | arquivos de backup, extração de Office/EPUB/ODF |
-| `OriveoProviderKit` | local | o núcleo de protocolo dos provedores, compartilhado com o macOS |
+| `OriveoProviderKit` | local | o núcleo de protocolo dos provedores, em [`shared/`](shared.md) |
 
 ## Testes
 
-Rode o scheme `OriveoTests` pelo Xcode, ou, a partir da raiz do repositório:
+Rode a test action do scheme `Oriveo` (⌘U) pelo Xcode, ou, a partir da raiz do repositório:
 
 ```bash
 xcodebuild test -project ios/Oriveo/Oriveo.xcodeproj -scheme Oriveo \

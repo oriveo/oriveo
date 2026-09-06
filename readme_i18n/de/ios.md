@@ -63,7 +63,7 @@ flowchart TB
 
     subgraph provider ["Anbieter-Schicht"]
         direction LR
-        services["15 ProviderService"]
+        services["15 ProviderService<br/>Relay nutzt den von OpenAI"]
         transports["TransportRegistry<br/>12 Strategien"]
         kit["OriveoProviderKit<br/>SSE · Chunk-Aufbau · Schwärzung"]
     end
@@ -122,7 +122,8 @@ macht das Wire-Format an einer Stelle testbar statt an fünfzehn.
 Der Client rät die Fähigkeiten eines Modells nie aus seinem Namen. Er liest eine **Capability
 Runtime** – eine Menge Rezepte, die für einen bestimmten Anbieter, Transport und eine Fähigkeit
 genau beschreiben, welche JSON-Pointer in den Request geschrieben werden. Diese Rezepte liegen in
-[`shared/capabilityrecipe`](shared.md) und werden von `CapabilityRecipeRequestCompiler` angewendet.
+[`shared/capabilityrecipe`](../../shared/capabilityrecipe/) und werden von
+`CapabilityRecipeRequestCompiler` angewendet.
 
 Auf dem Rückweg hält `CapabilityExecutionRuntime` fest, was tatsächlich passiert ist. Nur ein
 ausgewählter produktiver Stream-Parser darf eine Fähigkeit auf *observed* heben. Ein HTTP 200, eine
@@ -160,6 +161,12 @@ weiterarbeitet, wenn der Katalog nicht erreichbar ist.
 
 Das ist der einzige Request, den die App auf eigene Rechnung stellt. Alles andere geht an einen
 Anbieter, den du eingerichtet hast, mit deinem Key.
+
+Um einen **Debug**-Build auf deinen eigenen Katalog-Host zu richten, setze
+`ORIVEO_METADATA_BASE_URL` – entweder als Umgebungsvariable im Schema oder als Schlüssel in
+`ios/Oriveo/Config/Info.plist`. Anders als beim Android- und beim Web-Client ignoriert ein
+Release-Build den Wert und nimmt immer den veröffentlichten Katalog; das zu ändern heißt,
+`BackendURLResolver` anzupassen.
 
 ## Projektaufbau
 
@@ -217,11 +224,12 @@ schrauben.
 | [swift-markdown-ui](https://github.com/gonzalezreal/swift-markdown-ui) | 2.4.1 | Markdown-Rendering |
 | [SwiftMath](https://github.com/mgriebling/SwiftMath) | 1.7.3 | LaTeX-Rendering |
 | [ZIPFoundation](https://github.com/weichsel/ZIPFoundation) | 0.9.20 | Backup-Archive, Office-/EPUB-/ODF-Extraktion |
-| `OriveoProviderKit` | lokal | der Provider-Wire-Kernel, geteilt mit macOS |
+| `OriveoProviderKit` | lokal | der Provider-Wire-Kernel, in [`shared/`](shared.md) |
 
 ## Tests
 
-Starte das Schema `OriveoTests` aus Xcode heraus, oder aus dem Wurzelverzeichnis des Repositorys:
+Führe in Xcode die Test-Action des Schemas `Oriveo` aus (⌘U), oder aus dem Wurzelverzeichnis des
+Repositorys:
 
 ```bash
 xcodebuild test -project ios/Oriveo/Oriveo.xcodeproj -scheme Oriveo \

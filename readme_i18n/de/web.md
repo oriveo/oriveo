@@ -57,7 +57,7 @@ Der erste Bildschirm fragt nach einem Anbieter-API-Key. Mehr braucht es nicht, u
 ## Wie ein Request tatsächlich läuft
 
 Das ist der Teil, den man vor allem anderen lesen sollte, denn der Web-Client ist die eine Stelle,
-an der der Request **nicht** direkt vom Client zum Anbieter geht.
+an der ein Request in der Regel **nicht** direkt vom Client zum Anbieter geht.
 
 ```mermaid
 flowchart LR
@@ -67,6 +67,7 @@ flowchart LR
         direction TB
         chat["/api/chat/stream"]
         fwd["/api/relay/forward"]
+        prov["/api/providers/*"]
     end
 
     official["15 offizielle Anbieter"]
@@ -74,26 +75,41 @@ flowchart LR
     lan["Modellserver in deinem Netz"]
     catalog[("Öffentlicher Modellkatalog<br/>nur lesend · ohne Key")]
 
-    browser ==>|"offizieller Anbieter"| chat ==> official
+    browser ==>|"die meisten offiziellen Anbieter"| chat ==> official
+    browser ==>|"Modellliste · Key-Prüfung · OAuth"| prov
     browser ==>|"Relay, öffentlicher Host"| fwd ==> pubrelay
-    browser ==>|"Relay, LAN oder localhost"| lan
+    browser ==>|"Relay in deinem Netz"| lan
+    browser ==>|"CORS-freundliche Endpunkte"| official
     catalog -.-> browser
     catalog -.-> chat
 ```
 
-**Warum es den Umweg gibt.** Anbieter-APIs senden keine CORS-Header, ein Browser kann `api.openai.com`
-und Konsorten also nicht direkt aufrufen – der Preflight scheitert. Jeder Browser-BYOK-Client muss
-das irgendwie lösen; dieser leitet über einen Next.js Route Handler in der Node-Runtime weiter. Wenn
-du `npm run dev:app` startest, läuft dieser Handler auf deinem eigenen Rechner. Wenn du die App
-irgendwo deployst, läuft er auf der Maschine, auf die du deployt hast.
+**Warum es den Umweg gibt.** Die meisten Anbieter-APIs senden keine CORS-Header, ein Browser kann
+`api.openai.com` und Konsorten also nicht direkt aufrufen – der Preflight scheitert. Jeder
+Browser-BYOK-Client muss das irgendwie lösen; dieser leitet über Next.js Route Handler in der
+Node-Runtime weiter. Wenn du `npm run dev:app` startest, laufen diese Handler auf deinem eigenen
+Rechner. Wenn du die App irgendwo deployst, laufen sie auf der Maschine, auf die du deployt hast.
+
+Es sind zwölf davon, nicht einer: Chat-Streaming, der Relay-Forwarder, Bildgenerierung, die
+Modellliste, die Key-Prüfung sowie die Device-Login-Austausche für Grok und Codex. Die Key-Prüfung
+ist hier wichtig – sie schickt den Key an deinen eigenen Server, der damit beim Anbieter anklopft.
+
+Ein paar Endpunkte *erlauben* einen Browser, und die werden ohne Server dazwischen direkt aufgerufen:
+Moonshots China-Endpunkt für Chat und die Guthaben-Endpunkte von OpenRouter, SiliconFlow, DeepSeek
+und Moonshot.
 
 **Was der Handler tut und was nicht.** Er prüft die Form des Requests und begrenzt seine Größe,
-wendet ein Rate-Limit pro IP an, weist URLs ab, die auf private oder Link-Local-Adressen auflösen,
-baut den anbieterspezifischen Body und streamt die Antwort zurück. Er speichert weder deinen Key noch
-deine Nachrichten noch irgendetwas daraus Abgeleitetes – ein eigener Test
-(`server-never-learns.test.ts`) nagelt dieses Verhalten fest. Der Relay-Forwarder fixiert zusätzlich
-DNS auf die aufgelöste Adresse, begrenzt die Antwort, deckelt jeden Timeout, beschränkt
-Weiterleitungen auf dieselbe Origin und weigert sich, Hop-by-Hop-Header durchzureichen.
+wendet auf Chat- und Relay-Verkehr ein Rate-Limit pro IP an, weist URLs ab, die auf private oder
+Link-Local-Adressen auflösen, baut den anbieterspezifischen Body und streamt die Antwort zurück.
+Unter `app/api` gibt es keine Datenbank, keinen Schreibzugriff aufs Dateisystem und kein Logging von
+Request-Bodies – dein Key und deine Nachrichten werden weitergereicht und vergessen. Weil die Route
+ein Prozess ist, den sich alle Besucher teilen, nagelt ein eigener Test
+(`server-never-learns.test.ts`) fest, dass sie nie einen abgelehnten Parameter des einen Nutzers
+zwischenspeichert und auf den Request eines anderen anwendet.
+
+Der Relay-Forwarder fixiert zusätzlich DNS auf die aufgelöste Adresse, begrenzt die Antwort, deckelt
+jeden Timeout, beschränkt Weiterleitungen auf dieselbe Origin und weigert sich, Hop-by-Hop-Header
+durchzureichen.
 
 **Lokale Endpunkte überspringen ihn komplett.** Ein Relay auf einer privaten Adresse, einem
 `.local`-Namen, `localhost` oder eines, das im Local-HTTP- oder Private-VPN-Modus konfiguriert ist,
@@ -129,10 +145,10 @@ flowchart TB
 ```
 
 `packages/core` hält jedes Byte Wissen über Anbieter-Protokolle und wird bewusst frei von
-Browser-Globals gehalten – eslint verbietet dort `window`, `document`, `fetch`, `crypto`,
-`localStorage` und `indexedDB`. Alles, was es aus der Umgebung braucht, kommt über `CorePorts`.
-Genau das lässt denselben Code im Browser, in einem Node Route Handler und in einem Test ohne DOM
-laufen.
+Browser-Globals gehalten – eslint verbietet dort und in `packages/ipc-contract` `window`,
+`document`, `fetch`, `crypto`, `localStorage`, `sessionStorage` und `indexedDB`. Alles, was es aus
+der Umgebung braucht, kommt über `CorePorts`. Genau das lässt denselben Code im Browser, in einem
+Node Route Handler und in einem Test ohne DOM laufen.
 
 Anbieter-Unterstützung besteht aus zwei unabhängigen Achsen. `providerKind` wählt einen **Request
 Builder** (wie der Body für diesen Anbieter aussieht). `model.transport` wählt eine
@@ -165,7 +181,7 @@ Alles ist pro Partition, geschlüsselt über eine aktive id, die standardmäßig
 |---|---|
 | Unterhaltungen, Nachrichten, Ordner, Notizen, Anbieter | IndexedDB `oriveo--{id}`, 8 Object Stores |
 | Snapshot des Modellkatalogs (~3 MB) und Model Facts | IndexedDB-Blob-Store, bewusst nicht localStorage |
-| Einstellungen und Modellsteuerungs-Tabellen | `localStorage`, immer über einen Wrapper, der nie wirft |
+| Einstellungen und Modellsteuerungs-Tabellen | `localStorage`, wobei `safeLocalStorage` die Pfade umhüllt, die nachweislich geworfen haben |
 | Generierte und angehängte Bilder | eine separate IndexedDB-Datenbank |
 
 Zwei Details, die aus echten Ausfällen stammen und nicht aus Geschmack. Der Katalog-Snapshot liegt in
@@ -215,13 +231,24 @@ Eine einzelne Testdatei startest du aus dem Workspace, dem sie gehört, weil meh
 Fixtures relativ zum Arbeitsverzeichnis auflösen:
 
 ```bash
-cd apps/app && npx vitest run lib/core/chat/stream-options.test.ts
+cd apps/app && npx vitest run lib/core/chat/__tests__/stream-options.test.ts
 ```
 
 ## Konfiguration
 
 Alles ist optional. Kopiere [`.env.example`](../../web/.env.example) nach `.env.local` und setze nur,
-was du brauchst; jeder Key ist dort dokumentiert.
+was du brauchst; jeder Key ist dort dokumentiert. Ein paar Variablen, die der Code liest, stehen
+nicht in dieser Datei: `BACKEND_URL` (ein rein serverseitiger Zwilling von
+`NEXT_PUBLIC_BACKEND_URL`), `NEXT_PUBLIC_LIBRARY_ENABLED`, `ORIVEO_DESKTOP` und `NEXT_DIST_DIR`.
+
+### Fehlerberichte
+
+Die App bündelt das Sentry-SDK. Ohne DSN ist es **wirkungslos** – kein `NEXT_PUBLIC_SENTRY_DSN`
+bedeutet keinen Transport, keine Events, nichts, was irgendwohin geht, und genau das ist die
+Voreinstellung für einen Build aus diesem Repository. Setzt du eine, bekommst du Fehlerberichte,
+10 % Performance-Tracing und 1 % Session Replay, mit Hooks, die Anbieter-Keys, Endpunkte und
+Nachrichteninhalte entfernen, bevor ein Event den Browser verlässt. Das steht hier, damit ein
+Deployment, das Fehlerberichte will, sie haben kann – nicht weil dieser Build nach Hause funkt.
 
 ## Tests
 

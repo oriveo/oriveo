@@ -63,7 +63,7 @@ flowchart TB
 
     subgraph provider ["Couche fournisseur"]
         direction LR
-        services["15 ProviderService"]
+        services["15 ProviderService<br/>le relais réutilise celui d'OpenAI"]
         transports["TransportRegistry<br/>12 stratégies"]
         kit["OriveoProviderKit<br/>SSE · assemblage de chunks · masquage"]
     end
@@ -122,7 +122,8 @@ par là, et c'est ce qui rend le format réseau testable à un seul endroit au l
 Le client ne devine jamais les capacités d'un modèle d'après son nom. Il lit un **runtime de
 capacités** — un ensemble de recettes décrivant, pour un fournisseur, un transport et une capacité
 donnés, exactement quels pointeurs JSON écrire dans la requête. Ces recettes vivent dans
-[`shared/capabilityrecipe`](shared.md) et sont appliquées par `CapabilityRecipeRequestCompiler`.
+[`shared/capabilityrecipe`](../../shared/capabilityrecipe/) et sont appliquées par
+`CapabilityRecipeRequestCompiler`.
 
 Au retour, `CapabilityExecutionRuntime` enregistre ce qui s'est réellement passé. Seul un analyseur
 de flux de production sélectionné peut promouvoir une capacité à l'état *observed*. Un HTTP 200, une
@@ -161,6 +162,11 @@ fonctionne depuis la copie en cache quand le catalogue est injoignable.
 
 C'est la seule requête que l'app passe pour son propre compte. Tout le reste va vers un fournisseur
 que vous avez configuré, avec votre clé.
+
+Pour pointer un build **Debug** vers votre propre hôte de catalogue, définissez
+`ORIVEO_METADATA_BASE_URL` — soit en variable d'environnement du schéma, soit en clé dans
+`ios/Oriveo/Config/Info.plist`. Contrairement aux clients Android et web, un build Release l'ignore
+et utilise toujours le catalogue publié ; le changer demande de modifier `BackendURLResolver`.
 
 ## Structure du projet
 
@@ -218,11 +224,11 @@ modifier le format du projet.
 | [swift-markdown-ui](https://github.com/gonzalezreal/swift-markdown-ui) | 2.4.1 | rendu Markdown |
 | [SwiftMath](https://github.com/mgriebling/SwiftMath) | 1.7.3 | rendu LaTeX |
 | [ZIPFoundation](https://github.com/weichsel/ZIPFoundation) | 0.9.20 | archives de sauvegarde, extraction Office/EPUB/ODF |
-| `OriveoProviderKit` | local | le noyau de protocole fournisseur, partagé avec macOS |
+| `OriveoProviderKit` | local | le noyau de protocole fournisseur, dans [`shared/`](shared.md) |
 
 ## Tests
 
-Lancez le schéma `OriveoTests` depuis Xcode, ou depuis la racine du dépôt :
+Lancez l'action de test du schéma `Oriveo` (⌘U) dans Xcode, ou depuis la racine du dépôt :
 
 ```bash
 xcodebuild test -project ios/Oriveo/Oriveo.xcodeproj -scheme Oriveo \

@@ -56,8 +56,8 @@ A primeira tela pede uma chave de API de provedor. Nada mais é necessário para
 
 ## Como uma requisição realmente viaja
 
-Esta é a parte que vale ler antes de qualquer outra, porque o cliente web é o único lugar onde a
-requisição **não** vai direto do cliente para o provedor.
+Esta é a parte que vale ler antes de qualquer outra, porque o cliente web é o único lugar onde uma
+requisição normalmente **não** vai direto do cliente para o provedor.
 
 ```mermaid
 flowchart LR
@@ -67,6 +67,7 @@ flowchart LR
         direction TB
         chat["/api/chat/stream"]
         fwd["/api/relay/forward"]
+        prov["/api/providers/*"]
     end
 
     official["15 provedores oficiais"]
@@ -74,27 +75,42 @@ flowchart LR
     lan["Um servidor de modelo na sua rede"]
     catalog[("Catálogo público de modelos<br/>somente leitura · sem chave")]
 
-    browser ==>|"provedor oficial"| chat ==> official
+    browser ==>|"a maioria dos provedores oficiais"| chat ==> official
+    browser ==>|"lista de modelos · checagem de chave · OAuth"| prov
     browser ==>|"relay, host público"| fwd ==> pubrelay
-    browser ==>|"relay, LAN ou localhost"| lan
+    browser ==>|"relay na sua rede"| lan
+    browser ==>|"endpoints compatíveis com CORS"| official
     catalog -.-> browser
     catalog -.-> chat
 ```
 
-**Por que o desvio existe.** As APIs dos provedores não enviam cabeçalhos CORS, então um navegador
-não consegue chamar `api.openai.com` e companhia diretamente — o preflight falha. Todo cliente BYOK
-de navegador precisa resolver isso de alguma forma; este encaminha por um route handler Next.js
-rodando no runtime Node. Quando você roda `npm run dev:app`, esse handler está na sua própria
-máquina. Quando você faz deploy do app em algum lugar, ele está na máquina para a qual você fez o
-deploy.
+**Por que o desvio existe.** A maioria das APIs dos provedores não envia cabeçalhos CORS, então um
+navegador não consegue chamar `api.openai.com` e companhia diretamente — o preflight falha. Todo
+cliente BYOK de navegador precisa resolver isso de alguma forma; este encaminha por route handlers
+Next.js rodando no runtime Node. Quando você roda `npm run dev:app`, esses handlers estão na sua
+própria máquina. Quando você faz deploy do app em algum lugar, eles estão na máquina para a qual você
+fez o deploy.
+
+São doze deles, não um: streaming de chat, o encaminhador de relay, geração de imagens, a lista de
+modelos, a validação de chave e as trocas de device login do Grok e do Codex. A validação de chave
+importa aqui — ela manda a chave para o seu próprio servidor, que sonda o provedor com ela.
+
+Alguns poucos endpoints *aceitam* um navegador, e esses são chamados diretamente, sem servidor no
+meio: o endpoint chinês da Moonshot para chat, e os endpoints de saldo de OpenRouter, SiliconFlow,
+DeepSeek e Moonshot.
 
 **O que o handler faz e o que não faz.** Ele valida o formato da requisição e limita o seu tamanho,
-aplica um rate limit por IP, recusa URLs que resolvem para endereços privados ou link-local, monta o
-corpo específico do provedor e devolve a resposta em streaming. Ele não persiste a sua chave, as
-suas mensagens, nem nada derivado delas — um teste dedicado (`server-never-learns.test.ts`) fixa
-esse comportamento. O encaminhador de relay ainda fixa o DNS no endereço que resolveu, limita o
-tamanho da resposta, delimita todos os timeouts, restringe redirecionamentos à mesma origem e se
-recusa a repassar cabeçalhos hop-by-hop.
+aplica um rate limit por IP ao tráfego de chat e de relay, recusa URLs que resolvem para endereços
+privados ou link-local, monta o corpo específico do provedor e devolve a resposta em streaming. Não
+há banco de dados, nem escrita em disco, nem log de corpos de requisição em lugar nenhum sob
+`app/api` — a sua chave e as suas mensagens são encaminhadas e esquecidas. Como a rota é um único
+processo compartilhado por todos os visitantes, um teste dedicado (`server-never-learns.test.ts`)
+fixa que ela nunca guarda em cache o parâmetro rejeitado de um usuário para aplicá-lo à requisição de
+outro.
+
+O encaminhador de relay ainda fixa o DNS no endereço que resolveu, limita o tamanho da resposta,
+delimita todos os timeouts, restringe redirecionamentos à mesma origem e se recusa a repassar
+cabeçalhos hop-by-hop.
 
 **Endpoints locais pulam tudo isso.** Um relay em um endereço privado, em um nome `.local`, em
 `localhost`, ou configurado em modo HTTP local ou VPN privada é buscado **diretamente pelo
@@ -131,9 +147,9 @@ flowchart TB
 
 O `packages/core` guarda cada byte do conhecimento sobre protocolos de provedores e é mantido
 deliberadamente livre de globais do navegador — o eslint proíbe `window`, `document`, `fetch`,
-`crypto`, `localStorage` e `indexedDB` dentro dele. Tudo o que ele precisa do ambiente chega por
-`CorePorts`. É isso que permite que o mesmo código rode em um navegador, em um route handler Node e
-em um teste sem DOM.
+`crypto`, `localStorage`, `sessionStorage` e `indexedDB` dentro dele e em `packages/ipc-contract`.
+Tudo o que ele precisa do ambiente chega por `CorePorts`. É isso que permite que o mesmo código rode
+em um navegador, em um route handler Node e em um teste sem DOM.
 
 O suporte a provedores são dois eixos independentes. O `providerKind` escolhe um **request builder**
 (como o corpo se parece para este fornecedor). O `model.transport` escolhe uma **estratégia de
@@ -165,7 +181,7 @@ Tudo é por partição, indexado por um id ativo cujo padrão é `guest`.
 |---|---|
 | Conversas, mensagens, pastas, notas, provedores | IndexedDB `oriveo--{id}`, 8 object stores |
 | Snapshot do catálogo de modelos (~3 MB) e model facts | store de blobs no IndexedDB, deliberadamente não no localStorage |
-| Preferências e tabelas de controle de modelo | `localStorage`, sempre através de um wrapper que nunca lança exceção |
+| Preferências e tabelas de controle de modelo | `localStorage`, com o `safeLocalStorage` envolvendo os caminhos em que se viu exceção |
 | Imagens geradas e anexadas | um banco IndexedDB separado |
 
 Dois detalhes que vieram de quebra real, não de gosto. O snapshot do catálogo vive no IndexedDB
@@ -214,13 +230,24 @@ Para rodar um único arquivo de teste, faça isso a partir do workspace que o co
 suítes resolvem fixtures relativas ao diretório de trabalho:
 
 ```bash
-cd apps/app && npx vitest run lib/core/chat/stream-options.test.ts
+cd apps/app && npx vitest run lib/core/chat/__tests__/stream-options.test.ts
 ```
 
 ## Configuração
 
 Tudo é opcional. Copie [`.env.example`](../../web/.env.example) para `.env.local` e defina só o que
-você precisa; cada chave está documentada lá.
+você precisa; cada chave está documentada lá. Algumas variáveis que o código lê não estão nesse
+arquivo: `BACKEND_URL` (um gêmeo só do lado do servidor de `NEXT_PUBLIC_BACKEND_URL`),
+`NEXT_PUBLIC_LIBRARY_ENABLED`, `ORIVEO_DESKTOP` e `NEXT_DIST_DIR`.
+
+### Relatório de erros
+
+O app embute o SDK do Sentry. Ele é **inerte sem um DSN** — sem `NEXT_PUBLIC_SENTRY_DSN` não há
+transporte, não há eventos, nada é enviado para lugar nenhum, e esse é o padrão de um build feito a
+partir deste repositório. Defina um e você ganha relatório de erros, 10% de tracing de performance e
+1% de session replay, com hooks que removem chaves de provedor, endpoints e conteúdo de mensagens
+antes de um evento sair do navegador. Está aqui para que um deploy que queira relatório de erros
+possa tê-lo, não porque este build liga de volta para casa.
 
 ## Testes
 

@@ -38,9 +38,9 @@ dériveront en silence, dans la direction de celui que quelqu'un a testé en der
 ressortira sous la forme d'un bug qui se reproduit sur une plateforme et pas sur les autres.
 
 `shared/` est la réponse à cela : le comportement est écrit une fois sous forme de données, et la
-suite de tests de chaque client vérifie contre les mêmes fichiers. Une bizarrerie de fournisseur se
-corrige une fois. Un changement de contrat fait échouer trois suites en même temps, au lieu de
-partir en production sur deux plateformes et de casser la troisième.
+suite de tests de chaque client vérifie contre les mêmes fichiers. Une bizarrerie qui vit dans ces
+données se corrige une fois. Une bizarrerie qui vit dans un parseur se fait attraper par trois suites
+en même temps, au lieu de partir en production sur deux plateformes et de casser la troisième.
 
 ```mermaid
 flowchart LR
@@ -93,10 +93,12 @@ Des données de test de référence : trafic amont d'appels d'outils enregistr�
 et de découverte de relais, instantanés de model facts et de preuves de capacités, et scénarios de
 moteurs locaux.
 
-Les fichiers `.sse` sont du **vrai trafic amont capturé** et sont laissés intacts, octet pour octet.
-Un mock écrit à la main encode ce que vous croyiez que le fournisseur fait ; un flux enregistré
-encode ce qu'il a réellement fait, y compris le chunk malformé qu'il a envoyé ce mardi-là. Quand une
-correction de protocole fournisseur a besoin d'un test, un enregistrement vaut mieux qu'un mock.
+Les fichiers `.sse` situés sous `recorded/` sont du **vrai trafic amont capturé**, laissé intact
+octet pour octet ; les autres sont des fixtures écrites à la main qui figent un chemin d'analyse
+précis. La distinction compte : un mock écrit à la main encode ce que vous croyiez que le
+fournisseur fait, alors qu'un enregistrement encode ce qu'il a réellement fait, y compris le chunk
+malformé qu'il a envoyé ce mardi-là. Quand une correction de protocole fournisseur a besoin d'un
+test, préférez un enregistrement.
 
 ## OriveoProviderKit
 
@@ -125,15 +127,17 @@ cd shared/OriveoProviderKit && swift build && swift test
 Un changement ici est un changement sur chaque client. Lancez les suites de contrat de chaque client
 qui lit le fichier que vous avez touché, pas seulement celle du client dans lequel vous travaillez :
 
+Depuis la racine du dépôt :
+
 ```bash
-cd web && npm run test:run
-cd shared/OriveoProviderKit && swift test
+(cd web && npm run test:run)
+(cd shared/OriveoProviderKit && swift test)
 # plus the iOS and Android suites — see their READMEs
 ```
 
-Les suites iOS et Android localisent toutes deux ce répertoire en remontant depuis le fichier de test
-jusqu'à trouver `shared/`, et les suites web le résolvent relativement au workspace. Toutes exigent
-donc un checkout complet du dépôt.
+Les suites iOS localisent ce répertoire en remontant depuis le fichier de test jusqu'à voir
+`shared/` ; les suites Android résolvent `../../shared` depuis le module Gradle ; les suites web
+le résolvent relativement au workspace. Toutes exigent donc un checkout complet du dépôt.
 
 ## Licence
 

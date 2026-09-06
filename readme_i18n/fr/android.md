@@ -83,10 +83,12 @@ Trois choses dans ce schéma sont des décisions de conception délibérées et 
 accidentelle.
 
 **Le streaming vit au-dessus de l'écran.** `ChatStreamingManager` garde une `StreamingSession` par
-identifiant de conversation dans une `ConcurrentHashMap`, chacune avec son propre
-`CoroutineScope(SupervisorJob() + Dispatchers.IO)` à la portée de l'application. Quitter un chat
-n'annule pas la réponse, et `StreamingTokenBuffer` écrit périodiquement le texte partiel dans
-SQLite ; tuer l'app en pleine réponse ne perd donc pas ce qui est déjà arrivé.
+identifiant de conversation dans une `ConcurrentHashMap`, chacune tournant comme son propre `Job` sur
+un unique `CoroutineScope(SupervisorJob() + Dispatchers.IO)` à la portée de l'application — le
+superviseur est exactement le point : l'échec d'un flux n'entraîne pas les autres. Quitter un chat
+n'annule pas la réponse, et `ChatRepository` écrit le texte partiel dans SQLite dès que
+`StreamingTokenBuffer` signale qu'il s'en est assez accumulé (4 000 caractères ou 60 secondes) ;
+tuer l'app en pleine réponse ne perd donc pas ce qui est déjà arrivé.
 
 **Deux bases de données, pas une.** `oriveo.db` contient les conversations, les messages, les pièces
 jointes, les notes, les dossiers, les Skills et le cache du catalogue de modèles.
@@ -159,8 +161,9 @@ La vraie frontière est dans le code, pas dans le manifeste, parce qu'elle ne pe
 `RelayEndpointPolicy` résout l'hôte, exige que **chaque** adresse résolue soit privée (loopback, RFC
 1918, link-local, unique-local, et la plage CGNAT en mode VPN), rejette un hôte qui résout vers un
 mélange d'adresses publiques et privées, épingle l'ensemble d'adresses résolu contre le DNS
-rebinding et le revérifie au moment de l'envoi, refuse toute requête en clair transportant du
-matériel d'authentification, et bloque les redirections qui changent d'origine ou de schéma.
+rebinding et le revérifie au moment de l'envoi. Elle refuse toute requête en clair transportant du
+matériel d'authentification. Les clients de découverte et de moteur local ne suivent aucune
+redirection, avec cet épinglage d'adresses comme filet de sécurité.
 
 Une network security config Android ne peut pas exprimer cet ensemble : elle ne filtre que sur le
 nom d'hôte, n'a aucune syntaxe pour les plages d'adresses, et les adresses en jeu ici viennent du
@@ -197,8 +200,9 @@ devient injoignable plus tard.
 >
 > - aucun des 15 fournisseurs intégrés n'obtient de liste de modèles, et l'app ne la demande pas au
 >   fournisseur — le catalogue est la seule source ;
-> - l'échec est **silencieux**. Ajouter une clé annonce toujours un succès, et le sélecteur de
->   modèles est simplement vide, sans explication ;
+> - l'écran de détail du fournisseur affiche une bannière « Impossible de charger les modèles
+>   officiels », mais ajouter la clé annonce toujours un succès et le sélecteur de modèles est
+>   simplement vide ;
 > - **OpenAI devient inutilisable**, parce que la saisie manuelle de modèles est bloquée pour ce
 >   fournisseur ;
 > - les endpoints Relay et les serveurs de modèles locaux fonctionnent toujours pleinement, et sont
@@ -228,7 +232,7 @@ android/
 
 ## Compilation
 
-Prérequis : **JDK 17 ou plus récent** et le SDK Android. Le build utilise AGP 9.3, Gradle 9.5 et
+Prérequis : **JDK 21** et le SDK Android. Le build utilise AGP 9.3, Gradle 9.5 et
 Kotlin 2.3, Android Studio doit donc être une version capable de synchroniser AGP 9.3 ; en ligne de
 commande, seuls le JDK et le SDK sont nécessaires.
 
@@ -285,8 +289,8 @@ sondage des relais et modes de sécurité, exécution des recettes de capacités
 catalogue et gestion des versions de contrat, persistance Room, et allers-retours de sauvegarde.
 
 > [!IMPORTANT]
-> Environ 38 suites chargent des fixtures de contrat depuis `shared/` en remontant depuis le
-> répertoire de travail, donc **les tests ne passent que dans un checkout complet** — copier
+> Environ 38 suites chargent des fixtures de contrat en résolvant `../../shared` depuis le
+> répertoire du module Gradle, donc **les tests ne passent que dans un checkout complet** — copier
 > `android/` tout seul ne marchera pas.
 
 Il y a aussi trois tests instrumentés — une matrice de release des moteurs locaux, un test de socket

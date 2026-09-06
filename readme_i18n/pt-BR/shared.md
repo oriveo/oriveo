@@ -38,9 +38,9 @@ divergir em silêncio, na direção daquele que alguém testou por último, e a 
 como um bug que se reproduz em uma plataforma e não nas outras.
 
 O `shared/` é a resposta a isso: o comportamento é escrito uma única vez como dado, e a suíte de
-testes de cada cliente faz asserções contra os mesmos arquivos. Uma peculiaridade de provedor é
-corrigida uma vez. Uma mudança de contrato quebra três suítes ao mesmo tempo, em vez de ir para
-produção em duas plataformas e estragar a terceira.
+testes de cada cliente faz asserções contra os mesmos arquivos. Uma peculiaridade que mora nesses
+dados é corrigida uma vez. Uma peculiaridade que mora em um parser é pega por três suítes ao mesmo
+tempo, em vez de ir para produção em duas plataformas e estragar a terceira.
 
 ```mermaid
 flowchart LR
@@ -92,10 +92,12 @@ Dados de teste de referência: tráfego de tool call upstream gravado, cenários
 descoberta de relay, snapshots de model facts e de evidências de capacidade, e cenários de engines
 locais.
 
-Os arquivos `.sse` são **tráfego upstream real capturado** e ficam intocados byte a byte. Um mock
-escrito à mão codifica o que você acreditava que o provedor faz; um stream gravado codifica o que
-ele de fato fez, incluindo o chunk malformado que ele mandou naquela terça-feira. Quando uma
-correção de protocolo de provedor precisa de um teste, uma gravação vale mais que um mock.
+Os arquivos `.sse` que ficam sob `recorded/` são **tráfego upstream real capturado**, mantidos
+intocados byte a byte; os demais são fixtures escritas à mão que fixam um caminho de parsing
+específico. A distinção importa: um mock escrito à mão codifica o que você acreditava que o provedor
+faz, enquanto uma gravação codifica o que ele de fato fez, incluindo o chunk malformado que ele
+mandou naquela terça-feira. Quando uma correção de protocolo de provedor precisa de um teste,
+prefira uma gravação.
 
 ## OriveoProviderKit
 
@@ -123,15 +125,17 @@ cd shared/OriveoProviderKit && swift build && swift test
 Uma mudança aqui é uma mudança em todos os clientes. Rode as suítes de contrato de cada cliente que
 lê o arquivo que você tocou, não só a daquele em que você por acaso está trabalhando:
 
+A partir da raiz do repositório:
+
 ```bash
-cd web && npm run test:run
-cd shared/OriveoProviderKit && swift test
+(cd web && npm run test:run)
+(cd shared/OriveoProviderKit && swift test)
 # plus the iOS and Android suites — see their READMEs
 ```
 
-Tanto as suítes de iOS quanto as de Android localizam este diretório subindo a partir do arquivo de
-teste até encontrar `shared/`, e as suítes web o resolvem relativamente ao workspace. Todas elas,
-portanto, exigem um checkout completo do repositório.
+As suítes de iOS localizam este diretório subindo a partir do arquivo de teste até ver `shared/`; as
+suítes de Android resolvem `../../shared` a partir do módulo Gradle; as suítes web o resolvem
+relativamente ao workspace. Todas elas, portanto, exigem um checkout completo do repositório.
 
 ## Licença
 

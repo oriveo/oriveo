@@ -58,7 +58,7 @@ discuter.
 ## Comment une requête voyage réellement
 
 C'est la partie qui mérite d'être lue avant tout le reste, parce que le client web est le seul
-endroit où la requête ne va **pas** directement du client au fournisseur.
+endroit où une requête ne va généralement **pas** directement du client au fournisseur.
 
 ```mermaid
 flowchart LR
@@ -68,6 +68,7 @@ flowchart LR
         direction TB
         chat["/api/chat/stream"]
         fwd["/api/relay/forward"]
+        prov["/api/providers/*"]
     end
 
     official["15 fournisseurs officiels"]
@@ -75,27 +76,43 @@ flowchart LR
     lan["Un serveur de modèles chez vous"]
     catalog[("Catalogue public de modèles<br/>lecture seule · sans clé")]
 
-    browser ==>|"fournisseur officiel"| chat ==> official
+    browser ==>|"la plupart des fournisseurs officiels"| chat ==> official
+    browser ==>|"liste de modèles · vérif. de clé · OAuth"| prov
     browser ==>|"relais, hôte public"| fwd ==> pubrelay
-    browser ==>|"relais, LAN ou localhost"| lan
+    browser ==>|"relais sur votre réseau"| lan
+    browser ==>|"endpoints compatibles CORS"| official
     catalog -.-> browser
     catalog -.-> chat
 ```
 
-**Pourquoi ce détour existe.** Les API des fournisseurs n'envoient pas d'en-têtes CORS, un navigateur
-ne peut donc pas appeler `api.openai.com` et consorts directement — le preflight échoue. Tout client
-BYOK en navigateur doit résoudre ça d'une manière ou d'une autre ; celui-ci fait suivre par un route
-handler Next.js tournant dans le runtime Node. Quand vous lancez `npm run dev:app`, ce handler est
-sur votre propre machine. Quand vous déployez l'app quelque part, il est sur la machine où vous avez
-déployé.
+**Pourquoi ce détour existe.** La plupart des API de fournisseurs n'envoient pas d'en-têtes CORS, un
+navigateur ne peut donc pas appeler `api.openai.com` et consorts directement — le preflight échoue.
+Tout client BYOK en navigateur doit résoudre ça d'une manière ou d'une autre ; celui-ci fait suivre
+par des route handlers Next.js tournant dans le runtime Node. Quand vous lancez `npm run dev:app`,
+ces handlers sont sur votre propre machine. Quand vous déployez l'app quelque part, ils sont sur la
+machine où vous avez déployé.
+
+Il y en a douze, pas un : le streaming de chat, le forwarder de relais, la génération d'images, la
+liste de modèles, la validation de clé, et les échanges de device login de Grok et de Codex. La
+validation de clé compte ici — elle envoie la clé à votre propre serveur, qui s'en sert pour sonder
+le fournisseur.
+
+Quelques endpoints *autorisent* bel et bien un navigateur, et ceux-là sont appelés directement, sans
+serveur au milieu : l'endpoint chinois de Moonshot pour le chat, et les endpoints de solde
+d'OpenRouter, SiliconFlow, DeepSeek et Moonshot.
 
 **Ce que le handler fait et ne fait pas.** Il valide la forme de la requête et plafonne sa taille,
-applique une limitation de débit par IP, refuse les URL qui résolvent vers des adresses privées ou
-link-local, construit le corps propre au fournisseur et renvoie la réponse en streaming. Il ne
-conserve ni votre clé, ni vos messages, ni rien qui en dérive — un test dédié
-(`server-never-learns.test.ts`) fige ce comportement. Le forwarder de relais épingle en plus le DNS
-sur l'adresse qu'il a résolue, plafonne la réponse, borne chaque timeout, limite les redirections à
-la même origine et refuse de laisser passer les en-têtes hop-by-hop.
+applique une limitation de débit par IP au trafic de chat et de relais, refuse les URL qui résolvent
+vers des adresses privées ou link-local, construit le corps propre au fournisseur et renvoie la
+réponse en streaming. Il n'y a nulle part sous `app/api` de base de données, d'écriture sur le
+système de fichiers ni de journalisation des corps de requête — votre clé et vos messages sont
+transmis puis oubliés. Comme la route est un unique processus partagé par tous les visiteurs, un test
+dédié (`server-never-learns.test.ts`) fige le fait qu'elle ne met jamais en cache le paramètre rejeté
+d'un utilisateur pour l'appliquer à la requête d'un autre.
+
+Le forwarder de relais épingle en plus le DNS sur l'adresse qu'il a résolue, plafonne la réponse,
+borne chaque timeout, limite les redirections à la même origine et refuse de laisser passer les
+en-têtes hop-by-hop.
 
 **Les endpoints locaux le contournent entièrement.** Un relais sur une adresse privée, un nom
 `.local`, `localhost`, ou configuré en mode HTTP local ou VPN privé est récupéré **directement depuis
@@ -131,10 +148,10 @@ flowchart TB
 ```
 
 `packages/core` détient chaque octet de connaissance des protocoles fournisseurs et est délibérément
-tenu à l'écart des globales du navigateur — eslint y interdit `window`, `document`, `fetch`,
-`crypto`, `localStorage` et `indexedDB`. Tout ce dont il a besoin de l'environnement arrive par
-`CorePorts`. C'est ce qui permet au même code de tourner dans un navigateur, dans un route handler
-Node et dans un test sans DOM.
+tenu à l'écart des globales du navigateur — eslint y interdit, ainsi que dans
+`packages/ipc-contract`, `window`, `document`, `fetch`, `crypto`, `localStorage`, `sessionStorage` et
+`indexedDB`. Tout ce dont il a besoin de l'environnement arrive par `CorePorts`. C'est ce qui permet
+au même code de tourner dans un navigateur, dans un route handler Node et dans un test sans DOM.
 
 La prise en charge des fournisseurs repose sur deux axes indépendants. `providerKind` choisit un
 **request builder** (à quoi ressemble le corps chez ce fournisseur). `model.transport` choisit une
@@ -168,7 +185,7 @@ Tout est par partition, indexé par un id actif qui vaut `guest` par défaut.
 |---|---|
 | Conversations, messages, dossiers, notes, fournisseurs | IndexedDB `oriveo--{id}`, 8 object stores |
 | Instantané du catalogue de modèles (~3 Mo) et model facts | store de blobs IndexedDB, délibérément pas localStorage |
-| Préférences et tables de contrôles de modèle | `localStorage`, toujours via un wrapper qui ne lève jamais |
+| Préférences et tables de contrôles de modèle | `localStorage`, avec `safeLocalStorage` autour des chemins qu'on a vus lever |
 | Images générées et jointes | une base IndexedDB distincte |
 
 Deux détails qui viennent de vraies pannes plutôt que du goût. L'instantané du catalogue vit dans
@@ -220,13 +237,25 @@ Pour lancer un seul fichier de test, faites-le depuis le workspace auquel il app
 plusieurs suites résolvent leurs fixtures relativement au répertoire de travail :
 
 ```bash
-cd apps/app && npx vitest run lib/core/chat/stream-options.test.ts
+cd apps/app && npx vitest run lib/core/chat/__tests__/stream-options.test.ts
 ```
 
 ## Configuration
 
 Tout est optionnel. Copiez [`.env.example`](../../web/.env.example) vers `.env.local` et ne
-renseignez que ce dont vous avez besoin ; chaque clé y est documentée.
+renseignez que ce dont vous avez besoin ; chaque clé y est documentée. Quelques variables que le
+code lit ne figurent pas dans ce fichier : `BACKEND_URL` (un jumeau uniquement côté serveur de
+`NEXT_PUBLIC_BACKEND_URL`), `NEXT_PUBLIC_LIBRARY_ENABLED`, `ORIVEO_DESKTOP` et `NEXT_DIST_DIR`.
+
+### Rapports d'erreurs
+
+L'app embarque le SDK Sentry. Il est **inerte sans DSN** — pas de `NEXT_PUBLIC_SENTRY_DSN` signifie
+pas de transport, pas d'événements, rien d'envoyé nulle part, et c'est le comportement par défaut
+d'un build issu de ce dépôt. Renseignez-en un et vous obtenez les rapports d'erreurs, 10 % de
+traçage de performance et 1 % de session replay, avec des hooks qui retirent les clés de
+fournisseur, les endpoints et le contenu des messages avant qu'un événement ne quitte le navigateur.
+C'est là pour qu'un déploiement qui veut des rapports d'erreurs puisse en avoir, pas parce que ce
+build téléphone à la maison.
 
 ## Tests
 

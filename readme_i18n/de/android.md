@@ -82,10 +82,12 @@ flowchart TB
 Drei Dinge in diesem Diagramm sind bewusste Designentscheidungen, keine zufällige Struktur.
 
 **Streaming lebt oberhalb des Bildschirms.** `ChatStreamingManager` hält pro Unterhaltungs-ID eine
-`StreamingSession` in einer `ConcurrentHashMap`, jede mit ihrem eigenen, an die Anwendung gebundenen
-`CoroutineScope(SupervisorJob() + Dispatchers.IO)`. Wenn du aus einem Chat herausnavigierst, bricht
-die Antwort nicht ab, und `StreamingTokenBuffer` schreibt Teiltext regelmäßig nach SQLite – die App
-mitten in einer Antwort zu beenden verliert also nicht, was schon angekommen ist.
+`StreamingSession` in einer `ConcurrentHashMap`, jede läuft als eigener `Job` in einem einzigen, an
+die Anwendung gebundenen `CoroutineScope(SupervisorJob() + Dispatchers.IO)` – der Supervisor ist
+genau der Punkt: fällt ein Stream aus, reißt er die anderen nicht mit. Wenn du aus einem Chat
+herausnavigierst, bricht die Antwort nicht ab, und `ChatRepository` schreibt Teiltext nach SQLite,
+sobald `StreamingTokenBuffer` meldet, dass genug angefallen ist (4.000 Zeichen oder 60 Sekunden) –
+die App mitten in einer Antwort zu beenden verliert also nicht, was schon angekommen ist.
 
 **Zwei Datenbanken, nicht eine.** `oriveo.db` hält Unterhaltungen, Nachrichten, Anhänge, Notizen,
 Ordner, Skills und den Cache des Modellkatalogs. `message_continuations.db` ist eine physisch
@@ -158,9 +160,9 @@ Die eigentliche Grenze liegt im Code, nicht im Manifest, weil sie dort liegen mu
 `RelayEndpointPolicy` löst den Host auf, verlangt, dass **jede** aufgelöste Adresse privat ist
 (Loopback, RFC 1918, Link-Local, Unique-Local und im VPN-Modus der CGNAT-Bereich), weist einen Host
 ab, der zu einer Mischung aus öffentlichen und privaten Adressen auflöst, fixiert die aufgelöste
-Adressmenge gegen DNS-Rebinding und prüft sie beim Senden erneut, verweigert jeden
-Klartext-Request, der Anmeldematerial trägt, und blockiert Weiterleitungen über Origin- oder
-Schema-Grenzen hinweg.
+Adressmenge gegen DNS-Rebinding und prüft sie beim Senden erneut. Jeden Klartext-Request, der
+Anmeldematerial trägt, verweigert sie. Die Clients für Discovery und lokale Engines folgen
+Weiterleitungen überhaupt nicht, und die fixierte Adressmenge ist dabei die Rückfallsicherung.
 
 Eine Android Network Security Config kann diese Menge nicht ausdrücken: sie greift nur auf
 Hostnamen, hat keine Syntax für Adressbereiche, und die Adressen hier stammen zur Laufzeit aus dem
@@ -195,8 +197,8 @@ ist.
 >
 > - bekommt keiner der 15 eingebauten Anbieter eine Modellliste, und die App fragt den Anbieter auch
 >   nicht danach – der Katalog ist die einzige Quelle;
-> - der Fehlschlag ist **stumm**. Einen Key hinzuzufügen meldet weiter Erfolg, und die Modellauswahl
->   ist einfach leer, ohne Erklärung;
+> - der Anbieter-Detailbildschirm zeigt das Banner „Offizielle Modelle können nicht geladen werden“,
+>   aber einen Key hinzuzufügen meldet weiter Erfolg und die Modellauswahl ist einfach leer;
 > - **OpenAI wird unbrauchbar**, weil das manuelle Eintragen von Modellen für diesen Anbieter
 >   gesperrt ist;
 > - Relay-Endpunkte und lokale Modellserver funktionieren weiterhin vollständig und sind der einzige
@@ -226,7 +228,7 @@ android/
 
 ## Bauen
 
-Voraussetzungen: **JDK 17 oder neuer** und das Android SDK. Der Build nutzt AGP 9.3, Gradle 9.5 und
+Voraussetzungen: **JDK 21** und das Android SDK. Der Build nutzt AGP 9.3, Gradle 9.5 und
 Kotlin 2.3, Android Studio muss also eine Version sein, die AGP 9.3 synchronisieren kann; auf der
 Kommandozeile reichen JDK und SDK.
 
@@ -283,9 +285,9 @@ Capability-Rezepten, Katalog-Caching und Umgang mit Kontraktversionen, Room-Pers
 Backup-Rundläufe.
 
 > [!IMPORTANT]
-> Rund 38 Suites laden Kontrakt-Fixtures aus `shared/`, indem sie vom Arbeitsverzeichnis aus nach
-> oben laufen, **die Tests laufen also nur in einem vollständigen Checkout durch** – `android/`
-> allein herauszukopieren funktioniert nicht.
+> Rund 38 Suites laden Kontrakt-Fixtures, indem sie `../../shared` relativ zum
+> Gradle-Modulverzeichnis auflösen, **die Tests laufen also nur in einem vollständigen Checkout
+> durch** – `android/` allein herauszukopieren funktioniert nicht.
 
 Dazu kommen drei instrumentierte Tests – eine Release-Matrix für lokale Engines, ein
 Cleartext-Socket-Test und ein Test zur Keystore-Isolation. Sie sind nicht in sich abgeschlossen: die

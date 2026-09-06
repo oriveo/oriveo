@@ -82,10 +82,12 @@ flowchart TB
 Três coisas neste diagrama são decisões de projeto deliberadas, não estrutura acidental.
 
 **O streaming vive acima da tela.** O `ChatStreamingManager` mantém uma `StreamingSession` por id de
-conversa em um `ConcurrentHashMap`, cada uma com o seu próprio
-`CoroutineScope(SupervisorJob() + Dispatchers.IO)` no escopo da aplicação. Sair de um chat não
-cancela a resposta, e o `StreamingTokenBuffer` descarrega periodicamente o texto parcial no SQLite,
-então matar o app no meio de uma resposta não perde o que já chegou.
+conversa em um `ConcurrentHashMap`, cada uma rodando como o seu próprio `Job` sobre um único
+`CoroutineScope(SupervisorJob() + Dispatchers.IO)` no escopo da aplicação — o supervisor é
+justamente o ponto: se um stream falha, ele não derruba os outros. Sair de um chat não cancela a
+resposta, e o `ChatRepository` descarrega o texto parcial no SQLite assim que o
+`StreamingTokenBuffer` avisa que já acumulou o bastante (4.000 caracteres ou 60 segundos), então
+matar o app no meio de uma resposta não perde o que já chegou.
 
 **Dois bancos de dados, não um.** O `oriveo.db` guarda conversas, mensagens, anexos, notas, pastas,
 skills e o cache do catálogo de modelos. O `message_continuations.db` é um arquivo fisicamente
@@ -158,9 +160,9 @@ A fronteira de verdade está no código, não no manifest, porque tem que estar.
 `RelayEndpointPolicy` resolve o host, exige que **todos** os endereços resolvidos sejam privados
 (loopback, RFC 1918, link-local, unique-local e a faixa CGNAT em modo VPN), rejeita um host que
 resolve para uma mistura de endereços públicos e privados, fixa o conjunto de endereços resolvidos
-contra DNS rebinding e o reverifica na hora de enviar, recusa qualquer requisição em texto claro que
-carregue material de credencial e bloqueia redirecionamentos entre origens ou que troquem de
-esquema.
+contra DNS rebinding e o reverifica na hora de enviar. Ele recusa qualquer requisição em texto claro
+que carregue material de credencial. Os clientes de descoberta e de engine local não seguem
+redirecionamento nenhum, com essa fixação de endereços como rede de proteção.
 
 Uma network security config do Android não consegue expressar esse conjunto: ela casa apenas por
 nome de host, não tem sintaxe para faixas de endereços, e aqui os endereços vêm da rede do próprio
@@ -194,8 +196,9 @@ inacessível mais tarde.
 >
 > - nenhum dos 15 provedores embutidos recebe lista de modelos, e o app não pede uma ao provedor —
 >   o catálogo é a única fonte;
-> - a falha é **silenciosa**. Adicionar uma chave continua reportando sucesso, e o seletor de
->   modelos fica simplesmente vazio, sem explicação;
+> - a tela de detalhe do provedor mostra o aviso “Não foi possível carregar os modelos oficiais”,
+>   mas adicionar a chave continua reportando sucesso e o seletor de modelos fica simplesmente
+>   vazio;
 > - a **OpenAI fica inutilizável**, porque a entrada manual de modelos é bloqueada para esse
 >   provedor;
 > - endpoints Relay e servidores de modelo locais continuam funcionando por completo, e são o único
@@ -225,7 +228,7 @@ android/
 
 ## Compilando
 
-Requisitos: **JDK 17 ou superior** e o Android SDK. O build usa AGP 9.3, Gradle 9.5 e Kotlin 2.3,
+Requisitos: **JDK 21** e o Android SDK. O build usa AGP 9.3, Gradle 9.5 e Kotlin 2.3,
 então o Android Studio precisa ser uma versão capaz de sincronizar o AGP 9.3; pela linha de comando
 bastam o JDK e o SDK.
 
@@ -282,9 +285,9 @@ relay e modos de segurança, execução de receitas de capacidade, cache do cat�
 versão de contrato, persistência no Room e ciclos completos de backup.
 
 > [!IMPORTANT]
-> Cerca de 38 suítes carregam fixtures de contrato de `shared/` subindo a partir do diretório de
-> trabalho, então **os testes só passam em um checkout completo** — copiar só `android/` para fora
-> não vai funcionar.
+> Cerca de 38 suítes carregam fixtures de contrato resolvendo `../../shared` a partir do diretório
+> do módulo Gradle, então **os testes só passam em um checkout completo** — copiar só `android/` para
+> fora não vai funcionar.
 
 Existem também três testes instrumentados — uma matriz de releases de engines locais, um teste de
 socket em texto claro e um teste de isolamento do keystore. Eles não são autocontidos: os de engine

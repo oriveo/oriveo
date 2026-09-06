@@ -7,7 +7,7 @@
 **Todos os modelos, um só app.**
 
 Chat com IA open source, com a sua própria chave, para iOS, Android e web.
-Sem conta, sem assinatura, sem nenhum servidor nosso entre você e o modelo.
+Sem conta, sem assinatura e sem nenhum serviço nosso no caminho das requisições.
 
 <a href="../../LICENSE"><img alt="Licença AGPL-3.0-or-later" src="https://img.shields.io/badge/license-AGPL--3.0--or--later-8B5CF6?style=flat-square&labelColor=black"></a>
 <a href="ios.md"><img alt="iOS 18 ou superior" src="https://img.shields.io/badge/iOS-18+-A78BFA?style=flat-square&labelColor=black&logo=apple&logoColor=white"></a>
@@ -52,7 +52,8 @@ Sem conta, sem assinatura, sem nenhum servidor nosso entre você e o modelo.
 
 O Oriveo Community Edition é um cliente de chat com IA no modelo BYOK — você traz a sua própria
 chave — para iOS, Android e web. Você fornece chaves de API que já possui, e o cliente conversa com
-o provedor usando elas. Não existe conta Oriveo, não existe assinatura e não existe analytics.
+o provedor usando elas. Não existe conta Oriveo nem assinatura, e nada reporta nada de volta para
+nós.
 
 Ele fala nativamente com **15 provedores de modelos** — OpenAI, Anthropic, Google Gemini,
 OpenRouter, DeepSeek, Grok, Mistral, Groq, Together AI, Fireworks AI, MiniMax, Z.ai, Qwen, Kimi e
@@ -65,12 +66,12 @@ você apontá-lo, incluindo llama.cpp, Ollama, LM Studio ou vLLM rodando na sua 
 | **Clientes** | iOS (SwiftUI) · Android (Jetpack Compose) · Web (Next.js) |
 | **Idiomas de interface** | 16 |
 | **Conta necessária** | Nenhuma |
-| **Chamadas que ele faz em nome próprio** | Uma: um catálogo de modelos somente leitura, sem chave e sem identificador anexado |
+| **Chamadas que ele faz em nome próprio** | Uma coisa só, em duas requisições: um catálogo de modelos somente leitura, sem chave e sem identificador anexado |
 | **Licença** | AGPL-3.0-or-later |
 
 ## Por que ele existe
 
-Um cliente de chat não deveria ficar entre você e o modelo que você está pagando.
+Ninguém deveria conseguir tarifar, registrar ou remarcar o modelo que você está pagando.
 
 - **Suas chaves, sua fatura.** Você paga o preço de tabela do provedor. Nada é remarcado, tarifado
   ou revendido.
@@ -78,11 +79,11 @@ Um cliente de chat não deveria ficar entre você e o modelo que você está pag
   para um arquivo quando quiser; não existe cópia na nuvem para você perder o acesso.
 - **Um comportamento, três clientes.** Como uma requisição é montada para um determinado provedor,
   transporte e capacidade é definido uma única vez em [`shared/`](shared.md), e os três clientes
-  fazem asserções contra as mesmas fixtures JSON. Uma peculiaridade de provedor é corrigida uma vez,
-  não três.
-- **Honesto sobre a única chamada que faz.** O app busca um catálogo público de modelos para que um
-  modelo lançado hoje funcione sem atualizar o app. Ele é somente leitura, não leva chave nem
-  identificador, e você pode apontá-lo para o seu próprio host.
+  fazem asserções contra as mesmas fixtures JSON. Uma peculiaridade que mora nesses dados é corrigida
+  uma vez; uma que mora em um parser é pega por três suítes de teste ao mesmo tempo.
+- **A única chamada que ele faz.** O app busca um catálogo público de modelos para que um modelo
+  lançado hoje funcione sem atualizar o app. Ele é somente leitura, não leva chave nem identificador,
+  e você pode apontá-lo para o seu próprio host.
 
 ## Recursos
 
@@ -93,7 +94,8 @@ Um cliente de chat não deveria ficar entre você e o modelo que você está pag
   parâmetros por provedor
 - **Relay** — qualquer endpoint compatível com OpenAI, Anthropic ou Gemini, inclusive um na sua rede
   local
-- **Servidores de modelo locais** — llama.cpp, Ollama, LM Studio, vLLM, com descoberta na rede local
+- **Servidores de modelo locais** — llama.cpp, Ollama, LM Studio, vLLM; o iOS e o Android encontram
+  esses servidores na rede local via mDNS
 - **Login por assinatura** — use uma assinatura Codex ou Grok que você já tem, no lugar de uma chave
   de API
 - **Skills** — prompts de sistema reutilizáveis com modelo, parâmetros e documentos de referência
@@ -120,18 +122,17 @@ camada de conta por cima.
 | Código-fonte | Este repositório, AGPL-3.0-or-later | Proprietário |
 | Chat com as suas próprias chaves de provedor | Sim | Sim |
 | Relay e servidores de modelo locais | Sim | Sim |
-| Notas, pastas, skills, anexos | Sim, ilimitados | Sim |
+| Notas, pastas, skills, anexos | Sim | Sim |
 | Controle de custo no dispositivo | Sim | Sim |
 | Conta | Nenhuma | Conta Oriveo |
 | Armazenamento | No dispositivo; exportação e restauração manuais | Local-first, mais sincronização na nuvem entre dispositivos |
 | Insights de uso e alertas de orçamento | — | Sim |
 | Modelos pagos pelo Oriveo | — | Sim |
-| Analytics e relatório de crash | Nenhum | Sim |
+| Analytics e relatório de crash | Desligado por padrão — o bundle web inclui o Sentry, mudo sem um DSN | Sim |
 
 As builds da Community Edition usam o prefixo de identificador `ai.oriveo.community`, então uma
-delas pode conviver com uma build de loja sem que as duas compartilhem keychain, canal de
-atualização ou dados locais. O que esta edição aceita e o que não aceita está escrito em
-[COMMUNITY.md](../../COMMUNITY.md).
+delas pode conviver com uma build de loja sem que as duas compartilhem keychain ou dados locais. O
+que esta edição aceita e o que não aceita está escrito em [COMMUNITY.md](../../COMMUNITY.md).
 
 **Oriveo, o produto completo:**
 [iPhone e iPad](https://apps.apple.com/app/oriveo/id6775370458) &nbsp;·&nbsp;
@@ -197,11 +198,12 @@ Cada cliente tem a sua própria UI, armazenamento e navegação, e encontra os c
 em exatamente uma costura: a camada que transforma *este modelo, esta capacidade* em uma requisição
 HTTP.
 
-A única assimetria que vale conhecer é o cliente web. As APIs dos provedores não enviam cabeçalhos
-CORS, então um navegador não consegue chamá-las diretamente; por isso as requisições aos 15
-provedores oficiais passam por um route handler Next.js rodando na máquina que serve o app — a sua,
-quando você roda localmente. Os clientes iOS e Android não têm essa restrição e vão direto ao
-provedor. Endpoints relay na sua própria rede também são chamados diretamente pelo navegador.
+A única assimetria que vale conhecer é o cliente web. A maioria das APIs dos provedores não envia
+cabeçalhos CORS, então um navegador não consegue chamá-las diretamente; essas requisições passam por
+um route handler Next.js rodando na máquina que serve o app — a sua, quando você roda localmente. Os
+poucos endpoints que de fato aceitam um navegador (o endpoint chinês da Moonshot, os endpoints de
+saldo de alguns provedores) e os relays na sua própria rede são chamados diretamente. Os clientes
+iOS e Android não têm essa restrição e vão sempre direto ao provedor.
 
 **A arquitetura de cada cliente:**
 
@@ -213,6 +215,10 @@ provedor. Endpoints relay na sua própria rede também são chamados diretamente
 | **Shared** | Contratos, fixtures gravadas e o núcleo Swift de protocolo | [shared/README.md](shared.md) |
 
 ## Começar
+
+Aqui não há binários prontos — nenhum APK, nenhum `.ipa`, nenhuma release. O Community Edition é
+código-fonte que você mesmo compila, e os apps de loja são o outro produto. O cliente web é o caminho
+mais curto para ter um app rodando.
 
 <details open>
 <summary><b>Web</b> — o jeito mais rápido de experimentar</summary>
@@ -255,9 +261,8 @@ Passo a passo completo, incluindo o que fazer se o Xcode se recusar a abrir o pr
 
 <br>
 
-Requer JDK 17 ou superior e o Android SDK. O build usa AGP 9.3, Gradle 9.5 e Kotlin 2.3, então o
-Android Studio precisa ser uma versão capaz de sincronizá-los; pela linha de comando bastam o JDK e
-o SDK.
+Requer JDK 21 e o Android SDK. O build usa AGP 9.3, Gradle 9.5 e Kotlin 2.3, então o Android Studio
+precisa ser uma versão capaz de sincronizá-los; pela linha de comando bastam o JDK e o SDK.
 
 ```bash
 cd android
@@ -270,15 +275,15 @@ Servindo o catálogo de modelos a partir do seu próprio host: [android/README.m
 
 ## Privacidade
 
-- **As chaves de provedor** são guardadas pelo recurso próprio de cada plataforma — o Keychain do
-  iOS, o Keystore do Android (`EncryptedSharedPreferences`) ou o IndexedDB do navegador — e são
-  usadas apenas para acessar o provedor a que pertencem. Na web elas ficam armazenadas sem
-  criptografia, o mesmo modelo que os clientes BYOK de navegador costumam usar; para a garantia mais
-  forte, use o cliente iOS ou Android.
+- **As chaves de provedor** vão para o Keychain do iOS e, no Android, para
+  `EncryptedSharedPreferences` sob uma chave guardada no Keystore do Android. Um navegador não tem
+  recurso equivalente, então na web elas ficam sem criptografia no IndexedDB — o mesmo modelo que os
+  clientes BYOK de navegador costumam usar. Para a garantia mais forte, use o cliente iOS ou
+  Android.
 - **Conversas, notas, pastas, skills e anexos** ficam armazenados no dispositivo. Nada é enviado para
   lugar nenhum.
-- **Sem conta, sem analytics, sem relatório de crash.** Não há onde fazer login e não há nada ligando
-  de volta para casa.
+- **Sem conta e sem nada reportando de volta para nós.** Não há onde fazer login. O bundle web inclui
+  o Sentry, que fica mudo enquanto você não configurar um DSN seu.
 - **No iOS e no Android, as requisições de chat vão direto do dispositivo para o provedor.** Na web
   elas passam pelo servidor Next.js que serve o app, porque as APIs dos provedores não permitem
   chamadas diretas do navegador; esse servidor não persiste chaves nem mensagens, e quando você roda
@@ -322,8 +327,9 @@ nem identificador.
 
 Sim. Adicione uma conexão Relay apontando para qualquer servidor compatível com OpenAI, Anthropic ou
 Gemini — llama.cpp, Ollama, LM Studio, vLLM, ou qualquer outro que fale um desses protocolos. Os
-clientes Android e web também conseguem descobrir um servidor desses na rede local. O HTTP local não
-usa credencial nenhuma e nunca sai da sua rede.
+clientes iOS e Android conseguem descobrir um deles na rede local via mDNS; o cliente web oferece o
+endereço padrão de cada engine e o sonda. O HTTP local não usa credencial nenhuma e nunca sai da sua
+rede.
 
 </details>
 
@@ -334,8 +340,9 @@ usa credencial nenhuma e nunca sai da sua rede.
 
 Os apps das lojas são o Oriveo, um produto proprietário que acrescenta conta, sincronização na nuvem
 entre dispositivos, insights de uso e modelos pagos pelo Oriveo. O Community Edition são os mesmos
-três clientes sem nada disso: sem conta, sem serviço de sincronização, sem cobrança, sem analytics.
-Veja [Community Edition e Oriveo](#community-edition-e-oriveo) para a comparação completa.
+três clientes sem nada disso: sem conta, sem serviço de sincronização, sem cobrança e sem nada
+reportando de volta para nós. Veja [Community Edition e Oriveo](#community-edition-e-oriveo) para a
+comparação completa.
 
 </details>
 
@@ -345,7 +352,7 @@ Veja [Community Edition e Oriveo](#community-edition-e-oriveo) para a comparaç�
 <br>
 
 Não neste repositório. Enquanto isso, o cliente web funciona bem como app de desktop em qualquer
-navegador, e o build de iOS roda em Macs com Apple silicon.
+navegador, e o build de iOS normalmente pode ser executado em um Mac com Apple silicon.
 
 </details>
 
@@ -363,11 +370,13 @@ tem layout completo da direita para a esquerda.
 ## Estrutura do repositório
 
 ```
-ios/       iOS client (SwiftUI)
-android/   Android client (Jetpack Compose)
-web/       Web client (Next.js)
-macos/     Reserved for a macOS client
-shared/    Cross-client contracts, recorded fixtures, and the Swift wire kernel
+ios/           iOS client (SwiftUI)
+android/       Android client (Jetpack Compose)
+web/           Web client (Next.js)
+macos/         Reserved for a macOS client
+shared/        Cross-client contracts, recorded fixtures, and the Swift wire kernel
+readme_i18n/   These READMEs in fifteen more languages
+docs/assets/   Images used by the READMEs
 ```
 
 ## Como contribuir

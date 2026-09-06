@@ -38,9 +38,9 @@ driften leise, in die Richtung dessen, den zuletzt jemand getestet hat, und die 
 Bug auf, der sich auf einer Plattform reproduzieren lässt und auf den anderen nicht.
 
 `shared/` ist die Antwort darauf: Das Verhalten wird einmal als Daten festgeschrieben, und die
-Test-Suite jedes Clients prüft gegen dieselben Dateien. Eine Anbieter-Eigenheit wird einmal behoben.
-Eine Kontraktänderung lässt drei Suites gleichzeitig scheitern, statt auf zwei Plattformen
-auszuliefern und die dritte kaputtzumachen.
+Test-Suite jedes Clients prüft gegen dieselben Dateien. Eine Eigenheit, die in diesen Daten steckt,
+wird einmal behoben. Eine Eigenheit, die in einem Parser steckt, fällt drei Suites gleichzeitig auf,
+statt auf zwei Plattformen auszuliefern und die dritte kaputtzumachen.
 
 ```mermaid
 flowchart LR
@@ -91,11 +91,12 @@ Clients auf einmal.
 Golden-Testdaten: aufgezeichneter Upstream-Verkehr von Tool-Calls, Szenarien für Relay-Routing und
 -Erkennung, Snapshots von Model Facts und Capability-Belegen sowie Szenarien für lokale Engines.
 
-Die `.sse`-Dateien sind **echt mitgeschnittener Upstream-Verkehr** und bleiben Byte für Byte
-unangetastet. Ein handgeschriebener Mock kodiert, was du geglaubt hast, was der Anbieter tut; ein
-aufgezeichneter Stream kodiert, was er tatsächlich getan hat, inklusive des kaputten Chunks, den er
-an jenem Dienstag geschickt hat. Wenn eine Korrektur am Anbieter-Protokoll einen Test braucht, ist
-eine Aufzeichnung mehr wert als ein Mock.
+Die `.sse`-Dateien unter `recorded/` sind **echt mitgeschnittener Upstream-Verkehr** und bleiben Byte
+für Byte unangetastet; die übrigen sind handgeschriebene Fixtures, die einen bestimmten Parse-Pfad
+festnageln. Der Unterschied zählt: Ein handgeschriebener Mock kodiert, was du geglaubt hast, was der
+Anbieter tut, eine Aufzeichnung dagegen kodiert, was er tatsächlich getan hat, inklusive des kaputten
+Chunks, den er an jenem Dienstag geschickt hat. Wenn eine Korrektur am Anbieter-Protokoll einen Test
+braucht, nimm lieber eine Aufzeichnung.
 
 ## OriveoProviderKit
 
@@ -123,15 +124,18 @@ cd shared/OriveoProviderKit && swift build && swift test
 Eine Änderung hier ist eine Änderung an jedem Client. Lass die Kontrakt-Suites jedes Clients laufen,
 der die Datei liest, die du angefasst hast, nicht nur die des Clients, in dem du gerade arbeitest:
 
+Aus dem Wurzelverzeichnis des Repositorys:
+
 ```bash
-cd web && npm run test:run
-cd shared/OriveoProviderKit && swift test
+(cd web && npm run test:run)
+(cd shared/OriveoProviderKit && swift test)
 # plus the iOS and Android suites — see their READMEs
 ```
 
-Sowohl die iOS- als auch die Android-Suites finden dieses Verzeichnis, indem sie von der Testdatei
-aus nach oben laufen, bis sie `shared/` finden, und die Web-Suites lösen es relativ zum Workspace
-auf. Alle brauchen deshalb ein vollständiges Checkout des Repositorys.
+Die iOS-Suites finden dieses Verzeichnis, indem sie von der Testdatei aus nach oben laufen, bis sie
+`shared/` sehen; die Android-Suites lösen `../../shared` relativ zum Gradle-Modul auf, und die
+Web-Suites lösen es relativ zum Workspace auf. Alle brauchen deshalb ein vollständiges Checkout des
+Repositorys.
 
 ## Lizenz
 

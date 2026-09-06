@@ -82,10 +82,12 @@ flowchart TB
 Tres cosas de este diagrama son decisiones de diseño deliberadas, no estructura accidental.
 
 **El streaming vive por encima de la pantalla.** `ChatStreamingManager` mantiene una
-`StreamingSession` por id de conversación en un `ConcurrentHashMap`, cada una con su propio
-`CoroutineScope(SupervisorJob() + Dispatchers.IO)` con ámbito de aplicación. Salir de un chat no
-cancela la respuesta, y `StreamingTokenBuffer` vuelca periódicamente el texto parcial a SQLite, así
-que matar la app a mitad de una respuesta no pierde lo que ya llegó.
+`StreamingSession` por id de conversación en un `ConcurrentHashMap`, cada una corriendo como su
+propio `Job` sobre un único `CoroutineScope(SupervisorJob() + Dispatchers.IO)` con ámbito de
+aplicación: el supervisor es justo el punto, así que si un stream falla no se lleva por delante a los
+demás. Salir de un chat no cancela la respuesta, y `ChatRepository` vuelca el texto parcial a SQLite
+en cuanto `StreamingTokenBuffer` dice que se acumuló lo suficiente (4.000 caracteres o 60 segundos),
+así que matar la app a mitad de una respuesta no pierde lo que ya llegó.
 
 **Dos bases de datos, no una.** `oriveo.db` guarda conversaciones, mensajes, adjuntos, notas,
 carpetas, Skills y la caché del catálogo de modelos. `message_continuations.db` es un archivo
@@ -158,9 +160,9 @@ La frontera de verdad está en el código, no en el manifiesto, porque tiene que
 `RelayEndpointPolicy` resuelve el host, exige que **todas** las direcciones resueltas sean privadas
 (loopback, RFC 1918, link-local, unique-local y el rango CGNAT en modo VPN), rechaza un host que
 resuelve a una mezcla de direcciones públicas y privadas, fija el conjunto de direcciones resuelto
-contra el DNS rebinding y lo vuelve a verificar al momento de enviar, se niega a cualquier solicitud
-en claro que lleve material de credenciales y bloquea las redirecciones que cambian de origen o de
-esquema.
+contra el DNS rebinding y lo vuelve a verificar al momento de enviar. Rechaza cualquier solicitud en
+claro que lleve material de credenciales. Los clientes de descubrimiento y de motor local no siguen
+ninguna redirección, con esa fijación de direcciones como red de seguridad.
 
 Una network security config de Android no puede expresar ese conjunto: solo distingue por nombre de
 host, no tiene sintaxis para rangos de direcciones, y las direcciones aquí vienen de la red del
@@ -195,8 +197,9 @@ accesible.
 >
 > - ninguno de los 15 proveedores integrados obtiene una lista de modelos, y la app tampoco se la
 >   pide al proveedor: el catálogo es la única fuente;
-> - el fallo es **silencioso**. Agregar una clave sigue reportando éxito, y el selector de modelos
->   simplemente queda vacío sin explicación;
+> - la pantalla de detalle del proveedor muestra un aviso de «No se pudieron cargar los modelos
+>   oficiales», pero agregar la clave sigue reportando éxito y el selector de modelos simplemente
+>   queda vacío;
 > - **OpenAI queda inutilizable**, porque la entrada manual de modelos está bloqueada para ese
 >   proveedor;
 > - los endpoints Relay y los servidores de modelos locales siguen funcionando por completo, y son la
@@ -226,7 +229,7 @@ android/
 
 ## Compilación
 
-Requisitos: **JDK 17 o posterior** y el SDK de Android. La build usa AGP 9.3, Gradle 9.5 y Kotlin
+Requisitos: **JDK 21** y el SDK de Android. La build usa AGP 9.3, Gradle 9.5 y Kotlin
 2.3, así que Android Studio tiene que ser una versión capaz de sincronizar AGP 9.3; desde la línea de
 comandos solo hacen falta el JDK y el SDK.
 
@@ -283,9 +286,9 @@ relay y modos de seguridad, ejecución de recetas de capacidad, caché del catá
 versiones de contrato, persistencia con Room y ciclos completos de copia de seguridad.
 
 > [!IMPORTANT]
-> Unas 38 suites cargan fixtures de contrato desde `shared/` subiendo desde el directorio de trabajo,
-> así que **las pruebas solo pasan en un checkout completo**: copiar `android/` por su cuenta no
-> funcionará.
+> Unas 38 suites cargan fixtures de contrato resolviendo `../../shared` desde el directorio del
+> módulo de Gradle, así que **las pruebas solo pasan en un checkout completo**: copiar `android/` por
+> su cuenta no funcionará.
 
 También hay tres pruebas instrumentadas: una matriz de release de motores locales, una prueba de
 socket en claro y una prueba de aislamiento del Keystore. No son autónomas: las de motores locales
