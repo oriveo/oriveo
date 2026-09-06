@@ -67,8 +67,9 @@ function makeProviderDeletionOperationID(): string {
 //   The other three are simply undefined when missing.
 // - v5: notes - adds the notes / noteFolders stores (top level, no subcollections).
 //   Brand new stores with no history to backfill; upgrade creates them idempotently.
-// - v6: ChatMessage gains providerMode / managedRequestId / lastSseSequence. Embedded in
-//   conversations.messages and optional, so old rows read back as undefined.
+// - v6: send-mode bookkeeping on ChatMessage, embedded in conversations.messages and optional,
+//   so old rows read back as undefined. The fields it added are gone again; the version step is
+//   recorded because the database version number can never be reused.
 // - v7: queue of conversation deletions still owed a remote tombstone. Local deletes are hard
 //   deletes, so if no synchronisation backend is installed or the batch commit fails, the intent
 //   is lost forever: reconcile only walks locally present conversations and can never see

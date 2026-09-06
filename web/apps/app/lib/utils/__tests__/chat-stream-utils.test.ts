@@ -173,18 +173,19 @@ describe('readStream', () => {
     });
   });
 
-  it('preserves Managed error code and primary action from stream error events', async () => {
+  // The recovery UI reads kind, retryable and source off the thrown error, and a support request
+  // needs the trace id, so every one of them has to survive the stream event.
+  it('carries the error kind, retry flags and trace id from a stream error event', async () => {
     const stream = new ReadableStream({
       start(controller) {
         controller.enqueue({
           type: 'error',
-          error: 'AI balance is not enough.',
-          errorDetail: 'AI balance is not enough.',
+          error: 'The provider quota is exhausted.',
+          errorDetail: 'The provider quota is exhausted.',
           errorKind: 'quotaExceeded',
           retryable: false,
-          source: 'oriveo',
-          managedErrorCode: 'INSUFFICIENT_BALANCE',
-          managedErrorAction: 'recharge',
+          source: 'provider',
+          quotaSource: 'provider',
           traceId: 'trc_1',
         });
         controller.close();
@@ -193,12 +194,11 @@ describe('readStream', () => {
 
     await expect(readStream(stream, '', vi.fn())).rejects.toMatchObject({
       kind: 'quotaExceeded',
-      message: 'AI balance is not enough.',
-      detail: 'AI balance is not enough.',
+      message: 'The provider quota is exhausted.',
+      detail: 'The provider quota is exhausted.',
       retryable: false,
-      source: 'oriveo',
-      managedErrorCode: 'INSUFFICIENT_BALANCE',
-      managedErrorAction: 'recharge',
+      source: 'provider',
+      quotaSource: 'provider',
       traceId: 'trc_1',
     });
   });

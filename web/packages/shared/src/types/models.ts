@@ -224,13 +224,6 @@ export interface AIModel {
    * override on the backend takes effect without a client change.
    */
   pdfNativeDefault?: boolean;
-  /**
-   * a user-owned provider (managed) only: the server-issued `free_quota_eligible`.
-   * false means the model cannot draw on the free weekly quota and needs paid balance.
-   * Absent means the server sent nothing, so nothing is annotated. The client only
-   * displays this field and never reimplements the eligibility rule.
-   */
-  freeQuotaEligible?: boolean;
 }
 
 /* ── Provider ─────────────────────────────────────────── */
@@ -354,7 +347,13 @@ export interface Provider {
   openAISubscription?: ProviderSubscriptionCredential;
   /** LWW baseline timestamp; older records default to the distant past. */
   updatedAt?: string;
-  /** Updated only when the listener reports !isPending; LWW reads this field. */
+  /**
+   * Updated only when the listener reports !isPending; LWW reads this field.
+   *
+   * The `firestore` prefix is historical. It survives as a wire name because backup archives
+   * written by every client carry it, so renaming the field would break archives across all of
+   * them; the same applies to each `firestoreUpdatedAt` / `firestoreMetadataUpdatedAt` below.
+   */
   firestoreUpdatedAt?: string;
 }
 
@@ -481,36 +480,6 @@ export interface ChatMessage {
   };
   providerID?: string;
   providerKind: ProviderKind;
-  /**
-   * Send mode: BYOK direct connection or managed platform routing.
-   * Optional; older messages leave it undefined and are treated as byok.
-   */
-  providerMode?: 'byok' | 'managed';
-  /** Managed Chat request id, used for replay, status and cancel. */
-  managedRequestId?: string;
-  /** Highest persisted Managed SSE sequence, used to resume after a dropped connection. */
-  lastSseSequence?: number;
-  /** Managed settlement status hint; undefined on older messages. */
-  managedSettlementStatus?: 'completed' | 'pending';
-  managedSettlementMessage?: string;
-  managedErrorCode?: string;
-  managedErrorMessage?: string;
-  managedErrorAction?: string;
-  managedErrorReasonCode?: string;
-  managedErrorRiskRef?: string;
-  /**
-   * Absolute time a cooldown or rate limit lifts (ISO 8601 UTC) = the moment the error
-   * arrived plus the server's retry_after_seconds. An absolute time rather than a
-   * remaining count matters because the card may be read long afterwards, when a relative
-   * value would be increasingly wrong. Rendering recomputes the remainder from the
-   * current time; once it has passed the copy drops the countdown instead of having the
-   * client claim a retry will now succeed.
-   */
-  managedErrorRetryAt?: string;
-  managedErrorTraceId?: string;
-  managedPartialErrorCode?: string;
-  managedPartialErrorMessage?: string;
-  managedPartialErrorAction?: string;
   providerName: string;
   modelID?: string;
   modelName: string;
@@ -612,7 +581,7 @@ export interface Conversation {
   updatedAt: string;
   /** Conversation creation time; required on create, and relied on by the list, sorting and sync. */
   createdAt: string;
-  /** Updated only when the listener reports !isPending; LWW reads this field. */
+  /** Updated only when the listener reports !isPending; LWW reads this field. Historical name, kept for backup-archive compatibility across clients. */
   firestoreUpdatedAt?: string;
   /** Owning folder id; undefined means uncategorized. */
   folderID?: string;
@@ -624,7 +593,7 @@ export interface Conversation {
   skillId?: string;
   /** Remote message count, shown as a fallback before messages are lazily loaded. */
   remoteMessageCount?: number;
-  /** Metadata-level LWW tracking for changes that do not affect ordering: rename, model switch, folder move. */
+  /** Metadata-level LWW tracking for changes that do not affect ordering: rename, model switch, folder move. Historical name, kept for backup-archive compatibility across clients. */
   firestoreMetadataUpdatedAt?: string;
   /**
    * A read-only conflict copy produced by the merge wizard: hidden from the sidebar list, still
@@ -650,7 +619,7 @@ export interface Folder {
   colorTag?: string;
   createdAt: string;   // ISO 8601
   updatedAt: string;   // ISO 8601
-  /** Remote confirmation timestamp, used for LWW. */
+  /** Remote confirmation timestamp, used for LWW. Historical name, kept for backup-archive compatibility across clients. */
   firestoreUpdatedAt?: string;
 }
 
@@ -712,7 +681,7 @@ export interface Note {
 
   createdAt: string;                // ISO 8601
   updatedAt: string;                // ISO 8601
-  /** Drives the LWW decision; updated only when the listener reports !isPending, never on a local write. */
+  /** Drives the LWW decision; updated only when the listener reports !isPending, never on a local write. Historical name, kept for backup-archive compatibility across clients. */
   firestoreUpdatedAt?: string;
   /** Soft-delete tombstone; non-empty means deleted and moved to the trash. */
   deletedAt?: string;
@@ -727,7 +696,7 @@ export interface NoteFolder {
   colorTag?: string;                // Key into FOLDER_COLORS, shared with Folder
   createdAt: string;                // ISO 8601
   updatedAt: string;                // ISO 8601
-  /** Remote confirmation timestamp, used for LWW. */
+  /** Remote confirmation timestamp, used for LWW. Historical name, kept for backup-archive compatibility across clients. */
   firestoreUpdatedAt?: string;
   /**
    * Soft-delete tombstone, deliberately present here even though Folder has no such

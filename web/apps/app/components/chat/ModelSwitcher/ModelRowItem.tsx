@@ -18,7 +18,6 @@ interface ModelRowItemProps {
   provider: Provider;
   isSelected: boolean;
   isDisabled: boolean;
-  /** The user is on the managed free tier (no paid balance, running on the weekly allowance); the caller decides this from the balance status the backend reports. */
   onSelect: (model: AIModel, provider: Provider) => void;
   capabilityProjector: ModelCapabilityPresentationProjector;
 }

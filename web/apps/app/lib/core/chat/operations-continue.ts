@@ -531,10 +531,10 @@ export function continueAnswering(
 }
 
 /**
- * Strip the error presentation metadata left behind by the previous failed round.
- * managedRequestId / lastSseSequence are kept: continuation relies on them to replay the
- * server-side cursor. Retry's clearReusableAssistantState does the opposite, because a retry is a
- * brand new request and must drop the session identifiers as well.
+ * Strip the error presentation metadata left behind by the previous failed round. A continuation
+ * reuses the same assistant message, so the accumulated text and usage stay; only the fields that
+ * describe the failure are cleared. Retry's clearReusableAssistantState goes further, because a
+ * retry starts the round over and must also drop the usage and cost of the abandoned attempt.
  */
 function clearErrorPresentationState(message: ChatMessage): ChatMessage {
   const clean = { ...message };
@@ -542,15 +542,5 @@ function clearErrorPresentationState(message: ChatMessage): ChatMessage {
   delete clean.errorDetail;
   delete clean.errorKind;
   delete clean.errorSource;
-  delete clean.managedErrorCode;
-  delete clean.managedErrorMessage;
-  delete clean.managedErrorAction;
-  delete clean.managedErrorReasonCode;
-  delete clean.managedErrorRiskRef;
-  delete clean.managedErrorRetryAt;
-  delete clean.managedErrorTraceId;
-  delete clean.managedPartialErrorCode;
-  delete clean.managedPartialErrorMessage;
-  delete clean.managedPartialErrorAction;
   return clean;
 }

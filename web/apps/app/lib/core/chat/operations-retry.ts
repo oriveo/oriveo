@@ -153,20 +153,6 @@ export function retryMessageWithSender(
 
 function clearReusableAssistantState(message: ChatMessage): ChatMessage {
   const clean = { ...message };
-  delete clean.managedRequestId;
-  delete clean.lastSseSequence;
-  delete clean.managedErrorCode;
-  delete clean.managedErrorMessage;
-  delete clean.managedErrorAction;
-  delete clean.managedErrorReasonCode;
-  delete clean.managedErrorRiskRef;
-  delete clean.managedErrorRetryAt;
-  delete clean.managedErrorTraceId;
-  delete clean.managedPartialErrorCode;
-  delete clean.managedPartialErrorMessage;
-  delete clean.managedPartialErrorAction;
-  delete clean.managedSettlementStatus;
-  delete clean.managedSettlementMessage;
   delete clean.inputTokens;
   delete clean.outputTokens;
   delete clean.cachedInputTokens;

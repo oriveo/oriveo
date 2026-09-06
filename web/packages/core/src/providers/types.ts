@@ -78,12 +78,6 @@ export type StreamEvent =
       status?: number;
       upstreamURL?: string;
       quotaSource?: ProviderQuotaSource;
-      managedErrorCode?: string;
-      managedErrorAction?: string;
-      managedErrorReasonCode?: string;
-      managedErrorRiskRef?: string;
-      /** Remaining wait in seconds as reported by the managed service; converted to an absolute unblock timestamp before it is stored. */
-      managedErrorRetryAfterSeconds?: number;
       traceId?: string;
     };
 

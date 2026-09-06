@@ -138,7 +138,10 @@ describe('hydrateStore reports failures to Sentry', () => {
 });
 
 describe('hydrateStore stream partial recovery', () => {
-  it('restores Managed replay anchors from sessionStorage backup when marking stuck streams interrupted', async () => {
+  // A stream killed by a tab close leaves the message stuck in `generating`, and the IDB copy of its
+  // text can be shorter than the sessionStorage backup, whose write is synchronous and always
+  // completes. Hydration has to take the longer text and mark the message interrupted.
+  it('takes the longer sessionStorage partial when marking a stuck stream interrupted', async () => {
     h.getAllConversations.mockResolvedValue([
       makeConversation({
         id: 'c1',
@@ -152,8 +155,7 @@ describe('hydrateStore stream partial recovery', () => {
             text: 'short',
             providerID: 'catalog-provider',
             providerKind: 'openAI',
-            providerMode: 'managed',
-            providerName: 'a user-owned provider',
+            providerName: 'OpenAI',
             modelID: 'gpt-4.1',
             modelName: 'GPT-4.1',
             estimatedCost: 0,
@@ -169,8 +171,6 @@ describe('hydrateStore stream partial recovery', () => {
         msgId: 'a1',
         partial: 'longer partial',
         ts: 1,
-        managedRequestId: 'mreq_1',
-        lastSseSequence: 7,
       },
     });
 
@@ -183,9 +183,6 @@ describe('hydrateStore stream partial recovery', () => {
       id: 'a1',
       text: 'longer partial',
       state: 'interrupted',
-      providerMode: 'managed',
-      managedRequestId: 'mreq_1',
-      lastSseSequence: 7,
     });
     expect(h.clearStreamPartialBackup).toHaveBeenCalledTimes(1);
   });

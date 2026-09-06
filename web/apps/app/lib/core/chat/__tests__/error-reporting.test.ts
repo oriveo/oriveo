@@ -153,13 +153,4 @@ describe("buildProviderSentryContext", () => {
       extra: { providerErrorDetail: "Upstream HTTP 502: unavailable" },
     });
   });
-
-  it("uses a provider-supplied error code to keep distinct operational failures separate", () => {
-    expect(buildProviderSentryContext("openAI", {
-      kind: "upstream",
-      managedErrorCode: "INTERNAL_ERROR",
-    })).toEqual({
-      fingerprint: ["provider-error", "openAI", "INTERNAL_ERROR"],
-    });
-  });
 });

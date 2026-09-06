@@ -724,9 +724,8 @@ export function sendMessage(
       const customFragmentReasonKey = (pe.kind as string) === CUSTOM_FRAGMENT_ERROR_KIND
         ? customFragmentRejectionCopyKey(pe.detail || pe.message || '')
         : undefined;
-      // Localized body only when the server authoritatively returned a managed error code (same
-      // threshold as managedErrorMessage); ordinary network or client exceptions inside the same
-      // managed stream have no fixed server copy and keep their original detail.
+      // Localized body only for a recognised library_* failure code; ordinary network or client
+      // exceptions raised inside the same request have no fixed copy and keep their own detail.
       const libraryFailure = libraryFailurePatch(err, libraryFailurePresentation);
       const failedAssistantMsg: ChatMessage = {
         ...assistantMsg, text: partialText, state: 'failed' as const,

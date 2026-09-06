@@ -396,10 +396,9 @@ describe("MessageBubble", () => {
     expect(screen.queryByTestId("message-recovery-card")).toBeNull();
   });
 
-  it("disables interrupted regenerate while managed settlement is pending, but keeps continue enabled", () => {
-    // Regeneration is blocked while a pending charge settles: resending mints a new clientRequestId
-    // and a new hold, so the original pending would settle into a double charge. continue and resume
-    // extend the partial instead and are unaffected.
+  // An interrupted answer has two ways forward and must offer both: regenerate throws the partial
+  // away and asks again, continue extends it.
+  it("offers both regenerate and continue on an interrupted assistant message", () => {
     mockCreateModelDisplayLookup.mockReturnValue({
       resolve: vi.fn().mockReturnValue(null),
     });
@@ -409,30 +408,6 @@ describe("MessageBubble", () => {
           ...baseMessage,
           role: "assistant",
           state: "interrupted",
-          managedSettlementStatus: "pending",
-        }}
-        provider={provider}
-        onContinue={vi.fn()}
-        onRetry={vi.fn()}
-        isLastMessage
-      />,
-    );
-
-    expect(screen.queryByRole("button", { name: "regenerateBtn" })).toBeNull();
-    expect(screen.getByRole("button", { name: "continueBtn" })).toBeTruthy();
-  });
-
-  it("keeps interrupted regenerate enabled once managed settlement is no longer pending", () => {
-    mockCreateModelDisplayLookup.mockReturnValue({
-      resolve: vi.fn().mockReturnValue(null),
-    });
-    render(
-      <MessageBubble
-        message={{
-          ...baseMessage,
-          role: "assistant",
-          state: "interrupted",
-          managedSettlementStatus: "completed",
         }}
         provider={provider}
         onContinue={vi.fn()}

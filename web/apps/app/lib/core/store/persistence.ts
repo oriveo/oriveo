@@ -104,22 +104,14 @@ export async function hydrateStore(store: StoreApi<AppStore>, expectedUID?: stri
       if (!hasStuckMsg && !backup) return conv;
       const updatedMessages = conv.messages.map((m) => {
         let text = m.text;
-        const backupMatchesMessage = backup && m.id === backup.msgId;
         if (backup && m.id === backup.msgId && backup.partial.length > (m.text?.length ?? 0)) {
           text = backup.partial;
         }
-        const managedFields = backupMatchesMessage && backup.managedRequestId
-          ? {
-              providerMode: 'managed' as const,
-              managedRequestId: backup.managedRequestId,
-              ...(backup.lastSseSequence != null ? { lastSseSequence: backup.lastSseSequence } : {}),
-            }
-          : {};
         if (m.state === 'generating') {
-          return { ...m, text, state: 'interrupted' as const, ...managedFields };
+          return { ...m, text, state: 'interrupted' as const };
         }
-        if (text !== m.text || Object.keys(managedFields).length > 0) {
-          return { ...m, text, ...managedFields };
+        if (text !== m.text) {
+          return { ...m, text };
         }
         return m;
       });

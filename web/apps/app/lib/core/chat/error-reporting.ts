@@ -104,15 +104,12 @@ export function buildProviderSentryContext(providerKind: string, err: unknown): 
   const errorKind = pe && typeof pe === 'object' && typeof pe.kind === 'string'
     ? pe.kind
     : 'non_provider';
-  const managedCode = pe && typeof pe === 'object' && typeof pe.managedErrorCode === 'string'
-    ? pe.managedErrorCode.trim()
-    : '';
   const detail = pe && typeof pe === 'object' && typeof pe.detail === 'string'
     ? pe.detail.slice(0, PROVIDER_ERROR_DETAIL_MAX)
     : '';
 
   return {
-    fingerprint: ['provider-error', providerKind, managedCode || errorKind],
+    fingerprint: ['provider-error', providerKind, errorKind],
     ...(detail ? { extra: { providerErrorDetail: detail } } : {}),
   };
 }

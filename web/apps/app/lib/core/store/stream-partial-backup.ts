@@ -23,8 +23,6 @@ export interface StreamPartialBackup {
   msgId: string;
   partial: string;
   ts: number;
-  managedRequestId?: string;
-  lastSseSequence?: number;
 }
 
 export type StreamPartialBackupMap = Record<string, StreamPartialBackup>;
@@ -40,9 +38,7 @@ function isValidEntry(v: unknown): v is StreamPartialBackup {
     typeof e.conversationId === 'string' &&
     typeof e.msgId === 'string' &&
     typeof e.partial === 'string' &&
-    typeof e.ts === 'number' &&
-    (e.managedRequestId === undefined || typeof e.managedRequestId === 'string') &&
-    (e.lastSseSequence === undefined || typeof e.lastSseSequence === 'number')
+    typeof e.ts === 'number'
   );
 }
 

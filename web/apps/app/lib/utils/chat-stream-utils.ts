@@ -347,11 +347,6 @@ export async function readStream(
           quotaSource: event.quotaSource,
           nextAction: event.nextAction,
           severity: event.severity,
-          managedErrorCode: event.managedErrorCode,
-          managedErrorAction: event.managedErrorAction,
-          managedErrorReasonCode: event.managedErrorReasonCode,
-          managedErrorRiskRef: event.managedErrorRiskRef,
-          managedErrorRetryAfterSeconds: event.managedErrorRetryAfterSeconds,
           traceId: event.traceId,
         } as ProviderError;
       case 'done':

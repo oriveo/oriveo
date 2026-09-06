@@ -319,34 +319,6 @@ describe('idb.ts', () => {
       expect(conversation?.messages.map((message) => message.id)).toEqual(['m1', 'm2']);
     });
 
-    it('should preserve Managed message metadata embedded in conversations', async () => {
-      await putConversation(makeConversation({
-        id: 'managed-conv',
-        providerID: 'catalog-provider',
-        providerKind: 'openAI',
-        messages: [
-          {
-            id: 'm-managed',
-            role: 'assistant',
-            text: 'partial',
-            state: 'generating',
-            providerKind: 'openAI',
-            providerMode: 'managed',
-            managedRequestId: 'mreq_123',
-            lastSseSequence: 12,
-          },
-        ] as Conversation['messages'],
-      }));
-
-      const conversation = await getConversationById('managed-conv');
-
-      expect(conversation?.messages[0]).toMatchObject({
-        providerMode: 'managed',
-        managedRequestId: 'mreq_123',
-        lastSseSequence: 12,
-      });
-    });
-
     it('should preserve messages from a legacy lowercase uuid record', async () => {
       const lowercaseID = '4fa52360-2103-433a-8f4f-40e38faafc82';
       const uppercaseID = '4FA52360-2103-433A-8F4F-40E38FAAFC82';

@@ -71,17 +71,6 @@ export interface ProviderError {
   status?: number;
   upstreamURL?: string;
   quotaSource?: ProviderQuotaSource;
-  managedErrorCode?: string;
-  managedErrorAction?: string;
-  managedErrorReasonCode?: string;
-  managedErrorRiskRef?: string;
-  /**
-   * Seconds remaining until a retry is allowed, as sent by the server in the 402 envelope's
-   * `error.retry_after_seconds`. A relative value is only valid at the moment the error arrives,
-   * so it must be converted to an absolute unblock time before being stored (see
-   * ChatMessage.managedErrorRetryAt).
-   */
-  managedErrorRetryAfterSeconds?: number;
   traceId?: string;
 }
 
@@ -97,11 +86,6 @@ export class ProviderErrorObject extends Error implements ProviderError {
   readonly status?: number;
   readonly upstreamURL?: string;
   readonly quotaSource?: ProviderQuotaSource;
-  readonly managedErrorCode?: string;
-  readonly managedErrorAction?: string;
-  readonly managedErrorReasonCode?: string;
-  readonly managedErrorRiskRef?: string;
-  readonly managedErrorRetryAfterSeconds?: number;
   readonly traceId?: string;
 
   constructor(error: ProviderError) {
@@ -118,11 +102,6 @@ export class ProviderErrorObject extends Error implements ProviderError {
     this.status = error.status;
     this.upstreamURL = error.upstreamURL;
     this.quotaSource = error.quotaSource;
-    this.managedErrorCode = error.managedErrorCode;
-    this.managedErrorAction = error.managedErrorAction;
-    this.managedErrorReasonCode = error.managedErrorReasonCode;
-    this.managedErrorRiskRef = error.managedErrorRiskRef;
-    this.managedErrorRetryAfterSeconds = error.managedErrorRetryAfterSeconds;
     this.traceId = error.traceId;
   }
 }

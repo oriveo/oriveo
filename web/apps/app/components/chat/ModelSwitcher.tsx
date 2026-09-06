@@ -16,10 +16,6 @@ interface ModelSwitcherProps {
   selectedProviderId?: string;
   selectedModelId?: string;
   currentModel?: AIModel;
-  /**
-   * The user is on the a user-owned provider free tier (decided by the balance and weekly quota status the server sends).
-   * When true, managed models with `free_quota_eligible=false` get a paid badge; selectability is unaffected.
-   */
   onSelect: (model: AIModel, provider: Provider) => void;
   onEnableAndSelect: (model: AIModel, provider: Provider) => void;
   onAddManualAndSelect: (modelId: string, provider: Provider) => void;

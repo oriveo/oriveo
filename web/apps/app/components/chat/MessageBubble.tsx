@@ -221,30 +221,6 @@ export const MessageBubble = memo(function MessageBubble({
     message.state !== "generating" &&
     (resolvedModelName || resolvedProviderName);
   const showAssistantHeader = message.role === "assistant" && resolvedModelName;
-  const managedNotice = useMemo(() => {
-    if (message.role !== "assistant" || message.providerMode !== "managed")
-      return null;
-    if (message.managedPartialErrorMessage) {
-      return {
-        tone: "warning" as const,
-        text: message.managedPartialErrorMessage,
-      };
-    }
-    if (message.managedSettlementStatus === "pending") {
-      return {
-        tone: "info" as const,
-        text: message.managedSettlementMessage || t("managedSettlementPending"),
-      };
-    }
-    return null;
-  }, [
-    message.managedPartialErrorMessage,
-    message.managedSettlementMessage,
-    message.managedSettlementStatus,
-    message.providerMode,
-    message.role,
-    t,
-  ]);
   const [downloadingFileId, setDownloadingFileId] = useState<string | null>(
     null,
   );
@@ -305,13 +281,7 @@ export const MessageBubble = memo(function MessageBubble({
   // whole card disappears once errorTitle stops being written).
   const hasFailureCopy = Boolean(message.errorTitle || message.errorKind);
 
-  // Regenerate is disabled while a managed settlement is pending: the contract forbids a second request
-  // for the same message during pending (a resend creates a new clientRequestId and a new hold, so a
-  // pending request that later settles would double-charge).
-  const deliveredRetryAction =
-    interactionLocked || message.managedSettlementStatus === "pending"
-      ? undefined
-      : onRetry;
+  const deliveredRetryAction = interactionLocked ? undefined : onRetry;
   const canSaveNote = Boolean(
     conversationId && message.text.trim() && message.state !== "generating",
   );
@@ -586,14 +556,6 @@ export const MessageBubble = memo(function MessageBubble({
                   {tLibrary("disclaimer")}
                 </p>
               )}
-            {managedNotice && (
-              <div
-                className={styles.managedNotice}
-                data-tone={managedNotice.tone}
-              >
-                {managedNotice.text}
-              </div>
-            )}
             {/* errorKind also counts as failure copy: the title is translated at render time from kind rather than read from a persisted errorTitle */}
             {isFailed && hasFailureCopy && isLastMessage && (
               <div className={styles.inlineError}>

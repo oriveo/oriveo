@@ -193,8 +193,8 @@ export function sendLibraryMessage(
   }
   if (route === "server") {
     // Server-side retrieval only needs one ordinary generation, and going through sendMessage is
-    // what provides managed billing, managed error codes and attachment backfill; the agent
-    // loop's runLeg does not cover the managed upstream.
+    // what carries cost accounting, provider error classification and attachment backfill; the
+    // agent loop's runLeg covers none of that.
     return sendMessage(ctx, {
       ...buildFallbackSendParams(params),
       ...(params.assistantMessageOverride
