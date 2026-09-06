@@ -231,7 +231,7 @@ iOS e Android não têm essa restrição e vão sempre direto ao provedor.
 
 ## Começar
 
-Aqui não há binários prontos — nenhum APK, nenhum `.ipa`, nenhuma release. O Community Edition é
+Aqui não há binários prontos — nenhum APK, nenhum `.ipa`. O Community Edition é
 código-fonte que você mesmo compila, e os apps de loja são o outro produto. O cliente web é o caminho
 mais curto para ter um app rodando.
 

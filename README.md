@@ -225,7 +225,7 @@ and always go straight to the provider.
 
 ## Get started
 
-There are no prebuilt binaries here — no APK, no `.ipa`, no releases. Community Edition is source
+There are no prebuilt binaries here — no APK, no `.ipa`. Community Edition is source
 you build yourself, and the store apps are the other product. The web client is the shortest path to
 a running app.
 

@@ -228,7 +228,7 @@ istemcilerinde böyle bir kısıt yoktur; onlar her zaman doğrudan sağlayıcı
 
 ## Başlarken
 
-Burada önceden derlenmiş ikili dosya yok — APK yok, `.ipa` yok, release yok. Community Edition,
+Burada önceden derlenmiş ikili dosya yok — APK yok, `.ipa` yok. Community Edition,
 kendinizin derlediği kaynak koddur; mağaza uygulamaları ise diğer üründür. Çalışan bir uygulamaya
 giden en kısa yol web istemcisidir.
 

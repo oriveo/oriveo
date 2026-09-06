@@ -232,7 +232,7 @@ ràng buộc đó nên luôn đi thẳng tới nhà cung cấp.
 
 ## Bắt đầu
 
-Ở đây không có bản dựng sẵn nào — không APK, không `.ipa`, không release. Community Edition là mã
+Ở đây không có bản dựng sẵn nào — không APK, không `.ipa`. Community Edition là mã
 nguồn để bạn tự dựng, còn các ứng dụng trên cửa hàng là sản phẩm kia. Client web là con đường ngắn
 nhất để có một ứng dụng chạy được.
 

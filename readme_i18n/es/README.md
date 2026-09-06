@@ -234,7 +234,7 @@ proveedor.
 
 ## Empezar
 
-Aquí no hay binarios precompilados: ni APK, ni `.ipa`, ni releases. Community Edition es código
+Aquí no hay binarios precompilados: ni APK ni `.ipa`. Community Edition es código
 fuente que compilas tú, y las apps de las tiendas son el otro producto. El cliente web es el camino
 más corto para tener la app funcionando.
 

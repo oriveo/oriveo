@@ -232,7 +232,7 @@ langsung menuju provider.
 
 ## Mulai
 
-Tidak ada biner siap pakai di sini — tidak ada APK, tidak ada `.ipa`, tidak ada rilis. Community
+Tidak ada biner siap pakai di sini — tidak ada APK, tidak ada `.ipa`. Community
 Edition adalah kode sumber yang Anda build sendiri, dan aplikasi di toko adalah produk yang satunya.
 Klien web adalah jalur terpendek menuju aplikasi yang berjalan.
 

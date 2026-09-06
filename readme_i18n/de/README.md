@@ -232,7 +232,7 @@ Anbieter.
 
 ## Loslegen
 
-Fertige Binaries gibt es hier nicht – kein APK, keine `.ipa`, keine Releases. Die Community Edition
+Fertige Binaries gibt es hier nicht – kein APK, keine `.ipa`. Die Community Edition
 ist Quelltext, den du selbst baust; die Store-Apps sind das andere Produkt. Am schnellsten kommst du
 über den Web-Client zu einer laufenden App.
 

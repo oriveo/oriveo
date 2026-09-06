@@ -233,7 +233,7 @@ contrainte et vont toujours droit au fournisseur.
 
 ## Démarrer
 
-Il n'y a pas de binaires précompilés ici — pas d'APK, pas de `.ipa`, pas de releases. Community
+Il n'y a pas de binaires précompilés ici — pas d'APK, pas de `.ipa`. Community
 Edition, ce sont des sources que vous compilez vous-même, et les apps du store sont l'autre produit.
 Le client web est le chemin le plus court vers une app qui tourne.
 
