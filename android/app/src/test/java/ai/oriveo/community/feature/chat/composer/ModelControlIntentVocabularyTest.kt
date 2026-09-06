@@ -173,7 +173,7 @@ class ModelControlIntentVocabularyTest {
             "model_picker_filter_web",
             "model_picker_filter_reasoning",
             "model_picker_capability_filter_empty",
-            // Panel title, status line, tier notes, managed banner, scope-upgrade row, developer
+            // Panel title, status line, per-capability notes, scope-upgrade row and developer
             // section -- the wording that underpins the current panel layout.
             "model_control_web_search",
             "model_control_thinking",

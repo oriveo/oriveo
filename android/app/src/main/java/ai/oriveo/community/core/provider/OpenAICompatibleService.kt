@@ -214,9 +214,8 @@ open class OpenAICompatibleService(
             )
         } else null
 
-        // A deterministic upstream 400 saying "parameter X is not supported" triggers one retry
-        // with that parameter stripped. This self-heal net covers Grok and every OpenAI-compatible
-        // subclass.
+        // Sent exactly once. A deterministic upstream 400 that names an unsupported parameter is
+        // surfaced with that name; nothing is dropped and resent behind the user's back.
         UnsupportedParamRetry.run(
             providerKind,
             modelID,
@@ -726,16 +725,16 @@ open class OpenAICompatibleService(
                                 }
                             }
                             "response.completed" -> {
-                                lastUsageJson = (root?.get("usage") as? JsonObject)
-                                    ?: ((root?.get("response") as? JsonObject)?.get("usage") as? JsonObject)
-                                completedResponseId = ((root?.get("response") as? JsonObject)?.get("id") as? JsonPrimitive)?.contentOrNull
-                                    ?: (root?.get("id") as? JsonPrimitive)?.contentOrNull
+                                lastUsageJson = (root["usage"] as? JsonObject)
+                                    ?: ((root["response"] as? JsonObject)?.get("usage") as? JsonObject)
+                                completedResponseId = ((root["response"] as? JsonObject)?.get("id") as? JsonPrimitive)?.contentOrNull
+                                    ?: (root["id"] as? JsonPrimitive)?.contentOrNull
                             }
                             "response.failed",
                             "error",
                             -> {
-                                val detail = ((root?.get("error") as? JsonObject)?.get("message")
-                                    ?: ((root?.get("response") as? JsonObject)
+                                val detail = ((root["error"] as? JsonObject)?.get("message")
+                                    ?: ((root["response"] as? JsonObject)
                                         ?.get("error") as? JsonObject)
                                         ?.get("message"))
                                     ?.jsonPrimitive

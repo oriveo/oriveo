@@ -25,7 +25,6 @@ import org.junit.Test
 import java.time.Instant
 import kotlin.math.ceil
 
-
 class MemoryContractTest {
 
     private lateinit var preferenceDao: FakePreferenceDao
@@ -36,8 +35,6 @@ class MemoryContractTest {
         preferenceDao = FakePreferenceDao()
         repository = AppPreferencesRepository(preferenceDao)
     }
-
-    
 
     @Test
     fun `MEM-0-03 - saveMemory stores ISO 8601 timestamp from Instant`() = runTest {
@@ -52,7 +49,7 @@ class MemoryContractTest {
 
         val storedAt = preferenceDao.get(AppPreferenceKeys.MEMORY_UPDATED_AT)
         assertEquals(now, storedAt)
-        
+
         assertTrue("Timestamp should contain 'T'", storedAt!!.contains("T"))
         assertTrue("Timestamp should end with 'Z'", storedAt.endsWith("Z"))
     }
@@ -62,8 +59,6 @@ class MemoryContractTest {
         val timestamp = Instant.parse("2026-03-31T12:00:00Z").toString()
         assertEquals("2026-03-31T12:00:00Z", timestamp)
     }
-
-    
 
     @Test
     fun `MEM-0-04 - Conversation useMemory defaults to true`() {
@@ -89,8 +84,6 @@ class MemoryContractTest {
         )
         assertFalse(conversation.useMemory)
     }
-
-    
 
     @Test
     fun `MEM-0-05 - saveMemory clears anti-forget when text is blank`() = runTest {
@@ -135,8 +128,6 @@ class MemoryContractTest {
         assertEquals("Use concise style", preferenceDao.get(AppPreferenceKeys.MEMORY_ANTI_FORGET_TEXT))
     }
 
-    
-
     @Test
     fun `MEM-0-06 - anti-forget does not trigger at 9 user messages`() {
         // ChatViewModel.resolvedAntiForgetText: userMessageCount = existing + 1
@@ -154,15 +145,12 @@ class MemoryContractTest {
         assertTrue(totalUserCount >= 10)
     }
 
-    
-
     @Test
     fun `MEM-0-07 - anti-forget appends context in correct format`() {
         val userText = "What should I build next?"
         val antiForgetText = "Prefer concise Chinese answers"
         val expected = "$userText\n\n[Reminder: $antiForgetText]"
 
-        
         val result = "$userText\n\n[Reminder: $antiForgetText]"
         assertEquals(expected, result)
     }
@@ -178,8 +166,6 @@ class MemoryContractTest {
         assertTrue(injected.endsWith("]"))
         assertEquals("Hello\n\n[Reminder: Be brief]", injected)
     }
-
-    
 
     @Test
     fun `MEM-0-11 - OpenAI system prompt as messages 0 with role system`() {
@@ -263,8 +249,6 @@ class MemoryContractTest {
         )
     }
 
-    
-
     @Test
     fun `MEM-0-14 - token estimation for typical text`() {
         val text = "I use Kotlin"
@@ -310,8 +294,6 @@ class MemoryContractTest {
         assertEquals(700, tokens)
     }
 
-    
-
     @Test
     fun `MEM-1-12 - setMemoryText caps at 2000 grapheme clusters`() = runTest {
         val longText = "A".repeat(2500)
@@ -337,8 +319,6 @@ class MemoryContractTest {
         assertEquals(2000, AppPreferencesRepository.MEMORY_CHARACTER_LIMIT)
     }
 
-    
-
     @Test
     fun `MEM-1-13 - setMemoryAntiForgetText caps at 200 grapheme clusters`() = runTest {
         val longText = "C".repeat(300)
@@ -362,8 +342,6 @@ class MemoryContractTest {
     fun `MEM-1-13 - MEMORY_ANTI_FORGET_CHARACTER_LIMIT constant is 200`() {
         assertEquals(200, AppPreferencesRepository.MEMORY_ANTI_FORGET_CHARACTER_LIMIT)
     }
-
-    
 
     @Test
     fun `MEM-1-14 - 1999 graphemes stored without truncation`() = runTest {
@@ -389,8 +367,6 @@ class MemoryContractTest {
         assertEquals(2000, stored.graphemeCount())
     }
 
-    
-
     @Test
     fun `MEM-1-15 - token estimation for 0 characters is 0`() {
         assertEquals(0, ceil(0 * 0.35).toInt())
@@ -412,8 +388,6 @@ class MemoryContractTest {
         // ceil(2000 * 0.35) = ceil(700.0) = 700
         assertEquals(700, ceil(2000 * 0.35).toInt())
     }
-
-    
 
     @Test
     fun `MEM-1-16 - whitespace-only text treated as empty by saveMemory`() = runTest {
@@ -448,11 +422,8 @@ class MemoryContractTest {
         assertFalse(result.contains(""""role":"system""""))
     }
 
-    //
-
     @Test
     fun `MEM-1-17 - clearing memory also clears anti-forget fields`() = runTest {
-        //
         repository.saveMemory(
             text = "Some memory",
             antiForgetEnabled = true,
@@ -462,7 +433,8 @@ class MemoryContractTest {
         assertEquals("Some memory", preferenceDao.get(AppPreferenceKeys.MEMORY_TEXT))
         assertEquals("true", preferenceDao.get(AppPreferenceKeys.MEMORY_ANTI_FORGET_ENABLED))
 
-        //
+        // Clearing the memory text must take the anti-forget fields with it, even though the caller
+        // still passes them.
         repository.saveMemory(
             text = "",
             antiForgetEnabled = true,

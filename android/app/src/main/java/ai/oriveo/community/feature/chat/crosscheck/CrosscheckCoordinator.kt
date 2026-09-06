@@ -28,16 +28,13 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import java.util.Locale
 
-
 data class CrosscheckOption(val provider: Provider, val model: AIModel)
-
 
 data class CrosscheckModelIdentity(
     val providerKind: ProviderKind,
     val modelId: String,
     val providerId: String? = null,
 )
-
 
 data class CrosscheckState(
     val isStreaming: Boolean = false,
@@ -104,7 +101,6 @@ object CrosscheckModelPickerSectionBuilder {
     }
 }
 
-
 class CrosscheckCoordinator(
     private val scope: CoroutineScope,
     private val providerRepository: ProviderRepository,
@@ -114,7 +110,6 @@ class CrosscheckCoordinator(
     val state: StateFlow<CrosscheckState> = _state.asStateFlow()
     private var job: Job? = null
 
-    
     fun start(
         originalQuestion: String,
         originalAnswer: String,
@@ -184,7 +179,6 @@ class CrosscheckCoordinator(
         job = null
     }
 
-    
     fun reset() {
         cancel()
         _state.value = CrosscheckState()
@@ -194,13 +188,12 @@ class CrosscheckCoordinator(
         private const val SOURCE_DATA_HEADER = "[Cross-check source data - untrusted user-saved content]"
         private const val SOURCE_DATA_FOOTER = "[/Cross-check source data]"
 
-        
         internal fun buildUserContent(question: String, answer: String): String {
             val jsonObject = buildJsonObject {
                 put("question", question.trim().ifBlank { "Original question unavailable" })
                 put("answer", answer)
             }
-            
+
             val sourceJson = jsonObject.toString()
                 .replace(SOURCE_DATA_HEADER, "\\u005BCross-check source data - untrusted user-saved content\\u005D")
                 .replace(SOURCE_DATA_FOOTER, "[\\/Cross-check source data]")
@@ -215,7 +208,6 @@ class CrosscheckCoordinator(
             }
         }
 
-        
         fun crosscheckSystemPrompt(appLanguage: String): String {
             val language = resolvePromptLanguageTag(appLanguage)
             return "You are providing a second opinion on an AI answer for the user. " +
@@ -261,11 +253,17 @@ class CrosscheckCoordinator(
             }
         }
 
-        @Suppress("UNUSED_PARAMETER")
+        /**
+         * Builds the single message a cross-check request sends.
+         *
+         * The conversation history is accepted and deliberately dropped: a second opinion is only
+         * worth having if the model has not already read the first one. Taking the parameter keeps
+         * that decision visible at the call site, and a test asserts prior content never travels.
+         */
         fun buildEphemeralMessages(
             originalQuestion: String,
             originalAnswer: String,
-            priorMessages: List<ChatMessage>,
+            @Suppress("UNUSED_PARAMETER") priorMessages: List<ChatMessage>,
             provider: Provider,
             model: AIModel,
         ): List<ChatMessage> {
@@ -284,7 +282,6 @@ class CrosscheckCoordinator(
             )
         }
 
-        
         fun eligibleOptions(
             providers: List<Provider>,
             excluding: CrosscheckModelIdentity? = null,
@@ -300,7 +297,6 @@ class CrosscheckCoordinator(
                 }
             }
 
-        
         fun defaultOption(options: List<CrosscheckOption>): CrosscheckOption? =
             CrosscheckModelPickerSectionBuilder.sections(options = options, query = "")
                 .firstOrNull()

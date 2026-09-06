@@ -8,14 +8,12 @@ import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.intOrNull
 
-
 object RequestPreferenceResolver {
 
     // ------------------------------------------------------------------
-    
+    // Frozen vocabulary (request_preference_contract.v2 §resolution / §vocabulary)
     // ------------------------------------------------------------------
 
-    
     val SCOPE_PRIORITY: List<String> = listOf(
         "single_send",
         "conversation_connection_model",
@@ -26,16 +24,15 @@ object RequestPreferenceResolver {
         "provider_default",
     )
 
-    
     val OWNER_IDS: List<String> = listOf("web", "reasoning", "generation")
 
     // ------------------------------------------------------------------
-    
+    // §resolution: single-layer override resolution - inherit falls through, omit terminates, and a
+    // numeric 0 is an explicit value
     // ------------------------------------------------------------------
 
     enum class OverrideState { INHERIT, VALUE, OMIT }
 
-    
     enum class TerminalState { VALUE, OMIT }
 
     data class Override(val state: OverrideState, val value: JsonElement? = null)
@@ -49,7 +46,6 @@ object RequestPreferenceResolver {
         val reason: String? = null,
     )
 
-    
     fun resolveLayers(layers: List<ScopeLayer>): ResolutionOutcome {
         val sorted = layers.sortedBy { layer ->
             val index = SCOPE_PRIORITY.indexOf(layer.scope)
@@ -76,7 +72,7 @@ object RequestPreferenceResolver {
     }
 
     // ------------------------------------------------------------------
-    
+    // §selectionPolicy: preset and custom_only are never conflated
     // ------------------------------------------------------------------
 
     enum class ControlAvailability { AUTO_AVAILABLE, MANAGED_ONLY, CUSTOM_ONLY, UNAVAILABLE, UNKNOWN }
@@ -120,7 +116,7 @@ object RequestPreferenceResolver {
     }
 
     // ------------------------------------------------------------------
-    
+    // §resolution: pointer conflicts within and across owners - lastWriteWins is false, always reject
     // ------------------------------------------------------------------
 
     data class Assignment(val owner: String, val pointer: String)
@@ -146,7 +142,7 @@ object RequestPreferenceResolver {
     }
 
     // ------------------------------------------------------------------
-    
+    // §safeOverlay: ownership and hardening checks on a lossless JSON fragment
     // ------------------------------------------------------------------
 
     private val SAFE_OVERLAY_ALLOWED_OPERATIONS = setOf("set", "omit", "upsert_owned_element")
@@ -164,7 +160,6 @@ object RequestPreferenceResolver {
 
     data class OverlayMetrics(val bytes: Int, val depth: Int, val nodes: Int)
 
-    
     data class OverlayOperation(val owner: String, val op: String, val pointer: String, val value: JsonElement? = null)
 
     data class OverlayIntent(
@@ -177,7 +172,7 @@ object RequestPreferenceResolver {
     data class OverlayResult(val accepted: Boolean, val reason: String? = null)
 
     fun validateOverlay(intent: OverlayIntent): OverlayResult {
-        
+
         if (intent.channel != "body_fragment") return OverlayResult(false, "forbidden_channel")
         if (intent.metrics.bytes > SAFE_OVERLAY_MAX_BYTES) return OverlayResult(false, "size_exceeded")
         if (intent.metrics.depth > SAFE_OVERLAY_MAX_DEPTH) return OverlayResult(false, "depth_exceeded")
@@ -227,7 +222,7 @@ object RequestPreferenceResolver {
     }
 
     // ------------------------------------------------------------------
-    
+    // §typedContributions: tools and plugins may only contribute typed, append-only entries
     // ------------------------------------------------------------------
 
     private val TYPED_CONTRIBUTION_TARGETS = setOf("tools", "plugins")
@@ -339,7 +334,7 @@ object RequestPreferenceResolver {
     }
 
     // ------------------------------------------------------------------
-    
+    // §resultFacts: how a request was built and how a response executed are separate facts
     // ------------------------------------------------------------------
 
     private val OBSERVATION_EVIDENCE_KINDS = setOf(
@@ -368,19 +363,17 @@ object RequestPreferenceResolver {
     }
 
     // ------------------------------------------------------------------
-    
+    // §continuation: every continuation kind has a finite per-send step ceiling
     // ------------------------------------------------------------------
 
     data class ContinuationSpec(val maxSteps: Int, val requiredStateFields: List<String>, val variants: List<String> = emptyList())
 
-    
     val CONTINUATION_KINDS: Map<String, ContinuationSpec> = mapOf(
         "none" to ContinuationSpec(maxSteps = 0, requiredStateFields = emptyList()),
         "previous_id" to ContinuationSpec(maxSteps = 1, requiredStateFields = listOf("previousResponseId")),
         "replay_blocks" to ContinuationSpec(maxSteps = 8, requiredStateFields = listOf("blocks")),
         "replay_reasoning" to ContinuationSpec(maxSteps = 8, requiredStateFields = listOf("assistantMessages")),
-        
-        
+
         "tool_loop" to ContinuationSpec(maxSteps = 8, requiredStateFields = listOf("completedMessages"), variants = listOf("default", "fiber")),
     )
 
@@ -517,8 +510,7 @@ object RequestPreferenceResolver {
     }
 
     // ------------------------------------------------------------------
-    
-    
+
     // ------------------------------------------------------------------
 
     private const val RETRY_AUTOMATIC_SOURCE = "provider_recipe"
@@ -558,11 +550,16 @@ object RequestPreferenceResolver {
     }
 
     // ==================================================================
-    
+    // §retryPolicy: no capability setting may be silently dropped and retried. Only a precisely
+    // located 400 before the first event may offer a user-confirmed resend without that setting,
+    // and the preference itself is never rewritten.
     // ==================================================================
 
     // ------------------------------------------------------------------
-    
+    // request_shape_contract.v2: the four client-facing groups - runtime envelope, capability
+    // controls, reasoning ladder, provider universe.
+    //
+    // §wireNaming + §failSafe: a capabilityRuntime envelope is applied whole or ignored whole.
     // ------------------------------------------------------------------
 
     private const val RUNTIME_ENVELOPE_KEY = "capabilityRuntime"
@@ -578,7 +575,6 @@ object RequestPreferenceResolver {
         val chatContinues: Boolean = true,
     )
 
-    
     fun validateEnvelope(payload: JsonObject): EnvelopeResult {
         fun fail(reason: String) = EnvelopeResult(applied = false, action = "ignore_runtime", reason = reason, chatContinues = true)
 
@@ -593,20 +589,18 @@ object RequestPreferenceResolver {
     }
 
     // ------------------------------------------------------------------
-    
+    // §stateRequirements: each capability key resolves on its own - a failure degrades only that key
     // ------------------------------------------------------------------
 
     private val CAPABILITY_CONTROL_KEYS = listOf("web", "reasoning", "generation")
     private val CONTROL_STATES = listOf("auto_available", "managed_only", "custom_only", "unavailable", "unknown")
     private const val NON_AUTO_MIN_SOURCE_REFS = 1
 
-    
     private data class FixedVerdict(val providerKind: String, val state: String, val reasonCode: String, val autoRecipeAllowed: Boolean)
     private val FIXED_VERDICTS = listOf(
         FixedVerdict("relay", "custom_only", "relay_user_directory", autoRecipeAllowed = false),
     )
 
-    
     private data class SourceRefExemption(val providerKind: String, val state: String, val reasonCode: String)
     private val SOURCE_REF_EXEMPTIONS = listOf(
         SourceRefExemption("relay", "custom_only", "relay_user_directory"),
@@ -618,7 +612,7 @@ object RequestPreferenceResolver {
         val reasonCode: String? = null,
         val sourceRefs: List<String>? = null,
         val availableIntents: List<String>? = null,
-        
+
         val customControlRefs: List<String>? = null,
     )
 
@@ -626,13 +620,12 @@ object RequestPreferenceResolver {
 
     data class ControlsResolution(val unknownCapabilities: List<String>, val results: Map<String, ControlResolutionOutcome>)
 
-    
     fun resolveControls(
         providerKind: String,
         capabilityControls: Map<String, ControlEntry>,
         recipes: List<String>,
         sourceIndexKeys: Set<String>,
-        
+
         controlDefinitionOwners: Map<String, String> = emptyMap(),
     ): ControlsResolution {
         val results = linkedMapOf<String, ControlResolutionOutcome>()
@@ -669,8 +662,6 @@ object RequestPreferenceResolver {
             if (!intentsResult.valid) return noAuto(false, control.state, intentsResult.reason)
         }
 
-        
-        
         val customRefs = control.customControlRefs.orEmpty()
         if (customRefs.toSet().size != customRefs.size) return noAuto(false, control.state, "invalid_custom_control_refs")
         if (control.state == "managed_only" && customRefs.isNotEmpty()) {
@@ -684,7 +675,7 @@ object RequestPreferenceResolver {
         if (control.state == "auto_available") {
             val recipeRef = control.recipeRef ?: return noAuto(false, "unknown", "missing_recipe_ref")
             if (recipeRef !in recipes) {
-                
+
                 return noAuto(true, "unknown", "dangling_recipe_ref")
             }
             return ControlResolutionOutcome(true, "auto_available", "apply_recipe", null)
@@ -705,7 +696,7 @@ object RequestPreferenceResolver {
     }
 
     // ------------------------------------------------------------------
-    
+    // §reasoningIntents: the product-facing reasoning ladder - a subset, order preserved, no gap filling
     // ------------------------------------------------------------------
 
     val REASONING_INTENT_LADDER: List<String> = listOf("off", "low", "balanced", "deep", "max")
@@ -715,7 +706,6 @@ object RequestPreferenceResolver {
 
     data class IntentsResult(val valid: Boolean, val reason: String? = null, val intents: List<String>)
 
-    
     fun validateIntents(capability: String, intents: List<String>): IntentsResult {
         fun fail(reason: String) = IntentsResult(false, reason, intents)
 

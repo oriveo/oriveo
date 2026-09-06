@@ -27,8 +27,8 @@ import ai.oriveo.community.R
 import ai.oriveo.community.core.model.FolderColor
 
 /**
- *  — AlertDialog  FlowRow  10 
- *  iOS FolderColorPicker
+ * Folder colour picker: the ten palette entries in a wrapping row inside an AlertDialog, matching
+ * the iOS colour picker's layout and order.
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -64,7 +64,7 @@ fun FolderColorPickerDialog(
                                 Icons.Filled.Check,
                                 contentDescription = null,
                                 modifier = Modifier.size(18.dp),
-                                
+
                                 tint = Color.White,
                             )
                         }

@@ -12,8 +12,9 @@ internal fun ReasoningMode.relayOpenAIEffort(): String? = when (this) {
     ReasoningMode.Max -> "xhigh"
 }
 
-// Anthropic-compatible custom endpoints have no published profile either, so they still need this local
-// thinking fallback plus the self-healing retry that follows when the endpoint rejects the shape.
+// Anthropic-compatible custom endpoints have no published profile either, so they still need this
+// local thinking fallback; if the endpoint rejects the shape the rejection is reported rather than
+// quietly reshaped.
 internal fun relayAnthropicThinkingJson(mode: ReasoningMode, modelID: String): String? {
     val lowered = modelID.lowercase()
     // heuristic-allow: Relay Anthropic-compatible fallback only; official Anthropic uses metadata profiles.

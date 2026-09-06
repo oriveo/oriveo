@@ -33,6 +33,8 @@ internal fun buildResponsesBody(
     modelID: String,
     messages: List<ChatMessage>,
     stream: Boolean,
+    // Accepted for signature parity with the other transports; the Responses body always offers the
+    // image tool (see the note below), so the flag never changes what is sent.
     @Suppress("UNUSED_PARAMETER") supportsImageGen: Boolean,
     reasoningMode: ReasoningMode,
     webSearchEnabled: Boolean,

@@ -10,9 +10,11 @@ import ai.oriveo.community.core.util.ExternalActivityLaunchOutcome
 import ai.oriveo.community.core.util.launchExternalActivitySafely
 
 /**
+ * Opens the provider's device-code approval page.
  *
- *
- *
+ * A full browser is tried first so the user lands in a window where they can already be signed in to
+ * the provider; a Custom Tab is the fallback for a device with no browser that answers ACTION_VIEW.
+ * If neither is available the user is told, rather than left staring at a code that goes nowhere.
  */
 internal fun openSubscriptionVerificationPage(context: Context, url: String) {
     val uri = Uri.parse(url)
@@ -20,7 +22,6 @@ internal fun openSubscriptionVerificationPage(context: Context, url: String) {
     if (launchExternalActivitySafely { context.startActivity(browserIntent) } ==
         ExternalActivityLaunchOutcome.LAUNCHED
     ) return
-    // Provider subscription authorization note.
     val customTab = launchExternalActivitySafely {
         CustomTabsIntent.Builder().build().launchUrl(context, uri)
     }

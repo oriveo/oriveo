@@ -87,7 +87,6 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
-
 class ProviderRepository(
     private val dao: ProviderDao,
     private val conversationDao: ConversationDao,
@@ -119,7 +118,6 @@ class ProviderRepository(
 
     private val accountId: String get() = LOCAL_PARTITION_ID
 
-    
     val grokSubscriptionRuntime: GrokSubscriptionRuntime by lazy {
         GrokSubscriptionRuntime(
             credentialStore = GrokSubscriptionCredentialStore(secureKeyStore),
@@ -128,11 +126,9 @@ class ProviderRepository(
         )
     }
 
-    
     suspend fun prepareGrokSubscription(providerId: String): GrokSubscriptionRuntime.PrepareResult =
         grokSubscriptionRuntime.prepare(accountId, normalizeUuid(providerId))
 
-    
     suspend fun updateGrokSubscriptionCredential(
         providerId: String,
         tokens: GrokSubscriptionTokens,
@@ -141,13 +137,11 @@ class ProviderRepository(
         val normalizedId = normalizeUuid(providerId)
         grokSubscriptionRuntime.persist(targetAccountId, normalizedId, tokens)
         secureKeyStore.advanceCapabilityConnectionGeneration(targetAccountId, normalizedId)
-        
-        
+
         saveApiKey(targetAccountId, normalizedId, tokens.accessToken)
         return resyncProvider(normalizedId, targetAccountId).provider
     }
 
-    
     val openAISubscriptionRuntime: OpenAISubscriptionRuntime by lazy {
         OpenAISubscriptionRuntime(
             credentialStore = OpenAISubscriptionCredentialStore(secureKeyStore),
@@ -156,11 +150,9 @@ class ProviderRepository(
         )
     }
 
-    
     suspend fun prepareOpenAISubscription(providerId: String): OpenAISubscriptionRuntime.PrepareResult =
         openAISubscriptionRuntime.prepare(accountId, normalizeUuid(providerId))
 
-    
     suspend fun updateOpenAISubscriptionCredential(
         providerId: String,
         tokens: OpenAISubscriptionTokens,
@@ -174,30 +166,25 @@ class ProviderRepository(
     }
     companion object {
 
-        
         const val PROVIDER_INVALID_KEY_MESSAGE =
             "The API key could not be validated. Check the value or generate a new key."
         const val PROVIDER_UNVERIFIED_MESSAGE =
             "We couldn't verify the connection. You can retry from the provider details."
         const val RELAY_UNVERIFIED_MESSAGE = "relay_connection_unverified"
-        
+
         const val RELAY_CATALOG_UNAVAILABLE_MESSAGE = "Could not load the model list."
 
-        
         const val SUBSCRIPTION_CATALOG_UNAVAILABLE_MESSAGE = "Couldn't load the model list"
 
-        
         const val CODEX_CATALOG_UNAVAILABLE_MESSAGE =
             "The Codex model list could not be loaded. Refresh the connection from provider details."
-        
+
         val DEFAULT_MANUAL_MODEL_CAPABILITIES: List<ModelCapability> = listOf(ModelCapability.Text)
     }
 
-    
     @OptIn(ExperimentalCoroutinesApi::class)
     private val metadataRefreshSignal: Flow<Unit> = metadataRefreshEventBus.events.mapLatest { Unit }
 
-    
     @OptIn(ExperimentalCoroutinesApi::class)
     private val providersSharedFlow: SharedFlow<List<Provider>> by lazy {
         combine(
@@ -223,7 +210,6 @@ class ProviderRepository(
 
     fun observeAll(): Flow<List<Provider>> = providersSharedFlow
 
-    
     @OptIn(ExperimentalCoroutinesApi::class)
     fun observeById(id: String): Flow<Provider?> =
         dao.observeById(accountId, normalizeUuid(id)).mapLatest { entity ->
@@ -234,14 +220,12 @@ class ProviderRepository(
             }
         }
 
-    
     suspend fun getProviderByKind(kind: ProviderKind): Provider? {
         val entity = dao.getAll(accountId).firstOrNull { it.kind == kind.name } ?: return null
         val apiKey = loadApiKey(entity.accountId, entity.id)
         return normalizeProviderIds(entity.toDomain(apiKey))
     }
 
-    
     suspend fun getById(id: String): Provider? {
         val targetAccountId = accountId
         return getById(targetAccountId, id)
@@ -255,7 +239,6 @@ class ProviderRepository(
         return normalizeProviderIds(entity.toDomain(apiKey))
     }
 
-    
     suspend fun registerProvider(
         kind: ProviderKind,
         apiKey: String,
@@ -265,30 +248,22 @@ class ProviderRepository(
         relayKind: RelayKind? = null,
         relayRequested: RelayRequestedConfig? = null,
         relayImage: RelayImageConfig? = null,
-        
-        
+
         preferredCapabilities: Set<ai.oriveo.community.core.model.ModelCapability> = emptySet(),
-        
-        
-        
+
         isAdditionalInstance: Boolean = false,
-        
-        
-        
-        
+
         authMode: ProviderAuthMode = ProviderAuthMode.ApiKey,
-        
-        
+
         subscriptionTokens: GrokSubscriptionTokens? = null,
-        
-        
+
         openAISubscriptionTokens: OpenAISubscriptionTokens? = null,
     ): Provider {
         val targetAccountId = accountId
         val isRelay = kind == ProviderKind.Relay
         val service = serviceFor(kind)
         val syncResult = if (isRelay) {
-            
+
             try {
                 withContext(Dispatchers.IO) {
                     service.syncProvider(
@@ -312,18 +287,15 @@ class ProviderRepository(
         } else {
             null
         }
-        
-        
-        
+
         val providerID = if (!isRelay && !isAdditionalInstance) {
-            
-            
+
             val regionId = kind.resolveRegionOption(baseUrl)?.id ?: ""
             DeterministicProviderId.forProvider(kind, regionId)
         } else {
             normalizeUuid(generateUuidString())
         }
-        
+
         secureKeyStore.beginCapabilityConnection(targetAccountId, providerID)
         saveApiKey(targetAccountId, providerID, apiKey)
         subscriptionTokens?.let { tokens ->
@@ -333,7 +305,6 @@ class ProviderRepository(
             openAISubscriptionRuntime.persist(targetAccountId, providerID, tokens)
         }
 
-        
         val subscriptionInstanceName = if (!isRelay && authMode == ProviderAuthMode.Subscription) {
             customName?.let {
                 makeUniqueProviderInstanceName(
@@ -354,9 +325,7 @@ class ProviderRepository(
                 providerID = providerID,
                 kind = kind,
                 accessToken = apiKey,
-                
-                
-                
+
                 accountId = openAISubscriptionTokens?.accountId,
                 baseUrl = baseUrl,
                 customName = subscriptionInstanceName,
@@ -374,7 +343,7 @@ class ProviderRepository(
                 preferredModelID = preferredModelID,
             )
         } else if (isRelay) {
-            
+
             val catalogModels = ModelSelectionUtils.mergeManualModels(
                 existingModels = emptyList(),
                 syncedModels = ensurePreferredRelayModel(
@@ -410,7 +379,7 @@ class ProviderRepository(
                 preferredModelId = preferredModelID ?: enabledModels.firstOrNull { it.isDefault }?.id,
             )
         } else {
-            
+
             buildOfficialEnabled(
                 providerID = providerID,
                 kind = kind,
@@ -434,10 +403,6 @@ class ProviderRepository(
         val normalizedProvider = normalizeProviderIds(enrichedProvider)
         normalizeConversationSelections(normalizedProvider, targetAccountId)
 
-        
-
-        
-        
         metadataRefreshEventBus.dispatch(
             ai.oriveo.community.core.data.remote.MetadataClient.RefreshEvent(
                 version = MetadataClient.version,
@@ -508,7 +473,6 @@ class ProviderRepository(
         return if (parts.size <= 2) host else parts.takeLast(2).joinToString(".")
     }
 
-    
     suspend fun registerRelayProvider(
         apiKey: String,
         baseUrl: String,
@@ -599,7 +563,7 @@ class ProviderRepository(
         }
         val normalizedProvider = normalizeProviderIds(write.provider)
         if (!commitGuard()) {
-            
+
             return normalizedProvider
         }
         metadataRefreshEventBus.dispatch(
@@ -612,7 +576,6 @@ class ProviderRepository(
         return normalizedProvider
     }
 
-    
     private suspend fun buildSubscriptionEnabled(
         providerID: String,
         kind: ProviderKind,
@@ -633,8 +596,7 @@ class ProviderRepository(
             catalogModels = emptyList(),
             lastCheckedAt = System.currentTimeMillis(),
             apiKey = accessToken,
-            
-            
+
             apiKeyPreview = "",
             baseUrlText = baseUrl ?: kind.defaultBaseUrl,
             customName = customName,
@@ -655,10 +617,6 @@ class ProviderRepository(
         }
         if (descriptors.isEmpty()) return seed.copy(lastError = SUBSCRIPTION_CATALOG_UNAVAILABLE_MESSAGE)
 
-        
-        
-        
-        
         val catalogModels = descriptors.map { descriptor ->
             val base = ai.oriveo.community.core.provider.CatalogModelBuilder.buildCatalogModel(
                 providerKind = kind,
@@ -674,9 +632,7 @@ class ProviderRepository(
             base.copy(
                 capabilities = capabilities,
                 reasoningModeAvailable = descriptor.supportsReasoning,
-                
-                
-                
+
                 upstreamReasoningLevels = descriptor.reasoningEfforts,
                 upstreamDefaultReasoningLevel = descriptor.defaultReasoningEffort,
                 upstreamApiBackend = descriptor.apiBackend,
@@ -694,7 +650,6 @@ class ProviderRepository(
         )
     }
 
-    
     private suspend fun buildOpenAISubscriptionEnabled(
         providerID: String,
         kind: ProviderKind,
@@ -716,7 +671,7 @@ class ProviderRepository(
             catalogModels = emptyList(),
             lastCheckedAt = System.currentTimeMillis(),
             apiKey = accessToken,
-            
+
             apiKeyPreview = "",
             baseUrlText = baseUrl ?: kind.defaultBaseUrl,
             customName = customName,
@@ -728,8 +683,7 @@ class ProviderRepository(
             ?: return seed.copy(lastError = CODEX_CATALOG_UNAVAILABLE_MESSAGE)
 
         val resolvedAccountId = accountId?.trim()?.takeIf { it.isNotEmpty() }
-            
-            
+
             ?: return seed.copy(lastError = CODEX_CATALOG_UNAVAILABLE_MESSAGE)
 
         val descriptors = runCatching {
@@ -743,10 +697,6 @@ class ProviderRepository(
         }
         if (descriptors.isEmpty()) return seed.copy(lastError = CODEX_CATALOG_UNAVAILABLE_MESSAGE)
 
-        
-        
-        
-        
         val catalogModels = descriptors.map { descriptor ->
             val base = ai.oriveo.community.core.provider.CatalogModelBuilder.buildCatalogModel(
                 providerKind = kind,
@@ -766,7 +716,7 @@ class ProviderRepository(
                 upstreamReasoningLevels = descriptor.supportedReasoningLevels,
             )
         }
-        
+
         val preferredDefaultId = preferredModelID?.takeIf { candidate ->
             catalogModels.any { it.id == candidate }
         } ?: existingEnabledModels.firstOrNull { it.isDefault }?.id?.takeIf { candidate ->
@@ -779,12 +729,10 @@ class ProviderRepository(
         )
     }
 
-    
     private fun codexCatalogFailureMessage(error: Throwable): String =
         (error as? OpenAISubscriptionException)?.error?.toProviderServiceError()?.userMessage
             ?: CODEX_CATALOG_UNAVAILABLE_MESSAGE
 
-    
     private suspend fun buildOfficialEnabled(
         providerID: String,
         kind: ProviderKind,
@@ -795,7 +743,7 @@ class ProviderRepository(
         existingCatalogModels: List<ai.oriveo.community.core.model.AIModel>,
         preferredModelID: String? = null,
     ): Provider {
-        
+
         withContext(Dispatchers.IO) { MetadataClient.refresh() }
 
         val seedProvider = Provider(
@@ -822,10 +770,10 @@ class ProviderRepository(
         val enabledModels = if (hasLegacyAutoEnabledAll) {
             ModelSelectionUtils.initialEnabledModels(canonicalCatalogModels)
         } else if (resolverEnabled.isNotEmpty() || manualModels.isNotEmpty()) {
-            
+
             (resolverEnabled + manualModels).distinctBy { it.id }
         } else if (canonicalCatalogModels.isNotEmpty()) {
-            
+
             ModelSelectionUtils.initialEnabledModels(canonicalCatalogModels)
         } else {
             emptyList()
@@ -842,8 +790,6 @@ class ProviderRepository(
         )
         val pruned = ManualRetainedPruner.prune(updated)
 
-        
-        
         val validation = ProviderKeyValidator.validate(
             provider = pruned,
             apiKey = apiKey,
@@ -852,7 +798,6 @@ class ProviderRepository(
         return applyValidationOutcome(validation, pruned)
     }
 
-    
     private fun applyValidationOutcome(
         result: ProviderKeyValidator.Result,
         provider: Provider,
@@ -873,7 +818,7 @@ class ProviderRepository(
                 )
             }
             is ProviderKeyValidator.Result.Unverified -> provider.copy(
-                
+
                 status = ProviderConnectionState.Connected,
                 lastCheckedAt = checkedAt,
                 lastError = PROVIDER_UNVERIFIED_MESSAGE,
@@ -922,8 +867,7 @@ class ProviderRepository(
             ai.oriveo.community.core.model.ModelCapability.Web,
             ai.oriveo.community.core.model.ModelCapability.ImageGen,
         )
-        
-        
+
         val mergedCaps = orderedCaps.filter {
             it in (preferredCapabilities + ai.oriveo.community.core.model.ModelCapability.Text)
         }
@@ -951,7 +895,6 @@ class ProviderRepository(
         )
     }
 
-    
     suspend fun resyncProvider(id: String) {
         val targetAccountId = accountId
         resyncProvider(
@@ -962,7 +905,6 @@ class ProviderRepository(
         )
     }
 
-    
     suspend fun resyncProviderForModeTransition(
         id: String,
         commitGuard: () -> Boolean,
@@ -987,7 +929,6 @@ class ProviderRepository(
         Failed,
     }
 
-    
     data class RelayEditOutcome(
         val provider: Provider?,
         val persisted: Boolean,
@@ -999,7 +940,6 @@ class ProviderRepository(
         val persistedRevision: RelayEditRevision? = null,
     )
 
-    
     data class RelayGenerationVerificationOutcome(
         val provider: Provider?,
         val attemptedProvider: Provider?,
@@ -1008,7 +948,6 @@ class ProviderRepository(
         val error: Throwable? = null,
     )
 
-    
     class RelayEditRevision internal constructor(
         internal val expectedEntity: ProviderEntity,
     )
@@ -1029,7 +968,7 @@ class ProviderRepository(
         val provider = normalizeProviderIds(
             originalEntity.toDomain(loadApiKey(originalEntity.accountId, originalEntity.id)),
         )
-        
+
         MetadataClient.refresh()
         val isRelay = provider.kind == ProviderKind.Relay
         var expectedEntity = originalEntity
@@ -1049,13 +988,10 @@ class ProviderRepository(
             } else if (provider.authMode == ProviderAuthMode.Subscription &&
                 provider.kind == ProviderKind.OpenAI
             ) {
-                
-                
-                
+
                 resyncOpenAISubscriptionProvider(provider, targetAccountId, expectedEntity, commitGuard)
             } else if (provider.authMode == ProviderAuthMode.Subscription) {
-                
-                
+
                 resyncSubscriptionProvider(provider, targetAccountId, expectedEntity, commitGuard)
             } else {
                 resyncOfficialProvider(provider, targetAccountId, expectedEntity, commitGuard)
@@ -1066,14 +1002,12 @@ class ProviderRepository(
                 ProviderResyncOutcome(persisted, catalogSucceeded = true)
             }
         } catch (e: Exception) {
-            
-            
+
             if (e is kotlinx.coroutines.CancellationException) throw e
 
             val providerError = e as? ProviderServiceError
             val errorMsg = when (e) {
-                
-                
+
                 is ProviderServiceError.RelayUpstream -> RELAY_UNVERIFIED_MESSAGE
                 is ProviderServiceError -> e.userMessage
                 else -> if (failClosed) RELAY_UNVERIFIED_MESSAGE else e.message ?: "Unknown error"
@@ -1131,7 +1065,6 @@ class ProviderRepository(
             emptyList()
         }
 
-        
         val userDefault = provider.defaultModel?.id
         val userDefaultStillValid = userDefault != null && enabledModels.any { it.id == userDefault }
         val metadataDefault = MetadataClient.defaultModelId(provider.kind)
@@ -1149,12 +1082,9 @@ class ProviderRepository(
             ),
             preferredModelId = preferredDefaultId,
         )
-        
+
         val finalized = ManualRetainedPruner.prune(updated)
 
-        
-        
-        
         val validation = ProviderKeyValidator.validate(
             provider = finalized,
             apiKey = provider.apiKey,
@@ -1173,7 +1103,6 @@ class ProviderRepository(
         return write.provider
     }
 
-    
     private suspend fun resyncSubscriptionProvider(
         provider: Provider,
         targetAccountId: String,
@@ -1207,7 +1136,7 @@ class ProviderRepository(
             existingEnabledModels = provider.models,
             preferredModelID = provider.defaultModel?.id,
         )
-        
+
         val merged = provider.copy(
             status = rebuilt.status,
             models = rebuilt.models,
@@ -1227,7 +1156,6 @@ class ProviderRepository(
         return write.provider
     }
 
-    
     private suspend fun resyncOpenAISubscriptionProvider(
         provider: Provider,
         targetAccountId: String,
@@ -1262,7 +1190,7 @@ class ProviderRepository(
             existingEnabledModels = provider.models,
             preferredModelID = provider.defaultModel?.id,
         )
-        
+
         val merged = provider.copy(
             status = rebuilt.status,
             models = rebuilt.models,
@@ -1289,8 +1217,7 @@ class ProviderRepository(
         commitGuard: () -> Boolean,
     ): Provider? {
         val service = serviceFor(provider.kind)
-        
-        
+
         val syncResult = service.syncProvider(
             apiKey = provider.apiKey,
             preferredModelID = null,
@@ -1323,11 +1250,9 @@ class ProviderRepository(
         return write.provider
     }
 
-    
     suspend fun refreshRelayCatalogOnly(id: String): ProviderResyncOutcome =
         refreshRelayCatalogOnly(id, expectedRevision = null)
 
-    
     suspend fun refreshRelayCatalogOnly(
         id: String,
         expectedRevision: RelayEditRevision,
@@ -1414,7 +1339,6 @@ class ProviderRepository(
         }
     }
 
-    
     suspend fun refreshProviderMetadata() {
         val targetAccountId = accountId
         val entities = withContext(Dispatchers.IO) { dao.getAll(targetAccountId) }
@@ -1480,8 +1404,7 @@ class ProviderRepository(
             val persisted = upsertProviderEntity(updatedProvider, targetAccountId)
             normalizeConversationSelections(persisted, targetAccountId)
         }
-        
-        
+
         metadataRefreshEventBus.dispatch(
             ai.oriveo.community.core.data.remote.MetadataClient.RefreshEvent(
                 version = MetadataClient.version,
@@ -1533,12 +1456,11 @@ class ProviderRepository(
         if (previousProvider != null && toolCallMemoryScopeChanged(previousProvider, normalizedProvider)) {
             toolCallMemoryStore?.clearConnection(targetAccountId, normalizedProvider.id)
         }
-        
-        
+
         // (ProviderManager.swift:643-654)
         val persisted = upsertProviderEntity(normalizedProvider, targetAccountId)
         normalizeConversationSelections(persisted, targetAccountId)
-        
+
     }
 
     suspend fun renameProvider(provider: Provider, name: String) {
@@ -1570,7 +1492,6 @@ class ProviderRepository(
 
     private class StaleProviderMutation : IllegalStateException("stale_provider_mutation")
 
-    
     private suspend fun guardedPersistExistingProvider(
         provider: Provider,
         expectedEntity: ProviderEntity,
@@ -1597,7 +1518,6 @@ class ProviderRepository(
         }
     }
 
-    
     private suspend fun dispatchProviderSyncIfCurrent(
         write: GuardedProviderWrite,
         targetAccountId: String,
@@ -1646,7 +1566,6 @@ class ProviderRepository(
         deleteApiKey(targetAccountId, write.entity.id)
     }
 
-    
     private suspend fun guardedPersistRelayEdit(
         provider: Provider,
         expectedEntity: ProviderEntity,
@@ -1681,15 +1600,13 @@ class ProviderRepository(
                 saveApiKey(targetAccountId, expectedEntity.id, previousApiKey)
             }
         }
-        
-        
+
         if (write != null && connectionSemanticsChanged) {
             secureKeyStore.advanceCapabilityConnectionGeneration(targetAccountId, expectedEntity.id)
         }
         return write
     }
 
-    
     suspend fun verifyAndPersistRelayEdit(
         candidate: Provider,
         replacementApiKey: String? = null,
@@ -1776,7 +1693,6 @@ class ProviderRepository(
         )
     }
 
-    
     suspend fun persistRelayEditUnverified(
         candidate: Provider,
         replacementApiKey: String? = null,
@@ -1827,7 +1743,6 @@ class ProviderRepository(
         )
     }
 
-    
     suspend fun removeRelayApiKey(
         id: String,
         commitGuard: () -> Boolean = { true },
@@ -1846,7 +1761,6 @@ class ProviderRepository(
         )
     }
 
-    
     private suspend fun upsertProviderEntity(
         provider: Provider,
         expectedAccountId: String,
@@ -1858,17 +1772,13 @@ class ProviderRepository(
         return finalized
     }
 
-    
     suspend fun updateApiKey(id: String, newKey: String) {
         val targetAccountId = accountId
         val normalizedId = normalizeUuid(id)
         val initialEntity = dao.getById(targetAccountId, normalizedId) ?: return
         val previousApiKey = loadApiKey(targetAccountId, normalizedId)
         val provider = normalizeProviderIds(initialEntity.toDomain(previousApiKey))
-        
-        
-        
-        
+
         val switchesBackToApiKey =
             provider.authMode == ProviderAuthMode.Subscription && newKey.isNotBlank()
         val updated = provider.copy(
@@ -1878,8 +1788,7 @@ class ProviderRepository(
             catalogModels = if (switchesBackToApiKey) emptyList() else provider.catalogModels,
         )
         if (switchesBackToApiKey) {
-            
-            
+
             if (provider.kind == ProviderKind.OpenAI) {
                 openAISubscriptionRuntime.disconnect(targetAccountId, normalizedId)
             } else {
@@ -1887,8 +1796,7 @@ class ProviderRepository(
             }
         }
         if (provider.kind == ProviderKind.Relay) {
-            
-            
+
             val unverified = updated.copy(
                 status = ProviderConnectionState.Issue(RELAY_UNVERIFIED_MESSAGE),
                 lastCheckedAt = null,
@@ -1906,7 +1814,6 @@ class ProviderRepository(
             ) ?: throw StaleProviderMutation()
             dispatchProviderSyncIfCurrent(unverifiedWrite, targetAccountId) { true }
 
-            
             if (newKey.isBlank()) return
 
             val modelID = provider.defaultModel?.id
@@ -1921,8 +1828,7 @@ class ProviderRepository(
                     relayRequested = provider.relayRequested ?: RelayRequestedConfig(),
                     relayKind = provider.relayKind,
                 )
-                
-                
+
                 val connected = unverifiedWrite.provider.copy(
                     status = ProviderConnectionState.Connected,
                     lastCheckedAt = System.currentTimeMillis(),
@@ -1942,7 +1848,7 @@ class ProviderRepository(
                 )
             } catch (e: Exception) {
                 if (e is kotlinx.coroutines.CancellationException) throw e
-                
+
                 throw e
             }
             return
@@ -1981,8 +1887,6 @@ class ProviderRepository(
         resyncProvider(normalizedId, targetAccountId)
     }
 
-
-    
     suspend fun saveManualModel(providerID: String, modelID: String) {
         val targetAccountId = accountId
         val normalizedProviderId = normalizeUuid(providerID)
@@ -2005,8 +1909,7 @@ class ProviderRepository(
         val nextCatalogModels = if (isRelay) {
             (provider.catalogModels + manualModel).distinctBy { it.id }
         } else {
-            
-            
+
             emptyList()
         }
         val updated = ModelSelectionUtils.synchronizeDefaultSelection(
@@ -2018,7 +1921,7 @@ class ProviderRepository(
             ),
             preferredModelId = manualModel.id,
         )
-        
+
         val persisted = upsertProviderEntity(updated, targetAccountId)
         // A manual identifier is a new runtime identity even when the connection itself is unchanged.
         // Drop learned outcomes before the new row can be selected; otherwise an old model with the same
@@ -2070,13 +1973,13 @@ class ProviderRepository(
                 }
 
             if (toUpdate.isNotEmpty()) {
-                
+
                 conversationDao.updateAll(toUpdate)
             }
         }
     }
 
-    /** Resolve the BYOK/local ProviderService for a kind (Community Edition). */
+    /** Resolves the [ProviderService] that speaks to a given provider kind. */
     fun serviceFor(kind: ProviderKind): ProviderService = when (kind) {
         ProviderKind.OpenRouter -> openRouterService
         ProviderKind.OpenAI -> openAIService
@@ -2119,7 +2022,6 @@ class ProviderRepository(
         }
     }
 
-    
     suspend fun verifyRelayGeneration(
         apiKey: String,
         baseUrl: String?,
@@ -2143,7 +2045,6 @@ class ProviderRepository(
         }
     }
 
-    
     suspend fun verifyPersistedRelayGeneration(id: String): RelayGenerationVerificationOutcome {
         val targetAccountId = accountId
         val normalizedId = normalizeUuid(id)
@@ -2194,7 +2095,7 @@ class ProviderRepository(
             } else {
                 ProviderConnectionState.Issue(RELAY_UNVERIFIED_MESSAGE)
             },
-            
+
             lastCheckedAt = if (verified) System.currentTimeMillis() else provider.lastCheckedAt,
             lastError = if (verified) null else RELAY_UNVERIFIED_MESSAGE,
         )
@@ -2220,7 +2121,6 @@ class ProviderRepository(
         )
     }
 
-    
     suspend fun reverifyRelayProvider(id: String): Provider? {
         val targetAccountId = accountId
         val normalizedId = normalizeUuid(id)
@@ -2243,7 +2143,6 @@ class ProviderRepository(
         secureKeyStore.getApiKey(expectedAccountId, providerId).orEmpty()
     }
 
-    
     /** Capture once at a request or UI boundary; callers must not substitute another identifier. */
     fun currentCapabilityPartitionId(): String = LOCAL_PARTITION_ID
 
@@ -2261,9 +2160,7 @@ class ProviderRepository(
         if (provider.id.isBlank() || modelId.isBlank() || partitionId.isBlank()) return null
         // Capture model + revision from one immutable metadata publication before suspension.
         val currentEvidence = MetadataClient.instance.currentCapabilityEvidenceModel(modelId, provider.kind)
-        
-        
-        
+
         val publicationRevision = if (provider.kind == ProviderKind.Relay) {
             MetadataClient.instance.currentMetadataRevision()
         } else {
@@ -2296,7 +2193,6 @@ class ProviderRepository(
             secureKeyStore.deleteApiKey(expectedAccountId, providerId)
         }
     }
-
 
     private fun looksLikeLegacyAutoEnabledAll(
         provider: Provider,

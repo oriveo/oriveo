@@ -80,7 +80,7 @@ class ModelControlModalContrastTest {
         forBothThemes { name, colors, card ->
             val alpha = modelControlBadgeCapsuleAlpha(isDark = colors === DarkOriveoColors)
             assertAA(
-                "$name \"Manual / Not ready / Managed by Oriveo\" badge",
+                "$name \"Manual / Not ready\" badge",
                 colors.warningText,
                 composite(colors.warning.copy(alpha = alpha), card),
             )

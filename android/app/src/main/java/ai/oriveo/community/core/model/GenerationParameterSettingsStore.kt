@@ -12,7 +12,6 @@ import java.net.URI
 import java.security.MessageDigest
 import java.util.UUID
 
-
 class GenerationParameterSettingsStore(
     private val readPayload: () -> String?,
     private val writePayload: (String?) -> Unit,
@@ -34,17 +33,18 @@ class GenerationParameterSettingsStore(
         val mutationID: String? = null,
     )
 
-    
-    
-    
-    
-    
-    
-    
-    
-    
-    @Suppress("UNUSED_PARAMETER")
-    fun modelDefaults(providerID: String, modelID: String, profileFingerprint: String? = null): GenerationParameterOverrides? = synchronized(this) {
+    /**
+     * The overrides stored for one model on one connection.
+     *
+     * The fingerprint of the catalog profile is recorded with each write but deliberately not used
+     * to match on read: a catalog update changes the fingerprint, and filtering by it would make the
+     * user's own values disappear the day the provider republishes the profile.
+     */
+    fun modelDefaults(
+        providerID: String,
+        modelID: String,
+        @Suppress("UNUSED_PARAMETER") profileFingerprint: String? = null,
+    ): GenerationParameterOverrides? = synchronized(this) {
         latest(records()) { it.scope != CONNECTION_DEFAULT && sameNormalizedUuid(it.providerID, providerID) && it.modelID == modelID && it.conversationID == null }?.values
     }
 
@@ -52,8 +52,13 @@ class GenerationParameterSettingsStore(
         latest(records()) { it.scope == CONNECTION_DEFAULT && sameNormalizedUuid(it.providerID, providerID) }?.values
     }
 
-    @Suppress("UNUSED_PARAMETER")
-    fun sessionOverrides(providerID: String, modelID: String, conversationID: String, profileFingerprint: String? = null): GenerationParameterOverrides? = synchronized(this) {
+    /** As [modelDefaults], narrowed to one conversation; the fingerprint is likewise write-only. */
+    fun sessionOverrides(
+        providerID: String,
+        modelID: String,
+        conversationID: String,
+        @Suppress("UNUSED_PARAMETER") profileFingerprint: String? = null,
+    ): GenerationParameterOverrides? = synchronized(this) {
         latest(records()) { sameNormalizedUuid(it.providerID, providerID) && it.modelID == modelID && sameNormalizedUuid(it.conversationID, conversationID) }?.values
     }
 
@@ -66,7 +71,6 @@ class GenerationParameterSettingsStore(
     fun setSessionOverrides(values: GenerationParameterOverrides?, providerID: String, modelID: String, conversationID: String, profileFingerprint: String? = null) =
         replace(values, providerID, modelID, conversationID, profileFingerprint, CONVERSATION_OVERRIDE)
 
-    
     fun migrateSession(
         providerID: String,
         modelID: String,
@@ -91,7 +95,7 @@ class GenerationParameterSettingsStore(
         next += source.copy(
             scope = CONVERSATION_OVERRIDE,
             conversationID = toConversationID,
-            
+
             profileFingerprint = profileFingerprint ?: source.profileFingerprint,
             updatedAt = System.currentTimeMillis(),
             revision = (destination?.revision ?: 0) + 1,
@@ -114,10 +118,8 @@ class GenerationParameterSettingsStore(
         writePayload(json.encodeToString(next))
     }
 
-    
     fun clearForAccountBoundary() = synchronized(this) { writePayload(null) }
 
-    
     fun resolve(
         transient: GenerationParameterOverrides?,
         providerID: String,
@@ -129,13 +131,7 @@ class GenerationParameterSettingsStore(
     ): GenerationParameterOverrides? {
         val allowConnectionReasoning = reasoningMode == null || reasoningMode == ReasoningMode.Automatic
         val result = linkedMapOf<String, GenerationParameterOverride>()
-        
-        
-        
-        
-        
-        
-        
+
         listOf(
             Triple(transient, false, false),
             Triple(sessionOverrides(providerID, modelID, conversationID, profileFingerprint), false, true),
@@ -161,16 +157,14 @@ class GenerationParameterSettingsStore(
         scope: String,
     ) = synchronized(this) {
         val current = records()
-        
-        
+
         val matches = current.filter {
             sameNormalizedUuid(it.providerID, providerID) && it.modelID == modelID &&
                 sameNormalizedUuid(it.conversationID, conversationID) &&
                 effectiveScope(it) == scope
         }
         val existing = latest(matches) { true }
-        
-        
+
         val baseRevision = matches.maxOfOrNull { it.revision ?: 0 } ?: 0
         val next = current.filterNot { it in matches }.toMutableList()
         values?.takeIf { overrides ->
@@ -213,14 +207,12 @@ class GenerationParameterSettingsStore(
         writePayload(json.encodeToString(capped(records)))
     }
 
-    
     private fun latest(records: List<Record>, predicate: (Record) -> Boolean): Record? =
         records.filter(predicate).maxByOrNull { it.updatedAt ?: Long.MIN_VALUE }
 
     private fun effectiveScope(record: Record): String = record.scope
         ?: if (record.conversationID == null) MODEL_DEFAULT else CONVERSATION_OVERRIDE
 
-    
     internal fun recordID(record: Record): String = canonicalSyncId(
         when (effectiveScope(record)) {
             CONNECTION_DEFAULT -> "scope:connection:${record.providerID}"

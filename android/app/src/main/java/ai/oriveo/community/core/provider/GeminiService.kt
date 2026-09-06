@@ -59,7 +59,6 @@ class GeminiService(
     private val transportRegistry: TransportRegistry,
 ) : ProviderService {
 
-
     companion object {
         private const val BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
         // TransportKind is this module's historical internal key for a strategy, while
@@ -157,7 +156,7 @@ class GeminiService(
         val interactionsRecipe = interactionsRuntime?.selections?.firstOrNull {
             it.capability == "web" && it.executionKind == "endpoint_route"
         }
-        if (interactionsRecipe != null && interactionsRuntime != null) {
+        if (interactionsRuntime != null && interactionsRecipe != null) {
             emitAll(
                 sendInteractionsStream(
                     apiKey = apiKey,
@@ -200,9 +199,8 @@ class GeminiService(
 
         val streamUrl = "${resolveBaseUrl(baseUrl)}/models/$modelID:streamGenerateContent"
 
-        // A deterministic upstream 400 saying "parameter X is not supported" triggers one
-        // retry with that parameter stripped (the self-healing net; nested parameters such
-        // as Gemini's thinkingConfig can be stripped too).
+        // Sent exactly once. A deterministic upstream 400 that names an unsupported parameter is
+        // surfaced with that name; nothing is dropped and resent behind the user's back.
         UnsupportedParamRetry.run(
             ProviderKind.Gemini,
             modelID,

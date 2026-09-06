@@ -4,13 +4,13 @@ import ai.oriveo.community.core.model.Citation
 import kotlinx.serialization.json.Json
 
 /**
- * TransportStrategy implementations for the image generation and file upload
- * transports.
+ * TransportStrategy implementations for the image generation and file upload transports.
  *
- * None of these produce citations, so parseCitations always returns an empty list.
- * Richer parsing, such as pulling the image out of imageDataPath, is not
- * implemented yet. They are registered anyway so the unknown-kind fallback stays
- * correct and these kinds do not raise [UnsupportedTransportException].
+ * A strategy's only job here is citation parsing, and none of these transports carry citations, so
+ * every one returns an empty list. Image bytes and file handles are read by the provider services
+ * that own those requests, not through the registry. They are registered so their kinds resolve
+ * instead of raising [UnsupportedTransportException], which would filter working models out of the
+ * picker. Each still takes the shared [Json] so [TransportRegistry] can build them all alike.
  */
 
 class OpenAIImagesStrategy(@Suppress("unused") private val json: Json) : TransportStrategy {

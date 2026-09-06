@@ -562,11 +562,9 @@ internal class RelayTransportCoordinator(
             )
 
             var result: StreamEvent.Done? = null
-            // Dropping a rejected parameter is the inner layer of each HTTP attempt: after the
-            // outer layer has rebuilt the body for an xhigh downgrade, every new body gets a fresh
-            // chance to have parameters stripped. The rejected-parameter classifier does not
-            // recognise the wording of an xhigh value rejection, so the two layers never swallow
-            // each other's cases.
+            // One HTTP attempt per body. The outer layer may rebuild the body for an xhigh
+            // downgrade and try again; the inner layer never reissues a body of its own, so a
+            // parameter rejection cannot be papered over without the user seeing it.
             UnsupportedParamRetry.run(
                 ProviderKind.Relay,
                 modelID,
@@ -652,8 +650,8 @@ internal class RelayTransportCoordinator(
                     )
                     val toolCallParser = NativeToolCallParser(NativeToolProtocol.OpenAIChat)
 
-                    // The self-healing retry sits in the inner layer: the status decision completes
-                    // before anything is emitted, so a retry cannot emit the same tokens twice.
+                    // The status decision completes before anything is emitted, so the outer
+                    // layer's retry can never emit the same tokens twice.
                     UnsupportedParamRetry.run(
                         ProviderKind.Relay,
                         modelID,
@@ -742,10 +740,10 @@ internal class RelayTransportCoordinator(
     }
 
     /**
-     * llama.cpp native `/completion` is wired into the same self-healing net: `n_predict` and
+     * llama.cpp native `/completion` goes through the same send-once path: `n_predict` and
      * `temperature` in the body, along with the generation parameters injected by
      * `GenerationParameterResolver`, are all optional, and one version bump of the local engine can
-     * be enough for it to reject them with a 400.
+     * be enough for it to reject them with a 400 - which is reported rather than worked around.
      * The preflight stays in the outer layer, because it is a local context check rather than a
      * single HTTP attempt.
      */
@@ -966,9 +964,13 @@ internal class RelayTransportCoordinator(
         }
     }
 
-    /// Converts a rejected-setting signal into a plain upstream error. Exactly one unchanged
-    /// upstream attempt is made; an optional setting the endpoint refuses is surfaced to the
-    /// user rather than silently stripped and retried.
+    /**
+     * Converts a rejected-setting signal into a plain upstream error.
+     *
+     * Exactly one unchanged upstream attempt is made; an optional setting the endpoint refuses is
+     * surfaced to the user rather than silently stripped and retried. The request context is taken
+     * so the call sites read the same as the other Relay send wrappers.
+     */
     private suspend fun <T> withRelayResponsesFallbacks(
         @Suppress("UNUSED_PARAMETER") requestOptions: ChatRequestOptions,
         @Suppress("UNUSED_PARAMETER") reasoningMode: ReasoningMode,
@@ -1296,7 +1298,7 @@ internal class RelayTransportCoordinator(
             modelID,
             requestBody,
             requestOptions = requestOptions,
-            identity = runtimeSelfHealIdentity(requestOptions, modelID, transport, upstreamUrl.toString()),
+            identity = runtimeSelfHealIdentity(requestOptions, modelID, transport, upstreamUrl),
         ) { requestBodyAttempt ->
             val statement = client.preparePost(upstreamUrl) {
                 applyRelayHeaders(apiKey, requestOptions, transport)
@@ -1376,7 +1378,7 @@ internal class RelayTransportCoordinator(
             modelID,
             requestBody,
             requestOptions = requestOptions,
-            identity = runtimeSelfHealIdentity(requestOptions, modelID, transport, upstreamUrl.toString()),
+            identity = runtimeSelfHealIdentity(requestOptions, modelID, transport, upstreamUrl),
         ) { requestBodyAttempt ->
             val statement = client.preparePost(upstreamUrl) {
                 applyRelayHeaders(apiKey, requestOptions, transport)
@@ -1541,7 +1543,7 @@ internal class RelayTransportCoordinator(
             modelID,
             requestBody,
             requestOptions = requestOptions,
-            identity = runtimeSelfHealIdentity(requestOptions, modelID, transport, upstreamUrl.toString()),
+            identity = runtimeSelfHealIdentity(requestOptions, modelID, transport, upstreamUrl),
         ) { requestBodyAttempt ->
             val statement = client.preparePost(upstreamUrl) {
                 applyRelayHeaders(apiKey, requestOptions, transport)
@@ -1630,7 +1632,7 @@ internal class RelayTransportCoordinator(
             modelID,
             requestBody,
             requestOptions = requestOptions,
-            identity = runtimeSelfHealIdentity(requestOptions, modelID, transport, upstreamUrl.toString()),
+            identity = runtimeSelfHealIdentity(requestOptions, modelID, transport, upstreamUrl),
         ) { requestBodyAttempt ->
             val statement = client.preparePost(upstreamUrl) {
                 applyRelayHeaders(apiKey, requestOptions, transport)

@@ -10,10 +10,11 @@ import ai.oriveo.community.feature.providers.openai.OpenAISubscriptionAuthorizat
 import io.ktor.client.HttpClient
 
 /**
+ * Owns the two provider-subscription sign-in flows for the lifetime of the providers screen.
  *
- *
- *
- *
+ * OpenAI and Grok each get their own model, and each keeps its pending device-code authorization in
+ * [SavedStateHandle] under its own key so that a process death mid-approval resumes the same code
+ * rather than starting over with a new one.
  */
 class SubscriptionAuthorizationViewModel(
     httpClient: HttpClient,
@@ -32,9 +33,6 @@ class SubscriptionAuthorizationViewModel(
         snapshotStore = snapshotStore(KEY_GROK),
     )
 
-    /**
-     *
-     */
     private fun snapshotStore(key: String) = object : SubscriptionAuthorizationSnapshotStore {
         override fun read(): String? = savedState[key]
 

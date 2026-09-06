@@ -28,53 +28,29 @@ class EdgeToEdgeConfigurationTest {
     }
 
     /**
-     * Pins androidx.core 1.16.0 together with androidx.activity 1.12.x, a combination that has
-     * been verified on real devices.
+     * Pins androidx.core to 1.16.x by probing for a class that only exists from 1.18.0.
      *
-     * This assertion is not a workaround for a systemOverlays()-related crash on Android 14, and
-     * the idea that "systemOverlays() only exists starting API 35, so it always crashes on
-     * Android 14" is wrong -- don't reason from that premise:
-     *  - `WindowInsets.Type.systemOverlays()` has been available since API **34**
-     *    (see `$ANDROID_HOME/platforms/android-36/data/api-versions.xml`), so it exists on real
-     *    API 34 devices.
-     *  - core **1.16.0 already** contains this code path: the value `systemBars()` returns
-     *    includes `SYSTEM_OVERLAYS`, and `toPlatformType()`'s `case SYSTEM_OVERLAYS` calls
-     *    `systemOverlays()` the same way (WindowInsetsCompat.java:2066/2227 in
-     *    core-1.16.0-sources.jar). Downgrading the version does not avoid it.
-     *  - A NoSuchMethodError observed in the field traced back to a single misreporting sandboxed
-     *    device that claimed to be a Pixel 8 Pro on Android 14 (SDK 34) but was actually a
-     *    2GB-RAM, 4-core x86_64 environment with no Play Store and a sideloaded install -- it
-     *    simply didn't have that API 34 method available at all. The same app version runs fine
-     *    on a real Android 14 device. The same device also threw on
-     *    `ActivityOptions.setPendingIntentBackgroundActivityStartMode` (also since=34) around the
-     *    same time, confirming the pattern. Such devices are now flagged separately so they don't
-     *    get mistaken for real crashes.
+     * The version is not declared by this project at all - androidx.activity pulls it in - so
+     * watching `libs.versions.toml` would not notice a bump. The probe has to look at what actually
+     * resolved.
      *
-     * The actual reason to keep this assertion (unrelated to that crash -- it's about performance
-     * and verification discipline):
-     *  1. core 1.18.0 adds a bounding-rects mechanism: `Impl20.initTypeBoundingRectsMaps()`
-     *     unconditionally iterates `Type.FIRST..Type.LAST` on every insets dispatch, adding
-     *     overhead for every type on every dispatch. `Impl35` overrides it as a no-op, but
-     *     `Impl34` does not -- so on API 34 this is pure added cost.
-     *  2. Don't bump the version until it's been verified on a real device: the core version
-     *     isn't declared directly by this project (androidx.activity pulls it up), so watching
-     *     the number in libs.versions.toml alone won't catch a bump -- this test has to guard the
-     *     actually resolved version.
+     * Why 1.16.0 and not later: 1.18.0 adds a bounding-rects mechanism whose
+     * `Impl20.initTypeBoundingRectsMaps()` walks `Type.FIRST..Type.LAST` on every insets dispatch.
+     * `Impl35` overrides it as a no-op, `Impl34` does not, so on API 34 it is pure added cost on a
+     * path that runs constantly. Lift the pin once 1.18+ has been measured on a real Android 14 or
+     * 15 device.
      *
-     * `WindowInsetsCompat$Impl35` only exists starting 1.18.0, and is used here purely as a
-     * version probe. Lift this pin once the insets overhead and behavior of 1.18+ have been
-     * verified on real Android 14/15 devices.
+     * `WindowInsetsCompat$Impl35` is used only as a version marker; it carries no meaning of its own.
      */
     @Test
     fun `androidx core stays below 1_18_0 so Android 14 survives edge to edge`() {
         val loader = EdgeToEdgeConfigurationTest::class.java.classLoader!!
 
-        // Guard against a false green: load with initialize=false only, never initialize the class.
-        // Impl35's superclass Impl34 has a static block that reads android.view.WindowInsets.CONSUMED,
-        // which under the JVM unit test environment's returnDefaultValues stub throws
-        // ExceptionInInitializerError on initialization -- if that got swallowed by runCatching,
-        // this check would report "probe class doesn't exist" regardless of the actual version,
-        // making the gate permanently and silently wrong (this was actually hit once while writing this test).
+        // Load with initialize=false, never initialize the class. Impl35's superclass Impl34 has a
+        // static block that reads android.view.WindowInsets.CONSUMED, which throws
+        // ExceptionInInitializerError under the unit test environment's returnDefaultValues stub. If
+        // runCatching swallowed that, the probe would report "class doesn't exist" whatever the
+        // resolved version was, and the gate would pass forever without checking anything.
         fun canLoad(name: String) = runCatching { Class.forName(name, false, loader) }.isSuccess
 
         assertTrue(
@@ -86,11 +62,11 @@ class EdgeToEdgeConfigurationTest {
         val probeClass = "androidx.core.view.WindowInsetsCompat\$Impl35"
         assertFalse(
             "Detected androidx.core >= 1.18.0 (probe class $probeClass is present on the classpath). " +
-                "This project pins 1.16.0: 1.18.0's bounding-rects mechanism makes every insets dispatch " +
-                "iterate all types once more, and the upgrade hasn't been verified on a real device. Run " +
-                "`bash scripts/android-build.sh :app:dependencyInsight " +
-                "--dependency androidx.core:core --configuration releaseRuntimeClasspath` " +
-                "to find out what pulled the version up (last time it was androidx.activity:activity:1.13.0).",
+                "This project pins 1.16.x: 1.18.0's bounding-rects mechanism makes every insets dispatch " +
+                "iterate all types once more, and the upgrade has not been measured on a real device. Run " +
+                "`./gradlew :app:dependencyInsight --dependency androidx.core:core " +
+                "--configuration releaseRuntimeClasspath` to see what pulled the version up; " +
+                "androidx.activity is the usual culprit.",
             canLoad(probeClass),
         )
     }

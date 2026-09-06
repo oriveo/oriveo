@@ -17,7 +17,6 @@ import org.junit.Test
 import java.nio.file.Files
 import java.nio.file.Paths
 
-
 class RequestPreferenceContractTest {
 
     private val json = Json { ignoreUnknownKeys = true }
@@ -48,7 +47,7 @@ class RequestPreferenceContractTest {
     }
 
     // ==================================================================
-    
+    // request_preference_contract.v2 - all eight groups are consumed
     // ==================================================================
 
     @Test
@@ -169,7 +168,7 @@ class RequestPreferenceContractTest {
             assertEquals(case.caseId, case.expect.reason, result.reason)
             if (result.accepted) covered += case.intent.kind
         }
-        
+
         assertEquals(setOf("none", "previous_id", "replay_blocks", "replay_reasoning", "tool_loop"), covered)
     }
 
@@ -202,9 +201,7 @@ class RequestPreferenceContractTest {
             ?: throw AssertionError("Server P5 result definitions must carry responseEvidenceDefinitions")
         val runtime = json.parseToJsonElement(serverRuntimeText()) as JsonObject
         val recipes = runtime["recipes"] as? JsonObject ?: throw AssertionError("Server runtime must carry recipes")
-        
-        
-        
+
         val recipeBindings = resultDefinitions["recipeBindings"] as? JsonObject
             ?: throw AssertionError("Server P5 result definitions must carry recipeBindings")
         val locatorRules = (resultDefinitions["errorRecoveryDefinitions"] as? JsonObject)
@@ -220,8 +217,7 @@ class RequestPreferenceContractTest {
             val recipeRef = item["recipeRef"]!!.jsonPrimitive.content
             assertTrue(recipeRef.isNotBlank())
             assertTrue(item["producerFixture"]!!.jsonPrimitive.content.isNotBlank())
-            
-            
+
             val capability = (recipes[recipeRef] as? JsonObject)?.get("capability")?.jsonPrimitive?.contentOrNull
             assertEquals(
                 "$recipeRef capability=$capability expectation",
@@ -242,15 +238,14 @@ class RequestPreferenceContractTest {
             val evidenceRef = binding["responseEvidenceRef"]?.jsonPrimitive?.contentOrNull
             assertTrue("$caseId must bind recovery to an exact response evidence definition", !evidenceRef.isNullOrBlank())
             assertTrue("$caseId evidence definition missing", definitions.containsKey(evidenceRef))
-            
+
             assertEquals(caseId, evidenceRef, binding["errorRecoveryRef"]?.jsonPrimitive?.contentOrNull)
             // All recovery permissions are Server-owned; no Android error-class heuristic is
             // consulted. Empty locators are the current baseline; any future non-empty rule also
             // remains fail-closed until a reviewed exact matcher is introduced in production.
-            
+
             assertFalse(caseId, locatorRules.containsKey(evidenceRef))
-            
-            
+
             assertTrue(caseId, item["automaticRetryCount"]!!.jsonPrimitive.content.toInt() <= 1)
             assertEquals(
                 caseId,
@@ -263,7 +258,7 @@ class RequestPreferenceContractTest {
     }
 
     // ==================================================================
-    
+    // request_shape_contract.v2 - only the four client-facing groups are consumed
     // ==================================================================
 
     @Test
@@ -349,7 +344,6 @@ class RequestPreferenceContractTest {
         customControlRefs = customControlRefs,
     )
 
-    
     private fun ShapeFixtures.controlDefinitionOwners(): Map<String, String> =
         sharedControlDefinitions.mapNotNull { (ref, raw) ->
             val owner = ((raw as? JsonObject)?.get("owner") as? JsonPrimitive)?.contentOrNull ?: return@mapNotNull null
@@ -357,7 +351,7 @@ class RequestPreferenceContractTest {
         }.toMap()
 
     // ------------------------------------------------------------------
-    
+    // Fixture lookup: walk up from the module directory until the shared contract folder appears
     // ------------------------------------------------------------------
 
     private fun loadPreferenceContract(): PreferenceContractFile =
@@ -395,7 +389,7 @@ class RequestPreferenceContractTest {
     }
 
     // ------------------------------------------------------------------
-    
+    // request_preference_contract.v2 fixture DTOs - field names track the JSON verbatim
     // ------------------------------------------------------------------
 
     @Serializable
@@ -520,7 +514,7 @@ class RequestPreferenceContractTest {
     private data class RetryExpectDto(val retry: Boolean, val action: String)
 
     // ------------------------------------------------------------------
-    
+    // request_shape_contract.v2 fixture DTOs - only the fields the client-facing groups use
     // ------------------------------------------------------------------
 
     @Serializable

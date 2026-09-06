@@ -30,19 +30,18 @@ object UnsupportedParamRetry {
      * caused. Structured rejections owned by a capability recipe go through the model-control
      * rejection path instead, which requires the user to confirm the resend.
      *
-     * The wider signature is kept so provider and Relay call sites can keep passing the context
-     * they already have.
+     * Every provider and Relay send funnels through here so that "one attempt" is enforced in one
+     * place rather than trusted at twenty call sites. The request context arguments identify the
+     * attempt at the call site and for the rejection cache; they never change what is sent.
      */
     internal suspend fun run(
-        providerKind: ProviderKind,
-        modelId: String,
+        @Suppress("UNUSED_PARAMETER") providerKind: ProviderKind,
+        @Suppress("UNUSED_PARAMETER") modelId: String,
         initialBody: String,
-        requestOptions: ChatRequestOptions = ChatRequestOptions(),
-        identity: CapabilityEvidenceFacade.QueryIdentity? = null,
+        @Suppress("UNUSED_PARAMETER") requestOptions: ChatRequestOptions = ChatRequestOptions(),
+        @Suppress("UNUSED_PARAMETER") identity: CapabilityEvidenceFacade.QueryIdentity? = null,
         sendOnce: suspend (body: String) -> Unit,
     ) {
-        @Suppress("UNUSED_VARIABLE")
-        val retainedCompatibilityArguments = arrayOf(providerKind, modelId, requestOptions, identity)
         sendOnce(initialBody)
     }
 }

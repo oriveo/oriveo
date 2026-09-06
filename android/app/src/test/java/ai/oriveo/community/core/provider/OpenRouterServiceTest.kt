@@ -38,10 +38,6 @@ class OpenRouterServiceTest {
         MetadataTestFixtures.clear()
     }
 
-    
-    
-    
-
     @Test
     fun `sendMessageStream emits delta then done with usage tokens`() = runTest {
         val client = HttpClient(
@@ -75,7 +71,7 @@ class OpenRouterServiceTest {
         assertEquals("hi", done.result.text)
         assertEquals(4, done.result.promptTokens)
         assertEquals(2, done.result.completionTokens)
-        
+
         assertEquals(0.0, done.result.estimatedCost, 1e-9)
         assertEquals("openai/gpt-4o", done.result.servedModelID)
     }
@@ -284,10 +280,8 @@ class OpenRouterServiceTest {
             requestOptions = ChatRequestOptions(temperature = 0.3f),
         ).toList()
 
-        //
-        //
+        // No attempt may carry the parameter: not the first, and not the two that follow it.
         assertFalse(requestBodies[0].contains("temperature"))
-        //
         assertFalse(requestBodies[1].contains("temperature"))
         assertFalse(requestBodies[2].contains("temperature"))
     }
@@ -365,7 +359,7 @@ class OpenRouterServiceTest {
             MockEngine {
                 respond(
                     content = ProviderTestFixtures.openAiStream(
-                        //
+                        // OpenRouter puts reasoning in `delta.reasoning`, not in a separate event.
                         """data: {"choices":[{"delta":{"reasoning":"thinking..."}}]}""",
                         ProviderTestFixtures.openAiChunk(delta = "answer", model = "xiaomi/mimo-v2.5"),
                         ProviderTestFixtures.openAiChunk(promptTokens = 3, completionTokens = 2, model = "xiaomi/mimo-v2.5"),

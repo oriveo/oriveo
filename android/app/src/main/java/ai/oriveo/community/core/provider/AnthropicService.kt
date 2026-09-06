@@ -105,8 +105,8 @@ class AnthropicService(
 
         val messagesUrl = "${resolveBaseUrl(baseUrl)}/messages"
 
-        // A deterministic upstream 400 saying "parameter X is not supported" triggers one
-        // retry with that parameter dropped (the self-healing net).
+        // Sent exactly once. A deterministic upstream 400 that names an unsupported parameter is
+        // surfaced with that name; nothing is dropped and resent behind the user's back.
         UnsupportedParamRetry.run(
             ProviderKind.Anthropic,
             modelID,

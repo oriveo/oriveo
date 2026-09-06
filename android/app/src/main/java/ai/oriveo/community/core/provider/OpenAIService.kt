@@ -994,9 +994,8 @@ class OpenAIService(
             resolved = resolved,
         )
 
-        // A deterministic upstream 400 saying "parameter X is not supported" triggers one retry
-        // with that parameter stripped. This self-heal net also covers custom OpenAI-compatible
-        // endpoints.
+        // Sent exactly once. A deterministic upstream 400 that names an unsupported parameter is
+        // surfaced with that name; nothing is dropped and resent behind the user's back.
         UnsupportedParamRetry.run(
             ProviderKind.OpenAI,
             modelID,
