@@ -7,11 +7,9 @@ import androidx.room.Upsert
 import ai.oriveo.community.core.data.entity.NoteEntity
 import kotlinx.coroutines.flow.Flow
 
-
 @Dao
 interface NoteDao {
 
-    
     @Query("SELECT * FROM notes WHERE accountId = :accountId AND deletedAt IS NULL ORDER BY updatedAt DESC")
     fun observeActive(accountId: String): Flow<List<NoteEntity>>
 
@@ -21,7 +19,6 @@ interface NoteDao {
     @Query("SELECT * FROM notes WHERE accountId = :accountId AND id = :id LIMIT 1")
     fun observeById(accountId: String, id: String): Flow<NoteEntity?>
 
-    
     @Query("SELECT * FROM notes WHERE accountId = :accountId AND id = :id LIMIT 1")
     suspend fun getById(accountId: String, id: String): NoteEntity?
 
@@ -34,14 +31,12 @@ interface NoteDao {
     @Query("SELECT * FROM notes WHERE accountId = :accountId AND deletedAt IS NOT NULL")
     suspend fun getAllTrashed(accountId: String): List<NoteEntity>
 
-    
     @Query("SELECT * FROM notes WHERE accountId = :accountId")
     suspend fun getAll(accountId: String): List<NoteEntity>
 
     @Query("SELECT * FROM notes WHERE accountId = :accountId AND deletedAt IS NULL AND id IN (:ids)")
     suspend fun getActiveByIds(accountId: String, ids: List<String>): List<NoteEntity>
 
-    
     @Query(
         """
         SELECT notes.* FROM notes
@@ -55,7 +50,6 @@ interface NoteDao {
     )
     suspend fun searchActive(accountId: String, ftsQuery: String): List<NoteEntity>
 
-    
     @Query(
         """
         SELECT notes.id FROM notes
@@ -70,7 +64,6 @@ interface NoteDao {
     )
     suspend fun recallCandidateIds(accountId: String, ftsQuery: String, limit: Int): List<String>
 
-    
     @Query(
         """
         SELECT * FROM notes
@@ -84,7 +77,6 @@ interface NoteDao {
     )
     suspend fun searchActiveLike(accountId: String, pattern: String): List<NoteEntity>
 
-    
     @Upsert
     suspend fun upsert(note: NoteEntity)
 
@@ -106,14 +98,12 @@ interface NoteDao {
     @Query("DELETE FROM notes WHERE accountId = :accountId")
     suspend fun deleteByAccount(accountId: String)
 
-    
     @Query(
         "UPDATE notes SET noteFolderID = NULL, updatedAt = :updatedAt " +
             "WHERE accountId = :accountId AND noteFolderID = :folderId",
     )
     suspend fun clearNoteFolder(accountId: String, folderId: String, updatedAt: String)
 
-    
     @Query("DELETE FROM note_search_index WHERE accountId = :accountId AND noteId = :noteId")
     suspend fun deleteSearchIndex(accountId: String, noteId: String)
 
@@ -133,7 +123,6 @@ interface NoteDao {
         tagsText: String,
     )
 
-    
     @Transaction
     suspend fun upsertWithIndex(
         note: NoteEntity,
@@ -144,7 +133,7 @@ interface NoteDao {
     ) {
         upsert(note)
         deleteSearchIndex(note.accountId, note.id)
-        
+
         if (note.deletedAt == null) {
             insertSearchIndex(note.accountId, note.id, ftsTitle, ftsBody, ftsUserNote, ftsTagsText)
         }

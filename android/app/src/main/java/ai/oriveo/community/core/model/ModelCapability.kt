@@ -10,7 +10,6 @@ import kotlinx.serialization.descriptors.SerialDescriptor
 import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
 
-
 @Serializable(with = ModelCapabilitySerializer::class)
 enum class ModelCapability(val raw: String) {
     Reasoning("reasoning"),
@@ -20,14 +19,13 @@ enum class ModelCapability(val raw: String) {
     File("file"),
     Web("web"),
     ImageGen("imageGeneration"),
-    
+
     ToolCall("toolCall"),
-    
+
     NativePdf("native_pdf"),
-    
+
     Unknown("__unknown__");
 
-    
     val titleResId: Int
         get() = when (this) {
             Reasoning -> R.string.capability_reasoning
@@ -42,7 +40,6 @@ enum class ModelCapability(val raw: String) {
             Unknown -> R.string.capability_text
         }
 
-    
     val iconName: String
         get() = when (this) {
             Reasoning -> "psychology"
@@ -57,7 +54,6 @@ enum class ModelCapability(val raw: String) {
             Unknown -> "notes"
         }
 }
-
 
 object ModelCapabilitySerializer : KSerializer<ModelCapability> {
     override val descriptor: SerialDescriptor =

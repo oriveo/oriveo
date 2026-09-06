@@ -27,7 +27,6 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
-
 class MessageWindowLoader(
     private val messageDao: MessageDao,
     private val windowSize: Int = WINDOW_SIZE_DEFAULT,
@@ -36,22 +35,20 @@ class MessageWindowLoader(
 ) {
     private val accountId: String get() = LOCAL_PARTITION_ID
 
-    
     data class MessageBoundary(val sortOrder: Int, val id: String)
 
-    
     data class State(
         val conversationId: String? = null,
         val messages: List<ChatMessage> = emptyList(),
         val earliestBoundary: MessageBoundary? = null,
         val latestBoundary: MessageBoundary? = null,
-        
+
         val hasMoreAbove: Boolean = false,
-        
+
         val hasMoreBelow: Boolean = false,
         val isLoadingAbove: Boolean = false,
         val isLoadingBelow: Boolean = false,
-        
+
         val isInitialLoading: Boolean = false,
     )
 
@@ -66,7 +63,6 @@ class MessageWindowLoader(
     private var observeScope: CoroutineScope? = null
     private var observedAnchorMessageId: String? = null
 
-    
     @OptIn(ExperimentalCoroutinesApi::class)
     fun bind(scope: CoroutineScope, conversationId: String) {
         val normalized = normalizeUuid(conversationId)
@@ -97,7 +93,6 @@ class MessageWindowLoader(
         _state.value = State()
     }
 
-    
     suspend fun extendUpward() {
         val convId = observedConversationId ?: return
         run {
@@ -160,7 +155,7 @@ class MessageWindowLoader(
                 )
             }
         } catch (t: Throwable) {
-            
+
             withContext(NonCancellable) {
                 mutex.withLock {
                     val now = _state.value
@@ -169,8 +164,7 @@ class MessageWindowLoader(
                     }
                 }
             }
-            
-            
+
             if (isCorruptRowException(t)) {
                 logCorruptRowRead("extendUpward", t)
                 return
@@ -257,15 +251,13 @@ class MessageWindowLoader(
         }
     }
 
-    
     suspend fun loadAroundMessage(conversationId: String, messageId: String): Boolean {
         val normalizedConversationId = normalizeUuid(conversationId)
         val normalizedMessageId = normalizeUuid(messageId)
         val scope = observeScope ?: return false
 
         val exists = withContext(ioDispatcher) {
-            
-            
+
             try {
                 messageDao.getByIdForConversation(accountId, normalizedConversationId, normalizedMessageId) != null
             } catch (t: SQLiteException) {
@@ -314,8 +306,6 @@ class MessageWindowLoader(
         return true
     }
 
-    
-
     private suspend fun handleObservedWindow(conversationId: String, entities: List<MessageEntity>) {
         val canonicalEntities = withContext(cpuDispatcher) {
             canonicalizeMessageEntities(entities)
@@ -357,7 +347,6 @@ class MessageWindowLoader(
         }
     }
 
-    
     private fun applySnapshot(
         conversationId: String,
         snapshotMessages: List<ChatMessage>,
@@ -381,7 +370,6 @@ class MessageWindowLoader(
             return
         }
 
-        
         if (current.messages.isEmpty()) {
             _state.value = current.copy(
                 messages = snapshotMessages,
@@ -394,7 +382,6 @@ class MessageWindowLoader(
             return
         }
 
-        
         if (snapshotMessages.isEmpty()) {
             _state.value = current.copy(
                 messages = emptyList(),
@@ -420,7 +407,7 @@ class MessageWindowLoader(
                 merged = mergePrefixWithSnapshot(current.messages, alignedIndex, snapshotMessages)
                 keepExtension = true
             } else {
-                
+
                 _state.value = current.copy(
                     messages = snapshotMessages,
                     earliestBoundary = snapshotEarliest,
@@ -447,7 +434,6 @@ class MessageWindowLoader(
         )
     }
 
-    
     private fun mergePrefixWithSnapshot(
         existing: List<ChatMessage>,
         cutIndex: Int,
@@ -464,7 +450,6 @@ class MessageWindowLoader(
         return deduped + snapshotMessages
     }
 
-    
     private fun findSnapshotAlignmentIndex(
         snapshot: List<ChatMessage>,
         existing: List<ChatMessage>,
@@ -481,10 +466,9 @@ class MessageWindowLoader(
     }
 
     companion object {
-        
+
         const val WINDOW_SIZE_DEFAULT = 60
 
-        
         const val SNAPSHOT_ALIGNMENT_PROBE_LIMIT = 16
     }
 }
@@ -506,7 +490,6 @@ private fun canonicalizeMessageEntities(entities: List<MessageEntity>): List<Mes
         },
     ).sortedWith(compareBy({ it.sortOrder }, { normalizeUuid(it.id) }))
 
-
 private fun isCorruptRowException(t: Throwable): Boolean = t is SQLiteException
 
 private fun logCorruptRowRead(where: String, t: Throwable) {
@@ -514,7 +497,6 @@ private fun logCorruptRowRead(where: String, t: Throwable) {
     runCatching {
     }
 }
-
 
 private fun <T> kotlinx.coroutines.flow.Flow<T>.catchCorruptRowRead(where: String): kotlinx.coroutines.flow.Flow<T> =
     catch { t ->

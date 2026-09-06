@@ -2,7 +2,6 @@ package ai.oriveo.community.ui.util
 
 import android.text.format.DateUtils
 
-
 fun formatRelativeTime(timestamp: Long): String {
     return DateUtils.getRelativeTimeSpanString(
         timestamp,

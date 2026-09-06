@@ -1,6 +1,5 @@
 package ai.oriveo.community.core.model
 
-
 data class CapabilityEvidenceIdentity(
     val partitionId: String,
     val connectionInstanceId: String,

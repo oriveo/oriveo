@@ -77,7 +77,7 @@ data class ProviderSetupCatalog(
                     defaultBaseUrl = config.defaultBaseURL,
                     autoFillNote = config.autoFillNote,
                 )
-                
+
                 if (config.regionOptions.isNotEmpty()) {
                     regions[config.kind] = config.regionOptions
                 }

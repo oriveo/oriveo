@@ -122,7 +122,6 @@ fun SettingsScreen(
     val context = LocalContext.current
     val resources = LocalResources.current
 
-    
     val aiColor = colors.primary
     val dataColor = colors.info
     val appearanceColor = colors.warning
@@ -136,8 +135,7 @@ fun SettingsScreen(
     var aboutTapCount by remember { mutableStateOf(0) }
     var showApiEndpointDialog by remember { mutableStateOf(false) }
     var showDeveloperMenu by remember { mutableStateOf(false) }
-    
-    
+
     var showOnboardingRehearsal by remember { mutableStateOf(false) }
     val memoryRowDetails = remember(memoryText, resources) {
         memoryRowContent(
@@ -160,11 +158,7 @@ fun SettingsScreen(
                             color = OriveoTheme.colors.textPrimary,
                         )
                     },
-                    
-                    
-                    
-                    
-                    
+
                     windowInsets = TopAppBarDefaults.windowInsets
                         .only(WindowInsetsSides.Horizontal)
                         .add(WindowInsets(top = rootTabTopInset())),
@@ -210,7 +204,6 @@ fun SettingsScreen(
                     }
                 }
 
-                
                 Column(verticalArrangement = Arrangement.spacedBy(OriveoTheme.spacing.sm)) {
                     FlatSectionHeader(title = stringResource(R.string.data_section))
 
@@ -225,12 +218,6 @@ fun SettingsScreen(
                     }
                 }
 
-                
-                
-                
-                
-
-                
                 Column(verticalArrangement = Arrangement.spacedBy(OriveoTheme.spacing.sm)) {
                     FlatSectionHeader(title = stringResource(R.string.appearance))
 
@@ -263,7 +250,6 @@ fun SettingsScreen(
                     }
                 }
 
-                
                 Column(verticalArrangement = Arrangement.spacedBy(OriveoTheme.spacing.sm)) {
                     FlatSectionHeader(title = stringResource(R.string.help_feedback))
 
@@ -290,8 +276,6 @@ fun SettingsScreen(
                     }
                 }
 
-
-                
                 Column(verticalArrangement = Arrangement.spacedBy(OriveoTheme.spacing.sm)) {
                     FlatSectionHeader(title = stringResource(R.string.about))
 
@@ -386,12 +370,10 @@ fun SettingsScreen(
         }
     }
 
-    
     if (showOnboardingRehearsal) {
         val rehearsalContext = LocalContext.current
         val rehearsalReduceMotion = remember(rehearsalContext) { isReduceMotionEnabled(rehearsalContext) }
-        
-        
+
         val rehearsalViewModel: OnboardingViewModel = koinViewModel()
         Dialog(
             onDismissRequest = { showOnboardingRehearsal = false },
@@ -412,8 +394,6 @@ fun SettingsScreen(
         }
     }
 
-    
-    
     if (showDeveloperMenu) {
         AlertDialog(
             onDismissRequest = { showDeveloperMenu = false },

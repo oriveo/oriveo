@@ -5,7 +5,6 @@ import ai.oriveo.community.core.provider.ProviderCatalogResolver
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
-
 @Serializable
 enum class ProviderAuthMode(val rawValue: String) {
     @SerialName("apiKey") ApiKey("apiKey"),
@@ -13,12 +12,11 @@ enum class ProviderAuthMode(val rawValue: String) {
     ;
 
     companion object {
-        
+
         fun fromRawValue(raw: String?): ProviderAuthMode =
             entries.firstOrNull { it.rawValue.equals(raw, ignoreCase = false) } ?: ApiKey
     }
 }
-
 
 @Immutable
 @Serializable
@@ -27,7 +25,7 @@ data class Provider(
     val kind: ProviderKind,
     val status: ProviderConnectionState = ProviderConnectionState.Connected,
     val models: List<AIModel> = emptyList(),
-    
+
     val catalogModels: List<AIModel> = emptyList(),
     val lastCheckedAt: Long? = null,
     val apiKey: String = "",
@@ -38,7 +36,7 @@ data class Provider(
     val relayKind: RelayKind? = null,
     val relayRequested: RelayRequestedConfig? = null,
     val relayImage: RelayImageConfig? = null,
-    
+
     val authMode: ProviderAuthMode = ProviderAuthMode.ApiKey,
     val updatedAt: Long = 0L,
     /**
@@ -82,7 +80,6 @@ data class Provider(
                 .ifEmpty { models }
         }
 
-    
     val availableModelCount: Int
         get() = cachedAvailableModelCount ?: allModels.count { it.isAvailable }
 

@@ -5,8 +5,7 @@ import org.junit.Assert.assertNotEquals
 import org.junit.Test
 
 class ProviderEffectiveStatusKindTest {
-    
-    
+
     @Test
     fun `local engine with empty key is not derived as NeedsKey`() {
         val localEngine = Provider(
@@ -21,7 +20,6 @@ class ProviderEffectiveStatusKindTest {
         assertEquals(ProviderEffectiveStatusKind.Connected, localEngine.effectiveStatusKind)
     }
 
-    
     @Test
     fun `cloud relay with empty key still derives NeedsKey`() {
         val cloudRelay = Provider(

@@ -11,7 +11,6 @@ import ai.oriveo.community.core.util.normalizeUuid
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
-
 object NoteMapper {
 
     private val json = Json { ignoreUnknownKeys = true; coerceInputValues = true }
@@ -67,7 +66,6 @@ object NoteMapper {
         accountId = accountId,
     )
 
-    
     fun ftsTitle(note: Note): String = note.title
     fun ftsBody(note: Note): String = note.body
     fun ftsUserNote(note: Note): String = note.userNote.orEmpty()

@@ -20,19 +20,19 @@ class LiquidGlassTabBarLayoutMetricsTest {
         assertEquals(10.dp, regular.outerHorizontalInset)
         assertEquals(23.dp, compact.iconSize)
         assertEquals(25.dp, regular.iconSize)
-        
+
         assertTrue(compact.iconSize < regular.iconSize)
-        
+
         assertTrue(compact.capsuleWidthFraction >= 0.85f)
         assertTrue(regular.capsuleWidthFraction >= 0.85f)
-        
+
         assertTrue(compact.barHeight < regular.barHeight)
         assertTrue(compact.maxBarWidth < regular.maxBarWidth)
-        
+
         assertEquals(1.5.dp, compact.labelTopSpacing)
         assertEquals(2.dp, regular.labelTopSpacing)
         assertTrue(compact.labelTopSpacing > 0.dp)
-        
+
         assertTrue(compact.outerVerticalInset <= 3.dp)
         assertTrue(regular.outerVerticalInset <= 3.5.dp)
     }
@@ -49,7 +49,7 @@ class LiquidGlassTabBarLayoutMetricsTest {
         val segmentWidth = (metrics.maxBarWidth - metrics.outerHorizontalInset * 2) / 3f
 
         assertEquals(segmentWidth * metrics.capsuleWidthFraction, bounds.width)
-        
+
         assertTrue(bounds.width < segmentWidth * 0.95f)
         assertTrue(bounds.width > segmentWidth * 0.8f)
     }

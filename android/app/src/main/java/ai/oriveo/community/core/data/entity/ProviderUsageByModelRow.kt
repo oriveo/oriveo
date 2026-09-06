@@ -1,6 +1,5 @@
 package ai.oriveo.community.core.data.entity
 
-
 data class ProviderUsageByModelRow(
     val modelName: String?,
     val thisMonthCost: Double,

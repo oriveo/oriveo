@@ -27,7 +27,6 @@ import androidx.compose.ui.unit.sp
 import ai.oriveo.community.R
 import ai.oriveo.community.ui.theme.OriveoTheme
 
-
 @Composable
 fun ProvidersSectionTitle(
     modifier: Modifier = Modifier,
@@ -43,7 +42,6 @@ fun ProvidersSectionTitle(
         trailing?.invoke()
     }
 }
-
 
 @Composable
 fun ProvidersClusterTitleLabel() {
@@ -63,7 +61,6 @@ fun ProvidersClusterTitleLabel() {
         overflow = TextOverflow.Ellipsis,
     )
 }
-
 
 @Composable
 fun CostSectionTitleLabel() {

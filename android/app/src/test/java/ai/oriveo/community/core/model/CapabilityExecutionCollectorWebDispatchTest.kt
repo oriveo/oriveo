@@ -4,7 +4,6 @@ import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
-
 class CapabilityExecutionCollectorWebDispatchTest {
 
     private var fired = 0
@@ -31,7 +30,7 @@ class CapabilityExecutionCollectorWebDispatchTest {
     fun `repeated dispatch confirmation never double counts one send`() = runTest {
         val collector = collector()
         collector.compileWeb()
-        
+
         collector.confirmDispatched()
         collector.confirmDispatched()
         collector.confirmDispatched()

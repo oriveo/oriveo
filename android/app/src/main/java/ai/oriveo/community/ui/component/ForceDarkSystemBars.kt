@@ -11,7 +11,6 @@ import androidx.compose.ui.window.DialogWindowProvider
 import androidx.core.view.WindowCompat
 import ai.oriveo.community.ui.util.findActivity
 
-
 @Composable
 fun ForceDarkSystemBars(windowBackground: Color = DarkSurfaceBackground) {
     val view = LocalView.current
@@ -42,9 +41,7 @@ fun ForceDarkSystemBars(windowBackground: Color = DarkSurfaceBackground) {
     }
 }
 
-
 val DarkSurfaceBackground = Color(0xFF0B0A14)
-
 
 private val ThemeWindowBackgroundDark = Color(0xFF090E1B)
 private val ThemeWindowBackgroundLight = Color(0xFFF6F5FA)

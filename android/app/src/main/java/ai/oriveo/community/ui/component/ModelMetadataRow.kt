@@ -1,6 +1,5 @@
 package ai.oriveo.community.ui.component
 
-
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -401,7 +400,7 @@ internal fun HeroIconTextLabel(
                 imageVector = item.icon,
                 contentDescription = null,
                 modifier = Modifier.size(size.iconSize),
-                
+
                 tint = Color.White,
             )
         }
@@ -729,7 +728,7 @@ private fun ModelCapability.toHeroIconTextItem(): HeroIconTextItem = when (this)
         },
         shadowColor = if (OriveoTheme.isDark) Color.Black.copy(alpha = 0.12f) else Color(0xFF0E7490).copy(alpha = 0.14f),
     )
-    
+
     ModelCapability.NativePdf, ModelCapability.Unknown -> HeroIconTextItem(
         id = name,
         title = "",
@@ -764,7 +763,6 @@ internal fun AIModel.normalizedPriceTier(): String {
     return ""
 }
 
-
 @Composable
 internal fun localizedPriceTier(tier: String): String = when (tier) {
     "Price unknown" -> stringResource(R.string.price_unknown)
@@ -773,13 +771,11 @@ internal fun localizedPriceTier(tier: String): String = when (tier) {
     else -> tier
 }
 
-
 @Composable
 internal fun AIModel.normalizedPriceTierLabel(): String {
     val explicitTier = priceTier.trim()
     if (explicitTier.isNotEmpty()) {
-        
-        
+
         return localizedPriceTier(explicitTier)
     }
 

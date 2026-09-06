@@ -1,6 +1,5 @@
 package ai.oriveo.community.core.data.repository
 
-
 import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.core.data.database.LOCAL_PARTITION_ID
 import ai.oriveo.community.core.data.dao.ConversationDao
@@ -33,7 +32,6 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
-
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class ConversationRepositoryTest {
@@ -104,8 +102,6 @@ class ConversationRepositoryTest {
         coVerify(exactly = 1) { continuationDao.deleteForConversation(testAccountId, "CONV-3") }
     }
 
-    
-
     private fun makeConversationEntity(
         id: String = "CONV-1",
         estimatedCost: Double = 0.0,
@@ -148,8 +144,6 @@ class ConversationRepositoryTest {
         sortOrder = sortOrder,
     )
 
-    
-
     @Test
     fun `refreshCost recalculates correctly after message deletion`() = runTest {
         // Setup: conversation with 3 messages, one is about to be "deleted"
@@ -159,7 +153,7 @@ class ConversationRepositoryTest {
         // msg3 has been deleted — only msg1 and msg2 remain
 
         coEvery { messageDao.getByConversation(testAccountId, "CONV-1") } returns listOf(msg1, msg2)
-        
+
         coEvery { messageDao.sumDeliveredCost(testAccountId, "CONV-1", CostFormatter.COST_EPSILON) } returns 0.20
         coEvery { conversationDao.getById(testAccountId, "CONV-1") } returns conv
         val updatedEntitySlot = slot<ConversationEntity>()
@@ -257,8 +251,6 @@ class ConversationRepositoryTest {
             0.00001,
         )
     }
-
-    
 
     @Test
     fun `refreshCost after resend reflects new message cost`() = runTest {
@@ -365,7 +357,7 @@ class ConversationRepositoryTest {
                 windowEndMillis = any(),
             )
         } returns flowOf(
-            
+
             listOf(
                 MonthlyCostRow(providerKind = "Anthropic", providerID = "anthropic-1", totalCost = 1.4),
                 MonthlyCostRow(providerKind = "OpenAI", providerID = "openai-1", totalCost = 2.1),
@@ -376,7 +368,6 @@ class ConversationRepositoryTest {
 
         val summary = repository.observeMonthlyCostSummary(visibleProviderLimit = 2).first()
 
-        
         assertEquals(4.5, summary.totalCost, 0.00001)
         assertEquals(listOf("openai-1", "anthropic-1"), summary.providers.map { it.providerID })
         assertEquals(2, summary.hiddenProviderCount)
@@ -489,9 +480,6 @@ class ConversationRepositoryTest {
         }
     }
 
-    
-
-    
     @Test
     fun `TC-4-1-2 cross-folder move calls updateFolderID with new folder`() = runTest {
         coEvery { conversationDao.updateFolderID(testAccountId, any(), any()) } returns Unit
@@ -501,7 +489,6 @@ class ConversationRepositoryTest {
         coVerify { conversationDao.updateFolderID(testAccountId, any(), "folder-b") }
     }
 
-    
     @Test
     fun `TC-4-1-3 move out of folder passes null to updateFolderID`() = runTest {
         coEvery { conversationDao.updateFolderID(testAccountId, "c1", null) } returns Unit
@@ -511,7 +498,6 @@ class ConversationRepositoryTest {
         coVerify { conversationDao.updateFolderID(testAccountId, "c1", null) }
     }
 
-    
     @Test
     fun `TC-4-1-4 moveToFolder does not update updatedAt`() = runTest {
         coEvery { conversationDao.updateFolderID(testAccountId, any(), any()) } returns Unit
@@ -521,18 +507,15 @@ class ConversationRepositoryTest {
         coVerify(exactly = 1) { conversationDao.updateFolderID(testAccountId, "c1", "f1") }
     }
 
-    
     @Test
     fun `TC-4-1-6 moveToFolder with non-existent conversation does not crash`() = runTest {
         coEvery { conversationDao.updateFolderID(testAccountId, any(), any()) } returns Unit
 
         repository.moveToFolder("non-existent-id", "f1")
 
-        
         coVerify { conversationDao.updateFolderID(testAccountId, any(), "f1") }
     }
 
-    
     @Test
     fun `TC-4-1-7 moveToFolder overwrites previous folderID (single ownership)`() = runTest {
         coEvery { conversationDao.updateFolderID(testAccountId, any(), any()) } returns Unit
@@ -540,12 +523,10 @@ class ConversationRepositoryTest {
         repository.moveToFolder("c1", "folder-a")
         repository.moveToFolder("c1", "folder-b")
 
-        
         coVerify { conversationDao.updateFolderID(testAccountId, any(), "folder-a") }
         coVerify { conversationDao.updateFolderID(testAccountId, any(), "folder-b") }
     }
 
-    
     @Test
     fun `TC-5-1-2 batchMoveToFolder with null removes all from folder`() = runTest {
         coEvery { conversationDao.batchClearFolderID(testAccountId, any()) } returns Unit
@@ -555,7 +536,6 @@ class ConversationRepositoryTest {
         coVerify { conversationDao.batchClearFolderID(testAccountId, listOf("c1", "c2", "c3")) }
     }
 
-    
     @Test
     fun `TC-5-1-3 batchMoveToFolder mixed state all get new folderID`() = runTest {
         coEvery { conversationDao.batchUpdateFolderID(testAccountId, any(), any()) } returns Unit
@@ -565,7 +545,6 @@ class ConversationRepositoryTest {
         coVerify { conversationDao.batchUpdateFolderID(testAccountId, listOf("c1", "c2", "c3"), "folder-b") }
     }
 
-    
     @Test
     fun `TC-5-1-4 batchMoveToFolder empty selection does nothing`() = runTest {
         repository.batchMoveToFolder(emptyList(), "f1")
@@ -573,7 +552,6 @@ class ConversationRepositoryTest {
         coVerify(exactly = 0) { conversationDao.updateFolderID(testAccountId, any(), any()) }
     }
 
-    
     @Test
     fun `TC-5-1-5 batchMoveToFolder with invalid IDs does not crash`() = runTest {
         coEvery { conversationDao.batchUpdateFolderID(testAccountId, any(), any()) } returns Unit
@@ -585,7 +563,6 @@ class ConversationRepositoryTest {
         }
     }
 
-    
     @Test
     fun `TC-5-1-6 batchMoveToFolder syncs each conversation`() = runTest {
         coEvery { conversationDao.batchUpdateFolderID(testAccountId, any(), any()) } returns Unit
@@ -594,9 +571,6 @@ class ConversationRepositoryTest {
 
     }
 
-    
-
-    
     @Test
     fun `TC-8-1-1 search includes conversations in folders`() = runTest {
         val entityInFolder = makeConversationEntity(id = "CONV-FOLDER-1").copy(
@@ -614,7 +588,6 @@ class ConversationRepositoryTest {
         assertEquals("AI Discussion", results[0].title)
     }
 
-    
     @Test
     fun `TC-8-1-2 search result has folderID for folder conversations`() = runTest {
         val entityInFolder = makeConversationEntity(id = "CONV-FOLDER-2").copy(
@@ -631,7 +604,6 @@ class ConversationRepositoryTest {
         assertEquals("FOLDER-2", results[0].folderID)
     }
 
-    
     @Test
     fun `TC-8-1-3 search result has null folderID for unfiled conversations`() = runTest {
         val entity = makeConversationEntity(id = "CONV-NO-FOLDER")
@@ -644,8 +616,6 @@ class ConversationRepositoryTest {
         assertEquals(1, results.size)
         assertEquals(null, results[0].folderID)
     }
-
-    
 
     // TC-10.1.1: createDraft with folderID → result has folderID set, isDraft=true
     @Test
@@ -678,7 +648,6 @@ class ConversationRepositoryTest {
         assertEquals(null, result.folderID)
     }
 
-    
     @Test
     fun `TC-10-1-3 createDraft with folderID passes folderID to DAO upsert`() = runTest {
         val entitySlot = slot<ConversationEntity>()
@@ -696,11 +665,6 @@ class ConversationRepositoryTest {
         assertTrue("Entity isDraft should be true", entitySlot.captured.isDraft)
     }
 
-    
-    
-    
-    
-    
     @Test
     fun `TC-10-1-4 createDraft folderID retained through addMessage first-message path`() = runTest {
         val convSlot = slot<ConversationEntity>()
@@ -716,7 +680,6 @@ class ConversationRepositoryTest {
         val draftEntity = convSlot.captured
         val convId = draftEntity.id
 
-        
         coEvery { messageDao.maxSortOrder(testAccountId, convId) } returns null
         coEvery { messageDao.upsert(any()) } returns Unit
         coEvery { conversationDao.getById(testAccountId, convId) } returns draftEntity
@@ -733,7 +696,7 @@ class ConversationRepositoryTest {
             createdAt = 1700000000000L,
         )
         val msgEntity = makeMessageEntity("MSG-USER-1", conversationId = convId, sortOrder = 0)
-        
+
         coEvery { messageDao.lastDelivered(testAccountId, convId) } returns msgEntity
         coEvery { messageDao.lastDeliveredUser(testAccountId, convId) } returns msgEntity
 
@@ -742,8 +705,6 @@ class ConversationRepositoryTest {
 
         repository.addMessage(convId, deliveredMessage)
 
-        
-        
         assertTrue("conversationDao.update should be captured", updatedSlot.isCaptured)
         assertEquals(
             "folderID must survive refreshConversationMetadata",
@@ -752,12 +713,8 @@ class ConversationRepositoryTest {
         )
         assertEquals("isDraft should transition to false", false, updatedSlot.captured.isDraft)
 
-        
     }
 
-    
-    
-    
     @Test
     fun `TC-BugB updateMessage assistant delivered syncs whole round via didCompleteRound`() = runTest {
         val convId = "CONV-1"
@@ -769,7 +726,7 @@ class ConversationRepositoryTest {
         coEvery { messageDao.getById(testAccountId, "MSG-AI-1") } returns assistantEntity
         coEvery { messageDao.upsert(any()) } returns Unit
         coEvery { conversationDao.getById(testAccountId, convId) } returns convEntity
-        
+
         coEvery { messageDao.lastDelivered(testAccountId, convId) } returns assistantEntity
         coEvery { messageDao.lastDeliveredUser(testAccountId, convId) } returns userEntity
         coEvery { messageDao.lastDeliveredUserBefore(testAccountId, convId, 1) } returns userEntity
@@ -792,12 +749,8 @@ class ConversationRepositoryTest {
 
         repository.updateMessage(convId, deliveredAssistant)
 
-        
-        
     }
 
-    
-    
     @Test
     fun `updateMessage is a no-op when the message row was deleted`() = runTest {
         coEvery { messageDao.getById(testAccountId, "MSG-GONE") } returns null

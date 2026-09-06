@@ -1,20 +1,15 @@
 package ai.oriveo.community.ui.component.markdown
 
-
 object StreamingSplitter {
 
-    
     enum class TailKind {
-        
+
         Paragraph,
 
-        
         UnclosedCodeFence,
 
-        
         UnclosedMathBlock,
 
-        
         UnclosedTable,
     }
 
@@ -24,9 +19,8 @@ object StreamingSplitter {
         val tailKind: TailKind = TailKind.Paragraph,
     )
 
-    
     fun split(text: String, maxEnd: Int = Int.MAX_VALUE): SplitResult {
-        
+
         if (text.length < 80 && !text.contains("\n\n") && !text.endsWith("```\n")) {
             return SplitResult("", text, classifyTail(text))
         }
@@ -44,7 +38,6 @@ object StreamingSplitter {
         }
     }
 
-    
     private fun findLastSafeSplit(text: String, maxEnd: Int = Int.MAX_VALUE): Int {
         var inCodeBlock = false
         var inMathBlock = false
@@ -52,16 +45,16 @@ object StreamingSplitter {
         var lastSafeIdx = -1
         var i = 0
         var lineStart = 0
-        
+
         fun acceptSafe(idx: Int) {
             if (idx <= maxEnd) lastSafeIdx = idx
         }
 
         while (i < text.length) {
-            
+
             if (i == lineStart && text.startsWith("```", i)) {
                 if (inCodeBlock) {
-                    
+
                     val lineEnd = text.indexOf('\n', i)
                     val end = if (lineEnd < 0) text.length else lineEnd + 1
                     inCodeBlock = false
@@ -78,16 +71,12 @@ object StreamingSplitter {
                 }
             }
 
-            
             if (inCodeBlock) {
                 if (text[i] == '\n') lineStart = i + 1
                 i++
                 continue
             }
 
-            
-            
-            
             if (!inMathBlock && i == lineStart && text.startsWith("$$", i)) {
                 inMathBlock = true
                 i += 2
@@ -109,7 +98,6 @@ object StreamingSplitter {
                 continue
             }
 
-            
             if (i == lineStart) {
                 val nextNl = text.indexOf('\n', i).let { if (it < 0) text.length else it }
                 val line = text.substring(i, nextNl)
@@ -120,13 +108,12 @@ object StreamingSplitter {
                     lineStart = i
                     continue
                 } else if (inTable) {
-                    
+
                     inTable = false
                     acceptSafe(i)
                 }
             }
 
-            
             if (!inTable && text.startsWith("\n\n", i)) {
                 acceptSafe(i + 2)
                 i += 2
@@ -134,7 +121,6 @@ object StreamingSplitter {
                 continue
             }
 
-            
             if (!inTable && i == lineStart && isHeadingLineStart(text, i)) {
                 if (lineStart > 0) {
                     acceptSafe(lineStart)
@@ -165,7 +151,6 @@ object StreamingSplitter {
         return TailKind.Paragraph
     }
 
-    
     fun hasOpenCodeFence(text: String): Boolean {
         var count = 0
         var i = 0
@@ -182,7 +167,6 @@ object StreamingSplitter {
         return count % 2 != 0
     }
 
-    
     fun hasOpenMathBlock(text: String): Boolean {
         var count = 0
         var i = 0
@@ -197,7 +181,6 @@ object StreamingSplitter {
         return count % 2 != 0
     }
 
-    
     private fun looksLikePartialTable(text: String): Boolean {
         val lines = text.split('\n')
         var tableLineCount = 0
@@ -207,7 +190,7 @@ object StreamingSplitter {
             val trimmed = line.trim()
             if (trimmed.startsWith("|") && trimmed.indexOf('|', 1) > 0) {
                 tableLineCount++
-                
+
                 val isSeparator = trimmed.removePrefix("|").removeSuffix("|")
                     .split("|").all { col ->
                         val c = col.trim()
@@ -221,19 +204,17 @@ object StreamingSplitter {
             }
         }
         if (tableLineCount == 0) return false
-        
+
         return !hasSeparator || dataLinesAfterSeparator == 0
     }
 
-    
     data class TrailingTable(
-        
+
         val beforeTable: String,
-        
+
         val tableText: String,
     )
 
-    
     fun splitTrailingTable(tail: String): TrailingTable? {
         val lines = tail.split('\n')
         var sepIdx = -1
@@ -244,9 +225,7 @@ object StreamingSplitter {
             }
         }
         if (sepIdx < 0) return null
-        
-        
-        
+
         for (idx in (sepIdx + 1) until lines.size) {
             val trimmed = lines[idx].trim()
             if (trimmed.isEmpty()) {
@@ -262,13 +241,11 @@ object StreamingSplitter {
         )
     }
 
-    
     private fun isPipeRow(line: String): Boolean {
         val trimmed = line.trim()
         return trimmed.startsWith("|") && trimmed.indexOf('|', 1) > 0
     }
 
-    
     internal fun isSeparatorRow(line: String): Boolean {
         val trimmed = line.trim()
         if (!trimmed.startsWith("|")) return false
@@ -279,7 +256,6 @@ object StreamingSplitter {
             }
     }
 
-    
     fun extractLanguage(text: String): String {
         val fenceIdx = text.indexOf("```")
         if (fenceIdx < 0) return ""
@@ -288,7 +264,6 @@ object StreamingSplitter {
         return if (lineEnd >= 0) afterFence.substring(0, lineEnd).trim() else afterFence.trim()
     }
 
-    
     fun extractCodeAfterFence(text: String): String {
         val fenceIdx = text.indexOf("```")
         if (fenceIdx < 0) return text

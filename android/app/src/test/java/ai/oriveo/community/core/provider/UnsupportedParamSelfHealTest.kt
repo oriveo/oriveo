@@ -54,8 +54,6 @@ class UnsupportedParamSelfHealTest {
         UnsupportedParamClassifier.resetRuntimePatternsForTest()
     }
 
-    
-
     @Test
     fun `classifier extracts xAI param (camelCase)`() {
         assertEquals(
@@ -80,7 +78,7 @@ class UnsupportedParamSelfHealTest {
                 "Unsupported parameter: 'reasoning.summary' is not supported with this model.",
             ),
         )
-        
+
         assertNull(
             UnsupportedParamClassifier.extractParam(
                 "Unsupported value: 'xhigh' is not supported with this model.",
@@ -142,11 +140,9 @@ class UnsupportedParamSelfHealTest {
         assertNull(UnsupportedParamClassifier.extractParam(""))
     }
 
-    
-
     @Test
     fun `downloaded pattern matches new wording the baseline misses`() {
-        
+
         val wording = "Parameter 'reasoningEffort' is not allowed for this model"
         UnsupportedParamClassifier.setRuntimePatterns(
             listOf(
@@ -156,13 +152,13 @@ class UnsupportedParamSelfHealTest {
                 ),
             ),
         )
-        
+
         assertEquals("reasoning_effort", UnsupportedParamClassifier.extractParam(wording))
     }
 
     @Test
     fun `illegal downloaded patterns are skipped without crashing`() {
-        
+
         UnsupportedParamClassifier.setRuntimePatterns(
             listOf(
                 MetadataClient.SelfHealPattern(pattern = "(unclosed", flags = "i"),
@@ -171,22 +167,22 @@ class UnsupportedParamSelfHealTest {
                 MetadataClient.SelfHealPattern(pattern = "rejected param ([A-Za-z0-9_]+)", flags = "i"),
             ),
         )
-        
+
         assertEquals("foo_bar", UnsupportedParamClassifier.extractParam("rejected param fooBar"))
-        
+
         assertNull(UnsupportedParamClassifier.extractParam("unrelated 400 body"))
     }
 
     @Test
     fun `baseline still wins and works when no patterns are downloaded (regression)`() {
-        
+
         UnsupportedParamClassifier.resetRuntimePatternsForTest()
-        
+
         assertEquals(
             "reasoning_effort",
             UnsupportedParamClassifier.extractParam("does not support parameter reasoningEffort"),
         )
-        
+
         assertNull(
             UnsupportedParamClassifier.extractParam("Parameter 'reasoningEffort' is not allowed for this model"),
         )
@@ -194,7 +190,7 @@ class UnsupportedParamSelfHealTest {
 
     @Test
     fun `baseline takes precedence over downloaded pattern`() {
-        
+
         UnsupportedParamClassifier.setRuntimePatterns(
             listOf(MetadataClient.SelfHealPattern(pattern = "parameter ([A-Za-z0-9_]+)", flags = "i")),
         )
@@ -204,14 +200,11 @@ class UnsupportedParamSelfHealTest {
         )
     }
 
-    
-    
-    
     @Test
     fun `downloaded fixed param covers wording that never names the parameter`() {
         val wording =
             """{"error":{"message":"Your organization must be verified to generate reasoning summaries"}}"""
-        
+
         assertNull(UnsupportedParamClassifier.extractParam(wording))
 
         UnsupportedParamClassifier.setRuntimePatterns(
@@ -250,14 +243,12 @@ class UnsupportedParamSelfHealTest {
         )
         assertNull(UnsupportedParamClassifier.extractParam("must be verified"))
         assertNull(UnsupportedParamClassifier.extractParam("quota exhausted"))
-        
+
         assertEquals(
             "reasoning_effort",
             UnsupportedParamClassifier.extractParam("does not support parameter reasoningEffort"),
         )
     }
-
-    
 
     @Test
     fun `strip removes top-level snake key when reported as camelCase`() {
@@ -270,7 +261,7 @@ class UnsupportedParamSelfHealTest {
 
     @Test
     fun `strip removes nested reasoning effort but keeps summary (Responses)`() {
-        
+
         val body = """{"model":"grok","reasoning":{"effort":"high","summary":"auto"}}"""
         val out = UnsupportedParamJson.stripParam(body, "reasoningEffort")!!
         assertFalse(out.contains("\"effort\""))
@@ -278,8 +269,6 @@ class UnsupportedParamSelfHealTest {
         assertTrue(out.contains("\"reasoning\""))
     }
 
-    
-    
     @Test
     fun `strip removes nested reasoning summary by fixed param path, keeps effort`() {
         val body = """{"model":"o4-mini","reasoning":{"effort":"medium","summary":"auto"}}"""
@@ -322,13 +311,11 @@ class UnsupportedParamSelfHealTest {
         assertNull(UnsupportedParamJson.stripParam("not json", "reasoningEffort"))
     }
 
-    
-
     @Test
     fun `cache normalizes camel and snake to the same key`() {
         val identity = identity()
         assertEquals(UnsupportedParamCache.WriteOutcome.Added, UnsupportedParamCache.writeUnsupported(identity, "reasoningEffort"))
-        
+
         assertTrue(cached(identity, "reasoning_effort"))
     }
 
@@ -359,9 +346,7 @@ class UnsupportedParamSelfHealTest {
 
     @Test
     fun `cache key escapes field separators so pipe in modelId cannot collide`() {
-        
-        
-        
+
         val first = identity().copy(modelId = "m|x", canonicalModelId = null)
         val second = identity().copy(modelId = "m", canonicalModelId = "x")
         assertEquals(

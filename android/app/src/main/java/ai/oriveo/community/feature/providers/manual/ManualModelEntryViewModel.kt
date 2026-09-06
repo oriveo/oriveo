@@ -20,7 +20,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
-
 class ManualModelEntryViewModel(
     savedStateHandle: SavedStateHandle,
     private val context: Context,
@@ -98,7 +97,7 @@ class ManualModelEntryViewModel(
             error = null
             try {
                 providerRepository.resyncProvider(providerID)
-                
+
                 val updated = providerRepository.getById(providerID)
                 if (updated != null && updated.models.isNotEmpty()) {
                     saveCompleted = true
@@ -117,7 +116,6 @@ class ManualModelEntryViewModel(
         }
     }
 
-    
     private fun localizedProviderError(
         error: ProviderServiceError,
         severity: OriveoErrorSeverity,

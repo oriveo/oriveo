@@ -1,6 +1,5 @@
 package ai.oriveo.community.feature.providers
 
-
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -71,12 +70,11 @@ import ai.oriveo.community.ui.theme.ProviderBadgeColors
 import ai.oriveo.community.ui.util.formatRelativeTime
 import kotlin.math.max
 
-
 @Composable
 fun ProviderHeroCard(
     provider: Provider,
     monthlyEstimatedCost: Double,
-    
+
     availableModelCount: Int,
     dailyCostsLast7Days: List<Double> = emptyList(),
     onClick: () -> Unit = {},
@@ -91,15 +89,13 @@ fun ProviderHeroCard(
             null
         }
     }
-    
-    
+
     val brandColor = if (resolvedLogoKind == ProviderKind.Relay) {
         OriveoTheme.colors.primary
     } else {
         ProviderBadgeColors.usageBreakdown(resolvedLogoKind)
     }
-    
-    
+
     val subduedBrand = remember(brandColor, resolvedLogoKind) {
         if (resolvedLogoKind == ProviderKind.Grok) {
             Color(0xFF2E3036)
@@ -114,7 +110,6 @@ fun ProviderHeroCard(
     val isPressed by interactionSource.collectIsPressedAsState()
     val pressScale = if (isPressed) 0.97f else 1f
 
-    
     val effective = provider.effectiveStatusKind
     val statusColor = when (effective) {
         ProviderEffectiveStatusKind.Connected -> Color(0xFF5CF5A8)
@@ -147,7 +142,7 @@ fun ProviderHeroCard(
     val syncRelativeText = remember(provider.lastCheckedAt, neverText) {
         provider.lastCheckedAt?.let(::formatRelativeTime) ?: neverText
     }
-    
+
     val subInfoText = remember(modelsText, provider.lastCheckedAt, syncRelativeText) {
         if (provider.lastCheckedAt == null) modelsText
         else "$modelsText  ·  $syncRelativeText"
@@ -180,22 +175,15 @@ fun ProviderHeroCard(
             )
             .clip(RoundedCornerShape(24.dp))
             .clickable(interactionSource = interactionSource, indication = null, onClick = onClick),
-        
-        
-        
+
     ) {
         HeroBackground(gradientStart = gradientStart, gradientEnd = gradientEnd, modifier = Modifier.matchParentSize())
         HeroWatermark(resolvedLogoKind = resolvedLogoKind, modifier = Modifier.matchParentSize())
 
-        
-        
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                
-                
-                
-                
+
                 .height(IntrinsicSize.Min)
                 .padding(horizontal = 20.dp, vertical = 16.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -224,13 +212,12 @@ fun ProviderHeroCard(
             )
         }
 
-        
         Box(
             modifier = Modifier
                 .matchParentSize()
                 .border(
                     width = 0.6.dp,
-                    
+
                     color = Color.White.copy(alpha = if (isDark) 0.08f else 0.55f),
                     shape = RoundedCornerShape(24.dp),
                 ),
@@ -240,8 +227,7 @@ fun ProviderHeroCard(
 
 @Composable
 private fun HeroBackground(gradientStart: Color, gradientEnd: Color, modifier: Modifier = Modifier) {
-    
-    
+
     val baseBrush = remember(gradientStart, gradientEnd) {
         Brush.linearGradient(
             colors = listOf(gradientStart, gradientEnd),
@@ -275,17 +261,16 @@ private fun HeroBackground(gradientStart: Color, gradientEnd: Color, modifier: M
     }
 
     Box(modifier = modifier) {
-        
+
         Box(modifier = Modifier.fillMaxSize().background(baseBrush))
-        
+
         Box(modifier = Modifier.fillMaxSize().background(specularBrush))
-        
+
         Box(modifier = Modifier.fillMaxSize().background(bottomDimBrush))
-        
+
         Box(modifier = Modifier.fillMaxSize().background(sheenBrush))
     }
 }
-
 
 @Composable
 private fun HeroWatermark(resolvedLogoKind: ProviderKind, modifier: Modifier = Modifier) {
@@ -299,14 +284,14 @@ private fun HeroWatermark(resolvedLogoKind: ProviderKind, modifier: Modifier = M
                 .layout { measurable, constraints ->
                     val placeable = measurable.measure(constraints)
                     layout(placeable.width, placeable.height) {
-                        
+
                         placeable.placeRelative(35.dp.roundToPx(), 20.dp.roundToPx())
                     }
                 },
             contentAlignment = Alignment.Center,
         ) {
             if (watermarkSymbol != null) {
-                
+
                 Icon(
                     imageVector = watermarkSymbol,
                     contentDescription = null,
@@ -314,8 +299,7 @@ private fun HeroWatermark(resolvedLogoKind: ProviderKind, modifier: Modifier = M
                     tint = Color.White.copy(alpha = 0.10f),
                 )
             } else {
-                
-                
+
                 Box(
                     modifier = Modifier
                         .size(150.dp)
@@ -345,9 +329,7 @@ private fun HeroIdentityColumn(
     subInfoText: String,
     modifier: Modifier = Modifier,
 ) {
-    
-    
-    
+
     val logoTile = 38.dp
     Column(modifier = modifier) {
         ProviderBadgeIcon(
@@ -358,9 +340,6 @@ private fun HeroIdentityColumn(
             contentScaleOverride = 1f,
         )
 
-        
-        
-        
         var nameFontSize by remember(name) { mutableStateOf(26f) }
         Text(
             text = name,
@@ -384,7 +363,6 @@ private fun HeroIdentityColumn(
             },
         )
 
-        
         Column(
             modifier = Modifier.padding(top = 8.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp),
@@ -403,8 +381,6 @@ private fun HeroIdentityColumn(
             )
         }
 
-        
-        
         Spacer(modifier = Modifier.weight(1f))
     }
 }
@@ -422,7 +398,7 @@ private fun HeroStatsColumn(
     modifier: Modifier = Modifier,
 ) {
     Column(modifier = modifier, horizontalAlignment = Alignment.End) {
-        
+
         Row(
             modifier = Modifier
                 .clip(CircleShape)
@@ -456,8 +432,7 @@ private fun HeroStatsColumn(
 
 @Composable
 private fun HeroModelRow(modelName: String) {
-    
-    
+
     val icon = remember(modelName) { ModelFamilyIcon.familyIcon(modelName) }
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -495,7 +470,7 @@ private fun HeroCostView(
     weekly: List<Double>,
 ) {
     if (!shouldDisplayCost) {
-        
+
         Row(
             modifier = Modifier
                 .clip(CircleShape)
@@ -641,7 +616,6 @@ private fun HeroWeeklyBarChart(values: List<Double>) {
     }
 }
 
-
 private fun resolveWeeklyCosts(real: List<Double>, monthlyEstimatedCost: Double): List<Double> {
     if (real.isNotEmpty()) return real.takeLast(7)
     if (monthlyEstimatedCost <= CostFormatter.COST_EPSILON) return List(7) { 0.0 }
@@ -659,5 +633,3 @@ private fun compactTextStyle(base: TextStyle): TextStyle =
             trim = LineHeightStyle.Trim.Both,
         ),
     )
-
-

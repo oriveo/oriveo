@@ -4,7 +4,6 @@ import ai.oriveo.community.R
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
-
 @Serializable
 enum class ReasoningMode {
     @SerialName("automatic") Automatic,
@@ -22,7 +21,6 @@ enum class ReasoningMode {
             Max -> "max"
         }
 
-    
     val titleResId: Int
         get() = when (this) {
             Automatic -> R.string.reasoning_auto
@@ -32,7 +30,6 @@ enum class ReasoningMode {
             Max -> R.string.reasoning_max
         }
 
-    
     val intentValue: String?
         get() = when (this) {
             Automatic -> null
@@ -43,7 +40,7 @@ enum class ReasoningMode {
         }
 
     companion object {
-        
+
         fun fromIntentOrNull(intent: String?): ReasoningMode? = when (intent) {
             "low" -> Fast
             "balanced" -> Balanced
@@ -52,7 +49,6 @@ enum class ReasoningMode {
             else -> null
         }
 
-        
         fun fromIntent(intent: String?): ReasoningMode = fromIntentOrNull(intent) ?: Automatic
     }
 }

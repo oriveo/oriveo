@@ -94,7 +94,7 @@ class NoteListingTest {
             note("b", tags = listOf("alpha", "mango")),
             note("dead", tags = listOf("ghost"), deletedAt = "2026-06-02T00:00:00Z"),
         )
-        
+
         assertEquals(listOf("alpha", "mango", "Zebra"), NoteListing.availableTags(notes, folderId = null))
     }
 

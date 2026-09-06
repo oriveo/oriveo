@@ -21,7 +21,7 @@ fun resolveProviderLogoKind(provider: Provider): ProviderKind {
     return when {
         has("kimi", "moonshot", "moonshot.ai", "moonshot.cn") -> ProviderKind.Moonshot
         has("grok", "xai", "x.ai") -> ProviderKind.Grok
-        
+
         has("mistral", "mixtral", "codestral", "magistral", "devstral", "ministral", "pixtral") -> ProviderKind.Mistral
         has("openrouter") -> ProviderKind.OpenRouter
         has("openai", "gpt", "chatgpt") || has(" o1", " o3", " o4") -> ProviderKind.OpenAI

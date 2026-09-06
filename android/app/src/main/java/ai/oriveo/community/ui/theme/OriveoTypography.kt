@@ -8,10 +8,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import ai.oriveo.community.R
 
-
 object OriveoTypography {
 
-    
     @OptIn(androidx.compose.ui.text.ExperimentalTextApi::class)
     private val HeroFontFamily = FontFamily(
         Font(
@@ -55,9 +53,6 @@ object OriveoTypography {
         lineHeight = 22.sp,
     )
 
-    
-    
-    
     val chatBody = TextStyle(
         fontFamily = FontFamily.SansSerif,
         fontWeight = FontWeight.Normal,

@@ -33,7 +33,6 @@ import androidx.compose.ui.unit.dp
 import ai.oriveo.community.R
 import ai.oriveo.community.core.util.launchExternalActivityOrNotify
 
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AttachmentPicker(

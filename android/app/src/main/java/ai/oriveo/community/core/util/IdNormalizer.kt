@@ -17,7 +17,6 @@ fun sameNormalizedUuid(a: String?, b: String?): Boolean {
     return normalizeUuid(a) == normalizeUuid(b)
 }
 
-
 fun canonicalSyncId(raw: String): String =
     raw.split(':').joinToString(":") { if (UUID_REGEX.matches(it)) it.lowercase() else it }
 
@@ -31,8 +30,7 @@ fun normalizeAttachmentIds(attachment: Attachment): Attachment = attachment.copy
 fun normalizeMessageIds(message: ChatMessage): ChatMessage = message.copy(
     id = normalizeUuid(message.id),
     providerID = message.providerID?.let(::normalizeUuid),
-    
-    
+
     attachments = message.attachments?.map(::normalizeAttachmentIds)?.distinctBy { it.id },
 )
 

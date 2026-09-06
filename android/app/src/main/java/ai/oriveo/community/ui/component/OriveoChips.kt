@@ -42,7 +42,6 @@ import ai.oriveo.community.ui.theme.OriveoBorderWidth
 import ai.oriveo.community.ui.theme.OriveoTheme
 import ai.oriveo.community.ui.theme.ProviderBadgeColors
 
-
 enum class StatusTone {
     Primary, Success, Warning, Danger, Neutral;
 
@@ -64,7 +63,6 @@ enum class StatusTone {
         Neutral -> OriveoTheme.colors.surface
     }
 }
-
 
 @Composable
 fun StatusPill(
@@ -130,7 +128,6 @@ fun ModelRowActionPill(
     }
 }
 
-
 @Composable
 fun ProviderModelChip(
     kind: ProviderKind,
@@ -160,7 +157,6 @@ fun ProviderModelChip(
     }
 }
 
-
 @Composable
 fun CapabilityChip(
     text: String,
@@ -183,7 +179,6 @@ fun CapabilityChip(
             .padding(horizontal = OriveoTheme.spacing.sm, vertical = OriveoTheme.spacing.xs),
     )
 }
-
 
 @Composable
 fun ModelCapabilityBadge(

@@ -8,7 +8,6 @@ import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-
 class ModelControlReasonPresentationTest {
 
     private fun status(state: String?, reasonCode: String? = null, exact: Boolean = true) =
@@ -17,14 +16,13 @@ class ModelControlReasonPresentationTest {
     @Test
     fun `server state stays primary and reason codes only refine it`() {
         assertEquals(CapabilityControlPresentation.AutomaticAvailable, status("auto_available"))
-        
+
         assertEquals(CapabilityControlPresentation.Unknown, status("auto_available", exact = false))
 
         assertEquals(CapabilityControlPresentation.CustomOnly, status("custom_only", "transport_not_supported"))
         assertEquals(CapabilityControlPresentation.CustomOnly, status("custom_only", "future_reason_code"))
     }
 
-    
     @Test
     fun `pending is a read only sub state of unknown and never becomes unavailable`() {
         listOf(
@@ -42,7 +40,6 @@ class ModelControlReasonPresentationTest {
         }
     }
 
-    
     @Test
     fun `external connector only stays distinct from plain unsupported`() {
         assertEquals(
@@ -59,13 +56,12 @@ class ModelControlReasonPresentationTest {
             modelControlStatusTextRes(CapabilityControlPresentation.ExternalConnectorOnly),
             modelControlStatusTextRes(CapabilityControlPresentation.Unsupported),
         )
-        
+
         listOf("relay_user_directory", "official_source_insufficient", "provider_kill_switch").forEach { code ->
             assertEquals(CapabilityControlPresentation.Unsupported, status("unavailable", code))
         }
     }
 
-    
     @Test
     fun `unknown remains configurable while every genuinely blocked state does not`() {
         listOf(
@@ -81,7 +77,6 @@ class ModelControlReasonPresentationTest {
         ).forEach { assertFalse("$it", it.isConfigurable) }
     }
 
-    
     @Test
     fun `capability action strings have complete non-English locale parity`() {
         val keys = listOf(
@@ -97,8 +92,7 @@ class ModelControlReasonPresentationTest {
         val resourceRoot = File("src/main/res")
         val default = strings(File(resourceRoot, "values/strings.xml"))
         keys.forEach { assertTrue("default locale must define $it", !default[it].isNullOrBlank()) }
-        
-        
+
         val localized = resourceRoot.listFiles()
             ?.filter { it.name.startsWith("values-") && File(it, "strings.xml").isFile }
             .orEmpty()

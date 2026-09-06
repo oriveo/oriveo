@@ -40,7 +40,6 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
-
 class NoteDetailViewModel(
     savedStateHandle: SavedStateHandle,
     private val noteRepository: NoteRepository,
@@ -137,7 +136,6 @@ class NoteDetailViewModel(
         }
     }
 
-    
     fun export(context: Context) {
         val n = note.value ?: return
         val untitled = context.getString(R.string.notes_untitled)
@@ -161,13 +159,6 @@ class NoteDetailViewModel(
         }
     }
 
-    
-
-    
-    
-    
-    
-    
     val providers: StateFlow<List<Provider>> = providerRepository.observeAll()
         .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
 
@@ -181,7 +172,6 @@ class NoteDetailViewModel(
     )
     val crosscheckState: StateFlow<CrosscheckState> = crosscheckCoordinator.state
 
-    
     private val _navToNoteDetail = MutableSharedFlow<String>(extraBufferCapacity = 1)
     val navToNoteDetail: SharedFlow<String> = _navToNoteDetail.asSharedFlow()
 
@@ -218,7 +208,6 @@ class NoteDetailViewModel(
         }
     }
 
-    
     private fun originalAnswerText(n: Note): String = n.bodySnapshot?.takeIf { it.isNotBlank() } ?: n.body
 
     fun openCrosscheck() {

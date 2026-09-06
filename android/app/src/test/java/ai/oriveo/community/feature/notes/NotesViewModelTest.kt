@@ -32,7 +32,6 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
-
 @OptIn(ExperimentalCoroutinesApi::class)
 class NotesViewModelTest {
 
@@ -91,8 +90,6 @@ class NotesViewModelTest {
         updatedAt = "2026-06-01T00:00:00Z",
     )
 
-    
-
     @Test
     fun `empty query lists via NoteListing without searchNotes`() = runTest {
         activeFlow.value = listOf(note("a"), note("b"))
@@ -122,8 +119,6 @@ class NotesViewModelTest {
         coVerify { noteRepository.searchNotes("foo", null, emptyList(), NoteSort.UpdatedAt) }
         job.cancel()
     }
-
-    
 
     @Test
     fun `setQuery resets paging`() = runTest {
@@ -189,8 +184,6 @@ class NotesViewModelTest {
         vm.selectTab(NotesViewModel.Tab.Trash)
         assertEquals(NotesViewModel.Tab.Trash, vm.tab)
     }
-
-    
 
     @Test
     fun `createBlankNote uses current folder and callbacks new id`() = runTest {
@@ -298,8 +291,6 @@ class NotesViewModelTest {
         coVerify { noteRepository.moveToFolder("n1", "f1") }
     }
 
-    
-
     @Test
     fun `folders are sorted by sortOrder`() = runTest {
         foldersFlow.value = listOf(folder("b", sortOrder = 2000), folder("a", sortOrder = 1000))
@@ -333,8 +324,6 @@ class NotesViewModelTest {
         job.cancel()
     }
 
-    
-
     @Test
     fun `displayedTrash with empty query returns all trashed notes`() = runTest {
         trashFlow.value = listOf(
@@ -344,7 +333,7 @@ class NotesViewModelTest {
         val vm = createViewModel()
         val job = backgroundScope.launch { vm.displayedTrash.collect {} }
         advanceUntilIdle()
-        
+
         assertEquals(listOf("new", "old"), vm.displayedTrash.value.map { it.id })
         job.cancel()
     }

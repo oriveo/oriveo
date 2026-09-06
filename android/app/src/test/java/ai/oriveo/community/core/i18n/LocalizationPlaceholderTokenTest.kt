@@ -8,8 +8,6 @@ import javax.xml.parsers.DocumentBuilderFactory
 
 class LocalizationPlaceholderTokenTest {
 
-    
-    
     private val tokenPattern = Regex("ZXPH\\d+QZ|__ORIVEO_TOKEN_", RegexOption.IGNORE_CASE)
 
     private val resDir: File by lazy {

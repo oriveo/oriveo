@@ -55,9 +55,7 @@ class HomeViewModelBehaviorTest {
     private val noteRepository = mockk<ai.oriveo.community.core.data.repository.NoteRepository>(relaxed = true)
     private val globalSnackbarManager = mockk<GlobalSnackbarManager>(relaxed = true)
     private val skillRepository = mockk<SkillRepository>(relaxed = true)
-    
-    
-    
+
     private val chatStreamingManager = mockk<ChatStreamingManager>(relaxed = true)
 
     @Before
@@ -502,8 +500,6 @@ class HomeViewModelBehaviorTest {
         assertTrue(viewModel.showSkillProviderPrompt)
     }
 
-    
-    
     @Test
     fun `initial home refresh gate only allows one automatic refresh per loaded session`() = runTest {
         val activeProvider = Provider(
@@ -528,8 +524,6 @@ class HomeViewModelBehaviorTest {
         collectJob.cancel()
     }
 
-    
-
     private fun createHomeViewModel() = HomeViewModel(
         appPreferencesRepository = appPreferencesRepository,
         providerRepository = providerRepository,
@@ -542,7 +536,6 @@ class HomeViewModelBehaviorTest {
         ioDispatcher = dispatcher,
     )
 
-    
     @Test
     fun `TC-6-1-1 new folder defaults to collapsed`() = runTest {
         val viewModel = createHomeViewModel()
@@ -551,7 +544,6 @@ class HomeViewModelBehaviorTest {
         assertTrue(viewModel.expandedFolderIds.isEmpty())
     }
 
-    
     @Test
     fun `TC-6-1-2 toggleFolderExpand expands folder`() = runTest {
         val viewModel = createHomeViewModel()
@@ -561,7 +553,6 @@ class HomeViewModelBehaviorTest {
         assertTrue(viewModel.expandedFolderIds.contains("folder-1"))
     }
 
-    
     @Test
     fun `TC-6-1-3 toggleFolderExpand collapses when already expanded`() = runTest {
         val viewModel = createHomeViewModel()
@@ -572,7 +563,6 @@ class HomeViewModelBehaviorTest {
         assertFalse(viewModel.isFolderExpanded("folder-1"))
     }
 
-    
     @Test
     fun `TC-6-1-4 double toggle is idempotent`() = runTest {
         val viewModel = createHomeViewModel()
@@ -584,7 +574,6 @@ class HomeViewModelBehaviorTest {
         assertEquals(before, after)
     }
 
-    
     @Test
     fun `TC-6-1-6 multiple folders expand independently`() = runTest {
         val viewModel = createHomeViewModel()
@@ -596,9 +585,6 @@ class HomeViewModelBehaviorTest {
         assertTrue(viewModel.isFolderExpanded("folder-C"))
     }
 
-    
-
-    
     @Test
     fun `TC-9-1-4 renameFolder calls folderRepository rename`() = runTest {
         coEvery { folderRepository.rename("folder-1", "New Name") } returns null
@@ -612,7 +598,6 @@ class HomeViewModelBehaviorTest {
         coVerify { folderRepository.rename("folder-1", "New Name") }
     }
 
-    
     @Test
     fun `TC-9-1-5 deleteFolder calls folderRepository delete`() = runTest {
         coEvery { folderRepository.delete("folder-1") } returns Unit
@@ -625,8 +610,6 @@ class HomeViewModelBehaviorTest {
 
         coVerify { folderRepository.delete("folder-1") }
     }
-
-    
 
     private fun createHomeViewModelWithActiveModel(): HomeViewModel {
         val testModel = model("gpt-4o", isDefault = true)
@@ -680,7 +663,7 @@ class HomeViewModelBehaviorTest {
         coEvery { conversationRepository.createDraft(any(), any(), any(), any(), any(), any(), any()) } returns draftConversation
 
         val viewModel = createHomeViewModelWithActiveModel()
-        
+
         val collectJob = backgroundScope.launch { viewModel.activeModelState.collect {} }
         advanceUntilIdle()
 
@@ -704,7 +687,6 @@ class HomeViewModelBehaviorTest {
         collectJob.cancel()
     }
 
-    
     @Test
     fun `TC-10-1-2 createConversationInFolder callback receives conversation ID`() = runTest {
         val draftConversation = Conversation(
@@ -730,9 +712,6 @@ class HomeViewModelBehaviorTest {
         collectJob.cancel()
     }
 
-    
-
-    
     @Test
     fun `TC-11-1-1 folder expansion unaffected by other mutations`() = runTest {
         coEvery { folderRepository.rename(any(), any()) } returns null
@@ -743,18 +722,15 @@ class HomeViewModelBehaviorTest {
         viewModel.toggleFolderExpansion("folder-1")
         assertTrue(viewModel.isFolderExpanded("folder-1"))
 
-        
         viewModel.renameFolder("folder-2", "Renamed")
         advanceUntilIdle()
 
-        
         assertTrue(
             "Folder expansion should persist through unrelated mutations",
             viewModel.isFolderExpanded("folder-1"),
         )
     }
 
-    
     @Test
     fun `TC-11-1-4 createConversationInFolder auto-adds folderID to expandedFolderIds`() = runTest {
         val draftConversation = Conversation(
@@ -784,7 +760,6 @@ class HomeViewModelBehaviorTest {
         collectJob.cancel()
     }
 
-    
     @Test
     fun `TC-11-1-5 folder expansion persists through rename and survives unrelated delete`() = runTest {
         coEvery { folderRepository.rename(any(), any()) } returns null
@@ -798,21 +773,16 @@ class HomeViewModelBehaviorTest {
         assertTrue(viewModel.isFolderExpanded("folder-A"))
         assertTrue(viewModel.isFolderExpanded("folder-B"))
 
-        
         viewModel.renameFolder("folder-A", "Renamed A")
         advanceUntilIdle()
         assertTrue("folder-A should stay expanded after rename", viewModel.isFolderExpanded("folder-A"))
 
-        
         viewModel.deleteFolder("folder-B")
         advanceUntilIdle()
         assertTrue("folder-A should stay expanded after deleting folder-B", viewModel.isFolderExpanded("folder-A"))
         assertFalse("folder-B should be removed from expandedFolderIds after delete", viewModel.isFolderExpanded("folder-B"))
     }
 
-    
-
-    
     @Test
     fun `TC-12-1-1 moveConversationToFolder emits moved_to_folder snackbar with folder name`() = runTest {
         val folder = Folder(id = "folder-x", name = "Work", sortOrder = 1000)
@@ -837,7 +807,6 @@ class HomeViewModelBehaviorTest {
         collectJob.cancel()
     }
 
-    
     @Test
     fun `TC-12-1-2 moveConversationToFolder with null folderID emits removed_from_folder snackbar`() = runTest {
         coEvery { conversationRepository.moveToFolder("conv-1", null) } returns Unit
@@ -857,7 +826,6 @@ class HomeViewModelBehaviorTest {
         }
     }
 
-    
     @Test
     fun `TC-12-1-3 moveConversationIdsToFolder emits batch_moved_to_folder snackbar`() = runTest {
         val folder = Folder(id = "folder-y", name = "Projects", sortOrder = 2000)
@@ -882,7 +850,6 @@ class HomeViewModelBehaviorTest {
         collectJob.cancel()
     }
 
-    
     @Test
     fun `TC-12-1-4 moveConversationIdsToFolder with null emits batch_removed_from_folder snackbar`() = runTest {
         coEvery { conversationRepository.batchMoveToFolder(any(), any()) } returns Unit
@@ -905,7 +872,6 @@ class HomeViewModelBehaviorTest {
 
     // ── TC-13.2 Context Menu backing logic ─────────────────────────────────────
 
-    
     @Test
     fun `TC-13-2-2 folderName returns correct name for valid folder id`() = runTest {
         val folder = Folder(id = "folder-1", name = "Work", sortOrder = 1000)
@@ -919,7 +885,6 @@ class HomeViewModelBehaviorTest {
         collectJob.cancel()
     }
 
-    
     @Test
     fun `TC-13-2-4 folderName returns null for null id`() = runTest {
         val viewModel = createHomeViewModel()
@@ -928,7 +893,6 @@ class HomeViewModelBehaviorTest {
         assertNull(viewModel.folderName(null))
     }
 
-    
     @Test
     fun `TC-13-2-4b folderName returns null for non-existent folder id`() = runTest {
         val folder = Folder(id = "folder-1", name = "Work", sortOrder = 1000)
@@ -942,7 +906,6 @@ class HomeViewModelBehaviorTest {
         collectJob.cancel()
     }
 
-    
     @Test
     fun `TC-13-3-1 createFolder emits folder_created snackbar on success`() = runTest {
         val folder = Folder(id = "new-folder", name = "My Folder", sortOrder = 1000)
@@ -963,7 +926,6 @@ class HomeViewModelBehaviorTest {
         }
     }
 
-    
     @Test
     fun `TC-13-3-4 createFolder with null result does not emit snackbar`() = runTest {
         coEvery { folderRepository.create(any()) } returns null
@@ -983,7 +945,6 @@ class HomeViewModelBehaviorTest {
         }
     }
 
-    
     private fun model(id: String, isDefault: Boolean = false) = AIModel(
         id = id,
         name = id,

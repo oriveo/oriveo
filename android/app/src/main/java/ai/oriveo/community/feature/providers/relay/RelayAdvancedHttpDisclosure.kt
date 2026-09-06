@@ -28,7 +28,6 @@ import ai.oriveo.community.R
 import ai.oriveo.community.core.model.RelayKeyValue
 import ai.oriveo.community.ui.theme.OriveoTheme
 
-
 @Composable
 internal fun RelayAdvancedHttpDisclosure(
     expanded: Boolean,
@@ -106,4 +105,3 @@ internal fun RelayAdvancedHttpDisclosure(
         }
     }
 }
-

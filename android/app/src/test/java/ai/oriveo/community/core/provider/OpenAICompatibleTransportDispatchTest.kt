@@ -160,7 +160,6 @@ class OpenAICompatibleTransportDispatchTest {
         assertTrue(events.any { it is StreamEvent.Delta && it.text == "hi" })
     }
 
-    
     private fun applyGrokResponsesFixture(recipeRef: String) {
         val controls = MetadataTestFixtures.capabilityControlsJson(
             MetadataTestFixtures.ControlSpec(
@@ -202,7 +201,6 @@ class OpenAICompatibleTransportDispatchTest {
         )
     }
 
-    
     @Test
     fun `grok responses reasoning uses the exact server recipe shape`() = runTest {
         applyGrokResponsesFixture("grok.responses.reasoning.v1")
@@ -244,7 +242,6 @@ class OpenAICompatibleTransportDispatchTest {
         assertTrue(bodies.single().contains("\"reasoning\":{\"effort\":\"high\"}"))
     }
 
-    
     @Test
     fun `grok responses dispatches exactly one leg and never rewrites the server reasoning object`() = runTest {
         applyGrokResponsesFixture("grok.responses.reasoning.v1")
@@ -286,7 +283,6 @@ class OpenAICompatibleTransportDispatchTest {
         assertTrue(bodies.single().contains("\"reasoning\":{\"effort\":\"high\"}"))
     }
 
-    
     @Test
     fun `grok responses never borrows a chat recipe nor invents a local reasoning shape`() = runTest {
         applyGrokResponsesFixture("grok.chat.reasoning.v1")

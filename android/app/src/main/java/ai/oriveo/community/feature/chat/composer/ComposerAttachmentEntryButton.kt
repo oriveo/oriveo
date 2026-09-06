@@ -39,7 +39,6 @@ import androidx.compose.ui.unit.sp
 import ai.oriveo.community.R
 import ai.oriveo.community.ui.theme.OriveoTheme
 
-
 @Composable
 internal fun ComposerAttachmentEntryButton(
     icon: ImageVector,
@@ -65,9 +64,8 @@ internal fun ComposerAttachmentEntryButton(
     val pressed by interactionSource.collectIsPressedAsState()
     val buttonScale by animateFloatAsState(if (pressed) 0.975f else 1f, label = "attachmentButtonScale")
 
-    
     val flatFill = if (isDark) Color.White.copy(alpha = 0.10f) else Color(0xFF8C5FF8).copy(alpha = 0.12f)
-    
+
     val iconTint = if (emphasized) colors.primary else colors.textPrimary
     val iconSize = if (icon == Icons.Filled.Add) 17.dp else 16.dp
 

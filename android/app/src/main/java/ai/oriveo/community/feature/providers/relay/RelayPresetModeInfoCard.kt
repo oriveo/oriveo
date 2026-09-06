@@ -29,7 +29,6 @@ import ai.oriveo.community.core.model.RelayKind
 import ai.oriveo.community.ui.theme.OriveoBorderWidth
 import ai.oriveo.community.ui.theme.OriveoTheme
 
-
 @Composable
 internal fun RelayPresetModeInfoCard(
     relayKind: RelayKind,
@@ -88,4 +87,3 @@ internal fun RelayPresetModeInfoCard(
         )
     }
 }
-

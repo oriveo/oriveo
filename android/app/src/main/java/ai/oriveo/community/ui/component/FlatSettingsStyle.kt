@@ -24,7 +24,6 @@ import ai.oriveo.community.ui.theme.OriveoRadius
 import ai.oriveo.community.ui.theme.OriveoTheme
 import ai.oriveo.community.ui.theme.opacity
 
-
 @Composable
 fun FlatGroup(
     modifier: Modifier = Modifier,
@@ -45,7 +44,7 @@ fun FlatGroup(
                 spotColor = colors.shadow,
             )
             .background(fill, shape)
-            
+
             .then(
                 if (isDark) {
                     Modifier.border(OriveoBorderWidth.standard, Color.White.copy(alpha = 0.07f), shape)
@@ -56,7 +55,6 @@ fun FlatGroup(
         content = content,
     )
 }
-
 
 @Composable
 fun FlatSectionHeader(
@@ -70,7 +68,6 @@ fun FlatSectionHeader(
         modifier = modifier.padding(start = OriveoTheme.spacing.lg),
     )
 }
-
 
 @Composable
 fun InsetHairline(modifier: Modifier = Modifier) {
@@ -90,7 +87,6 @@ fun InsetHairline(modifier: Modifier = Modifier) {
             ),
     )
 }
-
 
 @Composable
 fun FlatTapRow(

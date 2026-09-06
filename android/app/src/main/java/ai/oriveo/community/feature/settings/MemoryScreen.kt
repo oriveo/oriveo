@@ -159,11 +159,9 @@ fun MemoryScreen(
         isEditorFocused = isEditorFocused,
         hasRecentConversations = hasRecentConversations,
     )
-    
-    
+
     val reduceMotion = false
 
-    
     var pageAppeared by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { pageAppeared = true }
     val pageAlpha by animateFloatAsState(
@@ -245,7 +243,7 @@ fun MemoryScreen(
                 }
             },
         ) { padding ->
-            
+
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -282,7 +280,6 @@ fun MemoryScreen(
                     },
                 )
 
-                
                 MemoryEditorCard(
                     text = viewModel.editText,
                     mode = presentation.mode,
@@ -329,7 +326,6 @@ fun MemoryScreen(
         )
     }
 
-    
     LaunchedEffect(viewModel.showSaveSuccessDialog) {
         if (viewModel.showSaveSuccessDialog) {
             kotlinx.coroutines.delay(1400)
@@ -375,7 +371,6 @@ fun MemoryScreen(
         )
     }
 }
-
 
 @Composable
 private fun MemoryAuroraBackdrop() {
@@ -516,7 +511,7 @@ private fun HeroOrbWithRings(modifier: Modifier = Modifier) {
         modifier = modifier.size(168.dp),
         contentAlignment = Alignment.Center,
     ) {
-        
+
         Box(
             modifier = Modifier
                 .size(168.dp)
@@ -526,7 +521,7 @@ private fun HeroOrbWithRings(modifier: Modifier = Modifier) {
                     shape = CircleShape,
                 ),
         )
-        
+
         Box(
             modifier = Modifier
                 .size(132.dp)
@@ -550,7 +545,7 @@ private fun HeroOrb() {
     Box(
         modifier = Modifier
             .size(96.dp)
-            
+
             .shadow(
                 elevation = if (isDark) 32.dp else 20.dp,
                 shape = CircleShape,
@@ -581,7 +576,7 @@ private fun HeroOrb() {
                 ),
                 shape = CircleShape,
             )
-            
+
             .border(
                 width = 1.dp,
                 brush = Brush.linearGradient(
@@ -592,8 +587,7 @@ private fun HeroOrb() {
                 ),
                 shape = CircleShape,
             )
-            
-            
+
             .drawBehind {
                 val arcSize = 78.dp.toPx()
                 val centerOffset = Offset((size.width - arcSize) / 2f, (size.height - arcSize) / 2f)
@@ -797,13 +791,11 @@ private fun MemoryEditorCard(
     val isDark = OriveoTheme.isDark
     val cardShape = RoundedCornerShape(OriveoTheme.radius.lg)
 
-    
-    
     val charCount = remember(text) { text.graphemeCount() }
     val approxTokens = remember(charCount, text.isEmpty()) {
         if (text.isEmpty()) null else ceil(charCount * 0.35).toInt()
     }
-    
+
     val countColor = when {
         charCount > MEMORY_CHAR_WARN_THRESHOLD -> colors.warning
         charCount > MEMORY_CHAR_SOFT_WARN_THRESHOLD -> Color(
@@ -815,8 +807,6 @@ private fun MemoryEditorCard(
         else -> colors.textSecondary
     }
 
-    
-    
     val focusedShadowElevation = if (isFocused) 24.dp else if (isDark) 18.dp else 12.dp
     val focusedShadowColor = if (isFocused) {
         colors.primaryGlow
@@ -824,7 +814,7 @@ private fun MemoryEditorCard(
         colors.shadow.copy(alpha = if (isDark) 0.45f else 0.10f)
     }
     val borderColor = if (isFocused) colors.primary.copy(alpha = 0.32f) else colors.border
-    
+
     val shineBrush = remember(isDark) {
         Brush.horizontalGradient(
             colors = listOf(
@@ -838,8 +828,7 @@ private fun MemoryEditorCard(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            
-            
+
             .shadow(
                 elevation = focusedShadowElevation,
                 shape = cardShape,
@@ -847,8 +836,7 @@ private fun MemoryEditorCard(
                 spotColor = focusedShadowColor,
             )
             .background(colors.surfaceElevated, cardShape)
-            
-            
+
             .drawWithCache {
                 val shineHeight = 1.dp.toPx()
                 val rectSize = Size(size.width, shineHeight)
@@ -927,7 +915,7 @@ private fun EditorHeader(
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        
+
         Box(
             modifier = Modifier
                 .size(30.dp)
@@ -987,7 +975,7 @@ private fun EditorTextField(
     onFocusChanged: (Boolean) -> Unit,
 ) {
     val colors = OriveoTheme.colors
-    
+
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -1260,14 +1248,14 @@ private fun MemorySaveBar(
 ) {
     val colors = OriveoTheme.colors
     val isDark = OriveoTheme.isDark
-    
+
     val charCount = remember(text) { text.graphemeCount() }
     val approxTokens = remember(charCount, text.isEmpty()) {
         if (text.isEmpty()) 0 else ceil(charCount * 0.35).toInt()
     }
     val bgColor by animateColorAsState(
         targetValue = if (isSuccess) {
-            
+
             Color(
                 red = colors.success.red * 0.06f + colors.backgroundBase.red * 0.94f,
                 green = colors.success.green * 0.06f + colors.backgroundBase.green * 0.94f,
@@ -1285,7 +1273,7 @@ private fun MemorySaveBar(
         modifier = Modifier
             .fillMaxWidth(),
     ) {
-        
+
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -1314,7 +1302,7 @@ private fun MemorySaveBar(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             if (isSuccess) {
-                
+
                 Box(
                     modifier = Modifier
                         .size(18.dp)
@@ -1425,7 +1413,6 @@ private fun SavePulseDot(reduceMotion: Boolean) {
         )
     }
 }
-
 
 private fun buildHighlightedDescription(text: String, highlight: Color): AnnotatedString {
     return buildAnnotatedString {

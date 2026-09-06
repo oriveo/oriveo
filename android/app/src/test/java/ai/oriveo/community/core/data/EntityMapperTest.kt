@@ -27,7 +27,6 @@ import org.junit.Test
 
 class EntityMapperTest {
 
-    
     private inline fun <T> mapper(block: EntityMapper.() -> T): T =
         with(EntityMapper) { block() }
 
@@ -318,7 +317,7 @@ class EntityMapperTest {
 
     @Test
     fun `ChatMessage with attachments new rawContentRef field round-trips`() = mapper {
-        
+
         val attachment = Attachment(
             id = "att1",
             kind = AttachmentKind.Video,
@@ -345,8 +344,7 @@ class EntityMapperTest {
 
     @Test
     fun `malformed attachmentsJson degrades to null attachments instead of throwing`() = mapper {
-        
-        
+
         val entity = ai.oriveo.community.core.data.entity.MessageEntity(
             id = "msg1",
             conversationId = "c1",
@@ -463,8 +461,6 @@ class EntityMapperTest {
         assertEquals(ChatMessageState.Generating, restored.state)
     }
 
-    
-
     @Test
     fun `ChatMessage with reasoning round-trips`() = mapper {
         val msg = ChatMessage(
@@ -475,7 +471,7 @@ class EntityMapperTest {
             reasoningDurationMs = 5000L,
         )
         val entity = msg.toEntity("guest", "c1", sortOrder = 0)
-        
+
         assertEquals("Let me think step by step about the question...", entity.reasoningText)
         assertEquals(5000L, entity.reasoningDurationMs)
 
@@ -505,7 +501,7 @@ class EntityMapperTest {
 
     @Test
     fun `ChatMessage with blank reasoning normalizes to null on toEntity`() = mapper {
-        
+
         val msg = ChatMessage(
             id = "msg1", role = ChatRole.Assistant, text = "Ans",
             providerKind = ProviderKind.OpenAI, providerName = "OpenAI",

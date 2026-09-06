@@ -14,7 +14,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import java.util.concurrent.atomic.AtomicBoolean
 
-
 class ServiceReachabilityMonitor(
     context: Context,
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.Default),
@@ -26,7 +25,6 @@ class ServiceReachabilityMonitor(
         object ServicesUnreachable : State()
     }
 
-    
     enum class FailureScope {
         CloudAuth,
         RemoteData,
@@ -41,7 +39,6 @@ class ServiceReachabilityMonitor(
     private val _state = MutableStateFlow<State>(State.Online)
     val state: StateFlow<State> = _state.asStateFlow()
 
-    
     private val _bannerState = MutableStateFlow<State>(State.Online)
     val bannerState: StateFlow<State> = _bannerState.asStateFlow()
 
@@ -60,20 +57,14 @@ class ServiceReachabilityMonitor(
     private val remoteFailureExpiryJobs = mutableMapOf<FailureScope, Job>()
     private var networkCallback: ConnectivityManager.NetworkCallback? = null
 
-    
     private val availableNetworks = mutableSetOf<Network>()
 
-    
     private val unreachableWindowMs: Long = 60_000L
 
     fun start() {
         if (!hasStarted.compareAndSet(false, true)) return
         val cm = connectivityManager ?: return
 
-        
-        
-        
-        
         val callback = object : ConnectivityManager.NetworkCallback() {
             override fun onAvailable(network: Network) = onNetworkAvailable(network)
             override fun onLost(network: Network) = onNetworkLost(network)
@@ -82,12 +73,9 @@ class ServiceReachabilityMonitor(
         runCatching { cm.registerDefaultNetworkCallback(callback) }
             .onSuccess { networkCallback = callback }
 
-        
-        
         applyPathSatisfied(cm.activeNetwork != null)
     }
 
-    
     @VisibleForTesting
     internal fun onNetworkAvailable(network: Network) {
         val satisfied = synchronized(availableNetworks) {
@@ -97,7 +85,6 @@ class ServiceReachabilityMonitor(
         applyPathSatisfied(satisfied)
     }
 
-    
     @VisibleForTesting
     internal fun onNetworkLost(network: Network) {
         val satisfied = synchronized(availableNetworks) {
@@ -107,7 +94,6 @@ class ServiceReachabilityMonitor(
         applyPathSatisfied(satisfied)
     }
 
-    
     fun reportRemoteFailure(scope: FailureScope) {
         if (!pathSatisfied) {
             recompute()
@@ -121,7 +107,6 @@ class ServiceReachabilityMonitor(
         recompute()
     }
 
-    
     fun reportRemoteSuccess(scope: FailureScope) {
         synchronized(this) {
             if (lastRemoteFailureAtByScope[scope] == null) return
@@ -130,7 +115,6 @@ class ServiceReachabilityMonitor(
         recompute()
     }
 
-    
     @Synchronized
     fun dismissCurrentBanner() {
         dismissedStateInstance = currentStateInstance

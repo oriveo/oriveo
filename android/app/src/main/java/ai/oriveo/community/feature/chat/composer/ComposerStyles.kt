@@ -19,7 +19,6 @@ internal enum class ComposerControlChipAccessory {
     Chevron,
 }
 
-
 @Composable
 internal fun composerAttachmentAccent(): ComposerCapabilityAccent = ComposerCapabilityAccent(
     tint = composerDynamicColor(light = 0x52607A, dark = 0xCBD5E1),

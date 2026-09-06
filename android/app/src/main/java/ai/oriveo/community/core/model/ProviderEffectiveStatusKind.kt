@@ -1,6 +1,5 @@
 package ai.oriveo.community.core.model
 
-
 enum class ProviderEffectiveStatusKind {
     Connected,
     Syncing,
@@ -11,11 +10,9 @@ enum class ProviderEffectiveStatusKind {
     val isHealthy: Boolean
         get() = this == Connected || this == Syncing
 
-    
     val isWarning: Boolean
         get() = this == Issue || this == NeedsKey
 }
-
 
 val Provider.effectiveStatusKind: ProviderEffectiveStatusKind
     get() {

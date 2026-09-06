@@ -45,14 +45,13 @@ import kotlinx.coroutines.flow.Flow
 
 private const val TOAST_DURATION_MS = 3000L
 
-
 @Composable
 fun GlobalToastHost(
     messages: Flow<GlobalSnackbarMessage>,
     modifier: Modifier = Modifier,
 ) {
     var current by remember { mutableStateOf<GlobalSnackbarMessage?>(null) }
-    
+
     var rendered by remember { mutableStateOf<GlobalSnackbarMessage?>(null) }
 
     LaunchedEffect(messages) {
@@ -62,7 +61,7 @@ fun GlobalToastHost(
         val shown = current ?: return@LaunchedEffect
         rendered = shown
         delay(shown.durationMs ?: TOAST_DURATION_MS)
-        
+
         if (current === shown) current = null
     }
 

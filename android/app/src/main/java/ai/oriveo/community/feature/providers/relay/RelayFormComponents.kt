@@ -45,7 +45,6 @@ import ai.oriveo.community.ui.theme.OriveoBorderWidth
 import ai.oriveo.community.ui.theme.OriveoTheme
 import ai.oriveo.community.ui.theme.opacity
 
-
 @Composable
 internal fun RelayGroupHeader(
     title: String,
@@ -75,7 +74,7 @@ internal fun RelayGroupHeader(
                 modifier = Modifier.size(11.dp),
             )
         }
-        
+
         Text(
             text = title.uppercase(),
             style = OriveoTheme.typography.footnote,
@@ -91,7 +90,6 @@ internal fun RelayGroupHeader(
         }
     }
 }
-
 
 @Composable
 internal fun RelayRowGroup(
@@ -110,7 +108,6 @@ internal fun RelayRowGroup(
     }
 }
 
-
 @Composable
 internal fun RelayRowDivider(leadingInset: androidx.compose.ui.unit.Dp = OriveoTheme.spacing.lg) {
     val colors = OriveoTheme.colors
@@ -122,7 +119,6 @@ internal fun RelayRowDivider(leadingInset: androidx.compose.ui.unit.Dp = OriveoT
             .background(colors.border.opacity(0.6f)),
     )
 }
-
 
 @Composable
 internal fun <T> RelayMenuRow(
@@ -200,7 +196,6 @@ internal fun <T> RelayMenuRow(
     }
 }
 
-
 @Composable
 internal fun RelayToggleRow(
     title: String,
@@ -245,7 +240,6 @@ internal fun RelayToggleRow(
         )
     }
 }
-
 
 @Composable
 internal fun RelayInlineTextRow(
@@ -304,7 +298,6 @@ internal fun RelayInlineTextRow(
         )
     }
 }
-
 
 @Composable
 internal fun RelayFormIssueNotes(

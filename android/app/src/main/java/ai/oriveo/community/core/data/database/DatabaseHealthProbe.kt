@@ -186,7 +186,7 @@ class DatabaseHealthProbe(
             markHealthy()
             return DatabaseHealth.Healthy
         }
-        
+
         val verdict = triageDatabaseOpenFailure(failure, usableSpaceBytes()) ?: throw failure
         applyBlocked(verdict, failure)
         return verdict.health

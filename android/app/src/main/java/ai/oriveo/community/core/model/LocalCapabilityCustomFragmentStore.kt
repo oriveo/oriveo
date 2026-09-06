@@ -6,7 +6,6 @@ import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
-
 class LocalCapabilityCustomFragmentStore internal constructor(
     private val read: () -> String?,
     private val write: (String?) -> Unit,
@@ -15,7 +14,7 @@ class LocalCapabilityCustomFragmentStore internal constructor(
     private val clearRetiredDeveloperGate: () -> Unit = {},
     private val json: Json = Json { ignoreUnknownKeys = true; coerceInputValues = true },
 ) {
-    
+
     private var cachedRaw: String? = null
     private var cachedRecords: List<Record> = emptyList()
     private var hasCachedRecords = false
@@ -24,7 +23,6 @@ class LocalCapabilityCustomFragmentStore internal constructor(
         migrateRetiredDeveloperGate()
     }
 
-    
     private fun migrateRetiredDeveloperGate() {
         val wasEnabled = readRetiredDeveloperGate() ?: return
         clearRetiredDeveloperGate()
@@ -36,17 +34,15 @@ class LocalCapabilityCustomFragmentStore internal constructor(
         }
     }
 
-    
     data class Configuration(val enabled: Boolean, val rawJSON: String) {
         companion object {
             val Empty = Configuration(enabled = false, rawJSON = "")
         }
     }
 
-    
     data class ForwardPortContext(
         val providerKind: ProviderKind,
-        
+
         val schemaModelID: String,
         val activeProfile: GenerationProfileRef? = null,
     )
@@ -94,7 +90,6 @@ class LocalCapabilityCustomFragmentStore internal constructor(
         namespace = namespace,
     )
 
-    
     private fun clearCustomRejections(
         providerID: String,
         modelID: String,
@@ -116,7 +111,6 @@ class LocalCapabilityCustomFragmentStore internal constructor(
         )
     }
 
-    
     fun configuration(
         providerID: String,
         modelID: String,
@@ -130,7 +124,6 @@ class LocalCapabilityCustomFragmentStore internal constructor(
             ?: Configuration.Empty
     }
 
-    
     fun effectiveConfiguration(
         providerID: String,
         modelID: String,
@@ -159,7 +152,6 @@ class LocalCapabilityCustomFragmentStore internal constructor(
         }
     }
 
-    
     fun setConfiguration(
         configuration: Configuration,
         providerID: String,
@@ -191,7 +183,6 @@ class LocalCapabilityCustomFragmentStore internal constructor(
         }
     }
 
-    
     private fun forwardPortIfNeeded(
         providerID: String,
         modelID: String,
@@ -228,7 +219,6 @@ class LocalCapabilityCustomFragmentStore internal constructor(
         )
     }
 
-    
     private fun isSameTransportLineage(current: String, candidate: String): Boolean {
         if (current == candidate) return false
         val currentIdentity = ai.oriveo.community.core.provider.ModelControlRuntimeIdentity
@@ -239,7 +229,6 @@ class LocalCapabilityCustomFragmentStore internal constructor(
             currentIdentity.second != candidateIdentity.second
     }
 
-    
     fun fragmentsByOwner(
         providerID: String,
         modelID: String,
@@ -278,7 +267,7 @@ class LocalCapabilityCustomFragmentStore internal constructor(
     ) = synchronized(this) {
         if (fromConversationID == toConversationID || transportIdentity.isBlank()) return@synchronized
         supportedNamespaces().forEach { namespace ->
-            
+
             val source = latestRecord(providerID, modelID, fromConversationID, transportIdentity, namespace)
                 ?: return@forEach
             setConfiguration(
@@ -347,16 +336,13 @@ class LocalCapabilityCustomFragmentStore internal constructor(
         const val WEB_NAMESPACE = "webPatch"
         const val REASONING_NAMESPACE = "reasoningPatch"
 
-        
         const val MODEL_DEFAULT_CONVERSATION = ""
         private const val PREFS_NAME = "local_capability_custom_fragments"
         private const val KEY_PAYLOAD = "v1"
 
-        
         private const val KEY_RETIRED_DEVELOPER_MODE = "developer_mode"
         private const val MAX_RECORDS = 100
 
-        
         private val OWNER_NAMESPACES = linkedMapOf(
             "web" to WEB_NAMESPACE,
             "reasoning" to REASONING_NAMESPACE,
@@ -374,7 +360,7 @@ class LocalCapabilityCustomFragmentStore internal constructor(
             return LocalCapabilityCustomFragmentStore(
                 read = { prefs.getString(KEY_PAYLOAD, null) },
                 write = { payload -> prefs.edit().putString(KEY_PAYLOAD, payload).apply() },
-                
+
                 readRetiredDeveloperGate = {
                     if (prefs.contains(KEY_RETIRED_DEVELOPER_MODE)) {
                         prefs.getBoolean(KEY_RETIRED_DEVELOPER_MODE, false)

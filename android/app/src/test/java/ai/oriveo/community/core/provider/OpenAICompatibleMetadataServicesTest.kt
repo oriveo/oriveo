@@ -50,9 +50,6 @@ class OpenAICompatibleMetadataServicesTest {
         )
     }
 
-    
-    
-
     private suspend fun verifySyncProviderWithCustomBaseUrl(
         providerKind: ProviderKind,
         preferredModelId: String,
@@ -84,7 +81,6 @@ class OpenAICompatibleMetadataServicesTest {
             baseUrl = customBaseUrl,
         )
 
-        
         assertEquals(emptyList<String>(), requestedUrls)
         assertEquals(0, result.models.size)
     }

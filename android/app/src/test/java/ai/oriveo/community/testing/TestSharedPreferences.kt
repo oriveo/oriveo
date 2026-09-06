@@ -2,7 +2,6 @@ package ai.oriveo.community.testing
 
 import android.content.SharedPreferences
 
-
 class TestSharedPreferences : SharedPreferences {
     private val values = linkedMapOf<String, Any?>()
 
@@ -43,7 +42,6 @@ class TestSharedPreferences : SharedPreferences {
 
     override fun unregisterOnSharedPreferenceChangeListener(listener: SharedPreferences.OnSharedPreferenceChangeListener?) = Unit
 
-    
     @Synchronized
     private fun commitUpdates(updates: Map<String, Any?>, clearRequested: Boolean) {
         if (clearRequested) values.clear()

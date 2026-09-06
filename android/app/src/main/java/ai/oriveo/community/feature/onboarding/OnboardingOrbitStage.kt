@@ -55,7 +55,6 @@ import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.ui.component.providerLogoRes
 import ai.oriveo.community.ui.component.rememberBrandPainter
 
-
 object OnboardingPalette {
     val ink = Color(0xFFF3F1FF)
     val muted = Color(0xFFA9A3C2)
@@ -65,7 +64,6 @@ object OnboardingPalette {
     val line = Color(0xFF9D7BFF).copy(alpha = 0.14f)
     val hairline = Color.White.copy(alpha = 0.08f)
 
-    
     val highlightGradient = Brush.linearGradient(
         colors = listOf(Color(0xFFEDE6FF), Color(0xFF9D7BFF), Color(0xFFEDE6FF)),
     )
@@ -79,7 +77,6 @@ object OnboardingPalette {
         colors = listOf(Color(0xFF221D40), Color(0xFF0F0C1F)),
     )
 
-    
     fun ctaGradient(alpha: Float): Brush = Brush.linearGradient(
         colors = listOf(
             Color(0xFF8347F5).copy(alpha = alpha),
@@ -88,10 +85,8 @@ object OnboardingPalette {
     )
 }
 
-
 private val NUCLEUS_SIZE = 68.dp
 private val NUCLEUS_CORNER_RADIUS = 16.dp
-
 
 private fun orbiterLogoRes(id: String): Int = when (id) {
     "openai" -> providerLogoRes(ProviderKind.OpenAI, darkAppearance = true)
@@ -103,7 +98,6 @@ private fun orbiterLogoRes(id: String): Int = when (id) {
     "grok" -> providerLogoRes(ProviderKind.Grok, darkAppearance = true)
     else -> providerLogoRes(ProviderKind.Moonshot, darkAppearance = true)
 }
-
 
 @Composable
 fun OnboardingOrbitStage(
@@ -117,8 +111,6 @@ fun OnboardingOrbitStage(
 ) {
     val clockPaused = OnboardingMotionPolicy.isOrbitClockPaused(reduceMotion, isAnimating)
 
-    
-    
     val time by produceState(0f, clockPaused) {
         if (clockPaused) {
             value = 0f
@@ -137,14 +129,13 @@ fun OnboardingOrbitStage(
         },
         contentAlignment = Alignment.Center,
     ) {
-        
+
         OrbitRings(
             time = time,
             alpha = values.ringsOpacity * (if (ringsRevealed) 1f else 0f),
             modifier = Modifier.zIndex(-2f),
         )
 
-        
         OnboardingOrbitCatalog.orbiters.forEach { orbiter ->
             val point = OnboardingOrbitCatalog.position(orbiter, time)
             OrbiterLogo(
@@ -156,14 +147,11 @@ fun OnboardingOrbitStage(
             )
         }
 
-        
         Nucleus(values = values, revealed = nucleusRevealed, modifier = Modifier.zIndex(0f))
 
-        
         ByokPiece(values = values, reduceMotion = reduceMotion, modifier = Modifier.zIndex(2f))
     }
 }
-
 
 @Composable
 private fun OrbitRings(time: Float, alpha: Float, modifier: Modifier = Modifier) {
@@ -172,7 +160,7 @@ private fun OrbitRings(time: Float, alpha: Float, modifier: Modifier = Modifier)
         val density = size.width / 420f
 
         OnboardingOrbitCatalog.rings.forEachIndexed { index, ring ->
-            
+
             val tilt = if (index == 2) OnboardingOrbitCatalog.decorativeSpinDegrees(time) else ring.tiltDegrees
             rotate(degrees = tilt, pivot = center) {
                 drawOval(
@@ -189,7 +177,6 @@ private fun OrbitRings(time: Float, alpha: Float, modifier: Modifier = Modifier)
     }
 }
 
-
 @Composable
 private fun OrbiterLogo(
     orbiter: OnboardingOrbiter,
@@ -199,7 +186,7 @@ private fun OrbiterLogo(
     modifier: Modifier = Modifier,
 ) {
     val density = LocalDensity.current
-    
+
     val depthScale = 1f + 0.08f * point.depth
     val depthAlpha = 0.82f + 0.18f * (point.depth + 1f) / 2f
     val sizeDp = orbiter.sizeDp.dp
@@ -221,7 +208,6 @@ private fun OrbiterLogo(
             },
     )
 }
-
 
 @Composable
 private fun Nucleus(values: OnboardingStageValues, revealed: Boolean, modifier: Modifier = Modifier) {
@@ -251,15 +237,10 @@ private fun Nucleus(values: OnboardingStageValues, revealed: Boolean, modifier: 
     )
 }
 
-
 @Composable
 private fun ByokPiece(values: OnboardingStageValues, reduceMotion: Boolean, modifier: Modifier = Modifier) {
     val density = LocalDensity.current
 
-    
-    
-    
-    
     val transition = rememberInfiniteTransition(label = "costCard")
     val animatedTarget = if (reduceMotion) 0f else 1f
     val lift by transition.animateFloat(
@@ -295,18 +276,17 @@ private fun ByokPiece(values: OnboardingStageValues, reduceMotion: Boolean, modi
             modifier = Modifier.graphicsLayer {
                 translationX = with(density) { (46f + (drift * 12f - 5f)).dp.toPx() }
                 translationY = with(density) { (115f + (5f - lift * 22f)).dp.toPx() }
-                
+
                 val cardScale = 0.99f + 0.04f * lift
                 scaleX = cardScale
                 scaleY = cardScale
-                
+
                 rotationX = 1.6f - 4.2f * lift
                 cameraDistance = 12f * density.density
             },
         )
     }
 }
-
 
 @Composable
 private fun ShieldWithKey(modifier: Modifier = Modifier) {
@@ -339,7 +319,6 @@ private fun ShieldWithKey(modifier: Modifier = Modifier) {
             style = Stroke(width = 1.6f * sx),
         )
 
-        
         val edge = Path().apply {
             moveTo(px(64f, 6f).x, px(64f, 6f).y)
             lineTo(px(116f, 26f).x, px(116f, 26f).y)
@@ -352,7 +331,6 @@ private fun ShieldWithKey(modifier: Modifier = Modifier) {
         }
         drawPath(edge, color = Color(0xFFFCD34D).copy(alpha = 0.35f), style = Stroke(width = 1.6f * sx))
 
-        
         val keyStroke = Stroke(width = 5.5f * sx, cap = StrokeCap.Round)
         drawCircle(
             brush = OnboardingPalette.keyGradient,
@@ -372,7 +350,6 @@ private fun ShieldWithKey(modifier: Modifier = Modifier) {
     }
 }
 
-
 @Composable
 private fun OnboardingCostCard(lift: Float, modifier: Modifier = Modifier) {
     val shape = RoundedCornerShape(14.dp)
@@ -380,8 +357,7 @@ private fun OnboardingCostCard(lift: Float, modifier: Modifier = Modifier) {
     Column(
         modifier = modifier
             .width(172.dp)
-            
-            
+
             .shadow(
                 elevation = (20f + 20f * lift).dp,
                 shape = shape,
@@ -430,4 +406,3 @@ private fun CostRow(title: String, value: String, isSummary: Boolean) {
         )
     }
 }
-

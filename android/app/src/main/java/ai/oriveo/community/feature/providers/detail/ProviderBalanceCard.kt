@@ -65,7 +65,6 @@ import ai.oriveo.community.ui.theme.OriveoTheme
 import java.text.NumberFormat
 import java.util.Locale
 
-
 @Composable
 fun ProviderBalanceCard(
     state: ProviderDetailViewModel.BalanceUiState,
@@ -93,7 +92,7 @@ fun ProviderBalanceCard(
             .clip(cardShape)
             .background(colors.surface)
             .drawBehind {
-                
+
                 val radialCenter = Offset(size.width * 1.02f, -size.height * 0.05f)
                 drawRect(
                     brush = Brush.radialGradient(
@@ -105,7 +104,7 @@ fun ProviderBalanceCard(
                         radius = 240.dp.toPx(),
                     ),
                 )
-                
+
                 drawRect(
                     brush = Brush.linearGradient(
                         colors = listOf(
@@ -120,9 +119,7 @@ fun ProviderBalanceCard(
             }
             .border(OriveoBorderWidth.standard, colors.border, cardShape),
     ) {
-        
-        
-        
+
         Box(modifier = Modifier.matchParentSize()) {
             Icon(
                 imageVector = Icons.Filled.PieChart,
@@ -167,7 +164,7 @@ private fun BalanceHeader(
         horizontalArrangement = Arrangement.spacedBy(OriveoTheme.spacing.md),
         modifier = Modifier.fillMaxWidth(),
     ) {
-        
+
         Box(
             modifier = Modifier
                 .size(32.dp)
@@ -210,7 +207,6 @@ private fun RefreshButton(
     val rotation = remember { Animatable(0f) }
     val refreshContentDesc = stringResource(R.string.provider_balance_refresh)
 
-    
     LaunchedEffect(isRefreshing) {
         if (isRefreshing) {
             rotation.snapTo(0f)
@@ -321,7 +317,7 @@ private fun BalanceLoadedContent(balance: ProviderBalance, providerKind: Provide
         verticalArrangement = Arrangement.spacedBy(OriveoTheme.spacing.md),
         modifier = Modifier.fillMaxWidth(),
     ) {
-        
+
         Row(verticalAlignment = Alignment.Bottom) {
             Text(
                 text = formatAmount(balance.total, balance.currency),
@@ -340,7 +336,6 @@ private fun BalanceLoadedContent(balance: ProviderBalance, providerKind: Provide
             )
         }
 
-        
         val granted = balance.granted?.takeIf { it != 0.0 }
         val topUp = balance.topUp?.takeIf { it != 0.0 }
         val totalUsage = balance.totalUsage?.takeIf { it != 0.0 }
@@ -400,14 +395,14 @@ private fun UsageProgressBar(progress: Double) {
         val fillWidthDp = with(density) {
             maxOf((widthPx * progress).toFloat(), minFillPx).toDp()
         }
-        
+
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .clip(CircleShape)
                 .background(colors.primarySoft),
         )
-        
+
         Box(
             modifier = Modifier
                 .width(fillWidthDp)
@@ -516,7 +511,6 @@ private fun topUpLabelRes(kind: ProviderKind): Int = when (kind) {
     ProviderKind.Moonshot -> R.string.provider_balance_cash_label
     else -> R.string.provider_balance_topup_label
 }
-
 
 private val amountFormatter: NumberFormat = NumberFormat.getNumberInstance(Locale.US).apply {
     minimumFractionDigits = 2

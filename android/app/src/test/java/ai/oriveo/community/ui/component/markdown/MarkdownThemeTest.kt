@@ -15,7 +15,7 @@ class MarkdownThemeTest {
         assertEquals(Color(0xFF0B1220), colors.codeBlockBg)
         assertEquals(Color(0xFF111A2E), colors.codeBlockSurface)
         assertEquals(Color(0xFFE7EEF8), colors.codeBlockFg)
-        
+
         assertEquals(Color(0xFFC7D2E0), colors.codeBlockSecondary)
     }
 
@@ -26,7 +26,7 @@ class MarkdownThemeTest {
         assertEquals(Color(0xFF050814), colors.codeBlockBg)
         assertEquals(Color(0xFF0B1020), colors.codeBlockSurface)
         assertEquals(Color(0xFFEAF1FB), colors.codeBlockFg)
-        
+
         assertEquals(Color(0xFFC7D2E0), colors.codeBlockSecondary)
     }
 
@@ -36,7 +36,7 @@ class MarkdownThemeTest {
 
         assertEquals(Color(0xFFD8B4FE), colors.syntaxKeyword)
         assertEquals(Color(0xFFA7F3D0), colors.syntaxString)
-        
+
         assertEquals(Color(0xFF94A3B8), colors.syntaxComment)
         assertEquals(Color(0xFFFDE68A), colors.syntaxNumber)
         assertEquals(Color(0xFF7DD3FC), colors.syntaxType)

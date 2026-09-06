@@ -12,7 +12,6 @@ import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
-
 internal enum class HomeGroupRowPosition { Single, First, Middle, Last }
 
 internal fun homeGroupRowPosition(index: Int, count: Int): HomeGroupRowPosition = when {
@@ -46,13 +45,13 @@ internal fun Modifier.homeGroupedRowSurface(
             val r = radius.toPx()
             val topInset = if (isTop) r else 0f
             val bottomInset = if (isBottom) r else 0f
-            
+
             drawRect(border, Offset(0f, topInset), Size(w, size.height - topInset - bottomInset))
             drawRect(border, Offset(size.width - w, topInset), Size(w, size.height - topInset - bottomInset))
-            
+
             if (isTop) drawRect(border, Offset(r, 0f), Size(size.width - 2 * r, w))
             if (isBottom) drawRect(border, Offset(r, size.height - w), Size(size.width - 2 * r, w))
-            
+
             if (!isBottom) {
                 val pad = 16.dp.toPx()
                 drawRect(divider, Offset(pad, size.height - w), Size(size.width - pad * 2, w))

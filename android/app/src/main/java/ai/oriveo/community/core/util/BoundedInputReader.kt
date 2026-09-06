@@ -7,9 +7,7 @@ class InputSizeLimitExceededException(
     val maxBytes: Long,
 ) : IOException("Input exceeds the $maxBytes byte limit")
 
-
 const val UNKNOWN_INPUT_SIZE = -1L
-
 
 @Throws(InputSizeLimitExceededException::class)
 fun InputStream.readBytesLimited(
@@ -31,7 +29,7 @@ fun InputStream.readBytesLimited(
     while (true) {
         if (size == buffer.size) {
             if (size >= max) {
-                
+
                 if (read() >= 0) throw InputSizeLimitExceededException(maxBytes)
                 return buffer
             }
@@ -40,7 +38,7 @@ fun InputStream.readBytesLimited(
         val read = read(buffer, size, buffer.size - size)
         if (read < 0) break
         if (read == 0) {
-            
+
             val singleByte = read()
             if (singleByte < 0) break
             buffer[size++] = singleByte.toByte()

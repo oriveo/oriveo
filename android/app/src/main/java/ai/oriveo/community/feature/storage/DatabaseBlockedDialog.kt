@@ -35,7 +35,6 @@ import ai.oriveo.community.core.data.database.DatabaseBlockedReason
 import ai.oriveo.community.ui.component.OriveoPrimaryButton
 import ai.oriveo.community.ui.theme.OriveoTheme
 
-
 @Composable
 fun DatabaseBlockedDialog(
     reason: DatabaseBlockedReason,
@@ -57,7 +56,7 @@ fun DatabaseBlockedDialog(
             decorFitsSystemWindows = false,
         ),
     ) {
-        
+
         BackHandler(enabled = true) {}
         val colors = OriveoTheme.colors
         Box(

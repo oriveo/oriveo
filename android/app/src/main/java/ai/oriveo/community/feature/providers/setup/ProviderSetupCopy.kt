@@ -4,14 +4,11 @@ import androidx.annotation.StringRes
 import ai.oriveo.community.R
 import ai.oriveo.community.core.model.ProviderKind
 
-
 object ProviderSetupCopy {
 
-    
     @StringRes
     fun endpointTitle(kind: ProviderKind): Int = R.string.official_endpoint
 
-    
     @StringRes
     fun endpointDescription(kind: ProviderKind): Int? = when (kind) {
         ProviderKind.MiniMax -> R.string.provider_endpoint_minimax_description
@@ -21,17 +18,14 @@ object ProviderSetupCopy {
         else -> null
     }
 
-    
     @StringRes
     fun autoFillNote(kind: ProviderKind): Int? = when (kind) {
         ProviderKind.Relay, ProviderKind.OpenAI -> null
         else -> R.string.auto_fill_note
     }
 
-    
     fun shouldShowAutoFillNote(kind: ProviderKind): Boolean = autoFillNote(kind) != null
 
-    
     @StringRes
     fun tagline(kind: ProviderKind): Int? = when (kind) {
         ProviderKind.OpenAI -> R.string.provider_tagline_openai
@@ -52,15 +46,12 @@ object ProviderSetupCopy {
         else -> null
     }
 
-    
     @StringRes
     fun regionOptionLabel(kind: ProviderKind, optionId: String): Int? =
         kind.endpointOptionLabelRes(optionId)
 
-    
     fun regionOptions(kind: ProviderKind) = ProviderSetupCatalogResolver.current().regionOptions(kind)
 
-    
     fun resolveRegionOption(kind: ProviderKind, baseUrl: String?) =
         ProviderSetupCatalogResolver.current().resolveRegionOption(kind, baseUrl)
 

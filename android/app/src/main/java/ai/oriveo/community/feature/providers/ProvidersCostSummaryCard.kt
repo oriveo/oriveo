@@ -72,7 +72,6 @@ import java.util.Locale
 import kotlin.math.max
 import kotlin.math.roundToInt
 
-
 @Composable
 fun ProvidersCostSummaryCard(
     summary: MonthlyCostSummary,
@@ -123,12 +122,12 @@ fun ProvidersCostSummaryCard(
                 }
             }
             .oriveoGradientPanel(radius = 22.dp)
-            
+
             .drawBehind {
                 drawBrandSheen(isDark = isDark, primary = colors.primary)
             },
     ) {
-        
+
         Icon(
             imageVector = Icons.Filled.CreditCard,
             contentDescription = null,
@@ -155,7 +154,7 @@ fun ProvidersCostSummaryCard(
             HeroBlock(summary = summary, isCompact = isCompact)
 
             if (summary.providers.isNotEmpty()) {
-                
+
                 if (summary.providers.size + summary.hiddenProviderCount >= 2) {
                     SegmentedCostBar(
                         providers = summary.providers,
@@ -196,7 +195,7 @@ private fun TitleRow(showChevron: Boolean) {
                     tint = colors.primary,
                 )
             }
-            
+
             Text(
                 text = stringResource(R.string.by_provider),
                 style = compactTextStyle(
@@ -238,8 +237,6 @@ private fun HeroBlock(summary: MonthlyCostSummary, isCompact: Boolean) {
     val hasDollarPrefix = fullText.startsWith("$")
     val dollarBody = if (hasDollarPrefix) fullText.substring(1) else fullText
 
-    
-    
     val baseNumberSize = if (isCompact) 28f else 36f
     val numberMinSize = baseNumberSize * 0.7f
     var numberFontSize by remember(dollarBody, baseNumberSize) { mutableStateOf(baseNumberSize) }
@@ -250,8 +247,6 @@ private fun HeroBlock(summary: MonthlyCostSummary, isCompact: Boolean) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         MonthChip()
 
-        
-        
         Row(
             verticalAlignment = Alignment.Bottom,
             horizontalArrangement = Arrangement.spacedBy(2.dp),
@@ -292,7 +287,6 @@ private fun HeroBlock(summary: MonthlyCostSummary, isCompact: Boolean) {
             )
         }
 
-        
         Box(
             modifier = Modifier
                 .width(baselineWidth)
@@ -321,7 +315,6 @@ private fun HeroBlock(summary: MonthlyCostSummary, isCompact: Boolean) {
         )
     }
 }
-
 
 @Composable
 private fun MonthChip() {
@@ -378,7 +371,6 @@ private fun MonthChip() {
 
 // region Segmented bar
 
-
 @Composable
 private fun SegmentedCostBar(
     providers: List<MonthlyCostProviderEntry>,
@@ -423,7 +415,6 @@ private fun SegmentedCostBar(
                 }
             }
 
-            
             val visibleShareRatio = if (totalWidthPx > 0) visibleSharePx / usablePx else 0f
             if (visibleShareRatio < 0.999f) {
                 Box(
@@ -464,7 +455,7 @@ private fun SegmentedCostBarPiece(tint: Color, width: Dp) {
                 shape = shape,
             ),
     ) {
-        
+
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -512,7 +503,6 @@ private fun ProviderBreakdownList(
     }
 }
 
-
 @Composable
 private fun ProviderBreakdownRow(
     entry: MonthlyCostProviderEntry,
@@ -529,8 +519,7 @@ private fun ProviderBreakdownRow(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        
-        
+
         LegendChip(tint = chartColor)
 
         Text(
@@ -600,7 +589,7 @@ private fun LegendChip(tint: Color) {
                 shape = shape,
             ),
     ) {
-        
+
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -630,7 +619,7 @@ private fun ProviderBreakdownOverflowRow(hiddenCount: Int) {
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        
+
         Box(
             modifier = Modifier
                 .size(width = 16.dp, height = 7.dp)
@@ -666,7 +655,6 @@ private fun ProviderBreakdownOverflowRow(hiddenCount: Int) {
 
 // region Brand sheen + chart color resolver
 
-
 private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawBrandSheen(
     isDark: Boolean,
     primary: Color,
@@ -697,12 +685,10 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawBrandSheen(
     )
 }
 
-
 private object ChartColorResolver {
-    
+
     private const val BRAND_HUE: Double = 257.0
 
-    
     private val palette = doubleArrayOf(
         15.0,  // coral red       (idx 0)
         160.0, // teal             (idx 1)
@@ -732,7 +718,6 @@ private object ChartColorResolver {
         return hsbToColor(hue, saturation, brightness)
     }
 
-    
     private fun hsbToColor(h: Float, s: Float, v: Float): Color {
         val i = (h * 6).toInt()
         val f = h * 6 - i

@@ -99,30 +99,24 @@ class HomeViewModel(
         .map { selectHomeSkills(it) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    
     val activeNoteCount: StateFlow<Int> = noteRepository.observeActive()
         .map { it.size }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
 
-    
     val latestNoteTitle: StateFlow<String?> = noteRepository.observeActive()
         .map { notes -> notes.firstOrNull()?.title?.takeIf { it.isNotBlank() } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
-    
     val allConversations: StateFlow<List<Conversation>> = conversationRepository.observeAll()
         .onEach { conversationsLoaded.value = true }
         .map { items -> items.filter { !it.isDraft || it.messageCount > 0 } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    
     val conflictCopies: StateFlow<List<Conversation>> = MutableStateFlow(emptyList())
 
-    
     val pinnedConversationIds: StateFlow<List<String>> = appPreferencesRepository.pinnedConversationIds
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    
     val pinnedConversations: StateFlow<List<Conversation>> = combine(
         pinnedConversationIds,
         allConversations,
@@ -145,8 +139,7 @@ class HomeViewModel(
         conversationRepository.observeUngroupedEarlierCount(recentConversationStartMillis),
         pinnedConversationIds,
     ) { visibleConversations, earlierTotalCount, pinnedIds ->
-        
-        
+
         val pinnedSet = pinnedIds.toHashSet()
         buildHomeConversationSections(
             conversations = visibleConversations.filter {
@@ -155,7 +148,7 @@ class HomeViewModel(
             earlierTotalCount = earlierTotalCount,
         )
     }
-        
+
         .flowOn(Dispatchers.Default)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
@@ -167,11 +160,8 @@ class HomeViewModel(
         hasProviders && hasConversations && hasFolders
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
-    
-
     val searchQuery = MutableStateFlow("")
 
-    
     val searchResults: StateFlow<List<Conversation>> = searchQuery
         .debounce(250L)
         .distinctUntilChanged()
@@ -187,23 +177,16 @@ class HomeViewModel(
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    
-
     val lastUsedModelRef: StateFlow<LastUsedModelRef?> = appPreferencesRepository.lastUsedModelRef
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
-    
     private var lastAutoRefreshTime: Long = 0
     private val autoRefreshThrottleMs = 60_000L // 60 seconds
     var expandedFolderIds by mutableStateOf(emptySet<String>())
         private set
 
-    
-
-    
     var heroText: String by mutableStateOf("")
 
-    
     var isSendingFromHero: Boolean by mutableStateOf(false)
         private set
 
@@ -214,18 +197,17 @@ class HomeViewModel(
                 expandedFolderIds = expandedFolderIds.filter(validIds::contains).toSet()
             }
         }
-        
+
         viewModelScope.launch {
             skillRepository.refreshAll()
         }
-        
+
         viewModelScope.launch(ioDispatcher) {
             initialContentLoaded.first { it }
             folderRepository.migrateColorTags()
         }
     }
 
-    
     data class ActiveModel(
         val provider: Provider,
         val model: AIModel,
@@ -238,7 +220,6 @@ class HomeViewModel(
 
     val greetingName: StateFlow<String> = MutableStateFlow("")
 
-    
     val activeModelState: StateFlow<ActiveModelState> = combine(
         providers,
         lastUsedModelRef,
@@ -249,7 +230,6 @@ class HomeViewModel(
         ActiveModelState(activeModel = active, providerIssue = null)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), ActiveModelState(null, null))
 
-    
     fun resolveActiveModel(providers: List<Provider>): ActiveModel? {
         val resolved = resolveActiveModel(providers, lastUsedModelRef.value) ?: return null
         return ActiveModel(
@@ -258,7 +238,6 @@ class HomeViewModel(
         )
     }
 
-    
     fun refreshActiveProviderIfNeeded() {
         val providerList = providers.value
         val active = resolveActiveModel(providerList) ?: return
@@ -278,7 +257,7 @@ class HomeViewModel(
             try {
                 providerRepository.resyncProvider(provider.id)
             } catch (_: Exception) {
-                
+
             }
         }
     }
@@ -288,8 +267,6 @@ class HomeViewModel(
         hasTriggeredInitialHomeLoadRefresh = true
         refreshActiveProviderIfNeeded()
     }
-
-    
 
     var isEditing by mutableStateOf(false)
     var selectedIds by mutableStateOf(emptySet<String>())
@@ -347,8 +324,6 @@ class HomeViewModel(
 
     fun isFolderExpanded(folderId: String): Boolean = expandedFolderIds.contains(folderId)
 
-    
-
     var isSearching by mutableStateOf(false)
 
     fun setSearchQuery(query: String) {
@@ -380,8 +355,7 @@ class HomeViewModel(
         pinnedConversationIds.value.contains(conversationId)
 
     fun deleteConversation(id: String) {
-        
-        
+
         chatStreamingManager.stopStream(id)
         viewModelScope.launch {
             try {
@@ -393,14 +367,12 @@ class HomeViewModel(
         }
     }
 
-    
     fun copyConflictCopyAsNewConversation(
         conversation: Conversation,
         onCreated: (String) -> Unit = {},
     ) {
     }
 
-    
     fun cleanupAllConflictCopies() {
         val ids = conflictCopies.value.map { it.id }
         if (ids.isEmpty()) return
@@ -415,10 +387,9 @@ class HomeViewModel(
         }
     }
 
-
     fun deleteSelectedConversations() {
         val ids = selectedIds.toList()
-        
+
         ids.forEach { chatStreamingManager.stopStream(it) }
         exitEditMode()
         viewModelScope.launch {
@@ -520,7 +491,6 @@ class HomeViewModel(
         }
     }
 
-    
     fun copyLastMessage(conversationId: String, context: Context) {
         viewModelScope.launch {
             val conversation = conversationRepository.getWithMessages(conversationId) ?: return@launch
@@ -560,11 +530,8 @@ class HomeViewModel(
         }
     }
 
-    
-
     fun setActiveModel(providerId: String, modelId: String) {
-        
-        
+
         appPreferencesRepository.primeLastUsedModel(providerId, modelId)
         viewModelScope.launch {
             val provider = providerRepository.getById(providerId)
@@ -580,19 +547,16 @@ class HomeViewModel(
         }
     }
 
-    
     suspend fun ensureActiveModelWithFreeFallback(
         onMissingProvider: () -> Unit,
     ): ActiveModel? {
-        
-        
+
         appPreferencesRepository.lastUsedModelRefSnapshot?.let { ref ->
             resolveActiveModel(providers.value, ref)?.let { return ActiveModel(it.provider, it.model) }
         }
-        
+
         activeModelState.value.activeModel?.let { return it }
 
-        
         val current = providers.value
         val firstUsable = current.firstOrNull {
             it.status !is ProviderConnectionState.Issue && it.models.isNotEmpty()
@@ -605,15 +569,10 @@ class HomeViewModel(
             }
         }
 
-        
-
-
-        
         onMissingProvider()
         return null
     }
 
-    
     fun sendFromHero(
         onConversationCreated: (String) -> Unit,
         onConversationCreatedAutoSend: (String) -> Unit,
@@ -628,7 +587,7 @@ class HomeViewModel(
                 val active = ensureActiveModelWithFreeFallback(onMissingProvider) ?: return@launch
 
                 if (trimmed.isEmpty()) {
-                    
+
                     val conversation = conversationRepository.createDraft(
                         providerID = active.provider.id,
                         providerKind = active.provider.kind,
@@ -674,8 +633,6 @@ class HomeViewModel(
             }
         }
     }
-
-    
 
     private fun resolveModelForSkill(skill: Skill): ActiveModel? {
         val providerList = providers.value
@@ -730,7 +687,6 @@ class HomeViewModel(
         else -> false
     }
 
-    
     fun startConversationWithSkill(
         skill: Skill,
         onCreated: (String) -> Unit,
@@ -757,15 +713,11 @@ class HomeViewModel(
                 skillId = skill.id,
                 useMemory = skill.useMemory,
             )
-            
-            
-            
+
             onCreated(conversation.id)
             skillRepository.recordUse(skill.id)
         }
     }
-
-    
 
     var showModelPicker by mutableStateOf(false)
     var conversationToRename: Conversation? by mutableStateOf(null)
@@ -811,7 +763,6 @@ class HomeViewModel(
         return calendar.timeInMillis
     }
 }
-
 
 enum class DateGroup(val order: Int) {
     Today(0),
@@ -872,7 +823,7 @@ fun classifyDate(timestampMs: Long): DateGroup {
 }
 
 fun groupConversationsByDate(conversations: List<Conversation>): List<Pair<DateGroup, List<Conversation>>> {
-    
+
     val cal = Calendar.getInstance()
     val todayStart = cal.apply {
         set(Calendar.HOUR_OF_DAY, 0)

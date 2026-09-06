@@ -104,7 +104,6 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.sp
 
-
 @Composable
 internal fun SkillIcon(
     icon: String,
@@ -133,17 +132,16 @@ internal fun SkillIcon(
     }
 }
 
-
 internal object SkillIconMapping {
 
     fun iconFor(emoji: String): ImageVector? {
-        
+
         val normalized = emoji.replace("️", "")
         return mapping[emoji] ?: mapping[normalized]
     }
 
     private val mapping: Map<String, ImageVector> = buildMap {
-        
+
         put("✍️", Icons.Outlined.Edit)
         put("✍", Icons.Outlined.Edit)
         put("✏️", Icons.Outlined.Edit)
@@ -157,7 +155,6 @@ internal object SkillIconMapping {
         put("📜", Icons.AutoMirrored.Outlined.Article)
         put("🗒️", Icons.AutoMirrored.Outlined.Notes)
 
-        
         put("✅", Icons.Filled.CheckCircle)
         put("✔️", Icons.Outlined.Check)
         put("✔", Icons.Outlined.Check)
@@ -167,7 +164,6 @@ internal object SkillIconMapping {
         put("📋", Icons.Outlined.CheckBox)
         put("☑️", Icons.Outlined.CheckBox)
 
-        
         put("🌐", Icons.Outlined.Public)
         put("🌍", Icons.Outlined.Public)
         put("🌎", Icons.Outlined.Public)
@@ -178,7 +174,6 @@ internal object SkillIconMapping {
         put("🔡", Icons.Outlined.TextFields)
         put("🔠", Icons.Outlined.TextFields)
 
-        
         put("💻", Icons.Outlined.LaptopMac)
         put("🖥️", Icons.Outlined.DesktopWindows)
         put("🖥", Icons.Outlined.DesktopWindows)
@@ -199,12 +194,10 @@ internal object SkillIconMapping {
         put("🛠", Icons.Filled.Construction)
         put("🧰", Icons.Filled.Construction)
 
-        
         put("📊", Icons.Outlined.Equalizer)
         put("📈", Icons.AutoMirrored.Outlined.TrendingUp)
         put("📉", Icons.AutoMirrored.Outlined.TrendingDown)
 
-        
         put("💡", Icons.Filled.Lightbulb)
         put("✨", Icons.Filled.AutoAwesome)
         put("🎨", Icons.Filled.Palette)
@@ -214,7 +207,6 @@ internal object SkillIconMapping {
         put("⭐", Icons.Filled.Star)
         put("⭐️", Icons.Filled.Star)
 
-        
         put("🎓", Icons.Filled.School)
         put("📚", Icons.AutoMirrored.Outlined.MenuBook)
         put("📖", Icons.AutoMirrored.Outlined.MenuBook)
@@ -224,7 +216,6 @@ internal object SkillIconMapping {
         put("📙", Icons.AutoMirrored.Outlined.MenuBook)
         put("🏫", Icons.Filled.School)
 
-        
         put("💼", Icons.Filled.MonetizationOn)
         put("💰", Icons.Filled.MonetizationOn)
         put("💵", Icons.Filled.MonetizationOn)
@@ -232,7 +223,6 @@ internal object SkillIconMapping {
         put("💹", Icons.AutoMirrored.Outlined.TrendingUp)
         put("🧾", Icons.Outlined.Description)
 
-        
         put("📅", Icons.Outlined.CalendarMonth)
         put("📆", Icons.Outlined.CalendarMonth)
         put("🗓️", Icons.Outlined.CalendarMonth)
@@ -245,7 +235,6 @@ internal object SkillIconMapping {
         put("⌛", Icons.Outlined.HourglassEmpty)
         put("⏳", Icons.Outlined.HourglassFull)
 
-        
         put("📧", Icons.Outlined.Email)
         put("📨", Icons.Outlined.MarkEmailRead)
         put("📩", Icons.Outlined.Drafts)
@@ -261,7 +250,6 @@ internal object SkillIconMapping {
         put("🗣️", Icons.Filled.Forum)
         put("🗣", Icons.Filled.Forum)
 
-        
         put("🔐", Icons.Filled.Security)
         put("🔒", Icons.Filled.Lock)
         put("🔓", Icons.Filled.LockOpen)
@@ -270,14 +258,12 @@ internal object SkillIconMapping {
         put("🔑", Icons.Filled.Key)
         put("🗝️", Icons.Filled.Key)
 
-        
         put("🏥", Icons.Filled.LocalHospital)
         put("💊", Icons.Filled.Medication)
         put("❤️", Icons.Filled.Favorite)
         put("❤", Icons.Filled.Favorite)
         put("🩺", Icons.Filled.LocalHospital)
 
-        
         put("✈️", Icons.Outlined.Flight)
         put("✈", Icons.Outlined.Flight)
         put("🚗", Icons.Outlined.DirectionsCar)
@@ -288,7 +274,6 @@ internal object SkillIconMapping {
         put("🏨", Icons.Filled.Hotel)
         put("🚀", Icons.Outlined.RocketLaunch)
 
-        
         put("📁", Icons.Filled.Folder)
         put("📂", Icons.Filled.Folder)
         put("🗂️", Icons.Filled.FolderShared)
@@ -299,7 +284,6 @@ internal object SkillIconMapping {
         put("🏷️", Icons.Outlined.Tag)
         put("🏷", Icons.Outlined.Tag)
 
-        
         put("🎬", Icons.Filled.Movie)
         put("🎥", Icons.Filled.Movie)
         put("📽️", Icons.Filled.Movie)
@@ -314,18 +298,15 @@ internal object SkillIconMapping {
         put("📺", Icons.Filled.Tv)
         put("🎮", Icons.Outlined.SportsEsports)
 
-        
         put("🍽️", Icons.Outlined.Restaurant)
         put("🍽", Icons.Outlined.Restaurant)
         put("☕", Icons.Filled.LocalCafe)
         put("🍵", Icons.Filled.LocalCafe)
         put("🍳", Icons.Outlined.Restaurant)
 
-        
         put("⚖️", Icons.Filled.Gavel)
         put("⚖", Icons.Filled.Gavel)
 
-        
         put("🌿", Icons.Outlined.Park)
         put("🍃", Icons.Outlined.Park)
         put("🌳", Icons.Outlined.Park)
@@ -340,7 +321,6 @@ internal object SkillIconMapping {
         put("🔥", Icons.Filled.LocalFireDepartment)
         put("💧", Icons.Filled.WaterDrop)
 
-        
         put("🧮", Icons.Outlined.Calculate)
         put("➕", Icons.Outlined.Calculate)
         put("➖", Icons.Outlined.Calculate)
@@ -351,7 +331,6 @@ internal object SkillIconMapping {
         put("📐", Icons.Outlined.Straighten)
         put("📏", Icons.Outlined.Straighten)
 
-        
         put("👤", Icons.Outlined.Person)
         put("👥", Icons.Outlined.Person)
         put("🧑‍💻", Icons.Outlined.Person)
@@ -361,7 +340,6 @@ internal object SkillIconMapping {
         put("👨‍⚕️", Icons.Filled.LocalHospital)
         put("🧑‍🎨", Icons.Filled.Palette)
 
-        
         put("📰", Icons.Filled.Newspaper)
         put("🏆", Icons.Filled.EmojiEvents)
         put("🥇", Icons.Filled.EmojiEvents)

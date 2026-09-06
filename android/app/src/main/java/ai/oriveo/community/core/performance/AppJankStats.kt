@@ -12,7 +12,6 @@ private const val SEVERE_JANK_MS = 700.0
 private const val CAPTURE_THROTTLE_MS = 15_000L
 private const val STARTUP_CAPTURE_GRACE_MS = 8_000L
 
-
 internal fun isEmulatorEnvironment(
     buildTags: String?,
     supportedAbis: Array<String>?,
@@ -49,9 +48,6 @@ class AppJankStats(window: Window) {
     private var lastCapturedAtMs = 0L
     private val runsOnEmulator = isEmulatorEnvironment(Build.TAGS, Build.SUPPORTED_ABIS)
 
-    
-    
-    
     @Suppress("MemberVisibilityCanBePrivate")
     private val jankStats = JankStats.createAndTrack(
         window,
@@ -83,7 +79,7 @@ class AppJankStats(window: Window) {
             }
         },
     ).also {
-        
+
         it.isTrackingEnabled = false
     }
 

@@ -42,7 +42,6 @@ import ai.oriveo.community.ui.component.BrandImageRequest
 import ai.oriveo.community.ui.component.BrandLogoResources
 import ai.oriveo.community.ui.component.LocalBrandImageBitmapCache
 
-
 private val LightColorScheme = lightColorScheme(
     primary = Color(0xFF8C5FF8),
     onPrimary = Color.White,
@@ -67,7 +66,7 @@ private val LightColorScheme = lightColorScheme(
 
 private val DarkColorScheme = darkColorScheme(
     primary = Color(0xFFC4B5FD),
-    
+
     onPrimary = Color(0xFF0F1218),
     primaryContainer = Color(0x2EA78BFA),
     onPrimaryContainer = Color(0xFFF8FAFF),
@@ -88,12 +87,10 @@ private val DarkColorScheme = darkColorScheme(
     outlineVariant = Color(0x2EC7D2FE),
 )
 
-
 object OriveoMotion {
-    
+
     const val modelControlSegmentMillis = 180
 
-    
     const val modelControlPageMillis = 250
 
     fun modelControlSegmentMillis(reduceMotion: Boolean): Int =
@@ -102,7 +99,6 @@ object OriveoMotion {
     fun modelControlPageMillis(reduceMotion: Boolean): Int =
         if (reduceMotion) 0 else modelControlPageMillis
 }
-
 
 @Composable
 fun modelControlTextButtonColors(): ButtonColors =
@@ -122,18 +118,16 @@ fun OriveoTheme(
     if (!view.isInEditMode) {
         SideEffect {
             val window = (view.context as Activity).window
-            
-            
+
             WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !darkTheme
             WindowCompat.getInsetsController(window, view).isAppearanceLightNavigationBars = !darkTheme
-            
+
             val windowBg = if (darkTheme) android.graphics.Color.parseColor("#FF090E1B")
                 else android.graphics.Color.parseColor("#FFF6F5FA")
             window.decorView.setBackgroundColor(windowBg)
         }
     }
 
-    
     val currentDensity = LocalDensity.current
     val factor = densityScaleFactor(LocalConfiguration.current.screenWidthDp)
     val adjustedDensity = if (factor < 1f) {
@@ -142,8 +136,6 @@ fun OriveoTheme(
         currentDensity
     }
 
-    
-    
     val applicationContext = LocalContext.current.applicationContext
     val brandImageCache = remember(applicationContext) {
         BrandImageBitmapCache(applicationContext.resources)
@@ -163,15 +155,7 @@ fun OriveoTheme(
         LocalIsDarkTheme provides darkTheme,
         LocalDensity provides adjustedDensity,
         LocalBrandImageBitmapCache provides brandImageCache,
-        
-        
-        
-        
-        
-        
-        
-        
-        
+
         LocalContentColor provides oriveoColors.textPrimary,
     ) {
         MaterialTheme(
@@ -180,7 +164,6 @@ fun OriveoTheme(
         )
     }
 }
-
 
 object OriveoTheme {
     val colors: OriveoColors
@@ -193,21 +176,19 @@ object OriveoTheme {
     val spacing: OriveoSpacing get() = OriveoSpacing
     val radius: OriveoRadius get() = OriveoRadius
 
-    
     val layout: OriveoLayout get() = OriveoLayout
 }
 
 // ── OriveoGradients ──
 
 object OriveoGradients {
-    
+
     val primary = Brush.linearGradient(
         colors = listOf(Color(0xFF8347F5), Color(0xFF6B3BC7)),
         start = Offset.Zero,
         end = Offset.Infinite,
     )
 
-    
     val primaryPressed = Brush.linearGradient(
         colors = listOf(Color(0xFF7238E5), Color(0xFF5A2BB0)),
         start = Offset.Zero,
@@ -215,9 +196,7 @@ object OriveoGradients {
     )
 }
 
-
 enum class OriveoSurfaceStyle { None, Soft, Lifted }
-
 
 fun Modifier.oriveoSurface(
     colors: OriveoColors,
@@ -228,7 +207,7 @@ fun Modifier.oriveoSurface(
     shadowStyle: OriveoSurfaceStyle = OriveoSurfaceStyle.Soft,
 ): Modifier {
     val shape = RoundedCornerShape(radius)
-    
+
     val shadowElevation = when (shadowStyle) {
         OriveoSurfaceStyle.None -> 0.dp
         OriveoSurfaceStyle.Soft -> if (isDark) 16.dp else 8.dp
@@ -239,7 +218,7 @@ fun Modifier.oriveoSurface(
         OriveoSurfaceStyle.Soft -> colors.shadow
         OriveoSurfaceStyle.Lifted -> colors.shadowStrong
     }
-    
+
     val edgeShadowElevation = when (shadowStyle) {
         OriveoSurfaceStyle.None -> 0.dp
         OriveoSurfaceStyle.Soft -> 2.dp
@@ -252,23 +231,23 @@ fun Modifier.oriveoSurface(
     }
 
     return this
-        
+
         .shadow(
             elevation = shadowElevation,
             shape = shape,
             ambientColor = shadowColor,
             spotColor = shadowColor,
         )
-        
+
         .shadow(
             elevation = edgeShadowElevation,
             shape = shape,
             ambientColor = edgeShadowColor,
             spotColor = edgeShadowColor,
         )
-        
+
         .background(fill, shape)
-        
+
         .background(
             brush = Brush.linearGradient(
                 colors = listOf(colors.cardHighlight, Color.Transparent),
@@ -277,9 +256,9 @@ fun Modifier.oriveoSurface(
             ),
             shape = shape,
         )
-        
+
         .border(OriveoBorderWidth.standard, borderColor, shape)
-        
+
         .then(
             if (isDark) {
                 Modifier.border(
@@ -297,17 +276,15 @@ fun Modifier.oriveoSurface(
         )
 }
 
-
 @Composable
 fun OriveoScreenBackground(
     modifier: Modifier = Modifier,
-    
+
     glowTint: Color = Color(0xFF8C5FF8),
 ) {
     val colors = OriveoTheme.colors
     val isDark = OriveoTheme.isDark
 
-    
     val baseBrush = if (isDark) {
         Brush.linearGradient(
             colors = listOf(
@@ -334,13 +311,13 @@ fun OriveoScreenBackground(
     val glowOffsetY = if (isDark) (-100).dp else (-80).dp
 
     Box(modifier = modifier.fillMaxSize()) {
-        
+
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .background(baseBrush),
         )
-        
+
         Box(
             modifier = Modifier
                 .size(glowSize)
@@ -359,7 +336,6 @@ fun OriveoScreenBackground(
     }
 }
 
-
 @Composable
 fun OriveoNotesBackground(
     modifier: Modifier = Modifier,
@@ -373,7 +349,6 @@ fun OriveoNotesBackground(
     Box(modifier = modifier.fillMaxSize().background(brush))
 }
 
-
 @Composable
 fun OriveoV2ScreenBackground(
     modifier: Modifier = Modifier,
@@ -382,7 +357,7 @@ fun OriveoV2ScreenBackground(
 
     Box(modifier = modifier.fillMaxSize()) {
         if (isDark) {
-            
+
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -403,7 +378,7 @@ fun OriveoV2ScreenBackground(
                     ),
             )
         } else {
-            
+
             Box(
                 modifier = Modifier
                     .fillMaxSize()

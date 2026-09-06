@@ -38,8 +38,7 @@ class ChatKeyboardInsetsContractTest {
             "src/main/java/ai/oriveo/community/feature/chat/ChatScreen.kt",
             "src/main/java/ai/oriveo/community/feature/chat/ChatScreenContent.kt",
         ).joinToString("\n") { File(it).readText() }
-        
-        
+
         val imeOwnerCalls = Regex("""windowInsetsPadding\(\s*WindowInsets\.ime""")
             .findAll(source)
             .count()

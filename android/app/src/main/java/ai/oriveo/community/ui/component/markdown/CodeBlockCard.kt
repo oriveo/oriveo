@@ -74,22 +74,18 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-
 private const val PREVIEW_LINE_LIMIT = 18
 private const val CHARACTER_LIMIT = 1400
 private val PREVIEW_HEIGHT = 392.dp // 18 × 20 + 32
 private val CARD_CORNER = 16.dp
-
 
 private val HEADER_HEIGHT = 44.dp
 private val CODE_PAD = 12.dp        // iOS codeTextView.textContainerInset = 12
 private val BOTTOM_FADE_HEIGHT = 44.dp
 private val TOP_FADE_HEIGHT = 28.dp
 
-
 private const val PREWARM_MAX_CHARS = 20_000
 private const val PREWARM_DELAY_MS = 500L
-
 
 @Composable
 fun CodeBlockCard(
@@ -97,11 +93,11 @@ fun CodeBlockCard(
     language: String,
     mdColors: MarkdownColors,
     modifier: Modifier = Modifier,
-    
+
     onSaveAsNote: ((String) -> Unit)? = null,
 ) {
     val codeText = remember(code) { code.replace("\t", "    ") }
-    
+
     val lineCount = remember(codeText) { (codeText.count { it == '\n' } + 1).coerceAtLeast(1) }
     val isTruncated = remember(lineCount, codeText) {
         lineCount > PREVIEW_LINE_LIMIT || codeText.length > CHARACTER_LIMIT
@@ -115,7 +111,6 @@ fun CodeBlockCard(
 
     var showViewer by remember { mutableStateOf(false) }
 
-    
     if (isTruncated && !isMarkdownLanguage && codeText.length <= PREWARM_MAX_CHARS) {
         LaunchedEffect(codeText, language, mdColors) {
             delay(PREWARM_DELAY_MS)
@@ -136,8 +131,7 @@ fun CodeBlockCard(
             .background(mdColors.codeBlockBg)
             .border(OriveoBorderWidth.standard, mdColors.codeBlockBorder, shape),
     ) {
-        
-        
+
         val saveFencedAsNote: ((String) -> Unit)? = onSaveAsNote?.let { cb ->
             { _: String ->
                 val fence = if (language.isBlank()) "```" else "```$language"
@@ -180,7 +174,6 @@ fun CodeBlockCard(
     }
 }
 
-
 @Composable
 fun StreamingCodeBlockCard(
     code: String,
@@ -216,7 +209,7 @@ fun StreamingCodeBlockCard(
             .background(mdColors.codeBlockBg)
             .border(OriveoBorderWidth.standard, mdColors.codeBlockBorder, shape),
     ) {
-        
+
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -237,7 +230,6 @@ fun StreamingCodeBlockCard(
             }
         }
 
-        
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -250,11 +242,7 @@ fun StreamingCodeBlockCard(
                     .padding(CODE_PAD),
                 verticalAlignment = Alignment.Bottom,
             ) {
-                
-                
-                
-                
-                
+
                 val highlighted = remember(previewText, language, mdColors) {
                     highlightStreamingCode(previewText, language, mdColors)
                 }
@@ -439,9 +427,7 @@ private fun SyntaxCodePreview(
     mdColors: MarkdownColors,
     isTruncated: Boolean,
 ) {
-    
-    
-    
+
     val highlighted = remember(code, language, mdColors) {
         MarkdownRenderCache.highlightCode(code, language, mdColors)
     }
@@ -479,7 +465,6 @@ private fun SyntaxCodePreview(
     }
 }
 
-
 @Composable
 private fun MarkdownCodePreview(
     code: String,
@@ -502,8 +487,7 @@ private fun MarkdownCodePreview(
             .fillMaxWidth()
             .let { if (isTruncated) it.height(PREVIEW_HEIGHT) else it },
     ) {
-        
-        
+
         val contentModifier = if (isTruncated) {
             Modifier
                 .fillMaxWidth()
@@ -573,7 +557,7 @@ private fun CodeBlockViewerSheet(
             dragHandle = null,
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
-                
+
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -594,7 +578,6 @@ private fun CodeBlockViewerSheet(
                     }
                 }
 
-                
                 SelectionContainer(
                     modifier = Modifier
                         .fillMaxSize()
@@ -613,7 +596,6 @@ private fun CodeBlockViewerSheet(
         }
     }
 }
-
 
 internal fun highlightStreamingCode(
     code: String,
@@ -644,8 +626,7 @@ private fun StreamingCodeCursor(color: Color) {
     Box(
         modifier = Modifier
             .size(width = 2.dp, height = 16.dp)
-            
-            
+
             .drawBehind { drawRect(color = color.copy(alpha = alpha)) },
     )
 }

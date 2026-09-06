@@ -17,7 +17,6 @@ import androidx.compose.material.icons.outlined.Psychology
 import androidx.compose.material.icons.outlined.Search
 import androidx.compose.ui.graphics.vector.ImageVector
 
-
 internal object ModelFamilyIcon {
     fun familyIcon(modelName: String): ImageVector {
         val lower = modelName.lowercase()
@@ -40,7 +39,6 @@ internal object ModelFamilyIcon {
         return Icons.Outlined.DeveloperBoard
     }
 }
-
 
 internal fun shortenedModelName(raw: String): String {
     var s = raw

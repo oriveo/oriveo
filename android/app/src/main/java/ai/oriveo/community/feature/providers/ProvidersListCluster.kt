@@ -8,7 +8,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import ai.oriveo.community.ui.component.oriveoGradientPanel
 
-
 @Composable
 fun ProvidersListCluster(
     modifier: Modifier = Modifier,

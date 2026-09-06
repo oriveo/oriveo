@@ -22,7 +22,6 @@ import ai.oriveo.community.core.model.NoteFolder
 import ai.oriveo.community.core.model.Provider
 import ai.oriveo.community.core.model.Skill
 
-
 object EntityMapper {
 
     // ── Provider ────────────────────────────────────────────────

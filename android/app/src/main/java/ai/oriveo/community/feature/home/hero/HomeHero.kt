@@ -70,7 +70,6 @@ import ai.oriveo.community.ui.theme.OriveoBorderWidth
 import ai.oriveo.community.ui.theme.OriveoTheme
 import ai.oriveo.community.ui.theme.opacity
 
-
 @Composable
 internal fun HeroSection(
     viewModel: HomeViewModel,
@@ -266,7 +265,7 @@ private fun HeroModelSelectionButton(
             ),
         )
     }
-    
+
     val priceTierLabel = localizedPriceTier(model.priceTier.trim())
     val heroMetaItems = remember(model, priceTierLabel) { heroMetaItems(model, priceTierLabel) }
     val hasHeaderContent = heroMetaItems.isNotEmpty()
@@ -706,14 +705,7 @@ private fun HomeHeroCard(content: @Composable () -> Unit) {
                     ),
                 ),
         )
-        
-        
-        
-        
-        
-        
-        
-        
+
         Box(
             modifier = Modifier
                 .matchParentSize()
@@ -726,14 +718,14 @@ private fun HomeHeroCard(content: @Composable () -> Unit) {
                     val outerWidth = 2.4.dp.toPx()
                     val innerWidth = 1.4.dp.toPx()
                     onDrawBehind {
-                        
+
                         strokeHeroRing(brush, outerWidth, crPx, alpha = 0.45f)
-                        
+
                         strokeHeroRing(brush, innerWidth, crPx, alpha = 0.90f)
                     }
                 },
         )
-        
+
         Box(
             modifier = Modifier
                 .matchParentSize()
@@ -750,7 +742,6 @@ private fun HomeHeroCard(content: @Composable () -> Unit) {
     }
 }
 
-
 private val HERO_AURORA_COLORS = listOf(
     Color(0xFF8B5CF6),
     Color(0xFFA78BFA),
@@ -760,7 +751,6 @@ private val HERO_AURORA_COLORS = listOf(
     Color(0xFFC4B5FD),
     Color(0xFF8B5CF6),
 )
-
 
 private fun DrawScope.strokeHeroRing(brush: Brush, strokeWidthPx: Float, cornerRadiusPx: Float, alpha: Float) {
     val inset = strokeWidthPx / 2f
@@ -773,7 +763,6 @@ private fun DrawScope.strokeHeroRing(brush: Brush, strokeWidthPx: Float, cornerR
         alpha = alpha,
     )
 }
-
 
 @Composable
 private fun heroModelTitleTextStyle(): TextStyle = OriveoTheme.typography.hero.copy(

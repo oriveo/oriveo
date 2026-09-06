@@ -1,13 +1,11 @@
 package ai.oriveo.community.core.notes
 
-
 object SelectionSourceMapper {
     private const val MIN_SIG_LENGTH = 8
 
     private data class SourceBlock(val raw: String, val sig: String)
     private data class TableParts(val header: String, val separator: String, val bodyRows: List<String>)
 
-    
     fun extractSelectionMarkdown(sourceMarkdown: String, renderedSelection: String): String? {
         val selSig = contentSignature(renderedSelection)
         if (selSig.length < MIN_SIG_LENGTH) return null
@@ -17,12 +15,10 @@ object SelectionSourceMapper {
 
         val matched = locateCovered(blocks.mapIndexed { i, b -> b.sig to i }, selSig) ?: return null
 
-        
         if (matched.first == matched.second) {
             refineSingleBlock(blocks[matched.first].raw, selSig)?.let { return it }
         }
 
-        
         val extracted = blocks.subList(matched.first, matched.second + 1)
             .joinToString("\n\n") { it.raw }
             .trim()
@@ -30,7 +26,6 @@ object SelectionSourceMapper {
         return extracted
     }
 
-    
     private fun contentSignature(text: String): String {
         val sb = StringBuilder(text.length)
         for (ch in text.lowercase()) {
@@ -39,7 +34,6 @@ object SelectionSourceMapper {
         return sb.toString()
     }
 
-    
     private fun splitSourceBlocks(md: String): List<SourceBlock> {
         val blocks = mutableListOf<SourceBlock>()
         val cur = mutableListOf<String>()
@@ -84,7 +78,6 @@ object SelectionSourceMapper {
         }
     }
 
-    
     private fun hasStructure(md: String): Boolean {
         val patterns = listOf(
             Regex("(^|\\n)[^\\n]*\\|[^\\n]*\\|"),
@@ -102,7 +95,6 @@ object SelectionSourceMapper {
         return t.contains("|") && t.contains("-") && Regex("^\\|?[\\s:|-]+\\|?$").matches(t)
     }
 
-    
     private fun findTableParts(blockRaw: String): TableParts? {
         val lines = blockRaw.split("\n").filter { it.trim().isNotEmpty() }
         var i = 1
@@ -119,7 +111,6 @@ object SelectionSourceMapper {
         return null
     }
 
-    
     private fun locateCovered(units: List<Pair<String, Int>>, selSig: String): Pair<Int, Int>? {
         val concat = StringBuilder()
         val owner = mutableListOf<Int>()
@@ -139,7 +130,6 @@ object SelectionSourceMapper {
         return if (mx >= 0) mn to mx else null
     }
 
-    
     private fun extractTableRowSelection(blockRaw: String, selSig: String): String? {
         val parts = findTableParts(blockRaw) ?: return null
         val units = mutableListOf(contentSignature(parts.header) to -1)
@@ -149,7 +139,6 @@ object SelectionSourceMapper {
         return (listOf(parts.header, parts.separator) + selectedRows).joinToString("\n")
     }
 
-    
     private fun extractLineSelection(blockRaw: String, selSig: String): String? {
         val lines = blockRaw.split("\n")
         val covered = locateCovered(lines.mapIndexed { i, l -> contentSignature(l) to i }, selSig) ?: return null
@@ -157,10 +146,9 @@ object SelectionSourceMapper {
         return if (selected.isNotEmpty() && hasStructure(selected)) selected else null
     }
 
-    
     private fun refineSingleBlock(blockRaw: String, selSig: String): String? {
         if (Regex("(?m)^\\s*(```|~~~)").containsMatchIn(blockRaw)) {
-            
+
             return blockRaw.trim()
         }
         return extractTableRowSelection(blockRaw, selSig) ?: extractLineSelection(blockRaw, selSig)

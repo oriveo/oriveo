@@ -97,9 +97,9 @@ class CostSummaryCalculatorTest {
 
         assertEquals(4.4, summary.totalCost, 0.00001)
         assertEquals(3, summary.providers.size)
-        
+
         assertEquals("relay-b", summary.providers[0].providerID)
-        
+
         assert(summary.providers[0].displayName.contains("api.proxy.example.com"))
         assertEquals("relay-a", summary.providers[1].providerID)
         assertEquals("My Relay", summary.providers[1].displayName)

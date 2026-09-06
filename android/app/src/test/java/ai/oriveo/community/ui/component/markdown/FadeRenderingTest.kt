@@ -7,18 +7,15 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-
 class FadeRenderingTest {
 
     private val base = Color.Black
-
-    
 
     @Test
     fun `ledger never lets alpha regress`() {
         val ledger = FadeAlphaLedger()
         assertEquals(200, ledger.clamp(0, 200))
-        
+
         assertEquals(200, ledger.clamp(0, 120))
         assertEquals(255, ledger.clamp(0, 255))
         assertEquals(255, ledger.clamp(0, 0))
@@ -48,11 +45,9 @@ class FadeRenderingTest {
         assertEquals(240, ledger.clamp(2, 100))
     }
 
-    
-
     @Test
     fun `styled run fades with its own color and background`() {
-        
+
         val codeFg = Color.Red
         val codeBg = Color.Yellow
         val src = buildAnnotatedString {
@@ -63,10 +58,10 @@ class FadeRenderingTest {
         val out = composeFadedSpans(src, base, alphas, firstUnsettled = 1)
 
         val fadeSpans = out.spanStyles.drop(src.spanStyles.size)
-        
+
         val plain = fadeSpans.first { it.start == 1 && it.end == 2 }
         assertEquals(base.copy(alpha = 128 / 255f), plain.item.color)
-        
+
         val code = fadeSpans.first { it.start == 2 && it.end == 4 }
         assertEquals(codeFg.copy(alpha = codeFg.alpha * (128 / 255f)), code.item.color)
         assertEquals(codeBg.copy(alpha = codeBg.alpha * (128 / 255f)), code.item.background)
@@ -91,7 +86,7 @@ class FadeRenderingTest {
         val alphas = intArrayOf(100, 100, 100, 100, 100, 100)
         val out = composeFadedSpans(src, base, alphas, firstUnsettled = 0)
         val fadeSpans = out.spanStyles.drop(src.spanStyles.size)
-        
+
         assertEquals(3, fadeSpans.size)
         assertTrue(fadeSpans.any { it.start == 0 && it.end == 2 })
         assertTrue(fadeSpans.any { it.start == 2 && it.end == 4 })

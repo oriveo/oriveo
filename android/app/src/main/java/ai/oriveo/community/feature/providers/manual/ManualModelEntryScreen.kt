@@ -92,7 +92,6 @@ import ai.oriveo.community.ui.theme.OriveoGradients
 import ai.oriveo.community.ui.theme.OriveoTheme
 import org.koin.androidx.compose.koinViewModel
 
-
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun ManualModelEntryScreen(
@@ -252,7 +251,7 @@ private fun SpotlightHero(
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            
+
             Text(
                 text = "${provider.displayName} · ${providerKindLabel(provider)}",
                 style = OriveoTheme.typography.caption,
@@ -270,7 +269,6 @@ private fun SpotlightHero(
                 color = colors.textPrimary,
             )
 
-            
             Box(
                 modifier = Modifier
                     .width(36.dp)
@@ -280,7 +278,6 @@ private fun SpotlightHero(
 
             Spacer(modifier = Modifier.height(2.dp))
 
-            
             Text(
                 text = stringResource(
                     if (isRelayMode) R.string.enter_a_model_id_relay_supports
@@ -302,7 +299,6 @@ private fun providerKindLabel(provider: Provider): String {
         provider.kind.displayName
     }
 }
-
 
 @Composable
 private fun SectionCaps(text: String, modifier: Modifier = Modifier) {
@@ -389,7 +385,6 @@ private fun UnderlineInputSection(
                 }
             }
 
-            
             AnimatedUnderline(isFocused = isFocused)
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -419,14 +414,14 @@ private fun AnimatedUnderline(isFocused: Boolean) {
         .fillMaxWidth()
         .height(2.5.dp),
     ) {
-        
+
         Box(modifier = Modifier
             .fillMaxWidth()
             .height(1.5.dp)
             .background(colors.border)
             .align(Alignment.BottomCenter),
         )
-        
+
         Box(modifier = Modifier
             .fillMaxWidth(widthFraction)
             .height(2.5.dp)
@@ -544,7 +539,6 @@ private fun PreviewCard(provider: Provider, modelID: String) {
     val isDark = OriveoTheme.isDark
     val shape = RoundedCornerShape(18.dp)
 
-    
     val defaultCapabilities = ProviderRepository.DEFAULT_MANUAL_MODEL_CAPABILITIES
 
     Column(
@@ -585,7 +579,6 @@ private fun PreviewCard(provider: Provider, modelID: String) {
             SectionCaps(text = stringResource(R.string.will_be_added))
         }
 
-        
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -609,7 +602,6 @@ private fun PreviewCard(provider: Provider, modelID: String) {
             )
         }
 
-        
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             SectionCaps(text = stringResource(R.string.default_capabilities_label))
             FlowRow(

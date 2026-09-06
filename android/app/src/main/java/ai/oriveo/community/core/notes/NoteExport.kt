@@ -3,7 +3,6 @@ package ai.oriveo.community.core.notes
 import ai.oriveo.community.core.model.Note
 import ai.oriveo.community.core.model.NoteCaptureKind
 
-
 object NoteExport {
 
     private val ILLEGAL_FILENAME = Regex("[/\\\\:*?\"<>|]+")

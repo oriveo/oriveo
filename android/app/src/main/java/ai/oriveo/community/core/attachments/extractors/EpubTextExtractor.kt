@@ -10,7 +10,6 @@ import java.io.ByteArrayInputStream
 import java.util.zip.ZipInputStream
 import javax.xml.parsers.SAXParserFactory
 
-
 object EpubTextExtractor {
 
     fun extract(data: ByteArray): String {

@@ -18,7 +18,6 @@ fun UiText.resolve(context: Context): String = when (this) {
     is UiText.Resource -> context.getString(resId, *args.toTypedArray())
 }
 
-
 enum class GlobalToastStyle {
     Success,
     Error,
@@ -26,12 +25,10 @@ enum class GlobalToastStyle {
     Neutral,
 }
 
-
 data class GlobalToastAction(
     val label: UiText,
     val onClick: () -> Unit,
 )
-
 
 data class GlobalSnackbarMessage(
     val message: UiText,

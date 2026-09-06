@@ -116,20 +116,17 @@ import ai.oriveo.community.ui.theme.modelControlTextButtonColors
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-
 internal sealed interface ModelControlsRoute {
     data object ModelBehavior : ModelControlsRoute
 
     data class SupportedModels(val capability: String) : ModelControlsRoute
 }
 
-
 private data class CapabilityExplanation(
     val capability: String,
     val message: String,
     val escape: ModelControlCapabilityEscape,
 )
-
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -146,7 +143,7 @@ internal fun ModelControlsEntrySheet(
     reasoningIntent: String?,
     customOwners: Set<String>,
     generationOverrideCount: Int,
-    
+
     onSelectionChange: (CapabilityWebPreference, String?, Boolean) -> Unit,
     onPersist: (CapabilityPreferenceValues) -> Unit,
     onPromoteToModelDefault: (CapabilityPreferenceValues) -> Unit,
@@ -160,11 +157,9 @@ internal fun ModelControlsEntrySheet(
     val colors = OriveoTheme.colors
     ModalBottomSheet(
         onDismissRequest = onDismiss,
-        
-        
+
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-        
-        
+
         containerColor = colors.background,
         contentColor = colors.textPrimary,
         contentWindowInsets = { WindowInsets(0) },
@@ -172,8 +167,7 @@ internal fun ModelControlsEntrySheet(
         if (provider == null || model == null) {
             ModelControlsMissingModelPanel(
                 providerName = provider?.displayName,
-                
-                
+
                 onChooseConnection = { onDismiss(); onNavigateToProviderSetup() },
                 onClose = onDismiss,
             )
@@ -203,7 +197,6 @@ internal fun ModelControlsEntrySheet(
         }
     }
 }
-
 
 @Composable
 private fun ModelControlsMissingModelPanel(
@@ -255,7 +248,6 @@ private fun ModelControlsMissingModelPanel(
     }
 }
 
-
 @Composable
 private fun ModelControlsScaffold(
     onClose: () -> Unit,
@@ -298,11 +290,11 @@ private fun ModelControlsPanel(
     val metadata = MetadataClient.instance
 
     var route by remember { mutableStateOf<ModelControlsRoute?>(null) }
-    
+
     var routeOrigin by remember { mutableStateOf<ModelControlsRoute?>(null) }
-    
+
     var routeIsForward by remember { mutableStateOf(true) }
-    
+
     var behaviorSubPageOpen by remember { mutableStateOf(false) }
 
     fun openRoute(next: ModelControlsRoute) {
@@ -318,13 +310,13 @@ private fun ModelControlsPanel(
     }
 
     var explanation by remember { mutableStateOf<CapabilityExplanation?>(null) }
-    
+
     var refreshedIdentity by remember(provider.id, model.id, metadataRevision) {
         mutableStateOf<ModelControlRuntimeIdentity?>(null)
     }
     var isRefreshingRuntime by remember { mutableStateOf(false) }
     var runtimeRefreshFailed by remember { mutableStateOf(false) }
-    
+
     var showsScopeUpgrade by remember { mutableStateOf(false) }
     var scopeUpgradeConfirmed by remember { mutableStateOf(false) }
     var scopeUpgradeConfirmations by remember { mutableIntStateOf(0) }
@@ -354,7 +346,7 @@ private fun ModelControlsPanel(
     val activeGenerationProfile = remember(provider, model, metadataRevision) {
         GenerationParameterAvailability.profile(provider, model)
     }
-    
+
     val hasSafeCustomSchema = remember(provider, model, customTransport, activeGenerationProfile, metadataRevision) {
         modelControlOwnerOrder.any { owner ->
             customTransport != null && capabilityCustomFragmentAvailable(
@@ -375,7 +367,6 @@ private fun ModelControlsPanel(
     fun presentation(capability: String): CapabilityControlPresentation =
         presentations[capability] ?: CapabilityControlPresentation.Unknown
 
-    
     val webIntents = remember(provider, model, finalTransport, metadataRevision, capabilityObservationRevision) {
         val control = finalTransport
             ?.let { metadata.capabilityControlPresentation(provider.kind, model.id, it)["web"] }
@@ -387,7 +378,6 @@ private fun ModelControlsPanel(
 
     fun isCustomActive(owner: String): Boolean = owner in customOwners
 
-    
     val candidatesByCapability = remember(provider, metadataRevision, capabilityObservationRevision) {
         val resolver = ChatModelCapabilityResolver()
         modelControlOwnerOrder.associateWith { resolver.supportedModelCandidates(provider, it) }
@@ -402,17 +392,12 @@ private fun ModelControlsPanel(
         identity != null && owner != "generation" &&
             ModelControlRejectionCache.isRejectedByAnySource(identity, owner)
 
-    
     fun persist(nextWeb: CapabilityWebPreference, nextIntent: String?) {
-        
-        
+
         scopeUpgradeConfirmed = false
-        
-        
+
         val clamped = ModelControlWebLayout.clamp(nextWeb, presentation("web"), webIntents)
-        
-        
-        
+
         onSelectionChange(
             clamped,
             nextIntent,
@@ -420,8 +405,7 @@ private fun ModelControlsPanel(
         )
         if (!editability.canPersist || identity == null) return
         onPersist(CapabilityPreferenceValues(clamped, nextIntent))
-        
-        
+
         if (!showsScopeUpgrade) showsScopeUpgrade = true
     }
 
@@ -432,7 +416,6 @@ private fun ModelControlsPanel(
         scopeUpgradeConfirmations += 1
     }
 
-    
     LaunchedEffect(scopeUpgradeConfirmations) {
         if (scopeUpgradeConfirmations == 0) return@LaunchedEffect
         delay(3_000)
@@ -442,8 +425,6 @@ private fun ModelControlsPanel(
         }
     }
 
-    
-    
     val noCandidatesSentence = stringResource(R.string.model_control_no_supported_models)
     fun presentExplanation(capability: String, message: String, escape: ModelControlCapabilityEscape) {
         var body = message
@@ -495,22 +476,15 @@ private fun ModelControlsPanel(
         )
     }
 
-    
     val reduceMotion = remember(context) { isReduceMotionEnabled(context) }
     val pageMillis = OriveoMotion.modelControlPageMillis(reduceMotion)
     val layoutDirection = LocalLayoutDirection.current
-    
-    
-    
-    
-    
+
     BackHandler(enabled = route != null && !behaviorSubPageOpen) { popRoute() }
     ModelControlsScaffold(
         onClose = onDismiss,
         bottomExtra = {
-            
-            
-            
+
             AnimatedVisibility(
                 visible = showsScopeUpgrade && route == null,
                 enter = fadeIn(tween(pageMillis)),
@@ -526,11 +500,9 @@ private fun ModelControlsPanel(
         AnimatedContent(
             targetState = route,
             transitionSpec = {
-                
-                
+
                 val forward = routeIsForward
-                
-                
+
                 val direction = if (layoutDirection == LayoutDirection.Rtl) -1 else 1
                 val slide = tween<IntOffset>(pageMillis)
                 val fade = tween<Float>(pageMillis)
@@ -546,8 +518,7 @@ private fun ModelControlsPanel(
             },
             label = "model-controls-page",
         ) { current ->
-            
-            
+
             key(current) {
                 when (current) {
                     null -> {
@@ -559,8 +530,7 @@ private fun ModelControlsPanel(
                                 .padding(top = 14.dp, bottom = 32.dp),
                             verticalArrangement = Arrangement.spacedBy(24.dp),
                         ) {
-                            
-                            
+
                             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     ProviderBadgeIcon(
@@ -585,9 +555,7 @@ private fun ModelControlsPanel(
                                     ),
                                     color = colors.textSecondary,
                                 )
-                                
-                                
-                                
+
                             }
 
                             readOnlyReasonRes?.let { reasonRes ->
@@ -596,8 +564,7 @@ private fun ModelControlsPanel(
                                     verticalArrangement = Arrangement.spacedBy(12.dp),
                                 ) {
                                     ModelControlNote(reasonRes, Icons.Outlined.Lock)
-                                    
-                                    
+
                                     when (editability) {
                                         ModelControlsEditability.RuntimeIdentityUnavailable ->
                                             when (identityGap.recoveryAction) {
@@ -623,7 +590,7 @@ private fun ModelControlsPanel(
                                                         },
                                                     )
                                                     if (runtimeRefreshFailed) {
-                                                        
+
                                                         ModelControlNote(R.string.model_control_refresh_failed)
                                                     }
                                                 }
@@ -649,7 +616,6 @@ private fun ModelControlsPanel(
                                 }
                             }
 
-                            
                             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                                 ModelControlWebCard(
                                     status = presentation("web"),
@@ -684,13 +650,12 @@ private fun ModelControlsPanel(
                                 ModelControlNavigationRow(
                                     icon = Icons.Outlined.Tune,
                                     title = stringResource(R.string.generation_model_behavior),
-                                    
+
                                     subtitle = stringResource(R.string.model_control_advanced_settings_subtitle),
                                     trailingText = generationOverrideCount
                                         .takeIf { it > 0 }
                                         ?.let { stringResource(R.string.model_control_behavior_adjusted, it) },
-                                    
-                                    
+
                                     badge = modelControlBadge(
                                         ModelControlBadgeClassification.advancedSettingsCard(
                                             presentation("generation"),
@@ -706,8 +671,7 @@ private fun ModelControlsPanel(
                         provider = provider,
                         capability = current.capability,
                         candidates = candidates(current.capability),
-                        
-                        
+
                         onBack = ::popRoute,
                         onSelect = { candidate ->
                             onSelectModel(provider.id, candidate.id)
@@ -715,24 +679,17 @@ private fun ModelControlsPanel(
                         },
                     )
                     ModelControlsRoute.ModelBehavior -> Column(modifier = Modifier.fillMaxSize()) {
-                        
-                        
-                        
-                        
+
                         val notifyAdvancedSettingsClosed by rememberUpdatedState(onAdvancedSettingsClosed)
                         DisposableEffect(Unit) { onDispose { notifyAdvancedSettingsClosed() } }
-                        
-                        
+
                         if (!behaviorSubPageOpen) {
                             ModelControlsPageHeader(
                                 title = stringResource(R.string.generation_model_behavior),
                                 onBack = ::popRoute,
                             )
                         }
-                        
-                        
-                        
-                        
+
                         val headerEntries = ModelControlCapabilityFooter.entries(
                             ModelControlCapabilityFooter.Input(
                                 context = ModelControlCapabilityFooter.Context.BehaviorPageHeader,
@@ -748,24 +705,20 @@ private fun ModelControlsPanel(
                                 hasSupportedModelCandidates = modelControlShowsSupportedModelsAction(
                                     presentation("generation"),
                                 ) && candidates("generation").isNotEmpty(),
-                                
+
                                 showsAdvancedSettingsAction = false,
                             ),
                         )
-                        
-                        
-                        
+
                         GenerationParameterDefaultsSheet(
                             provider = provider,
                             initialModelId = model.id,
                             conversationId = conversationId,
-                            
-                            
+
                             modifier = Modifier.weight(1f).padding(bottom = 24.dp),
-                            
-                            
+
                             isReadOnly = !editability.canPersist,
-                            
+
                             containerProvidesTitle = true,
                             onSubPageVisibleChange = { behaviorSubPageOpen = it },
                             capabilityHeader = if (headerEntries.isEmpty()) {
@@ -779,8 +732,7 @@ private fun ModelControlsPanel(
                                     )
                                 }
                             },
-                            
-                            
+
                             onSelectCandidateModel = { candidate ->
                                 onSelectModel(provider.id, candidate.id)
                                 onDismiss()
@@ -792,7 +744,6 @@ private fun ModelControlsPanel(
         }
     }
 }
-
 
 @Composable
 private fun ModelControlsPageHeader(title: String, onBack: () -> Unit) {
@@ -814,7 +765,6 @@ private fun ModelControlsPageHeader(title: String, onBack: () -> Unit) {
     }
 }
 
-
 @Composable
 private fun CapabilitySupportedModelsPage(
     provider: Provider,
@@ -830,11 +780,7 @@ private fun CapabilitySupportedModelsPage(
             title = stringResource(modelControlCapabilityTitleRes(capability)),
             onBack = onBack,
         )
-        
-        
-        
-        
-        
+
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 28.dp),
@@ -908,9 +854,7 @@ private const val SupportedModelsNoteContentType = "supported_models_note"
 private const val SupportedModelsRowContentType = "supported_models_row"
 private val SupportedModelsCardRadius = 20.dp
 
-
 private val SupportedModelsShadowInset = 28.dp
-
 
 @Composable
 private fun Modifier.supportedModelsRowSurface(isFirst: Boolean, isLast: Boolean): Modifier {
@@ -966,7 +910,6 @@ private data class SupportedModelsShadowShape(
     }
 }
 
-
 @Composable
 private fun ModelControlWebCard(
     status: CapabilityControlPresentation,
@@ -1000,8 +943,7 @@ private fun ModelControlWebCard(
         toggle = layout.isOn.takeIf { layout.form == ModelControlWebLayout.Form.Toggle },
         onToggle = if (layout.form == ModelControlWebLayout.Form.Toggle) {
             { enabled ->
-                
-                
+
                 onSelect(if (enabled) CapabilityWebPreference.Automatic else CapabilityWebPreference.Off)
             }
         } else {
@@ -1040,7 +982,7 @@ private fun ModelControlWebCard(
                     showsSupportedModelsAction = modelControlShowsSupportedModelsAction(status),
                     hasSupportedModelCandidates = modelControlShowsSupportedModelsAction(status) && hasCandidates,
                     showsAdvancedSettingsAction = overridden,
-                    
+
                     statusRowEscape = if (layout.form == ModelControlWebLayout.Form.StatusRow) {
                         layout.escape
                     } else {
@@ -1088,10 +1030,10 @@ private fun ModelControlReasoningCard(
         when (layout.form) {
             ModelControlReasoningLayout.Form.PillRow -> {
                 ModelControlIntentPicker(options = layout.options, selection = layout.selection) { intent ->
-                    
+
                     onSelect(intent.takeIf { it != ModelControlReasoningLayout.AUTOMATIC_INTENT })
                 }
-                
+
                 layout.selectedAnnotationRes?.let { ModelControlNote(it) }
             }
             ModelControlReasoningLayout.Form.StatusRow -> ModelControlStatusRowFor(
@@ -1129,7 +1071,6 @@ private fun ModelControlReasoningCard(
     }
 }
 
-
 @Composable
 private fun ModelControlStatusRowFor(
     capability: String,
@@ -1146,7 +1087,6 @@ private fun ModelControlStatusRowFor(
     )
 }
 
-
 @Composable
 private fun ModelControlCapabilityFooterView(
     capability: String,
@@ -1162,7 +1102,7 @@ private fun ModelControlCapabilityFooterView(
                     textRes = entry.textRes,
                     icon = entry.icon?.let(::modelControlNoteIcon),
                     tone = when (entry.tone) {
-                        
+
                         ModelControlCapabilityFooter.Tone.Tertiary -> colors.textSecondary
                         ModelControlCapabilityFooter.Tone.Warning -> colors.warningText
                     },
@@ -1190,7 +1130,6 @@ private fun modelControlNoteIcon(icon: ModelControlCapabilityFooter.NoteIcon): I
     ModelControlCapabilityFooter.NoteIcon.Privacy -> Icons.Filled.PanTool
     ModelControlCapabilityFooter.NoteIcon.Cost -> Icons.Filled.CreditCard
 }
-
 
 @Composable
 private fun modelControlBadge(
@@ -1224,7 +1163,4 @@ private fun subjectSubtitle(
     return parts.joinToString(" · ")
 }
 
-
 internal val modelControlOwnerOrder: List<String> = listOf("web", "reasoning", "generation")
-
-

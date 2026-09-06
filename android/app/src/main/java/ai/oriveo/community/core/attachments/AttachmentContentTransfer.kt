@@ -5,10 +5,8 @@ import ai.oriveo.community.core.model.AttachmentKind
 import ai.oriveo.community.core.model.ChatMessage
 import java.util.Base64
 
-
 object AttachmentHydrator {
 
-    
     suspend fun hydrate(
         messages: List<ChatMessage>,
         loadImageBase64: suspend (String) -> String?,
@@ -43,11 +41,7 @@ object AttachmentHydrator {
             }
             AttachmentKind.File -> {
                 when {
-                    
-                    
-                    
-                    
-                    
+
                     attachment.base64Data == null -> {
                         val base64 = loadBlobBase64(ref) ?: return attachment
                         attachment.copy(base64Data = base64)
@@ -66,10 +60,8 @@ object AttachmentHydrator {
 
 object AttachmentSlimmer {
 
-    
     const val RAW_FILE_TEXT_THRESHOLD_CHARS = 400_000
 
-    
     suspend fun slim(
         attachment: Attachment,
         saveImage: suspend (ByteArray) -> String,
@@ -88,9 +80,7 @@ object AttachmentSlimmer {
     private suspend fun slimImage(attachment: Attachment, saveImage: suspend (ByteArray) -> String): Attachment {
         val base64 = attachment.base64Data
         if (base64.isNullOrEmpty()) return attachment
-        
-        
-        
+
         if (!attachment.localImageId.isNullOrBlank()) {
             return attachment.copy(base64Data = null)
         }
@@ -98,12 +88,6 @@ object AttachmentSlimmer {
         val localId = runCatching { saveImage(bytes) }.getOrNull() ?: return attachment
         return attachment.copy(base64Data = null, localImageId = localId)
     }
-
-    
-    
-    
-    
-    
 
     private suspend fun slimVideo(attachment: Attachment, saveBlob: suspend (ByteArray) -> String): Attachment {
         val base64 = attachment.base64Data
@@ -116,7 +100,6 @@ object AttachmentSlimmer {
     private suspend fun slimFile(attachment: Attachment, saveBlob: suspend (ByteArray) -> String): Attachment {
         var result = attachment
 
-        
         val original = result.originalBase64Data
         if (!original.isNullOrEmpty()) {
             val bytes = decode(original)
@@ -132,7 +115,6 @@ object AttachmentSlimmer {
             }
         }
 
-        
         val inline = result.base64Data
         if (!inline.isNullOrEmpty() && inline.length > RAW_FILE_TEXT_THRESHOLD_CHARS) {
             val bytes = decode(inline)

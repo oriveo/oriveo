@@ -16,7 +16,6 @@ import androidx.compose.ui.platform.TextToolbarStatus
 import androidx.compose.ui.res.stringResource
 import ai.oriveo.community.R
 
-
 internal class NoteSelectionTextToolbar(
     private val view: View,
     addToNoteLabel: String,
@@ -38,9 +37,7 @@ internal class NoteSelectionTextToolbar(
         onAsk = ::askSelection,
         onReplaceCurrentNote = ::replaceCurrentNote,
         onActionModeDestroy = { destroyed ->
-            
-            
-            
+
             if (destroyed === actionMode) {
                 actionMode = null
                 statusField = TextToolbarStatus.Hidden
@@ -72,7 +69,7 @@ internal class NoteSelectionTextToolbar(
         if (mode == null) {
             actionMode = view.startActionMode(callback, ActionMode.TYPE_FLOATING)
         } else {
-            
+
             mode.invalidateContentRect()
             mode.invalidate()
         }
@@ -85,7 +82,6 @@ internal class NoteSelectionTextToolbar(
         actionMode = null
     }
 
-    
     private fun addSelectionToNote() {
         captureSelection(onSaveSelection)
     }
@@ -95,7 +91,6 @@ internal class NoteSelectionTextToolbar(
         captureSelection(ask)
     }
 
-    
     private fun replaceCurrentNote() {
         val replace = onReplaceSelection ?: return
         captureSelection(replace)
@@ -103,7 +98,7 @@ internal class NoteSelectionTextToolbar(
 
     private fun captureSelection(action: (String) -> Unit) {
         callback.onCopyRequested?.invoke()
-        
+
         val selected = readPrimaryClipText()?.trim()
         if (!selected.isNullOrBlank()) {
             action(selected)
@@ -116,13 +111,11 @@ internal class NoteSelectionTextToolbar(
         val clip = clipboard.primaryClip ?: return null
         if (clip.itemCount == 0) return null
         val item = clip.getItemAt(0) ?: return null
-        
-        
+
         item.text?.let { return it.toString() }
         return item.coerceToText(view.context)?.toString()
     }
 }
-
 
 private class NoteSelectionActionModeCallback(
     private val addToNoteLabel: String,
@@ -160,7 +153,7 @@ private class NoteSelectionActionModeCallback(
             menu.add(GROUP_ADD_TO_NOTE, ID_ASK, ORDER_ASK, askLabel)
                 .setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS or MenuItem.SHOW_AS_ACTION_WITH_TEXT)
         }
-        
+
         menu.add(GROUP_ADD_TO_NOTE, ID_ADD_TO_NOTE, ORDER_ADD_TO_NOTE, addToNoteLabel)
             .setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS or MenuItem.SHOW_AS_ACTION_WITH_TEXT)
         if (replaceCurrentNoteLabel != null) {
@@ -172,14 +165,14 @@ private class NoteSelectionActionModeCallback(
     }
 
     override fun onPrepareActionMode(mode: ActionMode, menu: Menu): Boolean {
-        
+
         menu.removeGroup(GROUP_STANDARD)
         addStandardItems(menu)
         return true
     }
 
     private fun addStandardItems(menu: Menu) {
-        
+
         if (onCopyRequested != null) {
             menu.add(GROUP_STANDARD, ID_COPY, ORDER_COPY, android.R.string.copy)
                 .setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS or MenuItem.SHOW_AS_ACTION_WITH_TEXT)
@@ -206,7 +199,7 @@ private class NoteSelectionActionModeCallback(
             ID_COPY -> onCopyRequested?.invoke()
             ID_PASTE -> onPasteRequested?.invoke()
             ID_CUT -> onCutRequested?.invoke()
-            
+
             ID_SELECT_ALL -> {
                 onSelectAllRequested?.invoke()
                 return true
@@ -251,7 +244,6 @@ private class NoteSelectionActionModeCallback(
         const val ORDER_SELECT_ALL = 6
     }
 }
-
 
 @Composable
 internal fun rememberNoteSelectionTextToolbar(

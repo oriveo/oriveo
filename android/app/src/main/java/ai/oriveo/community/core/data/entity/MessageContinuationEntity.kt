@@ -3,7 +3,6 @@ package ai.oriveo.community.core.data.entity
 import androidx.room.Entity
 import androidx.room.Index
 
-
 @Entity(
     tableName = "message_continuations",
     primaryKeys = ["accountId", "messageId"],

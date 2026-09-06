@@ -49,7 +49,6 @@ import ai.oriveo.community.ui.component.OriveoPrimaryButton
 import ai.oriveo.community.ui.component.OriveoSecondaryButton
 import ai.oriveo.community.ui.theme.OriveoTheme
 
-
 @Composable
 internal fun RelayAdvancedSettingsSheet(
     provider: Provider,
@@ -91,12 +90,11 @@ internal fun RelayAdvancedSettingsSheet(
     var showKindPicker by remember(provider.id) { mutableStateOf(false) }
     var showAdvancedHttp by remember(provider.id) { mutableStateOf(false) }
     var showDiscardDialog by remember(provider.id) { mutableStateOf(false) }
-    
-    
+
     var streamTouched by remember(provider.id, provider.relayRequested) {
         mutableStateOf(provider.relayRequested?.stream != null)
     }
-    
+
     val origRequested = remember(provider.id, provider.relayRequested) { initialRequested }
     val origEndpoint = remember(provider.id, provider.baseUrlText) { provider.baseUrlText.orEmpty() }
     val origHeaders = remember(provider.id, provider.relayRequested) { initialRequested.headers.orEmpty() }
@@ -109,10 +107,7 @@ internal fun RelayAdvancedSettingsSheet(
         !relayRequestedMatchesPersisted(draftKind, origRequested, draftRequested) ||
         headers != origHeaders ||
         queryParams != origQueryParams
-    
-    
-    
-    
+
     val formDraft = RelayFormDraft(
         requested = draftRequested.copy(
             headers = headers.cleanRelayAdvancedPairs(),
@@ -141,8 +136,7 @@ internal fun RelayAdvancedSettingsSheet(
         relayRequested = draftRequested,
         baseUrlText = normalizedDraftEndpoint ?: draftEndpoint,
     )
-    
-    
+
     val hasCredentialMaterial = RelayEndpointPolicy.hasCredentialMaterial(
         requested = initialRequested.copy(
             headers = (initialRequested.headers.orEmpty() + headers).ifEmpty { null },
@@ -222,18 +216,17 @@ internal fun RelayAdvancedSettingsSheet(
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(spacing.lg),
     ) {
-        
+
         RelayEditorHeroCard(
             displayName = provider.displayName,
             endpointText = draftEndpoint.trim().ifEmpty { provider.baseUrlText.orEmpty() }.takeIf { it.isNotBlank() },
             relayKind = draftKind,
             status = provider.status,
             onChangeKind = { showKindPicker = !showKindPicker },
-            
+
             onEditName = null,
         )
 
-        
         if (showKindPicker) {
             RelayKindPicker(
                 selectedKind = draftKind,
@@ -247,7 +240,6 @@ internal fun RelayAdvancedSettingsSheet(
             )
         }
 
-        
         if (suggestedKind != null) {
             RelayKindSuggestionBanner(
                 suggestedKind = suggestedKind,
@@ -262,7 +254,6 @@ internal fun RelayAdvancedSettingsSheet(
             )
         }
 
-        
         RelayEditConnectionCard(
             endpoint = draftEndpoint,
             onEndpointChange = {
@@ -271,7 +262,7 @@ internal fun RelayAdvancedSettingsSheet(
                 viewModel.invalidateRelayConnectionTest()
             },
             apiKeyPreview = provider.apiKeyPreview,
-            
+
             requiresCredential = draftRequested.requiresCredential,
             securityMode = draftRequested.securityMode,
             hasCredentialMaterial = hasCredentialMaterial,
@@ -309,7 +300,7 @@ internal fun RelayAdvancedSettingsSheet(
                     headers = emptyList()
                     queryParams = emptyList()
                 }
-                
+
                 viewModel.changeRelaySecurityMode(provider, mode, effectiveEndpoint)
             },
             onTestConnection = {
@@ -418,7 +409,7 @@ internal fun RelayAdvancedSettingsSheet(
         val showsAdvanced = draftKind == RelayKind.Custom
 
         if (showsAdvanced) {
-            
+
             Column(verticalArrangement = Arrangement.spacedBy(spacing.sm)) {
                 RelayGroupHeader(
                     title = stringResource(R.string.relay_section_protocol),
@@ -457,7 +448,6 @@ internal fun RelayAdvancedSettingsSheet(
                 }
             }
 
-            
             Column(verticalArrangement = Arrangement.spacedBy(spacing.sm)) {
                 RelayGroupHeader(
                     title = stringResource(R.string.relay_section_request_behavior),
@@ -510,7 +500,6 @@ internal fun RelayAdvancedSettingsSheet(
                 }
             }
 
-            
             if (draftRequested.transport == RelayTransport.OpenAIResponses) {
                 RelayWebSearchToolNameCard(
                     selected = draftRequested.webSearchToolName ?: RelayWebSearchToolName.WebSearch,
@@ -523,7 +512,6 @@ internal fun RelayAdvancedSettingsSheet(
                 )
             }
 
-            
             RelayAdvancedHttpDisclosure(
                 expanded = showAdvancedHttp,
                 onToggle = { showAdvancedHttp = !showAdvancedHttp },
@@ -544,7 +532,7 @@ internal fun RelayAdvancedSettingsSheet(
                 },
             )
         } else {
-            
+
             RelayPresetModeInfoCard(
                 relayKind = draftKind,
                 onClick = { showKindPicker = !showKindPicker },
@@ -568,7 +556,7 @@ internal fun RelayAdvancedSettingsSheet(
                 ),
                 enabled = canSave && !viewModel.isSavingRelaySettings,
                 onClick = {
-                    
+
                     val resolvedStream: Boolean? = if (streamTouched) draftRequested.stream else origRequested.stream
                     val normalizedRequested = draftRequested.copy(
                         modelID = draftRequested.modelID?.trim()?.takeIf { it.isNotEmpty() },

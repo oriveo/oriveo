@@ -15,7 +15,6 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import ai.oriveo.community.ui.theme.OriveoTheme
 
-
 @Composable
 fun ProvidersScreenBackground(modifier: Modifier = Modifier) {
     val isDark = OriveoTheme.isDark
@@ -31,7 +30,7 @@ fun ProvidersScreenBackground(modifier: Modifier = Modifier) {
             ),
         )
     } else {
-        
+
         Brush.verticalGradient(
             colors = listOf(
                 Color(0xFFFDFCFF),
@@ -41,15 +40,11 @@ fun ProvidersScreenBackground(modifier: Modifier = Modifier) {
         )
     }
 
-    
-    
     val topGlowAlpha = if (isDark) 0.06f else 0.10f
     val topGlowSize = if (isDark) 600.dp else 580.dp
     val topGlowRadius = if (isDark) 400.dp else 440.dp
     val topGlowOffsetY = if (isDark) (-400).dp else (-360).dp
 
-    
-    
     val bottomGlowAlpha = if (isDark) 0.05f else 0.08f
     val bottomGlowSize = if (isDark) 560.dp else 540.dp
     val bottomGlowRadius = if (isDark) 380.dp else 420.dp
@@ -62,7 +57,6 @@ fun ProvidersScreenBackground(modifier: Modifier = Modifier) {
                 .background(baseBrush),
         )
 
-        
         Box(
             modifier = Modifier
                 .size(topGlowSize)
@@ -80,7 +74,6 @@ fun ProvidersScreenBackground(modifier: Modifier = Modifier) {
                 ),
         )
 
-        
         Box(
             modifier = Modifier
                 .size(bottomGlowSize)

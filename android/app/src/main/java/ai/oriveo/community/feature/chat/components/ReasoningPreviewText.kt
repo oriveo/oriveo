@@ -1,25 +1,19 @@
 package ai.oriveo.community.feature.chat.components
 
-
 private const val PREVIEW_MAX_CHARACTERS = 40
-
 
 private const val PREVIEW_SCAN_WINDOW = 160
 
-
 private const val PREVIEW_SOURCE_LIMIT = 1024
-
 
 internal fun reasoningTail(text: String): String {
     if (text.isEmpty()) return ""
     val source = if (text.length > PREVIEW_SOURCE_LIMIT) text.takeLast(PREVIEW_SOURCE_LIMIT) else text
 
-    
     var end = source.length
     while (end > 0 && source[end - 1].isWhitespace()) end--
     if (end == 0) return ""
 
-    
     var start = end
     var scanned = 0
     var reachedLineStart = false
@@ -34,25 +28,17 @@ internal fun reasoningTail(text: String): String {
     }
     if (start == 0 && source.length == text.length) reachedLineStart = true
 
-    
     val stripped = strippingMarkers(source, start, end, reachedLineStart)
 
-    
-    
-    
-    
     if (stripped.all { it.isPreviewMarkerOnly() }) return ""
 
-    
     if (stripped.length > PREVIEW_MAX_CHARACTERS) {
         return "…" + stripped.takeLast(PREVIEW_MAX_CHARACTERS)
     }
     return if (reachedLineStart) stripped else "…$stripped"
 }
 
-
 private fun Char.isPreviewMarkerOnly(): Boolean = isWhitespace() || this in "*`~#>-+_|="
-
 
 private fun strippingMarkers(source: String, start: Int, end: Int, isLineStart: Boolean): String {
     var index = if (isLineStart) start + blockMarkerPrefixLength(source, start, end) else start
@@ -64,7 +50,7 @@ private fun strippingMarkers(source: String, start: Int, end: Int, isLineStart: 
         if (character == '*' || character == '`' || character == '~') {
             var run = 1
             while (index + run < end && source[index + run] == character) run++
-            
+
             val isEscaped = index > start && source[index - 1] == '\\'
             val isEmphasisMarker = character != '~' || run >= 2
             val attachedLeft = index > start && !source[index - 1].isWhitespace()
@@ -72,7 +58,7 @@ private fun strippingMarkers(source: String, start: Int, end: Int, isLineStart: 
             val isNumericOperator = run == 1 &&
                 index > start && source[index - 1].isDigit() &&
                 index + run < end && source[index + run].isDigit()
-            
+
             val isInlineMarker = if (character == '*' && run == 1) {
                 (!attachedLeft && attachedRight) || (attachedLeft && attachedRight && !isNumericOperator)
             } else {
@@ -103,7 +89,6 @@ private fun strippingMarkers(source: String, start: Int, end: Int, isLineStart: 
     return output.toString()
 }
 
-
 private fun blockMarkerPrefixLength(source: String, start: Int, end: Int): Int {
     fun skippingWhitespace(from: Int): Int {
         var index = from
@@ -111,19 +96,16 @@ private fun blockMarkerPrefixLength(source: String, start: Int, end: Int): Int {
         return index - start
     }
 
-    
     var hashes = 0
     while (start + hashes < end && hashes < 6 && source[start + hashes] == '#') hashes++
     if (hashes >= 1 && start + hashes < end && source[start + hashes].isWhitespace()) {
         return skippingWhitespace(start + hashes)
     }
 
-    
     if (source[start] == '>' && start + 1 < end && source[start + 1].isWhitespace()) {
         return skippingWhitespace(start + 1)
     }
 
-    
     val first = source[start]
     if ((first == '-' || first == '*' || first == '+') &&
         start + 1 < end && source[start + 1].isWhitespace()
@@ -131,7 +113,6 @@ private fun blockMarkerPrefixLength(source: String, start: Int, end: Int): Int {
         return skippingWhitespace(start + 2)
     }
 
-    
     var digits = 0
     while (start + digits < end && source[start + digits].isDigit()) digits++
     if (digits > 0 && start + digits + 1 < end &&
@@ -142,7 +123,6 @@ private fun blockMarkerPrefixLength(source: String, start: Int, end: Int): Int {
 
     return 0
 }
-
 
 private data class LinkSpan(val textStart: Int, val textEnd: Int, val spanEnd: Int)
 

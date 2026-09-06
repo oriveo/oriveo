@@ -1,12 +1,10 @@
 package ai.oriveo.community.core.model
 
-
 import ai.oriveo.community.core.model.ProviderKind
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
-
 
 class ConversationContentEqualsTest {
 

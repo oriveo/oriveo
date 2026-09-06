@@ -5,13 +5,12 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-
 class SelectionSourceMapperTest {
 
     @Test
     fun `block math selection returns raw dollar-dollar source`() {
         val src = "Intro paragraph here.\n\n\$\$\ntan(30) = \\frac{height}{100}\n\$\$\n\nOutro paragraph."
-        
+
         val out = SelectionSourceMapper.extractSelectionMarkdown(src, "\$\$tan(30) = \\frac{height}{100}\$\$")
         assertTrue(out != null && out.contains("\$\$"))
         assertTrue(out!!.contains("\\frac{height}{100}"))

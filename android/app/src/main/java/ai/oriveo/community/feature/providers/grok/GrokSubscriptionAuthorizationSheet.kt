@@ -34,7 +34,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.VerifiedUser
 import androidx.compose.ui.res.stringResource
 
-
 @Composable
 fun GrokSubscriptionAuthorizationSheet(
     config: GrokSubscriptionAuthConfig,
@@ -46,23 +45,13 @@ fun GrokSubscriptionAuthorizationSheet(
     val spacing = OriveoTheme.spacing
     val context = LocalContext.current
 
-    
-    
-    
-    
-    
-    
     LaunchedEffect(config) { model.startIfIdle(config) }
-    
-    
 
     val phase = model.phase
     LaunchedEffect(phase) {
-        
-        
+
         (phase as? GrokSubscriptionAuthorizationModel.Phase.Succeeded)?.let { succeeded ->
-            
-            
+
             model.cancel()
             onAuthorized(succeeded.tokens)
         }
@@ -71,7 +60,7 @@ fun GrokSubscriptionAuthorizationSheet(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            
+
             .padding(start = 24.dp, end = 24.dp, top = 24.dp, bottom = 24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(spacing.md),
@@ -107,8 +96,7 @@ fun GrokSubscriptionAuthorizationSheet(
             )
 
             is GrokSubscriptionAuthorizationModel.Phase.AwaitingAuthorization -> {
-                
-                
+
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -172,8 +160,7 @@ fun GrokSubscriptionAuthorizationSheet(
                     color = colors.textSecondary,
                     textAlign = TextAlign.Center,
                 )
-                
-                
+
                 if (phase.error.allowsRetry) {
                     OriveoPrimaryButton(
                         text = stringResource(R.string.grok_subscription_try_again),
@@ -195,7 +182,6 @@ fun GrokSubscriptionAuthorizationSheet(
         )
     }
 }
-
 
 fun grokSubscriptionErrorMessageRes(error: GrokSubscriptionError): Int = when (error) {
     is GrokSubscriptionError.ClientVersionRejected,

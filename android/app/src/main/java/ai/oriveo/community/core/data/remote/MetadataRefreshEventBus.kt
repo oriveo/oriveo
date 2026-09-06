@@ -7,7 +7,6 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.onStart
 
-
 class MetadataRefreshEventBus(
     private val debounceMillis: Long = DEBOUNCE_MS,
 ) {
@@ -16,10 +15,8 @@ class MetadataRefreshEventBus(
         extraBufferCapacity = 8,
     )
 
-    
     val rawEvents = _events.asSharedFlow()
 
-    
     @OptIn(FlowPreview::class)
     val events: Flow<MetadataClient.RefreshEvent> = _events
         .let { if (debounceMillis > 0) it.debounce(debounceMillis) else it }

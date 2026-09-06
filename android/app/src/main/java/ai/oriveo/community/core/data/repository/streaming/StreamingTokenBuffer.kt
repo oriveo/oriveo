@@ -1,6 +1,5 @@
 package ai.oriveo.community.core.data.repository.streaming
 
-
 internal class StreamingTokenBuffer(initialText: String, initialReasoning: String = "") {
     private val buffer = StringBuilder()
     private val accumulated = StringBuilder(initialText)
@@ -16,7 +15,6 @@ internal class StreamingTokenBuffer(initialText: String, initialReasoning: Strin
     val accumulatedReasoningText: String get() = accumulatedReasoning.toString()
     val accumulatedTextLength: Int get() = accumulated.length
 
-    
     fun appendDelta(text: String, now: Long): Boolean {
         buffer.append(text)
         val containsNewline = text.contains("\n")
@@ -25,12 +23,8 @@ internal class StreamingTokenBuffer(initialText: String, initialReasoning: Strin
             (now - lastFlushTime) >= FLUSH_INTERVAL_MS
     }
 
-    
     fun drainTextToAccumulated(now: Long) {
-        
-        
-        
-        
+
         if (accumulated.isEmpty()) {
             var start = 0
             while (start < buffer.length && buffer[start].isWhitespace()) start++
@@ -41,7 +35,6 @@ internal class StreamingTokenBuffer(initialText: String, initialReasoning: Strin
         lastFlushTime = now
     }
 
-    
     fun appendReasoning(text: String, now: Long): Boolean {
         accumulatedReasoning.append(text)
         reasoningBuffer.append(text)
@@ -51,19 +44,15 @@ internal class StreamingTokenBuffer(initialText: String, initialReasoning: Strin
             (now - lastReasoningFlushTime) >= FLUSH_INTERVAL_MS
     }
 
-    
     fun markReasoningFlushed(now: Long) {
         reasoningBuffer.clear()
         lastReasoningFlushTime = now
     }
 
-    
     fun hasPendingText(): Boolean = buffer.isNotEmpty()
 
-    
     fun hasPendingReasoning(): Boolean = reasoningBuffer.isNotEmpty()
 
-    
     fun shouldPartialFlush(now: Long, charThreshold: Int, timeThresholdMs: Long): Boolean {
         val accumLen = accumulated.length
         return accumLen - lastPartialFlushLength >= charThreshold ||
@@ -75,16 +64,14 @@ internal class StreamingTokenBuffer(initialText: String, initialReasoning: Strin
         lastPartialFlushLength = accumulated.length
     }
 
-    
     fun clear() {
         buffer.clear()
     }
 
     companion object {
-        
+
         const val FLUSH_CHAR_THRESHOLD = 32
 
-        
         const val FLUSH_INTERVAL_MS = 40L
     }
 }

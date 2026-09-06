@@ -2,7 +2,6 @@ package ai.oriveo.community.core.attachments
 
 import ai.oriveo.community.core.model.ProviderKind
 
-
 enum class AttachmentWrapperVersion(val raw: String) {
     XmlV1("xml-v1"),
     MarkdownV1("markdown-v1");
@@ -15,7 +14,6 @@ enum class AttachmentWrapperVersion(val raw: String) {
         }
     }
 }
-
 
 object AttachmentInjector {
 
@@ -36,7 +34,6 @@ object AttachmentInjector {
         val skipped: List<SkippedAttachment>,
     )
 
-    
     private val errorInstructions = mapOf(
         ExtractionErrorCode.EncryptedPdf to
             "This file is encrypted and cannot be read. DO NOT fabricate or guess content. Tell the user the file is encrypted and ask them to decrypt it before uploading.",
@@ -56,7 +53,6 @@ object AttachmentInjector {
             "Extraction failed due to an internal error. DO NOT fabricate content. Tell the user to try again or use a different file.",
     )
 
-    
     private fun fileTypeShort(mime: String, fileName: String): String {
         return when (mime.lowercase()) {
             "application/pdf" -> "pdf"
@@ -71,8 +67,6 @@ object AttachmentInjector {
             else -> fileName.substringAfterLast('.', "").lowercase().ifEmpty { "txt" }
         }
     }
-
-    
 
     fun formatAttachmentXml(index: Int, payload: AttachmentPayload): String = buildString {
         val sizeKB = (payload.sizeBytes + 1023) / 1024
@@ -89,7 +83,7 @@ object AttachmentInjector {
         if (payload.extracted != null) {
             appendLine(payload.extracted.content)
         } else {
-            
+
             val code = payload.errorCode ?: ExtractionErrorCode.ExtractionError
             appendLine("[ERROR: extraction failed - ${code.raw}]")
             appendLine("[INSTRUCTION: ${errorInstructions[code] ?: errorInstructions[ExtractionErrorCode.ExtractionError]!!}]")
@@ -109,8 +103,6 @@ object AttachmentInjector {
         }
         append("</ATTACHMENT_FILE>")
     }
-
-    
 
     fun formatAttachmentMarkdown(index: Int, payload: AttachmentPayload): String = buildString {
         val sizeKB = (payload.sizeBytes + 1023) / 1024
@@ -139,7 +131,6 @@ object AttachmentInjector {
         append("---")
     }
 
-    
     fun formatAttachment(
         wrapper: AttachmentWrapperVersion = AttachmentWrapperVersion.XmlV1,
         index: Int,
@@ -149,7 +140,6 @@ object AttachmentInjector {
         AttachmentWrapperVersion.MarkdownV1 -> formatAttachmentMarkdown(index, payload)
     }
 
-    
     fun injectAll(
         userText: String,
         attachments: List<AttachmentPayload>,
@@ -164,14 +154,14 @@ object AttachmentInjector {
         var emittedIndex = 0
 
         for (att in attachments) {
-            
+
             if (emittedIndex >= limits.maxFiles) {
                 skipped.add(SkippedAttachment(att.fileName, SkipReason.TooManyFiles))
                 continue
             }
             val block = formatAttachment(wrapper, emittedIndex + 1, att)
             val blockBytes = block.toByteArray(Charsets.UTF_8).size
-            
+
             if (consumed + blockBytes > limits.totalCap) {
                 skipped.add(SkippedAttachment(att.fileName, SkipReason.TotalCapExceeded))
                 continue
@@ -184,6 +174,5 @@ object AttachmentInjector {
         return InjectResult(text = parts.joinToString("\n\n"), skipped = skipped)
     }
 
-    
     const val SYSTEM_PROMPT_GUIDANCE = "When the user attaches files (see <ATTACHMENT_FILE> blocks or \"## Attachment N:\" sections in the message), refer to them by file name in your response. If a file's content is an [ERROR: ...] block, do not fabricate the content — explain the error to the user and follow the embedded instruction."
 }

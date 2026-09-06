@@ -18,23 +18,20 @@ import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
-
 class OpenAISubscriptionAuthorizationModel(
     private val client: OpenAISubscriptionOAuthClient,
     private val scope: CoroutineScope,
     private val nowMillis: () -> Long = System::currentTimeMillis,
     private val sleep: suspend (Long) -> Unit = { millis -> delay(millis) },
-    
+
     private val snapshotStore: SubscriptionAuthorizationSnapshotStore =
         SubscriptionAuthorizationSnapshotStore.None,
 ) {
     sealed class Phase {
         data object Idle : Phase()
 
-        
         data object Requesting : Phase()
 
-        
         data class AwaitingAuthorization(val authorization: OpenAIDeviceAuthorization) : Phase()
 
         data class Succeeded(val tokens: OpenAISubscriptionTokens) : Phase()
@@ -44,7 +41,6 @@ class OpenAISubscriptionAuthorizationModel(
 
     private var phaseState: Phase by mutableStateOf(Phase.Idle)
 
-    
     var phase: Phase
         get() = phaseState
         private set(value) {
@@ -54,7 +50,6 @@ class OpenAISubscriptionAuthorizationModel(
             }
         }
 
-    
     var didOpenVerificationPage: Boolean by mutableStateOf(false)
         private set
 
@@ -69,18 +64,15 @@ class OpenAISubscriptionAuthorizationModel(
         didOpenVerificationPage = true
     }
 
-    
     fun startIfIdle(config: OpenAISubscriptionAuthConfig) {
         if (pollJob?.isActive == true) return
-        
+
         if (phase is Phase.Succeeded || phase is Phase.Failed) return
-        
-        
+
         if (resumeFromSnapshot(config)) return
         start(config)
     }
 
-    
     fun start(config: OpenAISubscriptionAuthConfig) {
         pollJob?.cancel()
         didOpenVerificationPage = false
@@ -105,13 +97,11 @@ class OpenAISubscriptionAuthorizationModel(
         }
     }
 
-    
     @androidx.annotation.VisibleForTesting
     internal suspend fun awaitCompletionForTest() {
         pollJob?.join()
     }
 
-    
     fun cancel() {
         pollJob?.cancel()
         pollJob = null
@@ -122,7 +112,7 @@ class OpenAISubscriptionAuthorizationModel(
     private suspend fun poll(
         config: OpenAISubscriptionAuthConfig,
         authorization: OpenAIDeviceAuthorization,
-        
+
         deadline: Long,
     ) {
         var intervalSeconds = maxOf(1, authorization.interval)
@@ -135,8 +125,7 @@ class OpenAISubscriptionAuthorizationModel(
             sleep(intervalSeconds * 1000L)
 
             try {
-                
-                
+
                 val tokens = client.pollToken(config, authorization.deviceAuthId, authorization.userCode)
                 phase = Phase.Succeeded(tokens)
                 return
@@ -149,10 +138,7 @@ class OpenAISubscriptionAuthorizationModel(
                         intervalSeconds += 5
                         continue
                     }
-                    
-                    
-                    
-                    
+
                     is OpenAISubscriptionError.Transport -> continue
                     else -> {
                         phase = Phase.Failed(e.error)
@@ -160,19 +146,17 @@ class OpenAISubscriptionAuthorizationModel(
                     }
                 }
             } catch (e: Exception) {
-                
+
                 continue
             }
         }
     }
 
-    
     private fun deadlineFor(
         config: OpenAISubscriptionAuthConfig,
         authorization: OpenAIDeviceAuthorization,
     ): Long = nowMillis() + minOf(authorization.expiresIn, config.pollTimeoutSeconds) * 1000L
 
-    
     private fun resumeFromSnapshot(config: OpenAISubscriptionAuthConfig): Boolean {
         val raw = snapshotStore.read()?.takeIf { it.isNotBlank() } ?: return false
         val snapshot = runCatching { snapshotJson.decodeFromString<Snapshot>(raw) }.getOrNull()
@@ -188,8 +172,7 @@ class OpenAISubscriptionAuthorizationModel(
             expiresIn = snapshot.expiresIn,
         )
         phaseState = Phase.AwaitingAuthorization(authorization)
-        
-        
+
         didOpenVerificationPage = true
         pollJob = scope.launch { poll(config, authorization, snapshot.deadlineMillis) }
         return true
@@ -208,7 +191,6 @@ class OpenAISubscriptionAuthorizationModel(
             ),
         )
 
-    
     @Serializable
     private data class Snapshot(
         val deviceAuthId: String,

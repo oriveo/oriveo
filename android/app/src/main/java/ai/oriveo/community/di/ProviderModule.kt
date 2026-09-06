@@ -26,11 +26,9 @@ import org.koin.dsl.bind
 import org.koin.dsl.module
 
 val providerModule = module {
-    
+
     single { TransportRegistry(get()) }
 
-    
-    
     single {
         OpenRouterService(get(), get(), get())
     } bind BalanceQueryable::class
@@ -59,8 +57,6 @@ val providerModule = module {
         SiliconFlowService(get(), get())
     } bind BalanceQueryable::class
 
-    
-    
     single(named("balance.openRouter")) { get<OpenRouterService>() as BalanceQueryable }
     single(named("balance.deepseek")) { get<DeepSeekService>() as BalanceQueryable }
     single(named("balance.moonshot")) { get<MoonshotService>() as BalanceQueryable }

@@ -82,7 +82,6 @@ import ai.oriveo.community.ui.component.LocalModelRuntimeLabel
 import ai.oriveo.community.ui.theme.opacity
 import org.koin.compose.koinInject
 
-
 fun LazyListScope.providerDetailEnabledModels(
     provider: Provider,
     titleRes: Int,
@@ -95,7 +94,7 @@ fun LazyListScope.providerDetailEnabledModels(
     onToggleModel: (AIModel) -> Unit,
     onSetDefault: (AIModel) -> Unit,
     onStartChat: (AIModel) -> Unit,
-    
+
     confirmedRelayCatalogModels: List<AIModel>? = null,
 ) {
     val supportsMultipleEnabled = provider.kind != ProviderKind.OpenAI
@@ -118,7 +117,7 @@ fun LazyListScope.providerDetailEnabledModels(
             EmptyModelsPanel(provider = provider)
         }
     } else if (provider.kind == ProviderKind.OpenAI && serverGroups.size > 1) {
-        
+
         item(key = "enabled_models_server_groups") {
             ServerGroupedModelsPanels(
                 provider = provider,
@@ -138,8 +137,7 @@ fun LazyListScope.providerDetailEnabledModels(
         itemsIndexed(
             items = sortedModels,
             key = { _, model -> "enabled_model_${model.id}" },
-            
-            
+
             contentType = { _, _ -> EnabledModelRowContentType },
         ) { index, model ->
             val colors = OriveoTheme.colors
@@ -183,7 +181,6 @@ fun LazyListScope.providerDetailEnabledModels(
         }
     }
 
-    
     item(key = "enabled_models_bottom_spacer") {
         Spacer(modifier = Modifier.height(OriveoTheme.spacing.lg))
     }
@@ -195,7 +192,6 @@ private val EnabledModelsCardRadius = 16.dp
 private val EnabledModelsCardBorderWidth = 1.dp
 private val EnabledModelsCardElevation = 12.dp
 
-
 private val EnabledModelsShadowInset = 24.dp
 
 private fun enabledModelRowPosition(index: Int, lastIndex: Int): CatalogRowPosition = when {
@@ -204,7 +200,6 @@ private fun enabledModelRowPosition(index: Int, lastIndex: Int): CatalogRowPosit
     index == lastIndex -> CatalogRowPosition.Last
     else -> CatalogRowPosition.Middle
 }
-
 
 private fun Modifier.enabledModelsRowSurface(
     surface: Color,
@@ -247,7 +242,6 @@ private fun enabledModelsRowShape(position: CatalogRowPosition): Shape = when (p
     )
     CatalogRowPosition.Middle -> RoundedCornerShape(0.dp)
 }
-
 
 private fun enabledModelsCardShadow(position: CatalogRowPosition, isDark: Boolean): Modifier {
     if (position == CatalogRowPosition.Middle) return Modifier
@@ -473,7 +467,7 @@ private fun EnabledModelRow(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            
+
             Row(
                 modifier = Modifier
                     .weight(1f)
@@ -509,19 +503,15 @@ private fun EnabledModelRow(
                 }
             }
 
-            
             if (!hasDetailedSpecifications(model)) {
                 EnabledModelPriceLabel(model = model)
             }
 
-            
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
             ) {
-                
-                
-                
+
                 Box(
                     modifier = Modifier
                         .size(36.dp)
@@ -548,8 +538,7 @@ private fun EnabledModelRow(
 
                 if (canSetDefault || canRemove) {
                     Box {
-                        
-                        
+
                         Box(
                             modifier = Modifier
                                 .size(36.dp)
@@ -572,8 +561,7 @@ private fun EnabledModelRow(
                                 tint = colors.textSecondary,
                             )
                         }
-                        
-                        
+
                         if (showMenu) {
                             DropdownMenu(
                                 expanded = true,
@@ -625,10 +613,9 @@ internal data class EnabledModelSpecification(
     val labelRes: Int?,
     val value: String,
     val showsContextIcon: Boolean = false,
-    
+
     val isSecondary: Boolean = false,
 )
-
 
 @Composable
 internal fun ModelSpecInline(model: AIModel) {
@@ -647,7 +634,6 @@ internal fun ModelSpecInline(model: AIModel) {
         }
     }
 }
-
 
 private val SpecLabelStyle = TextStyle(fontSize = 11.sp, lineHeight = 14.sp, fontWeight = FontWeight.Medium)
 private val SpecValueStyle = TextStyle(fontSize = 11.sp, lineHeight = 14.sp, fontWeight = FontWeight.SemiBold)
@@ -748,7 +734,7 @@ private fun EnabledModelMetadataRow(
     val memoryVerdict = remember(provider, model, toolCallMemoryRevision) {
         providerRepository.toolCallMemoryVerdict(provider, model)
     }
-    
+
     val visibleCapabilities = remember(provider, model, capabilityObservationRevision, memoryVerdict) {
         model.copy(
         capabilities = CapabilityEvidenceProductionAdapter
@@ -763,7 +749,7 @@ private fun EnabledModelMetadataRow(
             ),
         )
     }
-    
+
     if (visibleCapabilities.isEmpty()) return
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -776,7 +762,7 @@ private fun EnabledModelMetadataRow(
 @Composable
 private fun EnabledModelPriceLabel(model: AIModel) {
     val colors = OriveoTheme.colors
-    
+
     val priceText = localizedPriceTier(model.priceTier.trim()).ifBlank {
         ModelPricingFormatter.formatPerMillion(
             promptPrice = model.promptPrice,
@@ -794,5 +780,3 @@ private fun EnabledModelPriceLabel(model: AIModel) {
         modifier = Modifier.width(52.dp),
     )
 }
-
-

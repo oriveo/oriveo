@@ -12,10 +12,8 @@ import ai.oriveo.community.core.util.launchExternalActivitySafely
 import ai.oriveo.community.ui.component.OriveoWebDestination
 import ai.oriveo.community.ui.component.openOriveoWebPage
 
-
 object StorageSettingsLauncher {
 
-    
     fun openStorageSettings(context: Context) {
         val candidates = listOf(
             Intent(StorageManager.ACTION_MANAGE_STORAGE),

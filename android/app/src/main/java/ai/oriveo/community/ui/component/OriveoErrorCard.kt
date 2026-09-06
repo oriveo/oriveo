@@ -37,7 +37,6 @@ import ai.oriveo.community.ui.theme.OriveoBorderWidth
 import ai.oriveo.community.ui.theme.OriveoRadius
 import ai.oriveo.community.ui.theme.OriveoTheme
 
-
 @Composable
 fun OriveoErrorCard(
     error: OriveoError,

@@ -62,7 +62,6 @@ import ai.oriveo.community.ui.component.OriveoWebDestination
 import ai.oriveo.community.ui.component.openOriveoWebPage
 import kotlinx.coroutines.launch
 
-
 @Composable
 fun OnboardingFlowScreen(
     reduceMotion: Boolean,
@@ -80,7 +79,6 @@ fun OnboardingFlowScreen(
         OnboardingLayoutMetrics(screenWidthDp, screenHeightDp)
     }
 
-    
     ForceDarkSystemBars()
 
     val pagerState = rememberPagerState(pageCount = { OnboardingAct.ordered.size })
@@ -92,7 +90,6 @@ fun OnboardingFlowScreen(
     var isStageAnimating by remember { mutableStateOf(true) }
     var isExiting by remember { mutableStateOf(false) }
 
-    
     var revealed by remember { mutableStateOf(OnboardingMotionPolicy.revealsInstantly(reduceMotion)) }
     LaunchedEffect(Unit) { revealed = true }
     val revealAlpha by animateFloatAsState(
@@ -106,7 +103,6 @@ fun OnboardingFlowScreen(
         label = "controlsOffset",
     )
 
-    
     LaunchedEffect(pagerState) {
         snapshotFlow { pagerState.settledPage }.collect { page ->
             OnboardingAct.fromIndex(page)?.let(onActViewed)
@@ -148,12 +144,9 @@ fun OnboardingFlowScreen(
                 .graphicsLayer { translationY = (metrics.orbitCenterYDp - screenHeightDp / 2f) * density },
         )
 
-        
         HorizontalPager(
             state = pagerState,
-            
-            
-            
+
             modifier = Modifier
                 .fillMaxSize()
                 .systemGestureExclusion(),
@@ -173,7 +166,6 @@ fun OnboardingFlowScreen(
             }
         }
 
-        
         OnboardingControlLayer(
             values = values,
             metrics = metrics,
@@ -190,7 +182,6 @@ fun OnboardingFlowScreen(
             onOpenLegal = { destination -> context.openOriveoWebPage(destination) },
         )
 
-        
         OnboardingSkipButton(
             values = values,
             alpha = revealAlpha,
@@ -201,7 +192,6 @@ fun OnboardingFlowScreen(
         )
     }
 }
-
 
 @Composable
 private fun OnboardingAuroraBackground(values: OnboardingStageValues, alpha: Float) {
@@ -230,7 +220,6 @@ private fun OnboardingAuroraBackground(values: OnboardingStageValues, alpha: Flo
             ),
     )
 }
-
 
 @Composable
 private fun OnboardingCopyBlock(
@@ -281,7 +270,6 @@ private fun OnboardingCopyBlock(
     }
 }
 
-
 @Composable
 private fun HighlightedTitle(raw: String, fontSizeSp: Float) {
     val segments = remember(raw) { OnboardingCopyMarkup.parse(raw) }
@@ -324,7 +312,6 @@ private fun subtitleRes(act: OnboardingAct): Int = when (act) {
     OnboardingAct.Start -> R.string.onboarding_subtitle_start
 }
 
-
 @Composable
 private fun OnboardingControlLayer(
     values: OnboardingStageValues,
@@ -347,7 +334,6 @@ private fun OnboardingControlLayer(
     ) {
         Spacer(Modifier.weight(1f))
 
-        
         Box(
             modifier = Modifier
                 .padding(top = 26.dp)
@@ -417,7 +403,6 @@ private fun OnboardingControlLayer(
     }
 }
 
-
 @Composable
 private fun OnboardingLegalLine(
     alpha: Float,
@@ -458,7 +443,6 @@ private fun OnboardingLegalLine(
     }
 }
 
-
 @Composable
 private fun OnboardingSkipButton(
     values: OnboardingStageValues,
@@ -497,7 +481,6 @@ private fun OnboardingSkipButton(
     }
 }
 
-
 class OnboardingLayoutMetrics(private val widthDp: Float, private val heightDp: Float) {
 
     val stageScale: Float
@@ -506,7 +489,6 @@ class OnboardingLayoutMetrics(private val widthDp: Float, private val heightDp: 
 
     val orbitCenterYDp: Float get() = heightDp * 0.355f
 
-    
     val copyBottomInsetDp: Float get() = 190f * verticalScale
 
     val controlBottomPaddingDp: Float get() = 18f
@@ -519,4 +501,3 @@ class OnboardingLayoutMetrics(private val widthDp: Float, private val heightDp: 
 
     private val verticalScale: Float get() = (heightDp / 844f).coerceIn(0.84f, 1.06f)
 }
-

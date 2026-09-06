@@ -173,31 +173,28 @@ data class RelayRequestedConfig(
     val queryParams: List<RelayKeyValue>? = null,
     val codexCompatIdentity: Boolean? = null,
     val customUserAgent: String? = null,
-    
-    
-    
+
     val imageSize: String? = null,
-    
+
     val imageQuality: String? = null,
-    
+
     val imageStyle: String? = null,
-    
+
     val imageCount: Int? = null,
-    
+
     val imageResponseFormat: String? = null,
-    
+
     val webSearchToolName: RelayWebSearchToolName? = null,
-    
-    
+
     val hasWebSearch: Boolean = false,
-    
+
     val webSearchProfile: String? = null,
-    
+
     @SerialName("transportKind")
     @OptIn(ExperimentalSerializationApi::class)
     @JsonNames("transportKindOverride")
     val transportKind: String? = null,
-    
+
     val resolvedAPIBaseURL: String? = null,
     /** Explicit local engine profile; null preserves all existing/cloud Relay behavior. */
     val engineProfile: String? = null,
@@ -205,26 +202,22 @@ data class RelayRequestedConfig(
     val certificateFingerprint: String? = null,
 )
 
-
 object RelayCredentialPolicy {
-    
+
     fun requiresCredential(authMode: RelayAuthMode?): Boolean =
         (authMode ?: RelayAuthMode.Auto) != RelayAuthMode.None
 
     fun requiresCredential(requested: RelayRequestedConfig?): Boolean =
         requiresCredential(requested?.authMode)
 
-    
     fun hasStoredCredential(rawKey: String?): Boolean = !rawKey.isNullOrBlank()
 }
 
 val RelayAuthMode.requiresCredential: Boolean
     get() = RelayCredentialPolicy.requiresCredential(this)
 
-
 val RelayRequestedConfig?.requiresCredential: Boolean
     get() = RelayCredentialPolicy.requiresCredential(this)
-
 
 val RelayConnectionSecurityMode.isCleartext: Boolean
     get() = this == RelayConnectionSecurityMode.LocalHttp ||
@@ -233,9 +226,7 @@ val RelayConnectionSecurityMode.isCleartext: Boolean
 val RelayRequestedConfig?.isCleartextConnection: Boolean
     get() = (this?.securityMode ?: RelayConnectionSecurityMode.RemoteHttps).isCleartext
 
-
 fun hasStoredCredential(rawKey: String?): Boolean = RelayCredentialPolicy.hasStoredCredential(rawKey)
-
 
 val PORTABLE_RELAY_REQUESTED_FIELDS: Set<String> = setOf(
     "transport", "authMode", "securityMode", "modelID", "reasoningEffort", "serviceTier",
@@ -244,7 +235,6 @@ val PORTABLE_RELAY_REQUESTED_FIELDS: Set<String> = setOf(
     "webSearchToolName", "hasWebSearch", "webSearchProfile", "transportKind",
     "resolvedAPIBaseURL", "engineProfile",
 )
-
 
 fun RelayRequestedConfig.credentialFreePortableCopy(): RelayRequestedConfig = RelayRequestedConfig(
     transport = transport,
@@ -277,14 +267,12 @@ fun credentialFreeRelayEndpoint(raw: String?): String? {
     }.getOrNull()
 }
 
-
 @Serializable(with = RelayWebSearchToolNameLenientSerializer::class)
 enum class RelayWebSearchToolName(val wireValue: String) {
     WebSearch("web_search"),
     WebSearchPreview("web_search_preview"),
     Disabled("disabled"),
 }
-
 
 object RelayWebSearchToolNameLenientSerializer : KSerializer<RelayWebSearchToolName?> {
     override val descriptor: SerialDescriptor =
@@ -426,8 +414,7 @@ object RelayKindDefaults {
         RelayTransport.Auto,
         RelayTransport.LlamaCppNative,
         -> RelayKind.OpenAICompatible
-        
-        
+
         RelayTransport.OpenAIResponses -> RelayKind.CodexStyle
         RelayTransport.AnthropicMessages -> RelayKind.AnthropicCompatible
         RelayTransport.GeminiGenerateContent -> RelayKind.GeminiCompatible

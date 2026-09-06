@@ -6,11 +6,6 @@ import java.util.Locale
 fun String.graphemeCount(): Int {
     if (isEmpty()) return 0
 
-    
-    
-    
-    
-    
     if (length <= 64 && all { it.code < 0x80 }) {
         return length
     }
@@ -33,10 +28,6 @@ fun String.graphemeCount(): Int {
 fun String.takeGraphemes(limit: Int): String {
     if (limit <= 0 || isEmpty()) return ""
 
-    
-    
-    
-    
     if (length <= limit) return this
 
     val iterator = BreakIterator.getCharacterInstance(Locale.getDefault())

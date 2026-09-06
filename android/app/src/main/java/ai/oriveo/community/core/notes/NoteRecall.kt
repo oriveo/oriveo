@@ -3,7 +3,6 @@ package ai.oriveo.community.core.notes
 import ai.oriveo.community.core.model.Note
 import java.text.Normalizer
 
-
 object NoteRecall {
 
     const val DEFAULT_LIMIT = 2
@@ -16,7 +15,6 @@ object NoteRecall {
     const val MAX_TAG_CHARACTERS = 128
     const val MAX_CANDIDATES = 128
 
-    
     const val RECENT_CANDIDATE_FLOOR = 24
     private const val TAG_WEIGHT = 8
     private const val TITLE_WEIGHT = 4
@@ -172,7 +170,6 @@ object NoteRecall {
             .filter { it.isNotEmpty() },
     )
 
-    
     fun termsFor(draftText: String): List<String> = tokenize(recallSample(draftText)).sorted()
 
     private fun rank(

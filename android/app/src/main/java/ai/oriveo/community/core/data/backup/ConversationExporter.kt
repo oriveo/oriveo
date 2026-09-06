@@ -6,13 +6,11 @@ import ai.oriveo.community.core.data.dao.ConversationDao
 import ai.oriveo.community.core.data.dao.MessageDao
 import ai.oriveo.community.core.model.CostFormatter
 
-
 class ConversationExporter(
     private val conversationDao: ConversationDao,
     private val messageDao: MessageDao,
 ) {
 
-    
     suspend fun exportMarkdown(conversationId: String): String? {
         val accountId = LOCAL_PARTITION_ID
         val convEntity = conversationDao.getById(accountId, conversationId) ?: return null

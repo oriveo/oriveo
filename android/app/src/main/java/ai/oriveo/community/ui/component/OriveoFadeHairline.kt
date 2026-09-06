@@ -13,7 +13,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import ai.oriveo.community.ui.theme.OriveoTheme
 
-
 @Composable
 fun OriveoFadeHairline(
     modifier: Modifier = Modifier,

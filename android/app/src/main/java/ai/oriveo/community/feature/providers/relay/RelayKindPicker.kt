@@ -45,7 +45,6 @@ import ai.oriveo.community.core.model.RelayKind
 import ai.oriveo.community.ui.component.rememberBrandPainter
 import ai.oriveo.community.ui.theme.OriveoTheme
 
-
 @Composable
 fun RelayKindPicker(
     selectedKind: RelayKind?,
@@ -114,7 +113,6 @@ private fun SectionHeader(text: String) {
     )
 }
 
-
 @Composable
 private fun HeroCard(kind: RelayKind, selected: Boolean, onClick: () -> Unit) {
     val meta = relayKindMeta(kind)
@@ -182,7 +180,6 @@ private fun HeroCard(kind: RelayKind, selected: Boolean, onClick: () -> Unit) {
         }
     }
 }
-
 
 @Composable
 private fun TintedCard(
@@ -277,7 +274,6 @@ private fun Badge(text: String, textColor: Color, background: Color) {
     }
 }
 
-
 @Composable
 private fun BoxScope.Watermark(
     @DrawableRes res: Int,
@@ -295,7 +291,6 @@ private fun BoxScope.Watermark(
             .size(size),
     )
 }
-
 
 @Composable
 private fun KindCardSurface(
@@ -315,7 +310,7 @@ private fun KindCardSurface(
         modifier = Modifier
             .fillMaxWidth()
             .graphicsLayer(scaleX = scale, scaleY = scale, alpha = alpha)
-            
+
             .shadow(
                 elevation = elevation,
                 shape = shape,
@@ -335,7 +330,6 @@ private fun KindCardSurface(
         content()
     }
 }
-
 
 @Composable
 fun relayKindTitle(kind: RelayKind): String = stringResource(relayKindMeta(kind).titleRes)

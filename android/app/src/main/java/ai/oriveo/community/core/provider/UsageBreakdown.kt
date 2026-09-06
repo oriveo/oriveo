@@ -62,7 +62,6 @@ data class UsageBreakdown(
         get() = cacheCreation1hTokens.takeIf { cacheWriteObserved || it > 0 }
 }
 
-
 enum class CostSource {
     UPSTREAM,
     LOCAL_ESTIMATE,

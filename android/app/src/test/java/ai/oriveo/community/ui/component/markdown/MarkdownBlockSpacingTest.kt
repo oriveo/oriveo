@@ -6,14 +6,13 @@ import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-
 class MarkdownBlockSpacingTest {
 
     @Test
     fun `consecutive blocks have no gap when no blank lines between`() {
         val entries = parseBlocksWithGaps("- a\n- b\n- c")
         assertEquals(3, entries.size)
-        
+
         assertEquals(0, entries[0].gapBefore)
         assertEquals(0, entries[1].gapBefore)
         assertEquals(0, entries[2].gapBefore)
@@ -181,29 +180,26 @@ Para B
         assertTrue(entries[3].block is MarkdownBlock.ListItem)
         assertTrue(entries[4].block is MarkdownBlock.Paragraph)
 
-        
         assertEquals(1, entries[1].gapBefore)
-        
+
         assertEquals(1, entries[2].gapBefore)
-        
+
         assertEquals(0, entries[3].gapBefore)
-        
+
         assertEquals(1, entries[4].gapBefore)
     }
 
     @Test
     fun `parseBlocks compatibility wrapper still produces plain blocks`() {
-        
+
         val blocks: List<MarkdownBlock> = parseBlocks("Hello\n\nWorld")
         assertEquals(2, blocks.size)
         assertNotNull(blocks[0])
     }
 
-    
-
     @Test
     fun `seam between committed code block and streaming code fence is 12dp`() {
-        
+
         val gap = streamingSeamSpacing(
             committed = "```kotlin\nval x = 1\n```\n",
             tail = "```python\nprint(1)",

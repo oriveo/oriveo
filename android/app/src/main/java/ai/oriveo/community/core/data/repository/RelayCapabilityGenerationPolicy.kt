@@ -3,7 +3,6 @@ package ai.oriveo.community.core.data.repository
 import ai.oriveo.community.core.model.Provider
 import ai.oriveo.community.core.model.ProviderKind
 
-
 internal fun relayConnectionSemanticsChanged(current: Provider, candidate: Provider): Boolean {
     if (current.kind != ProviderKind.Relay || candidate.kind != ProviderKind.Relay) return false
     if (current.baseUrlText?.trim() != candidate.baseUrlText?.trim()) return true

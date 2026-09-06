@@ -45,7 +45,6 @@ import ai.oriveo.community.feature.home.resolveConversationModelName
 import ai.oriveo.community.ui.component.ConversationRow
 import ai.oriveo.community.ui.theme.OriveoTheme
 
-
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 internal fun ConversationItem(
@@ -72,7 +71,7 @@ internal fun ConversationItem(
     val colors = OriveoTheme.colors
 
     val provider = providersById[conversation.providerID]
-    
+
     val providerKind = conversation.providerKind
     val providerName = provider?.displayName ?: providerKind.displayName
     val modelName = remember(conversation.modelID, provider, modelDisplayLookup) {
@@ -90,7 +89,7 @@ internal fun ConversationItem(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(if (isEditing) 10.dp else OriveoTheme.spacing.md),
     ) {
-        
+
         if (isEditing) {
             Icon(
                 imageVector = if (isSelected) Icons.Outlined.CheckCircle else Icons.Outlined.Circle,
@@ -128,15 +127,12 @@ internal fun ConversationItem(
                 isPinned = isPinned,
             )
 
-            
-            
-            
             if (showMenu) {
                 DropdownMenu(
                     expanded = true,
                     onDismissRequest = { showMenu = false },
                 ) {
-                    
+
                     DropdownMenuItem(
                         text = {
                             Text(stringResource(
@@ -148,7 +144,7 @@ internal fun ConversationItem(
                             onTogglePin()
                         },
                         leadingIcon = {
-                            
+
                             Icon(
                                 imageVector = if (isPinned) Icons.Filled.PushPin else Icons.Outlined.PushPin,
                                 contentDescription = null,
@@ -173,7 +169,7 @@ internal fun ConversationItem(
                         },
                         leadingIcon = { Icon(Icons.Outlined.Edit, contentDescription = null) },
                     )
-                    
+
                     if (conversation.messageCount > 0) {
                         DropdownMenuItem(
                             text = { Text(stringResource(R.string.copy_last_message)) },
@@ -192,7 +188,7 @@ internal fun ConversationItem(
                         },
                         leadingIcon = { Icon(Icons.Outlined.Share, contentDescription = null) },
                     )
-                    
+
                     HorizontalDivider()
                     DropdownMenuItem(
                         text = { Text(stringResource(R.string.select_action)) },
@@ -226,7 +222,6 @@ internal fun ConversationItem(
         }
     }
 }
-
 
 @Composable
 internal fun RenameDialog(

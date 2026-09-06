@@ -41,7 +41,6 @@ import ai.oriveo.community.core.model.effectiveStatusKind
 import ai.oriveo.community.ui.component.localizedProviderError
 import ai.oriveo.community.ui.theme.OriveoTheme
 
-
 @Composable
 fun ProviderConnectionIssueRecoveryCard(
     provider: Provider,
@@ -145,9 +144,7 @@ private fun RecoveryActions(
 ) {
     BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
         val buttonCount = 2 + (if (onCheckEndpoint != null) 1 else 0)
-        
-        
-        
+
         val isCompact = maxWidth < (buttonCount * 75).dp
 
         if (isCompact) {

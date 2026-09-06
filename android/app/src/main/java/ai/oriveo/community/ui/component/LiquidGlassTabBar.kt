@@ -64,7 +64,7 @@ data class LiquidGlassTabBarItem(
     val label: String,
     val selectedIcon: ImageVector,
     val unselectedIcon: ImageVector = selectedIcon,
-    
+
     val selectedTint: Color = Color.Unspecified,
     val selected: Boolean,
     val onClick: () -> Unit,
@@ -72,9 +72,7 @@ data class LiquidGlassTabBarItem(
 
 internal data class LiquidGlassTabBarLayoutMetrics(
     val barHeight: Dp,
-    
-    
-    
+
     val maxBarWidth: Dp,
     val outerHorizontalInset: Dp,
     val outerVerticalInset: Dp,
@@ -87,7 +85,7 @@ internal data class LiquidGlassTabBarLayoutMetrics(
     val selectedContentOffsetY: Dp,
     val capsuleWidthFraction: Float,
 ) {
-    
+
     val labelLineHeight: TextUnit get() = (labelFontSize.value * 1.25f).sp
 }
 
@@ -99,8 +97,7 @@ internal data class LiquidGlassCapsuleBounds(
 
 internal fun liquidGlassTabBarLayoutMetrics(isCompact: Boolean): LiquidGlassTabBarLayoutMetrics {
     return if (isCompact) {
-        
-        
+
         LiquidGlassTabBarLayoutMetrics(
             barHeight = 58.dp,
             maxBarWidth = 288.dp,
@@ -170,7 +167,6 @@ fun LiquidGlassTabBar(
     val selectedIndex = items.indexOfFirst { it.selected }.let { if (it >= 0) it else 0 }
     var previousSelectedIndex by remember { mutableIntStateOf(selectedIndex) }
 
-    
     val interactionSources = remember(items.size) {
         List(items.size) { MutableInteractionSource() }
     }
@@ -246,7 +242,6 @@ fun LiquidGlassTabBar(
                 ),
         )
 
-        
         Box(
             modifier = Modifier
                 .offset(x = capsuleLeft, y = verticalInset)
@@ -303,10 +298,8 @@ private fun LiquidGlassTabBarButton(
     val haptics = LocalHapticFeedback.current
     val isPressed by interactionSource.collectIsPressedAsState()
 
-    
     val selectedColor = if (item.selectedTint != Color.Unspecified) item.selectedTint else palette.selectedContent
 
-    
     val pressScale by animateFloatAsState(
         targetValue = if (isPressed) 0.95f else 1f,
         animationSpec = spring(dampingRatio = 0.72f, stiffness = 500f),
@@ -442,7 +435,7 @@ private fun liquidGlassPalette(
 ): LiquidGlassPalette {
     return if (isDark) {
         LiquidGlassPalette(
-            
+
             barFill = listOf(
                 Color(0xE81C2438),
                 Color(0xDE161E30),
@@ -450,7 +443,7 @@ private fun liquidGlassPalette(
             ),
             barBorder = Color.White.copy(alpha = 0.10f),
             barShadow = colors.shadowStrong.opacity(0.42f),
-            
+
             capsuleFill = Color.White.copy(alpha = 0.17f),
             capsuleBorder = Color.White.copy(alpha = 0.22f),
             capsuleShadow = Color.Black.copy(alpha = 0.22f),
@@ -459,7 +452,7 @@ private fun liquidGlassPalette(
         )
     } else {
         LiquidGlassPalette(
-            
+
             barFill = listOf(
                 Color(0xF5FAFBFE),
                 Color(0xF0F7F9FD),
@@ -467,7 +460,7 @@ private fun liquidGlassPalette(
             ),
             barBorder = Color.White.copy(alpha = 0.76f),
             barShadow = colors.shadow.opacity(0.12f),
-            
+
             capsuleFill = Color(0xFCFFFFFF),
             capsuleBorder = Color(0x14000000),
             capsuleShadow = Color(0x12000000),

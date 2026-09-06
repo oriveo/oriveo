@@ -67,8 +67,6 @@ class CostFormatterTest {
         assertEquals("$99.99", CostFormatter.format(99.99))
     }
 
-    
-
     @Test
     fun `parse handles formatted string with tilde`() {
         assertEquals(1.50, CostFormatter.parse("~$1.50"), 0.001)

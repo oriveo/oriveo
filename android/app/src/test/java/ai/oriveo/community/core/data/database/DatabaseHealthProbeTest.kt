@@ -11,7 +11,6 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 
-
 @RunWith(RobolectricTestRunner::class)
 class DatabaseHealthProbeTest {
 
@@ -30,7 +29,7 @@ class DatabaseHealthProbeTest {
 
     @Test
     fun `the very same exception with room to spare is triaged as our own failure`() {
-        
+
         val verdict = triageDatabaseOpenFailure(
             error = SQLiteDiskIOException("disk I/O error (code 4874 SQLITE_IOERR_SHMSIZE)"),
             usableSpaceBytes = 200L * 1024 * 1024,
@@ -70,7 +69,7 @@ class DatabaseHealthProbeTest {
 
     @Test
     fun `a sqlite failure wrapped by room or coroutines is still recognised`() {
-        
+
         val wrapped = RuntimeException(
             "coroutine failed",
             IllegalStateException("room open", SQLiteDiskIOException("disk I/O error")),
@@ -83,11 +82,9 @@ class DatabaseHealthProbeTest {
 
     @Test
     fun `a non-database failure is never triaged, no matter how full the disk is`() {
-        
+
         assertNull(triageDatabaseOpenFailure(IllegalStateException("real bug"), usableSpaceBytes = 0L))
     }
-
-    
 
     @Test
     fun `a storage-full open drives the probe into the blocked state`() = runTest {
@@ -137,7 +134,6 @@ class DatabaseHealthProbeTest {
 
         assertFalse(probe.awaitHealthy())
 
-        
         diskFull = false
         assertEquals(DatabaseHealth.Healthy, probe.retry())
     }
@@ -154,8 +150,6 @@ class DatabaseHealthProbeTest {
         assertTrue(thrown is IllegalStateException)
         assertEquals(DatabaseHealth.Unknown, probe.health.value)
     }
-
-    
 
     @Test
     fun `an escaped sqlite failure is absorbed into the blocked state`() {

@@ -84,7 +84,6 @@ class BoundedInputReaderTest {
         assertArrayEquals(input, StallingStream(input).readBytesLimited(1024))
     }
 
-    
     private class StallingStream(private val data: ByteArray) : InputStream() {
         private var position = 0
         private var stalled = false

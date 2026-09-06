@@ -49,12 +49,10 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.math.max
 
-
 @Composable
 private fun rememberThumbnailBitmap(attachment: Attachment): androidx.compose.ui.graphics.ImageBitmap? {
     return rememberAttachmentThumbnailBitmap(attachment)
 }
-
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -66,7 +64,7 @@ internal fun UserImageHero(
     hasText: Boolean = false,
     attachmentStore: AttachmentStore = koinInject(),
 ) {
-    
+
     val shape: androidx.compose.ui.graphics.Shape = when {
         immersiveHero && hasText -> RoundedCornerShape(
             topStart = 20.dp, topEnd = 20.dp,
@@ -94,8 +92,7 @@ internal fun UserImageHero(
             val aspectRatio = remember(bitmap) {
                 bitmap.width.toFloat() / max(bitmap.height.toFloat(), 1f)
             }
-            
-            
+
             val isPortrait = aspectRatio < 0.7f
             val sizingModifier = if (isPortrait) {
                 Modifier
@@ -152,7 +149,6 @@ internal fun UserImageHero(
         )
     }
 }
-
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -235,7 +231,6 @@ internal fun UserImageGridCell(
     }
 }
 
-
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 internal fun UserImageThumbnail(
@@ -300,7 +295,6 @@ internal fun UserImageThumbnail(
         )
     }
 }
-
 
 @Composable
 private fun ImageContextDropdown(

@@ -9,7 +9,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.res.stringResource
 import ai.oriveo.community.R
 
-
 @Composable
 fun AttachmentConflictDialog(
     show: Boolean,

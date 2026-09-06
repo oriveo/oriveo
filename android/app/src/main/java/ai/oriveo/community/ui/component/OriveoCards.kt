@@ -25,7 +25,6 @@ import ai.oriveo.community.ui.theme.OriveoSurfaceStyle
 import ai.oriveo.community.ui.theme.OriveoTheme
 import ai.oriveo.community.ui.theme.oriveoSurface
 
-
 @Composable
 fun OriveoCard(
     modifier: Modifier = Modifier,
@@ -37,8 +36,7 @@ fun OriveoCard(
     content: @Composable () -> Unit,
 ) {
     val colors = OriveoTheme.colors
-    
-    
+
     val isDark = OriveoTheme.isDark
 
     Box(
@@ -57,7 +55,6 @@ fun OriveoCard(
         content()
     }
 }
-
 
 @Composable
 fun OriveoSectionHeader(
@@ -86,7 +83,6 @@ fun OriveoSectionHeader(
         }
     }
 }
-
 
 @Composable
 fun OriveoEmptyState(

@@ -70,7 +70,6 @@ class AttachmentProcessor(
             val mimeType = context.contentResolver.getType(uri) ?: "image/jpeg"
             val fileName = uri.lastPathSegment ?: "image.jpg"
 
-            
             val rawSize = withContext(Dispatchers.IO) {
                 AttachmentImportPolicy.byteSizeFor(context.contentResolver, uri)
             }
@@ -101,10 +100,6 @@ class AttachmentProcessor(
             if (readResult.oversized) return AttachmentImportOutcome.Oversized
             val localId = readResult.localId ?: return AttachmentImportOutcome.Silent
 
-            
-            
-            
-            
             AttachmentImportOutcome.Success(
                 attachment = Attachment(
                     id = generateUuidString(),
@@ -119,8 +114,7 @@ class AttachmentProcessor(
         } catch (_: Exception) {
             AttachmentImportOutcome.Silent
         } catch (_: OutOfMemoryError) {
-            
-            
+
             AttachmentImportOutcome.Silent
         }
     }
@@ -133,11 +127,10 @@ class AttachmentProcessor(
         activeModel: AIModel?,
         currentFileCount: Int,
     ): AttachmentImportOutcome {
-        
+
         var resolvedFileName = ""
         return try {
-            
-            
+
             val meta = withContext(Dispatchers.IO) {
                 FileImportMeta(
                     fileName = AttachmentImportPolicy.fileNameFor(context.contentResolver, uri),
@@ -162,25 +155,21 @@ class AttachmentProcessor(
             val isVideo = mimeType.lowercase().startsWith("video/")
             val ext = fileName.substringAfterLast('.', "").lowercase()
 
-            
-            
             if (isVideo && !MessageBuilder.canAttachVideo(activeProviderKind, mimeType)) {
                 return AttachmentImportOutcome.AttachmentConflict
             }
 
-            
             val isExtractable = ext in FileTextExtractor.textExtensions ||
                 mimeType in FileTextExtractor.supportedMimes ||
                 ext == "pdf" || ext == "epub" || ext in setOf("html", "htm", "rtf") ||
                 OfficeTextExtractor.isOfficeFile(ext) ||
                 ext in setOf("odt", "ods", "odp")
             val limits = FileExtractionLimits.resolve(activeModel)
-            
+
             if (isExtractable && currentFileCount >= limits.maxFiles) {
                 return AttachmentImportOutcome.FileCountLimitExceeded(fileName)
             }
 
-            
             val readResult = withContext(Dispatchers.IO) {
                 val b = try {
                     context.contentResolver.openInputStream(uri)?.use {
@@ -202,8 +191,7 @@ class AttachmentProcessor(
             val bytes = readResult.bytes ?: return AttachmentImportOutcome.Silent
 
             if (isVideo) {
-                
-                
+
                 val rawContentRef = withContext(Dispatchers.IO) { attachmentStore.saveBlob(bytes) }
                 return AttachmentImportOutcome.Success(
                     attachment = Attachment(
@@ -226,16 +214,14 @@ class AttachmentProcessor(
                     val base64 = withContext(Dispatchers.Default) {
                         Base64.encodeToString(textBytes, Base64.NO_WRAP)
                     }
-                    
+
                     // Keep the original bytes so a model that can read this format natively gets
                     // the real file rather than extracted text.
-                    
-                    
+
                     val rawContentRef = if (shouldPersistOriginalBase64(mimeType)) {
                         withContext(Dispatchers.IO) { attachmentStore.saveBlob(bytes) }
                     } else null
-                    
-                    
+
                     return AttachmentImportOutcome.Success(
                         attachment = Attachment(
                             id = generateUuidString(),
@@ -251,8 +237,7 @@ class AttachmentProcessor(
                         source = "file",
                     )
                 } catch (e: ExtractionException) {
-                    
-                    
+
                     val partial = if (e.code == ExtractionErrorCode.ScannedPdf && shouldPersistOriginalBase64(mimeType)) {
                         val rawContentRef = withContext(Dispatchers.IO) { attachmentStore.saveBlob(bytes) }
                         Attachment(
@@ -273,16 +258,14 @@ class AttachmentProcessor(
                     )
                 }
             } else {
-                
+
                 val base64 = withContext(Dispatchers.Default) {
                     Base64.encodeToString(bytes, Base64.NO_WRAP)
                 }
                 if (!MessageBuilder.canAttachFile(activeProviderKind, mimeType, base64)) {
                     return AttachmentImportOutcome.AttachmentConflict
                 }
-                
-                
-                
+
                 val rawContentRef = withContext(Dispatchers.IO) { attachmentStore.saveBlob(bytes) }
                 return AttachmentImportOutcome.Success(
                     attachment = Attachment(
@@ -298,9 +281,7 @@ class AttachmentProcessor(
         } catch (_: Exception) {
             AttachmentImportOutcome.Silent
         } catch (_: OutOfMemoryError) {
-            
-            
-            
+
             AttachmentImportOutcome.FileExtractionError(
                 code = ExtractionErrorCode.ExtractionError,
                 fileName = resolvedFileName.ifEmpty { fallbackFileName(uri) },

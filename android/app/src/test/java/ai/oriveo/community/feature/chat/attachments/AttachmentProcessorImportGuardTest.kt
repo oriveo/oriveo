@@ -17,7 +17,6 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 
-
 @RunWith(RobolectricTestRunner::class)
 class AttachmentProcessorImportGuardTest {
 
@@ -96,7 +95,6 @@ class AttachmentProcessorImportGuardTest {
         assertTrue(AttachmentImportPolicy.videoPickerMimeTypes.contains("video/*"))
     }
 
-    
     private fun contextRefusingToOpen(): Context {
         val resolver = mockk<ContentResolver> {
             every { query(any(), any(), any(), any(), any()) } returns null
@@ -108,7 +106,6 @@ class AttachmentProcessorImportGuardTest {
         return mockk<Context> { every { contentResolver } returns resolver }
     }
 
-    
     private fun contextReading(read: () -> Int): Context {
         val stream = object : InputStream() {
             override fun read(): Int = read()

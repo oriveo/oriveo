@@ -96,7 +96,6 @@ import ai.oriveo.community.ui.theme.OriveoSurfaceStyle
 import ai.oriveo.community.ui.theme.OriveoTheme
 import ai.oriveo.community.ui.theme.oriveoSurface
 
-
 @Composable
 fun rememberFormattedNoteDate(iso: String): String {
     val context = LocalContext.current
@@ -109,7 +108,6 @@ fun rememberFormattedNoteDate(iso: String): String {
         )
     }
 }
-
 
 @Composable
 private fun Modifier.notesFlatCard(radius: androidx.compose.ui.unit.Dp = OriveoRadius.hero): Modifier {
@@ -144,8 +142,7 @@ private fun Modifier.notesDocumentCard(
             colors = colors,
             isDark = isDark,
             fill = colors.surfaceElevated,
-            
-            
+
             borderColor = Color.Transparent,
             radius = radius,
             shadowStyle = OriveoSurfaceStyle.Soft,
@@ -153,7 +150,7 @@ private fun Modifier.notesDocumentCard(
         .background(
             brush = Brush.linearGradient(
                 colors = listOf(
-                    
+
                     colors.glassHighlight,
                     brand.copy(alpha = if (hasSource) 0.045f else 0.018f),
                     Color.Transparent,
@@ -161,7 +158,7 @@ private fun Modifier.notesDocumentCard(
             ),
             shape = RoundedCornerShape(radius),
         )
-        
+
         .drawWithCache {
             val r = radius.toPx()
             val glow = Brush.radialGradient(
@@ -173,16 +170,13 @@ private fun Modifier.notesDocumentCard(
         }
 }
 
-
 internal fun Note.showsBadge(): Boolean =
     captureKind != NoteCaptureKind.Blank &&
         (sourceProviderKind != null || !sourceModelName.isNullOrBlank())
 
-
 @Composable
 private fun Note.brandColor(): Color =
     sourceProviderKind?.let { providerTintFor(it.rawValue) } ?: OriveoTheme.colors.primary
-
 
 @Composable
 internal fun NoteSourceBadge(note: Note, modifier: Modifier = Modifier) {
@@ -193,7 +187,7 @@ internal fun NoteSourceBadge(note: Note, modifier: Modifier = Modifier) {
         modifier = modifier
             .clip(RoundedCornerShape(OriveoRadius.chip))
             .background(brand.copy(alpha = 0.12f))
-            
+
             .border(1.dp, brand.copy(alpha = 0.08f), RoundedCornerShape(OriveoRadius.chip))
             .padding(horizontal = 10.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -211,7 +205,6 @@ internal fun NoteSourceBadge(note: Note, modifier: Modifier = Modifier) {
         }
     }
 }
-
 
 @Composable
 internal fun NoteTagChip(
@@ -286,7 +279,7 @@ internal fun noteTagChipColors(
     isDark: Boolean,
     selected: Boolean = false,
 ): NoteTagChipColors {
-    
+
     val textColor = if (isDark) Color(0xFFEAD9AC) else Color(0xFF6E5518)
     val iconColor = if (isDark) Color(0xFFDCC07C) else Color(0xFFC79A2C)
     val background = when {
@@ -299,7 +292,7 @@ internal fun noteTagChipColors(
     } else {
         if (isDark) Color.White.copy(alpha = 0.07f) else Color(0xFFEAD8A2).copy(alpha = 0.9f)
     }
-    
+
     val dimmed = role == NoteTagChipRole.Suggestion
     val dimmedIcon = iconColor.copy(alpha = if (dimmed) 0.6f else 1.0f)
     return NoteTagChipColors(
@@ -322,7 +315,6 @@ internal fun noteCardPreviewSource(body: String): String {
     return lines.drop(index + 1).joinToString("\n").trim().ifEmpty { body }
 }
 
-
 @Composable
 private fun rememberNotePreview(body: String): AnnotatedString {
     val mdColors = MarkdownTheme.colors()
@@ -331,7 +323,6 @@ private fun rememberNotePreview(body: String): AnnotatedString {
         if (stripped.isEmpty()) AnnotatedString("") else MarkdownRenderer.render(stripped, mdColors)
     }
 }
-
 
 private val noteFenceRegex = Regex("```[a-zA-Z0-9]*")
 private val noteHeadingRegex = Regex("(?m)^#{1,6}\\s+")
@@ -342,7 +333,6 @@ private val noteInlineSpaceRegex = Regex("[ \\t]+")
 private val noteEdgeSpaceRegex = Regex("(?m)^[ \\t]+|[ \\t]+$")
 private val noteBlankLineRegex = Regex("\\n{2,}")
 
-
 private fun stripBlockMarkdown(body: String): String {
     var t = body
     t = t.replace(noteFenceRegex, "")
@@ -352,13 +342,12 @@ private fun stripBlockMarkdown(body: String): String {
     t = t.replace(noteBulletRegex, "")
     t = t.replace(noteOrderedListRegex, "")
     t = t.replace("|", " ")
-    
+
     t = t.replace(noteInlineSpaceRegex, " ")
     t = t.replace(noteEdgeSpaceRegex, "")
     t = t.replace(noteBlankLineRegex, "\n")
     return t.trim()
 }
-
 
 @Composable
 fun HomeNotesEntryCard(
@@ -375,14 +364,14 @@ fun HomeNotesEntryCard(
     val previewLine = if (hasNotes && !latestTitle.isNullOrBlank()) {
         latestTitle
     } else {
-        
+
         stringResource(R.string.notes_subtitle)
     }
     Box(
         modifier = modifier
             .fillMaxWidth()
             .heightIn(min = 96.dp)
-            
+
             .shadow(
                 elevation = if (isDark) 10.dp else 14.dp,
                 shape = shape,
@@ -393,13 +382,12 @@ fun HomeNotesEntryCard(
             .background(tint)
             .clickable(onClick = onClick),
     ) {
-        
+
         Box(
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .size(104.dp)
-                
-                
+
                 .offset(x = 26.dp, y = 24.dp)
                 .rotate(-8f),
         ) {
@@ -418,7 +406,7 @@ fun HomeNotesEntryCard(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(OriveoTheme.spacing.md),
         ) {
-            
+
             Box(
                 modifier = Modifier
                     .size(44.dp)
@@ -469,7 +457,6 @@ fun HomeNotesEntryCard(
         }
     }
 }
-
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -560,7 +547,6 @@ fun NoteCard(
     }
 }
 
-
 @Composable
 private fun NoteCardByline(
     note: Note,
@@ -620,7 +606,6 @@ private fun ManualNoteToken() {
     }
 }
 
-
 internal fun quoteWatermarkAlpha(isDark: Boolean, hasSource: Boolean, large: Boolean = false): Float =
     if (large) {
         if (isDark) (if (hasSource) 0.18f else 0.12f) else (if (hasSource) 0.10f else 0.045f)
@@ -648,14 +633,12 @@ private fun NoteExcerptPanel(
                     ),
                 ),
             )
-            
-            
-            
+
             .padding(start = 14.dp, top = 12.dp, end = 40.dp, bottom = 12.dp),
     ) {
         Text(
             text = "”",
-            
+
             style = OriveoTheme.typography.hero.copy(fontSize = 24.sp, lineHeight = 24.sp, fontWeight = FontWeight.Bold),
             color = brand.copy(alpha = quoteWatermarkAlpha(OriveoTheme.isDark, hasSource)),
             modifier = Modifier
@@ -760,7 +743,6 @@ fun TrashNoteCard(
     }
 }
 
-
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun FolderFilterChips(
@@ -852,7 +834,6 @@ private fun FolderChip(
     }
 }
 
-
 @Composable
 fun TagFilterChips(
     availableTags: List<String>,
@@ -874,7 +855,6 @@ fun TagFilterChips(
     }
 }
 
-
 @Composable
 fun NoteSourceCard(
     note: Note,
@@ -886,10 +866,9 @@ fun NoteSourceCard(
     val brand = note.brandColor()
     val hasSource = note.showsBadge()
     val canReturn = !note.sourceConversationId.isNullOrBlank()
-    
+
     if (!note.hasSource && !canReturn) return
 
-    
     OriveoCard(modifier = modifier, radius = OriveoRadius.card, shadowStyle = OriveoSurfaceStyle.Lifted) {
         Column(verticalArrangement = Arrangement.spacedBy(OriveoTheme.spacing.md)) {
             Text(
@@ -898,10 +877,7 @@ fun NoteSourceCard(
                 color = colors.textPrimary,
             )
             note.sourcePrompt?.takeIf { it.isNotBlank() }?.let { prompt ->
-                
-                
-                
-                
+
                 val barColor = brand.copy(alpha = if (hasSource) 0.5f else 0.42f)
                 Box(
                     modifier = Modifier
@@ -918,8 +894,7 @@ fun NoteSourceCard(
                             )
                         },
                 ) {
-                    
-                    
+
                     Text(
                         text = prompt,
                         style = OriveoTheme.typography.footnote,
@@ -940,8 +915,7 @@ fun NoteSourceCard(
                     }
                 }
             }
-            
-            
+
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -957,7 +931,7 @@ fun NoteSourceCard(
                         onClick = onReturnToConversation,
                     )
                 }
-                
+
                 onCrosscheck?.let {
                     SourceActionPill(
                         text = stringResource(R.string.notes_source_crosscheck),
@@ -972,7 +946,6 @@ fun NoteSourceCard(
 }
 
 private enum class SourceActionStyle { Primary, Neutral }
-
 
 @Composable
 private fun SourceActionPill(
@@ -1010,7 +983,6 @@ private fun SourceActionPill(
         )
     }
 }
-
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -1091,7 +1063,6 @@ private fun MoveFolderRow(
         }
     }
 }
-
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable

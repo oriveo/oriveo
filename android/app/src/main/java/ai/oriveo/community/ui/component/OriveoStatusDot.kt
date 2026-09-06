@@ -23,7 +23,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
-
 @Composable
 fun OriveoStatusDot(
     color: Color,
@@ -59,8 +58,6 @@ fun OriveoStatusDot(
         1f to 1f
     }
 
-    
-    
     val totalSize = size + 2.dp
 
     Box(
@@ -73,7 +70,7 @@ fun OriveoStatusDot(
             },
         contentAlignment = Alignment.Center,
     ) {
-        
+
         Canvas(
             modifier = Modifier
                 .fillMaxSize()
@@ -88,7 +85,7 @@ fun OriveoStatusDot(
                 style = Stroke(width = 2.dp.toPx()),
             )
         }
-        
+
         Canvas(modifier = Modifier.fillMaxSize()) {
             val cx = this.size.width / 2f
             val cy = this.size.height / 2f

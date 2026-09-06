@@ -4,73 +4,68 @@ import androidx.compose.runtime.Immutable
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
-
 @Immutable
 data class Note(
-    
+
     val id: String,
-    
+
     val title: String,
     val titleSource: NoteTitleSource = NoteTitleSource.Placeholder,
-    
+
     val body: String,
-    
+
     val bodySnapshot: String? = null,
-    
+
     val userNote: String? = null,
-    
+
     val tags: List<String> = emptyList(),
-    
+
     val noteFolderID: String? = null,
     val sourceConversationId: String? = null,
     val sourceMessageId: String? = null,
     val sourceModelID: String? = null,
-    
+
     val sourceModelName: String? = null,
     val sourceProviderKind: ProviderKind? = null,
-    
+
     val sourceProviderName: String? = null,
-    
+
     val sourcePrompt: String? = null,
     val captureKind: NoteCaptureKind = NoteCaptureKind.Blank,
-    
+
     val provenance: List<ProvenanceEntry> = emptyList(),
     val isPinned: Boolean = false,
-    
+
     val createdAt: String,
-    
+
     val updatedAt: String,
     /** Soft delete, as a UTC ISO 8601 string. Non-null means the note is in the trash. */
     val deletedAt: String? = null,
 ) {
     val isTrashed: Boolean get() = deletedAt != null
 
-    
     val hasSource: Boolean
         get() = captureKind != NoteCaptureKind.Blank &&
             (!sourceModelName.isNullOrBlank() || !sourceProviderName.isNullOrBlank() || !sourcePrompt.isNullOrBlank())
 
-    
     val canCrosscheck: Boolean
         get() = !isTrashed && captureKind != NoteCaptureKind.Blank &&
             !sourcePrompt.isNullOrBlank() && sourceModelName != null && sourceProviderKind != null
 }
 
-
 @Immutable
 data class NoteFolder(
     val id: String,
-    
+
     val name: String,
-    
+
     val sortOrder: Int,
-    
+
     val colorTag: String? = null,
     val createdAt: String,
     val updatedAt: String,
     val deletedAt: String? = null,
 )
-
 
 @Serializable
 data class ProvenanceEntry(
@@ -81,10 +76,9 @@ data class ProvenanceEntry(
     val providerName: String? = null,
     val conversationId: String? = null,
     val messageId: String? = null,
-    
+
     val at: String,
 )
-
 
 enum class NoteTitleSource {
     Placeholder,
@@ -98,12 +92,11 @@ enum class NoteTitleSource {
         }
 
     companion object {
-        
+
         fun fromRawValue(raw: String?): NoteTitleSource =
             entries.firstOrNull { it.rawValue == raw } ?: Placeholder
     }
 }
-
 
 enum class NoteCaptureKind {
     FullAnswer,
@@ -121,12 +114,11 @@ enum class NoteCaptureKind {
         }
 
     companion object {
-        
+
         fun fromRawValue(raw: String?): NoteCaptureKind =
             entries.firstOrNull { it.rawValue == raw } ?: Blank
     }
 }
-
 
 @Serializable
 enum class ProvenanceKind {
@@ -145,7 +137,7 @@ enum class ProvenanceKind {
         }
 
     companion object {
-        
+
         fun fromRawValue(raw: String?): ProvenanceKind? =
             entries.firstOrNull { it.rawValue == raw }
     }

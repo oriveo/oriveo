@@ -30,7 +30,6 @@ import ai.oriveo.community.ui.theme.OriveoRadius
 import ai.oriveo.community.ui.theme.opacity
 import ai.oriveo.community.ui.theme.OriveoTheme
 
-
 @Composable
 fun OriveoLabeledField(
     label: String,
@@ -58,7 +57,6 @@ fun OriveoLabeledField(
         }
     }
 
-    
     Column(modifier = modifier.fillMaxWidth()) {
         if (showLabel) {
             Text(
@@ -118,7 +116,6 @@ fun OriveoLabeledField(
             ),
         )
 
-        
         if (footnote.isNotEmpty()) {
             Spacer(modifier = Modifier.height(OriveoTheme.spacing.xs))
             Text(

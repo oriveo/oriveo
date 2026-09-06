@@ -30,7 +30,6 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
-
 @OptIn(ExperimentalCoroutinesApi::class, FlowPreview::class)
 class NotesViewModel(
     private val noteRepository: NoteRepository,
@@ -40,11 +39,9 @@ class NotesViewModel(
 
     enum class Tab { Notes, Trash }
 
-    
     var tab by mutableStateOf(Tab.Notes)
         private set
 
-    
     private val _query = MutableStateFlow("")
     private val _selectedFolderId = MutableStateFlow<String?>(null) // null = All
     private val _selectedTags = MutableStateFlow<List<String>>(emptyList())
@@ -55,11 +52,9 @@ class NotesViewModel(
     val selectedTags: StateFlow<List<String>> = _selectedTags
     val sort: StateFlow<NoteSort> = _sort
 
-    
     var visibleCount by mutableStateOf(PAGE_SIZE)
         private set
 
-    
     private val activeNotes: StateFlow<List<Note>> = noteRepository.observeActive()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
@@ -69,8 +64,7 @@ class NotesViewModel(
 
     val trashedNotes: StateFlow<List<Note>> = noteRepository.observeTrash()
         .map { list ->
-            
-            
+
             list.map { note -> note to (NoteTime.isoToMillisOrNull(note.updatedAt) ?: 0L) }
                 .sortedByDescending { it.second }
                 .map { it.first }
@@ -81,26 +75,21 @@ class NotesViewModel(
         .map { false }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
-    
     val uncategorizedCount: StateFlow<Int> = activeNotes
         .map { notes -> notes.count { it.noteFolderID == null } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
 
-    
     val folderNoteCounts: StateFlow<Map<String?, Int>> = activeNotes
         .map { notes -> notes.groupingBy { it.noteFolderID }.eachCount() }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
 
-    
     val syncUpsellDismissed: StateFlow<Boolean> = MutableStateFlow(true)
 
-    
     val availableTags: StateFlow<List<String>> = combine(activeNotes, _selectedFolderId) { notes, folder ->
         val uncategorized = folder == UNCATEGORIZED
         NoteListing.availableTags(notes, if (uncategorized) null else folder, MAX_TAG_CHIPS, uncategorizedOnly = uncategorized)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    
     val displayedNotes: StateFlow<List<Note>> = combine(
         _query.debounce(SEARCH_DEBOUNCE_MS),
         _selectedFolderId,
@@ -117,13 +106,12 @@ class NotesViewModel(
                 emit(NoteListing.filterAndSort(f.active, realFolder, f.tags, f.sort, uncategorizedOnly = uncategorized))
             } else {
                 val results = noteRepository.searchNotes(f.query, realFolder, f.tags, f.sort)
-                
+
                 emit(if (uncategorized) results.filter { it.noteFolderID == null } else results)
             }
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    
     val displayedTrash: StateFlow<List<Note>> = combine(
         _query.debounce(SEARCH_DEBOUNCE_MS),
         trashedNotes,
@@ -144,7 +132,6 @@ class NotesViewModel(
     init {
     }
 
-    
     fun selectTab(value: Tab) {
         tab = value
     }
@@ -184,7 +171,6 @@ class NotesViewModel(
         visibleCount = PAGE_SIZE
     }
 
-    
     fun createBlankNote(onCreated: (String) -> Unit) {
         viewModelScope.launch {
             val folderId = _selectedFolderId.value.takeUnless { it == UNCATEGORIZED }
@@ -211,7 +197,7 @@ class NotesViewModel(
 
     fun deleteFolder(id: String) {
         viewModelScope.launch {
-            
+
             if (_selectedFolderId.value == id) selectFolder(null)
             noteRepository.deleteFolder(id)
         }
@@ -228,7 +214,7 @@ class NotesViewModel(
     fun softDeleteNote(id: String) {
         viewModelScope.launch {
             noteRepository.softDeleteNote(id)
-            
+
             globalSnackbarManager.show(
                 GlobalSnackbarMessage(
                     message = UiText.Resource(R.string.notes_toast_deleted),
@@ -244,12 +230,10 @@ class NotesViewModel(
         viewModelScope.launch { noteRepository.pinNote(id, isPinned) }
     }
 
-    
     fun permanentlyDeleteNote(id: String) {
         viewModelScope.launch { noteRepository.permanentlyDeleteNote(id) }
     }
 
-    
     fun dismissSyncUpsell() {}
 
     fun restoreNote(id: String) {
@@ -280,7 +264,7 @@ class NotesViewModel(
 
     companion object {
         const val PAGE_SIZE = 10
-        
+
         const val UNCATEGORIZED = "__uncategorized__"
         private const val MAX_TAG_CHIPS = 12
         private const val SEARCH_DEBOUNCE_MS = 200L

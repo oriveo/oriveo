@@ -28,7 +28,6 @@ internal fun relayCodexIdentityForSave(relayKind: RelayKind, requested: RelayReq
         null
     }
 
-
 internal fun relayRequestedMatchesPersisted(
     relayKind: RelayKind,
     persisted: RelayRequestedConfig,

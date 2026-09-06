@@ -8,10 +8,8 @@ import ai.oriveo.community.core.model.ProvenanceEntry
 import ai.oriveo.community.core.model.ProvenanceKind
 import ai.oriveo.community.core.model.ProviderKind
 
-
 object NoteCapture {
 
-    
     private fun previousUserPrompt(messages: List<ChatMessage>, targetId: String): String? {
         val idx = messages.indexOfFirst { it.id == targetId }
         if (idx <= 0) return null
@@ -22,7 +20,6 @@ object NoteCapture {
         return null
     }
 
-    
     fun fromMessage(
         message: ChatMessage,
         conversationId: String,
@@ -43,7 +40,6 @@ object NoteCapture {
         )
     }
 
-    
     fun fromSelection(
         message: ChatMessage,
         selectedText: String,
@@ -51,8 +47,7 @@ object NoteCapture {
         messages: List<ChatMessage>,
     ): CreateNoteInput {
         val isUser = message.role == ChatRole.User
-        
-        
+
         val body = SelectionSourceMapper.extractSelectionMarkdown(message.text, selectedText) ?: selectedText
         return CreateNoteInput(
             body = body,
@@ -68,7 +63,6 @@ object NoteCapture {
         )
     }
 
-    
     fun fromCrosscheck(
         originalAnswer: String,
         originConversationId: String?,

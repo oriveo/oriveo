@@ -88,8 +88,7 @@ internal class ChatAttachmentCoordinator(
                     GlobalSnackbarMessage(message = UiText.Resource(R.string.attachment_conflict_message)),
                 )
             is AttachmentImportOutcome.FileCountLimitExceeded ->
-                
-                
+
                 globalSnackbarManager.show(
                     GlobalSnackbarMessage(
                         message = UiText.Resource(

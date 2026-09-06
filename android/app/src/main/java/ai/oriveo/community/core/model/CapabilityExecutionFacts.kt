@@ -45,7 +45,7 @@ data class LocatedCapabilityRejection(
  * response evidence kinds. This prevents UI/request intent from claiming execution.
  */
 class CapabilityExecutionCollector(
-    
+
     private val onWebSearchDispatched: () -> Unit = {},
     private val onDispatched: suspend (List<CapabilityExecutionResult>) -> Unit = {},
 ) {
@@ -70,7 +70,6 @@ class CapabilityExecutionCollector(
         val webSearchDispatched: Boolean,
     )
 
-    
     @Synchronized fun noteLegacyWebSearchDispatched() {
         legacyWebSearchDispatched = true
     }
@@ -113,15 +112,13 @@ class CapabilityExecutionCollector(
             DispatchSnapshot(
                 requested = confirmed.values.filter(Pending::includeExecutionFact)
                     .map { CapabilityExecutionResult(it.owner, "requested", it.source, it.revision) },
-                
-                
-                
+
                 webSearchDispatched = legacyWebSearchDispatched ||
                     confirmed.values.any { it.owner == WEB_CAPABILITY_OWNER },
             )
         }
         if (snapshot.webSearchDispatched) {
-            
+
             try {
                 onWebSearchDispatched()
             } catch (_: Exception) {
@@ -227,7 +224,7 @@ class CapabilityExecutionCollector(
         }
 
     companion object {
-        
+
         const val WEB_CAPABILITY_OWNER = "web"
     }
 }

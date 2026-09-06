@@ -65,14 +65,12 @@ fun resolveActiveModelProviderIssue(
     return if (status is ProviderConnectionState.Issue) status.message else null
 }
 
-
 @Immutable
 data class ProviderIssueInfo(
     val providerID: String,
     val providerName: String,
     val message: String,
 )
-
 
 fun resolveProviderIssue(
     providers: List<Provider>,
@@ -85,7 +83,7 @@ fun resolveProviderIssue(
             ProviderIssueInfo(activeModel.provider.id, activeModel.provider.displayName, status.message)
         } else null
     }
-    
+
     if (lastUsedModelRef != null) {
         val provider = providers.firstOrNull { it.id == lastUsedModelRef.providerID }
         if (provider != null) {
@@ -95,7 +93,7 @@ fun resolveProviderIssue(
             }
         }
     }
-    
+
     val fallback = providers.firstOrNull { it.status is ProviderConnectionState.Issue }
     if (fallback != null) {
         val status = fallback.status as ProviderConnectionState.Issue

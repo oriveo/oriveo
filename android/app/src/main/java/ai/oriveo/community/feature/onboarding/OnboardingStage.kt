@@ -7,9 +7,8 @@ import kotlin.math.cos
 import kotlin.math.floor
 import kotlin.math.sin
 
-
 enum class OnboardingAct(val index: Int, val stepName: String) {
-    
+
     Brand(0, "welcome"),
     Models(1, "models"),
     Byok(2, "byok"),
@@ -23,14 +22,12 @@ enum class OnboardingAct(val index: Int, val stepName: String) {
     }
 }
 
-
 object OnboardingMath {
     fun clamp(value: Float, lower: Float, upper: Float): Float =
         minOf(maxOf(value, lower), upper)
 
     fun lerp(from: Float, to: Float, t: Float): Float = from + (to - from) * t
 
-    
     fun tri(p: Float, center: Float, half: Float): Float {
         if (half <= 0f) return if (p == center) 1f else 0f
         return clamp(1f - abs(p - center) / half, 0f, 1f)
@@ -41,7 +38,6 @@ object OnboardingMath {
         return x * x * (3f - 2f * x)
     }
 }
-
 
 data class OnboardingRgb(val red: Float, val green: Float, val blue: Float) {
     fun toColor(): Color = Color(red = red, green = green, blue = blue)
@@ -60,7 +56,6 @@ data class OnboardingRgb(val red: Float, val green: Float, val blue: Float) {
         )
     }
 }
-
 
 class OnboardingStageValues(progress: Float, width: Float) {
 
@@ -85,7 +80,6 @@ class OnboardingStageValues(progress: Float, width: Float) {
     val freeBadgeOffsetX: Float
     val freeBadgeScale: Float
 
-    
     val ctaMorph: Float
     val pillWidth: Float
     val dotsOpacity: Float
@@ -100,13 +94,11 @@ class OnboardingStageValues(progress: Float, width: Float) {
         val pc = OnboardingMath.clamp(progress, -0.35f, pageCount - 1f + 0.35f)
         this.progress = pc
 
-        
         val index = OnboardingMath.clamp(floor(pc), 0f, pageCount - 2f).toInt()
         val fraction = OnboardingMath.clamp(pc - index.toFloat(), 0f, 1f)
         auroraTop = OnboardingRgb.lerp(AURORA_PALETTE[index].first, AURORA_PALETTE[index + 1].first, fraction)
         auroraBottom = OnboardingRgb.lerp(AURORA_PALETTE[index].second, AURORA_PALETTE[index + 1].second, fraction)
 
-        
         val parallax = width * 0.25f
 
         ringsOpacity = OnboardingMath.clamp(
@@ -118,7 +110,7 @@ class OnboardingStageValues(progress: Float, width: Float) {
         )
 
         orbitersOpacity = OnboardingMath.tri(pc, 1f, 1.0f)
-        
+
         orbitersOffsetX = (1f - pc) * width * 0.18f
 
         val nucleus = maxOf(OnboardingMath.tri(pc, 0f, 1f), OnboardingMath.tri(pc, 1f, 1f) * 0.92f)
@@ -137,7 +129,6 @@ class OnboardingStageValues(progress: Float, width: Float) {
         freeBadgeOffsetX = (3f - pc) * parallax
         freeBadgeScale = 0.9f + 0.1f * free
 
-        
         val raw = OnboardingMath.clamp((pc - 2.2f) / 0.8f, 0f, 1f)
         val morph = OnboardingMath.smoothstep(raw)
         ctaMorph = morph
@@ -150,21 +141,17 @@ class OnboardingStageValues(progress: Float, width: Float) {
         skipOpacity = 1f - OnboardingMath.clamp((pc - 2.1f) / 0.6f, 0f, 1f)
     }
 
-    
     fun copyOpacity(act: OnboardingAct): Float =
         OnboardingMath.tri(progress, act.index.toFloat(), 0.62f)
 
-    
     val isSkipInteractive: Boolean get() = progress <= 2.6f
 
-    
     val isCtaInteractive: Boolean get() = progress > 2.7f
 
-    
     val areDotsInteractive: Boolean get() = ctaMorph <= 0.4f
 
     companion object {
-        
+
         val AURORA_PALETTE: List<Pair<OnboardingRgb, OnboardingRgb>> = listOf(
             OnboardingRgb.fromHex(0x7C3AED) to OnboardingRgb.fromHex(0x2A1E5C),
             OnboardingRgb.fromHex(0x4F46E5) to OnboardingRgb.fromHex(0x0D9488),
@@ -172,46 +159,40 @@ class OnboardingStageValues(progress: Float, width: Float) {
             OnboardingRgb.fromHex(0x9D7BFF) to OnboardingRgb.fromHex(0x7C3AED),
         )
 
-        
         const val DOTS_BAR_WIDTH = 84f
 
-        
         const val REFERENCE_WIDTH = 390f
     }
 }
-
 
 data class OnboardingOrbitRing(
     val radiusX: Float,
     val radiusY: Float,
     val tiltDegrees: Float,
     val strokeOpacity: Float,
-    
+
     val periodSeconds: Float,
     val isReversed: Boolean,
 )
-
 
 data class OnboardingOrbiter(
     val id: String,
     val sizeDp: Float,
     val ringIndex: Int,
-    
+
     val phase: Float,
 )
-
 
 data class OnboardingOrbitPoint(val x: Float, val y: Float, val depth: Float)
 
 object OnboardingOrbitCatalog {
-    
+
     val rings: List<OnboardingOrbitRing> = listOf(
         OnboardingOrbitRing(176f, 62f, -24f, 0.30f, 64f, isReversed = false),
         OnboardingOrbitRing(150f, 54f, 30f, 0.20f, 78f, isReversed = true),
         OnboardingOrbitRing(122f, 46f, 84f, 0.12f, 105f, isReversed = false),
     )
 
-    
     val orbiters: List<OnboardingOrbiter> = listOf(
         OnboardingOrbiter("openai", 40f, 0, 0.00f),
         OnboardingOrbiter("gemini", 38f, 0, 0.26f),
@@ -223,7 +204,6 @@ object OnboardingOrbitCatalog {
         OnboardingOrbiter("kimi", 28f, 1, 0.80f),
     )
 
-    
     fun position(orbiter: OnboardingOrbiter, time: Float): OnboardingOrbitPoint {
         val ring = rings[orbiter.ringIndex.coerceIn(0, rings.lastIndex)]
         val direction = if (ring.isReversed) -1f else 1f
@@ -238,23 +218,19 @@ object OnboardingOrbitCatalog {
         )
     }
 
-    
     fun decorativeSpinDegrees(time: Float): Float {
         val ring = rings[2]
         return ring.tiltDegrees + time / ring.periodSeconds * 360f
     }
 }
 
-
 object OnboardingMotionPolicy {
-    
+
     fun isOrbitClockPaused(reduceMotion: Boolean, isStageActive: Boolean): Boolean =
         reduceMotion || !isStageActive
 
-    
     fun revealsInstantly(reduceMotion: Boolean): Boolean = reduceMotion
 }
-
 
 object OnboardingCopyMarkup {
     data class Segment(val text: String, val isHighlighted: Boolean)
@@ -285,16 +261,14 @@ object OnboardingCopyMarkup {
         }
 
         if (buffer.isNotEmpty()) {
-            
+
             segments.add(Segment(if (insideHighlight) "{$buffer" else buffer.toString(), false))
         }
         return segments
     }
 
-    
     fun plainText(raw: String): String = parse(raw).joinToString("") { it.text }
 }
-
 
 object OnboardingLinkMarkup {
     data class Segment(val text: String, val url: String?)

@@ -209,7 +209,6 @@ internal class ChatScrollController {
         AnchorTransition.NoOp -> false
     }
 
-    
     suspend fun pinToTop(
         listState: LazyListState,
         pinId: String,
@@ -217,41 +216,31 @@ internal class ChatScrollController {
         minAssistantVisiblePx: Int,
     ) {
         isPinning = true
-        
-        
+
         withFrameNanos { }
         val viewportH = (listState.layoutInfo.viewportEndOffset - listState.layoutInfo.viewportStartOffset)
             .coerceAtLeast(0)
         val userHeightPx = listState.layoutInfo.visibleItemsInfo.firstOrNull { it.key == pinId }?.size ?: 0
-        
+
         reservePx = computeReservePx(viewportH, userHeightPx, minAssistantVisiblePx)
         pinnedTurnUserId = pinId
         pinnedAssistantFloorPx = 0
         val pinScrollOffset = computeLongUserPinScrollOffsetPx(viewportH, userHeightPx, minAssistantVisiblePx)
-        
-        
-        
-        
+
         val viewportTop = listState.layoutInfo.viewportStartOffset
-        
-        
-        
-        
-        
+
         var reserveReadyFrames = 0
         while (reserveReadyFrames < PIN_RESERVE_READY_MAX_FRAMES) {
             val assistant = listState.layoutInfo.visibleItemsInfo
                 .firstOrNull { it.index == userIndex + 1 }
-            
-            
+
             if (assistant != null && assistant.size >= reservePx - PIN_RESERVE_READY_SLOP_PX) break
             if (assistant == null && reserveReadyFrames >= 1) break
             withFrameNanos { }
             reserveReadyFrames++
         }
         listState.animateScrollToItem(userIndex, pinScrollOffset + viewportTop)
-        
-        
+
         var reconcileFrames = 0
         while (reconcileFrames < PIN_RECONCILE_MAX_FRAMES) {
             val info = listState.layoutInfo
@@ -269,28 +258,23 @@ internal class ChatScrollController {
         isPinning = false
     }
 
-    
     suspend fun followToBottom(
         listState: LazyListState,
         overflow: Int,
         isPointerDown: Boolean,
     ) {
-        
+
         if (streamingMode || !following || isPointerDown || isPinning) return
         if (overflow > 0) listState.scrollBy(overflow.toFloat())
     }
 
-    
     suspend fun scrollToBottom(listState: LazyListState, messageCount: Int) {
         if (messageCount <= 0) return
         val lastIndex = (messageCount - 1).coerceAtLeast(0)
         listState.scrollToItem(lastIndex)
-        
+
         alignLastMessageToBottom(listState, lastIndex)
-        
-        
-        
-        
+
         var stableFrames = 0
         repeat(30) {
             withFrameNanos { }
@@ -304,7 +288,6 @@ internal class ChatScrollController {
         }
     }
 
-    
     private suspend fun alignLastMessageToBottom(listState: LazyListState, lastIndex: Int): Boolean {
         val info = listState.layoutInfo
         val lastMessage = info.visibleItemsInfo.firstOrNull { it.index == lastIndex }
@@ -324,7 +307,6 @@ internal class ChatScrollController {
         return false
     }
 }
-
 
 @Composable
 internal fun rememberChatScrollController(): ChatScrollController = remember { ChatScrollController() }

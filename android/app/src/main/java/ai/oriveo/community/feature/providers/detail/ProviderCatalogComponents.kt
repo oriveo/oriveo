@@ -58,7 +58,6 @@ import ai.oriveo.community.ui.theme.OriveoTheme
 import ai.oriveo.community.ui.component.LocalModelRuntimeLabel
 import ai.oriveo.community.ui.theme.opacity
 
-
 fun LazyListScope.providerCatalogGroups(
     provider: Provider,
     groups: List<ProviderCatalogGroup>,
@@ -112,13 +111,11 @@ fun LazyListScope.providerCatalogGroups(
     }
 }
 
-
 private const val CatalogHeaderContentType = "catalog_header"
 private const val CatalogRowContentType = "catalog_row"
 private const val CatalogSpacerContentType = "catalog_spacer"
 
 internal enum class CatalogRowPosition { Single, First, Middle, Last }
-
 
 internal fun Modifier.catalogRowSurface(
     surface: Color,
@@ -249,7 +246,7 @@ private fun CatalogModelRow(
 ) {
     val colors = OriveoTheme.colors
     val spacing = OriveoTheme.spacing
-    
+
     val dividerColor = colors.border.opacity(0.45f)
 
     Row(
@@ -266,7 +263,7 @@ private fun CatalogModelRow(
                 drawContent()
                 if (showTopDivider) {
                     val strokePx = 1.dp.toPx()
-                    
+
                     val insetPx = spacing.md.toPx()
                     drawRect(
                         color = dividerColor,
@@ -275,7 +272,7 @@ private fun CatalogModelRow(
                     )
                 }
             }
-            
+
             .heightIn(min = 62.dp)
             .then(if (model.isAvailable) Modifier.clickable(onClick = onEnable) else Modifier)
             .padding(horizontal = spacing.md, vertical = 10.dp)
@@ -283,7 +280,7 @@ private fun CatalogModelRow(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(spacing.md),
     ) {
-        
+
         val hasSpecs = modelSpecifications(model).isNotEmpty()
         Column(
             modifier = Modifier.weight(1f),
@@ -308,13 +305,12 @@ private fun CatalogModelRow(
                 compact = true,
                 showPrice = false,
             )
-            
+
             if (hasSpecs) {
                 ModelSpecInline(model = model)
             }
         }
 
-        
         if (!hasSpecs) {
             val priceTier = model.normalizedPriceTierLabel()
             if (priceTier.isNotBlank()) {

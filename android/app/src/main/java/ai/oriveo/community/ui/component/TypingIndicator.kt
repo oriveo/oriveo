@@ -27,7 +27,6 @@ import androidx.compose.ui.unit.dp
 import ai.oriveo.community.R
 import ai.oriveo.community.ui.theme.OriveoTheme
 
-
 @Composable
 fun TypingIndicator(
     modifier: Modifier = Modifier,
@@ -94,8 +93,7 @@ private fun AnimatedDot(
     Box(
         modifier = Modifier
             .size(6.dp)
-            
-            
+
             .graphicsLayer {
                 scaleX = scale
                 scaleY = scale

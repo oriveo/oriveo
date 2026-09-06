@@ -51,13 +51,12 @@ import ai.oriveo.community.ui.theme.OriveoBorderWidth
 import ai.oriveo.community.ui.theme.OriveoTheme
 import ai.oriveo.community.ui.theme.opacity
 
-
 @Composable
 internal fun RelayEditConnectionCard(
     endpoint: String,
     onEndpointChange: (String) -> Unit,
     apiKeyPreview: String,
-    
+
     requiresCredential: Boolean,
     securityMode: RelayConnectionSecurityMode,
     hasCredentialMaterial: Boolean,
@@ -77,7 +76,7 @@ internal fun RelayEditConnectionCard(
     val colors = OriveoTheme.colors
     val isDark = OriveoTheme.isDark
     val spacing = OriveoTheme.spacing
-    
+
     val sectionTint = colors.info
 
     val canTest = endpoint.trim().isNotEmpty()
@@ -98,7 +97,7 @@ internal fun RelayEditConnectionCard(
                 .background(colors.surfaceChrome)
                 .border(OriveoBorderWidth.standard, borderColor, cardShape),
         ) {
-            
+
             EndpointBlock(
                 value = endpoint,
                 onValueChange = onEndpointChange,
@@ -118,7 +117,7 @@ internal fun RelayEditConnectionCard(
                 )
             }
             Divider()
-            
+
             ApiKeyRow(
                 state = RelayApiKeyRowState.of(requiresCredential, apiKeyPreview),
                 apiKeyPreview = apiKeyPreview,
@@ -128,14 +127,14 @@ internal fun RelayEditConnectionCard(
                 onClick = onEditApiKey,
             )
             Divider()
-            
+
             TestRow(
                 isTesting = isTestingConnection,
                 enabled = canTest && !isSubmitting,
                 sectionTint = sectionTint,
                 onClick = onTestConnection,
             )
-            
+
             if (testResult != null) {
                 TestResultRow(result = testResult)
             }
@@ -232,16 +231,13 @@ private fun EndpointBlock(
     }
 }
 
-
 @androidx.compose.runtime.Immutable
 internal enum class RelayApiKeyRowState {
-    
+
     NotRequired,
 
-    
     Missing,
 
-    
     Present,
     ;
 
@@ -265,7 +261,7 @@ private fun ApiKeyRow(
     val colors = OriveoTheme.colors
     val isWarning = state == RelayApiKeyRowState.Missing
     val accent = if (isWarning) colors.warning else colors.textSecondary
-    
+
     val clickable = enabled && state != RelayApiKeyRowState.NotRequired
     Row(
         modifier = Modifier
@@ -352,7 +348,7 @@ private fun TestRow(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(OriveoTheme.spacing.md),
     ) {
-        
+
         Box(
             modifier = Modifier
                 .size(32.dp)

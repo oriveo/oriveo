@@ -101,7 +101,7 @@ class AttachmentInjectorTest {
                 payload.copy(fileName = "b.txt"),
             ),
         )
-        
+
         assertTrue(r.skipped.isNotEmpty())
         assertEquals(AttachmentInjector.SkipReason.TotalCapExceeded, r.skipped[0].reason)
     }

@@ -29,7 +29,6 @@ import androidx.compose.ui.unit.dp
 import ai.oriveo.community.R
 import ai.oriveo.community.ui.theme.OriveoTheme
 
-
 @Composable
 fun StreamingPulseDot(
     modifier: Modifier = Modifier,
@@ -64,7 +63,6 @@ fun StreamingPulseDot(
     )
 }
 
-
 internal fun isReduceMotionEnabled(context: Context): Boolean {
     cachedReduceMotion?.let { return it }
     return try {
@@ -86,7 +84,6 @@ internal fun isReduceMotionEnabled(context: Context): Boolean {
 
 private val reduceMotionObserverLock = Any()
 private var reduceMotionObserverRegistered = false
-
 
 private fun observeReduceMotionChanges(appContext: Context) {
     synchronized(reduceMotionObserverLock) {

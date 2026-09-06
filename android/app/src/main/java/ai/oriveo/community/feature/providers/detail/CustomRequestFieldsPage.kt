@@ -61,7 +61,6 @@ import ai.oriveo.community.feature.chat.composer.modelControlSurface
 import ai.oriveo.community.ui.theme.OriveoTheme
 import ai.oriveo.community.ui.theme.modelControlTextButtonColors
 
-
 @Composable
 internal fun CustomRequestFieldsPage(
     provider: Provider,
@@ -78,7 +77,6 @@ internal fun CustomRequestFieldsPage(
     val colors = OriveoTheme.colors
     val store = remember(context) { LocalCapabilityCustomFragmentStore.from(context) }
 
-    
     val snapshot = remember(provider.id, canonicalModelId, conversationId, transportIdentity, finalTransport) {
         loadCustomRequestFieldSections(
             store = store,
@@ -92,12 +90,10 @@ internal fun CustomRequestFieldsPage(
         )
     }
     var drafts by remember(snapshot) { mutableStateOf(snapshot.drafts) }
-    
-    
+
     var legacyEmptyCustomOwners by remember(snapshot) { mutableStateOf(snapshot.legacyEmptyCustomOwners) }
     var pendingRemovalOwner by remember(snapshot) { mutableStateOf<String?>(null) }
 
-    
     fun persist(owner: String) {
         val namespace = LocalCapabilityCustomFragmentStore.namespaceForOwner(owner) ?: return
         val raw = drafts[owner].orEmpty()
@@ -117,7 +113,7 @@ internal fun CustomRequestFieldsPage(
         AlertDialog(
             onDismissRequest = { pendingRemovalOwner = null },
             title = { Text(stringResource(R.string.model_control_remove_custom_fields_title)) },
-            
+
             text = {
                 Text(
                     stringResource(
@@ -208,7 +204,6 @@ internal fun CustomRequestFieldsPage(
     }
 }
 
-
 @androidx.annotation.StringRes
 internal fun customRequestFieldSectionTitleRes(owner: String): Int = when (owner) {
     "web" -> R.string.model_control_web_search
@@ -216,18 +211,14 @@ internal fun customRequestFieldSectionTitleRes(owner: String): Int = when (owner
     else -> R.string.generation_parameters_section
 }
 
-
 internal sealed interface CustomRequestFieldRejection {
-    
+
     data object InvalidJson : CustomRequestFieldRejection
 
-    
     data object TooLarge : CustomRequestFieldRejection
 
-    
     data class NotAllowed(val allowedPaths: List<String>) : CustomRequestFieldRejection
 
-    
     data object ConflictsManaged : CustomRequestFieldRejection
 }
 
@@ -238,14 +229,13 @@ internal fun customRequestFieldRejection(
     "invalid_json", "duplicate_json_key" -> CustomRequestFieldRejection.InvalidJson
     "too_large", "depth_exceeded", "node_limit_exceeded" -> CustomRequestFieldRejection.TooLarge
     // unknown_path / cross_owner / forbidden_root / forbidden_channel / forbidden_key /
-    
+
     else -> if (allowedPaths.isEmpty()) {
         CustomRequestFieldRejection.ConflictsManaged
     } else {
         CustomRequestFieldRejection.NotAllowed(allowedPaths)
     }
 }
-
 
 internal data class CustomRequestFieldsSnapshot(
     val sections: List<String>,
@@ -268,13 +258,10 @@ internal fun loadCustomRequestFieldSections(
     val schemaOwners = linkedSetOf<String>()
     val drafts = linkedMapOf<String, String>()
     val legacyEmpty = linkedSetOf<String>()
-    
+
     modelControlOwnerOrder.forEach { owner ->
         val namespace = LocalCapabilityCustomFragmentStore.namespaceForOwner(owner) ?: return@forEach
-        
-        
-        
-        
+
         val configuration = store.effectiveConfiguration(
             providerID = provider.id,
             modelID = canonicalModelId,
@@ -300,15 +287,7 @@ internal fun loadCustomRequestFieldSections(
         ) {
             schemaOwners += owner
         }
-        
-        
-        
-        
-        
-        
-        
-        
-        
+
         if (owner in schemaOwners || hasContent || owner in legacyEmpty) sections += owner
     }
     return CustomRequestFieldsSnapshot(sections, schemaOwners, drafts, legacyEmpty)
@@ -346,7 +325,7 @@ private fun CustomRequestFieldsOwnerCard(
                 color = colors.textPrimary,
                 modifier = Modifier.weight(1f),
             )
-            
+
             if (trimmed.isNotEmpty()) {
                 Spacer(Modifier.width(8.dp))
                 Text(
@@ -361,8 +340,6 @@ private fun CustomRequestFieldsOwnerCard(
             ModelControlNote(R.string.model_control_custom_fields_no_schema_for_control, Icons.Outlined.Info)
         }
 
-        
-        
         if (trimmed.isEmpty() && isLegacyEmptyCustom) {
             ModelControlNote(
                 R.string.model_control_custom_empty_but_selected,
@@ -377,13 +354,12 @@ private fun CustomRequestFieldsOwnerCard(
 
         OutlinedTextField(
             value = raw,
-            
+
             onValueChange = onRawChange,
             modifier = Modifier
                 .fillMaxWidth()
                 .semantics { contentDescription = jsonLabel },
-            
-            
+
             textStyle = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
             minLines = 6,
             singleLine = false,
@@ -412,7 +388,6 @@ private fun CustomRequestFieldsOwnerCard(
             preview = preview,
         )
 
-        
         MetadataClient.instance
             .capabilityCustomControlAuthority(provider.kind, model.id, finalTransport.orEmpty(), owner)
             ?.riskTiers
@@ -441,13 +416,10 @@ private fun CustomRequestFieldsOwnerCard(
                 },
             )
         } else if (provider.kind == ProviderKind.Relay) {
-            
+
             ModelControlNote(R.string.model_control_relay_docs, Icons.Outlined.Book)
         }
 
-        
-        
-        
         ModelControlNote(
             textRes = if (conversationId != null) {
                 R.string.model_control_custom_scope_conversation
@@ -457,7 +429,6 @@ private fun CustomRequestFieldsOwnerCard(
             icon = Icons.Outlined.TrackChanges,
         )
 
-        
         TextButton(
             colors = ButtonDefaults.textButtonColors(contentColor = colors.danger),
             enabled = trimmed.isNotEmpty() || isLegacyEmptyCustom,
@@ -500,11 +471,10 @@ private fun CustomRequestFieldsValidation(
                     color = colors.success,
                 )
             }
-            
+
             Text(
                 text = preview.preview.orEmpty().keys.sorted().joinToString("\n") { "$it: <redacted>" },
-                
-                
+
                 style = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
                 color = colors.textSecondary,
             )

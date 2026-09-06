@@ -46,50 +46,38 @@ class ProviderSetupViewModel(
     val setupCatalog: ProviderSetupCatalog
         get() = catalogProvider()
 
-    
     var selectedKind: ProviderKind? by mutableStateOf(null)
         private set
 
-    
     var apiKey: String by mutableStateOf("")
 
-    
     var isLoading: Boolean by mutableStateOf(false)
         private set
 
-    
     var error: OriveoError? by mutableStateOf(null)
         private set
 
-    
     val regionOptions: List<RegionOption>
         get() = selectedKind?.let { setupCatalog.regionOptions(it) } ?: emptyList()
 
-    
     var selectedRegion: RegionOption? by mutableStateOf(null)
         private set
 
-    
     var isAdditionalInstance: Boolean by mutableStateOf(false)
 
-    
     var grokAuthMode: ProviderAuthMode by mutableStateOf(ProviderAuthMode.ApiKey)
 
-    
     val grokSubscriptionConfig: GrokSubscriptionAuthConfig?
         get() = (MetadataClient.grokSubscriptionAvailability() as? GrokSubscriptionAvailability.Available)
             ?.config
 
-    
     val usesGrokSubscriptionFlow: Boolean
         get() = selectedKind == ProviderKind.Grok &&
             grokAuthMode == ProviderAuthMode.Subscription &&
             grokSubscriptionConfig != null
 
-    
     var openAIAuthMode: ProviderAuthMode by mutableStateOf(ProviderAuthMode.ApiKey)
 
-    
     val openAISubscriptionConfig: OpenAISubscriptionAuthConfig?
         get() = (MetadataClient.openAISubscriptionAvailability() as? OpenAISubscriptionAvailability.Available)
             ?.config
@@ -99,39 +87,33 @@ class ProviderSetupViewModel(
             openAIAuthMode == ProviderAuthMode.Subscription &&
             openAISubscriptionConfig != null
 
-    
     var showGrokSubscriptionSheet: Boolean by mutableStateOf(false)
 
-    
     var showOpenAISubscriptionSheet: Boolean by mutableStateOf(false)
 
-    
     val usesSubscriptionFlow: Boolean
         get() = usesGrokSubscriptionFlow || usesOpenAISubscriptionFlow
 
-    
     var registeredProvider: Provider? by mutableStateOf(null)
         private set
 
-    
     val connectedProviders: StateFlow<Map<ProviderKind, String>> = providerRepository.observeAll()
         .map { providers ->
             providers
                 .filter { it.kind != ProviderKind.Relay }
-                
+
                 .groupBy { it.kind }
                 .mapValues { (_, group) -> group.first().id }
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000L), emptyMap())
 
-
     fun selectKind(kind: ProviderKind) {
         selectedKind = kind
         apiKey = ""
         selectedRegion = setupCatalog.regionOptions(kind).firstOrNull()
-        
+
         isAdditionalInstance = false
-        
+
         grokAuthMode = ProviderAuthMode.ApiKey
         openAIAuthMode = ProviderAuthMode.ApiKey
         clearError()
@@ -142,7 +124,7 @@ class ProviderSetupViewModel(
         selectedKind = kind
         if (previousKind != kind) {
             selectedRegion = kind?.let { setupCatalog.regionOptions(it).firstOrNull() }
-            
+
             isAdditionalInstance = false
             grokAuthMode = ProviderAuthMode.ApiKey
             openAIAuthMode = ProviderAuthMode.ApiKey
@@ -160,10 +142,9 @@ class ProviderSetupViewModel(
             val inferredKind = ProviderKind.inferredFromApiKey(value)
             if (selectedKind != inferredKind) {
                 selectedRegion = inferredKind?.let { setupCatalog.regionOptions(it).firstOrNull() }
-                
+
                 isAdditionalInstance = false
-                
-                
+
                 grokAuthMode = ProviderAuthMode.ApiKey
                 openAIAuthMode = ProviderAuthMode.ApiKey
             }
@@ -175,7 +156,7 @@ class ProviderSetupViewModel(
     val canSubmit: Boolean
         get() {
             val kind = selectedKind ?: return false
-            
+
             if (usesSubscriptionFlow) return false
             val hasRequiredApiKey = if (kind == ProviderKind.OpenAI) {
                 true
@@ -189,7 +170,7 @@ class ProviderSetupViewModel(
         val kind = selectedKind ?: return
         val trimmedKey = apiKey.trim()
         if (trimmedKey.isEmpty()) return
-        
+
         if (!ProviderKeyInput.isPrintableAsciiKey(trimmedKey)) {
             error = OriveoError(
                 title = context.getString(R.string.provider_api_key_illegal_chars_title),
@@ -197,7 +178,7 @@ class ProviderSetupViewModel(
                 detail = "",
                 severity = OriveoErrorSeverity.Warning,
             )
-            
+
             return
         }
 
@@ -205,8 +186,6 @@ class ProviderSetupViewModel(
             isLoading = true
             clearError()
 
-            
-            
             val baseUrl = selectedRegion?.baseURL ?: setupCatalog.defaultBaseUrl(kind)
 
             try {
@@ -217,15 +196,11 @@ class ProviderSetupViewModel(
                     isAdditionalInstance = isAdditionalInstance,
                 )
                 registeredProvider = provider
-                
-                
+
                 val isIssue = provider.status is ProviderConnectionState.Issue
-                
+
                 appPreferencesRepository.completeOnboarding()
-                
-                
-                
-                
+
                 val softError = provider.lastError?.trim()?.takeIf { it.isNotEmpty() }
                 val snackbarText: UiText = when {
                     isIssue -> UiText.Resource(R.string.provider_saved_but_invalid)
@@ -248,7 +223,6 @@ class ProviderSetupViewModel(
         }
     }
 
-    
     fun completeGrokSubscriptionSetup(tokens: GrokSubscriptionTokens) {
         viewModelScope.launch {
             isLoading = true
@@ -264,7 +238,7 @@ class ProviderSetupViewModel(
                 )
                 registeredProvider = provider
                 appPreferencesRepository.completeOnboarding()
-                
+
                 val snackbarText: UiText =
                     if (provider.lastError == ProviderRepository.SUBSCRIPTION_CATALOG_UNAVAILABLE_MESSAGE) {
                         UiText.Resource(R.string.provider_catalog_unavailable)
@@ -288,7 +262,6 @@ class ProviderSetupViewModel(
         }
     }
 
-    
     fun completeOpenAISubscriptionSetup(tokens: OpenAISubscriptionTokens) {
         viewModelScope.launch {
             isLoading = true
@@ -304,8 +277,7 @@ class ProviderSetupViewModel(
                 )
                 registeredProvider = provider
                 appPreferencesRepository.completeOnboarding()
-                
-                
+
                 val snackbarText: UiText =
                     if (provider.lastError == ProviderRepository.CODEX_CATALOG_UNAVAILABLE_MESSAGE) {
                         UiText.Resource(R.string.openai_subscription_catalog_unavailable)
@@ -337,7 +309,7 @@ class ProviderSetupViewModel(
     }
 
     private fun mapProviderError(error: ProviderServiceError): OriveoError = OriveoError(
-        
+
         title = ErrorMapper.localizeProviderErrorTitle(error.title, context),
         message = ErrorMapper.localizeProviderErrorMessage(error, context),
         actionTitle = context.getString(R.string.retry),

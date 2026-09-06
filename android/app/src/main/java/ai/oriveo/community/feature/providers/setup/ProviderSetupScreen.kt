@@ -114,7 +114,6 @@ import ai.oriveo.community.ui.theme.ProviderBadgeColors
 import ai.oriveo.community.ui.theme.oriveoSurface
 import org.koin.androidx.compose.koinViewModel
 
-
 @OptIn(ExperimentalLayoutApi::class, ExperimentalMaterial3Api::class)
 @Composable
 fun ProviderSetupScreen(
@@ -132,10 +131,6 @@ fun ProviderSetupScreen(
         viewModel.registeredProvider?.let { onProviderRegistered(it.id) }
     }
 
-    
-    
-    
-    
     LaunchedEffect(Unit) {
     }
 
@@ -153,13 +148,11 @@ fun ProviderSetupScreen(
         viewModel.selectKindPreservingInput(kind)
     }
 
-    
     val onSelectProvider: (ProviderKind) -> Unit = { kind ->
         providerSelectionIsManual = true
         viewModel.selectKindPreservingInput(kind)
     }
 
-    
     val scrollState = rememberScrollState()
     LaunchedEffect(selectedKind) {
         if (selectedKind != null) {
@@ -173,7 +166,7 @@ fun ProviderSetupScreen(
 
         Box(modifier = Modifier.fillMaxSize().imePadding()) {
             Column(modifier = Modifier.fillMaxSize()) {
-                
+
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -235,7 +228,6 @@ fun ProviderSetupScreen(
                     )
                 }
 
-                
                 Column(
                     modifier = Modifier
                         .weight(1f)
@@ -287,9 +279,7 @@ fun ProviderSetupScreen(
                         }
 
                         selectedKind?.let { kind ->
-                            
-                            
-                            
+
                             val existingProviderId = connectedProviders[kind]
                             if (existingProviderId != null && !viewModel.isAdditionalInstance) {
                                 ProviderAlreadyConnectedSection(
@@ -299,8 +289,7 @@ fun ProviderSetupScreen(
                                     onAddAnother = { viewModel.isAdditionalInstance = true },
                                 )
                             } else {
-                                
-                                
+
                                 if (kind == ProviderKind.Grok && viewModel.grokSubscriptionConfig != null) {
                                     GrokConnectionModeSection(
                                         mode = viewModel.grokAuthMode,
@@ -353,8 +342,6 @@ fun ProviderSetupScreen(
                 }
             }
 
-            
-            
             if (selectedCategory != ProviderCategory.Custom && !viewModel.usesSubscriptionFlow) {
                 Column(
                     modifier = Modifier
@@ -385,7 +372,7 @@ fun ProviderSetupScreen(
             val config = viewModel.grokSubscriptionConfig
             val grokSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
             if (config == null) {
-                
+
                 viewModel.showGrokSubscriptionSheet = false
             } else {
                 ModalBottomSheet(
@@ -403,8 +390,7 @@ fun ProviderSetupScreen(
                             viewModel.showGrokSubscriptionSheet = false
                             viewModel.completeGrokSubscriptionSetup(tokens)
                         },
-                        
-                        
+
                         onDismiss = {
                             authorizationViewModel.grok.cancel()
                             viewModel.showGrokSubscriptionSheet = false
@@ -418,7 +404,7 @@ fun ProviderSetupScreen(
             val config = viewModel.openAISubscriptionConfig
             val openAISheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
             if (config == null) {
-                
+
                 viewModel.showOpenAISubscriptionSheet = false
             } else {
                 ModalBottomSheet(
@@ -471,7 +457,6 @@ fun ProviderSetupScreen(
     }
 }
 
-
 @Composable
 private fun SetupHeroSection(compact: Boolean) {
     val colors = OriveoTheme.colors
@@ -488,7 +473,7 @@ private fun SetupHeroSection(compact: Boolean) {
         verticalArrangement = Arrangement.spacedBy(if (compact) 8.dp else 12.dp),
     ) {
         Box(contentAlignment = Alignment.Center) {
-            
+
             Box(
                 modifier = Modifier
                     .size(glowSize)
@@ -505,7 +490,6 @@ private fun SetupHeroSection(compact: Boolean) {
                     ),
             )
 
-            
             Box(
                 modifier = Modifier
                     .size(iconSize)
@@ -519,7 +503,7 @@ private fun SetupHeroSection(compact: Boolean) {
                     .background(OriveoGradients.primary),
                 contentAlignment = Alignment.Center,
             ) {
-                
+
                 Box(
                     modifier = Modifier
                         .matchParentSize()
@@ -533,14 +517,14 @@ private fun SetupHeroSection(compact: Boolean) {
                             ),
                         ),
                 )
-                
+
                 Box(
                     modifier = Modifier
                         .matchParentSize()
                         .padding(5.dp)
                         .border(1.dp, Color.White.copy(alpha = 0.18f), RoundedCornerShape(iconRadius - 4.dp)),
                 )
-                
+
                 Box(
                     modifier = Modifier
                         .matchParentSize()
@@ -588,7 +572,6 @@ private fun SetupHeroSection(compact: Boolean) {
     }
 }
 
-
 private enum class ProviderCategory(@get:androidx.annotation.StringRes val labelRes: Int, val icon: ImageVector) {
     All(R.string.provider_category_all, Icons.Filled.GridView),
     Direct(R.string.provider_category_direct, Icons.Filled.Bolt),
@@ -602,7 +585,7 @@ private fun ProviderCategoryChips(
     onSelect: (ProviderCategory) -> Unit,
 ) {
     val colors = OriveoTheme.colors
-    
+
     BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
         val rowMinWidth = maxWidth
         Row(
@@ -649,7 +632,6 @@ private fun ProviderCategoryChips(
     }
 }
 
-
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun ProviderShowcaseSection(
@@ -685,14 +667,13 @@ private fun ProviderShowcaseSection(
                     modifier = Modifier.weight(1f),
                 )
             }
-            
+
             if (providers.size % 2 == 1) {
                 Spacer(modifier = Modifier.weight(1f))
             }
         }
     }
 }
-
 
 @Composable
 private fun ProviderShowcaseCard(
@@ -710,7 +691,7 @@ private fun ProviderShowcaseCard(
 
     Box(
         modifier = modifier
-            
+
             .shadow(
                 elevation = if (isSelected) 12.dp else 8.dp,
                 shape = cardShape,
@@ -718,12 +699,12 @@ private fun ProviderShowcaseCard(
                 spotColor = if (isSelected) accent.copy(alpha = 0.18f) else Color.Black.copy(alpha = 0.10f),
             )
             .clip(cardShape)
-            
+
             .background(brand.background)
-            
+
             .clickable(onClick = onClick),
     ) {
-        
+
         ShowcaseWatermark(kind = kind, accent = accent, isSelected = isSelected)
 
         Column(
@@ -731,7 +712,7 @@ private fun ProviderShowcaseCard(
                 .heightIn(min = 88.dp)
                 .padding(12.dp),
         ) {
-            
+
             Row(verticalAlignment = Alignment.Top) {
                 Box(
                     modifier = Modifier.size(36.dp),
@@ -787,7 +768,6 @@ private fun ProviderShowcaseCard(
     }
 }
 
-
 @Composable
 private fun BoxScope.ShowcaseWatermark(kind: ProviderKind, accent: Color, isSelected: Boolean) {
     val symbol = kind.brandWatermarkIcon()
@@ -824,7 +804,6 @@ private fun BoxScope.ShowcaseWatermark(kind: ProviderKind, accent: Color, isSele
         }
     }
 }
-
 
 @Composable
 private fun ApiKeyConnectionSection(
@@ -882,15 +861,12 @@ private fun ApiKeyConnectionSection(
             enabled = !isLoading,
         )
 
-        
-        
         OriveoTextButton(
             text = stringResource(R.string.provider_detail_connection_settings),
             onClick = onConnectionSettings,
         )
     }
 }
-
 
 @Composable
 private fun GrokConnectionModeSection(
@@ -925,7 +901,6 @@ private fun GrokConnectionModeSection(
     }
 }
 
-
 @Composable
 private fun ProviderConnectionModeOption(
     selected: Boolean,
@@ -950,8 +925,7 @@ private fun ProviderConnectionModeOption(
             )
             .clickable(onClick = onClick)
             .padding(12.dp),
-        
-        
+
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
@@ -959,7 +933,7 @@ private fun ProviderConnectionModeOption(
             imageVector = icon,
             contentDescription = null,
             tint = if (selected) colors.primary else colors.textSecondary,
-            
+
             modifier = Modifier.size(24.dp),
         )
 
@@ -979,8 +953,6 @@ private fun ProviderConnectionModeOption(
             )
         }
 
-        
-        
         Icon(
             imageVector = if (selected) Icons.Filled.CheckCircle else Icons.Outlined.Circle,
             contentDescription = null,
@@ -989,7 +961,6 @@ private fun ProviderConnectionModeOption(
         )
     }
 }
-
 
 @Composable
 private fun GrokSubscriptionConnectSection(
@@ -1022,7 +993,6 @@ private fun GrokSubscriptionConnectSection(
         )
     }
 }
-
 
 @Composable
 private fun OpenAIConnectionModeSection(
@@ -1057,7 +1027,6 @@ private fun OpenAIConnectionModeSection(
     }
 }
 
-
 @Composable
 private fun OpenAISubscriptionConnectSection(
     isLoading: Boolean,
@@ -1089,7 +1058,6 @@ private fun OpenAISubscriptionConnectSection(
         )
     }
 }
-
 
 @Composable
 private fun ProviderAlreadyConnectedSection(
@@ -1143,7 +1111,6 @@ private fun ProviderAlreadyConnectedSection(
     }
 }
 
-
 @Composable
 private fun LocalComputeEntry(isDark: Boolean, onClick: () -> Unit) {
     CustomProviderEntry(
@@ -1167,7 +1134,6 @@ private fun RelayCustomEntry(isDark: Boolean, onClick: () -> Unit) {
         onClick = onClick,
     )
 }
-
 
 @Composable
 private fun CustomProviderEntry(
@@ -1353,8 +1319,7 @@ private fun ProviderSetupConnectionSettingsSheet(
             .padding(top = spacing.md, bottom = spacing.xl),
         verticalArrangement = Arrangement.spacedBy(layout.cardRowGap),
     ) {
-        
-        
+
         Text(
             text = stringResource(R.string.provider_detail_connection_settings),
             style = OriveoTheme.typography.title1,
@@ -1362,7 +1327,7 @@ private fun ProviderSetupConnectionSettingsSheet(
         )
 
         OriveoCard {
-            
+
             Column(verticalArrangement = Arrangement.spacedBy(spacing.md)) {
                 ProviderSetupConnectionInfoRow(
                     title = stringResource(R.string.provider_label),
@@ -1406,7 +1371,6 @@ private fun ProviderSetupConnectionSettingsSheet(
         )
     }
 }
-
 
 @Composable
 private fun ProviderSetupConnectionInfoRow(title: String, value: String) {

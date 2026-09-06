@@ -57,7 +57,7 @@ object CostSummaryCalculator {
             .toInstant()
 
         val providerByID = providers.associateBy { it.id }
-        
+
         val groupedCosts = mutableMapOf<String, Triple<ProviderKind, String, Double>>()
 
         conversations
@@ -73,7 +73,6 @@ object CostSummaryCalculator {
                     val occurredAtInstant = Instant.ofEpochMilli(occurredAt)
                     if (occurredAtInstant < windowStart || occurredAtInstant >= windowEnd) return@forEach
 
-                    
                     val providerID = message.providerID ?: conversation.providerID
                     val key = "${message.providerKind.name}|$providerID"
                     val previous = groupedCosts[key]

@@ -7,7 +7,6 @@ import javax.crypto.spec.GCMParameterSpec
 import javax.crypto.spec.PBEKeySpec
 import javax.crypto.spec.SecretKeySpec
 
-
 object BackupCrypto {
 
     private const val PBKDF2_ITERATIONS = 600_000
@@ -17,7 +16,6 @@ object BackupCrypto {
     private const val GCM_TAG_LENGTH_BITS = 128
     private const val MIN_PASSWORD_LENGTH = 8
 
-    
     fun encrypt(data: ByteArray, password: String): ByteArray {
         require(password.length >= MIN_PASSWORD_LENGTH) { "Password must be at least $MIN_PASSWORD_LENGTH characters" }
 
@@ -35,7 +33,6 @@ object BackupCrypto {
         return salt + nonce + ciphertextWithTag
     }
 
-    
     fun decrypt(data: ByteArray, password: String): ByteArray {
         require(password.length >= MIN_PASSWORD_LENGTH) { "Password must be at least $MIN_PASSWORD_LENGTH characters" }
 

@@ -5,7 +5,6 @@ import ai.oriveo.community.core.data.entity.FolderEntity
 import ai.oriveo.community.core.model.Folder
 import ai.oriveo.community.core.util.normalizeUuid
 
-
 object FolderMapper {
 
     fun FolderEntity.toDomain(): Folder = Folder(

@@ -23,7 +23,6 @@ data class GenerationParameterPreset(
     val mutationID: String? = null,
 )
 
-
 class GenerationParameterPresetStore(
     private val readPayload: () -> String?,
     private val writePayload: (String?) -> Unit,
@@ -31,21 +30,20 @@ class GenerationParameterPresetStore(
     private val putTombstone: (String, Int) -> Unit = { _, _ -> },
     private val clearTombstone: (String) -> Unit = {},
 ) {
-    
+
     fun list(
         providerID: String,
         modelID: String,
         profileFingerprint: String,
         portableParameterIDs: Set<String> = emptySet(),
     ): List<GenerationParameterPreset> = records().filter { preset ->
-        
+
         if (!sameNormalizedUuid(preset.providerID, providerID)) return@filter false
         if (preset.modelID == modelID) return@filter true
-        
+
         preset.values.values.keys.any(portableParameterIDs::contains)
     }
 
-    
     fun save(
         name: String,
         providerID: String,
@@ -94,10 +92,8 @@ class GenerationParameterPresetStore(
         writePayload(json.encodeToString(current.filterNot { it in removed }))
     }
 
-    
     fun clearForAccountBoundary() = synchronized(this) { writePayload(null) }
 
-    
     fun apply(
         preset: GenerationParameterPreset,
         providerID: String,

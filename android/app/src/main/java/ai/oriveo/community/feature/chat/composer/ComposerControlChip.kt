@@ -62,8 +62,6 @@ internal fun ComposerControlChip(
     val pressed by interactionSource.collectIsPressedAsState()
     val chipScale by animateFloatAsState(if (pressed) 0.975f else 1f, label = "composerChipScale")
 
-    
-    
     val emphasisScale by animateFloatAsState(
         targetValue = if (emphasized) 1.02f else 1f,
         animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium),

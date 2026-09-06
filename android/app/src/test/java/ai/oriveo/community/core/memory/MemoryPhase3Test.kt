@@ -1,6 +1,5 @@
 package ai.oriveo.community.core.memory
 
-
 import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.core.app.AppPreferenceKeys
 import ai.oriveo.community.core.app.AppPreferencesRepository
@@ -20,7 +19,6 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
-
 class MemoryPhase3Test {
 
     private lateinit var preferenceDao: FakePreferenceDao
@@ -31,8 +29,6 @@ class MemoryPhase3Test {
         preferenceDao = FakePreferenceDao()
         repository = AppPreferencesRepository(preferenceDao)
     }
-
-    
 
     @Test
     fun `MEM-3-08 - Conversation defaults useMemory to true`() {
@@ -78,11 +74,9 @@ class MemoryPhase3Test {
         assertFalse(conversation.useMemory)
     }
 
-    
-
     @Test
     fun `MEM-3-20 - missing memory text in preferences defaults to empty string`() = runTest {
-        
+
         val text = repository.memoryText.first()
         assertEquals("", text)
     }
@@ -159,8 +153,6 @@ class MemoryPhase3Test {
         assertTrue(ids.isEmpty())
     }
 
-    
-
     @Test
     fun `MEM-3-09 - memoryUsageCount is local-only stored in preferences`() = runTest {
         repository.markMemoryUsedInConversation("conv-1")
@@ -169,29 +161,25 @@ class MemoryPhase3Test {
         val count = repository.memoryUsageCount.first()
         assertEquals(2, count)
 
-        
         val rawCount = preferenceDao.get(AppPreferenceKeys.MEMORY_USAGE_COUNT)
         assertEquals("2", rawCount)
     }
 
     @Test
     fun `MEM-3-09 - memoryUsageCount not included in BackupPreferences`() {
-        
+
         val backup = BackupPreferences(
             memoryText = "I use Kotlin",
             memoryAntiForgetEnabled = true,
             memoryAntiForgetText = "Be concise",
             memoryUpdatedAt = "2026-04-01T00:00:00Z",
         )
-        
-        
+
         assertEquals("I use Kotlin", backup.memoryText)
         assertEquals(true, backup.memoryAntiForgetEnabled)
         assertEquals("Be concise", backup.memoryAntiForgetText)
         assertEquals("2026-04-01T00:00:00Z", backup.memoryUpdatedAt)
     }
-
-    
 
     @Test
     fun `MEM-3-10 - memoryHasSeen is local-only stored in preferences`() = runTest {
@@ -206,14 +194,12 @@ class MemoryPhase3Test {
 
     @Test
     fun `MEM-3-10 - memoryHasSeen not included in BackupPreferences`() {
-        
+
         val backup = BackupPreferences()
-        
+
         assertEquals("", backup.memoryText)
         assertEquals(false, backup.memoryAntiForgetEnabled)
     }
-
-    
 
     @Test
     fun `MEM-3-21 - BackupPreferences includes all memory fields`() {
@@ -267,7 +253,7 @@ class MemoryPhase3Test {
 
     @Test
     fun `MEM-3-21 - backup export reads memory from preferences correctly`() = runTest {
-        
+
         repository.saveMemory(
             text = "I use Kotlin",
             antiForgetEnabled = true,
@@ -275,7 +261,6 @@ class MemoryPhase3Test {
             updatedAt = "2026-03-31T10:00:00Z",
         )
 
-        
         val memoryText = preferenceDao.get(AppPreferenceKeys.MEMORY_TEXT).orEmpty()
         val antiForgetEnabled = preferenceDao
             .get(AppPreferenceKeys.MEMORY_ANTI_FORGET_ENABLED)
@@ -283,7 +268,6 @@ class MemoryPhase3Test {
         val antiForgetText = preferenceDao.get(AppPreferenceKeys.MEMORY_ANTI_FORGET_TEXT).orEmpty()
         val updatedAt = preferenceDao.get(AppPreferenceKeys.MEMORY_UPDATED_AT)
 
-        
         val backup = BackupPreferences(
             memoryText = memoryText,
             memoryAntiForgetEnabled = antiForgetEnabled,
@@ -299,7 +283,7 @@ class MemoryPhase3Test {
 
     @Test
     fun `MEM-3-21 - backup with empty memory still has correct defaults`() = runTest {
-        
+
         val memoryText = preferenceDao.get(AppPreferenceKeys.MEMORY_TEXT).orEmpty()
         val antiForgetEnabled = preferenceDao
             .get(AppPreferenceKeys.MEMORY_ANTI_FORGET_ENABLED)

@@ -37,7 +37,6 @@ import ai.oriveo.community.R
 import ai.oriveo.community.ui.theme.OriveoTheme
 import ai.oriveo.community.ui.theme.opacity
 
-
 @Composable
 fun ProvidersFullEmptyState(onAdd: () -> Unit, modifier: Modifier = Modifier) {
     val colors = OriveoTheme.colors
@@ -63,7 +62,7 @@ fun ProvidersFullEmptyState(onAdd: () -> Unit, modifier: Modifier = Modifier) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(22.dp),
     ) {
-        
+
         Box(
             modifier = Modifier
                 .size(140.dp)
@@ -117,7 +116,6 @@ fun ProvidersFullEmptyState(onAdd: () -> Unit, modifier: Modifier = Modifier) {
             )
         }
 
-        
         Row(
             modifier = Modifier
                 .clip(CircleShape)
@@ -134,7 +132,7 @@ fun ProvidersFullEmptyState(onAdd: () -> Unit, modifier: Modifier = Modifier) {
             horizontalArrangement = Arrangement.spacedBy(7.dp),
         ) {
             Icon(
-                
+
                 imageVector = Icons.Filled.AddCircle,
                 contentDescription = null,
                 modifier = Modifier.size(16.dp),
@@ -155,7 +153,6 @@ fun ProvidersFullEmptyState(onAdd: () -> Unit, modifier: Modifier = Modifier) {
         }
     }
 }
-
 
 @Composable
 fun ProvidersListEmptyState(modifier: Modifier = Modifier) {

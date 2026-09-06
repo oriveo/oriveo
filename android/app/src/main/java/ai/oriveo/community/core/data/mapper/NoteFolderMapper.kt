@@ -5,7 +5,6 @@ import ai.oriveo.community.core.data.entity.NoteFolderEntity
 import ai.oriveo.community.core.model.NoteFolder
 import ai.oriveo.community.core.util.normalizeUuid
 
-
 object NoteFolderMapper {
 
     fun NoteFolderEntity.toDomain(): NoteFolder = NoteFolder(

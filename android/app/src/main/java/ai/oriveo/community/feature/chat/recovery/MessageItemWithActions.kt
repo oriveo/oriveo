@@ -53,7 +53,6 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-
 private const val TEXT_SELECTION_OUTER_MENU_GUARD_MS = 120L
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -62,7 +61,7 @@ internal fun MessageItemWithActions(
     message: ChatMessage,
     streamingText: String?,
     streamingReasoning: String?,
-    
+
     streamingReasoningActive: Boolean = false,
     isSendingMessage: Boolean,
     isRateLimitError: Boolean,
@@ -241,7 +240,7 @@ internal fun MessageItemWithActions(
                             )
                         }
                         Text(
-                            
+
                             text = stringResource(R.string.notes_chat_saved_as_note) + " " + firstNoteTitle +
                                 if (overflowCount > 0) " +$overflowCount" else "",
                             style = OriveoTheme.typography.footnote,
@@ -337,7 +336,6 @@ internal fun MessageItemWithActions(
                 )
             }
 
-            
             if (showRecoveryCard && message.state == ChatMessageState.Interrupted &&
                 shouldShowRecoveryCard(message.state, message.role, isLastMessage)
             ) {
@@ -388,7 +386,6 @@ internal fun MessageItemWithActions(
                 )
             }
 
-            
             DropdownMenu(
                 expanded = showMenu && !selectionToolbarVisible && !selectionGestureActive,
                 onDismissRequest = { showMenu = false },
@@ -398,7 +395,7 @@ internal fun MessageItemWithActions(
                     onClick = { showMenu = false; onCopy() },
                     leadingIcon = { Icon(Icons.Outlined.ContentCopy, contentDescription = null) },
                 )
-                
+
                 if (message.text.isNotBlank()) {
                     DropdownMenuItem(
                         text = { Text(stringResource(R.string.notes_chat_save_as_note)) },
@@ -419,7 +416,7 @@ internal fun MessageItemWithActions(
                         onClick = { showMenu = false; onRegenerate() },
                         leadingIcon = { Icon(Icons.Outlined.Refresh, contentDescription = null) },
                     )
-                    
+
                     DropdownMenuItem(
                         text = { Text(stringResource(R.string.notes_chat_crosscheck_action)) },
                         onClick = { showMenu = false; onCrosscheck() },

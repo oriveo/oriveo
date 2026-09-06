@@ -1,6 +1,5 @@
 package ai.oriveo.community.core.notes
 
-
 object NoteTitle {
 
     private val HEADING = Regex("^#{1,6}\\s+")
@@ -12,7 +11,6 @@ object NoteTitle {
     private val TABLE_SEP_OR_HR = Regex("^[|\\s:+-]+$")
     private val CODE_FENCE = Regex("^(```|~~~)")
 
-    
     fun placeholderTitle(body: String): String {
         for (line in displayBodyForTitle(body).split("\n")) {
             val trimmed = line.trim()
@@ -33,7 +31,6 @@ object NoteTitle {
         return ""
     }
 
-    
     fun placeholderTitleFromSource(sourcePrompt: String?, body: String): String {
         val fromPrompt = placeholderTitle(sourcePrompt ?: "")
         return fromPrompt.ifEmpty { placeholderTitle(body) }

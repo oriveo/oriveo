@@ -9,7 +9,6 @@ import ai.oriveo.community.core.model.SkillSource
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
-
 object SkillMapper {
 
     private val json = Json { ignoreUnknownKeys = true; coerceInputValues = true }

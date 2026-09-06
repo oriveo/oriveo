@@ -27,7 +27,6 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
-
 @OptIn(ExperimentalCoroutinesApi::class)
 class NoteRepositoryWriterTest {
 
@@ -98,7 +97,7 @@ class NoteRepositoryWriterTest {
         val created = repo.createNote(CreateNoteInput(body = "hello", sourcePrompt = "Q"))
         assertEquals(NoteTitleSource.Placeholder, created.titleSource)
         coVerify { noteDao.upsertWithIndex(any(), any(), any(), any(), any()) }
-        
+
     }
 
     @Test
@@ -159,7 +158,7 @@ class NoteRepositoryWriterTest {
         assertEquals("New", updated?.title)
         assertEquals(NoteTitleSource.Manual, updated?.titleSource)
         coVerify { noteDao.upsertWithIndex(any(), any(), any(), any(), any()) }
-        
+
     }
 
     @Test
@@ -330,7 +329,7 @@ class NoteRepositoryWriterTest {
 
     @Test
     fun `moveToFolder out to unfiled syncs via update path (AN-1 clears noteFolderID)`() = runTest {
-        
+
         coEvery { noteDao.getByIdForAccount(any(), any()) } returns
             note().copy(noteFolderID = "22222222-2222-2222-2222-222222222222").toEntity(accountId)
         repo.moveToFolder("11111111-1111-1111-1111-111111111111", null)
@@ -349,8 +348,6 @@ class NoteRepositoryWriterTest {
         val updated = repo.pinNote("11111111-1111-1111-1111-111111111111", false)
         assertEquals(false, updated?.isPinned)
     }
-
-    
 
     @Test
     fun `softDeleteNote soft-deletes via dao and syncs tombstone`() = runTest {
@@ -385,8 +382,6 @@ class NoteRepositoryWriterTest {
         coEvery { noteDao.getAllTrashed(accountId) } returns emptyList()
         repo.emptyTrash()
     }
-
-    
 
     private fun folder(
         id: String = "22222222-2222-2222-2222-222222222222",

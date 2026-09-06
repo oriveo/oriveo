@@ -2,7 +2,6 @@ package ai.oriveo.community.feature.providers
 
 import androidx.compose.ui.graphics.Color
 
-
 internal fun Color.blendedWith(other: Color, fraction: Float): Color {
     val f = fraction.coerceIn(0f, 1f)
     return Color(
@@ -12,7 +11,6 @@ internal fun Color.blendedWith(other: Color, fraction: Float): Color {
         alpha = alpha + (other.alpha - alpha) * f,
     )
 }
-
 
 internal fun Color.hsbAdjusted(saturation: Float = 1f, brightness: Float = 1f): Color {
     val r = red

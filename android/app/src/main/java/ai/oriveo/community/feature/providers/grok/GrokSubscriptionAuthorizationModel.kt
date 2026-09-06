@@ -18,23 +18,20 @@ import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
-
 class GrokSubscriptionAuthorizationModel(
     private val client: GrokSubscriptionOAuthClient,
     private val scope: CoroutineScope,
     private val nowMillis: () -> Long = System::currentTimeMillis,
     private val sleep: suspend (Long) -> Unit = { millis -> delay(millis) },
-    
+
     private val snapshotStore: SubscriptionAuthorizationSnapshotStore =
         SubscriptionAuthorizationSnapshotStore.None,
 ) {
     sealed class Phase {
         data object Idle : Phase()
 
-        
         data object Requesting : Phase()
 
-        
         data class AwaitingAuthorization(val authorization: GrokDeviceAuthorization) : Phase()
 
         data class Succeeded(val tokens: GrokSubscriptionTokens) : Phase()
@@ -44,7 +41,6 @@ class GrokSubscriptionAuthorizationModel(
 
     private var phaseState: Phase by mutableStateOf(Phase.Idle)
 
-    
     var phase: Phase
         get() = phaseState
         private set(value) {
@@ -54,7 +50,6 @@ class GrokSubscriptionAuthorizationModel(
             }
         }
 
-    
     var didOpenVerificationPage: Boolean by mutableStateOf(false)
         private set
 
@@ -68,19 +63,16 @@ class GrokSubscriptionAuthorizationModel(
     fun markVerificationPageOpened() {
         didOpenVerificationPage = true
     }
-    
+
     fun startIfIdle(config: GrokSubscriptionAuthConfig) {
         if (pollJob?.isActive == true) return
-        
+
         if (phase is Phase.Succeeded || phase is Phase.Failed) return
-        
-        
+
         if (resumeFromSnapshot(config)) return
         start(config)
     }
 
-
-    
     fun start(config: GrokSubscriptionAuthConfig) {
         pollJob?.cancel()
         didOpenVerificationPage = false
@@ -105,13 +97,11 @@ class GrokSubscriptionAuthorizationModel(
         }
     }
 
-    
     @androidx.annotation.VisibleForTesting
     internal suspend fun awaitCompletionForTest() {
         pollJob?.join()
     }
 
-    
     fun cancel() {
         pollJob?.cancel()
         pollJob = null
@@ -122,7 +112,7 @@ class GrokSubscriptionAuthorizationModel(
     private suspend fun poll(
         config: GrokSubscriptionAuthConfig,
         authorization: GrokDeviceAuthorization,
-        
+
         deadline: Long,
     ) {
         var intervalSeconds = maxOf(1, authorization.interval ?: config.pollIntervalSeconds)
@@ -147,10 +137,7 @@ class GrokSubscriptionAuthorizationModel(
                         intervalSeconds += 5
                         continue
                     }
-                    
-                    
-                    
-                    
+
                     is GrokSubscriptionError.Transport -> continue
                     else -> {
                         phase = Phase.Failed(e.error)
@@ -158,19 +145,17 @@ class GrokSubscriptionAuthorizationModel(
                     }
                 }
             } catch (e: Exception) {
-                
+
                 continue
             }
         }
     }
 
-    
     private fun deadlineFor(
         config: GrokSubscriptionAuthConfig,
         authorization: GrokDeviceAuthorization,
     ): Long = nowMillis() + minOf(authorization.expiresIn, config.pollTimeoutSeconds) * 1000L
 
-    
     private fun resumeFromSnapshot(config: GrokSubscriptionAuthConfig): Boolean {
         val raw = snapshotStore.read()?.takeIf { it.isNotBlank() } ?: return false
         val snapshot = runCatching { snapshotJson.decodeFromString<Snapshot>(raw) }.getOrNull()
@@ -186,8 +171,7 @@ class GrokSubscriptionAuthorizationModel(
             interval = snapshot.interval,
         )
         phaseState = Phase.AwaitingAuthorization(authorization)
-        
-        
+
         didOpenVerificationPage = true
         pollJob = scope.launch { poll(config, authorization, snapshot.deadlineMillis) }
         return true
@@ -206,7 +190,6 @@ class GrokSubscriptionAuthorizationModel(
             ),
         )
 
-    
     @Serializable
     private data class Snapshot(
         val deviceCode: String,

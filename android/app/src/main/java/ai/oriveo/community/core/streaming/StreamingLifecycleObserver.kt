@@ -7,7 +7,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 
-
 class StreamingLifecycleObserver(
     private val chatStreamingManager: ChatStreamingManager,
 ) : DefaultLifecycleObserver {
@@ -15,7 +14,7 @@ class StreamingLifecycleObserver(
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     override fun onStop(owner: LifecycleOwner) {
-        
+
         scope.launch {
             chatStreamingManager.flushAllPartialsToMessage()
         }

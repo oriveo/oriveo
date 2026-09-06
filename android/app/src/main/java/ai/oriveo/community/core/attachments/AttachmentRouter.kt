@@ -5,7 +5,6 @@ import ai.oriveo.community.core.model.Attachment
 import ai.oriveo.community.core.model.AttachmentKind
 import ai.oriveo.community.core.model.ProviderKind
 
-
 enum class AttachmentRoute {
     Native,
     ClientExtract,
@@ -16,7 +15,6 @@ object AttachmentRouter {
     private const val PDF_MIME = "application/pdf"
     private const val SCANNED_PDF_CODE = "scanned_pdf"
 
-    
     fun maxNativeBytes(provider: ProviderKind): Int = when (provider) {
         ProviderKind.OpenAI -> 25 * 1024 * 1024
         ProviderKind.Anthropic -> 25 * 1024 * 1024
@@ -24,7 +22,6 @@ object AttachmentRouter {
         else -> 25 * 1024 * 1024
     }
 
-    
     fun decide(
         attachment: Attachment,
         provider: ProviderKind,

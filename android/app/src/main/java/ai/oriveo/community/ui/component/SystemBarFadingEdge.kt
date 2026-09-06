@@ -20,12 +20,9 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.isSpecified
 
-
 val OriveoSystemBarFadeLength: Dp = 20.dp
 
-
 val LocalRootTabTopInset = compositionLocalOf { Dp.Unspecified }
-
 
 @Composable
 fun rootTabTopInset(): Dp {
@@ -36,7 +33,6 @@ fun rootTabTopInset(): Dp {
         WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     }
 }
-
 
 fun Modifier.oriveoSystemBarFadingEdges(
     topInset: Dp,
@@ -53,7 +49,6 @@ fun Modifier.oriveoSystemBarFadingEdges(
         .drawWithContent {
             drawContent()
 
-            
             val topBandPx = topInsetPx + fadePx
             if (topBandPx > 0f) {
                 drawRect(
@@ -71,8 +66,6 @@ fun Modifier.oriveoSystemBarFadingEdges(
                 )
             }
 
-            
-            
             val bottomBandPx = bottomInsetPx + fadePx
             if (bottomBandPx > 0f) {
                 drawRect(

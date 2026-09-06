@@ -9,7 +9,6 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.util.Base64
 
-
 class AttachmentContentTransferTest {
 
     private fun b64(text: String): String = Base64.getEncoder().encodeToString(text.toByteArray())
@@ -107,8 +106,7 @@ class AttachmentContentTransferTest {
 
     @Test
     fun `hydrate scanned pdf keeps explicit empty base64Data marker`() = runTest {
-        
-        
+
         val attachment = Attachment(
             id = "a5",
             kind = AttachmentKind.File,
@@ -295,7 +293,6 @@ class AttachmentContentTransferTest {
         )
         assertTrue(!hydrated.base64Data.isNullOrEmpty())
 
-        
         val slimmed = AttachmentSlimmer.slim(
             hydrated,
             saveImage = { error("should not be called — localImageId already present") },

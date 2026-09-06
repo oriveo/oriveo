@@ -12,12 +12,6 @@ import org.junit.Test
 
 class ChatPresentationTest {
 
-    
-    
-    
-
-    
-
     @Test
     fun `scrolled up across items is detected`() {
         assertTrue(
@@ -32,7 +26,7 @@ class ChatPresentationTest {
 
     @Test
     fun `scrolled up within same item requires threshold`() {
-        
+
         assertFalse(
             isScrolledUp(
                 prevFirstVisibleIndex = 5,
@@ -53,7 +47,7 @@ class ChatPresentationTest {
 
     @Test
     fun `firstVisible unchanged is not upward scroll`() {
-        
+
         assertFalse(
             isScrolledUp(
                 prevFirstVisibleIndex = 5,
@@ -76,11 +70,9 @@ class ChatPresentationTest {
         )
     }
 
-    
-
     @Test
     fun `reserve fills viewport below the pinned user for normal content`() {
-        
+
         assertEquals(
             1700,
             computeReservePx(viewportHeightPx = 2000, userHeightPx = 300, minAssistantVisiblePx = 120),
@@ -89,7 +81,7 @@ class ChatPresentationTest {
 
     @Test
     fun `reserve degrades to the minimum hint for an over-tall user`() {
-        
+
         assertEquals(
             120,
             computeReservePx(viewportHeightPx = 1000, userHeightPx = 1500, minAssistantVisiblePx = 120),
@@ -98,7 +90,7 @@ class ChatPresentationTest {
 
     @Test
     fun `reserve never drops below the minimum hint near the boundary`() {
-        
+
         assertEquals(
             120,
             computeReservePx(viewportHeightPx = 1000, userHeightPx = 920, minAssistantVisiblePx = 120),
@@ -138,11 +130,9 @@ class ChatPresentationTest {
         )
     }
 
-    
-
     @Test
     fun `normal length user pins to top with zero offset`() {
-        
+
         assertEquals(
             0,
             computeLongUserPinScrollOffsetPx(
@@ -155,8 +145,7 @@ class ChatPresentationTest {
 
     @Test
     fun `over-tall user is pushed up so assistant shows the minimum hint`() {
-        
-        
+
         assertEquals(
             620,
             computeLongUserPinScrollOffsetPx(
@@ -169,7 +158,7 @@ class ChatPresentationTest {
 
     @Test
     fun `user exactly filling viewport still reserves the assistant hint`() {
-        
+
         assertEquals(
             120,
             computeLongUserPinScrollOffsetPx(
@@ -182,7 +171,7 @@ class ChatPresentationTest {
 
     @Test
     fun `offset is never negative just below the degradation threshold`() {
-        
+
         assertEquals(
             0,
             computeLongUserPinScrollOffsetPx(
@@ -193,15 +182,9 @@ class ChatPresentationTest {
         )
     }
 
-    
-    
-    
-    
-
     @Test
     fun `anchor transition detaches on fling upward without pointer pressed`() {
-        
-        
+
         val decision = decideAnchorTransition(
             anchored = true,
             anchorDetached = false,
@@ -219,7 +202,7 @@ class ChatPresentationTest {
 
     @Test
     fun `anchor transition detaches on touch drag upward`() {
-        
+
         val decision = decideAnchorTransition(
             anchored = true,
             anchorDetached = false,
@@ -237,8 +220,7 @@ class ChatPresentationTest {
 
     @Test
     fun `anchor transition detaches on upward scroll even when not anchored`() {
-        
-        
+
         assertEquals(
             AnchorTransition.Detach,
             decideAnchorTransition(
@@ -253,7 +235,7 @@ class ChatPresentationTest {
 
     @Test
     fun `anchor transition stays noop when not anchored and not following`() {
-        
+
         assertEquals(
             AnchorTransition.NoOp,
             decideAnchorTransition(
@@ -268,7 +250,7 @@ class ChatPresentationTest {
 
     @Test
     fun `anchor transition does not reclaim when not anchored`() {
-        
+
         assertEquals(
             AnchorTransition.NoOp,
             decideAnchorTransition(
@@ -283,7 +265,7 @@ class ChatPresentationTest {
 
     @Test
     fun `anchor transition stays noop when scrolledUp is false`() {
-        
+
         assertEquals(
             AnchorTransition.NoOp,
             decideAnchorTransition(
@@ -298,7 +280,7 @@ class ChatPresentationTest {
 
     @Test
     fun `anchor transition reclaims when detached and settled at bottom`() {
-        
+
         val decision = decideAnchorTransition(
             anchored = true,
             anchorDetached = true,
@@ -316,7 +298,7 @@ class ChatPresentationTest {
 
     @Test
     fun `anchor transition does not reclaim while finger still touching`() {
-        
+
         assertEquals(
             AnchorTransition.NoOp,
             decideAnchorTransition(
@@ -331,7 +313,7 @@ class ChatPresentationTest {
 
     @Test
     fun `anchor transition does not reclaim while still scrolling`() {
-        
+
         assertEquals(
             AnchorTransition.NoOp,
             decideAnchorTransition(
@@ -343,8 +325,6 @@ class ChatPresentationTest {
             ),
         )
     }
-
-    
 
     @Test
     fun `follows ime inset on keyboard appearing while following latest`() {
@@ -458,8 +438,6 @@ class ChatPresentationTest {
         )
     }
 
-    
-
     @Test
     fun `pinned user id resolves to the user message preceding the streaming assistant`() {
         val messages = listOf(
@@ -483,11 +461,9 @@ class ChatPresentationTest {
         assertNull(resolvePinnedUserMessageId(messages, streamingAssistantId = "a0"))
     }
 
-    
     @Test
     fun `bottomAlignDelta subtracts afterContentPadding from viewportEndOffset`() {
-        
-        
+
         assertEquals(
             200,
             bottomAlignDelta(lastMessageBottom = 2000, viewportEndOffset = 1900, afterContentPadding = 100),
@@ -496,7 +472,7 @@ class ChatPresentationTest {
 
     @Test
     fun `bottomAlignDelta pulls back when scrolled past real bottom`() {
-        
+
         assertEquals(
             -600,
             bottomAlignDelta(lastMessageBottom = 1200, viewportEndOffset = 1900, afterContentPadding = 100),
@@ -511,8 +487,6 @@ class ChatPresentationTest {
         )
     }
 
-    
-
     @Test
     fun `resolveStreamingCellText prefers live streaming text`() {
         assertEquals(
@@ -523,8 +497,7 @@ class ChatPresentationTest {
 
     @Test
     fun `resolveStreamingCellText falls back to held text in finalize race window`() {
-        
-        
+
         assertEquals(
             "full answer",
             resolveStreamingCellText(live = null, held = "full answer", isPersistedGenerating = true),
@@ -533,7 +506,7 @@ class ChatPresentationTest {
 
     @Test
     fun `resolveStreamingCellText falls back to held text when flow resets to empty before id clears`() {
-        
+
         assertEquals(
             "full answer",
             resolveStreamingCellText(live = "", held = "full answer", isPersistedGenerating = true),
@@ -542,7 +515,7 @@ class ChatPresentationTest {
 
     @Test
     fun `resolveStreamingCellText releases held text once message leaves Generating`() {
-        
+
         assertNull(
             resolveStreamingCellText(live = null, held = "full answer", isPersistedGenerating = false),
         )
@@ -550,7 +523,7 @@ class ChatPresentationTest {
 
     @Test
     fun `resolveStreamingCellText keeps empty live at genuine stream start`() {
-        
+
         assertEquals(
             "",
             resolveStreamingCellText(live = "", held = null, isPersistedGenerating = true),
@@ -559,7 +532,7 @@ class ChatPresentationTest {
 
     @Test
     fun `resolveStreamingCellText passes through null for stale Generating rows without session`() {
-        
+
         assertNull(
             resolveStreamingCellText(live = null, held = null, isPersistedGenerating = true),
         )

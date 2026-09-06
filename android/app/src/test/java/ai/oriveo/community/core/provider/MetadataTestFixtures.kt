@@ -61,7 +61,7 @@ object MetadataTestFixtures {
 
     // ──────────────────────────────────────────────────────────────────
     // capabilityRuntime envelope: with no runtime there is zero automatic configuration.
-    
+
     // `ProviderRequestProfiles.applyCapabilityRuntimeRecipes` sets `authoritativeRuntime = true` outright whenever
     // `MetadataClient.capabilityRuntimeRequest` returns null, and the client does not fall back to a legacy profile.
     // So any fixture that wants to assert automatic configuration really reached the wire has to carry a genuine

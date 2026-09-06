@@ -163,7 +163,6 @@ private val auroraGlowColors = listOf(
     AuroraTheme.Colors.accentLight,
 )
 
-
 @Composable
 internal fun AuroraScreenBackground(modifier: Modifier = Modifier) {
     val isDark = OriveoTheme.isDark

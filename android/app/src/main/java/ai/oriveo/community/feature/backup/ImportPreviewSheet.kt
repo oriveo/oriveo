@@ -53,7 +53,6 @@ import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 import java.util.Locale
 
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ImportPreviewSheet(
@@ -83,7 +82,7 @@ fun ImportPreviewSheet(
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = layout.screenH),
         ) {
-            
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -121,7 +120,6 @@ fun ImportPreviewSheet(
 
             Spacer(modifier = Modifier.height(spacing.lg))
 
-            
             OriveoCard {
                 Column(verticalArrangement = Arrangement.spacedBy(spacing.sm)) {
                     Text(
@@ -154,7 +152,6 @@ fun ImportPreviewSheet(
 
             Spacer(modifier = Modifier.height(spacing.lg))
 
-            
             OriveoCard {
                 Column(verticalArrangement = Arrangement.spacedBy(spacing.sm)) {
                     Text(
@@ -195,7 +192,6 @@ fun ImportPreviewSheet(
                 }
             }
 
-            
             if (checksumWarning) {
                 Spacer(modifier = Modifier.height(spacing.lg))
                 WarningCard(text = stringResource(R.string.checksum_warning))
@@ -208,7 +204,6 @@ fun ImportPreviewSheet(
 
             Spacer(modifier = Modifier.height(spacing.lg))
 
-            
             OriveoCard {
                 Column(verticalArrangement = Arrangement.spacedBy(spacing.md)) {
                     Text(

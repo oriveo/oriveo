@@ -51,7 +51,7 @@ class ManualModelEntryViewModelTest {
         every { context.getString(R.string.manual_model_sync_not_supported_title) } returns "Sync not supported"
         every { context.getString(R.string.manual_model_sync_not_supported_message) } returns "Relay does not support automatic sync."
         every { context.getString(R.string.error_generic_message) } returns "Something went wrong."
-        
+
         every { context.getString(R.string.error_config) } returns "Localized Config Error"
         every { context.getString(R.string.error_config_message) } returns "Localized config message."
         every { context.getString(R.string.error_invalid_api_key) } returns "Localized Invalid Key"
@@ -126,7 +126,7 @@ class ManualModelEntryViewModelTest {
         assertFalse(viewModel.saveCompleted)
         assertEquals("Localized Invalid Key", viewModel.error?.title)
         assertEquals("Localized invalid key message.", viewModel.error?.message)
-        
+
         assertEquals("bad key", viewModel.error?.detail)
         assertEquals(OriveoErrorSeverity.Critical, viewModel.error?.severity)
     }

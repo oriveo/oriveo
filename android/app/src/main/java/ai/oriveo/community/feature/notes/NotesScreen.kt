@@ -104,23 +104,21 @@ fun NotesScreen(
             containerColor = Color.Transparent,
         ) { padding ->
             Column(modifier = Modifier.fillMaxSize().padding(padding)) {
-                
-                
+
                 NotesHeader(
                     onNavigateBack = onNavigateBack,
                     onNewFolder = { showNewFolderDialog = true },
                     onNewNote = { viewModel.createBlankNote(onNavigateToNoteDetail) },
                     modifier = Modifier.padding(horizontal = screenH),
                 )
-                
+
                 NotesTabRow(
                     tab = tab,
                     onSelect = viewModel::selectTab,
                     trashCount = trashedNotes.size,
                     modifier = Modifier.padding(horizontal = screenH, vertical = OriveoTheme.spacing.sm),
                 )
-                
-                
+
                 NotesSearchField(
                     query = query,
                     onQueryChange = viewModel::setQuery,
@@ -226,7 +224,6 @@ fun NotesScreen(
         )
     }
 
-    
     folderToManage?.let { folder ->
         androidx.compose.material3.AlertDialog(
             onDismissRequest = { folderToManage = null },
@@ -300,7 +297,6 @@ fun NotesScreen(
     }
 }
 
-
 @Composable
 private fun NotesHeader(
     onNavigateBack: () -> Unit,
@@ -324,7 +320,7 @@ private fun NotesHeader(
             )
         }
         Spacer(Modifier.size(OriveoTheme.spacing.xs))
-        
+
         Box(
             modifier = Modifier
                 .size(36.dp)
@@ -333,7 +329,7 @@ private fun NotesHeader(
             contentAlignment = Alignment.Center,
         ) {
             Icon(
-                
+
                 painter = painterResource(R.drawable.ic_notes_notebook),
                 contentDescription = null,
                 tint = Color.White,
@@ -368,7 +364,6 @@ private fun NotesHeader(
         }
     }
 }
-
 
 @Composable
 private fun NotesSearchField(
@@ -443,8 +438,7 @@ private fun NotesTabRow(
     modifier: Modifier = Modifier,
 ) {
     val colors = OriveoTheme.colors
-    
-    
+
     val trackColor = if (OriveoTheme.isDark) colors.surfaceChrome else colors.border
     Row(
         modifier = modifier
@@ -479,7 +473,7 @@ private fun NotesTab(
     val colors = OriveoTheme.colors
     Box(
         modifier = modifier
-            
+
             .then(if (selected) Modifier.shadow(3.dp, RoundedCornerShape(999.dp), clip = false) else Modifier)
             .clip(RoundedCornerShape(999.dp))
             .background(if (selected) colors.surfaceElevated else Color.Transparent)
@@ -682,8 +676,7 @@ private fun TrashListContent(
             bottom = OriveoTheme.spacing.xl,
         ),
     ) {
-        
-        
+
         if (hasAnyTrash) {
             item(key = "trash_header") {
                 Row(

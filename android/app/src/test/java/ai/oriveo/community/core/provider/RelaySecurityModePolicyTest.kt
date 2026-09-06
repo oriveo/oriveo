@@ -14,7 +14,6 @@ class RelaySecurityModePolicyTest {
         assertEquals(null, RelaySecurityModePolicy.addedSchemeHighlightRange("http://relay.lan:8080", "http://relay.lan:8080"))
     }
 
-
     @Test
     fun `production classifier suggests local http without mutating the default mode`() {
         val assessment = RelaySecurityModePolicy.assess(

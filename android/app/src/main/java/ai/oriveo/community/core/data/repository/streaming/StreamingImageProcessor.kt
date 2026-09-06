@@ -11,11 +11,10 @@ import ai.oriveo.community.core.util.readBytesLimited
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
-
 internal class StreamingImageProcessor(
     private val attachmentStore: AttachmentStore,
 ) {
-    
+
     suspend fun downloadHttpUrls(attachments: List<Attachment>): List<Attachment> {
         val resolved = mutableListOf<Attachment>()
         for (att in attachments) {
@@ -35,7 +34,6 @@ internal class StreamingImageProcessor(
         return resolved
     }
 
-    
     fun extractInlineImages(finalText: String): Pair<String, List<Attachment>> {
         val (cleanedText, inlineImages) = MessageBuilder.extractInlineImages(finalText)
         val attachments = inlineImages.map { (mime, data) ->
@@ -50,7 +48,6 @@ internal class StreamingImageProcessor(
         return cleanedText to attachments
     }
 
-    
     suspend fun persistInlineBase64(attachments: List<Attachment>): List<Attachment> =
         withContext(Dispatchers.IO) {
             attachments.map { att ->
@@ -71,7 +68,6 @@ internal class StreamingImageProcessor(
             }
         }
 
-    
     private suspend fun downloadImageUrl(url: String): String? = withContext(Dispatchers.IO) {
         try {
             val connection = java.net.URL(url).openConnection() as java.net.HttpURLConnection

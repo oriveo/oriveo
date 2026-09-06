@@ -6,7 +6,6 @@ import androidx.room.Upsert
 import ai.oriveo.community.core.data.entity.NoteFolderEntity
 import kotlinx.coroutines.flow.Flow
 
-
 @Dao
 interface NoteFolderDao {
 
@@ -16,7 +15,6 @@ interface NoteFolderDao {
     @Query("SELECT * FROM note_folders WHERE accountId = :accountId AND deletedAt IS NULL ORDER BY sortOrder ASC")
     suspend fun getActive(accountId: String): List<NoteFolderEntity>
 
-    
     @Query("SELECT * FROM note_folders WHERE accountId = :accountId")
     suspend fun getAll(accountId: String): List<NoteFolderEntity>
 
@@ -38,7 +36,6 @@ interface NoteFolderDao {
     @Query("UPDATE note_folders SET deletedAt = :deletedAt, updatedAt = :updatedAt WHERE accountId = :accountId AND id = :id")
     suspend fun markDeleted(accountId: String, id: String, deletedAt: String, updatedAt: String)
 
-    
     @Query("DELETE FROM note_folders WHERE accountId = :accountId AND id = :id")
     suspend fun hardDelete(accountId: String, id: String)
 

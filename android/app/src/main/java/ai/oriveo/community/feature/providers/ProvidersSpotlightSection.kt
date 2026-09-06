@@ -38,13 +38,12 @@ import ai.oriveo.community.R
 import ai.oriveo.community.core.model.Provider
 import ai.oriveo.community.ui.theme.OriveoTheme
 
-
 @Composable
 fun ProvidersSpotlightSection(
     providers: List<Provider>,
     costForProvider: (Provider) -> Double,
     dailyCostsForProvider: (Provider) -> List<Double>,
-    
+
     availableModelCountForProvider: (Provider) -> Int,
     onProviderTap: (Provider) -> Unit,
     modifier: Modifier = Modifier,
@@ -85,7 +84,6 @@ enum class ProvidersSectionHeaderTone {
     Costs,
 }
 
-
 @Composable
 fun ProvidersSectionHeader(
     text: String,
@@ -104,8 +102,7 @@ fun ProvidersSectionHeader(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(7.dp),
     ) {
-        
-        
+
         Box(
             modifier = Modifier.size(20.dp),
             contentAlignment = Alignment.Center,
@@ -156,7 +153,6 @@ private fun SpotlightCarousel(
             )
         }
 
-        
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.Center,

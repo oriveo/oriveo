@@ -766,7 +766,6 @@ class CapabilityPreferenceStore internal constructor(
         return ModelControlRuntimeIdentity.decodeStorageIdentity(value.substring(marker + 1)) != null
     }
 
-
     companion object {
         private const val PREFS = "capability_preference_settings"
         private const val KEY = "v1"

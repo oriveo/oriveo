@@ -68,7 +68,6 @@ class OriveoApplication : Application() {
         this.databaseHealthProbe = databaseHealthProbe
         appScope.launch { databaseHealthProbe.awaitHealthy() }
 
-
         val languageValue = getSharedPreferences("oriveo_prefs", MODE_PRIVATE)
             .getString("app_language", null)
         val language = AppPreferencesRepository.parseLanguagePreference(languageValue)

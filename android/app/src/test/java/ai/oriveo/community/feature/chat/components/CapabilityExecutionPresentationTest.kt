@@ -25,7 +25,7 @@ class CapabilityExecutionPresentationTest {
         val localized = resourceRoot.listFiles()
             ?.filter { it.name.startsWith("values-") }
             .orEmpty()
-            
+
             .filter { File(it, "strings.xml").isFile }
             .map { it.name to strings(File(it, "strings.xml")) }
 
@@ -47,8 +47,7 @@ class CapabilityExecutionPresentationTest {
     fun `execution row exposes a TalkBack description for every rendered result`() {
         val source = File("src/main/java/ai/oriveo/community/feature/chat/components/MessageBubble.kt").readText()
         assertTrue(source.contains("CapabilityExecutionStatusText"))
-        
-        
+
         val statusText = source.substringAfter("private fun CapabilityExecutionStatusText")
         assertTrue("status text must build its TalkBack label from the status template", statusText.contains("R.string.capability_execution_status"))
         assertTrue("status text must expose the label via semantics contentDescription", statusText.contains("contentDescription ="))

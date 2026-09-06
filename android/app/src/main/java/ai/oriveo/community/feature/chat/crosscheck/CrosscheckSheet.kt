@@ -83,7 +83,6 @@ import ai.oriveo.community.ui.theme.OriveoNotesBackground
 import ai.oriveo.community.ui.theme.OriveoTheme
 import ai.oriveo.community.ui.theme.opacity
 
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun CrosscheckSheet(
@@ -144,7 +143,7 @@ fun CrosscheckSheet(
                 .fillMaxSize(),
         ) {
             OriveoNotesBackground()
-            
+
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -362,7 +361,7 @@ private fun ModelComparisonRail(
                 enabled = false,
                 modifier = Modifier.weight(1f),
             )
-            
+
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.ArrowForward,
                 contentDescription = null,
@@ -376,7 +375,7 @@ private fun ModelComparisonRail(
                 providerKind = selected?.provider?.let(::resolveProviderLogoKind),
                 relayKind = selected?.provider?.resolvedRelayKind(),
                 enabled = selected != null,
-                
+
                 modelNameSize = 15.sp,
                 onClick = onOpenPicker,
                 modifier = Modifier.weight(1f),
@@ -389,8 +388,7 @@ private fun ModelComparisonRail(
 @Composable
 private fun CrosscheckRailHairline() {
     val colors = OriveoTheme.colors
-    
-    
+
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -474,7 +472,7 @@ private fun ModelRailBlock(
             }
         }
         if (onClick != null) {
-            
+
             Icon(
                 imageVector = Icons.Filled.ExpandMore,
                 contentDescription = null,
@@ -521,7 +519,7 @@ private fun SecondOpinionStage(
             modifier = Modifier
                 .fillMaxWidth()
                 .heightIn(min = if (resultState == CrosscheckResultState.Empty) 264.dp else 188.dp)
-                
+
                 .drawWithContent {
                     drawContent()
                     val lineH = 1.dp.toPx()
@@ -534,7 +532,7 @@ private fun SecondOpinionStage(
                 }
                 .shadow(16.dp, RoundedCornerShape(30.dp), ambientColor = colors.primary.copy(alpha = 0.06f), spotColor = colors.primary.copy(alpha = 0.06f))
                 .clip(RoundedCornerShape(30.dp))
-                
+
                 .background(
                     brush = Brush.linearGradient(
                         colors = listOf(
@@ -544,8 +542,7 @@ private fun SecondOpinionStage(
                         )
                     )
                 )
-                
-                
+
                 .border(0.5.dp, colors.border.opacity(if (showsCanvas) 0.10f else 0.16f), RoundedCornerShape(30.dp)),
         ) {
             when (resultState) {
@@ -706,7 +703,7 @@ private fun ModelMicroChip(option: CrosscheckOption) {
     val colors = OriveoTheme.colors
     val isDark = OriveoTheme.isDark
     val providerKind = resolveProviderLogoKind(option.provider)
-    
+
     val brandBg = ai.oriveo.community.ui.theme.ProviderBadgeColors.forProvider(providerKind).background
         .copy(alpha = if (isDark) 0.72f else 0.92f)
     Row(
@@ -747,7 +744,7 @@ private fun OriginalSourceStrip(
         targetValue = if (expanded) 180f else 0f,
         label = "chevronRotation",
     )
-    
+
     val preview = remember(originalAnswer) {
         originalAnswer
             .split('\n')
@@ -757,12 +754,11 @@ private fun OriginalSourceStrip(
             .let { if (it.length > 220) it.take(220).trimEnd() + "…" else it }
     }
 
-    
     Column(
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(0.dp),
     ) {
-        
+
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -770,7 +766,6 @@ private fun OriginalSourceStrip(
                 .background(colors.border.opacity(if (isDark) 0.24f else 0.14f)),
         )
 
-        
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -800,7 +795,6 @@ private fun OriginalSourceStrip(
                 }
             }
 
-            
             Column(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(5.dp),
@@ -821,7 +815,6 @@ private fun OriginalSourceStrip(
                 )
             }
 
-            
             Icon(
                 imageVector = Icons.Filled.ExpandMore,
                 contentDescription = null,
@@ -832,7 +825,6 @@ private fun OriginalSourceStrip(
             )
         }
 
-        
         if (expanded) {
             MarkdownMessageView(
                 text = originalAnswer.trim(),
@@ -874,14 +866,14 @@ private fun CommandDock(
     onSave: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    
+
     Box(
         modifier = modifier
             .fillMaxWidth()
             .navigationBarsPadding()
             .padding(start = 18.dp, end = 18.dp, top = 10.dp, bottom = 12.dp),
     ) {
-        
+
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -904,7 +896,7 @@ private fun CommandDock(
             } else {
                 CrosscheckDockHeroButton(
                     title = stringResource(if (isRunning) R.string.notes_crosscheck_running else R.string.notes_crosscheck_run),
-                    
+
                     icon = Icons.Filled.Verified,
                     enabled = canRun,
                     loading = isRunning,
@@ -935,8 +927,7 @@ private fun IconCircleButton(
         modifier = Modifier
             .size(48.dp)
             .alpha(alpha)
-            
-            
+
             .shadow(8.dp, CircleShape, ambientColor = colors.shadow.copy(alpha = 0.14f), spotColor = colors.shadow.copy(alpha = 0.14f))
             .clip(CircleShape)
             .background(background, CircleShape)
@@ -952,7 +943,6 @@ private fun IconCircleButton(
         Icon(imageVector = imageVector, contentDescription = null, modifier = Modifier.size(18.dp), tint = colors.textSecondary)
     }
 }
-
 
 @Composable
 private fun CrosscheckDockHeroButton(
@@ -973,7 +963,7 @@ private fun CrosscheckDockHeroButton(
         modifier = modifier
             .height(54.dp)
             .scale(scale)
-            
+
             .alpha(if (pressed && interactive) 0.90f else 1f)
             .shadow(
                 elevation = if (enabled) 12.dp else 0.dp,
@@ -982,8 +972,7 @@ private fun CrosscheckDockHeroButton(
                 spotColor = colors.primary.copy(alpha = 0.18f),
             )
             .clip(pillShape)
-            
-            
+
             .background(
                 brush = if (enabled) {
                     Brush.linearGradient(
@@ -1007,7 +996,7 @@ private fun CrosscheckDockHeroButton(
     ) {
         Text(
             text = title,
-            
+
             style = OriveoTheme.typography.caption.copy(fontWeight = FontWeight.Bold),
             color = if (enabled) Color.White else colors.textTertiary,
             maxLines = 1,
@@ -1022,7 +1011,7 @@ private fun CrosscheckDockHeroButton(
                 strokeWidth = 2.dp,
             )
         } else {
-            
+
             Icon(
                 imageVector = icon,
                 contentDescription = null,

@@ -75,8 +75,6 @@ class ActiveModelResolverTest {
         )
     }
 
-    
-
     @Test
     fun `resolveProviderIssue returns null when no providers`() {
         assertNull(resolveProviderIssue(emptyList(), null))
@@ -115,7 +113,7 @@ class ActiveModelResolverTest {
 
     @Test
     fun `resolveProviderIssue fallback to lastUsedModelRef when activeModel unresolvable`() {
-        
+
         val provider = makeProvider(
             id = "openrouter",
             status = ProviderConnectionState.Issue("API Key required"),
@@ -160,7 +158,7 @@ class ActiveModelResolverTest {
 
     @Test
     fun `resolveProviderIssue ignores unrelated issue providers and uses lastUsedRef`() {
-        
+
         val gemini = makeProvider(
             id = "gemini",
             status = ProviderConnectionState.Issue("API Key required"),

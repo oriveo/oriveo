@@ -17,7 +17,7 @@ import org.junit.Test
 class RelayEditFailurePresenterTest {
     @Test
     fun `presentation preserves endpoint and status while redacting key header and query secrets`() {
-        
+
         val apiKey = "k1"
         val headerSecret = "h1"
         val querySecret = "q1"
@@ -42,7 +42,6 @@ class RelayEditFailurePresenterTest {
             detail = """{"key":"$apiKey","header":"$headerSecret","query":"$querySecret"}""",
         )
 
-        
         val presentation = RelayEditFailurePresenter.present(candidate, error)
 
         assertEquals(401, presentation.statusCode)

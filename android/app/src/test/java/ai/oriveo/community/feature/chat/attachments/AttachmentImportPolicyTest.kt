@@ -51,7 +51,7 @@ class AttachmentImportPolicyTest {
 
     @Test
     fun `attachment size limit allows 25 MB and rejects larger files D31 v3 dot 1 heap defense`() {
-        
+
         assertTrue(AttachmentImportPolicy.isWithinSizeLimit(25L * 1024L * 1024L))
         assertFalse(AttachmentImportPolicy.isWithinSizeLimit(25L * 1024L * 1024L + 1L))
     }

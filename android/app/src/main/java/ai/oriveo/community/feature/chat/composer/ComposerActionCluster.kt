@@ -31,7 +31,6 @@ import ai.oriveo.community.ui.theme.OriveoBorderWidth
 import ai.oriveo.community.ui.theme.OriveoGradients
 import ai.oriveo.community.ui.theme.OriveoTheme
 
-
 @Composable
 internal fun ComposerActionCluster(
     isGenerating: Boolean,
@@ -45,11 +44,9 @@ internal fun ComposerActionCluster(
     val interactionSource = remember { MutableInteractionSource() }
     val pressed by interactionSource.collectIsPressedAsState()
 
-    
     val baseScale by animateFloatAsState(if (isPrimed || isGenerating) 1f else 0.96f, label = "sendBaseScale")
     val pressScale by animateFloatAsState(if (pressed) 0.97f else 1f, label = "sendPressScale")
 
-    
     val flatFill = if (isDark) Color.White.copy(alpha = 0.10f) else Color(0xFF8C5FF8).copy(alpha = 0.12f)
     val background: Brush = when {
         isGenerating -> SolidColor(colors.danger)

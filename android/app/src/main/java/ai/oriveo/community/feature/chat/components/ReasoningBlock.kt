@@ -100,7 +100,7 @@ fun ReasoningBlock(
     reasoningEnded: Boolean = false,
 ) {
     // Nothing to render for a finished block with empty reasoning text.
-    
+
     // The streaming state deliberately does **not** gate on "text is empty": some
     // upstreams send only `reasoning_content: ""` heartbeats for a long stretch during
     // extended reasoning, with real content only arriving in one burst once the whole
@@ -140,7 +140,7 @@ fun ReasoningBlock(
         )
 
         // Left-edge 2pt decoration bar: 30% primary while streaming, 20% textTertiary once finished.
-        
+
         // Implementation note: [MarkdownMessageView] uses BoxWithConstraints internally,
         // which is incompatible with IntrinsicSize.Min/Max. So the bar is self-drawn
         // with drawBehind on the content container to match its height, avoiding a layout crash.
@@ -325,7 +325,7 @@ private fun ReasoningContent(
             }
         } else {
             // Collapsed: a fixed single line shows the latest fragment, refreshed as tokens stream in.
-            
+
             // Critically, maxLines=1 alone isn't enough to hold the height constant --
             // it only guarantees "one line"; that one line's actual rendered height can
             // still shift chunk to chunk depending on the trailing glyphs (mixed
@@ -366,7 +366,6 @@ private fun ReasoningContent(
     }
 }
 
-
 @Composable
 private fun PulsingDot(color: Color) {
     val transition = rememberInfiniteTransition(label = "reasoning_dot_pulse")
@@ -382,14 +381,11 @@ private fun PulsingDot(color: Color) {
     Box(
         modifier = Modifier
             .size(7.dp)
-            
-            
-            
+
             .graphicsLayer { this.alpha = alpha }
             .background(color, CircleShape),
     )
 }
-
 
 internal fun formatReasoningDuration(durationMs: Long): String {
     val d = max(0L, durationMs)
@@ -400,4 +396,3 @@ internal fun formatReasoningDuration(durationMs: Long): String {
     val seconds = totalSeconds % 60L
     return "${minutes}m ${seconds}s"
 }
-

@@ -27,7 +27,6 @@ import ai.oriveo.community.ui.component.OriveoPrimaryButton
 import ai.oriveo.community.ui.component.OriveoTextButton
 import ai.oriveo.community.ui.theme.OriveoTheme
 
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PasswordPromptSheet(
@@ -56,7 +55,7 @@ fun PasswordPromptSheet(
                 .padding(bottom = spacing.xxl),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            
+
             TextButton(
                 onClick = onDismiss,
                 modifier = Modifier.align(Alignment.End),
@@ -66,7 +65,6 @@ fun PasswordPromptSheet(
 
             Spacer(modifier = Modifier.height(spacing.lg))
 
-            
             Icon(
                 imageVector = Icons.Outlined.Lock,
                 contentDescription = null,
@@ -76,7 +74,6 @@ fun PasswordPromptSheet(
 
             Spacer(modifier = Modifier.height(layout.sectionGap))
 
-            
             Text(
                 text = stringResource(R.string.enter_backup_password),
                 style = OriveoTheme.typography.title2,
@@ -86,7 +83,6 @@ fun PasswordPromptSheet(
 
             Spacer(modifier = Modifier.height(spacing.sm))
 
-            
             Text(
                 text = stringResource(R.string.password_prompt_description),
                 style = OriveoTheme.typography.caption,
@@ -97,7 +93,6 @@ fun PasswordPromptSheet(
 
             Spacer(modifier = Modifier.height(layout.sectionGap))
 
-            
             OriveoLabeledField(
                 label = stringResource(R.string.password),
                 value = password,
@@ -106,7 +101,6 @@ fun PasswordPromptSheet(
                 isSecure = true,
             )
 
-            
             if (errorMessage != null) {
                 Spacer(modifier = Modifier.height(spacing.sm))
                 Text(
@@ -120,7 +114,6 @@ fun PasswordPromptSheet(
 
             Spacer(modifier = Modifier.height(layout.sectionGap))
 
-            
             OriveoPrimaryButton(
                 text = stringResource(R.string.unlock_and_import),
                 onClick = onUnlock,
@@ -129,7 +122,6 @@ fun PasswordPromptSheet(
 
             Spacer(modifier = Modifier.height(spacing.md))
 
-            
             OriveoTextButton(
                 text = stringResource(R.string.skip_api_keys),
                 onClick = onSkip,

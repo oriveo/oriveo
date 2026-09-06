@@ -48,7 +48,6 @@ import ai.oriveo.community.ui.theme.OriveoTheme
 import ai.oriveo.community.ui.theme.ProviderBadgeColors
 import ai.oriveo.community.ui.util.formatRelativeTime
 
-
 @Composable
 fun ConversationRow(
     conversation: Conversation,
@@ -70,8 +69,6 @@ fun ConversationRow(
     val emptyPreviewText = stringResource(R.string.ready_to_start_conversation)
     val lastMessage = conversation.messages.lastOrNull()
 
-    
-    
     val previewText = remember(
         conversation.previewText,
         lastMessage?.id,
@@ -105,7 +102,6 @@ fun ConversationRow(
         }
     }
 
-    
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -113,7 +109,7 @@ fun ConversationRow(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        
+
         ProviderLogoAvatar(
             providerKind = providerKind,
             relayKind = relayKind,
@@ -167,7 +163,6 @@ fun ConversationRow(
 
                 Spacer(modifier = Modifier.width(4.dp))
 
-                
                 if (conversation.estimatedCost > 0) {
                     Text(
                         text = CostFormatter.format(conversation.estimatedCost),
@@ -177,7 +172,6 @@ fun ConversationRow(
                 }
             }
 
-            
             Text(
                 text = previewText,
                 style = OriveoTheme.typography.caption,
@@ -186,10 +180,6 @@ fun ConversationRow(
                 overflow = TextOverflow.Ellipsis,
             )
 
-            
-            
-            
-            
             // HomeScreen \u4e00\u5c4f ~10 \u884c \u00d7 \u6d41\u5f0f token 30 Hz = 300+ \u6b21/\u79d2 \u91cd\u7ec4\uff0cmetaStyle / timeText /
             // chatIconInline \u5fc5\u987b remember \u7f13\u5b58\uff08\u539f\u4ee3\u7801\u6bcf\u6b21\u91cd\u7ec4\u90fd alloc TextStyle / String / Map+InlineTextContent\uff09\u3002
             val footnote = OriveoTheme.typography.footnote
@@ -244,7 +234,6 @@ fun ConversationRow(
     }
 }
 
-
 @Composable
 private fun ProviderLogoAvatar(
     providerKind: ProviderKind?,
@@ -259,7 +248,6 @@ private fun ProviderLogoAvatar(
         )
     }
 }
-
 
 private val stripCodeBlockRegex = Regex("```[\\s\\S]*?```")
 private val stripInlineCodeRegex = Regex("`([^`]+)`")
@@ -276,40 +264,39 @@ private val stripBulletRegex = Regex("(?m)^[-*]\\s+")
 private val stripOrderedListRegex = Regex("(?m)^\\d+\\.\\s+")
 private val stripWhitespaceRegex = Regex("\\s+")
 
-
 internal fun stripMarkdown(text: String): String {
-    
+
     val cleaned = text.filter { ch ->
         ch != '\uFFFD' && ch != '\uFFFC' &&
             !(ch.code < 0x20 && ch != '\n' && ch != '\r' && ch != '\t') &&
             ch.code != 0x7F
     }
     return cleaned
-        
+
         .replace(stripCodeBlockRegex, " ")
-        
+
         .replace(stripInlineCodeRegex, "$1")
-        
+
         .replace(stripImageRegex, "$1")
-        
+
         .replace(stripLinkRegex, "$1")
-        
+
         .replace(stripBoldStarRegex, "$1")
         .replace(stripBoldUnderscoreRegex, "$1")
-        
+
         .replace(stripItalicStarRegex, "$1$2")
         .replace(stripItalicUnderscoreRegex, "$1$2")
-        
+
         .replace(stripStrikethroughRegex, "$1")
-        
+
         .replace(stripHeadingRegex, "")
-        
+
         .replace(stripQuoteRegex, "")
-        
+
         .replace(stripBulletRegex, "")
-        
+
         .replace(stripOrderedListRegex, "")
-        
+
         .replace(stripWhitespaceRegex, " ")
         .trim()
 }

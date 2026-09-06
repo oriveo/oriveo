@@ -7,7 +7,6 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-
 class NoteCaptureCrosscheckTest {
 
     private fun build() = NoteCapture.fromCrosscheck(

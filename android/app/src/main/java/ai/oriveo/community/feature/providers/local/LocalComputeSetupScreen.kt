@@ -223,9 +223,6 @@ fun LocalComputeSetupFields(
             enabled = !viewModel.isConnecting,
         )
 
-        
-        
-
         viewModel.failure?.let { failure ->
             Text(
                 text = stringResource(failure.messageResource),

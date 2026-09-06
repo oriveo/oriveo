@@ -31,7 +31,6 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
-
 @OptIn(ExperimentalCoroutinesApi::class)
 class NoteDetailViewModelTest {
 
@@ -165,8 +164,6 @@ class NoteDetailViewModelTest {
         assertTrue(done)
     }
 
-    
-
     @Test
     fun `addTag appends trimmed tag to existing`() = runTest {
         noteFlow.value = note("ID", tags = listOf("a"))
@@ -229,8 +226,6 @@ class NoteDetailViewModelTest {
         job.cancel()
     }
 
-    
-
     @Test
     fun `softDelete deletes shows snackbar and invokes onDone`() = runTest {
         val vm = createViewModel()
@@ -252,8 +247,6 @@ class NoteDetailViewModelTest {
         verify { snackbar.show(any()) }
     }
 
-    
-
     @Test
     fun `openCrosscheck activates and closeCrosscheck deactivates`() = runTest {
         val vm = createViewModel()
@@ -263,8 +256,6 @@ class NoteDetailViewModelTest {
         vm.closeCrosscheck()
         assertFalse(vm.crosscheckActive)
     }
-
-    
 
     @Test
     fun `folders sorted by sortOrder`() = runTest {

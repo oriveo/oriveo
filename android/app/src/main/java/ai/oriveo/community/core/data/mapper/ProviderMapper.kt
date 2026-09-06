@@ -14,7 +14,6 @@ import ai.oriveo.community.core.util.normalizeUuid
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
-
 object ProviderMapper {
 
     private val json = Json { ignoreUnknownKeys = true; coerceInputValues = true }

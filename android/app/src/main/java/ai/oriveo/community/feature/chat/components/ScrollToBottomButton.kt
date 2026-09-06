@@ -43,7 +43,7 @@ internal fun ScrollToBottomButton(
             imageVector = Icons.Filled.KeyboardArrowDown,
             contentDescription = null,
             modifier = Modifier.size(18.dp),
-            
+
             tint = Color.White,
         )
     }

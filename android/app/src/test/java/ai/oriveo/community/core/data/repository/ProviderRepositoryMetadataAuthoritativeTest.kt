@@ -61,7 +61,6 @@ import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
-
 class ProviderRepositoryMetadataAuthoritativeTest {
 
     private val dao = mockk<ProviderDao>()
@@ -99,8 +98,6 @@ class ProviderRepositoryMetadataAuthoritativeTest {
         every { secureKeyStore.advanceCapabilityConnection(any(), any()) } returns SecureKeyStore.CapabilityEpochs("cg-next", "ce-next")
         coEvery { dao.upsert(any()) } returns Unit
 
-        
-        
         mockkObject(ai.oriveo.community.core.data.remote.MetadataClient)
         mockkObject(ai.oriveo.community.core.data.remote.MetadataClient.instance)
         coEvery { ai.oriveo.community.core.data.remote.MetadataClient.refresh() } returns Unit
@@ -125,7 +122,7 @@ class ProviderRepositoryMetadataAuthoritativeTest {
             siliconFlowService = siliconFlowService,
             relayService = relayService,
             metadataRefreshEventBus = ai.oriveo.community.core.data.remote.MetadataRefreshEventBus(debounceMillis = 0),
-            
+
             httpClient = HttpClient(
                 MockEngine { respond("""{"data":[]}""", HttpStatusCode.OK) }
             ),
@@ -140,11 +137,9 @@ class ProviderRepositoryMetadataAuthoritativeTest {
         MetadataTestFixtures.clear()
     }
 
-    
-
     @Test
     fun `registerProvider for official provider builds models from metadata not sync result`() = runTest {
-        
+
         MetadataTestFixtures.applyProviders(
             MetadataTestFixtures.ProviderSpec(
                 providerKind = ProviderKind.OpenAI,
@@ -164,7 +159,6 @@ class ProviderRepositoryMetadataAuthoritativeTest {
             apiKey = "sk-test",
         )
 
-        
         assertFalse(
             "official provider must not use service.syncProvider().models",
             result.models.any { it.id == "hacked-rogue-model" },
@@ -173,7 +167,7 @@ class ProviderRepositoryMetadataAuthoritativeTest {
             "official provider enabled models should come from metadata",
             result.models.any { it.id == "gpt-4o" },
         )
-        
+
         assertTrue(
             "official provider catalogModels must persist as empty",
             result.catalogModels.isEmpty(),
@@ -188,7 +182,7 @@ class ProviderRepositoryMetadataAuthoritativeTest {
 
     @Test
     fun `register then resync produces identical enabled models for official provider`() = runTest {
-        
+
         MetadataTestFixtures.applyProviders(
             MetadataTestFixtures.ProviderSpec(
                 providerKind = ProviderKind.OpenAI,
@@ -204,14 +198,11 @@ class ProviderRepositoryMetadataAuthoritativeTest {
         )
         val firstEnabledIds = first.models.map { it.id }.toSet()
 
-        
-        
         val existingEntity = first.toEntity(accountId)
         coEvery { dao.getAll(accountId) } returns listOf(existingEntity)
         coEvery { secureKeyStore.getApiKey(any(), first.id) } returns "sk-test"
         coEvery { dao.getById(any(), first.id) } returns existingEntity
 
-        
         val second = repository.registerProvider(kind = ProviderKind.OpenAI, apiKey = "sk-test")
         val secondEnabledIds = second.models.map { it.id }.toSet()
 
@@ -330,8 +321,7 @@ class ProviderRepositoryMetadataAuthoritativeTest {
                 model("qwen/qwen3-32b"),
             ),
         )
-        
-        
+
         var persistedEntity = pollutedProvider.toEntity(accountId)
         coEvery { dao.getById(any(), pollutedProvider.id) } answers { persistedEntity }
         coEvery { secureKeyStore.getApiKey(any(), pollutedProvider.id) } returns "sk-or-test"
@@ -533,7 +523,7 @@ class ProviderRepositoryMetadataAuthoritativeTest {
 
     @Test
     fun `alias resolves to canonical for old enabled model id`() = runTest {
-        
+
         MetadataTestFixtures.applyProviders(
             MetadataTestFixtures.ProviderSpec(
                 providerKind = ProviderKind.Qwen,
@@ -548,7 +538,6 @@ class ProviderRepositoryMetadataAuthoritativeTest {
             ),
         )
 
-        
         val oldProvider = provider(
             id = "123e4567-e89b-12d3-a456-426614174050",
             kind = ProviderKind.Qwen,
@@ -562,7 +551,6 @@ class ProviderRepositoryMetadataAuthoritativeTest {
             apiKey = "sk-qwen",
         )
 
-        
         assertTrue(
             "canonical model should be enabled after alias resolution",
             result.models.any { it.id == "qwen3.6-plus" || it.canonicalModelId == "qwen3.6-plus" },
@@ -574,7 +562,7 @@ class ProviderRepositoryMetadataAuthoritativeTest {
 
     @Test
     fun `relay register retains syncProvider models as catalog`() = runTest {
-        
+
         coEvery {
             relayService.syncProvider(apiKey = any(), preferredModelID = any(), baseUrl = any())
         } returns ProviderSyncResult(
@@ -1035,7 +1023,6 @@ class ProviderRepositoryMetadataAuthoritativeTest {
         assertFalse(failed.persisted)
         val revision = requireNotNull(failed.failureRevision)
 
-        
         storedEntity = storedEntity.copy(customName = "Concurrent", updatedAt = 101)
         val downgraded = repository.persistRelayEditUnverified(
             candidate = candidate,
@@ -1139,8 +1126,6 @@ class ProviderRepositoryMetadataAuthoritativeTest {
         assertTrue(afterRetry.catalogModels.isEmpty())
     }
 
-    
-
     @Test
     fun `zhipu image gen model surfaces through metadata`() = runTest {
         MetadataTestFixtures.applyProviders(
@@ -1163,11 +1148,9 @@ class ProviderRepositoryMetadataAuthoritativeTest {
             apiKey = "sk-zhipu",
         )
 
-        
         assertTrue(result.models.any { it.id == "glm-4-plus" })
         assertTrue(result.catalogModels.isEmpty())
 
-        
         val resolved = ai.oriveo.community.core.provider.ProviderCatalogResolver.resolve(result)
         assertTrue(
             "cogview-4 image gen model must be discoverable via metadata catalog",

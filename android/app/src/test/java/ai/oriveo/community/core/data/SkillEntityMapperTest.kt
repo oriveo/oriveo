@@ -1,6 +1,5 @@
 package ai.oriveo.community.core.data
 
-
 import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.core.data.entity.SkillEntity
 import ai.oriveo.community.core.model.Skill
@@ -241,7 +240,6 @@ class SkillEntityMapperTest {
             updatedAt = "2026-01-01",
         )
 
-        
         val skill = entity.toDomain()
         assertTrue(skill.starterMessages.isEmpty())
         assertTrue(skill.knowledgeFiles.isEmpty())

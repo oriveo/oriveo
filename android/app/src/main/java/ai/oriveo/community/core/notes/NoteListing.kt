@@ -3,7 +3,6 @@ package ai.oriveo.community.core.notes
 import ai.oriveo.community.core.model.Note
 import ai.oriveo.community.core.util.normalizeUuid
 
-
 enum class NoteSort {
     UpdatedAt,
     CreatedAt,
@@ -23,7 +22,6 @@ enum class NoteSort {
     }
 }
 
-
 object NoteListing {
 
     fun filterAndSort(
@@ -31,7 +29,7 @@ object NoteListing {
         folderId: String? = null,
         tags: List<String> = emptyList(),
         sort: NoteSort = NoteSort.UpdatedAt,
-        
+
         uncategorizedOnly: Boolean = false,
     ): List<Note> {
         val normalizedFolder = folderId?.let(::normalizeUuid)
@@ -62,7 +60,6 @@ object NoteListing {
         return notes.sortedWith(comparator)
     }
 
-    
     fun availableTags(notes: List<Note>, folderId: String?, max: Int = 12, uncategorizedOnly: Boolean = false): List<String> {
         val normalizedFolder = folderId?.let(::normalizeUuid)
         return notes.asSequence()
@@ -81,7 +78,6 @@ object NoteListing {
             .toList()
     }
 
-    
     fun tagSuggestions(notes: List<Note>, excluding: List<String>, max: Int = 12): List<String> {
         val existing = excluding.map { it.trim().lowercase() }.filter { it.isNotEmpty() }.toSet()
         val seen = linkedSetOf<String>()

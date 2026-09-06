@@ -3,7 +3,6 @@ package ai.oriveo.community.core.attachments
 import java.io.ByteArrayOutputStream
 import java.util.Base64
 
-
 private val NATIVE_CAPABLE_MIMES = setOf(
     "application/pdf",
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -16,11 +15,9 @@ private val NATIVE_CAPABLE_MIMES = setOf(
     "application/vnd.oasis.opendocument.presentation",
 )
 
-
 fun shouldPersistOriginalBase64(mime: String): Boolean {
     return mime.lowercase() in NATIVE_CAPABLE_MIMES
 }
-
 
 fun streamingBase64(bytes: ByteArray): String {
     return ByteArrayOutputStream(bytes.size * 4 / 3 + 16).use { out ->

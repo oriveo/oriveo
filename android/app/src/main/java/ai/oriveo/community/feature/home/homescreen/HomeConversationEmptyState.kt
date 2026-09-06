@@ -29,7 +29,6 @@ import ai.oriveo.community.feature.home.AuroraTheme
 import ai.oriveo.community.ui.theme.OriveoTheme
 import ai.oriveo.community.ui.theme.opacity
 
-
 @Composable
 internal fun HomeConversationEmptyState(
     isDark: Boolean,
@@ -50,7 +49,7 @@ internal fun HomeConversationEmptyState(
             modifier = Modifier.size(100.dp),
             contentAlignment = Alignment.Center,
         ) {
-            
+
             Box(
                 modifier = Modifier
                     .size(100.dp)
@@ -64,7 +63,7 @@ internal fun HomeConversationEmptyState(
                         shape = CircleShape,
                     ),
             )
-            
+
             Box(
                 modifier = Modifier
                     .size(64.dp)
@@ -89,7 +88,7 @@ internal fun HomeConversationEmptyState(
                         0.8.dp,
                         Brush.verticalGradient(
                             colors = listOf(
-                                
+
                                 if (isDark) OriveoTheme.colors.cardHighlight.opacity(2.5f)
                                 else Color.White.copy(alpha = 0.55f),
                                 Color.Transparent,

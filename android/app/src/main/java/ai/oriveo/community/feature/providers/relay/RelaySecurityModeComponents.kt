@@ -38,7 +38,6 @@ import ai.oriveo.community.ui.component.OriveoPrimaryButton
 import ai.oriveo.community.ui.component.OriveoSecondaryButton
 import ai.oriveo.community.ui.theme.OriveoTheme
 
-
 @Composable
 internal fun RelaySecurityModeControl(
     endpoint: String,

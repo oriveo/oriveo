@@ -49,7 +49,6 @@ class ProviderCatalogGroupingTest {
         )
     }
 
-
     @Test
     fun `buildProviderCatalogGroups groups openrouter catalog by vendor with fixed weight order`() {
         val provider = makeProvider(

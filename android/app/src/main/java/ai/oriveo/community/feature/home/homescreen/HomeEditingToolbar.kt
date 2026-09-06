@@ -24,7 +24,6 @@ import ai.oriveo.community.feature.home.AuroraSectionRule
 import ai.oriveo.community.feature.home.AuroraTheme
 import ai.oriveo.community.ui.theme.OriveoTheme
 
-
 @Composable
 internal fun V2SectionHeader(
     title: String,
@@ -68,7 +67,7 @@ internal fun SectionHeaderWithSelection(
     ) {
         V2SectionHeader(title = title)
         Spacer(modifier = Modifier.weight(1f))
-        
+
         Text(
             text = stringResource(if (allSelected) R.string.deselect else R.string.select_action),
             style = OriveoTheme.typography.footnote,
@@ -88,7 +87,6 @@ internal fun HomeEditingToolbar(
 ) {
     val colors = OriveoTheme.colors
 
-    
     Column {
         HorizontalDivider(color = colors.border)
         Row(
@@ -98,7 +96,7 @@ internal fun HomeEditingToolbar(
                 .padding(horizontal = OriveoTheme.layout.screenH, vertical = OriveoTheme.spacing.md),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            
+
             Text(
                 text = stringResource(if (allSelected) R.string.deselect_all else R.string.select_all),
                 style = OriveoTheme.typography.body,
@@ -128,7 +126,7 @@ internal fun HomeEditingToolbar(
                 )
             }
             Spacer(modifier = Modifier.size(OriveoTheme.spacing.lg))
-            
+
             Row(
                 modifier = Modifier.clickable(enabled = selectedCount > 0, onClick = onDelete),
                 horizontalArrangement = Arrangement.spacedBy(OriveoTheme.spacing.xs),

@@ -75,8 +75,7 @@ class ChatRepositoryHotPathTest {
 
     @Test
     fun `relay image config does not drive send model selection image capability`() {
-        
-        
+
         val provider = Provider(
             id = "provider-relay",
             kind = ProviderKind.Relay,

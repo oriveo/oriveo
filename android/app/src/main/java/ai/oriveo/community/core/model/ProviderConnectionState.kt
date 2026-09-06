@@ -4,7 +4,6 @@ import androidx.compose.runtime.Immutable
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
-
 @Immutable
 @Serializable
 sealed class ProviderConnectionState {
@@ -24,7 +23,6 @@ sealed class ProviderConnectionState {
     @SerialName("issue")
     data class Issue(val message: String) : ProviderConnectionState()
 
-    
     val title: String
         get() = when (this) {
             is Connected -> "Connected"

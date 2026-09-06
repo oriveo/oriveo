@@ -13,7 +13,6 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.flowOf
 
-
 class MessageWindowFakeStore {
     private val messages = mutableMapOf<String, List<MessageEntity>>()
 
@@ -51,12 +50,9 @@ class MessageWindowFakeStore {
     }
 }
 
-
 fun ConversationRepository.stubMessageWindowLoaderDefaults(
     store: MessageWindowFakeStore,
-    
-    
-    
+
     dispatcher: CoroutineDispatcher = Dispatchers.Unconfined,
 ) {
     every { createMessageWindowLoader() } answers {

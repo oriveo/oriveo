@@ -88,7 +88,7 @@ class OutboundAttachmentBudgetTest {
 
     @Test
     fun `history images beyond the budget become placeholders`() = runTest {
-        
+
         val messages = listOf(
             user("first", image("old")),
             assistant("ok"),
@@ -99,9 +99,8 @@ class OutboundAttachmentBudgetTest {
 
         val out = apply(messages, budgetBytes = 4 * oneMb, sizeBytes = 3 * oneMb)
 
-        
         assertEquals(listOf(image("recent")), out[2].attachments)
-        
+
         assertNull(out[0].attachments)
         assertTrue(out[0].text.startsWith("first"))
         assertTrue(out[0].text.contains("[Image omitted: old.jpg"))
@@ -121,7 +120,7 @@ class OutboundAttachmentBudgetTest {
         assertEquals("ZXh0cmFjdGVk", kept.base64Data)
         assertNull(kept.rawContentRef)
         assertNull(kept.originalBase64Data)
-        
+
         assertEquals("read this", out[0].text)
     }
 
@@ -141,7 +140,7 @@ class OutboundAttachmentBudgetTest {
 
     @Test
     fun `scanned pdf empty-string marker is not mistaken for usable text`() = runTest {
-        
+
         val messages = listOf(
             user("scanned", pdf("scanned", extractedText = "")),
             assistant("ok"),
@@ -177,7 +176,6 @@ class OutboundAttachmentBudgetTest {
             user("newer"),
         )
 
-        
         val out = apply(messages, budgetBytes = 1024, sizeBytes = 25 * oneMb)
 
         assertEquals(listOf(inlined), out[0].attachments)

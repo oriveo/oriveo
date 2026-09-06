@@ -54,7 +54,6 @@ import ai.oriveo.community.core.model.OriveoError
 import ai.oriveo.community.core.model.OriveoErrorSeverity
 import org.koin.androidx.compose.koinViewModel
 
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BackupScreen(
@@ -67,12 +66,10 @@ fun BackupScreen(
     val spacing = OriveoTheme.spacing
     val layout = OriveoTheme.layout
 
-    
     val exportSaveLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/octet-stream"),
     ) { uri: Uri? ->
-        
-        
+
         viewModel.handleExportSaveTarget(uri) { targetUri, sourceFile ->
             context.contentResolver.openOutputStream(targetUri)?.use { out ->
                 sourceFile.inputStream().use { input -> input.copyTo(out, DEFAULT_BUFFER_SIZE) }
@@ -80,7 +77,6 @@ fun BackupScreen(
         }
     }
 
-    
     androidx.compose.runtime.LaunchedEffect(viewModel.shouldTriggerSave) {
         if (viewModel.shouldTriggerSave) {
             val fileName = "Oriveo-Backup-${
@@ -91,7 +87,6 @@ fun BackupScreen(
         }
     }
 
-    
     val filePickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument(),
     ) { uri: Uri? ->
@@ -123,13 +118,13 @@ fun BackupScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = layout.screenH, vertical = spacing.xl),
         ) {
-            
+
             OriveoSectionHeader(title = stringResource(R.string.export_backup_title))
             Spacer(modifier = Modifier.height(spacing.md))
 
             OriveoCard {
                 Column(verticalArrangement = Arrangement.spacedBy(layout.cardRowGap)) {
-                    
+
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -147,7 +142,6 @@ fun BackupScreen(
                         )
                     }
 
-                    
                     if (viewModel.includeKeys) {
                         OriveoLabeledField(
                             label = stringResource(R.string.encryption_password),
@@ -175,7 +169,6 @@ fun BackupScreen(
                         }
                     }
 
-                    
                     viewModel.exportError?.let { error ->
                         Text(
                             text = error.resolve(context),
@@ -184,7 +177,6 @@ fun BackupScreen(
                         )
                     }
 
-                    
                     OriveoPrimaryButton(
                         text = if (viewModel.isExporting) {
                             stringResource(R.string.preparing)
@@ -198,7 +190,6 @@ fun BackupScreen(
                 }
             }
 
-            
             Spacer(modifier = Modifier.height(spacing.md))
 
             OriveoCard {
@@ -226,7 +217,6 @@ fun BackupScreen(
                 }
             }
 
-            
             Spacer(modifier = Modifier.height(layout.sectionGap))
             OriveoSectionHeader(title = stringResource(R.string.import_section_title))
             Spacer(modifier = Modifier.height(spacing.md))
@@ -252,7 +242,6 @@ fun BackupScreen(
                 }
             }
 
-            
             viewModel.importError?.let { error ->
                 Spacer(modifier = Modifier.height(spacing.md))
                 OriveoErrorCard(
@@ -280,7 +269,6 @@ fun BackupScreen(
 
     // ── Sheets ──
 
-    
     if (viewModel.showImportPreview) {
         viewModel.importPreview?.let { preview ->
             ImportPreviewSheet(
@@ -296,7 +284,6 @@ fun BackupScreen(
         }
     }
 
-    
     if (viewModel.showPasswordPrompt) {
         PasswordPromptSheet(
             password = viewModel.importPassword,
@@ -308,7 +295,6 @@ fun BackupScreen(
         )
     }
 
-    
     if (viewModel.showImportResult) {
         viewModel.importResult?.let { result ->
             ImportResultSheet(
@@ -318,7 +304,6 @@ fun BackupScreen(
         }
     }
 
-    
     if (viewModel.showReplaceConfirmation) {
         AlertDialog(
             onDismissRequest = { viewModel.showReplaceConfirmation = false },
@@ -350,7 +335,6 @@ fun BackupScreen(
         )
     }
 
-    
     if (viewModel.exportSuccess) {
         AlertDialog(
             onDismissRequest = { viewModel.dismissExportSuccess() },

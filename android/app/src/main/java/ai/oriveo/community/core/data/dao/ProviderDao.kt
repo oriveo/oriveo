@@ -53,7 +53,6 @@ interface ProviderDao {
     @Query("DELETE FROM providers WHERE accountId = :accountId")
     suspend fun deleteByAccount(accountId: String)
 
-    
     @Query("SELECT COUNT(*) FROM providers WHERE accountId = :accountId")
     suspend fun countByAccount(accountId: String): Int
 }

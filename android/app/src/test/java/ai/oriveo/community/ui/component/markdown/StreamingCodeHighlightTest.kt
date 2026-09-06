@@ -5,7 +5,6 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-
 class StreamingCodeHighlightTest {
 
     private val testColors = MarkdownColors(
@@ -35,7 +34,7 @@ class StreamingCodeHighlightTest {
 
     @Test
     fun `completed lines highlight equals final full highlight prefix`() {
-        
+
         val code = "fun main() {\n    val x = \"hi\" // greet\n    println(x)\n}"
         val streaming = highlightStreamingCode(code, "kotlin", testColors)
         val final = SyntaxHighlighter.highlight(code, "kotlin", testColors)
@@ -52,9 +51,9 @@ class StreamingCodeHighlightTest {
     fun `partial last line stays plain until its newline arrives`() {
         val stable = "val done = 1"
         val streaming = highlightStreamingCode("$stable\nval typi", "kotlin", testColors)
-        
+
         assertTrue(streaming.spanStyles.none { it.end > stable.length })
-        
+
         assertTrue(streaming.spanStyles.any { it.start < stable.length })
     }
 

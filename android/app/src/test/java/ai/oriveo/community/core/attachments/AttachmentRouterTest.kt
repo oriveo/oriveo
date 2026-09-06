@@ -53,8 +53,6 @@ class AttachmentRouterTest {
         pdfNativeDefault = pdfNativeDefault,
     )
 
-    
-
     @Test fun `docx OpenAI GPT-5 to Native`() {
         val route = AttachmentRouter.decide(
             makeAttachment(),
@@ -109,8 +107,6 @@ class AttachmentRouterTest {
         assertEquals(AttachmentRoute.ClientExtract, route)
     }
 
-    
-
     @Test fun `PDF OpenAI GPT-5 pdfNativeDefault false to ClientExtract`() {
         val route = AttachmentRouter.decide(
             makeAttachment(mimeType = "application/pdf"),
@@ -137,8 +133,6 @@ class AttachmentRouterTest {
         )
         assertEquals(AttachmentRoute.Native, route)
     }
-
-    
 
     @Test fun `scanned_pdf OpenAI GPT-5 to Native (D1 fallback)`() {
         val route = AttachmentRouter.decide(
@@ -167,8 +161,6 @@ class AttachmentRouterTest {
         assertEquals(AttachmentRoute.ClientExtract, route)
     }
 
-    
-
     @Test fun `oversized 30MB on OpenAI to ClientExtract (Android 25MB threshold)`() {
         val route = AttachmentRouter.decide(
             makeAttachment(sizeBytes = 30 * 1024 * 1024),
@@ -195,8 +187,6 @@ class AttachmentRouterTest {
         )
         assertEquals(AttachmentRoute.ClientExtract, route)
     }
-
-    
 
     @Test fun `maxNativeBytes per provider`() {
         assertEquals(25 * 1024 * 1024, AttachmentRouter.maxNativeBytes(ProviderKind.OpenAI))

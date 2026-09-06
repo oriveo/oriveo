@@ -33,7 +33,7 @@ class ServiceReachabilityMonitorTest {
 
     @Test
     fun `losing the only network shows the NoNetwork banner`() {
-        
+
         val monitor = serviceReachabilityMonitor()
         val wifi = mockk<Network>(relaxed = true)
 
@@ -48,7 +48,7 @@ class ServiceReachabilityMonitorTest {
 
     @Test
     fun `switching networks stays online without flicker`() {
-        
+
         val monitor = serviceReachabilityMonitor()
         val wifi = mockk<Network>(relaxed = true)
         val cellular = mockk<Network>(relaxed = true)
@@ -82,14 +82,12 @@ class ServiceReachabilityMonitorTest {
         val monitor = serviceReachabilityMonitor()
         val wifi = mockk<Network>(relaxed = true)
 
-        
         monitor.onNetworkAvailable(wifi)
         monitor.onNetworkLost(wifi)
         assertSame(ServiceReachabilityMonitor.State.NoNetwork, monitor.bannerState.value)
         monitor.dismissCurrentBanner()
         assertSame(ServiceReachabilityMonitor.State.Online, monitor.bannerState.value)
 
-        
         monitor.onNetworkAvailable(wifi)
         monitor.onNetworkLost(wifi)
 

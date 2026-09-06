@@ -13,7 +13,6 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
-
 class MessageAttachmentRepairTask(
     private val messageDao: MessageDao,
     private val preferenceDao: PreferenceDao,
@@ -36,15 +35,14 @@ class MessageAttachmentRepairTask(
                 }
                 failures
             }
-            
-            
+
             if (failedRows == 0) {
                 preferenceDao.set(PreferenceEntity(PREF_KEY, PREF_DONE_VALUE))
             } else {
                 Log.w(TAG, "$failedRows row(s) failed to repair; will retry on next launch")
             }
         } catch (error: Exception) {
-            
+
             Log.e(TAG, "attachment repair task aborted: ${error.message}", error)
             reportError(error)
         }
@@ -70,7 +68,6 @@ class MessageAttachmentRepairTask(
         return builder.toString()
     }
 
-    
     internal suspend fun repairAttachmentsJson(raw: String): String? {
         val attachments = runCatching { json.decodeFromString<List<Attachment>>(raw) }.getOrNull()
             ?: return null
@@ -96,10 +93,8 @@ class MessageAttachmentRepairTask(
     companion object {
         private const val TAG = "AttachmentRowRepair"
 
-        
         const val ATTACHMENTS_THRESHOLD_CHARS = 200_000
 
-        
         const val CHUNK_SIZE_CHARS = 200_000
 
         const val PREF_KEY = "attachment_row_repair_v1"

@@ -145,7 +145,6 @@ import kotlinx.serialization.json.JsonObject
 import kotlin.math.max
 import kotlin.math.min
 
-
 private val AssistantBodyLeadingInset = 0.dp
 
 internal fun shouldShowAssistantFooterActions(
@@ -153,7 +152,6 @@ internal fun shouldShowAssistantFooterActions(
     hasText: Boolean,
     isBodyRenderSettled: Boolean,
 ): Boolean = messageState == ChatMessageState.Delivered && hasText && isBodyRenderSettled
-
 
 internal fun shouldShowReasoningBlock(
     reasoningText: String,
@@ -194,13 +192,12 @@ private fun sortToolCallJson(element: JsonElement): JsonElement = when (element)
     else -> element
 }
 
-
 @Composable
 fun MessageBubble(
     message: ChatMessage,
     streamingText: String? = null,
     streamingReasoning: String? = null,
-    
+
     streamingReasoningActive: Boolean = false,
     showMetadata: Boolean = true,
     providerNameOverride: String? = null,
@@ -209,22 +206,22 @@ fun MessageBubble(
     avatarURL: String? = null,
     avatarLocalID: String? = null,
     avatarFallbackName: String = "",
-    
+
     isUserDragging: Boolean = false,
     onEdit: (() -> Unit)? = null,
     onRetry: (() -> Unit)? = null,
-    
+
     onSaveMessageAsNote: (() -> Unit)? = null,
-    
+
     onSaveCodeAsNote: ((String) -> Unit)? = null,
-    
+
     onSaveSelection: ((String) -> Unit)? = null,
     onAskSelection: ((QuoteSelectionContent) -> Unit)? = null,
-    
+
     onReplaceSelection: ((String) -> Unit)? = null,
-    
+
     onSelectionToolbarVisibleChange: (Boolean) -> Unit = {},
-    
+
     onSelectionGestureActiveChange: (Boolean) -> Unit = {},
     onCrosscheck: (() -> Unit)? = null,
     modifier: Modifier = Modifier,
@@ -312,7 +309,6 @@ private fun UserBubble(
         message.text
     }
 
-    
     val imageAttachmentsForWidth = remember(message.attachments) {
         message.attachments?.filter { it.kind == AttachmentKind.Image }.orEmpty()
     }
@@ -335,7 +331,7 @@ private fun UserBubble(
             .padding(horizontal = 24.dp),
         horizontalAlignment = Alignment.End,
     ) {
-        
+
         Row(
             horizontalArrangement = Arrangement.End,
             verticalAlignment = Alignment.CenterVertically,
@@ -350,7 +346,7 @@ private fun UserBubble(
                     .border(OriveoBorderWidth.standard, colors.hairline, bubbleShape)
                     .clip(bubbleShape),
             ) {
-                
+
                 val imageCount = message.attachments?.count { it.kind == AttachmentKind.Image } ?: 0
                 val fileCount = message.attachments?.count { it.kind != AttachmentKind.Image } ?: 0
                 val isImmersiveHero = imageCount == 1 && fileCount == 0
@@ -538,7 +534,7 @@ private fun AssistantMessage(
     } else {
         message.text
     }
-    
+
     val isStreaming = message.state == ChatMessageState.Generating
     var isBodyRenderSettled by remember(message.id) {
         mutableStateOf(message.state != ChatMessageState.Generating)
@@ -551,8 +547,7 @@ private fun AssistantMessage(
     } else {
         message.reasoningText ?: ""
     }
-    
-    
+
     val metadataText = remember(
         resolvedProviderName,
         resolvedModelName,
@@ -568,8 +563,7 @@ private fun AssistantMessage(
             }
         }.joinToString(" · ")
     }
-    
-    
+
     val showReasoningBlock = shouldShowReasoningBlock(
         reasoningText = displayReasoningText,
         isStreaming = isStreaming,
@@ -579,10 +573,6 @@ private fun AssistantMessage(
         displayText.isBlank() &&
         !showReasoningBlock
 
-    
-    
-    
-    
     Box(
         modifier = modifier
             .fillMaxWidth()
@@ -595,7 +585,7 @@ private fun AssistantMessage(
                 .padding(vertical = 6.dp),
             verticalArrangement = Arrangement.spacedBy(OriveoTheme.spacing.sm),
         ) {
-            
+
             Row(
                 modifier = Modifier.heightIn(min = 28.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -620,30 +610,27 @@ private fun AssistantMessage(
             }
 
             Column(
-                
+
                 modifier = Modifier.padding(
                     bottom = OriveoTheme.spacing.xs,
                 ),
                 verticalArrangement = Arrangement.spacedBy(OriveoTheme.spacing.md),
             ) {
-                
-                
-                
+
                 if (showReasoningBlock) {
                     ReasoningBlock(
                         reasoningText = displayReasoningText,
                         isStreaming = isStreaming,
                         durationMs = message.reasoningDurationMs,
                         messageId = message.id,
-                        
-                        
+
                         reasoningEnded = message.reasoningDurationMs != null || displayText.isNotBlank(),
                     )
                 }
 
                 when {
                     showTypingIndicator -> {
-                        
+
                         TypingIndicator()
                     }
                     displayText.isNotBlank() -> {
@@ -658,8 +645,7 @@ private fun AssistantMessage(
                             onReplaceSelection = onReplaceSelection,
                             onSelectionToolbarVisibleChange = onSelectionToolbarVisibleChange,
                             onSelectionGestureActiveChange = onSelectionGestureActiveChange,
-                            
-                            
+
                             onRenderSettled = {
                                 @Suppress("DEPRECATION")
                                 (hapticContext.getSystemService(Context.VIBRATOR_SERVICE) as? android.os.Vibrator)
@@ -690,11 +676,6 @@ private fun AssistantMessage(
                     )
                 }
 
-                
-                
-                
-                
-                
                 if (!message.citations.isNullOrEmpty() && (!isStreaming || message.text.isNotEmpty())) {
                     CitationsBlock(citations = message.citations)
                 }
@@ -794,8 +775,7 @@ private fun UnhandledToolCallsCard(calls: List<UnhandledToolCall>) {
                 color = colors.textTertiary,
             )
             calls.forEach { call ->
-                
-                
+
                 val preview = remember(call.arguments) {
                     toolCallArgumentsPreview(call.arguments.ifBlank { "{}" })
                 }
@@ -923,7 +903,7 @@ private fun AssistantFooterActionRow(
     }
 
     Row(
-        
+
         modifier = modifier.offset(x = AssistantMessageFooterMetrics.RowOpticalOffset),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(4.dp),
@@ -1053,8 +1033,6 @@ private fun MessageTokenUsageDialog(
         }
     }
 
-    
-    
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
@@ -1068,11 +1046,7 @@ private fun MessageTokenUsageDialog(
             Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
                 Text(
                     text = stringResource(R.string.chat_token_usage_title),
-                    
-                    
-                    
-                    
-                    
+
                     color = colors.textPrimary,
                     style = OriveoTheme.typography.title2,
                     fontWeight = FontWeight.SemiBold,
@@ -1090,17 +1064,12 @@ private fun MessageTokenUsageDialog(
                     label = stringResource(R.string.chat_token_usage_input),
                     value = format(rows.inputTokens),
                     modifier = modifier,
-                    
-                    
-                    
-                    
+
                     subRows = if (rows.cacheRows.isEmpty()) {
                         null
                     } else {
                         {
-                            
-                            
-                            
+
                             HorizontalDivider(color = colors.border)
                             rows.cacheRows.forEach { row ->
                                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1175,13 +1144,11 @@ private fun TokenUsageMetric(
         verticalArrangement = Arrangement.spacedBy(7.dp),
     ) {
         Text(label, color = colors.textSecondary, style = OriveoTheme.typography.footnote)
-        
-        
+
         Text(value, color = colors.textPrimary, fontWeight = FontWeight.SemiBold)
         subRows?.invoke(this)
     }
 }
-
 
 @Composable
 private fun FooterActionButton(
@@ -1214,7 +1181,6 @@ private fun FooterActionButton(
         )
     }
 }
-
 
 @Composable
 private fun FooterIconButton(
@@ -1253,11 +1219,7 @@ private fun MessageAttachmentList(
     ) {
         if (imageAttachments.isNotEmpty()) {
             if (isUserMessage) {
-                
-                
-                
-                
-                
+
                 when (imageAttachments.size) {
                     1 -> UserImageHero(
                         attachment = imageAttachments.first(),
@@ -1310,7 +1272,7 @@ private fun MessageAttachmentList(
                                     gallery = imageAttachments,
                                     index = 3,
                                     overflowCount = remaining,
-    
+
                                     attachmentStore = attachmentStore,
                                 )
                             }
@@ -1318,17 +1280,16 @@ private fun MessageAttachmentList(
                     }
                 }
             } else {
-                
+
                 imageAttachments.forEach { attachment ->
                     AssistantImageView(attachment = attachment)
                 }
             }
         }
 
-        
         fileAttachments.forEach { attachment ->
             if (isUserMessage) {
-                
+
                 UserFileChip(attachment = attachment, attachmentStore = attachmentStore)
             } else {
                 MessageAttachmentChip(
@@ -1341,7 +1302,6 @@ private fun MessageAttachmentList(
         }
     }
 }
-
 
 @Composable
 private fun AssistantImageView(attachment: Attachment) {
@@ -1401,7 +1361,6 @@ private fun AssistantImageView(attachment: Attachment) {
         )
     }
 }
-
 
 @Composable
 private fun UserFileChip(attachment: Attachment, attachmentStore: AttachmentStore) {
@@ -1509,10 +1468,6 @@ private suspend fun openFileAttachment(context: Context, attachmentStore: Attach
         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
     }
 
-    
-    
-    
-    
     val launchIntent = when {
         typedIntent.resolveActivity(packageManager) != null -> typedIntent
         fallbackIntent.resolveActivity(packageManager) != null -> fallbackIntent
@@ -1593,7 +1548,6 @@ private fun MessageAttachmentChip(
     }
 }
 
-
 private object AttachmentIconResolver {
     fun iconFor(
         mime: String,
@@ -1633,7 +1587,6 @@ private object AttachmentIconResolver {
         }
     }
 }
-
 
 private fun Modifier.userBubbleGlow(glowColor: Color, isDark: Boolean): Modifier = drawWithCache {
     val sigma = if (isDark) 22.dp.toPx() else 10.dp.toPx()

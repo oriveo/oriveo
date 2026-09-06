@@ -11,7 +11,6 @@ import ai.oriveo.community.core.model.ProviderConnectionState
 import ai.oriveo.community.core.model.ProviderKind
 import java.util.Calendar
 
-
 class HomeViewModelTest {
     @Test
     fun `home header action buttons use compact lightweight toolbar sizing`() {
@@ -26,8 +25,6 @@ class HomeViewModelTest {
         assertEquals("LFM2.5-1.2B-Instruct", homeHeroPillModelName("LiquidAI: LFM2.5-1.2B-Instruct (free)"))
         assertEquals("GPT-5.4", homeHeroPillModelName("GPT-5.4"))
     }
-
-    
 
     @Test
     fun `classifyDate returns Today for current time`() {
@@ -194,8 +191,6 @@ class HomeViewModelTest {
         assertEquals(4, DateGroup.entries.size)
     }
 
-    
-
     @Test
     fun `classifyDate handles epoch zero`() {
         assertEquals(DateGroup.Earlier, classifyDate(0L))
@@ -252,8 +247,6 @@ class HomeViewModelTest {
         assertFalse(grouped.containsKey(""))
     }
 
-    
-
     private fun makeConversation(
         id: String,
         title: String,
@@ -269,10 +262,6 @@ class HomeViewModelTest {
         folderID = folderID,
     )
 
-    
-
-    
-    
     @Test
     fun `TC-7-1-1 conversations in folders excluded from time groups`() {
         val now = System.currentTimeMillis()
@@ -286,7 +275,6 @@ class HomeViewModelTest {
         assertTrue("unfiled conversation should appear", allGrouped.any { it.id == "2" })
     }
 
-    
     @Test
     fun `TC-7-1-2 conversations without folder appear in time groups`() {
         val now = System.currentTimeMillis()
@@ -300,7 +288,6 @@ class HomeViewModelTest {
         assertTrue(allGrouped.any { it.id == "2" })
     }
 
-    
     @Test
     fun `TC-7-1-3 all conversations in folders result in empty time groups`() {
         val now = System.currentTimeMillis()
@@ -312,7 +299,6 @@ class HomeViewModelTest {
         assertTrue("all in folders so no groups", groups.isEmpty())
     }
 
-    
     @Test
     fun `TC-7-1-6 mixed conversations only unfiled appear in groups`() {
         val now = System.currentTimeMillis()

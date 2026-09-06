@@ -2,18 +2,15 @@ package ai.oriveo.community.feature.chat.components
 
 import ai.oriveo.community.ui.component.streaming.StreamingInlineSpanScanner
 
-
 data class ReasoningBlockSplit(
     val blocks: List<String>,
     val tail: String,
 )
 
-
 private fun isFenceLine(line: String): Boolean {
     val trimmed = line.trim()
     return trimmed.startsWith("```") || trimmed.startsWith("~~~")
 }
-
 
 class ReasoningBlockSplitter {
     private val blocks = mutableListOf<String>()
@@ -24,7 +21,7 @@ class ReasoningBlockSplitter {
     private var lastText = ""
 
     fun advance(text: String): ReasoningBlockSplit {
-        
+
         if (!text.startsWith(lastText)) reset()
         lastText = text
 
@@ -37,7 +34,7 @@ class ReasoningBlockSplitter {
             if (isFenceLine(line)) {
                 insideFence = !insideFence
             } else if (!insideFence && line.isBlank()) {
-                
+
                 val block = text.substring(blockStart, nl + 1)
                 if (block.isNotBlank()) blocks.add(block)
                 blockStart = nl + 1
@@ -61,16 +58,13 @@ class ReasoningBlockSplitter {
     }
 }
 
-
 private const val AMBIGUITY_WINDOW = 4
 
 private fun isBlockMarkerCandidate(c: Char): Boolean = c in "#>-*_$|`~+ \t"
 
-
 fun reasoningSafePrefix(tail: String): String {
     if (tail.isEmpty()) return ""
 
-    
     val lastNL = tail.lastIndexOf('\n')
     val completed = if (lastNL >= 0) tail.substring(0, lastNL + 1) else ""
     var headEnd = completed.length
@@ -78,10 +72,9 @@ fun reasoningSafePrefix(tail: String): String {
         var offset = 0
         var mathOpen = false
         var cut = -1
-        
-        
+
         for (line in completed.splitToSequence('\n')) {
-            
+
             if (offset >= completed.length) break
             val trimmed = line.trim()
             val isRegionRisk = if (mathOpen) {
@@ -101,7 +94,6 @@ fun reasoningSafePrefix(tail: String): String {
     }
     if (headEnd < completed.length) return tail.substring(0, headEnd)
 
-    
     val lastLine = if (lastNL >= 0) tail.substring(lastNL + 1) else tail
     if (lastLine.isEmpty()) return completed
     val trimmed = lastLine.trim()

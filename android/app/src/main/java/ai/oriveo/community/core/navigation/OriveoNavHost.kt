@@ -88,10 +88,9 @@ import ai.oriveo.community.ui.theme.OriveoScreenBackground
 import ai.oriveo.community.core.performance.PageTrace
 import ai.oriveo.community.ui.theme.OriveoTheme
 
-
 private data class TabItem(
     val labelRes: Int,
-    
+
     @param:DrawableRes val iconRes: Int,
     val route: AppRoute,
 )
@@ -114,7 +113,6 @@ private val tabs = listOf(
     ),
 )
 
-
 private val ProvidersAccentLight = Color(0xFF0D9488)
 private val ProvidersAccentDark = Color(0xFF2DD4BF)
 private val SettingsAccentLight = Color(0xFFEA580C)
@@ -125,7 +123,6 @@ private fun tabSelectedTint(route: AppRoute, isDark: Boolean, primary: Color): C
     AppRoute.Settings -> if (isDark) SettingsAccentDark else SettingsAccentLight
     else -> primary
 }
-
 
 private val fullScreenRoutes = setOf(
     AppRoute.Chat::class,
@@ -159,11 +156,7 @@ private fun HomeRootChromeBackground(
     isProvidersRoute: Boolean,
     isSettingsRoute: Boolean,
 ) {
-    
-    
-    
-    
-    
+
     when {
         isProvidersRoute -> ProvidersScreenBackground()
         isSettingsRoute -> OriveoScreenBackground()
@@ -218,16 +211,11 @@ fun OriveoNavHost(
     LaunchedEffect(metricsStateHolder, currentDestination) {
         metricsStateHolder.state?.putState("route", currentRouteLabel(currentDestination))
     }
-    
-    
+
     LaunchedEffect(Unit) {
         PageTrace.end("AppLaunch", detail = currentRouteLabel(currentDestination))
     }
 
-    
-    
-    
-    
     var topChromeHeightPx by remember { mutableIntStateOf(0) }
     val statusBarInset = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
     val density = LocalDensity.current
@@ -245,38 +233,26 @@ fun OriveoNavHost(
                 .padding(innerPadding)
                 .semantics { testTagsAsResourceId = true }
         ) {
-            
-            
+
             HomeRootChromeBackground(
                 isHomeRoute = usesHomeRootChrome,
                 isProvidersRoute = isProvidersRoute,
                 isSettingsRoute = isSettingsRoute,
             )
 
-            
-            
-            
-            
-            
-            
-            
             Box(modifier = Modifier.fillMaxSize()) {
-                
-                
-                
-                
-                
+
                 CompositionLocalProvider(LocalRootTabTopInset provides remainingTopInset) {
                 Column(modifier = Modifier.fillMaxSize()) {
-                    
+
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
                             .onSizeChanged { topChromeHeightPx = it.height },
                     ) {
-                        
+
                         if (!suppressReachabilityBanner) {
-                            
+
                             ServiceReachabilityBanner(
                                 state = reachabilityBannerState,
                                 onDismiss = { reachabilityMonitor.dismissCurrentBanner() },
@@ -285,7 +261,7 @@ fun OriveoNavHost(
                                     .statusBarsPadding(),
                             )
                         }
-                        
+
                     }
                     NavHost(
                         navController = navController,
@@ -294,11 +270,9 @@ fun OriveoNavHost(
                             .fillMaxWidth()
                             .weight(1f),
                     ) {
-            
+
             composable<AppRoute.Home> {
-                
-                
-                
+
                 LaunchedEffect(Unit) { PageTrace.end("Home") }
                 HomeScreen(
                     onNavigateToChat = { id, searchQuery ->
@@ -376,7 +350,6 @@ fun OriveoNavHost(
                 )
             }
 
-            
             composable<AppRoute.Chat> { backStackEntry ->
                 val route = backStackEntry.toRoute<AppRoute.Chat>()
                 LaunchedEffect(Unit) { PageTrace.end("Chat") }
@@ -397,7 +370,7 @@ fun OriveoNavHost(
                         navController.navigate(AppRoute.ProviderDetail(providerID))
                     },
                     onNavigateToSkillEdit = {
-                        
+
                         navController.navigate(AppRoute.SkillEdit())
                     },
                     onNavigateToNoteDetail = { noteID ->
@@ -435,7 +408,7 @@ fun OriveoNavHost(
                     noteID = route.noteID,
                     onNavigateBack = { navController.popBackStack() },
                     onNavigateToSource = { conversationId, messageId ->
-                        
+
                         PageTrace.begin("Chat")
                         navController.navigate(
                             AppRoute.Chat(
@@ -620,7 +593,7 @@ fun OriveoNavHost(
             }
             composable<AppRoute.LocalComputeSetup> { backStackEntry ->
                 val route = backStackEntry.toRoute<AppRoute.LocalComputeSetup>()
-                
+
                 LaunchedEffect(Unit) { PageTrace.end("LocalComputeSetup") }
                 RelaySetupScreen(
                     entryPoint = route.entryPoint,
@@ -704,7 +677,7 @@ fun OriveoNavHost(
                 visible = shouldShowBottomBar,
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    
+
                     .navigationBarsPadding()
                     .padding(bottom = if (OriveoTheme.layout.isCompact) 7.dp else 10.dp),
                 enter = fadeIn(animationSpec = tween(220)) + slideInVertically(initialOffsetY = { it / 2 }),
@@ -717,15 +690,11 @@ fun OriveoNavHost(
                         .padding(horizontal = if (OriveoTheme.layout.isCompact) 10.dp else 14.dp),
                     contentAlignment = Alignment.Center,
                 ) {
-                    
-                    
-                    
-                    
+
                     val tabBarLabels = tabs.map { stringResource(it.labelRes) }
-                    
-                    
+
                     val tabBarIcons = tabs.map { ImageVector.vectorResource(it.iconRes) }
-                    
+
                     val isDarkTheme = OriveoTheme.isDark
                     val primaryColor = OriveoTheme.colors.primary
                     val tabTints = remember(isDarkTheme, primaryColor) {
@@ -755,9 +724,7 @@ fun OriveoNavHost(
                     }
                     LiquidGlassTabBar(
                         items = tabBarItems,
-                        
-                        
-                        
+
                         modifier = Modifier
                             .widthIn(max = tabBarMetrics.maxBarWidth)
                             .fillMaxWidth(),
@@ -765,8 +732,6 @@ fun OriveoNavHost(
                 }
             }
 
-            
-            
             GlobalToastHost(
                 messages = appViewModel.globalMessages,
                 modifier = Modifier
@@ -774,8 +739,6 @@ fun OriveoNavHost(
                     .statusBarsPadding(),
             )
 
-            
-            
             }
         }
     }

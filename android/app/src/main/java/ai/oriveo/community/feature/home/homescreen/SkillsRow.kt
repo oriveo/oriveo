@@ -29,7 +29,6 @@ import ai.oriveo.community.feature.home.AuroraTheme
 import ai.oriveo.community.feature.skills.SkillChip
 import ai.oriveo.community.ui.theme.OriveoTheme
 
-
 @Composable
 internal fun SkillsRow(
     skills: List<Skill>,
@@ -43,7 +42,7 @@ internal fun SkillsRow(
         modifier = Modifier.padding(vertical = OriveoTheme.spacing.sm),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        
+
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -78,7 +77,6 @@ internal fun SkillsRow(
             }
         }
 
-        
         LazyRow(
             contentPadding = PaddingValues(horizontal = OriveoTheme.layout.screenH),
             horizontalArrangement = Arrangement.spacedBy(10.dp),

@@ -4,7 +4,6 @@ import ai.oriveo.community.R
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
-
 class ModelVendorIconTest {
 
     @Test
@@ -35,18 +34,15 @@ class ModelVendorIconTest {
         }
     }
 
-    
-    
     @Test
     fun `vendorMonogram generates correct letters for Z-ai group`() {
-        
+
         val monogram = vendorMonogramForTest("Z.ai / GLM")
-        
+
         assert(monogram.length <= 2) { "Monogram should be at most 2 chars" }
         assert(monogram.isNotBlank()) { "Monogram should not be blank" }
     }
 
-    
     private fun vendorMonogramForTest(value: String): String {
         val parts = value
             .split(Regex("[^A-Za-z0-9]+"))

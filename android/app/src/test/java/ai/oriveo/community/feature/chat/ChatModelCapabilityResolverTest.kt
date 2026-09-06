@@ -244,7 +244,6 @@ class ChatModelCapabilityResolverTest {
         assertEquals("unknown", wrongCarrier.webState)
     }
 
-    
     @Test
     fun `unknown exact control never falls back to legacy tiers`() {
         val client = MetadataClient()
@@ -268,7 +267,6 @@ class ChatModelCapabilityResolverTest {
         assertEquals(emptyList<String>(), silent.reasoningIntents)
         assertEquals("unknown", silent.reasoningState)
 
-        
         val declared = resolver.modelControls(provider, AIModel(id = "declared", name = "Declared"), "openai_chat")
         assertEquals(emptyList<String>(), declared.reasoningIntents)
         assertEquals("unknown", declared.reasoningState)

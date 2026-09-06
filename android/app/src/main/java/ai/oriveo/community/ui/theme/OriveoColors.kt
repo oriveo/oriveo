@@ -4,7 +4,6 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 
-
 @Immutable
 data class OriveoColors(
     // ── Brand ──
@@ -12,7 +11,7 @@ data class OriveoColors(
     val primaryPressed: Color,
     val primarySoft: Color,
     val primaryGlow: Color,
-    
+
     val primaryTextSafe: Color,
 
     // ── Backgrounds ──
@@ -28,7 +27,7 @@ data class OriveoColors(
     val textPrimary: Color,
     val textSecondary: Color,
     val textTertiary: Color,
-    
+
     val textDisabledOnControl: Color,
     val textInverse: Color,
 
@@ -37,13 +36,9 @@ data class OriveoColors(
     val borderStrong: Color,
     val cardHighlight: Color,
     val hairline: Color,
-    
-    
-    
+
     val glassHighlight: Color,
 
-    
-    
     val onPrimary: Color,
     val onSuccess: Color,
     val onWarning: Color,
@@ -56,11 +51,11 @@ data class OriveoColors(
     val successSoft: Color,
     val warning: Color,
     val warningSoft: Color,
-    
+
     val warningText: Color,
     val danger: Color,
     val dangerSoft: Color,
-    
+
     val error: Color,
     val errorSoft: Color,
     val info: Color,
@@ -76,7 +71,6 @@ data class OriveoColors(
     val shadowStrong: Color,
     val tabBar: Color,
 
-    
     val capReasoning: Color,
     val capReasoningBg: Color,
     val capReasoningBorder: Color,
@@ -96,7 +90,6 @@ data class OriveoColors(
     val capImageGenBg: Color,
     val capImageGenBorder: Color,
 )
-
 
 val LightOriveoColors = OriveoColors(
     // Brand — iOS: 0x8C5FF8
@@ -122,8 +115,6 @@ val LightOriveoColors = OriveoColors(
     textDisabledOnControl = Color(0xFF6A6A73),
     textInverse = Color(0xFFFFFFFF),
 
-    
-    
     border = Color(0x14000000),
     borderStrong = Color(0x29000000),
     cardHighlight = Color(0x00FFFFFF),
@@ -161,7 +152,6 @@ val LightOriveoColors = OriveoColors(
     shadowStrong = Color(0x290F172A),          // 16%
     tabBar = Color(0xF0FFFFFF),               // 94%
 
-    
     capReasoning = Color(0xFFB45309),
     capReasoningBg = Color(0xFFFEF3C7),
     capReasoningBorder = Color(0xFFFCD34D),
@@ -182,16 +172,14 @@ val LightOriveoColors = OriveoColors(
     capImageGenBorder = Color(0xFFC4B5FD),
 )
 
-
 val DarkOriveoColors = OriveoColors(
-    
+
     primary = Color(0xFFA78BFA),
     primaryPressed = Color(0xFFC4B5FD),
     primarySoft = Color(0x1FA78BFA),          // 12%
     primaryGlow = Color(0x388C5FF8),          // 22%
     primaryTextSafe = Color(0xFFA78BFA),
 
-    
     backgroundBase = Color(0xFF0F1218),
     background = Color(0xFF14181F),
     backgroundSecondary = Color(0xFF181C24),
@@ -207,14 +195,12 @@ val DarkOriveoColors = OriveoColors(
     textDisabledOnControl = Color(0xFF9AA0AC),
     textInverse = Color(0xFF0F1218),
 
-    
     border = Color(0x1AFFFFFF),               // 10%
     borderStrong = Color(0x2EFFFFFF),         // 18%
     cardHighlight = Color(0x14FFFFFF),         // 8%
     hairline = Color(0x0FFFFFFF),             // 6%
     glassHighlight = Color(0x14FFFFFF),
 
-    
     onPrimary = Color(0xFF0F1218),
     onSuccess = Color(0xFF062A13),
     onWarning = Color(0xFF18181B),
@@ -222,7 +208,6 @@ val DarkOriveoColors = OriveoColors(
     onInfo = Color(0xFF0A1A3D),
     switchThumb = Color(0xFFFFFFFF),
 
-    
     success = Color(0xFF6EE7A1),
     successSoft = Color(0x246EE7A1),          // 14%
     warning = Color(0xFFFCD34D),
@@ -235,7 +220,6 @@ val DarkOriveoColors = OriveoColors(
     info = Color(0xFF8DB6FF),
     infoSoft = Color(0x248DB6FF),             // 14%
 
-    
     userBubble = Color(0xFF7C5BEE),
     assistantBubble = Color(0xFF1B1F2A),      // = surface
 
@@ -245,7 +229,6 @@ val DarkOriveoColors = OriveoColors(
     shadowStrong = Color(0x8F000000),         // 56%
     tabBar = Color(0xE014181F),               // 88%
 
-    
     capReasoning = Color(0xFFFBBF24),
     capReasoningBg = Color(0x26B45309),       // 15%
     capReasoningBorder = Color(0x47B45309),   // 28%
@@ -269,12 +252,9 @@ val DarkOriveoColors = OriveoColors(
 val LocalOriveoColors = staticCompositionLocalOf { LightOriveoColors }
 val LocalIsDarkTheme = staticCompositionLocalOf { false }
 
-
 fun Color.opacity(factor: Float): Color = copy(alpha = alpha * factor)
 
-
 val DarkV2OriveoColors = DarkOriveoColors
-
 
 val LightV2OriveoColors = LightOriveoColors.copy(
     // iOS V2: borderDefault light = black @ 6%

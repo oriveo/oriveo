@@ -38,7 +38,6 @@ import androidx.compose.ui.unit.sp
 import ai.oriveo.community.R
 import ai.oriveo.community.ui.theme.OriveoTheme
 
-
 @Composable
 fun ProvidersSummaryStrip(
     providerCount: Int,
@@ -55,8 +54,6 @@ fun ProvidersSummaryStrip(
         issueCount = issueCount,
     )
 
-    
-    
     BoxWithConstraints(
         modifier = modifier
             .fillMaxWidth()
@@ -121,7 +118,6 @@ private fun MetricsLine(providerCount: Int, availableModelCount: Int) {
         )
     }
 }
-
 
 private fun countText(
     format: String,

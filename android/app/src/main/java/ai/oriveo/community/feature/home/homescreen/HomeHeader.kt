@@ -49,7 +49,6 @@ import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
 
-
 @Composable
 internal fun HomeHeader(
     greetingName: String,
@@ -76,7 +75,7 @@ internal fun HomeHeader(
         ),
         verticalArrangement = Arrangement.spacedBy(18.dp),
     ) {
-        
+
         Row(
             modifier = Modifier.fillMaxWidth().heightInMin(28.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -128,7 +127,6 @@ internal fun HomeHeader(
             }
         }
 
-        
         if (!isSearching) {
             HeroGreeting(
                 greetingName = greetingName,
@@ -137,7 +135,6 @@ internal fun HomeHeader(
             )
         }
 
-        
         if (isSearching) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -222,7 +219,6 @@ internal fun formatHomeHeaderDate(
     }.format(date)
 }
 
-
 @Composable
 private fun HeroGreeting(
     greetingName: String,
@@ -259,7 +255,7 @@ private fun HeroGreeting(
     Column(
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        
+
         val nameClickModifier = if (greetingName.isBlank()) {
             Modifier
         } else {
@@ -286,7 +282,6 @@ private fun HeroGreeting(
     }
 }
 
-
 @Composable
 private fun AuroraHeaderIconButton(
     imageVector: androidx.compose.ui.graphics.vector.ImageVector,
@@ -308,7 +303,6 @@ private fun AuroraHeaderIconButton(
         )
     }
 }
-
 
 internal fun Modifier.heightInMin(min: androidx.compose.ui.unit.Dp): Modifier =
     this.heightIn(min = min)

@@ -17,7 +17,6 @@ interface ConversationDao {
     @Query("SELECT COUNT(*) FROM conversations WHERE accountId = :accountId")
     fun observeCount(accountId: String): Flow<Int>
 
-    
     @Query(
         """
         SELECT c.*,
@@ -120,8 +119,6 @@ interface ConversationDao {
     )
     fun search(query: String, accountId: String): Flow<List<ConversationEntity>>
 
-    
-    
     @Query(
         """
         SELECT DISTINCT c.*,
@@ -140,9 +137,6 @@ interface ConversationDao {
     )
     fun searchWithCount(query: String, accountId: String): Flow<List<ConversationWithCount>>
 
-    
-    
-    
     @Upsert
     suspend fun upsert(entity: ConversationEntity)
 
@@ -158,7 +152,6 @@ interface ConversationDao {
     @Query("DELETE FROM conversations WHERE accountId = :accountId AND id = :id")
     suspend fun deleteById(accountId: String, id: String)
 
-    
     @Query("DELETE FROM conversations WHERE accountId = :accountId AND id IN (:ids) COLLATE NOCASE")
     suspend fun deleteByIds(accountId: String, ids: Collection<String>)
 
@@ -186,11 +179,9 @@ interface ConversationDao {
     @Query("SELECT COUNT(*) FROM conversations WHERE accountId = :accountId")
     suspend fun count(accountId: String): Int
 
-    
     @Query("SELECT * FROM conversations WHERE isDraft = 1 AND accountId = :accountId ORDER BY updatedAt DESC")
     suspend fun getAllDrafts(accountId: String): List<ConversationEntity>
 
-    
     @Query(
         """
         SELECT * FROM conversations
@@ -208,11 +199,9 @@ interface ConversationDao {
     )
     suspend fun findFirstEmptyDraft(accountId: String): ConversationEntity?
 
-    
     @Query("SELECT COUNT(*) FROM conversations WHERE accountId = :accountId")
     suspend fun countByAccount(accountId: String): Int
 
-    
     @Query(
         """
         SELECT EXISTS(

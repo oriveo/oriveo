@@ -49,7 +49,6 @@ import ai.oriveo.community.feature.providers.detail.shouldAutoExpandCatalogGroup
 import ai.oriveo.community.ui.theme.OriveoBorderWidth
 import ai.oriveo.community.ui.theme.OriveoTheme
 
-
 @Composable
 fun InlineModelCatalog(
     provider: Provider,
@@ -63,11 +62,8 @@ fun InlineModelCatalog(
     val spacing = OriveoTheme.spacing
     val layout = OriveoTheme.layout
 
-    
-    
     var groupedModels by remember(provider.id) { mutableStateOf(emptyList<ProviderCatalogGroup>()) }
-    
-    
+
     var appliedSearchText: String? by remember(provider.id) { mutableStateOf(null) }
     LaunchedEffect(provider.kind, provider.models, searchText) {
         val applied = appliedSearchText
@@ -144,9 +140,7 @@ fun InlineModelCatalog(
                 )
             }
         } else {
-            
-            
-            
+
             LazyColumn(
                 modifier = Modifier.weight(1f, fill = true),
                 contentPadding = PaddingValues(
@@ -177,7 +171,6 @@ fun InlineModelCatalog(
         }
     }
 }
-
 
 private const val InlineCatalogSearchDebounceMillis = 120L
 

@@ -44,7 +44,7 @@ class ModelCapabilityTest {
 
     @Test
     fun `capabilities include NativePdf and Unknown`() {
-        
+
         assertTrue(ModelCapability.entries.size >= 9)
         assertTrue(ModelCapability.entries.any { it == ModelCapability.NativePdf })
         assertTrue(ModelCapability.entries.any { it == ModelCapability.Unknown })

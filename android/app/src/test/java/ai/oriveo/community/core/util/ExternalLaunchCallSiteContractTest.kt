@@ -5,7 +5,6 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
-
 class ExternalLaunchCallSiteContractTest {
     @Test
     fun `all user-facing external launch call sites keep safe launch and failure feedback`() {

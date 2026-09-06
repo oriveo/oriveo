@@ -57,7 +57,7 @@ internal fun BoxScope.ChatMessagesList(
     streamingMessageId: String?,
     streamingText: StateFlow<String>,
     streamingReasoning: StateFlow<String>,
-    
+
     streamingReasoningActive: StateFlow<Boolean>,
     listState: LazyListState,
     scrollController: ChatScrollController,
@@ -148,9 +148,6 @@ internal fun BoxScope.ChatMessagesList(
                 )
             }
 
-            
-            
-            
             val streamingHold = remember(message.id) { StreamingCellHold() }
             val liveStreamingText: String? = if (isStreaming) {
                 streamingText.collectAsStateWithLifecycle().value
@@ -162,7 +159,7 @@ internal fun BoxScope.ChatMessagesList(
             } else {
                 null
             }
-            
+
             val liveReasoningActive: Boolean = isStreaming &&
                 streamingReasoningActive.collectAsStateWithLifecycle().value
             if (!liveStreamingText.isNullOrEmpty()) streamingHold.text = liveStreamingText
@@ -189,7 +186,7 @@ internal fun BoxScope.ChatMessagesList(
                 index = index,
                 pinnedTurnUserId = scrollController.pinnedTurnUserId,
             )
-            
+
             val highlightColor by animateColorAsState(
                 targetValue = if (message.id == highlightedMessageId) {
                     OriveoTheme.colors.primary.copy(alpha = 0.12f)
@@ -205,8 +202,7 @@ internal fun BoxScope.ChatMessagesList(
                     .background(highlightColor, RoundedCornerShape(14.dp))
                     .then(
                         if (isPinnedAssistant && scrollController.reservePx > 0) {
-                            
-                            
+
                             val pinnedFloorDp = with(density) {
                                 scrollController.pinnedAssistantFloorPx.toDp()
                             }
@@ -265,8 +261,7 @@ internal fun BoxScope.ChatMessagesList(
 
     AnimatedVisibility(
         visible = showScrollToBottom,
-        
-        
+
         modifier = Modifier
             .align(Alignment.BottomEnd)
             .padding(end = OriveoTheme.spacing.lg, bottom = composerOverlayHeightDp + OriveoTheme.spacing.sm),
@@ -286,7 +281,6 @@ internal fun BoxScope.ChatMessagesList(
         )
     }
 
-    
     ChatOutlineRail(
         messages = messages,
         listState = listState,

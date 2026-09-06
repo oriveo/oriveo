@@ -27,7 +27,6 @@ import androidx.compose.ui.unit.dp
 import ai.oriveo.community.R
 import ai.oriveo.community.ui.theme.OriveoTheme
 
-
 @Composable
 fun ProvidersAddButton(
     onClick: () -> Unit,
@@ -75,7 +74,7 @@ fun ProvidersAddButton(
         Icon(
             imageVector = Icons.Filled.Add,
             contentDescription = stringResource(R.string.add_provider),
-            
+
             modifier = Modifier.size(18.dp),
             tint = Color.White,
         )

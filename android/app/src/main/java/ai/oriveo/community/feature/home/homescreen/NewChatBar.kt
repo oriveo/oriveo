@@ -62,7 +62,6 @@ import ai.oriveo.community.ui.theme.OriveoGradients
 import ai.oriveo.community.ui.theme.OriveoTheme
 import kotlinx.coroutines.delay
 
-
 @Composable
 internal fun NewChatBar(
     activeModel: HomeViewModel.ActiveModel?,
@@ -87,7 +86,7 @@ internal fun NewChatBar(
             .auroraGlassCard(isDark = isDark, cornerRadius = 28.dp, focused = isFocused)
             .padding(start = 20.dp, end = 20.dp, top = 18.dp, bottom = 12.dp),
     ) {
-        
+
         HeroComposerInput(
             text = heroText,
             onTextChange = onHeroTextChange,
@@ -98,7 +97,6 @@ internal fun NewChatBar(
             isSearchActive = isSearchActive,
         )
 
-        
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -111,13 +109,12 @@ internal fun NewChatBar(
                 ),
         )
 
-        
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            
+
             Box(
                 modifier = Modifier
                     .weight(1f)
@@ -138,7 +135,6 @@ internal fun NewChatBar(
                 )
             }
 
-            
             AuroraSendButton(
                 enabled = !isSendingFromHero,
                 onClick = { if (hasProvider) onSend() else onAddProvider() },
@@ -283,7 +279,6 @@ private fun ModelSelectorChevron() {
     )
 }
 
-
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun HeroComposerInput(
@@ -299,8 +294,6 @@ private fun HeroComposerInput(
     val focusManager = androidx.compose.ui.platform.LocalFocusManager.current
     val isImeVisible = WindowInsets.isImeVisible
 
-    
-    
     LaunchedEffect(isImeVisible) {
         if (!isImeVisible) {
             focusManager.clearFocus(force = false)
@@ -367,11 +360,9 @@ private fun HeroComposerInput(
     }
 }
 
-
 @Composable
 private fun BlinkingCursor(accent: Color, reduceMotion: Boolean) {
-    
-    
+
     val cursorVisible = remember { mutableStateOf(true) }
     LaunchedEffect(reduceMotion) {
         if (reduceMotion) {
@@ -398,7 +389,6 @@ private fun BlinkingCursor(accent: Color, reduceMotion: Boolean) {
             .background(accent),
     )
 }
-
 
 private fun isReduceMotionEnabled(context: android.content.Context): Boolean {
     return try {
@@ -455,12 +445,11 @@ private fun AuroraSendButton(
                 imageVector = Icons.Outlined.ArrowUpward,
                 contentDescription = stringResource(R.string.new_chat),
                 modifier = Modifier.size(16.dp),
-                
+
                 tint = Color.White,
             )
         }
     }
 }
-
 
 private const val CURSOR_BLINK_INTERVAL_MS = 550L

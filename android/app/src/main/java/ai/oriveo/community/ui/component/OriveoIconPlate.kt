@@ -23,7 +23,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import ai.oriveo.community.ui.theme.OriveoTheme
 
-
 @Composable
 fun OriveoIconPlate(
     modifier: Modifier = Modifier,
@@ -77,7 +76,7 @@ fun OriveoIconPlate(
             .border(border = BorderStroke(1.dp, borderBrush), shape = shape),
         contentAlignment = Alignment.Center,
     ) {
-        
+
         Canvas(modifier = Modifier.fillMaxSize()) {
             val inset = 1.dp.toPx()
             drawRect(
@@ -89,6 +88,5 @@ fun OriveoIconPlate(
         content()
     }
 }
-
 
 internal fun blend(a: Color, b: Color, ratio: Float): Color = lerp(b, a, ratio)

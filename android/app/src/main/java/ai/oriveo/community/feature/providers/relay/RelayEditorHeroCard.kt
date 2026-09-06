@@ -45,7 +45,6 @@ import ai.oriveo.community.ui.theme.OriveoBorderWidth
 import ai.oriveo.community.ui.theme.OriveoTheme
 import ai.oriveo.community.ui.theme.opacity
 
-
 @Composable
 internal fun RelayEditorHeroCard(
     displayName: String,
@@ -61,8 +60,6 @@ internal fun RelayEditorHeroCard(
     val meta = relayKindMeta(relayKind)
     val brandColor = meta.tint
 
-    
-    
     val heroFill = if (isDark) {
         lerp(brandColor, colors.surfaceElevated, 0.82f)
     } else {
@@ -76,7 +73,7 @@ internal fun RelayEditorHeroCard(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            
+
             .shadow(
                 elevation = 22.dp,
                 shape = cardShape,
@@ -84,14 +81,14 @@ internal fun RelayEditorHeroCard(
                 spotColor = brandColor.copy(alpha = shadowAlpha),
             )
             .clip(cardShape)
-            
+
             .background(
                 brush = Brush.linearGradient(
                     colors = listOf(heroFill, colors.surfaceElevated),
                 ),
                 shape = cardShape,
             )
-            
+
             .background(
                 brush = Brush.linearGradient(
                     colors = listOf(
@@ -101,7 +98,7 @@ internal fun RelayEditorHeroCard(
                 ),
                 shape = cardShape,
             )
-            
+
             .background(
                 brush = Brush.verticalGradient(
                     colors = listOf(
@@ -184,7 +181,6 @@ private fun HeaderRow(
             )
         }
 
-        
         if (onEditName != null) {
             Box(
                 modifier = Modifier
@@ -222,7 +218,7 @@ private fun MetaRow(
         horizontalArrangement = Arrangement.spacedBy(OriveoTheme.spacing.sm),
         modifier = Modifier.fillMaxWidth(),
     ) {
-        
+
         Row(
             modifier = Modifier
                 .clip(RoundedCornerShape(50))

@@ -13,9 +13,7 @@ class BrandImageBitmapCacheTest {
 
     @Test
     fun `missing density split resource is reported unresolvable instead of throwing`() {
-        
-        
-        
+
         val resources = mockk<Resources>()
         every { resources.getValue(any<Int>(), any(), any()) } throws
             Resources.NotFoundException("Resource ID #0x7f000000")

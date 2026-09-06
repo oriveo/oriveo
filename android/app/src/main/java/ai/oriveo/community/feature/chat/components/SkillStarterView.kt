@@ -46,7 +46,6 @@ import ai.oriveo.community.ui.theme.OriveoTheme
 import ai.oriveo.community.ui.theme.oriveoSurface
 import kotlinx.coroutines.launch
 
-
 @Composable
 internal fun SkillStarterView(
     skill: Skill,
@@ -62,7 +61,6 @@ internal fun SkillStarterView(
     }
     val starters = skill.localizedStarterMessages()
 
-    
     val appearAlpha = remember { Animatable(0f) }
     val appearScale = remember { Animatable(0.86f) }
     val starterAnimatables = remember(starters.size) {
@@ -85,7 +83,6 @@ internal fun SkillStarterView(
         }
     }
 
-    
     Column(
         modifier = modifier
             .verticalScroll(rememberScrollState()),
@@ -93,7 +90,6 @@ internal fun SkillStarterView(
     ) {
         Spacer(Modifier.height(32.dp))
 
-        
         Box(
             contentAlignment = Alignment.Center,
             modifier = Modifier.graphicsLayer {

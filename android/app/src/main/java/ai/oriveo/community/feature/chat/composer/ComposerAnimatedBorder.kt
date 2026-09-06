@@ -15,7 +15,6 @@ import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 
-
 @Composable
 internal fun ComposerAnimatedAiBorder(
     cornerRadius: Dp,
@@ -23,24 +22,20 @@ internal fun ComposerAnimatedAiBorder(
 ) {
     Box(
         modifier = modifier.drawWithCache {
-            
+
             val center = Offset(size.width / 2f, size.height / 2f)
             val brush = Brush.sweepGradient(*rotatedSweepStops(STATIC_PHASE), center = center)
             val strokeWidthPx = 1.8.dp.toPx()
             val crPx = cornerRadius.toPx()
             onDrawBehind {
-                
-                
-                
+
                 strokeRing(brush = brush, strokeWidthPx = strokeWidthPx, cornerRadiusPx = crPx, layerAlpha = 1f)
             }
         },
     )
 }
 
-
 private const val STATIC_PHASE = 24f / 360f
-
 
 private fun DrawScope.strokeRing(brush: Brush, strokeWidthPx: Float, cornerRadiusPx: Float, layerAlpha: Float) {
     val inset = strokeWidthPx / 2f
@@ -54,7 +49,6 @@ private fun DrawScope.strokeRing(brush: Brush, strokeWidthPx: Float, cornerRadiu
     )
 }
 
-
 private fun rotatedSweepStops(phase: Float): Array<Pair<Float, Color>> {
     val steps = 18
     return Array(steps + 1) { j ->
@@ -63,7 +57,6 @@ private fun rotatedSweepStops(phase: Float): Array<Pair<Float, Color>> {
     }
 }
 
-
 private fun baseColorAt(x: Float): Color {
     val segments = AI_BORDER_COLORS.size - 1
     val pos = x.mod(1f) * segments
@@ -71,7 +64,6 @@ private fun baseColorAt(x: Float): Color {
     val frac = pos - i
     return lerp(AI_BORDER_COLORS[i], AI_BORDER_COLORS[i + 1], frac)
 }
-
 
 private val AI_BORDER_COLORS = listOf(
     Color(0xFF6E8BFF),

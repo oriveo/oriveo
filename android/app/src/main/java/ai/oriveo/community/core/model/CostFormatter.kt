@@ -2,10 +2,8 @@ package ai.oriveo.community.core.model
 
 import java.util.Locale
 
-
 object CostFormatter {
 
-    
     const val COST_EPSILON = 0.00001
 
     fun format(value: Double): String {

@@ -10,7 +10,6 @@ enum class MemoryScreenAction {
     FocusEditor,
 }
 
-
 enum class MemoryHeroStyle {
     DraftStarter,
     ManualStarter,
@@ -58,8 +57,7 @@ fun buildMemoryScreenPresentation(
     return MemoryScreenPresentation(
         mode = MemoryScreenMode.Editor,
         heroStyle = MemoryHeroStyle.ActiveMemory,
-        
-        
+
         primaryAction = if (hasRecentConversations) MemoryScreenAction.GenerateDraft else null,
         secondaryAction = null,
         showsExampleSuggestions = false,

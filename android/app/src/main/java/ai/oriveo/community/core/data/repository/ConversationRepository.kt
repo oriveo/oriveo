@@ -119,7 +119,6 @@ class ConversationRepository(
         cacheWriteTokens = cacheWriteTokens,
     )
 
-    
     private suspend fun refreshConversationMetadata(
         conversationId: String,
         updatedAt: Long? = null,
@@ -127,9 +126,7 @@ class ConversationRepository(
         scopedAccountId: String = accountId,
     ): Conversation? {
         val entity = conversationDao.getById(scopedAccountId, conversationId) ?: return null
-        
-        
-        
+
         val lastDelivered = messageDao.lastDelivered(scopedAccountId, conversationId)
             ?.let { normalizeMessageIds(it.toDomain()) }
         val lastDeliveredUser = messageDao.lastDeliveredUser(scopedAccountId, conversationId)
@@ -148,37 +145,29 @@ class ConversationRepository(
         return normalizeConversationIds(updatedEntity.toDomain(messages))
     }
 
-    
     fun observeMonthlyCostSummary(visibleProviderLimit: Int = 3): Flow<MonthlyCostSummary> =
         usageAnalytics.observeMonthlyCostSummary(visibleProviderLimit)
 
-    
     suspend fun currentMonthlyCostTotal(): Double = usageAnalytics.currentMonthlyCostTotal()
 
-    
     fun observeMonthlyCostByConversationProvider(): Flow<Map<String, Double>> =
         usageAnalytics.observeMonthlyCostByConversationProvider()
 
-    
     fun observeProviderLocalUsageSummary(
         provider: ai.oriveo.community.core.model.Provider,
         visibleModelLimit: Int = 3,
     ): Flow<ProviderUsageSummary> = usageAnalytics.observeProviderLocalUsageSummary(provider, visibleModelLimit)
 
-    
     @OptIn(ExperimentalCoroutinesApi::class)
     fun observeAll(): Flow<List<Conversation>> =
         conversationDao.observeAllWithCount(accountId).map(::mapConversationRows).distinctUntilChanged()
-        
-        
-        
+
         .flowOn(Dispatchers.Default)
 
     @OptIn(ExperimentalCoroutinesApi::class)
     fun observeCount(): Flow<Int> =
         conversationDao.observeCount(accountId)
 
-    
     @OptIn(ExperimentalCoroutinesApi::class)
     fun observeHasAnyWithMessages(): Flow<Boolean> =
         conversationDao.observeHasAnyWithMessages(accountId)
@@ -199,7 +188,6 @@ class ConversationRepository(
     fun observeUngroupedEarlierCount(recentStartMillis: Long): Flow<Int> =
         conversationDao.observeUngroupedEarlierCount(accountId, recentStartMillis)
 
-    
     @OptIn(ExperimentalCoroutinesApi::class)
     fun observeMetadata(id: String): Flow<Conversation?> {
         val normalizedId = normalizeUuid(id)
@@ -210,11 +198,9 @@ class ConversationRepository(
             .flowOn(Dispatchers.Default)
     }
 
-    
     fun createMessageWindowLoader(): MessageWindowLoader =
         MessageWindowLoader(messageDao)
 
-    
     suspend fun getWithLatestMessageWindow(
         id: String,
         windowSize: Int = MessageWindowLoader.WINDOW_SIZE_DEFAULT,
@@ -229,7 +215,6 @@ class ConversationRepository(
         }
     }
 
-    
     @OptIn(ExperimentalCoroutinesApi::class)
     fun observeWithMessages(id: String): Flow<Conversation?> {
         val normalizedId = normalizeUuid(id)
@@ -258,18 +243,15 @@ class ConversationRepository(
         }.distinctUntilChanged { old, new ->
             old?.streamFingerprint() == new?.streamFingerprint()
         }
-        
-        
+
         .flowOn(Dispatchers.Default)
     }
 
-    
     suspend fun getWithMessages(id: String): Conversation? {
         val normalizedId = normalizeUuid(id)
         val scopedAccountId = accountId
         val conversation = conversationDao.getById(scopedAccountId, normalizedId) ?: return null
-        
-        
+
         val messageEntities = readMessagesOrNull(normalizedId, "getWithMessages", scopedAccountId) ?: return null
         return withContext(Dispatchers.Default) {
             val messages = dedupeByNormalizedId(
@@ -291,14 +273,12 @@ class ConversationRepository(
         }
     }
 
-    
     fun search(query: String): Flow<List<Conversation>> = searchService.search(query)
 
     @OptIn(ExperimentalCoroutinesApi::class)
     fun observeMessageCount(providerId: String): Flow<Int> =
         messageDao.observeCountByProvider(normalizeUuid(providerId), accountId)
 
-    
     suspend fun create(
         providerID: String,
         providerKind: ProviderKind,
@@ -309,7 +289,7 @@ class ConversationRepository(
         useMemory: Boolean = true,
     ): Conversation {
         val scopedAccountId = accountId
-        
+
         val now = System.currentTimeMillis()
         val conversation = Conversation(
             id = generateUuidString(),
@@ -338,7 +318,7 @@ class ConversationRepository(
         useMemory: Boolean = true,
     ): Conversation {
         val scopedAccountId = accountId
-        
+
         val now = System.currentTimeMillis()
         val conversation = Conversation(
             id = generateUuidString(),
@@ -357,7 +337,6 @@ class ConversationRepository(
         return normalizeConversationIds(conversation)
     }
 
-    
     suspend fun findOrCreateDraft(
         providerID: String,
         providerKind: ProviderKind,
@@ -365,7 +344,7 @@ class ConversationRepository(
     ): Conversation {
         val scopedAccountId = accountId
         val normalizedProviderId = normalizeUuid(providerID)
-        
+
         val emptyDraft = conversationDao.findFirstEmptyDraft(scopedAccountId)
         if (emptyDraft != null) {
             val updated = emptyDraft.copy(
@@ -377,11 +356,10 @@ class ConversationRepository(
             conversationDao.update(updated)
             return normalizeConversationIds(updated.toDomain())
         }
-        
+
         return create(normalizedProviderId, providerKind, modelID)
     }
 
-    
     suspend fun addMessage(conversationId: String, message: ChatMessage) {
         val scopedAccountId = accountId
         val normalizedConversationId = normalizeUuid(conversationId)
@@ -391,46 +369,36 @@ class ConversationRepository(
         try {
             messageDao.upsert(normalizedMessage.toEntity(scopedAccountId, normalizedConversationId, nextOrder))
         } catch (_: android.database.sqlite.SQLiteConstraintException) {
-            
+
             return
         }
-        
+
         refreshConversationMetadata(
             conversationId = normalizedConversationId,
             isDraft = false,
             scopedAccountId = scopedAccountId,
         )
 
-        
-        
-        
-        
     }
 
-    
     suspend fun hydrateRemoteMessageWindowAround(
         conversationId: String,
         messageId: String,
         windowSize: Int = MessageWindowLoader.WINDOW_SIZE_DEFAULT,
     ): Boolean = false
 
-
     suspend fun updateMessage(conversationId: String, message: ChatMessage) {
         val scopedAccountId = accountId
         val normalizedConversationId = normalizeUuid(conversationId)
         val normalizedMessage = normalizeMessageIds(message)
         val existing = messageDao.getById(scopedAccountId, normalizedMessage.id)
-        
-        
-        
+
         if (existing == null) return
         val order = existing.sortOrder
         try {
             messageDao.upsert(normalizedMessage.toEntity(scopedAccountId, normalizedConversationId, order))
         } catch (_: android.database.sqlite.SQLiteConstraintException) {
-            
-            
-            
+
             return
         }
         val updatedConversation = refreshConversationMetadata(
@@ -438,20 +406,16 @@ class ConversationRepository(
             scopedAccountId = scopedAccountId,
         )
 
-        
         if (normalizedMessage.state == ChatMessageState.Delivered &&
             normalizedMessage.role == ChatRole.Assistant
         ) {
-            
+
             val conversationCost = messageDao.sumDeliveredCost(
                 accountId = scopedAccountId,
                 conversationId = normalizedConversationId,
                 minimumCostExclusive = CostFormatter.COST_EPSILON,
             )
-            
-            
-            
-            
+
             val pairedUser = if (updatedConversation != null) {
                 messageDao.lastDeliveredUserBefore(scopedAccountId, normalizedConversationId, order)
                     ?.let { normalizeMessageIds(it.toDomain()) }
@@ -463,22 +427,20 @@ class ConversationRepository(
         }
     }
 
-    
     suspend fun updateTitle(id: String, title: String, isCustom: Boolean = true) {
         val scopedAccountId = accountId
         val normalizedId = normalizeUuid(id)
         conversationDao.getById(scopedAccountId, normalizedId)?.let {
             conversationDao.update(it.copy(title = title, hasCustomTitle = isCustom))
         }
-        
+
         if (isCustom) {
         }
     }
 
-    
     suspend fun refreshCost(conversationId: String, scopedAccountId: String = accountId) {
         val normalizedId = normalizeUuid(conversationId)
-        
+
         val newCost = messageDao.sumDeliveredCost(
             accountId = scopedAccountId,
             conversationId = normalizedId,
@@ -489,19 +451,17 @@ class ConversationRepository(
         }
     }
 
-    
     suspend fun deleteMessagesAfter(conversationId: String, afterMessageId: String) {
         val scopedAccountId = accountId
         val normalizedConversationId = normalizeUuid(conversationId)
-        
-        
+
         val msg = try {
             messageDao.getById(scopedAccountId, normalizeUuid(afterMessageId))
         } catch (e: android.database.sqlite.SQLiteException) {
             android.util.Log.e("ConversationRepository", "corrupt row read at deleteMessagesAfter.getById", e)
             null
         } ?: return
-        
+
         val allMsgs = readMessagesOrNull(normalizedConversationId, "deleteMessagesAfter", scopedAccountId)
         val deletedMsgs = allMsgs?.filter { it.sortOrder > msg.sortOrder }
         val deletedIDs = deletedMsgs?.map { normalizeUuid(it.id) }.orEmpty()
@@ -518,14 +478,12 @@ class ConversationRepository(
         refreshConversationMetadata(normalizedConversationId, scopedAccountId = scopedAccountId)
         refreshCost(normalizedConversationId, scopedAccountId)
 
-        
     }
 
-    
     suspend fun deleteMessagesStartingAt(conversationId: String, startingMessageId: String) {
         val scopedAccountId = accountId
         val normalizedConversationId = normalizeUuid(conversationId)
-        
+
         val msg = try {
             messageDao.getById(scopedAccountId, normalizeUuid(startingMessageId))
         } catch (e: android.database.sqlite.SQLiteException) {
@@ -552,12 +510,11 @@ class ConversationRepository(
     /** Deletes one conversation and everything it owns. */
     suspend fun delete(id: String) {
         val normalizedId = normalizeUuid(id)
-        
+
         val scopedAccountId = accountId
-        
+
         val entity = conversationDao.getById(scopedAccountId, normalizedId)
-        
-        
+
         val messages = readMessagesOrNull(normalizedId, "delete", scopedAccountId)
         val messageCount = if (entity != null) messages?.size ?: 0 else 0
         messages?.let { msgs ->
@@ -570,19 +527,17 @@ class ConversationRepository(
         conversationDao.deleteById(scopedAccountId, normalizedId)
     }
 
-    
     suspend fun rename(id: String, newTitle: String) {
         updateTitle(id, newTitle, isCustom = true)
     }
 
-    
     suspend fun updateDraft(id: String, text: String) {
         val scopedAccountId = accountId
         val normalizedId = normalizeUuid(id)
         conversationDao.getById(scopedAccountId, normalizedId)?.let { entity ->
             val trimmed = text.trim()
             val messages = if (trimmed.isEmpty()) {
-                
+
                 readMessagesOrNull(normalizedId, "updateDraft", scopedAccountId)
                     ?.map { normalizeMessageIds(it.toDomain()) }
                     ?: emptyList()
@@ -602,7 +557,6 @@ class ConversationRepository(
         }
     }
 
-    
     suspend fun updateProviderAndModel(
         id: String,
         providerId: String,
@@ -622,7 +576,7 @@ class ConversationRepository(
                 ),
             )
         }
-        
+
     }
 
     suspend fun moveToFolder(id: String, folderID: String?) {
@@ -638,7 +592,6 @@ class ConversationRepository(
         conversationDao.updateUseMemory(scopedAccountId, normalizedId, useMemory)
     }
 
-    
     suspend fun pinNoteToConversation(conversationId: String, noteId: String): List<String>? {
         val scopedAccountId = accountId
         val normalizedConvId = normalizeUuid(conversationId)
@@ -672,13 +625,13 @@ class ConversationRepository(
 
     suspend fun getRecentConversationsWithMessages(limit: Int = 5): List<Conversation> {
         val scopedAccountId = accountId
-        
+
         val conversationIds = messageDao.getRecentConversationIdsWithMessages(scopedAccountId, limit)
         if (conversationIds.isEmpty()) return emptyList()
 
         return conversationIds.mapNotNull { id ->
             val entity = conversationDao.getById(scopedAccountId, id) ?: return@mapNotNull null
-            
+
             val messages = readMessagesOrNull(id, "getRecentConversationsWithMessages", scopedAccountId)
                 ?.map { normalizeMessageIds(it.toDomain()) }
                 ?: return@mapNotNull null
@@ -691,22 +644,21 @@ class ConversationRepository(
         val normalizedFolderId = folderID?.let(::normalizeUuid)
         val normalizedIds = ids.map(::normalizeUuid).distinct()
         if (normalizedIds.isEmpty()) return
-        
+
         if (normalizedFolderId != null) {
             conversationDao.batchUpdateFolderID(scopedAccountId, normalizedIds, normalizedFolderId)
         } else {
             conversationDao.batchClearFolderID(scopedAccountId, normalizedIds)
         }
-        
+
     }
 
-    
     suspend fun deleteMultiple(ids: List<String>) {
         val normalizedIds = ids.map(::normalizeUuid).toSet()
         if (normalizedIds.isEmpty()) return
-        
+
         val scopedAccountId = accountId
-        
+
         val deletedMessages = normalizedIds.flatMap { conversationId ->
             readMessagesOrNull(conversationId, "deleteMultiple", scopedAccountId)
                 ?.map { normalizeMessageIds(it.toDomain()) }
@@ -716,7 +668,6 @@ class ConversationRepository(
         conversationDao.deleteByIds(scopedAccountId, normalizedIds)
     }
 
-    
     suspend fun autoTitle(conversationId: String) {
         val scopedAccountId = accountId
         val normalizedConversationId = normalizeUuid(conversationId)
@@ -729,7 +680,6 @@ class ConversationRepository(
         conversationDao.update(conv.copy(title = metadata.title))
     }
 
-    
     suspend fun hasData(): Boolean = conversationDao.countByAccount(accountId) > 0
 }
 
@@ -749,7 +699,6 @@ private data class ConversationStreamFingerprint(
     val useMemory: Boolean,
     val messagesHash: Int,
 )
-
 
 private data class ConversationMetadataFingerprint(
     val id: String,

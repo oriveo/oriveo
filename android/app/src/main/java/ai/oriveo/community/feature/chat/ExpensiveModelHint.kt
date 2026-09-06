@@ -3,7 +3,6 @@ package ai.oriveo.community.feature.chat
 import ai.oriveo.community.core.model.Provider
 import ai.oriveo.community.core.provider.ProviderSelectionSnapshot
 
-
 data class ExpensiveModelHint(
     val newModelName: String,
     val oldModelName: String,
@@ -11,7 +10,6 @@ data class ExpensiveModelHint(
 )
 
 private const val EXPENSIVE_MODEL_RATIO_THRESHOLD = 5.0
-
 
 fun evaluateExpensiveModelMultiplier(
     oldPromptPrice: Double?,
@@ -22,7 +20,6 @@ fun evaluateExpensiveModelMultiplier(
     val ratio = newPromptPrice / oldPromptPrice
     return if (ratio > threshold) ratio.toInt() else null
 }
-
 
 fun evaluateExpensiveModelHint(
     providers: List<Provider>,

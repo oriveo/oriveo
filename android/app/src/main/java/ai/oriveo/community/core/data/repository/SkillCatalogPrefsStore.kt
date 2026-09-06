@@ -6,7 +6,6 @@ import ai.oriveo.community.core.model.SkillCategory
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 
-
 class SkillCatalogPrefsStore(
     private val context: Context,
 ) {

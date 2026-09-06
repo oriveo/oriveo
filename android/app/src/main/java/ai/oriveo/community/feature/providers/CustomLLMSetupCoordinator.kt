@@ -5,7 +5,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import kotlinx.coroutines.Job
 
-
 enum class CustomLLMConnectionMethod { Relay, Local }
 
 enum class CustomLLMSetupPhase { Ready, Detecting, Saving, Testing, Failed }
@@ -92,7 +91,6 @@ class CustomLLMSetupCoordinator(
         return true
     }
 
-    
     fun beginCommit(method: CustomLLMConnectionMethod): CustomLLMSetupAttempt? {
         if (method != this.method || !canCommit) return null
         phase = CustomLLMSetupPhase.Saving
@@ -109,7 +107,6 @@ class CustomLLMSetupCoordinator(
         return true
     }
 
-    
     fun canNavigate(method: CustomLLMConnectionMethod): Boolean =
         this.method == method && phase == CustomLLMSetupPhase.Ready && evidence?.canCommit == true
 

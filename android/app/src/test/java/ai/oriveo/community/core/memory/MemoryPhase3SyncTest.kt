@@ -13,7 +13,6 @@ import org.junit.Before
 import org.junit.Test
 import java.time.Instant
 
-
 class MemoryPhase3SyncTest {
 
     private lateinit var preferenceDao: FakePreferenceDao
@@ -22,8 +21,6 @@ class MemoryPhase3SyncTest {
     fun setUp() {
         preferenceDao = FakePreferenceDao()
     }
-
-    
 
     @Test
     fun `isMemoryNewer - remote newer returns true`() {
@@ -77,17 +74,14 @@ class MemoryPhase3SyncTest {
         assertFalse(isMemoryNewer(remote = "2026-04-01T10:00:00Z", local = "not-a-date"))
     }
 
-    
-
     @Test
     fun `LWW - remote newer overwrites local`() = runTest {
-        
+
         preferenceDao.set(PreferenceEntity(AppPreferenceKeys.MEMORY_TEXT, "old local text"))
         preferenceDao.set(PreferenceEntity(AppPreferenceKeys.MEMORY_ANTI_FORGET_ENABLED, "false"))
         preferenceDao.set(PreferenceEntity(AppPreferenceKeys.MEMORY_ANTI_FORGET_TEXT, ""))
         preferenceDao.set(PreferenceEntity(AppPreferenceKeys.MEMORY_UPDATED_AT, "2026-04-01T10:00:00Z"))
 
-        
         val remoteData = mapOf<String, Any>(
             "memoryText" to "new remote text",
             "memoryAntiForgetEnabled" to true,
@@ -119,7 +113,6 @@ class MemoryPhase3SyncTest {
 
         simulateHandlePreferencesMemory(remoteData)
 
-        
         assertEquals("local text", preferenceDao.get(AppPreferenceKeys.MEMORY_TEXT))
         assertEquals("true", preferenceDao.get(AppPreferenceKeys.MEMORY_ANTI_FORGET_ENABLED))
         assertEquals("local anti-forget", preferenceDao.get(AppPreferenceKeys.MEMORY_ANTI_FORGET_TEXT))
@@ -133,7 +126,6 @@ class MemoryPhase3SyncTest {
         preferenceDao.set(PreferenceEntity(AppPreferenceKeys.MEMORY_ANTI_FORGET_TEXT, "some text"))
         preferenceDao.set(PreferenceEntity(AppPreferenceKeys.MEMORY_UPDATED_AT, "2026-04-01T10:00:00Z"))
 
-        
         val remoteData = mapOf<String, Any>(
             "memoryUpdatedAt" to "2026-04-01T12:00:00Z",
         )
@@ -151,14 +143,12 @@ class MemoryPhase3SyncTest {
         preferenceDao.set(PreferenceEntity(AppPreferenceKeys.MEMORY_TEXT, "local text"))
         preferenceDao.set(PreferenceEntity(AppPreferenceKeys.MEMORY_UPDATED_AT, "2026-04-01T10:00:00Z"))
 
-        
         val remoteData = mapOf<String, Any>(
             "memoryText" to "remote text without timestamp",
         )
 
         simulateHandlePreferencesMemory(remoteData)
 
-        
         assertEquals("local text", preferenceDao.get(AppPreferenceKeys.MEMORY_TEXT))
     }
 
@@ -176,14 +166,12 @@ class MemoryPhase3SyncTest {
 
         simulateHandlePreferencesMemory(remoteData)
 
-        
         assertEquals("local text", preferenceDao.get(AppPreferenceKeys.MEMORY_TEXT))
         assertEquals("true", preferenceDao.get(AppPreferenceKeys.MEMORY_ANTI_FORGET_ENABLED))
     }
 
     @Test
     fun `LWW - first sync with no local timestamp accepts remote`() = runTest {
-        
 
         val remoteData = mapOf<String, Any>(
             "memoryText" to "first sync text",
@@ -202,7 +190,6 @@ class MemoryPhase3SyncTest {
 
     // ── Helpers ──
 
-    
     private fun isMemoryNewer(remote: String?, local: String?): Boolean {
         if (remote == null) return false
         if (local == null) return true
@@ -213,7 +200,6 @@ class MemoryPhase3SyncTest {
         }
     }
 
-    
     private suspend fun simulateHandlePreferencesMemory(data: Map<String, Any>) {
         val remoteMemoryUpdatedAt = data["memoryUpdatedAt"] as? String
         if (remoteMemoryUpdatedAt != null) {

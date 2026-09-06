@@ -55,7 +55,6 @@ class ProvidersViewModelBehaviorTest {
         MetadataTestFixtures.clear()
     }
 
-    
     @Test
     fun `providers screen refresh pipeline uses lightweight conversation count flow`() = runTest {
         val viewModel = ProvidersViewModel(

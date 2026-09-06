@@ -60,7 +60,7 @@ fun OriveoSettingsRow(
     ) {
         if (icon != null) {
             if (iconColor != null) {
-                
+
                 Box(
                     modifier = Modifier
                         .size(30.dp)
@@ -89,7 +89,7 @@ fun OriveoSettingsRow(
             verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
             if (titleBadge != null) {
-                
+
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(OriveoTheme.spacing.xs),
                     verticalAlignment = Alignment.CenterVertically,
@@ -118,8 +118,7 @@ fun OriveoSettingsRow(
         }
 
         if (!value.isNullOrBlank()) {
-            
-            
+
             Text(
                 text = value,
                 style = OriveoTheme.typography.caption,

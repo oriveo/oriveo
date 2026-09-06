@@ -67,7 +67,6 @@ import ai.oriveo.community.core.model.QuoteSelectionContent
 import ai.oriveo.community.ui.theme.OriveoTheme
 import kotlin.math.roundToInt
 
-
 @Composable
 private fun MaybeSelectable(
     selectable: Boolean,
@@ -110,9 +109,7 @@ private fun Modifier.selectionGestureGuard(onActiveChange: (Boolean) -> Unit): M
     }
 }
 
-
 val LocalMarkdownTextScale = staticCompositionLocalOf { 1f }
-
 
 @Composable
 private fun markdownBodyStyle(): TextStyle {
@@ -124,7 +121,6 @@ private fun markdownBodyStyle(): TextStyle {
         base.copy(fontSize = base.fontSize * scale, lineHeight = base.lineHeight * scale)
     }
 }
-
 
 @Composable
 private fun markdownCaptionStyle(): TextStyle {
@@ -143,40 +139,36 @@ fun MarkdownMessageView(
     modifier: Modifier = Modifier,
     isStreaming: Boolean = false,
     isUserMessage: Boolean = false,
-    
+
     onRenderSettled: (() -> Unit)? = null,
-    
+
     onRenderStreamingChanged: ((Boolean) -> Unit)? = null,
-    
+
     onSaveCodeBlock: ((String) -> Unit)? = null,
-    
+
     onSaveSelection: ((String) -> Unit)? = null,
     /** Settled chat messages expose Ask using the copied rendered selection. */
     onAskSelection: ((QuoteSelectionContent) -> Unit)? = null,
-    
+
     onReplaceSelection: ((String) -> Unit)? = null,
-    
+
     onSelectionToolbarVisibleChange: (Boolean) -> Unit = {},
-    
+
     onSelectionGestureActiveChange: (Boolean) -> Unit = {},
-    
+
     selectable: Boolean = true,
-    
+
     emphasizedHeadings: Boolean = false,
 ) {
     val mdColors = MarkdownTheme.colors()
 
-    
-    
     val reveal = rememberStreamingReveal(target = text, isStreaming = isStreaming)
-    
-    
+
     var everStreamed by remember { mutableStateOf(false) }
     LaunchedEffect(isStreaming) { if (isStreaming) everStreamed = true }
     val renderStreaming = isStreaming ||
         (everStreamed && (reveal.visibleText.length < text.length || reveal.isFading))
 
-    
     var wasRenderStreaming by remember { mutableStateOf(false) }
     LaunchedEffect(renderStreaming) {
         onRenderStreamingChanged?.invoke(renderStreaming)
@@ -184,16 +176,10 @@ fun MarkdownMessageView(
         wasRenderStreaming = renderStreaming
     }
 
-    
     val flooredModifier = modifier.streamingHeightFloor(active = renderStreaming)
 
-    
-    
-    
-    
     val settled = !renderStreaming
-    
-    
+
     val sourceText = if (settled) text else reveal.visibleText
     val normalized = remember(sourceText, settled) {
         if (settled) {
@@ -203,9 +189,7 @@ fun MarkdownMessageView(
             normalizeLatexDelimiters(split.closed) to split.tail
         }
     }
-    
-    
-    
+
     val context = androidx.compose.ui.platform.LocalContext.current
     val fadeDisabled = remember(context) { isReduceMotionEnabled(context) }
     StreamingMarkdownContent(
@@ -230,7 +214,6 @@ fun MarkdownMessageView(
     )
 }
 
-
 @Composable
 private fun Modifier.streamingHeightFloor(active: Boolean): Modifier {
     val density = LocalDensity.current
@@ -240,8 +223,7 @@ private fun Modifier.streamingHeightFloor(active: Boolean): Modifier {
         if (active) {
             clampActive = true
         } else {
-            
-            
+
             withFrameNanos { }
             clampActive = false
             floorPx = 0
@@ -252,7 +234,6 @@ private fun Modifier.streamingHeightFloor(active: Boolean): Modifier {
         .heightIn(min = with(density) { floorPx.toDp() })
         .onSizeChanged { floorPx = nextStreamingHeightFloor(floorPx, it.height) }
 }
-
 
 internal fun nextStreamingHeightFloor(current: Int, measured: Int): Int =
     coerceHeightConstraintPx(maxOf(current, measured))
@@ -276,24 +257,19 @@ private fun StreamingMarkdownContent(
     selectable: Boolean = true,
     emphasizedHeadings: Boolean = false,
 ) {
-    
-    
+
     val split = remember(text, settled) {
         if (settled) {
             StreamingSplitter.SplitResult(committed = text, tail = "")
         } else {
-            
-            
-            
-            
-            
+
             val gate = (text.length - reveal.unsettledTailApprox).coerceAtLeast(0)
             StreamingSplitter.split(text, maxEnd = gate)
         }
     }
 
     Column(modifier = modifier) {
-        
+
         if (split.committed.isNotEmpty()) {
             StaticMarkdownContent(
                 text = split.committed,
@@ -310,14 +286,10 @@ private fun StreamingMarkdownContent(
             )
         }
 
-        
         if (split.tail.isNotEmpty()) {
-            
-            
+
             val trailingTable = remember(split.tail) { StreamingSplitter.splitTrailingTable(split.tail) }
-            
-            
-            
+
             if (split.committed.isNotEmpty()) {
                 val seamGap = remember(split.committed, split.tailKind, trailingTable != null) {
                     streamingSeamSpacing(split.committed, split.tail, split.tailKind, trailingTable != null)
@@ -326,9 +298,7 @@ private fun StreamingMarkdownContent(
             }
             if (trailingTable != null) {
                 if (trailingTable.beforeTable.isNotBlank()) {
-                    
-                    
-                    
+
                     RenderBlocks(
                         text = trailingTable.beforeTable,
                         mdColors = mdColors,
@@ -356,19 +326,14 @@ private fun StreamingMarkdownContent(
                     }
                     StreamingSplitter.TailKind.UnclosedMathBlock,
                     StreamingSplitter.TailKind.UnclosedTable -> {
-                        
-                        
-                        
+
                         Text(
                             text = split.tail,
                             style = markdownBodyStyle().copy(color = mdColors.text),
                         )
                     }
                     StreamingSplitter.TailKind.Paragraph -> {
-                        
-                        
-                        
-                        
+
                         RenderBlocks(
                             text = split.tail,
                             mdColors = mdColors,
@@ -386,7 +351,6 @@ private fun StreamingMarkdownContent(
             }
         }
 
-        
         if (tailText.isNotEmpty()) {
             Text(
                 text = tailText,
@@ -395,7 +359,6 @@ private fun StreamingMarkdownContent(
         }
     }
 }
-
 
 @Composable
 private fun FadableAnnotatedText(
@@ -410,7 +373,7 @@ private fun FadableAnnotatedText(
         ClickableAnnotatedText(rendered, style, modifier)
         return
     }
-    
+
     reveal.frameNanos
     val ledger = remember { FadeAlphaLedger() }
     val faded = applyTailFade(rendered, baseColor, reveal, distFromRenderedEnd, ledger)
@@ -419,12 +382,10 @@ private fun FadableAnnotatedText(
     }
 }
 
-
 internal class FadeAlphaLedger {
     private var maxAlpha = IntArray(0)
     private var length = 0
 
-    
     fun resetIfShrunk(newLength: Int) {
         if (newLength < length) {
             maxAlpha.fill(0, 0, length)
@@ -446,7 +407,6 @@ internal class FadeAlphaLedger {
         maxAlpha = maxAlpha.copyOf(cap)
     }
 }
-
 
 private fun applyTailFade(
     src: AnnotatedString,
@@ -471,7 +431,6 @@ private fun applyTailFade(
     return composeFadedSpans(src, baseColor, alphas, firstUnsettled)
 }
 
-
 internal fun composeFadedSpans(
     src: AnnotatedString,
     baseColor: Color,
@@ -479,7 +438,7 @@ internal fun composeFadedSpans(
     firstUnsettled: Int,
 ): AnnotatedString {
     val n = src.length
-    
+
     val effColor = arrayOfNulls<Color>(n - firstUnsettled)
     val effBg = arrayOfNulls<Color>(n - firstUnsettled)
     for (range in src.spanStyles) {
@@ -556,7 +515,6 @@ internal fun StaticMarkdownContent(
     )
 }
 
-
 @Composable
 private fun RenderBlocks(
     text: String,
@@ -576,7 +534,6 @@ private fun RenderBlocks(
 ) {
     val entries = rememberMarkdownBlockEntries(text)
 
-    
     val fadeDistances: IntArray? = if (fadeReveal != null && entries.isNotEmpty()) {
         IntArray(entries.size).also { dists ->
             var acc = fadeBaseDistance
@@ -625,10 +582,7 @@ private fun RenderBlocks(
                     }
 
                     is MarkdownBlock.Heading -> {
-                        
-                        
-                        
-                        
+
                         val (headingBaseSize, headingWeight) = if (emphasizedHeadings) {
                             when (block.level) {
                                 1 -> 26.sp to FontWeight.ExtraBold
@@ -642,13 +596,11 @@ private fun RenderBlocks(
                                 else -> 17.sp to FontWeight.SemiBold
                             }
                         }
-                        
-                        
+
                         val headingScale = LocalMarkdownTextScale.current
                         val headingSize =
                             if (headingScale == 1f) headingBaseSize else headingBaseSize * headingScale
-                        
-                        
+
                         val headingColor =
                             if (emphasizedHeadings && block.level >= 3) OriveoTheme.colors.primary else mdColors.text
                         val style = markdownBodyStyle().copy(
@@ -668,7 +620,7 @@ private fun RenderBlocks(
                             )
                         }
                         if (emphasizedHeadings && block.level == 2) {
-                            
+
                             Row(
                                 modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min),
                                 verticalAlignment = Alignment.CenterVertically,
@@ -739,9 +691,7 @@ private fun RenderBlocks(
                     }
 
                     is MarkdownBlock.Paragraph -> {
-                        
-                        
-                        
+
                         if (block.text.contains('$') && extractInlineMath(block.text).isNotEmpty()) {
                             ParagraphWithInlineMath(
                                 text = block.text,
@@ -771,7 +721,6 @@ private fun RenderBlocks(
     }
 }
 
-
 private fun blockSourceLengthApprox(block: MarkdownBlock): Int = when (block) {
     is MarkdownBlock.Paragraph -> block.text.length
     is MarkdownBlock.Heading -> block.text.length
@@ -779,7 +728,6 @@ private fun blockSourceLengthApprox(block: MarkdownBlock): Int = when (block) {
     is MarkdownBlock.ListItem -> block.text.length
     else -> 0
 }
-
 
 @Composable
 private fun ParagraphWithInlineMath(
@@ -809,9 +757,7 @@ private fun ClickableAnnotatedText(
     style: androidx.compose.ui.text.TextStyle,
     modifier: Modifier = Modifier,
 ) {
-    
-    
-    
+
     val context = LocalContext.current
     val safeText = remember(text, context) { text.withSafeLinkHandling(context) }
     Text(
@@ -820,7 +766,6 @@ private fun ClickableAnnotatedText(
         modifier = modifier,
     )
 }
-
 
 private fun AnnotatedString.withSafeLinkHandling(
     context: android.content.Context,
@@ -838,7 +783,6 @@ private fun AnnotatedString.withSafeLinkHandling(
         (range as AnnotatedString.Range<AnnotatedString.Annotation>).copy(item = safe)
     }
 }
-
 
 @Composable
 private fun StreamingTable(tableText: String, mdColors: MarkdownColors) {
@@ -867,7 +811,7 @@ private fun MarkdownTable(
 ) {
     val borderColor = mdColors.tableBorder
     val borderWidth = OriveoBorderWidth.standard
-    
+
     val shape = RoundedCornerShape(10.dp)
     val colCount = headers.size.coerceAtLeast(1)
 
@@ -905,7 +849,7 @@ private fun MarkdownTable(
                         cells = List(colCount) { index -> row.getOrElse(index) { "" } },
                         columnWidth = layout.columnWidth,
                         mdColors = mdColors,
-                        
+
                         backgroundColor = if (rowIndex % 2 == 1) mdColors.tableAltRowBg else mdColors.tableCellBg,
                     )
                 }
@@ -958,8 +902,7 @@ private fun TableCell(
         markdownCaptionStyle().copy(color = mdColors.text)
     }
     val context = LocalContext.current
-    
-    
+
     val withMath = remember(normalized, mdColors) { renderInlineMarkdownWithMath(normalized, mdColors) }
     val annotated = remember(withMath, context) { withMath.annotated.withSafeLinkHandling(context) }
     val inlineContent = buildInlineMathContent(
@@ -974,7 +917,6 @@ private fun TableCell(
         modifier = modifier.padding(horizontal = OriveoTheme.spacing.sm, vertical = OriveoTheme.spacing.xs),
     )
 }
-
 
 @Composable
 private fun rememberRenderedInlineMarkdown(
@@ -1017,7 +959,6 @@ internal fun resolveMarkdownTableLayout(
         columnWidth = tableWidth / resolvedColumnCount.toFloat(),
     )
 }
-
 
 @Composable
 private fun rememberMarkdownBlockEntries(text: String): List<MarkdownBlockEntry> =
@@ -1089,10 +1030,8 @@ internal sealed class MarkdownBlock {
     data object HorizontalRule : MarkdownBlock()
     data class Paragraph(val text: String) : MarkdownBlock()
 
-    
     data class MathBlock(val latex: String) : MarkdownBlock()
 }
-
 
 internal data class MarkdownBlockEntry(
     val block: MarkdownBlock,
@@ -1100,7 +1039,6 @@ internal data class MarkdownBlockEntry(
 )
 
 // ── Block-pair spacing (rendering) ──
-
 
 internal fun spacerHeightBetween(
     prev: MarkdownBlock,
@@ -1110,24 +1048,23 @@ internal fun spacerHeightBetween(
 ): Dp {
     val hasBlank = blankLinesBetween > 0
     return when {
-        
+
         curr is MarkdownBlock.Heading -> if (emphasized) 28.dp else 20.dp
-        
+
         prev is MarkdownBlock.Heading -> 6.dp
-        
+
         prev is MarkdownBlock.ListItem && curr is MarkdownBlock.ListItem ->
             if (hasBlank) 10.dp else 4.dp
-        
+
         prev is MarkdownBlock.CodeBlock || curr is MarkdownBlock.CodeBlock -> 12.dp
         prev is MarkdownBlock.Table || curr is MarkdownBlock.Table -> 12.dp
         prev is MarkdownBlock.BlockQuote || curr is MarkdownBlock.BlockQuote -> 12.dp
         prev is MarkdownBlock.HorizontalRule || curr is MarkdownBlock.HorizontalRule -> 12.dp
         prev is MarkdownBlock.MathBlock || curr is MarkdownBlock.MathBlock -> 12.dp
-        
+
         else -> if (hasBlank) (if (emphasized) 18.dp else 16.dp) else 8.dp
     }
 }
-
 
 internal fun streamingSeamSpacing(
     committed: String,
@@ -1135,8 +1072,7 @@ internal fun streamingSeamSpacing(
     tailKind: StreamingSplitter.TailKind,
     tailIsTable: Boolean,
 ): Dp {
-    
-    
+
     val prev = MarkdownRenderCache.blockEntries(committed).lastOrNull()?.block ?: return 0.dp
     val curr: MarkdownBlock = when {
         tailIsTable -> MarkdownBlock.Table(emptyList(), emptyList())
@@ -1144,7 +1080,7 @@ internal fun streamingSeamSpacing(
         tailKind == StreamingSplitter.TailKind.UnclosedMathBlock -> MarkdownBlock.MathBlock("")
         else -> parseBlocks(tail).firstOrNull() ?: MarkdownBlock.Paragraph(tail)
     }
-    
+
     val trailingNewlines = committed.length - committed.trimEnd('\n').length
     return spacerHeightBetween(prev, curr, (trailingNewlines - 1).coerceAtLeast(0))
 }
@@ -1339,7 +1275,6 @@ private fun isBlockQuoteLine(line: String): Boolean =
 private fun isTableLine(line: String, startIndex: Int): Boolean =
     startIndex >= 0 && line[startIndex] == '|'
 
-
 private fun startsWithBlockMathFence(line: String, startIndex: Int): Boolean =
     startIndex >= 0 &&
         startIndex + 1 < line.length &&
@@ -1375,7 +1310,7 @@ private fun parseHeadingLine(line: String, startIndex: Int): MarkdownBlock.Headi
     if (startIndex < 0) return null
 
     val trimmed = line.substring(startIndex)
-    
+
     return when {
         trimmed.startsWith("###### ") -> MarkdownBlock.Heading(trimmed.removePrefix("###### "), 6)
         trimmed.startsWith("##### ") -> MarkdownBlock.Heading(trimmed.removePrefix("##### "), 5)
@@ -1424,9 +1359,7 @@ internal fun parseBlocksWithGaps(text: String): List<MarkdownBlockEntry> {
                 if (i < lines.size) {
                     i++ // skip closing fence
                 } else if (text.endsWith("\n") && codeLines.isNotEmpty() && codeLines.last().isEmpty()) {
-                    
-                    
-                    
+
                     codeLines.removeAt(codeLines.size - 1)
                 }
                 emit(MarkdownBlock.CodeBlock(codeLines.joinToString("\n"), language))
@@ -1445,12 +1378,7 @@ internal fun parseBlocksWithGaps(text: String): List<MarkdownBlockEntry> {
             }
 
             // Table (detect pipe at start)
-            
-            
-            
-            
-            
-            
+
             isTableLine(line, startIndex) -> {
                 val tableLines = mutableListOf<String>()
                 while (i < lines.size && isTableLine(lines[i], firstNonWhitespaceIndex(lines[i]))) {
@@ -1478,20 +1406,10 @@ internal fun parseBlocksWithGaps(text: String): List<MarkdownBlockEntry> {
                 }
             }
 
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
             startsWithBlockMathFence(line, startIndex) -> {
                 val rest = line.substring(startIndex + 2)
                 val trimmedRest = rest.trimEnd()
-                
+
                 if (trimmedRest.length >= 2 && trimmedRest.endsWith("$$")) {
                     val latex = trimmedRest.substring(0, trimmedRest.length - 2).trim()
                     if (latex.isNotEmpty()) {
@@ -1501,9 +1419,8 @@ internal fun parseBlocksWithGaps(text: String): List<MarkdownBlockEntry> {
                     }
                 }
 
-                
                 val latexLines = mutableListOf<String>()
-                
+
                 val firstLineContent = rest.trim()
                 if (firstLineContent.isNotEmpty()) {
                     latexLines.add(firstLineContent)
@@ -1514,7 +1431,7 @@ internal fun parseBlocksWithGaps(text: String): List<MarkdownBlockEntry> {
                     val mathLine = lines[i]
                     val mathStart = firstNonWhitespaceIndex(mathLine)
                     val trimmed = mathLine.trim()
-                    
+
                     if (mathStart >= 0 && trimmed == "$$") {
                         closed = true
                         i++
@@ -1534,7 +1451,7 @@ internal fun parseBlocksWithGaps(text: String): List<MarkdownBlockEntry> {
                 if (closed && latexLines.isNotEmpty()) {
                     emit(MarkdownBlock.MathBlock(latexLines.joinToString("\n").trim()))
                 } else {
-                    
+
                     val raw = buildString {
                         append("$$")
                         if (rest.isNotEmpty()) append(rest)

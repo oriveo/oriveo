@@ -12,7 +12,7 @@ class NoteTitleTest {
 
     @Test
     fun `skips code fence and table separator lines`() {
-        
+
         assertEquals("real title", NoteTitle.placeholderTitle("```\nreal title"))
         assertEquals("Header", NoteTitle.placeholderTitle("| --- | :--: |\nHeader"))
     }

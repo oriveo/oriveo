@@ -100,7 +100,6 @@ import ai.oriveo.community.ui.theme.OriveoScreenBackground
 import ai.oriveo.community.ui.theme.opacity
 import org.koin.androidx.compose.koinViewModel
 
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RelaySetupScreen(
@@ -113,7 +112,7 @@ fun RelaySetupScreen(
     val localViewModel: LocalComputeSetupViewModel = koinViewModel()
     localViewModel.attachCoordinator(viewModel.customLLMCoordinator)
     LaunchedEffect(entryPoint) {
-        
+
     }
     LaunchedEffect(initialMethod) {
         if (initialMethod == CustomLLMConnectionMethod.Relay) viewModel.selectRelayMethod()
@@ -518,7 +517,6 @@ private fun RelayDetectedModelPicker(viewModel: RelaySetupViewModel) {
     }
 }
 
-
 internal fun relayQuickSurfaceFillColor(colors: OriveoColors, isDark: Boolean): Color =
     colors.primarySoft
         .opacity(if (isDark) 0.68f else 0.62f)
@@ -885,7 +883,6 @@ private fun RelaySimpleSection(
     }
 }
 
-
 @Composable
 private fun RelayStepHeader(stepLabel: String, title: String, subtitle: String) {
     val colors = OriveoTheme.colors
@@ -908,7 +905,6 @@ private fun RelayStepHeader(stepLabel: String, title: String, subtitle: String) 
         )
     }
 }
-
 
 @Composable
 private fun RelayStep2Header(kind: RelayKind) {
@@ -970,7 +966,7 @@ private fun RelayCustomAdvancedSection(viewModel: RelaySetupViewModel) {
                 label = { relayTransportLabel(it) },
                 onSelect = { newTransport ->
                     viewModel.customTransport = newTransport
-                    
+
                     if (newTransport != RelayTransport.OpenAIResponses) {
                         viewModel.customWebSearchToolName = null
                     }
@@ -1015,7 +1011,7 @@ private fun RelayCustomAdvancedSection(viewModel: RelaySetupViewModel) {
                 enabled = !viewModel.isSubmitting,
                 onCheckedChange = { viewModel.customDisableResponseStorage = it },
             )
-            
+
             if (viewModel.customTransport == RelayTransport.OpenAIResponses) {
                 Spacer(modifier = Modifier.height(spacing.md))
                 val current = viewModel.customWebSearchToolName ?: RelayWebSearchToolName.WebSearch
@@ -1026,7 +1022,7 @@ private fun RelayCustomAdvancedSection(viewModel: RelaySetupViewModel) {
                     label = { relayWebSearchToolNameLabel(it) },
                     onSelect = { viewModel.customWebSearchToolName = it },
                 )
-                
+
                 Spacer(modifier = Modifier.height(OriveoTheme.spacing.xs))
                 val hintRes = when (current) {
                     RelayWebSearchToolName.WebSearch -> R.string.relay_web_search_tool_hint_default
@@ -1043,7 +1039,6 @@ private fun RelayCustomAdvancedSection(viewModel: RelaySetupViewModel) {
                 )
             }
 
-            
             Spacer(modifier = Modifier.height(spacing.md))
             RelaySwitchRow(
                 title = stringResource(R.string.relay_advanced_has_web_search),
@@ -1293,7 +1288,6 @@ private fun relayWebSearchToolNameLabel(value: RelayWebSearchToolName): String =
     RelayWebSearchToolName.WebSearchPreview -> "web_search_preview"
     RelayWebSearchToolName.Disabled -> stringResource(R.string.relay_web_search_tool_disabled)
 }
-
 
 private val RELAY_WEB_SEARCH_PROFILES = listOf(
     "oai_responses_web",

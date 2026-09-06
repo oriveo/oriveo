@@ -3,7 +3,6 @@ package ai.oriveo.community.core.performance
 import android.util.Log
 import java.util.concurrent.ConcurrentHashMap
 
-
 object PageTrace {
     private const val TAG = "PageTrace"
     private val starts = ConcurrentHashMap<String, Long>()

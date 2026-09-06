@@ -20,7 +20,6 @@ import ai.oriveo.community.core.model.Note
 import ai.oriveo.community.ui.component.markdown.MarkdownMessageView
 import ai.oriveo.community.ui.theme.OriveoTheme
 
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NotePreviewSheet(note: Note, onDismiss: () -> Unit) {

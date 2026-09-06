@@ -40,7 +40,6 @@ import ai.oriveo.community.feature.providers.setup.ProviderSetupCopy
 import ai.oriveo.community.ui.theme.OriveoTheme
 import ai.oriveo.community.ui.theme.opacity
 
-
 @Composable
 fun ProviderDetailSettingsCard(
     provider: Provider,
@@ -81,11 +80,6 @@ fun ProviderDetailSettingsCard(
 
         if (hasEndpointGroup && onAdvancedSettings != null) SettingsRowDivider()
 
-        
-        
-        
-        
-        
         if (onAdvancedSettings != null) {
             SettingsRow(
                 icon = Icons.Filled.Settings,
@@ -96,8 +90,6 @@ fun ProviderDetailSettingsCard(
             )
         }
 
-        
-        
         if (onGenerationParameters != null) {
             if (hasEndpointGroup || onAdvancedSettings != null) SettingsRowDivider()
             SettingsRow(
@@ -200,7 +192,6 @@ private fun SettingsRowDivider() {
             .background(colors.border.opacity(0.45f)),
     )
 }
-
 
 @Composable
 private fun relayTransportPreviewText(requested: RelayRequestedConfig?): String? {

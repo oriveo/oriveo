@@ -175,12 +175,11 @@ internal fun groupConversationsByFolder(
         folderConversations.sortedByDescending(Conversation::updatedAt)
     }
 
-
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun HomeScreen(
     onNavigateToChat: (conversationId: String?, searchQuery: String?) -> Unit = { _, _ -> },
-    
+
     onNavigateToChatAndAutoSend: (conversationId: String) -> Unit = {},
     onNavigateToOnboarding: () -> Unit = {},
     onNavigateToProviderSetup: () -> Unit = {},
@@ -190,7 +189,7 @@ fun HomeScreen(
     onNavigateToNotes: () -> Unit = {},
     viewModel: HomeViewModel = koinViewModel(),
 ) {
-    
+
     val homeSkills by viewModel.homeSkills.collectAsStateWithLifecycle()
     val activeNoteCount by viewModel.activeNoteCount.collectAsStateWithLifecycle()
     val latestNoteTitle by viewModel.latestNoteTitle.collectAsStateWithLifecycle()
@@ -200,8 +199,7 @@ fun HomeScreen(
     val searchResults by viewModel.searchResults.collectAsStateWithLifecycle()
     val homeSections by viewModel.homeSections.collectAsStateWithLifecycle()
     val pinnedConversations by viewModel.pinnedConversations.collectAsStateWithLifecycle()
-    
-    
+
     val pinnedIds = remember(pinnedConversations) {
         pinnedConversations.mapTo(HashSet(pinnedConversations.size)) { it.id }
     }
@@ -210,22 +208,21 @@ fun HomeScreen(
     val providersById = remember(providers) { providers.associateBy { it.id } }
     val modelDisplayLookup = remember(providers) { ModelDisplayLookup(providers) }
     val skillsById = remember(homeSkills) { homeSkills.associateBy { it.id } }
-    
-    
+
     val foldersById = remember(folders) { folders.associateBy { it.id } }
     val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
     val visibleTopLevelConversations = remember(homeSections, pinnedConversations, searchResults, searchQuery, viewModel.isSearching) {
         if (viewModel.isSearching && searchQuery.isNotBlank()) {
             searchResults
         } else {
-            
+
             pinnedConversations + homeSections.flatMap { it.conversations }
         }
     }
     val lastUsedModelRef by viewModel.lastUsedModelRef.collectAsStateWithLifecycle()
     val activeModelState by viewModel.activeModelState.collectAsStateWithLifecycle()
     val greetingName by viewModel.greetingName.collectAsStateWithLifecycle()
-    
+
     val rawIsDark = ai.oriveo.community.ui.theme.LocalIsDarkTheme.current
     val v2Colors = if (rawIsDark) ai.oriveo.community.ui.theme.DarkV2OriveoColors
         else ai.oriveo.community.ui.theme.LightV2OriveoColors
@@ -269,7 +266,6 @@ fun HomeScreen(
         }
     }
 
-
     LaunchedEffect(initialContentLoaded) {
         if (initialContentLoaded) {
             viewModel.refreshActiveProviderIfNeededOnInitialLoad()
@@ -285,9 +281,7 @@ fun HomeScreen(
     DisposableEffect(metricsStateHolder, homeMetricsMode) {
         val state = metricsStateHolder.state
         state?.putState("home_mode", homeMetricsMode)
-        
-        
-        
+
         onDispose {
             state?.removeState("home_mode")
         }
@@ -300,9 +294,6 @@ fun HomeScreen(
     ) {
         AuroraScreenBackground()
 
-        
-        
-        
         val statusBarInset = rootTabTopInset()
         val navigationBarInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
         LazyColumn(
@@ -314,7 +305,7 @@ fun HomeScreen(
                 ),
             contentPadding = PaddingValues(top = statusBarInset),
         ) {
-            
+
             item(key = "header") {
                 HomeHeader(
                     greetingName = greetingName,
@@ -336,7 +327,7 @@ fun HomeScreen(
 
             if (!viewModel.isEditing) {
                 if (providers.isEmpty() && initialContentLoaded) {
-                    
+
                     item(key = "empty_provider") {
                         OriveoEmptyState(
                             icon = Icons.Outlined.Inbox,
@@ -350,8 +341,7 @@ fun HomeScreen(
                         )
                     }
                 } else {
-                    
-                    
+
                     item(key = "new_chat_bar") {
                         Box(modifier = Modifier.padding(top = 26.dp)) {
                             NewChatBar(
@@ -377,7 +367,6 @@ fun HomeScreen(
                         }
                     }
 
-                    
                     item(key = "notes_entry") {
                         ai.oriveo.community.feature.notes.HomeNotesEntryCard(
                             noteCount = activeNoteCount,
@@ -385,8 +374,7 @@ fun HomeScreen(
                             onClick = onNavigateToNotes,
                             modifier = Modifier
                                 .padding(horizontal = screenH)
-                                
-                                
+
                                 .padding(top = 22.dp, bottom = OriveoTheme.layout.sectionGap - OriveoTheme.spacing.sm),
                         )
                     }
@@ -407,7 +395,7 @@ fun HomeScreen(
                 }
 
                 if (!viewModel.isSearching) {
-                    
+
                     items(
                         items = folders,
                         key = { "folder_${it.id}" },
@@ -514,8 +502,6 @@ fun HomeScreen(
                         }
                     }
 
-                    
-                    
                     if (pinnedConversations.isNotEmpty()) {
                         item(key = "pinned_section_header") {
                             Column(modifier = Modifier.padding(horizontal = screenH)) {
@@ -572,7 +558,7 @@ fun HomeScreen(
                 if (initialContentLoaded && visibleTopLevelConversations.isEmpty() && providers.isNotEmpty()) {
                     item(key = "empty_conversations") {
                         Box {
-                            
+
                             if (viewModel.isSearching && searchQuery.isNotBlank()) {
                                 OriveoEmptyState(
                                     icon = Icons.Outlined.Inbox,
@@ -583,7 +569,7 @@ fun HomeScreen(
                                         .padding(top = OriveoTheme.spacing.xxl),
                                 )
                             } else {
-                                
+
                                 HomeConversationEmptyState(
                                     isDark = isDark,
                                     modifier = Modifier.padding(horizontal = screenH),
@@ -593,9 +579,7 @@ fun HomeScreen(
                     }
                 } else {
                     if (viewModel.isSearching && searchQuery.isNotBlank()) {
-                        
-                        
-                        
+
                         itemsIndexed(
                             items = searchResults,
                             key = { _, conversation -> "search_${conversation.id}" },
@@ -640,10 +624,7 @@ fun HomeScreen(
                             }
                         }
                     } else {
-                        
-                        
-                        
-                        
+
                         homeSections.forEach { section ->
                             val sectionConversations = section.conversations
                             item(key = "section_header_${section.group.name}") {
@@ -742,11 +723,8 @@ fun HomeScreen(
                 }
             }
 
-            
-            
-
             item {
-                
+
                 val tabOverlay = OriveoTheme.layout.tabBarOverlay + navigationBarInset
                 Spacer(
                     modifier = Modifier.height(
@@ -757,12 +735,11 @@ fun HomeScreen(
             }
         }
 
-        
         AnimatedVisibility(
             visible = viewModel.isEditing,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                
+
                 .navigationBarsPadding()
                 .padding(bottom = OriveoTheme.layout.tabBarOverlay),
             enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
@@ -790,7 +767,6 @@ fun HomeScreen(
         }
     }
 
-    
     viewModel.conversationToRename?.let { conversation ->
         RenameDialog(
             currentTitle = conversation.title,
@@ -802,7 +778,6 @@ fun HomeScreen(
         )
     }
 
-    
     viewModel.conversationToDelete?.let { conversation ->
         AlertDialog(
             onDismissRequest = { viewModel.conversationToDelete = null },
@@ -827,7 +802,6 @@ fun HomeScreen(
         )
     }
 
-    
     if (viewModel.showBatchDeleteConfirm) {
         AlertDialog(
             onDismissRequest = { viewModel.showBatchDeleteConfirm = false },
@@ -860,7 +834,7 @@ fun HomeScreen(
             sheetState = sheetState,
             dragHandle = null,
             contentWindowInsets = { WindowInsets(0) },
-            
+
             containerColor = ai.oriveo.community.ui.theme.OriveoTheme.colors.backgroundBase,
         ) {
             ModelPickerSheet(
@@ -974,7 +948,6 @@ fun HomeScreen(
         )
     }
 
-
     if (viewModel.showSkillProviderPrompt) {
         AlertDialog(
             onDismissRequest = viewModel::dismissSkillProviderPrompt,
@@ -1055,7 +1028,6 @@ fun HomeScreen(
 
     }
 }
-
 
 /**
  * Reduces a catalog base URL to the bare host (plus port, when one is given) for display.

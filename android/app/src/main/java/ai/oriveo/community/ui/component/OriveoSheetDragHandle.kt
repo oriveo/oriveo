@@ -14,7 +14,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import ai.oriveo.community.ui.theme.OriveoTheme
 
-
 @Composable
 fun OriveoSheetDragHandle(
     color: Color = OriveoTheme.colors.textTertiary.copy(alpha = 0.4f),

@@ -5,14 +5,13 @@ import ai.oriveo.community.core.attachments.ExtractionException
 import com.tom_roush.pdfbox.pdmodel.PDDocument
 import com.tom_roush.pdfbox.text.PDFTextStripper
 
-
 object PdfTextExtractor {
     fun extract(data: ByteArray): String {
         val doc: PDDocument
         try {
             doc = PDDocument.load(data.inputStream())
         } catch (e: com.tom_roush.pdfbox.pdmodel.encryption.InvalidPasswordException) {
-            
+
             throw ExtractionException(ExtractionErrorCode.EncryptedPdf, e.message)
         } catch (e: Exception) {
             throw ExtractionException(ExtractionErrorCode.CorruptedFile, e.message)
@@ -26,7 +25,7 @@ object PdfTextExtractor {
             stripper.sortByPosition = true
             val text = stripper.getText(document).trim()
             if (text.isEmpty()) {
-                
+
                 throw ExtractionException(ExtractionErrorCode.ScannedPdf)
             }
             return text

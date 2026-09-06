@@ -12,7 +12,6 @@ import java.io.StringReader
 import java.util.zip.ZipInputStream
 import javax.xml.parsers.SAXParserFactory
 
-
 object OfficeTextExtractor {
 
     val supportedExtensions: Set<String> = setOf("docx", "xlsx", "pptx")
@@ -20,7 +19,6 @@ object OfficeTextExtractor {
     fun isOfficeFile(extension: String): Boolean =
         supportedExtensions.contains(extension.lowercase())
 
-    
     fun extractText(data: ByteArray, fileExtension: String): String? {
         return when (fileExtension.lowercase()) {
             "docx" -> extractDocxText(data)
@@ -56,18 +54,16 @@ object OfficeTextExtractor {
     // region XLSX
 
     private fun extractXlsxText(data: ByteArray): String {
-        
+
         val entries = readZipEntries(data) { name ->
             name == "xl/sharedStrings.xml" ||
                 (name.startsWith("xl/worksheets/sheet") && name.endsWith(".xml"))
         }
 
-        
         val sharedStrings = entries["xl/sharedStrings.xml"]
             ?.let { parseSharedStrings(it) }
             ?: emptyList()
 
-        
         return entries.keys
             .filter { it.startsWith("xl/worksheets/sheet") }
             .sorted()
@@ -137,8 +133,6 @@ object OfficeTextExtractor {
 
     // endregion
 
-    
-
     private fun readZipEntry(data: ByteArray, path: String): String? {
         val entryBudget = archiveEntryBudgetBytes()
         try {
@@ -192,8 +186,6 @@ object OfficeTextExtractor {
 
     // endregion
 
-    
-
     private fun parseXmlText(xml: String): String {
         val text = StringBuilder()
         val handler = object : DefaultHandler() {
@@ -207,7 +199,7 @@ object OfficeTextExtractor {
 
     private fun saxParse(xml: String, handler: DefaultHandler) {
         val factory = SAXParserFactory.newInstance()
-        
+
         factory.setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false)
         factory.setFeature("http://xml.org/sax/features/external-general-entities", false)
         factory.newSAXParser().parse(InputSource(StringReader(xml)), handler)

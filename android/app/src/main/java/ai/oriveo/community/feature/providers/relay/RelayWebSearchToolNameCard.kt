@@ -25,7 +25,6 @@ import ai.oriveo.community.core.model.RelayWebSearchToolName
 import ai.oriveo.community.ui.theme.OriveoBorderWidth
 import ai.oriveo.community.ui.theme.OriveoTheme
 
-
 @Composable
 internal fun RelayWebSearchToolNameCard(
     selected: RelayWebSearchToolName,
@@ -94,4 +93,3 @@ internal fun RelayWebSearchToolNameCard(
         )
     }
 }
-

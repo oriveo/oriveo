@@ -5,13 +5,10 @@ import ai.oriveo.community.core.model.AttachmentKind
 import ai.oriveo.community.core.model.ChatMessage
 import ai.oriveo.community.core.model.ChatRole
 
-
 object OutboundAttachmentBudget {
 
-    
     const val DEFAULT_BUDGET_BYTES = 10L * 1024L * 1024L
 
-    
     private fun base64SizeOf(rawBytes: Long): Long = (rawBytes + 2L) / 3L * 4L
 
     suspend fun apply(
@@ -26,7 +23,6 @@ object OutboundAttachmentBudget {
         val result = arrayOfNulls<ChatMessage>(messages.size)
         var used = 0L
 
-        
         for (index in messages.indices.reversed()) {
             val message = messages[index]
             val attachments = message.attachments
@@ -69,7 +65,6 @@ object OutboundAttachmentBudget {
         return (result as Array<ChatMessage>).toList()
     }
 
-    
     private suspend fun costOf(
         attachment: Attachment,
         imageSizeOf: suspend (String) -> Long,
@@ -89,16 +84,14 @@ object OutboundAttachmentBudget {
         return inline + base64SizeOf(fromDisk)
     }
 
-    
     private fun inlineCost(attachment: Attachment): Long =
         (attachment.base64Data?.length ?: 0).toLong() +
             (attachment.thumbnailBase64?.length ?: 0).toLong()
 
-    
     private fun lighten(attachment: Attachment): Attachment? {
         if (attachment.kind != AttachmentKind.File) return null
         if (attachment.rawContentRef.isNullOrBlank()) return null
-        
+
         if (attachment.base64Data.isNullOrEmpty()) return null
         return attachment.copy(rawContentRef = null, originalBase64Data = null)
     }

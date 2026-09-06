@@ -18,7 +18,6 @@ import androidx.compose.ui.unit.dp
 import ai.oriveo.community.core.model.ModelCapability
 import ai.oriveo.community.ui.theme.OriveoTheme
 
-
 @Composable
 fun ModelCard(
     displayName: String,
@@ -45,7 +44,7 @@ fun ModelCard(
             .padding(12.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        
+
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -65,7 +64,6 @@ fun ModelCard(
             }
         }
 
-        
         val subtitle = vendorName?.takeIf { it.isNotBlank() } ?: groupName?.takeIf { it.isNotBlank() }
         if (subtitle != null) {
             Text(
@@ -75,7 +73,6 @@ fun ModelCard(
             )
         }
 
-        
         if (capabilities.isNotEmpty()) {
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                 capabilities.forEach { cap ->
@@ -84,7 +81,6 @@ fun ModelCard(
             }
         }
 
-        
         when (pricingStatus) {
             "priced" -> priceLabel?.takeIf { it.isNotBlank() }?.let {
                 Text(it, style = OriveoTheme.typography.caption, color = colors.textSecondary)

@@ -33,7 +33,6 @@ import ai.oriveo.community.ui.component.OriveoPrimaryButton
 import ai.oriveo.community.ui.component.OriveoTextButton
 import ai.oriveo.community.ui.theme.OriveoTheme
 
-
 @Composable
 fun OpenAISubscriptionAuthorizationSheet(
     config: OpenAISubscriptionAuthConfig,
@@ -45,23 +44,13 @@ fun OpenAISubscriptionAuthorizationSheet(
     val spacing = OriveoTheme.spacing
     val context = LocalContext.current
 
-    
-    
-    
-    
-    
-    
     LaunchedEffect(config) { model.startIfIdle(config) }
-    
-    
 
     val phase = model.phase
     LaunchedEffect(phase) {
-        
-        
+
         (phase as? OpenAISubscriptionAuthorizationModel.Phase.Succeeded)?.let { succeeded ->
-            
-            
+
             model.cancel()
             onAuthorized(succeeded.tokens)
         }
@@ -70,7 +59,7 @@ fun OpenAISubscriptionAuthorizationSheet(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            
+
             .padding(start = 24.dp, end = 24.dp, top = 24.dp, bottom = 24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(spacing.md),
@@ -106,8 +95,7 @@ fun OpenAISubscriptionAuthorizationSheet(
             )
 
             is OpenAISubscriptionAuthorizationModel.Phase.AwaitingAuthorization -> {
-                
-                
+
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -171,8 +159,7 @@ fun OpenAISubscriptionAuthorizationSheet(
                     color = colors.textSecondary,
                     textAlign = TextAlign.Center,
                 )
-                
-                
+
                 if (phase.error.allowsRetry) {
                     OriveoPrimaryButton(
                         text = stringResource(R.string.openai_subscription_try_again),
@@ -194,7 +181,6 @@ fun OpenAISubscriptionAuthorizationSheet(
         )
     }
 }
-
 
 fun openAISubscriptionErrorMessageRes(error: OpenAISubscriptionError): Int = when (error) {
     is OpenAISubscriptionError.ClientVersionRejected,

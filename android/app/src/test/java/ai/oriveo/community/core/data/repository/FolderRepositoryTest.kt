@@ -522,7 +522,7 @@ class FolderRepositoryTest {
         coVerify { conversationDao.clearFolderID(LOCAL_PARTITION_ID, "f1") }
         // the folder is deleted
         coVerify { folderDao.deleteById(LOCAL_PARTITION_ID, "f1") }
-        
+
     }
 
     // TC-25.1.5 (additional): multiple conversations in the same folder -> all are affected
@@ -545,7 +545,6 @@ class FolderRepositoryTest {
 
         repository.delete("f1")
 
-        
     }
 
     // TC-22.1.3: 50+ folders -> all created with unique IDs
@@ -646,7 +645,7 @@ class FolderRepositoryTest {
         coEvery { folderDao.deleteById(LOCAL_PARTITION_ID, "f1") } returns Unit
 
         // (delete is a folder-deletion operation; this test verifies the design intent that deleting a conversation does not cascade into deleting the folder)
-        
+
         coVerify(exactly = 0) { folderDao.deleteById(LOCAL_PARTITION_ID, any()) }
     }
 
@@ -759,7 +758,6 @@ class FolderRepositoryTest {
 
         repository.delete("f1")
 
-        
     }
 
     // -- TC-22.3 orphaned folderID handling --
@@ -860,7 +858,6 @@ class FolderRepositoryTest {
 
         repository.delete("f1")
 
-        
     }
 
     // TC-25.1.8: handling draft conversations in a folder
@@ -890,7 +887,6 @@ class FolderRepositoryTest {
 
         repository.delete("f1")
 
-        
     }
 
     // -- TC-23 performance --

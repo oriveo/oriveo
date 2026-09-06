@@ -44,8 +44,7 @@ class ChatRecoveryCardActionLayoutTest {
 
     @Test
     fun `interrupted recovery primary is continue and secondary keeps regenerate`() {
-        
-        
+
         val layout = resolveMessageRecoveryCardActionLayout(
             state = ChatMessageState.Interrupted,
             shouldOfferModelSwitch = false,
@@ -83,8 +82,7 @@ class ChatRecoveryCardActionLayoutTest {
 
     @Test
     fun `recovery card shows only for the last interrupted message`() {
-        
-        
+
         assertTrue(shouldShowRecoveryCard(ChatMessageState.Interrupted, ChatRole.Assistant, isLastMessage = true))
         assertFalse(shouldShowRecoveryCard(ChatMessageState.Interrupted, ChatRole.Assistant, isLastMessage = false))
     }

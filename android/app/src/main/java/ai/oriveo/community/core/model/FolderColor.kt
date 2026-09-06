@@ -3,7 +3,6 @@ package ai.oriveo.community.core.model
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 
-
 enum class FolderColor(
     val tag: String,
     private val mainHex: Long,
@@ -22,8 +21,7 @@ enum class FolderColor(
 
     private val mainColor: Color by lazy { Color(mainHex) }
     private val darkColor: Color by lazy { Color(darkHex) }
-    
-    
+
     private val cachedGradient: Brush by lazy {
         Brush.linearGradient(colors = listOf(mainColor, darkColor))
     }
@@ -35,11 +33,9 @@ enum class FolderColor(
     companion object {
         private val ordered: List<FolderColor> = entries
 
-        
         fun fromTag(tag: String?): FolderColor =
             entries.find { it.tag == tag } ?: BLUE
 
-        
         fun nextColor(folders: List<Folder>): FolderColor {
             val lastFolder = folders.sortedBy { it.sortOrder }.lastOrNull()
                 ?: return BLUE

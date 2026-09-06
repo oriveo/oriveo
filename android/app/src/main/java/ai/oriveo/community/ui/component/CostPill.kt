@@ -10,7 +10,6 @@ import androidx.compose.ui.unit.sp
 import ai.oriveo.community.core.model.CostFormatter
 import ai.oriveo.community.ui.theme.OriveoTheme
 
-
 @Composable
 fun CostPill(
     cost: Double,
@@ -24,7 +23,7 @@ fun CostPill(
     Text(
         modifier = modifier,
         text = formatted,
-        
+
         style = TextStyle(
             fontSize = 13.sp,
             fontWeight = FontWeight.SemiBold,

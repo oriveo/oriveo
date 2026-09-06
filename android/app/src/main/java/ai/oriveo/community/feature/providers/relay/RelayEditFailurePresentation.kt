@@ -5,7 +5,6 @@ import ai.oriveo.community.core.model.ProviderServiceError
 import ai.oriveo.community.core.provider.RelayEndpointPolicy
 import java.net.URI
 
-
 data class RelayEditFailurePresentation(
     val endpoint: String,
     val statusCode: Int?,
@@ -48,7 +47,7 @@ object RelayEditFailurePresenter {
             ),
             statusCode = statusCode,
             upstreamJson = redactedDetail,
-            
+
             automaticRetryCount = 0,
         )
     }

@@ -51,7 +51,7 @@ class StreamingSplitterTest {
 
     @Test
     fun `partial table without separator marks tail as UnclosedTable`() {
-        
+
         val text = "Here is data filling enough chars to cross the threshold for splitter.\n\n| Col1 | Col2 |\n| a | b"
         val result = StreamingSplitter.split(text)
         assertEquals(StreamingSplitter.TailKind.UnclosedTable, result.tailKind)
@@ -59,11 +59,11 @@ class StreamingSplitterTest {
 
     @Test
     fun `completed table is not in tail as table`() {
-        
+
         val text = "intro paragraph to push past the threshold here.\n\n" +
             "| H1 | H2 |\n| --- | --- |\n| a | b |\n\nafter table"
         val result = StreamingSplitter.split(text)
-        
+
         assertEquals(StreamingSplitter.TailKind.Paragraph, result.tailKind)
     }
 
@@ -107,11 +107,9 @@ class StreamingSplitterTest {
         assertEquals("", StreamingSplitter.extractCodeAfterFence("```python"))
     }
 
-    
-
     @Test
     fun `splitTrailingTable matches header plus separator without data rows`() {
-        
+
         val tail = "| H1 | H2 |\n| --- | --- |"
         val r = StreamingSplitter.splitTrailingTable(tail)
         assertNotNull(r)
@@ -121,7 +119,7 @@ class StreamingSplitterTest {
 
     @Test
     fun `splitTrailingTable includes in-progress last row`() {
-        
+
         val tail = "| H1 | H2 |\n| --- | --- |\n| a | b |\n| c"
         val r = StreamingSplitter.splitTrailingTable(tail)
         assertNotNull(r)
@@ -131,7 +129,7 @@ class StreamingSplitterTest {
 
     @Test
     fun `splitTrailingTable returns null without separator`() {
-        
+
         assertNull(StreamingSplitter.splitTrailingTable("| H1 | H2 |\n| a | b"))
     }
 
@@ -151,32 +149,29 @@ class StreamingSplitterTest {
 
     @Test
     fun `splitTrailingTable returns null when table closed by following prose`() {
-        
+
         val tail = "| H1 | H2 |\n| --- | --- |\n| a | b |\nafter table prose"
         assertNull(StreamingSplitter.splitTrailingTable(tail))
     }
 
     @Test
     fun `splitTrailingTable returns null when blank line closes table`() {
-        
+
         val tail = "| a |\n| --- |\n| 1 |\n\n| b |\n| --- |\n| 2 |"
         assertNull(StreamingSplitter.splitTrailingTable(tail))
     }
 
     @Test
     fun `splitTrailingTable tolerates trailing newline of completed row`() {
-        
+
         val tail = "| H1 | H2 |\n| --- | --- |\n| a | b |\n"
         val r = StreamingSplitter.splitTrailingTable(tail)
         assertNotNull(r)
     }
 
-    
-
     @Test
     fun `mid-line inline math does not create split point inside paragraph`() {
-        
-        
+
         val text = "A really long opening line that easily exceeds the eighty character minimum " +
             "threshold with \$\$E=mc^2\$\$ inline\nsecond line"
         val result = StreamingSplitter.split(text)
@@ -184,16 +179,14 @@ class StreamingSplitterTest {
         assertEquals(text, result.tail)
     }
 
-    
-
     @Test
     fun `maxEnd gates committed boundary to earlier safe split`() {
         val first = "first paragraph long enough to cross the eighty char threshold for split.\n\n"
         val second = "second paragraph also here\n\n"
         val text = first + second + "tail words"
-        
+
         assertEquals(first + second, StreamingSplitter.split(text).committed)
-        
+
         val gated = StreamingSplitter.split(text, maxEnd = first.length + 10)
         assertEquals(first, gated.committed)
         assertEquals(second + "tail words", gated.tail)

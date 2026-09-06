@@ -65,7 +65,6 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.RuntimeEnvironment
 import java.io.File
 
-
 @RunWith(RobolectricTestRunner::class)
 class ChatRepositoryRegenerateContinueTest {
 
@@ -160,15 +159,14 @@ class ChatRepositoryRegenerateContinueTest {
             persistUserMessage = false,
         )
 
-        
         coVerify(exactly = 0) {
             conversationRepository.addMessage(any(), match { it.role == ChatRole.User })
         }
-        
+
         coVerify(exactly = 1) {
             conversationRepository.addMessage(eq(conversation.id), match { it.role == ChatRole.Assistant })
         }
-        
+
         assertTrue(
             "user text must reach the model as request context",
             messagesSlot.captured.any { it.role == ChatRole.User && it.text == "My question" },
@@ -243,8 +241,7 @@ class ChatRepositoryRegenerateContinueTest {
         }
         val sentUsers = messagesSlot.captured.filter { it.role == ChatRole.User && it.text == "My question" }
         assertEquals(1, sentUsers.size)
-        
-        
+
         assertTrue(
             "empty failed assistant must be filtered out of the outbound payload",
             messagesSlot.captured.none { it.id == "a1" },
@@ -341,10 +338,8 @@ class ChatRepositoryRegenerateContinueTest {
             appendToAssistant = original,
         )
 
-        
         coVerify(exactly = 0) { conversationRepository.addMessage(any(), any()) }
 
-        
         val updates = mutableListOf<ChatMessage>()
         coVerify { conversationRepository.updateMessage(eq(conversation.id), capture(updates)) }
         assertTrue("all updates target the original assistant id", updates.all { it.id == "a1" })
@@ -352,10 +347,8 @@ class ChatRepositoryRegenerateContinueTest {
         val delivered = updates.last()
         assertEquals(ChatMessageState.Delivered, delivered.state)
 
-        
         assertEquals("Part one. Part two.", delivered.text)
 
-        
         val sent = messagesSlot.captured
         assertEquals(ChatRole.User, sent.last().role)
         assertTrue(sent.last().text.contains("Continue from where you stopped"))
@@ -415,7 +408,7 @@ class ChatRepositoryRegenerateContinueTest {
         val original = assistantMessage("a1", "Original partial.", ChatMessageState.Interrupted)
         every { providerRepository.serviceFor(provider) } returns providerService
         stubStream(
-            
+
             StreamEvent.Done(ProviderChatResult(text = "")),
         )
 
@@ -433,7 +426,7 @@ class ChatRepositoryRegenerateContinueTest {
         val updates = mutableListOf<ChatMessage>()
         coVerify { conversationRepository.updateMessage(eq(conversation.id), capture(updates)) }
         val delivered = updates.last()
-        
+
         assertEquals("Original partial.", delivered.text)
     }
 

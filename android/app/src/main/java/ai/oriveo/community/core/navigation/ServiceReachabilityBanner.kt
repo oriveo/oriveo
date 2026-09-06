@@ -38,7 +38,6 @@ import ai.oriveo.community.R
 import ai.oriveo.community.core.reachability.ServiceReachabilityMonitor
 import ai.oriveo.community.ui.theme.OriveoTheme
 
-
 @Composable
 fun ServiceReachabilityBanner(
     state: ServiceReachabilityMonitor.State,
