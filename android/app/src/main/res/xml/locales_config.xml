@@ -11,7 +11,9 @@
     <locale android:name="pt-BR" />
     <locale android:name="ar" />
     <locale android:name="hi" />
-    <locale android:name="id" />
+    <!-- Indonesian resources live under values-in (the legacy ISO code Android still requires for
+         resource qualifiers); the tag has to match or the per-app language picker omits it. -->
+    <locale android:name="in" />
     <locale android:name="vi" />
     <locale android:name="th" />
     <locale android:name="tr" />
