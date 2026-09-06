@@ -72,9 +72,10 @@ guesses a capability from a model name. `capability_runtime.v1.json` carries the
 and user-facing controls are interpreted.
 
 Each recipe declares an `executionKind` — `request_overlay`, `server_tool`, `client_tool_loop`,
-`endpoint_route`, `model_route` — and each client's compiler validates that the recipe matches the
-provider, capability, and transport before applying it, rejecting with a named reason rather than
-sending a request nobody reviewed.
+`endpoint_route`, `model_route`, `external_connector`, `unavailable` — and each client's compiler
+validates that the recipe matches the provider, capability, and transport before applying it,
+rejecting with a named reason rather than sending a request nobody reviewed. The list is a closed
+set: a recipe naming anything else is refused rather than guessed at.
 
 ## model-contracts
 
@@ -86,24 +87,32 @@ Each client's tests load these directly, so a change here is a change to all thr
 
 ## test-fixtures
 
-Golden test data: recorded upstream tool-call traffic, relay routing and discovery scenarios,
-model-facts and capability-evidence snapshots, and local-engine scenarios.
+Golden test data: recorded upstream tool-call traffic, relay routing, form validation,
+local-address classification, catalog and portable-config scenarios, model-facts and
+capability-evidence snapshots, and local-engine scenarios.
 
-The `.sse` files under `recorded/` are **real captured upstream traffic**, left byte-for-byte
-untouched; the rest are hand-written fixtures pinning a specific parse path. The distinction
-matters: a hand-written mock encodes what you believed the provider does, while a recording encodes
-what it actually did, including the malformed chunk it sent that Tuesday. When a provider protocol
-fix needs a test, prefer a recording.
+The `.sse` files under `recorded/` are **real captured upstream traffic**, kept byte for byte as it
+arrived — only the response headers were dropped, and the bodies never carried a key. The rest are
+hand-written fixtures pinning a specific parse path. The distinction matters: a hand-written mock
+encodes what you believed the provider does, while a recording encodes what it actually did,
+including the malformed chunk it sent that Tuesday. When a provider protocol fix needs a test,
+prefer a recording.
+
+A fixture's `$comment`, or the `expected.json` manifest beside it, says what the entries around it
+pin down. Read that before adding a case.
 
 ## OriveoProviderKit
 
 A Swift package holding the provider wire-protocol kernel: SSE line assembly, OpenAI-compatible
-chunk parsing, tool-name encoding, credential redaction, upstream error classification, thinking-tag
-parsing, streaming JSON path extraction, and per-provider quirk profiles.
+chunk parsing, event-based assembly for the Responses / Anthropic Messages / Gemini protocols,
+transport-neutral request building, recipe compilation and its execution guards, tool-name encoding,
+credential redaction, upstream error classification, thinking-tag parsing, streaming JSON path
+extraction, an explicit `URLSession` redirect policy, and per-provider quirk profiles.
 
 Its scope is drawn deliberately tight. **In:** Foundation-only wire knowledge. **Out:** app models,
-UI, database, telemetry, localization. Each Apple client keeps a thin binding around it so that wire
-behaviour has exactly one implementation.
+UI, database, telemetry, localization. The iOS client keeps a thin binding around it so that wire
+behaviour has exactly one implementation, and the package itself depends on nothing beyond the
+standard library and Foundation.
 
 ```bash
 cd shared/OriveoProviderKit && swift build && swift test
