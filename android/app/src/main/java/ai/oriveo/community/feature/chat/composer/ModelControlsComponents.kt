@@ -54,9 +54,7 @@ import ai.oriveo.community.ui.theme.OriveoColors
 import ai.oriveo.community.ui.theme.OriveoRadius
 import ai.oriveo.community.ui.theme.OriveoTheme
 
-
 // MARK: - Surface
-
 
 @Composable
 internal fun Modifier.modelControlSurface(cornerRadius: Int = 20): Modifier {
@@ -75,25 +73,20 @@ internal fun Modifier.modelControlSurface(cornerRadius: Int = 20): Modifier {
 
 // MARK: - Status badge
 
-
 enum class ModelControlStatusTone { Manual, Unavailable }
-
 
 @Composable
 internal fun ModelControlStatusBadge(tone: ModelControlStatusTone, text: String) {
     val colors = OriveoTheme.colors
-    
+
     val fill = when (tone) {
         ModelControlStatusTone.Manual -> colors.warning
         ModelControlStatusTone.Unavailable -> colors.textSecondary
     }
     val label = when (tone) {
-        
-        
+
         ModelControlStatusTone.Manual -> colors.warningText
-        
-        
-        
+
         ModelControlStatusTone.Unavailable -> colors.textPrimary
     }
     Text(
@@ -102,8 +95,7 @@ internal fun ModelControlStatusBadge(tone: ModelControlStatusTone, text: String)
         fontWeight = FontWeight.SemiBold,
         color = label,
         maxLines = 1,
-        
-        
+
         overflow = TextOverflow.Ellipsis,
         modifier = Modifier
             .clip(RoundedCornerShape(OriveoRadius.full))
@@ -113,11 +105,9 @@ internal fun ModelControlStatusBadge(tone: ModelControlStatusTone, text: String)
     )
 }
 
-
 internal fun modelControlBadgeCapsuleAlpha(isDark: Boolean): Float = if (isDark) 0.20f else 0.12f
 
 // MARK: - Card
-
 
 @Composable
 internal fun ModelControlCard(
@@ -140,8 +130,7 @@ internal fun ModelControlCard(
             Icon(
                 imageVector = icon,
                 contentDescription = null,
-                
-                
+
                 tint = colors.primaryTextSafe,
                 modifier = Modifier.size(20.dp),
             )
@@ -156,8 +145,7 @@ internal fun ModelControlCard(
                 overflow = TextOverflow.Ellipsis,
             )
             Spacer(Modifier.width(8.dp))
-            
-            
+
             if (toggle != null && onToggle != null) {
                 Switch(
                     checked = toggle,
@@ -177,7 +165,6 @@ internal fun ModelControlCard(
 
 // MARK: - Intent pills
 
-
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun ModelControlIntentPicker(
@@ -189,7 +176,7 @@ internal fun ModelControlIntentPicker(
     val colors = OriveoTheme.colors
     val isDark = OriveoTheme.isDark
     val haptic = LocalHapticFeedback.current
-    val selectedLabel = stringResource(R.string.selected)
+    val selectedLabel = stringResource(R.string.selected_state)
     val unselectedLabel = stringResource(R.string.model_control_not_selected)
     FlowRow(
         modifier = Modifier.fillMaxWidth(),
@@ -201,12 +188,10 @@ internal fun ModelControlIntentPicker(
             val label = stringResource(option.labelRes)
             Box(
                 modifier = Modifier
-                    
+
                     .heightIn(min = 44.dp)
                     .clip(RoundedCornerShape(OriveoRadius.full))
-                    
-                    
-                    
+
                     .clickable {
                         if (selected) return@clickable
                         haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
@@ -222,8 +207,7 @@ internal fun ModelControlIntentPicker(
             ) {
                 Box(
                     modifier = Modifier
-                        
-                        
+
                         .defaultMinSize(minWidth = 56.dp, minHeight = 36.dp)
                         .clip(RoundedCornerShape(OriveoRadius.full))
                         .background(
@@ -237,8 +221,7 @@ internal fun ModelControlIntentPicker(
                         text = label,
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
-                        
-                        
+
                         color = if (selected) {
                             colors.textInverse
                         } else {
@@ -253,15 +236,12 @@ internal fun ModelControlIntentPicker(
     }
 }
 
-
 internal fun modelControlUnselectedPillAlpha(isDark: Boolean): Float = if (isDark) 0.10f else 0.06f
-
 
 internal fun modelControlUnselectedPillLabel(colors: OriveoColors, isDark: Boolean): Color =
     if (isDark) colors.textSecondary else Color(0xFF52525B)
 
 // MARK: - Status row
-
 
 @Composable
 internal fun ModelControlStatusRow(text: String, onClick: (() -> Unit)?) {
@@ -299,14 +279,11 @@ internal fun ModelControlStatusRow(text: String, onClick: (() -> Unit)?) {
 
 // MARK: - Notes & inline actions
 
-
 @Composable
 internal fun ModelControlNote(
     text: String,
     icon: ImageVector? = null,
-    
-    
-    
+
     tone: Color = OriveoTheme.colors.textSecondary,
 ) {
     Row(verticalAlignment = Alignment.Top) {
@@ -322,8 +299,7 @@ internal fun ModelControlNote(
         }
         Text(
             text = text,
-            
-            
+
             style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp, lineHeight = 16.sp),
             color = tone,
             modifier = Modifier.weight(1f),
@@ -339,7 +315,6 @@ internal fun ModelControlNote(
 ) {
     ModelControlNote(text = stringResource(textRes), icon = icon, tone = tone)
 }
-
 
 @Composable
 internal fun ModelControlInlineAction(
@@ -387,7 +362,6 @@ internal fun ModelControlInlineAction(
     }
 }
 
-
 @Composable
 internal fun ModelControlNavigationRow(
     icon: ImageVector,
@@ -424,7 +398,7 @@ internal fun ModelControlNavigationRow(
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
-            
+
             if (subtitle.isNotEmpty()) {
                 Text(
                     text = subtitle,
@@ -457,7 +431,6 @@ internal fun ModelControlNavigationRow(
     }
 }
 
-
 @Composable
 internal fun ModelControlHairline(leadingInset: Int = 16) {
     Box(
@@ -468,7 +441,6 @@ internal fun ModelControlHairline(leadingInset: Int = 16) {
             .background(OriveoTheme.colors.textPrimary.copy(alpha = 0.08f)),
     )
 }
-
 
 @Composable
 internal fun ModelControlListRow(title: String, status: String) {
@@ -504,7 +476,6 @@ internal fun ModelControlListRow(title: String, status: String) {
     }
 }
 
-
 @Composable
 internal fun ModelControlsCloseBar(onClose: () -> Unit) {
     val colors = OriveoTheme.colors
@@ -528,7 +499,6 @@ internal fun ModelControlsCloseBar(onClose: () -> Unit) {
         }
     }
 }
-
 
 @Composable
 internal fun ModelControlScopeUpgradeRow(isConfirmed: Boolean, onPromote: () -> Unit) {
@@ -566,9 +536,7 @@ internal fun ModelControlScopeUpgradeRow(isConfirmed: Boolean, onPromote: () -> 
                 Box(
                     modifier = Modifier
                         .heightIn(min = 44.dp)
-                        
-                        
-                        
+
                         .widthIn(max = 160.dp)
                         .clickable(onClick = onPromote)
                         .semantics(mergeDescendants = true) { role = Role.Button },
