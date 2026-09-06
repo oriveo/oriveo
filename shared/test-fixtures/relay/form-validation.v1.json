@@ -1,8 +1,8 @@
 {
-  "$comment": "Shared contract fixture.",
+  "$comment": "Field layout and validation for the relay connection form, shared across clients. Adding a connection and editing a saved one use the same field order and the same validation function: `form.fields` pins the layout, `cases` pin the verdicts. The four credential states crossed with create and edit are the point of the file - the question \"does this connection need a key?\" used to be answered separately by the edit path, the create path and the status badge, which is how a connection with authentication set to none became impossible to save and impossible to change. `labelEN` is the one label wording every client can assert against: each resolves its own English string and compares it to this value.",
   "version": 1,
   "form": {
-    "$comment": "Shared contract fixture.",
+    "$comment": "Array order is the top-to-bottom render order, and both the create and the edit form follow it, so the two layouts cannot drift apart. `placeholder` is null when the row has no placeholder or its placeholder is dynamic - the model row shows an id taken from the live catalog. `revalidation` says whether editing the row invalidates the current probe result.",
     "fields": [
       {
         "field": "endpoint",
@@ -65,19 +65,19 @@
   "credentialMatrix": [
     {
       "state": "never_entered_requires_credential",
-      "$comment": "Shared contract fixture."
+      "$comment": "No key has ever been entered and this connection needs one. Creating must be blocked; editing must not be. An empty field in edit mode means \"leave the stored key alone\", and a genuinely missing credential is reported by the connection's own status, not by refusing to save an unrelated field."
     },
     {
       "state": "never_entered_auth_none",
-      "$comment": "Shared contract fixture."
+      "$comment": "No key has ever been entered and authentication is set to none. Both modes are valid: a keyless connection must not be pushed towards some other, less capable entry point."
     },
     {
       "state": "stored_only_other_fields_changed",
-      "$comment": "Shared contract fixture."
+      "$comment": "A key is already stored and this edit only touches other fields. An empty field in edit mode means \"do not change it\"; create mode has no stored key, so the equivalent is a key typed into the form now."
     },
     {
       "state": "explicit_removal",
-      "$comment": "Shared contract fixture."
+      "$comment": "The user removes the key on purpose. Only the key is cleared - the authentication mode is not silently changed along with it, and editing still must not make a credential mandatory."
     }
   ],
   "cases": [
@@ -277,7 +277,7 @@
     },
     {
       "caseId": "cleartext_endpoint_rejected_create",
-      "$comment": "Shared contract fixture.",
+      "$comment": "An http:// address while the connection claims public HTTPS. The endpoint policy owns this verdict; the form does not keep a second copy of the rule.",
       "mode": "create",
       "draft": {
         "endpoint": "http://relay.example.com/v1",
@@ -303,7 +303,7 @@
     },
     {
       "caseId": "local_http_keyless_edit_allowed",
-      "$comment": "Shared contract fixture.",
+      "$comment": "A local engine reached over plain http. The edit form used to measure every address against the public-HTTPS rule, which made this address permanently invalid and blocked saving even a rename.",
       "mode": "edit",
       "draft": {
         "endpoint": "http://192.168.1.20:1234/v1",
@@ -348,7 +348,7 @@
     },
     {
       "caseId": "cleartext_sensitive_header_edit",
-      "$comment": "Shared contract fixture.",
+      "$comment": "Authentication is none and no key is set, but a custom header carries credential material. The issue is reported on the headers row, where the user can act on it.",
       "mode": "edit",
       "draft": {
         "endpoint": "http://192.168.1.20:1234/v1",
@@ -379,7 +379,7 @@
     },
     {
       "caseId": "security_mode_scheme_mismatch_edit",
-      "$comment": "Shared contract fixture.",
+      "$comment": "The address is encrypted while the declared mode says cleartext. The form reports the mismatch and asks the user to change the mode; it never quietly rewrites the mode to match the address.",
       "mode": "edit",
       "draft": {
         "endpoint": "https://relay.example.com/v1",
@@ -404,7 +404,7 @@
     },
     {
       "caseId": "credential_invalid_characters_create",
-      "$comment": "Shared contract fixture.",
+      "$comment": "A key pasted with a full-width space in it (U+3000), which a CJK input method inserts easily. Character validation runs only on a non-empty value, because an empty key is legitimate both when authentication is none and when an edit leaves the stored key untouched.",
       "mode": "create",
       "draft": {
         "endpoint": "https://relay.example.com/v1",

@@ -1,5 +1,5 @@
 {
-  "$comment": "Desensitized shapes copied from production serializers/producers. serverMetadata includes the additive safe view; a catalog deployment that does not yet serve it is a supported state, and the absent/valid_empty/malformed rows of capability_evidence_contract.v1.json#matrix pin what each client must do then. These are adapter inputs, not final decisions. No endpoint, credential, sourceRef, artifactHash or raw error is allowed in this file.",
+  "$comment": "Redacted shapes, copied from what the model catalog actually serves. serverMetadata carries the additive safe view; a catalog that does not serve it yet is a supported state, and the absent / valid_empty / malformed rows of capability_evidence_contract.v1.json#matrix pin what each client must do in that case. These are adapter inputs, not final decisions. No endpoint, credential, sourceRef, artifactHash or raw error may appear in this file.",
   "version": 1,
   "sources": {
     "serverMetadata": {

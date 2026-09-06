@@ -1,5 +1,5 @@
 {
-  "$comment": "Local address classifier v1. The same input is asserted in both directions: a local/private mode may allow an address while remote_https must keep the existing SSRF boundary. DNS and every redirect hop are reclassified before Prompt or credentials are sent.",
+  "$comment": "Local address classifier v1. The same input is asserted in both directions: a local/private mode may allow an address while remote_https must keep the existing SSRF boundary. DNS resolution and every redirect hop are reclassified before a prompt or a credential is sent.",
   "version": 1,
   "cases": [
     {"caseId":"loopback_local_http","input":"http://127.0.0.1:11434","securityMode":"local_http","resolvedIPs":["127.0.0.1"],"expect":{"allowed":true,"reason":"loopback"}},

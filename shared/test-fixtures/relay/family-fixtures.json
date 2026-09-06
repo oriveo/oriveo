@@ -2,12 +2,12 @@
   {
     "modelId": "gpt-5.4",
     "expected": "openai",
-    "note": "Shared contract fixture."
+    "note": "The flagship chat model, and the id every other OpenAI prefix rule is measured against."
   },
   {
     "modelId": "gpt-image-2",
     "expected": "openai",
-    "note": "Shared contract fixture."
+    "note": "An image model still belongs to the OpenAI family; capability and family are separate questions."
   },
   {
     "modelId": "gpt-4o-mini",
@@ -16,7 +16,7 @@
   {
     "modelId": "o3-mini",
     "expected": "openai",
-    "note": "Shared contract fixture."
+    "note": "A reasoning model whose id carries no `gpt` prefix, so a prefix match alone would miss it."
   },
   {
     "modelId": "o4",
@@ -121,7 +121,7 @@
   {
     "modelId": "my-custom-model",
     "expected": null,
-    "note": "Shared contract fixture."
+    "note": "Nothing matches, so the caller falls back to the generic relay badge instead of guessing."
   },
   {
     "modelId": "unknown-xyz-2026",
@@ -130,6 +130,6 @@
   {
     "modelId": "",
     "expected": null,
-    "note": "Shared contract fixture."
+    "note": "An empty id falls back too, rather than matching the first family by accident."
   }
 ]

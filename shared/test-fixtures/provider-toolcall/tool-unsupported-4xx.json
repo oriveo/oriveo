@@ -1,7 +1,6 @@
 {
   "schema": "oriveo.provider-toolcall-unsupported-4xx/v1",
-  "work_id": "provider-toolcall-governance",
-  "purpose": "Shared contract fixture.",
+  "purpose": "The deterministic 4xx test for \"this endpoint does not support tools\", remembered per connection. Every client embeds these patterns verbatim as runtime constants and pins them with a contract test, so no client can gain or lose a pattern on its own. A match means the request is sent once more with the tools removed, and the connection remembers that it has none. Any other 4xx - and in particular the authentication, payment, proxy, timeout and rate-limit statuses in `status_excluded` - is remembered as nothing at all, because it says nothing about tool support.",
   "rules": {
     "status_range": [
       400,

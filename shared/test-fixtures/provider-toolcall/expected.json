@@ -1,7 +1,6 @@
 {
   "schema": "oriveo.provider-toolcall-fixtures/v1",
-  "work_id": "provider-toolcall-governance",
-  "purpose": "Shared contract fixture.",
+  "purpose": "Hand-written SSE replays shared by every client. Two things must hold for each entry: a native tool call reaches the caller as a structured proposal, and prose that merely looks like a tool call stays text. There is deliberately no parser for tool calls written in prose - a model that describes a call in a fenced code block or an XML-ish tag has not made one, and promoting it would run a tool the user never approved. `expected` is the single comparison matrix all clients check against.",
   "conventions": {
     "line_format": "Lines are split on LF; each data block is followed by a blank line; `data: ` includes the space; anthropic/openai_responses each have their own `event:` line before every data line, with the type carried in the body.",
     "arguments": "For the four native cases, the expected arguments is the fully concatenated raw text (a string); gemini's args are a structured object on the wire, and the expected value is compared after JSON normalization (key order is not significant).",
@@ -11,7 +10,7 @@
     {
       "file": "openai_chat.tool_calls.sse",
       "transport": "openai_chat",
-      "scenario": "Shared contract fixture.",
+      "scenario": "Two function tool calls. Call 0's arguments arrive token by token; call 1 carries an index only on its first fragment and omits it afterwards. finish_reason is tool_calls.",
       "expected": {
         "text": "",
         "finish_reason": "tool_calls",
@@ -36,7 +35,7 @@
     {
       "file": "openai_responses.function_call.sse",
       "transport": "openai_responses",
-      "scenario": "Shared contract fixture.",
+      "scenario": "A message item emits text, then a function_call item follows. Its arguments arrive as three function_call_arguments.delta fragments, and the done event repeats the complete value.",
       "expected": {
         "text": "Let me check the weather.",
         "finish_reason": "completed",
@@ -56,7 +55,7 @@
     {
       "file": "anthropic.tool_use.sse",
       "transport": "anthropic_messages",
-      "scenario": "Shared contract fixture.",
+      "scenario": "A text block followed by a tool_use block. The input arrives as five input_json_delta fragments, the first of them an empty string. message_delta reports stop_reason tool_use, and a ping is interleaved.",
       "expected": {
         "text": "Let me check the weather.",
         "finish_reason": "tool_use",
@@ -76,7 +75,7 @@
     {
       "file": "gemini.functionCall.sse",
       "transport": "gemini_generate",
-      "scenario": "Shared contract fixture.",
+      "scenario": "A text part in the first chunk and a functionCall part in the last, with structured (unfragmented) arguments and finishReason STOP.",
       "expected": {
         "text": "Let me check the weather.",
         "finish_reason": "STOP",
@@ -97,7 +96,7 @@
       "file": "grok_proxy.text_json_fence.sse",
       "transport": "openai_chat",
       "provider_lane": "grok_subscription(cli-chat-proxy)",
-      "scenario": "Shared contract fixture.",
+      "scenario": "Prose that wraps a fake web_search call in a ```json fence. The upstream sent nothing but content, so no tool call may come out of it.",
       "expected": {
         "text": "I'll look that up.\n\n```json\n{\"name\": \"web_search\", \"arguments\": {\"query\": \"Melbourne weather today\", \"num_results\": 5}}\n```",
         "finish_reason": "stop",
@@ -113,7 +112,7 @@
       "file": "grok_proxy.text_tool_call_tag.sse",
       "transport": "openai_chat",
       "provider_lane": "grok_subscription(cli-chat-proxy)",
-      "scenario": "Shared contract fixture.",
+      "scenario": "The same fake call written inside a <tool_call> tag instead of a fence.",
       "expected": {
         "text": "<tool_call>\n{\"name\": \"web_search\", \"arguments\": {\"query\": \"Melbourne weather today\", \"num_results\": 5}}\n</tool_call>",
         "finish_reason": "stop",
@@ -129,7 +128,7 @@
       "file": "grok_proxy.text_html_fence.sse",
       "transport": "openai_chat",
       "provider_lane": "grok_subscription(cli-chat-proxy)",
-      "scenario": "Shared contract fixture.",
+      "scenario": "The same fake call again, a <tool_call> tag nested inside a ```html fence.",
       "expected": {
         "text": "```html\n<tool_call>{\"name\": \"web_search\", \"arguments\": {\"query\": \"Melbourne weather today\", \"num_results\": 5}}</tool_call>\n```",
         "finish_reason": "stop",
@@ -145,7 +144,7 @@
       "file": "grok_proxy.responses.web_search.sse",
       "transport": "openai_responses",
       "provider_lane": "grok_subscription(cli-chat-proxy)",
-      "scenario": "Shared contract fixture.",
+      "scenario": "A recorded server-side web search over the Responses transport: a reasoning summary, four web_search_call items (two searches and two page opens, each moving through in_progress, searching and completed), output text carrying an [[1]](url) citation, a url_citation annotation, and response.completed whose usage reports server_side_tool_usage_details.web_search_calls = 4. There is no function_call anywhere, so tool_calls must stay empty and no <web_search> text may surface in the answer.",
       "expected": {
         "text": "墨尔本现在气温约为14摄氏度。[[1]](https://www.bom.gov.au/vic/observations/melbourne.shtml)",
         "finish_reason": "completed",
@@ -168,26 +167,5 @@
         }
       }
     }
-  ],
-  "client_status": {
-    "ios": {
-      "decoded_as_events": [
-        "openai_chat",
-        "grok_proxy.*",
-        "openai_responses",
-        "anthropic_messages",
-        "gemini_generate"
-      ],
-      "parse_no_crash_no_text_loss": [],
-      "note": "Shared contract fixture."
-    },
-    "web": {
-      "status": "deferred",
-      "note": "Shared contract fixture."
-    },
-    "android": {
-      "status": "deferred",
-      "note": "Shared contract fixture."
-    }
-  }
+  ]
 }

@@ -1,5 +1,5 @@
 {
-  "$comment": "Shared contract fixture.",
+  "$comment": "The allowlist of relay connection settings that may leave the device in a backup export. It has to be an allowlist rather than a copy-everything-then-delete denylist: under a denylist every field added later leaves the device by default, and stays private only if someone remembers to exclude it. `allFields` is the complete settings surface on every client, and each client asserts that its own field enumeration equals it, so adding a field without deciding portable-versus-local turns the suite red.",
   "version": 1,
   "allFields": [
     "transport",

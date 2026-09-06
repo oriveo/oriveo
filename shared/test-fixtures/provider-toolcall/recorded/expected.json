@@ -1,7 +1,6 @@
 {
   "schema": "oriveo.provider-toolcall-fixtures/v1",
-  "work_id": "provider-toolcall-governance",
-  "purpose": "Shared contract fixture.",
+  "purpose": "Leg-one SSE captured from a real call to each provider - the turn in which the model proposes a tool call. Every client replays these bytes through its own production decoding entry point. The expected values come from the same round trip, whose second leg returned a 200 with an answer quoting the tool result. Scrubbing removed the response headers only: the bodies never carried a key, and the upstream ids are kept so a recording stays comparable with itself.",
   "conventions": {
     "line_format": "The raw upstream bytes (including each provider's own differences in data: spacing and CRLF/LF), with no normalization applied.",
     "arguments": "The expected arguments is the fully concatenated raw text (a string); comparison is done after JSON normalization (key order/whitespace are not significant).",
@@ -16,7 +15,7 @@
       "model": "openai/gpt-oss-20b",
       "endpoint": "https://api.groq.com/openai/v1/chat/completions",
       "recorded_at": "2026-08-22",
-      "scenario": "Shared contract fixture.",
+      "scenario": "Leg one of a real call: stream true, a single get_weather tool, tool_choice auto. Raw SSE, with the response headers removed.",
       "expected": {
         "text": "",
         "finish_reason": "tool_calls",
@@ -37,7 +36,7 @@
       "model": "meta-llama/Llama-3.3-70B-Instruct-Turbo",
       "endpoint": "https://api.together.xyz/v1/chat/completions",
       "recorded_at": "2026-08-22",
-      "scenario": "Shared contract fixture.",
+      "scenario": "Leg one of a real call: stream true, a single get_weather tool, tool_choice auto. Raw SSE, with the response headers removed.",
       "expected": {
         "text": "",
         "finish_reason": "tool_calls",
@@ -58,7 +57,7 @@
       "model": "accounts/fireworks/models/gpt-oss-20b",
       "endpoint": "https://api.fireworks.ai/inference/v1/chat/completions",
       "recorded_at": "2026-08-22",
-      "scenario": "Shared contract fixture.",
+      "scenario": "Leg one of a real call: stream true, a single get_weather tool, tool_choice auto. Raw SSE, with the response headers removed.",
       "expected": {
         "text": "",
         "finish_reason": "tool_calls",
@@ -79,7 +78,7 @@
       "model": "qwen-flash",
       "endpoint": "https://dashscope-intl.aliyuncs.com/compatible-mode/v1/chat/completions",
       "recorded_at": "2026-08-22",
-      "scenario": "Shared contract fixture.",
+      "scenario": "Leg one of a real call: stream true, a single get_weather tool, tool_choice auto. Raw SSE, with the response headers removed.",
       "expected": {
         "text": "",
         "finish_reason": "tool_calls",
@@ -100,7 +99,7 @@
       "model": "glm-4.5-flash",
       "endpoint": "https://open.bigmodel.cn/api/paas/v4/chat/completions",
       "recorded_at": "2026-08-22",
-      "scenario": "Shared contract fixture.",
+      "scenario": "Leg one of a real call: stream true, a single get_weather tool, tool_choice auto. Raw SSE, with the response headers removed.",
       "expected": {
         "text": "\n",
         "finish_reason": "tool_calls",
@@ -121,7 +120,7 @@
       "model": "Qwen/Qwen3-8B",
       "endpoint": "https://api.siliconflow.cn/v1/chat/completions",
       "recorded_at": "2026-08-22",
-      "scenario": "Shared contract fixture.",
+      "scenario": "Leg one of a real call: stream true, a single get_weather tool, tool_choice auto. Raw SSE, with the response headers removed.",
       "expected": {
         "text": "\n\n",
         "finish_reason": "tool_calls",
@@ -142,7 +141,7 @@
       "model": "deepseek-chat",
       "endpoint": "https://api.deepseek.com/v1/chat/completions",
       "recorded_at": "2026-08-22",
-      "scenario": "Shared contract fixture.",
+      "scenario": "Leg one of a real call: stream true, a single get_weather tool, tool_choice auto. Raw SSE, with the response headers removed.",
       "expected": {
         "text": "",
         "finish_reason": "tool_calls",
@@ -163,7 +162,7 @@
       "model": "kimi-k2.5",
       "endpoint": "https://api.moonshot.ai/v1/chat/completions",
       "recorded_at": "2026-08-22",
-      "scenario": "Shared contract fixture.",
+      "scenario": "Leg one of a real call: stream true, a single get_weather tool, tool_choice auto. Raw SSE, with the response headers removed.",
       "expected": {
         "text": "我来为您查询 Melbourne 的天气信息。",
         "finish_reason": "tool_calls",
@@ -184,7 +183,7 @@
       "model": "kimi-k2.5",
       "endpoint": "https://api.moonshot.ai/v1/chat/completions",
       "recorded_at": "2026-08-22",
-      "scenario": "Shared contract fixture.",
+      "scenario": "A real call with Kimi's server-side search declared as tools=[{type: builtin_function, function: {name: $web_search}}]. The arguments carry the search_result and usage payload that the client feeds straight back on the next leg.",
       "expected": {
         "text": "",
         "finish_reason": "tool_calls",
@@ -205,7 +204,7 @@
       "model": "claude-haiku-4-5",
       "endpoint": "https://api.anthropic.com/v1/messages",
       "recorded_at": "2026-08-22",
-      "scenario": "Shared contract fixture.",
+      "scenario": "Leg one of a real call: stream true, a single get_weather tool, tool_choice auto. Raw SSE, with the response headers removed.",
       "expected": {
         "text": "",
         "finish_reason": "tool_use",
@@ -226,7 +225,7 @@
       "model": "gemini-2.5-flash-lite",
       "endpoint": "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-lite:streamGenerateContent",
       "recorded_at": "2026-08-22",
-      "scenario": "Shared contract fixture.",
+      "scenario": "Leg one of a real call: stream true, a single get_weather tool, tool_choice auto. Raw SSE, with the response headers removed.",
       "expected": {
         "text": "",
         "finish_reason": "STOP",
@@ -247,7 +246,7 @@
       "model": "grok-4.20-0309-non-reasoning",
       "endpoint": "https://api.x.ai/v1/responses",
       "recorded_at": "2026-08-22",
-      "scenario": "Shared contract fixture.",
+      "scenario": "Leg one of a real call: stream true, a single get_weather tool, tool_choice auto. Raw SSE, with the response headers removed.",
       "expected": {
         "text": "",
         "finish_reason": "completed",
@@ -260,7 +259,7 @@
         ],
         "tool_call_events": 1
       },
-      "note": "Shared contract fixture."
+      "note": "Leg two is decoded through the Responses entry point, which needs a catalog snapshot that declares openai_responses as this model's transport."
     },
     {
       "file": "openai.leg1.sse",
@@ -269,7 +268,7 @@
       "model": "gpt-4.1-nano",
       "endpoint": "https://api.openai.com/v1/responses",
       "recorded_at": "2026-08-22",
-      "scenario": "Shared contract fixture.",
+      "scenario": "Leg one of a real call: stream true, a single get_weather tool, tool_choice auto. Raw SSE, with the response headers removed.",
       "expected": {
         "text": "",
         "finish_reason": "completed",

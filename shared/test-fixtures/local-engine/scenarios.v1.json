@@ -1,5 +1,5 @@
 {
-  "$comment": "Local engine simulator scenarios v1. The future zero-dependency simulator and every platform socket test consume this file; recorded requests are asserted outside the simulator so it never self-certifies.",
+  "$comment": "Local engine scenarios v1: one canned request and response per engine, so every client's socket tests answer the same probe with the same bytes. Recorded requests are asserted outside whatever serves them, so a stub can never certify itself.",
   "version": 1,
   "scenarios": [
     {"id":"llamacpp.ready","engine":"llamacpp","request":{"method":"GET","path":"/health"},"response":{"status":200,"headers":{"content-type":"application/json"},"body":{"status":"ok"}}},

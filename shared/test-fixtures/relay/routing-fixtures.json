@@ -1,9 +1,8 @@
 {
-  "$schema": "./relay-routing-fixtures.schema",
   "version": 1,
-  "description": "Shared contract fixture.",
+  "description": "Relay runtime routing rules, shared by the iOS, Android and Web suites. Each client drives its own pure functions from these cases and asserts the same output, so a rule cannot be changed on one platform and quietly diverge on the other two.",
   "imageRoute": {
-    "describe": "Shared contract fixture.",
+    "describe": "Which image-generation route a relay transport resolves to.",
     "cases": [
       {
         "id": "IR-01",
@@ -33,7 +32,7 @@
     ]
   },
   "codexIdentityHeaders": {
-    "describe": "Shared contract fixture.",
+    "describe": "The Codex CLI identity headers - its user agent, the originator, a session id and OpenAI-Beta - are attached only on the Responses transport. Endpoints that accept a Codex subscription have been seen to route the request upstream only when at least one of the session id and OpenAI-Beta is present, so all four travel together rather than being treated as optional extras.",
     "cases": [
       {
         "id": "CI-01",
@@ -78,7 +77,7 @@
     ]
   },
   "shouldForceStream": {
-    "describe": "Shared contract fixture.",
+    "describe": "stream=true is forced only for image generation over the Responses transport. Every other combination leaves the caller's own choice alone.",
     "cases": [
       {
         "id": "FS-01",
@@ -131,7 +130,7 @@
     ]
   },
   "isDedicatedImageModel": {
-    "describe": "Shared contract fixture.",
+    "describe": "Recognising an image-only OpenAI model, case-insensitively. The answer decides whether a separate chat model has to drive the conversation.",
     "cases": [
       {
         "id": "DI-01",
@@ -171,11 +170,11 @@
     ]
   },
   "pickChatDriverModelID": {
-    "describe": "Shared contract fixture.",
+    "describe": "Choosing the model that drives the conversation. A model that is not image-only drives it itself; an image-only one hands over to the default model, or else to the first available non-image model in the list. When the list holds nothing else, the result is missingChatDriverModel.",
     "cases": [
       {
         "id": "PC-01",
-        "note": "Shared contract fixture.",
+        "note": "The current model is a chat model, so it drives the conversation itself.",
         "currentModelID": "gpt-5.4",
         "models": [
           {
@@ -200,7 +199,7 @@
       },
       {
         "id": "PC-02",
-        "note": "Shared contract fixture.",
+        "note": "The current model is image-only, so the default model takes over.",
         "currentModelID": "gpt-image-2",
         "models": [
           {
@@ -225,7 +224,7 @@
       },
       {
         "id": "PC-03",
-        "note": "Shared contract fixture.",
+        "note": "Both the current and the default model are image-only, so the first available non-image model in the list takes over.",
         "currentModelID": "gpt-image-2",
         "models": [
           {
@@ -250,7 +249,7 @@
       },
       {
         "id": "PC-04",
-        "note": "Shared contract fixture.",
+        "note": "Every model in the list is image-only, so there is no chat driver to fall back to.",
         "currentModelID": "gpt-image-2",
         "models": [
           {
@@ -267,7 +266,7 @@
       },
       {
         "id": "PC-05",
-        "note": "Shared contract fixture.",
+        "note": "A chat model exists but is unavailable, so the search continues to the next available one.",
         "currentModelID": "gpt-image-2",
         "models": [
           {
@@ -300,7 +299,7 @@
       },
       {
         "id": "PC-06",
-        "note": "Shared contract fixture.",
+        "note": "iOS gives a manually added relay model an internal id prefixed with `relay-manual-`. Both the image-only check and the returned id must use the upstream id with that prefix removed.",
         "platform": "ios",
         "currentModelID": "relay-manual-gpt-image-2",
         "models": [

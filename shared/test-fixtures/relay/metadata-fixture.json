@@ -1,5 +1,5 @@
 {
-  "_comment": "Shared contract fixture.",
+  "_comment": "A trimmed model catalog, shaped exactly like the live `/api/metadata` payload, shared by the relay catalog-resolution suites. Comparing each client's snapshot against it pins three things: the order in which a known model is swept across providers, the default values in `relayRuntimeConfig`, and that an unknown model is never handed invented capabilities.",
   "version": 999,
   "contractVersion": 1,
   "updatedAt": "2026-04-23T00:00:00Z",
