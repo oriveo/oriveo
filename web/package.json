@@ -40,7 +40,7 @@
     "eslint": "^10.9.1",
     "eslint-plugin-react-hooks": "^7.1.1",
     "fake-indexeddb": "^6.2.5",
-    "typescript": "^6.0.3",
+    "typescript": "^7.0.2",
     "typescript-eslint": "^8.68.0"
   }
 }
