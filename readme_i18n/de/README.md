@@ -53,11 +53,7 @@ Kein Konto, kein Abo und kein Dienst von uns auf dem Weg der Chat-Anfrage.
 
 </sub>
 
-<img src="../../docs/assets/screenshot-providers.webp" width="30%" alt="Oriveo BYOK AI client: die Anbieterliste mit den Ausgaben je Anbieter">&nbsp;
-<img src="../../docs/assets/screenshot-crosscheck.webp" width="30%" alt="Oriveo multi-model AI client: eine Antwort wird mit einem zweiten Modell geprüft">&nbsp;
-<img src="../../docs/assets/screenshot-notes.webp" width="30%" alt="Oriveo, AI chat client: eine Antwort wird als Notiz gesichert">
-
-<sub>Jeder Anbieter, den du nutzt, und was er bisher gekostet hat · ein zweites Modell prüft das erste · eine Antwort, als Notiz behalten</sub>
+<img src="../../docs/assets/hero.webp" width="100%" alt="Oriveo Community Edition: jedes Modell, eine App. 15 Anbieter, 700+ Modelle, iOS, Android und Web.">
 
 </div>
 
@@ -126,6 +122,7 @@ belegen können.
 - **Notizen und Ordner** – eine Antwort als Notiz sichern, Unterhaltungen ordnen, in beidem suchen
 - **Mit anderem Modell prüfen** – eine Antwort einem zweiten Modell zur Prüfung geben und beide
   zusammen behalten
+- **Gedächtnis** – ein paar Fakten über dich, einmal aufgeschrieben und in jede neue Unterhaltung mitgenommen
 - **Kosten** – Ausgaben pro Nachricht und pro Anbieter, auf dem Gerät berechnet aus dem, was jede
   Antwort tatsächlich gemeldet hat, inklusive der Stufen für Cache-Lesen und Cache-Schreiben
 - **Bildgenerierung** – wo der Anbieter sie unterstützt

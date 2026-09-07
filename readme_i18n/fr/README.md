@@ -53,11 +53,7 @@ Pas de compte, pas d'abonnement, et aucun service à nous sur le trajet des requ
 
 </sub>
 
-<img src="../../docs/assets/screenshot-providers.webp" width="30%" alt="Oriveo BYOK AI client : la liste des fournisseurs avec la dépense par fournisseur">&nbsp;
-<img src="../../docs/assets/screenshot-crosscheck.webp" width="30%" alt="Oriveo multi-model AI client : une réponse vérifiée avec un second modèle">&nbsp;
-<img src="../../docs/assets/screenshot-notes.webp" width="30%" alt="Oriveo, AI chat client : une réponse gardée en note">
-
-<sub>Chaque fournisseur que vous utilisez et ce qu'il vous a coûté · un second modèle qui vérifie le premier · une réponse gardée en note</sub>
+<img src="../../docs/assets/hero.webp" width="100%" alt="Oriveo Community Edition : tous les modèles, une seule app. 15 fournisseurs, 700+ modèles, iOS, Android et web.">
 
 </div>
 
@@ -129,6 +125,7 @@ Personne ne devrait pouvoir comptabiliser, journaliser ni majorer le modèle que
   deux
 - **Vérifier avec un autre modèle** — confier une réponse à un second modèle pour qu'il l'examine et
   garder les deux ensemble
+- **Mémoire** — quelques faits sur vous, écrits une fois et repris dans chaque nouvelle conversation
 - **Coût** — dépense par message et par fournisseur, calculée sur l'appareil à partir de ce que
   chaque réponse a réellement rapporté, paliers de lecture et d'écriture de cache compris
 - **Génération d'images** — là où le fournisseur la prend en charge

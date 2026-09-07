@@ -53,11 +53,7 @@ No account, no subscription, and no service of ours in the chat request path.
 
 </sub>
 
-<img src="docs/assets/screenshot-providers.webp" width="30%" alt="Oriveo BYOK AI client: the provider list with per-provider spend">&nbsp;
-<img src="docs/assets/screenshot-crosscheck.webp" width="30%" alt="Oriveo multi-model AI client cross-checking an answer with a second model">&nbsp;
-<img src="docs/assets/screenshot-notes.webp" width="30%" alt="Oriveo, AI chat client saving a reply as a note">
-
-<sub>Every provider you use and what each has cost · a second model checking the first · a reply kept as a note</sub>
+<img src="docs/assets/hero.webp" width="100%" alt="Oriveo Community Edition: every model, one app. 15 providers, 700+ models, iOS, Android and web.">
 
 </div>
 
@@ -121,6 +117,7 @@ Nobody should be able to meter, log, or mark up the model you are paying for.
   documents
 - **Notes and folders** — capture a reply as a note, organise conversations, search across both
 - **Cross-check** — hand an answer to a second model for review and keep the two together
+- **Memory** — a few facts about yourself, written once and carried into every new conversation
 - **Cost** — per-message and per-provider spend, computed on the device from what each response
   actually reported, including the cache read and cache write tiers
 - **Image generation** — where the provider supports it

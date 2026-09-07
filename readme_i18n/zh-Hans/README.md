@@ -53,11 +53,7 @@
 
 </sub>
 
-<img src="../../docs/assets/screenshot-providers.webp" width="30%" alt="Oriveo BYOK AI client：供应商列表，逐家显示花费">&nbsp;
-<img src="../../docs/assets/screenshot-crosscheck.webp" width="30%" alt="Oriveo multi-model AI client：用第二个模型核对一份答案">&nbsp;
-<img src="../../docs/assets/screenshot-notes.webp" width="30%" alt="Oriveo, AI chat client：把一条回复存成笔记">
-
-<sub>你用过的每一家供应商和各自花了多少 · 第二个模型在核对第一个 · 一条被留成笔记的回复</sub>
+<img src="../../docs/assets/hero.webp" width="100%" alt="Oriveo 社区版：所有模型，一个应用。15 家供应商、700 多个模型，iOS、Android 与 Web。">
 
 </div>
 
@@ -115,6 +111,7 @@ LM Studio 或 vLLM。一个客户端，一套对话，无论最后由哪个模�
 - **技能** —— 可复用的系统提示词，带各自的模型、思考设置和参考文档
 - **笔记与文件夹** —— 把回复存成笔记、整理对话、在两者之间搜索
 - **换模型核对** —— 把一份答案交给第二个模型评审，并把两者放在一起
+- **记忆** —— 关于你自己的几条信息，写一次，之后每个新对话都会带上
 - **花费** —— 按消息和按供应商统计支出，在设备本地根据每次响应实际上报的数据计算，包含缓存读取和
   缓存写入档位
 - **图像生成** —— 供应商支持时可用

@@ -53,11 +53,7 @@ iOS・Android・Web 向けの、オープンソースな BYOK（自分の API �
 
 </sub>
 
-<img src="../../docs/assets/screenshot-providers.webp" width="30%" alt="Oriveo BYOK AI client: プロバイダー一覧と、それぞれの利用額">&nbsp;
-<img src="../../docs/assets/screenshot-crosscheck.webp" width="30%" alt="Oriveo multi-model AI client: 2 つ目のモデルで回答を確認しているところ">&nbsp;
-<img src="../../docs/assets/screenshot-notes.webp" width="30%" alt="Oriveo, AI chat client: 返答をノートとして保存しているところ">
-
-<sub>使っているプロバイダーとそれぞれの利用額 · 1 つ目の回答を確認する 2 つ目のモデル · ノートとして残した返答</sub>
+<img src="../../docs/assets/hero.webp" width="100%" alt="Oriveo Community Edition：あらゆるモデルをひとつのアプリで。15 プロバイダー、700 以上のモデル、iOS・Android・Web。">
 
 </div>
 
@@ -124,6 +120,7 @@ Mistral、Groq、Together AI、Fireworks AI、MiniMax、Z.ai、Qwen、Kimi（Moo
   プロンプト
 - **ノートとフォルダ** — 返答をノートとして保存、会話の整理、その両方をまたぐ検索
 - **別のモデルで確認** — 回答を 2 つ目のモデルに渡してレビューさせ、両方をまとめて残す
+- **メモリー** — 自分についての情報を一度書いておけば、新しい会話のたびに引き継がれます
 - **コスト** — メッセージごと・プロバイダーごとの支出を、各レスポンスが実際に報告した内容から端末上で
   計算。キャッシュの読み取りと書き込みの階層も考慮します
 - **画像生成** — プロバイダーが対応している場合

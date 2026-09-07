@@ -53,11 +53,7 @@ Không tài khoản, không thuê bao, và không có dịch vụ nào của ch�
 
 </sub>
 
-<img src="../../docs/assets/screenshot-providers.webp" width="30%" alt="Oriveo BYOK AI client: danh sách nhà cung cấp kèm mức chi của từng nhà">&nbsp;
-<img src="../../docs/assets/screenshot-crosscheck.webp" width="30%" alt="Oriveo multi-model AI client: kiểm tra một câu trả lời bằng mô hình thứ hai">&nbsp;
-<img src="../../docs/assets/screenshot-notes.webp" width="30%" alt="Oriveo, AI chat client: lưu một câu trả lời thành ghi chú">
-
-<sub>Mọi nhà cung cấp bạn dùng và mức chi của từng nhà · một mô hình thứ hai kiểm tra mô hình đầu · một câu trả lời được giữ làm ghi chú</sub>
+<img src="../../docs/assets/hero.webp" width="100%" alt="Oriveo Community Edition: mọi mô hình, một ứng dụng. 15 nhà cung cấp, hơn 700 mô hình, iOS, Android và web.">
 
 </div>
 
@@ -127,6 +123,7 @@ Không ai được phép đo đếm, ghi log hay cộng giá vào mô hình mà 
   trên cả hai
 - **Kiểm tra bằng mô hình khác** — giao một câu trả lời cho một mô hình thứ hai xem lại và giữ cả
   hai cạnh nhau
+- **Ký ức** — vài điều về bạn, viết một lần và được mang vào mọi cuộc trò chuyện mới
 - **Chi phí** — mức chi theo từng tin nhắn và từng nhà cung cấp, tính ngay trên thiết bị từ những
   gì mỗi phản hồi thực sự báo về, bao gồm cả bậc đọc cache và bậc ghi cache
 - **Tạo ảnh** — ở những nơi nhà cung cấp hỗ trợ

@@ -53,11 +53,7 @@ Hesap yok, abonelik yok, sohbet istek yolunda bize ait bir servis yok.
 
 </sub>
 
-<img src="../../docs/assets/screenshot-providers.webp" width="30%" alt="Oriveo BYOK AI client: sağlayıcı listesi ve sağlayıcı başına harcama">&nbsp;
-<img src="../../docs/assets/screenshot-crosscheck.webp" width="30%" alt="Oriveo multi-model AI client bir yanıtı ikinci bir modelle kontrol ediyor">&nbsp;
-<img src="../../docs/assets/screenshot-notes.webp" width="30%" alt="Oriveo, AI chat client bir yanıtı not olarak kaydediyor">
-
-<sub>Kullandığınız her sağlayıcı ve her birinin maliyeti · ilkini kontrol eden ikinci bir model · not olarak saklanan bir yanıt</sub>
+<img src="../../docs/assets/hero.webp" width="100%" alt="Oriveo Community Edition: her model, tek uygulama. 15 sağlayıcı, 700+ model, iOS, Android ve web.">
 
 </div>
 
@@ -128,6 +124,7 @@ Parasını ödediğiniz modele kimse sayaç takamamalı, onun kaydını tutamama
   arama yapın
 - **Başka modelle kontrol et** — bir yanıtı incelemesi için ikinci bir modele verin ve ikisini bir
   arada tutun
+- **Hafıza** — kendinle ilgili birkaç bilgi; bir kez yazılır, her yeni sohbete taşınır
 - **Maliyet** — mesaj ve sağlayıcı başına harcama; her yanıtın gerçekte bildirdiği değerlerden
   cihazda hesaplanır, önbellek okuma ve önbellek yazma kademeleri dahil
 - **Görsel üretimi** — sağlayıcının desteklediği yerlerde

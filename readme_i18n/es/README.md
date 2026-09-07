@@ -53,11 +53,7 @@ Sin cuenta, sin suscripción y sin ningún servicio nuestro en la ruta de las so
 
 </sub>
 
-<img src="../../docs/assets/screenshot-providers.webp" width="30%" alt="Oriveo BYOK AI client: la lista de proveedores con el gasto de cada uno">&nbsp;
-<img src="../../docs/assets/screenshot-crosscheck.webp" width="30%" alt="Oriveo multi-model AI client: una respuesta verificada con un segundo modelo">&nbsp;
-<img src="../../docs/assets/screenshot-notes.webp" width="30%" alt="Oriveo, AI chat client: una respuesta guardada como nota">
-
-<sub>Cada proveedor que usas y lo que ha costado · un segundo modelo verificando al primero · una respuesta guardada como nota</sub>
+<img src="../../docs/assets/hero.webp" width="100%" alt="Oriveo Community Edition: todos los modelos, una app. 15 proveedores, más de 700 modelos, iOS, Android y web.">
 
 </div>
 
@@ -127,6 +123,7 @@ Nadie debería poder medir, registrar ni encarecer el modelo que estás pagando.
 - **Notas y carpetas** — guarda una respuesta como nota, organiza conversaciones, busca en ambas
 - **Verificar con otro modelo** — pásale una respuesta a un segundo modelo para que la revise y
   conserva las dos juntas
+- **Memoria** — unos cuantos datos sobre ti, escritos una vez y presentes en cada conversación nueva
 - **Costo** — gasto por mensaje y por proveedor, calculado en el dispositivo a partir de lo que cada
   respuesta reportó realmente, incluidos los niveles de lectura y de escritura de caché
 - **Generación de imágenes** — donde el proveedor la admite

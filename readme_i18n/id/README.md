@@ -53,11 +53,7 @@ Tanpa akun, tanpa langganan, dan tanpa layanan kami di jalur permintaan chat.
 
 </sub>
 
-<img src="../../docs/assets/screenshot-providers.webp" width="30%" alt="Oriveo BYOK AI client: daftar provider dengan pengeluaran per provider">&nbsp;
-<img src="../../docs/assets/screenshot-crosscheck.webp" width="30%" alt="Oriveo multi-model AI client memeriksa sebuah jawaban dengan model kedua">&nbsp;
-<img src="../../docs/assets/screenshot-notes.webp" width="30%" alt="Oriveo, AI chat client menyimpan sebuah balasan sebagai catatan">
-
-<sub>Setiap provider yang Anda pakai dan berapa biaya masing-masing · model kedua memeriksa yang pertama · sebuah balasan yang disimpan sebagai catatan</sub>
+<img src="../../docs/assets/hero.webp" width="100%" alt="Oriveo Community Edition: semua model, satu aplikasi. 15 penyedia, 700+ model, iOS, Android, dan web.">
 
 </div>
 
@@ -127,6 +123,7 @@ yang Anda bayar.
 - **Catatan dan folder** — simpan sebuah balasan sebagai catatan, rapikan percakapan, cari di keduanya
 - **Periksa dengan model lain** — serahkan sebuah jawaban ke model kedua untuk ditinjau dan simpan
   keduanya bersama
+- **Ingatan** — beberapa fakta tentang dirimu, ditulis sekali dan dibawa ke setiap percakapan baru
 - **Biaya** — pengeluaran per pesan dan per provider, dihitung di perangkat dari apa yang benar-benar
   dilaporkan setiap response, termasuk tingkat cache read dan cache write
 - **Pembuatan gambar** — di mana provider mendukungnya

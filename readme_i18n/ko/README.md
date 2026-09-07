@@ -53,11 +53,7 @@ iOS, Android, 웹을 위한 오픈소스 BYOK AI 채팅 클라이언트이며,
 
 </sub>
 
-<img src="../../docs/assets/screenshot-providers.webp" width="30%" alt="Oriveo BYOK AI client: 공급자 목록과 공급자별 지출">&nbsp;
-<img src="../../docs/assets/screenshot-crosscheck.webp" width="30%" alt="Oriveo multi-model AI client: 두 번째 모델로 답변을 교차 확인">&nbsp;
-<img src="../../docs/assets/screenshot-notes.webp" width="30%" alt="Oriveo, AI chat client: 답변을 노트로 저장">
-
-<sub>쓰고 있는 공급자와 각각의 지출 · 첫 답변을 확인하는 두 번째 모델 · 노트로 남긴 답변</sub>
+<img src="../../docs/assets/hero.webp" width="100%" alt="Oriveo Community Edition: 모든 모델을 하나의 앱에서. 15개 제공자, 700개 이상의 모델, iOS·Android·웹.">
 
 </div>
 
@@ -122,6 +118,7 @@ SiliconFlow. 여기에 더해 **OpenAI · Anthropic · Gemini 호환 엔드포�
 - **스킬** — 전용 모델·추론 설정·참고 문서를 가진 재사용 가능한 시스템 프롬프트
 - **노트와 폴더** — 답변을 노트로 저장하고, 대화를 정리하고, 둘 모두를 검색
 - **다른 모델로 교차 확인** — 답변을 두 번째 모델에 넘겨 검토하게 하고 둘을 함께 보관
+- **메모리** — 나에 대한 몇 가지 사실을 한 번만 적어 두면 새 대화마다 함께 전달됩니다
 - **비용** — 메시지별·공급자별 지출을 각 응답이 실제로 보고한 값으로 기기에서 계산하며, 캐시 읽기와
   캐시 쓰기 구간도 반영
 - **이미지 생성** — 공급자가 지원하는 경우
