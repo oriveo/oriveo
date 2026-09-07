@@ -12,26 +12,20 @@ Thanks for taking the time. Issues and pull requests are both welcome.
 ## Working in the repository
 
 Each client lives in its own directory and builds on its own. A change usually belongs to one of
-them:
+them, and each client's README is the single place its toolchain and commands are written down:
 
-| Directory | Toolchain | Build |
-|---|---|---|
-| `web/` | Node 22 | `npm install && npm run build:app` |
-| `ios/` | Xcode 26 | open `ios/Oriveo/Oriveo.xcodeproj` |
-| `android/` | JDK 21, Android SDK | `./gradlew :app:assembleDebug` |
-| `shared/OriveoProviderKit/` | Swift 6.1 | `swift build && swift test` |
-
-Each client's README covers its architecture and the details of building it:
-[iOS](ios/README.md) · [Android](android/README.md) · [Web](web/README.md) ·
-[Shared](shared/README.md).
+- `web/` — [Quick start](web/README.md#quick-start) and [Commands](web/README.md#commands)
+- `ios/` — [Build and run](ios/README.md#build-and-run)
+- `android/` — [Building](android/README.md#building)
+- `shared/OriveoProviderKit/` — [Working on these files](shared/README.md#working-on-these-files)
 
 A native macOS client is in development and will land in [`macos/`](macos/README.md) in the coming
 months. Until it is here there is nothing to build there, so please do not open a pull request that
 starts one; changes to the other three clients and to `shared/` are what move it forward.
 
 > [!IMPORTANT]
-> Clone the whole repository. All three clients load contract fixtures from `shared/` by resolving
-> a path relative to the repository root, so their test suites do not pass in a partial checkout.
+> Clone the whole repository. The test suites resolve `shared/` relative to the working
+> directory, so they only pass in a full checkout, never in a partial or single-client one.
 
 `shared/model-contracts`, `shared/capabilityrecipe`, and `shared/test-fixtures` are read by more
 than one client. If you change one of those files, run the contract tests of every client that
@@ -55,7 +49,7 @@ Each block below runs from the repository root:
 
 # iOS — substitute a simulator you have (xcrun simctl list devices available)
 xcodebuild test -project ios/Oriveo/Oriveo.xcodeproj -scheme Oriveo \
-  -destination 'platform=iOS Simulator,name=iPhone 17'
+  -destination 'platform=iOS Simulator,name=iPhone 16'
 ```
 
 For a provider protocol fix, prefer a recorded fixture under `shared/test-fixtures` over a

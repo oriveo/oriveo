@@ -1,51 +1,46 @@
 # Oriveo Community Edition
 
-> Oriveo Community Edition is an open-source, bring-your-own-key (BYOK) AI chat client for iOS,
-> Android and the web, with a native macOS client in development. You use API keys you already own
-> with fifteen model providers, or with any OpenAI-, Anthropic- or Gemini-compatible endpoint,
-> including a model server running on your own machine. There is no account and no subscription,
-> and conversations stay on the device.
+> Oriveo Community Edition is an open-source, bring-your-own-key (BYOK) multi-model AI chat client
+> for iOS, Android and the web — a local-first, self-hostable alternative to a hosted ChatGPT or
+> Claude plan, with no account and no subscription. It is an LLM client for fifteen model providers
+> (OpenAI, Anthropic, Google Gemini, OpenRouter, DeepSeek and more) and for any OpenAI-, Anthropic-
+> or Gemini-compatible endpoint, including Ollama, LM Studio, llama.cpp and vLLM on your own machine.
 
-The clients are native and separate: SwiftUI on iOS, Jetpack Compose on Android, Next.js on the
-web. They share one definition of how to talk to a provider — request recipes, capability
-contracts, and recorded upstream byte streams — and all three assert against the same fixtures.
-Built-in providers are OpenAI, Anthropic, Google Gemini, OpenRouter, DeepSeek, Grok, Mistral, Groq,
-Together AI, Fireworks AI, MiniMax, Z.ai, Qwen, Kimi and SiliconFlow; a relay connection reaches
-anything else, including llama.cpp, Ollama, LM Studio, vLLM and Open WebUI. The interface ships in sixteen
-languages. The only request the app makes on its own behalf is a read-only, unauthenticated model
-catalog, which you can point at your own host. Licensed AGPL-3.0-or-later.
+The three clients are native and separate: SwiftUI on iOS, Jetpack Compose on Android, Next.js on
+the web, with a native macOS client in development. They share one definition of how to talk to a
+provider — request recipes, capability contracts and recorded upstream byte streams — and all three
+assert against the same fixtures. You pay each provider its own list price directly; Oriveo is the
+client, not a reseller, and no server of ours sits in the chat path. Conversations, notes, folders,
+skills and attachments stay on the device. Official builds of the commercial edition are at
+https://oriveoai.com; this repository is the AGPL-3.0-or-later source you build yourself.
 
-## Get the app
+## Docs
 
-- [oriveoai.com](https://oriveoai.com): the official website, and the shortest path to the app on every platform
-- [App Store](https://apps.apple.com/app/oriveo/id6775370458): Oriveo for iPhone and iPad
-- [Google Play](https://play.google.com/store/apps/details?id=com.kenny.oriveo): Oriveo for Android
-- [Web app](https://app.oriveoai.com): Oriveo in the browser, nothing to install
-
-## Start here
-
-- [README](https://github.com/oriveo/oriveo/blob/main/README.md): what Oriveo is, why it exists, the full feature list, the provider table, the architecture, and how to build each client
-- [Get started](https://github.com/oriveo/oriveo/blob/main/README.md#get-started): the shortest path to a running app on web, iOS or Android
-- [FAQ](https://github.com/oriveo/oriveo/blob/main/README.md#faq): what BYOK means, whether conversations pass through a server, running a model locally, macOS, and interface languages
-- [Privacy](https://github.com/oriveo/oriveo/blob/main/README.md#privacy): where provider keys and conversations are stored on each platform, and what leaves the device
-
-## Clients
-
-- [iOS](https://github.com/oriveo/oriveo/blob/main/ios/README.md): SwiftUI with a UIKit transcript and GRDB storage; iOS 18 and later
-- [Android](https://github.com/oriveo/oriveo/blob/main/android/README.md): Jetpack Compose with Room, Koin and Ktor/OkHttp; Android 8 and later
-- [Web](https://github.com/oriveo/oriveo/blob/main/web/README.md): Next.js App Router with React, Zustand and TypeScript; self-hostable, Node 22
-- [macOS](https://github.com/oriveo/oriveo/blob/main/macos/README.md): a native client in development, arriving in the coming months
+- [README](https://github.com/oriveo/oriveo/blob/main/README.md): what Oriveo is, why it exists, the feature list, the provider table, the architecture, how to build each client, and the FAQ
+- [iOS client](https://github.com/oriveo/oriveo/blob/main/ios/README.md): SwiftUI with a UIKit transcript and GRDB storage; iOS 18 and later; building it on your own iPhone
+- [Android client](https://github.com/oriveo/oriveo/blob/main/android/README.md): Jetpack Compose with Room, Koin and Ktor/OkHttp; Android 8 and later; building the APK
+- [Web client](https://github.com/oriveo/oriveo/blob/main/web/README.md): Next.js App Router with React, Zustand and TypeScript; Node 22; how to self-host it
+- [macOS client](https://github.com/oriveo/oriveo/blob/main/macos/README.md): a native client in development, arriving in the coming months
 - [Shared contracts](https://github.com/oriveo/oriveo/blob/main/shared/README.md): capability recipes, model contracts, recorded provider fixtures, and the OriveoProviderKit Swift package
-
-## Project
-
 - [Contributing](https://github.com/oriveo/oriveo/blob/main/CONTRIBUTING.md): toolchain versions, how to build and test each client, and what a good pull request looks like
 - [Scope](https://github.com/oriveo/oriveo/blob/main/COMMUNITY.md): what this edition is for, and the kinds of change it will not accept
 - [Security policy](https://github.com/oriveo/oriveo/blob/main/SECURITY.md): how to report a vulnerability privately, and what counts as one in a bring-your-own-key client
-- [Code of conduct](https://github.com/oriveo/oriveo/blob/main/CODE_OF_CONDUCT.md): Contributor Covenant 2.1
-- [License](https://github.com/oriveo/oriveo/blob/main/LICENSE): GNU Affero General Public License, version 3 or later
-- [Third-party notices](https://github.com/oriveo/oriveo/blob/main/THIRD-PARTY-NOTICES.md): bundled fonts, mathematics libraries, and the provider trademarks the clients display
+
+## Facts
+
+- Fifteen built-in providers, each reached with a key you create yourself: OpenAI, Anthropic, Google Gemini, OpenRouter, DeepSeek, Grok, Mistral, Groq, Together AI, Fireworks AI, MiniMax, Z.ai, Qwen, Kimi (Moonshot), SiliconFlow.
+- Relay connections reach any OpenAI-, Anthropic- or Gemini-compatible endpoint, plus llama.cpp's native API, including one on your own LAN.
+- Local model servers supported through Relay: llama.cpp, Ollama, LM Studio, vLLM, Open WebUI. iOS and Android discover them by mDNS where the engine advertises itself, else by probing the usual ports.
+- OpenAI and Grok can also be used by signing in with a ChatGPT or Grok subscription you already hold, over each provider's own device-authorization flow, instead of an API key.
+- No account and no analytics. Nothing to sign in to; the iOS and Android clients contain no reporting SDK, and the web bundle's Sentry stays silent without a DSN of your own.
+- Two read-only requests of Oriveo's own: a public model catalog, read in two calls — one for how each model wants to be addressed, one for the facts about individual models. Neither carries a key, a conversation, or an identifier attached by Oriveo.
+- Self-hosting: the web client (`NEXT_PUBLIC_BACKEND_URL`) and the Android build (`-PORIVEO_METADATA_BASE_URL`) can be pointed at a catalog host of your own; on iOS that override is a Debug-build convenience only.
+- On iOS and Android chat requests go straight from the device to the provider. On the web most pass through the Next.js route handler serving the app — your own machine when you run it locally — because most provider APIs send no CORS headers.
+- Storage: iOS Keychain for provider keys, Android `EncryptedSharedPreferences` under an Android Keystore key, and, on the web, unencrypted IndexedDB — a browser offers no equivalent facility, so iOS or Android gives the stronger guarantee. Conversations, notes, folders, skills and attachments live on the device, exportable to a file.
+- Sixteen interface languages, including a full right-to-left layout for Arabic.
+- Licensed AGPL-3.0-or-later. Community Edition builds use the `ai.oriveo.community` identifier prefix and can sit alongside a store build.
+- There are no prebuilt binaries in this repository; Community Edition is source you build yourself.
 
 ## Optional
 
-- [Translated READMEs](https://github.com/oriveo/oriveo/tree/main/readme_i18n): the same documents in fifteen more languages
+- [Translated READMEs](https://github.com/oriveo/oriveo/tree/main/readme_i18n): the same documents in fifteen more languages — Arabic, German, Spanish, French, Hindi, Indonesian, Japanese, Korean, Brazilian Portuguese, Russian, Thai, Turkish, Vietnamese, Simplified Chinese and Traditional Chinese

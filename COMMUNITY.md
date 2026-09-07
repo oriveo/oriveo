@@ -14,16 +14,18 @@ completions go to the user's own provider. Notes, folders, skills, conversations
 attachments are stored locally. The app works fully offline apart from the provider calls
 themselves.
 
-There is exactly one network call the app makes on its own behalf: it reads a public model
-catalog to learn how each model wants to be addressed — which transport it speaks, which
+The app calls out on its own behalf for exactly one purpose: reading a public model catalog,
+so that it knows how each model wants to be addressed — which transport it speaks, which
 generation parameters it accepts, how its reasoning controls are named, and what it costs.
-That catalog is read-only, unauthenticated, and carries no user data.
+The catalog is two read-only, unauthenticated endpoints: one for how a model is addressed,
+one for the facts about individual models, which iOS reads only after a provider subscription
+sign-in. Neither carries user data.
 
 ## In scope
 
 - Providers reached with a user-supplied key, including self-hosted and OpenAI-compatible
   relays
-- Signing in to a provider the user already subscribes to, such as Codex or Grok, using
+- Signing in to a provider the user already subscribes to, such as ChatGPT or Grok, using
   that provider's own device-authorization flow
 - Local storage: conversations, notes, folders, custom skills, attachments
 - Local backup and export
