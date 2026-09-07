@@ -26,7 +26,7 @@ defaults:
 
 jobs:
   test:
-    name: Test and typecheck
+    name: Test, typecheck, and lint
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -45,6 +45,9 @@ jobs:
 
       - name: Typecheck
         run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
 
       - name: Unit tests
         run: npm run test:run
