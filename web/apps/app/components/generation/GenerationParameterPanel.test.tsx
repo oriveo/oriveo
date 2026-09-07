@@ -112,7 +112,6 @@ describe('GenerationParameterPanel', () => {
   });
   afterEach(() => {
     cleanup();
-    delete window.oriveo;
   });
 
   it('reports fixed, mode-dependent and unknown capabilities honestly and enables only the allowed controls', () => {
@@ -311,9 +310,9 @@ describe('GenerationParameterPanel', () => {
   });
 
   // Clearing is connection-scoped: every endpoint and revision variant of that connection and
-  // model. Passing only providerKind + modelID + fingerprint leaves the main process unable to
-  // locate the partition, so the clear silently no-ops and the renderer never learns anything.
-  it('clearing learned capabilities on a relay panel drops the learned negative cache and hands the full connection identity to the Electron main process', async () => {
+  // model. The revision at learn time is usually not the one at clear time, so matching on the
+  // full identity would mean the entry can never be cleared.
+  it('clearing learned capabilities on a relay panel drops the learned negative cache', async () => {
     resetUnsupportedParamCacheForTesting();
     const streamOptions = buildProviderStreamOptions(provider, undefined, model);
     // Identity and endpoint fingerprint both come from the production helpers the panel uses.
@@ -333,24 +332,10 @@ describe('GenerationParameterPanel', () => {
     };
     expect(markUnsupportedParamDropped(learned, 'temperature')).toBe('stored_first');
     expect(droppedUnsupportedParams(learned)).toEqual(['temperature']);
-    const clearMainLearning = vi.fn(async () => {});
-    window.oriveo = {
-      provider: { clearUnsupportedParamLearning: clearMainLearning },
-    } as unknown as NonNullable<Window['oriveo']>;
-
     render(<GenerationParameterPanel provider={provider} model={model} />);
     fireEvent.click(screen.getByRole('button', { name: /generationParameterClearLearnedCapabilities/ }));
 
     await waitFor(() => {
-      expect(clearMainLearning).toHaveBeenCalledWith({
-        providerKind: 'relay',
-        modelID: model.id,
-        endpointFingerprint: identity.endpointFingerprint,
-        partitionId: identity.partitionId,
-        connectionInstanceId: identity.connectionInstanceId,
-        connectionGeneration: identity.connectionGeneration,
-        credentialEpoch: identity.credentialEpoch,
-      });
       expect(droppedUnsupportedParams(learned)).toEqual([]);
     });
     // Parameter values are unaffected: this is not a restore-default-values action.

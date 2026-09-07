@@ -148,7 +148,7 @@ flowchart TB
 ```
 
 `packages/core` はプロバイダーのプロトコルに関する知識を 1 バイト残らず抱えており、ブラウザの
-グローバルからは意図的に切り離されています。eslint が、その中と `packages/ipc-contract` の中での
+グローバルからは意図的に切り離されています。eslint が、その中での
 `window`、`document`、`fetch`、`crypto`、`localStorage`、`sessionStorage`、`indexedDB` を禁止して
 います。環境から必要になるものはすべて `CorePorts` 経由で届きます。だからこそ、同じコードが
 ブラウザでも、Node の route handler でも、DOM のないテストでも動きます。
@@ -167,15 +167,11 @@ packages/core/          provider protocols: transports, request builders, SSE pa
 packages/shared/        domain types, relay policy, helpers
 packages/ui/            design tokens and shared components
 packages/config/        brand and provider defaults
-packages/ipc-contract/  typed channel contract for a desktop shell
 ```
 
 スタイリングは、`packages/ui` にあるひとつのカスタムプロパティのトークンシートの上に CSS Modules を
-重ねる方式です。ユーティリティクラスのフレームワークは使っていません。`packages/ipc-contract` は
-Web アプリがデスクトップホスト向けに保持している型付きインターフェイスです。チャットのストリーミング、
-プロバイダー呼び出し、リレーサービスの転送、キーの保存に名前付きチャネルを定義しており、ネイティブ
-シェルは `window.oriveo` を公開すればバインドできます。このリポジトリにデスクトップシェルは含まれて
-いないため、Web のビルドでは `IS_DESKTOP` が false になり、その裏にある分岐はどれも通りません。
+重ねる方式です。ユーティリティクラスのフレームワークは使っていません。
+
 
 同じ種類の継ぎ目がもうひとつあります。`apps/app/lib/core/sync-port.ts` は、同期バックエンドが実装する
 であろうインターフェースを宣言していて、呼び出し側はどこもオプショナルチェーンで到達します。それを

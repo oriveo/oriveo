@@ -11,7 +11,6 @@ import { buildRelayEndpointURL } from './relay-endpoints';
 import { buildRecommendedModels } from './catalog-model';
 import { buildModelsFromCatalog, type RemoteModel } from './adapters/openai-compatible';
 import { enrichRelayCatalog } from './relay-official-catalog-match';
-import { IS_DESKTOP } from './desktop-stream';
 import { buildDirectAuthHeaders } from '@oriveo/core/providers/relay-adapter';
 import { buildBrowserRelayFetchArgs, fetchBrowserRelayDirect } from './relay-browser-direct';
 import { pingRelay, type RelayPingResult } from './ping-relay';
@@ -679,67 +678,53 @@ async function syncRelayModelsDirect(provider: Provider): Promise<{
     securityMode: localEngine?.securityMode,
   });
 
-  let json: { data?: RemoteModel[] };
-  if (IS_DESKTOP) {
-    // On desktop the relay /models probe goes through main IPC (apiKey passed as apiKeyRef, ref-or-plaintext).
-    try {
-      json = (await window.oriveo!.provider.models({
-        providerKind: 'relay',
-        apiKeyRef: provider.apiKey,
-        relay: { baseURL: provider.baseURLText ?? '', transport: requested.transport, authMode: requested.authMode },
-      })) as { data?: RemoteModel[] };
-    } catch (err) {
-      throw networkError(err);
-    }
-  } else {
-    let response: Response;
-    try {
-      const fetchArgs = buildBrowserRelayFetchArgs(
-        upstreamURL,
-        buildDirectAuthHeaders(provider.apiKey, requested.authMode),
-        {
-          transport: requested.transport,
-          authMode: requested.authMode,
-          apiKey: provider.apiKey,
-          method: 'GET',
-          codexCompatIdentity: provider.relayRequested?.codexCompatIdentity,
-          customUserAgent: provider.relayRequested?.customUserAgent,
-          headers: provider.relayRequested?.headers,
-          queryParams: provider.relayRequested?.queryParams,
-          // Without securityMode the endpoint is judged as remote_https, so a local engine's
-          // plaintext catalog sync is routed as if it were a public endpoint. Same marker as
-          // the chat path, where buildRelayProxyConfig passes relaySecurityMode through.
-          securityMode: localEngine?.securityMode,
-        },
-      );
-      response = await fetchBrowserRelayDirect(fetchArgs.url, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          ...fetchArgs.headers,
-        },
-      });
-    } catch (err) {
-      throw networkError(err);
-    }
-
-    if (!response.ok) {
-      const body = await response.text().catch(() => '');
-      throw httpToProviderError(response.status, body, upstreamURL, {
-        relayKind: provider.relayKind,
+  let response: Response;
+  try {
+    const fetchArgs = buildBrowserRelayFetchArgs(
+      upstreamURL,
+      buildDirectAuthHeaders(provider.apiKey, requested.authMode),
+      {
         transport: requested.transport,
         authMode: requested.authMode,
-        modelID: provider.relayRequested?.modelID,
-        codexCompatIdentity: provider.relayRequested?.codexCompatIdentity,
-      }, relaySensitiveCredentialValues({
         apiKey: provider.apiKey,
+        method: 'GET',
+        codexCompatIdentity: provider.relayRequested?.codexCompatIdentity,
+        customUserAgent: provider.relayRequested?.customUserAgent,
         headers: provider.relayRequested?.headers,
         queryParams: provider.relayRequested?.queryParams,
-      }));
-    }
-
-    json = await response.json() as { data?: RemoteModel[] };
+        // Without securityMode the endpoint is judged as remote_https, so a local engine's
+        // plaintext catalog sync is routed as if it were a public endpoint. Same marker as
+        // the chat path, where buildRelayProxyConfig passes relaySecurityMode through.
+        securityMode: localEngine?.securityMode,
+      },
+    );
+    response = await fetchBrowserRelayDirect(fetchArgs.url, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        ...fetchArgs.headers,
+      },
+    });
+  } catch (err) {
+    throw networkError(err);
   }
+
+  if (!response.ok) {
+    const body = await response.text().catch(() => '');
+    throw httpToProviderError(response.status, body, upstreamURL, {
+      relayKind: provider.relayKind,
+      transport: requested.transport,
+      authMode: requested.authMode,
+      modelID: provider.relayRequested?.modelID,
+      codexCompatIdentity: provider.relayRequested?.codexCompatIdentity,
+    }, relaySensitiveCredentialValues({
+      apiKey: provider.apiKey,
+      headers: provider.relayRequested?.headers,
+      queryParams: provider.relayRequested?.queryParams,
+    }));
+  }
+
+  const json = await response.json() as { data?: RemoteModel[] };
 
   const remoteModels = (json.data ?? []).filter((model) => {
     const id = model.id.toLowerCase();

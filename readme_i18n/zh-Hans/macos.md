@@ -63,10 +63,6 @@ cd shared/OriveoProviderKit
 swift build && swift test
 ```
 
-Web 应用还保留了一个类型化的桌面宿主接口
-[`web/packages/ipc-contract`](../../web/packages/ipc-contract/)，原生壳可以绑上去；本仓库里没有任何
-东西实现它。
-
 ## 许可证
 
 [AGPL-3.0-or-later](../../LICENSE)。

@@ -141,7 +141,7 @@ flowchart TB
 
 تحمل `packages/core` كل بايت من معرفة بروتوكولات المزودين، وتُبقى عمدا خالية من كائنات المتصفح
 العامة — إذ يمنع eslint استخدام `window` و`document` و`fetch` و`crypto` و`localStorage`
-و`sessionStorage` و`indexedDB` داخلها وداخل `packages/ipc-contract`. وكل ما تحتاجه من البيئة يصلها
+و`sessionStorage` و`indexedDB` داخلها. وكل ما تحتاجه من البيئة يصلها
 عبر `CorePorts`. وهذا ما يتيح للكود نفسه أن يعمل في متصفح، وفي معالج مسار Node، وفي اختبار بلا DOM.
 
 ودعم المزودين محوران مستقلان. يختار `providerKind` **باني الطلب** (كيف يبدو الجسم لدى هذا
@@ -157,14 +157,11 @@ packages/core/          provider protocols: transports, request builders, SSE pa
 packages/shared/        domain types, relay policy, helpers
 packages/ui/            design tokens and shared components
 packages/config/        brand and provider defaults
-packages/ipc-contract/  typed channel contract for a desktop shell
 ```
 
 التنسيق مبني على CSS Modules فوق ورقة واحدة من الخصائص المخصصة في `packages/ui` — ولا يوجد إطار
-عمل قائم على أصناف مساعدة. و`packages/ipc-contract` هو الواجهة المُنمَّطة التي يحتفظ بها تطبيق
-الويب لمضيف سطح مكتب: قنوات مسمّاة لبث المحادثة، ونداءات المزودين، وتمرير خدمة الترحيل، وتخزين
-المفاتيح، ويمكن لقشرة أصلية أن ترتبط بها عبر كشف `window.oriveo`. ولا تُشحن قشرة سطح مكتب في هذا
-المستودع، لذا تكون `IS_DESKTOP` بقيمة false في بناء الويب ويبقى كل فرع خلفها بلا استخدام.
+عمل قائم على أصناف مساعدة.
+
 
 وهناك وصلة أخرى من النوع نفسه. يعلن `apps/app/lib/core/sync-port.ts` الواجهة التي سينفّذها أي خادم
 مزامنة،

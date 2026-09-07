@@ -135,7 +135,7 @@ flowchart TB
 ```
 
 `packages/core` 持有关于供应商协议的每一个字节的知识，并被刻意保持得不碰任何浏览器全局对象 ——
-eslint 在它内部以及 `packages/ipc-contract` 里禁用了 `window`、`document`、`fetch`、`crypto`、
+eslint 在它内部禁用了 `window`、`document`、`fetch`、`crypto`、
 `localStorage`、`sessionStorage` 和 `indexedDB`。它需要
 从环境里拿的一切都经由 `CorePorts` 到达。正是这一点，让同一份代码可以跑在浏览器里、跑在 Node route
 handler 里，也可以跑在一个没有 DOM 的测试里。
@@ -153,13 +153,10 @@ packages/core/          provider protocols: transports, request builders, SSE pa
 packages/shared/        domain types, relay policy, helpers
 packages/ui/            design tokens and shared components
 packages/config/        brand and provider defaults
-packages/ipc-contract/  typed channel contract for a desktop shell
 ```
 
 样式是 CSS Modules 叠在 `packages/ui` 里一张统一的自定义属性 token 表上 —— 没有用任何原子类框架。
-`packages/ipc-contract` 是 Web 应用为桌面宿主保留的类型化接口：为聊天流式、供应商调用、中转站转发和
-Key 存储各定义了具名通道，原生壳只要暴露 `window.oriveo` 就能绑上去。本仓库里并没有桌面壳，所以在
-Web 构建上 `IS_DESKTOP` 为 false，它背后的每条分支都用不到。
+
 
 还有一处同类的接缝。`apps/app/lib/core/sync-port.ts` 声明了一个同步后端要实现的接口，而每一处调用点都通过
 可选链去访问它。没有东西装上这样的后端，所以 `getSyncAdapter()` 返回 `null`，IndexedDB 始终是你数据

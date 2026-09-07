@@ -69,7 +69,6 @@ vi.mock('../../../providers/StoreProvider', () => ({
   tryGetVanillaStore: () => null,
 }));
 
-vi.mock('../../core/providers/desktop-stream', () => ({ IS_DESKTOP: false }));
 vi.mock('../../core/metadata/metadata-client', () => ({ getMetadataSnapshot: () => null }));
 vi.mock('../../core/providers/official-model-sync', () => ({
   buildOfficialEnabledModels: () => ({ models: [] }),

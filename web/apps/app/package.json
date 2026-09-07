@@ -13,7 +13,6 @@
   "dependencies": {
     "@oriveo/config": "*",
     "@oriveo/core": "*",
-    "@oriveo/ipc-contract": "*",
     "@oriveo/shared": "*",
     "@oriveo/ui": "*",
     "@sentry/nextjs": "^10.72.0",

@@ -135,7 +135,7 @@ flowchart TB
 ```
 
 `packages/core` 持有關於供應商協定的每一個位元組的知識，並且被刻意保持得完全不碰瀏覽器全域物件 ——
-eslint 在它裡面以及 `packages/ipc-contract` 裡禁用了 `window`、`document`、`fetch`、`crypto`、
+eslint 在它裡面禁用了 `window`、`document`、`fetch`、`crypto`、
 `localStorage`、`sessionStorage` 與 `indexedDB`。它需要
 從環境取得的一切，都經由 `CorePorts` 抵達。正是這一點，讓同一份程式碼能跑在瀏覽器裡、跑在 Node
 route handler 裡，也能跑在一個沒有 DOM 的測試裡。
@@ -153,13 +153,10 @@ packages/core/          provider protocols: transports, request builders, SSE pa
 packages/shared/        domain types, relay policy, helpers
 packages/ui/            design tokens and shared components
 packages/config/        brand and provider defaults
-packages/ipc-contract/  typed channel contract for a desktop shell
 ```
 
 樣式是 CSS Modules 疊在 `packages/ui` 裡一張統一的自訂屬性 token 表上 —— 沒有使用任何工具類別框架。
-`packages/ipc-contract` 是網頁應用為桌面宿主保留的型別化介面：為聊天串流、供應商呼叫、中轉站轉送與
-Key 儲存各定義了具名通道，原生外殼只要暴露 `window.oriveo` 就能綁上去。這個儲存庫裡並沒有桌面外殼，
-所以在網頁建置上 `IS_DESKTOP` 為 false，它背後的每條分支都用不到。
+
 
 還有一處同類的接縫。`apps/app/lib/core/sync-port.ts` 宣告了一個同步後端要實作的介面，而每一處呼叫點都透過
 optional chaining 去存取它。沒有任何東西裝上這樣的後端，所以 `getSyncAdapter()` 回傳 `null`，

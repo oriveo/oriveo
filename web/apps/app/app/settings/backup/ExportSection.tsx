@@ -5,7 +5,6 @@ import { useTranslations } from 'next-intl';
 import { Button, Dialog, Input } from '@oriveo/ui';
 import { exportBackup, saveBackupFile } from '../../../lib/backup';
 import { useAppStore } from '../../../providers/StoreProvider';
-import { IS_DESKTOP } from '../../../lib/core/providers/desktop-stream';
 import styles from './BackupPage.module.css';
 
 export function ExportSection() {
@@ -65,41 +64,35 @@ export function ExportSection() {
         <p className={styles.sectionHint}>{t('exportDescription')}</p>
         <p className={styles.sectionHint}>{t('exportPrivateCatalogNotice')}</p>
         <div className={styles.form}>
-          {/* Only the web build can export keys. On desktop `provider.apiKey` holds a KeyVault
-              reference rather than the key itself, so there is nothing here to encrypt. */}
-          {!IS_DESKTOP && (
+          <label className={styles.checkboxRow}>
+            <input
+              type="checkbox"
+              checked={includeKeys}
+              onChange={(e) => setIncludeKeys(e.target.checked)}
+            />
+            {t('includeApiKeys')}
+          </label>
+          {includeKeys && (
             <>
-              <label className={styles.checkboxRow}>
-                <input
-                  type="checkbox"
-                  checked={includeKeys}
-                  onChange={(e) => setIncludeKeys(e.target.checked)}
+              <div className={styles.fieldGroup}>
+                <label className={styles.fieldLabel}>{t('encryptionPassword')}</label>
+                <Input
+                  type="password"
+                  placeholder={t('passwordPlaceholder')}
+                  value={exportPassword}
+                  onChange={(e) => setExportPassword(e.target.value)}
                 />
-                {t('includeApiKeys')}
-              </label>
-              {includeKeys && (
-                <>
-                  <div className={styles.fieldGroup}>
-                    <label className={styles.fieldLabel}>{t('encryptionPassword')}</label>
-                    <Input
-                      type="password"
-                      placeholder={t('passwordPlaceholder')}
-                      value={exportPassword}
-                      onChange={(e) => setExportPassword(e.target.value)}
-                    />
-                  </div>
-                  <div className={styles.fieldGroup}>
-                    <label className={styles.fieldLabel}>{t('confirmPassword')}</label>
-                    <Input
-                      type="password"
-                      placeholder={t('confirmPasswordPlaceholder')}
-                      value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
-                    />
-                  </div>
-                  <p className={styles.fieldFootnote}>{t('encryptionFootnote')}</p>
-                </>
-              )}
+              </div>
+              <div className={styles.fieldGroup}>
+                <label className={styles.fieldLabel}>{t('confirmPassword')}</label>
+                <Input
+                  type="password"
+                  placeholder={t('confirmPasswordPlaceholder')}
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                />
+              </div>
+              <p className={styles.fieldFootnote}>{t('encryptionFootnote')}</p>
             </>
           )}
           {exportError && <div className={styles.errorMsg}>{exportError}</div>}

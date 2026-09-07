@@ -19,7 +19,6 @@ import {
   resolveCatalogModel,
 } from '../metadata/metadata-client';
 import { isMoonshotChinaBaseURL } from './adapters/moonshot';
-import { IS_DESKTOP, sendStreamDesktop } from './desktop-stream';
 
 /* ── Key Validation ──────────────────────────────────── */
 
@@ -165,15 +164,6 @@ export function sendStream(
   baseURL?: string,
   options?: StreamOptions,
 ): StreamHandle {
-  // Desktop: official and relay providers stream through main over IPC (MessagePort plus real
-  // cross-process cancellation). apiKey here is already a keyRef (partition-scoped; the plaintext
-  // stays in the key vault and never crosses IPC). Relay goes through RelayChatStreamRequest and
-  // sendDesktopRelayStream in main, connecting directly over undici with no CORS concerns and
-  // without the /api/relay/forward reverse proxy. Free still talks to the backend directly.
-  // On web IS_DESKTOP is always false, so behavior is unchanged.
-  if (IS_DESKTOP) {
-    return sendStreamDesktop(kind, apiKey, modelID, messages, baseURL, options);
-  }
   if (USE_PROXY && kind !== 'relay' && !shouldUseBrowserDirectStream(kind, baseURL)) {
     return sendStreamProxy(kind, apiKey, modelID, messages, baseURL, options);
   }

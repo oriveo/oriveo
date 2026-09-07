@@ -144,7 +144,7 @@ flowchart TB
 ```
 
 `packages/core` में प्रोवाइडर-प्रोटोकॉल की हर बात रहती है, और इसे जानबूझकर ब्राउज़र globals से मुक्त
-रखा गया है — eslint इसके भीतर और `packages/ipc-contract` में `window`, `document`, `fetch`, `crypto`,
+रखा गया है — eslint इसके भीतर `window`, `document`, `fetch`, `crypto`,
 `localStorage`, `sessionStorage` और `indexedDB` पर रोक लगाता है। पर्यावरण से जो कुछ भी उसे चाहिए वह
 `CorePorts` के रास्ते आता है। इसी वजह से एक ही कोड ब्राउज़र में, Node route handler में, और बिना DOM
 वाले टेस्ट में चल सकता है।
@@ -163,15 +163,11 @@ packages/core/          provider protocols: transports, request builders, SSE pa
 packages/shared/        domain types, relay policy, helpers
 packages/ui/            design tokens and shared components
 packages/config/        brand and provider defaults
-packages/ipc-contract/  typed channel contract for a desktop shell
 ```
 
 स्टाइलिंग `packages/ui` की एक ही custom-property token शीट के ऊपर CSS Modules से होती है — कोई
-utility-class फ़्रेमवर्क नहीं है। `packages/ipc-contract` वह typed interface है जिसे वेब ऐप एक
-desktop host के लिए रखे हुए है: चैट streaming, प्रोवाइडर कॉल, रिले forwarding और key स्टोरेज के लिए
-नामित channel, जिनसे कोई नेटिव shell `window.oriveo` उजागर करके बँध सकता है। इस रिपॉज़िटरी में कोई
-desktop shell नहीं आता, इसलिए वेब बिल्ड में `IS_DESKTOP` false रहता है और उसके पीछे की हर branch
-अनछुई रह जाती है।
+utility-class फ़्रेमवर्क नहीं है।
+
 
 इसी तरह की एक और सीवन है। `apps/app/lib/core/sync-port.ts` उस interface की घोषणा करता है जिसे कोई
 synchronisation backend लागू करेगा, और हर call site उस तक optional chaining से पहुँचता है। ऐसा कोई

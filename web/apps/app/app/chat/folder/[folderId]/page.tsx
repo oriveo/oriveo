@@ -1,13 +1,9 @@
 import { FolderDetailClient } from './FolderDetailClient';
 
-// Next 16: web must not export generateStaticParams (not even returning []), otherwise the dynamic
-// route is treated as statically generated and on-demand rendering 500s because the root layout
-// reads cookies(), which triggers DYNAMIC_SERVER_USAGE. Hence the conditional export: the desktop
-// export produces a placeholder shell and web gets undefined, which is equivalent to not exporting it at all and leaves a purely dynamic route.
-export const generateStaticParams =
-  process.env.ORIVEO_DESKTOP === '1'
-    ? (): { folderId: string }[] => [{ folderId: 'shell' }]
-    : undefined;
+// Next 16: this dynamic route must not export generateStaticParams, not even one returning [].
+// Exporting it makes Next treat the route as statically generated, and on-demand rendering then
+// trips DYNAMIC_SERVER_USAGE when the root layout reads cookies(), so a direct SSR hit (a pasted
+// URL or a hard refresh) returns 500.
 
 export default function FolderDetailPage() {
   return <FolderDetailClient />;

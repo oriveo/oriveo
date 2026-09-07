@@ -145,7 +145,7 @@ flowchart TB
 
 `packages/core` держит каждый байт знаний о протоколах провайдеров и намеренно избавлен от
 браузерных глобалей — eslint запрещает `window`, `document`, `fetch`, `crypto`, `localStorage`,
-`sessionStorage` и `indexedDB` внутри него и в `packages/ipc-contract`. Всё, что ему нужно от
+`sessionStorage` и `indexedDB` внутри него. Всё, что ему нужно от
 окружения, приходит через `CorePorts`. Именно это позволяет одному и тому же коду работать в
 браузере, в route handler на Node и в тесте без DOM.
 
@@ -163,15 +163,11 @@ packages/core/          provider protocols: transports, request builders, SSE pa
 packages/shared/        domain types, relay policy, helpers
 packages/ui/            design tokens and shared components
 packages/config/        brand and provider defaults
-packages/ipc-contract/  typed channel contract for a desktop shell
 ```
 
 Стилизация — это CSS Modules поверх единого набора токенов на custom properties в `packages/ui`;
-фреймворка утилитарных классов здесь нет. `packages/ipc-contract` — это типизированный интерфейс,
-который веб-приложение держит для настольного хоста: именованные каналы для стриминга чата, вызовов
-провайдеров, проброса ретрансляции и хранения ключей, к которым нативная оболочка может подключиться,
-выставив `window.oriveo`. Настольной оболочки в этом репозитории нет, поэтому в веб-сборке
-`IS_DESKTOP` равен false, а каждая ветка за ним остаётся неиспользованной.
+фреймворка утилитарных классов здесь нет.
+
 
 Есть ещё один шов того же рода. `apps/app/lib/core/sync-port.ts` объявляет интерфейс, который
 реализовал бы бэкенд синхронизации, и все места вызова добираются до него через опциональную цепочку.

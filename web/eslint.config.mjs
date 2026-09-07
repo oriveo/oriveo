@@ -47,17 +47,17 @@ export default tseslint.config(
     },
   },
   {
-    files: ["packages/core/src/**/*.{ts,tsx}", "packages/ipc-contract/src/**/*.{ts,tsx}"],
+    files: ["packages/core/src/**/*.{ts,tsx}"],
     rules: {
       "no-restricted-globals": [
         "error",
-        { name: "window", message: "Core/ipc-contract must stay runtime-agnostic. Use an injected port." },
-        { name: "document", message: "Core/ipc-contract must not depend on the DOM." },
-        { name: "localStorage", message: "Core/ipc-contract must not depend on renderer storage." },
-        { name: "sessionStorage", message: "Core/ipc-contract must not depend on renderer storage." },
-        { name: "indexedDB", message: "Core/ipc-contract must not depend on renderer storage." },
-        { name: "fetch", message: "Core/ipc-contract must use TransportPort instead of global fetch." },
-        { name: "crypto", message: "Core/ipc-contract must use CryptoPort instead of global crypto." },
+        { name: "window", message: "Core must stay runtime-agnostic. Use an injected port." },
+        { name: "document", message: "Core must not depend on the DOM." },
+        { name: "localStorage", message: "Core must not depend on renderer storage." },
+        { name: "sessionStorage", message: "Core must not depend on renderer storage." },
+        { name: "indexedDB", message: "Core must not depend on renderer storage." },
+        { name: "fetch", message: "Core must use TransportPort instead of global fetch." },
+        { name: "crypto", message: "Core must use CryptoPort instead of global crypto." },
       ],
       "no-restricted-imports": [
         "error",
@@ -65,9 +65,8 @@ export default tseslint.config(
           paths: [
             {
               name: "@oriveo/shared",
-              message: "Core/ipc-contract may only import @oriveo/shared/pure-types. The shared root can pull runtime telemetry.",
+              message: "Core may only import @oriveo/shared/pure-types. The shared root can pull runtime telemetry.",
             },
-            "electron",
             "assert",
             "buffer",
             "crypto",
@@ -103,7 +102,6 @@ export default tseslint.config(
           patterns: [
             {
               group: [
-                "electron/*",
                 "node:*",
                 "assert/*",
                 "buffer/*",

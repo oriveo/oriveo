@@ -64,10 +64,6 @@ cd shared/OriveoProviderKit
 swift build && swift test
 ```
 
-Web uygulaması ayrıca tipli bir masaüstü ana bilgisayar arayüzü tutar:
-[`web/packages/ipc-contract`](../../web/packages/ipc-contract/); yerel bir kabuk buna bağlanabilir,
-ama bu depoda onu uygulayan hiçbir şey yok.
-
 ## Lisans
 
 [AGPL-3.0-or-later](../../LICENSE).

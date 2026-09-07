@@ -72,43 +72,7 @@ type RootLayoutProps = {
   children: ReactNode;
 };
 
-/**
- * Desktop static export branch: the server-side getLocale/getMessages are not called, because
- * cookies() and headers() are unavailable under export, so ClientIntlProvider resolves the locale
- * on the client instead. No service worker is registered either, since it serves no purpose on
- * desktop and is a source of cache poisoning. lang and dir are set at runtime by
- * ClientIntlProvider. The default web branch is unaffected.
- */
-function DesktopRootLayout({ children }: RootLayoutProps) {
-  return (
-    <html lang="en" suppressHydrationWarning className={`${inter.variable} ${jetbrainsMono.variable}`}>
-      <head>
-        <ThemeInitScript />
-        <meta name="theme-color" content="#8B5CF6" />
-      </head>
-      <body suppressHydrationWarning>
-        <a href="#main-content" className="sr-skip" style={{
-          position: 'absolute', left: '-9999px', top: 'auto', width: '1px', height: '1px', overflow: 'hidden', zIndex: 9999,
-        }}>Skip to content</a>
-        <ClientIntlProvider>
-          <SRLiveRegion>
-            <StoreProvider>
-              <RouteTitleSync />
-              <LocalePreferenceSync />
-              <PersistentShellLayout>{children}</PersistentShellLayout>
-            </StoreProvider>
-          </SRLiveRegion>
-        </ClientIntlProvider>
-      </body>
-    </html>
-  );
-}
-
 export default async function RootLayout({ children }: RootLayoutProps) {
-  if (process.env.ORIVEO_DESKTOP === '1') {
-    return <DesktopRootLayout>{children}</DesktopRootLayout>;
-  }
-
   const locale = await getLocale();
   const messages = await getMessages();
   const dir = isRTL(locale) ? 'rtl' : 'ltr';

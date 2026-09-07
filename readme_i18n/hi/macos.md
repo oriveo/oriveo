@@ -64,10 +64,6 @@ cd shared/OriveoProviderKit
 swift build && swift test
 ```
 
-वेब ऐप एक typed desktop-host interface भी रखता है,
-[`web/packages/ipc-contract`](../../web/packages/ipc-contract/), जिससे कोई नेटिव shell बँध सकता है;
-इस रिपॉज़िटरी में कुछ भी उसे लागू नहीं करता।
-
 ## लाइसेंस
 
 [AGPL-3.0-or-later](../../LICENSE)।

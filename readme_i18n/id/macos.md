@@ -64,10 +64,6 @@ cd shared/OriveoProviderKit
 swift build && swift test
 ```
 
-Aplikasi web juga menyimpan antarmuka host desktop yang bertipe,
-[`web/packages/ipc-contract`](../../web/packages/ipc-contract/), yang bisa diikat sebuah shell
-native; tidak ada apa pun di repositori ini yang mengimplementasikannya.
-
 ## Lisensi
 
 [AGPL-3.0-or-later](../../LICENSE).

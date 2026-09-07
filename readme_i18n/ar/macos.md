@@ -62,10 +62,6 @@ cd shared/OriveoProviderKit
 swift build && swift test
 ```
 
-كما يحتفظ تطبيق الويب بواجهة مُنمَّطة لمضيف سطح مكتب،
-[`web/packages/ipc-contract`](../../web/packages/ipc-contract/)، يمكن لقشرة أصلية أن ترتبط بها؛
-ولا شيء في هذا المستودع ينفّذها.
-
 ## الترخيص
 
 [AGPL-3.0-or-later](../../LICENSE).

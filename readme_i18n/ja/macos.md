@@ -65,10 +65,6 @@ cd shared/OriveoProviderKit
 swift build && swift test
 ```
 
-Web アプリはさらに、ネイティブシェルがバインドできる型付きのデスクトップホスト向けインターフェイス
-[`web/packages/ipc-contract`](../../web/packages/ipc-contract/) を持っています。このリポジトリに
-それを実装しているものはありません。
-
 ## ライセンス
 
 [AGPL-3.0-or-later](../../LICENSE)。

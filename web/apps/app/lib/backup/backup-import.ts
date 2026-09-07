@@ -34,8 +34,6 @@ import { resetProviderStatus } from './backup-export';
 import { getPreference, setPreference } from '../infra/storage/preferences';
 import { trackEvent } from '../core/telemetry';
 import { tryGetVanillaStore } from '../../providers/StoreProvider';
-import { IS_DESKTOP } from '../core/providers/desktop-stream';
-import { createPartitionedKeyRef, type KeysSetRequest } from '@oriveo/ipc-contract';
 import { loadCachedUserSkills, saveUserSkills } from '../core/skills/cache';
 import { buildOfficialEnabledModels } from '../core/providers/official-model-sync';
 import { getMetadataSnapshot } from '../core/metadata/metadata-client';
@@ -43,67 +41,10 @@ import { normalizeNoteFolderIDs, normalizeNoteIDs, normalizeUUID } from '../util
 import type { CatalogMetadataInput } from '../core/providers/catalog-resolver';
 import { getActiveUIDSync } from '../infra/storage/partition';
 
-interface RestoredKeyWrite {
-  keyRef: string;
-  plainKey: string;
-  owner: KeysSetRequest['owner'];
-}
-
-function keyOwnerForProvider(provider: Provider): KeysSetRequest['owner'] {
-  const baseURL = provider.kind === 'relay'
-    ? (provider.relayResolvedBaseURLText ?? provider.baseURLText)
-    : provider.baseURLText;
-  return {
-    providerKind: provider.kind,
-    ...(baseURL ? { baseURL } : {}),
-  };
-}
-
-/**
- * Persist a restored plaintext key: desktop writes it into the main KeyVault and keeps only a
- * partition-scoped ref in the store/IDB, while web keeps the plaintext in IDB. Reuses the existing
- * keys.set channel instead of adding another plaintext extraction point. Needed for cross-platform
- * imports, where a web backup carrying a plaintext key must land in the KeyVault on desktop.
- *
- * The desktop KeyVault lives outside the main database transaction: when `pending` is passed the
- * writes are collected and the caller flushes them with flushRestoredKeyVault once the main
- * transaction commits (same window as restoreConversationImages), so a rollback leaves no key
- * behind. Without `pending` (importNew has no atomic transaction) the write happens immediately.
- */
-async function resolveRestoredKeyRef(
-  provider: Provider,
-  plainKey: string,
-  pending?: RestoredKeyWrite[],
-): Promise<string> {
-  if (IS_DESKTOP) {
-    const owner = keyOwnerForProvider(provider);
-    const keyRef = createPartitionedKeyRef(getActiveUIDSync(), provider.id);
-    if (pending) {
-      pending.push({ keyRef, plainKey, owner });
-    } else {
-      await window.oriveo?.keys.set(keyRef, plainKey, owner);
-    }
-    return keyRef;
-  }
-  return plainKey;
-}
-
-/** Flush the deferred plaintext keys into the KeyVault once the main transaction has committed. */
+/** Abort as soon as the account partition changes mid-import: writes must land in the partition that started it. */
 function assertExpectedImportUID(expectedUID?: string): void {
   if (expectedUID !== undefined && getActiveUIDSync() !== expectedUID) {
     throw new Error(`Backup import storage partition changed from ${expectedUID}`);
-  }
-}
-
-async function flushRestoredKeyVault(
-  pending: RestoredKeyWrite[],
-  expectedUID?: string,
-): Promise<void> {
-  if (!IS_DESKTOP || pending.length === 0) return;
-  for (const { keyRef, plainKey, owner } of pending) {
-    assertExpectedImportUID(expectedUID);
-    await window.oriveo?.keys.set(keyRef, plainKey, owner);
-    assertExpectedImportUID(expectedUID);
   }
 }
 
@@ -639,8 +580,6 @@ async function executeMerge(
   }
 
   // Merge providers
-  // Desktop KeyVault writes are collected and flushed after the main transaction commits, in the same window as the image compensation, so a rollback leaves nothing behind
-  const pendingKeyWrites: RestoredKeyWrite[] = [];
   const providersToPut: Provider[] = [];
   for (const backupProv of backupFile.data.providers) {
     if (!isValidProviderKind(backupProv.kind)) {
@@ -650,7 +589,7 @@ async function executeMerge(
     const local = existingProviderMap.get(normalizeUUID(backupProv.id));
 
     if (!local) {
-      const restored = await applyRestoredKeys(backupProv, keyMap, result, pendingKeyWrites);
+      const restored = await applyRestoredKeys(backupProv, keyMap, result);
       const normalized = rebuildOfficialProviderFromMetadata(restored);
       providersToPut.push(resetProviderStatus(normalized));
       result.providersImported++;
@@ -675,7 +614,7 @@ async function executeMerge(
     // Restore the key when the local provider has none and the backup does
     if (!local.apiKey && keyMap?.has(backupProv.id)) {
       const keys = keyMap.get(backupProv.id)!;
-      merged.apiKey = await resolveRestoredKeyRef(backupProv, keys.apiKey, pendingKeyWrites);
+      merged.apiKey = keys.apiKey;
       merged.apiKeyPreview = keys.apiKeyPreview;
       result.keysRestored++;
     }
@@ -693,9 +632,6 @@ async function executeMerge(
     notes: notesToPut,
     noteFolders: noteFoldersToPut,
   });
-
-  // KeyVault compensation (desktop external storage, written only after the transaction commits so a rollback leaves nothing behind)
-  await flushRestoredKeyVault(pendingKeyWrites);
 
   // Image restore is compensated separately: image-store is a separate DB and cannot join the main transaction, so atomicity is asymmetric
   for (const conv of convsForImageRestore) {
@@ -725,12 +661,10 @@ async function executeReplaceAll(
   const activeNoteFolderIds = buildActiveNoteFolderIDSet(activeNoteFolders);
   const notes = (backupFile.data.notes ?? []).map((note) => normalizeImportedNote(note, activeNoteFolderIds));
   const conversations = backupFile.data.conversations;
-  // Desktop KeyVault writes are collected and flushed after the main transaction commits, in the same window as the image compensation, so a rollback leaves nothing behind
-  const pendingKeyWrites: RestoredKeyWrite[] = [];
   const importableProviders = backupFile.data.providers.filter((prov) => isValidProviderKind(prov.kind));
   result.providersSkipped += backupFile.data.providers.length - importableProviders.length;
   const providers = await Promise.all(importableProviders.map(async (prov) => {
-    const restored = await applyRestoredKeys(prov, keyMap, result, pendingKeyWrites);
+    const restored = await applyRestoredKeys(prov, keyMap, result);
     return resetProviderStatus(rebuildOfficialProviderFromMetadata(restored));
   }));
   assertExpectedImportUID(expectedUID);
@@ -747,10 +681,6 @@ async function executeReplaceAll(
   result.notesImported += notes.length;
   result.conversationsImported += conversations.length;
   result.providersImported += providers.length;
-
-  // KeyVault compensation (desktop external storage, written only after the transaction commits so a rollback leaves nothing behind)
-  await flushRestoredKeyVault(pendingKeyWrites, expectedUID);
-  assertExpectedImportUID(expectedUID);
 
   // ── Image compensation (image-store is a separate DB, so atomicity is asymmetric): delete the old orphans first, then restore the new images ──
   for (const conv of existingConvs) {
@@ -925,13 +855,12 @@ async function applyRestoredKeys(
   provider: Provider,
   keyMap: Map<string, { apiKey: string; apiKeyPreview: string }> | null,
   result: ImportResult,
-  pending?: RestoredKeyWrite[],
 ): Promise<Provider> {
   if (!keyMap) return provider;
   const keys = keyMap.get(provider.id);
   if (!keys) return provider;
   result.keysRestored++;
-  return { ...provider, apiKey: await resolveRestoredKeyRef(provider, keys.apiKey, pending), apiKeyPreview: keys.apiKeyPreview };
+  return { ...provider, apiKey: keys.apiKey, apiKeyPreview: keys.apiKeyPreview };
 }
 
 /** Merge arrays, deduping by key */

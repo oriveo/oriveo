@@ -46,7 +46,7 @@ import {
   effectiveGenerationSupport,
   generationSupportPresentation,
 } from '../../lib/core/chat/generation-support-presentation';
-import { clearRuntimeUnsupportedParamLearning } from '../../lib/core/desktop-api';
+import { clearUnsupportedParamLearning } from '@oriveo/core/providers/unsupported-param';
 import { getRelayRuntimeConfig } from '../../lib/core/metadata/metadata-client';
 import {
   relayCapabilityEvidenceIdentity,
@@ -529,11 +529,8 @@ export function GenerationParameterPanel({
           rejects. This is not "restore defaults" and touches no user-set parameter value. */}
       {showsConnectionTools && unsupportedParamScope && <div className={styles.portableActions}>
         <button type="button" onClick={() => {
-          void clearRuntimeUnsupportedParamLearning(unsupportedParamScope)
-            .then(
-              () => setDiagnosticRevision((revision) => revision + 1),
-              () => setDiagnosticRevision((revision) => revision + 1),
-            );
+          clearUnsupportedParamLearning(unsupportedParamScope);
+          setDiagnosticRevision((revision) => revision + 1);
         }}>{tc('generationParameterClearLearnedCapabilities')}</button>
       </div>}
       <ParameterGroup

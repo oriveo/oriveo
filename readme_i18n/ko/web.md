@@ -143,7 +143,7 @@ flowchart TB
 ```
 
 `packages/core`는 공급자 프로토콜 지식을 한 바이트도 빠짐없이 담고 있으며, 브라우저 전역에서
-의도적으로 자유롭게 유지됩니다 — eslint가 그 안과 `packages/ipc-contract` 안에서 `window`,
+의도적으로 자유롭게 유지됩니다 — eslint가 그 안에서 `window`,
 `document`, `fetch`, `crypto`, `localStorage`, `sessionStorage`, `indexedDB`를 금지합니다. 환경에서
 필요한 것은 모두 `CorePorts`를 통해 들어옵니다. 같은 코드가 브라우저에서도, Node route
 handler에서도, DOM이 없는 테스트에서도 돌아가는 이유입니다.
@@ -162,14 +162,11 @@ packages/core/          provider protocols: transports, request builders, SSE pa
 packages/shared/        domain types, relay policy, helpers
 packages/ui/            design tokens and shared components
 packages/config/        brand and provider defaults
-packages/ipc-contract/  typed channel contract for a desktop shell
 ```
 
 스타일링은 `packages/ui`의 커스텀 프로퍼티 토큰 시트 하나 위에 얹은 CSS Modules입니다. 유틸리티
-클래스 프레임워크는 쓰지 않습니다. `packages/ipc-contract`는 웹 앱이 데스크톱 호스트를 위해 유지하는
-타입 인터페이스입니다. 채팅 스트리밍, 공급자 호출, 릴레이 서비스 포워딩, 키 저장에 이름 붙은 채널을
-정의해 두어, 네이티브 셸이 `window.oriveo`를 노출하면 바인딩할 수 있습니다. 이 저장소에는 데스크톱
-셸이 없으므로 웹 빌드에서는 `IS_DESKTOP`이 false이고, 그 뒤의 분기는 어느 것도 실행되지 않습니다.
+클래스 프레임워크는 쓰지 않습니다.
+
 
 같은 종류의 이음새가 하나 더 있습니다. `apps/app/lib/core/sync-port.ts`는 동기화 백엔드가 구현하게
 될 인터페이스를 선언하고, 모든 호출 지점은 옵셔널 체이닝으로 그것에 닿습니다. 아무것도 그런 백엔드를

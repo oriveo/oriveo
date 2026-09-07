@@ -150,7 +150,7 @@ flowchart TB
 
 `packages/core` giữ từng byte kiến thức về giao thức của các nhà cung cấp, và được cố ý giữ sạch
 khỏi mọi biến toàn cục của trình duyệt — eslint cấm dùng `window`, `document`, `fetch`, `crypto`,
-`localStorage`, `sessionStorage` và `indexedDB` bên trong nó và trong `packages/ipc-contract`. Bất
+`localStorage`, `sessionStorage` và `indexedDB` bên trong nó. Bất
 cứ thứ gì nó cần từ môi trường đều đi vào qua `CorePorts`. Chính điều đó cho phép cùng một đoạn mã
 chạy được trong trình duyệt, trong một Node route handler, và trong một bài test không có DOM.
 
@@ -168,15 +168,11 @@ packages/core/          provider protocols: transports, request builders, SSE pa
 packages/shared/        domain types, relay policy, helpers
 packages/ui/            design tokens and shared components
 packages/config/        brand and provider defaults
-packages/ipc-contract/  typed channel contract for a desktop shell
 ```
 
 Phần tạo kiểu dùng CSS Modules trên một bảng token custom property duy nhất trong `packages/ui` —
-không có framework utility-class nào. `packages/ipc-contract` là giao diện có kiểu mà ứng dụng web giữ
-sẵn cho một desktop host: các kênh đặt tên cho stream chat, lời gọi nhà cung cấp, chuyển tiếp qua
-dịch vụ chuyển tiếp và lưu khóa, mà một native shell có thể gắn vào bằng cách phơi ra `window.oriveo`.
-Kho mã này không kèm desktop shell nào, nên trên bản dựng web `IS_DESKTOP` là false và mọi nhánh mã
-phía sau nó đều không được dùng.
+không có framework utility-class nào.
+
 
 Còn một đường ghép cùng loại nữa. `apps/app/lib/core/sync-port.ts` khai báo giao diện mà một backend đồng bộ
 sẽ hiện thực, và mọi nơi gọi tới nó đều đi qua optional chaining. Không có gì cài một backend như

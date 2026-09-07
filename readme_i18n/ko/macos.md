@@ -63,10 +63,6 @@ cd shared/OriveoProviderKit
 swift build && swift test
 ```
 
-웹 앱은 네이티브 셸이 바인딩할 수 있는 타입 데스크톱 호스트 인터페이스
-[`web/packages/ipc-contract`](../../web/packages/ipc-contract/)도 유지합니다. 이 저장소에는 그것을
-구현하는 것이 없습니다.
-
 ## 라이선스
 
 [AGPL-3.0-or-later](../../LICENSE).

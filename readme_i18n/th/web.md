@@ -148,8 +148,7 @@ flowchart TB
 
 `packages/core` เก็บความรู้เรื่องโปรโตคอลของผู้ให้บริการไว้ครบทุกไบต์
 และถูกกันให้ปลอดจากตัวแปร global ของเบราว์เซอร์อย่างจงใจ — eslint ห้ามใช้ `window`, `document`,
-`fetch`, `crypto`, `localStorage`, `sessionStorage` และ `indexedDB` ทั้งภายในนั้นและใน
-`packages/ipc-contract` อะไรก็ตามที่มันต้องการจากสภาพแวดล้อมจะเข้ามาผ่าน `CorePorts`
+`fetch`, `crypto`, `localStorage`, `sessionStorage` และ `indexedDB` ภายในนั้น อะไรก็ตามที่มันต้องการจากสภาพแวดล้อมจะเข้ามาผ่าน `CorePorts`
 นั่นคือเหตุผลที่โค้ดชุดเดียวกันรันได้ทั้งในเบราว์เซอร์ ใน Node route handler และในเทสต์ที่ไม่มี DOM
 
 การรองรับผู้ให้บริการมีสองแกนอิสระ `providerKind` เลือก **ตัวสร้างคำขอ**
@@ -166,16 +165,10 @@ packages/core/          provider protocols: transports, request builders, SSE pa
 packages/shared/        domain types, relay policy, helpers
 packages/ui/            design tokens and shared components
 packages/config/        brand and provider defaults
-packages/ipc-contract/  typed channel contract for a desktop shell
 ```
 
 การจัดสไตล์ใช้ CSS Modules บนชีต custom property token ชุดเดียวใน `packages/ui`
-ไม่มีเฟรมเวิร์กแบบ utility class ส่วน `packages/ipc-contract`
-คืออินเทอร์เฟซแบบมีชนิดที่แอปเว็บเตรียมไว้ให้โฮสต์เดสก์ท็อป ได้แก่ ช่องสื่อสารที่ตั้งชื่อไว้
-สำหรับการสตรีมแชท การเรียกผู้ให้บริการ การส่งต่อของรีเลย์ และการเก็บคีย์
-ซึ่งเชลล์เนทีฟผูกเข้ามาได้ด้วยการเปิดเผย `window.oriveo`
-ที่เก็บโค้ดนี้ไม่ได้แถมเชลล์เดสก์ท็อปมาด้วย บนบิลด์เว็บ `IS_DESKTOP` จึงเป็น false
-และทุกสาขาโค้ดที่อยู่หลังมันจึงไม่ถูกใช้งาน
+ไม่มีเฟรมเวิร์กแบบ utility class
 
 ยังมีรอยต่อแบบเดียวกันอีกจุดหนึ่ง `apps/app/lib/core/sync-port.ts`
 ประกาศอินเทอร์เฟซที่แบ็กเอนด์สำหรับซิงก์จะต้องอิมพลีเมนต์ และทุกจุดที่เรียกใช้เข้าถึงมันผ่าน

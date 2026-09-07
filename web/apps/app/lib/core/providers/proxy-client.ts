@@ -4,13 +4,11 @@
  */
 
 import type { ProviderKind } from '@oriveo/shared';
-import type { OfficialProviderKind } from '@oriveo/ipc-contract';
 import type { StreamEvent, ContentPart, StreamHandle, StreamOptions } from './types';
 import { createSSEStream } from '../../infra/sse-parser';
 import { networkError, toProviderError } from './errors';
 import type { RelayErrorContext } from './relay-error-classifier';
 import { createProxyChunkParser, type ContinuationCaptureConfig } from '@oriveo/core/providers/proxy-chunk-parser';
-import { IS_DESKTOP } from './desktop-stream';
 import type { ProxyMessage, ProxyToolDefinition } from '@oriveo/core/providers/request-builders/runtime';
 import type { ProviderErrorSource } from '@oriveo/core/providers/errors';
 import { selfHealTelemetryTransport } from '@oriveo/core/providers/unsupported-param';
@@ -44,22 +42,6 @@ export async function validateKeyProxy(
   apiKey: string,
   baseURL?: string,
 ): Promise<KeyValidationResult> {
-  // Desktop: probe over main IPC, passing apiKey through as apiKeyRef so main can resolve either
-  // a ref or plaintext. The verdict is never thrown and IPC errors become unverified. Plaintext
-  // keys are not handed back over IPC - main returns only the three-state status.
-  if (IS_DESKTOP) {
-    try {
-      const res = await window.oriveo!.provider.validate({
-        providerKind: providerKind as OfficialProviderKind,
-        apiKeyRef: apiKey,
-        plaintextKey: apiKey,
-        ...(baseURL ? { baseURL } : {}),
-      });
-      return res.result;
-    } catch {
-      return 'unverified';
-    }
-  }
   try {
     const res = await fetch('/api/providers/validate', {
       method: 'POST',
@@ -91,24 +73,6 @@ export async function validateRelayKeyProxy(
   apiKey: string,
   baseURL?: string,
 ): Promise<void> {
-  // Desktop: probe relay /models over main IPC (transport and authMode are ignored by the relay
-  // branch of runValidate, so placeholders are passed). Throw-on-error is preserved: invalid
-  // throws, and an IPC failure becomes networkError.
-  if (IS_DESKTOP) {
-    let result: { result: 'valid' | 'invalid' | 'unverified'; status?: number };
-    try {
-      result = await window.oriveo!.provider.validate({
-        providerKind: 'relay',
-        apiKeyRef: apiKey,
-        plaintextKey: apiKey,
-        relay: { baseURL: baseURL ?? '', transport: 'openai_chat_completions', authMode: 'bearer' },
-      });
-    } catch (err) {
-      throw networkError(err);
-    }
-    if (result.result === 'invalid') throw toProviderError(result.status ?? 401, 'Validation failed', undefined, RELAY_ERROR_CONTEXT);
-    return;
-  }
   let res: Response;
   try {
     res = await fetch('/api/providers/validate', {
@@ -133,27 +97,6 @@ export async function syncModelsProxy(
   apiKey: string,
   baseURL?: string,
 ): Promise<unknown> {
-  // Desktop: probe over main IPC - official providers via the metadata catalog, relay via
-  // /models. Returns { data: [{id}] }, consumed directly by the openai-compatible adapter. The
-  // official catalog flow uses metadata and does not come through here, so this path mainly
-  // serves relay and custom endpoint adapters.
-  if (IS_DESKTOP) {
-    try {
-      if (providerKind === 'relay') {
-        return await window.oriveo!.provider.models({
-          providerKind: 'relay',
-          apiKeyRef: apiKey,
-          relay: { baseURL: baseURL ?? '', transport: 'openai_chat_completions', authMode: 'bearer' },
-        });
-      }
-      return await window.oriveo!.provider.models({
-        providerKind: providerKind as OfficialProviderKind,
-        apiKeyRef: apiKey,
-      });
-    } catch (err) {
-      throw networkError(err);
-    }
-  }
   let res: Response;
   try {
     res = await fetch('/api/providers/models', {

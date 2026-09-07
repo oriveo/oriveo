@@ -72,7 +72,6 @@ import {
   type ProviderSetupEntryPointValue,
   type ProviderSetupStepValue,
 } from "../../../lib/core/telemetry";
-import { IS_DESKTOP } from "../../../lib/core/providers/desktop-stream";
 import { markRelayHandoff } from "./relay-handoff";
 import { showToast } from "../../../components/Toast";
 import styles from "./ProviderSetup.module.css";
@@ -792,15 +791,12 @@ export function ProviderSetup() {
   // The choice only appears when the server sends it and the kill switch has not turned it off.
   // When disabled, already-connected instances keep their explanatory copy (owned by the detail
   // page) and the setup entry offers no subscription option.
-  // Electron is excluded: desktop credentials go through the KeyVault ref (`provider.apiKey` holds
-  // a reference rather than plaintext) and subscription credentials have no desktop storage path.
   // Both links resolve their own availability and collapse into a single `subscriptionKind`, since
   // only one provider can be selected at a time. The selector, the connection panel, the CTA
   // suppression and the dialogs all read that one value instead of each carrying parallel
   // conditions, which is exactly where a missed branch hides.
-  const subscriptionKind: "grok" | "openAI" | null = IS_DESKTOP
-    ? null
-    : selectedKind === "grok" && grokSubscription.state === "available"
+  const subscriptionKind: "grok" | "openAI" | null =
+    selectedKind === "grok" && grokSubscription.state === "available"
       ? "grok"
       : selectedKind === "openAI" && openAISubscription.state === "available"
         ? "openAI"

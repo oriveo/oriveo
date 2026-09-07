@@ -144,7 +144,7 @@ flowchart TB
 ```
 
 `packages/core`, sağlayıcı protokolü bilgisinin her baytını barındırır ve tarayıcı global'lerinden
-bilinçli olarak uzak tutulur — eslint, hem onun hem de `packages/ipc-contract`'ın içinde `window`,
+bilinçli olarak uzak tutulur — eslint, onun içinde `window`,
 `document`, `fetch`, `crypto`, `localStorage`, `sessionStorage` ve `indexedDB` kullanımını yasaklar.
 Ortamdan ihtiyaç duyduğu her şey `CorePorts` üzerinden gelir. Aynı kodun bir tarayıcıda, bir Node
 route handler'ında ve DOM'suz bir testte çalışabilmesini sağlayan da budur.
@@ -163,15 +163,11 @@ packages/core/          provider protocols: transports, request builders, SSE pa
 packages/shared/        domain types, relay policy, helpers
 packages/ui/            design tokens and shared components
 packages/config/        brand and provider defaults
-packages/ipc-contract/  typed channel contract for a desktop shell
 ```
 
 Stil, `packages/ui` içindeki tek bir custom property token sayfası üzerine kurulu CSS Modules ile
-yapılır; utility-class çerçevesi yoktur. `packages/ipc-contract`, web uygulamasının bir masaüstü
-ana bilgisayarı için tuttuğu tipli arayüzdür: sohbet akışı, sağlayıcı çağrıları, aktarma iletimi ve
-anahtar saklama için adlandırılmış kanallar; yerel bir kabuk `window.oriveo` sunarak bunlara
-bağlanabilir. Bu depoda hiçbir masaüstü kabuğu yayınlanmadığı için web derlemesinde `IS_DESKTOP`
-false olur ve arkasındaki her dal kullanılmadan kalır.
+yapılır; utility-class çerçevesi yoktur.
+
 
 Aynı türden bir dikiş daha var. `apps/app/lib/core/sync-port.ts`, bir senkronizasyon arka ucunun uygulayacağı
 arayüzü bildirir ve her çağrı yeri ona optional chaining ile erişir. Böyle bir arka uç kurulmadığı

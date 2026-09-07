@@ -21,7 +21,6 @@ import { canonicalJSON } from './backup-format';
 import { getPreference } from '../infra/storage/preferences';
 import { loadCachedUserSkills } from '../core/skills/cache';
 import { trackEvent } from '../core/telemetry';
-import { IS_DESKTOP } from '../core/providers/desktop-stream';
 import { APP_VERSION } from '../version';
 
 const BACKUP_VERSION = 1;
@@ -170,14 +169,8 @@ async function buildBackupZip(options: ExportOptions): Promise<JSZip> {
   const checksum = await sha256hex(new TextEncoder().encode(dataJson));
 
   // Optional API key encryption.
-  // On desktop, BYOK keys live in the main-process KeyVault (device-local, never synced) and
-  // p.apiKey in the store is only a partitioned keyRef. Encrypting a ref is pointless, and pulling
-  // the plaintext back into the renderer to encrypt it would break the KeyVault rule that plaintext
-  // never flows back. Desktop backups therefore **contain no keys**, matching device-local storage
-  // in the iOS Keychain and Android Keystore: keys must be entered again on each device, and
-  // importing a Web backup writes them into the KeyVault.
   let encryptedKeys: string | null = null;
-  if (options.includeApiKeys && options.password && !IS_DESKTOP) {
+  if (options.includeApiKeys && options.password) {
     const keys = providers
       // Relay credentials stay on this device. Besides the primary key, custom headers/query
       // can carry additional secrets and are already stripped from the portable provider copy.

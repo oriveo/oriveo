@@ -64,10 +64,6 @@ cd shared/OriveoProviderKit
 swift build && swift test
 ```
 
-Веб-приложение к тому же держит типизированный интерфейс для настольного хоста,
-[`web/packages/ipc-contract`](../../web/packages/ipc-contract/), к которому может подключиться
-нативная оболочка; в этом репозитории его никто не реализует.
-
 ## Лицензия
 
 [AGPL-3.0-or-later](../../LICENSE).

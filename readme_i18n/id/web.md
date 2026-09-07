@@ -149,7 +149,7 @@ flowchart TB
 
 `packages/core` menyimpan setiap byte pengetahuan tentang protokol provider dan dengan sengaja
 dijaga bebas dari global milik browser — eslint melarang `window`, `document`, `fetch`, `crypto`,
-`localStorage`, `sessionStorage`, dan `indexedDB` di dalamnya dan di `packages/ipc-contract`.
+`localStorage`, `sessionStorage`, dan `indexedDB` di dalamnya.
 Apa pun yang ia butuhkan dari lingkungannya datang lewat `CorePorts`. Itulah yang membuat kode yang
 sama bisa berjalan di browser, di route handler Node, dan di pengujian tanpa DOM.
 
@@ -167,15 +167,11 @@ packages/core/          provider protocols: transports, request builders, SSE pa
 packages/shared/        domain types, relay policy, helpers
 packages/ui/            design tokens and shared components
 packages/config/        brand and provider defaults
-packages/ipc-contract/  typed channel contract for a desktop shell
 ```
 
 Styling memakai CSS Modules di atas satu lembar token custom property di `packages/ui` — tidak ada
-framework berbasis utility class. `packages/ipc-contract` adalah antarmuka bertipe yang
-disiapkan aplikasi web untuk sebuah host desktop: kanal bernama untuk streaming chat, panggilan
-provider, penerusan relay, dan penyimpanan key, yang bisa diikat sebuah shell native dengan
-mengekspos `window.oriveo`. Tidak ada shell desktop yang dikirimkan di repositori ini, jadi
-`IS_DESKTOP` bernilai false pada build web dan setiap cabang di baliknya tidak pernah terpakai.
+framework berbasis utility class.
+
 
 Ada satu jahitan lagi yang sejenis. `apps/app/lib/core/sync-port.ts` mendeklarasikan antarmuka yang
 akan diimplementasikan oleh sebuah backend sinkronisasi, dan setiap tempat pemanggilan mencapainya

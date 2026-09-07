@@ -1,7 +1,6 @@
 import 'fake-indexeddb/auto';
 import { afterEach, describe, it, expect, beforeEach, vi } from 'vitest';
 import type { Provider } from '@oriveo/shared';
-import { createPartitionedKeyRef } from '@oriveo/ipc-contract';
 import { createAppStore } from '../store/app-store';
 import {
   addProvider,
@@ -673,319 +672,11 @@ describe('provider-ops', () => {
     });
   });
 
-  it('desktop addProvider waits for KeyVault before writing provider ref', async () => {
-    vi.resetModules();
-    vi.doMock('../providers/desktop-stream', () => ({ IS_DESKTOP: true }));
-    vi.doMock('../sync-port', () => ({
-      getSyncAdapter: () => mockSyncAdapter,
-      flushPendingProviderDeletions: (...args: unknown[]) => deletionMocks.flush(...args),
-      registerPendingProviderDeletion: (...args: unknown[]) => deletionMocks.register(...args),
-      unregisterPendingProviderDeletion: (...args: unknown[]) => deletionMocks.unregister(...args),
-    }));
-    const { addProvider: addProviderDesktop } = await import('../provider-ops');
-    const desktopStore = createAppStore();
-    const setKey = vi.fn().mockRejectedValue(new Error('secure storage unavailable'));
-    vi.stubGlobal('window', { oriveo: { keys: { set: setKey } } });
 
-    await expect(addProviderDesktop(desktopStore, baseProvider)).rejects.toThrow('secure storage unavailable');
 
-    expect(setKey).toHaveBeenCalledWith(createPartitionedKeyRef('user-1', 'p1'), 'sk-old', { providerKind: 'openRouter' });
-    expect(desktopStore.getState().providers).toHaveLength(0);
-    expect(mockSyncAdapter.didUpdateProvider).not.toHaveBeenCalled();
-    vi.unstubAllGlobals();
-  });
 
-  it('desktop: a cancellable create that expires while waiting on KeyVault rolls the key back', async () => {
-    vi.resetModules();
-    vi.doMock('../providers/desktop-stream', () => ({ IS_DESKTOP: true }));
-    vi.doMock('../sync-port', () => ({
-      getSyncAdapter: () => mockSyncAdapter,
-      flushPendingProviderDeletions: (...args: unknown[]) => deletionMocks.flush(...args),
-      registerPendingProviderDeletion: (...args: unknown[]) => deletionMocks.register(...args),
-      unregisterPendingProviderDeletion: (...args: unknown[]) => deletionMocks.unregister(...args),
-    }));
-    const { addProvider: addProviderDesktop } = await import('../provider-ops');
-    const desktopStore = createAppStore();
-    let current = true;
-    let releaseKey: (() => void) | undefined;
-    const setKey = vi.fn(async () => {
-      await new Promise<void>((resolve) => { releaseKey = resolve; });
-    });
-    const deleteKey = vi.fn(async () => true);
-    vi.stubGlobal('window', { oriveo: { keys: { set: setKey, delete: deleteKey } } });
 
-    const adding = addProviderDesktop(desktopStore, baseProvider, { shouldCommit: () => current });
-    await vi.waitFor(() => expect(releaseKey).toBeTypeOf('function'));
-    current = false;
-    releaseKey?.();
 
-    await expect(adding).resolves.toBe(false);
-    expect(deleteKey).toHaveBeenCalledWith(createPartitionedKeyRef('user-1', 'p1'));
-    expect(deletionMocks.putAndCancelIfCurrent).not.toHaveBeenCalled();
-    expect(desktopStore.getState().providers).toHaveLength(0);
-    expect(mockSyncAdapter.didUpdateProvider).not.toHaveBeenCalled();
-    vi.unstubAllGlobals();
-  });
-
-  it('desktop: key rotation exposes only a KeyVault ref to the verifier and the sync layer', async () => {
-    vi.resetModules();
-    vi.doMock('../providers/desktop-stream', () => ({ IS_DESKTOP: true }));
-    vi.doMock('../sync-port', () => ({
-      getSyncAdapter: () => mockSyncAdapter,
-      flushPendingProviderDeletions: (...args: unknown[]) => deletionMocks.flush(...args),
-      registerPendingProviderDeletion: (...args: unknown[]) => deletionMocks.register(...args),
-      unregisterPendingProviderDeletion: (...args: unknown[]) => deletionMocks.unregister(...args),
-    }));
-    const { updateProviderKey: updateProviderKeyDesktop } = await import('../provider-ops');
-    const { verifyRelayProviderInStore: verifyRelayProviderInStoreDesktop } = await import('../providers/provider-sync');
-    const desktopStore = createAppStore();
-    const plaintextKey = 'sk-desktop-rotation-secret';
-    const setKey = vi.fn(async () => undefined);
-    const validate = vi.fn(async () => ({ result: 'valid' as const }));
-    vi.stubGlobal('window', {
-      oriveo: {
-        keys: { set: setKey },
-        provider: { validate },
-      },
-    });
-    const relay: Provider = {
-      ...baseProvider,
-      id: 'desktop-relay-key-ref',
-      kind: 'relay',
-      baseURLText: 'https://relay.example/v1',
-      relayKind: 'openai_compatible',
-      relayRequested: { transport: 'openai_chat_completions', authMode: 'bearer' },
-    };
-    desktopStore.getState().addProvider(relay);
-
-    // The production updateProviderKey hands the plaintext to KeyVault first, then produces a ref provider
-    // from the store.
-    await updateProviderKeyDesktop(desktopStore, relay, plaintextKey);
-    const persisted = desktopStore.getState().providers.find((item) => item.id === relay.id)!;
-    const ref = createPartitionedKeyRef('user-1', relay.id);
-    expect(persisted.apiKey).toBe(ref);
-    expect(setKey).toHaveBeenCalledWith(ref, plaintextKey, {
-      providerKind: 'relay',
-      baseURL: relay.baseURLText,
-    });
-
-    mockSyncAdapter.didUpdateProvider.mockClear();
-    await verifyRelayProviderInStoreDesktop(desktopStore, persisted);
-
-    // Both validate's apiKeyRef and the synced provider may only carry a ref; plaintext never crosses
-    // either boundary.
-    expect(validate).toHaveBeenCalledWith(expect.objectContaining({
-      apiKeyRef: ref,
-      plaintextKey: undefined,
-    }));
-    const synced = mockSyncAdapter.didUpdateProvider.mock.calls.at(-1)?.[0] as Provider;
-    expect(synced.apiKey).toBe(ref);
-    expect(JSON.stringify(synced)).not.toContain(plaintextKey);
-    vi.unstubAllGlobals();
-    vi.doUnmock('../providers/desktop-stream');
-    vi.doUnmock('../sync-port');
-  });
-
-  it('desktop: deleting the connection while key rotation waits on KeyVault reclaims the orphaned credential and writes no sync', async () => {
-    vi.resetModules();
-    vi.doMock('../providers/desktop-stream', () => ({ IS_DESKTOP: true }));
-    vi.doMock('../sync-port', () => ({
-      getSyncAdapter: () => mockSyncAdapter,
-      flushPendingProviderDeletions: (...args: unknown[]) => deletionMocks.flush(...args),
-      registerPendingProviderDeletion: (...args: unknown[]) => deletionMocks.register(...args),
-      unregisterPendingProviderDeletion: (...args: unknown[]) => deletionMocks.unregister(...args),
-    }));
-    const { updateProviderKey: updateProviderKeyDesktop } = await import('../provider-ops');
-    const desktopStore = createAppStore();
-    const relay: Provider = {
-      ...baseProvider,
-      id: 'desktop-key-delete-race',
-      kind: 'relay',
-      relayRequested: { transport: 'openai_chat_completions', authMode: 'bearer' },
-    };
-    desktopStore.getState().addProvider(relay);
-    let releaseKeyVault: (() => void) | undefined;
-    const setKey = vi.fn(async () => {
-      await new Promise<void>((resolve) => { releaseKeyVault = resolve; });
-    });
-    const deleteKey = vi.fn(async () => true);
-    vi.stubGlobal('window', { oriveo: { keys: { set: setKey, delete: deleteKey } } });
-
-    const saving = updateProviderKeyDesktop(desktopStore, relay, 'sk-new-secret');
-    await vi.waitFor(() => expect(releaseKeyVault).toBeTypeOf('function'));
-    desktopStore.getState().removeProvider(relay.id);
-    releaseKeyVault?.();
-
-    await expect(saving).resolves.toBe(false);
-    expect(deleteKey).toHaveBeenCalledWith(createPartitionedKeyRef('user-1', relay.id));
-    expect(desktopStore.getState().providers).toHaveLength(0);
-    expect(mockSyncAdapter.didUpdateProvider).not.toHaveBeenCalled();
-    vi.unstubAllGlobals();
-    vi.doUnmock('../providers/desktop-stream');
-    vi.doUnmock('../sync-port');
-  });
-
-  it('desktop: when the uid changes from A to B during a pending key write, the old write only lands on A\'s keyRef and B can safely reconnect the same ID', async () => {
-    vi.resetModules();
-    vi.doMock('../providers/desktop-stream', () => ({ IS_DESKTOP: true }));
-    vi.doMock('../sync-port', () => ({
-      getSyncAdapter: () => mockSyncAdapter,
-      flushPendingProviderDeletions: (...args: unknown[]) => deletionMocks.flush(...args),
-      registerPendingProviderDeletion: (...args: unknown[]) => deletionMocks.register(...args),
-      unregisterPendingProviderDeletion: (...args: unknown[]) => deletionMocks.unregister(...args),
-    }));
-    const { updateProviderKey: updateProviderKeyDesktop } = await import('../provider-ops');
-    const desktopStore = createAppStore();
-    const relay: Provider = {
-      ...baseProvider,
-      id: 'deterministic-relay-id',
-      kind: 'relay',
-      relayRequested: { transport: 'openai_chat_completions', authMode: 'bearer' },
-    };
-    desktopStore.getState().addProvider(relay);
-    const identityA = beginCapabilityEvidenceIdentityIfAbsent('user-1', relay.id)!;
-    const identityB = beginCapabilityEvidenceIdentityIfAbsent('user-2', relay.id)!;
-    let releaseKeyVault: (() => void) | undefined;
-    const setKey = vi.fn(async () => {
-      if (setKey.mock.calls.length === 1) {
-        await new Promise<void>((resolve) => { releaseKeyVault = resolve; });
-      }
-    });
-    vi.stubGlobal('window', { oriveo: { keys: { set: setKey } } });
-
-    const saving = updateProviderKeyDesktop(desktopStore, relay, 'sk-new-secret');
-    await vi.waitFor(() => expect(releaseKeyVault).toBeTypeOf('function'));
-    deletionMocks.activeUID = 'user-2';
-    desktopStore.getState().removeProvider(relay.id);
-    desktopStore.getState().addProvider({ ...relay, customName: 'B connection' });
-    const reconnectB = updateProviderKeyDesktop(
-      desktopStore,
-      desktopStore.getState().providers[0],
-      'sk-b-secret',
-    );
-    await expect(reconnectB).resolves.toBe(true);
-    releaseKeyVault?.();
-
-    await expect(saving).resolves.toBe(false);
-    expect(setKey).toHaveBeenCalledWith(createPartitionedKeyRef('user-1', relay.id), 'sk-new-secret', expect.anything());
-    expect(setKey).toHaveBeenCalledWith(createPartitionedKeyRef('user-2', relay.id), 'sk-b-secret', expect.anything());
-    expect(desktopStore.getState().providers[0]).toMatchObject({
-      customName: 'B connection',
-      apiKey: createPartitionedKeyRef('user-2', relay.id),
-    });
-    expect(readCapabilityEvidenceIdentity('user-1', relay.id)).toEqual(identityA);
-    expect(readCapabilityEvidenceIdentity('user-2', relay.id)?.connectionGeneration).toBe(identityB.connectionGeneration);
-    expect(mockSyncAdapter.didUpdateProvider).toHaveBeenLastCalledWith(expect.objectContaining({
-      apiKey: createPartitionedKeyRef('user-2', relay.id),
-    }));
-    vi.unstubAllGlobals();
-    vi.doUnmock('../providers/desktop-stream');
-    vi.doUnmock('../sync-port');
-  });
-
-  it('desktop: key rotation waiting on KeyVault merges the latest connection config before writing store and sync', async () => {
-    vi.resetModules();
-    vi.doMock('../providers/desktop-stream', () => ({ IS_DESKTOP: true }));
-    vi.doMock('../sync-port', () => ({
-      getSyncAdapter: () => mockSyncAdapter,
-      flushPendingProviderDeletions: (...args: unknown[]) => deletionMocks.flush(...args),
-      registerPendingProviderDeletion: (...args: unknown[]) => deletionMocks.register(...args),
-      unregisterPendingProviderDeletion: (...args: unknown[]) => deletionMocks.unregister(...args),
-    }));
-    const { updateProviderKey: updateProviderKeyDesktop } = await import('../provider-ops');
-    const desktopStore = createAppStore();
-    const relay: Provider = {
-      ...baseProvider,
-      id: 'desktop-key-config-race',
-      kind: 'relay',
-      customName: 'Before',
-      relayRequested: { transport: 'openai_chat_completions', authMode: 'bearer' },
-    };
-    desktopStore.getState().addProvider(relay);
-    let releaseKeyVault: (() => void) | undefined;
-    const setKey = vi.fn(async () => {
-      await new Promise<void>((resolve) => { releaseKeyVault = resolve; });
-    });
-    vi.stubGlobal('window', { oriveo: { keys: { set: setKey } } });
-
-    const saving = updateProviderKeyDesktop(desktopStore, relay, 'sk-new-secret');
-    await vi.waitFor(() => expect(releaseKeyVault).toBeTypeOf('function'));
-    desktopStore.getState().updateProvider(relay.id, {
-      customName: 'Concurrent edit',
-      baseURLText: 'https://new.example/v1',
-    });
-    releaseKeyVault?.();
-
-    await expect(saving).resolves.toBe(true);
-    expect(desktopStore.getState().providers[0]).toMatchObject({
-      customName: 'Concurrent edit',
-      baseURLText: 'https://new.example/v1',
-      apiKey: createPartitionedKeyRef('user-1', relay.id),
-      status: { kind: 'issue', message: PROVIDER_VALIDATION_MESSAGES.unverified },
-    });
-    expect(mockSyncAdapter.didUpdateProvider).toHaveBeenLastCalledWith(expect.objectContaining({
-      customName: 'Concurrent edit',
-      baseURLText: 'https://new.example/v1',
-      apiKey: createPartitionedKeyRef('user-1', relay.id),
-    }));
-    vi.unstubAllGlobals();
-    vi.doUnmock('../providers/desktop-stream');
-    vi.doUnmock('../sync-port');
-  });
-
-  it('desktop: an expired auth=none KeyVault await does not overwrite a newer write with the stale provider', async () => {
-    vi.resetModules();
-    vi.doMock('../providers/desktop-stream', () => ({ IS_DESKTOP: true }));
-    vi.doMock('../sync-port', () => ({
-      getSyncAdapter: () => mockSyncAdapter,
-      flushPendingProviderDeletions: (...args: unknown[]) => deletionMocks.flush(...args),
-      registerPendingProviderDeletion: (...args: unknown[]) => deletionMocks.register(...args),
-      unregisterPendingProviderDeletion: (...args: unknown[]) => deletionMocks.unregister(...args),
-    }));
-    const { updateProviderRelaySettings: updateRelaySettingsDesktop } = await import('../provider-ops');
-    const desktopStore = createAppStore();
-    const relay: Provider = {
-      ...baseProvider,
-      id: 'desktop-relay-settings-race',
-      kind: 'relay',
-      apiKey: createPartitionedKeyRef('user-1', 'desktop-relay-settings-race'),
-      apiKeyPreview: '••••',
-      baseURLText: 'https://relay.example/v1',
-      relayKind: 'openai_compatible',
-      relayRequested: { transport: 'openai_chat_completions', authMode: 'bearer' },
-    };
-    desktopStore.getState().addProvider(relay);
-    const canonical = desktopStore.getState().providers[0];
-    let releaseKeyVault: (() => void) | undefined;
-    const deleteKey = vi.fn(async () => {
-      await new Promise<void>((resolve) => { releaseKeyVault = resolve; });
-    });
-    vi.stubGlobal('window', { oriveo: { keys: { delete: deleteKey } } });
-
-    const saving = updateRelaySettingsDesktop(desktopStore, canonical, {
-      relayKind: 'openai_compatible',
-      relayRequested: { ...canonical.relayRequested!, authMode: 'none' },
-    });
-    await vi.waitFor(() => expect(releaseKeyVault).toBeTypeOf('function'));
-    desktopStore.getState().updateProvider(canonical.id, {
-      customName: 'Concurrent edit',
-      relayRequested: { ...canonical.relayRequested!, transport: 'openai_responses' },
-    });
-    releaseKeyVault?.();
-
-    await expect(saving).resolves.toBe(false);
-    expect(desktopStore.getState().providers[0]).toMatchObject({
-      customName: 'Concurrent edit',
-      relayRequested: { transport: 'openai_responses', authMode: 'bearer' },
-      apiKey: '',
-      apiKeyPreview: '',
-      status: { kind: 'issue', message: PROVIDER_VALIDATION_MESSAGES.unverified },
-    });
-    expect(deleteKey).toHaveBeenCalledWith(createPartitionedKeyRef('user-1', canonical.id));
-    vi.unstubAllGlobals();
-    vi.doUnmock('../providers/desktop-stream');
-    vi.doUnmock('../sync-port');
-  });
 
   it('updateProviderBaseURL — trim + sync', () => {
     store.getState().addProvider(baseProvider);
@@ -1227,20 +918,16 @@ describe('provider-ops', () => {
     });
 
     vi.resetModules();
-    vi.doMock('../providers/desktop-stream', () => ({ IS_DESKTOP: true }));
     vi.doMock('../sync-port', () => ({
       getSyncAdapter: () => mockSyncAdapter,
       flushPendingProviderDeletions: (...args: unknown[]) => deletionMocks.flush(...args),
       registerPendingProviderDeletion: (...args: unknown[]) => deletionMocks.register(...args),
       unregisterPendingProviderDeletion: (...args: unknown[]) => deletionMocks.unregister(...args),
     }));
-    const { deleteProvider: deleteProviderDesktop } = await import('../provider-ops');
-    const deleteKey = vi.fn(async () => {});
-    vi.stubGlobal('window', { oriveo: { keys: { delete: deleteKey } } });
+    const { deleteProvider: deleteProviderScoped } = await import('../provider-ops');
 
-    await expect(deleteProviderDesktop(store, relay.id)).resolves.toBe(true);
+    await expect(deleteProviderScoped(store, relay.id)).resolves.toBe(true);
 
-    expect(deleteKey).toHaveBeenCalledWith(createPartitionedKeyRef('user-1', relay.id));
     expect(store.getState().providers.find((provider) => provider.id === relay.id)).toBeUndefined();
     expect(createProviderSelectionSnapshot(store.getState().providers.find((provider) => provider.id === relay.id))).toBeNull();
     expect(store.getState().conversations).toEqual([conversation]);
@@ -1254,76 +941,9 @@ describe('provider-ops', () => {
       `scope:conversation:${relay.id}:default-model:${conversation.id}`,
       `preset:${deletedPreset.id}`,
     ]));
-    vi.unstubAllGlobals();
-    vi.doUnmock('../providers/desktop-stream');
     vi.doUnmock('../sync-port');
   });
 
-  it('desktop delete waits for KeyVault before removing provider and registering tombstone', async () => {
-    vi.resetModules();
-    vi.doMock('../providers/desktop-stream', () => ({ IS_DESKTOP: true }));
-    vi.doMock('../sync-port', () => ({
-      getSyncAdapter: () => mockSyncAdapter,
-      flushPendingProviderDeletions: (...args: unknown[]) => deletionMocks.flush(...args),
-      registerPendingProviderDeletion: (...args: unknown[]) => deletionMocks.register(...args),
-      unregisterPendingProviderDeletion: (...args: unknown[]) => deletionMocks.unregister(...args),
-    }));
-    const { deleteProvider: deleteProviderDesktop } = await import('../provider-ops');
-    const desktopStore = createAppStore();
-    desktopStore.getState().addProvider(baseProvider);
-    let releaseKey: (() => void) | undefined;
-    const deleteKey = vi.fn(async () => {
-      await new Promise<void>((resolve) => { releaseKey = resolve; });
-    });
-    vi.stubGlobal('window', { oriveo: { keys: { delete: deleteKey } } });
-
-    const deleting = deleteProviderDesktop(desktopStore, 'p1');
-    await vi.waitFor(() => expect(releaseKey).toBeTypeOf('function'));
-    expect(desktopStore.getState().providers).toHaveLength(1);
-    expect(deletionMocks.register).not.toHaveBeenCalled();
-
-    releaseKey?.();
-    await expect(deleting).resolves.toBe(true);
-    expect(desktopStore.getState().providers).toHaveLength(0);
-    expect(deletionMocks.deleteAndEnqueue.mock.invocationCallOrder[0]).toBeLessThan(
-      deleteKey.mock.invocationCallOrder[0],
-    );
-    expect(deleteKey.mock.invocationCallOrder[0]).toBeLessThan(
-      deletionMocks.register.mock.invocationCallOrder[0],
-    );
-    vi.unstubAllGlobals();
-    vi.doUnmock('../providers/desktop-stream');
-    vi.doUnmock('../sync-port');
-  });
-
-  it('desktop KeyVault delete failure keeps provider and generation scopes for retry', async () => {
-    vi.resetModules();
-    vi.doMock('../providers/desktop-stream', () => ({ IS_DESKTOP: true }));
-    vi.doMock('../sync-port', () => ({
-      getSyncAdapter: () => mockSyncAdapter,
-      flushPendingProviderDeletions: (...args: unknown[]) => deletionMocks.flush(...args),
-      registerPendingProviderDeletion: (...args: unknown[]) => deletionMocks.register(...args),
-      unregisterPendingProviderDeletion: (...args: unknown[]) => deletionMocks.unregister(...args),
-    }));
-    const { deleteProvider: deleteProviderDesktop } = await import('../provider-ops');
-    const desktopStore = createAppStore();
-    desktopStore.getState().addProvider(baseProvider);
-    saveGenerationParameterOverrides({ providerId: 'p1', modelId: 'model-a' }, { temperature: valueOverride(0.4) });
-    const deleteKey = vi.fn().mockRejectedValue(new Error('KeyVault unavailable'));
-    vi.stubGlobal('window', { oriveo: { keys: { delete: deleteKey } } });
-
-    await expect(deleteProviderDesktop(desktopStore, 'p1')).resolves.toBe(false);
-
-    expect(desktopStore.getState().providers.map((provider) => provider.id)).toEqual(['p1']);
-    expect(exportGenerationParameterSyncPayload().records).toEqual([
-      expect.objectContaining({ providerId: 'p1', modelId: 'model-a' }),
-    ]);
-    expect(deletionMocks.register).not.toHaveBeenCalled();
-    expect(deletionMocks.flush).not.toHaveBeenCalled();
-    vi.unstubAllGlobals();
-    vi.doUnmock('../providers/desktop-stream');
-    vi.doUnmock('../sync-port');
-  });
 
   it('a failed delete transaction keeps the store and produces no guard and no cloud replay', async () => {
     store.getState().addProvider(baseProvider);

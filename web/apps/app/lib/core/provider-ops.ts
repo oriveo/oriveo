@@ -10,7 +10,6 @@ import {
   type ProviderSubscriptionCredential,
   type RelayConnectionSecurityMode,
 } from '@oriveo/shared';
-import { createPartitionedKeyRef, type KeysSetRequest } from '@oriveo/ipc-contract';
 import { formatApiKeyPreview } from '@oriveo/shared';
 import type { AppStore } from './store/app-store';
 import { getSyncAdapter } from './sync-port';
@@ -22,7 +21,6 @@ import {
 import { enrichRelayProvider } from './provider-model-ops';
 import { revokeGrokSubscriptionCredential } from './providers/grok-subscription';
 import { trackEvent, telemetryEndpointHost, telemetryProviderKind } from './telemetry';
-import { IS_DESKTOP } from './providers/desktop-stream';
 import { PROVIDER_VALIDATION_MESSAGES } from './providers/validation-messages';
 import { allowsCredentialEditing } from './providers/provider-status';
 import {
@@ -112,36 +110,6 @@ function relayConnectionSemanticsChanged(before: Provider, after: Provider): boo
 // the store rehydrated cannot write one account's result into another's.
 const relayReconnectPartition = new WeakMap<Provider, string>();
 
-/**
- * Desktop: the plaintext key goes into the OS-encrypted KeyVault (safeStorage, main process),
- * while store, sync, IDB and any remote copy hold only a partition-scoped keyRef as apiKeyRef, so
- * plaintext never reaches renderer persistence and is never handed back over IPC. The ref is
- * returned for the caller to write into the store. Upstream requests decrypt in main through
- * KeyVault.get(apiKeyRef). Web does not call this and keeps apiKey as plaintext.
- */
-function keyOwnerForProvider(provider: Provider): KeysSetRequest['owner'] {
-  const baseURL = provider.kind === 'relay'
-    ? (provider.relayResolvedBaseURLText ?? provider.baseURLText)
-    : provider.baseURLText;
-  return {
-    providerKind: provider.kind,
-    ...(baseURL ? { baseURL } : {}),
-  };
-}
-
-async function persistDesktopKey(provider: Provider, plainKey: string, partitionId: string): Promise<string> {
-  if (!window.oriveo?.keys) {
-    throw new Error('Desktop secure key storage is unavailable.');
-  }
-  const keyRef = createPartitionedKeyRef(partitionId, provider.id);
-  if (plainKey) {
-    await window.oriveo.keys.set(keyRef, plainKey, keyOwnerForProvider(provider));
-  } else {
-    await window.oriveo.keys.delete(keyRef);
-  }
-  return keyRef;
-}
-
 export interface AddProviderOptions {
   /**
    * Only for the cancellable creation flow of a new id. Re-read just before the persistence
@@ -167,32 +135,9 @@ export async function addProvider(
   // before being written to the store. This keeps every entry point consistent: creating from
   // RelaySetup with a default model, creating at relay/new and filling in models later, and
   // official providers all write enriched data into the store.
-  const enriched = enrichRelayProvider(provider);
-  // Desktop: when creation already carries a plaintext key (RelaySetup does), the plaintext goes into KeyVault and apiKey becomes a ref.
-  let desktopKeyPersisted = false;
-  const stored = IS_DESKTOP && enriched.apiKey
-    ? {
-        ...enriched,
-        apiKey: await persistDesktopKey(enriched, enriched.apiKey, creationUID).then((ref) => {
-          desktopKeyPersisted = true;
-          return ref;
-        }),
-      }
-    : enriched;
-  const discardDesktopKey = async () => {
-    if (!desktopKeyPersisted) return;
-    if (!window.oriveo?.keys) throw new Error('Desktop secure key storage is unavailable.');
-    await window.oriveo.keys.delete(stored.apiKey);
-    desktopKeyPersisted = false;
-  };
-  if (getActiveUIDSync() !== creationUID) {
-    await discardDesktopKey();
-    return false;
-  }
-  if (shouldCommit && !shouldCommit()) {
-    await discardDesktopKey();
-    return false;
-  }
+  const stored = enrichRelayProvider(provider);
+  if (getActiveUIDSync() !== creationUID) return false;
+  if (shouldCommit && !shouldCommit()) return false;
   const uid = creationUID;
   const shouldSyncProvider = uid !== 'guest' && allowsCredentialEditing(stored.kind);
   let persisted = false;
@@ -218,23 +163,16 @@ export async function addProvider(
     persisted = shouldCommit
       ? await putProviderIfCurrent(stored, uid, shouldCommit)
       : await putProvider(stored, uid).then(() => true);
-    if (!persisted) {
-      await discardDesktopKey();
-      return false;
-    }
+    if (!persisted) return false;
     if (shouldCommit && !shouldCommit()) {
       await deleteProviderFromPartition(stored.id, uid);
-      await discardDesktopKey();
       return false;
     }
     if (getActiveUIDSync() !== uid) return true;
     beginCapabilityEvidenceIdentityIfAbsent(uid, stored.id);
     store.getState().addProvider(stored);
   }
-  if (!persisted) {
-    await discardDesktopKey();
-    return false;
-  }
+  if (!persisted) return false;
   trackEvent('provider_added', {
     provider_kind: telemetryProviderKind(stored.kind),
     has_custom_endpoint: Boolean(stored.baseURLText),
@@ -363,27 +301,8 @@ export async function switchProviderToApiKeyMode(
 export async function updateProviderKey(store: StoreApi<AppStore>, provider: Provider, newKey: string): Promise<boolean> {
   const mutationUID = getActiveUIDSync();
   const preview = formatApiKeyPreview(newKey);
-  // Desktop: plaintext goes into KeyVault and store/sync hold a ref; on web apiKey stays
-  // plaintext. When the key is removed (empty newKey) the ref must be cleared too, otherwise
-  // "is there a key in the vault" stays permanently true on desktop and the credential state
-  // machine can never fall back to its unconfigured state.
-  let storedKey = newKey;
-  if (IS_DESKTOP) {
-    const ref = await persistDesktopKey(provider, newKey, mutationUID);
-    storedKey = newKey ? ref : '';
-  }
-  if (getActiveUIDSync() !== mutationUID) return false;
   const canonical = store.getState().providers.find((item) => item.id === provider.id);
-  if (!canonical) {
-    // The KeyVault write happens before the renderer store write; if the connection is deleted
-    // while the IPC call is in flight, the ref just written must be reclaimed, or it becomes an
-    // orphan credential that is unreachable from the UI and uncleanable by sync.
-    if (IS_DESKTOP) {
-      if (!window.oriveo?.keys) throw new Error('Desktop secure key storage is unavailable.');
-      await window.oriveo.keys.delete(createPartitionedKeyRef(mutationUID, provider.id));
-    }
-    return false;
-  }
+  if (!canonical) return false;
   const verificationReset = canonical.kind === 'relay' && newKey.trim()
     ? {
         status: { kind: 'issue' as const, message: PROVIDER_VALIDATION_MESSAGES.unverified },
@@ -394,7 +313,7 @@ export async function updateProviderKey(store: StoreApi<AppStore>, provider: Pro
       }
     : {};
   const patch = {
-    apiKey: storedKey,
+    apiKey: newKey,
     apiKeyPreview: preview,
     updatedAt: new Date().toISOString(),
     ...verificationReset,
@@ -437,8 +356,6 @@ function credentialsClearedPatch(relayRequested: Provider['relayRequested']): Pa
  */
 export async function clearRelayCredentials(store: StoreApi<AppStore>, provider: Provider): Promise<void> {
   const mutationUID = getActiveUIDSync();
-  if (IS_DESKTOP) await persistDesktopKey(provider, '', mutationUID);
-  if (getActiveUIDSync() !== mutationUID) return;
   const patch = {
     ...credentialsClearedPatch(provider.relayRequested),
     updatedAt: new Date().toISOString(),
@@ -506,8 +423,6 @@ export async function beginRelaySecurityModeReconnect(
         }
       : {}),
   };
-  if (hasCredentialMaterial && IS_DESKTOP) await persistDesktopKey(provider, '', mutationUID);
-  if (getActiveUIDSync() !== mutationUID) return null;
   if (input.shouldCommit && !input.shouldCommit()) return null;
 
   const patch: Partial<Provider> = {
@@ -712,33 +627,6 @@ export async function updateProviderRelaySettings(
     && (canonicalProvider.apiKey.trim().length > 0
       || (patch.relayRequested.headers?.length ?? 0) > 0
       || (patch.relayRequested.queryParams?.length ?? 0) > 0);
-  if (dropsCredentials && IS_DESKTOP) await persistDesktopKey(canonicalProvider, '', mutationUID);
-  if (getActiveUIDSync() !== mutationUID) return false;
-  const canonicalAfterKeyVault = store.getState().providers.find((item) => item.id === provider.id);
-  if (canonicalAfterKeyVault !== canonicalProvider) {
-    // A KeyVault deletion cannot be rolled back. If the connection was updated elsewhere while
-    // the IPC call was in flight, converge only on the fact that the key is gone and never let a
-    // stale provider overwrite the newer config. A newer connection that still needs credentials
-    // falls back to issue; auth=none keeps its latest state.
-    if (dropsCredentials && canonicalAfterKeyVault) {
-      const requiresCredential = relayRequiresCredential(canonicalAfterKeyVault.relayRequested?.authMode);
-      const recoveryPatch = {
-        apiKey: '',
-        apiKeyPreview: '',
-        ...(requiresCredential ? {
-          status: { kind: 'issue' as const, message: PROVIDER_VALIDATION_MESSAGES.unverified },
-          lastCheckedAt: undefined,
-          lastError: PROVIDER_VALIDATION_MESSAGES.unverified,
-        } : {}),
-        updatedAt: new Date().toISOString(),
-      };
-      const recoveredProvider = { ...canonicalAfterKeyVault, ...recoveryPatch };
-      store.getState().updateProvider(provider.id, recoveryPatch);
-      advanceCapabilityEvidenceIdentity(mutationUID, provider.id, { credentialEpoch: true });
-      getSyncAdapter()?.didUpdateProvider(recoveredProvider);
-    }
-    return false;
-  }
   const effectivePatch = relaySettingsEffectivePatch(canonicalProvider, patch);
   const updatedAt = new Date().toISOString();
   const nextProvider = {
@@ -781,19 +669,12 @@ export async function deleteProvider(store: StoreApi<AppStore>, providerId: stri
       await serializeProviderSyncMutation(uid, async () => {
         await deleteProviderAndEnqueuePendingDeletion(providerId, uid);
         if (getActiveUIDSync() !== uid) return;
-        // KeyVault deletion is part of the user-visible delete contract. It must finish
-        // before the in-memory provider disappears, otherwise a failed IPC call leaves
-        // an orphaned credential with no retry path.
-        await deleteDesktopProviderKey(providerId, uid);
-        if (getActiveUIDSync() !== uid) return;
         registerPendingProviderDeletion(uid, providerId);
         store.getState().removeProvider(providerId);
         committed = true;
       });
     } else {
       await deleteStoredProvider(providerId, uid);
-      if (getActiveUIDSync() !== uid) return false;
-      await deleteDesktopProviderKey(providerId, uid);
       if (getActiveUIDSync() !== uid) return false;
       store.getState().removeProvider(providerId);
       committed = true;
@@ -818,11 +699,4 @@ export async function deleteProvider(store: StoreApi<AppStore>, providerId: stri
     provider_kind: telemetryProviderKind(removed?.kind),
   });
   return true;
-}
-
-async function deleteDesktopProviderKey(providerId: string, partitionId: string): Promise<void> {
-  if (!IS_DESKTOP) return;
-  const keys = window.oriveo?.keys;
-  if (!keys) throw new Error('Desktop KeyVault bridge is unavailable.');
-  await keys.delete(createPartitionedKeyRef(partitionId, providerId));
 }

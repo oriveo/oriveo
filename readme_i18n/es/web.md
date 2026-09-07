@@ -148,8 +148,8 @@ flowchart TB
 ```
 
 `packages/core` contiene cada byte de conocimiento sobre protocolos de proveedores y se mantiene
-deliberadamente libre de globales del navegador: eslint prohíbe ahí dentro y en
-`packages/ipc-contract` `window`, `document`, `fetch`, `crypto`, `localStorage`, `sessionStorage` e
+deliberadamente libre de globales del navegador: eslint prohíbe ahí dentro
+`window`, `document`, `fetch`, `crypto`, `localStorage`, `sessionStorage` e
 `indexedDB`. Todo lo que necesita del entorno llega a través de `CorePorts`. Eso es lo que permite
 que el mismo código corra en un navegador, en un route handler de Node y en una prueba sin DOM.
 
@@ -167,16 +167,11 @@ packages/core/          provider protocols: transports, request builders, SSE pa
 packages/shared/        domain types, relay policy, helpers
 packages/ui/            design tokens and shared components
 packages/config/        brand and provider defaults
-packages/ipc-contract/  typed channel contract for a desktop shell
 ```
 
 El estilo son CSS Modules sobre una única hoja de tokens en propiedades personalizadas en
-`packages/ui`: no hay ningún framework de clases utilitarias. `packages/ipc-contract` es la interfaz
-tipada que la app web mantiene para un host de escritorio: canales con nombre para el streaming del
-chat, las llamadas a proveedores, el reenvío de retransmisión y el almacenamiento de claves, a los
-que un shell nativo puede enlazarse exponiendo `window.oriveo`. En este repositorio no se publica
-ningún shell de escritorio, de modo que en una build web `IS_DESKTOP` es false y cada rama detrás de
-él queda sin usar.
+`packages/ui`: no hay ningún framework de clases utilitarias.
+
 
 Hay una costura más del mismo tipo. `apps/app/lib/core/sync-port.ts` declara la interfaz que
 implementaría un backend de sincronización, y cada punto de llamada llega a ella con encadenamiento

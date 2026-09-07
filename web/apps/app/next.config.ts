@@ -40,7 +40,7 @@ export function createOriveoNextConfig(phase: string): NextConfig {
     ...(phase === PHASE_DEVELOPMENT_SERVER
       ? { allowedDevOrigins: ['127.0.0.1'] }
       : {}),
-    transpilePackages: ['@oriveo/config', '@oriveo/core', '@oriveo/ipc-contract', '@oriveo/shared', '@oriveo/ui'],
+    transpilePackages: ['@oriveo/config', '@oriveo/core', '@oriveo/shared', '@oriveo/ui'],
     outputFileTracingRoot: resolve(__dirname, '../../'),
     experimental: {
       // Next.js defaults dynamic segments to a zero-second client router cache, so switching back
@@ -86,18 +86,5 @@ export function createOriveoNextConfig(phase: string): NextConfig {
 }
 
 export default function nextConfig(phase: string): NextConfig {
-  // Static export for the desktop shell, which loads the app from the filesystem and therefore
-  // cannot use the image optimizer or response headers.
-  if (process.env.ORIVEO_DESKTOP === '1') {
-    return withNextIntl({
-      ...createOriveoNextConfig(phase),
-      output: 'export',
-      distDir: 'out-desktop',
-      trailingSlash: true,
-      images: { unoptimized: true },
-      headers: undefined,
-    });
-  }
-
   return withNextIntl(createOriveoNextConfig(phase));
 }

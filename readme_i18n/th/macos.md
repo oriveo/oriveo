@@ -63,10 +63,6 @@ cd shared/OriveoProviderKit
 swift build && swift test
 ```
 
-แอปเว็บยังเก็บอินเทอร์เฟซแบบมีชนิดสำหรับโฮสต์เดสก์ท็อปไว้ด้วย คือ
-[`web/packages/ipc-contract`](../../web/packages/ipc-contract/) ซึ่งเชลล์เนทีฟผูกเข้ามาได้
-แต่ไม่มีอะไรในที่เก็บโค้ดนี้ที่อิมพลีเมนต์มัน
-
 ## สัญญาอนุญาต
 
 [AGPL-3.0-or-later](../../LICENSE)

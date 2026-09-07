@@ -65,10 +65,6 @@ cd shared/OriveoProviderKit
 swift build && swift test
 ```
 
-La app web también mantiene una interfaz tipada para un host de escritorio,
-[`web/packages/ipc-contract`](../../web/packages/ipc-contract/), a la que se puede enlazar un shell
-nativo; nada en este repositorio la implementa.
-
 ## Licencia
 
 [AGPL-3.0-or-later](../../LICENSE).

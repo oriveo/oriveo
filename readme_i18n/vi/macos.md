@@ -64,10 +64,6 @@ cd shared/OriveoProviderKit
 swift build && swift test
 ```
 
-Ứng dụng web còn giữ một giao diện có kiểu dành cho desktop host,
-[`web/packages/ipc-contract`](../../web/packages/ipc-contract/), mà một native shell có thể gắn vào;
-không có gì trong kho mã này hiện thực nó.
-
 ## Giấy phép
 
 [AGPL-3.0-or-later](../../LICENSE).

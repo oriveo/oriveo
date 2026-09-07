@@ -1,7 +1,6 @@
 import type { RelayKind, RelayRequestedConfig } from '@oriveo/shared';
 import { localizeProviderError } from './error-i18n';
 import { networkError, toProviderError } from './errors';
-import { IS_DESKTOP } from './desktop-stream';
 import type { RelayErrorContext } from './relay-error-classifier';
 import { getRelayRuntimeConfig } from '../metadata/metadata-client';
 import { resolveRelayTransportRule } from './relay-runtime-support';
@@ -130,45 +129,6 @@ export async function pingRelay(input: RelayPingInput): Promise<RelayPingResult>
     headers: input.relayRequested.headers,
     queryParams: input.relayRequested.queryParams,
   });
-
-  // On desktop the probe runs for real through the main process IPC, using the same one-token
-  // request builder. A saved connection passes only a KeyVault ref; a new draft must pass
-  // plaintextKey explicitly, because whether apiKey holds plaintext must never be guessed.
-  if (IS_DESKTOP) {
-    // The main process uses the transport, auth and model of this very request; it must not degrade to GET /models.
-    const relay = {
-      baseURL: input.baseURL,
-      transport: request.directConfig.transport,
-      authMode: request.directConfig.authMode,
-      modelID: input.modelID.trim() || 'gpt-4o',
-      securityMode: request.directConfig.securityMode,
-      codexCompatIdentity: request.directConfig.codexCompatIdentity,
-      customUserAgent: request.directConfig.customUserAgent,
-      headers: request.directConfig.headers,
-      queryParams: request.directConfig.queryParams,
-      disableResponseStorage: input.relayRequested.disableResponseStorage,
-    } as const;
-    let result: { result: 'valid' | 'invalid' | 'unverified'; status?: number };
-    try {
-      result = await window.oriveo!.provider.validate({
-        providerKind: 'relay',
-        apiKeyRef: input.apiKey,
-        // A new draft is not in the KeyVault yet, so the plaintext travels only on this renderer-to-main verification; the main process neither returns nor persists it.
-        plaintextKey: input.plaintextKey,
-        relay,
-      });
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      throw networkError(redactRelayCredentials(message, sensitiveCredentialValues));
-    }
-    if (result.result === 'invalid') {
-      throw toProviderError(result.status ?? 401, 'Validation failed', request.upstreamURL, request.errorContext);
-    }
-    if (result.result !== 'valid') {
-      throw networkError('Relay generation could not be verified.');
-    }
-    return { modelCount: 0, probedEndpoint: request.probedEndpoint };
-  }
 
   const fetchArgs = buildBrowserRelayFetchArgs(
     request.upstreamURL,

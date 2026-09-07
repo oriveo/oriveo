@@ -63,10 +63,6 @@ cd shared/OriveoProviderKit
 swift build && swift test
 ```
 
-網頁應用另外保留了一個型別化的桌面宿主介面
-[`web/packages/ipc-contract`](../../web/packages/ipc-contract/)，原生外殼可以綁上去；這個儲存庫裡
-沒有任何東西實作它。
-
 ## 授權條款
 
 [AGPL-3.0-or-later](../../LICENSE)。
