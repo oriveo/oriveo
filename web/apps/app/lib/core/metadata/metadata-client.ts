@@ -787,6 +787,8 @@ let projectedMetadataSnapshot: ReturnType<typeof projectMetadataSnapshot> | null
 /** Client-local content generation used by useSyncExternalStore consumers. */
 let metadataContentRevision = 0;
 let initPromise: Promise<void> | null = null;
+/** Bumped by test reset so an abandoned in-flight fetch cannot write back. */
+let metadataSessionEpoch = 0;
 let refreshPromise: Promise<void> | null = null;
 
 /**
@@ -866,6 +868,7 @@ export function __resetVersionListenersForTest(): void {
  * localStorage is left untouched; callers prepare their own cache fixtures.
  */
 export function __resetMetadataClientForTest(): void {
+  metadataSessionEpoch += 1;
   cached = null;
   cachedETag = null;
   modelFactsCache = null;
@@ -3563,6 +3566,7 @@ async function fetchMetadata(): Promise<void> {
     return;
   }
 
+  const epoch = metadataSessionEpoch;
   refreshPromise = (async () => {
     try {
       const backendURL = resolveMetadataBackendURL();
@@ -3608,6 +3612,7 @@ async function fetchMetadata(): Promise<void> {
       // payload's revision, so it is set to null and written back with the snapshot.
       cachedETag = res.headers.get("ETag");
 
+      if (epoch !== metadataSessionEpoch) return;
       cached = normalizeMetadataEvidenceViews(data, cachedETag ?? undefined);
       adoptLegacyModelFacts(cached);
       // The sidecar has an independent validator. A newly accepted catalog
@@ -3633,6 +3638,10 @@ async function fetchMetadata(): Promise<void> {
 }
 
 function refreshInBackground(): void {
+  // Vitest seeds a private catalog then calls initMetadata(). A background
+  // refresh against the public catalog would replace that fixture mid-suite
+  // (resolveGenerationProfileRef then loses capability_availability).
+  if (typeof process !== "undefined" && process.env.VITEST) return;
   fetchMetadata().catch(() => {});
 }
 
