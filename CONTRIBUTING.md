@@ -55,6 +55,13 @@ xcodebuild test -project ios/Oriveo/Oriveo.xcodeproj -scheme Oriveo \
 For a provider protocol fix, prefer a recorded fixture under `shared/test-fixtures` over a
 hand-written mock. A real byte stream from the provider is what makes these tests worth having.
 
+## Continuous integration
+
+Pull requests and pushes that touch `web/` or `shared/` run the web gate automatically via
+[`.github/workflows/web.yml`](.github/workflows/web.yml): `npm ci`, `npm run typecheck`, and
+`npm run test:run` under Node from `web/.nvmrc`. Local runs above are still required before you
+open the pull request; CI is the second opinion, not a substitute.
+
 ## Style
 
 - Source, comments, tests, and commit messages are written in English.
