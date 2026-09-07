@@ -81,12 +81,12 @@ flowchart LR
 
 ## test-fixtures
 
-黄金测试数据：录制的上游工具调用流量、relay 路由、表单校验、本地地址分类、目录与可移植配置场景、
+黄金测试数据：录制的上游工具调用流量、中转站（Relay）路由、表单校验、本地地址分类、目录与可移植配置场景、
 model-facts 和能力证据快照，以及本地引擎场景。
 
-`recorded/` 下面的 `.sse` 文件是**真实捕获的上游流量**，按它到达时的样子逐字节保留 —— 只丢掉了响应
-头，而响应体里从来没有带过 Key。其余的是手写的 fixture，用来钉住某一条具体的解析路径。这个区分是要紧
-的：手写的 mock 编码的是你以为供应商会做什么，而一份录制下来的流编码的是它当时实际做了什么，包括那个
+`provider-toolcall/recorded/` 下面的 `.sse` 文件是**真实捕获的上游流量**，按它到达时的样子逐字节
+保留 —— 只丢掉了响应头，而响应体里从来没有带过 Key。直接放在 `provider-toolcall/` 下的 `.sse`
+文件则是手写的 fixture，用来钉住某一条具体的解析路径。这个区分是要紧的：手写的 mock 编码的是你以为供应商会做什么，而一份录制下来的流编码的是它当时实际做了什么，包括那个
 星期二它发来的那个畸形分片。当一个供应商协议修复需要测试时，优先用录制。
 
 一份 fixture 的 `$comment`，或者它旁边的 `expected.json` 清单，会说明它周围那些条目钉住的是什么。
@@ -130,9 +130,11 @@ cd shared/OriveoProviderKit && swift build && swift test
 # plus the iOS and Android suites — see their READMEs
 ```
 
-iOS 那套测试是从测试文件一路向上走、直到看见 `shared/` 来定位这个目录的；Android 那套是从 Gradle
-模块目录解析 `../../shared`；Web 那套则是相对 workspace 解析它。因此它们全都要求仓库的完整
+iOS 那套测试是从测试文件一路向上走、直到看见 `shared/` 来定位这个目录的；Android 那套同样是一路
+向上走，只不过从工作目录开始；Web 那套则是相对 workspace 解析它。因此它们全都要求仓库的完整
 checkout。
+
+开 Pull Request 之前，请先读 [CONTRIBUTING.md](../../CONTRIBUTING.md)。
 
 ## 许可证
 

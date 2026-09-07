@@ -36,7 +36,7 @@
 ---
 
 El cliente web de Oriveo es una app de chat de IA que funciona con tus propias claves, construida con
-Next.js. Conversaciones, notas, carpetas, Skills y tus claves de proveedor viven en el propio
+Next.js. Conversaciones, notas, carpetas, habilidades y tus claves de proveedor viven en el propio
 almacenamiento del navegador. No hay cuenta ni inicio de sesión.
 
 Forma parte de [Oriveo Community Edition](README.md): tres clientes que comparten una sola definición
@@ -44,7 +44,7 @@ de cómo hablar con un proveedor de modelos.
 
 ## Inicio rápido
 
-Requiere Node 22.22 o posterior (ver [`.nvmrc`](../../web/.nvmrc)). npm viene incluido; no hace falta ningún otro
+Requiere Node 22.22.2 o una versión 22.x posterior (ver [`.nvmrc`](../../web/.nvmrc)); el campo `engines` es `^22.22.2`, así que Node 23+ no está soportado. npm viene incluido; no hace falta ningún otro
 gestor de paquetes.
 
 ```bash
@@ -125,7 +125,7 @@ local no sale de tu red, y tampoco pasa por el servidor de la app.
 flowchart TB
     subgraph app ["apps/app — la aplicación Next.js"]
         direction LR
-        routes["App Router<br/>chat · notas · proveedores · skills · ajustes"]
+        routes["App Router<br/>chat · notas · proveedores · habilidades · ajustes"]
         store["Store de Zustand<br/>vanilla + context"]
         idb[("IndexedDB<br/>conversaciones · notas · claves")]
     end
@@ -171,10 +171,12 @@ packages/ipc-contract/  typed channel contract for a desktop shell
 ```
 
 El estilo son CSS Modules sobre una única hoja de tokens en propiedades personalizadas en
-`packages/ui`: no hay ningún framework de clases utilitarias. `packages/ipc-contract` describe la
-superficie de canal a la que se enlazaría un shell de escritorio; en este repositorio no se publica
-ningún shell así, de modo que en la build web ese paquete solo aporta tipos y ramas que nunca se
-toman.
+`packages/ui`: no hay ningún framework de clases utilitarias. `packages/ipc-contract` es la interfaz
+tipada que la app web mantiene para un host de escritorio: canales con nombre para el streaming del
+chat, las llamadas a proveedores, el reenvío de retransmisión y el almacenamiento de claves, a los
+que un shell nativo puede enlazarse exponiendo `window.oriveo`. En este repositorio no se publica
+ningún shell de escritorio, de modo que en una build web `IS_DESKTOP` es false y cada rama detrás de
+él queda sin usar.
 
 Hay una costura más del mismo tipo. `apps/app/lib/core/sync-port.ts` declara la interfaz que
 implementaría un backend de sincronización, y cada punto de llamada llega a ella con encadenamiento
@@ -232,7 +234,7 @@ Ejecútalos desde este directorio.
 | `npm run build:app` | build de producción |
 | `npm run typecheck` | `tsc --noEmit` en todos los workspaces |
 | `npm run test:run` | vitest, una pasada |
-| `npm run test` | vitest en modo watch |
+| `npm run test` | vitest en modo watch, un watcher por workspace: mejor ejecutarlo dentro de un solo workspace |
 | `npm run lint` | eslint sobre `apps/` y `packages/` |
 
 `npm start --workspace @oriveo/app` sirve una build terminada en el puerto 3001.
@@ -294,6 +296,19 @@ claves propias y no guardan nada, pero son una vía HTTP de salida, así que un 
 públicamente debe estar detrás del mismo control de acceso que le darías a cualquier otra herramienta
 interna.
 
+## Dependencias
+
+| Paquete | Versión | Para qué sirve |
+|---|---|---|
+| [Next.js](https://nextjs.org) | 16.3.3 | App Router, route handlers, build |
+| [React](https://react.dev) | 19.2.8 | la interfaz |
+| [vitest](https://vitest.dev) | 4.1.11 | el ejecutor de pruebas |
+| [zustand](https://zustand.docs.pmnd.rs) | 5.0.15 | el estado del cliente |
+| [next-intl](https://next-intl.dev) | 4.14.1 | la localización |
+| [@sentry/nextjs](https://docs.sentry.io/platforms/javascript/guides/nextjs/) | 10.72.0 | reporte de errores, inerte sin DSN |
+
+Las versiones exactas de todas las dependencias están fijadas en `package-lock.json`.
+
 ## Pruebas
 
 Unas 5.600 pruebas repartidas en 460 archivos, sobre vitest. La cobertura más densa está donde un
@@ -304,8 +319,9 @@ del catálogo e invalidación por versión de contrato, persistencia en IndexedD
 almacenamiento, ciclos completos de copia de seguridad y los propios route handlers.
 
 > [!IMPORTANT]
-> Más de treinta suites cargan fixtures de contrato desde `../shared`, así que **las pruebas solo
-> pasan en un checkout completo**: copiar `web/` por su cuenta no funcionará.
+> Más de treinta suites resuelven los fixtures de contrato bajo `shared/` relativo al directorio de
+> trabajo, así que **las pruebas solo pasan en un checkout completo**, ejecutadas desde el workspace
+> al que pertenecen: copiar `web/` por su cuenta no funcionará.
 
 ## Localización
 

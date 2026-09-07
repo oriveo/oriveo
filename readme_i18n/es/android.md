@@ -36,7 +36,7 @@
 
 El cliente de Android de Oriveo es una app de chat de IA que funciona con tus propias claves. Agregas
 claves de API que ya tienes, y la app habla con cada proveedor directamente desde el teléfono.
-Conversaciones, notas, carpetas y Skills se guardan en el dispositivo en Room; las claves de API se
+Conversaciones, notas, carpetas y habilidades se guardan en el dispositivo en Room; las claves de API se
 cifran con una clave que custodia el Keystore de Android. No hay cuenta ni inicio de sesión.
 
 Forma parte de [Oriveo Community Edition](README.md): tres clientes que comparten una sola definición
@@ -49,7 +49,7 @@ flowchart TB
     subgraph ui ["Compose UI"]
         direction LR
         nav["OriveoNavHost<br/>rutas @Serializable con tipos"]
-        screens["Chat · Inicio · Proveedores<br/>Notas · Skills · Ajustes"]
+        screens["Chat · Inicio · Proveedores<br/>Notas · Habilidades · Ajustes"]
     end
 
     vms["ViewModels · Koin<br/>ChatViewModel y sus coordinadores"]
@@ -90,7 +90,7 @@ en cuanto `StreamingTokenBuffer` dice que se acumuló lo suficiente (4.000 carac
 así que matar la app a mitad de una respuesta no pierde lo que ya llegó.
 
 **Dos bases de datos, no una.** `oriveo.db` guarda conversaciones, mensajes, adjuntos, notas,
-carpetas, Skills y la caché del catálogo de modelos. `message_continuations.db` es un archivo
+carpetas, habilidades y la caché del catálogo de modelos. `message_continuations.db` es un archivo
 físicamente separado que guarda el estado de continuación opaco del proveedor, precisamente para que
 `backup_rules.xml` y `data_extraction_rules.xml` puedan excluirlo de la copia de seguridad en la nube
 y de la transferencia entre dispositivos: un token de continuación restaurado en otro dispositivo es,
@@ -127,7 +127,7 @@ de prioridad: `single_send` > `conversation_connection_model` > `skill_agent` > 
 
 | Qué | Dónde |
 |---|---|
-| Conversaciones, mensajes, adjuntos, notas, carpetas, Skills | Room, `oriveo.db` |
+| Conversaciones, mensajes, adjuntos, notas, carpetas, habilidades | Room, `oriveo.db` |
 | Búsqueda de texto completo sobre las notas | tabla virtual FTS4 |
 | Caché del catálogo de modelos | una sola fila en `oriveo.db`, releída por partes |
 | Estado de continuación del proveedor | `message_continuations.db`, excluido de la copia de seguridad |
@@ -150,7 +150,7 @@ cualquier suscripción de proveedor**; las conversaciones y las notas pasan con 
 Un archivo que exportas tú es un zip que contiene `data.json` más los archivos de los adjuntos. La
 contraseña que eliges protege **solo las claves de API de proveedor** que hay dentro: se cifran con
 PBKDF2-HMAC-SHA256 a 600.000 iteraciones y AES-GCM y se guardan como un campo de `data.json`. Las
-conversaciones, los mensajes, las notas, las carpetas, los Skills, las preferencias y los adjuntos se
+conversaciones, los mensajes, las notas, las carpetas, las habilidades, las preferencias y los adjuntos se
 escriben como JSON en claro y archivos en claro en cualquier caso, así que trata un archivo como
 legible por cualquiera que lo tenga. Exporta sin claves si solo quieres tu historial.
 
@@ -290,9 +290,9 @@ relay y modos de seguridad, ejecución de recetas de capacidad, caché del catá
 versiones de contrato, persistencia con Room y ciclos completos de copia de seguridad.
 
 > [!IMPORTANT]
-> Unas 38 suites cargan fixtures de contrato resolviendo `../../shared` desde el directorio del
-> módulo de Gradle, así que **las pruebas solo pasan en un checkout completo**: copiar `android/` por
-> su cuenta no funcionará.
+> Unas 38 suites cargan fixtures de contrato subiendo desde el directorio de trabajo hasta
+> encontrar `shared/`, así que **las pruebas solo pasan en un checkout completo**: copiar `android/`
+> por su cuenta no funcionará.
 
 También hay tres pruebas instrumentadas: una matriz de release de motores locales, una prueba de
 socket en claro y una prueba de aislamiento del Keystore. No son autónomas: las de motores locales
@@ -309,8 +309,9 @@ a `app/schemas/` y se versionan, que es donde aterrizará el `2.json` de la prim
 
 ## Localización
 
-Dieciséis idiomas: `values/` (inglés, la fuente) más quince directorios `values-*`, con unas 1.300
-cadenas cada uno y un conjunto de claves idéntico en todas las configuraciones regionales. El cambio
+Dieciséis idiomas: `values/` (inglés, la fuente) más quince directorios de configuración regional
+—junto a `values-night`, que no lleva cadenas—, con unas 1.340 cadenas cada uno y un conjunto de
+claves idéntico en todas las configuraciones regionales. El cambio
 de idioma dentro de la app pasa por `AppLanguageManager` y `android:localeConfig`. Los splits por
 idioma están desactivados en el bundle, así que un solo artefacto lleva todas las traducciones.
 

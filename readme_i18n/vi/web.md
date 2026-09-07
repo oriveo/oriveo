@@ -44,7 +44,9 @@ nhất về cách nói chuyện với nhà cung cấp mô hình.
 
 ## Bắt đầu nhanh
 
-Cần Node 22.22 trở lên (xem [`.nvmrc`](../../web/.nvmrc)). npm đi kèm sẵn; không cần trình quản lý gói nào khác.
+Cần Node 22.22.2 hoặc bản 22.x mới hơn (xem [`.nvmrc`](../../web/.nvmrc)); trường `engines` là
+`^22.22.2`, nên Node 23 trở lên không được hỗ trợ. npm đi kèm sẵn; không cần trình quản lý gói nào
+khác.
 
 ```bash
 npm install
@@ -70,14 +72,14 @@ flowchart LR
     end
 
     official["15 nhà cung cấp chính thức"]
-    pubrelay["Relay trên host công khai"]
+    pubrelay["Dịch vụ chuyển tiếp trên host công khai"]
     lan["Máy chủ mô hình trong mạng bạn"]
     catalog[("Danh mục mô hình công khai<br/>chỉ đọc · không khóa")]
 
     browser ==>|"phần lớn nhà cung cấp chính thức"| chat ==> official
     browser ==>|"danh sách mô hình · kiểm khóa · OAuth"| prov
-    browser ==>|"relay · host công khai"| fwd ==> pubrelay
-    browser ==>|"relay trong mạng bạn"| lan
+    browser ==>|"chuyển tiếp · host công khai"| fwd ==> pubrelay
+    browser ==>|"chuyển tiếp trong mạng bạn"| lan
     browser ==>|"endpoint thân thiện với CORS"| official
     catalog -.-> browser
     catalog -.-> chat
@@ -90,7 +92,7 @@ qua các Next.js route handler chạy trong runtime Node. Khi bạn chạy `npm 
 đó nằm trên chính máy bạn. Khi bạn triển khai ứng dụng ở đâu đó, chúng nằm trên máy bạn đã triển
 khai tới.
 
-Không phải chỉ có một handler: stream chat, bộ chuyển tiếp relay, tạo ảnh, danh sách mô hình, kiểm
+Không phải chỉ có một handler: stream chat, bộ chuyển tiếp của dịch vụ chuyển tiếp (Relay), tạo ảnh, danh sách mô hình, kiểm
 chứng khóa, và hai lượt trao đổi đăng nhập theo thiết bị của Grok và ChatGPT cộng lại thành mười hai
 tệp route. Kiểm chứng khóa mới là chỗ đáng lưu ý — nó gửi khóa lên chính máy chủ của bạn, rồi máy
 chủ đó dùng khóa để thăm dò nhà cung cấp.
@@ -100,7 +102,7 @@ không có máy chủ nào ở giữa: endpoint Trung Quốc của Kimi (`api.mo
 endpoint số dư của OpenRouter, SiliconFlow, DeepSeek và Kimi.
 
 **Handler làm gì và không làm gì.** Nó kiểm chứng hình dạng của yêu cầu và giới hạn kích thước, áp
-giới hạn tần suất theo từng IP cho lưu lượng chat và relay, từ chối các URL phân giải ra địa chỉ
+giới hạn tần suất theo từng IP cho lưu lượng chat và dịch vụ chuyển tiếp, từ chối các URL phân giải ra địa chỉ
 riêng tư hoặc link-local, dựng thân yêu cầu riêng cho từng nhà cung cấp, rồi stream phản hồi trở
 lại. Không có cơ sở dữ liệu nào, không có lượt ghi xuống hệ thống tệp nào và không có chỗ nào dưới
 `app/api` ghi log thân yêu cầu — khóa và tin nhắn của bạn được chuyển tiếp rồi quên đi. Vì route là
@@ -108,11 +110,12 @@ một tiến trình duy nhất dùng chung cho mọi khách truy cập, có mộ
 (`server-never-learns.test.ts`) ghim chặt rằng nó không bao giờ nhớ tham số đã bị từ chối của người
 này rồi đem áp vào yêu cầu của người khác.
 
-Bộ chuyển tiếp relay còn ghim DNS vào đúng địa chỉ nó đã phân giải, giới hạn kích thước phản hồi,
+Bộ chuyển tiếp còn ghim DNS vào đúng địa chỉ nó đã phân giải, giới hạn kích thước phản hồi,
 chặn trên mọi timeout, giới hạn chuyển hướng trong cùng origin, và từ chối cho đi qua các header
 hop-by-hop.
 
-**Endpoint cục bộ bỏ qua hoàn toàn bước này.** Một relay nằm trên địa chỉ riêng tư, một tên `.local`,
+**Endpoint cục bộ bỏ qua hoàn toàn bước này.** Một dịch vụ chuyển tiếp nằm trên địa chỉ riêng tư,
+một tên `.local`,
 `localhost`, hay được cấu hình ở chế độ local-HTTP hoặc private-VPN sẽ được gọi **trực tiếp từ trình
 duyệt**, với `credentials: 'omit'` và `targetAddressSpace: 'local'`. Lưu lượng trong mạng LAN của
 bạn không rời khỏi mạng, và cũng không đi qua máy chủ của ứng dụng.
@@ -131,7 +134,7 @@ flowchart TB
     subgraph pkgs ["packages/ — không phụ thuộc runtime"]
         direction LR
         core["core<br/>transport · bộ dựng yêu cầu · SSE"]
-        shared["shared<br/>kiểu miền · chính sách relay"]
+        shared["shared<br/>kiểu miền · chính sách chuyển tiếp"]
         ui["ui<br/>token · component"]
         config["config<br/>thương hiệu · mặc định nhà cung cấp"]
     end
@@ -169,9 +172,11 @@ packages/ipc-contract/  typed channel contract for a desktop shell
 ```
 
 Phần tạo kiểu dùng CSS Modules trên một bảng token custom property duy nhất trong `packages/ui` —
-không có framework utility-class nào. `packages/ipc-contract` mô tả bề mặt kênh mà một desktop shell
-sẽ gắn vào; kho mã này không kèm shell nào như vậy, nên trên bản dựng web nó chỉ đóng góp các kiểu
-và những nhánh mã không bao giờ được chạy tới.
+không có framework utility-class nào. `packages/ipc-contract` là giao diện có kiểu mà ứng dụng web giữ
+sẵn cho một desktop host: các kênh đặt tên cho stream chat, lời gọi nhà cung cấp, chuyển tiếp qua
+dịch vụ chuyển tiếp và lưu khóa, mà một native shell có thể gắn vào bằng cách phơi ra `window.oriveo`.
+Kho mã này không kèm desktop shell nào, nên trên bản dựng web `IS_DESKTOP` là false và mọi nhánh mã
+phía sau nó đều không được dùng.
 
 Còn một đường ghép cùng loại nữa. `apps/app/lib/core/sync-port.ts` khai báo giao diện mà một backend đồng bộ
 sẽ hiện thực, và mọi nơi gọi tới nó đều đi qua optional chaining. Không có gì cài một backend như
@@ -227,7 +232,7 @@ Chạy các lệnh này từ thư mục hiện tại.
 | `npm run build:app` | bản dựng production |
 | `npm run typecheck` | `tsc --noEmit` trên mọi workspace |
 | `npm run test:run` | vitest, chạy một lượt |
-| `npm run test` | vitest ở chế độ watch |
+| `npm run test` | vitest ở chế độ watch, mỗi workspace một watcher — nên chạy bên trong một workspace duy nhất |
 | `npm run lint` | eslint trên `apps/` và `packages/` |
 
 `npm start --workspace @oriveo/app` phục vụ một bản dựng đã hoàn tất ở cổng 3001.
@@ -287,18 +292,32 @@ không giữ khóa nào của riêng chúng và không lưu gì cả, nhưng ch�
 bản triển khai công khai với tới được nên nằm sau đúng lớp kiểm soát truy cập mà bạn dành cho bất kỳ
 công cụ nội bộ nào khác.
 
+## Phụ thuộc
+
+| Gói | Phiên bản | Dùng cho |
+|---|---|---|
+| [Next.js](https://nextjs.org) | 16.3.3 | App Router, route handler, bản dựng |
+| [React](https://react.dev) | 19.2.8 | giao diện |
+| [vitest](https://vitest.dev) | 4.1.11 | bộ chạy test |
+| [zustand](https://zustand.docs.pmnd.rs) | 5.0.15 | trạng thái phía client |
+| [next-intl](https://next-intl.dev) | 4.14.1 | bản địa hóa |
+| [@sentry/nextjs](https://docs.sentry.io/platforms/javascript/guides/nextjs/) | 10.72.0 | báo lỗi, không hoạt động nếu thiếu DSN |
+
+Phiên bản chính xác của mọi phụ thuộc được ghim trong `package-lock.json`.
+
 ## Kiểm thử
 
 Khoảng 5.600 bài test trải trên 460 tệp, chạy bằng vitest. Độ bao phủ dày nhất ở chỗ mà sai lầm tốn
 kém nhất: hình dạng yêu cầu theo từng nhà cung cấp, hành vi transport theo từng giao thức wire, phân
-tích chunk của SSE và proxy, phân tích mức sử dụng và chi phí, phân loại lỗi, dò relay và các chế độ
+tích chunk của SSE và proxy, phân tích mức sử dụng và chi phí, phân loại lỗi, dò dịch vụ chuyển tiếp và các chế độ
 bảo mật, lớp chắn SSRF, thực thi capability recipe, lưu đệm danh mục và việc vô hiệu hóa theo phiên
 bản contract, lưu trữ trong IndexedDB, phân vùng kho lưu trữ, các vòng sao lưu — khôi phục, và chính
 các route handler.
 
 > [!IMPORTANT]
-> Hơn ba mươi bộ test nạp contract fixture từ `../shared`, nên **các bài test chỉ chạy đúng khi bạn
-> checkout toàn bộ kho mã** — sao chép riêng thư mục `web/` ra sẽ không hoạt động.
+> Hơn ba mươi bộ test phân giải contract fixture nằm dưới `shared/` theo thư mục làm việc, nên
+> **các bài test chỉ chạy đúng khi bạn checkout toàn bộ kho mã và chạy từ workspace sở hữu chúng** —
+> sao chép riêng thư mục `web/` ra sẽ không hoạt động.
 
 ## Bản địa hóa
 

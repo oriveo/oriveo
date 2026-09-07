@@ -82,12 +82,12 @@ JSON pointer 寫進送出的請求裡，以及該怎麼把答案讀回來。
 
 ## test-fixtures
 
-黃金測試資料：錄製的上游工具呼叫流量、relay 路由、表單驗證、本機位址分類、目錄與可攜設定情境、
+黃金測試資料：錄製的上游工具呼叫流量、中轉站（Relay）路由、表單驗證、本機位址分類、目錄與可攜設定情境、
 model-facts 與能力證據快照，以及本機引擎情境。
 
-`recorded/` 底下的 `.sse` 檔案是**真實捕捉到的上游流量**，按它抵達時的樣子逐位元組保留 —— 只丟掉了
-回應標頭，而回應主體從來沒有帶過 Key。其餘的是手寫的 fixture，用來釘住某一條特定的解析路徑。這個區分
-很要緊：手寫的 mock 編碼的是你以為供應商會做的事，而一段錄下來的串流編碼的則是它當時實際做了什麼，
+`provider-toolcall/recorded/` 底下的 `.sse` 檔案是**真實捕捉到的上游流量**，按它抵達時的樣子逐位元組
+保留 —— 只丟掉了回應標頭，而回應主體從來沒有帶過 Key。直接放在 `provider-toolcall/` 底下的 `.sse`
+檔案則是手寫的 fixture，用來釘住某一條特定的解析路徑。這個區分很要緊：手寫的 mock 編碼的是你以為供應商會做的事，而一段錄下來的串流編碼的則是它當時實際做了什麼，
 包含那個星期二它送來的那個格式錯誤的區塊。當一個供應商協定修正需要測試時，優先用錄製。
 
 一份 fixture 的 `$comment`，或者擺在它旁邊的 `expected.json` 清單，會說明它周圍那些條目釘住的是什麼。
@@ -131,9 +131,10 @@ cd shared/OriveoProviderKit && swift build && swift test
 # plus the iOS and Android suites — see their READMEs
 ```
 
-iOS 那套測試是從測試檔一路往上走、直到看見 `shared/` 來定位這個目錄；Android 那套是從 Gradle 模組
-目錄解析 `../../shared`；網頁那套則是相對於 workspace 解析它。因此它們全都需要儲存庫的完整
-checkout。
+iOS 那套測試是從測試檔一路往上走、直到看見 `shared/` 來定位這個目錄；Android 那套同樣一路往上走，
+只是從工作目錄開始；網頁那套則是相對於 workspace 解析它。因此它們全都需要儲存庫的完整 checkout。
+
+在開 Pull Request 之前，請先讀 [CONTRIBUTING.md](../../CONTRIBUTING.md)。
 
 ## 授權條款
 

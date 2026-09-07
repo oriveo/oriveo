@@ -93,9 +93,10 @@ Dados de teste de referência: tráfego de tool call upstream gravado, roteament
 de formulário, classificação de endereços locais, cenários de catálogo e de configuração portátil,
 snapshots de model facts e de evidências de capacidade, e cenários de engines locais.
 
-Os arquivos `.sse` que ficam sob `recorded/` são **tráfego upstream real capturado**, mantidos byte a
-byte como chegaram — só os cabeçalhos de resposta foram descartados, e os corpos nunca levaram uma
-chave. Os demais são fixtures escritas à mão que fixam um caminho de parsing específico. A distinção
+Os arquivos `.sse` que ficam sob `provider-toolcall/recorded/` são **tráfego upstream real
+capturado**, mantidos byte a byte como chegaram — só os cabeçalhos de resposta foram descartados, e os
+corpos nunca levaram uma chave. Os arquivos `.sse` que ficam direto em `provider-toolcall/` são
+fixtures escritas à mão que fixam um caminho de parsing específico. A distinção
 importa: um mock escrito à mão codifica o que você acreditava que o provedor faz, enquanto uma
 gravação codifica o que ele de fato fez, incluindo o chunk malformado que ele mandou naquela
 terça-feira. Quando uma correção de protocolo de provedor precisa de um teste, prefira uma gravação.
@@ -149,8 +150,10 @@ A partir da raiz do repositório:
 ```
 
 As suítes de iOS localizam este diretório subindo a partir do arquivo de teste até ver `shared/`; as
-suítes de Android resolvem `../../shared` a partir do módulo Gradle; as suítes web o resolvem
+suítes de Android sobem do mesmo jeito a partir do diretório de trabalho; as suítes web o resolvem
 relativamente ao workspace. Todas elas, portanto, exigem um checkout completo do repositório.
+
+Antes de abrir um pull request, leia o [CONTRIBUTING.md](../../CONTRIBUTING.md).
 
 ## Licença
 

@@ -38,15 +38,8 @@
 
 ## 在 Mac 上已经能跑什么
 
-- **Web 客户端**，它在任意浏览器里都是个相当好用的桌面应用：
-
-  ```bash
-  cd web
-  npm install
-  npm run dev:app        # http://localhost:3001
-  ```
-
-  见 [web.md](web.md)。
+- **Web 客户端**，它在任意浏览器里都是个相当好用的桌面应用。见
+  [web.md — 快速开始](web.md#快速开始)。
 
 - **iOS 构建**，跑在 Apple 芯片的 Mac 上。打开 `ios/Oriveo/Oriveo.xcodeproj`，选择
   *My Mac (Designed for iPad)* 这个运行目标，然后运行。见 [ios.md](ios.md)。
@@ -69,5 +62,13 @@ platforms: [.macOS(.v15), .iOS(.v18)]
 cd shared/OriveoProviderKit
 swift build && swift test
 ```
+
+Web 应用还保留了一个类型化的桌面宿主接口
+[`web/packages/ipc-contract`](../../web/packages/ipc-contract/)，原生壳可以绑上去；本仓库里没有任何
+东西实现它。
+
+## 许可证
+
+[AGPL-3.0-or-later](../../LICENSE)。
 
 [根 README](README.md) · [共享契约](shared.md)

@@ -36,7 +36,7 @@
 
 Klien Android Oriveo adalah aplikasi chat AI bring-your-own-key. Anda menambahkan API key yang sudah
 Anda miliki, dan aplikasi berbicara dengan setiap provider langsung dari ponsel. Percakapan,
-catatan, folder, dan skill disimpan di perangkat dalam Room; API key dienkripsi dengan kunci yang
+catatan, folder, dan keterampilan disimpan di perangkat dalam Room; API key dienkripsi dengan kunci yang
 disimpan di Android Keystore. Tidak ada akun dan tidak ada proses masuk.
 
 Ini bagian dari [Oriveo Community Edition](README.md) — tiga klien yang berbagi satu definisi
@@ -49,7 +49,7 @@ flowchart TB
     subgraph ui ["UI Compose"]
         direction LR
         nav["OriveoNavHost<br/>rute @Serializable yang type-safe"]
-        screens["Chat · Beranda · Provider<br/>Catatan · Skill · Pengaturan"]
+        screens["Chat · Beranda · Provider<br/>Catatan · Keterampilan · Pengaturan"]
     end
 
     vms["ViewModels · Koin<br/>ChatViewModel dan para coordinator-nya"]
@@ -91,7 +91,7 @@ tidak membatalkan jawaban, dan `ChatRepository` membuang teks parsial ke SQLite 
 jadi menutup paksa aplikasi di tengah jawaban tidak menghilangkan apa yang sudah tiba.
 
 **Dua basis data, bukan satu.** `oriveo.db` menampung percakapan, pesan, lampiran, catatan, folder,
-skill, dan cache katalog model. `message_continuations.db` adalah berkas yang terpisah secara fisik
+keterampilan, dan cache katalog model. `message_continuations.db` adalah berkas yang terpisah secara fisik
 dan berisi state kelanjutan milik provider yang bersifat opaque — justru supaya `backup_rules.xml`
 dan `data_extraction_rules.xml` bisa mengeluarkannya dari cadangan cloud dan transfer perangkat;
 token kelanjutan yang dipulihkan ke perangkat lain paling banter tidak bermakna.
@@ -127,7 +127,7 @@ Override diselesaikan dengan aturan last-write-wins lintas tujuh cakupan, menuru
 
 | Apa | Di mana |
 |---|---|
-| Percakapan, pesan, lampiran, catatan, folder, skill | Room, `oriveo.db` |
+| Percakapan, pesan, lampiran, catatan, folder, keterampilan | Room, `oriveo.db` |
 | Pencarian teks penuh atas catatan | Tabel virtual FTS4 |
 | Cache katalog model | satu baris di `oriveo.db`, dibaca kembali per potongan |
 | State kelanjutan provider | `message_continuations.db`, dikecualikan dari cadangan |
@@ -150,7 +150,7 @@ biasa.
 Arsip yang Anda ekspor sendiri adalah zip yang memuat `data.json` plus berkas-berkas lampiran. Kata
 sandi yang Anda pilih melindungi **hanya API key provider** di dalamnya: key itu dienkripsi dengan
 PBKDF2-HMAC-SHA256 pada 600.000 iterasi dan AES-GCM, lalu disimpan sebagai satu field di `data.json`.
-Percakapan, pesan, catatan, folder, skill, preferensi, dan lampiran ditulis sebagai JSON biasa dan
+Percakapan, pesan, catatan, folder, keterampilan, preferensi, dan lampiran ditulis sebagai JSON biasa dan
 berkas biasa dalam kondisi apa pun, jadi anggaplah sebuah arsip bisa dibaca siapa pun yang memegang
 berkasnya. Ekspor tanpa key kalau yang Anda inginkan hanya riwayat Anda.
 
@@ -203,7 +203,7 @@ aplikasi tetap bekerja dari salinan cache ketika katalog kelak tidak terjangkau.
 > - layar detail provider menampilkan banner "Tidak dapat memuat model resmi", tetapi menambahkan
 >   key tetap dilaporkan berhasil dan pemilih model sekadar kosong;
 > - **OpenAI menjadi tidak bisa dipakai**, karena entri model manual diblokir untuk provider itu;
-> - endpoint Relay dan server model lokal tetap berfungsi penuh, dan itulah satu-satunya jalur yang
+> - endpoint layanan relay (Relay) dan server model lokal tetap berfungsi penuh, dan itulah satu-satunya jalur yang
 >   masih utuh.
 >
 > Kalau Anda ingin build yang offline, sajikan katalognya sendiri dan arahkan build ke sana, jangan
@@ -285,9 +285,9 @@ mode keamanan, eksekusi resep capability, caching katalog dan penanganan versi k
 Room, serta round-trip cadangan.
 
 > [!IMPORTANT]
-> Sekitar 38 suite memuat fixture kontrak dengan me-resolve `../../shared` dari direktori modul
-> Gradle, jadi **pengujian hanya lolos pada checkout penuh** — menyalin `android/` sendirian tidak
-> akan berhasil.
+> Sekitar 38 suite memuat fixture kontrak dengan menelusuri ke atas dari direktori kerja sampai
+> menemukan `shared/`, jadi **pengujian hanya lolos pada checkout penuh** — menyalin `android/`
+> sendirian tidak akan berhasil.
 
 Ada juga tiga instrumented test — sebuah matriks rilis local engine, sebuah pengujian socket
 cleartext, dan sebuah pengujian isolasi keystore. Ketiganya tidak berdiri sendiri: yang local engine
@@ -304,10 +304,11 @@ dan di-commit, dan di sanalah `2.json` dari migrasi pertama nanti akan mendarat.
 
 ## Pelokalan
 
-Enam belas bahasa: `values/` (bahasa Inggris, sumbernya) plus lima belas direktori `values-*`,
-masing-masing sekitar 1.300 string, dengan setiap locale memuat himpunan key yang identik.
-Pergantian bahasa di dalam aplikasi melewati `AppLanguageManager` dan `android:localeConfig`.
-Language split dimatikan pada bundle sehingga satu artefak membawa semua terjemahan.
+Enam belas bahasa: `values/` (bahasa Inggris, sumbernya) plus lima belas direktori locale —
+berdampingan dengan `values-night`, yang tidak membawa string apa pun — masing-masing sekitar 1.340
+string, dengan setiap locale memuat himpunan key yang identik. Pergantian bahasa di dalam aplikasi
+melewati `AppLanguageManager` dan `android:localeConfig`. Language split dimatikan pada bundle
+sehingga satu artefak membawa semua terjemahan.
 
 ## Kontribusi
 

@@ -35,7 +35,7 @@
 ---
 
 Oriveo Android 用戶端是一個自備金鑰的 AI 聊天應用程式。你加入自己既有的 API Key，應用程式就從手機
-直接與每一家供應商溝通。對話、筆記、資料夾與 Skills 用 Room 存在裝置上；API Key 由一把存放在
+直接與每一家供應商溝通。對話、筆記、資料夾與 技能 用 Room 存在裝置上；API Key 由一把存放在
 Android Keystore 裡的金鑰加密。沒有帳號，也不需要登入。
 
 它是 [Oriveo 社群版](README.md) 的一部分 —— 三個用戶端共用同一份「該怎麼跟模型供應商說話」的定義。
@@ -47,7 +47,7 @@ flowchart TB
     subgraph ui ["Compose UI"]
         direction LR
         nav["OriveoNavHost<br/>型別安全的 @Serializable 路由"]
-        screens["聊天 · 首頁 · 供應商<br/>筆記 · Skills · 設定"]
+        screens["聊天 · 首頁 · 供應商<br/>筆記 · 技能 · 設定"]
     end
 
     vms["ViewModels · Koin<br/>ChatViewModel 與它的協調器"]
@@ -86,7 +86,7 @@ flowchart TB
 字元或 60 秒），`ChatRepository` 就把部分文字沖進 SQLite，所以在回答到一半時把應用程式砍掉，也不會
 弄丟已經到手的內容。
 
-**兩個資料庫，不是一個。** `oriveo.db` 放對話、訊息、附件、筆記、資料夾、Skills 與模型目錄快取。
+**兩個資料庫，不是一個。** `oriveo.db` 放對話、訊息、附件、筆記、資料夾、技能 與模型目錄快取。
 `message_continuations.db` 是一個實體上獨立的檔案，存放供應商那邊不透明的續傳狀態，正是為了讓
 `backup_rules.xml` 與 `data_extraction_rules.xml` 能把它排除在雲端備份與裝置轉移之外 —— 一個被還原到
 另一台裝置上的續傳 token，往好處說也只是毫無意義。
@@ -116,7 +116,7 @@ HTTP 200 與工具宣告都明確不算數。每則訊息的結果都會被保�
 
 | 內容 | 位置 |
 |---|---|
-| 對話、訊息、附件、筆記、資料夾、Skills | Room，`oriveo.db` |
+| 對話、訊息、附件、筆記、資料夾、技能 | Room，`oriveo.db` |
 | 筆記的全文搜尋 | FTS4 虛擬表 |
 | 模型目錄快取 | `oriveo.db` 裡單獨一列，分批讀回 |
 | 供應商續傳狀態 | `message_continuations.db`，排除在備份之外 |
@@ -135,7 +135,7 @@ HTTP 200 與工具宣告都明確不算數。每則訊息的結果都會被保�
 
 你自己匯出的封存是一個 zip，裡面裝著 `data.json` 加上附件檔案。你自訂的密碼**只保護裡面的供應商
 API Key**：它們以 PBKDF2-HMAC-SHA256 迭代 600,000 次搭配 AES-GCM 加密，並作為 `data.json` 的一個欄位
-保存。對話、訊息、筆記、資料夾、Skills、偏好設定與附件，不論如何都是以純 JSON 與普通檔案寫入的，
+保存。對話、訊息、筆記、資料夾、技能、偏好設定與附件，不論如何都是以純 JSON 與普通檔案寫入的，
 所以請把一份封存當作「拿到這個檔案的人都讀得到」來看待。如果你只想要自己的歷史紀錄，就選擇不帶 Key
 匯出。
 
@@ -181,7 +181,7 @@ base URL 是一個建置期屬性，預設為 `https://api.oriveoai.com`：
 > - 供應商詳情頁會顯示一條「無法載入官方模型」橫幅，但加入 Key 依然會回報成功，模型
 >   選擇器只是空的；
 > - **OpenAI 會變得不能用**，因為那家供應商禁止手動輸入模型；
-> - Relay 端點與本機模型伺服器仍然完全可用，也是唯一完好的那條路。
+> - 中轉站（Relay）端點與本機模型伺服器仍然完全可用，也是唯一完好的那條路。
 >
 > 想要離線建置，請自己提供這份目錄並讓建置指向它，而不是把這個值清空。
 
@@ -253,11 +253,11 @@ Android Studio 產生，不會提交。正式版簽署方式見 [SIGNING.md](../
 
 318 個檔案裡大約 3,000 個單元測試，使用 JUnit 4、MockK、Robolectric、`kotlinx-coroutines-test`
 與 Ktor 的 mock engine。覆蓋最密的地方，正是出錯代價最高的地方：每家供應商的請求形狀、SSE 解析、傳輸方式
-選擇、relay 探測與安全模式、能力配方執行、目錄快取與契約版本處理、Room 持久化，以及備份的來回
+選擇、中轉站探測與安全模式、能力配方執行、目錄快取與契約版本處理、Room 持久化，以及備份的來回
 一致性。
 
 > [!IMPORTANT]
-> 大約有 38 套測試是以 Gradle 模組目錄為基準解析 `../../shared` 來載入契約 fixture，所以**測試只有
+> 大約有 38 套測試載入契約 fixture 的方式，是從工作目錄一路往上找到 `shared/`，所以**測試只有
 > 在完整 checkout 下才會通過** —— 把 `android/` 單獨複製出去是行不通的。
 
 另外還有三個插樁測試 —— 一個本機引擎的釋出矩陣、一個明文 socket 測試，以及一個 keystore 隔離測試。
@@ -272,8 +272,8 @@ Android Studio 產生，不會提交。正式版簽署方式見 [SIGNING.md](../
 
 ## 在地化
 
-十六種語言：`values/`（英文，來源語言）加上十五個 `values-*` 目錄，每個約 1,300 條字串，而且每個
-locale 都持有完全相同的鍵集。應用內語言切換走 `AppLanguageManager` 與 `android:localeConfig`。
+十六種語言：`values/`（英文，來源語言）加上十五個 locale 目錄 —— 另有一個不帶字串的
+`values-night` —— 每個約 1,340 條字串，而且每個 locale 都持有完全相同的鍵集。應用內語言切換走 `AppLanguageManager` 與 `android:localeConfig`。
 bundle 停用了語言分割，所以單一產物就帶著全部翻譯。
 
 ## 參與貢獻

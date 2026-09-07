@@ -199,7 +199,7 @@ một lần, ứng dụng vẫn chạy từ bản đệm khi về sau không v�
 > - màn hình chi tiết nhà cung cấp hiện một biểu ngữ "Không thể tải mô hình chính thức", nhưng thêm
 >   khóa thì vẫn báo thành công và danh sách chọn mô hình thì đơn giản là rỗng;
 > - **OpenAI trở nên không dùng được**, vì việc nhập mô hình thủ công bị chặn với nhà cung cấp đó;
-> - các endpoint Relay và máy chủ mô hình cục bộ vẫn hoạt động đầy đủ, và là đường duy nhất còn
+> - các endpoint dịch vụ chuyển tiếp (Relay) và máy chủ mô hình cục bộ vẫn hoạt động đầy đủ, và là đường duy nhất còn
 >   nguyên vẹn.
 >
 > Nếu bạn muốn một bản dựng offline, hãy tự phục vụ danh mục và trỏ bản dựng về đó, thay vì bỏ trống
@@ -275,13 +275,13 @@ Các phiên bản chính xác được ghim trong
 
 Khoảng 3.000 unit test trải trên 318 tệp, dùng JUnit 4, MockK, Robolectric,
 `kotlinx-coroutines-test` và mock engine của Ktor. Độ bao phủ dày nhất ở chỗ mà sai lầm tốn kém
-nhất: hình dạng yêu cầu theo từng nhà cung cấp, phân tích SSE, chọn transport, dò relay và các chế
+nhất: hình dạng yêu cầu theo từng nhà cung cấp, phân tích SSE, chọn transport, dò dịch vụ chuyển tiếp và các chế
 độ bảo mật, thực thi capability recipe, lưu đệm danh mục và xử lý phiên bản contract, lưu trữ bằng
 Room, và các vòng sao lưu — khôi phục.
 
 > [!IMPORTANT]
-> Khoảng 38 bộ test nạp contract fixture bằng cách phân giải `../../shared` từ thư mục module
-> Gradle, nên **các bài test chỉ chạy đúng khi bạn checkout toàn bộ kho mã** — sao chép riêng thư
+> Khoảng 38 bộ test nạp contract fixture bằng cách đi ngược lên từ thư mục làm việc cho tới khi
+> thấy `shared/`, nên **các bài test chỉ chạy đúng khi bạn checkout toàn bộ kho mã** — sao chép riêng thư
 > mục `android/` ra sẽ không hoạt động.
 
 Ngoài ra còn ba bài instrumented test — một ma trận release cho engine cục bộ, một bài test socket
@@ -299,8 +299,9 @@ và đã commit, đó cũng là nơi tệp `2.json` của migration đầu tiên
 
 ## Bản địa hóa
 
-Mười sáu ngôn ngữ: `values/` (tiếng Anh, nguồn) cộng mười lăm thư mục `values-*`, mỗi thư mục khoảng
-1.300 chuỗi, và mọi locale đều giữ đúng cùng một tập khóa. Việc đổi ngôn ngữ trong ứng dụng đi qua
+Mười sáu ngôn ngữ: `values/` (tiếng Anh, nguồn) cộng mười lăm thư mục locale — bên cạnh đó là
+`values-night`, thư mục không chứa chuỗi nào — mỗi thư mục khoảng 1.340 chuỗi, và mọi locale đều giữ
+đúng cùng một tập khóa. Việc đổi ngôn ngữ trong ứng dụng đi qua
 `AppLanguageManager` và `android:localeConfig`. Cơ chế tách gói theo ngôn ngữ bị tắt trong bundle,
 nên một artifact duy nhất mang theo mọi bản dịch.
 

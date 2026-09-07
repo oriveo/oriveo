@@ -39,15 +39,8 @@ bersama yang sama, jadi keanehan protokol yang diperbaiki sekali diperbaiki di m
 
 ## Apa yang sudah berjalan di Mac
 
-- **Klien web**, yang menjadi aplikasi desktop yang benar-benar layak di browser mana pun:
-
-  ```bash
-  cd web
-  npm install
-  npm run dev:app        # http://localhost:3001
-  ```
-
-  Lihat [web.md](web.md).
+- **Klien web**, yang menjadi aplikasi desktop yang benar-benar layak di browser mana pun. Lihat
+  [web.md — Mulai cepat](web.md#mulai-cepat).
 
 - **Build iOS**, di Mac dengan Apple silicon. Buka `ios/Oriveo/Oriveo.xcodeproj`, pilih destination
   *My Mac (Designed for iPad)*, lalu jalankan. Lihat [ios.md](ios.md).
@@ -70,5 +63,13 @@ Suite-nya berjalan di macOS tanpa simulator sama sekali:
 cd shared/OriveoProviderKit
 swift build && swift test
 ```
+
+Aplikasi web juga menyimpan antarmuka host desktop yang bertipe,
+[`web/packages/ipc-contract`](../../web/packages/ipc-contract/), yang bisa diikat sebuah shell
+native; tidak ada apa pun di repositori ini yang mengimplementasikannya.
+
+## Lisensi
+
+[AGPL-3.0-or-later](../../LICENSE).
 
 [README utama](README.md) · [Kontrak bersama](shared.md)

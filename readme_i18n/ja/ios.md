@@ -36,7 +36,7 @@
 
 Oriveo の iOS クライアントは BYOK の AI チャットアプリです。すでにお持ちの API キーを登録すると、
 アプリが各プロバイダーを端末から直接呼び出します。会話、メッセージ、ノート、ノートのフォルダは端末上の
-SQLite データベースに、添付ファイルの実体はその隣のファイルとして置かれ、Skills、環境設定、
+SQLite データベースに、添付ファイルの実体はその隣のファイルとして置かれ、スキル、環境設定、
 プロバイダー一覧、会話のフォルダは端末上の JSON です。API キーは iOS の Keychain に入ります。
 
 Oriveo のアカウントはありません。どこにもアップロードされず、サインインする対象もありません。ただし
@@ -67,7 +67,7 @@ flowchart TB
 
     subgraph provider ["プロバイダー層"]
         direction LR
-        services["15 の ProviderService<br/>relay は OpenAI のものを再利用"]
+        services["15 の ProviderService<br/>リレーは OpenAI のものを再利用"]
         transports["TransportRegistry<br/>12 の戦略"]
         kit["OriveoProviderKit<br/>SSE · チャンク組み立て · 秘匿化"]
     end
@@ -84,7 +84,7 @@ flowchart TB
 **メッセージ一覧は UIKit で、それ以外は SwiftUI です。** `ChatView` は `UICollectionView` を
 [ChatLayout](https://github.com/ekazaev/ChatLayout) で駆動する
 `ChatListViewControllerRepresentable` を埋め込んでいます。それ以外のすべて — ナビゲーション、設定、
-プロバイダーの設定、ノート、Skills — は SwiftUI です。分けているのは、トークン速度で流れてくる
+プロバイダーの設定、ノート、スキル — は SwiftUI です。分けているのは、トークン速度で流れてくる
 メッセージ一覧には、測定と再利用をセル単位で制御する必要があり、SwiftUI の差分計算ではそれが得られ
 ないからです。この境界は
 [`Features/Chat/ARCHITECTURE.md`](../../ios/Oriveo/Oriveo/Features/Chat/ARCHITECTURE.md)
@@ -99,7 +99,7 @@ flowchart TB
 | 会話ごとの Combine `PassthroughSubject` | ストリーミングのテキストと推論の差分 | トークン速度では SwiftUI の差分計算を完全に迂回する |
 
 **プロバイダー対応は 1 つの enum ではなく、4 本の独立した軸です。** `ProviderKind`（16 ケース。
-15 のプロバイダーと relay）は
+15 のプロバイダーとリレーサービス（Relay））は
 *ユーザーが何を設定したか*。`ProviderServiceProtocol` は*呼び出し面*。`TransportKind`（12 ケース）は
 *実際にどの通信プロトコルを話すか*で、これは**モデル単位でカタログから解決されます**。したがって同じ
 キーの背後にある 2 つのモデルが食い違っていても構いません。`RelayKind` はユーザーが指定した
@@ -152,18 +152,18 @@ Application Support/Oriveo/
   カバーしています。メッセージとノートの全文検索には、trigram トークナイザーを使った FTS5 を利用
   します。
 - **API キーは Keychain に置かれ**、プロバイダーとパーティションをキーとして管理されます。セッション
-  スナップショットに書き出す前に、そこからは消去されます。Skills はこれとは別に、`UserDefaults` の
+  スナップショットに書き出す前に、そこからは消去されます。スキル はこれとは別に、`UserDefaults` の
   JSON として保存されます。
 - **添付ファイルの実体はディスク上のファイル**であり、レコードではありません。大きな PDF が
   データベースを膨らませることはありません。
 
 バックアップは、`data.json` と画像ファイルを収めた `.oriveo` という ZIP です。任意のパスワードは
 アーカイブ自体を暗号化しません。暗号化されるのは、その中にあるプロバイダーの API キーだけです
-（AES-GCM、鍵は PBKDF2-HMAC-SHA256 を 600,000 回反復して導出）。会話、ノート、Skills、環境設定は
+（AES-GCM、鍵は PBKDF2-HMAC-SHA256 を 600,000 回反復して導出）。会話、ノート、スキル、環境設定は
 どちらの場合もアーカイブ内では素の JSON です。バックアップファイルは、それを持っている人なら誰でも
 読めるものとして扱ってください。
 
-## アプリが自分自身のために行うリクエスト
+## モデルカタログ
 
 コールドスタート時、アプリは `https://api.oriveoai.com/api/metadata?view=lean` に対して認証なし・
 ETag 条件付きの `GET` を 1 本発行します。これは公開のモデルカタログを取得します。どのモデルが存在し、
@@ -240,9 +240,10 @@ ios/Oriveo/
 パッケージ依存はコミット済みの `Package.resolved` から解決されます。
 
 **Apple シリコンの Mac では**、iPhone 向けのビルドがそのままネイティブに動きます。**My Mac
-(Designed for iPad)** の destination を選んでください。Mac Catalyst は意図的にオフです
-（`SUPPORTS_MACCATALYST = NO`）。つまりこれは Mac アプリではなく、iPad 互換ランタイム上で動く iOS
-アプリであり、カメラ撮影のような実機だけの経路は Mac 上での挙動になります。
+(Designed for iPad)** の destination を選んでください。Mac Catalyst は有効になっていません。
+プロジェクトが一度も採用しておらず、`TARGETED_DEVICE_FAMILY` は `1,2` のままです。つまりこれは
+Mac アプリではなく、iPad 互換ランタイム上で動く iOS アプリであり、カメラ撮影のような実機だけの経路は
+Mac 上での挙動になります。
 
 プロジェクトファイルは `objectVersion = 77` とファイルシステム同期グループを使っているため、古い
 Xcode では開けないことがあります。プロジェクトのフォーマットを編集するのではなく、Xcode を更新して
@@ -286,8 +287,8 @@ xcodebuild test -project ios/Oriveo/Oriveo.xcodeproj -scheme Oriveo \
 > だけ**です。`ios/` だけをコピーしても動きません。
 
 スイートは大規模です。[Swift Testing](https://github.com/swiftlang/swift-testing) のケースが
-およそ 2,900、加えて XCTest のケースが 76 あり、274 ファイルに分かれています。プロバイダーごとの
-リクエストの形、録画した上流 SSE のリプレイ、relay とローカルエンジンのポリシー、メッセージ一覧の
+およそ 2,900、加えて XCTest のケースが 76 あり、275 ファイルに分かれています。プロバイダーごとの
+リクエストの形、録画した上流 SSE のリプレイ、リレーサービスとローカルエンジンのポリシー、メッセージ一覧の
 測定とストリーミング挙動、ストレージ、バックアップの往復をカバーしています。
 
 `shared/OriveoProviderKit` には独自のスイートがあります。

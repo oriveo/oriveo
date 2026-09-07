@@ -39,18 +39,11 @@
 
 ## อะไรที่รันบน Mac ได้อยู่แล้ว
 
-- **ไคลเอนต์เว็บ** ซึ่งใช้เป็นแอปเดสก์ท็อปในเบราว์เซอร์ใดก็ได้อย่างดีเยี่ยม
-
-  ```bash
-  cd web
-  npm install
-  npm run dev:app        # http://localhost:3001
-  ```
-
-  ดู [web/README.md](web.md)
+- **ไคลเอนต์เว็บ** ซึ่งใช้เป็นแอปเดสก์ท็อปในเบราว์เซอร์ใดก็ได้อย่างดีเยี่ยม ดู
+  [web.md — เริ่มต้นอย่างรวดเร็ว](web.md#เริ่มต้นอย่างรวดเร็ว)
 
 - **บิลด์ iOS** บน Mac ที่ใช้ Apple silicon เปิด `ios/Oriveo/Oriveo.xcodeproj` เลือกปลายทาง
-  *My Mac (Designed for iPad)* แล้วกด Run ดู [ios/README.md](ios.md)
+  *My Mac (Designed for iPad)* แล้วกด Run ดู [ios.md](ios.md)
 
 ## อะไรที่เขียนไว้แล้ว
 
@@ -69,5 +62,13 @@ platforms: [.macOS(.v15), .iOS(.v18)]
 cd shared/OriveoProviderKit
 swift build && swift test
 ```
+
+แอปเว็บยังเก็บอินเทอร์เฟซแบบมีชนิดสำหรับโฮสต์เดสก์ท็อปไว้ด้วย คือ
+[`web/packages/ipc-contract`](../../web/packages/ipc-contract/) ซึ่งเชลล์เนทีฟผูกเข้ามาได้
+แต่ไม่มีอะไรในที่เก็บโค้ดนี้ที่อิมพลีเมนต์มัน
+
+## สัญญาอนุญาต
+
+[AGPL-3.0-or-later](../../LICENSE)
 
 [README หลัก](README.md) · [ข้อกำหนดร่วม](shared.md)

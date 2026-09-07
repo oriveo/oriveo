@@ -67,7 +67,7 @@ flowchart TB
 
     subgraph provider ["공급자 계층"]
         direction LR
-        services["ProviderService 15종<br/>릴레이는 OpenAI 것을 재사용"]
+        services["ProviderService 15종<br/>릴레이 서비스는 OpenAI 것을 재사용"]
         transports["TransportRegistry<br/>전략 12종"]
         kit["OriveoProviderKit<br/>SSE · 청크 조립 · 비밀 값 가림"]
     end
@@ -99,7 +99,7 @@ flowchart TB
 | 대화별 Combine `PassthroughSubject` | 스트리밍 텍스트와 추론 델타 | 토큰 속도에서 SwiftUI diffing을 아예 우회한다 |
 
 **공급자 지원은 하나의 enum이 아니라 서로 독립적인 네 개의 축입니다.** `ProviderKind`(16가지:
-공급자 열다섯 곳과 릴레이)는
+공급자 열다섯 곳과 릴레이 서비스(Relay))는
 *사용자가 무엇을 설정했는가*입니다. `ProviderServiceProtocol`은 *호출 표면*입니다.
 `TransportKind`(12가지)는 *실제로 어떤 wire 프로토콜을 쓰는가*이며, **모델마다 카탈로그를 보고**
 결정되므로 같은 키 뒤에 있는 두 모델이 서로 다를 수 있습니다. `RelayKind`는 사용자가 직접 넣은
@@ -158,7 +158,7 @@ Application Support/Oriveo/
 반복해 유도한 키). 대화와 노트, 스킬, 환경설정은 어느 경우든 아카이브 안에서 평문 JSON이므로, 백업
 파일은 그것을 가진 사람이면 누구나 읽을 수 있다고 생각하세요.
 
-## 앱이 스스로 보내는 요청
+## 모델 카탈로그
 
 콜드 스타트 때 앱은 `https://api.oriveoai.com/api/metadata?view=lean`으로 인증 없는 ETag 조건부
 `GET` 요청 하나를 보냅니다. 공개 모델 카탈로그를 받아오는 요청으로, 어떤 모델이 있는지, 각 모델이
@@ -233,9 +233,9 @@ Developer 계정이면 충분합니다. entitlements 파일은 비어 있고 앱
 `Package.resolved`에서 해석됩니다.
 
 **Apple silicon Mac에서는** iPhone 빌드가 네이티브로도 돌아갑니다. **My Mac (Designed for iPad)**
-destination을 고르세요. Mac Catalyst는 일부러 꺼 두었으므로(`SUPPORTS_MACCATALYST = NO`), 이것은 Mac
-앱이 아니라 iPad 호환 런타임에서 돌아가는 iOS 앱입니다 — 카메라 촬영처럼 기기에서만 쓰이는 경로는
-Mac에서 동작하는 그대로 동작합니다.
+destination을 고르세요. Mac Catalyst는 켜져 있지 않습니다 — 프로젝트가 한 번도 켠 적이 없고
+`TARGETED_DEVICE_FAMILY`도 계속 `1,2`입니다 — 그래서 이것은 Mac 앱이 아니라 iPad 호환 런타임에서
+돌아가는 iOS 앱이며, 카메라 촬영처럼 기기에서만 쓰이는 경로는 Mac에서 동작하는 그대로 동작합니다.
 
 프로젝트 파일은 파일 시스템 동기화 그룹과 함께 `objectVersion = 77`을 쓰므로, 오래된 Xcode는 열기를
 거부할 수 있습니다. 프로젝트 포맷을 손대지 말고 Xcode를 업데이트하세요.
@@ -278,8 +278,8 @@ xcodebuild test -project ios/Oriveo/Oriveo.xcodeproj -scheme Oriveo \
 > 않습니다.
 
 스위트는 큽니다. [Swift Testing](https://github.com/swiftlang/swift-testing) 케이스 약 2,900개에
-XCTest 케이스 76개가 더해져, 274개 파일에 걸쳐 있습니다. 공급자별 요청 형태, 녹화된 업스트림 SSE
-재생, 릴레이와 로컬 엔진 정책, 트랜스크립트 측정과 스트리밍 동작, 저장, 백업 왕복을 다룹니다.
+XCTest 케이스 76개가 더해져, 275개 파일에 걸쳐 있습니다. 공급자별 요청 형태, 녹화된 업스트림 SSE
+재생, 릴레이 서비스와 로컬 엔진 정책, 트랜스크립트 측정과 스트리밍 동작, 저장, 백업 왕복을 다룹니다.
 
 `shared/OriveoProviderKit`에는 자체 스위트가 있습니다.
 

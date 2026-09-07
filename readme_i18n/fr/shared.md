@@ -95,10 +95,10 @@ validation de formulaires, classification des adresses locales, scénarios de ca
 configuration portable, instantanés de model facts et de preuves de capacités, et scénarios de
 moteurs locaux.
 
-Les fichiers `.sse` situés sous `recorded/` sont du **vrai trafic amont capturé**, gardé octet pour
-octet tel qu'il est arrivé — seuls les en-têtes de réponse ont été retirés, et les corps n'ont jamais
-transporté de clé. Les autres sont des fixtures écrites à la main qui figent un chemin d'analyse
-précis. La distinction compte : un mock écrit à la main encode ce que vous croyiez que le
+Les fichiers `.sse` situés sous `provider-toolcall/recorded/` sont du **vrai trafic amont capturé**,
+gardé octet pour octet tel qu'il est arrivé — seuls les en-têtes de réponse ont été retirés, et les
+corps n'ont jamais transporté de clé. Les fichiers `.sse` posés directement dans
+`provider-toolcall/` sont des fixtures écrites à la main qui figent un chemin d'analyse précis. La distinction compte : un mock écrit à la main encode ce que vous croyiez que le
 fournisseur fait, alors qu'un enregistrement encode ce qu'il a réellement fait, y compris le chunk
 malformé qu'il a envoyé ce mardi-là. Quand une correction de protocole fournisseur a besoin d'un
 test, préférez un enregistrement.
@@ -154,8 +154,10 @@ Depuis la racine du dépôt :
 ```
 
 Les suites iOS localisent ce répertoire en remontant depuis le fichier de test jusqu'à voir
-`shared/` ; les suites Android résolvent `../../shared` depuis le module Gradle ; les suites web
-le résolvent relativement au workspace. Toutes exigent donc un checkout complet du dépôt.
+`shared/` ; les suites Android remontent de la même façon depuis le répertoire de travail ; les
+suites web le résolvent relativement au workspace. Toutes exigent donc un checkout complet du dépôt.
+
+Avant d'ouvrir une pull request, lisez [CONTRIBUTING.md](../../CONTRIBUTING.md).
 
 ## Licence
 

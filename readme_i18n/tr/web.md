@@ -36,7 +36,7 @@
 ---
 
 Oriveo web istemcisi, Next.js ile yapılmış, kendi anahtarınızı getirdiğiniz bir yapay zekâ sohbet
-uygulamasıdır. Sohbetler, notlar, klasörler, skill'ler ve sağlayıcı anahtarlarınız tarayıcının kendi
+uygulamasıdır. Sohbetler, notlar, klasörler, yetenekler ve sağlayıcı anahtarlarınız tarayıcının kendi
 deposunda yaşar. Hesap da yok, giriş de.
 
 Bu, [Oriveo Community Edition](README.md)'ın bir parçasıdır — bir model sağlayıcısıyla nasıl
@@ -44,7 +44,8 @@ konuşulacağına dair tek bir tanımı paylaşan üç istemci.
 
 ## Hızlı başlangıç
 
-Node 22.22 veya sonrası gerekir (bkz. [`.nvmrc`](../../web/.nvmrc)). npm onunla birlikte gelir; başka bir paket
+Node 22.22.2 veya sonraki bir 22.x sürümü gerekir (bkz. [`.nvmrc`](../../web/.nvmrc)); `engines`
+alanı `^22.22.2` olduğundan Node 23+ desteklenmez. npm onunla birlikte gelir; başka bir paket
 yöneticisine gerek yoktur.
 
 ```bash
@@ -71,13 +72,13 @@ flowchart LR
     end
 
     official["15 resmi sağlayıcı"]
-    pubrelay["Genel bir sunucudaki relay"]
+    pubrelay["Genel bir sunucudaki aktarma"]
     lan["Ağınızdaki bir model sunucusu"]
     catalog[("Herkese açık model kataloğu<br/>salt okunur · anahtarsız")]
 
     browser ==>|"resmi sağlayıcıların çoğu"| chat ==> official
     browser ==>|"model listesi · anahtar kontrolü · OAuth"| prov
-    browser ==>|"relay, genel sunucu"| fwd ==> pubrelay
+    browser ==>|"aktarma, genel sunucu"| fwd ==> pubrelay
     browser ==>|"ağınızdaki relay"| lan
     browser ==>|"CORS'a izin veren endpoint'ler"| official
     catalog -.-> browser
@@ -106,7 +107,7 @@ mesajlarınız iletilir ve unutulur. Route, her ziyaretçinin paylaştığı tek
 bir test (`server-never-learns.test.ts`), bir kullanıcının reddedilen bir parametresini önbelleğe
 alıp başkasının isteğine uygulamadığını sabitler.
 
-Relay iletici ayrıca DNS'i çözdüğü adrese sabitler, yanıt boyutunu sınırlar, her zaman aşımına sınır
+Aktarma hizmeti (Relay) ileticisi ayrıca DNS'i çözdüğü adrese sabitler, yanıt boyutunu sınırlar, her zaman aşımına sınır
 koyar, yönlendirmeleri aynı origin ile sınırlar ve hop-by-hop başlıkları geçirmeyi reddeder.
 
 **Yerel endpoint'ler bunu tümüyle atlar.** Özel bir adreste, `.local` bir adda, `localhost`'ta ya da
@@ -120,7 +121,7 @@ yerel HTTP veya özel VPN kipinde yapılandırılmış bir relay, `credentials: 
 flowchart TB
     subgraph app ["apps/app — Next.js uygulaması"]
         direction LR
-        routes["App Router<br/>sohbet · notlar · sağlayıcılar · skills · ayarlar"]
+        routes["App Router<br/>sohbet · notlar · sağlayıcılar · yetenekler · ayarlar"]
         store["Zustand store<br/>vanilla + context"]
         idb[("IndexedDB<br/>sohbetler · notlar · anahtarlar")]
     end
@@ -166,9 +167,11 @@ packages/ipc-contract/  typed channel contract for a desktop shell
 ```
 
 Stil, `packages/ui` içindeki tek bir custom property token sayfası üzerine kurulu CSS Modules ile
-yapılır; utility-class çerçevesi yoktur. `packages/ipc-contract`, bir masaüstü kabuğunun bağlanacağı
-kanal yüzeyini tanımlar; bu depoda öyle bir kabuk yayınlanmadığı için web derlemesinde yalnızca hiç
-girilmeyen tipler ve dallar katar.
+yapılır; utility-class çerçevesi yoktur. `packages/ipc-contract`, web uygulamasının bir masaüstü
+ana bilgisayarı için tuttuğu tipli arayüzdür: sohbet akışı, sağlayıcı çağrıları, aktarma iletimi ve
+anahtar saklama için adlandırılmış kanallar; yerel bir kabuk `window.oriveo` sunarak bunlara
+bağlanabilir. Bu depoda hiçbir masaüstü kabuğu yayınlanmadığı için web derlemesinde `IS_DESKTOP`
+false olur ve arkasındaki her dal kullanılmadan kalır.
 
 Aynı türden bir dikiş daha var. `apps/app/lib/core/sync-port.ts`, bir senkronizasyon arka ucunun uygulayacağı
 arayüzü bildirir ve her çağrı yeri ona optional chaining ile erişir. Böyle bir arka uç kurulmadığı
@@ -226,7 +229,7 @@ Bunları bu dizinden çalıştırın.
 | `npm run build:app` | üretim derlemesi |
 | `npm run typecheck` | tüm workspace'lerde `tsc --noEmit` |
 | `npm run test:run` | vitest, tek geçiş |
-| `npm run test` | izleme kipinde vitest |
+| `npm run test` | izleme kipinde vitest, workspace başına bir izleyici — tek bir workspace içinde çalıştırmak yeğlenir |
 | `npm run lint` | `apps/` ve `packages/` üzerinde eslint |
 
 `npm start --workspace @oriveo/app`, bitmiş bir derlemeyi 3001 portunda sunar.
@@ -287,6 +290,19 @@ anahtar tutmaz ve hiçbir şey saklamaz, ama dışa doğru bir HTTP yoludur; bu 
 erişilebilir bir dağıtım, başka herhangi bir dahili araca uygulayacağınız erişim denetiminin arkasında
 durmalıdır.
 
+## Bağımlılıklar
+
+| Paket | Sürüm | Ne için |
+|---|---|---|
+| [Next.js](https://nextjs.org) | 16.3.3 | App Router, route handler'lar, derleme |
+| [React](https://react.dev) | 19.2.8 | arayüz |
+| [vitest](https://vitest.dev) | 4.1.11 | test koşucusu |
+| [zustand](https://zustand.docs.pmnd.rs) | 5.0.15 | istemci tarafı state |
+| [next-intl](https://next-intl.dev) | 4.14.1 | yerelleştirme |
+| [@sentry/nextjs](https://docs.sentry.io/platforms/javascript/guides/nextjs/) | 10.72.0 | hata raporlama, DSN olmadan etkisiz |
+
+Her bağımlılığın tam sürümü `package-lock.json` içinde sabitlenmiştir.
+
 ## Testler
 
 460 dosyada yaklaşık 5.600 test, vitest üzerinde. En yoğun kapsam, bir hatanın en pahalıya patladığı
@@ -297,9 +313,9 @@ geçersizleştirme, IndexedDB kalıcılığı, depolama bölümlemesi, yedekleme
 handler'ların kendisi.
 
 > [!IMPORTANT]
-> Otuzdan fazla test paketi sözleşme fixture'larını `../shared` içinden yükler; dolayısıyla **testler
-> yalnızca deponun tamamı elinizdeyken geçer** — tek başına `web/` klasörünü dışarı kopyalamak işe
-> yaramaz.
+> Otuzdan fazla test paketi sözleşme fixture'larını çalışma dizinine göre `shared/` altında çözer;
+> dolayısıyla **testler yalnızca deponun tamamı elinizdeyken ve onları içeren workspace'ten
+> çalıştırıldığında geçer** — tek başına `web/` klasörünü dışarı kopyalamak işe yaramaz.
 
 ## Yerelleştirme
 

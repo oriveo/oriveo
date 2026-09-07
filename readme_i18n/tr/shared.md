@@ -94,10 +94,10 @@ Altın test verisi: kaydedilmiş upstream tool call trafiği, relay yönlendirme
 adres sınıflandırma, katalog ve taşınabilir yapılandırma senaryoları, model facts ve yetenek kanıtı
 anlık görüntüleri ve yerel motor senaryoları.
 
-`recorded/` altındaki `.sse` dosyaları **gerçekten yakalanmış upstream trafiğidir** ve geldiği hâliyle
-bayt bayt tutulur — yalnızca yanıt başlıkları atılmıştır ve gövdeler hiçbir zaman anahtar taşımadı.
-Geri kalanlar ise belirli bir ayrıştırma yolunu sabitleyen, elle yazılmış fixture'lardır. Bu ayrım
-önemlidir: elle yazılmış bir mock, sağlayıcının ne yaptığına dair inancınızı kodlar; kaydedilmiş bir
+`provider-toolcall/recorded/` altındaki `.sse` dosyaları **gerçekten yakalanmış upstream
+trafiğidir** ve geldiği hâliyle bayt bayt tutulur — yalnızca yanıt başlıkları atılmıştır ve gövdeler
+hiçbir zaman anahtar taşımadı. Doğrudan `provider-toolcall/` içinde duran `.sse` dosyaları ise
+belirli bir ayrıştırma yolunu sabitleyen, elle yazılmış fixture'lardır. Bu ayrım önemlidir: elle yazılmış bir mock, sağlayıcının ne yaptığına dair inancınızı kodlar; kaydedilmiş bir
 akış ise onun gerçekte ne yaptığını kodlar — o salı günü gönderdiği bozuk chunk dahil. Bir sağlayıcı
 protokolü düzeltmesinin teste ihtiyacı olduğunda, bir kaydı tercih edin.
 
@@ -149,8 +149,10 @@ Depo kökünden:
 ```
 
 iOS test paketleri bu dizini, test dosyasından yukarı çıkıp `shared/` dizinini görene kadar arayarak
-bulur; Android test paketleri Gradle modül dizininden `../../shared` yolunu çözer; web test
+bulur; Android test paketleri de aynı şekilde çalışma dizininden yukarı doğru yürür; web test
 paketleri ise onu workspace'e göre çözer. Bu yüzden hepsi deponun tam bir kopyasını gerektirir.
+
+Bir pull request açmadan önce [CONTRIBUTING.md](../../CONTRIBUTING.md) dosyasını okuyun.
 
 ## Lisans
 

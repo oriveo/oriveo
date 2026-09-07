@@ -37,7 +37,7 @@
 Der Oriveo-iOS-Client ist eine KI-Chat-App, die mit deinem eigenen Key arbeitet. Du hinterlegst
 API-Keys, die dir schon gehören, und die App ruft jeden Anbieter direkt vom Telefon aus auf.
 Unterhaltungen, Nachrichten, Notizen und Notizordner liegen in einer SQLite-Datenbank auf dem Gerät;
-Anhang-Blobs sind Dateien daneben; Skills, Einstellungen, die Anbieterliste und Unterhaltungsordner
+Anhang-Blobs sind Dateien daneben; Fähigkeiten, Einstellungen, die Anbieterliste und Unterhaltungsordner
 sind JSON auf dem Gerät. API-Keys gehen in die iOS Keychain.
 
 Es gibt kein Oriveo-Konto: nichts wird hochgeladen, und es gibt nichts, wo man sich anmelden müsste.
@@ -85,7 +85,7 @@ Drei Dinge an diesem Diagramm gehören klar gesagt.
 **Der Verlauf ist UIKit, alles andere ist SwiftUI.** `ChatView` bettet ein
 `ChatListViewControllerRepresentable` um eine `UICollectionView` ein, angetrieben von
 [ChatLayout](https://github.com/ekazaev/ChatLayout). Alles andere – Navigation, Einstellungen,
-Anbieter-Einrichtung, Notizen, Skills – ist SwiftUI. Die Trennung gibt es, weil ein Verlauf, der im
+Anbieter-Einrichtung, Notizen, Fähigkeiten – ist SwiftUI. Die Trennung gibt es, weil ein Verlauf, der im
 Token-Takt streamt, Kontrolle über Vermessung und Wiederverwendung auf Zellebene braucht, die
 SwiftUIs Diffing nicht hergibt.
 [`Features/Chat/ARCHITECTURE.md`](../../ios/Oriveo/Oriveo/Features/Chat/ARCHITECTURE.md)
@@ -154,7 +154,7 @@ Application Support/Oriveo/
   Schema-Änderung abdeckt. Die Volltextsuche über Nachrichten und Notizen nutzt FTS5 mit einem
   Trigramm-Tokenizer.
 - **API-Keys liegen in der Keychain**, geschlüsselt nach Anbieter und Partition, und werden aus dem
-  Session-Snapshot geleert, bevor er geschrieben wird. Skills werden separat als JSON in
+  Session-Snapshot geleert, bevor er geschrieben wird. Fähigkeiten werden separat als JSON in
   `UserDefaults` gespeichert.
 - **Anhang-Blobs sind Dateien auf der Platte**, keine Zeilen, damit ein großes PDF die Datenbank nie
   aufbläht.
@@ -162,10 +162,10 @@ Application Support/Oriveo/
 Ein Backup ist ein `.oriveo`-ZIP mit `data.json` und den Bilddateien. Das optionale Passwort
 verschlüsselt nicht das Archiv: es verschlüsselt allein die Anbieter-API-Keys darin (AES-GCM, mit
 einem Schlüssel, den PBKDF2-HMAC-SHA256 über 600.000 Iterationen ableitet). Unterhaltungen, Notizen,
-Skills und Einstellungen liegen so oder so als reines JSON im Archiv – behandle eine Backup-Datei
+Fähigkeiten und Einstellungen liegen so oder so als reines JSON im Archiv – behandle eine Backup-Datei
 also als lesbar für jeden, der sie hat.
 
-## Die Requests, die die App für sich selbst stellt
+## Der Modellkatalog
 
 Beim Kaltstart setzt die App einen nicht authentifizierten, ETag-konditionalen `GET` an
 `https://api.oriveoai.com/api/metadata?view=lean` ab. Er holt den öffentlichen Modellkatalog: welche
@@ -175,7 +175,7 @@ zwischengespeichert, sodass die App aus der Kopie weiterarbeitet, wenn der Katal
 ist. Einen zweiten Endpunkt, `/api/metadata/model-facts`, liest sie erst, nachdem du dich mit einem
 ChatGPT- oder Grok-Abo angemeldet hast, um zu erfahren, was die Modelle dieses Abos können.
 
-Das sind die einzigen Requests, die die App auf eigene Rechnung stellt. Alles andere geht an einen
+Das sind die einzigen Requests, die die App von sich aus stellt. Alles andere geht an einen
 Anbieter, den du eingerichtet hast, mit deinem Key.
 
 Den Katalog auf deinen eigenen Host zu richten ist eine **Bequemlichkeit für Debug-Builds**,
@@ -243,9 +243,10 @@ Für den Simulator wählst du stattdessen einen beliebigen iPhone-Simulator und 
 Paketabhängigkeiten werden aus der eingecheckten `Package.resolved` aufgelöst.
 
 **Auf einem Mac mit Apple Silicon** läuft der iPhone-Build auch nativ: wähle das Ziel **My Mac
-(Designed for iPad)**. Mac Catalyst ist absichtlich aus (`SUPPORTS_MACCATALYST = NO`), das ist also
-die iOS-App unter der iPad-Kompatibilitätslaufzeit und keine Mac-App – Pfade, die es nur auf dem
-Gerät gibt, etwa die Kameraaufnahme, verhalten sich so, wie sie sich auf einem Mac verhalten.
+(Designed for iPad)**. Mac Catalyst ist nicht aktiviert – das Projekt schaltet es nie ein und
+`TARGETED_DEVICE_FAMILY` bleibt `1,2` –, das ist also die iOS-App unter der
+iPad-Kompatibilitätslaufzeit und keine Mac-App, und Pfade, die es nur auf dem Gerät gibt, etwa die
+Kameraaufnahme, verhalten sich so, wie sie sich auf einem Mac verhalten.
 
 Die Projektdatei nutzt `objectVersion = 77` mit dateisystemsynchronisierten Gruppen, ein älteres
 Xcode kann sich also weigern, sie zu öffnen. Aktualisiere Xcode, statt am Projektformat zu
@@ -290,7 +291,7 @@ Projekt und Schema listet alles auf, wofür dieses Checkout bauen kann.
 > Checkout durch** – `ios/` allein herauszukopieren funktioniert nicht.
 
 Die Suite ist groß: rund 2.900 Fälle in [Swift
-Testing](https://github.com/swiftlang/swift-testing) plus 76 in XCTest, über 274 Dateien. Sie deckt
+Testing](https://github.com/swiftlang/swift-testing) plus 76 in XCTest, über 275 Dateien. Sie deckt
 die Request-Form pro Anbieter,
 aufgezeichnetes Upstream-SSE-Replay, Relay- und Local-Engine-Policy, Vermessung und
 Streaming-Verhalten des Verlaufs, Speicherung und Backup-Rundläufe ab.

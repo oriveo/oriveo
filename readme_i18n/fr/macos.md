@@ -40,15 +40,8 @@ corrigée partout.
 
 ## Ce qui tourne déjà sur un Mac
 
-- **Le client web**, qui fait parfaitement office d'app de bureau dans n'importe quel navigateur :
-
-  ```bash
-  cd web
-  npm install
-  npm run dev:app        # http://localhost:3001
-  ```
-
-  Voir [web.md](web.md).
+- **Le client web**, qui fait parfaitement office d'app de bureau dans n'importe quel navigateur.
+  Voir [web.md — Démarrage rapide](web.md#démarrage-rapide).
 
 - **Le build iOS**, sur un Mac Apple Silicon. Ouvrez `ios/Oriveo/Oriveo.xcodeproj`, choisissez la
   destination *My Mac (Designed for iPad)*, et lancez. Voir [ios.md](ios.md).
@@ -71,5 +64,13 @@ Sa suite tourne sur macOS sans aucun simulateur :
 cd shared/OriveoProviderKit
 swift build && swift test
 ```
+
+L'app web conserve aussi une interface typée pour un hôte de bureau,
+[`web/packages/ipc-contract`](../../web/packages/ipc-contract/), à laquelle un shell natif peut se
+lier ; rien dans ce dépôt ne l'implémente.
+
+## Licence
+
+[AGPL-3.0-or-later](../../LICENSE).
 
 [README racine](README.md) · [Contrats partagés](shared.md)

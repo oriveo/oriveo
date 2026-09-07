@@ -37,7 +37,7 @@
 Klien iOS Oriveo adalah aplikasi chat AI bring-your-own-key. Anda menambahkan API key yang sudah
 Anda miliki, dan aplikasi memanggil setiap provider langsung dari ponsel. Percakapan, pesan, catatan,
 dan folder catatan tinggal di basis data SQLite di perangkat; blob lampiran adalah berkas di
-sebelahnya; skill, preferensi, daftar provider, dan folder percakapan adalah JSON di perangkat. API
+sebelahnya; keterampilan, preferensi, daftar provider, dan folder percakapan adalah JSON di perangkat. API
 key masuk ke iOS Keychain.
 
 Tidak ada akun Oriveo: tidak ada apa pun yang diunggah, dan tidak ada yang perlu dimasuki. Dua
@@ -85,7 +85,7 @@ Tiga hal dari diagram ini perlu dikatakan terus terang.
 **Transkripnya UIKit, sisanya SwiftUI.** `ChatView` menyematkan sebuah
 `ChatListViewControllerRepresentable` di sekitar `UICollectionView` yang digerakkan oleh
 [ChatLayout](https://github.com/ekazaev/ChatLayout). Segala yang lain — navigasi, pengaturan,
-penyiapan provider, catatan, skill — adalah SwiftUI. Pembagian ini ada karena transkrip yang
+penyiapan provider, catatan, keterampilan — adalah SwiftUI. Pembagian ini ada karena transkrip yang
 streaming pada laju token butuh kontrol tingkat sel atas pengukuran dan penggunaan ulang, sesuatu
 yang tidak diberikan diffing SwiftUI.
 [`Features/Chat/ARCHITECTURE.md`](../../ios/Oriveo/Oriveo/Features/Chat/ARCHITECTURE.md)
@@ -153,7 +153,7 @@ Application Support/Oriveo/
   setiap perubahan skema. Pencarian teks penuh atas pesan dan catatan memakai FTS5 dengan tokenizer
   trigram.
 - **API key tinggal di Keychain**, di-key berdasarkan provider dan partisi, dan dikosongkan dari
-  session snapshot sebelum snapshot itu ditulis. Skill disimpan terpisah sebagai JSON di
+  session snapshot sebelum snapshot itu ditulis. Keterampilan disimpan terpisah sebagai JSON di
   `UserDefaults`.
 - **Blob lampiran adalah berkas di disk**, bukan baris tabel, jadi PDF besar tidak pernah
   menggelembungkan basis data.
@@ -161,10 +161,10 @@ Application Support/Oriveo/
 Sebuah cadangan adalah ZIP `.oriveo` yang memuat `data.json` plus berkas-berkas gambar. Kata sandi
 opsionalnya tidak mengenkripsi arsipnya: ia hanya mengenkripsi API key provider di dalamnya (AES-GCM,
 dengan key yang diturunkan oleh PBKDF2-HMAC-SHA256 lewat 600.000 iterasi). Percakapan, catatan,
-skill, dan preferensi tetap berupa JSON biasa di dalam arsip, jadi anggaplah sebuah berkas cadangan
+keterampilan, dan preferensi tetap berupa JSON biasa di dalam arsip, jadi anggaplah sebuah berkas cadangan
 bisa dibaca siapa pun yang memilikinya.
 
-## Permintaan yang dibuat aplikasi untuk dirinya sendiri
+## Katalog model
 
 Saat cold start aplikasi mengirim satu permintaan `GET` tanpa autentikasi dan ber-ETag-conditional ke
 `https://api.oriveoai.com/api/metadata?view=lean`. Permintaan itu mengambil katalog model publik:
@@ -243,9 +243,10 @@ Untuk mem-build ke Simulator, pilih simulator iPhone mana pun lalu Run. Dependen
 di-resolve dari `Package.resolved` yang sudah di-commit.
 
 **Di Mac dengan Apple silicon** build iPhone-nya juga berjalan secara native: pilih destination
-**My Mac (Designed for iPad)**. Mac Catalyst sengaja dimatikan (`SUPPORTS_MACCATALYST = NO`), jadi
-ini adalah aplikasi iOS di bawah runtime kompatibilitas iPad, bukan aplikasi Mac — jalur yang khusus
-perangkat, seperti pengambilan gambar dari kamera, berperilaku sebagaimana di Mac.
+**My Mac (Designed for iPad)**. Mac Catalyst tidak diaktifkan — proyeknya tidak pernah ikut serta
+dan `TARGETED_DEVICE_FAMILY` tetap `1,2` — jadi ini adalah aplikasi iOS di bawah runtime
+kompatibilitas iPad, bukan aplikasi Mac, dan jalur yang khusus perangkat, seperti pengambilan gambar
+dari kamera, berperilaku sebagaimana di Mac.
 
 Berkas proyek memakai `objectVersion = 77` dengan grup yang tersinkron dengan sistem berkas, jadi
 Xcode versi lama mungkin menolak membukanya. Perbarui Xcode, jangan mengedit format proyeknya.
@@ -288,7 +289,7 @@ scheme yang sama menampilkan semua yang bisa di-build dari checkout ini.
 > `ios/` sendirian tidak akan berhasil.
 
 Suite-nya besar: sekitar 2.900 kasus [Swift Testing](https://github.com/swiftlang/swift-testing)
-ditambah 76 kasus XCTest, di 274 berkas. Cakupannya meliputi bentuk permintaan per provider,
+ditambah 76 kasus XCTest, di 275 berkas. Cakupannya meliputi bentuk permintaan per provider,
 pemutaran ulang SSE upstream yang terekam, kebijakan relay dan local engine, pengukuran transkrip dan
 perilaku streaming, penyimpanan, serta round-trip cadangan.
 

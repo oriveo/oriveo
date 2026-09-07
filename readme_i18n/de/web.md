@@ -36,7 +36,7 @@
 ---
 
 Der Oriveo-Web-Client ist eine KI-Chat-App mit deinem eigenen Key, gebaut mit Next.js.
-Unterhaltungen, Notizen, Ordner, Skills und deine Anbieter-Keys liegen im Speicher des Browsers
+Unterhaltungen, Notizen, Ordner, Fähigkeiten und deine Anbieter-Keys liegen im Speicher des Browsers
 selbst. Es gibt kein Konto und keine Anmeldung.
 
 Er ist Teil der [Oriveo Community Edition](README.md) – drei Clients, die sich eine Definition
@@ -44,7 +44,8 @@ davon teilen, wie man mit einem Modellanbieter spricht.
 
 ## Schnellstart
 
-Braucht Node 22.22 oder neuer (siehe [`.nvmrc`](../../web/.nvmrc)). npm kommt mit; ein anderer Paketmanager wird
+Braucht Node 22.22.2 oder ein neueres 22.x (siehe [`.nvmrc`](../../web/.nvmrc)); das Feld `engines`
+lautet `^22.22.2`, Node 23+ wird also nicht unterstützt. npm kommt mit; ein anderer Paketmanager wird
 nicht gebraucht.
 
 ```bash
@@ -123,7 +124,7 @@ LAN-Verkehr verlässt dein Netz nicht, und er läuft auch nicht über den Server
 flowchart TB
     subgraph app ["apps/app – die Next.js-Anwendung"]
         direction LR
-        routes["App Router<br/>Chat · Notizen · Anbieter · Skills · Einstellungen"]
+        routes["App Router<br/>Chat · Notizen · Anbieter · Fähigkeiten · Einstellungen"]
         store["Zustand Store<br/>vanilla + Context"]
         idb[("IndexedDB<br/>Unterhaltungen · Notizen · Keys")]
     end
@@ -170,9 +171,11 @@ packages/ipc-contract/  typed channel contract for a desktop shell
 ```
 
 Gestylt wird mit CSS Modules über einem einzigen Token-Sheet aus Custom Properties in `packages/ui` –
-ein Utility-Class-Framework gibt es nicht. `packages/ipc-contract` beschreibt die Kanalfläche, an die
-sich eine Desktop-Shell binden würde; eine solche Shell liegt diesem Repository nicht bei, im
-Web-Build steuert das Paket also Typen und Zweige bei, die nie genommen werden.
+ein Utility-Class-Framework gibt es nicht. `packages/ipc-contract` ist die typisierte Schnittstelle,
+die die Web-App für einen Desktop-Host bereithält: benannte Kanäle für Chat-Streaming,
+Anbieter-Aufrufe, Relay-Weiterleitung und Key-Speicherung, an die sich eine native Shell binden kann,
+indem sie `window.oriveo` bereitstellt. Eine Desktop-Shell liegt diesem Repository nicht bei, im
+Web-Build ist `IS_DESKTOP` also false und jeder Zweig dahinter bleibt ungenutzt.
 
 Es gibt noch eine Nahtstelle derselben Art. `apps/app/lib/core/sync-port.ts` deklariert die
 Schnittstelle, die ein Synchronisations-Backend implementieren würde, und jede Aufrufstelle greift
@@ -207,7 +210,7 @@ ist, dass er Site-Daten blockiert – ein nacktes Lesen lässt die Seite abstür
 
 ## Der Modellkatalog
 
-Welche Modelle jeder Anbieter anbietet und was jedes davon unterstützt, kommt aus einem nur lesbaren
+Welche Modelle jeder Anbieter anbietet und was jedes davon unterstützt, kommt aus einem nur lesenden
 Katalog, der beim Start geholt wird. Genau zwei Endpunkte werden abgerufen, beide per `GET`, beide
 ETag-konditional, keiner trägt einen API-Key, eine Unterhaltung oder irgendeine Nutzerkennung:
 
@@ -231,7 +234,7 @@ Führe diese aus diesem Verzeichnis aus.
 | `npm run build:app` | Produktions-Build |
 | `npm run typecheck` | `tsc --noEmit` über alle Workspaces |
 | `npm run test:run` | vitest, ein Durchlauf |
-| `npm run test` | vitest im Watch-Modus |
+| `npm run test` | vitest im Watch-Modus, ein Watcher je Workspace – führe es lieber innerhalb eines einzelnen Workspace aus |
 | `npm run lint` | eslint über `apps/` und `packages/` |
 
 `npm start --workspace @oriveo/app` liefert einen fertigen Build auf Port 3001 aus.
@@ -292,6 +295,19 @@ halten keine eigenen Keys und speichern nichts, aber sie sind ein ausgehender HT
 öffentlich erreichbares Deployment gehört daher hinter dieselbe Zugangskontrolle, die du jedem
 anderen internen Werkzeug geben würdest.
 
+## Abhängigkeiten
+
+| Paket | Version | Wofür |
+|---|---|---|
+| [Next.js](https://nextjs.org) | 16.3.3 | App Router, Route Handler, Build |
+| [React](https://react.dev) | 19.2.8 | UI |
+| [vitest](https://vitest.dev) | 4.1.11 | der Test-Runner |
+| [zustand](https://zustand.docs.pmnd.rs) | 5.0.15 | Client-State |
+| [next-intl](https://next-intl.dev) | 4.14.1 | Lokalisierung |
+| [@sentry/nextjs](https://docs.sentry.io/platforms/javascript/guides/nextjs/) | 10.72.0 | Fehlerberichte, ohne DSN inaktiv |
+
+Die genauen Versionen aller Abhängigkeiten sind in `package-lock.json` festgenagelt.
+
 ## Tests
 
 Rund 5.600 Tests über 460 Dateien, auf vitest. Am dichtesten ist die Abdeckung dort, wo ein Fehler am
@@ -302,8 +318,9 @@ Invalidierung nach Kontraktversion, IndexedDB-Persistenz, Partitionierung des Sp
 Backup-Rundläufe und die Route Handler selbst.
 
 > [!IMPORTANT]
-> Über dreißig Suites laden Kontrakt-Fixtures aus `../shared`, **die Tests laufen also nur in einem
-> vollständigen Checkout durch** – `web/` allein herauszukopieren funktioniert nicht.
+> Über dreißig Suites lösen Kontrakt-Fixtures unter `shared/` relativ zum Arbeitsverzeichnis auf,
+> **die Tests laufen also nur in einem vollständigen Checkout durch**, gestartet aus dem Workspace,
+> zu dem sie gehören – `web/` allein herauszukopieren funktioniert nicht.
 
 ## Lokalisierung
 

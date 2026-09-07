@@ -36,7 +36,7 @@
 
 Oriveo iOS 用戶端是一個自備金鑰的 AI 聊天應用程式。你加入自己既有的 API Key，應用程式就從手機直接
 呼叫每一家供應商。對話、訊息、筆記與筆記資料夾住在裝置上的一個 SQLite 資料庫裡；附件的二進位內容是
-擺在它旁邊的檔案；Skills、偏好設定、供應商清單與對話資料夾則是裝置上的 JSON。API Key 則交給 iOS
+擺在它旁邊的檔案；技能、偏好設定、供應商清單與對話資料夾則是裝置上的 JSON。API Key 則交給 iOS
 Keychain。
 
 沒有 Oriveo 帳號：什麼都不會上傳，也沒有東西可以登入。確實有兩家供應商可以用你既有的訂閱登入，而不必
@@ -65,7 +65,7 @@ flowchart TB
 
     subgraph provider ["供應商層"]
         direction LR
-        services["15 個 ProviderService<br/>relay 沿用 OpenAI 那個"]
+        services["15 個 ProviderService<br/>中轉站沿用 OpenAI 那個"]
         transports["TransportRegistry<br/>12 種策略"]
         kit["OriveoProviderKit<br/>SSE · chunk 組裝 · 憑證遮蔽"]
     end
@@ -81,7 +81,7 @@ flowchart TB
 
 **訊息列表是 UIKit，其餘都是 SwiftUI。** `ChatView` 內嵌了一個包住 `UICollectionView` 的
 `ChatListViewControllerRepresentable`，由 [ChatLayout](https://github.com/ekazaev/ChatLayout)
-驅動。其他所有東西 —— 導覽、設定、供應商設定、筆記、Skills —— 都是 SwiftUI。之所以拆開，是因為以
+驅動。其他所有東西 —— 導覽、設定、供應商設定、筆記、技能 —— 都是 SwiftUI。之所以拆開，是因為以
 token 速率更新的串流訊息列表，需要對量測與重用做到 cell 層級的掌控，而 SwiftUI 的 diff 給不了這件事。
 [`Features/Chat/ARCHITECTURE.md`](../../ios/Oriveo/Oriveo/Features/Chat/ARCHITECTURE.md)
 記錄了這條邊界。
@@ -95,7 +95,7 @@ token 速率更新的串流訊息列表，需要對量測與重用做到 cell �
 | 每個對話一個 Combine `PassthroughSubject` | 串流文字與推理增量 | 在 token 速率下完全繞開 SwiftUI 的 diff |
 
 **供應商支援是四條互相獨立的軸，不是一個 enum。** `ProviderKind`（16 個 case：十五家供應商加上
-relay）是*使用者設定了誰*。
+中轉站（Relay））是*使用者設定了誰*。
 `ProviderServiceProtocol` 是*呼叫介面*。`TransportKind`（12 個 case）是*實際說的是哪一種通訊協定* ——
 而且它是**依模型、從目錄解析出來的**，所以同一把 Key 後面的兩個模型完全可以不一致。`RelayKind` 負責
 使用者自備的端點。把它們分開，正是新模型不必重新建置就能用的原因。
@@ -141,16 +141,16 @@ Application Support/Oriveo/
 
 - **透過 GRDB 使用 SQLite**，開啟 WAL 與外鍵，並以一個 `DatabaseMigrator` 涵蓋每一次 schema 變更。
   對訊息與筆記的全文搜尋使用 FTS5 搭配 trigram 斷詞器。
-- **API Key 存在 Keychain 裡**，以供應商與分區作為鍵，並且在 session 快照寫入之前就被清空。Skills
+- **API Key 存在 Keychain 裡**，以供應商與分區作為鍵，並且在 session 快照寫入之前就被清空。技能
   則單獨以 JSON 存在 `UserDefaults` 裡。
 - **附件是磁碟上的檔案**，不是資料列，所以一份大 PDF 永遠不會撐爆資料庫。
 
 一份備份是一個 `.oriveo` ZIP，裡面裝著 `data.json` 加上圖片檔案。那個選用的密碼並不加密整個封存檔：
 它只加密封存檔裡的供應商 API Key（AES-GCM，金鑰由 PBKDF2-HMAC-SHA256 迭代 600,000 次衍生）。不論你
-設不設密碼，對話、筆記、Skills 與偏好設定在封存檔裡都是純 JSON，所以請把一個備份檔當作「拿到它的人
+設不設密碼，對話、筆記、技能 與偏好設定在封存檔裡都是純 JSON，所以請把一個備份檔當作「拿到它的人
 都讀得到」來看待。
 
-## 應用程式為自己發出的那些請求
+## 模型目錄
 
 冷啟動時，應用程式會對 `https://api.oriveoai.com/api/metadata?view=lean` 發出一個未驗證、帶 ETag
 條件的 `GET`。它抓取公開的模型目錄：有哪些模型、每個支援什麼、它的推理控制項叫什麼名字，以及要多少
@@ -221,9 +221,9 @@ app group、沒有 associated domain。
 解析。
 
 **在 Apple 晶片的 Mac 上**，這個 iPhone 建置也能原生跑起來：選擇 **My Mac (Designed for iPad)** 這個
-執行目標。Mac Catalyst 是刻意關掉的（`SUPPORTS_MACCATALYST = NO`），所以這是 iOS 應用跑在 iPad 相容
-執行環境裡，而不是一個 Mac 應用 —— 像相機拍攝這類只有裝置才有的路徑，表現就是它們在 Mac 上該有的
-樣子。
+執行目標。Mac Catalyst 並沒有啟用 —— 專案從未選用它，`TARGETED_DEVICE_FAMILY` 一直是 `1,2` ——
+所以這是 iOS 應用跑在 iPad 相容執行環境裡，而不是一個 Mac 應用，像相機拍攝這類只有裝置才有的路徑，
+表現就是它們在 Mac 上該有的樣子。
 
 專案檔使用 `objectVersion = 77` 與檔案系統同步群組，因此較舊的 Xcode 可能拒絕開啟它。請更新 Xcode，
 不要去改專案檔格式。
@@ -264,9 +264,9 @@ xcodebuild test -project ios/Oriveo/Oriveo.xcodeproj -scheme Oriveo \
 > 測試 target 從 `#filePath` 一路往上找到 `shared/` 目錄，再從那裡讀取契約 fixture，所以**測試只有在
 > 完整 checkout 下才會通過** —— 把 `ios/` 單獨複製出去是行不通的。
 
-這套測試很大：274 個檔案裡約有 2,900 個
+這套測試很大：275 個檔案裡約有 2,900 個
 [Swift Testing](https://github.com/swiftlang/swift-testing) 案例，另加 76 個 XCTest 案例。涵蓋每家
-供應商的請求形狀、錄製的上游 SSE 重播、relay 與本機引擎政策、訊息列表的量測與串流行為、儲存，以及
+供應商的請求形狀、錄製的上游 SSE 重播、中轉站與本機引擎政策、訊息列表的量測與串流行為、儲存，以及
 備份的來回一致性。
 
 `shared/OriveoProviderKit` 有自己的一套：

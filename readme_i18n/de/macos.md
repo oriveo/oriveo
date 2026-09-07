@@ -40,15 +40,8 @@ Anbieter-Kontrakte, sodass eine einmal behobene Protokoll-Eigenheit überall beh
 
 ## Was auf einem Mac schon läuft
 
-- **Der Web-Client**, der in jedem Browser eine völlig brauchbare Desktop-App abgibt:
-
-  ```bash
-  cd web
-  npm install
-  npm run dev:app        # http://localhost:3001
-  ```
-
-  Siehe [web.md](web.md).
+- **Der Web-Client**, der in jedem Browser eine völlig brauchbare Desktop-App abgibt. Siehe
+  [web.md – Schnellstart](web.md#schnellstart).
 
 - **Der iOS-Build**, auf einem Mac mit Apple Silicon. Öffne `ios/Oriveo/Oriveo.xcodeproj`, wähle das
   Ziel *My Mac (Designed for iPad)* und starte. Siehe [ios.md](ios.md).
@@ -57,7 +50,7 @@ Anbieter-Kontrakte, sodass eine einmal behobene Protokoll-Eigenheit überall beh
 
 Die Wire-Schicht, die ein Mac-Client braucht, existiert und ist heute unter Test.
 [`shared/OriveoProviderKit`](../../shared/OriveoProviderKit/) – das Swift-Paket, das *dieses Modell,
-diese Fähigkeit* in einen HTTP-Request verwandelt, und dasselbe Paket, gegen das die iOS-App linkt –
+diese Funktion* in einen HTTP-Request verwandelt, und dasselbe Paket, gegen das die iOS-App linkt –
 führt in seiner [`Package.swift`](../../shared/OriveoProviderKit/Package.swift) macOS 15 neben
 iOS 18:
 
@@ -71,5 +64,13 @@ Seine Suite läuft auf macOS, ohne dass ein Simulator im Spiel ist:
 cd shared/OriveoProviderKit
 swift build && swift test
 ```
+
+Die Web-App hält außerdem eine typisierte Schnittstelle für einen Desktop-Host bereit,
+[`web/packages/ipc-contract`](../../web/packages/ipc-contract/), an die sich eine native Shell binden
+kann; nichts in diesem Repository implementiert sie.
+
+## Lizenz
+
+[AGPL-3.0-or-later](../../LICENSE).
 
 [README im Wurzelverzeichnis](README.md) · [Gemeinsame Kontrakte](shared.md)

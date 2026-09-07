@@ -89,13 +89,15 @@ client cùng lúc.
 
 ## test-fixtures
 
-Dữ liệu test chuẩn: lưu lượng gọi công cụ từ upstream đã ghi lại, định tuyến relay, kiểm tra tính
+Dữ liệu test chuẩn: lưu lượng gọi công cụ từ upstream đã ghi lại, định tuyến của dịch vụ chuyển tiếp
+(Relay), kiểm tra tính
 hợp lệ của biểu mẫu, phân loại địa chỉ cục bộ, các kịch bản danh mục và cấu hình di động, các
 snapshot model-facts và bằng chứng khả năng, cùng các kịch bản engine cục bộ.
 
-Những tệp `.sse` nằm dưới `recorded/` là **lưu lượng upstream thật đã bắt được**, giữ nguyên từng
-byte đúng như lúc nó tới — chỉ có phần header phản hồi bị bỏ đi, và phần thân thì chưa bao giờ mang
-khóa. Số còn lại là fixture viết tay, ghim chặt một đường phân tích cụ thể. Khác biệt ấy có ý nghĩa:
+Những tệp `.sse` nằm dưới `provider-toolcall/recorded/` là **lưu lượng upstream thật đã bắt được**,
+giữ nguyên từng byte đúng như lúc nó tới — chỉ có phần header phản hồi bị bỏ đi, và phần thân thì
+chưa bao giờ mang khóa. Những tệp `.sse` nằm thẳng trong `provider-toolcall/` là fixture viết tay,
+ghim chặt một đường phân tích cụ thể. Khác biệt ấy có ý nghĩa:
 một mock viết tay mã hóa lại điều bạn *tin rằng* nhà cung cấp làm, còn một bản ghi mã hóa lại điều nó
 *thực sự đã làm*, kể cả cái chunk méo mó nó gửi đi hôm thứ Ba nọ. Khi một bản sửa giao thức nhà cung
 cấp cần một bài test, hãy ưu tiên một bản ghi.
@@ -149,8 +151,10 @@ Từ thư mục gốc của kho mã:
 ```
 
 Bộ test iOS định vị thư mục này bằng cách đi ngược lên từ tệp test cho tới khi thấy `shared/`; bộ
-test Android phân giải `../../shared` từ thư mục module Gradle; còn bộ test web phân giải tương đối
-theo workspace. Vì vậy tất cả đều cần một bản checkout đầy đủ của kho mã.
+test Android cũng đi ngược lên theo cách đó, nhưng từ thư mục làm việc; còn bộ test web phân giải
+tương đối theo workspace. Vì vậy tất cả đều cần một bản checkout đầy đủ của kho mã.
+
+Trước khi mở pull request, hãy đọc [CONTRIBUTING.md](../../CONTRIBUTING.md).
 
 ## Giấy phép
 

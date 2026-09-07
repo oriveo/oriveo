@@ -39,15 +39,8 @@
 
 ## Mac पर अभी क्या चलता है
 
-- **वेब क्लाइंट**, जो किसी भी ब्राउज़र में एक बिलकुल ठीक डेस्कटॉप ऐप बन जाता है:
-
-  ```bash
-  cd web
-  npm install
-  npm run dev:app        # http://localhost:3001
-  ```
-
-  [web.md](web.md) देखें।
+- **वेब क्लाइंट**, जो किसी भी ब्राउज़र में एक बिलकुल ठीक डेस्कटॉप ऐप बन जाता है।
+  [web.md — जल्दी शुरू करें](web.md#जल्दी-शुरू-करें) देखें।
 
 - **iOS बिल्ड**, Apple silicon वाले Mac पर। `ios/Oriveo/Oriveo.xcodeproj` खोलें,
   *My Mac (Designed for iPad)* destination चुनें, और चलाएँ। [ios.md](ios.md) देखें।
@@ -70,5 +63,13 @@ platforms: [.macOS(.v15), .iOS(.v18)]
 cd shared/OriveoProviderKit
 swift build && swift test
 ```
+
+वेब ऐप एक typed desktop-host interface भी रखता है,
+[`web/packages/ipc-contract`](../../web/packages/ipc-contract/), जिससे कोई नेटिव shell बँध सकता है;
+इस रिपॉज़िटरी में कुछ भी उसे लागू नहीं करता।
+
+## लाइसेंस
+
+[AGPL-3.0-or-later](../../LICENSE)।
 
 [मुख्य README](README.md) · [साझा कॉन्ट्रैक्ट](shared.md)

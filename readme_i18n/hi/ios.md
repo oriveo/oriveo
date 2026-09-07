@@ -36,7 +36,7 @@
 
 Oriveo का iOS क्लाइंट एक bring-your-own-key AI चैट ऐप है। आप अपनी पहले से मौजूद API key जोड़ते हैं,
 और ऐप हर प्रोवाइडर को सीधे फ़ोन से कॉल करता है। बातचीत, मैसेज, नोट्स और नोट फ़ोल्डर डिवाइस पर मौजूद एक
-SQLite डेटाबेस में रहते हैं; अटैचमेंट blob उसके बग़ल में फ़ाइलें हैं; skills, प्राथमिकताएँ, प्रोवाइडर
+SQLite डेटाबेस में रहते हैं; अटैचमेंट blob उसके बग़ल में फ़ाइलें हैं; कौशल, प्राथमिकताएँ, प्रोवाइडर
 सूची और बातचीत के फ़ोल्डर डिवाइस पर JSON हैं। API key iOS Keychain में जाती हैं।
 
 कोई Oriveo अकाउंट नहीं है: कुछ भी अपलोड नहीं होता, और साइन-इन करने को कुछ है ही नहीं। हाँ, दो
@@ -84,7 +84,7 @@ flowchart TB
 **Transcript UIKit का है, बाक़ी सब SwiftUI।** `ChatView` एक `ChatListViewControllerRepresentable`
 को embed करता है, जो [ChatLayout](https://github.com/ekazaev/ChatLayout) से चलने वाले
 `UICollectionView` के इर्द-गिर्द बना है। बाक़ी सब कुछ — navigation, settings, प्रोवाइडर सेटअप, नोट्स,
-skills — SwiftUI है। यह बँटवारा इसलिए है कि token की रफ़्तार से streaming करने वाले transcript को
+कौशल — SwiftUI है। यह बँटवारा इसलिए है कि token की रफ़्तार से streaming करने वाले transcript को
 measurement और reuse पर cell-स्तर का नियंत्रण चाहिए, जो SwiftUI की diffing नहीं देती।
 [`Features/Chat/ARCHITECTURE.md`](../../ios/Oriveo/Oriveo/Features/Chat/ARCHITECTURE.md) इस सीमा को
 दर्ज करता है।
@@ -150,16 +150,16 @@ Application Support/Oriveo/
 - **GRDB के ज़रिए SQLite**, WAL के साथ, foreign key चालू, और हर schema बदलाव को कवर करता एक
   `DatabaseMigrator`। मैसेज और नोट्स पर फ़ुल-टेक्स्ट सर्च FTS5 और trigram tokenizer से होती है।
 - **API key Keychain में रहती हैं**, प्रोवाइडर और partition से keyed, और session snapshot लिखे जाने से
-  पहले उसमें से मिटा दी जाती हैं। Skills अलग से `UserDefaults` में JSON के रूप में रखे जाते हैं।
+  पहले उसमें से मिटा दी जाती हैं। कौशल अलग से `UserDefaults` में JSON के रूप में रखे जाते हैं।
 - **अटैचमेंट blob डिस्क पर फ़ाइलें हैं**, rows नहीं, इसलिए कोई बड़ी PDF डेटाबेस को कभी फुलाती नहीं।
 
 बैकअप एक `.oriveo` ZIP है जिसमें `data.json` और इमेज फ़ाइलें होती हैं। वैकल्पिक पासवर्ड आर्काइव को
 एन्क्रिप्ट नहीं करता: वह उसके भीतर मौजूद प्रोवाइडर API key को ही एन्क्रिप्ट करता है (AES-GCM, और key
-PBKDF2-HMAC-SHA256 से 600,000 iteration पर व्युत्पन्न होती है)। बातचीत, नोट्स, skills और
+PBKDF2-HMAC-SHA256 से 600,000 iteration पर व्युत्पन्न होती है)। बातचीत, नोट्स, कौशल और
 प्राथमिकताएँ आर्काइव में हर हाल में सादे JSON के रूप में रहती हैं, इसलिए बैकअप फ़ाइल को ऐसा ही मानें कि
 जिसके पास वह है, वह उसे पढ़ सकता है।
 
-## ऐप अपनी ओर से जो रिक्वेस्ट करता है
+## मॉडल कैटलॉग
 
 Cold start पर ऐप `https://api.oriveoai.com/api/metadata?view=lean` को एक unauthenticated,
 ETag-conditional `GET` भेजता है। वह सार्वजनिक मॉडल कैटलॉग लाता है: कौन-से मॉडल मौजूद हैं, हर एक क्या
@@ -236,9 +236,10 @@ Apple Developer अकाउंट काफ़ी है: entitlements फ़�
 dependencies कमिट की गई `Package.resolved` से resolve होती हैं।
 
 **Apple silicon वाले Mac पर** iPhone बिल्ड नेटिव रूप से भी चलता है: **My Mac (Designed for iPad)**
-destination चुनें। Mac Catalyst जानबूझकर बंद है (`SUPPORTS_MACCATALYST = NO`), इसलिए यह iPad
-कम्पैटिबिलिटी runtime के तहत चलता iOS ऐप है, कोई Mac ऐप नहीं — कैमरा कैप्चर जैसे सिर्फ़ डिवाइस पर
-मौजूद रास्ते वैसा ही व्यवहार करते हैं जैसा वे Mac पर करते हैं।
+destination चुनें। Mac Catalyst सक्षम नहीं है — प्रोजेक्ट उसे कभी चुनता ही नहीं और
+`TARGETED_DEVICE_FAMILY` `1,2` ही रहता है — इसलिए यह iPad कम्पैटिबिलिटी runtime के तहत चलता iOS ऐप
+है, कोई Mac ऐप नहीं, और कैमरा कैप्चर जैसे सिर्फ़ डिवाइस पर मौजूद रास्ते वैसा ही व्यवहार करते हैं
+जैसा वे Mac पर करते हैं।
 
 प्रोजेक्ट फ़ाइल `objectVersion = 77` और file-system synchronized groups इस्तेमाल करती है, इसलिए पुराना
 Xcode इसे खोलने से मना कर सकता है। प्रोजेक्ट फ़ॉर्मैट बदलने के बजाय Xcode अपडेट करें।
@@ -280,7 +281,7 @@ xcodebuild test -project ios/Oriveo/Oriveo.xcodeproj -scheme Oriveo \
 > डायरेक्टरी खोजता है, इसलिए **टेस्ट सिर्फ़ पूरे checkout में ही पास होते हैं** — अकेले `ios/` को कॉपी
 > करके ले जाना काम नहीं करेगा।
 
-Suite बड़ी है: 274 फ़ाइलों में क़रीब 2,900 [Swift
+Suite बड़ी है: 275 फ़ाइलों में क़रीब 2,900 [Swift
 Testing](https://github.com/swiftlang/swift-testing) केस और 76 XCTest केस। इसमें हर प्रोवाइडर के लिए
 request shape,
 रिकॉर्ड किए गए upstream SSE का replay, relay और local-engine policy, transcript measurement और

@@ -37,7 +37,7 @@
 Le client iOS d'Oriveo est une app de chat IA qui fonctionne avec vos propres clés. Vous ajoutez des
 clés API que vous possédez déjà, et l'app appelle chaque fournisseur directement depuis le téléphone.
 Conversations, messages, notes et dossiers de notes vivent dans une base SQLite sur l'appareil ; les
-blobs de pièces jointes sont des fichiers à côté ; les Skills, les préférences, la liste des
+blobs de pièces jointes sont des fichiers à côté ; les compétences, les préférences, la liste des
 fournisseurs et les dossiers de conversations sont du JSON sur l'appareil. Les clés API vont dans le
 Keychain iOS.
 
@@ -86,7 +86,7 @@ Trois choses méritent d'être dites clairement à propos de ce schéma.
 **Le fil de conversation est en UIKit, le reste en SwiftUI.** `ChatView` encapsule un
 `ChatListViewControllerRepresentable` autour d'une `UICollectionView` pilotée par
 [ChatLayout](https://github.com/ekazaev/ChatLayout). Tout le reste — navigation, réglages,
-configuration des fournisseurs, notes, Skills — est en SwiftUI. Cette séparation existe parce qu'un
+configuration des fournisseurs, notes, compétences — est en SwiftUI. Cette séparation existe parce qu'un
 fil qui streame au rythme des tokens exige, au niveau de la cellule, un contrôle sur la mesure et la
 réutilisation que le diffing de SwiftUI ne donne pas.
 [`Features/Chat/ARCHITECTURE.md`](../../ios/Oriveo/Oriveo/Features/Chat/ARCHITECTURE.md) documente
@@ -156,7 +156,7 @@ Application Support/Oriveo/
   changement de schéma. La recherche plein texte sur les messages et les notes utilise FTS5 avec un
   tokenizer par trigrammes.
 - **Les clés API vivent dans le Keychain**, indexées par fournisseur et par partition, et sont vidées
-  de l'instantané de session avant son écriture. Les Skills sont stockés séparément en JSON dans
+  de l'instantané de session avant son écriture. Les compétences sont stockées séparément en JSON dans
   `UserDefaults`.
 - **Les blobs de pièces jointes sont des fichiers sur disque**, pas des lignes, de sorte qu'un gros
   PDF ne gonfle jamais la base.
@@ -164,10 +164,10 @@ Application Support/Oriveo/
 Une sauvegarde est un ZIP `.oriveo` contenant `data.json` et les fichiers image. Le mot de passe
 facultatif ne chiffre pas l'archive : il ne chiffre que les clés API des fournisseurs qui s'y trouvent
 (AES-GCM, avec une clé dérivée par PBKDF2-HMAC-SHA256 sur 600 000 itérations). Les conversations, les
-notes, les Skills et les préférences restent du JSON en clair dans l'archive dans tous les cas ;
+notes, les compétences et les préférences restent du JSON en clair dans l'archive dans tous les cas ;
 traitez donc un fichier de sauvegarde comme lisible par quiconque le détient.
 
-## Les requêtes que l'app passe pour elle-même
+## Le catalogue de modèles
 
 Au démarrage à froid, l'app émet une requête `GET` non authentifiée et conditionnelle par ETag vers
 `https://api.oriveoai.com/api/metadata?view=lean`. Elle récupère le catalogue public de modèles :
@@ -247,10 +247,10 @@ Pour compiler vers le simulateur à la place, choisissez n'importe quel simulate
 lancez. Les dépendances de paquets sont résolues depuis le `Package.resolved` versionné.
 
 **Sur un Mac Apple Silicon**, le build iPhone tourne aussi nativement : choisissez la destination
-**My Mac (Designed for iPad)**. Mac Catalyst est délibérément désactivé
-(`SUPPORTS_MACCATALYST = NO`), il s'agit donc de l'app iOS sous le runtime de compatibilité iPad et
-non d'une app Mac — les chemins réservés à l'appareil, comme la capture par la caméra, se comportent
-comme ils se comportent sur un Mac.
+**My Mac (Designed for iPad)**. Mac Catalyst n'est pas activé — le projet ne l'active jamais et
+`TARGETED_DEVICE_FAMILY` reste `1,2` —, il s'agit donc de l'app iOS sous le runtime de compatibilité
+iPad et non d'une app Mac, et les chemins réservés à l'appareil, comme la capture par la caméra, se
+comportent comme ils se comportent sur un Mac.
 
 Le fichier de projet utilise `objectVersion = 77` avec des groupes synchronisés au système de
 fichiers ; un Xcode plus ancien peut donc refuser de l'ouvrir. Mettez Xcode à jour plutôt que de
@@ -294,7 +294,7 @@ même projet et le même schéma liste tout ce pour quoi ce checkout peut compil
 > `ios/` tout seul ne marchera pas.
 
 La suite est grosse : environ 2 900 cas [Swift
-Testing](https://github.com/swiftlang/swift-testing) plus 76 cas XCTest, répartis sur 274 fichiers.
+Testing](https://github.com/swiftlang/swift-testing) plus 76 cas XCTest, répartis sur 275 fichiers.
 Elle couvre la forme des requêtes par fournisseur, le rejeu de flux SSE amont enregistrés, la
 politique des relais et des moteurs locaux, la mesure du fil et son comportement en streaming, le
 stockage et les allers-retours de sauvegarde.

@@ -36,7 +36,7 @@
 
 Le client Android d'Oriveo est une app de chat IA qui fonctionne avec vos propres clés. Vous ajoutez
 des clés API que vous possédez déjà, et l'app parle à chaque fournisseur directement depuis le
-téléphone. Conversations, notes, dossiers et Skills sont stockés sur l'appareil dans Room ; les clés
+téléphone. Conversations, notes, dossiers et compétences sont stockés sur l'appareil dans Room ; les clés
 API sont chiffrées avec une clé détenue par le Keystore Android. Il n'y a ni compte ni connexion.
 
 Il fait partie d'[Oriveo Community Edition](README.md) — trois clients qui partagent une seule
@@ -49,7 +49,7 @@ flowchart TB
     subgraph ui ["Compose UI"]
         direction LR
         nav["OriveoNavHost<br/>routes @Serializable typées"]
-        screens["Chat · Accueil · Fournisseurs<br/>Notes · Skills · Réglages"]
+        screens["Chat · Accueil · Fournisseurs<br/>Notes · Compétences · Réglages"]
     end
 
     vms["ViewModels · Koin<br/>ChatViewModel et ses coordinateurs"]
@@ -91,7 +91,7 @@ n'annule pas la réponse, et `ChatRepository` écrit le texte partiel dans SQLit
 tuer l'app en pleine réponse ne perd donc pas ce qui est déjà arrivé.
 
 **Deux bases de données, pas une.** `oriveo.db` contient les conversations, les messages, les pièces
-jointes, les notes, les dossiers, les Skills et le cache du catalogue de modèles.
+jointes, les notes, les dossiers, les compétences et le cache du catalogue de modèles.
 `message_continuations.db` est un fichier physiquement séparé qui contient l'état de continuation
 opaque du fournisseur, précisément pour que `backup_rules.xml` et `data_extraction_rules.xml`
 puissent l'exclure de la sauvegarde cloud et du transfert d'appareil — un jeton de continuation
@@ -128,7 +128,7 @@ Les redéfinitions sont résolues en dernier-écrit-gagne sur sept portées, par
 
 | Quoi | Où |
 |---|---|
-| Conversations, messages, pièces jointes, notes, dossiers, Skills | Room, `oriveo.db` |
+| Conversations, messages, pièces jointes, notes, dossiers, compétences | Room, `oriveo.db` |
 | Recherche plein texte sur les notes | table virtuelle FTS4 |
 | Cache du catalogue de modèles | une seule ligne dans `oriveo.db`, relue par morceaux |
 | État de continuation du fournisseur | `message_continuations.db`, exclu de la sauvegarde |
@@ -151,7 +151,7 @@ les conversations et les notes suivent normalement.
 Une archive que vous exportez vous-même est un zip contenant `data.json` et les fichiers des pièces
 jointes. Le mot de passe que vous choisissez protège **les seules clés API des fournisseurs** qui s'y
 trouvent : elles sont chiffrées avec PBKDF2-HMAC-SHA256 à 600 000 itérations et AES-GCM et stockées
-comme un champ de `data.json`. Conversations, messages, notes, dossiers, Skills, préférences et
+comme un champ de `data.json`. Conversations, messages, notes, dossiers, compétences, préférences et
 pièces jointes sont écrits en JSON en clair et en fichiers en clair dans tous les cas ; traitez donc
 une archive comme lisible par quiconque détient le fichier. Exportez sans les clés si vous ne voulez
 que votre historique.
@@ -294,8 +294,8 @@ sondage des relais et modes de sécurité, exécution des recettes de capacités
 catalogue et gestion des versions de contrat, persistance Room, et allers-retours de sauvegarde.
 
 > [!IMPORTANT]
-> Environ 38 suites chargent des fixtures de contrat en résolvant `../../shared` depuis le
-> répertoire du module Gradle, donc **les tests ne passent que dans un checkout complet** — copier
+> Environ 38 suites chargent des fixtures de contrat en remontant depuis le répertoire de travail
+> jusqu'à trouver `shared/`, donc **les tests ne passent que dans un checkout complet** — copier
 > `android/` tout seul ne marchera pas.
 
 Il y a aussi trois tests instrumentés — une matrice de release des moteurs locaux, un test de socket
@@ -313,8 +313,9 @@ vers `app/schemas/` et versionnés, et c'est là qu'atterrira le `2.json` de la 
 
 ## Localisation
 
-Seize langues : `values/` (l'anglais, la source) plus quinze répertoires `values-*`, environ 1 300
-chaînes chacun, chaque locale détenant un jeu de clés identique. Le changement de langue dans l'app
+Seize langues : `values/` (l'anglais, la source) plus quinze répertoires de locale — à côté de
+`values-night`, qui ne porte aucune chaîne —, environ 1 340 chaînes chacun, chaque locale détenant un
+jeu de clés identique. Le changement de langue dans l'app
 passe par `AppLanguageManager` et `android:localeConfig`. Les splits par langue sont désactivés dans
 le bundle, si bien qu'un seul artefact porte toutes les traductions.
 

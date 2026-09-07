@@ -68,7 +68,7 @@ flowchart TB
 
     subgraph provider ["Lớp nhà cung cấp"]
         direction LR
-        services["15 ProviderService<br/>relay dùng lại cái của OpenAI"]
+        services["15 ProviderService<br/>dịch vụ chuyển tiếp dùng lại cái của OpenAI"]
         transports["TransportRegistry<br/>12 chiến lược"]
         kit["OriveoProviderKit<br/>SSE · ghép chunk · che khóa"]
     end
@@ -99,7 +99,7 @@ SwiftUI không cho được. Ranh giới đó được ghi lại trong
 | Combine `PassthroughSubject` cho mỗi cuộc trò chuyện | văn bản streaming và các delta suy luận | né hoàn toàn diffing của SwiftUI ở tốc độ token |
 
 **Hỗ trợ nhà cung cấp là bốn trục độc lập, không phải một enum.** `ProviderKind` (16 trường hợp: mười lăm nhà cung
-cấp cộng thêm relay) là *người dùng đã cấu hình cái gì*. `ProviderServiceProtocol` là *bề mặt gọi*. `TransportKind`
+cấp cộng thêm dịch vụ chuyển tiếp (Relay)) là *người dùng đã cấu hình cái gì*. `ProviderServiceProtocol` là *bề mặt gọi*. `TransportKind`
 (12 trường hợp) là *giao thức wire thực sự được nói* — và nó được quyết định **theo từng mô hình,
 từ danh mục**, nên hai mô hình sau cùng một khóa vẫn có thể khác nhau. `RelayKind` lo các endpoint
 do người dùng tự cung cấp. Chính việc giữ chúng tách biệt là thứ khiến một mô hình mới chạy được mà
@@ -163,7 +163,7 @@ dẫn xuất bằng PBKDF2-HMAC-SHA256 qua 600.000 vòng). Dù có mật khẩu 
 chú, kỹ năng và tùy chọn vẫn là JSON thuần trong kho lưu trữ, nên hãy coi một tệp sao lưu là thứ mà
 bất cứ ai có nó đều đọc được.
 
-## Những yêu cầu ứng dụng tự thực hiện
+## Danh mục mô hình
 
 Khi khởi động nguội, ứng dụng phát một yêu cầu `GET` không cần xác thực, có điều kiện ETag, tới
 `https://api.oriveoai.com/api/metadata?view=lean`. Nó tải danh mục mô hình công khai: có những mô
@@ -240,9 +240,10 @@ Nếu muốn dựng cho Simulator, chọn bất kỳ simulator iPhone nào rồi
 được resolve từ tệp `Package.resolved` đã commit.
 
 **Trên một máy Mac dùng Apple silicon**, bản dựng iPhone cũng chạy native được: chọn đích **My Mac
-(Designed for iPad)**. Mac Catalyst bị tắt một cách có chủ ý (`SUPPORTS_MACCATALYST = NO`), nên đây là
-ứng dụng iOS chạy dưới môi trường tương thích iPad chứ không phải một ứng dụng Mac — những đường đi
-chỉ có trên thiết bị, như chụp ảnh bằng camera, hành xử đúng như cách chúng hành xử trên một máy Mac.
+(Designed for iPad)**. Mac Catalyst không được bật — dự án chưa bao giờ chọn nó và
+`TARGETED_DEVICE_FAMILY` vẫn là `1,2` — nên đây là ứng dụng iOS chạy dưới môi trường tương thích iPad
+chứ không phải một ứng dụng Mac, và những đường đi chỉ có trên thiết bị, như chụp ảnh bằng camera,
+hành xử đúng như cách chúng hành xử trên một máy Mac.
 
 Tệp dự án dùng `objectVersion = 77` với các nhóm đồng bộ theo hệ thống tệp, nên một bản Xcode cũ hơn
 có thể từ chối mở nó. Hãy cập nhật Xcode thay vì sửa định dạng dự án.
@@ -285,8 +286,8 @@ scheme đó liệt kê mọi thứ mà bản checkout này dựng được.
 > sao chép riêng thư mục `ios/` ra sẽ không hoạt động.
 
 Bộ test rất lớn: khoảng 2.900 ca [Swift Testing](https://github.com/swiftlang/swift-testing) cộng
-thêm 76 ca XCTest, trải trên 274 tệp. Nó bao phủ hình dạng yêu cầu theo từng nhà cung cấp, phát lại
-SSE upstream đã ghi, chính sách relay và engine cục bộ, việc đo đạc transcript và hành vi streaming,
+thêm 76 ca XCTest, trải trên 275 tệp. Nó bao phủ hình dạng yêu cầu theo từng nhà cung cấp, phát lại
+SSE upstream đã ghi, chính sách dịch vụ chuyển tiếp và engine cục bộ, việc đo đạc transcript và hành vi streaming,
 lưu trữ, và các vòng sao lưu — khôi phục.
 
 `shared/OriveoProviderKit` có bộ test riêng:

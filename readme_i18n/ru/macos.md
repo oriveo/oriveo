@@ -39,18 +39,11 @@
 
 ## Что уже работает на Mac
 
-- **Веб-клиент** — из него получается вполне приличное настольное приложение в любом браузере:
-
-  ```bash
-  cd web
-  npm install
-  npm run dev:app        # http://localhost:3001
-  ```
-
-  См. [web/README.md](web.md).
+- **Веб-клиент** — из него получается вполне приличное настольное приложение в любом браузере. См.
+  [web.md — Быстрый старт](web.md#быстрый-старт).
 
 - **Сборка для iOS** — на Mac с Apple silicon. Откройте `ios/Oriveo/Oriveo.xcodeproj`, выберите
-  destination *My Mac (Designed for iPad)* и запустите. См. [ios/README.md](ios.md).
+  destination *My Mac (Designed for iPad)* и запустите. См. [ios.md](ios.md).
 
 ## Что уже написано
 
@@ -70,5 +63,13 @@ platforms: [.macOS(.v15), .iOS(.v18)]
 cd shared/OriveoProviderKit
 swift build && swift test
 ```
+
+Веб-приложение к тому же держит типизированный интерфейс для настольного хоста,
+[`web/packages/ipc-contract`](../../web/packages/ipc-contract/), к которому может подключиться
+нативная оболочка; в этом репозитории его никто не реализует.
+
+## Лицензия
+
+[AGPL-3.0-or-later](../../LICENSE).
 
 [Корневой README](README.md) · [Общие контракты](shared.md)

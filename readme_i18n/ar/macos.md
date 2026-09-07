@@ -38,15 +38,8 @@
 
 ## ما يعمل على Mac بالفعل
 
-- **عميل الويب**، وهو يصلح تماما كتطبيق سطح مكتب في أي متصفح:
-
-  ```bash
-  cd web
-  npm install
-  npm run dev:app        # http://localhost:3001
-  ```
-
-  انظر [web.md](web.md).
+- **عميل الويب**، وهو يصلح تماما كتطبيق سطح مكتب في أي متصفح. انظر
+  [web.md — البدء السريع](web.md#البدء-السريع).
 
 - **بنية iOS**، على جهاز Mac بمعالج Apple silicon. افتح `ios/Oriveo/Oriveo.xcodeproj`، واختر الهدف
   *My Mac (Designed for iPad)*، ثم شغّل. انظر [ios.md](ios.md).
@@ -68,5 +61,13 @@ platforms: [.macOS(.v15), .iOS(.v18)]
 cd shared/OriveoProviderKit
 swift build && swift test
 ```
+
+كما يحتفظ تطبيق الويب بواجهة مُنمَّطة لمضيف سطح مكتب،
+[`web/packages/ipc-contract`](../../web/packages/ipc-contract/)، يمكن لقشرة أصلية أن ترتبط بها؛
+ولا شيء في هذا المستودع ينفّذها.
+
+## الترخيص
+
+[AGPL-3.0-or-later](../../LICENSE).
 
 [README الجذر](README.md) · [العقود المشتركة](shared.md)

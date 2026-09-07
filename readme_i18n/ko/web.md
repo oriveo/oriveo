@@ -43,8 +43,9 @@ Oriveo 웹 클라이언트는 Next.js로 만든 BYOK(bring-your-own-key) AI 채�
 
 ## 빠른 시작
 
-Node 22.22 이상이 필요합니다([`.nvmrc`](../../web/.nvmrc) 참고). npm은 함께 딸려 오므로 다른 패키지
-매니저는 필요 없습니다.
+Node 22.22.2 이상의 22.x가 필요합니다([`.nvmrc`](../../web/.nvmrc) 참고). `engines` 필드가
+`^22.22.2`이므로 Node 23 이상은 지원하지 않습니다. npm은 함께 딸려 오므로 다른 패키지 매니저는
+필요 없습니다.
 
 ```bash
 npm install
@@ -89,7 +90,7 @@ flowchart LR
 `npm run dev:app`을 실행하면 그 핸들러들은 당신의 컴퓨터에 있습니다. 앱을 어딘가에 배포하면 배포한
 그 머신에 있습니다.
 
-핸들러는 하나가 아닙니다. 채팅 스트리밍, 릴레이 포워더, 이미지 생성, 모델 목록, 키 검증, 그리고
+핸들러는 하나가 아닙니다. 채팅 스트리밍, 릴레이 서비스(Relay) 포워더, 이미지 생성, 모델 목록, 키 검증, 그리고
 Grok과 ChatGPT의 기기 로그인 교환을 합치면 route 파일이 모두 열두 개입니다. 여기서 짚어 둘 것은 키
 검증인데, 키를 당신 자신의 서버로 보내고 그 서버가 그 키로 공급자를 찔러 봅니다.
 
@@ -97,19 +98,19 @@ Grok과 ChatGPT의 기기 로그인 교환을 합치면 route 파일이 모두 �
 채팅용 Kimi 중국 엔드포인트(`api.moonshot.cn`), 그리고 OpenRouter · SiliconFlow · DeepSeek ·
 Kimi의 잔액 엔드포인트입니다.
 
-**핸들러가 하는 일과 하지 않는 일.** 요청 형태를 검증하고 크기를 제한하며, 채팅과 릴레이 트래픽에
+**핸들러가 하는 일과 하지 않는 일.** 요청 형태를 검증하고 크기를 제한하며, 채팅과 릴레이 서비스 트래픽에
 IP별 rate limit을 적용하고, 사설 주소나 link-local 주소로 해석되는 URL을 거부하고, 공급자별 본문을
 만들고, 응답을 스트리밍으로 돌려줍니다. `app/api` 아래 어디에도 데이터베이스가 없고, 파일 쓰기가
 없고, 요청 본문 로깅이 없습니다 — 당신의 키와 메시지는 전달되고 잊힙니다. 이 라우트는 모든 방문자가
 공유하는 하나의 프로세스이므로, 한 사용자의 거부된 파라미터를 캐시해 다른 사람의 요청에 적용하는 일이
 결코 없다는 것을 전용 테스트(`server-never-learns.test.ts`)가 못 박아 둡니다.
 
-릴레이 포워더는 여기에 더해 자기가 해석한 주소로 DNS를 고정하고, 응답 크기를 제한하고, 모든
+릴레이 서비스 포워더는 여기에 더해 자기가 해석한 주소로 DNS를 고정하고, 응답 크기를 제한하고, 모든
 타임아웃에 상한을 두고, 리다이렉트를 같은 출처로만 한정하며, hop-by-hop 헤더를 그대로 통과시키기를
 거부합니다.
 
 **로컬 엔드포인트는 이 과정을 통째로 건너뜁니다.** 사설 주소, `.local` 이름, `localhost`에 있는
-릴레이나 로컬 HTTP 또는 사설 VPN 모드로 설정된 릴레이는 `credentials: 'omit'`과
+릴레이 서비스나 로컬 HTTP 또는 사설 VPN 모드로 설정된 릴레이 서비스는 `credentials: 'omit'`과
 `targetAddressSpace: 'local'`을 붙여 **브라우저에서 직접** 호출합니다. LAN 트래픽은 네트워크 밖으로
 나가지 않고, 앱의 서버도 거치지 않습니다.
 
@@ -165,9 +166,10 @@ packages/ipc-contract/  typed channel contract for a desktop shell
 ```
 
 스타일링은 `packages/ui`의 커스텀 프로퍼티 토큰 시트 하나 위에 얹은 CSS Modules입니다. 유틸리티
-클래스 프레임워크는 쓰지 않습니다. `packages/ipc-contract`는 데스크톱 셸이 바인딩할 채널 표면을
-기술하는데, 이 저장소에는 그런 셸이 들어 있지 않으므로 웹 빌드에서는 타입과 결코 실행되지 않는
-분기만 보탤 뿐입니다.
+클래스 프레임워크는 쓰지 않습니다. `packages/ipc-contract`는 웹 앱이 데스크톱 호스트를 위해 유지하는
+타입 인터페이스입니다. 채팅 스트리밍, 공급자 호출, 릴레이 서비스 포워딩, 키 저장에 이름 붙은 채널을
+정의해 두어, 네이티브 셸이 `window.oriveo`를 노출하면 바인딩할 수 있습니다. 이 저장소에는 데스크톱
+셸이 없으므로 웹 빌드에서는 `IS_DESKTOP`이 false이고, 그 뒤의 분기는 어느 것도 실행되지 않습니다.
 
 같은 종류의 이음새가 하나 더 있습니다. `apps/app/lib/core/sync-port.ts`는 동기화 백엔드가 구현하게
 될 인터페이스를 선언하고, 모든 호출 지점은 옵셔널 체이닝으로 그것에 닿습니다. 아무것도 그런 백엔드를
@@ -223,7 +225,7 @@ GET {backend}/api/metadata/model-facts
 | `npm run build:app` | 프로덕션 빌드 |
 | `npm run typecheck` | 모든 워크스페이스에 걸친 `tsc --noEmit` |
 | `npm run test:run` | vitest, 한 번 실행 |
-| `npm run test` | vitest watch 모드 |
+| `npm run test` | vitest watch 모드. 워크스페이스마다 watcher가 하나씩 뜨므로 단일 워크스페이스 안에서 실행하는 편이 좋습니다 |
 | `npm run lint` | `apps/`와 `packages/`에 eslint |
 
 `npm start --workspace @oriveo/app`은 완성된 빌드를 3001 포트에서 서비스합니다.
@@ -282,16 +284,30 @@ npm start --workspace @oriveo/app     # 127.0.0.1:3001
 저장하지 않지만, 바깥으로 나가는 HTTP 경로이기는 합니다. 그러니 공개적으로 접근 가능한 배포는 다른
 내부 도구에 걸어 둘 만한 접근 통제 뒤에 두는 것이 맞습니다.
 
+## 의존성
+
+| 패키지 | 버전 | 용도 |
+|---|---|---|
+| [Next.js](https://nextjs.org) | 16.3.3 | App Router, route handler, 빌드 |
+| [React](https://react.dev) | 19.2.8 | UI |
+| [vitest](https://vitest.dev) | 4.1.11 | 테스트 러너 |
+| [zustand](https://zustand.docs.pmnd.rs) | 5.0.15 | 클라이언트 상태 |
+| [next-intl](https://next-intl.dev) | 4.14.1 | 현지화 |
+| [@sentry/nextjs](https://docs.sentry.io/platforms/javascript/guides/nextjs/) | 10.72.0 | 오류 리포트, DSN이 없으면 동작하지 않음 |
+
+모든 의존성의 정확한 버전은 `package-lock.json`에 고정되어 있습니다.
+
 ## 테스트
 
 460개 파일에 걸쳐 약 5,600개 테스트가 vitest로 돌아갑니다. 실수의 대가가 가장 큰 곳에 커버리지가
 가장 두텁습니다. 공급자별 요청 형태, wire 프로토콜별 transport 동작, SSE와 프록시 청크 파싱, 사용량
-과 비용 파싱, 오류 분류, 릴레이 프로빙과 보안 모드, SSRF 가드, 기능 레시피 실행, 카탈로그 캐싱과
+과 비용 파싱, 오류 분류, 릴레이 서비스 프로빙과 보안 모드, SSRF 가드, 기능 레시피 실행, 카탈로그 캐싱과
 계약 버전 무효화, IndexedDB 영속화, 저장 파티셔닝, 백업 왕복, 그리고 route handler 자체가 그렇습니다.
 
 > [!IMPORTANT]
-> 서른 개가 넘는 스위트가 `../shared`에서 계약 fixture를 읽으므로 **테스트는 전체 체크아웃에서만
-> 통과합니다** — `web/`만 따로 복사해 내면 동작하지 않습니다.
+> 서른 개가 넘는 스위트가 작업 디렉터리를 기준으로 `shared/` 아래의 계약 fixture를 해석하므로
+> **테스트는 전체 체크아웃에서, 그리고 해당 스위트를 가진 워크스페이스에서 실행할 때만 통과합니다**
+> — `web/`만 따로 복사해 내면 동작하지 않습니다.
 
 ## 현지화
 

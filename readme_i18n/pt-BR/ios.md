@@ -36,7 +36,7 @@
 
 O cliente iOS do Oriveo é um app de chat com IA no modelo BYOK. Você adiciona chaves de API que já
 possui, e o app chama cada provedor diretamente do telefone. Conversas, mensagens, notas e pastas de
-notas ficam em um banco SQLite no dispositivo; os blobs de anexo são arquivos ao lado dele; skills,
+notas ficam em um banco SQLite no dispositivo; os blobs de anexo são arquivos ao lado dele; habilidades,
 preferências, a lista de provedores e as pastas de conversas são JSON no dispositivo. As chaves de
 API vão para o Keychain do iOS.
 
@@ -85,7 +85,7 @@ Três coisas sobre este diagrama merecem ser ditas com clareza.
 **A transcrição é UIKit, o resto é SwiftUI.** O `ChatView` embute um
 `ChatListViewControllerRepresentable` em volta de uma `UICollectionView` conduzida pelo
 [ChatLayout](https://github.com/ekazaev/ChatLayout). Todo o resto — navegação, configurações,
-cadastro de provedor, notas, skills — é SwiftUI. A divisão existe porque uma transcrição em
+cadastro de provedor, notas, habilidades — é SwiftUI. A divisão existe porque uma transcrição em
 streaming na velocidade dos tokens precisa de um controle no nível da célula sobre medição e reuso
 que o diffing do SwiftUI não oferece. O
 [`Features/Chat/ARCHITECTURE.md`](../../ios/Oriveo/Oriveo/Features/Chat/ARCHITECTURE.md) documenta
@@ -153,7 +153,7 @@ Application Support/Oriveo/
   schema. A busca em texto completo sobre mensagens e notas usa FTS5 com um tokenizador de
   trigramas.
 - **As chaves de API ficam no Keychain**, indexadas por provedor e partição, e são apagadas do
-  snapshot de sessão antes de ele ser escrito. As skills são guardadas em separado, como JSON no
+  snapshot de sessão antes de ele ser escrito. As habilidades são guardadas em separado, como JSON no
   `UserDefaults`.
 - **Os blobs de anexo são arquivos em disco**, não linhas, então um PDF grande nunca incha o banco de
   dados.
@@ -161,10 +161,10 @@ Application Support/Oriveo/
 Um backup é um ZIP `.oriveo` que contém o `data.json` mais os arquivos de imagem. A senha opcional
 não criptografa o arquivo: ela criptografa apenas as chaves de API de provedor que estão dentro dele
 (AES-GCM, com uma chave derivada por PBKDF2-HMAC-SHA256 em 600.000 iterações). Conversas, notas,
-skills e preferências ficam como JSON puro no arquivo de qualquer forma, então trate um arquivo de
+habilidades e preferências ficam como JSON puro no arquivo de qualquer forma, então trate um arquivo de
 backup como legível por qualquer pessoa que o tenha.
 
-## As requisições que o app faz por conta própria
+## O catálogo de modelos
 
 Na inicialização a frio, o app faz uma requisição `GET` não autenticada e condicional por ETag para
 `https://api.oriveoai.com/api/metadata?view=lean`. Ela busca o catálogo público de modelos: quais
@@ -241,9 +241,10 @@ Para compilar para o Simulador, escolha qualquer simulador de iPhone e rode. As 
 pacote são resolvidas a partir do `Package.resolved` versionado.
 
 **Em um Mac com Apple silicon** o build de iPhone também roda nativamente: escolha o destino **My Mac
-(Designed for iPad)**. O Mac Catalyst está deliberadamente desligado (`SUPPORTS_MACCATALYST = NO`),
-então isto é o app iOS sob o runtime de compatibilidade do iPad, e não um app de Mac — caminhos que só
-existem no dispositivo, como a captura pela câmera, se comportam como se comportam em um Mac.
+(Designed for iPad)**. O Mac Catalyst não está habilitado — o projeto nunca opta por ele e o
+`TARGETED_DEVICE_FAMILY` continua `1,2` —, então isto é o app iOS sob o runtime de compatibilidade do
+iPad, e não um app de Mac, e caminhos que só existem no dispositivo, como a captura pela câmera, se
+comportam como se comportam em um Mac.
 
 O arquivo de projeto usa `objectVersion = 77` com grupos sincronizados com o sistema de arquivos,
 então um Xcode mais antigo pode se recusar a abri-lo. Atualize o Xcode em vez de editar o formato do
@@ -287,7 +288,7 @@ project e scheme lista tudo o que este checkout consegue compilar.
 > para fora não vai funcionar.
 
 A suíte é grande: cerca de 2.900 casos de [Swift
-Testing](https://github.com/swiftlang/swift-testing) mais 76 de XCTest, em 274 arquivos. Ela cobre o
+Testing](https://github.com/swiftlang/swift-testing) mais 76 de XCTest, em 275 arquivos. Ela cobre o
 formato da requisição por provedor, replay de SSE upstream gravado, política de relay e de engines
 locais, medição da transcrição e comportamento de streaming, armazenamento e ciclos completos de
 backup.

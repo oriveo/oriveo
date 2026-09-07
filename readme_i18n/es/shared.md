@@ -95,9 +95,10 @@ relay, validación de formularios, clasificación de direcciones locales, escena
 configuración portable, snapshots de model facts y de evidencia de capacidades, y escenarios de
 motores locales.
 
-Los archivos `.sse` que están bajo `recorded/` son **tráfico upstream real capturado**, conservado
-byte a byte tal como llegó: solo se quitaron las cabeceras de la respuesta, y los cuerpos nunca
-llevaron una clave. El resto son fixtures escritos a mano que fijan una ruta de parseo concreta. La
+Los archivos `.sse` que están bajo `provider-toolcall/recorded/` son **tráfico upstream real
+capturado**, conservado byte a byte tal como llegó: solo se quitaron las cabeceras de la respuesta, y
+los cuerpos nunca llevaron una clave. Los archivos `.sse` que están directamente en
+`provider-toolcall/` son fixtures escritos a mano que fijan una ruta de parseo concreta. La
 distinción importa: un mock escrito a mano codifica lo que tú creías que hace el proveedor, mientras
 que una grabación codifica lo que realmente hizo, incluido el chunk mal formado que envió aquel
 martes. Cuando una corrección de protocolo de proveedor necesita una prueba, prefiere una grabación.
@@ -153,8 +154,10 @@ Desde la raíz del repositorio:
 ```
 
 Las suites de iOS localizan este directorio subiendo desde el archivo de prueba hasta ver `shared/`;
-las de Android resuelven `../../shared` desde el módulo de Gradle; las de web lo resuelven relativo
-al workspace. Todas ellas requieren, por lo tanto, un checkout completo del repositorio.
+las de Android suben igual desde el directorio de trabajo; las de web lo resuelven relativo al
+workspace. Todas ellas requieren, por lo tanto, un checkout completo del repositorio.
+
+Antes de abrir un pull request, lee [CONTRIBUTING.md](../../CONTRIBUTING.md).
 
 ## Licencia
 

@@ -40,15 +40,8 @@ en todas partes.
 
 ## Qué corre ya en un Mac
 
-- **El cliente web**, que funciona perfectamente bien como app de escritorio en cualquier navegador:
-
-  ```bash
-  cd web
-  npm install
-  npm run dev:app        # http://localhost:3001
-  ```
-
-  Mira [web.md](web.md).
+- **El cliente web**, que funciona perfectamente bien como app de escritorio en cualquier navegador.
+  Mira [web.md — Inicio rápido](web.md#inicio-rápido).
 
 - **La build de iOS**, en un Mac con Apple Silicon. Abre `ios/Oriveo/Oriveo.xcodeproj`, elige el
   destino *My Mac (Designed for iPad)* y ejecuta. Mira [ios.md](ios.md).
@@ -71,5 +64,13 @@ Su suite corre en macOS sin ningún simulador de por medio:
 cd shared/OriveoProviderKit
 swift build && swift test
 ```
+
+La app web también mantiene una interfaz tipada para un host de escritorio,
+[`web/packages/ipc-contract`](../../web/packages/ipc-contract/), a la que se puede enlazar un shell
+nativo; nada en este repositorio la implementa.
+
+## Licencia
+
+[AGPL-3.0-or-later](../../LICENSE).
 
 [README raíz](README.md) · [Contratos compartidos](shared.md)

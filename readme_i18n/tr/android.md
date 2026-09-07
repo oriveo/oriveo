@@ -36,7 +36,7 @@
 
 Oriveo Android istemcisi, kendi anahtarınızı getirdiğiniz bir yapay zekâ sohbet uygulamasıdır. Zaten
 sahip olduğunuz API anahtarlarını eklersiniz, uygulama da her sağlayıcıyla doğrudan telefondan
-konuşur. Sohbetler, notlar, klasörler ve skill'ler cihazda Room içinde saklanır; API anahtarları,
+konuşur. Sohbetler, notlar, klasörler ve yetenekler cihazda Room içinde saklanır; API anahtarları,
 Android Keystore'da tutulan bir anahtarla şifrelenir. Hesap da yok, giriş de.
 
 Bu, [Oriveo Community Edition](README.md)'ın bir parçasıdır — bir model sağlayıcısıyla nasıl
@@ -49,7 +49,7 @@ flowchart TB
     subgraph ui ["Compose UI"]
         direction LR
         nav["OriveoNavHost<br/>tip güvenli @Serializable rotalar"]
-        screens["Sohbet · Ana ekran · Sağlayıcılar<br/>Notlar · Skills · Ayarlar"]
+        screens["Sohbet · Ana ekran · Sağlayıcılar<br/>Notlar · Yetenekler · Ayarlar"]
     end
 
     vms["ViewModels · Koin<br/>ChatViewModel ve koordinatörleri"]
@@ -90,7 +90,7 @@ da 60 saniye) `ChatRepository` kısmi metni SQLite'a yazar; böylece yanıtın o
 öldürmek, o ana kadar gelenleri kaybettirmez.
 
 **Bir değil, iki veritabanı.** `oriveo.db`; sohbetleri, mesajları, ekleri, notları, klasörleri,
-skill'leri ve model kataloğu önbelleğini tutar. `message_continuations.db` ise sağlayıcıya ait
+yetenekleri ve model kataloğu önbelleğini tutar. `message_continuations.db` ise sağlayıcıya ait
 opak devam durumunu tutan, fiziksel olarak ayrı bir dosyadır — tam olarak `backup_rules.xml` ve
 `data_extraction_rules.xml` onu bulut yedeğinin ve cihaz aktarımının dışında bırakabilsin diye. Başka
 bir cihaza geri yüklenmiş bir devam token'ı en iyi ihtimalle anlamsızdır.
@@ -123,7 +123,7 @@ Geçersiz kılmalar, yedi kapsam boyunca son yazan kazanır kuralıyla, şu önc
 
 | Ne | Nerede |
 |---|---|
-| Sohbetler, mesajlar, ekler, notlar, klasörler, skill'ler | Room, `oriveo.db` |
+| Sohbetler, mesajlar, ekler, notlar, klasörler, yetenekler | Room, `oriveo.db` |
 | Notlar üzerinde tam metin arama | FTS4 sanal tablosu |
 | Model kataloğu önbelleği | `oriveo.db` içinde tek bir satır, parça parça geri okunur |
 | Sağlayıcı devam durumu | `message_continuations.db`, yedeğin dışında |
@@ -146,7 +146,7 @@ girer ve varsa sağlayıcı aboneliklerinize yeniden giriş yaparsınız**; sohb
 Kendiniz dışa aktardığınız bir arşiv, `data.json` ile birlikte ek dosyalarını taşıyan bir zip'tir.
 Seçtiğiniz parola içindeki **yalnızca sağlayıcı API anahtarlarını** korur: bunlar 600.000 yinelemeli
 PBKDF2-HMAC-SHA256 ve AES-GCM ile şifrelenir ve `data.json` içinde tek bir alan olarak saklanır.
-Sohbetler, mesajlar, notlar, klasörler, skill'ler, tercihler ve ekler her durumda düz JSON ve düz
+Sohbetler, mesajlar, notlar, klasörler, yetenekler, tercihler ve ekler her durumda düz JSON ve düz
 dosya olarak yazılır; yani bir arşivi, eline geçen herkesin okuyabileceği bir şey olarak görün.
 Yalnızca geçmişinizi istiyorsanız anahtarlar olmadan dışa aktarın.
 
@@ -199,7 +199,7 @@ kopyayla çalışmaya devam eder.
 > - sağlayıcı detay ekranı "Resmi modeller yüklenemedi" uyarısı gösterir, ama anahtar eklemek
 >   yine başarılı olduğunu bildirir ve model seçici basitçe boş kalır;
 > - **OpenAI kullanılamaz hâle gelir**, çünkü o sağlayıcı için elle model girişi engellidir;
-> - Relay endpoint'leri ve yerel model sunucuları tam olarak çalışmayı sürdürür ve bozulmayan tek
+> - Aktarma hizmeti (Relay) endpoint'leri ve yerel model sunucuları tam olarak çalışmayı sürdürür ve bozulmayan tek
 >   yol onlardır.
 >
 > Çevrimdışı bir derleme istiyorsanız, değeri boşaltmak yerine kataloğu kendiniz sunun ve derlemeyi
@@ -282,9 +282,9 @@ reçetesi yürütme, katalog önbellekleme ve sözleşme sürümü işleme, Room
 gidiş-dönüşleri.
 
 > [!IMPORTANT]
-> Yaklaşık 38 test paketi, sözleşme fixture'larını Gradle modül dizininden `../../shared` yolunu
-> çözerek yükler; dolayısıyla **testler yalnızca deponun tamamı elinizdeyken geçer** — tek başına
-> `android/` klasörünü dışarı kopyalamak işe yaramaz.
+> Yaklaşık 38 test paketi, sözleşme fixture'larını çalışma dizininden yukarı doğru yürüyüp `shared/`
+> dizinini bularak yükler; dolayısıyla **testler yalnızca deponun tamamı elinizdeyken geçer** — tek
+> başına `android/` klasörünü dışarı kopyalamak işe yaramaz.
 
 Ayrıca üç enstrümanlı test vardır — bir yerel motor yayın matrisi, bir düz metin soket testi ve bir
 keystore yalıtım testi. Bunlar kendi kendine yeterli değildir: yerel motor testleri, ağınızda
@@ -302,10 +302,10 @@ düşecektir.
 
 ## Yerelleştirme
 
-On altı dil: `values/` (kaynak dil İngilizce) artı on beş `values-*` dizini, her birinde yaklaşık
-1.300 metin ve her dilde birebir aynı anahtar kümesi. Uygulama içi dil değiştirme
-`AppLanguageManager` ve `android:localeConfig` üzerinden yürür. Bundle'da dil bölmeleri kapalıdır;
-böylece tek bir artefakt bütün çevirileri taşır.
+On altı dil: `values/` (kaynak dil İngilizce) artı on beş yerel ayar dizini — hiç metin taşımayan
+`values-night` de onların yanında — her birinde yaklaşık 1.340 metin ve her dilde birebir aynı
+anahtar kümesi. Uygulama içi dil değiştirme `AppLanguageManager` ve `android:localeConfig` üzerinden
+yürür. Bundle'da dil bölmeleri kapalıdır; böylece tek bir artefakt bütün çevirileri taşır.
 
 ## Katkıda bulunma
 

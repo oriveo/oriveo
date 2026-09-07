@@ -37,7 +37,7 @@
 Oriveo iOS istemcisi, kendi anahtarınızı getirdiğiniz bir yapay zekâ sohbet uygulamasıdır. Zaten
 sahip olduğunuz API anahtarlarını eklersiniz, uygulama da her sağlayıcıyı doğrudan telefondan
 çağırır. Sohbetler, mesajlar, notlar ve not klasörleri cihaz üzerindeki bir SQLite veritabanında
-yaşar; ek blob'ları onun yanındaki dosyalardır; skill'ler, tercihler, sağlayıcı listesi ve sohbet
+yaşar; ek blob'ları onun yanındaki dosyalardır; yetenekler, tercihler, sağlayıcı listesi ve sohbet
 klasörleri ise cihaz üzerinde JSON'dur. API anahtarları iOS Keychain'e gider.
 
 Oriveo hesabı yok: hiçbir şey yüklenmez ve giriş yapılacak bir yer de yok. İki sağlayıcı, anahtar
@@ -85,7 +85,7 @@ Bu diyagramla ilgili üç şeyi açıkça söylemekte fayda var.
 **Sohbet dökümü UIKit, gerisi SwiftUI.** `ChatView`, [ChatLayout](https://github.com/ekazaev/ChatLayout)
 tarafından sürülen bir `UICollectionView`'ın etrafına bir
 `ChatListViewControllerRepresentable` gömer. Geri kalan her şey — gezinme, ayarlar, sağlayıcı
-kurulumu, notlar, skill'ler — SwiftUI'dır. Bu ayrım var, çünkü token hızında akan bir sohbet dökümü
+kurulumu, notlar, yetenekler — SwiftUI'dır. Bu ayrım var, çünkü token hızında akan bir sohbet dökümü
 ölçüm ve yeniden kullanım üzerinde hücre düzeyinde denetim ister; SwiftUI'ın diffing'i bunu vermez.
 Sınırı [`Features/Chat/ARCHITECTURE.md`](../../ios/Oriveo/Oriveo/Features/Chat/ARCHITECTURE.md)
 belgeliyor.
@@ -152,18 +152,18 @@ Application Support/Oriveo/
   `DatabaseMigrator` ile. Mesajlar ve notlar üzerindeki tam metin arama, trigram tokenizer'lı FTS5
   kullanır.
 - **API anahtarları Keychain'de yaşar**, sağlayıcı ve bölüm anahtarlarıyla saklanır ve oturum
-  anlık görüntüsü yazılmadan önce oradan temizlenir. Skill'ler ayrı olarak, `UserDefaults` içinde
+  anlık görüntüsü yazılmadan önce oradan temizlenir. Yetenekler ayrı olarak, `UserDefaults` içinde
   JSON olarak saklanır.
 - **Ek blob'ları satır değil, diskteki dosyalardır**; böylece büyük bir PDF veritabanını asla
   şişirmez.
 
 Bir yedek, `data.json` ile birlikte görsel dosyalarını taşıyan bir `.oriveo` ZIP'idir. İsteğe bağlı
 parola arşivi şifrelemez: yalnızca içindeki sağlayıcı API anahtarlarını şifreler (AES-GCM, anahtar
-600.000 tur PBKDF2-HMAC-SHA256 ile türetilir). Sohbetler, notlar, skill'ler ve tercihler her durumda
+600.000 tur PBKDF2-HMAC-SHA256 ile türetilir). Sohbetler, notlar, yetenekler ve tercihler her durumda
 arşivde düz JSON olarak durur; yani bir yedek dosyasını, eline geçen herkesin okuyabileceği bir şey
 olarak görün.
 
-## Uygulamanın kendisi için yaptığı istekler
+## Model kataloğu
 
 Soğuk açılışta uygulama, `https://api.oriveoai.com/api/metadata?view=lean` adresine kimlik
 doğrulamasız ve ETag koşullu bir `GET` isteği yapar. Bu istek herkese açık model kataloğunu çeker:
@@ -241,9 +241,10 @@ Bunun yerine Simulator için derlemek isterseniz herhangi bir iPhone simülatör
 Paket bağımlılıkları, depoya işlenmiş `Package.resolved` dosyasından çözülür.
 
 **Apple silicon bir Mac'te** iPhone derlemesi doğal olarak da çalışır: **My Mac (Designed for iPad)**
-hedefini seçin. Mac Catalyst bilinçli olarak kapalıdır (`SUPPORTS_MACCATALYST = NO`), yani bu bir Mac
-uygulaması değil, iPad uyumluluk çalışma zamanı altındaki iOS uygulamasıdır — kamera çekimi gibi
-yalnızca cihazda olan yollar, bir Mac'te nasıl davranıyorlarsa öyle davranır.
+hedefini seçin. Mac Catalyst etkin değildir — proje hiçbir zaman ona dahil olmaz ve
+`TARGETED_DEVICE_FAMILY` `1,2` olarak kalır — yani bu bir Mac uygulaması değil, iPad uyumluluk
+çalışma zamanı altındaki iOS uygulamasıdır ve kamera çekimi gibi yalnızca cihazda olan yollar, bir
+Mac'te nasıl davranıyorlarsa öyle davranır.
 
 Proje dosyası, dosya sistemiyle senkron gruplar ve `objectVersion = 77` kullanır; bu yüzden daha eski
 bir Xcode dosyayı açmayı reddedebilir. Proje biçimini düzenlemek yerine Xcode'u güncelleyin.
@@ -285,7 +286,7 @@ Gerçekten sahip olduğunuz bir simülatörü yazın; aynı proje ve scheme ile
 > fixture'larını oradan okur; dolayısıyla **testler yalnızca deponun tamamı elinizdeyken geçer** —
 > tek başına `ios/` klasörünü dışarı kopyalamak işe yaramaz.
 
-Test paketi geniş: 274 dosyada yaklaşık 2.900 [Swift
+Test paketi geniş: 275 dosyada yaklaşık 2.900 [Swift
 Testing](https://github.com/swiftlang/swift-testing) vakası ve 76 XCTest vakası. Sağlayıcı başına
 istek biçimini, kaydedilmiş upstream SSE yeniden oynatımını, relay ve yerel motor politikasını,
 sohbet dökümü ölçümünü ve akış davranışını, depolamayı ve yedekleme gidiş-dönüşlerini kapsar.

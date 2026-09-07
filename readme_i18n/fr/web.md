@@ -36,7 +36,7 @@
 ---
 
 Le client web d'Oriveo est une app de chat IA fonctionnant avec vos propres clés, construite avec
-Next.js. Conversations, notes, dossiers, Skills et vos clés de fournisseur vivent dans le stockage
+Next.js. Conversations, notes, dossiers, compétences et vos clés de fournisseur vivent dans le stockage
 du navigateur lui-même. Il n'y a ni compte ni connexion.
 
 Il fait partie d'[Oriveo Community Edition](README.md) — trois clients qui partagent une seule
@@ -44,7 +44,7 @@ définition de la façon de parler à un fournisseur de modèles.
 
 ## Démarrage rapide
 
-Nécessite Node 22.22 ou plus récent (voir [`.nvmrc`](../../web/.nvmrc)). npm est fourni avec ; aucun autre gestionnaire
+Nécessite Node 22.22.2 ou une version 22.x ultérieure (voir [`.nvmrc`](../../web/.nvmrc)) ; le champ `engines` vaut `^22.22.2`, donc Node 23+ n'est pas pris en charge. npm est fourni avec ; aucun autre gestionnaire
 de paquets n'est nécessaire.
 
 ```bash
@@ -125,7 +125,7 @@ local ne quitte pas votre réseau, et il ne passe pas non plus par le serveur de
 flowchart TB
     subgraph app ["apps/app — l'application Next.js"]
         direction LR
-        routes["App Router<br/>chat · notes · fournisseurs · skills · réglages"]
+        routes["App Router<br/>chat · notes · fournisseurs · compétences · réglages"]
         store["Store Zustand<br/>vanilla + context"]
         idb[("IndexedDB<br/>conversations · notes · clés")]
     end
@@ -173,9 +173,11 @@ packages/ipc-contract/  typed channel contract for a desktop shell
 
 Le style repose sur des CSS Modules par-dessus une unique feuille de tokens en propriétés
 personnalisées dans `packages/ui` — il n'y a pas de framework de classes utilitaires.
-`packages/ipc-contract` décrit la surface de canal à laquelle se lierait un shell de bureau ; aucun
-shell de ce type n'est livré dans ce dépôt, donc sur le build web ce paquet n'apporte que des types
-et des branches jamais empruntées.
+`packages/ipc-contract` est l'interface typée que l'app web conserve pour un hôte de bureau : des
+canaux nommés pour le streaming du chat, les appels aux fournisseurs, le relayage et le stockage des
+clés, auxquels un shell natif peut se lier en exposant `window.oriveo`. Aucun shell de bureau n'est
+livré dans ce dépôt, donc sur un build web `IS_DESKTOP` vaut false et chaque branche derrière lui
+reste inutilisée.
 
 Il y a une autre couture du même genre. `apps/app/lib/core/sync-port.ts` déclare l'interface qu'un
 backend de synchronisation implémenterait, et chaque site d'appel l'atteint par chaînage optionnel. Rien n'en
@@ -235,7 +237,7 @@ Lancez-les depuis ce répertoire.
 | `npm run build:app` | build de production |
 | `npm run typecheck` | `tsc --noEmit` sur tous les workspaces |
 | `npm run test:run` | vitest, une passe |
-| `npm run test` | vitest en mode watch |
+| `npm run test` | vitest en mode watch, un watcher par workspace — préférez le lancer à l'intérieur d'un seul workspace |
 | `npm run lint` | eslint sur `apps/` et `packages/` |
 
 `npm start --workspace @oriveo/app` sert un build terminé sur le port 3001.
@@ -299,6 +301,19 @@ handlers ne détiennent aucune clé à eux et ne stockent rien, mais ils sont un
 un déploiement joignable publiquement a donc sa place derrière le même contrôle d'accès que vous
 donneriez à n'importe quel autre outil interne.
 
+## Dépendances
+
+| Paquet | Version | Sert à |
+|---|---|---|
+| [Next.js](https://nextjs.org) | 16.3.3 | App Router, route handlers, build |
+| [React](https://react.dev) | 19.2.8 | l'interface |
+| [vitest](https://vitest.dev) | 4.1.11 | le lanceur de tests |
+| [zustand](https://zustand.docs.pmnd.rs) | 5.0.15 | l'état côté client |
+| [next-intl](https://next-intl.dev) | 4.14.1 | la localisation |
+| [@sentry/nextjs](https://docs.sentry.io/platforms/javascript/guides/nextjs/) | 10.72.0 | les rapports d'erreur, inertes sans DSN |
+
+Les versions exactes de toutes les dépendances sont figées dans `package-lock.json`.
+
 ## Tests
 
 Environ 5 600 tests répartis sur 460 fichiers, avec vitest. La couverture est la plus dense là où une
@@ -309,8 +324,9 @@ capacités, mise en cache du catalogue et invalidation par version de contrat, p
 partitionnement du stockage, allers-retours de sauvegarde, et les route handlers eux-mêmes.
 
 > [!IMPORTANT]
-> Plus de trente suites chargent des fixtures de contrat depuis `../shared`, donc **les tests ne
-> passent que dans un checkout complet** — copier `web/` tout seul ne marchera pas.
+> Plus de trente suites résolvent les fixtures de contrat sous `shared/` relativement au répertoire
+> de travail, donc **les tests ne passent que dans un checkout complet**, lancés depuis le workspace
+> auquel ils appartiennent — copier `web/` tout seul ne marchera pas.
 
 ## Localisation
 

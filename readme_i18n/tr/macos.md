@@ -39,18 +39,11 @@ sözleşmelerini karşılıyor; yani bir kez düzeltilen bir protokol tuhaflığ
 
 ## Bir Mac'te hâlihazırda çalışanlar
 
-- **Web istemcisi**, herhangi bir tarayıcıda gayet iyi bir masaüstü uygulaması olur:
-
-  ```bash
-  cd web
-  npm install
-  npm run dev:app        # http://localhost:3001
-  ```
-
-  Bkz. [web/README.md](web.md).
+- **Web istemcisi**, herhangi bir tarayıcıda gayet iyi bir masaüstü uygulaması olur. Bkz.
+  [web.md — Hızlı başlangıç](web.md#hızlı-başlangıç).
 
 - **iOS derlemesi**, bir Apple silicon Mac'te. `ios/Oriveo/Oriveo.xcodeproj` dosyasını açın,
-  *My Mac (Designed for iPad)* hedefini seçin ve çalıştırın. Bkz. [ios/README.md](ios.md).
+  *My Mac (Designed for iPad)* hedefini seçin ve çalıştırın. Bkz. [ios.md](ios.md).
 
 ## Hâlihazırda yazılmış olanlar
 
@@ -70,5 +63,13 @@ Test paketi, hiçbir simülatör devreye girmeden macOS üzerinde çalışır:
 cd shared/OriveoProviderKit
 swift build && swift test
 ```
+
+Web uygulaması ayrıca tipli bir masaüstü ana bilgisayar arayüzü tutar:
+[`web/packages/ipc-contract`](../../web/packages/ipc-contract/); yerel bir kabuk buna bağlanabilir,
+ama bu depoda onu uygulayan hiçbir şey yok.
+
+## Lisans
+
+[AGPL-3.0-or-later](../../LICENSE).
 
 [Kök README](README.md) · [Ortak sözleşmeler](shared.md)

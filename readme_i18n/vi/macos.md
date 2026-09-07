@@ -39,18 +39,11 @@ chung, nên một điểm kỳ quặc của giao thức đã sửa một lần l
 
 ## Những gì đã chạy được trên máy Mac
 
-- **Client web**, dùng như một ứng dụng desktop trên trình duyệt bất kỳ vẫn rất tốt:
-
-  ```bash
-  cd web
-  npm install
-  npm run dev:app        # http://localhost:3001
-  ```
-
-  Xem [web/README.md](web.md).
+- **Client web**, dùng như một ứng dụng desktop trên trình duyệt bất kỳ vẫn rất tốt. Xem
+  [web.md — Bắt đầu nhanh](web.md#bắt-đầu-nhanh).
 
 - **Bản dựng iOS**, trên một máy Mac dùng Apple silicon. Mở `ios/Oriveo/Oriveo.xcodeproj`, chọn đích
-  *My Mac (Designed for iPad)* rồi nhấn Run. Xem [ios/README.md](ios.md).
+  *My Mac (Designed for iPad)* rồi nhấn Run. Xem [ios.md](ios.md).
 
 ## Những gì đã được viết
 
@@ -70,5 +63,13 @@ Bộ test của nó chạy trên macOS mà không cần tới simulator nào:
 cd shared/OriveoProviderKit
 swift build && swift test
 ```
+
+Ứng dụng web còn giữ một giao diện có kiểu dành cho desktop host,
+[`web/packages/ipc-contract`](../../web/packages/ipc-contract/), mà một native shell có thể gắn vào;
+không có gì trong kho mã này hiện thực nó.
+
+## Giấy phép
+
+[AGPL-3.0-or-later](../../LICENSE).
 
 [README gốc](README.md) · [Contract dùng chung](shared.md)

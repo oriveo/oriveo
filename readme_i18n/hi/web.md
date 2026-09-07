@@ -36,14 +36,15 @@
 ---
 
 Oriveo का वेब क्लाइंट Next.js से बना एक bring-your-own-key AI चैट ऐप है। बातचीत, नोट्स, फ़ोल्डर,
-skills और आपकी प्रोवाइडर key ब्राउज़र के अपने स्टोरेज में रहती हैं। न कोई अकाउंट है, न साइन-इन।
+कौशल और आपकी प्रोवाइडर key ब्राउज़र के अपने स्टोरेज में रहती हैं। न कोई अकाउंट है, न साइन-इन।
 
 यह [Oriveo Community Edition](README.md) का हिस्सा है — तीन क्लाइंट, जिनके पास मॉडल प्रोवाइडर से
 बात करने की एक ही साझा परिभाषा है।
 
 ## जल्दी शुरू करें
 
-Node 22.22 या उससे नया चाहिए ([`.nvmrc`](../../web/.nvmrc) देखें)। npm उसी के साथ आता है; और किसी package manager
+Node 22.22.2 या उससे नया 22.x चाहिए ([`.nvmrc`](../../web/.nvmrc) देखें); `engines` फ़ील्ड
+`^22.22.2` है, इसलिए Node 23+ सपोर्टेड नहीं है। npm उसी के साथ आता है; और किसी package manager
 की ज़रूरत नहीं।
 
 ```bash
@@ -70,7 +71,7 @@ flowchart LR
     end
 
     official["15 आधिकारिक प्रोवाइडर"]
-    pubrelay["सार्वजनिक होस्ट पर एक relay"]
+    pubrelay["सार्वजनिक होस्ट पर एक रिले"]
     lan["आपके नेटवर्क पर एक मॉडल सर्वर"]
     catalog[("सार्वजनिक मॉडल कैटलॉग<br/>सिर्फ़ पढ़ने के लिए · बिना key")]
 
@@ -89,7 +90,7 @@ flowchart LR
 चलते Next.js route handlers से आगे भेजता है। जब आप `npm run dev:app` चलाते हैं, वे handler आपकी अपनी
 मशीन पर होते हैं। जब आप ऐप कहीं deploy करते हैं, वे उसी मशीन पर होते हैं जहाँ आपने deploy किया।
 
-handler एक नहीं है: चैट streaming, relay forwarder, इमेज जनरेशन, मॉडल सूची, key वैलिडेशन, और Grok
+handler एक नहीं है: चैट streaming, रिले सेवा (Relay) का forwarder, इमेज जनरेशन, मॉडल सूची, key वैलिडेशन, और Grok
 तथा ChatGPT के device-login exchange — ये सब मिलकर कुल बारह route फ़ाइलें बनती हैं। key वैलिडेशन यहाँ
 मायने रखता है — वह key आपके अपने सर्वर पर पोस्ट करता है, और वही सर्वर उससे प्रोवाइडर को जाँचता है।
 
@@ -105,7 +106,7 @@ handler एक नहीं है: चैट streaming, relay forwarder, इम
 समर्पित टेस्ट (`server-never-learns.test.ts`) यह pin करता है कि वह किसी एक उपयोगकर्ता का अस्वीकार हुआ
 पैरामीटर cache करके किसी और की रिक्वेस्ट पर लागू न कर दे।
 
-Relay forwarder इसके अलावा DNS को उसी पते पर pin करता है जिस पर उसने resolve किया, response पर सीमा
+रिले forwarder इसके अलावा DNS को उसी पते पर pin करता है जिस पर उसने resolve किया, response पर सीमा
 लगाता है, हर timeout को बाँधता है, redirect को उसी origin तक सीमित रखता है, और hop-by-hop हेडर आगे
 नहीं जाने देता।
 
@@ -120,7 +121,7 @@ Relay forwarder इसके अलावा DNS को उसी पते प�
 flowchart TB
     subgraph app ["apps/app — Next.js एप्लिकेशन"]
         direction LR
-        routes["App Router<br/>चैट · नोट्स · प्रोवाइडर · skills · सेटिंग्स"]
+        routes["App Router<br/>चैट · नोट्स · प्रोवाइडर · कौशल · सेटिंग्स"]
         store["Zustand store<br/>vanilla + context"]
         idb[("IndexedDB<br/>बातचीत · नोट्स · keys")]
     end
@@ -166,9 +167,11 @@ packages/ipc-contract/  typed channel contract for a desktop shell
 ```
 
 स्टाइलिंग `packages/ui` की एक ही custom-property token शीट के ऊपर CSS Modules से होती है — कोई
-utility-class फ़्रेमवर्क नहीं है। `packages/ipc-contract` उस channel सरफ़ेस का वर्णन करता है जिससे एक
-desktop shell बँधेगा; इस रिपॉज़िटरी में ऐसा कोई shell नहीं आता, इसलिए वेब बिल्ड में यह सिर्फ़ types और
-ऐसी branches देता है जिन पर कभी अमल नहीं होता।
+utility-class फ़्रेमवर्क नहीं है। `packages/ipc-contract` वह typed interface है जिसे वेब ऐप एक
+desktop host के लिए रखे हुए है: चैट streaming, प्रोवाइडर कॉल, रिले forwarding और key स्टोरेज के लिए
+नामित channel, जिनसे कोई नेटिव shell `window.oriveo` उजागर करके बँध सकता है। इस रिपॉज़िटरी में कोई
+desktop shell नहीं आता, इसलिए वेब बिल्ड में `IS_DESKTOP` false रहता है और उसके पीछे की हर branch
+अनछुई रह जाती है।
 
 इसी तरह की एक और सीवन है। `apps/app/lib/core/sync-port.ts` उस interface की घोषणा करता है जिसे कोई
 synchronisation backend लागू करेगा, और हर call site उस तक optional chaining से पहुँचता है। ऐसा कोई
@@ -224,7 +227,7 @@ GET {backend}/api/metadata/model-facts
 | `npm run build:app` | production बिल्ड |
 | `npm run typecheck` | हर workspace पर `tsc --noEmit` |
 | `npm run test:run` | vitest, एक pass |
-| `npm run test` | vitest, watch मोड में |
+| `npm run test` | vitest, watch मोड में, हर workspace के लिए एक watcher — इसे किसी एक workspace के भीतर चलाना बेहतर है |
 | `npm run lint` | `apps/` और `packages/` पर eslint |
 
 `npm start --workspace @oriveo/app` बने हुए बिल्ड को पोर्ट 3001 पर सर्व करता है।
@@ -283,6 +286,19 @@ handlers से अपनी दी हुई key के साथ किसी 
 नहीं होती और वे कुछ सहेजते नहीं, लेकिन वे बाहर जाने वाला एक HTTP रास्ता हैं; इसलिए सार्वजनिक रूप से
 पहुँच योग्य deployment को उसी access control के पीछे रखना चाहिए जो आप किसी भी अन्य आंतरिक टूल को देंगे।
 
+## Dependencies
+
+| पैकेज | संस्करण | किस काम के लिए |
+|---|---|---|
+| [Next.js](https://nextjs.org) | 16.3.3 | App Router, route handler, बिल्ड |
+| [React](https://react.dev) | 19.2.8 | UI |
+| [vitest](https://vitest.dev) | 4.1.11 | टेस्ट रनर |
+| [zustand](https://zustand.docs.pmnd.rs) | 5.0.15 | क्लाइंट स्टेट |
+| [next-intl](https://next-intl.dev) | 4.14.1 | स्थानीयकरण |
+| [@sentry/nextjs](https://docs.sentry.io/platforms/javascript/guides/nextjs/) | 10.72.0 | एरर रिपोर्टिंग, DSN के बिना निष्क्रिय |
+
+हर dependency के ठीक-ठीक संस्करण `package-lock.json` में pin किए गए हैं।
+
 ## टेस्टिंग
 
 460 फ़ाइलों में क़रीब 5,600 टेस्ट, vitest पर। कवरेज वहाँ सबसे भारी है जहाँ ग़लती सबसे महँगी पड़ती है:
@@ -292,8 +308,9 @@ capability recipe execution, कैटलॉग caching और contract-version 
 storage partitioning, बैकअप के round-trip, और ख़ुद route handlers।
 
 > [!IMPORTANT]
-> तीस से ज़्यादा suites, `../shared` से contract fixtures लोड करती हैं, इसलिए **टेस्ट सिर्फ़ पूरे
-> checkout में ही पास होते हैं** — अकेले `web/` को कॉपी करके ले जाना काम नहीं करेगा।
+> तीस से ज़्यादा suites, contract fixtures को working directory के सापेक्ष `shared/` के नीचे resolve
+> करती हैं, इसलिए **टेस्ट सिर्फ़ पूरे checkout में, और उसी workspace से चलाने पर पास होते हैं जिसका
+> वे हिस्सा हैं** — अकेले `web/` को कॉपी करके ले जाना काम नहीं करेगा।
 
 ## स्थानीयकरण
 

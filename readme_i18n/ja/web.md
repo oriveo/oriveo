@@ -36,7 +36,7 @@
 ---
 
 Oriveo の Web クライアントは、Next.js で作られた BYOK の AI チャットアプリです。会話、ノート、
-フォルダ、Skills、そしてプロバイダーのキーは、ブラウザ自身のストレージに置かれます。アカウントも
+フォルダ、スキル、そしてプロバイダーのキーは、ブラウザ自身のストレージに置かれます。アカウントも
 サインインもありません。
 
 これは [Oriveo Community Edition](README.md) の一部です。3 つのクライアントが、モデルプロバイダーとの
@@ -44,8 +44,9 @@ Oriveo の Web クライアントは、Next.js で作られた BYOK の AI チ�
 
 ## クイックスタート
 
-Node 22.22 以降が必要です（[`.nvmrc`](../../web/.nvmrc) を参照）。npm は同梱されているので、他の
-パッケージマネージャーは要りません。
+Node 22.22.2 以降の 22.x が必要です（[`.nvmrc`](../../web/.nvmrc) を参照）。`engines` は
+`^22.22.2` なので、Node 23 以降には対応していません。npm は同梱されているので、他のパッケージ
+マネージャーは要りません。
 
 ```bash
 npm install
@@ -71,14 +72,14 @@ flowchart LR
     end
 
     official["15 の公式プロバイダー"]
-    pubrelay["公開ホスト上の relay"]
+    pubrelay["公開ホスト上のリレー"]
     lan["自分のネットワーク上のモデルサーバー"]
     catalog[("公開モデルカタログ<br/>読み取り専用 · キーなし")]
 
     browser ==>|"ほとんどの公式プロバイダー"| chat ==> official
     browser ==>|"モデル一覧 · キー検証 · OAuth"| prov
-    browser ==>|"relay、公開ホスト"| fwd ==> pubrelay
-    browser ==>|"自分のネットワーク上の relay"| lan
+    browser ==>|"リレー、公開ホスト"| fwd ==> pubrelay
+    browser ==>|"自分のネットワーク上のリレー"| lan
     browser ==>|"CORS が通るエンドポイント"| official
     catalog -.-> browser
     catalog -.-> chat
@@ -91,7 +92,7 @@ Next.js の route handler に転送する方式を採っています。`npm run 
 それらの handler はあなた自身のマシンにあります。どこかにデプロイしたなら、デプロイ先のマシンに
 あります。
 
-handler は 1 つではありません。チャットのストリーミング、relay の転送、画像生成、モデル一覧、キーの
+handler は 1 つではありません。チャットのストリーミング、リレーサービス（Relay）の転送、画像生成、モデル一覧、キーの
 検証、そして Grok と ChatGPT のデバイスログインのやり取りで、route ファイルは全部で 12 個になります。
 ここで効いてくるのがキーの検証で、これはキーをあなた自身のサーバーに送り、そのサーバーがそのキーで
 プロバイダーを叩きます。
@@ -101,7 +102,7 @@ handler は 1 つではありません。チャットのストリーミング、
 OpenRouter・SiliconFlow・DeepSeek・Kimi の残高エンドポイントです。
 
 **これらの handler がすること、しないこと。** リクエストの形を検証してサイズに上限を設け、チャットと
-relay のトラフィックに IP ごとのレート制限をかけ、プライベートアドレスやリンクローカルアドレスに
+リレーサービスのトラフィックに IP ごとのレート制限をかけ、プライベートアドレスやリンクローカルアドレスに
 解決される URL を拒否し、プロバイダー固有のボディを組み立て、レスポンスをストリームで返します。
 `app/api` の下にはデータベースもファイルへの書き込みもなく、リクエストボディのログも一切ありません。
 あなたのキーとメッセージは転送され、そして忘れられます。このルートは訪問者全員が共有する 1 つの
@@ -109,11 +110,12 @@ relay のトラフィックに IP ごとのレート制限をかけ、プライ�
 適用してしまうことが決してない、という点を専用のテスト（`server-never-learns.test.ts`）が固定して
 います。
 
-relay の転送処理はさらに、解決したアドレスに DNS を固定し、レスポンスに上限を設け、すべての
+リレーサービスの転送処理はさらに、解決したアドレスに DNS を固定し、レスポンスに上限を設け、すべての
 タイムアウトに上界を与え、リダイレクトを同一オリジンに限定し、hop-by-hop ヘッダーの通過を拒否します。
 
 **ローカルのエンドポイントはこれを完全に迂回します。** プライベートアドレス、`.local` 名、
-`localhost` 上の relay、あるいはローカル HTTP モードやプライベート VPN モードで設定された relay は、
+`localhost` 上のリレーサービス、あるいはローカル HTTP モードやプライベート VPN モードで設定された
+リレーサービスは、
 `credentials: 'omit'` と `targetAddressSpace: 'local'` を付けて**ブラウザから直接**取得されます。
 LAN のトラフィックはあなたのネットワークから出ませんし、アプリのサーバーを通ることもありません。
 
@@ -123,7 +125,7 @@ LAN のトラフィックはあなたのネットワークから出ませんし�
 flowchart TB
     subgraph app ["apps/app — Next.js アプリケーション"]
         direction LR
-        routes["App Router<br/>チャット · ノート · プロバイダー · Skills · 設定"]
+        routes["App Router<br/>チャット · ノート · プロバイダー · スキル · 設定"]
         store["Zustand ストア<br/>vanilla + context"]
         idb[("IndexedDB<br/>会話 · ノート · キー")]
     end
@@ -131,7 +133,7 @@ flowchart TB
     subgraph pkgs ["packages/ — ランタイム非依存"]
         direction LR
         core["core<br/>トランスポート · リクエスト構築 · SSE"]
-        shared["shared<br/>ドメイン型 · relay ポリシー"]
+        shared["shared<br/>ドメイン型 · リレーポリシー"]
         ui["ui<br/>トークン · コンポーネント"]
         config["config<br/>ブランド · プロバイダー既定値"]
     end
@@ -170,8 +172,10 @@ packages/ipc-contract/  typed channel contract for a desktop shell
 
 スタイリングは、`packages/ui` にあるひとつのカスタムプロパティのトークンシートの上に CSS Modules を
 重ねる方式です。ユーティリティクラスのフレームワークは使っていません。`packages/ipc-contract` は
-デスクトップシェルがバインドするであろうチャネル面を記述したものですが、このリポジトリにそうした
-シェルは含まれていないため、Web のビルドでは通ることのない型と分岐を提供するだけです。
+Web アプリがデスクトップホスト向けに保持している型付きインターフェイスです。チャットのストリーミング、
+プロバイダー呼び出し、リレーサービスの転送、キーの保存に名前付きチャネルを定義しており、ネイティブ
+シェルは `window.oriveo` を公開すればバインドできます。このリポジトリにデスクトップシェルは含まれて
+いないため、Web のビルドでは `IS_DESKTOP` が false になり、その裏にある分岐はどれも通りません。
 
 同じ種類の継ぎ目がもうひとつあります。`apps/app/lib/core/sync-port.ts` は、同期バックエンドが実装する
 であろうインターフェースを宣言していて、呼び出し側はどこもオプショナルチェーンで到達します。それを
@@ -206,7 +210,7 @@ packages/ipc-contract/  typed channel contract for a desktop shell
 
 各プロバイダーがどのモデルを提供し、それぞれが何に対応しているかは、起動時に取得する読み取り専用の
 カタログから来ます。要求するのはちょうど 2 つのエンドポイントで、どちらも `GET`、どちらも ETag 条件
-付き、いずれも API キー・会話・ユーザー識別子を運びません。
+付き、いずれも API キー・会話・ユーザー識別子を含みません。
 
 ```
 GET {backend}/api/metadata?view=lean
@@ -228,7 +232,7 @@ GET {backend}/api/metadata/model-facts
 | `npm run build:app` | 本番ビルド |
 | `npm run typecheck` | 全ワークスペースに対する `tsc --noEmit` |
 | `npm run test:run` | vitest を 1 回実行 |
-| `npm run test` | vitest のウォッチモード |
+| `npm run test` | vitest のウォッチモード。ワークスペースごとに watcher が 1 つ立つので、単一のワークスペース内で実行するのがおすすめです |
 | `npm run lint` | `apps/` と `packages/` に対する eslint |
 
 `npm start --workspace @oriveo/app` は、ビルド済みの成果物をポート 3001 で配信します。
@@ -287,18 +291,32 @@ npm start --workspace @oriveo/app     # 127.0.0.1:3001
 保存しませんが、外向きの HTTP 経路ではあります。ですから公開の場所に置くデプロイは、ほかの社内向け
 ツールと同じアクセス制御の背後に置くべきものです。
 
+## 依存関係
+
+| パッケージ | バージョン | 用途 |
+|---|---|---|
+| [Next.js](https://nextjs.org) | 16.3.3 | App Router、route handler、ビルド |
+| [React](https://react.dev) | 19.2.8 | UI |
+| [vitest](https://vitest.dev) | 4.1.11 | テストランナー |
+| [zustand](https://zustand.docs.pmnd.rs) | 5.0.15 | クライアントの状態管理 |
+| [next-intl](https://next-intl.dev) | 4.14.1 | ローカライズ |
+| [@sentry/nextjs](https://docs.sentry.io/platforms/javascript/guides/nextjs/) | 10.72.0 | エラー報告。DSN がなければ動作しません |
+
+すべての依存関係の正確なバージョンは `package-lock.json` に固定されています。
+
 ## テスト
 
 460 ファイルにおよそ 5,600 のテストがあり、vitest で動きます。カバレッジが最も厚いのは、間違いの代償
 が最も大きいところです。プロバイダーごとのリクエストの形、通信プロトコルごとのトランスポートの挙動、
-SSE とプロキシのチャンクのパース、使用量とコストのパース、エラー分類、relay のプローブとセキュリティ
+SSE とプロキシのチャンクのパース、使用量とコストのパース、エラー分類、リレーサービスのプローブとセキュリティ
 モード、SSRF ガード、機能レシピの実行、カタログのキャッシュとコントラクトバージョンによる無効化、
 IndexedDB の永続化、ストレージのパーティション分割、バックアップの往復、そして route handler 自体
 です。
 
 > [!IMPORTANT]
-> 30 を超えるスイートが `../shared` からコントラクトのフィクスチャを読み込むため、**テストが通るのは
-> リポジトリ全体をチェックアウトしたときだけ**です。`web/` だけをコピーしても動きません。
+> 30 を超えるスイートが、作業ディレクトリを基準に `shared/` の下のコントラクトのフィクスチャを解決
+> するため、**テストが通るのはリポジトリ全体をチェックアウトし、それらを持つワークスペースから実行
+> したときだけ**です。`web/` だけをコピーしても動きません。
 
 ## ローカライズ
 

@@ -35,14 +35,15 @@
 
 ---
 
-Oriveo Web 客户端是一个用 Next.js 构建的、自带 Key 的 AI 聊天 App。对话、笔记、文件夹、Skills 以及
+Oriveo Web 客户端是一个用 Next.js 构建的、自带 Key 的 AI 聊天 App。对话、笔记、文件夹、技能 以及
 你的供应商 Key 都存在浏览器自己的存储里。没有账号，也不需要登录。
 
 它是 [Oriveo 社区版](README.md) 的一部分 —— 三个客户端共用同一份「怎么和模型供应商说话」的定义。
 
 ## 快速开始
 
-需要 Node 22.22 或更新版本（见 [`.nvmrc`](../../web/.nvmrc)）。npm 随它一起发布；不需要别的包管理器。
+需要 Node 22.22.2 或更新的 22.x（见 [`.nvmrc`](../../web/.nvmrc)）；`engines` 字段写的是
+`^22.22.2`，所以不支持 Node 23 及以上。npm 随它一起发布；不需要别的包管理器。
 
 ```bash
 npm install
@@ -67,14 +68,14 @@ flowchart LR
     end
 
     official["15 家官方供应商"]
-    pubrelay["公网主机上的 relay"]
+    pubrelay["公网主机上的中转站"]
     lan["你网络里的模型服务器"]
     catalog[("公开模型目录<br/>只读 · 不带 Key")]
 
     browser ==>|"多数官方供应商"| chat ==> official
     browser ==>|"模型列表 · Key 校验 · OAuth"| prov
-    browser ==>|"relay，公网主机"| fwd ==> pubrelay
-    browser ==>|"你网络里的 relay"| lan
+    browser ==>|"中转站，公网主机"| fwd ==> pubrelay
+    browser ==>|"你网络里的中转站"| lan
     browser ==>|"CORS 友好的端点"| official
     catalog -.-> browser
     catalog -.-> chat
@@ -85,24 +86,24 @@ flowchart LR
 runtime 里的 Next.js route handler。当你跑 `npm run dev:app` 时，这些 handler 就在你自己机器上。
 当你把应用部署到某处时，它们就在你部署到的那台机器上。
 
-handler 不止一个：聊天流式、relay 转发器、图像生成、模型列表、Key 校验，以及 Grok 和 ChatGPT 的设备
+handler 不止一个：聊天流式、中转站（Relay）转发器、图像生成、模型列表、Key 校验，以及 Grok 和 ChatGPT 的设备
 登录交换，加起来一共十二个 route 文件。Key 校验在这里值得留意 —— 它把 Key 发给你自己的服务器，由
 后者拿它去探测供应商。
 
 少数端点*确实*允许浏览器直连，这些是直接调用、中间不经过任何服务器的：Kimi 用于聊天的中国区端点
 （`api.moonshot.cn`），以及 OpenRouter、SiliconFlow、DeepSeek 和 Kimi 的余额端点。
 
-**这些 handler 做什么、不做什么。** 它校验请求形状并限制大小，对聊天和 relay 流量施加按 IP 的限流，
+**这些 handler 做什么、不做什么。** 它校验请求形状并限制大小，对聊天和中转站流量施加按 IP 的限流，
 拒绝解析到私有地址或链路本地地址的 URL，构造供应商特有的请求体，然后把响应流式传回。`app/api` 底下
 任何地方都没有数据库、没有写文件，也没有记录请求体 —— 你的 Key 和你的消息只是被转发，然后被忘掉。
 因为这条路由是所有访客共用的同一个进程，有一个专门的测试（`server-never-learns.test.ts`）钉死了它绝
 不会把某个用户被拒绝的参数缓存下来、再套到别人的请求上。
 
-relay 转发器还额外把 DNS 钉在它解析出的那个地址上，限制响应大小，给每个超时设上界，把重定向限制在
+中转站转发器还额外把 DNS 钉在它解析出的那个地址上，限制响应大小，给每个超时设上界，把重定向限制在
 同源范围内，并拒绝透传逐跳（hop-by-hop）头部。
 
-**本地端点完全跳过它。** 位于私有地址、`.local` 名称、`localhost` 上的 relay，或者配置成本地 HTTP
-或私有 VPN 模式的 relay，都是**由浏览器直接**请求的，带 `credentials: 'omit'` 和
+**本地端点完全跳过它。** 位于私有地址、`.local` 名称、`localhost` 上的中转站，或者配置成本地 HTTP
+或私有 VPN 模式的中转站，都是**由浏览器直接**请求的，带 `credentials: 'omit'` 和
 `targetAddressSpace: 'local'`。你的局域网流量不会离开你的网络，也不会经过这个应用的服务器。
 
 ## 架构
@@ -111,7 +112,7 @@ relay 转发器还额外把 DNS 钉在它解析出的那个地址上，限制响
 flowchart TB
     subgraph app ["apps/app —— Next.js 应用"]
         direction LR
-        routes["App Router<br/>聊天 · 笔记 · 供应商 · Skills · 设置"]
+        routes["App Router<br/>聊天 · 笔记 · 供应商 · 技能 · 设置"]
         store["Zustand store<br/>vanilla + context"]
         idb[("IndexedDB<br/>对话 · 笔记 · Key")]
     end
@@ -119,7 +120,7 @@ flowchart TB
     subgraph pkgs ["packages/ —— 与运行时无关"]
         direction LR
         core["core<br/>传输 · 请求构造 · SSE"]
-        shared["shared<br/>领域类型 · relay 策略"]
+        shared["shared<br/>领域类型 · 中转站策略"]
         ui["ui<br/>设计 token · 组件"]
         config["config<br/>品牌 · 供应商默认值"]
     end
@@ -156,8 +157,9 @@ packages/ipc-contract/  typed channel contract for a desktop shell
 ```
 
 样式是 CSS Modules 叠在 `packages/ui` 里一张统一的自定义属性 token 表上 —— 没有用任何原子类框架。
-`packages/ipc-contract` 描述的是一个桌面壳会绑定的通道界面；本仓库里并没有这样的壳，所以在 Web 构建
-上它只贡献一些永远走不到的类型和分支。
+`packages/ipc-contract` 是 Web 应用为桌面宿主保留的类型化接口：为聊天流式、供应商调用、中转站转发和
+Key 存储各定义了具名通道，原生壳只要暴露 `window.oriveo` 就能绑上去。本仓库里并没有桌面壳，所以在
+Web 构建上 `IS_DESKTOP` 为 false，它背后的每条分支都用不到。
 
 还有一处同类的接缝。`apps/app/lib/core/sync-port.ts` 声明了一个同步后端要实现的接口，而每一处调用点都通过
 可选链去访问它。没有东西装上这样的后端，所以 `getSyncAdapter()` 返回 `null`，IndexedDB 始终是你数据
@@ -209,7 +211,7 @@ GET {backend}/api/metadata/model-facts
 | `npm run build:app` | 生产构建 |
 | `npm run typecheck` | 对每个 workspace 执行 `tsc --noEmit` |
 | `npm run test:run` | vitest，跑一遍 |
-| `npm run test` | vitest 监听模式 |
+| `npm run test` | vitest 监听模式，每个 workspace 一个 watcher —— 建议只在单个 workspace 里跑 |
 | `npm run lint` | 对 `apps/` 和 `packages/` 执行 eslint |
 
 `npm start --workspace @oriveo/app` 会在 3001 端口提供一份已经构建好的产物。
@@ -261,16 +263,29 @@ npm start --workspace @oriveo/app     # 127.0.0.1:3001
 调用供应商。这些 handler 自己不持有任何 Key，也不保存任何东西，但它们是一条对外的 HTTP 通路，所以
 一个公网可达的部署，应该像你对待任何别的内部工具那样放在访问控制之后。
 
+## 依赖
+
+| 包 | 版本 | 用途 |
+|---|---|---|
+| [Next.js](https://nextjs.org) | 16.3.3 | App Router、route handler、构建 |
+| [React](https://react.dev) | 19.2.8 | UI |
+| [vitest](https://vitest.dev) | 4.1.11 | 测试运行器 |
+| [zustand](https://zustand.docs.pmnd.rs) | 5.0.15 | 客户端状态 |
+| [next-intl](https://next-intl.dev) | 4.14.1 | 本地化 |
+| [@sentry/nextjs](https://docs.sentry.io/platforms/javascript/guides/nextjs/) | 10.72.0 | 错误上报，没有 DSN 时不起作用 |
+
+每个依赖的确切版本都锁在 `package-lock.json` 里。
+
 ## 测试
 
 460 个文件里大约 5,600 个测试，跑在 vitest 上。覆盖最密的地方也是出错代价最高的地方：每家供应商的
-请求形状、每种线上协议的传输行为、SSE 与代理分片解析、用量与花费解析、错误分类、relay 探测与安全
+请求形状、每种线上协议的传输行为、SSE 与代理分片解析、用量与花费解析、错误分类、中转站探测与安全
 模式、SSRF 防护、能力配方执行、目录缓存与契约版本失效、IndexedDB 持久化、存储分区、备份往返一致性，
 以及 route handler 本身。
 
 > [!IMPORTANT]
-> 有三十多个套件从 `../shared` 加载契约 fixture，所以**测试只有在完整 checkout 里才能通过** ——
-> 把 `web/` 单独拷出来是跑不起来的。
+> 有三十多个套件是相对工作目录去解析 `shared/` 下的契约 fixture 的，所以**测试只有在完整 checkout
+> 里、并且在拥有它们的那个 workspace 里跑才能通过** —— 把 `web/` 单独拷出来是跑不起来的。
 
 ## 本地化
 

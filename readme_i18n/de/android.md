@@ -36,7 +36,7 @@
 
 Der Oriveo-Android-Client ist eine KI-Chat-App, die mit deinem eigenen Key arbeitet. Du hinterlegst
 API-Keys, die dir schon gehören, und die App spricht mit jedem Anbieter direkt vom Telefon aus.
-Unterhaltungen, Notizen, Ordner und Skills liegen in Room auf dem Gerät; API-Keys werden mit einem
+Unterhaltungen, Notizen, Ordner und Fähigkeiten liegen in Room auf dem Gerät; API-Keys werden mit einem
 Schlüssel verschlüsselt, der im Android Keystore liegt. Es gibt kein Konto und keine Anmeldung.
 
 Er ist Teil der [Oriveo Community Edition](README.md) – drei Clients, die sich eine Definition
@@ -49,7 +49,7 @@ flowchart TB
     subgraph ui ["Compose UI"]
         direction LR
         nav["OriveoNavHost<br/>typsichere @Serializable-Routen"]
-        screens["Chat · Start · Anbieter<br/>Notizen · Skills · Einstellungen"]
+        screens["Chat · Start · Anbieter<br/>Notizen · Fähigkeiten · Einstellungen"]
     end
 
     vms["ViewModels · Koin<br/>ChatViewModel und seine Koordinatoren"]
@@ -90,7 +90,7 @@ sobald `StreamingTokenBuffer` meldet, dass genug angefallen ist (4.000 Zeichen o
 die App mitten in einer Antwort zu beenden verliert also nicht, was schon angekommen ist.
 
 **Zwei Datenbanken, nicht eine.** `oriveo.db` hält Unterhaltungen, Nachrichten, Anhänge, Notizen,
-Ordner, Skills und den Cache des Modellkatalogs. `message_continuations.db` ist eine physisch
+Ordner, Fähigkeiten und den Cache des Modellkatalogs. `message_continuations.db` ist eine physisch
 getrennte Datei mit undurchsichtigem Continuation-State des Anbieters, und zwar genau deshalb, damit
 `backup_rules.xml` und `data_extraction_rules.xml` sie vom Cloud-Backup und von der Geräteübernahme
 ausschließen können – ein Continuation-Token, das auf einem anderen Gerät wiederhergestellt wird,
@@ -127,7 +127,7 @@ Overrides werden nach Last-Write-Wins über sieben Geltungsbereiche aufgelöst, 
 
 | Was | Wo |
 |---|---|
-| Unterhaltungen, Nachrichten, Anhänge, Notizen, Ordner, Skills | Room, `oriveo.db` |
+| Unterhaltungen, Nachrichten, Anhänge, Notizen, Ordner, Fähigkeiten | Room, `oriveo.db` |
 | Volltextsuche über Notizen | virtuelle FTS4-Tabelle |
 | Cache des Modellkatalogs | eine einzelne Zeile in `oriveo.db`, in Blöcken zurückgelesen |
 | Continuation-State des Anbieters | `message_continuations.db`, vom Backup ausgeschlossen |
@@ -150,7 +150,7 @@ Unterhaltungen und Notizen kommen normal mit.
 Ein Archiv, das du selbst exportierst, ist ein Zip mit `data.json` und den Anhangdateien. Das
 Passwort, das du wählst, schützt darin **allein die Anbieter-API-Keys**: sie werden mit
 PBKDF2-HMAC-SHA256 bei 600.000 Iterationen und AES-GCM verschlüsselt und als ein Feld von
-`data.json` gespeichert. Unterhaltungen, Nachrichten, Notizen, Ordner, Skills, Einstellungen und
+`data.json` gespeichert. Unterhaltungen, Nachrichten, Notizen, Ordner, Fähigkeiten, Einstellungen und
 Anhänge werden so oder so als reines JSON und als gewöhnliche Dateien geschrieben – behandle ein
 Archiv also als lesbar für jeden, der die Datei hat. Exportiere ohne Keys, wenn du nur deinen
 Verlauf willst.
@@ -290,9 +290,9 @@ Sicherheitsmodi, Ausführung von Capability-Rezepten, Katalog-Caching und Umgang
 Kontraktversionen, Room-Persistenz und Backup-Rundläufe.
 
 > [!IMPORTANT]
-> Rund 38 Suites laden Kontrakt-Fixtures, indem sie `../../shared` relativ zum
-> Gradle-Modulverzeichnis auflösen, **die Tests laufen also nur in einem vollständigen Checkout
-> durch** – `android/` allein herauszukopieren funktioniert nicht.
+> Rund 38 Suites laden Kontrakt-Fixtures, indem sie vom Arbeitsverzeichnis aus nach oben laufen,
+> bis sie `shared/` finden, **die Tests laufen also nur in einem vollständigen Checkout durch** –
+> `android/` allein herauszukopieren funktioniert nicht.
 
 Dazu kommen drei instrumentierte Tests – eine Release-Matrix für lokale Engines, ein
 Cleartext-Socket-Test und ein Test zur Keystore-Isolation. Sie sind nicht in sich abgeschlossen: die
@@ -309,8 +309,9 @@ Beide Datenbanken stehen auf `version = 1` und haben noch keine Migrationen; die
 
 ## Lokalisierung
 
-Sechzehn Sprachen: `values/` (Englisch, die Quelle) plus fünfzehn `values-*`-Verzeichnisse, je rund
-1.300 Strings, wobei jede Locale denselben Schlüsselsatz hält. Der Sprachwechsel in der App läuft
+Sechzehn Sprachen: `values/` (Englisch, die Quelle) plus fünfzehn Locale-Verzeichnisse – daneben
+`values-night`, das keine Strings trägt –, je rund 1.340 Strings, wobei jede Locale denselben
+Schlüsselsatz hält. Der Sprachwechsel in der App läuft
 über `AppLanguageManager` und `android:localeConfig`. Language-Splits sind im Bundle deaktiviert,
 sodass ein einziges Artefakt alle Übersetzungen trägt.
 

@@ -40,14 +40,7 @@
 ## すでに Mac で動くもの
 
 - **Web クライアント**。どのブラウザでも申し分のないデスクトップアプリになります。
-
-  ```bash
-  cd web
-  npm install
-  npm run dev:app        # http://localhost:3001
-  ```
-
-  [web.md](web.md) を参照してください。
+  [web.md — クイックスタート](web.md#クイックスタート)を参照してください。
 
 - **iOS 版のビルド**。Apple シリコンの Mac で動きます。`ios/Oriveo/Oriveo.xcodeproj` を開き、
   *My Mac (Designed for iPad)* の destination を選んで実行してください。[ios.md](ios.md) を参照して
@@ -71,5 +64,13 @@ platforms: [.macOS(.v15), .iOS(.v18)]
 cd shared/OriveoProviderKit
 swift build && swift test
 ```
+
+Web アプリはさらに、ネイティブシェルがバインドできる型付きのデスクトップホスト向けインターフェイス
+[`web/packages/ipc-contract`](../../web/packages/ipc-contract/) を持っています。このリポジトリに
+それを実装しているものはありません。
+
+## ライセンス
+
+[AGPL-3.0-or-later](../../LICENSE)。
 
 [ルート README](README.md) · [共有コントラクト](shared.md)

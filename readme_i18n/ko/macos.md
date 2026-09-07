@@ -38,18 +38,11 @@
 
 ## Mac에서 이미 돌아가는 것
 
-- **웹 클라이언트**. 아무 브라우저에서나 충분히 좋은 데스크톱 앱이 됩니다:
-
-  ```bash
-  cd web
-  npm install
-  npm run dev:app        # http://localhost:3001
-  ```
-
-  [web/README.md](web.md)를 보세요.
+- **웹 클라이언트**. 아무 브라우저에서나 충분히 좋은 데스크톱 앱이 됩니다.
+  [web.md — 빠른 시작](web.md#빠른-시작)을 보세요.
 
 - **iOS 빌드**. Apple silicon Mac에서 돌아갑니다. `ios/Oriveo/Oriveo.xcodeproj`를 열고
-  *My Mac (Designed for iPad)* destination을 골라 실행하세요. [ios/README.md](ios.md)를 보세요.
+  *My Mac (Designed for iPad)* destination을 골라 실행하세요. [ios.md](ios.md)를 보세요.
 
 ## 이미 작성되어 있는 것
 
@@ -69,5 +62,13 @@ platforms: [.macOS(.v15), .iOS(.v18)]
 cd shared/OriveoProviderKit
 swift build && swift test
 ```
+
+웹 앱은 네이티브 셸이 바인딩할 수 있는 타입 데스크톱 호스트 인터페이스
+[`web/packages/ipc-contract`](../../web/packages/ipc-contract/)도 유지합니다. 이 저장소에는 그것을
+구현하는 것이 없습니다.
+
+## 라이선스
+
+[AGPL-3.0-or-later](../../LICENSE).
 
 [루트 README](README.md) · [공유 계약](shared.md)

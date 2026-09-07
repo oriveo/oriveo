@@ -96,10 +96,10 @@ Data pengujian golden: trafik tool-call upstream yang terekam, routing relay, va
 klasifikasi alamat lokal, skenario katalog dan portable config, snapshot model-facts dan
 capability-evidence, serta skenario local engine.
 
-Berkas `.sse` di bawah `recorded/` adalah **trafik upstream sungguhan yang direkam**, disimpan byte
-demi byte sebagaimana ia tiba — hanya header response yang dibuang, dan body-nya tidak pernah membawa
-key. Sisanya adalah fixture yang ditulis tangan untuk mengunci sebuah jalur parse tertentu. Bedanya
-penting: mock yang ditulis tangan meng-encode apa yang Anda yakini dilakukan provider, sedangkan
+Berkas `.sse` di bawah `provider-toolcall/recorded/` adalah **trafik upstream sungguhan yang
+direkam**, disimpan byte demi byte sebagaimana ia tiba — hanya header response yang dibuang, dan
+body-nya tidak pernah membawa key. Berkas `.sse` yang langsung berada di `provider-toolcall/` adalah
+fixture yang ditulis tangan untuk mengunci sebuah jalur parse tertentu. Bedanya penting: mock yang ditulis tangan meng-encode apa yang Anda yakini dilakukan provider, sedangkan
 rekaman meng-encode apa yang benar-benar ia lakukan, termasuk chunk cacat yang ia kirim pada Selasa
 itu. Ketika sebuah perbaikan protokol provider butuh pengujian, utamakan rekaman.
 
@@ -152,8 +152,11 @@ Dari akar repositori:
 ```
 
 Suite iOS menemukan direktori ini dengan menelusuri ke atas dari berkas pengujian sampai menemukan
-`shared/`; suite Android me-resolve `../../shared` dari modul Gradle; suite web me-resolve-nya
-relatif terhadap workspace. Karena itu semuanya membutuhkan checkout penuh dari repositori.
+`shared/`; suite Android menelusuri ke atas dari direktori kerja dengan cara yang sama; suite web
+me-resolve-nya relatif terhadap workspace. Karena itu semuanya membutuhkan checkout penuh dari
+repositori.
+
+Sebelum membuka pull request, baca [CONTRIBUTING.md](../../CONTRIBUTING.md).
 
 ## Lisensi
 

@@ -36,7 +36,7 @@
 ---
 
 Klien web Oriveo adalah aplikasi chat AI bring-your-own-key yang dibangun dengan Next.js.
-Percakapan, catatan, folder, skill, dan key provider Anda tinggal di penyimpanan milik browser
+Percakapan, catatan, folder, keterampilan, dan key provider Anda tinggal di penyimpanan milik browser
 sendiri. Tidak ada akun dan tidak ada proses masuk.
 
 Ini bagian dari [Oriveo Community Edition](README.md) — tiga klien yang berbagi satu definisi
@@ -44,8 +44,9 @@ tentang cara berbicara dengan provider model.
 
 ## Mulai cepat
 
-Membutuhkan Node 22.22 atau lebih baru (lihat [`.nvmrc`](../../web/.nvmrc)). npm sudah ikut di
-dalamnya; tidak perlu package manager lain.
+Membutuhkan Node 22.22.2 atau 22.x yang lebih baru (lihat [`.nvmrc`](../../web/.nvmrc)); field
+`engines` berisi `^22.22.2`, jadi Node 23+ tidak didukung. npm sudah ikut di dalamnya; tidak perlu
+package manager lain.
 
 ```bash
 npm install
@@ -71,7 +72,7 @@ flowchart LR
     end
 
     official["15 provider resmi"]
-    pubrelay["Relay di host publik"]
+    pubrelay["Layanan relay di host publik"]
     lan["Server model di jaringan Anda"]
     catalog[("Katalog model publik<br/>read-only · tanpa key")]
 
@@ -124,7 +125,7 @@ keluar dari jaringan Anda, dan juga tidak melewati server aplikasi.
 flowchart TB
     subgraph app ["apps/app — aplikasi Next.js"]
         direction LR
-        routes["App Router<br/>chat · catatan · provider · skill · pengaturan"]
+        routes["App Router<br/>chat · catatan · provider · keterampilan · pengaturan"]
         store["Store Zustand<br/>vanilla + context"]
         idb[("IndexedDB<br/>percakapan · catatan · key")]
     end
@@ -170,9 +171,11 @@ packages/ipc-contract/  typed channel contract for a desktop shell
 ```
 
 Styling memakai CSS Modules di atas satu lembar token custom property di `packages/ui` — tidak ada
-framework berbasis utility class. `packages/ipc-contract` menjelaskan permukaan kanal yang akan
-diikat oleh sebuah shell desktop; shell semacam itu tidak dikirimkan di repositori ini, jadi pada
-build web ia hanya menyumbang tipe dan cabang kode yang tidak pernah diambil.
+framework berbasis utility class. `packages/ipc-contract` adalah antarmuka bertipe yang
+disiapkan aplikasi web untuk sebuah host desktop: kanal bernama untuk streaming chat, panggilan
+provider, penerusan relay, dan penyimpanan key, yang bisa diikat sebuah shell native dengan
+mengekspos `window.oriveo`. Tidak ada shell desktop yang dikirimkan di repositori ini, jadi
+`IS_DESKTOP` bernilai false pada build web dan setiap cabang di baliknya tidak pernah terpakai.
 
 Ada satu jahitan lagi yang sejenis. `apps/app/lib/core/sync-port.ts` mendeklarasikan antarmuka yang
 akan diimplementasikan oleh sebuah backend sinkronisasi, dan setiap tempat pemanggilan mencapainya
@@ -230,7 +233,7 @@ Jalankan perintah berikut dari direktori ini.
 | `npm run build:app` | build produksi |
 | `npm run typecheck` | `tsc --noEmit` di seluruh workspace |
 | `npm run test:run` | vitest, satu kali jalan |
-| `npm run test` | vitest dalam mode watch |
+| `npm run test` | vitest dalam mode watch, satu watcher per workspace — lebih baik jalankan di dalam satu workspace |
 | `npm run lint` | eslint atas `apps/` dan `packages/` |
 
 `npm start --workspace @oriveo/app` menyajikan build yang sudah selesai di port 3001.
@@ -291,6 +294,19 @@ Handler tidak memegang key milik sendiri dan tidak menyimpan apa pun, tapi merek
 keluar, jadi deployment yang bisa dijangkau publik sebaiknya berada di belakang kontrol akses yang
 sama seperti yang Anda berikan ke perkakas internal lain.
 
+## Dependensi
+
+| Paket | Versi | Dipakai untuk |
+|---|---|---|
+| [Next.js](https://nextjs.org) | 16.3.3 | App Router, route handler, build |
+| [React](https://react.dev) | 19.2.8 | UI |
+| [vitest](https://vitest.dev) | 4.1.11 | test runner |
+| [zustand](https://zustand.docs.pmnd.rs) | 5.0.15 | state di sisi klien |
+| [next-intl](https://next-intl.dev) | 4.14.1 | pelokalan |
+| [@sentry/nextjs](https://docs.sentry.io/platforms/javascript/guides/nextjs/) | 10.72.0 | pelaporan error, tidak aktif tanpa DSN |
+
+Versi persis setiap dependensi dipatok di `package-lock.json`.
+
 ## Pengujian
 
 Sekitar 5.600 pengujian di 460 berkas, dengan vitest. Cakupan paling tebal ada di tempat kesalahan
@@ -300,8 +316,9 @@ SSRF, eksekusi resep capability, caching katalog dan invalidasi versi kontrak, p
 IndexedDB, partisi penyimpanan, round-trip cadangan, dan route handler itu sendiri.
 
 > [!IMPORTANT]
-> Lebih dari tiga puluh suite memuat fixture kontrak dari `../shared`, jadi **pengujian hanya lolos pada
-> checkout penuh** — menyalin `web/` sendirian tidak akan berhasil.
+> Lebih dari tiga puluh suite me-resolve fixture kontrak di bawah `shared/` relatif terhadap direktori
+> kerja, jadi **pengujian hanya lolos pada checkout penuh**, dijalankan dari workspace pemiliknya —
+> menyalin `web/` sendirian tidak akan berhasil.
 
 ## Pelokalan
 

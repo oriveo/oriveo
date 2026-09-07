@@ -35,7 +35,7 @@
 ---
 
 Oriveo Android 客户端是一个自带 Key 的 AI 聊天 App。你添加自己已有的 API Key，App 就从手机上直接和
-每一家供应商通信。对话、笔记、文件夹和 Skills 用 Room 存在设备上；API Key 由一把存放在 Android
+每一家供应商通信。对话、笔记、文件夹和 技能 用 Room 存在设备上；API Key 由一把存放在 Android
 Keystore 里的密钥加密。没有账号，也不需要登录。
 
 它是 [Oriveo 社区版](README.md) 的一部分 —— 三个客户端共用同一份「怎么和模型供应商说话」的定义。
@@ -47,7 +47,7 @@ flowchart TB
     subgraph ui ["Compose UI"]
         direction LR
         nav["OriveoNavHost<br/>类型安全的 @Serializable 路由"]
-        screens["聊天 · 主页 · 供应商<br/>笔记 · Skills · 设置"]
+        screens["聊天 · 主页 · 供应商<br/>笔记 · 技能 · 设置"]
     end
 
     vms["ViewModels · Koin<br/>ChatViewModel 及其协调器"]
@@ -86,7 +86,7 @@ flowchart TB
 （4,000 个字符或 60 秒），`ChatRepository` 就把部分文本刷进 SQLite，所以回答到一半杀掉 App 也不会丢掉
 已经到手的内容。
 
-**两个数据库，不是一个。** `oriveo.db` 存对话、消息、附件、笔记、文件夹、Skills 和模型目录缓存。
+**两个数据库，不是一个。** `oriveo.db` 存对话、消息、附件、笔记、文件夹、技能 和模型目录缓存。
 `message_continuations.db` 是一个物理上独立的文件，存放供应商那边不透明的续传状态，正是为了让
 `backup_rules.xml` 和 `data_extraction_rules.xml` 能把它排除在云备份和设备迁移之外 —— 一个被恢复到
 另一台设备上的续传 token，往好里说也是毫无意义的。
@@ -116,7 +116,7 @@ HTTP 200 和工具声明都明确不算数。每条消息的结果都会持久�
 
 | 内容 | 位置 |
 |---|---|
-| 对话、消息、附件、笔记、文件夹、Skills | Room，`oriveo.db` |
+| 对话、消息、附件、笔记、文件夹、技能 | Room，`oriveo.db` |
 | 笔记的全文搜索 | FTS4 虚拟表 |
 | 模型目录缓存 | `oriveo.db` 里的单独一行，分块读回 |
 | 供应商续传状态 | `message_continuations.db`，排除在备份之外 |
@@ -135,7 +135,7 @@ HTTP 200 和工具声明都明确不算数。每条消息的结果都会持久�
 
 你自己导出的归档是一个 zip，里面装着 `data.json` 加上附件文件。你设定的密码**只保护里面的供应商
 API Key**：它们用 PBKDF2-HMAC-SHA256 迭代 600,000 次加 AES-GCM 加密，并作为 `data.json` 的一个字段
-保存。对话、消息、笔记、文件夹、Skills、偏好设置和附件，不论如何都是以明文 JSON 和普通文件写入的，
+保存。对话、消息、笔记、文件夹、技能、偏好设置和附件，不论如何都是以明文 JSON 和普通文件写入的，
 所以要把一份归档当作「拿到这个文件的人都能读」来对待。如果你只想要自己的历史记录，就选择不带 Key
 导出。
 
@@ -181,7 +181,7 @@ base URL 是一个构建期属性，默认是 `https://api.oriveoai.com`：
 > - 供应商详情页会显示一条「无法加载官方模型」横幅，但添加 Key 依然会报成功，模型
 >   选择器只是空的；
 > - **OpenAI 会变得不可用**，因为那家供应商禁止手动填写模型；
-> - Relay 端点和本地模型服务器仍然完全可用，也是唯一完好的那条路径。
+> - 中转站（Relay）端点和本地模型服务器仍然完全可用，也是唯一完好的那条路径。
 >
 > 想要离线构建，请自己提供这份目录并让构建指向它，而不是把这个值清空。
 
@@ -252,11 +252,11 @@ Android Studio 生成，不会提交。发布签名见 [SIGNING.md](../../androi
 
 318 个文件里大约 3,000 个单元测试，用的是 JUnit 4、MockK、Robolectric、`kotlinx-coroutines-test`
 和 Ktor 的 mock engine。覆盖最密的地方也是出错代价最高的地方：每家供应商的请求形状、SSE 解析、
-传输方式选择、relay 探测与安全模式、能力配方执行、目录缓存与契约版本处理、Room 持久化，以及备份的
+传输方式选择、中转站探测与安全模式、能力配方执行、目录缓存与契约版本处理、Room 持久化，以及备份的
 往返一致性。
 
 > [!IMPORTANT]
-> 大约 38 个套件是从 Gradle 模块目录解析 `../../shared` 来加载契约 fixture 的，所以**测试只有在
+> 大约 38 个套件加载契约 fixture 的方式，是从工作目录一路向上找到 `shared/`，所以**测试只有在
 > 完整 checkout 里才能通过** —— 把 `android/` 单独拷出来是跑不起来的。
 
 另外还有三个插桩测试 —— 一个本地引擎的发布矩阵、一个明文 socket 测试，以及一个 keystore 隔离测试。
@@ -271,8 +271,8 @@ Android Studio 生成，不会提交。发布签名见 [SIGNING.md](../../androi
 
 ## 本地化
 
-十六种语言：`values/`（英语，源语言）加上十五个 `values-*` 目录，每个约 1,300 条字符串，每个 locale
-都持有完全相同的键集。App 内切换语言走 `AppLanguageManager` 和 `android:localeConfig`。bundle 里
+十六种语言：`values/`（英语，源语言）加上十五个 locale 目录 —— 另有一个不带字符串的 `values-night`
+—— 每个约 1,340 条字符串，每个 locale 都持有完全相同的键集。App 内切换语言走 `AppLanguageManager` 和 `android:localeConfig`。bundle 里
 禁用了按语言拆分，所以单个产物就带着全部翻译。
 
 ## 参与贡献

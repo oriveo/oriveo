@@ -82,7 +82,7 @@ nicht erraten.
 
 JSON-Fixtures, die client-übergreifendes Verhalten festnageln: wie ein Request für einen bestimmten
 Anbieter und eine bestimmte Fähigkeit aussehen muss, wie Generierungsparameter aufgelöst werden und
-wie Overrides sich schichten, welche Fähigkeitszustände ein Client zeigen darf und wie der
+wie Overrides sich schichten, welche Funktionszustände ein Client zeigen darf und wie der
 Modellkatalog samt seiner Belege konsumiert wird.
 
 Die Tests jedes Clients laden diese direkt, eine Änderung hier ist also eine Änderung an allen drei
@@ -94,10 +94,10 @@ Golden-Testdaten: aufgezeichneter Upstream-Verkehr von Tool-Calls, Relay-Routing
 Formularvalidierung, Klassifikation lokaler Adressen, Szenarien für den Katalog und für portable
 Konfiguration, Snapshots von Model Facts und Capability-Belegen sowie Szenarien für lokale Engines.
 
-Die `.sse`-Dateien unter `recorded/` sind **echt mitgeschnittener Upstream-Verkehr**, Byte für Byte
-so gehalten, wie er angekommen ist – nur die Response-Header wurden entfernt, und die Bodies haben
-nie einen Key getragen. Die übrigen sind handgeschriebene Fixtures, die einen bestimmten Parse-Pfad
-festnageln. Der Unterschied zählt: Ein handgeschriebener Mock kodiert, was du geglaubt hast, was der
+Die `.sse`-Dateien unter `provider-toolcall/recorded/` sind **echt mitgeschnittener
+Upstream-Verkehr**, Byte für Byte so gehalten, wie er angekommen ist – nur die Response-Header wurden
+entfernt, und die Bodies haben nie einen Key getragen. Die `.sse`-Dateien direkt in
+`provider-toolcall/` sind handgeschriebene Fixtures, die einen bestimmten Parse-Pfad festnageln. Der Unterschied zählt: Ein handgeschriebener Mock kodiert, was du geglaubt hast, was der
 Anbieter tut, eine Aufzeichnung dagegen kodiert, was er tatsächlich getan hat, inklusive des kaputten
 Chunks, den er an jenem Dienstag geschickt hat. Wenn eine Korrektur am Anbieter-Protokoll einen Test
 braucht, nimm lieber eine Aufzeichnung.
@@ -151,9 +151,11 @@ Aus dem Wurzelverzeichnis des Repositorys:
 ```
 
 Die iOS-Suites finden dieses Verzeichnis, indem sie von der Testdatei aus nach oben laufen, bis sie
-`shared/` sehen; die Android-Suites lösen `../../shared` relativ zum Gradle-Modul auf, und die
+`shared/` sehen; die Android-Suites laufen vom Arbeitsverzeichnis aus genauso nach oben, und die
 Web-Suites lösen es relativ zum Workspace auf. Alle brauchen deshalb ein vollständiges Checkout des
 Repositorys.
+
+Bevor du einen Pull Request aufmachst, lies [CONTRIBUTING.md](../../CONTRIBUTING.md).
 
 ## Lizenz
 
