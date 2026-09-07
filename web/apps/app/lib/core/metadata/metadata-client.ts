@@ -694,6 +694,7 @@ export async function __seedMetadataCacheForTest(entry: {
     data: entry.data,
     etag: entry.etag ?? null,
   });
+  suppressMetadataNetworkRefresh = true;
 }
 
 /** Test-only: read back the snapshot in the cache medium, to assert what was written. */
@@ -789,6 +790,8 @@ let metadataContentRevision = 0;
 let initPromise: Promise<void> | null = null;
 /** Bumped by test reset so an abandoned in-flight fetch cannot write back. */
 let metadataSessionEpoch = 0;
+/** Set by __seedMetadataCacheForTest; cleared by __resetMetadataClientForTest. */
+let suppressMetadataNetworkRefresh = false;
 let refreshPromise: Promise<void> | null = null;
 
 /**
@@ -869,6 +872,7 @@ export function __resetVersionListenersForTest(): void {
  */
 export function __resetMetadataClientForTest(): void {
   metadataSessionEpoch += 1;
+  suppressMetadataNetworkRefresh = false;
   cached = null;
   cachedETag = null;
   modelFactsCache = null;
@@ -3638,10 +3642,11 @@ async function fetchMetadata(): Promise<void> {
 }
 
 function refreshInBackground(): void {
-  // Vitest seeds a private catalog then calls initMetadata(). A background
-  // refresh against the public catalog would replace that fixture mid-suite
-  // (resolveGenerationProfileRef then loses capability_availability).
-  if (typeof process !== "undefined" && process.env.VITEST) return;
+  // __seedMetadataCacheForTest installs a private fixture. A background refresh
+  // against the public catalog would replace it mid-suite (availability contract
+  // then loses capability_availability). Tests that need network refresh simply
+  // do not seed, or call refreshMetadata() explicitly.
+  if (suppressMetadataNetworkRefresh) return;
   fetchMetadata().catch(() => {});
 }
 
