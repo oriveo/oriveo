@@ -276,8 +276,8 @@ modes, capability recipe execution, catalog caching and contract-version handlin
 and backup round-trips.
 
 > [!IMPORTANT]
-> Around 38 suites load contract fixtures by resolving `../../shared` from the Gradle module
-> directory, so **the tests only pass in a full checkout** — copying `android/` out on its own will
+> Around 38 suites load contract fixtures by walking up from the working directory until they find
+> `shared/`, so **the tests only pass in a full checkout** — copying `android/` out on its own will
 > not work.
 
 There are also three instrumented tests — a local-engine release matrix, a cleartext-socket test,
@@ -294,10 +294,11 @@ and committed, which is where the first migration's `2.json` will land.
 
 ## Localization
 
-Sixteen languages: `values/` (English, the source) plus fifteen `values-*` directories, about 1,300
-strings each, with every locale holding an identical key set. In-app language switching goes
-through `AppLanguageManager` and `android:localeConfig`. Language splits are disabled in the bundle
-so a single artifact carries every translation.
+Sixteen languages: `values/` (English, the source) plus fifteen locale directories — alongside
+`values-night`, which carries no strings — about 1,340 strings each, with every locale holding an
+identical key set. In-app language switching goes through `AppLanguageManager` and
+`android:localeConfig`. Language splits are disabled in the bundle so a single artifact carries
+every translation.
 
 ## Contributing
 

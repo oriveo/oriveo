@@ -159,7 +159,7 @@ encrypt the archive: it encrypts only the provider API keys inside it (AES-GCM, 
 by PBKDF2-HMAC-SHA256 over 600,000 iterations). Conversations, notes, skills and preferences are
 plain JSON in the archive either way, so treat a backup file as readable by anyone who has it.
 
-## The requests the app makes for itself
+## The model catalog
 
 On cold start the app issues one unauthenticated, ETag-conditional `GET` to
 `https://api.oriveoai.com/api/metadata?view=lean`. It fetches the public model catalog: which models
@@ -235,9 +235,9 @@ To build for the Simulator instead, pick any iPhone simulator and Run. Package d
 from the committed `Package.resolved`.
 
 **On an Apple silicon Mac** the iPhone build also runs natively: choose the **My Mac (Designed for
-iPad)** destination. Mac Catalyst is deliberately off (`SUPPORTS_MACCATALYST = NO`), so this is the
-iOS app under the iPad compatibility runtime rather than a Mac app — device-only paths such as
-camera capture behave the way they do on a Mac.
+iPad)** destination. Mac Catalyst is not enabled — the project never opts in and
+`TARGETED_DEVICE_FAMILY` stays `1,2` — so this is the iOS app under the iPad compatibility runtime
+rather than a Mac app, and device-only paths such as camera capture behave the way they do on a Mac.
 
 The project file uses `objectVersion = 77` with file-system synchronized groups, so an older Xcode
 may refuse to open it. Update Xcode rather than editing the project format.
@@ -280,7 +280,7 @@ scheme lists everything this checkout can build for.
 > own will not work.
 
 The suite is large: about 2,900 [Swift Testing](https://github.com/swiftlang/swift-testing) cases
-plus 76 XCTest ones, across 274 files. It covers request shape per provider, recorded upstream SSE
+plus 76 XCTest ones, across 275 files. It covers request shape per provider, recorded upstream SSE
 replay, relay and local-engine policy, transcript measurement and streaming behaviour, storage, and
 backup round-trips.
 

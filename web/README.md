@@ -44,8 +44,8 @@ how to talk to a model provider.
 
 ## Quick start
 
-Requires Node 22.22 or newer (see [`.nvmrc`](.nvmrc)). npm ships with it; no other package manager
-is needed.
+Requires Node 22.22.2 or a later 22.x (see [`.nvmrc`](.nvmrc)); the `engines` field is `^22.22.2`,
+so Node 23+ is not supported. npm ships with it; no other package manager is needed.
 
 ```bash
 npm install
@@ -168,9 +168,10 @@ packages/ipc-contract/  typed channel contract for a desktop shell
 ```
 
 Styling is CSS Modules over a single custom-property token sheet in `packages/ui` — there is no
-utility-class framework. `packages/ipc-contract` describes the channel surface a desktop shell would
-bind to; no such shell ships in this repository, so on the web build it contributes types and
-branches that are never taken.
+utility-class framework. `packages/ipc-contract` is the typed interface the web app keeps for a
+desktop host: named channels for chat streaming, provider calls, relay forwarding and key storage,
+which a native shell can bind to by exposing `window.oriveo`. No desktop shell ships in this
+repository, so `IS_DESKTOP` is false on a web build and every branch behind it stays unused.
 
 There is one more seam of the same kind. `apps/app/lib/core/sync-port.ts` declares the interface a
 synchronisation backend would implement, and every call site reaches it through optional chaining.
@@ -226,7 +227,7 @@ Run these from this directory.
 | `npm run build:app` | production build |
 | `npm run typecheck` | `tsc --noEmit` across every workspace |
 | `npm run test:run` | vitest, one pass |
-| `npm run test` | vitest in watch mode |
+| `npm run test` | vitest in watch mode, one watcher per workspace — prefer running it inside a single workspace |
 | `npm run lint` | eslint over `apps/` and `packages/` |
 
 `npm start --workspace @oriveo/app` serves a finished build on port 3001.
@@ -284,6 +285,19 @@ handlers to call a provider with a key they supply. The handlers hold no keys of
 nothing, but they are an outbound HTTP path, so a publicly reachable deployment belongs behind
 whatever access control you would give any other internal tool.
 
+## Dependencies
+
+| Package | Version | Used for |
+|---|---|---|
+| [Next.js](https://nextjs.org) | 16.3.3 | App Router, route handlers, build |
+| [React](https://react.dev) | 19.2.8 | UI |
+| [vitest](https://vitest.dev) | 4.1.11 | the test runner |
+| [zustand](https://zustand.docs.pmnd.rs) | 5.0.15 | client state |
+| [next-intl](https://next-intl.dev) | 4.14.1 | localization |
+| [@sentry/nextjs](https://docs.sentry.io/platforms/javascript/guides/nextjs/) | 10.72.0 | error reporting, inert without a DSN |
+
+Exact versions for every dependency are pinned in `package-lock.json`.
+
 ## Testing
 
 Around 5,600 tests across 460 files, on vitest. The heaviest coverage is where a mistake is most
@@ -293,8 +307,9 @@ guard, capability recipe execution, catalog caching and contract-version invalid
 persistence, storage partitioning, backup round-trips, and the route handlers themselves.
 
 > [!IMPORTANT]
-> Over thirty suites load contract fixtures from `../shared`, so **the tests only pass in a full
-> checkout** — copying `web/` out on its own will not work.
+> Over thirty suites resolve contract fixtures under `shared/` relative to the working directory, so
+> **the tests only pass in a full checkout**, run from the workspace that owns them — copying `web/`
+> out on its own will not work.
 
 ## Localization
 

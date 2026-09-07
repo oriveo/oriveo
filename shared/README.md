@@ -91,12 +91,12 @@ Golden test data: recorded upstream tool-call traffic, relay routing, form valid
 local-address classification, catalog and portable-config scenarios, model-facts and
 capability-evidence snapshots, and local-engine scenarios.
 
-The `.sse` files under `recorded/` are **real captured upstream traffic**, kept byte for byte as it
-arrived — only the response headers were dropped, and the bodies never carried a key. The rest are
-hand-written fixtures pinning a specific parse path. The distinction matters: a hand-written mock
-encodes what you believed the provider does, while a recording encodes what it actually did,
-including the malformed chunk it sent that Tuesday. When a provider protocol fix needs a test,
-prefer a recording.
+The `.sse` files under `provider-toolcall/recorded/` are **real captured upstream traffic**, kept
+byte for byte as it arrived — only the response headers were dropped, and the bodies never carried a
+key. The `.sse` files directly in `provider-toolcall/` are hand-written fixtures pinning a specific
+parse path. The distinction matters: a hand-written mock encodes what you believed the provider
+does, while a recording encodes what it actually did, including the malformed chunk it sent that
+Tuesday. When a provider protocol fix needs a test, prefer a recording.
 
 A fixture's `$comment`, or the `expected.json` manifest beside it, says what the entries around it
 pin down. Read that before adding a case.
@@ -145,8 +145,10 @@ From the repository root:
 ```
 
 The iOS suites find this directory by walking up from the test file until they see `shared/`; the
-Android suites resolve `../../shared` from the Gradle module; the web suites resolve it relative to
-the workspace. All of them therefore require a full checkout of the repository.
+Android suites walk up from the working directory the same way; the web suites resolve it relative
+to the workspace. All of them therefore require a full checkout of the repository.
+
+Before opening a pull request, read [CONTRIBUTING.md](../CONTRIBUTING.md).
 
 ## License
 

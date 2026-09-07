@@ -39,15 +39,8 @@ protocol quirk fixed once is fixed everywhere.
 
 ## What already runs on a Mac
 
-- **The web client**, which makes a perfectly good desktop app in any browser:
-
-  ```bash
-  cd web
-  npm install
-  npm run dev:app        # http://localhost:3001
-  ```
-
-  See [web/README.md](../web/README.md).
+- **The web client**, which makes a perfectly good desktop app in any browser. See
+  [web/README.md — Quick start](../web/README.md#quick-start).
 
 - **The iOS build**, on an Apple silicon Mac. Open `ios/Oriveo/Oriveo.xcodeproj`, choose the
   *My Mac (Designed for iPad)* destination, and run. See [ios/README.md](../ios/README.md).
@@ -70,5 +63,13 @@ Its suite runs on macOS with no simulator involved:
 cd shared/OriveoProviderKit
 swift build && swift test
 ```
+
+The web app also keeps a typed desktop-host interface,
+[`web/packages/ipc-contract`](../web/packages/ipc-contract/), that a native shell can bind to;
+nothing in this repository implements it.
+
+## License
+
+[AGPL-3.0-or-later](../LICENSE).
 
 [Root README](../README.md) · [Shared contracts](../shared/README.md)
