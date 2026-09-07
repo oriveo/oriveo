@@ -5,11 +5,20 @@ on:
     branches: [main]
     paths:
       - "web/**"
+      - "shared/**"
       - ".github/workflows/web.yml"
   pull_request:
     paths:
       - "web/**"
+      - "shared/**"
       - ".github/workflows/web.yml"
+
+concurrency:
+  group: web-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
 
 defaults:
   run:
@@ -19,7 +28,7 @@ jobs:
   test:
     name: Test and typecheck
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 45
     steps:
       - name: Check out
         uses: actions/checkout@v4
