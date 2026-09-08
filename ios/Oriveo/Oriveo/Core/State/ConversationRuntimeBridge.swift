@@ -243,6 +243,9 @@ final class ConversationRuntimeBridge {
 
     func close() {
         databaseManager.close()
+        // The continuation sidecar is keyed by the same uid and cached alongside the main pool;
+        // leaving it bound would keep the previous partition's connection open after a switch.
+        RecipeContinuationStore.closeLocalOnlyPool()
     }
 
     func searchConversationProjections(query: String, uid: String) async throws -> [Conversation] {

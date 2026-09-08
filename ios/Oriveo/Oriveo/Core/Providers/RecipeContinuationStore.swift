@@ -38,10 +38,17 @@ nonisolated final class RecipeContinuationStore: @unchecked Sendable {
         try Self.prepareSchema(in: dbPool)
     }
 
+    /// Same store over a pool whose schema is already prepared. The shared local-only pool runs
+    /// `prepareSchema` once at creation, so per-call stores must not repeat that write.
+    private init(preparedPool: DatabasePool, parentPool: DatabasePool?) {
+        dbPool = preparedPool
+        self.parentPool = parentPool
+    }
+
     convenience init() throws {
         let uid = AppSessionStore.activeUID
         let parentPool = try DatabaseManager.shared.openCurrent()
-        try self.init(dbPool: Self.openLocalOnlyPool(for: uid), parentPool: parentPool)
+        self.init(preparedPool: try Self.localOnlyPool(for: uid), parentPool: parentPool)
     }
 
     func load(messageID: UUID) throws -> Snapshot? {
@@ -151,7 +158,10 @@ nonisolated final class RecipeContinuationStore: @unchecked Sendable {
     }
 
     static func purgeOrphans(for uid: String, parentPool: DatabasePool) throws {
-        let store = try RecipeContinuationStore(dbPool: openLocalOnlyPool(for: uid), parentPool: parentPool)
+        let store = RecipeContinuationStore(
+            preparedPool: try localOnlyPool(for: uid),
+            parentPool: parentPool
+        )
         try store.purgeMissingParentMessages()
     }
 
@@ -173,17 +183,84 @@ nonisolated final class RecipeContinuationStore: @unchecked Sendable {
         }
     }
 
-    private static func openLocalOnlyPool(for uid: String) throws -> DatabasePool {
+    /// The local-only sidecar pool, opened at most once per uid.
+    ///
+    /// `purgeOrphans` runs after **every** conversation write, so opening a fresh `DatabasePool`
+    /// per call meant opening a new SQLite connection per write. That has two consequences:
+    ///
+    /// - The previous pool is released by ARC, so a new connection routinely opens while the old
+    ///   one is still alive. Reopening the same WAL file that way invites `SQLITE_BUSY_RECOVERY`
+    ///   (extended code 261) out of GRDB's connection-time `SELECT * FROM sqlite_master LIMIT 1`.
+    /// - The pool used `Configuration()` defaults, i.e. `busyMode == .immediate`, so it never
+    ///   waited for the lock. The busy timeout in `DatabaseSchema.makeConfiguration()` never
+    ///   applied here, which is why the primary database's timeout did not cover this path.
+    ///
+    /// Caching also drops the redundant `CREATE TABLE IF NOT EXISTS` write that ran on every call.
+    private static let poolLock = NSLock()
+    nonisolated(unsafe) private static var cachedPoolUID: String?
+    nonisolated(unsafe) private static var cachedPool: DatabasePool?
+    #if DEBUG
+    /// DEBUG only: how many local-only pools were actually opened, for the reuse regression test.
+    nonisolated(unsafe) private static var poolOpenCount = 0
+    #endif
+
+    private static func localOnlyPool(for uid: String) throws -> DatabasePool {
+        poolLock.lock()
+        defer { poolLock.unlock() }
+
+        if cachedPoolUID == uid, let cachedPool {
+            return cachedPool
+        }
+
         let directory = AppSessionStore.userDir(for: uid).appendingPathComponent("LocalOnly", isDirectory: true)
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         var values = URLResourceValues()
         values.isExcludedFromBackup = true
         var mutableDirectory = directory
         try mutableDirectory.setResourceValues(values)
-        let pool = try DatabasePool(path: directory.appendingPathComponent("recipe-continuation.sqlite").path)
+        let pool = try DatabasePool(
+            path: directory.appendingPathComponent("recipe-continuation.sqlite").path,
+            configuration: DatabaseSchema.makeConfiguration()
+        )
         try prepareSchema(in: pool)
+        #if DEBUG
+        poolOpenCount += 1
+        #endif
+        cachedPoolUID = uid
+        cachedPool = pool
         return pool
     }
+
+    /// Drop the cached pool on logout / uid switch. Mirrors `DatabaseManager.close()`: the
+    /// reference is released and the connection closes with the pool, rather than calling
+    /// `close()` while an observation may still hold it.
+    static func closeLocalOnlyPool() {
+        poolLock.lock()
+        cachedPoolUID = nil
+        cachedPool = nil
+        poolLock.unlock()
+    }
+
+    #if DEBUG
+    static func resetLocalOnlyPoolForTesting() {
+        poolLock.lock()
+        cachedPoolUID = nil
+        cachedPool = nil
+        poolOpenCount = 0
+        poolLock.unlock()
+    }
+
+    static var localOnlyPoolOpenCountForTesting: Int {
+        poolLock.lock()
+        defer { poolLock.unlock() }
+        return poolOpenCount
+    }
+
+    /// Exercises the production accessor so tests assert on the pool callers actually get.
+    static func localOnlyPoolForTesting(for uid: String) throws -> DatabasePool {
+        try localOnlyPool(for: uid)
+    }
+    #endif
 
     private static func prepareSchema(in pool: DatabasePool) throws {
         try pool.write { db in
