@@ -209,7 +209,6 @@ public enum ProviderTextWireRequestBuilder {
             }
         }
         var body: [String: Any] = ["model": request.modelID, "input": input, "stream": true]
-        if !instructions.isEmpty { body["instructions"] = instructions }
         if let max = request.maxOutputTokens { body["max_output_tokens"] = max }
         if !request.tools.isEmpty {
             body["tools"] = request.tools.map { tool in
@@ -219,7 +218,14 @@ public enum ProviderTextWireRequestBuilder {
         }
         if let previous = request.messages.compactMap({
             $0.providerContinuation?.objectValue?["previous_response_id"]?.stringValue
-        }).last { body["previous_response_id"] = previous }
+        }).last {
+            body["previous_response_id"] = previous
+        }
+        // Some Responses hosts reject instructions together with previous_response_id.
+        // The first turn already sent instructions; follow-ups only send new input.
+        if !instructions.isEmpty, body["previous_response_id"] == nil {
+            body["instructions"] = instructions
+        }
         return body
     }
 
