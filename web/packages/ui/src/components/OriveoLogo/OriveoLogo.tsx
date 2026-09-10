@@ -11,8 +11,8 @@ interface OriveoLogoProps {
  * The Oriveo logo.
  *
  * The mark is a raster gradient ring rather than something an SVG can draw procedurally, so this
- * renders `/brand-logo.png` (256px, with the rounded corners already baked into its alpha — do not
- * add a border-radius on top, that rounds it twice). Bitmap scaling has none of the small-size
+ * renders `/brand-logo.png` (256px, transparent background — a dark tile behind the mark reads as a
+ * pasted-on square, most obviously in a light theme). Bitmap scaling has none of the small-size
  * stroke-width problems the previous vector mark had, so there is no separate micro variant.
  *
  * The file lives in `apps/app/public/`, the only app that currently uses this component. Another
