@@ -18,8 +18,6 @@ final class UIKitProviderBadge: UIView {
 
     override func layoutSubviews() {
         super.layoutSubviews()
-        layer.cornerRadius = bounds.width * 0.28
-        layer.cornerCurve = .continuous
         logoImageView.layer.cornerRadius = 0
         logoImageView.clipsToBounds = false
     }
