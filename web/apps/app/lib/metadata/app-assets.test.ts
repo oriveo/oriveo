@@ -35,7 +35,7 @@ describe('app icon assets', () => {
   });
 
   it('ships a route-level favicon entry for browser tabs', () => {
-    expect(existsSync(join(appRouterDir, 'icon.svg'))).toBe(true);
+    expect(existsSync(join(appRouterDir, 'icon.png'))).toBe(true);
   });
 
   // Declaring a summary_large_image card with no image leaves an empty rectangle wherever the app

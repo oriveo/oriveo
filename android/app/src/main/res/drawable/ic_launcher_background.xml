@@ -1,29 +1,20 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Background layer for the adaptive icon: a radial gradient in the logo's base violet
-  (#3B2A86 -> #231657 -> #120B33) sitting at roughly 18% lightness, so the icon still reads as a
-  shape on a dark wallpaper instead of blending into it.
+  Background layer for the adaptive icon: the flat #040716 the logo artwork itself sits on.
+  Measured off the master outside the ring, where it is constant in every direction (std about 1).
 
-  The gradient is placed at cx=50% cy=40% r=72% of the 108dp adaptive canvas, i.e. cx=54, cy=43.2,
-  r=77.76. Radial gradients in vector drawables need API 24; minSdk here is 26.
+  This replaces the earlier "lift the background to ~18% lightness so the icon does not blend into
+  a dark wallpaper" treatment. That was written for the previous mark, a thin-stroke atom on a
+  mostly empty near-black field. The current ring, glow included, covers roughly 89% of the visible
+  width in saturated color, so it carries itself without help from the background — and matching
+  the other platforms pixel for pixel matters more, since the icons are seen side by side.
 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <path android:pathData="M0,0h108v108h-108z">
-        <aapt:attr name="android:fillColor">
-            <gradient
-                android:type="radial"
-                android:centerX="54"
-                android:centerY="43.2"
-                android:gradientRadius="77.76">
-                <item android:offset="0.0" android:color="#FF3B2A86" />
-                <item android:offset="0.6" android:color="#FF231657" />
-                <item android:offset="1.0" android:color="#FF120B33" />
-            </gradient>
-        </aapt:attr>
-    </path>
+    <path
+        android:pathData="M0,0h108v108h-108z"
+        android:fillColor="#FF040716" />
 </vector>
