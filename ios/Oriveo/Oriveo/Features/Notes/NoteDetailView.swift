@@ -944,7 +944,7 @@ private struct NoteReadingContent: Equatable {
     }
 }
 
-private struct BoundedNoteTextView: UIViewRepresentable {
+struct BoundedNoteTextView: UIViewRepresentable {
     @Binding var text: String
     let isEditable: Bool
 
@@ -953,8 +953,15 @@ private struct BoundedNoteTextView: UIViewRepresentable {
     }
 
     func makeUIView(context: Context) -> UITextView {
-        let textView = UITextView(frame: .zero)
-        textView.delegate = context.coordinator
+        Self.makeTextView(text: text, isEditable: isEditable, coordinator: context.coordinator)
+    }
+
+    /// The single source of the production configuration, shared by makeUIView and the layout tests.
+    static func makeTextView(text: String, isEditable: Bool, coordinator: Coordinator) -> BoundedNoteUITextView {
+        // TextKit 1 on purpose: non-contiguous layout is an NSLayoutManager feature, and TextKit 2
+        // measured slower on very long paragraphs.
+        let textView = BoundedNoteUITextView(usingTextLayoutManager: false)
+        textView.delegate = coordinator
         textView.backgroundColor = .clear
         textView.font = .systemFont(ofSize: 17)
         textView.textColor = .label
@@ -967,20 +974,27 @@ private struct BoundedNoteTextView: UIViewRepresentable {
         textView.textContainer.lineFragmentPadding = 0
         textView.layoutManager.allowsNonContiguousLayout = true
         textView.typingAttributes = Self.textAttributes
-        textView.attributedText = Self.attributed(text)
+        apply(text, to: textView, coordinator: coordinator)
         return textView
     }
 
     func updateUIView(_ textView: UITextView, context: Context) {
         textView.isEditable = isEditable
-        if textView.text != text {
-            let selection = textView.selectedRange
-            textView.attributedText = Self.attributed(text)
-            textView.selectedRange = NSRange(
-                location: min(selection.location, textView.text.utf16.count),
-                length: 0
-            )
-        }
+        // The displayed string carries soft breaks, so it can no longer be compared with the source
+        // text directly; comparing against the last applied source also avoids bridging the whole
+        // string back from NSString on every SwiftUI update.
+        guard context.coordinator.appliedSource != text else { return }
+        let selection = textView.selectedRange
+        Self.apply(text, to: textView, coordinator: context.coordinator)
+        textView.selectedRange = NSRange(
+            location: min(selection.location, textView.textStorage.length),
+            length: 0
+        )
+    }
+
+    private static func apply(_ source: String, to textView: UITextView, coordinator: Coordinator) {
+        textView.attributedText = displayText(for: source)
+        coordinator.appliedSource = source
     }
 
     private static let textAttributes: [NSAttributedString.Key: Any] = [
@@ -988,24 +1002,43 @@ private struct BoundedNoteTextView: UIViewRepresentable {
         .foregroundColor: UIColor.label,
     ]
 
-    private static func attributed(_ text: String) -> NSAttributedString {
+    /// The bounded viewport is laid out by TextKit 1, where two costs scale with paragraph length:
+    /// - With a `.natural` paragraph style the typesetter re-derives the paragraph direction for
+    ///   every line fragment by scanning the paragraph. Pinning each paragraph to the direction of
+    ///   its first strong character removes that scan and keeps mixed-direction notes correct.
+    /// - A whole paragraph is shaped by one CTTypesetter, so a single huge paragraph is re-laid out
+    ///   in full on every resize and edit. Directions are resolved first, then the text is split
+    ///   into display paragraphs (see `NoteSoftParagraphBreaks`). The order matters: splitting
+    ///   first would re-resolve the direction from the start of every block.
+    static func displayText(for source: String) -> NSAttributedString {
         let string = NSMutableAttributedString(
-            string: text,
+            string: source,
             attributes: textAttributes
         )
         ParagraphWritingDirection.applyParagraphDirections(to: string)
-        return string
+        return NoteSoftParagraphBreaks.insertingBreaks(into: string)
     }
 
     final class Coordinator: NSObject, UITextViewDelegate {
         private var text: Binding<String>
+        /// The source text (without soft breaks) most recently applied to or written back from the view.
+        var appliedSource: String?
 
         init(text: Binding<String>) {
             self.text = text
         }
 
         func textViewDidChange(_ textView: UITextView) {
-            text.wrappedValue = textView.text
+            let source = NoteSoftParagraphBreaks.strip(textView.textStorage)
+            appliedSource = source
+            text.wrappedValue = source
+        }
+
+        /// With the caret right after a soft break, UIKit derives typingAttributes from that break;
+        /// without dropping the marker, whatever the user types next would inherit it.
+        func textViewDidChangeSelection(_ textView: UITextView) {
+            guard textView.typingAttributes[NoteSoftParagraphBreaks.markerKey] != nil else { return }
+            textView.typingAttributes.removeValue(forKey: NoteSoftParagraphBreaks.markerKey)
         }
     }
 }
