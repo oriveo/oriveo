@@ -51,6 +51,7 @@ enum OriveoTheme {
         static let overlay = Color.dynamic(light: 0x000000, dark: 0x000000, lightAlpha: 0.45, darkAlpha: 0.72)
         static let shadow = Color.dynamic(light: 0x0F172A, dark: 0x000000, lightAlpha: 0.08, darkAlpha: 0.34)
         static let shadowStrong = Color.dynamic(light: 0x0F172A, dark: 0x000000, lightAlpha: 0.16, darkAlpha: 0.56)
+        /// Solid fill of the system tab bar on iOS 18–25 (from iOS 26 the tab bar is liquid glass and this is unused)
         static let tabBar = Color.dynamic(light: 0xFFFFFF, dark: 0x14181F, lightAlpha: 0.94, darkAlpha: 0.88)
         static let primaryGradient = LinearGradient(
             colors: [

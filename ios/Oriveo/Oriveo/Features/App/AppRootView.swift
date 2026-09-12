@@ -247,30 +247,34 @@ private struct MainTabView: View {
 
     var body: some View {
         @Bindable var appState = appState
+        // The system TabView: from iOS 26 it is the native floating liquid glass tab bar (neutral glass
+        // selection lens, lift and drag on press, light/dark adaptation to the content behind it, increased
+        // contrast and reduced transparency). Only the system component gets these; a custom drawing
+        // through public API cannot reproduce them.
         TabView(selection: $appState.selectedTab) {
-            HomeView()
-                .tag(AppTab.home)
-                .tabItem {
-                    Label(AppTab.home.title, systemImage: AppTab.home.systemImage)
-                }
+            Tab(AppTab.home.title, image: Self.icon(for: .home, selected: appState.selectedTab), value: AppTab.home) {
+                HomeView()
+            }
 
-            ProvidersView()
-                .tag(AppTab.providers)
-                .tabItem {
-                    Label(AppTab.providers.title, systemImage: AppTab.providers.systemImage)
-                }
+            Tab(AppTab.providers.title, image: Self.icon(for: .providers, selected: appState.selectedTab), value: AppTab.providers) {
+                ProvidersView()
+            }
 
-            SettingsView()
-                .tag(AppTab.settings)
-                .tabItem {
-                    Label(AppTab.settings.title, systemImage: AppTab.settings.systemImage)
-                }
+            Tab(AppTab.settings.title, image: Self.icon(for: .settings, selected: appState.selectedTab), value: AppTab.settings) {
+                SettingsView()
+            }
         }
+        // The selected icon and label take the current tab's colour (Home violet / Providers teal /
+        // Settings orange), and controls inside the page follow it too
         .tint(Self.tint(for: appState.selectedTab))
+        .modifier(LegacyTabBarBackground())
         .animation(.easeInOut(duration: 0.2), value: appState.selectedTab)
-        .toolbarBackground(OriveoTheme.Palette.tabBar, for: .tabBar)
-        .toolbarBackground(.visible, for: .tabBar)
         .id(appState.preferences.language)
+    }
+
+    /// The selected tab gets the icon with the gradient baked in; the others use the monochrome template
+    private static func icon(for tab: AppTab, selected: AppTab) -> String {
+        tab == selected ? tab.tabBarSelectedIconAsset : tab.tabBarIconAsset
     }
 
     private static func tint(for tab: AppTab) -> Color {
@@ -278,6 +282,21 @@ private struct MainTabView: View {
         case .providers: return OriveoTheme.Palette.tabAccentProviders
         case .settings: return OriveoTheme.Palette.tabAccentSettings
         default: return OriveoTheme.Palette.primary
+        }
+    }
+}
+
+/// On iOS 18–25 the system tab bar keeps its solid fill. From iOS 26 it gets no background at all:
+/// a custom fill would defeat the liquid glass adaptation, and Apple asks for custom tab bar
+/// backgrounds to be removed.
+private struct LegacyTabBarBackground: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(iOS 26, *) {
+            content
+        } else {
+            content
+                .toolbarBackground(OriveoTheme.Palette.tabBar, for: .tabBar)
+                .toolbarBackground(.visible, for: .tabBar)
         }
     }
 }

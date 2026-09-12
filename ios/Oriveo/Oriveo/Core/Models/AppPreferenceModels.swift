@@ -17,15 +17,23 @@ enum AppTab: String, CaseIterable, Hashable, Codable {
         }
     }
 
-    var systemImage: String {
+    /// The linear tab bar icon (template vector on a 24 grid, stroke 1.8, round caps and joins):
+    /// a speech bubble with three dots / two four-point stars, one large and one small / three sliders
+    var tabBarIconAsset: String {
         switch self {
         case .home:
-            return "bubble.left.and.bubble.right.fill"
+            return "TabIconHome"
         case .providers:
-            return "sparkles"
+            return "TabIconProviders"
         case .settings:
-            return "slider.horizontal.3"
+            return "TabIconSettings"
         }
+    }
+
+    /// The selected-state twin of the icon: the stroke is baked into the tab's gradient (rendered as original,
+    /// one asset per colour scheme)
+    var tabBarSelectedIconAsset: String {
+        tabBarIconAsset + "Selected"
     }
 }
 
