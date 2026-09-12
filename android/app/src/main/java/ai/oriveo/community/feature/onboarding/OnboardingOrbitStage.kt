@@ -232,8 +232,7 @@ private fun Nucleus(values: OnboardingStageValues, revealed: Boolean, modifier: 
                 ambientColor = OnboardingPalette.purple,
                 spotColor = Color.Black,
             )
-            .clip(shape)
-            .border(1.dp, OnboardingPalette.purpleBright.copy(alpha = 0.28f), shape),
+            .clip(shape),
     )
 }
 

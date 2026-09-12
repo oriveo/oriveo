@@ -145,10 +145,6 @@ struct OnboardingOrbitStage: View {
             .aspectRatio(contentMode: .fill)
             .frame(width: Self.nucleusSize, height: Self.nucleusSize)
             .clipShape(RoundedRectangle(cornerRadius: Self.nucleusCornerRadius, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: Self.nucleusCornerRadius, style: .continuous)
-                    .stroke(OnboardingPalette.purpleBright.opacity(0.28), lineWidth: 1)
-            )
             .shadow(color: .black.opacity(0.7), radius: 30, y: 24)
             .shadow(color: OnboardingPalette.purple.opacity(0.55), radius: 35)
             .scaleEffect(values.nucleusScale * (nucleusRevealed ? 1 : 0.82))

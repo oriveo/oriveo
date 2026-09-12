@@ -133,6 +133,26 @@ struct OnboardingStageTests {
         #expect(values(at: 3).areDotsInteractive == false)
         #expect(values(at: 0).areDotsInteractive == true)
     }
+
+    @Test("the nucleus logo has no stroke")
+    func nucleusLogoHasNoStroke() throws {
+        let source = try Self.orbitStageSource()
+        #expect(!source.contains("purpleBright.opacity(0.28)"))
+        #expect(source.contains("clipShape(RoundedRectangle(cornerRadius: Self.nucleusCornerRadius"))
+    }
+
+    private static func orbitStageSource() throws -> String {
+        let url = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("Oriveo")
+            .appendingPathComponent("Features")
+            .appendingPathComponent("Onboarding")
+            .appendingPathComponent("OnboardingOrbitStage.swift")
+        return try String(contentsOf: url, encoding: .utf8)
+    }
 }
 
 
