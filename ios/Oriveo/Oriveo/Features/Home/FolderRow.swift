@@ -106,7 +106,7 @@ struct FolderRow: View {
 
                 Text(folder.name)
                     .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(OriveoTheme.V2.Colors.textPrimary)
+                    .foregroundStyle(AuroraTheme.Colors.textPrimary)
                     .lineLimit(1)
 
                 Spacer()
@@ -114,7 +114,7 @@ struct FolderRow: View {
                 if count > 0 {
                     Text("\(count)")
                         .font(.system(size: 12, weight: .medium))
-                        .foregroundStyle(OriveoTheme.V2.Colors.textTertiary)
+                        .foregroundStyle(AuroraTheme.Colors.textTertiary)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 2)
                         .background(
@@ -125,20 +125,13 @@ struct FolderRow: View {
 
                 Image(systemName: "chevron.right")
                     .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(OriveoTheme.V2.Colors.textTertiary)
+                    .foregroundStyle(AuroraTheme.Colors.textTertiary)
                     .rotationEffect(.degrees(isExpanded ? 90 : 0))
             }
             .padding(.horizontal, OriveoTheme.V2.Sp.s16)
             .padding(.vertical, 14)
-            .background(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(OriveoTheme.V2.Colors.surfaceDefault)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .stroke(OriveoTheme.V2.Colors.borderDefault, lineWidth: 1)
-            )
-            .cardShine()
+            // The same card surface as the Home conversation groups (radius 20 / dark #221F35 / light pure white)
+            .background { AuroraGroupedCard { Color.clear } }
         }
         .buttonStyle(.plain)
         .contextMenu { folderContextMenu }
@@ -152,7 +145,9 @@ struct FolderRow: View {
                 VStack(spacing: OriveoTheme.V2.Sp.s12) {
                     Image(systemName: "tray")
                         .font(.system(size: 24, weight: .light))
-                        .foregroundStyle(OriveoTheme.V2.Colors.textTertiary.opacity(0.72))
+                        // The empty-state icon uses full opacity: on the group card that is 5.0:1 in dark and 4.8:1 in light
+                        // (the earlier 0.72 was tuned for the old V2 surface; on the #221F35 card it dropped to about 4.4:1)
+                        .foregroundStyle(OriveoTheme.V2.Colors.textTertiary)
 
                     VStack(spacing: 4) {
                         Text(L10n.tr("No conversations yet", table: .home))
@@ -169,25 +164,13 @@ struct FolderRow: View {
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, OriveoTheme.V2.Sp.s24)
                 .padding(.horizontal, OriveoTheme.V2.Sp.s16)
-                .background(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .fill(OriveoTheme.V2.Colors.surfaceDefault)
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .stroke(OriveoTheme.V2.Colors.borderDefault, lineWidth: 1)
-                )
-                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                .background { AuroraGroupedCard { Color.clear } }
             } else {
-                GroupedCard {
+                // Conversation list: the same group card as the main Home list, no separators inside
+                AuroraGroupedCard {
                     VStack(spacing: 0) {
-                        ForEach(Array(conversations.enumerated()), id: \.element.id) { index, conversation in
+                        ForEach(conversations) { conversation in
                             conversationInFolder(conversation)
-                            if index < conversations.count - 1 {
-                                Divider()
-                                    .foregroundStyle(OriveoTheme.V2.Colors.borderDefault.opacity(0.5))
-                                    .padding(.horizontal, 16)
-                            }
                         }
                     }
                 }
@@ -211,7 +194,9 @@ struct FolderRow: View {
                 appState.openChat(conversationID: conversation.id)
             }
         } label: {
-            HStack(spacing: 12) {
+            // Editing works like the main Home list: the checkmark is inset 14 and the row gives up its own leading
+            // padding (isEditing is passed into the row); otherwise the circle hugs the card edge and the corner clips it
+            HStack(spacing: isEditing ? 10 : 12) {
                 if isEditing {
                     Image(systemName: selectedIDs.contains(conversation.id)
                         ? "checkmark.circle.fill" : "circle")
@@ -230,10 +215,12 @@ struct FolderRow: View {
                     ),
                     skillIcon: conversation.skillId.flatMap { appState.skillManager.skill(by: $0)?.icon },
                     grouped: true,
+                    isEditing: isEditing,
                     isStreaming: appState.streamingConversationIDs.contains(conversation.id)
                 )
                 .equatable()
             }
+            .padding(.leading, isEditing ? 14 : 0)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

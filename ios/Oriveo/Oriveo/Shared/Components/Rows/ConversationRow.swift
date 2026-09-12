@@ -76,11 +76,16 @@ struct ConversationRow: View, Equatable {
 
     // MARK: - Body
 
+    /// Avatar 30pt, vertically centred on the whole row
+    static let avatarSize: CGFloat = 30
+    /// The preview keeps a single line (the data is still the full previewText; only the rendering changes)
+    static let previewLineLimit = 1
+
     var body: some View {
         let content = rowContent
             .padding(.leading, isEditing ? 0 : OriveoTheme.V2.Sp.s16)
             .padding(.trailing, OriveoTheme.V2.Sp.s16)
-            .padding(.vertical, 14)
+            .padding(.vertical, 15)
 
         if grouped {
             content
@@ -103,70 +108,91 @@ struct ConversationRow: View, Equatable {
         HStack(alignment: .center, spacing: 12) {
             conversationAvatar
 
-            VStack(alignment: .leading, spacing: 5) {
-                HStack(alignment: .firstTextBaseline) {
+            VStack(alignment: .leading, spacing: 4) {
+                // Title row: pin (vertically centred) + title (flexible) + cost on the right, only 6 between title and
+                // cost; line height 20. A Spacer must not sit inside a spacing-6 HStack: the spacing lands on both
+                // sides of it, the minimum gap becomes 16, a title that would fit gets truncated further, and 10
+                // is wasted when there is no cost.
+                HStack(alignment: .center, spacing: 6) {
                     if isPinned {
                         Image(systemName: "pin.fill")
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(OriveoTheme.V2.Colors.textSecondary)
-                            .accessibilityHidden(true)
+                            .font(.system(size: 10))
+                            .foregroundStyle(AuroraTheme.Colors.textTertiary)
+                            .accessibilityLabel(L10n.tr("Pinned", table: .home))
                     }
-                    if let skillIcon {
-                        Text(skillIcon)
-                            .font(.system(size: 13))
-                    }
-                    Text(conversation.title)
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundStyle(OriveoTheme.V2.Colors.textPrimary)
-                        .lineLimit(1)
+                    HStack(alignment: .firstTextBaseline, spacing: 0) {
+                        HStack(alignment: .firstTextBaseline, spacing: 6) {
+                            if let skillIcon {
+                                Text(skillIcon)
+                                    .font(.system(size: 13))
+                            }
+                            Text(conversation.title)
+                                .font(.system(size: 15, weight: .semibold))
+                                .tracking(-0.2)
+                                .foregroundStyle(AuroraTheme.Colors.textPrimary)
+                                .lineLimit(1)
 
-                    if conversation.isDraft {
-                        StatusPill(title: L10n.tr("Draft"), tone: .primary)
-                    }
+                            if conversation.isDraft {
+                                StatusPill(title: L10n.tr("Draft"), tone: .primary)
+                            }
+                        }
 
-                    Spacer(minLength: 4)
+                        Spacer(minLength: 0)
 
-                    if conversation.estimatedCost > 0 {
-                        Text(conversation.estimatedCostText)
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundStyle(OriveoTheme.V2.Colors.primary)
-                            .fixedSize()
+                        if conversation.estimatedCost > 0 {
+                            Text(conversation.estimatedCostText)
+                                .font(.system(size: 12, weight: .medium, design: .monospaced))
+                                .foregroundStyle(AuroraTheme.Colors.accent)
+                                .fixedSize()
+                                .padding(.leading, 6)
+                        }
                     }
                 }
+                .frame(minHeight: 20)
 
+                // Preview: 13pt, one truncated line, line height 18
                 NativeTextLabel(
                     text: conversationPreviewText,
-                    fontSize: 14,
-                    textColor: OriveoTheme.V2.Colors.textSecondary,
-                    numberOfLines: 2
+                    fontSize: 13,
+                    textColor: AuroraTheme.Colors.textSecondary,
+                    numberOfLines: Self.previewLineLimit,
+                    lineBreakMode: .byTruncatingTail
                 )
+                .frame(minHeight: 18)
 
-                HStack {
+                // Bottom row: model name (left) + streaming dot / message count · relative time (right), 11pt tertiary,
+                // line height 14; at least 8 between the two halves
+                HStack(spacing: 0) {
                     if let modelName = resolvedModelName {
                         Text(modelName)
                             .font(.system(size: 11))
-                            .foregroundStyle(OriveoTheme.V2.Colors.textTertiary)
                             .lineLimit(1)
                     }
-                    Spacer()
-                    HStack(spacing: 6) {
+                    Spacer(minLength: 8)
+                    HStack(spacing: 4) {
                         if isStreaming {
                             StreamingPulseDot()
                         }
                         if conversation.displayMessageCount > 0 {
-                            HStack(spacing: 3) {
-                                Image(systemName: "bubble.left.and.bubble.right")
-                                    .font(.system(size: 9))
-                                Text("\(conversation.displayMessageCount)")
-                                    .font(.system(size: 11))
-                            }
-                            .foregroundStyle(OriveoTheme.V2.Colors.textTertiary)
+                            // The icon carries "Messages" so VoiceOver reads "Messages, 6" instead of a bare number
+                            Image(systemName: "bubble.left.and.bubble.right")
+                                .font(.system(size: 10))
+                                .accessibilityLabel(L10n.tr("Messages", table: .backup))
+                            Text("\(conversation.displayMessageCount)")
+                                .font(.system(size: 11))
+                            Text(verbatim: "·")
+                                .font(.system(size: 11))
+                                .opacity(0.6)
+                                .padding(.horizontal, 2)
+                                .accessibilityHidden(true)
                         }
                         Text(RelativeTimeFormatter.text(from: conversation.updatedAt))
                             .font(.system(size: 11))
-                            .foregroundStyle(OriveoTheme.V2.Colors.textTertiary)
                     }
+                    .fixedSize()
                 }
+                .foregroundStyle(AuroraTheme.Colors.textTertiary)
+                .frame(minHeight: 14)
             }
         }
     }
@@ -176,7 +202,7 @@ struct ConversationRow: View, Equatable {
     private var conversationAvatar: some View {
         ProviderBadgeIcon(
             kind: conversation.providerKind,
-            size: 32,
+            size: Self.avatarSize,
             relayKind: provider?.relayKind
         )
     }

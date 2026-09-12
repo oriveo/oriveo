@@ -1,11 +1,32 @@
 import SwiftUI
 
 let homeEarlierPageSize = 10
-let homeHeaderActionSpacing: CGFloat = 8
-let homeHeaderActionButtonSize: CGFloat = 38
-let homeHeaderActionIconSize: CGFloat = 16
+let homeTopBarHeight: CGFloat = 40
+let homeHeaderCapsuleHeight: CGFloat = 38
+/// Visual width of each button in the capsule. The hit area is 44pt tall (the HIG minimum) and does not
+/// shrink with the 38pt capsule.
+let homeHeaderActionHitWidth: CGFloat = 36
+let homeHeaderActionHitHeight: CGFloat = 44
+/// The design uses Lucide icons in an 18px box (about two units of padding on the 24 grid, so the visible
+/// glyph is roughly 13–16px). An SF Symbol's point size is the glyph size itself, so 14pt matches that.
+let homeHeaderActionIconSize: CGFloat = 14
 let homeHeroCursorBlinkInterval: TimeInterval = 0.55
 
+#if DEBUG
+/// Seed for the visual snapshot tests: the editing and search states can only be entered through the
+/// context menu and a tap, which a test host cannot drive. Exists in DEBUG builds only.
+struct HomeDebugSnapshotSeed: Equatable {
+    var isEditing = false
+    var searchText: String?
+}
+
+extension EnvironmentValues {
+    @Entry var homeDebugSnapshotSeed: HomeDebugSnapshotSeed? = nil
+}
+#endif
+
+/// A send the hero gate held back, snapshotted together with the model in use at that moment, so the
+/// confirmation sheet can decide afterwards whether it may go straight out.
 struct HeroPendingSend {
     let text: String
     let providerID: UUID
@@ -15,6 +36,9 @@ struct HeroPendingSend {
 struct HomeView: View {
     @Environment(AppState.self) private var appState
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    #if DEBUG
+    @Environment(\.homeDebugSnapshotSeed) private var debugSnapshotSeed
+    #endif
 
     @State private var isSearching = false
     @State private var searchText = ""
@@ -29,7 +53,6 @@ struct HomeView: View {
     @State private var selectedIDs: Set<UUID> = []
     @State private var showBatchDeleteConfirmation = false
     @State private var showCreateFolderAlert = false
-    @State private var showFolderLimitSheet = false
     @State private var newFolderName = ""
     @State private var showMoveToFolderSheet = false
     @State private var pendingMoveConversationID: UUID?
@@ -120,11 +143,12 @@ struct HomeView: View {
 
     var body: some View {
         ScrollView {
-            LazyVStack(alignment: .leading, spacing: OriveoTheme.V2.Sp.s16, pinnedViews: [.sectionHeaders]) {
+            // Block spacing is set per section (greeting → hero is 22) rather than one uniform spacing
+            LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
                 header
-                    .padding(.horizontal, OriveoTheme.V2.Sp.s20)
                 if !isEditing {
                     heroSection
+                        .padding(.top, 22)
                     HomeNotesEntryCard(
                         count: appState.noteSummaries.count,
                         latestTitle: appState.noteSummaries.first.map { NoteText.displayTitle($0.title) }
@@ -132,21 +156,35 @@ struct HomeView: View {
                         appState.openNotes()
                     }
                     .padding(.horizontal, OriveoTheme.V2.Sp.s20)
-                    .padding(.vertical, OriveoTheme.Spacing.md)
+                    .padding(.top, 14)
                 }
+                // The list sits 26 below Notes; while editing, the hero and Notes collapse and the list follows the greeting
                 conversationContent
+                    .padding(.top, 26)
                     .padding(.horizontal, OriveoTheme.V2.Sp.s20)
                     .opacity(contentAppeared ? 1 : 0)
                     .offset(y: contentAppeared ? 0 : 8)
 
             }
-            .padding(.top, 4)
+            .padding(.top, OriveoTheme.V2.Sp.s16)
             .padding(.bottom, isEditing ? 80 : OriveoTheme.V2.Sp.s32)
         }
         .auroraBackground()
         .animation(preferredAnimation, value: heroState)
         .animation(preferredAnimation, value: isEditing)
         .onAppear {
+            #if DEBUG
+            if let seed = debugSnapshotSeed {
+                isEditing = seed.isEditing
+                if seed.isEditing, let first = appState.recentConversations.first {
+                    selectedIDs = [first.id]
+                }
+                if let query = seed.searchText {
+                    isSearching = true
+                    searchText = query
+                }
+            }
+            #endif
             guard !contentAppeared else { return }
             refreshConversationModelLookup()
             withAnimation(preferredAnimation.delay(0.15)) {
@@ -283,9 +321,6 @@ struct HomeView: View {
             .presentationDetents([.medium])
             .environment(appState)
         }
-        .sheet(isPresented: $showFolderLimitSheet) {
-            EmptyView()
-        }
         .sheet(item: $heroDisclosureProvider) { kind in
             ProviderDisclosureSheet(
                 provider: kind,
@@ -310,112 +345,209 @@ struct HomeView: View {
 
     // MARK: - Header
 
-    private var isCJKLocale: Bool {
-        isHomeHeaderCJKLocale(AppLocalization.currentLocale)
+    /// Whether the date eyebrow uses the 11pt, all-caps, tracked style. Only scripts with letter case
+    /// get it (see homeHeaderUsesCasedEyebrow).
+    private var usesCasedEyebrow: Bool {
+        homeHeaderUsesCasedEyebrow(AppLocalization.currentLocale)
     }
 
     private var headerDateText: String {
         formatHomeHeaderDate(.now, locale: AppLocalization.currentLocale)
     }
 
+    /// The masthead: the centred brand mark with the "search | new folder" capsule on the right, followed by the
+    /// centred greeting (replaced by the search bar while searching).
     private var header: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            HStack(alignment: .center, spacing: 8) {
-                Text(headerDateText)
-                    .font(.system(size: isCJKLocale ? 13 : 12, weight: .medium))
-                    .foregroundStyle(AuroraTheme.Colors.textTertiary)
-                    .textCase(isCJKLocale ? nil : .uppercase)
-                    .tracking(isCJKLocale ? 0 : 1.2)
-
-                Spacer(minLength: 0)
-
-                if !appState.recentConversations.isEmpty {
-                    if isEditing {
-                        Button {
-                            withAnimation(preferredAnimation) {
-                                isEditing = false
-                                selectedIDs.removeAll()
-                            }
-                        } label: {
-                            Text(L10n.tr("Done"))
-                                .font(.system(size: 15, weight: .semibold))
-                                .foregroundStyle(AuroraTheme.Colors.accent)
-                        }
-                        .buttonStyle(.plain)
-                    } else {
-                        HStack(spacing: homeHeaderActionSpacing) {
-                            headerIconButton(systemImage: "folder.badge.plus") {
-                                newFolderName = ""
-                                showCreateFolderAlert = true
-                            }
-                            headerIconButton(systemImage: "magnifyingglass") {
-                                withAnimation(.snappy) {
-                                    isSearching.toggle()
-                                    if !isSearching { searchText = "" }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-            .frame(minHeight: 28)
-
-            if !isSearching {
-                heroGreeting
-            }
+        VStack(spacing: 0) {
+            topBar
 
             if isSearching {
                 searchBar
+                    .padding(.horizontal, OriveoTheme.V2.Sp.s20)
+                    .padding(.top, 18)
+            } else {
+                heroGreeting
+                    .padding(.horizontal, 24)
+                    .padding(.top, 22)
             }
         }
     }
 
-    private var heroGreeting: some View {
-        let line = L10n.tr(AuroraGreeting.currentKey())
-        let tagline = L10n.tr(AuroraGreeting.taglineKey())
+    /// Top bar: both sides are equally flexible, so the brand mark stays dead centre and is never pushed around
+    /// when the trailing capsule appears, disappears or turns into Done.
+    /// The trailing half must be an always-present container: `topBarTrailing` is an empty branch when there
+    /// are no conversations, so a frame attached to it directly would take no space and the brand would slide right.
+    private var topBar: some View {
+        HStack(spacing: 0) {
+            Color.clear
+                .frame(maxWidth: .infinity, maxHeight: 1)
+                .accessibilityHidden(true)
 
-        return VStack(alignment: .leading, spacing: 6) {
-            heroGreetingLine(line)
+            brandMark
 
-            Text(tagline)
-                .font(.system(size: 16, weight: .regular))
-                .foregroundStyle(AuroraTheme.Colors.textSecondary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.85)
+            Color.clear
+                .frame(maxWidth: .infinity, maxHeight: 1)
+                .overlay(alignment: .trailing) { topBarTrailing }
         }
-        .padding(.top, 2)
+        .frame(height: homeTopBarHeight)
+        .padding(.horizontal, OriveoTheme.V2.Sp.s16)
     }
 
-    private func heroGreetingLine(_ line: String) -> some View {
-        Text(line)
-            .font(.system(size: 28, weight: .bold))
-            .foregroundStyle(heroTextGradient)
-            .tracking(-0.4)
-            .lineLimit(1)
-            .minimumScaleFactor(0.75)
-    }
-
-    private var heroTextGradient: LinearGradient {
-        LinearGradient(
-            colors: [
-                OriveoTheme.Palette.textPrimary,
-                OriveoTheme.Palette.primary
-            ],
-            startPoint: .topLeading,
-            endPoint: .bottomTrailing
-        )
+    private var brandMark: some View {
+        HStack(spacing: 8) {
+            Image("OriveoLogo")
+                .resizable()
+                .interpolation(.high)
+                .scaledToFit()
+                .frame(width: 26, height: 26)
+                .accessibilityHidden(true)
+            Text(L10n.tr("Oriveo"))
+                .font(.system(size: 17, weight: .bold))
+                .tracking(-0.3)
+                .foregroundStyle(AuroraTheme.Colors.textPrimary)
+                .lineLimit(1)
+        }
+        .fixedSize()
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isHeader)
     }
 
     @ViewBuilder
-    private func headerIconButton(systemImage: String, action: @escaping () -> Void) -> some View {
+    private var topBarTrailing: some View {
+        if !appState.recentConversations.isEmpty {
+            if isEditing {
+                Button {
+                    withAnimation(preferredAnimation) {
+                        isEditing = false
+                        selectedIDs.removeAll()
+                    }
+                } label: {
+                    Text(L10n.tr("Done"))
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(AuroraTheme.Colors.accent)
+                        .frame(minWidth: homeHeaderActionHitHeight, minHeight: homeHeaderActionHitHeight, alignment: .trailing)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityShowsLargeContentViewer()
+            } else {
+                headerActionCapsule
+            }
+        }
+    }
+
+    /// The "search | new folder" capsule: liquid glass from iOS 26 on (the same material as the system tab bar);
+    /// earlier systems keep a solid fill without a stroke (dark 5% white / light 78% white plus two very faint shadows).
+    @ViewBuilder
+    private var headerActionCapsule: some View {
+        if #available(iOS 26, *) {
+            // The glass goes on the button group itself, not on a placeholder layer in the background; only then
+            // does the foreground get the glass's adaptive treatment
+            headerActionButtons
+                .glassEffect(.regular.interactive(), in: Capsule(style: .continuous))
+        } else {
+            headerActionButtons
+                .background {
+                    Capsule(style: .continuous)
+                        .fill(AuroraTheme.Colors.chromeFill)
+                        .shadow(color: colorScheme == .dark ? .clear : Color(hex: 0x0F172A).opacity(0.05), radius: 1, y: 1)
+                        .shadow(color: colorScheme == .dark ? .clear : Color(hex: 0x0F172A).opacity(0.04), radius: 6, y: 4)
+                }
+        }
+    }
+
+    private var headerActionButtons: some View {
+        HStack(spacing: 0) {
+            // The search key is a toggle: tapping it while the search is open collapses it and clears the query,
+            // and VoiceOver needs to know it is selected
+            headerCapsuleButton(
+                systemImage: "magnifyingglass",
+                accessibilityLabel: L10n.tr("Search"),
+                isSelected: isSearching
+            ) {
+                withAnimation(.snappy) {
+                    isSearching.toggle()
+                    if !isSearching { searchText = "" }
+                }
+            }
+
+            Rectangle()
+                .fill(AuroraTheme.Colors.chromeDivider)
+                .frame(width: 1, height: 16)
+                .accessibilityHidden(true)
+
+            headerCapsuleButton(
+                systemImage: "folder.badge.plus",
+                accessibilityLabel: L10n.tr("New Folder", table: .home)
+            ) {
+                newFolderName = ""
+                showCreateFolderAlert = true
+            }
+        }
+        .padding(.horizontal, 2)
+    }
+
+    private func headerCapsuleButton(
+        systemImage: String,
+        accessibilityLabel: String,
+        isSelected: Bool = false,
+        action: @escaping () -> Void
+    ) -> some View {
         Button(action: action) {
             Image(systemName: systemImage)
                 .font(.system(size: homeHeaderActionIconSize, weight: .medium))
                 .foregroundStyle(AuroraTheme.Colors.textSecondary)
-                .frame(width: homeHeaderActionButtonSize, height: homeHeaderActionButtonSize)
+                // Visually 36×38 to match the capsule (the glass shape follows the button group); the hit area
+                // extends 3pt above and below to reach 44 without changing layout
+                .frame(width: homeHeaderActionHitWidth, height: homeHeaderCapsuleHeight)
+                .padding(.vertical, (homeHeaderActionHitHeight - homeHeaderCapsuleHeight) / 2)
                 .contentShape(Rectangle())
+                .padding(.vertical, -(homeHeaderActionHitHeight - homeHeaderCapsuleHeight) / 2)
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(accessibilityLabel)
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+        // Home keeps a fixed type size regardless of Dynamic Type; like the system bar buttons, a long press
+        // shows the large content viewer at accessibility sizes
+        .accessibilityShowsLargeContentViewer()
+    }
+
+    /// Centred greeting: date eyebrow / 30pt greeting / tagline (one of four per time of day, changing daily)
+    private var heroGreeting: some View {
+        VStack(spacing: 6) {
+            dateRow
+
+            heroGreetingLine(L10n.tr(AuroraGreeting.currentKey()))
+                .padding(.top, 2)
+
+            Text(L10n.tr(AuroraGreeting.taglineKey()))
+                .font(.system(size: 15, weight: .regular))
+                .foregroundStyle(AuroraTheme.Colors.textSecondary)
+                .multilineTextAlignment(.center)
+                .lineLimit(1)
+                .minimumScaleFactor(0.85)
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    /// The date row carries only the date.
+    private var dateRow: some View {
+        Text(headerDateText)
+            .font(.system(size: usesCasedEyebrow ? 11 : 13, weight: .semibold))
+            .foregroundStyle(AuroraTheme.Colors.textTertiary)
+            .textCase(usesCasedEyebrow ? .uppercase : nil)
+            .tracking(usesCasedEyebrow ? 1.3 : 0)
+            .lineLimit(1)
+    }
+
+    private func heroGreetingLine(_ text: String) -> some View {
+        Text(verbatim: text)
+            .font(.system(size: 30, weight: .bold))
+            .tracking(-0.7)
+            .foregroundStyle(AuroraTheme.Colors.textPrimary)
+            .multilineTextAlignment(.center)
+            .lineLimit(1)
+            .minimumScaleFactor(0.75)
     }
 
     private var searchBar: some View {
@@ -480,7 +612,6 @@ struct HomeView: View {
     private var composerSection: some View {
         auroraComposerCard
             .padding(.horizontal, OriveoTheme.V2.Sp.s20)
-            .padding(.top, 10)
     }
 
     // MARK: - Aurora Composer
@@ -489,23 +620,15 @@ struct HomeView: View {
         L10n.tr(AuroraGreeting.placeholderKey())
     }
 
+    /// The composer card: purely flat while idle (no aurora ring, no divider), the ring lights up on focus;
+    /// model pill plus a solid send button
     private var auroraComposerCard: some View {
-        VStack(alignment: .leading, spacing: 0) {
+        VStack(alignment: .leading, spacing: 12) {
+            // A real TextField plus the decorative blinking cursor (shown while unfocused and empty)
             heroComposerInput
 
-            Rectangle()
-                .fill(
-                    LinearGradient(
-                        colors: [Color.clear, AuroraTheme.Colors.hairline, Color.clear],
-                        startPoint: .leading,
-                        endPoint: .trailing
-                    )
-                )
-                .frame(height: 0.6)
-                .padding(.top, 10)
-                .padding(.bottom, 12)
-
-            HStack(alignment: .center, spacing: 12) {
+            // Model pill (tonal, no stroke) plus the send button (solid violet circle); no attachment button
+            HStack(alignment: .center, spacing: 10) {
                 Button {
                     let active = appState.activeModel
                     modelPickerPresentation = ModelPickerPresentationSnapshot(
@@ -520,15 +643,16 @@ struct HomeView: View {
                 }
                 .buttonStyle(.plain)
 
-                Spacer(minLength: 8)
+                Spacer(minLength: 0)
 
                 auroraSendButton
             }
         }
-        .padding(.horizontal, 20)
-        .padding(.top, 18)
-        .padding(.bottom, 12)
-        .auroraGlassCard(cornerRadius: 28, focused: heroFocused)
+        // The design is a 1px border plus padding 18/18/14 (border-box), so content sits 1pt further from each edge
+        .padding(.horizontal, 19)
+        .padding(.top, 19)
+        .padding(.bottom, 15)
+        .auroraGlassCard(cornerRadius: 26, focused: heroFocused)
     }
 
     private var heroComposerInput: some View {
@@ -537,26 +661,34 @@ struct HomeView: View {
                 .focused($heroFocused)
                 .font(AuroraTheme.Typography.composerPlaceholder)
                 .foregroundStyle(AuroraTheme.Colors.textPrimary)
-                .tint(AuroraTheme.Colors.accent)
+                // The system caret uses the same colour as the decorative cursor (dark #C4B5FD / light #8B5CF6)
+                .tint(AuroraTheme.Colors.accentGlow)
                 .lineLimit(1...5)
-                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
                 .submitLabel(.return)
+                // The TextField prompt is empty (the placeholder is drawn by the decorative layer below), so VoiceOver
+                // needs an explicit name
+                .accessibilityLabel(Text(composerPlaceholder))
 
             if !heroFocused && heroText.isEmpty {
-                HStack(spacing: 2) {
+                HStack(spacing: 4) {
                     Text(composerPlaceholder)
                         .font(AuroraTheme.Typography.composerPlaceholder)
-                        .foregroundStyle(AuroraTheme.Colors.textTertiary)
+                        .tracking(-0.2)
+                        .foregroundStyle(AuroraTheme.Colors.heroTextTertiary)
                         .lineLimit(1)
                         .truncationMode(.tail)
                     if !isSearching {
                         blinkingCursor
-                            .padding(.leading, 4)
                     }
                 }
-                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
                 .clipped()
                 .allowsHitTesting(false)
+                // Purely decorative: otherwise VoiceOver reads the placeholder as a second element outside the field
+                .accessibilityHidden(true)
+                // The system caret appears the moment the field is focused; the decorative layer must go at the same
+                // time rather than fade out on top of it.
                 .transition(.identity)
                 .transaction { transaction in
                     transaction.animation = nil
@@ -573,6 +705,9 @@ struct HomeView: View {
         HomeHeroBlinkingCursor(reduceMotion: reduceMotion)
     }
 
+    /// The model selector chip: the provider's colour logo plus model name and provider name, in a tonal
+    /// capsule without a stroke (dark 6% white / light #F3F0FA), 40 tall, at most 230 wide (the model name
+    /// truncates to one line).
     private var modelSelectorPill: some View {
         let active = appState.activeModel
         return HStack(spacing: 9) {
@@ -586,7 +721,7 @@ struct HomeView: View {
                 } else {
                     Image(systemName: "square.dashed")
                         .font(.system(size: 18, weight: .regular))
-                        .foregroundStyle(AuroraTheme.Colors.textTertiary)
+                        .foregroundStyle(AuroraTheme.Colors.heroTextTertiary)
                         .frame(width: 24, height: 24)
                 }
             }
@@ -600,46 +735,43 @@ struct HomeView: View {
                 if let active {
                     Text(active.provider.displayName)
                         .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(AuroraTheme.Colors.textTertiary)
+                        .foregroundStyle(AuroraTheme.Colors.heroTextTertiary)
                         .lineLimit(1)
                         .truncationMode(.tail)
                 }
             }
 
+            // The design uses Lucide chevrons in a 12px box (visible glyph about 6×10). An SF Symbol's point size
+            // is the glyph size, so 9pt matches, while the slot stays 12
             Image(systemName: "chevron.up.chevron.down")
-                .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(AuroraTheme.Colors.textTertiary)
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundStyle(AuroraTheme.Colors.heroTextTertiary)
+                .frame(width: 12, height: 12)
         }
-        .padding(.vertical, 6)
-        .frame(maxWidth: 250, alignment: .leading)
+        .padding(.leading, 8)
+        .padding(.trailing, 10)
+        .frame(height: 40)
+        .background(Capsule(style: .continuous).fill(AuroraTheme.Colors.pillFill))
+        // Visually 40 tall, hit area 44 (the control row is already 44 tall because of the send button, so
+        // layout is unchanged)
+        .frame(height: 44)
         .contentShape(Rectangle())
+        .frame(maxWidth: 230, alignment: .leading)
     }
 
+    /// The send button: a 44pt solid violet circle with a white arrow.up, no gradient, no shadow, no highlight
     private var auroraSendButton: some View {
         Button {
             Task { await sendFromHero() }
         } label: {
-            ZStack {
-                Circle()
-                    .fill(OriveoTheme.Palette.primaryGradient)
-                    .frame(width: 44, height: 44)
-                    .overlay(
-                        Circle().fill(
-                            LinearGradient(
-                                colors: [Color.white.opacity(0.28), Color.clear],
-                                startPoint: .top,
-                                endPoint: .center
-                            )
-                        )
-                    )
-
-                Image(systemName: "arrow.up")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(.white)
-            }
-            .frame(width: 44, height: 44)
-            .shadow(color: OriveoTheme.Palette.shadow, radius: 6, y: 3)
-            .contentShape(Circle())
+            // The design uses a Lucide arrow in a 19px box (visible 13×13, stroke about 1.9); SF Symbol 16pt
+            // semibold is the closest match in stroke weight and area
+            Image(systemName: "arrow.up")
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(.white)
+                .frame(width: 44, height: 44)
+                .background(Circle().fill(AuroraTheme.Colors.sendFill))
+                .contentShape(Circle())
         }
         .buttonStyle(.plain)
     }
@@ -740,24 +872,19 @@ struct HomeView: View {
                 if conversations.isEmpty && folders.isEmpty && !searchInFlight {
                     HomeConversationEmptyState()
                 } else {
-                    VStack(alignment: .leading, spacing: OriveoTheme.V2.Sp.s12) {
+                    VStack(alignment: .leading, spacing: 0) {
                         v2SectionHeader(title: L10n.tr("Search Results", table: .home), count: conversations.count)
-                        GroupedCard {
-                            VStack(spacing: 0) {
-                                ForEach(Array(conversations.enumerated()), id: \.element.id) { index, conversation in
-                                    conversationButton(for: conversation, showFolderTag: true, grouped: true)
-                                    if index < conversations.count - 1 {
-                                        Divider().foregroundStyle(OriveoTheme.V2.Colors.borderDefault.opacity(0.5)).padding(.horizontal, 16)
-                                    }
-                                }
-                            }
-                        }
+                            .modifier(HomeSectionHeaderInsets())
+                        conversationGroupCard(conversations, showFolderTag: true)
                     }
                 }
             } else if groups.isEmpty && folders.isEmpty && appState.conversationManager.pinnedConversations.isEmpty {
                 HomeConversationEmptyState()
             } else {
-                VStack(alignment: .leading, spacing: OriveoTheme.V2.Sp.s24) {
+                // 22 between groups. Title and card share one VStack: a Section nested in a plain VStack is split
+                // into two sibling nodes, title and content, and the outer spacing lands between them (the
+                // previous title-to-card gap was 30+).
+                VStack(alignment: .leading, spacing: 22) {
                     if !folders.isEmpty {
                         folderSection(folders: folders)
                     }
@@ -768,29 +895,21 @@ struct HomeView: View {
                     }
 
                     ForEach(groups, id: \.section) { group in
-                        Section {
-                            VStack(alignment: .leading, spacing: OriveoTheme.V2.Sp.s8) {
-                                GroupedCard {
-                                    VStack(spacing: 0) {
-                                        ForEach(Array(group.conversations.enumerated()), id: \.element.id) { index, conversation in
-                                            conversationButton(for: conversation, grouped: true)
-                                            if index < group.conversations.count - 1 {
-                                                Divider().foregroundStyle(OriveoTheme.V2.Colors.borderDefault.opacity(0.5)).padding(.horizontal, 16)
-                                            }
-                                        }
-                                    }
+                        VStack(alignment: .leading, spacing: 0) {
+                            Group {
+                                if isEditing {
+                                    sectionHeaderWithSelect(title: title(for: group.section), conversations: group.conversations)
+                                } else {
+                                    v2SectionHeader(title: title(for: group.section), count: group.conversations.count)
                                 }
+                            }
+                            .modifier(HomeSectionHeaderInsets())
+
+                            VStack(alignment: .leading, spacing: OriveoTheme.V2.Sp.s8) {
+                                conversationGroupCard(group.conversations)
                                 if group.section == .earlier && group.remainingCount > 0 {
                                     earlierShowMoreButton(remainingCount: group.remainingCount)
                                 }
-                            }
-                        } header: {
-                            if isEditing {
-                                sectionHeaderWithSelect(title: title(for: group.section), conversations: group.conversations)
-                                    .padding(.bottom, 4)
-                            } else {
-                                v2SectionHeader(title: title(for: group.section), count: group.conversations.count)
-                                    .padding(.bottom, 4)
                             }
                         }
                     }
@@ -799,6 +918,19 @@ struct HomeView: View {
         }
     }
 
+    /// One card per group with no separators inside: rows are kept apart by their own padding, and each row's
+    /// contentShape covers the whole row
+    private func conversationGroupCard(_ conversations: [Conversation], showFolderTag: Bool = false) -> some View {
+        AuroraGroupedCard {
+            VStack(spacing: 0) {
+                ForEach(conversations) { conversation in
+                    conversationButton(for: conversation, showFolderTag: showFolderTag, grouped: true)
+                }
+            }
+        }
+    }
+
+    /// Group header: 3×18 glowing bar + 17/bold title + 13 mono count (spacing 10)
     private func v2SectionHeader(title: String, count: Int? = nil) -> some View {
         HStack(alignment: .center, spacing: 10) {
             AuroraSectionRule()
@@ -817,7 +949,10 @@ struct HomeView: View {
 
             Spacer(minLength: 0)
         }
-        .padding(.bottom, 4)
+        // Title and count form one heading element ("Today, 3") so the VoiceOver headings rotor can jump
+                // between groups
+        .accessibilityElement(children: .combine)
+        .accessibilityAddTraits(.isHeader)
     }
 
     private func earlierShowMoreButton(remainingCount: Int) -> some View {
@@ -830,30 +965,22 @@ struct HomeView: View {
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(OriveoTheme.V2.Colors.textTertiary)
                 .frame(maxWidth: .infinity)
+                // An 11pt line is only about 13pt tall: the hit area extends 15 above and below (close to 44) without
+                // changing the layout height
+                .padding(.vertical, 15)
+                .contentShape(Rectangle())
+                .padding(.vertical, -15)
         }
         .buttonStyle(.plain)
     }
 
     // MARK: - Pinned Section
 
-    @ViewBuilder
     private func pinnedSection(_ conversations: [Conversation]) -> some View {
-        Section {
-            VStack(alignment: .leading, spacing: OriveoTheme.V2.Sp.s8) {
-                GroupedCard {
-                    VStack(spacing: 0) {
-                        ForEach(Array(conversations.enumerated()), id: \.element.id) { index, conversation in
-                            conversationButton(for: conversation, showFolderTag: true, grouped: true)
-                            if index < conversations.count - 1 {
-                                Divider().foregroundStyle(OriveoTheme.V2.Colors.borderDefault.opacity(0.5)).padding(.horizontal, 16)
-                            }
-                        }
-                    }
-                }
-            }
-        } header: {
+        VStack(alignment: .leading, spacing: 0) {
             v2SectionHeader(title: L10n.tr("Pinned", table: .home), count: conversations.count)
-                .padding(.bottom, 4)
+                .modifier(HomeSectionHeaderInsets())
+            conversationGroupCard(conversations, showFolderTag: true)
         }
     }
 
@@ -986,9 +1113,6 @@ struct HomeView: View {
                     Label(L10n.tr("Share"), systemImage: "square.and.arrow.up")
                 }
 
-                //     seedTestMessages(into: conversation, count: 200)
-                //     Label("Seed 200 Test Messages", systemImage: "doc.badge.plus")
-
                 Divider()
 
                 Button {
@@ -1086,14 +1210,6 @@ struct HomeView: View {
         }
     }
 
-
-    // private func seedTestMessages(into conversation: Conversation, count: Int) {
-    //     let baseTime = conversation.messages.last?.createdAt ?? conversation.createdAt
-    //     let startOrder = seeded.messages.count
-    //         let createdAt = baseTime.addingTimeInterval(TimeInterval(i + 1))
-    //         seeded.messages.append(message)
-    //     appState.upsertConversationProjection(seeded)
-
     // MARK: - Section Header with Select
 
     private func sectionHeaderWithSelect(title: String, conversations: [Conversation]) -> some View {
@@ -1112,9 +1228,24 @@ struct HomeView: View {
                 Text(allSelected ? L10n.tr("Deselect", table: .home) : L10n.tr("Select", table: .home))
                     .font(OriveoTheme.V2.Typography.footnote)
                     .foregroundStyle(OriveoTheme.V2.Colors.primary)
+                    // 11pt text is too small to tap: the hit area grows to about 44×44 without changing the title row layout
+                    .padding(.vertical, 15)
+                    .padding(.horizontal, 8)
+                    .contentShape(Rectangle())
+                    .padding(.vertical, -15)
+                    .padding(.horizontal, -8)
             }
             .buttonStyle(.plain)
         }
+    }
+}
+
+/// Insets of the group header: 4 on each side, 10 to the card (`padding: 0 4px 10px`)
+private struct HomeSectionHeaderInsets: ViewModifier {
+    func body(content: Content) -> some View {
+        content
+            .padding(.horizontal, 4)
+            .padding(.bottom, 10)
     }
 }
 
@@ -1134,8 +1265,8 @@ private struct HomeHeroBlinkingCursor: View {
     }
 
     private var cursor: some View {
-        Rectangle()
-            .fill(AuroraTheme.Colors.accent)
+        Capsule(style: .continuous)
+            .fill(AuroraTheme.Colors.accentGlow)
             .frame(width: 2, height: 22)
             .fixedSize()
     }

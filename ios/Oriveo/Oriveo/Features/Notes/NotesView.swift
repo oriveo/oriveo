@@ -103,11 +103,15 @@ struct NotesView: View {
         .padding(.top, OriveoTheme.Spacing.xs)
     }
 
+    /// The brand notes icon top-left (white glyph on violet with a violet glow) instead of the grey cloud icon.
     private var brandIcon: some View {
         RoundedRectangle(cornerRadius: OriveoTheme.Radius.chip, style: .continuous)
             .fill(OriveoTheme.Palette.primary)
             .frame(width: 40, height: 40)
             .overlay(
+                // The same Lucide notebook-pen glyph as the Home Notes entry (Home uses the thin gradient version,
+                // NotesNotebookLine, without the binder ticks). Change one and the other must follow, otherwise
+                // the icon changes when arriving from Home.
                 Image("NotesNotebook")
                     .renderingMode(.template)
                     .resizable()
@@ -118,12 +122,14 @@ struct NotesView: View {
             .shadow(color: OriveoTheme.Palette.primary.opacity(0.35), radius: 8, y: 4)
     }
 
+    /// Action icon button: a bare icon with no fill, 16pt medium, 38×38, neutral grey `AuroraTheme.Colors.textSecondary`.
+    /// The Home top bar uses its own "search | new folder" capsule metrics; the two screens no longer share constants.
     private func headerActionButton(systemImage: String, tint: Color, accessibility: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: systemImage)
-                .font(.system(size: homeHeaderActionIconSize, weight: .medium))
+                .font(.system(size: 16, weight: .medium))
                 .foregroundStyle(tint)
-                .frame(width: homeHeaderActionButtonSize, height: homeHeaderActionButtonSize)
+                .frame(width: 38, height: 38)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

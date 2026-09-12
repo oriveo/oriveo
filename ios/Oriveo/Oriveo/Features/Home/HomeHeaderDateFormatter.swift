@@ -1,10 +1,13 @@
 import Foundation
 
-func isHomeHeaderCJKLocale(_ locale: Locale) -> Bool {
+/// The date eyebrow's 11pt, all-caps, tracked style only suits scripts with letter case (Latin / Cyrillic).
+/// CJK, Arabic, Devanagari and Thai have no case, and tracking would break Arabic joining and the Devanagari
+/// headline, so they use 13pt with no caps and no tracking.
+func homeHeaderUsesCasedEyebrow(_ locale: Locale) -> Bool {
     guard let languageCode = locale.language.languageCode?.identifier else {
-        return false
+        return true
     }
-    return ["zh", "ja", "ko"].contains(languageCode)
+    return !["zh", "ja", "ko", "ar", "hi", "th"].contains(languageCode)
 }
 
 func formatHomeHeaderDate(
