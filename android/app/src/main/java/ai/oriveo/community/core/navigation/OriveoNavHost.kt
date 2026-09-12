@@ -1,6 +1,8 @@
 package ai.oriveo.community.core.navigation
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.core.tween
@@ -36,14 +38,13 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.res.vectorResource
-import androidx.annotation.DrawableRes
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.testTagsAsResourceId
 import androidx.compose.ui.unit.dp
 import androidx.metrics.performance.PerformanceMetricsState
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.navigation.NavDestination
 import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
@@ -82,48 +83,45 @@ import ai.oriveo.community.ui.component.GlobalToastHost
 import ai.oriveo.community.ui.component.LocalRootTabTopInset
 import ai.oriveo.community.ui.component.LiquidGlassTabBar
 import ai.oriveo.community.ui.component.LiquidGlassTabBarItem
-import ai.oriveo.community.ui.component.liquidGlassTabBarLayoutMetrics
+import ai.oriveo.community.ui.component.OriveoTabGlyph
+import ai.oriveo.community.ui.component.liquidGlassBlurSupported
+import ai.oriveo.community.ui.component.liquidGlassTabBarBottomGap
+import dev.chrisbanes.haze.hazeSource
+import dev.chrisbanes.haze.rememberHazeState
 import ai.oriveo.community.ui.theme.OriveoColors
 import ai.oriveo.community.ui.theme.OriveoScreenBackground
 import ai.oriveo.community.core.performance.PageTrace
 import ai.oriveo.community.ui.theme.OriveoTheme
 
+/** Bottom navigation tab: one entry per root route, sharing its glyph set with the iOS tab bar. */
 private data class TabItem(
     val labelRes: Int,
-
-    @param:DrawableRes val iconRes: Int,
+    val glyph: OriveoTabGlyph,
     val route: AppRoute,
 )
 
 private val tabs = listOf(
-    TabItem(
-        labelRes = R.string.tab_home,
-        iconRes = R.drawable.ic_tab_home,            // iOS bubble.left.and.bubble.right.fill
-        route = AppRoute.Home,
-    ),
-    TabItem(
-        labelRes = R.string.tab_providers,
-        iconRes = R.drawable.ic_tab_providers,       // iOS sparkles
-        route = AppRoute.Providers,
-    ),
-    TabItem(
-        labelRes = R.string.tab_settings,
-        iconRes = R.drawable.ic_tab_settings,        // iOS slider.horizontal.3
-        route = AppRoute.Settings,
-    ),
+    TabItem(labelRes = R.string.tab_home, glyph = OriveoTabGlyph.Home, route = AppRoute.Home),
+    TabItem(labelRes = R.string.tab_providers, glyph = OriveoTabGlyph.Providers, route = AppRoute.Providers),
+    TabItem(labelRes = R.string.tab_settings, glyph = OriveoTabGlyph.Settings, route = AppRoute.Settings),
 )
 
-private val ProvidersAccentLight = Color(0xFF0D9488)
-private val ProvidersAccentDark = Color(0xFF2DD4BF)
-private val SettingsAccentLight = Color(0xFFEA580C)
-private val SettingsAccentDark = Color(0xFFFB923C)
-
-private fun tabSelectedTint(route: AppRoute, isDark: Boolean, primary: Color): Color = when (route) {
-    AppRoute.Providers -> if (isDark) ProvidersAccentDark else ProvidersAccentLight
-    AppRoute.Settings -> if (isDark) SettingsAccentDark else SettingsAccentLight
-    else -> primary
+/**
+ * Selected label color. The iOS system tab bar renders its tint (purple for Home, teal for Providers,
+ * orange for Settings) vibrantly against the glass: brighter in dark mode, deeper in light mode. These
+ * are the colors measured from that rendering rather than the raw tint values.
+ */
+internal fun tabSelectedLabelColor(route: AppRoute, isDark: Boolean): Color = when (route) {
+    AppRoute.Providers -> if (isDark) Color(0xFF4CFFF2) else Color(0xFF007E75)
+    AppRoute.Settings -> if (isDark) Color(0xFFFFBB64) else Color(0xFFDE3D00)
+    else -> if (isDark) Color(0xFFD2B3FF) else Color(0xFF7442EE)
 }
 
+private fun NavDestination.tabIndex(): Int = tabs.indexOfFirst { hasRoute(it.route::class) }
+
+private fun isTabSwitch(from: NavDestination, to: NavDestination): Boolean = from.tabIndex() >= 0 && to.tabIndex() >= 0
+
+/** Full-screen routes that hide the bottom bar. */
 private val fullScreenRoutes = setOf(
     AppRoute.Chat::class,
     AppRoute.FolderDetail::class,
@@ -183,12 +181,22 @@ fun OriveoNavHost(
     val reachabilityMonitor: ServiceReachabilityMonitor = koinInject()
     val reachabilityBannerState by reachabilityMonitor.bannerState.collectAsStateWithLifecycle()
 
+    // On the first frame (cold start / Activity recreation) the back stack has not settled and the
+    // destination is null. Hide the bar then, otherwise it flashes over the chat or onboarding screen
+    // before fading out, and can even be tapped in the meantime.
     val shouldShowBottomBar by remember(currentDestination) {
         derivedStateOf {
             currentDestination?.let { dest ->
                 fullScreenRoutes.none { dest.hasRoute(it) }
-            } ?: true
+            } ?: false
         }
+    }
+    // The selected item only follows tab routes: during the 180ms fade-out when entering a full-screen
+    // page it keeps the previous selection instead of sliding back to Home.
+    var lastTabIndex by remember { mutableIntStateOf(0) }
+    LaunchedEffect(currentDestination) {
+        val index = currentDestination?.tabIndex() ?: -1
+        if (index >= 0) lastTabIndex = index
     }
     val usesHomeRootChrome = currentDestination?.hasRoute(AppRoute.Home::class) ?: hasCompletedOnboarding
     val isProvidersRoute = currentDestination?.hasRoute(AppRoute.Providers::class) ?: false
@@ -223,6 +231,11 @@ fun OriveoNavHost(
         (statusBarInset.toPx() - topChromeHeightPx).coerceAtLeast(0f).toDp()
     }
 
+    // Backdrop source for the floating glass tab bar: the root background and the NavHost content are
+    // recorded into one layer, and the bar samples and blurs that layer from outside, so it never
+    // captures itself.
+    val tabBarHazeState = rememberHazeState(blurEnabled = liquidGlassBlurSupported())
+
     Scaffold(
         containerColor = Color.Transparent,
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
@@ -233,7 +246,11 @@ fun OriveoNavHost(
                 .padding(innerPadding)
                 .semantics { testTagsAsResourceId = true }
         ) {
-
+            // Backdrop layer: the root background and the content layer both live in here; the floating
+            // tab bar (a sibling node) samples this layer for its glass blur.
+            Box(modifier = Modifier.fillMaxSize().hazeSource(tabBarHazeState)) {
+            // The root background must fill the edge-to-edge window. Home uses its own aurora gradient;
+            // otherwise the status and navigation bar areas would show the global theme color as a seam.
             HomeRootChromeBackground(
                 isHomeRoute = usesHomeRootChrome,
                 isProvidersRoute = isProvidersRoute,
@@ -269,6 +286,17 @@ fun OriveoNavHost(
                         modifier = Modifier
                             .fillMaxWidth()
                             .weight(1f),
+                        // Switch between tabs instantly: the default 700ms cross-fade is far slower than the
+                        // lens slide, ghosts both pages and composites two layers per frame. Entering or
+                        // leaving a full-screen page keeps the default NavHost fade.
+                        enterTransition = {
+                            if (isTabSwitch(initialState.destination, targetState.destination)) EnterTransition.None
+                            else fadeIn(animationSpec = tween(700))
+                        },
+                        exitTransition = {
+                            if (isTabSwitch(initialState.destination, targetState.destination)) ExitTransition.None
+                            else fadeOut(animationSpec = tween(700))
+                        },
                     ) {
 
             composable<AppRoute.Home> {
@@ -672,64 +700,54 @@ fun OriveoNavHost(
                 }
             }
             } // CompositionLocalProvider(LocalRootTabTopInset)
+            } // content layer
+            } // hazeSource backdrop layer: the tab bar and the toast stay outside it, or the bar would
+              // become part of its own source and sample nothing
 
             AnimatedVisibility(
                 visible = shouldShowBottomBar,
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-
-                    .navigationBarsPadding()
-                    .padding(bottom = if (OriveoTheme.layout.isCompact) 7.dp else 10.dp),
+                    // The content layer no longer consumes systemBars as a whole: the bar sits
+                    // max(21, navigation bar + 8) above the screen bottom, and the keyboard covers it when shown.
+                    .padding(bottom = liquidGlassTabBarBottomGap()),
                 enter = fadeIn(animationSpec = tween(220)) + slideInVertically(initialOffsetY = { it / 2 }),
                 exit = fadeOut(animationSpec = tween(180)) + slideOutVertically(targetOffsetY = { it / 2 }),
             ) {
-                val tabBarMetrics = liquidGlassTabBarLayoutMetrics(OriveoTheme.layout.isCompact)
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = if (OriveoTheme.layout.isCompact) 10.dp else 14.dp),
-                    contentAlignment = Alignment.Center,
-                ) {
-
-                    val tabBarLabels = tabs.map { stringResource(it.labelRes) }
-
-                    val tabBarIcons = tabs.map { ImageVector.vectorResource(it.iconRes) }
-
-                    val isDarkTheme = OriveoTheme.isDark
-                    val primaryColor = OriveoTheme.colors.primary
-                    val tabTints = remember(isDarkTheme, primaryColor) {
-                        tabs.map { tabSelectedTint(it.route, isDarkTheme, primaryColor) }
+                // stringResource must be read in a composable scope; resolve the labels first so the items
+                // are reused while language and theme stay the same.
+                val tabBarLabels = tabs.map { stringResource(it.labelRes) }
+                val isDarkTheme = OriveoTheme.isDark
+                val tabBarItems = remember(tabBarLabels, isDarkTheme) {
+                    tabs.mapIndexed { index, tab ->
+                        LiquidGlassTabBarItem(
+                            label = tabBarLabels[index],
+                            glyph = tab.glyph,
+                            selectedLabelColor = tabSelectedLabelColor(tab.route, isDarkTheme),
+                        )
                     }
-                    val tabBarItems = remember(currentDestination, tabBarLabels, tabBarIcons, tabTints) {
-                        tabs.mapIndexed { index, tab ->
-                            val icon = tabBarIcons[index]
-                            LiquidGlassTabBarItem(
-                                label = tabBarLabels[index],
-                                selectedIcon = icon,
-                                unselectedIcon = icon,
-                                selectedTint = tabTints[index],
-                                selected = currentDestination?.hasRoute(tab.route::class) == true,
-                                onClick = {
-                                    PageTrace.begin(traceNameForTab(tab.route))
-                                    navController.navigate(tab.route) {
-                                        popUpTo(navController.graph.findStartDestination().id) {
-                                            saveState = true
-                                        }
-                                        launchSingleTop = true
-                                        restoreState = true
-                                    }
-                                },
-                            )
-                        }
-                    }
-                    LiquidGlassTabBar(
-                        items = tabBarItems,
-
-                        modifier = Modifier
-                            .widthIn(max = tabBarMetrics.maxBarWidth)
-                            .fillMaxWidth(),
-                    )
                 }
+                LiquidGlassTabBar(
+                    items = tabBarItems,
+                    selectedIndex = lastTabIndex,
+                    hazeState = tabBarHazeState,
+                    onSelect = { index ->
+                        val tab = tabs[index]
+                        val destination = navController.currentDestination
+                        // Ignore taps while fading out (already on a full-screen page); re-tapping the current
+                        // tab does not start a new page trace.
+                        if (destination == null || destination.tabIndex() < 0) return@LiquidGlassTabBar
+                        if (destination.hasRoute(tab.route::class)) return@LiquidGlassTabBar
+                        PageTrace.begin(traceNameForTab(tab.route))
+                        navController.navigate(tab.route) {
+                            popUpTo(navController.graph.findStartDestination().id) {
+                                saveState = true
+                            }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    },
+                )
             }
 
             GlobalToastHost(
@@ -739,7 +757,6 @@ fun OriveoNavHost(
                     .statusBarsPadding(),
             )
 
-            }
         }
     }
 }

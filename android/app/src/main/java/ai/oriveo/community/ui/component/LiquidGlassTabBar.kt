@@ -1,471 +1,446 @@
 package ai.oriveo.community.ui.component
 
-import androidx.compose.animation.animateColor
-import androidx.compose.animation.core.animateDp
-import androidx.compose.animation.core.animateDpAsState
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.animateFloatAsState
+import android.os.Build
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.AnimationVector1D
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.core.updateTransition
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsPressedAsState
-import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.paddingFromBaseline
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.draw.dropShadow
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.BlendMode
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.shadow.Shadow
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChange
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalViewConfiguration
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.TextUnit
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import ai.oriveo.community.ui.theme.OriveoColors
+import androidx.compose.ui.util.lerp
 import ai.oriveo.community.ui.theme.OriveoTheme
-import ai.oriveo.community.ui.theme.opacity
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.HazeTint
+import dev.chrisbanes.haze.hazeEffect
+import kotlinx.coroutines.launch
+import kotlin.math.abs
 
-@androidx.compose.runtime.Immutable
+/**
+ * One item of the floating glass tab bar.
+ *
+ * @param glyph line glyph: a monochrome template when unselected, the gradient-colored variant when selected (see [OriveoTabBarIcons])
+ * @param selectedLabelColor label color when selected (measured from the iOS vibrant rendering: brighter in dark, deeper in light)
+ */
+@Immutable
 data class LiquidGlassTabBarItem(
     val label: String,
-    val selectedIcon: ImageVector,
-    val unselectedIcon: ImageVector = selectedIcon,
-
-    val selectedTint: Color = Color.Unspecified,
-    val selected: Boolean,
-    val onClick: () -> Unit,
+    val glyph: OriveoTabGlyph,
+    val selectedLabelColor: Color,
 )
 
-internal data class LiquidGlassTabBarLayoutMetrics(
-    val barHeight: Dp,
+/**
+ * Geometry of the iOS 26 liquid glass tab bar, measured from screenshots (1pt = 1dp; the density
+ * correction already maps logical widths one to one): a 62-high capsule with 8 of padding at each end
+ * plus 86 per item (274 for three items, shrunk to content and centered); a 94×53 selection lens with
+ * a 26.5 corner radius, centered on the item, inset 4.5 top and bottom and concentric with the capsule
+ * end; a 24 icon box 12 from the top; a 10dp label whose baseline sits 13 below the icon box.
+ */
+internal object LiquidGlassTabBarMetrics {
+    val barHeight = 62.dp
+    val endPadding = 8.dp
+    val itemWidth = 86.dp
+    val lensWidth = 94.dp
+    val lensHeight = 53.dp
+    val iconSize = 24.dp
+    val iconTop = 12.dp
+    val labelBaselineFromIconBottom = 13.dp
+    val labelSize = 10.dp
+    /** The capsule bottom stays at least 21 above the screen bottom, or 8 above the navigation bar when there is one. */
+    val minBottomGap = 21.dp
+    val navigationBarGap = 8.dp
 
-    val maxBarWidth: Dp,
-    val outerHorizontalInset: Dp,
-    val outerVerticalInset: Dp,
-    val itemHorizontalPadding: Dp,
-    val itemTopPadding: Dp,
-    val itemBottomPadding: Dp,
-    val iconSize: Dp,
-    val labelTopSpacing: Dp,
-    val labelFontSize: TextUnit,
-    val selectedContentOffsetY: Dp,
-    val capsuleWidthFraction: Float,
-) {
+    /** Press lift: the lens grows about 8 on each side (94×53 → 110×69, spilling above and below the capsule), matching the iOS 26 press bubble. */
+    const val LIFT_SCALE_X = 110f / 94f
+    const val LIFT_SCALE_Y = 69f / 53f
 
-    val labelLineHeight: TextUnit get() = (labelFontSize.value * 1.25f).sp
+    fun barWidth(itemCount: Int): Dp = endPadding * 2 + itemWidth * itemCount.coerceAtLeast(1)
 }
 
-internal data class LiquidGlassCapsuleBounds(
-    val left: Dp,
-    val right: Dp,
-    val width: Dp,
-)
-
-internal fun liquidGlassTabBarLayoutMetrics(isCompact: Boolean): LiquidGlassTabBarLayoutMetrics {
-    return if (isCompact) {
-
-        LiquidGlassTabBarLayoutMetrics(
-            barHeight = 58.dp,
-            maxBarWidth = 288.dp,
-            outerHorizontalInset = 9.dp,
-            outerVerticalInset = 2.5.dp,
-            itemHorizontalPadding = 5.dp,
-            itemTopPadding = 7.dp,
-            itemBottomPadding = 6.5.dp,
-            iconSize = 23.dp,
-            labelTopSpacing = 1.5.dp,
-            labelFontSize = 10.sp,
-            selectedContentOffsetY = (-1.5).dp,
-            capsuleWidthFraction = 0.88f,
-        )
-    } else {
-        LiquidGlassTabBarLayoutMetrics(
-            barHeight = 62.dp,
-            maxBarWidth = 300.dp,
-            outerHorizontalInset = 10.dp,
-            outerVerticalInset = 3.dp,
-            itemHorizontalPadding = 6.dp,
-            itemTopPadding = 7.5.dp,
-            itemBottomPadding = 7.dp,
-            iconSize = 25.dp,
-            labelTopSpacing = 2.dp,
-            labelFontSize = 10.5.sp,
-            selectedContentOffsetY = (-1.5).dp,
-            capsuleWidthFraction = 0.9f,
-        )
-    }
+/** Distance from the capsule bottom to the screen bottom: max(21, navigation bar + 8). */
+@Composable
+fun liquidGlassTabBarBottomGap(): Dp {
+    val navigationBar = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    return maxOf(LiquidGlassTabBarMetrics.minBottomGap, navigationBar + LiquidGlassTabBarMetrics.navigationBarGap)
 }
 
-internal fun resolveLiquidGlassCapsuleBounds(
-    totalWidth: Dp,
-    itemCount: Int,
-    selectedIndex: Int,
-    metrics: LiquidGlassTabBarLayoutMetrics,
-): LiquidGlassCapsuleBounds {
-    val safeItemCount = itemCount.coerceAtLeast(1)
-    val clampedIndex = selectedIndex.coerceIn(0, safeItemCount - 1)
-    val contentWidth = totalWidth - metrics.outerHorizontalInset * 2
-    val segmentWidth = contentWidth / safeItemCount.toFloat()
-    val capsuleWidth = segmentWidth * metrics.capsuleWidthFraction
-    val capsuleLeft = metrics.outerHorizontalInset +
-        segmentWidth * clampedIndex.toFloat() +
-        (segmentWidth - capsuleWidth) / 2
-    val capsuleRight = capsuleLeft + capsuleWidth
+/** Height from the screen bottom to the capsule top (navigation bar included): the space a page must leave for the floating tab bar. */
+@Composable
+fun liquidGlassTabBarReservedHeight(): Dp = liquidGlassTabBarBottomGap() + LiquidGlassTabBarMetrics.barHeight
 
-    return LiquidGlassCapsuleBounds(
-        left = capsuleLeft,
-        right = capsuleRight,
-        width = capsuleWidth,
-    )
+/** Backdrop blur is enabled on Android 12L and later only: on 12 the RenderNode does not reliably redraw when the content changes (the chat screen uses the same threshold). */
+fun liquidGlassBlurSupported(): Boolean = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S_V2
+
+internal fun liquidGlassItemCenterX(index: Int): Dp =
+    LiquidGlassTabBarMetrics.endPadding + LiquidGlassTabBarMetrics.itemWidth * index + LiquidGlassTabBarMetrics.itemWidth / 2
+
+/** Pointer x (dp, relative to the capsule's left edge) → nearest item; dragging past either end lands on the first or last item. */
+internal fun liquidGlassIndexAt(xDp: Float, itemCount: Int): Int {
+    if (itemCount <= 1) return 0
+    val relative = (xDp - LiquidGlassTabBarMetrics.endPadding.value) / LiquidGlassTabBarMetrics.itemWidth.value
+    return relative.toInt().coerceIn(0, itemCount - 1)
 }
 
+/**
+ * Floating liquid glass tab bar, modelled on the iOS 26 system TabView bar.
+ *
+ * Material: the content behind it is blurred through [hazeState] (a hazeSource attached to the NavHost
+ * content layer) and lifted with a very faint white tint that keeps the hue of what is behind, which is
+ * how the iOS glass reads over scrolling content; a 1dp rim highlight, plus a soft shadow in light mode.
+ * Below Android 12L there is no blur and the bar falls back to a near-opaque measured fill. Edge
+ * refraction is deliberately left out: it costs too much for what it adds, so this is blur + lift +
+ * highlight only.
+ *
+ * Selection lens: a neutral glass pill (15% white in dark, 7% black in light) with no stroke and no
+ * shadow at rest. Gestures follow iOS: pressing lifts and enlarges the lens; dragging moves it 1:1 with
+ * the finger across items; releasing snaps to the item under the finger and switches to it; a tap
+ * switches directly and the lens springs over. The whole capsule consumes touches, so a tap between
+ * icons or on the capsule edge never falls through to the list underneath.
+ */
 @Composable
 fun LiquidGlassTabBar(
     items: List<LiquidGlassTabBarItem>,
+    selectedIndex: Int,
+    onSelect: (Int) -> Unit,
+    hazeState: HazeState?,
     modifier: Modifier = Modifier,
 ) {
     if (items.isEmpty()) return
-
-    val colors = OriveoTheme.colors
     val isDark = OriveoTheme.isDark
-    val palette = remember(isDark, colors) { liquidGlassPalette(colors, isDark) }
-    val metrics = liquidGlassTabBarLayoutMetrics(OriveoTheme.layout.isCompact)
-    val selectedIndex = items.indexOfFirst { it.selected }.let { if (it >= 0) it else 0 }
-    var previousSelectedIndex by remember { mutableIntStateOf(selectedIndex) }
+    val haptics = LocalHapticFeedback.current
+    val context = LocalContext.current
+    val reduceMotion = remember(context) { isReduceMotionEnabled(context) }
+    val scope = rememberCoroutineScope()
+    val touchSlop = LocalViewConfiguration.current.touchSlop
 
-    val interactionSources = remember(items.size) {
-        List(items.size) { MutableInteractionSource() }
+    val itemCount = items.size
+    val clampedSelected = selectedIndex.coerceIn(0, itemCount - 1)
+    val barWidth = LiquidGlassTabBarMetrics.barWidth(itemCount)
+    val shape = CircleShape
+
+    // Lens center x (in dp): follows the selected item at rest and the finger while dragging
+    val lensCenter = remember { Animatable(liquidGlassItemCenterX(clampedSelected).value) }
+    val lift = remember { Animatable(0f) }
+    var dragging by remember { mutableStateOf(false) }
+    val currentSelected by rememberUpdatedState(clampedSelected)
+    val currentOnSelect by rememberUpdatedState(onSelect)
+
+    val slideSpec = if (reduceMotion) tween<Float>(0) else spring(dampingRatio = 0.85f, stiffness = 247f)
+    LaunchedEffect(clampedSelected) {
+        if (!dragging) lensCenter.animateTo(liquidGlassItemCenterX(clampedSelected).value, slideSpec)
     }
-    val selectedPressed by interactionSources[selectedIndex].collectIsPressedAsState()
-    val capsulePressScale by animateFloatAsState(
-        targetValue = if (selectedPressed) 0.97f else 1f,
-        animationSpec = spring(dampingRatio = 0.7f, stiffness = 500f),
-        label = "tabBarCapsulePressScale",
-    )
 
-    BoxWithConstraints(
-        modifier = modifier.height(metrics.barHeight),
-    ) {
-        val barShape = RoundedCornerShape(metrics.barHeight / 2)
-        val sideInset = metrics.outerHorizontalInset
-        val verticalInset = metrics.outerVerticalInset
-        val capsuleHeight = maxHeight - verticalInset * 2
-        val capsuleShape = RoundedCornerShape(capsuleHeight / 2)
-        val targetBounds = resolveLiquidGlassCapsuleBounds(
-            totalWidth = maxWidth,
-            itemCount = items.size,
-            selectedIndex = selectedIndex,
-            metrics = metrics,
-        )
-        val movementDirection = (selectedIndex - previousSelectedIndex).compareTo(0)
-        val capsuleLeft by animateDpAsState(
-            targetValue = targetBounds.left,
-            animationSpec = spring(
-                dampingRatio = 0.78f,
-                stiffness = when {
-                    movementDirection > 0 -> 260f
-                    movementDirection < 0 -> 220f
-                    else -> 260f
-                },
-            ),
-            label = "tabBarCapsuleLeft",
-        )
-        val capsuleRight by animateDpAsState(
-            targetValue = targetBounds.right,
-            animationSpec = spring(
-                dampingRatio = 0.78f,
-                stiffness = when {
-                    movementDirection > 0 -> 220f
-                    movementDirection < 0 -> 260f
-                    else -> 260f
-                },
-            ),
-            label = "tabBarCapsuleRight",
-        )
-        val capsuleWidth = capsuleRight - capsuleLeft
+    val palette = remember(isDark) { liquidGlassPalette(isDark) }
 
-        LaunchedEffect(selectedIndex) {
-            previousSelectedIndex = selectedIndex
-        }
-
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .shadow(
-                    elevation = if (isDark) 8.dp else 6.dp,
-                    shape = barShape,
-                    ambientColor = palette.barShadow,
-                    spotColor = palette.barShadow,
-                )
-                .clip(barShape)
-                .background(
-                    brush = Brush.verticalGradient(palette.barFill),
-                )
-                .border(
-                    width = 0.5.dp,
-                    color = palette.barBorder,
-                    shape = barShape,
-                ),
-        )
-
-        Box(
-            modifier = Modifier
-                .offset(x = capsuleLeft, y = verticalInset)
-                .width(capsuleWidth)
-                .height(capsuleHeight)
-                .graphicsLayer {
-                    scaleX = capsulePressScale
-                    scaleY = capsulePressScale
+    Box(
+        modifier = modifier
+            .width(barWidth)
+            .height(LiquidGlassTabBarMetrics.barHeight)
+            .selectableGroup()
+            .pointerInput(itemCount, reduceMotion) {
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    down.consume()
+                    val startIndex = liquidGlassIndexAt(down.position.x.toDp().value, itemCount)
+                    scope.launch {
+                        if (reduceMotion) lift.snapTo(1f) else lift.animateTo(1f, spring(dampingRatio = 1f, stiffness = 1000f))
+                    }
+                    var moved = false
+                    var hovered = startIndex
+                    var pointerId = down.id
+                    while (true) {
+                        val event = awaitPointerEvent()
+                        val change = event.changes.firstOrNull { it.id == pointerId } ?: event.changes.first().also { pointerId = it.id }
+                        if (!change.pressed) {
+                            change.consume()
+                            break
+                        }
+                        if (!moved && abs(change.position.x - down.position.x) > touchSlop) {
+                            moved = true
+                            dragging = true
+                        }
+                        if (moved) {
+                            val xDp = change.position.x.toDp().value
+                            val min = liquidGlassItemCenterX(0).value
+                            val max = liquidGlassItemCenterX(itemCount - 1).value
+                            scope.launch { lensCenter.snapTo(xDp.coerceIn(min, max)) }
+                            val index = liquidGlassIndexAt(xDp, itemCount)
+                            if (index != hovered) {
+                                hovered = index
+                                haptics.performHapticFeedback(HapticFeedbackType.SegmentFrequentTick)
+                            }
+                        }
+                        if (change.positionChange() != Offset.Zero) change.consume()
+                    }
+                    val target = if (moved) hovered else startIndex
+                    dragging = false
+                    scope.launch {
+                        if (reduceMotion) lift.snapTo(0f) else lift.animateTo(0f, spring(dampingRatio = 1f, stiffness = 1000f))
+                    }
+                    scope.launch { lensCenter.animateTo(liquidGlassItemCenterX(target).value, slideSpec) }
+                    if (target != currentSelected) {
+                        haptics.performHapticFeedback(HapticFeedbackType.SegmentTick)
+                        currentOnSelect(target)
+                    }
                 }
-                .shadow(
-                    elevation = if (isDark) 4.dp else 2.dp,
-                    shape = capsuleShape,
-                    ambientColor = palette.capsuleShadow,
-                    spotColor = palette.capsuleShadow,
-                )
-                .clip(capsuleShape)
-                .background(color = palette.capsuleFill)
-                .border(
-                    width = 0.5.dp,
-                    color = palette.capsuleBorder,
-                    shape = capsuleShape,
-                ),
-        )
-
-        Row(
+            },
+    ) {
+        // The glass fill is its own layer clipped to the capsule; the lens and content are not clipped by it,
+        // so the lifted lens can spill outside the capsule as it does on iOS while pressed
+        Box(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = sideInset, vertical = verticalInset)
-                .selectableGroup(),
-        ) {
-            items.forEachIndexed { index, item ->
-                LiquidGlassTabBarButton(
-                    item = item,
-                    metrics = metrics,
-                    palette = palette,
-                    interactionSource = interactionSources[index],
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxHeight(),
+                .matchParentSize()
+                .then(
+                    if (palette.shadowColor != Color.Transparent) {
+                        Modifier.dropShadow(
+                            shape = shape,
+                            shadow = Shadow(radius = 24.dp, color = palette.shadowColor, offset = DpOffset(0.dp, 6.dp)),
+                        )
+                    } else {
+                        Modifier
+                    },
                 )
-            }
+                .clip(shape)
+                .then(
+                    if (hazeState != null) {
+                        Modifier.hazeEffect(state = hazeState) {
+                            blurEnabled = liquidGlassBlurSupported()
+                            blurRadius = 10.dp
+                            noiseFactor = 0f
+                            backgroundColor = palette.fallbackFill
+                            tints = listOf(palette.glassTint)
+                            fallbackTint = HazeTint(palette.fallbackFill)
+                        }
+                    } else {
+                        Modifier.drawBehind { drawRect(palette.fallbackFill) }
+                    },
+                )
+                .drawWithContent {
+                    drawContent()
+                    // 1dp rim highlight (bright at the top, dark at the bottom): the edge the glass material has by itself, not a decorative stroke
+                    val stroke = 1.dp.toPx()
+                    drawRoundRect(
+                        brush = Brush.verticalGradient(listOf(palette.rimTop, palette.rimBottom)),
+                        topLeft = Offset(stroke / 2f, stroke / 2f),
+                        size = Size(size.width - stroke, size.height - stroke),
+                        cornerRadius = CornerRadius((size.height - stroke) / 2f),
+                        style = Stroke(width = stroke),
+                    )
+                },
+        )
+        LiquidGlassLens(
+            centerX = lensCenter,
+            lift = lift,
+            color = palette.lensFill,
+            liftedRim = palette.liftedLensRim,
+        )
+        items.forEachIndexed { index, item ->
+            LiquidGlassTabItem(
+                item = item,
+                selected = index == clampedSelected,
+                isDark = isDark,
+                unselectedColor = palette.unselectedContent,
+                onClick = { if (index != currentSelected) currentOnSelect(index) },
+                modifier = Modifier.offset(x = LiquidGlassTabBarMetrics.endPadding + LiquidGlassTabBarMetrics.itemWidth * index),
+            )
         }
     }
 }
 
+/**
+ * Selection lens: a neutral glass pill at rest (no stroke, no shadow). While pressed it lifts and grows,
+ * its fill fades and a rim highlight lights up, so it reads as a clear glass bubble that spills above and
+ * below the capsule, matching the iOS press bubble.
+ */
 @Composable
-private fun LiquidGlassTabBarButton(
+private fun LiquidGlassLens(
+    centerX: Animatable<Float, AnimationVector1D>,
+    lift: Animatable<Float, AnimationVector1D>,
+    color: Color,
+    liftedRim: Color,
+) {
+    Box(
+        modifier = Modifier
+            .size(LiquidGlassTabBarMetrics.lensWidth, LiquidGlassTabBarMetrics.lensHeight)
+            .graphicsLayer {
+                // Translation and scale are read in the draw phase, so dragging and the spring never recompose
+                translationX = (centerX.value.dp - LiquidGlassTabBarMetrics.lensWidth / 2).toPx()
+                translationY = ((LiquidGlassTabBarMetrics.barHeight - LiquidGlassTabBarMetrics.lensHeight) / 2).toPx()
+                val l = lift.value
+                scaleX = lerp(1f, LiquidGlassTabBarMetrics.LIFT_SCALE_X, l)
+                scaleY = lerp(1f, LiquidGlassTabBarMetrics.LIFT_SCALE_Y, l)
+            }
+            .drawBehind {
+                val l = lift.value
+                val radius = CornerRadius(size.height / 2f)
+                drawRoundRect(color = color, cornerRadius = radius, alpha = lerp(1f, 0.55f, l))
+                if (l > 0f) {
+                    val stroke = 1.dp.toPx()
+                    drawRoundRect(
+                        color = liftedRim,
+                        topLeft = Offset(stroke / 2f, stroke / 2f),
+                        size = Size(size.width - stroke, size.height - stroke),
+                        cornerRadius = CornerRadius((size.height - stroke) / 2f),
+                        alpha = l,
+                        style = Stroke(width = stroke),
+                    )
+                }
+            },
+    )
+}
+
+@Composable
+private fun LiquidGlassTabItem(
     item: LiquidGlassTabBarItem,
-    metrics: LiquidGlassTabBarLayoutMetrics,
-    palette: LiquidGlassPalette,
-    interactionSource: MutableInteractionSource,
+    selected: Boolean,
+    isDark: Boolean,
+    unselectedColor: Color,
+    onClick: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val haptics = LocalHapticFeedback.current
-    val isPressed by interactionSource.collectIsPressedAsState()
-
-    val selectedColor = if (item.selectedTint != Color.Unspecified) item.selectedTint else palette.selectedContent
-
-    val pressScale by animateFloatAsState(
-        targetValue = if (isPressed) 0.95f else 1f,
-        animationSpec = spring(dampingRatio = 0.72f, stiffness = 500f),
-        label = "tabBarPressScale",
-    )
-
-    val transition = updateTransition(targetState = item.selected, label = "tabBarItemSelected")
-    val contentSpring = spring<Dp>(dampingRatio = 0.80f, stiffness = 300f)
-    val iconSpring = spring<Float>(dampingRatio = 0.72f, stiffness = 300f)
-    val fadeTween = tween<Float>(durationMillis = 160)
-
-    val labelColor by transition.animateColor(
-        transitionSpec = { tween(durationMillis = 180) },
+    val labelColor by animateColorAsState(
+        targetValue = if (selected) item.selectedLabelColor else unselectedColor,
+        animationSpec = tween(durationMillis = 200),
         label = "tabBarLabelColor",
-    ) { selected -> if (selected) selectedColor else palette.unselectedContent }
-
-    val contentOffsetY by transition.animateDp(
-        transitionSpec = { contentSpring },
-        label = "tabBarContentOffset",
-    ) { selected -> if (selected) metrics.selectedContentOffsetY else 0.dp }
-
-    val selectedIconAlpha by transition.animateFloat(
-        transitionSpec = { fadeTween },
-        label = "tabBarSelectedIconAlpha",
-    ) { selected -> if (selected) 1f else 0f }
-
-    val unselectedIconAlpha by transition.animateFloat(
-        transitionSpec = { fadeTween },
-        label = "tabBarUnselectedIconAlpha",
-    ) { selected -> if (selected) 0f else 1f }
-
-    val selectedIconScale by transition.animateFloat(
-        transitionSpec = { iconSpring },
-        label = "tabBarSelectedIconScale",
-    ) { selected -> if (selected) 1f else 0.88f }
-
-    val unselectedIconScale by transition.animateFloat(
-        transitionSpec = { iconSpring },
-        label = "tabBarUnselectedIconScale",
-    ) { selected -> if (selected) 0.9f else 1f }
-
-    Column(
+    )
+    val labelSize = with(LocalDensity.current) { LiquidGlassTabBarMetrics.labelSize.toSp() }
+    Box(
         modifier = modifier
-            .clip(RoundedCornerShape(18.dp))
-            .selectable(
-                selected = item.selected,
-                interactionSource = interactionSource,
-                indication = null,
-                role = Role.Tab,
-                onClick = {
-                    if (!item.selected) {
-                        haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                    }
-                    item.onClick()
-                },
-            )
-            .semantics {
-                contentDescription = item.label
-            }
-            .padding(
-                start = metrics.itemHorizontalPadding,
-                end = metrics.itemHorizontalPadding,
-                top = metrics.itemTopPadding,
-                bottom = metrics.itemBottomPadding,
-            )
-            .offset(y = contentOffsetY)
-            .graphicsLayer {
-                scaleX = pressScale
-                scaleY = pressScale
+            .width(LiquidGlassTabBarMetrics.itemWidth)
+            .fillMaxHeight()
+            // Touch is handled by the capsule as a whole (drag to select); this only exposes one activatable Tab node to TalkBack, named by the visible label
+            .semantics(mergeDescendants = true) {
+                role = Role.Tab
+                this.selected = selected
+                onClick {
+                    onClick()
+                    true
+                }
             },
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center,
     ) {
-        Box(
-            modifier = Modifier.size(metrics.iconSize),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                imageVector = item.unselectedIcon,
-                contentDescription = null,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .graphicsLayer {
-                        alpha = unselectedIconAlpha
-                        scaleX = unselectedIconScale
-                        scaleY = unselectedIconScale
-                    },
-                tint = palette.unselectedContent,
-            )
-            Icon(
-                imageVector = item.selectedIcon,
-                contentDescription = null,
-                modifier = Modifier
-                    .fillMaxSize()
-                    .graphicsLayer {
-                        alpha = selectedIconAlpha
-                        scaleX = selectedIconScale
-                        scaleY = selectedIconScale
-                    },
-                tint = selectedColor,
-            )
-        }
-        Spacer(modifier = Modifier.height(metrics.labelTopSpacing))
+        Icon(
+            imageVector = if (selected) {
+                OriveoTabBarIcons.selected(item.glyph, isDark)
+            } else {
+                OriveoTabBarIcons.template(item.glyph)
+            },
+            contentDescription = null,
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(top = LiquidGlassTabBarMetrics.iconTop)
+                .size(LiquidGlassTabBarMetrics.iconSize),
+            tint = if (selected) Color.Unspecified else unselectedColor,
+        )
+        // The label does not scale with the system font size (same as the iOS tab bar): the capsule height is fixed, so a larger label would only be clipped
         Text(
             text = item.label,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            style = OriveoTheme.typography.footnote.copy(
-                fontSize = metrics.labelFontSize,
-                lineHeight = metrics.labelLineHeight,
-                letterSpacing = 0.sp,
-            ),
-            fontWeight = if (item.selected) FontWeight.SemiBold else FontWeight.Medium,
             color = labelColor,
+            fontSize = labelSize,
+            lineHeight = labelSize * 1.2f,
+            fontWeight = FontWeight.Medium,
+            maxLines = 1,
+            softWrap = false,
+            modifier = Modifier
+                .align(Alignment.TopCenter)
+                .padding(horizontal = 4.dp)
+                .paddingFromBaseline(
+                    top = LiquidGlassTabBarMetrics.iconTop +
+                        LiquidGlassTabBarMetrics.iconSize +
+                        LiquidGlassTabBarMetrics.labelBaselineFromIconBottom,
+                ),
         )
     }
 }
 
 private data class LiquidGlassPalette(
-    val barFill: List<Color>,
-    val barBorder: Color,
-    val barShadow: Color,
-    val capsuleFill: Color,
-    val capsuleBorder: Color,
-    val capsuleShadow: Color,
-    val selectedContent: Color,
+    /** Lift layer over the blur (about +12/255 per channel as measured on iOS, keeps the hue behind) */
+    val glassTint: HazeTint,
+    /** Near-opaque fill used without blur (below 12L), the composited glass color measured on iOS */
+    val fallbackFill: Color,
+    val rimTop: Color,
+    val rimBottom: Color,
+    val lensFill: Color,
+    /** Rim highlight of the lifted lens while pressed */
+    val liftedLensRim: Color,
     val unselectedContent: Color,
+    val shadowColor: Color,
 )
 
-private fun liquidGlassPalette(
-    colors: OriveoColors,
-    isDark: Boolean,
-): LiquidGlassPalette {
-    return if (isDark) {
-        LiquidGlassPalette(
-
-            barFill = listOf(
-                Color(0xE81C2438),
-                Color(0xDE161E30),
-                Color(0xD40E1626),
-            ),
-            barBorder = Color.White.copy(alpha = 0.10f),
-            barShadow = colors.shadowStrong.opacity(0.42f),
-
-            capsuleFill = Color.White.copy(alpha = 0.17f),
-            capsuleBorder = Color.White.copy(alpha = 0.22f),
-            capsuleShadow = Color.Black.copy(alpha = 0.22f),
-            selectedContent = colors.primary.copy(alpha = 1f),
-            unselectedContent = colors.textPrimary.copy(alpha = 0.58f),
-        )
-    } else {
-        LiquidGlassPalette(
-
-            barFill = listOf(
-                Color(0xF5FAFBFE),
-                Color(0xF0F7F9FD),
-                Color(0xECF4F6FB),
-            ),
-            barBorder = Color.White.copy(alpha = 0.76f),
-            barShadow = colors.shadow.opacity(0.12f),
-
-            capsuleFill = Color(0xFCFFFFFF),
-            capsuleBorder = Color(0x14000000),
-            capsuleShadow = Color(0x12000000),
-            selectedContent = colors.primary,
-            unselectedContent = colors.textPrimary.copy(alpha = 0.66f),
-        )
-    }
+private fun liquidGlassPalette(isDark: Boolean): LiquidGlassPalette = if (isDark) {
+    LiquidGlassPalette(
+        glassTint = HazeTint(Color.White.copy(alpha = 0.06f), BlendMode.SrcOver),
+        fallbackFill = Color(0xF2211F2B),
+        rimTop = Color.White.copy(alpha = 0.16f),
+        rimBottom = Color.White.copy(alpha = 0.06f),
+        lensFill = Color.White.copy(alpha = 0.15f),
+        liftedLensRim = Color.White.copy(alpha = 0.32f),
+        unselectedContent = Color.White,
+        shadowColor = Color.Transparent,
+    )
+} else {
+    LiquidGlassPalette(
+        glassTint = HazeTint(Color.White.copy(alpha = 0.65f), BlendMode.SrcOver),
+        fallbackFill = Color(0xF7FDFBFF),
+        rimTop = Color.White.copy(alpha = 0.9f),
+        rimBottom = Color.White.copy(alpha = 0.5f),
+        lensFill = Color.Black.copy(alpha = 0.07f),
+        liftedLensRim = Color.White.copy(alpha = 0.95f),
+        unselectedContent = Color.Black,
+        shadowColor = Color(0xFF0F172A).copy(alpha = 0.12f),
+    )
 }
