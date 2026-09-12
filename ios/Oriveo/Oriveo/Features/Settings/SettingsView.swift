@@ -1,14 +1,40 @@
 import SwiftUI
 
+/// Presentation policy for the hidden menu behind repeated taps on the About logo.
+/// A confirmationDialog must not stack an alert or a fullScreenCover on top: on iOS 18+ the action
+/// sheet's button actions get swallowed and the next presentation in the same transaction is dropped,
+/// so choosing an option looks like nothing happened.
+enum SettingsDeveloperMenuPolicy {
+    static let logoTapRevealCount = 10
+
+    enum SessionPage: Equatable {
+        case menu
+        case onboardingRehearsal
+    }
+
+    struct LogoTapResult: Equatable {
+        var nextCount: Int
+        var shouldRevealMenu: Bool
+    }
+
+    static func registerLogoTap(currentCount: Int) -> LogoTapResult {
+        let nextCount = currentCount + 1
+        if nextCount >= logoTapRevealCount {
+            return LogoTapResult(nextCount: 0, shouldRevealMenu: true)
+        }
+        return LogoTapResult(nextCount: nextCount, shouldRevealMenu: false)
+    }
+}
+
 struct SettingsView: View {
     @Environment(AppState.self) private var appState
     @State private var presentedWebDestination: ProjectWebDestination?
     @State private var aboutTapCount: Int = 0
-    @State private var showsDeveloperMenu: Bool = false
-    @State private var showsAPIEndpoint: Bool = false
+    /// Revealed by tapping the About logo 10 times: shows the API host and replays the onboarding,
+    /// which otherwise only appears once on first launch.
+    @State private var showsDeveloperSession = false
+    @State private var developerSessionPage: SettingsDeveloperMenuPolicy.SessionPage = .menu
     @State private var showsLanguageSettingsMigration: Bool = false
-    @State private var showsOnboardingRehearsal: Bool = false
-
     private let aiColor = Color.dynamic(light: 0x8C5FF8, dark: 0xA78BFA)
     private let dataColor = Color.dynamic(light: 0x3B82F6, dark: 0x60A5FA)
     private let appearanceColor = OriveoTheme.Palette.warning
@@ -192,20 +218,6 @@ struct SettingsView: View {
         .sheet(item: $presentedWebDestination) { destination in
             OriveoSafariSheet(url: destination.url)
         }
-        .confirmationDialog(
-            L10n.tr("Developer Options", table: .settings),
-            isPresented: $showsDeveloperMenu,
-            titleVisibility: .visible
-        ) {
-            Button(L10n.tr("API Endpoint", table: .settings)) { showsAPIEndpoint = true }
-            Button(L10n.tr("Replay Onboarding", table: .settings)) { showsOnboardingRehearsal = true }
-            Button(L10n.tr("Cancel"), role: .cancel) {}
-        }
-        .alert(L10n.tr("API Endpoint", table: .settings), isPresented: $showsAPIEndpoint) {
-            Button(L10n.tr("OK"), role: .cancel) {}
-        } message: {
-            Text(BackendURLResolver.displayHost())
-        }
         .alert(L10n.tr("Language", table: .settings), isPresented: $showsLanguageSettingsMigration) {
             Button(L10n.tr("Cancel"), role: .cancel) {}
             Button(L10n.tr("Open iOS Settings", table: .settings)) {
@@ -217,9 +229,29 @@ struct SettingsView: View {
                 table: .settings
             ))
         }
-        .fullScreenCover(isPresented: $showsOnboardingRehearsal) {
+        .fullScreenCover(isPresented: $showsDeveloperSession) {
+            developerSessionContent
+        }
+        .onChange(of: showsDeveloperSession) { _, isPresented in
+            if !isPresented {
+                developerSessionPage = .menu
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var developerSessionContent: some View {
+        switch developerSessionPage {
+        case .menu:
+            SettingsDeveloperMenuView(
+                endpointHost: BackendURLResolver.displayHost(),
+                onReplayOnboarding: { developerSessionPage = .onboardingRehearsal },
+                onClose: { showsDeveloperSession = false }
+            )
+        case .onboardingRehearsal:
+            // Rehearsal mode: plays all four acts without writing hasCompletedOnboarding
             OnboardingFlowView(mode: .rehearsal) {
-                showsOnboardingRehearsal = false
+                showsDeveloperSession = false
             }
             .environment(appState)
         }
@@ -268,10 +300,11 @@ struct SettingsView: View {
     }
 
     private func handleAboutTap() {
-        aboutTapCount += 1
-        if aboutTapCount >= 10 {
-            aboutTapCount = 0
-            showsDeveloperMenu = true
+        let result = SettingsDeveloperMenuPolicy.registerLogoTap(currentCount: aboutTapCount)
+        aboutTapCount = result.nextCount
+        if result.shouldRevealMenu {
+            developerSessionPage = .menu
+            showsDeveloperSession = true
         }
     }
 
@@ -301,6 +334,55 @@ struct SettingsView: View {
         }
         .padding(.horizontal, OriveoTheme.Spacing.lg)
         .padding(.vertical, 14)
+    }
+}
+
+/// The menu page of the developer session: the host is written on the row itself, and replaying the
+/// onboarding only swaps the content of the same cover.
+struct SettingsDeveloperMenuView: View {
+    let endpointHost: String
+    let onReplayOnboarding: () -> Void
+    let onClose: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            HStack {
+                Text(L10n.tr("Developer Options", table: .settings))
+                    .font(OriveoTheme.Typography.title2)
+                    .foregroundStyle(OriveoTheme.Palette.textPrimary)
+                Spacer()
+                Button(L10n.tr("Cancel"), action: onClose)
+                    .font(OriveoTheme.Typography.body)
+                    .foregroundStyle(OriveoTheme.Palette.primary)
+            }
+            .padding(.top, 24)
+
+            flatGroup {
+                SettingsRow(
+                    icon: "globe",
+                    title: L10n.tr("API Endpoint", table: .settings),
+                    value: endpointHost,
+                    iconColor: Color.dynamic(light: 0x3B82F6, dark: 0x60A5FA),
+                    showsChevron: false
+                )
+                .padding(.horizontal, OriveoTheme.Spacing.lg)
+                .padding(.vertical, 9)
+
+                insetHairline()
+
+                flatTapRow(action: onReplayOnboarding) {
+                    SettingsRow(
+                        icon: "sparkles",
+                        title: L10n.tr("Replay Onboarding", table: .settings),
+                        iconColor: Color.dynamic(light: 0x8C5FF8, dark: 0xA78BFA)
+                    )
+                }
+            }
+
+            Spacer()
+        }
+        .padding(.horizontal, OriveoTheme.Spacing.xl)
+        .oriveoScreenBackground()
     }
 }
 
