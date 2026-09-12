@@ -1365,4 +1365,8 @@
     <string name="price_cache_read">कैश रीड</string>
     <string name="price_cache_write">कैश राइट</string>
     <string name="external_app_unavailable">इस डिवाइस पर यह काम करने वाला कोई ऐप नहीं है। कोई ऐप इंस्टॉल या चालू करें, फिर कोशिश करें।</string>
+    <plurals name="notes_count">
+        <item quantity="one">%1$d नोट</item>
+        <item quantity="other">%1$d नोट्स</item>
+    </plurals>
 </resources>

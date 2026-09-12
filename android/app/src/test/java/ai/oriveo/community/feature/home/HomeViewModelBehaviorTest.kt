@@ -328,8 +328,25 @@ class HomeViewModelBehaviorTest {
         viewModel.toggleSectionSelection(conversations)
         assertEquals(setOf("c1", "c2"), viewModel.selectedIds)
 
-        viewModel.deselectAll()
+        viewModel.deselectAll(conversations)
         assertTrue(viewModel.selectedIds.isEmpty())
+    }
+
+    @Test
+    fun `select all and deselect all keep selections made inside folders`() {
+        val viewModel = createHomeViewModel()
+        val topLevel = listOf(
+            Conversation(id = "c1", title = "One", providerID = "p1", providerKind = ProviderKind.OpenAI, modelID = "m1"),
+            Conversation(id = "c2", title = "Two", providerID = "p1", providerKind = ProviderKind.OpenAI, modelID = "m1"),
+        )
+        // One conversation is selected inside an expanded folder first (not in the top-level list)
+        viewModel.toggleSelection("in-folder")
+
+        viewModel.selectAll(topLevel)
+        assertEquals(setOf("in-folder", "c1", "c2"), viewModel.selectedIds)
+
+        viewModel.deselectAll(topLevel)
+        assertEquals(setOf("in-folder"), viewModel.selectedIds)
     }
 
     @Test

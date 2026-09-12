@@ -1365,4 +1365,7 @@
     <string name="price_cache_read">Đọc cache</string>
     <string name="price_cache_write">Ghi cache</string>
     <string name="external_app_unavailable">Không có ứng dụng nào trên thiết bị này xử lý được thao tác này. Hãy cài đặt hoặc bật một ứng dụng rồi thử lại.</string>
+    <plurals name="notes_count">
+        <item quantity="other">%1$d ghi chú</item>
+    </plurals>
 </resources>

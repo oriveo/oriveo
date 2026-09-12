@@ -1410,4 +1410,12 @@
     <string name="price_cache_read">قراءة التخزين المؤقت</string>
     <string name="price_cache_write">كتابة التخزين المؤقت</string>
     <string name="external_app_unavailable">لا يوجد تطبيق على هذا الجهاز يمكنه تنفيذ هذا الإجراء. ثبّت تطبيقًا أو فعّله ثم أعد المحاولة.</string>
+    <plurals name="notes_count">
+        <item quantity="zero">لا ملاحظات</item>
+        <item quantity="one">%1$d ملاحظة</item>
+        <item quantity="two">ملاحظتان</item>
+        <item quantity="few">%1$d ملاحظات</item>
+        <item quantity="many">%1$d ملاحظة</item>
+        <item quantity="other">%1$d ملاحظات</item>
+    </plurals>
 </resources>

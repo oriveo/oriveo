@@ -43,6 +43,8 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.SharingStarted
@@ -52,6 +54,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
@@ -73,6 +76,7 @@ class HomeViewModel(
     private val skillRepository: SkillRepository,
     private val chatStreamingManager: ChatStreamingManager,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+    private val defaultDispatcher: CoroutineDispatcher = Dispatchers.Default,
     private val generationParameterSettingsStore: GenerationParameterSettingsStore? = null,
     private val capabilityPreferenceStore: ai.oriveo.community.core.model.CapabilityPreferenceStore? = null,
     private val localCustomFragmentStore: LocalCapabilityCustomFragmentStore? = null,
@@ -85,7 +89,20 @@ class HomeViewModel(
     private val conversationsLoaded = MutableStateFlow(false)
     private val foldersLoaded = MutableStateFlow(false)
     private val earlierDisplayCount = MutableStateFlow(HOME_EARLIER_PAGE_SIZE)
-    private val recentConversationStartMillis = computeRecentConversationStartMillis()
+    /**
+     * Start of the home "last 7 days" window (local midnight seven days ago).
+     * It must not be computed once at construction and frozen: after the process sits in the background for
+     * days the window would still start on the original day, the Earlier remainder would be wrong, Show More
+     * would disappear early and the recent window would keep growing. Every resubscription (returning to the
+     * foreground, coming back from a chat) recomputes it from the current time, and staying in the foreground
+     * across midnight advances it again at the next local midnight.
+     */
+    private val recentConversationStartMillis: Flow<Long> = flow {
+        while (true) {
+            emit(computeRecentConversationStartMillis())
+            delay(millisUntilNextLocalMidnight(System.currentTimeMillis()))
+        }
+    }.distinctUntilChanged()
 
     val providers: StateFlow<List<Provider>> = providerRepository.observeAll()
         .onEach { providersLoaded.value = true }
@@ -99,12 +116,28 @@ class HomeViewModel(
         .map { selectHomeSkills(it) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    val activeNoteCount: StateFlow<Int> = noteRepository.observeActive()
-        .map { it.size }
+    /**
+     * Data for the home Notes entry card: active note count + latest title, from **one** Room subscription.
+     * Subscribing to observeActive() once for the count and once for the title mapped every change through
+     * toDomain twice, on the main thread, and flashed a frame with the count updated but the title not yet.
+     */
+    private val activeNotesSummary: StateFlow<Pair<Int, String?>> = noteRepository.observeActive()
+        .map { notes -> notes.size to notes.firstOrNull()?.title?.trim() }
+        .flowOn(defaultDispatcher)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0 to null)
+
+    /** Home Notes entry card: number of active notes. */
+    val activeNoteCount: StateFlow<Int> = activeNotesSummary
+        .map { it.first }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
 
-    val latestNoteTitle: StateFlow<String?> = noteRepository.observeActive()
-        .map { notes -> notes.firstOrNull()?.title?.takeIf { it.isNotBlank() } }
+    /**
+     * Home Notes entry card: title of the most recently updated note (observeActive is sorted by updatedAt DESC,
+     * already trimmed). null when there are no notes; "" when there are notes but the latest has an empty title,
+     * which the card renders as "Untitled" (matches iOS NoteText.displayTitle).
+     */
+    val latestNoteTitle: StateFlow<String?> = activeNotesSummary
+        .map { it.second }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
     val allConversations: StateFlow<List<Conversation>> = conversationRepository.observeAll()
@@ -130,22 +163,30 @@ class HomeViewModel(
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val homeSections: StateFlow<List<HomeConversationSection>> = combine(
-        earlierDisplayCount.flatMapLatest { limit ->
-            conversationRepository.observeUngroupedHomeConversations(
-                recentStartMillis = recentConversationStartMillis,
-                earlierLimit = limit,
-            )
-        },
-        conversationRepository.observeUngroupedEarlierCount(recentConversationStartMillis),
-        pinnedConversationIds,
-    ) { visibleConversations, earlierTotalCount, pinnedIds ->
-
-        val pinnedSet = pinnedIds.toHashSet()
-        buildHomeConversationSections(
-            conversations = visibleConversations.filter {
-                (!it.isDraft || it.messageCount > 0) && !pinnedSet.contains(it.id)
+        // The list and the count must come from the same window start: read separately at the moment the start changes, they would combine into a mismatched remainder
+        combine(recentConversationStartMillis, earlierDisplayCount) { start, limit -> start to limit }
+            .flatMapLatest { (start, limit) ->
+                combine(
+                    conversationRepository.observeUngroupedHomeConversations(
+                        recentStartMillis = start,
+                        earlierLimit = limit,
+                    ),
+                    conversationRepository.observeUngroupedEarlierCount(start),
+                ) { visible, earlierTotalCount -> Triple(start, visible, earlierTotalCount) }
             },
+        pinnedConversationIds,
+    ) { (start, visibleConversations, earlierTotalCount), pinnedIds ->
+        val pinnedSet = pinnedIds.toHashSet()
+        // Remainder = total Earlier rows in the database − Earlier rows already loaded, both counted the same way
+        // (only empty drafts excluded). Pinned rows affect display only, not the remainder; otherwise they would
+        // forever count as "not loaded", Show More could never be exhausted and an empty Earlier header would linger.
+        val countable = visibleConversations.filter { !it.isDraft || it.messageCount > 0 }
+        buildHomeConversationSections(
+            // Pinned conversations stay out of the date groups; the Pinned section at the top renders them separately
+            conversations = countable.filter { !pinnedSet.contains(it.id) },
             earlierTotalCount = earlierTotalCount,
+            loadedEarlierCount = countable.count { it.updatedAt < start },
+            recentStartMillis = start,
         )
     }
 
@@ -162,20 +203,27 @@ class HomeViewModel(
 
     val searchQuery = MutableStateFlow("")
 
-    val searchResults: StateFlow<List<Conversation>> = searchQuery
+    /**
+     * Searched and filtered conversation list (non-draft).
+     *
+     * - debounce 250ms: keeps IME composition and fast typing from running a LIKE '%q%' + LEFT JOIN messages
+     *   full scan on every character
+     * - distinctUntilChanged: input that jitters back to the same value does not query again
+     * - the blank path is flowOf(emptyList()); the debounce is only a 250ms delay the user does not notice
+     */
+    val searchResults: StateFlow<HomeSearchResults> = searchQuery
         .debounce(250L)
         .distinctUntilChanged()
         .flatMapLatest { query ->
             if (query.isBlank()) {
-                flowOf(emptyList())
+                flowOf(HomeSearchResults(query, emptyList()))
             } else {
-                conversationRepository.search(query)
+                conversationRepository.search(query).map { items ->
+                    HomeSearchResults(query, items.filter { !it.isDraft || it.messageCount > 0 })
+                }
             }
         }
-        .map { items ->
-            items.filter { !it.isDraft || it.messageCount > 0 }
-        }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), HomeSearchResults("", emptyList()))
 
     val lastUsedModelRef: StateFlow<LastUsedModelRef?> = appPreferencesRepository.lastUsedModelRef
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
@@ -217,8 +265,6 @@ class HomeViewModel(
         val activeModel: ActiveModel?,
         val providerIssue: ProviderIssueInfo?,
     )
-
-    val greetingName: StateFlow<String> = MutableStateFlow("")
 
     val activeModelState: StateFlow<ActiveModelState> = combine(
         providers,
@@ -280,8 +326,9 @@ class HomeViewModel(
         }
     }
 
+    /** Union, not replace: conversations already selected inside folders must survive a tap on "select all" (matches iOS formUnion). */
     fun selectAll(conversations: List<Conversation>) {
-        selectedIds = conversations.map { it.id }.toSet()
+        selectedIds = selectedIds + conversations.map { it.id }
     }
 
     fun toggleSectionSelection(conversations: List<Conversation>) {
@@ -298,8 +345,9 @@ class HomeViewModel(
         return ids.isNotEmpty() && ids.all(selectedIds::contains)
     }
 
-    fun deselectAll() {
-        selectedIds = emptySet()
+    /** Deselects only this batch (matches iOS subtract); conversations selected inside folders stay selected. */
+    fun deselectAll(conversations: List<Conversation>) {
+        selectedIds = selectedIds - conversations.map { it.id }.toSet()
     }
 
     fun exitEditMode() {
@@ -471,8 +519,15 @@ class HomeViewModel(
     }
 
     fun createConversationInFolder(folderID: String, onCreated: (String) -> Unit) {
-        val active = activeModelState.value.activeModel ?: return
         viewModelScope.launch {
+            // FolderDetail has its own back-stack ViewModel; with no subscriber activeModelState stays at its initial
+            // null, so reading it alone makes the "new chat" button a no-op. Resolve from the current preference when missing
+            val active = activeModelState.value.activeModel ?: run {
+                val ref = appPreferencesRepository.lastUsedModelRefSnapshot
+                    ?: appPreferencesRepository.lastUsedModelRef.first()
+                resolveActiveModel(providerRepository.observeAll().first(), ref)
+                    ?.let { ActiveModel(it.provider, it.model) }
+            } ?: return@launch
             val conversation = conversationRepository.createDraft(
                 providerID = active.provider.id,
                 providerKind = active.provider.kind,
@@ -753,15 +808,33 @@ class HomeViewModel(
         )
     }
 
-    private fun computeRecentConversationStartMillis(): Long {
-        val calendar = Calendar.getInstance()
-        calendar.set(Calendar.HOUR_OF_DAY, 0)
-        calendar.set(Calendar.MINUTE, 0)
-        calendar.set(Calendar.SECOND, 0)
-        calendar.set(Calendar.MILLISECOND, 0)
-        calendar.add(Calendar.DAY_OF_YEAR, -7)
-        return calendar.timeInMillis
-    }
+    private fun computeRecentConversationStartMillis(): Long = defaultRecentStartMillis()
+}
+
+// ── Date grouping helpers ──
+
+/** Local midnight seven days ago: start of the home "recent" window and the boundary of the Earlier group. */
+internal fun defaultRecentStartMillis(nowMillis: Long = System.currentTimeMillis()): Long =
+    Calendar.getInstance().apply {
+        timeInMillis = nowMillis
+        set(Calendar.HOUR_OF_DAY, 0)
+        set(Calendar.MINUTE, 0)
+        set(Calendar.SECOND, 0)
+        set(Calendar.MILLISECOND, 0)
+        add(Calendar.DAY_OF_YEAR, -7)
+    }.timeInMillis
+
+/** Milliseconds until the next local midnight (at least one second, so the boundary never spins). */
+internal fun millisUntilNextLocalMidnight(nowMillis: Long): Long {
+    val next = Calendar.getInstance().apply {
+        timeInMillis = nowMillis
+        add(Calendar.DAY_OF_YEAR, 1)
+        set(Calendar.HOUR_OF_DAY, 0)
+        set(Calendar.MINUTE, 0)
+        set(Calendar.SECOND, 0)
+        set(Calendar.MILLISECOND, 0)
+    }.timeInMillis
+    return (next - nowMillis).coerceAtLeast(1_000L)
 }
 
 enum class DateGroup(val order: Int) {
@@ -770,6 +843,16 @@ enum class DateGroup(val order: Int) {
     PastSevenDays(2),
     Earlier(3),
 }
+
+/**
+ * Search results are delivered together with the query they answer: the UI compares the current input with
+ * [query] to know whether the results have caught up (debounce + DB query in flight), and draws no "no results"
+ * verdict until they have (matches iOS searchInFlight).
+ */
+data class HomeSearchResults(
+    val query: String,
+    val items: List<Conversation>,
+)
 
 data class HomeConversationSection(
     val group: DateGroup,
@@ -780,8 +863,12 @@ data class HomeConversationSection(
 fun buildHomeConversationSections(
     conversations: List<Conversation>,
     earlierTotalCount: Int,
+    /** Earlier rows already loaded (counted like [earlierTotalCount]); null falls back to the displayed Earlier rows (the older rule, for pure-function tests). */
+    loadedEarlierCount: Int? = null,
+    /** Boundary of Earlier: the same value the SQL uses, so grouping and paging never disagree. */
+    recentStartMillis: Long = defaultRecentStartMillis(),
 ): List<HomeConversationSection> {
-    val grouped = groupConversationsByDate(conversations)
+    val grouped = groupConversationsByDate(conversations, recentStartMillis)
     val sections = grouped
         .filter { it.first != DateGroup.Earlier }
         .map { (group, convs) ->
@@ -790,11 +877,13 @@ fun buildHomeConversationSections(
         .toMutableList()
 
     val earlierConversations = grouped.firstOrNull { it.first == DateGroup.Earlier }?.second.orEmpty()
-    if (earlierConversations.isNotEmpty() || earlierTotalCount > 0) {
+    val remaining = (earlierTotalCount - (loadedEarlierCount ?: earlierConversations.size)).coerceAtLeast(0)
+    // Skip Earlier when filtering left no rows to show and nothing remains unloaded, so an empty header never stands alone
+    if (earlierConversations.isNotEmpty() || remaining > 0) {
         sections += HomeConversationSection(
             group = DateGroup.Earlier,
             conversations = earlierConversations,
-            remainingCount = (earlierTotalCount - earlierConversations.size).coerceAtLeast(0),
+            remainingCount = remaining,
         )
     }
 
@@ -822,8 +911,11 @@ fun classifyDate(timestampMs: Long): DateGroup {
     }
 }
 
-fun groupConversationsByDate(conversations: List<Conversation>): List<Pair<DateGroup, List<Conversation>>> {
-
+fun groupConversationsByDate(
+    conversations: List<Conversation>,
+    recentStartMillis: Long = defaultRecentStartMillis(),
+): List<Pair<DateGroup, List<Conversation>>> {
+    // Precompute the time boundaries instead of creating a Calendar per conversation
     val cal = Calendar.getInstance()
     val todayStart = cal.apply {
         set(Calendar.HOUR_OF_DAY, 0)
@@ -832,7 +924,8 @@ fun groupConversationsByDate(conversations: List<Conversation>): List<Pair<DateG
         set(Calendar.MILLISECOND, 0)
     }.timeInMillis
     val yesterdayStart = todayStart - 24 * 60 * 60 * 1000L
-    val sevenDaysAgo = todayStart - 7 * 24 * 60 * 60 * 1000L
+    // Earlier is exactly updatedAt < recentStartMillis, the same boundary as the three SQL queries (which also removes the 1h DST skew)
+    val sevenDaysAgo = recentStartMillis
 
     return conversations
         .filter { it.folderID == null }

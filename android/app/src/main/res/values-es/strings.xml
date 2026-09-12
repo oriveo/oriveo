@@ -1410,4 +1410,9 @@
     <string name="price_cache_read">Lectura de caché</string>
     <string name="price_cache_write">Escritura de caché</string>
     <string name="external_app_unavailable">Ninguna app de este dispositivo puede realizar esta acción. Instala o activa una e inténtalo de nuevo.</string>
+    <plurals name="notes_count">
+        <item quantity="one">%1$d nota</item>
+        <item quantity="many">%1$d notas</item>
+        <item quantity="other">%1$d notas</item>
+    </plurals>
 </resources>

@@ -1,6 +1,8 @@
 package ai.oriveo.community.feature.home.folders
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
@@ -36,7 +38,12 @@ fun MoveToFolderSheet(
         onDismissRequest = onDismiss,
         dragHandle = { OriveoSheetDragHandle() },
     ) {
-        Column(modifier = Modifier.padding(bottom = OriveoTheme.spacing.xl)) {
+        // Must scroll with many folders, otherwise "new folder / remove from folder" is pushed out of the sheet and unreachable
+        Column(
+            modifier = Modifier
+                .verticalScroll(rememberScrollState())
+                .padding(bottom = OriveoTheme.spacing.xl),
+        ) {
             Text(
                 text = stringResource(R.string.move_to_folder),
                 style = OriveoTheme.typography.title3,

@@ -43,12 +43,14 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import ai.oriveo.community.R
 import ai.oriveo.community.core.model.Folder
 import ai.oriveo.community.core.model.FolderColor
-import ai.oriveo.community.ui.component.OriveoCard
+import ai.oriveo.community.feature.home.AuroraTheme
+import ai.oriveo.community.feature.home.homescreen.homeGroupedCardSurface
 import ai.oriveo.community.ui.theme.OriveoTheme
 
 /**
@@ -74,17 +76,12 @@ fun FolderRow(
     var showMenu by remember { mutableStateOf(false) }
     val colors = OriveoTheme.colors
 
-    OriveoCard(
-        modifier = modifier,
-        fillColor = colors.surface,
-        borderColor = colors.border,
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp),
-    ) {
-        Column {
-
+    Column(modifier = modifier) {
+            // Folder header: the same card face as the home conversation groups (radius 20 / dark #221F35 / light pure white); tap to expand or collapse, long press for the menu
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .homeGroupedCardSurface()
                     .combinedClickable(
                         onClick = onToggleExpanded,
                         onLongClick = { showMenu = true },
@@ -119,17 +116,22 @@ fun FolderRow(
 
                 Text(
                     text = folder.name,
-                    style = OriveoTheme.typography.title3.copy(fontWeight = FontWeight.SemiBold),
-                    color = colors.textPrimary,
+                    fontSize = 16.sp,
+                    lineHeight = 20.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = AuroraTheme.textPrimary(),
                     modifier = Modifier.weight(1f),
                     maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
 
                 if (count > 0) {
                     Text(
                         text = "$count",
-                        style = OriveoTheme.typography.footnote.copy(fontWeight = FontWeight.Medium),
-                        color = colors.textTertiary,
+                        fontSize = 12.sp,
+                        lineHeight = 15.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = AuroraTheme.textTertiary(),
                         modifier = Modifier
                             .clip(RoundedCornerShape(50))
                             .background(colors.backgroundSecondary)
@@ -141,9 +143,9 @@ fun FolderRow(
                     imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
                     contentDescription = null,
                     modifier = Modifier
-                        .size(14.dp)
+                        .size(16.dp)
                         .rotate(if (isExpanded) 90f else 0f),
-                    tint = colors.textTertiary,
+                    tint = AuroraTheme.textTertiary(),
                 )
 
                 if (showMenu) {
@@ -178,6 +180,7 @@ fun FolderRow(
                 }
             }
 
+            // Expanded content sits 8 below the header card and brings its own group card face (decided by the caller's content)
             AnimatedVisibility(
                 visible = isExpanded,
                 enter = fadeIn() + expandVertically(),
@@ -189,6 +192,5 @@ fun FolderRow(
                     content()
                 }
             }
-        }
     }
 }

@@ -1411,4 +1411,7 @@
     <string name="price_cache_read">캐시 읽기</string>
     <string name="price_cache_write">캐시 쓰기</string>
     <string name="external_app_unavailable">이 작업을 처리할 수 있는 앱이 기기에 없습니다. 앱을 설치하거나 활성화한 후 다시 시도하세요.</string>
+    <plurals name="notes_count">
+        <item quantity="other">노트 %1$d개</item>
+    </plurals>
 </resources>

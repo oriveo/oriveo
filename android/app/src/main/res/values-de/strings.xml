@@ -1410,4 +1410,8 @@
     <string name="price_cache_read">Cache-Lesen</string>
     <string name="price_cache_write">Cache-Schreiben</string>
     <string name="external_app_unavailable">Auf diesem Gerät gibt es keine App für diese Aktion. Installiere oder aktiviere eine App und versuche es erneut.</string>
+    <plurals name="notes_count">
+        <item quantity="one">%1$d Notiz</item>
+        <item quantity="other">%1$d Notizen</item>
+    </plurals>
 </resources>

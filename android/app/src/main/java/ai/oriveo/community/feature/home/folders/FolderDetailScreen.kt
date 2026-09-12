@@ -65,6 +65,7 @@ fun FolderDetailScreen(
     val allConversations by viewModel.allConversations.collectAsStateWithLifecycle()
     val providers by viewModel.providers.collectAsStateWithLifecycle()
     val streamingConvIds by viewModel.streamingConversationIds.collectAsStateWithLifecycle()
+    val contentLoaded by viewModel.initialContentLoaded.collectAsStateWithLifecycle()
     val folder = folders.firstOrNull { it.id == folderID }
     val providersById = remember(providers) { providers.associateBy { it.id } }
     val modelDisplayLookup = remember(providers) { ModelDisplayLookup(providers) }
@@ -85,8 +86,11 @@ fun FolderDetailScreen(
             .sortedByDescending { it.updatedAt }
     }
 
-    LaunchedEffect(folder) {
-        if (folder == null) {
+    // On a fresh ViewModel's first frame, folders is still the stateIn initial emptyList, which does not mean the
+    // folder is gone: wait for the first Room result, and go back only if folder is still null (deleted). Otherwise
+    // the detail screen would bounce back to Home the moment it opens.
+    LaunchedEffect(folder, contentLoaded) {
+        if (folderDetailShouldNavigateBack(contentLoaded = contentLoaded, folderExists = folder != null)) {
             onNavigateBack()
         }
     }
@@ -197,40 +201,26 @@ private fun FolderDetailConversationRow(
         )
     }
 
+    // The row already shows the title: no extra "folder icon + title" line on top (it used to read every title twice on two lines)
     OriveoCard(
         modifier = Modifier.combinedClickable(
             onClick = onClick,
             onLongClick = onClick,
         ),
+        radius = 16.dp,
+        contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp),
     ) {
-        Column(verticalArrangement = Arrangement.spacedBy(OriveoTheme.spacing.sm)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(OriveoTheme.spacing.sm),
-            ) {
-                Icon(
-                    imageVector = Icons.Outlined.Folder,
-                    contentDescription = null,
-                    tint = OriveoTheme.colors.primary,
-                )
-                Text(
-                    text = conversation.title,
-                    style = OriveoTheme.typography.title3,
-                    color = OriveoTheme.colors.textPrimary,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-            }
-
-            ConversationRow(
-                conversation = conversation,
-                providerKind = providerKind,
-                providerName = providerName,
-                modelName = modelName,
-                relayKind = provider?.relayKind,
-                isStreaming = isStreaming,
-            )
-        }
+        ConversationRow(
+            conversation = conversation,
+            providerKind = providerKind,
+            providerName = providerName,
+            modelName = modelName,
+            relayKind = provider?.relayKind,
+            isStreaming = isStreaming,
+        )
     }
 }
+
+/** When folder detail navigates back on its own: only once content has loaded and the folder still does not exist. */
+internal fun folderDetailShouldNavigateBack(contentLoaded: Boolean, folderExists: Boolean): Boolean =
+    contentLoaded && !folderExists

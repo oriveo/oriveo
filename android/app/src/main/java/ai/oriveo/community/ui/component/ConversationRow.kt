@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -16,7 +17,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.outlined.Forum
-import androidx.compose.material3.Icon
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -28,7 +28,11 @@ import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.withStyle
 import androidx.compose.foundation.text.InlineTextContent
 import androidx.compose.ui.text.Placeholder
 import androidx.compose.ui.text.PlaceholderVerticalAlign
@@ -48,6 +52,18 @@ import ai.oriveo.community.ui.theme.OriveoTheme
 import ai.oriveo.community.ui.theme.ProviderBadgeColors
 import ai.oriveo.community.ui.util.formatRelativeTime
 
+/**
+ * Conversation list row (matches iOS ConversationRow).
+ *
+ * A 30dp provider logo avatar on the left (vertically centered on the whole row) and three lines on the right:
+ *  - title line (line height 20): pin + skill emoji + 15/semibold single-line title + Draft, with the cost in
+ *    12 mono accent on the right (6 between title and cost);
+ *  - preview: 13sp with an 18 line height, truncated to a **single** line;
+ *  - bottom line (line height 14): model name on the left, streaming dot / bubble + message count · relative time
+ *    on the right, 11sp tertiary, at least 8 between the two.
+ * The row only owns its content and padding (15 vertical, 16 horizontal, 0 on the left in edit mode); the card
+ * face comes from the caller.
+ */
 @Composable
 fun ConversationRow(
     conversation: Conversation,
@@ -62,8 +78,11 @@ fun ConversationRow(
     isPinned: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
-    val colors = OriveoTheme.colors
     val isDark = OriveoTheme.isDark
+    val textPrimary = if (isDark) CONVERSATION_ROW_T1_DARK else CONVERSATION_ROW_T1_LIGHT
+    val textSecondary = if (isDark) CONVERSATION_ROW_T2_DARK else CONVERSATION_ROW_T2_LIGHT
+    val textTertiary = if (isDark) CONVERSATION_ROW_T3_DARK else CONVERSATION_ROW_T3_LIGHT
+    val accent = if (isDark) CONVERSATION_ROW_ACCENT_DARK else CONVERSATION_ROW_ACCENT_LIGHT
     val photoLabel = stringResource(R.string.attachment_photo)
     val fileLabel = stringResource(R.string.file)
     val emptyPreviewText = stringResource(R.string.ready_to_start_conversation)
@@ -105,11 +124,10 @@ fun ConversationRow(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(start = if (isEditing) 0.dp else 16.dp, end = 16.dp, top = 14.dp, bottom = 14.dp),
+            .padding(start = if (isEditing) 0.dp else 16.dp, end = 16.dp, top = 15.dp, bottom = 15.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-
         ProviderLogoAvatar(
             providerKind = providerKind,
             relayKind = relayKind,
@@ -118,36 +136,45 @@ fun ConversationRow(
 
         Column(
             modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(5.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            // Row 1: [skillIcon] Title [DraftPill] ... Cost
+            // Title line: pin (vertically centered) + title (flexible, Draft right after it) + cost on the right; without a cost the title takes the full width
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 20.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
+                if (isPinned) {
+                    Icon(
+                        imageVector = Icons.Filled.PushPin,
+                        contentDescription = stringResource(R.string.pinned_section),
+                        tint = textTertiary,
+                        // The Material PushPin glyph fills about 20 of the 24 grid: an 11dp box ≈ the visible height of the iOS 10pt pin.fill
+                        modifier = Modifier
+                            .padding(end = 6.dp)
+                            .size(11.dp),
+                    )
+                }
                 Row(
                     modifier = Modifier.weight(1f),
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(OriveoTheme.spacing.xs),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
-                    if (isPinned) {
-                        Icon(
-                            imageVector = Icons.Filled.PushPin,
-                            contentDescription = null,
-                            tint = colors.textSecondary,
-                            modifier = Modifier.size(11.dp),
-                        )
-                    }
                     if (skillIcon != null) {
                         Text(
                             text = skillIcon,
                             fontSize = 13.sp,
+                            lineHeight = 16.sp,
                         )
                     }
                     Text(
                         text = conversation.title,
-                        style = OriveoTheme.typography.title3.copy(fontWeight = FontWeight.SemiBold),
-                        color = colors.textPrimary,
+                        fontSize = 15.sp,
+                        lineHeight = 20.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        letterSpacing = (-0.2).sp,
+                        color = textPrimary,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f, fill = false),
@@ -155,51 +182,54 @@ fun ConversationRow(
                     if (conversation.isDraft) {
                         StatusPill(text = stringResource(R.string.draft), tone = StatusTone.Primary)
                     }
-                    if (isStreaming) {
-                        Spacer(modifier = Modifier.width(6.dp))
-                        StreamingPulseDot()
-                    }
                 }
-
-                Spacer(modifier = Modifier.width(4.dp))
-
                 if (conversation.estimatedCost > 0) {
                     Text(
                         text = CostFormatter.format(conversation.estimatedCost),
-                        style = OriveoTheme.typography.footnote.copy(fontWeight = FontWeight.Medium),
-                        color = colors.primary,
+                        fontSize = 12.sp,
+                        lineHeight = 15.sp,
+                        fontWeight = FontWeight.Medium,
+                        fontFamily = FontFamily.Monospace,
+                        color = accent,
+                        maxLines = 1,
+                        softWrap = false,
+                        modifier = Modifier.padding(start = 6.dp),
                     )
                 }
             }
 
+            // Preview: 13sp, single line, 18 line height (the data is still the full previewText; only the rendering changes)
             Text(
                 text = previewText,
-                style = OriveoTheme.typography.caption,
-                color = colors.textSecondary,
-                maxLines = 2,
+                fontSize = 13.sp,
+                lineHeight = 18.sp,
+                color = textSecondary,
+                maxLines = CONVERSATION_ROW_PREVIEW_MAX_LINES,
                 overflow = TextOverflow.Ellipsis,
             )
 
-            // HomeScreen \u4e00\u5c4f ~10 \u884c \u00d7 \u6d41\u5f0f token 30 Hz = 300+ \u6b21/\u79d2 \u91cd\u7ec4\uff0cmetaStyle / timeText /
-            // chatIconInline \u5fc5\u987b remember \u7f13\u5b58\uff08\u539f\u4ee3\u7801\u6bcf\u6b21\u91cd\u7ec4\u90fd alloc TextStyle / String / Map+InlineTextContent\uff09\u3002
-            val footnote = OriveoTheme.typography.footnote
-            val metaStyle = remember(footnote) { footnote.copy(fontSize = 11.sp) }
+            // Bottom line: model name (left) + streaming dot / message count · relative time (right), 11sp tertiary, line height 14
+            // ~10 rows on screen × streaming tokens at 30 Hz = 300+ recompositions per second, so timeText and the inline icon must be remembered
             val messageCount = conversation.messageCount
             val timeText = remember(conversation.updatedAt) { formatRelativeTime(conversation.updatedAt) }
-            val rightText = remember(messageCount, timeText) {
+            val messagesLabel = stringResource(R.string.messages)
+            val rightText = remember(messageCount, timeText, messagesLabel) {
                 buildAnnotatedString {
                     if (messageCount > 0) {
-                        appendInlineContent("chatIcon")
-                        append("\u2009$messageCount  ") // thin space + count + 2 spaces
+                        // alternateText makes TalkBack read "Messages 6" instead of a bare number
+                        appendInlineContent(CHAT_ICON_ID, alternateText = messagesLabel)
+                        append(" $messageCount")
+                        withStyle(SpanStyle(color = textTertiary.copy(alpha = textTertiary.alpha * 0.6f))) {
+                            append("  ·  ")
+                        }
                     }
                     append(timeText)
                 }
             }
-            val textTertiary = colors.textTertiary
             val chatIconInline = remember(textTertiary) {
                 mapOf(
-                    "chatIcon" to InlineTextContent(
-                        Placeholder(9.sp, 9.sp, PlaceholderVerticalAlign.TextCenter),
+                    CHAT_ICON_ID to InlineTextContent(
+                        Placeholder(10.sp, 10.sp, PlaceholderVerticalAlign.TextCenter),
                     ) {
                         Icon(
                             imageVector = Icons.Outlined.Forum,
@@ -211,22 +241,33 @@ fun ConversationRow(
                 )
             }
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 14.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
+                // The model name takes the remaining width and truncates; the trailing cluster hugs the right with at least 8 between them
                 Text(
                     text = modelName,
-                    style = metaStyle,
-                    color = colors.textTertiary,
+                    fontSize = 11.sp,
+                    lineHeight = 14.sp,
+                    color = textTertiary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(end = 8.dp),
                 )
-                Spacer(modifier = Modifier.width(6.dp))
+                if (isStreaming) {
+                    StreamingPulseDot(modifier = Modifier.padding(end = 4.dp))
+                }
                 Text(
                     text = rightText,
-                    style = metaStyle,
-                    color = colors.textTertiary,
+                    fontSize = 11.sp,
+                    lineHeight = 14.sp,
+                    color = textTertiary,
+                    maxLines = 1,
+                    softWrap = false,
                     inlineContent = chatIconInline,
                 )
             }
@@ -234,6 +275,30 @@ fun ConversationRow(
     }
 }
 
+/** The preview keeps one line (the data is still the full previewText; only the rendering changes). */
+internal const val CONVERSATION_ROW_PREVIEW_MAX_LINES = 1
+
+/** 30dp avatar, vertically centered on the whole row. */
+internal val CONVERSATION_ROW_AVATAR_SIZE = 30.dp
+
+private const val CHAT_ICON_ID = "chatIcon"
+
+// Row text colors share the home Aurora palette (t1 / t2 / t3 / accent); FolderDetail reusing this row gets them too
+private val CONVERSATION_ROW_T1_LIGHT = Color(0xFF0A0612)
+private val CONVERSATION_ROW_T1_DARK = Color(0xFFFAFAFB)
+private val CONVERSATION_ROW_T2_LIGHT = Color(0xFF6B6378)
+private val CONVERSATION_ROW_T2_DARK = Color(0xFFC4BFD3)
+private val CONVERSATION_ROW_T3_LIGHT = Color(0xFF9C95AA)
+private val CONVERSATION_ROW_T3_DARK = Color(0xFF8C8499)
+private val CONVERSATION_ROW_ACCENT_LIGHT = Color(0xFF8B5CF6)
+private val CONVERSATION_ROW_ACCENT_DARK = Color(0xFFA78BFA)
+
+/**
+ * Provider logo avatar (matches iOS conversationAvatar)
+ *
+ * Official providers: the brand logo.
+ * Relay: the logo of the upstream selected by relayKind (OpenAI / Anthropic / Gemini); Custom / null shows the purple-orange Relay logo
+ */
 @Composable
 private fun ProviderLogoAvatar(
     providerKind: ProviderKind?,
@@ -243,7 +308,7 @@ private fun ProviderLogoAvatar(
     if (providerKind != null) {
         ProviderBadgeIcon(
             kind = providerKind,
-            size = 32.dp,
+            size = CONVERSATION_ROW_AVATAR_SIZE,
             relayKind = relayKind,
         )
     }

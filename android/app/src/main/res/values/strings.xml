@@ -1420,4 +1420,8 @@
     <string name="price_cache_read">Cache read</string>
     <string name="price_cache_write">Cache write</string>
     <string name="external_app_unavailable">No app on this device can handle this action. Install or enable one, then try again.</string>
+    <plurals name="notes_count">
+        <item quantity="one">%1$d note</item>
+        <item quantity="other">%1$d notes</item>
+    </plurals>
 </resources>

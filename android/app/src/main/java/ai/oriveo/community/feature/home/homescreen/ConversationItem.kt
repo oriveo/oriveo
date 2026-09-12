@@ -2,7 +2,7 @@ package ai.oriveo.community.feature.home.homescreen
 
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Circle
@@ -36,6 +37,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import ai.oriveo.community.R
 import ai.oriveo.community.core.model.Conversation
@@ -82,38 +84,40 @@ internal fun ConversationItem(
         )
     }
 
+    // In edit mode the whole row is one checkbox (tapping anywhere toggles it and TalkBack reads the state); otherwise
+    // a tap opens the conversation and a long press shows the menu. The check circle is visual only and no longer
+    // its own tap target: the former 22dp node had no label and missed the minimum touch size.
+    val rowInteraction = if (isEditing) {
+        Modifier.toggleable(
+            value = isSelected,
+            role = Role.Checkbox,
+            onValueChange = { onToggleSelection() },
+        )
+    } else {
+        Modifier.combinedClickable(
+            onClick = onClick,
+            onLongClick = { showMenu = true },
+        )
+    }
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .testTag("home_conversation_item")
+            .then(rowInteraction)
             .padding(start = if (isEditing) 14.dp else 0.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(if (isEditing) 10.dp else OriveoTheme.spacing.md),
+        horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-
         if (isEditing) {
             Icon(
-                imageVector = if (isSelected) Icons.Outlined.CheckCircle else Icons.Outlined.Circle,
+                imageVector = if (isSelected) Icons.Filled.CheckCircle else Icons.Outlined.Circle,
                 contentDescription = null,
-                modifier = Modifier
-                    .size(22.dp)
-                    .clickable(onClick = onToggleSelection),
+                modifier = Modifier.size(22.dp),
                 tint = if (isSelected) colors.primary else colors.textTertiary,
             )
         }
 
-        Box(
-            modifier = Modifier
-                .weight(1f)
-                .testTag("home_conversation_item")
-                .combinedClickable(
-                    onClick = {
-                        if (isEditing) onToggleSelection() else onClick()
-                    },
-                    onLongClick = {
-                        if (!isEditing) showMenu = true
-                    },
-                ),
-        ) {
+        Box(modifier = Modifier.weight(1f)) {
             ConversationRow(
                 conversation = conversation,
                 providerKind = providerKind,

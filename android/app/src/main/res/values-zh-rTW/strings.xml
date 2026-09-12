@@ -1421,4 +1421,7 @@
     <string name="price_cache_read">快取讀取</string>
     <string name="price_cache_write">快取寫入</string>
     <string name="external_app_unavailable">這台裝置上沒有可以完成此操作的應用程式。請先安裝或啟用後再試一次。</string>
+    <plurals name="notes_count">
+        <item quantity="other">%1$d 則筆記</item>
+    </plurals>
 </resources>

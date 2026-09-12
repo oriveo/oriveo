@@ -1423,4 +1423,7 @@
     <string name="price_cache_read">缓存读</string>
     <string name="price_cache_write">缓存写</string>
     <string name="external_app_unavailable">这台设备上没有能完成该操作的应用。请先安装或启用一个，然后重试。</string>
+    <plurals name="notes_count">
+        <item quantity="other">%1$d 条笔记</item>
+    </plurals>
 </resources>

@@ -38,7 +38,7 @@ class IdleRenderingPerformanceContractTest {
         "feature/chat/composer/EnhancedComposer.kt",
         "feature/chat/composer/ComposerControlChip.kt",
         "feature/chat/ChatScreenContent.kt",
-        "feature/home/hero/HomeHero.kt",
+        "feature/home/AuroraTheme.kt",
         "feature/home/homescreen/NewChatBar.kt",
     )
 
@@ -88,13 +88,14 @@ class IdleRenderingPerformanceContractTest {
     }
 
     @Test
-    fun `home hero aurora border stays static and cached`() {
-        val source = source("feature/home/hero/HomeHero.kt")
+    fun `home hero aurora ring stays static and cached`() {
+        val source = source("feature/home/AuroraTheme.kt")
 
-        assertTrue("Hero aurora color ring visual must be preserved", source.contains("HERO_AURORA_COLORS"))
-        assertTrue("brush must be cached once per size", source.contains("drawWithCache"))
-        assertTrue("Outer 2.4dp diffuse stroke must not be dropped", source.contains("alpha = 0.45f"))
-        assertTrue("Inner 1.4dp sharp stroke must not be dropped", source.contains("alpha = 0.90f"))
+        assertTrue("Hero aurora color ring visual must be preserved", source.contains("auroraGlowColors"))
+        assertTrue("Ring and face must be cached per size (drawWithCache), not rebuilt every frame", source.contains("drawWithCache"))
+        assertTrue("Focus runs a single finite 0.4s transition", source.contains("tween(durationMillis = 400, easing = EaseInOut)"))
+        assertTrue("Outer 4dp blurred glow must not be dropped", source.contains("strokeWidth = 4.dp.toPx()"))
+        assertTrue("Inner 2dp sharp color ring must not be dropped", source.contains("style = Stroke(width = 2.dp.toPx())"))
     }
 
     @Test

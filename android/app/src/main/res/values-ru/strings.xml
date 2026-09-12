@@ -1365,4 +1365,10 @@
     <string name="price_cache_read">Чтение кэша</string>
     <string name="price_cache_write">Запись кэша</string>
     <string name="external_app_unavailable">На этом устройстве нет приложения для этого действия. Установите или включите его и повторите попытку.</string>
+    <plurals name="notes_count">
+        <item quantity="one">%1$d заметка</item>
+        <item quantity="few">%1$d заметки</item>
+        <item quantity="many">%1$d заметок</item>
+        <item quantity="other">%1$d заметки</item>
+    </plurals>
 </resources>

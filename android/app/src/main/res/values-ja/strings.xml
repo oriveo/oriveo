@@ -1410,4 +1410,7 @@
     <string name="price_cache_read">キャッシュ読取</string>
     <string name="price_cache_write">キャッシュ書込</string>
     <string name="external_app_unavailable">この操作を実行できるアプリが端末にありません。インストールまたは有効化してから、もう一度お試しください。</string>
+    <plurals name="notes_count">
+        <item quantity="other">%1$d 件のノート</item>
+    </plurals>
 </resources>

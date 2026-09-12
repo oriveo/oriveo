@@ -1365,4 +1365,8 @@
     <string name="price_cache_read">Önbellek okuma</string>
     <string name="price_cache_write">Önbellek yazma</string>
     <string name="external_app_unavailable">Bu cihazda bu işlemi yapabilecek bir uygulama yok. Bir uygulama yükleyin veya etkinleştirin, sonra tekrar deneyin.</string>
+    <plurals name="notes_count">
+        <item quantity="one">%1$d not</item>
+        <item quantity="other">%1$d not</item>
+    </plurals>
 </resources>
