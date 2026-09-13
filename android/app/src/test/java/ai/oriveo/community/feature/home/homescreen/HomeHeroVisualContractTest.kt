@@ -3,6 +3,7 @@ package ai.oriveo.community.feature.home.homescreen
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.unit.dp
+import ai.oriveo.community.feature.home.AuroraGreeting
 import ai.oriveo.community.feature.home.AuroraHeroCardAppearance
 import ai.oriveo.community.feature.home.AuroraTheme
 import ai.oriveo.community.feature.home.auroraCssShadowRadius
@@ -11,6 +12,8 @@ import ai.oriveo.community.feature.home.homeHeroPillModelName
 import ai.oriveo.community.feature.notes.homeNotesAccessibilityText
 import ai.oriveo.community.feature.notes.homeNotesPreviewLine
 import java.io.File
+import java.util.Calendar
+import java.util.TimeZone
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
@@ -157,5 +160,29 @@ class HomeHeroVisualContractTest {
                 barSource.contains("stringResource(R.string.select_model)") &&
                 barSource.contains("stringResource(R.string.add_provider)"),
         )
+    }
+
+    @Test
+    fun `greeting and tagline daily index stay aligned with iOS`() {
+        assertEquals(17, AuroraGreeting.GREETING_SALT)
+        assertEquals(31, AuroraGreeting.TAGLINE_SALT)
+        val cal = Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply {
+            clear()
+            set(2026, Calendar.SEPTEMBER, 13, 9, 0, 0)
+        }
+        assertEquals(3, AuroraGreeting.dailyIndex(cal, 17, 5))
+        assertEquals(2, AuroraGreeting.dailyIndex(cal, 31, 8))
+        val later = Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply {
+            clear()
+            set(2026, Calendar.SEPTEMBER, 13, 11, 0, 0)
+        }
+        assertEquals(
+            AuroraGreeting.dailyIndex(cal, 17, 5),
+            AuroraGreeting.dailyIndex(later, 17, 5),
+        )
+
+        val themeSource = File("src/main/java/ai/oriveo/community/feature/home/AuroraTheme.kt").readText()
+        assertTrue(themeSource.contains("greeting_morning_5"))
+        assertTrue(themeSource.contains("tagline_morning_8"))
     }
 }

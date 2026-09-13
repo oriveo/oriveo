@@ -745,14 +745,54 @@ enum AuroraGreeting {
         }
     }
 
+    /// Daily-stable index shared by greetings and taglines. Same day does not flicker.
+    /// Salts must match Android `AuroraGreeting.dailyIndex`: greeting 17, tagline 31.
+    static let greetingSalt = 17
+    static let taglineSalt = 31
+
+    static func dailyIndex(date: Date, calendar: Calendar, salt: Int, count: Int) -> Int {
+        let dayOfYear = calendar.ordinality(of: .day, in: .year, for: date) ?? 1
+        let year = calendar.component(.year, from: date)
+        return abs(dayOfYear &* salt &+ year) % count
+    }
+
+    /// Five greetings per time of day. The first line is the original greeting; the rest rotate by day.
+    static let greetings: [Bucket: [String]] = [
+        .morning: [
+            "Good morning",
+            "Morning",
+            "Morning to you",
+            "There you are",
+            "Hello again"
+        ],
+        .afternoon: [
+            "Good afternoon",
+            "Afternoon",
+            "Still around",
+            "Right here",
+            "It's you"
+        ],
+        .evening: [
+            "Good evening",
+            "Evening",
+            "Here today",
+            "I'm still here",
+            "You're here"
+        ],
+        .night: [
+            "Still up",
+            "You're up",
+            "Here you are",
+            "I'm here",
+            "Late night"
+        ]
+    ]
+
     /// The greeting i18n key for the current time of day (resolved through L10n.tr).
     static func currentKey(date: Date = .now, calendar: Calendar = .current) -> String {
-        switch Bucket.current(date: date, calendar: calendar) {
-        case .morning: return "Good morning"
-        case .afternoon: return "Good afternoon"
-        case .evening: return "Good evening"
-        case .night: return "Still up"
-        }
+        let bucket = Bucket.current(date: date, calendar: calendar)
+        let pool = greetings[bucket] ?? greetings[.morning]!
+        return pool[dailyIndex(date: date, calendar: calendar, salt: greetingSalt, count: pool.count)]
     }
 
     /// One short placeholder for every time of day, so it never wraps.
@@ -760,35 +800,51 @@ enum AuroraGreeting {
         return "What can I help with?"
     }
 
-    // MARK: - Tagline (16 lines = 4 buckets × 4, one picked per day by hash)
+    // MARK: - Tagline (32 lines = 4 buckets × 8, one picked per day by hash)
 
-    /// Sixteen taglines by time of day, written around self-compassion, autonomy, companionship,
+    /// Taglines by time of day, written around self-compassion, autonomy, companionship,
     /// containment, validation and presence. They deliberately avoid toxic positivity ("you've got
     /// this", "keep pushing").
-    private static let taglines: [Bucket: [String]] = [
+    static let taglines: [Bucket: [String]] = [
         .morning: [
             "Soft morning.",
             "Take it slow.",
             "Glad you're up.",
-            "The day is yours."
+            "The day is yours.",
+            "No rush to start.",
+            "The light won't rush you.",
+            "Just this hour.",
+            "Quiet is allowed."
         ],
         .afternoon: [
             "Pause if you need.",
             "Still with you.",
             "Halfway is plenty.",
-            "Breathe, I'll wait."
+            "Breathe, I'll wait.",
+            "You don't have to finish.",
+            "Say it when you want.",
+            "You can change your mind.",
+            "No one is keeping score."
         ],
         .evening: [
             "You did enough today.",
             "Soft landing.",
             "You can let it rest.",
-            "Today was a lot."
+            "Today was a lot.",
+            "Tomorrow can take the rest.",
+            "Nothing left to prove.",
+            "You can close the day.",
+            "Evening doesn't need more."
         ],
         .night: [
             "Still here, still listening.",
             "It's okay to be up.",
             "The world is quieter now.",
-            "Take your time, the night is patient."
+            "Take your time, the night is patient.",
+            "Talk, or don't.",
+            "Dreams can come later.",
+            "You can stay in the quiet.",
+            "No next step needed."
         ]
     ]
 
@@ -796,9 +852,6 @@ enum AuroraGreeting {
     static func taglineKey(date: Date = .now, calendar: Calendar = .current) -> String {
         let bucket = Bucket.current(date: date, calendar: calendar)
         let pool = taglines[bucket] ?? ["Soft morning."]
-        let dayOfYear = calendar.ordinality(of: .day, in: .year, for: date) ?? 1
-        let year = calendar.component(.year, from: date)
-        let index = abs(dayOfYear &* 31 &+ year) % pool.count
-        return pool[index]
+        return pool[dailyIndex(date: date, calendar: calendar, salt: taglineSalt, count: pool.count)]
     }
 }

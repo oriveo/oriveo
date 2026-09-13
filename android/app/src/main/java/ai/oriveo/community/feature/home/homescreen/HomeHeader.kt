@@ -338,7 +338,7 @@ private fun rememberHomeHeaderNowMillis(): Long {
     return nowMillis
 }
 
-/** Centered greeting: date eyebrow / 30sp greeting / tagline (one of four per period of the day). */
+/** Centered greeting: date eyebrow / 30sp greeting / tagline (one line per time of day, changing daily). */
 @Composable
 private fun HeroGreeting(
     nowMillis: Long,

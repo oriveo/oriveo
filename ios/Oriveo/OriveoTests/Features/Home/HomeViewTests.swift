@@ -28,6 +28,32 @@ struct HomeViewTests {
         }
     }
 
+    @Test("greeting pool has five lines per time of day, stays put within a day, and can change the next day")
+    func greetingPoolIsDailyStable() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+
+        for bucket: AuroraGreeting.Bucket in [.morning, .afternoon, .evening, .night] {
+            #expect(AuroraGreeting.greetings[bucket]?.count == 5, "\(bucket) greeting pool should have 5 lines")
+            #expect(AuroraGreeting.taglines[bucket]?.count == 8, "\(bucket) tagline pool should have 8 lines")
+        }
+
+        let morning = calendar.date(from: DateComponents(year: 2026, month: 9, day: 13, hour: 9))!
+        let laterMorning = calendar.date(from: DateComponents(year: 2026, month: 9, day: 13, hour: 11))!
+        #expect(AuroraGreeting.currentKey(date: morning, calendar: calendar) == AuroraGreeting.currentKey(date: laterMorning, calendar: calendar))
+        #expect(AuroraGreeting.greetingSalt == 17)
+        #expect(AuroraGreeting.taglineSalt == 31)
+        #expect(AuroraGreeting.dailyIndex(date: morning, calendar: calendar, salt: 17, count: 5) == 3)
+        #expect(AuroraGreeting.dailyIndex(date: morning, calendar: calendar, salt: 31, count: 8) == 2)
+
+        let uniqueGreetings = Set((0..<40).compactMap { offset -> String? in
+            calendar.date(byAdding: .day, value: offset, to: morning).map {
+                AuroraGreeting.currentKey(date: $0, calendar: calendar)
+            }
+        })
+        #expect(uniqueGreetings.count >= 4)
+    }
+
     @Test("the top bar capsule buttons keep the design width and a 44pt hit height on the button itself")
     func headerCapsuleButtonsKeepHIGHitHeight() throws {
         #expect(homeHeaderCapsuleHeight == 38)

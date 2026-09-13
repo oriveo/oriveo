@@ -668,7 +668,7 @@ struct HomeView: View {
         .accessibilityShowsLargeContentViewer()
     }
 
-    /// Centred greeting: date eyebrow / 30pt greeting / tagline (one of four per time of day, changing daily)
+    /// Centred greeting: date eyebrow / 30pt greeting / tagline (one line per time of day, changing daily)
     private var heroGreeting: some View {
         VStack(spacing: 6) {
             dateRow

@@ -742,18 +742,58 @@ internal object AuroraGreeting {
         }
     }
 
-    /** Matches iOS AuroraGreeting.currentKey() exactly: the nameless greeting. */
+    /** Must match iOS `AuroraGreeting.greetingSalt` / `taglineSalt`. */
+    const val GREETING_SALT = 17
+    const val TAGLINE_SALT = 31
+
+    fun dailyIndex(now: Calendar, salt: Int, count: Int): Int {
+        val dayOfYear = now.get(Calendar.DAY_OF_YEAR)
+        val year = now.get(Calendar.YEAR)
+        return ((dayOfYear * salt + year) and 0x7FFFFFFF) % count
+    }
+
+    private val morningGreetings = intArrayOf(
+        ai.oriveo.community.R.string.greeting_morning,
+        ai.oriveo.community.R.string.greeting_morning_2,
+        ai.oriveo.community.R.string.greeting_morning_3,
+        ai.oriveo.community.R.string.greeting_morning_4,
+        ai.oriveo.community.R.string.greeting_morning_5,
+    )
+    private val afternoonGreetings = intArrayOf(
+        ai.oriveo.community.R.string.greeting_afternoon,
+        ai.oriveo.community.R.string.greeting_afternoon_2,
+        ai.oriveo.community.R.string.greeting_afternoon_3,
+        ai.oriveo.community.R.string.greeting_afternoon_4,
+        ai.oriveo.community.R.string.greeting_afternoon_5,
+    )
+    private val eveningGreetings = intArrayOf(
+        ai.oriveo.community.R.string.greeting_evening,
+        ai.oriveo.community.R.string.greeting_evening_2,
+        ai.oriveo.community.R.string.greeting_evening_3,
+        ai.oriveo.community.R.string.greeting_evening_4,
+        ai.oriveo.community.R.string.greeting_evening_5,
+    )
+    private val nightGreetings = intArrayOf(
+        ai.oriveo.community.R.string.greeting_still_up,
+        ai.oriveo.community.R.string.greeting_night_2,
+        ai.oriveo.community.R.string.greeting_night_3,
+        ai.oriveo.community.R.string.greeting_night_4,
+        ai.oriveo.community.R.string.greeting_night_5,
+    )
+
+    /** Matches iOS AuroraGreeting.currentKey(): nameless greeting, stable index within a day. */
     fun greetingResId(now: Calendar = Calendar.getInstance()): Int {
-        return when (current(now)) {
-            Bucket.MORNING -> ai.oriveo.community.R.string.greeting_morning
-            Bucket.AFTERNOON -> ai.oriveo.community.R.string.greeting_afternoon
-            Bucket.EVENING -> ai.oriveo.community.R.string.greeting_evening
-            Bucket.NIGHT -> ai.oriveo.community.R.string.greeting_still_up
+        val pool = when (current(now)) {
+            Bucket.MORNING -> morningGreetings
+            Bucket.AFTERNOON -> afternoonGreetings
+            Bucket.EVENING -> eveningGreetings
+            Bucket.NIGHT -> nightGreetings
         }
+        return pool[dailyIndex(now, GREETING_SALT, pool.size)]
     }
 
     /**
-     * Sixteen taglines across the four time-of-day buckets -- stable within a day (no flicker),
+     * Taglines across the four time-of-day buckets -- stable within a day (no flicker),
      * refreshed daily. Design philosophy: self-compassion / autonomy / companionship /
      * containment / validation / presence -- consistently avoiding toxic positivity ("you've got this!").
      */
@@ -762,24 +802,40 @@ internal object AuroraGreeting {
         ai.oriveo.community.R.string.tagline_morning_2,
         ai.oriveo.community.R.string.tagline_morning_3,
         ai.oriveo.community.R.string.tagline_morning_4,
+        ai.oriveo.community.R.string.tagline_morning_5,
+        ai.oriveo.community.R.string.tagline_morning_6,
+        ai.oriveo.community.R.string.tagline_morning_7,
+        ai.oriveo.community.R.string.tagline_morning_8,
     )
     private val afternoonTaglines = intArrayOf(
         ai.oriveo.community.R.string.tagline_afternoon_1,
         ai.oriveo.community.R.string.tagline_afternoon_2,
         ai.oriveo.community.R.string.tagline_afternoon_3,
         ai.oriveo.community.R.string.tagline_afternoon_4,
+        ai.oriveo.community.R.string.tagline_afternoon_5,
+        ai.oriveo.community.R.string.tagline_afternoon_6,
+        ai.oriveo.community.R.string.tagline_afternoon_7,
+        ai.oriveo.community.R.string.tagline_afternoon_8,
     )
     private val eveningTaglines = intArrayOf(
         ai.oriveo.community.R.string.tagline_evening_1,
         ai.oriveo.community.R.string.tagline_evening_2,
         ai.oriveo.community.R.string.tagline_evening_3,
         ai.oriveo.community.R.string.tagline_evening_4,
+        ai.oriveo.community.R.string.tagline_evening_5,
+        ai.oriveo.community.R.string.tagline_evening_6,
+        ai.oriveo.community.R.string.tagline_evening_7,
+        ai.oriveo.community.R.string.tagline_evening_8,
     )
     private val nightTaglines = intArrayOf(
         ai.oriveo.community.R.string.tagline_night_1,
         ai.oriveo.community.R.string.tagline_night_2,
         ai.oriveo.community.R.string.tagline_night_3,
         ai.oriveo.community.R.string.tagline_night_4,
+        ai.oriveo.community.R.string.tagline_night_5,
+        ai.oriveo.community.R.string.tagline_night_6,
+        ai.oriveo.community.R.string.tagline_night_7,
+        ai.oriveo.community.R.string.tagline_night_8,
     )
 
     fun taglineResId(now: Calendar = Calendar.getInstance()): Int {
@@ -789,10 +845,7 @@ internal object AuroraGreeting {
             Bucket.EVENING -> eveningTaglines
             Bucket.NIGHT -> nightTaglines
         }
-        val dayOfYear = now.get(Calendar.DAY_OF_YEAR)
-        val year = now.get(Calendar.YEAR)
-        val index = ((dayOfYear * 31 + year) and 0x7FFFFFFF) % pool.size
-        return pool[index]
+        return pool[dailyIndex(now, TAGLINE_SALT, pool.size)]
     }
 
     /** Matches iOS placeholderKey() -- "What can I help with?" is used across every time bucket. */
