@@ -21,6 +21,31 @@ struct SettingsViewTests {
         #expect(!source.contains("Picker(L10n.tr(\"Language\""))
     }
 
+    @Test("Appearance theme and language share SettingsRow caption values")
+    func appearanceRowsShareSettingsRowValueTypography() throws {
+        let source = try String(contentsOf: settingsViewSourceURL, encoding: .utf8)
+        let appearance = try source.requiredSlice(
+            from: "flatSectionHeader(L10n.tr(\"Appearance\"",
+            to: "flatSectionHeader(L10n.tr(\"Help & Feedback\""
+        )
+        let settingsRowSource = try String(contentsOf: settingsRowSourceURL, encoding: .utf8)
+        let flatStyleSource = try String(contentsOf: flatSettingsStyleSourceURL, encoding: .utf8)
+
+        #expect(appearance.contains("value: appState.preferences.theme.displayName"))
+        #expect(appearance.contains("value: displayedLanguage.displayName"))
+        #expect(appearance.contains("flatMenuRow"))
+        #expect(appearance.contains(".pickerStyle(.inline)"))
+        #expect(!appearance.contains("preferenceRow"))
+        #expect(!appearance.contains(".pickerStyle(.menu)"))
+        #expect(!appearance.contains(".tint(OriveoTheme.Palette.textSecondary)"))
+
+        #expect(settingsRowSource.contains(".font(OriveoTheme.Typography.caption)"))
+        #expect(settingsRowSource.contains(".font(OriveoTheme.Typography.body)"))
+
+        #expect(flatStyleSource.contains(".menuIndicator(.hidden)"))
+        #expect(flatStyleSource.contains("func flatMenuRow"))
+    }
+
     @Test("the About logo reveals the developer menu on the tenth tap and resets the count")
     func aboutLogoRevealsDeveloperMenuOnTenthTap() {
         var count = 0
@@ -71,13 +96,25 @@ struct SettingsViewTests {
         #expect(!session.contains(".alert("))
     }
 
-    private var settingsViewSourceURL: URL {
+    private var oriveoSourcesRootURL: URL {
         URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent() // Settings
             .deletingLastPathComponent() // Features
             .deletingLastPathComponent() // OriveoTests
             .deletingLastPathComponent() // Oriveo project root
-            .appendingPathComponent("Oriveo/Features/Settings/SettingsView.swift")
+            .appendingPathComponent("Oriveo")
+    }
+
+    private var settingsViewSourceURL: URL {
+        oriveoSourcesRootURL.appendingPathComponent("Features/Settings/SettingsView.swift")
+    }
+
+    private var settingsRowSourceURL: URL {
+        oriveoSourcesRootURL.appendingPathComponent("Shared/Components/Rows/SettingsRow.swift")
+    }
+
+    private var flatSettingsStyleSourceURL: URL {
+        oriveoSourcesRootURL.appendingPathComponent("Shared/Components/FlatSettingsStyle.swift")
     }
 }
 

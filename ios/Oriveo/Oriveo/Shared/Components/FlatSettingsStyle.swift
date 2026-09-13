@@ -59,4 +59,24 @@ extension View {
         }
         .buttonStyle(.plain)
     }
+
+    /// Same insets as `flatTapRow`. Hide the system menu indicator so the
+    /// trailing value uses `SettingsRow`'s caption and chevron.right.
+    func flatMenuRow<Items: View, Label: View>(
+        @ViewBuilder items: () -> Items,
+        @ViewBuilder label: () -> Label
+    ) -> some View {
+        Menu {
+            items()
+        } label: {
+            label()
+                .padding(.horizontal, OriveoTheme.Spacing.lg)
+                .padding(.vertical, 9)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .contentShape(Rectangle())
+        }
+        .menuStyle(.button)
+        .menuIndicator(.hidden)
+        .buttonStyle(.plain)
+    }
 }

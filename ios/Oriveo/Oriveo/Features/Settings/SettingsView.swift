@@ -98,21 +98,26 @@ struct SettingsView: View {
                     flatSectionHeader(L10n.tr("Appearance", table: .settings))
 
                     flatGroup {
-                        preferenceRow(
-                            icon: "circle.lefthalf.filled",
-                            iconColor: appearanceColor,
-                            title: L10n.tr("Theme", table: .settings)
-                        ) {
-                            Picker(L10n.tr("Theme", table: .settings), selection: Binding(
-                                get: { appState.preferences.theme },
-                                set: { appState.updateTheme($0) }
-                            )) {
+                        flatMenuRow {
+                            Picker(
+                                L10n.tr("Theme", table: .settings),
+                                selection: Binding(
+                                    get: { appState.preferences.theme },
+                                    set: { appState.updateTheme($0) }
+                                )
+                            ) {
                                 ForEach(ThemeOption.allCases) { option in
                                     Text(option.displayName).tag(option)
                                 }
                             }
-                            .pickerStyle(.menu)
-                            .tint(OriveoTheme.Palette.textSecondary)
+                            .pickerStyle(.inline)
+                        } label: {
+                            SettingsRow(
+                                icon: "circle.lefthalf.filled",
+                                title: L10n.tr("Theme", table: .settings),
+                                value: appState.preferences.theme.displayName,
+                                iconColor: appearanceColor
+                            )
                         }
 
                         insetHairline()
@@ -306,34 +311,6 @@ struct SettingsView: View {
             developerSessionPage = .menu
             showsDeveloperSession = true
         }
-    }
-
-    private func preferenceRow<Content: View>(
-        icon: String,
-        iconColor: Color,
-        title: String,
-        @ViewBuilder content: () -> Content
-    ) -> some View {
-        HStack(spacing: OriveoTheme.Spacing.md) {
-            Image(systemName: icon)
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(.white)
-                .frame(width: 30, height: 30)
-                .background(
-                    RoundedRectangle(cornerRadius: 7, style: .continuous)
-                        .fill(iconColor)
-                )
-
-            Text(title)
-                .font(OriveoTheme.Typography.body)
-                .foregroundStyle(OriveoTheme.Palette.textPrimary)
-
-            Spacer()
-
-            content()
-        }
-        .padding(.horizontal, OriveoTheme.Spacing.lg)
-        .padding(.vertical, 14)
     }
 }
 
