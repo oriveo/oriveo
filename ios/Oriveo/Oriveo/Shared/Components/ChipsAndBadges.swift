@@ -318,25 +318,29 @@ struct HeroIconTextStrip: View {
 
     var body: some View {
         if !visibleItems.isEmpty {
+            // At most three items, expanded into fixed children. Wrapping ForEach in ViewThatFits
+            // instantiates DynamicViewList generic metadata during SizeFitting on the main thread.
             ViewThatFits(in: .horizontal) {
-                stripRow(for: visibleItems)
-
-                if visibleItems.count > 2 {
-                    stripRow(for: Array(visibleItems.prefix(2)))
+                if visibleItems.count >= 3 {
+                    stripRow(visibleItems[0], visibleItems[1], visibleItems[2])
                 }
-
-                if visibleItems.count > 1, let firstItem = visibleItems.first {
-                    stripRow(for: [firstItem])
+                if visibleItems.count >= 2 {
+                    stripRow(visibleItems[0], visibleItems[1])
                 }
+                HeroIconTextLabel(item: visibleItems[0], compact: compact, iconOnly: iconOnly)
+                    .fixedSize()
             }
         }
     }
 
-    @ViewBuilder
-    private func stripRow(for items: [HeroIconTextItem]) -> some View {
+    private func stripRow(_ first: HeroIconTextItem, _ second: HeroIconTextItem, _ third: HeroIconTextItem? = nil) -> some View {
         HStack(spacing: iconOnly ? 5 : size.rowSpacing) {
-            ForEach(items) { item in
-                HeroIconTextLabel(item: item, compact: compact, iconOnly: iconOnly)
+            HeroIconTextLabel(item: first, compact: compact, iconOnly: iconOnly)
+                .fixedSize()
+            HeroIconTextLabel(item: second, compact: compact, iconOnly: iconOnly)
+                .fixedSize()
+            if let third {
+                HeroIconTextLabel(item: third, compact: compact, iconOnly: iconOnly)
                     .fixedSize()
             }
         }

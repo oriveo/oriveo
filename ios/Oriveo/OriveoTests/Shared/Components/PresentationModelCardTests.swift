@@ -288,4 +288,36 @@ struct PresentationModelCardTests {
             ) == 1
         )
     }
+
+    @Test("the capability strip ViewThatFits no longer wraps ForEach, so SizeFitting does not instantiate DynamicViewList")
+    func heroIconStripDoesNotForEachInsideViewThatFits() throws {
+        let url = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("Oriveo")
+            .appendingPathComponent("Shared")
+            .appendingPathComponent("Components")
+            .appendingPathComponent("ChipsAndBadges.swift")
+        let source = try String(contentsOf: url, encoding: .utf8)
+        let strip = try #require(source.slice(
+            from: "struct HeroIconTextStrip: View {",
+            to: "struct HeroIconTextLabel: View {"
+        ))
+        #expect(strip.contains("ViewThatFits(in: .horizontal)"))
+        #expect(!strip.contains("ForEach("))
+        #expect(strip.contains("stripRow(visibleItems[0], visibleItems[1], visibleItems[2])"))
+        #expect(strip.contains("HeroIconTextLabel(item: visibleItems[0]"))
+    }
+}
+
+private extension String {
+    func slice(from startMarker: String, to endMarker: String) -> String? {
+        guard let start = range(of: startMarker),
+              let end = range(of: endMarker, range: start.upperBound..<endIndex) else {
+            return nil
+        }
+        return String(self[start.lowerBound..<end.lowerBound])
+    }
 }

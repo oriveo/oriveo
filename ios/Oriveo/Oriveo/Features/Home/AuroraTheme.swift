@@ -627,6 +627,106 @@ struct AuroraGroupedCard<Content: View>: View {
     }
 }
 
+/// Used when a group card is split into LazyVStack rows: first/last rows keep the corner radius,
+/// the middle draws only the left and right borders, no separators inside the group.
+/// Do not wrap the group's ForEach in a VStack and drop that into LazyVStack — ScrollView's
+/// sizeThatFits would then measure every child on the main thread.
+struct AuroraGroupedRowSurface: ViewModifier {
+    let isFirst: Bool
+    let isLast: Bool
+    @Environment(\.colorScheme) private var colorScheme
+
+    private let radius: CGFloat = 20
+
+    func body(content: Content) -> some View {
+        let isDark = colorScheme == .dark
+        let shape = UnevenRoundedRectangle(
+            cornerRadii: RectangleCornerRadii(
+                topLeading: isFirst ? radius : 0,
+                bottomLeading: isLast ? radius : 0,
+                bottomTrailing: isLast ? radius : 0,
+                topTrailing: isFirst ? radius : 0
+            ),
+            style: .continuous
+        )
+        let innerShape = shape.inset(by: 1)
+
+        content
+            .padding(.top, isFirst ? 1 : 0)
+            .padding(.bottom, isLast ? 1 : 0)
+            .padding(.horizontal, 1)
+            .background(AuroraTheme.Colors.groupCardFill)
+            .clipShape(shape)
+            .overlay {
+                // strokeBorder matches the full card (the stroke sits inside); inner edges that
+                // stick out of the row are clipped so the group has no horizontal lines.
+                AuroraGroupedRowOutline(isFirst: isFirst, isLast: isLast, radius: radius)
+                    .strokeBorder(AuroraTheme.Colors.groupCardBorder, lineWidth: 1)
+                    .clipShape(Rectangle())
+                    .allowsHitTesting(false)
+            }
+            .overlay {
+                if isDark, isFirst {
+                    innerShape.subtracting(innerShape.offset(y: 1))
+                        .fill(Color.white.opacity(0.03))
+                        .allowsHitTesting(false)
+                }
+            }
+            .background {
+                if isLast {
+                    shape
+                        .fill(AuroraTheme.Colors.groupCardFill)
+                        .shadow(color: isDark ? .clear : Color(hex: 0x0F172A, alpha: 0.04), radius: 1, y: 1)
+                        .shadow(color: isDark ? .clear : Color(hex: 0x0F172A, alpha: 0.04), radius: 9, y: 6)
+                }
+            }
+    }
+}
+
+/// Stroke of a group card after it is split into rows: shares the continuous UnevenRoundedRectangle
+/// with clipShape so circular-arc corners do not misalign.
+/// When the first and last corners are not on the same row, the inner edge that should not show is
+/// drawn outside the row and clipped by the overlay's clipShape, so the group has no horizontal lines.
+struct AuroraGroupedRowOutline: InsettableShape {
+    var isFirst: Bool
+    var isLast: Bool
+    var radius: CGFloat
+    var insetAmount: CGFloat = 0
+
+    func path(in rect: CGRect) -> Path {
+        var drawRect = rect.insetBy(dx: insetAmount, dy: insetAmount)
+        let corner = max(0, radius - insetAmount)
+        if !(isFirst && isLast) {
+            let extra = radius + 2
+            if isFirst {
+                drawRect.size.height += extra
+            } else if isLast {
+                drawRect.origin.y -= extra
+                drawRect.size.height += extra
+            } else {
+                drawRect.origin.y -= extra
+                drawRect.size.height += extra * 2
+            }
+        }
+
+        return UnevenRoundedRectangle(
+            cornerRadii: RectangleCornerRadii(
+                topLeading: isFirst ? corner : 0,
+                bottomLeading: isLast ? corner : 0,
+                bottomTrailing: isLast ? corner : 0,
+                topTrailing: isFirst ? corner : 0
+            ),
+            style: .continuous
+        ).path(in: drawRect)
+    }
+
+    func inset(by amount: CGFloat) -> AuroraGroupedRowOutline {
+        var copy = self
+        copy.insetAmount += amount
+        return copy
+    }
+}
+
 // MARK: - Greeting
 
 enum AuroraGreeting {

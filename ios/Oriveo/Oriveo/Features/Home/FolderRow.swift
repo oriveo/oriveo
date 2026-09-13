@@ -166,13 +166,31 @@ struct FolderRow: View {
                 .padding(.horizontal, OriveoTheme.V2.Sp.s16)
                 .background { AuroraGroupedCard { Color.clear } }
             } else {
-                // Conversation list: the same group card as the main Home list, no separators inside
+                // Inline only one page: wrapping the whole ForEach in a VStack makes Home's LazyVStack
+                // sizeThatFits this FolderRow as a single child, and a large folder hangs the main thread.
+                let visible = Array(conversations.prefix(homeFolderInlineLimit))
+                let remaining = conversations.count - visible.count
                 AuroraGroupedCard {
                     VStack(spacing: 0) {
-                        ForEach(conversations) { conversation in
+                        ForEach(visible) { conversation in
                             conversationInFolder(conversation)
                         }
                     }
+                }
+
+                if remaining > 0 {
+                    Button {
+                        appState.navigation.path.append(.folderDetail(folderID: folder.id))
+                    } label: {
+                        Text(String(format: L10n.tr("Show More (%d)", table: .home), remaining))
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(OriveoTheme.V2.Colors.textTertiary)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 15)
+                            .contentShape(Rectangle())
+                            .padding(.vertical, -15)
+                    }
+                    .buttonStyle(.plain)
                 }
 
                 newChatButton

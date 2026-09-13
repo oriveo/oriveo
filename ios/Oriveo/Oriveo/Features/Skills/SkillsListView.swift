@@ -69,26 +69,46 @@ struct SkillsListView: View {
         return filteredCatalogByCategory.first { $0.category.id == activeCategory }?.skills ?? []
     }
 
-    private let cardColumns = [
-        GridItem(.flexible(), spacing: 12),
-        GridItem(.flexible(), spacing: 12)
-    ]
-
     // MARK: - Body
 
     var body: some View {
         ScrollView {
-            LazyVStack(alignment: .leading, spacing: Sp.s24) {
+            // Skill cards must be direct LazyVStack children. Wrapping them in a VStack plus a nested
+            // lazy grid makes sizeThatFits measure the whole table on the main thread.
+            LazyVStack(alignment: .leading, spacing: 0) {
                 navigationBar
 
                 if showSearchBar {
                     searchBar
+                        .padding(.top, Sp.s24)
                 }
 
-                mySkillsSection
+                mySkillsHeader
+                    .padding(.top, Sp.s24)
+
+                if filteredUserSkills.isEmpty {
+                    emptyStateCard
+                        .padding(.top, Sp.s12)
+                } else {
+                    ForEach(skillPairs(from: filteredUserSkills)) { pair in
+                        skillPairRow(pair)
+                            .padding(.top, Sp.s12)
+                    }
+                }
 
                 if !filteredCatalogByCategory.isEmpty {
-                    builtInSkillsSection
+                    builtInSkillsHeader
+                        .padding(.top, Sp.s24)
+
+                    if filteredCatalogByCategory.count > 1 {
+                        categoryFilterPills
+                            .padding(.top, Sp.s12)
+                    }
+
+                    ForEach(skillPairs(from: visibleCatalogSkills)) { pair in
+                        skillPairRow(pair)
+                            .padding(.top, Sp.s12)
+                    }
                 }
             }
             .padding(.horizontal, Sp.s20)
@@ -220,23 +240,8 @@ struct SkillsListView: View {
 
     // MARK: - My Skills Section
 
-    private var mySkillsSection: some View {
-        VStack(alignment: .leading, spacing: Sp.s12) {
-            sectionHeader(L10n.tr("My Skills", table: .skills))
-
-            if filteredUserSkills.isEmpty {
-                emptyStateCard
-            } else {
-                LazyVGrid(columns: cardColumns, spacing: 12) {
-                    ForEach(Array(filteredUserSkills.enumerated()), id: \.element.id) { index, skill in
-                        SkillCardView(skill: skill, colorScheme: colorScheme, index: index) {
-                            appState.startConversationWithSkill(skill)
-                        }
-                        .contextMenu { skillContextMenu(skill) }
-                    }
-                }
-            }
-        }
+    private var mySkillsHeader: some View {
+        sectionHeader(L10n.tr("My Skills", table: .skills))
     }
 
     private var emptyStateCard: some View {
@@ -320,50 +325,71 @@ struct SkillsListView: View {
 
     // MARK: - Built-in Skills Section
 
-    private var builtInSkillsSection: some View {
-        VStack(alignment: .leading, spacing: Sp.s12) {
-            sectionHeader(L10n.tr("Built-in Skills", table: .skills))
+    private var builtInSkillsHeader: some View {
+        sectionHeader(L10n.tr("Built-in Skills", table: .skills))
+    }
 
-            if filteredCatalogByCategory.count > 1 {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: Sp.s8) {
-                        filterPill(
-                            label: L10n.tr("All"),
-                            icon: nil,
-                            count: filteredCatalogByCategory.reduce(0) { $0 + $1.skills.count },
-                            isActive: activeCategory == "__all__"
-                        ) {
-                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                                activeCategory = "__all__"
-                            }
-                        }
+    private var categoryFilterPills: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: Sp.s8) {
+                filterPill(
+                    label: L10n.tr("All"),
+                    icon: nil,
+                    count: filteredCatalogByCategory.reduce(0) { $0 + $1.skills.count },
+                    isActive: activeCategory == "__all__"
+                ) {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                        activeCategory = "__all__"
+                    }
+                }
 
-                        ForEach(filteredCatalogByCategory, id: \.category.id) { item in
-                            filterPill(
-                                label: item.category.localizedName,
-                                icon: item.category.icon,
-                                count: item.skills.count,
-                                isActive: activeCategory == item.category.id
-                            ) {
-                                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                                    activeCategory = item.category.id
-                                }
-                            }
+                ForEach(filteredCatalogByCategory, id: \.category.id) { item in
+                    filterPill(
+                        label: item.category.localizedName,
+                        icon: item.category.icon,
+                        count: item.skills.count,
+                        isActive: activeCategory == item.category.id
+                    ) {
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                            activeCategory = item.category.id
                         }
                     }
-                    .padding(.vertical, 2)
                 }
             }
+            .padding(.vertical, 2)
+        }
+    }
 
-            LazyVGrid(columns: cardColumns, spacing: 12) {
-                ForEach(Array(visibleCatalogSkills.enumerated()), id: \.element.id) { index, skill in
-                    SkillCardView(skill: skill, colorScheme: colorScheme, index: index) {
-                        appState.startConversationWithSkill(skill)
-                    }
-                    .contextMenu { skillContextMenu(skill) }
-                }
+    private func skillPairs(from skills: [Skill]) -> [SkillPair] {
+        stride(from: 0, to: skills.count, by: 2).map { index in
+            SkillPair(
+                id: skills[index].id,
+                first: skills[index],
+                second: index + 1 < skills.count ? skills[index + 1] : nil,
+                firstIndex: index
+            )
+        }
+    }
+
+    private func skillPairRow(_ pair: SkillPair) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            skillCard(pair.first, index: pair.firstIndex)
+            if let second = pair.second {
+                skillCard(second, index: pair.firstIndex + 1)
+            } else {
+                Color.clear
+                    .frame(maxWidth: .infinity)
+                    .allowsHitTesting(false)
             }
         }
+    }
+
+    private func skillCard(_ skill: Skill, index: Int) -> some View {
+        SkillCardView(skill: skill, colorScheme: colorScheme, index: index) {
+            appState.startConversationWithSkill(skill)
+        }
+        .contextMenu { skillContextMenu(skill) }
+        .frame(maxWidth: .infinity, alignment: .top)
     }
 
     // MARK: - Filter Pill
@@ -466,6 +492,13 @@ struct SkillsListView: View {
 }
 
 // MARK: - Pressable Card Style
+
+private struct SkillPair: Identifiable {
+    let id: UUID
+    let first: Skill
+    let second: Skill?
+    let firstIndex: Int
+}
 
 private struct PressableCardStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {

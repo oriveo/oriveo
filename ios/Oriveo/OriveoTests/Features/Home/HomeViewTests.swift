@@ -208,13 +208,12 @@ struct HomeViewTests {
         let homeSource = try source(named: "HomeView.swift")
         let listSource = try #require(homeSource.slice(
             from: "private var conversationContent",
-            to: "// MARK: - Folder Section"
+            to: "private func conversationButton"
         ))
         #expect(!listSource.contains("Divider()"))
-        #expect(listSource.contains("AuroraGroupedCard {"))
-        // The Home family no longer uses the shared V2 GroupedCard (it still serves the skill editor)
-        #expect(listSource.components(separatedBy: "GroupedCard {").count
-            == listSource.components(separatedBy: "AuroraGroupedCard {").count)
+        #expect(listSource.contains("AuroraGroupedRowSurface(isFirst: isFirst, isLast: isLast)"))
+        #expect(!listSource.contains("VStack(alignment: .leading, spacing: 22)"))
+        #expect(!listSource.contains("conversationGroupCard"))
 
         let folderSource = try #require(try source(named: "FolderRow.swift").slice(
             from: "private var folderContent",
@@ -222,6 +221,11 @@ struct HomeViewTests {
         ))
         #expect(!folderSource.contains("Divider()"))
         #expect(folderSource.contains("AuroraGroupedCard {"))
+        #expect(folderSource.contains("conversations.prefix(homeFolderInlineLimit)"))
+        #expect(homeFolderInlineLimit == 10)
+        #expect(homeFolderInlineLimit == homeEarlierPageSize)
+        #expect(folderSource.contains("Show More (%d)"))
+        #expect(folderSource.contains(".folderDetail(folderID: folder.id)"))
     }
 
     @Test("the group card honours border-box: content inset by 1pt, the dark inner highlight drawn inside the border")
@@ -258,7 +262,9 @@ struct HomeViewTests {
         ))
         #expect(insets.contains(".padding(.horizontal, 4)"))
         #expect(insets.contains(".padding(.bottom, 10)"))
-        #expect(homeSource.contains("VStack(alignment: .leading, spacing: 22)"))
+        #expect(homeListGroupSpacing == 22)
+        #expect(homeListFirstBlockTopSpacing == 26)
+        #expect(homeSource.contains("homeListGroupSpacing"))
     }
 
     @Test("hero controls match the visible design sizes: arrow 16, chevron 9 in a 12 slot, 44pt pill hit area, 110° ring start, insets include the 1px border")
@@ -458,6 +464,155 @@ struct HomeViewTests {
 
         #expect(display.conversations == conversations)
         #expect(display.remainingCount == 0)
+    }
+
+    @Test("the home timeline flattens groups into LazyVStack rows; 40 search hits are one header plus 40 rows")
+    func conversationListItemsAreFlatPerRow() {
+        let conversations = (0..<40).map { index in
+            TestFactories.makeConversation(
+                title: "Conversation \(index + 1)",
+                updatedAt: Date(timeIntervalSince1970: TimeInterval(index))
+            )
+        }
+        let today = Array(conversations.prefix(12))
+        let earlier = HomeConversationSectionState(
+            section: .earlier,
+            conversations: Array(conversations.dropFirst(12).prefix(10)),
+            remainingCount: 8
+        )
+
+        let items = makeHomeConversationListItems(
+            isSearching: false,
+            searchConversations: [],
+            folders: [],
+            pinned: [],
+            groups: [
+                HomeConversationSectionState(section: .today, conversations: today, remainingCount: 0),
+                earlier,
+            ]
+        )
+
+        let conversationCount = items.filter {
+            if case .conversation = $0 { return true }
+            return false
+        }.count
+        #expect(conversationCount == 22)
+        #expect(Set(items.map(\.id)).count == items.count)
+        #expect(items.contains { if case .sectionHeader(kind: .timeline(.today), _, _) = $0 { return true }; return false })
+        #expect(items.contains { if case .showMore(remaining: 8) = $0 { return true }; return false })
+        #expect(items.contains { item in
+            if case .showMore = item {
+                return item.topSpacing == homeListShowMoreTopSpacing
+            }
+            return false
+        })
+        #expect(homeListShowMoreTopSpacing == 8)
+        #expect(!items.contains { if case .folder(_, _) = $0 { return true }; return false })
+
+        let searchItems = makeHomeConversationListItems(
+            isSearching: true,
+            searchConversations: conversations,
+            folders: [],
+            pinned: [],
+            groups: []
+        )
+        #expect(searchItems.count == 41)
+        #expect(searchItems.first == .sectionHeader(
+            kind: .search,
+            conversations: conversations,
+            topSpacing: homeListFirstBlockTopSpacing
+        ))
+        if case .conversation(_, let showFolderTag, let isFirst, let isLast) = searchItems[1] {
+            #expect(showFolderTag)
+            #expect(isFirst)
+            #expect(!isLast)
+        } else {
+            Issue.record("the first search row should be a conversation")
+        }
+        if case .conversation(_, _, _, let isLast) = searchItems.last {
+            #expect(isLast)
+        } else {
+            Issue.record("the last search row should be a conversation")
+        }
+    }
+
+    @Test("the home LazyVStack conversation ForEach is not wrapped in a table-wide VStack")
+    func conversationForEachIsLazyStackChild() throws {
+        let homeSource = try source(named: "HomeView.swift")
+        let bodySource = try #require(homeSource.slice(
+            from: "var body: some View {",
+            to: "// MARK: - Header"
+        ))
+        #expect(bodySource.contains("LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders])"))
+        #expect(bodySource.contains("conversationContent"))
+        #expect(!bodySource.contains("conversationContent\n                    .padding(.top, 26)"))
+
+        let listSource = try #require(homeSource.slice(
+            from: "private var conversationContent",
+            to: "private func conversationButton"
+        ))
+        #expect(listSource.contains("ForEach(items) { item in"))
+        #expect(listSource.contains("homeListItemView(item)"))
+        #expect(!listSource.contains("AuroraGroupedCard {"))
+        #expect(!listSource.contains("VStack(spacing: 0) {\n                ForEach(conversations)"))
+    }
+
+    @Test("a conversation that is both pinned and in the timeline still has unique ForEach ids")
+    func pinnedAndTimelineConversationIdsDoNotCollide() {
+        let conversation = TestFactories.makeConversation(title: "Pinned and today")
+        let items = makeHomeConversationListItems(
+            isSearching: false,
+            searchConversations: [],
+            folders: [],
+            pinned: [conversation],
+            groups: [
+                HomeConversationSectionState(section: .today, conversations: [conversation], remainingCount: 0)
+            ]
+        )
+        let ids = items.map(\.id)
+        #expect(Set(ids).count == ids.count)
+        #expect(ids.filter { $0.contains(conversation.id.uuidString) }.count == 2)
+    }
+
+    @Test("grouped-row stroke shares the continuous corner with clipShape and draws inner edges outside the row")
+    func groupedRowOutlineOmitsInnerEdges() throws {
+        let themeSource = try source(named: "AuroraTheme.swift")
+        let surface = try #require(themeSource.slice(
+            from: "struct AuroraGroupedRowSurface",
+            to: "// MARK: - Greeting"
+        ))
+        #expect(surface.contains("style: .continuous"))
+        #expect(surface.contains(".strokeBorder(AuroraTheme.Colors.groupCardBorder, lineWidth: 1)"))
+        #expect(surface.contains(".clipShape(Rectangle())"))
+        #expect(!surface.contains("path.move(to: CGPoint(x: rect.width, y: rect.height - botR))"))
+        #expect(!surface.contains("addArc("))
+    }
+
+    @Test("grouped-row stroke geometry: a single row stays in bounds; middle/first/last draw inner edges outside")
+    func groupedRowOutlineGeometryExtendsInnerEdgesOutsideRow() {
+        let rect = CGRect(x: 0, y: 0, width: 200, height: 80)
+
+        let single = AuroraGroupedRowOutline(isFirst: true, isLast: true, radius: 20).path(in: rect)
+        let singleBox = single.cgPath.boundingBoxOfPath
+        #expect(singleBox.minX >= -0.5)
+        #expect(singleBox.minY >= -0.5)
+        #expect(singleBox.maxX <= 200.5)
+        #expect(singleBox.maxY <= 80.5)
+        #expect(single.contains(CGPoint(x: 100, y: 40)))
+        #expect(!single.contains(CGPoint(x: 1, y: 1)), "the continuous-corner tip should sit outside the path")
+
+        let middle = AuroraGroupedRowOutline(isFirst: false, isLast: false, radius: 20).path(in: rect)
+        let middleBox = middle.cgPath.boundingBoxOfPath
+        #expect(middleBox.minY < rect.minY)
+        #expect(middleBox.maxY > rect.maxY)
+
+        let first = AuroraGroupedRowOutline(isFirst: true, isLast: false, radius: 20).path(in: rect)
+        #expect(first.cgPath.boundingBoxOfPath.maxY > rect.maxY)
+        #expect(first.cgPath.boundingBoxOfPath.minY >= -0.5)
+
+        let last = AuroraGroupedRowOutline(isFirst: false, isLast: true, radius: 20).path(in: rect)
+        #expect(last.cgPath.boundingBoxOfPath.minY < rect.minY)
+        #expect(last.cgPath.boundingBoxOfPath.maxY <= 80.5)
     }
 
     /// The `Oriveo` project directory (this file lives under OriveoTests/Features/Home)

@@ -1,6 +1,16 @@
 import SwiftUI
 
 let homeEarlierPageSize = 10
+/// Inline conversation cap after a folder expands; anything past it goes to FolderDetail, where ForEach is a direct LazyVStack child.
+let homeFolderInlineLimit = 10
+/// Spacing from the greeting / Notes to the first conversation block
+let homeListFirstBlockTopSpacing: CGFloat = 26
+/// Spacing between the folder block, Pinned, and date groups
+let homeListGroupSpacing: CGFloat = 22
+/// Spacing between two folder rows
+let homeFolderRowSpacing: CGFloat = 8
+/// Gap between Earlier "Show More" and the bottom of the group card (the old conversationGroupCard outer VStack spacing of 8)
+let homeListShowMoreTopSpacing: CGFloat = 8
 let homeTopBarHeight: CGFloat = 40
 let homeHeaderCapsuleHeight: CGFloat = 38
 /// Visual width of each button in the capsule. The hit area is 44pt tall (the HIG minimum) and does not
@@ -11,6 +21,154 @@ let homeHeaderActionHitHeight: CGFloat = 44
 /// glyph is roughly 13–16px). An SF Symbol's point size is the glyph size itself, so 14pt matches that.
 let homeHeaderActionIconSize: CGFloat = 14
 let homeHeroCursorBlinkInterval: TimeInterval = 0.55
+
+/// Flat rows of the home conversation timeline. Must be a direct child of `LazyVStack`:
+/// wrapping them in `VStack { ForEach }` makes ScrollView's sizeThatFits measure the whole group
+/// on the main thread, which hangs when the table is large.
+enum HomeConversationListItem: Identifiable, Equatable {
+    case folder(Folder, topSpacing: CGFloat)
+    case sectionHeader(kind: HomeConversationHeaderKind, conversations: [Conversation], topSpacing: CGFloat)
+    case conversation(Conversation, showFolderTag: Bool, isFirst: Bool, isLast: Bool)
+    case showMore(remaining: Int)
+
+    var id: String {
+        switch self {
+        case .folder(let folder, _):
+            "folder-\(folder.id.uuidString)"
+        case .sectionHeader(let kind, _, _):
+            "header-\(kind.id)"
+        case .conversation(let conversation, let showFolderTag, _, _):
+            // Pinned rows carry a folder tag; the timeline does not. Production strips pinned from
+            // the timeline, but the builder can still receive overlapping input, so ForEach ids
+            // must distinguish the two.
+            "conv-\(showFolderTag ? "tagged" : "plain")-\(conversation.id.uuidString)"
+        case .showMore:
+            "show-more-earlier"
+        }
+    }
+
+    var topSpacing: CGFloat {
+        switch self {
+        case .folder(_, let topSpacing), .sectionHeader(_, _, let topSpacing):
+            topSpacing
+        case .showMore:
+            homeListShowMoreTopSpacing
+        case .conversation:
+            0
+        }
+    }
+}
+
+enum HomeConversationHeaderKind: Equatable {
+    case search
+    case pinned
+    case timeline(ConversationManager.ConversationSection)
+
+    var id: String {
+        switch self {
+        case .search: "search"
+        case .pinned: "pinned"
+        case .timeline(let section):
+            switch section {
+            case .pinned: "timeline-pinned"
+            case .today: "today"
+            case .yesterday: "yesterday"
+            case .past7Days: "past7"
+            case .earlier: "earlier"
+            }
+        }
+    }
+}
+
+/// Flatten folders, Pinned, and date groups into LazyVStack rows. Search hits are flattened the same
+/// way so sizeThatFits does not measure every match at once.
+func makeHomeConversationListItems(
+    isSearching: Bool,
+    searchConversations: [Conversation],
+    searchInFlight: Bool = false,
+    folders: [Folder],
+    pinned: [Conversation],
+    groups: [HomeConversationSectionState],
+    firstBlockTopSpacing: CGFloat = homeListFirstBlockTopSpacing,
+    groupSpacing: CGFloat = homeListGroupSpacing,
+    folderRowSpacing: CGFloat = homeFolderRowSpacing
+) -> [HomeConversationListItem] {
+    if isSearching {
+        if searchConversations.isEmpty && folders.isEmpty && !searchInFlight {
+            return []
+        }
+        var items: [HomeConversationListItem] = [
+            .sectionHeader(kind: .search, conversations: searchConversations, topSpacing: firstBlockTopSpacing)
+        ]
+        appendConversationRows(
+            searchConversations,
+            showFolderTag: true,
+            to: &items
+        )
+        return items
+    }
+
+    var items: [HomeConversationListItem] = []
+    var isFirstBlock = true
+    var previousWasFolder = false
+
+    for folder in folders {
+        let spacing: CGFloat
+        if isFirstBlock {
+            spacing = firstBlockTopSpacing
+        } else if previousWasFolder {
+            spacing = folderRowSpacing
+        } else {
+            spacing = groupSpacing
+        }
+        items.append(.folder(folder, topSpacing: spacing))
+        isFirstBlock = false
+        previousWasFolder = true
+    }
+
+    if !pinned.isEmpty {
+        items.append(.sectionHeader(
+            kind: .pinned,
+            conversations: pinned,
+            topSpacing: isFirstBlock ? firstBlockTopSpacing : groupSpacing
+        ))
+        isFirstBlock = false
+        previousWasFolder = false
+        appendConversationRows(pinned, showFolderTag: true, to: &items)
+    }
+
+    for group in groups {
+        items.append(.sectionHeader(
+            kind: .timeline(group.section),
+            conversations: group.conversations,
+            topSpacing: isFirstBlock ? firstBlockTopSpacing : groupSpacing
+        ))
+        isFirstBlock = false
+        previousWasFolder = false
+        appendConversationRows(group.conversations, showFolderTag: false, to: &items)
+        if group.section == .earlier, group.remainingCount > 0 {
+            items.append(.showMore(remaining: group.remainingCount))
+        }
+    }
+
+    return items
+}
+
+private func appendConversationRows(
+    _ conversations: [Conversation],
+    showFolderTag: Bool,
+    to items: inout [HomeConversationListItem]
+) {
+    let lastIndex = conversations.count - 1
+    for (index, conversation) in conversations.enumerated() {
+        items.append(.conversation(
+            conversation,
+            showFolderTag: showFolderTag,
+            isFirst: index == 0,
+            isLast: index == lastIndex
+        ))
+    }
+}
 
 #if DEBUG
 /// Seed for the visual snapshot tests: the editing and search states can only be entered through the
@@ -158,12 +316,10 @@ struct HomeView: View {
                     .padding(.horizontal, OriveoTheme.V2.Sp.s20)
                     .padding(.top, 14)
                 }
-                // The list sits 26 below Notes; while editing, the hero and Notes collapse and the list follows the greeting
+                // The list sits 26 below Notes; while editing, the hero and Notes collapse and the list follows the greeting.
+                // ForEach must be a direct LazyVStack child — wrapping it in a VStack then padding would force
+                // sizeThatFits to measure the whole table on the main thread.
                 conversationContent
-                    .padding(.top, 26)
-                    .padding(.horizontal, OriveoTheme.V2.Sp.s20)
-                    .opacity(contentAppeared ? 1 : 0)
-                    .offset(y: contentAppeared ? 0 : 8)
 
             }
             .padding(.top, OriveoTheme.V2.Sp.s16)
@@ -867,66 +1023,83 @@ struct HomeView: View {
         if !appState.providers.isEmpty {
             let folders = appState.folderManager.sortedFolders
             let groups = groupedConversations
+            let pinnedConversations = appState.conversationManager.pinnedConversations
+            let items = makeHomeConversationListItems(
+                isSearching: !searchText.isEmpty,
+                searchConversations: conversations,
+                searchInFlight: searchInFlight,
+                folders: folders,
+                pinned: searchText.isEmpty ? pinnedConversations : [],
+                groups: searchText.isEmpty ? groups : []
+            )
 
-            if !searchText.isEmpty {
-                if conversations.isEmpty && folders.isEmpty && !searchInFlight {
-                    HomeConversationEmptyState()
-                } else {
-                    VStack(alignment: .leading, spacing: 0) {
-                        v2SectionHeader(title: L10n.tr("Search Results", table: .home), count: conversations.count)
-                            .modifier(HomeSectionHeaderInsets())
-                        conversationGroupCard(conversations, showFolderTag: true)
-                    }
-                }
-            } else if groups.isEmpty && folders.isEmpty && appState.conversationManager.pinnedConversations.isEmpty {
-                HomeConversationEmptyState()
+            if items.isEmpty {
+                conversationEmptyPlaceholder(folders: folders, groups: groups, pinned: pinnedConversations)
+                    .padding(.top, homeListFirstBlockTopSpacing)
+                    .padding(.horizontal, OriveoTheme.V2.Sp.s20)
+                    .opacity(contentAppeared ? 1 : 0)
+                    .offset(y: contentAppeared ? 0 : 8)
             } else {
-                // 22 between groups. Title and card share one VStack: a Section nested in a plain VStack is split
-                // into two sibling nodes, title and content, and the outer spacing lands between them (the
-                // previous title-to-card gap was 30+).
-                VStack(alignment: .leading, spacing: 22) {
-                    if !folders.isEmpty {
-                        folderSection(folders: folders)
-                    }
-
-                    let pinnedConversations = appState.conversationManager.pinnedConversations
-                    if !pinnedConversations.isEmpty {
-                        pinnedSection(pinnedConversations)
-                    }
-
-                    ForEach(groups, id: \.section) { group in
-                        VStack(alignment: .leading, spacing: 0) {
-                            Group {
-                                if isEditing {
-                                    sectionHeaderWithSelect(title: title(for: group.section), conversations: group.conversations)
-                                } else {
-                                    v2SectionHeader(title: title(for: group.section), count: group.conversations.count)
-                                }
-                            }
-                            .modifier(HomeSectionHeaderInsets())
-
-                            VStack(alignment: .leading, spacing: OriveoTheme.V2.Sp.s8) {
-                                conversationGroupCard(group.conversations)
-                                if group.section == .earlier && group.remainingCount > 0 {
-                                    earlierShowMoreButton(remainingCount: group.remainingCount)
-                                }
-                            }
-                        }
-                    }
+                ForEach(items) { item in
+                    homeListItemView(item)
+                        .padding(.horizontal, OriveoTheme.V2.Sp.s20)
+                        .padding(.top, item.topSpacing)
+                        .opacity(contentAppeared ? 1 : 0)
+                        .offset(y: contentAppeared ? 0 : 8)
                 }
             }
         }
     }
 
-    /// One card per group with no separators inside: rows are kept apart by their own padding, and each row's
-    /// contentShape covers the whole row
-    private func conversationGroupCard(_ conversations: [Conversation], showFolderTag: Bool = false) -> some View {
-        AuroraGroupedCard {
-            VStack(spacing: 0) {
-                ForEach(conversations) { conversation in
-                    conversationButton(for: conversation, showFolderTag: showFolderTag, grouped: true)
+    @ViewBuilder
+    private func conversationEmptyPlaceholder(
+        folders: [Folder],
+        groups: [HomeConversationSectionState],
+        pinned: [Conversation]
+    ) -> some View {
+        if !searchText.isEmpty {
+            if conversations.isEmpty && folders.isEmpty && !searchInFlight {
+                HomeConversationEmptyState()
+            }
+        } else if groups.isEmpty && folders.isEmpty && pinned.isEmpty {
+            HomeConversationEmptyState()
+        }
+    }
+
+    @ViewBuilder
+    private func homeListItemView(_ item: HomeConversationListItem) -> some View {
+        switch item {
+        case .folder(let folder, _):
+            FolderRow(
+                folder: folder,
+                isEditing: isEditing,
+                selectedIDs: $selectedIDs
+            )
+        case .sectionHeader(let kind, let conversations, _):
+            Group {
+                if isEditing, kind != .search {
+                    sectionHeaderWithSelect(title: headerTitle(for: kind), conversations: conversations)
+                } else {
+                    v2SectionHeader(title: headerTitle(for: kind), count: conversations.count)
                 }
             }
+            .modifier(HomeSectionHeaderInsets())
+        case .conversation(let conversation, let showFolderTag, let isFirst, let isLast):
+            conversationButton(for: conversation, showFolderTag: showFolderTag, grouped: true)
+                .modifier(AuroraGroupedRowSurface(isFirst: isFirst, isLast: isLast))
+        case .showMore(let remaining):
+            earlierShowMoreButton(remainingCount: remaining)
+        }
+    }
+
+    private func headerTitle(for kind: HomeConversationHeaderKind) -> String {
+        switch kind {
+        case .search:
+            L10n.tr("Search Results", table: .home)
+        case .pinned:
+            L10n.tr("Pinned", table: .home)
+        case .timeline(let section):
+            title(for: section)
         }
     }
 
@@ -972,30 +1145,6 @@ struct HomeView: View {
                 .padding(.vertical, -15)
         }
         .buttonStyle(.plain)
-    }
-
-    // MARK: - Pinned Section
-
-    private func pinnedSection(_ conversations: [Conversation]) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            v2SectionHeader(title: L10n.tr("Pinned", table: .home), count: conversations.count)
-                .modifier(HomeSectionHeaderInsets())
-            conversationGroupCard(conversations, showFolderTag: true)
-        }
-    }
-
-    // MARK: - Folder Section
-
-    private func folderSection(folders: [Folder]) -> some View {
-        VStack(alignment: .leading, spacing: OriveoTheme.Spacing.sm) {
-            ForEach(folders) { folder in
-                FolderRow(
-                    folder: folder,
-                    isEditing: isEditing,
-                    selectedIDs: $selectedIDs
-                )
-            }
-        }
     }
 
     private func conversationButton(for conversation: Conversation, showFolderTag: Bool = false, grouped: Bool = false) -> some View {

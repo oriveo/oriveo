@@ -31,6 +31,26 @@ struct SkillsRoutingTests {
         #expect(appState.navigation.path == [.skillsList])
     }
 
+    @Test("the skills catalog ForEach is a LazyVStack child and no longer wraps a LazyVGrid")
+    func skillsCatalogForEachIsLazyStackChild() throws {
+        let source = try skillsListSource()
+        let body = try #require(source.slice(
+            from: "var body: some View {",
+            to: "// MARK: - Navigation Bar"
+        ))
+        #expect(body.contains("LazyVStack(alignment: .leading, spacing: 0)"))
+        #expect(body.contains("ForEach(skillPairs(from: filteredUserSkills))"))
+        #expect(body.contains("ForEach(skillPairs(from: visibleCatalogSkills))"))
+        #expect(body.contains("emptyStateCard"))
+        #expect(body.contains("categoryFilterPills"))
+        #expect(!body.contains("LazyVGrid("))
+        #expect(!source.contains("LazyVGrid(columns:"))
+        #expect(source.contains("private struct SkillPair"))
+        #expect(source.contains("second: index + 1 < skills.count ? skills[index + 1] : nil"))
+        #expect(source.contains("Color.clear"))
+        #expect(source.contains(".frame(maxWidth: .infinity, alignment: .top)"))
+    }
+
     @Test("Skill Reasoning Match Uses Capability Evidence")
     func skillReasoningMatchUsesCapabilityEvidence() async throws {
         await MetadataClient.shared.resetForTesting()
@@ -93,5 +113,25 @@ struct SkillsRoutingTests {
         #expect(created.providerID == second.id)
         #expect(created.modelID == evidenced.id)
         await MetadataClient.shared.resetForTesting()
+    }
+
+    private func skillsListSource() throws -> String {
+        let url = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("Oriveo/Features/Skills/SkillsListView.swift")
+        return try String(contentsOf: url, encoding: .utf8)
+    }
+}
+
+private extension String {
+    func slice(from startMarker: String, to endMarker: String) -> String? {
+        guard let start = range(of: startMarker),
+              let end = range(of: endMarker, range: start.upperBound..<endIndex) else {
+            return nil
+        }
+        return String(self[start.lowerBound..<end.lowerBound])
     }
 }
