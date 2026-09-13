@@ -632,7 +632,7 @@ describe('proxy-client', () => {
     );
 
     await expect(collectEvents(stream)).resolves.toEqual([
-      { type: 'error', error: 'Overloaded', errorKind: 'upstream', source: 'provider' },
+      { type: 'error', error: 'Overloaded', errorKind: 'rateLimited', source: 'provider' },
       { type: 'done' },
     ]);
   });

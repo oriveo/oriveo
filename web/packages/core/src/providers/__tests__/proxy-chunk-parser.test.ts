@@ -669,3 +669,73 @@ describe('createProxyChunkParser - Library tool events', () => {
     }))).toEqual([]);
   });
 });
+
+describe('createProxyChunkParser - in-stream overload classification', () => {
+  const nvidiaOverloaded = 'Upstream error from Nvidia: Service temporarily overloaded';
+
+  it('BYOK 200 SSE Nvidia overloaded → rateLimited / source=provider', () => {
+    const parser = createProxyChunkParser('openRouter');
+    expect(feed(parser, null, JSON.stringify({
+      error: { message: nvidiaOverloaded },
+    }))).toEqual([{
+      type: 'error',
+      error: nvidiaOverloaded,
+      errorKind: 'rateLimited',
+      source: 'provider',
+    }]);
+  });
+
+  it('Anthropic overloaded_error → rateLimited; unknown api_error stays upstream', () => {
+    const parser = createProxyChunkParser('anthropic');
+    expect(feed(parser, 'error', JSON.stringify({
+      type: 'error',
+      error: { type: 'overloaded_error', message: 'Overloaded' },
+    }))).toEqual([{
+      type: 'error',
+      error: 'Overloaded',
+      errorKind: 'rateLimited',
+      source: 'provider',
+    }]);
+    expect(feed(parser, 'error', JSON.stringify({
+      type: 'error',
+      error: { type: 'api_error', message: 'Internal server error' },
+    }))).toEqual([{
+      type: 'error',
+      error: 'Internal server error',
+      errorKind: 'upstream',
+      source: 'provider',
+    }]);
+  });
+
+  it('unknown OpenAI server_error stays upstream so genuine 5xx still report', () => {
+    const parser = createProxyChunkParser('openAI');
+    expect(feed(parser, null, JSON.stringify({
+      error: { type: 'server_error', message: 'The server had an error processing your request.' },
+    }))).toEqual([{
+      type: 'error',
+      error: 'The server had an error processing your request.',
+      errorKind: 'upstream',
+      source: 'provider',
+    }]);
+  });
+
+  it('does not classify account-seat or permanent-free wording as rateLimited', () => {
+    const parser = createProxyChunkParser('openRouter');
+    expect(feed(parser, null, JSON.stringify({
+      error: { message: 'account overloaded with extra seats' },
+    }))[0]).toMatchObject({ errorKind: 'upstream' });
+    expect(feed(parser, null, JSON.stringify({
+      error: { message: 'This model is unavailable for free' },
+    }))[0]).toMatchObject({ errorKind: 'upstream' });
+  });
+
+  it('quota exhaustion still wins over ResourceExhausted in-stream', () => {
+    const parser = createProxyChunkParser('gemini');
+    expect(feed(parser, null, JSON.stringify({
+      error: {
+        status: 'RESOURCE_EXHAUSTED',
+        message: 'Resource has been exhausted (e.g. check quota).',
+      },
+    }))[0]).toMatchObject({ errorKind: 'quotaExceeded' });
+  });
+});

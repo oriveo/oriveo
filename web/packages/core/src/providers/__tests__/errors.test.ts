@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { toProviderError } from '../errors';
+import {
+  classifyInStreamProviderErrorKind,
+  isTransientOverloadError,
+  toProviderError,
+} from '../errors';
 
 describe('toProviderError', () => {
   it('classifies 402 Payment Required as quotaExceeded', () => {
@@ -129,6 +133,78 @@ describe('toProviderError', () => {
     it('401 + session body → unauthorized', () => {
       const err = toProviderError(401, '{"error":{"message":"session expired"}}');
       expect(err.kind).toBe('unauthorized');
+    });
+  });
+
+  describe('upstream temporary overload is rateLimited, not a fault', () => {
+    const nvidiaOverloaded = 'Upstream error from Nvidia: Service temporarily overloaded';
+
+    it('production Nvidia overloaded body on HTTP 200 is rateLimited', () => {
+      const err = toProviderError(200, JSON.stringify({ error: { message: nvidiaOverloaded } }));
+      expect(err.kind).toBe('rateLimited');
+    });
+
+    it('production Nvidia overloaded body on HTTP 500 is still rateLimited, not upstream', () => {
+      expect(toProviderError(500, nvidiaOverloaded).kind).toBe('rateLimited');
+    });
+
+    it('true 5xx without overload needles stays upstream', () => {
+      expect(toProviderError(502, '{"error":{"message":"bad gateway"}}').kind).toBe('upstream');
+      expect(toProviderError(500, 'Internal Server Error').kind).toBe('upstream');
+    });
+
+    it.each([
+      nvidiaOverloaded,
+      'Upstream error from Nvidia: ResourceExhausted: Worker local total request limit reached (16/16)',
+      'Upstream error from Darkbloom: all providers for model "gpt-oss-20b" are at capacity (queue timeout)',
+      'poolside/laguna-s-2.1:free is temporarily rate-limited upstream.',
+      'Overloaded',
+      'overloaded_error',
+      'The engine is currently overloaded, please try again later',
+      'rate_limit_error',
+      'Rate limit reached for requests',
+    ])('overload/capacity needle %s maps to rateLimited', (text) => {
+      expect(isTransientOverloadError(text)).toBe(true);
+      expect(classifyInStreamProviderErrorKind(text)).toBe('rateLimited');
+    });
+
+    it.each([
+      'account overloaded with extra seats',
+      'Please review your rate limit settings',
+      'This model is unavailable for free',
+      'Internal Server Error',
+    ])('does not treat non-overload prose %s as rateLimited', (text) => {
+      expect(isTransientOverloadError(text)).toBe(false);
+      expect(classifyInStreamProviderErrorKind(text)).toBe('upstream');
+    });
+
+    it('quota exhaustion still wins over ResourceExhausted / overload wording', () => {
+      expect(classifyInStreamProviderErrorKind(
+        'Resource has been exhausted (e.g. check quota).',
+        'RESOURCE_EXHAUSTED',
+      )).toBe('quotaExceeded');
+      expect(toProviderError(
+        429,
+        JSON.stringify({
+          error: { message: 'ResourceExhausted: Worker local total request limit reached. Check quota.' },
+        }),
+      ).kind).toBe('quotaExceeded');
+    });
+
+    it('401/403 with overload wording stay auth failures', () => {
+      expect(toProviderError(401, JSON.stringify({
+        error: { message: nvidiaOverloaded },
+      })).kind).toBe('invalidKey');
+      expect(toProviderError(403, JSON.stringify({
+        error: { message: nvidiaOverloaded },
+      })).kind).toBe('invalidKey');
+    });
+
+    it('unknown in-stream server_error stays upstream so genuine faults still report', () => {
+      expect(classifyInStreamProviderErrorKind(
+        'The server had an error processing your request.',
+        'server_error',
+      )).toBe('upstream');
     });
   });
 });

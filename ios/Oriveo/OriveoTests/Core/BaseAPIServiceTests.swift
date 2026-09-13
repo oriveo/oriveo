@@ -32,6 +32,117 @@ struct BaseAPIServiceTests {
         #expect(detail.localizedCaseInsensitiveContains("Codex"))
     }
 
+    @Test("mapStreamError: production Nvidia overloaded → rateLimited")
+    func mapStreamErrorClassifiesNvidiaOverloadedAsRateLimited() {
+        let error = BaseAPIService.mapStreamError(
+            type: nil,
+            message: "Upstream error from Nvidia: Service temporarily overloaded"
+        )
+        guard case .rateLimited = error else {
+            Issue.record("expected .rateLimited, got \(error)")
+            return
+        }
+    }
+
+    @Test("mapStreamError: unknown server_error stays upstream")
+    func mapStreamErrorKeepsUnknownServerErrorAsUpstream() {
+        let error = BaseAPIService.mapStreamError(
+            type: "server_error",
+            message: "The server had an error processing your request."
+        )
+        guard case .upstream(let status, _) = error else {
+            Issue.record("expected .upstream, got \(error)")
+            return
+        }
+        #expect(status == 200)
+    }
+
+    @Test("mapHTTPError: 200/500 overload body → rateLimited; true 5xx stays upstream")
+    func mapHTTPErrorClassifiesOverloadWithoutSilencingReal5xx() {
+        let service = BaseAPIService()
+        let overloaded = #"{"error":{"message":"Upstream error from Nvidia: Service temporarily overloaded"}}"#
+        guard case .rateLimited = service.mapHTTPError(statusCode: 200, data: Data(overloaded.utf8)) else {
+            Issue.record("expected 200 overloaded → rateLimited")
+            return
+        }
+        guard case .rateLimited = service.mapHTTPError(statusCode: 500, data: Data(overloaded.utf8)) else {
+            Issue.record("expected 500 overloaded → rateLimited")
+            return
+        }
+        guard case .upstream = service.mapHTTPError(
+            statusCode: 502,
+            data: Data(#"{"error":{"message":"bad gateway"}}"#.utf8)
+        ) else {
+            Issue.record("expected 502 without overload needles → upstream")
+            return
+        }
+    }
+
+    @Test("mapStreamError: account-seat overload / unavailable for free must not be rateLimited")
+    func mapStreamErrorRejectsWideOverloadNeedles() {
+        let accountSeats = BaseAPIService.mapStreamError(
+            type: nil,
+            message: "account overloaded with extra seats"
+        )
+        guard case .upstream = accountSeats else {
+            Issue.record("expected account-seat prose → upstream, got \(accountSeats)")
+            return
+        }
+        let unavailableForFree = BaseAPIService.mapStreamError(
+            type: nil,
+            message: "This model is unavailable for free"
+        )
+        guard case .upstream = unavailableForFree else {
+            Issue.record("expected unavailable for free → upstream, got \(unavailableForFree)")
+            return
+        }
+    }
+
+    @Test("mapStreamError: quota exhaustion beats ResourceExhausted / overload")
+    func mapStreamErrorPrefersQuotaOverOverload() {
+        let error = BaseAPIService.mapStreamError(
+            type: "RESOURCE_EXHAUSTED",
+            message: "Resource has been exhausted (e.g. check quota)."
+        )
+        guard case .quotaExceeded = error else {
+            Issue.record("expected .quotaExceeded, got \(error)")
+            return
+        }
+        let mixed = BaseAPIService().mapHTTPError(
+            statusCode: 429,
+            data: Data(#"{"error":{"message":"ResourceExhausted: Worker local total request limit reached. Check quota."}}"#.utf8)
+        )
+        guard case .quotaExceeded = mixed else {
+            Issue.record("expected mixed quota+overload 429 → quotaExceeded, got \(mixed)")
+            return
+        }
+    }
+
+    @Test("mapHTTPError: 401/403 with overload wording stay auth failures")
+    func mapHTTPErrorKeepsAuthFailuresAheadOfOverload() {
+        let service = BaseAPIService()
+        let body = #"{"error":{"message":"Upstream error from Nvidia: Service temporarily overloaded"}}"#
+        guard case .invalidAPIKey = service.mapHTTPError(statusCode: 401, data: Data(body.utf8)) else {
+            Issue.record("expected 401 + overload wording → invalidAPIKey")
+            return
+        }
+        guard case .invalidAPIKey = service.mapHTTPError(statusCode: 403, data: Data(body.utf8)) else {
+            Issue.record("expected 403 + overload wording → invalidAPIKey")
+            return
+        }
+    }
+
+    @Test("mapOpenAICompatibleStreamError: production Nvidia overloaded JSON → rateLimited")
+    func mapOpenAICompatibleStreamErrorClassifiesNvidiaOverloaded() {
+        let error = BaseAPIService.mapOpenAICompatibleStreamError(
+            from: Data(#"{"error":{"message":"Upstream error from Nvidia: Service temporarily overloaded"}}"#.utf8)
+        )
+        guard case .rateLimited = error else {
+            Issue.record("expected .rateLimited, got \(String(describing: error))")
+            return
+        }
+    }
+
     @Test("mapHTTPError:402 → quotaExceeded")
     func mapHTTPErrorClassifies402AsQuotaExceeded() {
         let service = BaseAPIService()

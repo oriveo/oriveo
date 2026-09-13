@@ -59,6 +59,12 @@ object SseParser {
 
     private val QUOTA_PATTERN = Regex("quota|daily limit|used up|insufficient quota|credit|billing hard limit|allowance")
     private val UNAVAILABLE_PATTERN = Regex("temporarily unavailable|currently unavailable|not available|model not exist|model_not_found|no such model|disabled|offline|maintenance")
+    // Matches Web isTransientOverloadError. Does not match internal server error (a real 5xx
+    // stays Upstream). Does not match a bare overloaded / rate limit substring, which would
+    // false-positive on account copy such as "account overloaded with extra seats".
+    private val TRANSIENT_OVERLOAD_PATTERN = Regex(
+        "temporarily rate-limited|rate-limited upstream|temporarily overloaded|currently overloaded|overloaded_error|resourceexhausted|at capacity|queue timeout|rate_limit|rate limit reached|rate limit exceeded",
+    )
 
     /**
      * Per-chunk fault-tolerance helper: it swallows JSON parse failures only, i.e. the case where
@@ -467,7 +473,7 @@ object SseParser {
             QUOTA_PATTERN.containsMatchIn(lower) -> ProviderServiceError.QuotaExceeded(
                 "The provider stream reported that quota or credit is unavailable.",
             )
-            lower.contains("overloaded") || lower.contains("rate limit") || lower.contains("rate_limit") ->
+            bodyIndicatesTransientOverload(lower) ->
                 ProviderServiceError.RateLimited("The provider stream reported a rate limit.")
             lower.contains("authentication") || lower.contains("permission") || lower.contains("api key") ->
                 ProviderServiceError.InvalidAPIKey("The provider stream rejected authentication.")
@@ -562,6 +568,7 @@ object SseParser {
         val lower = body.lowercase()
         val isQuota = QUOTA_PATTERN.containsMatchIn(lower)
         val isUnavailable = UNAVAILABLE_PATTERN.containsMatchIn(lower)
+        val isTransientOverload = bodyIndicatesTransientOverload(lower)
         val rejectedParameter = structuredRejectedParameter(body)
 
         return when (statusCode) {
@@ -579,10 +586,21 @@ object SseParser {
                 isUnavailable -> ProviderServiceError.ModelUnavailable(detail)
                 else -> ProviderServiceError.RateLimited(detail)
             }
-            in 500..599 -> if (isUnavailable) ProviderServiceError.ModelUnavailable(detail)
-                else ProviderServiceError.Upstream(statusCode, detail, rejectedParameter)
-            else -> ProviderServiceError.Upstream(statusCode, detail, rejectedParameter)
+            in 500..599 -> when {
+                isTransientOverload && !isQuota -> ProviderServiceError.RateLimited(detail)
+                isUnavailable -> ProviderServiceError.ModelUnavailable(detail)
+                else -> ProviderServiceError.Upstream(statusCode, detail, rejectedParameter)
+            }
+            else -> when {
+                isTransientOverload && !isQuota -> ProviderServiceError.RateLimited(detail)
+                else -> ProviderServiceError.Upstream(statusCode, detail, rejectedParameter)
+            }
         }
+    }
+
+    private fun bodyIndicatesTransientOverload(lower: String): Boolean {
+        if (TRANSIENT_OVERLOAD_PATTERN.containsMatchIn(lower)) return true
+        return lower.trim() == "overloaded"
     }
 
     /**

@@ -85,6 +85,26 @@ class SseParserStreamErrorTest {
     }
 
     @Test
+    fun `production Nvidia overloaded maps to RateLimited`() {
+        assertThrowsProviderError<ProviderServiceError.RateLimited> {
+            SseParser.throwIfStreamErrorPayload(
+                json,
+                """{"error":{"message":"Upstream error from Nvidia: Service temporarily overloaded"}}""",
+            )
+        }
+    }
+
+    @Test
+    fun `production Nvidia resource exhausted capacity maps to RateLimited`() {
+        assertThrowsProviderError<ProviderServiceError.RateLimited> {
+            SseParser.throwIfStreamErrorPayload(
+                json,
+                """{"error":{"message":"Upstream error from Nvidia: ResourceExhausted: Worker local total request limit reached (16/16)"}}""",
+            )
+        }
+    }
+
+    @Test
     fun `openai stream error redacts credentials prompt and raw payload`() {
         val error = assertThrowsProviderError<ProviderServiceError.RateLimited> {
             SseParser.throwIfStreamErrorPayload(
@@ -223,6 +243,68 @@ class SseParserStreamErrorTest {
     }
 
     // HTTP status classification.
+
+    @Test
+    fun `http 200 Nvidia overloaded maps to RateLimited`() {
+        val error = SseParser.mapHttpError(
+            200,
+            """{"error":{"message":"Upstream error from Nvidia: Service temporarily overloaded"}}""",
+        )
+        assertTrue("expected RateLimited, got ${error::class.simpleName}", error is ProviderServiceError.RateLimited)
+    }
+
+    @Test
+    fun `http 500 Nvidia overloaded maps to RateLimited`() {
+        val error = SseParser.mapHttpError(
+            500,
+            """{"error":{"message":"Upstream error from Nvidia: Service temporarily overloaded"}}""",
+        )
+        assertTrue("expected RateLimited, got ${error::class.simpleName}", error is ProviderServiceError.RateLimited)
+    }
+
+    @Test
+    fun `http 502 without overload needles stays Upstream`() {
+        val error = SseParser.mapHttpError(502, """{"error":{"message":"bad gateway"}}""")
+        assertTrue("expected Upstream, got ${error::class.simpleName}", error is ProviderServiceError.Upstream)
+    }
+
+    @Test
+    fun `account seat overloaded prose is not RateLimited`() {
+        assertThrowsProviderError<ProviderServiceError.Upstream> {
+            SseParser.throwIfStreamErrorPayload(
+                json,
+                """{"error":{"message":"account overloaded with extra seats"}}""",
+            )
+        }
+    }
+
+    @Test
+    fun `unavailable for free is not RateLimited`() {
+        assertThrowsProviderError<ProviderServiceError.Upstream> {
+            SseParser.throwIfStreamErrorPayload(
+                json,
+                """{"error":{"message":"This model is unavailable for free"}}""",
+            )
+        }
+    }
+
+    @Test
+    fun `http 429 ResourceExhausted with quota stays QuotaExceeded`() {
+        val error = SseParser.mapHttpError(
+            429,
+            """{"error":{"message":"ResourceExhausted: Worker local total request limit reached. Check quota."}}""",
+        )
+        assertTrue("expected QuotaExceeded, got ${error::class.simpleName}", error is ProviderServiceError.QuotaExceeded)
+    }
+
+    @Test
+    fun `http 401 overload wording stays InvalidAPIKey`() {
+        val error = SseParser.mapHttpError(
+            401,
+            """{"error":{"message":"Upstream error from Nvidia: Service temporarily overloaded"}}""",
+        )
+        assertTrue("expected InvalidAPIKey, got ${error::class.simpleName}", error is ProviderServiceError.InvalidAPIKey)
+    }
 
     @Test
     fun `http 402 maps to QuotaExceeded`() = runTest {

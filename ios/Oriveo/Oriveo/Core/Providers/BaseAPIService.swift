@@ -516,6 +516,7 @@ class BaseAPIService {
         // Providers based in China return these error bodies in Chinese.
         let isQuota = lowerBody.range(of: "quota|daily limit|used up|insufficient quota|credit|billing hard limit|allowance|免费额度|额度已用完|额度耗尽|配额已用完", options: .regularExpression) != nil
         let isUnavailable = lowerBody.range(of: "temporarily unavailable|currently unavailable|not available|disabled|offline|maintenance|暂不可用|不可用|已停用|维护", options: .regularExpression) != nil
+        let isTransientOverload = Self.isTransientOverloadBody(lowerBody)
 
         switch statusCode {
         case 401, 403:
@@ -529,11 +530,77 @@ class BaseAPIService {
             if isUnavailable { return .modelUnavailable(detail: detail) }
             return .rateLimited(detail: detail)
         case 500...599:
+            if isTransientOverload && !isQuota { return .rateLimited(detail: detail) }
             if isUnavailable { return .modelUnavailable(detail: detail) }
             return .upstream(statusCode: statusCode, detail: detail)
         default:
+            if isTransientOverload && !isQuota { return .rateLimited(detail: detail) }
             return .upstream(statusCode: statusCode, detail: detail)
         }
+    }
+
+    /// Matches Web `isTransientOverloadError`. Overload and a full shared pool: the user waits,
+    /// switches model, or retries. Does not match `internal server error`, nor the bare substrings
+    /// `overloaded` / `rate limit` (those false-positive on account copy).
+    static func isTransientOverloadBody(_ lower: String) -> Bool {
+        let needles = [
+            "temporarily rate-limited",
+            "rate-limited upstream",
+            "temporarily overloaded",
+            "currently overloaded",
+            "overloaded_error",
+            "resourceexhausted",
+            "at capacity",
+            "queue timeout",
+            "rate_limit",
+            "rate limit reached",
+            "rate limit exceeded",
+        ]
+        if needles.contains(where: { lower.contains($0) }) { return true }
+        // Anthropic's production text is the whole sentence "Overloaded".
+        return lower.trimmingCharacters(in: .whitespacesAndNewlines) == "overloaded"
+    }
+
+    /// In-stream errors (HTTP 200 SSE) have no finer status code, so triage by type/message.
+    static func mapStreamError(type: String?, message: String) -> ProviderServiceError {
+        let lower = "\(type ?? "") \(message)".lowercased()
+        if lower.range(of: "quota|daily limit|used up|insufficient quota|credit|billing hard limit|allowance|免费额度|额度已用完|额度耗尽|配额已用完", options: .regularExpression) != nil {
+            return .quotaExceeded(detail: "The provider stream reported that quota or credit is unavailable.")
+        }
+        if isTransientOverloadBody(lower) {
+            return .rateLimited(detail: "The provider stream reported a rate limit.")
+        }
+        if lower.contains("authentication") || lower.contains("permission") || lower.contains("api key") {
+            return .invalidAPIKey(detail: "The provider stream rejected authentication.")
+        }
+        if lower.range(of: "temporarily unavailable|currently unavailable|not available|disabled|offline|maintenance|暂不可用|不可用|已停用|维护", options: .regularExpression) != nil {
+            return .modelUnavailable(detail: "The provider stream reported that the model is unavailable.")
+        }
+        return .upstream(statusCode: 200, detail: message)
+    }
+
+    /// OpenAI-compatible in-stream error payload. Returns nil when the chunk is not an error.
+    static func mapOpenAICompatibleStreamError(from data: Data) -> ProviderServiceError? {
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return nil
+        }
+        var type: String?
+        var message: String?
+        if let errObj = json["error"] as? [String: Any] {
+            message = errObj["message"] as? String
+            type = (errObj["type"] as? String) ?? (errObj["code"] as? String)
+            if (message == nil || message?.isEmpty == true), let errString = errObj["code"] as? String {
+                message = errString
+            }
+        } else if let errString = json["error"] as? String, !errString.isEmpty {
+            message = errString
+        } else if json["choices"] == nil, json["code"] != nil,
+                  let msg = json["message"] as? String, !msg.isEmpty {
+            message = msg
+            type = json["code"] as? String
+        }
+        guard let message, !message.isEmpty else { return nil }
+        return mapStreamError(type: type, message: message)
     }
 
     private static func relayGuidanceFailure(

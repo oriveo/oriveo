@@ -87,6 +87,21 @@ describe("shouldReportProviderError", () => {
     }
   });
 
+  it("drops classified Nvidia overload once it is rateLimited, and still reports a genuine Oriveo-owned upstream fault", () => {
+    expect(shouldReportProviderError({
+      kind: "rateLimited",
+      title: "Rate Limited",
+      message: "Upstream error from Nvidia: Service temporarily overloaded",
+      source: "provider",
+    })).toBe(false);
+    expect(shouldReportProviderError({
+      kind: "upstream",
+      title: "Provider Error",
+      message: "The server had an error processing your request.",
+      source: "oriveo",
+    })).toBe(true);
+  });
+
   it("drops user-authored custom request field rejections (fail-closed is by design)", () => {
     expect(shouldReportProviderError({ kind: "customRequestFieldsRejected", source: "oriveo" })).toBe(false);
   });

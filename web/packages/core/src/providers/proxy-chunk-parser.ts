@@ -12,6 +12,7 @@
  */
 
 import type { Citation, ProviderKind } from '@oriveo/shared/pure-types';
+import { classifyInStreamProviderErrorKind } from './errors';
 import type {
   StreamEvent,
   StreamToolCallDelta,
@@ -203,9 +204,12 @@ export function createProxyChunkParser(providerKind?: ProviderKind, continuation
       const msg = typeof chunk.error === 'string'
         ? chunk.error
         : (chunk.error?.message ?? 'Provider error');
-      events.push({ type: 'error', error: msg, errorKind: 'upstream', source: upstreamErrorSource });
+      const typeOrCode = typeof chunk.error === 'object'
+        ? (chunk.error?.type ?? chunk.error?.code)
+        : undefined;
+      events.push(inStreamProviderError(msg, upstreamErrorSource, typeOrCode));
     } else if (!_eventType && chunk.code && typeof chunk.message === 'string' && !chunk.choices) {
-      events.push({ type: 'error', error: chunk.message, errorKind: 'upstream', source: upstreamErrorSource });
+      events.push(inStreamProviderError(chunk.message, upstreamErrorSource, chunk.code));
     }
     const choice = !_eventType ? chunk.choices?.[0] : undefined;
     events.push(...nativeToolCallEvents('openai_chat', _eventType, chunk, nativeToolCallState));
@@ -321,7 +325,7 @@ export function createProxyChunkParser(providerKind?: ProviderKind, continuation
         typeof chunk.error.message === 'string' && chunk.error.message
           ? chunk.error.message
           : 'Provider error';
-      events.push({ type: 'error', error: msg, errorKind: 'upstream', source: upstreamErrorSource });
+      events.push(inStreamProviderError(msg, upstreamErrorSource, chunk.error.type ?? chunk.error.code));
     }
     if (!_eventType && (providerKind === 'anthropic' || miniMaxAnthropicWeb)
       && chunk.type === 'message' && Array.isArray(chunk.content)) {
@@ -497,7 +501,7 @@ export function createProxyChunkParser(providerKind?: ProviderKind, continuation
     }
     if (_eventType === 'response.failed') {
       const error = resolveResponseStreamError(chunk);
-      events.push({ type: 'error', error, errorKind: 'upstream', source: upstreamErrorSource });
+      events.push(inStreamProviderError(error, upstreamErrorSource, resolveResponseStreamErrorType(chunk)));
     }
 
     events.push(...captureContinuation(_eventType, chunk));
@@ -1080,4 +1084,26 @@ function resolveResponseStreamError(chunk: unknown): string {
   return typeof message === 'string' && message.trim()
     ? message
     : 'OpenAI Responses stream failed';
+}
+
+function resolveResponseStreamErrorType(chunk: unknown): string | undefined {
+  if (!chunk || typeof chunk !== 'object') return undefined;
+  const error = (chunk as { error?: { type?: unknown; code?: unknown } }).error;
+  if (typeof error?.type === 'string') return error.type;
+  if (typeof error?.code === 'string') return error.code;
+  return undefined;
+}
+
+function inStreamProviderError(
+  message: string,
+  source: 'provider' | 'network' | 'oriveo' | 'desktop' | 'unknown',
+  typeOrCode?: unknown,
+): Extract<StreamEvent, { type: 'error' }> {
+  const type = typeof typeOrCode === 'string' ? typeOrCode : undefined;
+  return {
+    type: 'error',
+    error: message,
+    errorKind: classifyInStreamProviderErrorKind(message, type),
+    source,
+  };
 }

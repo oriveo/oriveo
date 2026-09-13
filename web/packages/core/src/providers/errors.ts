@@ -164,6 +164,54 @@ export interface ProviderErrorClassifyContext {
   openAISubscriptionAuth?: boolean;
 }
 
+/**
+ * Upstream temporary overload / shared pool at capacity. The user action is wait, switch
+ * model, or retry, so this maps to `rateLimited`.
+ *
+ * Deliberately omitted:
+ * - `internal server error`: a real 5xx, still reported
+ * - bare `unavailable`: `unavailable for free` is a permanent signal; `temporarily unavailable`
+ *   already has its own branch
+ * - bare substring `overloaded` / `rate limit`: would false-positive on account copy such as
+ *   "account overloaded with extra seats"
+ */
+const TRANSIENT_OVERLOAD_NEEDLES = [
+  'temporarily rate-limited',
+  'rate-limited upstream',
+  'temporarily overloaded',
+  'currently overloaded',
+  'overloaded_error',
+  'resourceexhausted',
+  'at capacity',
+  'queue timeout',
+  'rate_limit',
+  'rate limit reached',
+  'rate limit exceeded',
+] as const;
+
+export function isTransientOverloadError(text: string): boolean {
+  const lower = text.toLowerCase();
+  if (TRANSIENT_OVERLOAD_NEEDLES.some((needle) => lower.includes(needle))) return true;
+  // Anthropic's production text is the whole sentence "Overloaded"; a substring match would
+  // false-positive on account copy.
+  return lower.trim() === 'overloaded';
+}
+
+/**
+ * In-stream errors (HTTP 200 SSE) have no usable status code, so triage by type/message.
+ * Quota exhaustion beats overload: Gemini `Resource has been exhausted (e.g. check quota)`
+ * contains quota.
+ */
+export function classifyInStreamProviderErrorKind(
+  message: string,
+  typeOrCode?: string,
+): ProviderErrorKind {
+  const text = `${typeOrCode ?? ''} ${message}`;
+  if (isQuotaExhaustion(text)) return 'quotaExceeded';
+  if (isTransientOverloadError(text)) return 'rateLimited';
+  return 'upstream';
+}
+
 const GROK_SUBSCRIPTION_ERROR_KINDS = new Set<ProviderErrorKind>([
   'grokSubscriptionUnavailable',
   'grokSubscriptionIneligible',
@@ -299,6 +347,22 @@ function classifyProviderError(
   const isUnauthorizedError =
     /session|sign in|login|device token|device session|authentication|access expired|refresh your access|\u4f1a\u8bdd\u5df2\u8fc7\u671f|\u4f1a\u8bdd\u65e0\u6548|\u4f1a\u8bdd\u5931\u6548/.test(normalizedBody);
   const isUnavailableError = /temporarily unavailable|currently unavailable|unavailable|not available|disabled|offline|maintenance|\u6682\u4e0d\u53ef\u7528|\u4e0d\u53ef\u7528|\u5df2\u505c\u7528|\u7ef4\u62a4/.test(normalizedBody);
+
+  // Capacity / overload is independent of HTTP status: a 200 SSE and a 5xx can both carry
+  // "Service temporarily overloaded". 401/403 stay auth; quota exhaustion beats overload.
+  if (
+    status !== 401
+    && status !== 403
+    && !isQuotaError
+    && isTransientOverloadError(normalizedBody)
+  ) {
+    return {
+      kind: 'rateLimited',
+      title: 'Rate Limited',
+      message: 'You have exceeded the rate limit. Please wait a moment and try again.',
+      detail,
+    };
+  }
 
   if (status === 400) {
     return {

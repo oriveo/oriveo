@@ -208,11 +208,11 @@ final class QwenService: BaseAPIService, ProviderServiceProtocol, CustomBaseURLP
                         if payload == "[DONE]" { break }
                         guard let chunkData = payload.data(using: .utf8) else { continue }
 
-                        if let errorMessage = Self.streamErrorMessage(from: chunkData) {
-                            throw ProviderServiceError.upstream(
-                                statusCode: httpResponse.statusCode,
-                                detail: errorMessage
-                            )
+                        // DashScope-compatible endpoints put error blocks inside an HTTP 200 stream
+                        // (top-level {"code","message"} or {"error":{"message"}}). Classify them
+                        // instead of hardcoding .upstream, so overload becomes rateLimited.
+                        if let streamError = BaseAPIService.mapOpenAICompatibleStreamError(from: chunkData) {
+                            throw streamError
                         }
 
                         let chunk: QwenStreamChunk
