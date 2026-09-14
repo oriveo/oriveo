@@ -956,10 +956,10 @@ private struct ModelPickerPriceRow: View {
     @ViewBuilder
     private var pricingContent: some View {
         if pricing.input != nil || pricing.output != nil {
-            ViewThatFits(in: .horizontal) {
-                HStack(spacing: 12) { structuredPrices }
-                VStack(alignment: .leading, spacing: 3) { structuredPrices }
+            ModelPickerPriceLayout {
+                structuredPrices
             }
+            .font(.system(size: 11))
         } else if let fallback = pricing.fallback {
             Text(fallback)
                 .font(.system(size: 11, weight: .medium))
@@ -972,23 +972,11 @@ private struct ModelPickerPriceRow: View {
     @ViewBuilder
     private var structuredPrices: some View {
         if let input = pricing.input {
-            price(label: L10n.tr("Input", table: .chat), value: input)
+            priceText(label: L10n.tr("Input", table: .chat), value: input)
         }
         if let output = pricing.output {
-            price(label: L10n.tr("Output", table: .chat), value: output)
+            priceText(label: L10n.tr("Output", table: .chat), value: output)
         }
-    }
-
-    private func price(label: String, value: String) -> some View {
-        ViewThatFits(in: .horizontal) {
-            HStack(spacing: 4) {
-                priceText(label: label, value: value)
-            }
-            VStack(alignment: .leading, spacing: 1) {
-                priceText(label: label, value: value)
-            }
-        }
-        .font(.system(size: 11))
     }
 
     @ViewBuilder
@@ -999,6 +987,152 @@ private struct ModelPickerPriceRow: View {
             .fontWeight(.semibold)
             .foregroundStyle(OriveoTheme.V2.Colors.textSecondary)
             .monospacedDigit()
+    }
+}
+
+/// Input / Output price layout for a model row. Subviews arrive as "label, value" pairs (one or two).
+///
+/// Three fallbacks: if the whole group fits on one line, lay it out side by side (12 between pairs);
+/// otherwise give each pair its own line (3 between lines), and only when a pair's "label value" still
+/// does not fit, stack the value under its label (1 apart).
+///
+/// Written as two levels of nested `ViewThatFits`, every candidate is a separate subtree, and the
+/// parent stack measures with different proposals again and again, so every candidate gets measured
+/// every time. That accounted for most of the main-thread stall when the model picker opened warm
+/// (hundreds of milliseconds, about as much as removing the price row entirely). All four texts are
+/// visible in every arrangement, only their positions differ, so measure ideal sizes once and pick the
+/// arrangement from the proposed width, using the same rule as the nested structure at every step.
+struct ModelPickerPriceLayout: Layout {
+    static let pairSpacing: CGFloat = 12
+    static let lineSpacing: CGFloat = 3
+    static let labelValueSpacing: CGFloat = 4
+    static let stackedSpacing: CGFloat = 1
+
+    struct Cache {
+        var idealSizes: [CGSize]
+    }
+
+    enum Arrangement: Equatable {
+        case singleLine
+        /// Whether each pair stacks its value under the label.
+        case lines(stacked: [Bool])
+    }
+
+    func makeCache(subviews: Subviews) -> Cache {
+        Cache(idealSizes: subviews.map { $0.sizeThatFits(.unspecified) })
+    }
+
+    func updateCache(_ cache: inout Cache, subviews: Subviews) {
+        cache.idealSizes = subviews.map { $0.sizeThatFits(.unspecified) }
+    }
+
+    /// Matches the nested ViewThatFits rule: fall back to lines only when the whole row's ideal width
+    /// does not fit; then each pair compares its own "label value" ideal width, as an inner ViewThatFits
+    /// would. With no proposed width (an ideal size query) the first arrangement wins.
+    static func arrangement(idealSizes: [CGSize], width: CGFloat?) -> Arrangement {
+        let pairs = pairSizes(idealSizes)
+        guard let width, width.isFinite else { return .singleLine }
+        let singleLineWidth = pairs.map(\.inlineWidth).reduce(0, +)
+            + pairSpacing * CGFloat(max(0, pairs.count - 1))
+        if singleLineWidth <= width { return .singleLine }
+        return .lines(stacked: pairs.map { $0.inlineWidth > width })
+    }
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout Cache) -> CGSize {
+        let frames = Self.frames(
+            subviews: subviews,
+            idealSizes: cache.idealSizes,
+            width: proposal.width
+        )
+        return frames.reduce(CGRect.zero) { $0.union($1) }.size
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout Cache) {
+        let frames = Self.frames(
+            subviews: subviews,
+            idealSizes: cache.idealSizes,
+            width: proposal.width ?? bounds.width
+        )
+        for (index, subview) in subviews.enumerated() where index < frames.count {
+            let frame = frames[index]
+            subview.place(
+                at: CGPoint(x: bounds.minX + frame.minX, y: bounds.minY + frame.minY),
+                proposal: ProposedViewSize(frame.size)
+            )
+        }
+    }
+
+    private struct PairSize {
+        let label: CGSize
+        let value: CGSize
+        var inlineWidth: CGFloat { label.width + ModelPickerPriceLayout.labelValueSpacing + value.width }
+        var inlineHeight: CGFloat { max(label.height, value.height) }
+    }
+
+    private static func pairSizes(_ sizes: [CGSize]) -> [PairSize] {
+        stride(from: 0, to: sizes.count - 1, by: 2).map { PairSize(label: sizes[$0], value: sizes[$0 + 1]) }
+    }
+
+    /// Frame of each subview relative to this layout's origin. Side-by-side pairs, and a label and value
+    /// on the same line, keep HStack's vertical centering.
+    private static func frames(subviews: Subviews, idealSizes: [CGSize], width: CGFloat?) -> [CGRect] {
+        let pairs = pairSizes(idealSizes)
+        var frames = Array(repeating: CGRect.zero, count: idealSizes.count)
+
+        switch arrangement(idealSizes: idealSizes, width: width) {
+        case .singleLine:
+            let rowHeight = pairs.map(\.inlineHeight).max() ?? 0
+            var x: CGFloat = 0
+            for (pairIndex, pair) in pairs.enumerated() {
+                let pairTop = (rowHeight - pair.inlineHeight) / 2
+                frames[pairIndex * 2] = CGRect(
+                    origin: CGPoint(x: x, y: pairTop + (pair.inlineHeight - pair.label.height) / 2),
+                    size: pair.label
+                )
+                frames[pairIndex * 2 + 1] = CGRect(
+                    origin: CGPoint(
+                        x: x + pair.label.width + labelValueSpacing,
+                        y: pairTop + (pair.inlineHeight - pair.value.height) / 2
+                    ),
+                    size: pair.value
+                )
+                x += pair.inlineWidth + pairSpacing
+            }
+        case .lines(let stacked):
+            var y: CGFloat = 0
+            for (pairIndex, pair) in pairs.enumerated() {
+                if stacked[pairIndex] {
+                    // Stacked pairs behave like a VStack: measure text at the proposed width so it may
+                    // wrap when even its ideal width does not fit.
+                    let proposed = ProposedViewSize(width: width, height: nil)
+                    let label = subviews[pairIndex * 2].sizeThatFits(proposed)
+                    let value = subviews[pairIndex * 2 + 1].sizeThatFits(proposed)
+                    frames[pairIndex * 2] = CGRect(origin: CGPoint(x: 0, y: y), size: label)
+                    frames[pairIndex * 2 + 1] = CGRect(
+                        origin: CGPoint(x: 0, y: y + label.height + stackedSpacing),
+                        size: value
+                    )
+                    y += label.height + stackedSpacing + value.height
+                } else {
+                    frames[pairIndex * 2] = CGRect(
+                        origin: CGPoint(x: 0, y: y + (pair.inlineHeight - pair.label.height) / 2),
+                        size: pair.label
+                    )
+                    frames[pairIndex * 2 + 1] = CGRect(
+                        origin: CGPoint(
+                            x: pair.label.width + labelValueSpacing,
+                            y: y + (pair.inlineHeight - pair.value.height) / 2
+                        ),
+                        size: pair.value
+                    )
+                    y += pair.inlineHeight
+                }
+                if pairIndex < pairs.count - 1 {
+                    y += lineSpacing
+                }
+            }
+        }
+        return frames
     }
 }
 
