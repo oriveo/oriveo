@@ -181,7 +181,13 @@ enum BackupService {
     ) async throws -> PreparedBackupPayload {
         let backupProviders = providers.map { BackupProvider(from: $0) }
 
-        let backupConversations = conversations
+        // Cold-start memory is a summary (messages is empty). Export must hydrate
+        // full threads from the store, or a backup taken right after launch writes 0 bodies.
+        let conversationsForExport = Self.conversationsHydratedForExport(
+            conversations,
+            storeUID: imagePartitionUID
+        )
+        let backupConversations = conversationsForExport
             .filter { !$0.isDraft || !$0.messages.isEmpty }
             .map { BackupConversation(from: $0) }
         let backupSkills = skills.map(sanitizeSkillForBackup)
@@ -273,6 +279,26 @@ enum BackupService {
             encryptedKeys: encryptedKeys
         )
         return PreparedBackupPayload(backupFile: backupFile, imageEntries: imageEntries)
+    }
+
+    /// Summary projections keep `messages` empty. When `displayMessageCount` is
+    /// greater than zero, hydrate the authoritative thread from the store.
+    static func conversationsHydratedForExport(
+        _ conversations: [Conversation],
+        storeUID: String?
+    ) -> [Conversation] {
+        guard let storeUID,
+              conversations.contains(where: { $0.messages.isEmpty && $0.displayMessageCount > 0 })
+        else {
+            return conversations
+        }
+        let full = (try? ConversationRuntimeBridge().fetchConversationProjection(
+            uid: storeUID,
+            hydrateFilePayloads: true
+        )) ?? []
+        guard !full.isEmpty else { return conversations }
+        let byID = Dictionary(uniqueKeysWithValues: full.map { ($0.id, $0) })
+        return conversations.map { byID[$0.id] ?? $0 }
     }
 
 

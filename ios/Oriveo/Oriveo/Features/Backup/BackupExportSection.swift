@@ -118,7 +118,7 @@ struct BackupExportSection: View {
                     dataRow(
                         icon: "bubble.left.and.bubble.right",
                         label: L10n.tr("Conversations", table: .backup),
-                        value: "\(appState.conversations.filter { !$0.isDraft || !$0.messages.isEmpty }.count)"
+                        value: "\(appState.conversations.filter { !$0.isDraft || $0.displayMessageCount > 0 }.count)"
                     )
                     dataRow(
                         icon: "sparkles",
@@ -128,7 +128,7 @@ struct BackupExportSection: View {
                     dataRow(
                         icon: "text.bubble",
                         label: L10n.tr("Messages", table: .backup),
-                        value: "\(appState.conversations.reduce(0) { $0 + $1.messages.count })"
+                        value: "\(appState.conversations.reduce(0) { $0 + $1.displayMessageCount })"
                     )
                 }
             }
@@ -153,6 +153,7 @@ struct BackupExportSection: View {
                     lastUsedModelRef: appState.lastUsedModelRef,
                     includeKeys: formState.includeKeys,
                     password: formState.includeKeys ? formState.password : nil,
+                    imagePartitionUID: appState.sessionPartitionUID,
                     notes: appState.noteManager.allNotesForSync(),
                     noteFolders: appState.noteManager.allNoteFoldersForSync()
                 )

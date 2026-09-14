@@ -475,6 +475,47 @@ struct ConversationManagerTests {
         #expect(afterSections.map(\.section) == [.past7Days])
     }
 
+    @Test("Typing and clearing a draft after a summary load does not mark an existing chat as a draft or wipe the preview")
+    @MainActor
+    func updateDraftTextAfterSummaryLoadKeepsPreviewAndIsDraft() throws {
+        let (state, uid) = makeIsolatedAppState(prefix: "draft-summary-")
+        defer { cleanupIsolatedAppState(state, uid: uid) }
+        DatabaseManager.shared.close()
+
+        let delivered = TestFactories.makeMessage(
+            role: .user,
+            text: "hello from thread",
+            state: .delivered
+        )
+        var conversation = TestFactories.makeConversation(
+            title: "Existing Chat",
+            messages: [delivered]
+        )
+        conversation.isDraft = false
+        conversation.previewText = ConversationListMetadata.makePreviewText(for: delivered)
+        try persistAuthoritativeConversations([conversation], uid: uid)
+
+        DatabaseManager.shared.close()
+        let reloaded = AppState(sessionUID: uid)
+        Self.retainedStates.append(reloaded)
+        defer { cleanupIsolatedAppState(reloaded, uid: uid) }
+
+        let listed = try #require(reloaded.conversations.first { $0.id == conversation.id })
+        #expect(listed.messages.isEmpty)
+        #expect(listed.displayMessageCount == 1)
+        #expect(listed.isDraft == false)
+        let expectedPreview = ConversationListMetadata.makePreviewText(for: delivered)
+
+        reloaded.conversationManager.updateDraftText("typing a draft", in: listed.id)
+        #expect(reloaded.conversations.first { $0.id == listed.id }?.isDraft == false)
+
+        reloaded.conversationManager.updateDraftText("", in: listed.id)
+        let afterClear = try #require(reloaded.conversations.first { $0.id == listed.id })
+        #expect(afterClear.isDraft == false)
+        #expect(afterClear.previewText == expectedPreview)
+        #expect(afterClear.messages.isEmpty, "The draft path must not refill the summary mirror with full bodies")
+    }
+
     @Test("homeConversationSections prefers a newer authoritative recent snapshot when the mirror is stale")
     @MainActor
     func homeConversationSectionsPreferNewerAuthoritativeSnapshotWhenMirrorIsStale() throws {

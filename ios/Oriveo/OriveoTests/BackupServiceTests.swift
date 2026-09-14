@@ -340,6 +340,43 @@ struct BackupServiceTests {
         #expect(parsed.data.conversations.first?.folderID == folder.id)
     }
 
+    @Test("Export after loadSession still includes message bodies")
+    @MainActor
+    func exportAfterLoadSessionKeepsMessageBodies() async throws {
+        let uid = "backup-summary-export-\(UUID().uuidString)"
+        DatabaseManager.shared.close()
+        let body = "summary-export-body-\(UUID().uuidString)"
+        let conversation = TestFactories.makeConversation(
+            title: "Export After Cold Start",
+            messages: [
+                TestFactories.makeMessage(role: .user, text: "question", state: .delivered),
+                TestFactories.makeMessage(role: .assistant, text: body, state: .delivered)
+            ]
+        )
+        _ = try ConversationRuntimeBridge().replaceAllConversations([conversation], uid: uid)
+
+        let state = makeAppState(sessionUID: uid)
+        defer { cleanupAppState(state, removing: [uid]) }
+
+        let listed = try #require(state.conversations.first { $0.id == conversation.id })
+        #expect(listed.messages.isEmpty, "Cold-start memory should be a summary without bodies")
+        #expect(listed.displayMessageCount == 2)
+
+        let exported = try await BackupService.exportBackup(
+            providers: [],
+            conversations: state.conversations,
+            preferences: AppPreference(theme: .system, language: .english),
+            lastUsedModelRef: nil,
+            includeKeys: false,
+            password: nil,
+            imagePartitionUID: uid
+        )
+        let (parsed, _) = try BackupService.parseBackup(from: exported)
+        let exportedConversation = try #require(parsed.data.conversations.first { $0.id == conversation.id })
+        #expect(exportedConversation.messages.map(\.text).contains(body))
+        #expect(exportedConversation.messages.count == 2)
+    }
+
     @Test("Parse Unrecognized Format")
     func parseUnrecognizedFormat() {
         let randomData = Data([0xFF, 0xD8, 0xFF, 0xE0])
