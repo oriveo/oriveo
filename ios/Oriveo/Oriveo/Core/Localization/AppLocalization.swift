@@ -20,10 +20,65 @@ enum AppLanguage: String, Hashable {
     case turkish = "tr"
     case russian = "ru"
 
+    private static let systemPreferredLock = NSLock()
+    nonisolated(unsafe) private static var cachedSystemPreferred: AppLanguage?
+    #if DEBUG
+    nonisolated(unsafe) private static var debugSystemPreferredResolveStorage = 0
+
+    /// DEBUG only: how many times the system preferred language was actually re-resolved
+    /// (read AppleLanguages and matched each entry).
+    static var debugSystemPreferredResolveCount: Int {
+        get {
+            systemPreferredLock.lock()
+            defer { systemPreferredLock.unlock() }
+            return debugSystemPreferredResolveStorage
+        }
+        set {
+            systemPreferredLock.lock()
+            defer { systemPreferredLock.unlock() }
+            debugSystemPreferredResolveStorage = newValue
+        }
+    }
+    #endif
+
+    /// When following the system language, every `L10n.tr` call lands here. A list row carries a
+    /// dozen strings and asks again on every layout pass, so reading AppleLanguages and matching it
+    /// each time showed up as `replacingOccurrences` on the main thread in view bodies.
+    /// Resolve once per process and let the locale change notification invalidate the cache.
+    private static let localeChangeObserver: NSObjectProtocol = NotificationCenter.default.addObserver(
+        forName: NSLocale.currentLocaleDidChangeNotification,
+        object: nil,
+        queue: nil
+    ) { _ in
+        AppLanguage.invalidateSystemPreferredCache()
+    }
+
     static var systemPreferred: AppLanguage {
+        _ = localeChangeObserver
+        systemPreferredLock.lock()
+        if let cachedSystemPreferred {
+            systemPreferredLock.unlock()
+            return cachedSystemPreferred
+        }
+        #if DEBUG
+        debugSystemPreferredResolveStorage += 1
+        #endif
+        systemPreferredLock.unlock()
+
         let preferred = (UserDefaults.standard.array(forKey: "AppleLanguages") as? [String]) ?? []
         let candidates = preferred.isEmpty ? [Locale.autoupdatingCurrent.identifier] : preferred
-        return resolve(fromPreferredIdentifiers: candidates)
+        let resolved = resolve(fromPreferredIdentifiers: candidates)
+
+        systemPreferredLock.lock()
+        cachedSystemPreferred = resolved
+        systemPreferredLock.unlock()
+        return resolved
+    }
+
+    nonisolated static func invalidateSystemPreferredCache() {
+        systemPreferredLock.lock()
+        cachedSystemPreferred = nil
+        systemPreferredLock.unlock()
     }
 
     static func resolve(fromPreferredIdentifiers identifiers: [String]) -> AppLanguage {

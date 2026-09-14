@@ -91,6 +91,24 @@ struct AppLanguageResolutionTests {
         #expect(AppLanguagePreferencePolicy.shouldApplySyncedLanguage(storedPreference: .chineseSimplified))
     }
 
+    @Test("the system language is cached per process: many lookups resolve once, a locale change resolves again")
+    func systemPreferredIsResolvedOncePerLocale() {
+        AppLanguage.invalidateSystemPreferredCache()
+        AppLanguage.debugSystemPreferredResolveCount = 0
+
+        let first = AppLanguage.systemPreferred
+        for _ in 0..<500 {
+            _ = L10n.tr("Add")
+            _ = AppLanguage.systemPreferred
+        }
+        #expect(AppLanguage.systemPreferred == first)
+        #expect(AppLanguage.debugSystemPreferredResolveCount == 1)
+
+        NotificationCenter.default.post(name: NSLocale.currentLocaleDidChangeNotification, object: nil)
+        _ = AppLanguage.systemPreferred
+        #expect(AppLanguage.debugSystemPreferredResolveCount == 2)
+    }
+
     @Test("Displayed Language Uses System App Language")
     func displayedLanguageUsesSystemAppLanguage() {
         #expect(
