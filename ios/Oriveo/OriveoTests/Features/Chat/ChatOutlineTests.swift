@@ -42,6 +42,29 @@ struct ChatOutlineTests {
         #expect(ticks.map(\.preview) == ["first", "second"])
     }
 
+    @Test("the ticks memo reuses the same messages and recomputes as soon as content changes, even with the same count")
+    @MainActor
+    func ticksMemoRecomputesOnlyWhenMessagesChange() {
+        let memo = ChatOutlineTicksMemo()
+        let u1 = message(.user, "first")
+        let u2 = message(.user, "second")
+        let messages = [u1, message(.assistant, "answer"), u2]
+
+        let initial = memo.ticks(from: messages, attachmentLabel: "(att)")
+        #expect(initial.map(\.preview) == ["first", "second"])
+        #expect(memo.ticks(from: messages, attachmentLabel: "(att)") == initial)
+
+        // Reloading the same conversation: count and ids unchanged, only the text changed; still recompute.
+        var edited = messages
+        edited[2].text = "second, edited"
+        #expect(memo.ticks(from: edited, attachmentLabel: "(att)").map(\.preview) == ["first", "second, edited"])
+
+        // The attachment placeholder changes with the app language.
+        let attachmentOnly = [message(.user, "")]
+        #expect(memo.ticks(from: attachmentOnly, attachmentLabel: "(att)").map(\.preview) == ["(att)"])
+        #expect(memo.ticks(from: attachmentOnly, attachmentLabel: "(attachment)").map(\.preview) == ["(attachment)"])
+    }
+
     @Test("Active Tick Clamps To Conversation Edges")
     func activeTickClampsToConversationEdges() {
         let first = UUID()

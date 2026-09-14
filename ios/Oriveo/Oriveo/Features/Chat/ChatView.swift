@@ -898,7 +898,11 @@ struct ChatView: View {
                 }
             }
         } message: {
-            let refCount = projection.activeConversationID.map { appState.noteManager.referenceCount(conversationID: $0) } ?? 0
+            // The alert's message closure is evaluated with the body (on every keystroke in the
+            // composer), so only query the store while the alert is actually presented.
+            let refCount = showDeleteConfirmation
+                ? projection.activeConversationID.map { appState.noteManager.referenceCount(conversationID: $0) } ?? 0
+                : 0
             if refCount > 0 {
                 Text(L10n.tr("This conversation and all its messages will be permanently deleted.")
                     + "\n\n" + String(format: L10n.tr("This conversation is referenced by %d notes.", table: .notes), refCount))

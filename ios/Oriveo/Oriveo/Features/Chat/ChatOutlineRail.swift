@@ -8,6 +8,27 @@ nonisolated struct OutlineTick: Identifiable, Equatable {
     let preview: String
 }
 
+/// Caches derived ticks by message content. ChatMessageList's body re-evaluates on every keystroke
+/// in the composer and every streaming checkpoint, and reads the ticks twice per body; deriving each
+/// user message's preview (first line plus a whitespace-collapsing regex) is pure repetition. While
+/// the window's message array is unchanged it shares storage, so comparing is O(1); any content
+/// change (including reloading the same conversation) recomputes.
+final class ChatOutlineTicksMemo {
+    private var messages: [ChatMessage]?
+    private var attachmentLabel = ""
+    private var cached: [OutlineTick] = []
+
+    func ticks(from messages: [ChatMessage], attachmentLabel: String) -> [OutlineTick] {
+        if let previous = self.messages, previous == messages, self.attachmentLabel == attachmentLabel {
+            return cached
+        }
+        cached = ChatOutline.ticks(from: messages, attachmentLabel: attachmentLabel)
+        self.messages = messages
+        self.attachmentLabel = attachmentLabel
+        return cached
+    }
+}
+
 nonisolated enum ChatOutline {
     static let minUserTurns = 3
 

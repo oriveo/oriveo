@@ -171,6 +171,8 @@ struct ChatMessageList: View {
     @State private var cachedRows: [ChatCollectionProjectionBuilder.MessageRow] = []
     @State private var cachedMetadata = ChatCollectionProviderMetadata.empty
     @State private var cachedMetadataVersion: UInt = .max
+    /// A reference box: reading and writing it in body does not invalidate the view.
+    @State private var outlineTicksMemo = ChatOutlineTicksMemo()
 
     private var preferredAnimation: Animation {
         reduceMotion ? .easeOut(duration: 0.18) : .spring(response: 0.38, dampingFraction: 0.82)
@@ -212,7 +214,7 @@ struct ChatMessageList: View {
     }
 
     private var outlineTicks: [OutlineTick] {
-        ChatOutline.ticks(
+        outlineTicksMemo.ticks(
             from: projection.messages,
             attachmentLabel: L10n.tr("(Attachment)", table: .chat)
         )
