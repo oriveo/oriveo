@@ -393,6 +393,18 @@ final class UIKitTableCard: UIView {
         }
     }
 
+    /// Snapshots and measurements want the finished table. Production still fills rows
+    /// under the 8ms budget so the first frame stays responsive.
+    func completeDeferredRows() {
+        let rowCount = tableData.rows.count + 1
+        var steps = 0
+        while rowViews.count < rowCount, steps < 64 {
+            setNeedsLayout()
+            layoutIfNeeded()
+            steps += 1
+        }
+    }
+
     private func renderCellContent(headerFont: UIFont, bodyFont: UIFont) {
         for (rowIdx, row) in rowViews.enumerated() {
             let isHeader = rowIdx == 0

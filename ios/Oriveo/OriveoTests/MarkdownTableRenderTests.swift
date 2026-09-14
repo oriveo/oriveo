@@ -328,6 +328,7 @@ struct MarkdownTableRenderTests {
         let card = UIKitTableCard(tableData: data)
         card.frame = CGRect(x: 0, y: 0, width: 350, height: 10)
         card.layoutIfNeeded()
+        card.completeDeferredRows()
         card.frame.size.height = card.intrinsicContentSize.height
         card.layoutIfNeeded()
 
@@ -338,11 +339,6 @@ struct MarkdownTableRenderTests {
         }
 
         let expected = (rows.count + 1) * headers.count
-        for _ in 0..<40 {
-            if try cellCount() == expected { break }
-            card.setNeedsLayout()
-            card.layoutIfNeeded()
-        }
         let got = try cellCount()
         #expect(got == expected, "deferred row build produced \(got) cells, expected \(expected)")
     }
