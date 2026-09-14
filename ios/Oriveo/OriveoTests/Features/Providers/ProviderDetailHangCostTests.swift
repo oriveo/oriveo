@@ -118,6 +118,8 @@ struct ProviderDetailHangCostTests {
         let invalidationRowBodies: Int
         let presentations: Int
         let systemLanguageResolves: Int
+        let appearLogoInferences: Int
+        let invalidationLogoInferences: Int
     }
 
     private func totalPresentations(_ models: [AIModel], kind: ProviderKind) -> Int {
@@ -159,6 +161,7 @@ struct ProviderDetailHangCostTests {
         let appearMaxStall = probe.maxStall
         let appearJank = probe.jankTotal
         let appearRowBodies = ProviderEnabledModelRow.debugBodyEvaluationCount
+        let appearLogoInferences = ProviderLogoResolver.computationCountForTesting(providerID: provider.id)
 
         probe.start()
         for _ in 0..<5 {
@@ -176,7 +179,9 @@ struct ProviderDetailHangCostTests {
             appearRowBodies: appearRowBodies,
             invalidationRowBodies: invalidationRowBodies,
             presentations: totalPresentations(catalog, kind: provider.kind),
-            systemLanguageResolves: AppLanguage.debugSystemPreferredResolveCount
+            systemLanguageResolves: AppLanguage.debugSystemPreferredResolveCount,
+            appearLogoInferences: appearLogoInferences,
+            invalidationLogoInferences: ProviderLogoResolver.computationCountForTesting(providerID: provider.id) - appearLogoInferences
         )
         print("""
         [HANG-COST] \(label)
@@ -184,6 +189,7 @@ struct ProviderDetailHangCostTests {
           5 providers writes: max stall \(String(format: "%.0f", sample.invalidationMaxStall * 1000))ms, >16ms total \(String(format: "%.0f", sample.invalidationJank * 1000))ms, row bodies \(invalidationRowBodies)
           capability presentations built = \(sample.presentations)
           system language re-resolved = \(sample.systemLanguageResolves)
+          relay logo inferences: first appearance \(sample.appearLogoInferences), writes \(sample.invalidationLogoInferences)
         """)
 
         window.isHidden = true
@@ -233,5 +239,9 @@ struct ProviderDetailHangCostTests {
         let sample = await runScenario(label: "Relay 777 catalog / 150 enabled", provider: provider, catalog: catalog)
         #expect(sample.appearRowBodies < 40)
         #expect(sample.invalidationRowBodies == 0)
+        // The hero card reads the logo a dozen times per body: with unchanged inputs it is inferred
+        // once for the first screen and never again across writes.
+        #expect(sample.appearLogoInferences == 1)
+        #expect(sample.invalidationLogoInferences == 0)
     }
 }
