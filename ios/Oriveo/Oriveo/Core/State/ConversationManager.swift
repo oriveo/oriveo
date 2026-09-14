@@ -528,23 +528,24 @@ final class ConversationManager {
         // `displayMessageCount` still means the thread exists. An empty in-memory
         // body is not "this is an empty draft".
         let hasThread = updated.displayMessageCount > 0
-        let threadMessages: [ChatMessage] = {
-            if !updated.messages.isEmpty { return updated.messages }
-            guard hasThread, isBound else { return [] }
-            return (try? appState.conversationRuntimeBridge.fetchConversationProjection(
-                id: conversationID,
-                uid: appState.sessionPartitionUID
-            ))?.messages ?? []
-        }()
 
         if trimmed.isEmpty {
             if !hasThread {
                 updated.previewText = ""
                 updated.isDraft = true
-            } else if let lastDelivered = ConversationListMetadata.lastDeliveredMessage(in: threadMessages) {
-                updated.previewText = ConversationListMetadata.makePreviewText(for: lastDelivered)
-                updated.isDraft = false
             } else {
+                let threadMessages: [ChatMessage] = {
+                    if !updated.messages.isEmpty { return updated.messages }
+                    guard isBound else { return [] }
+                    return (try? appState.conversationRuntimeBridge.fetchConversationProjections(
+                        ids: [conversationID],
+                        uid: appState.sessionPartitionUID,
+                        hydrateFilePayloads: false
+                    ))?.first?.messages ?? []
+                }()
+                if let lastDelivered = ConversationListMetadata.lastDeliveredMessage(in: threadMessages) {
+                    updated.previewText = ConversationListMetadata.makePreviewText(for: lastDelivered)
+                }
                 updated.isDraft = false
             }
         } else {

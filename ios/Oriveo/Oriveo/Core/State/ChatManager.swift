@@ -93,17 +93,22 @@ final class ChatManager {
         appState.conversations
     }
 
-    /// Cold-start memory is a summary projection. Send / continue / retry must hydrate the
-    /// thread first, otherwise `messages.append` followed by upsert deletes the stored history.
-    private func hydrateConversationMessagesIfNeeded(id: UUID) {
-        guard let index = appState.conversations.firstIndex(where: { $0.id == id }) else { return }
+    /// Cold-start memory is a summary projection. Send / continue / retry / edit must
+    /// hydrate the thread first, otherwise `messages.append` followed by upsert deletes
+    /// the stored history, and edit silently fails because the message is not in memory.
+    /// - Returns: true if memory already has bodies, this is an empty draft, or hydrate succeeded.
+    @discardableResult
+    private func hydrateConversationMessagesIfNeeded(id: UUID) -> Bool {
+        guard let index = appState.conversations.firstIndex(where: { $0.id == id }) else { return false }
         let conversation = appState.conversations[index]
-        guard conversation.messages.isEmpty, conversation.displayMessageCount > 0 else { return }
+        if !conversation.messages.isEmpty { return true }
+        guard conversation.displayMessageCount > 0 else { return true }
         guard let hydrated = try? appState.conversationRuntimeBridge.fetchConversationProjection(
             id: id,
             uid: appState.sessionPartitionUID
-        ), !hydrated.messages.isEmpty else { return }
+        ), !hydrated.messages.isEmpty else { return false }
         appState.conversations[index] = hydrated
+        return true
     }
 
     // MARK: - Streaming sessions
@@ -458,7 +463,7 @@ final class ChatManager {
     ) async -> UUID? {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty || !attachments.isEmpty else { return nil }
-        hydrateConversationMessagesIfNeeded(id: conversationID)
+        guard hydrateConversationMessagesIfNeeded(id: conversationID) else { return nil }
         guard let index = conversations.firstIndex(where: { $0.id == conversationID }) else { return nil }
         guard let provider = appState.provider(for: conversations[index].providerID) else {
             ToastManager.shared.show(L10n.tr("The selected provider is no longer available."))
@@ -761,6 +766,7 @@ final class ChatManager {
     }
 
     func editUserMessage(messageID: UUID, in conversationID: UUID) -> String? {
+        guard hydrateConversationMessagesIfNeeded(id: conversationID) else { return nil }
         guard let convIndex = conversations.firstIndex(where: { $0.id == conversationID }) else { return nil }
         guard let msgIndex = conversations[convIndex].messages.firstIndex(where: { $0.id == messageID }),
               conversations[convIndex].messages[msgIndex].role == .user else { return nil }
@@ -769,6 +775,7 @@ final class ChatManager {
     }
 
     func editPromptingMessage(for assistantMessageID: UUID, in conversationID: UUID) -> String? {
+        guard hydrateConversationMessagesIfNeeded(id: conversationID) else { return nil }
         guard let convIndex = conversations.firstIndex(where: { $0.id == conversationID }) else { return nil }
         guard let msgIndex = conversations[convIndex].messages.firstIndex(where: { $0.id == assistantMessageID }),
               conversations[convIndex].messages[msgIndex].role == .assistant else { return nil }
@@ -784,6 +791,7 @@ final class ChatManager {
         in conversationID: UUID,
         capabilitySelection: ChatCapabilitySelection = ChatCapabilitySelection()
     ) async {
+        hydrateConversationMessagesIfNeeded(id: conversationID)
         guard let convIndex = conversations.firstIndex(where: { $0.id == conversationID }) else { return }
         guard let msgIndex = conversations[convIndex].messages.firstIndex(where: { $0.id == messageID }),
               conversations[convIndex].messages[msgIndex].role == .assistant else { return }

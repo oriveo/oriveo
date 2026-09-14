@@ -158,6 +158,38 @@ struct ConversationColdStartLoadTests {
         #expect(hydrated.first?.messages.first?.attachments?.first?.base64Data == attachment.base64Data)
     }
 
+    @Test("Editing a user message after a summary load hydrates the thread instead of failing silently")
+    @MainActor
+    func editUserMessageAfterSummaryLoadHydratesThread() throws {
+        let previousUID = AppSessionStore.activeUID
+        let uid = "coldstart-edit-\(UUID().uuidString)"
+        defer {
+            DatabaseManager.shared.close()
+            AppSessionStore.switchToUser(previousUID)
+            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: uid))
+        }
+        DatabaseManager.shared.close()
+
+        let user = TestFactories.makeMessage(role: .user, text: "please edit me", state: .delivered)
+        let assistant = TestFactories.makeMessage(role: .assistant, text: "ok", state: .delivered)
+        let conversation = TestFactories.makeConversation(
+            title: "Editable",
+            messages: [user, assistant]
+        )
+        _ = try ConversationRuntimeBridge().replaceAllConversations([conversation], uid: uid)
+
+        let state = AppState(sessionUID: uid)
+        let listed = try #require(state.conversations.first { $0.id == conversation.id })
+        #expect(listed.messages.isEmpty)
+        #expect(listed.displayMessageCount == 2)
+
+        let restored = state.editUserMessage(messageID: user.id, in: conversation.id)
+        #expect(restored == "please edit me")
+        let afterEdit = try #require(state.conversations.first { $0.id == conversation.id })
+        #expect(afterEdit.messages.isEmpty, "Edit truncates that message and everything after it")
+        #expect(afterEdit.draftText == "please edit me")
+    }
+
     private func waitUntil(
         timeoutNanoseconds: UInt64 = 3_000_000_000,
         intervalNanoseconds: UInt64 = 10_000_000,
