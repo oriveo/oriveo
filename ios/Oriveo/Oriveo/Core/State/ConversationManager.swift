@@ -187,6 +187,21 @@ final class ConversationManager {
     private var cachedHomeSnapshotVersion: UInt = .max
     private var cachedHomeSnapshotDayKey = ""
     private var cachedHomeSnapshotEarlierLimit: Int = 0
+    /// Cached home sections. HomeView's body reads the hero composer text, so every keystroke asks
+    /// for the sections again, and building them merges the in-memory recent conversations with the
+    /// stored snapshot and sorts the result; unchanged inputs give the same result. The key matches
+    /// the snapshot cache (conversations version, day and earlier limit) plus the partition.
+    private var cachedHomeSections: (key: HomeSectionsCacheKey, sections: [HomeConversationSectionState])?
+    #if DEBUG
+    private(set) var debugHomeSectionsComputationCount = 0
+    #endif
+
+    private struct HomeSectionsCacheKey: Equatable {
+        let conversationsVersion: UInt
+        let dayKey: String
+        let earlierLimit: Int
+        let partitionUID: String
+    }
     private var cachedPinnedConversations: [Conversation] = []
     private var cachedPinnedVersion: UInt = .max
     private var cachedPinnedIDs: [UUID] = []
@@ -235,6 +250,29 @@ final class ConversationManager {
 
     private func computeHomeConversationSections(earlierLimit: Int) -> [HomeConversationSectionState] {
         let now = nowProvider()
+        let cacheKey = HomeSectionsCacheKey(
+            conversationsVersion: appState.conversationsVersion,
+            dayKey: Self.dayKey(for: now),
+            earlierLimit: earlierLimit,
+            partitionUID: appState.sessionPartitionUID
+        )
+        // With no conversations in memory every call has to check the store for outside writes
+        // (see refreshCachesIfNeeded), so that case skips the result cache.
+        if !conversations.isEmpty, let cached = cachedHomeSections, cached.key == cacheKey {
+            return cached.sections
+        }
+        let sections = computeHomeConversationSectionsUncached(earlierLimit: earlierLimit, now: now)
+        cachedHomeSections = conversations.isEmpty ? nil : (cacheKey, sections)
+        return sections
+    }
+
+    private func computeHomeConversationSectionsUncached(
+        earlierLimit: Int,
+        now: Date
+    ) -> [HomeConversationSectionState] {
+        #if DEBUG
+        debugHomeSectionsComputationCount += 1
+        #endif
         refreshCachesIfNeeded(now: now)
 
         if let snapshot = authoritativeHomeConversationSnapshot(earlierLimit: earlierLimit, now: now) {
@@ -394,6 +432,7 @@ final class ConversationManager {
         AppPreferencesStore.save(preferences)
         cachedHomeSnapshot = nil
         cachedHomeSnapshotVersion = .max
+        cachedHomeSections = nil
     }
 
     func isPinned(_ conversationID: UUID) -> Bool {
@@ -576,6 +615,7 @@ final class ConversationManager {
         cachedMonthKey = monthKey ?? Self.monthKey(for: now)
         cachedHomeSnapshot = nil
         cachedHomeSnapshotVersion = .max
+        cachedHomeSections = nil
     }
 
     private func authoritativeConversations() -> [Conversation] {

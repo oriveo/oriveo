@@ -405,6 +405,44 @@ struct ConversationManagerTests {
         #expect(sections.first?.conversations.first?.displayMessageCount == 1)
     }
 
+    @Test("home sections are cached by conversations version and day: the same inputs do not recompute, a conversation change or a new day recomputes")
+    @MainActor
+    func homeConversationSectionsAreCachedUntilInputsChange() {
+        let state = AppState(seedDemoData: true)
+        let providerID = UUID()
+        var now = Date(timeIntervalSince1970: 1_760_000_000)
+        state.conversationManager.nowProvider = { now }
+        state.providers = [TestFactories.makeProvider(id: providerID)]
+        let message = TestFactories.makeMessage(text: "hello", state: .delivered)
+        state.conversations = [
+            TestFactories.makeConversation(title: "Today", providerID: providerID, messages: [message], updatedAt: now),
+            TestFactories.makeConversation(
+                title: "Old", providerID: providerID, messages: [message], updatedAt: now.addingTimeInterval(-20 * 86_400)
+            ),
+        ]
+
+        let first = state.homeConversationSections(earlierLimit: 10)
+        let computed = state.conversationManager.debugHomeSectionsComputationCount
+        for _ in 0..<20 {
+            #expect(state.homeConversationSections(earlierLimit: 10).map(\.section) == first.map(\.section))
+        }
+        #expect(state.conversationManager.debugHomeSectionsComputationCount == computed)
+
+        // A different earlier limit recomputes.
+        _ = state.homeConversationSections(earlierLimit: 20)
+        #expect(state.conversationManager.debugHomeSectionsComputationCount == computed + 1)
+
+        // A conversation change: the new title is visible immediately.
+        state.conversations[0].title = "Renamed"
+        let renamed = state.homeConversationSections(earlierLimit: 20)
+        #expect(renamed.first?.conversations.first?.title == "Renamed")
+
+        // A new day: what was today moves to yesterday.
+        now = now.addingTimeInterval(86_400)
+        let nextDay = state.homeConversationSections(earlierLimit: 20)
+        #expect(nextDay.first?.section == .yesterday)
+    }
+
     @Test("updateDraftText does not refresh updatedAt, so an old conversation stays out of today")
     @MainActor
     func updateDraftTextDoesNotBumpUpdatedAt() {
