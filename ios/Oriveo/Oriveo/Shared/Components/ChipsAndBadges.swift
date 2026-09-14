@@ -317,19 +317,22 @@ struct HeroIconTextStrip: View {
     }
 
     var body: some View {
-        if !visibleItems.isEmpty {
-            // At most three items, expanded into fixed children. Wrapping ForEach in ViewThatFits
-            // instantiates DynamicViewList generic metadata during SizeFitting on the main thread.
-            ViewThatFits(in: .horizontal) {
-                if visibleItems.count >= 3 {
-                    stripRow(visibleItems[0], visibleItems[1], visibleItems[2])
-                }
-                if visibleItems.count >= 2 {
-                    stripRow(visibleItems[0], visibleItems[1])
-                }
-                HeroIconTextLabel(item: visibleItems[0], compact: compact, iconOnly: iconOnly)
-                    .fixedSize()
-            }
+        // At most three items, expanded into fixed children: the metadata row around this strip is a
+        // ViewThatFits, and a ForEach under it instantiates DynamicViewList generic metadata during
+        // SizeFitting on the main thread.
+        // No ViewThatFits of its own: the caller pins the strip with a horizontal fixedSize, so an
+        // inner ViewThatFits proposed at ideal width always picks its first candidate and only measures
+        // the others for nothing. Dropping items to fit is the metadata row's job.
+        switch visibleItems.count {
+        case 3...:
+            stripRow(visibleItems[0], visibleItems[1], visibleItems[2])
+        case 2:
+            stripRow(visibleItems[0], visibleItems[1])
+        case 1:
+            HeroIconTextLabel(item: visibleItems[0], compact: compact, iconOnly: iconOnly)
+                .fixedSize()
+        default:
+            EmptyView()
         }
     }
 

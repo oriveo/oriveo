@@ -289,7 +289,7 @@ struct PresentationModelCardTests {
         )
     }
 
-    @Test("the capability strip ViewThatFits no longer wraps ForEach, so SizeFitting does not instantiate DynamicViewList")
+    @Test("the capability strip has no ViewThatFits and no ForEach of its own; dropping items to fit is left to the metadata row")
     func heroIconStripDoesNotForEachInsideViewThatFits() throws {
         let url = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent()
@@ -305,7 +305,10 @@ struct PresentationModelCardTests {
             from: "struct HeroIconTextStrip: View {",
             to: "struct HeroIconTextLabel: View {"
         ))
-        #expect(strip.contains("ViewThatFits(in: .horizontal)"))
+        // The caller pins the strip with a horizontal fixedSize, so an inner ViewThatFits always picks
+        // its first candidate and only measures the rest. ModelListMetadataRow's ViewThatFits wraps the
+        // strip, so a ForEach here would still instantiate DynamicViewList during SizeFitting.
+        #expect(!strip.contains("ViewThatFits("))
         #expect(!strip.contains("ForEach("))
         #expect(strip.contains("stripRow(visibleItems[0], visibleItems[1], visibleItems[2])"))
         #expect(strip.contains("HeroIconTextLabel(item: visibleItems[0]"))
