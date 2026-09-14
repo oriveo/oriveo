@@ -10,6 +10,64 @@ final class UIKitCodeBlockCard: UIView {
     private let language: String?
     private let content: String
     private weak var parentViewController: UIViewController?
+
+    /// Same-content card reuse, matching `UIKitTableCard.make` / `recycle`. Only detached cards are kept.
+    private static let recycledCards: NSCache<NSString, UIKitCodeBlockCard> = {
+        let cache = NSCache<NSString, UIKitCodeBlockCard>()
+        cache.countLimit = 8
+        return cache
+    }()
+    private var recycleKey: NSString?
+
+    private static func recycleKey(language: String?, content: String) -> NSString {
+        NSString(string: "\(language ?? "")\n\(content)")
+    }
+
+    static func make(
+        language: String?,
+        content: String,
+        parentViewController: UIViewController?,
+        highlightTransition: Bool = true,
+        initialAttributedText: NSAttributedString? = nil
+    ) -> UIKitCodeBlockCard {
+        let key = recycleKey(language: language, content: content)
+        if let card = recycledCards.object(forKey: key), card.superview == nil {
+            recycledCards.removeObject(forKey: key)
+            card.prepareForReuse(parentViewController: parentViewController)
+            return card
+        }
+        let card = UIKitCodeBlockCard(
+            language: language,
+            content: content,
+            parentViewController: parentViewController,
+            highlightTransition: highlightTransition,
+            initialAttributedText: initialAttributedText
+        )
+        card.recycleKey = key
+        return card
+    }
+
+    static func recycle(_ card: UIKitCodeBlockCard) {
+        guard card.superview == nil, let key = card.recycleKey else { return }
+        recycledCards.setObject(card, forKey: key)
+    }
+
+    private func prepareForReuse(parentViewController: UIViewController?) {
+        layer.removeAllAnimations()
+        codeTextView.layer.removeAllAnimations()
+        alpha = 1
+        transform = .identity
+        copied = false
+        copyResetWorkItem?.cancel()
+        copyResetWorkItem = nil
+        updateCopyButtonState()
+        onSaveNote = nil
+        onAskSelection = nil
+        onIntrinsicHeightDidChange = nil
+        self.parentViewController = parentViewController
+        pendingHeightHostNotify = false
+    }
+
     private let highlightTransition: Bool
     private let initialAttributedText: NSAttributedString?
 

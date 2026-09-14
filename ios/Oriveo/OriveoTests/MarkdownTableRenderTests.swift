@@ -282,12 +282,15 @@ struct MarkdownTableRenderTests {
             let container = try #require(scrollView.subviews.first)
             return container.subviews.flatMap { $0.subviews.compactMap { $0 as? ChatPassiveTextView } }
         }
+        card.frame = CGRect(x: 0, y: 0, width: 360, height: 10)
+        card.layoutIfNeeded()
+        card.frame.size.height = card.intrinsicContentSize.height
+        card.layoutIfNeeded()
         let built = try cellViews()
         #expect(built.count == 6)
 
         var asked: QuoteSelectionContent?
         card.onAskSelection = { asked = $0 }
-        card.frame = CGRect(x: 0, y: 0, width: 360, height: card.intrinsicContentSize.height)
         card.layoutIfNeeded()
         let wide = try cellViews()
         #expect(wide.map(ObjectIdentifier.init) == built.map(ObjectIdentifier.init))
@@ -308,6 +311,40 @@ struct MarkdownTableRenderTests {
 
         card.onAskSelection = nil
         #expect(try cellViews().allSatisfy { $0.onAskSelection == nil })
+    }
+
+    @Test("deferred row builds finish every cell even when the width does not change")
+    @MainActor
+    func tableCardFinishesDeferredRowsWithoutWidthChange() throws {
+        let headers = ["Model", "Context", "Input", "Output", "Notes"]
+        let rows = (0..<12).map { index in
+            ["model-\(index)", "128K", "$2.50", "$10.00", "notes \(index)"]
+        }
+        let data = UIKitTableCard.TableData(
+            headers: headers,
+            rows: rows,
+            alignments: [.left, .center, .right, .right, .left]
+        )
+        let card = UIKitTableCard(tableData: data)
+        card.frame = CGRect(x: 0, y: 0, width: 350, height: 10)
+        card.layoutIfNeeded()
+        card.frame.size.height = card.intrinsicContentSize.height
+        card.layoutIfNeeded()
+
+        func cellCount() throws -> Int {
+            let scrollView = try #require(card.subviews.compactMap { $0 as? UIScrollView }.first)
+            let container = try #require(scrollView.subviews.first)
+            return container.subviews.flatMap { $0.subviews.compactMap { $0 as? ChatPassiveTextView } }.count
+        }
+
+        let expected = (rows.count + 1) * headers.count
+        for _ in 0..<40 {
+            if try cellCount() == expected { break }
+            card.setNeedsLayout()
+            card.layoutIfNeeded()
+        }
+        let got = try cellCount()
+        #expect(got == expected, "deferred row build produced \(got) cells, expected \(expected)")
     }
 
     @Test("Fills Real Content Width On The cv Tree — Old chrome=52 Rejected Final Width As Transient")
@@ -409,11 +446,13 @@ struct TableCardRecyclingTests {
         let host = UIViewController()
         let (first, firstStack) = makeRenderer()
         first.renderBlockMarkdown(text: text, renderHint: nil, parentViewController: host)
+        firstStack.layoutIfNeeded()
         let original = try #require(tableCards(in: firstStack).first)
 
         // The same table in a second cell at the same time: the original is still attached, so build a new card.
         let (second, secondStack) = makeRenderer()
         second.renderBlockMarkdown(text: text, renderHint: nil, parentViewController: host)
+        secondStack.layoutIfNeeded()
         let concurrent = try #require(tableCards(in: secondStack).first)
         #expect(concurrent !== original)
 
@@ -429,6 +468,7 @@ struct TableCardRecyclingTests {
         let (third, thirdStack) = makeRenderer()
         third.onAskSelection = { _ in asked = true }
         third.renderBlockMarkdown(text: text, renderHint: nil, parentViewController: host)
+        thirdStack.layoutIfNeeded()
         let reused = try #require(tableCards(in: thirdStack).first)
         #expect(reused === original)
         #expect(reused.alpha == 1)
@@ -446,6 +486,7 @@ struct TableCardRecyclingTests {
         second.clear()
         let (fourth, fourthStack) = makeRenderer()
         fourth.renderBlockMarkdown(text: text, renderHint: nil, parentViewController: host)
+        fourthStack.layoutIfNeeded()
         #expect(tableCards(in: fourthStack).first === concurrent)
     }
 }

@@ -1,3 +1,4 @@
+import QuartzCore
 import SwiftUI
 import UIKit
 
@@ -152,19 +153,25 @@ final class UIKitTableCard: UIView {
 
         let availableWidth = bounds.width
         guard availableWidth.isFinite, availableWidth > 0 else { return }
-        guard abs(availableWidth - lastLaidOutWidth) >= 0.5 else { return }
-        if !ChatCardStableWidth.isTrustworthy(width: availableWidth, anchor: ChatCardStableWidth.anchor(for: self)) {
-            #if DEBUG
-            if ChatRenderDiagnostics.enabled {
-                AppLog.info(
-                    "table card skipped a transient width of \(Int(availableWidth))",
-                    module: "ChatRender"
-                )
+        let widthChanged = abs(availableWidth - lastLaidOutWidth) >= 0.5
+        let rowCount = tableData.rows.count + 1
+        // Deferred row builds keep the same width; the old early-return left the table stuck on the first slice.
+        let needsMoreRows = lastLaidOutWidth >= 8 && rowViews.count < rowCount
+        if !widthChanged && !needsMoreRows { return }
+        if widthChanged {
+            if !ChatCardStableWidth.isTrustworthy(width: availableWidth, anchor: ChatCardStableWidth.anchor(for: self)) {
+                #if DEBUG
+                if ChatRenderDiagnostics.enabled {
+                    AppLog.info(
+                        "table card skipped a transient width of \(Int(availableWidth))",
+                        module: "ChatRender"
+                    )
+                }
+                #endif
+                return
             }
-            #endif
-            return
+            lastLaidOutWidth = availableWidth
         }
-        lastLaidOutWidth = availableWidth
         layoutTable(availableWidth: availableWidth)
     }
 
@@ -242,15 +249,16 @@ final class UIKitTableCard: UIView {
         computedHeight = totalHeight
         heightConstraint?.constant = totalHeight
 
-        if rowViews.isEmpty {
+        if availableWidth >= 8, rowViews.count < rowCount {
             buildRowViews(rowCount: rowCount, headerFont: headerFont, bodyFont: bodyFont)
-        } else if needsCellContentRender {
+        } else if needsCellContentRender, !rowViews.isEmpty {
             renderCellContent(headerFont: headerFont, bodyFont: bodyFont)
         }
         needsCellContentRender = false
 
+        // Rows may still be filling in across frames; only place views that exist.
         var yOffset: CGFloat = 0
-        for rowIdx in 0..<rowCount {
+        for rowIdx in 0..<rowViews.count {
             let isHeader = rowIdx == 0
             let row = rowViews[rowIdx]
             let rowH = rowHeights[rowIdx]
@@ -295,13 +303,18 @@ final class UIKitTableCard: UIView {
         }
     }
 
-    /// Builds every row's views in the same subview order and style as building them on each layout
-    /// did; `layoutTable` places the frames.
+    /// Builds row views. Heights are already fixed by `layoutTable` via boundingRect, so
+    /// UITextViews can fill in across frames. Each frame stays under about 8ms so a 155-cell
+    /// TextKit build does not land in a single frame.
     private func buildRowViews(rowCount: Int, headerFont: UIFont, bodyFont: UIFont) {
         let colCount = tableData.headers.count
-        var built: [RowViews] = []
-        built.reserveCapacity(rowCount)
-        for rowIdx in 0..<rowCount {
+        if rowViews.isEmpty {
+            rowViews.reserveCapacity(rowCount)
+        }
+        let budgetStart = CACurrentMediaTime()
+        let budget: CFTimeInterval = 0.008
+        while rowViews.count < rowCount, CACurrentMediaTime() - budgetStart < budget {
+            let rowIdx = rowViews.count
             let isHeader = rowIdx == 0
             let cells = cellsForRow(rowIdx)
             let font = isHeader ? headerFont : bodyFont
@@ -333,7 +346,8 @@ final class UIKitTableCard: UIView {
             var labels: [ChatPassiveTextView] = []
             var columnLines: [UIView] = []
             for (j, text) in cells.enumerated() where j < colCount {
-                let label = ChatPassiveTextView()
+                // TextKit 1: same pixels, roughly 25% cheaper to create.
+                let label = ChatPassiveTextView(usingTextLayoutManager: false)
                 label.isEditable = false
                 label.isSelectable = true
                 label.isScrollEnabled = false
@@ -361,7 +375,7 @@ final class UIKitTableCard: UIView {
                     columnLines.append(colLine)
                 }
             }
-            built.append(RowViews(
+            rowViews.append(RowViews(
                 rowView: rowView,
                 topLine: topLine,
                 headerSeparator: headerSeparator,
@@ -369,8 +383,14 @@ final class UIKitTableCard: UIView {
                 columnLines: columnLines
             ))
         }
-        rowViews = built
         bindAskSelection()
+        if rowViews.count < rowCount {
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                self.setNeedsLayout()
+                self.layoutIfNeeded()
+            }
+        }
     }
 
     private func renderCellContent(headerFont: UIFont, bodyFont: UIFont) {

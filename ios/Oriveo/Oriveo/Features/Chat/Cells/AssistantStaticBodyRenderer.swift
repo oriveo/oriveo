@@ -95,7 +95,7 @@ final class AssistantStaticBodyRenderer {
                 } else {
                     codeHarvest = nil
                 }
-                let card = UIKitCodeBlockCard(
+                let card = UIKitCodeBlockCard.make(
                     language: language,
                     content: segment.content,
                     parentViewController: parentViewController,
@@ -235,6 +235,7 @@ final class AssistantStaticBodyRenderer {
             bodyStack?.removeArrangedSubview(view)
             view.removeFromSuperview()
             if let card = view as? UIKitTableCard { UIKitTableCard.recycle(card) }
+            if let card = view as? UIKitCodeBlockCard { UIKitCodeBlockCard.recycle(card) }
         }
         frozenViews.removeAll()
         frozenSegments.removeAll()
@@ -302,7 +303,7 @@ final class AssistantStaticBodyRenderer {
             labelOriginal = segment.content
 
         case .codeBlock(let language):
-            let card = UIKitCodeBlockCard(
+            let card = UIKitCodeBlockCard.make(
                 language: language,
                 content: segment.content,
                 parentViewController: parentViewController
@@ -350,6 +351,7 @@ final class AssistantStaticBodyRenderer {
             view.removeFromSuperview()
             frozenLabelMarkdown.removeValue(forKey: ObjectIdentifier(view))
             if let card = view as? UIKitTableCard { UIKitTableCard.recycle(card) }
+            if let card = view as? UIKitCodeBlockCard { UIKitCodeBlockCard.recycle(card) }
         }
         frozenViews.removeSubrange(removedRange)
         frozenSegments.removeSubrange(removedRange)
