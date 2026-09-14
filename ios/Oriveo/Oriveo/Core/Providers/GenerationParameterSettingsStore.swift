@@ -314,6 +314,13 @@ final class GenerationParameterSettingsStore: @unchecked Sendable {
     private let storageKey = "generation_parameter_settings.v1"
     private let capabilityStorageKey = "capability_preference_settings.v1"
     private let localCustomStorageKey = "capability_preference_local_custom.v1"
+    /// The chat screen reads several settings layers on every body evaluation (every keystroke in the
+    /// composer), and each read JSON-decoded the whole table. Decoded results are cached by the stored
+    /// bytes: identical bytes reuse them (comparing bytes is far cheaper than decoding), and any rewrite,
+    /// from this instance or another one, changes the bytes and decodes again. Read and written only
+    /// under the lock.
+    private var decodedRecords: (data: Data, records: [Record])?
+    private var decodedLocalCustomRecords: (data: Data, records: [LocalCustomFragmentRecord])?
     private let retiredLocalCustomDeveloperModeKey = "capability_preference_local_custom_developer_mode.v1"
     private let maximumRecordCount = 200
     private let recordTTL: TimeInterval = 180 * 24 * 60 * 60
@@ -1223,9 +1230,14 @@ final class GenerationParameterSettingsStore: @unchecked Sendable {
     }
 
     private func readRecordsLocked(includeExpired: Bool = false) -> [Record] {
-        guard let data = defaults.data(forKey: storageKey),
-              let records = try? JSONDecoder().decode([Record].self, from: data) else {
-            return []
+        guard let data = defaults.data(forKey: storageKey) else { return [] }
+        let records: [Record]
+        if let cached = decodedRecords, cached.data == data {
+            records = cached.records
+        } else {
+            guard let decoded = try? JSONDecoder().decode([Record].self, from: data) else { return [] }
+            decodedRecords = (data, decoded)
+            records = decoded
         }
         guard !includeExpired else { return records }
         let cutoff = Date().addingTimeInterval(-recordTTL)
@@ -1254,7 +1266,12 @@ final class GenerationParameterSettingsStore: @unchecked Sendable {
 
     private func localCustomRecordsLocked() -> [LocalCustomFragmentRecord] {
         guard let data = defaults.data(forKey: localCustomStorageKey) else { return [] }
-        return (try? JSONDecoder().decode([LocalCustomFragmentRecord].self, from: data)) ?? []
+        if let cached = decodedLocalCustomRecords, cached.data == data {
+            return cached.records
+        }
+        let records = (try? JSONDecoder().decode([LocalCustomFragmentRecord].self, from: data)) ?? []
+        decodedLocalCustomRecords = (data, records)
+        return records
     }
 
     private func writeLocalCustomRecordsLocked(_ records: [LocalCustomFragmentRecord]) {
