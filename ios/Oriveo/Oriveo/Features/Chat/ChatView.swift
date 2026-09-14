@@ -118,7 +118,10 @@ struct ChatView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(AppState.self) private var appState
 
-    @State private var composerText = ""
+    /// Input text is not ChatView `@State`: each keystroke would rebuild the page
+    /// (list, toolbar, capability strip). The live text lives in ChatComposerBar;
+    /// this only pushes on send-clear / fail-restore / edit-restore.
+    @State private var composerTextPush = ChatComposerTextPush()
     @State private var modelPickerPresentation: ModelPickerPresentationSnapshot?
     @State private var pendingModelSelection: ModelPickerSelection?
     @State private var reasoningMode: ReasoningMode = .automatic
@@ -340,7 +343,7 @@ struct ChatView: View {
         var transaction = Transaction()
         transaction.disablesAnimations = true
         withTransaction(transaction) {
-            composerText = ""
+            composerTextPush.push("")
             pendingAttachments = []
             pendingQuoteContext = nil
         }
@@ -355,7 +358,7 @@ struct ChatView: View {
                 capabilitySelection: capabilitySelection
             )
             if sentConversationID == nil {
-                composerText = text
+                composerTextPush.push(text)
                 pendingAttachments = attachments
                 pendingQuoteContext = quoteContext
             }
@@ -498,7 +501,15 @@ struct ChatView: View {
         }
     }
 
+    #if DEBUG
+    nonisolated(unsafe) static var bodyEvaluationCount = 0
+    static func resetBodyEvaluationCount() { bodyEvaluationCount = 0 }
+    #endif
+
     var body: some View {
+        #if DEBUG
+        let _ = { Self.bodyEvaluationCount += 1 }()
+        #endif
         Group {
             if projection.loadState == .localFailure {
                 conversationBootstrapFailureState
@@ -843,20 +854,7 @@ struct ChatView: View {
         }
         .onChange(of: projection.draftText) { _, draftText in
             guard !composerFocused else { return }
-            let shouldApplyDraft = composerText != draftText
-            guard shouldApplyDraft else { return }
-            composerText = draftText
-        }
-        .onChange(of: composerText) { _, newValue in
-            guard let conversationID = projection.activeConversationID else { return }
-            guard !composerFocused else { return }
-            syncDraftIfNeeded(newValue, in: conversationID)
-        }
-        .onChange(of: composerFocused) { _, focused in
-            guard !focused else { return }
-            if let conversationID = projection.activeConversationID {
-                syncDraftIfNeeded(composerText, in: conversationID)
-            }
+            composerTextPush.push(draftText)
         }
         .onChange(of: pendingQuoteContext) { oldValue, newValue in
             guard oldValue != newValue else { return }
@@ -974,7 +972,12 @@ struct ChatView: View {
                 generationParameterScopeID: projection.activeConversationID ?? generationParameterDraftSessionID,
                 isReadOnly: isComposerReadOnly,
                 transparentChrome: projection.messages.isEmpty,
-                composerText: $composerText,
+                initialDraft: projection.draftText,
+                textPush: composerTextPush,
+                onDraftChange: { text in
+                    guard let conversationID = projection.activeConversationID else { return }
+                    syncDraftIfNeeded(text, in: conversationID)
+                },
                 pendingAttachments: $pendingAttachments,
                 pendingQuoteContext: $pendingQuoteContext,
                 reasoningMode: $reasoningMode,
@@ -1019,7 +1022,7 @@ struct ChatView: View {
             windowLoader: windowLoader,
             isAtBottom: $isAtBottom,
             autoScrollEnabled: $autoScrollEnabled,
-            composerText: $composerText,
+            onRestoreComposerText: restoreComposerText,
             pendingQuoteContext: $pendingQuoteContext,
             showModelSwitcher: Binding(
                 get: { modelPickerPresentation != nil },
@@ -1245,21 +1248,19 @@ struct ChatView: View {
     }
 
     private func handleDisappear() {
-        flushDraftIfNeeded()
         conversationObservation.stop()
         windowLoader.stop()
         appState.activeReturnToNoteID = nil
     }
 
-    private func handleAppear(currentModel: AIModel?) {
-        composerText = projection.draftText
-        syncCapabilitySelection(for: currentModel)
-        pruneUnsupportedPendingAttachments()
+    private func restoreComposerText(_ text: String) {
+        composerTextPush.push(text)
     }
 
-    private func flushDraftIfNeeded() {
-        guard let conversationID = projection.activeConversationID else { return }
-        syncDraftIfNeeded(composerText, in: conversationID)
+    private func handleAppear(currentModel: AIModel?) {
+        composerTextPush.push(projection.draftText)
+        syncCapabilitySelection(for: currentModel)
+        pruneUnsupportedPendingAttachments()
     }
 }
 struct ExpensiveModelHintData: Equatable {

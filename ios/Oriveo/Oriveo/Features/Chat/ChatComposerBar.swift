@@ -19,6 +19,18 @@ private struct NoteRecallTaskID: Hashable {
     let isSendingMessage: Bool
 }
 
+/// ChatView pushes draft restore / send-fail restore / edit restore into the bar.
+/// The token is the trigger so typing does not live in ChatView `@State` and rebuild the page.
+struct ChatComposerTextPush: Equatable {
+    var token: UInt = 0
+    var text: String = ""
+
+    mutating func push(_ text: String) {
+        token += 1
+        self.text = text
+    }
+}
+
 enum QuoteContextChipPresentation {
     case composer
     case sentMessage
@@ -178,8 +190,15 @@ struct ChatComposerBar: View {
     let generationParameterScopeID: UUID
     var isReadOnly: Bool = false
     var transparentChrome: Bool = false
+    /// Conversation draft on first appear. The live input lives in this bar's `@State`.
+    let initialDraft: String
+    /// External push (clear after send, restore after failure, restore from edit, sync draft).
+    /// Ignored while the token is unchanged.
+    let textPush: ChatComposerTextPush
+    /// Hands the current text back to ChatView to persist a draft. Not called while typing.
+    let onDraftChange: (String) -> Void
 
-    @Binding var composerText: String
+    @State private var composerText = ""
     @Binding var pendingAttachments: [Attachment]
     @Binding var pendingQuoteContext: QuoteContext?
     @Binding var reasoningMode: ReasoningMode
@@ -503,12 +522,30 @@ struct ChatComposerBar: View {
         .sensoryFeedback(.selection, trigger: reasoningMode)
         .sensoryFeedback(.selection, trigger: webEnabled)
         .onAppear {
+            composerText = initialDraft
             configureHighlightPulse()
             syncStoredCapabilitySelection()
         }
+        .onDisappear {
+            onDraftChange(composerText)
+        }
         .onChange(of: reduceMotion) { _, _ in configureHighlightPulse() }
         .onChange(of: currentModel?.id) { _, _ in syncStoredCapabilitySelection() }
-        .onChange(of: conversationID) { _, _ in syncStoredCapabilitySelection() }
+        .onChange(of: conversationID) { _, _ in
+            composerText = initialDraft
+            syncStoredCapabilitySelection()
+        }
+        .onChange(of: textPush.token) { _, _ in
+            composerText = textPush.text
+        }
+        .onChange(of: composerText) { _, newValue in
+            guard !composerFocused.wrappedValue else { return }
+            onDraftChange(newValue)
+        }
+        .onChange(of: composerFocused.wrappedValue) { _, focused in
+            guard !focused else { return }
+            onDraftChange(composerText)
+        }
         .onChange(of: showsModelControls) { _, isOpen in
             guard !isOpen else { return }
             syncStoredCapabilitySelection()

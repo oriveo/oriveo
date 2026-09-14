@@ -144,7 +144,8 @@ struct ChatMessageList: View, Equatable {
 
     @Binding var isAtBottom: Bool
     @Binding var autoScrollEnabled: Bool
-    @Binding var composerText: String
+    /// Edit restore pushes text back to the composer; the list does not own input state.
+    var onRestoreComposerText: (String) -> Void
     @Binding var pendingQuoteContext: QuoteContext?
     @Binding var showModelSwitcher: Bool
     var composerFocused: FocusState<Bool>.Binding
@@ -613,7 +614,7 @@ struct ChatMessageList: View, Equatable {
 
         guard let restoredText else { return }
         withAnimation(preferredAnimation) {
-            composerText = restoredText
+            onRestoreComposerText(restoredText)
             pendingQuoteContext = restoredQuoteContext?.isValid == true ? restoredQuoteContext : nil
             composerFocused.wrappedValue = true
         }
