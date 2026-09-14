@@ -111,8 +111,7 @@ final class AssistantStaticBodyRenderer {
                 view = card
 
             case .table(let lines):
-                if let tableData = UIKitTableCard.parseMarkdownLines(lines) {
-                    let card = UIKitTableCard(tableData: tableData)
+                if let card = UIKitTableCard.make(lines: lines) {
                     card.onAskSelection = onAskSelection
                     let notifier = hostNotifier
                     card.onIntrinsicHeightDidChange = { notifier() }
@@ -235,6 +234,7 @@ final class AssistantStaticBodyRenderer {
         for view in frozenViews {
             bodyStack?.removeArrangedSubview(view)
             view.removeFromSuperview()
+            if let card = view as? UIKitTableCard { UIKitTableCard.recycle(card) }
         }
         frozenViews.removeAll()
         frozenSegments.removeAll()
@@ -316,8 +316,7 @@ final class AssistantStaticBodyRenderer {
             view = card
 
         case .table(let lines):
-            if let tableData = UIKitTableCard.parseMarkdownLines(lines) {
-                let card = UIKitTableCard(tableData: tableData)
+            if let card = UIKitTableCard.make(lines: lines) {
                 card.onAskSelection = onAskSelection
                 let notifier = hostNotifier
                 card.onIntrinsicHeightDidChange = { notifier() }
@@ -350,6 +349,7 @@ final class AssistantStaticBodyRenderer {
             bodyStack?.removeArrangedSubview(view)
             view.removeFromSuperview()
             frozenLabelMarkdown.removeValue(forKey: ObjectIdentifier(view))
+            if let card = view as? UIKitTableCard { UIKitTableCard.recycle(card) }
         }
         frozenViews.removeSubrange(removedRange)
         frozenSegments.removeSubrange(removedRange)

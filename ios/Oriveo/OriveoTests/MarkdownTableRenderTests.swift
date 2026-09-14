@@ -268,6 +268,48 @@ struct MarkdownTableRenderTests {
         #expect(abs(tableContainer.frame.width - 340) < 0.5)
     }
 
+    @Test("cell views are built once: attaching the selection callback and changing width reuse them, frames follow the width, and question context is kept")
+    @MainActor
+    func tableCardReusesCellViewsAcrossRelayout() throws {
+        let data = UIKitTableCard.TableData(
+            headers: ["Model", "Notes"],
+            rows: [["**alpha**", "fast"], ["beta", "`tools` ok"]],
+            alignments: [.left, .left]
+        )
+        let card = UIKitTableCard(tableData: data)
+        func cellViews() throws -> [ChatPassiveTextView] {
+            let scrollView = try #require(card.subviews.compactMap { $0 as? UIScrollView }.first)
+            let container = try #require(scrollView.subviews.first)
+            return container.subviews.flatMap { $0.subviews.compactMap { $0 as? ChatPassiveTextView } }
+        }
+        let built = try cellViews()
+        #expect(built.count == 6)
+
+        var asked: QuoteSelectionContent?
+        card.onAskSelection = { asked = $0 }
+        card.frame = CGRect(x: 0, y: 0, width: 360, height: card.intrinsicContentSize.height)
+        card.layoutIfNeeded()
+        let wide = try cellViews()
+        #expect(wide.map(ObjectIdentifier.init) == built.map(ObjectIdentifier.init))
+        let wideNotesX = wide[1].frame.minX
+
+        card.frame.size.width = 300
+        card.setNeedsLayout()
+        card.layoutIfNeeded()
+        let narrow = try cellViews()
+        #expect(narrow.map(ObjectIdentifier.init) == built.map(ObjectIdentifier.init))
+        #expect(narrow[1].frame.minX < wideNotesX, "the second column should move left once the available width shrinks")
+
+        // Second data row, second column: the question context carries the row's other cells, markdown stripped.
+        let callback = try #require(narrow[5].onAskSelection)
+        callback(QuoteSelectionContent(contentKind: .table, leadingText: "", selectedText: "tools", trailingText: " ok"))
+        #expect(asked?.leadingText == "beta | ")
+        #expect(asked?.selectedText == "tools")
+
+        card.onAskSelection = nil
+        #expect(try cellViews().allSatisfy { $0.onAskSelection == nil })
+    }
+
     @Test("Fills Real Content Width On The cv Tree — Old chrome=52 Rejected Final Width As Transient")
     @MainActor
     func narrowTableCardFillsWidthInsideCollectionView() throws {
@@ -333,5 +375,77 @@ struct MarkdownTableRenderTests {
         )
         #expect(!attr.string.contains("LOG"))
         #expect(!attr.string.contains("Log"))
+    }
+}
+
+/// Chat cell reuse: a cleared table card goes back to the reuse pool, and the same table scrolling
+/// back on screen takes the card back instead of rebuilding the whole table.
+@Suite("Table card reuse across cells", .serialized)
+@MainActor
+struct TableCardRecyclingTests {
+    private func makeRenderer() -> (AssistantStaticBodyRenderer, UIStackView) {
+        let stack = UIStackView()
+        stack.axis = .vertical
+        stack.frame = CGRect(x: 0, y: 0, width: 342, height: 800)
+        let textView = UITextView()
+        stack.addArrangedSubview(textView)
+        return (AssistantStaticBodyRenderer(bodyStack: stack, textView: textView), stack)
+    }
+
+    private func tableCards(in stack: UIStackView) -> [UIKitTableCard] {
+        stack.arrangedSubviews.compactMap { $0 as? UIKitTableCard }
+    }
+
+    @Test("a cleared table is taken back for the same content, a card still on screen is never taken by another cell, and reuse resets its state")
+    func recycledCardIsReusedOnlyWhenDetached() throws {
+        let text = """
+        Compare:
+
+        | Recycle \(UUID().uuidString) | Value |
+        |---|---|
+        | alpha | 1 |
+        | beta | 2 |
+        """
+        let host = UIViewController()
+        let (first, firstStack) = makeRenderer()
+        first.renderBlockMarkdown(text: text, renderHint: nil, parentViewController: host)
+        let original = try #require(tableCards(in: firstStack).first)
+
+        // The same table in a second cell at the same time: the original is still attached, so build a new card.
+        let (second, secondStack) = makeRenderer()
+        second.renderBlockMarkdown(text: text, renderHint: nil, parentViewController: host)
+        let concurrent = try #require(tableCards(in: secondStack).first)
+        #expect(concurrent !== original)
+
+        // The first cell is reused and cleared, with a leftover entrance animation and a horizontal scroll.
+        original.alpha = 0.3
+        original.transform = CGAffineTransform(translationX: 0, y: 8)
+        let originalScroll = try #require(original.subviews.compactMap { $0 as? UIScrollView }.first)
+        originalScroll.contentOffset = CGPoint(x: 40, y: 0)
+        first.clear()
+        #expect(original.superview == nil)
+
+        var asked = false
+        let (third, thirdStack) = makeRenderer()
+        third.onAskSelection = { _ in asked = true }
+        third.renderBlockMarkdown(text: text, renderHint: nil, parentViewController: host)
+        let reused = try #require(tableCards(in: thirdStack).first)
+        #expect(reused === original)
+        #expect(reused.alpha == 1)
+        #expect(reused.transform == .identity)
+        #expect(originalScroll.contentOffset == .zero)
+
+        // The callback now belongs to the new cell: asking from a table cell reaches the third renderer.
+        let container = try #require(originalScroll.subviews.first)
+        let cell = try #require(container.subviews.flatMap { $0.subviews.compactMap { $0 as? ChatPassiveTextView } }.last)
+        cell.onAskSelection?(QuoteSelectionContent(contentKind: .table, leadingText: "", selectedText: "2", trailingText: ""))
+        #expect(asked)
+
+        // The pool only holds detached cards: clearing the second cell makes the next render take that card,
+        // not the original still attached to the third cell.
+        second.clear()
+        let (fourth, fourthStack) = makeRenderer()
+        fourth.renderBlockMarkdown(text: text, renderHint: nil, parentViewController: host)
+        #expect(tableCards(in: fourthStack).first === concurrent)
     }
 }

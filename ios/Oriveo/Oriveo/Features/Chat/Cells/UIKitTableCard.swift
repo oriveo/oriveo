@@ -51,13 +51,76 @@ final class UIKitTableCard: UIView {
     private var heightConstraint: NSLayoutConstraint?
     private var lastLaidOutWidth: CGFloat = 0
     private var latexObserver: NSObjectProtocol?
+
+    /// Every subview of one row. Cells are UITextViews (selection questions need them) at roughly
+    /// 0.5-0.75ms each, so building a 30 x 5 table costs on the order of 100ms. Build them on the
+    /// first layout only; later width changes just move frames.
+    private struct RowViews {
+        let rowView: UIView
+        let topLine: UIView?
+        let headerSeparator: UIView?
+        let labels: [ChatPassiveTextView]
+        let columnLines: [UIView]
+    }
+
+    private var rowViews: [RowViews] = []
+    /// Set when an inline formula image finishes rendering: the next layout re-renders cell text.
+    private var needsCellContentRender = false
+
     var onAskSelection: ((QuoteSelectionContent) -> Void)? {
-        didSet {
-            lastLaidOutWidth = -1
-            setNeedsLayout()
-        }
+        didSet { bindAskSelection() }
     }
     var onIntrinsicHeightDidChange: (() -> Void)?
+
+    // MARK: - Reuse across cells
+
+    /// Chat list cell reuse clears frozen views; when the same table scrolls back on screen, take back
+    /// the detached card instead of rebuilding the whole table (one UITextView per cell, about 100ms
+    /// for 30 x 5). Matches the raw markdown lines exactly and only holds detached cards, so the same
+    /// table shown in two cells at once still builds a second card. NSCache evicts under memory pressure.
+    private static let recycledCards: NSCache<NSString, UIKitTableCard> = {
+        let cache = NSCache<NSString, UIKitTableCard>()
+        cache.countLimit = 8
+        return cache
+    }()
+
+    private var recycleKey: NSString?
+
+    private static func recycleKey(for lines: [String]) -> NSString {
+        NSString(string: lines.joined(separator: "\n"))
+    }
+
+    /// Takes back a detached card with the same content or builds a new one; returns nil when the
+    /// lines do not parse as a table (the caller renders them as plain text).
+    static func make(lines: [String]) -> UIKitTableCard? {
+        let key = recycleKey(for: lines)
+        if let card = recycledCards.object(forKey: key), card.superview == nil {
+            recycledCards.removeObject(forKey: key)
+            card.prepareForReuse()
+            return card
+        }
+        guard let tableData = parseMarkdownLines(lines) else { return nil }
+        let card = UIKitTableCard(tableData: tableData)
+        card.recycleKey = key
+        return card
+    }
+
+    /// Returns a card to the reuse pool after it has been removed from its cell.
+    static func recycle(_ card: UIKitTableCard) {
+        guard card.superview == nil, let key = card.recycleKey else { return }
+        recycledCards.setObject(card, forKey: key)
+    }
+
+    /// Restores a freshly built card's state before it joins a new cell: no leftover entrance
+    /// animation, horizontal scroll position or callbacks from the previous cell.
+    private func prepareForReuse() {
+        layer.removeAllAnimations()
+        alpha = 1
+        transform = .identity
+        scrollView.setContentOffset(.zero, animated: false)
+        onIntrinsicHeightDidChange = nil
+        onAskSelection = nil
+    }
 
     // MARK: - Init
 
@@ -144,8 +207,6 @@ final class UIKitTableCard: UIView {
         let colCount = tableData.headers.count
         guard colCount > 0 else { return }
 
-        tableContainer.subviews.forEach { $0.removeFromSuperview() }
-
         let headerFont = UIFont.systemFont(ofSize: headerFontSize, weight: .semibold)
         let bodyFont = UIFont.systemFont(ofSize: bodyFontSize)
 
@@ -181,43 +242,97 @@ final class UIKitTableCard: UIView {
         computedHeight = totalHeight
         heightConstraint?.constant = totalHeight
 
+        if rowViews.isEmpty {
+            buildRowViews(rowCount: rowCount, headerFont: headerFont, bodyFont: bodyFont)
+        } else if needsCellContentRender {
+            renderCellContent(headerFont: headerFont, bodyFont: bodyFont)
+        }
+        needsCellContentRender = false
+
         var yOffset: CGFloat = 0
+        for rowIdx in 0..<rowCount {
+            let isHeader = rowIdx == 0
+            let row = rowViews[rowIdx]
+            let rowH = rowHeights[rowIdx]
+
+            row.rowView.frame = CGRect(x: 0, y: yOffset, width: totalWidth, height: rowH)
+            row.topLine?.frame = CGRect(x: 0, y: 0, width: totalWidth, height: gridLineWidth)
+            row.headerSeparator?.frame = CGRect(x: 0, y: rowH - headerSepWidth, width: totalWidth, height: headerSepWidth)
+
+            var xOffset: CGFloat = 0
+            for (j, label) in row.labels.enumerated() {
+                let colW = columnWidths[j]
+                label.frame = CGRect(
+                    x: xOffset + cellPaddingH,
+                    y: cellPaddingV,
+                    width: colW - cellPaddingH * 2,
+                    height: rowH - cellPaddingV * 2
+                )
+                if j < row.columnLines.count {
+                    row.columnLines[j].frame = CGRect(
+                        x: xOffset + colW - gridLineWidth / 2,
+                        y: 0,
+                        width: gridLineWidth,
+                        height: rowH
+                    )
+                }
+                xOffset += colW
+            }
+
+            yOffset += rowH
+            if isHeader {
+                yOffset += headerSepWidth
+            } else if rowIdx < rowCount - 1 {
+                yOffset += gridLineWidth
+            }
+        }
+
+        tableContainer.frame = CGRect(x: 0, y: 0, width: totalWidth, height: totalHeight)
+        scrollView.contentSize = CGSize(width: totalWidth, height: totalHeight)
+        invalidateIntrinsicContentSize()
+        if heightChanged {
+            onIntrinsicHeightDidChange?()
+        }
+    }
+
+    /// Builds every row's views in the same subview order and style as building them on each layout
+    /// did; `layoutTable` places the frames.
+    private func buildRowViews(rowCount: Int, headerFont: UIFont, bodyFont: UIFont) {
+        let colCount = tableData.headers.count
+        var built: [RowViews] = []
+        built.reserveCapacity(rowCount)
         for rowIdx in 0..<rowCount {
             let isHeader = rowIdx == 0
             let cells = cellsForRow(rowIdx)
             let font = isHeader ? headerFont : bodyFont
-            let rowH = rowHeights[rowIdx]
-
-            let rowBg: UIColor
-            if isHeader {
-                rowBg = Self.headerBg
-            } else {
-                rowBg = rowIdx % 2 == 0 ? Self.altRowBg : Self.cellBg
-            }
 
             let rowView = UIView()
-            rowView.backgroundColor = rowBg
-            rowView.frame = CGRect(x: 0, y: yOffset, width: totalWidth, height: rowH)
+            if isHeader {
+                rowView.backgroundColor = Self.headerBg
+            } else {
+                rowView.backgroundColor = rowIdx % 2 == 0 ? Self.altRowBg : Self.cellBg
+            }
             tableContainer.addSubview(rowView)
 
+            var topLine: UIView?
             if rowIdx > 1 {
                 let line = UIView()
                 line.backgroundColor = Self.borderColor.withAlphaComponent(0.3)
-                line.frame = CGRect(x: 0, y: 0, width: totalWidth, height: gridLineWidth)
                 rowView.addSubview(line)
+                topLine = line
             }
 
+            var headerSeparator: UIView?
             if isHeader {
                 let sep = UIView()
                 sep.backgroundColor = Self.borderColor
-                sep.frame = CGRect(x: 0, y: rowH - headerSepWidth, width: totalWidth, height: headerSepWidth)
                 rowView.addSubview(sep)
+                headerSeparator = sep
             }
 
-            var xOffset: CGFloat = 0
+            var labels: [ChatPassiveTextView] = []
+            var columnLines: [UIView] = []
             for (j, text) in cells.enumerated() where j < colCount {
-                let colW = columnWidths[j]
-
                 let label = ChatPassiveTextView()
                 label.isEditable = false
                 label.isSelectable = true
@@ -236,61 +351,69 @@ final class UIKitTableCard: UIView {
                     textColor: isHeader ? Self.headerText : Self.cellText,
                     isHeader: isHeader
                 )
-
-                if let onAskSelection {
-                    let strippedCells = cells.map(Self.stripMarkdown)
-                    let prefix = strippedCells.prefix(j).joined(separator: " | ")
-                    let suffix = strippedCells.dropFirst(j + 1).joined(separator: " | ")
-                    label.onAskSelection = { selection in
-                        onAskSelection(QuoteSelectionContent(
-                            contentKind: .table,
-                            leadingText: prefix.isEmpty
-                                ? selection.leadingText
-                                : prefix + " | " + selection.leadingText,
-                            selectedText: selection.selectedText,
-                            trailingText: suffix.isEmpty
-                                ? selection.trailingText
-                                : selection.trailingText + " | " + suffix
-                        ))
-                    }
-                }
-
-                label.frame = CGRect(
-                    x: xOffset + cellPaddingH,
-                    y: cellPaddingV,
-                    width: colW - cellPaddingH * 2,
-                    height: rowH - cellPaddingV * 2
-                )
                 rowView.addSubview(label)
+                labels.append(label)
 
                 if j < colCount - 1 {
                     let colLine = UIView()
                     colLine.backgroundColor = Self.borderColor.withAlphaComponent(0.25)
-                    colLine.frame = CGRect(
-                        x: xOffset + colW - gridLineWidth / 2,
-                        y: 0,
-                        width: gridLineWidth,
-                        height: rowH
-                    )
                     rowView.addSubview(colLine)
+                    columnLines.append(colLine)
                 }
-
-                xOffset += colW
             }
+            built.append(RowViews(
+                rowView: rowView,
+                topLine: topLine,
+                headerSeparator: headerSeparator,
+                labels: labels,
+                columnLines: columnLines
+            ))
+        }
+        rowViews = built
+        bindAskSelection()
+    }
 
-            yOffset += rowH
-            if isHeader {
-                yOffset += headerSepWidth
-            } else if rowIdx < rowCount - 1 {
-                yOffset += gridLineWidth
+    private func renderCellContent(headerFont: UIFont, bodyFont: UIFont) {
+        for (rowIdx, row) in rowViews.enumerated() {
+            let isHeader = rowIdx == 0
+            let cells = cellsForRow(rowIdx)
+            for (j, label) in row.labels.enumerated() where j < cells.count {
+                label.attributedText = MarkdownAttributedStringRenderer.renderTableCellContent(
+                    cells[j],
+                    font: isHeader ? headerFont : bodyFont,
+                    textColor: isHeader ? Self.headerText : Self.cellText,
+                    isHeader: isHeader
+                )
             }
         }
+    }
 
-        tableContainer.frame = CGRect(x: 0, y: 0, width: totalWidth, height: totalHeight)
-        scrollView.contentSize = CGSize(width: totalWidth, height: totalHeight)
-        invalidateIntrinsicContentSize()
-        if heightChanged {
-            onIntrinsicHeightDidChange?()
+    /// A selection question carries the row's other cells as context; stripping their markdown waits
+    /// until a question is actually asked.
+    private func bindAskSelection() {
+        for (rowIdx, row) in rowViews.enumerated() {
+            let cells = cellsForRow(rowIdx)
+            for (j, label) in row.labels.enumerated() {
+                guard let onAskSelection else {
+                    label.onAskSelection = nil
+                    continue
+                }
+                label.onAskSelection = { selection in
+                    let strippedCells = cells.map(Self.stripMarkdown)
+                    let prefix = strippedCells.prefix(j).joined(separator: " | ")
+                    let suffix = strippedCells.dropFirst(j + 1).joined(separator: " | ")
+                    onAskSelection(QuoteSelectionContent(
+                        contentKind: .table,
+                        leadingText: prefix.isEmpty
+                            ? selection.leadingText
+                            : prefix + " | " + selection.leadingText,
+                        selectedText: selection.selectedText,
+                        trailingText: suffix.isEmpty
+                            ? selection.trailingText
+                            : selection.trailingText + " | " + suffix
+                    ))
+                }
+            }
         }
     }
 
@@ -387,6 +510,7 @@ final class UIKitTableCard: UIView {
             Self.columnWidthCache.removeObject(
                 forKey: Self.columnWidthCacheKey(headers: self.tableData.headers, rows: self.tableData.rows)
             )
+            self.needsCellContentRender = true
             self.lastLaidOutWidth = -1
             self.setNeedsLayout()
             self.invalidateIntrinsicContentSize()
