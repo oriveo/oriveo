@@ -146,4 +146,70 @@ struct FolderConversationCountTests {
                 == state.folderManager.conversations(in: folder.id).count
         )
     }
+
+    /// An expanded folder row (and the folder detail page) reads the list on every body evaluation,
+    /// and that cache is also invalidated by conversationsVersion. The list renders only title,
+    /// preview and count, so it must not read and decode every stored conversation's messages.
+    @Test("an expanded folder list reads the summary projection, so re-reading does not grow with message volume")
+    @MainActor
+    func expandedListDoesNotMaterializeMessages() throws {
+        let previousUID = AppSessionStore.activeUID
+        let uid = "folder-list-cost-\(UUID().uuidString)"
+        defer {
+            DatabaseManager.shared.close()
+            AppSessionStore.switchToUser(previousUID)
+            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: uid))
+        }
+        DatabaseManager.shared.close()
+
+        // A heavy user: 300 conversations with 30 messages each, 40 of them in the folder.
+        let folder = TestFactories.makeFolder(name: "Work")
+        let body = String(repeating: "A reasonably long paragraph of chat text. ", count: 10)
+        let base = Date(timeIntervalSince1970: 1_800_000_000)
+        let seeded = (0..<300).map { index in
+            TestFactories.makeConversation(
+                title: "Conversation \(index)",
+                messages: (0..<30).map { messageIndex in
+                    TestFactories.makeMessage(
+                        role: messageIndex.isMultiple(of: 2) ? .user : .assistant,
+                        text: "\(index)-\(messageIndex) \(body)"
+                    )
+                },
+                updatedAt: base.addingTimeInterval(TimeInterval(index)),
+                folderID: index < 40 ? folder.id : nil
+            )
+        }
+
+        let state = AppState(sessionUID: uid)
+        _ = try state.conversationRuntimeBridge.replaceAllConversations(seeded, uid: uid)
+        state.folders = [folder]
+
+        // Conversations that are in the store but not in memory: list entries carry no messages,
+        // and the count still comes from the stored message count.
+        state.conversations = []
+        let fromDatabase = state.folderManager.conversations(in: folder.id)
+        #expect(fromDatabase.count == 40)
+        #expect(fromDatabase.allSatisfy { $0.messages.isEmpty && $0.displayMessageCount == 30 })
+        #expect(fromDatabase.map(\.title) == seeded.prefix(40).reversed().map(\.title))
+
+        // The shape in the app: memory holds every conversation, and each change (send, finalize,
+        // rename) invalidates the cache and re-reads.
+        state.conversations = seeded
+        _ = state.folderManager.conversations(in: folder.id)
+        var slowest: TimeInterval = 0
+        var total: TimeInterval = 0
+        for round in 0..<5 {
+            state.conversations[0].title = "Renamed \(round)"
+            let start = Date()
+            let listed = state.folderManager.conversations(in: folder.id)
+            let elapsed = Date().timeIntervalSince(start)
+            slowest = max(slowest, elapsed)
+            total += elapsed
+            #expect(listed.count == 40)
+        }
+        print("""
+        [HANG-COST] expanded folder list (300 conversations x 30 messages, 40 in folder) \
+        re-read after a conversation change: max \(String(format: "%.0f", slowest * 1000))ms, 5 reads total \(String(format: "%.0f", total * 1000))ms
+        """)
+    }
 }

@@ -283,9 +283,13 @@ final class FolderManager {
         guard usesAuthoritativeProjection(for: partitionUID) else {
             return appState.conversations
         }
-        return (try? appState.authoritativeConversationProjection(
-            for: partitionUID,
-            hydrateFilePayloads: false
+        // Called synchronously on the main thread (every body evaluation of an expanded FolderRow or
+        // FolderDetailView), and cached by conversationsVersion, which sending, finalizing, renaming
+        // and syncing all invalidate. Folder lists render only conversation metadata, so read summaries:
+        // the full projection queries and decodes every conversation's messages and grows with the
+        // whole store.
+        return (try? appState.conversationRuntimeBridge.fetchConversationSummaryProjection(
+            uid: partitionUID
         )) ?? appState.conversations
     }
 

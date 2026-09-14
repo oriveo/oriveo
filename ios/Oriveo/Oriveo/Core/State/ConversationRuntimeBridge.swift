@@ -68,6 +68,17 @@ final class ConversationRuntimeBridge {
         try makeStore(for: uid).fetchAllConversations(hydrateFilePayloads: hydrateFilePayloads)
     }
 
+    /// Summary projection of every conversation: reads only the conversation table, `messages` is
+    /// always empty, and every other field comes from the same `RecordMappers.conversation(from:)`
+    /// as the full projection. Lists that render only title, preview and count use it; the full
+    /// projection queries and decodes every conversation's messages, which takes half a second per
+    /// call for 300 conversations with 30 messages each on a simulator.
+    func fetchConversationSummaryProjection(uid: String) throws -> [Conversation] {
+        try makeStore(for: uid).fetchConversationList().map {
+            RecordMappers.conversation(from: ConversationThread(summary: $0, messages: []))
+        }
+    }
+
     func fetchConversationProjection(ids: [UUID], uid: String) throws -> [Conversation] {
         try fetchConversationProjections(ids: ids, uid: uid)
     }
