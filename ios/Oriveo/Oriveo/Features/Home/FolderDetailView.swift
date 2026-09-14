@@ -22,7 +22,10 @@ struct FolderDetailView: View {
     }
 
     var body: some View {
-        ScrollView {
+        // With a search query every read is a synchronous store query, and the body re-evaluates on
+        // every keystroke in the search field, so read it once.
+        let conversations = self.conversations
+        return ScrollView {
             LazyVStack(alignment: .leading, spacing: OriveoTheme.Spacing.md) {
                 header
                 if !isEditing {
