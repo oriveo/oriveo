@@ -9,6 +9,16 @@ enum ProviderCapabilityIdentityStore {
 
     private static let defaultsKey = "provider_capability_identity.v1"
     private static let lock = NSLock()
+    /// Every capability badge looks up an identity, and opening the model picker builds over a
+    /// thousand of them; decoding the whole table from UserDefaults on each lookup slows down
+    /// linearly with its entry count. Only this type reads and writes the table (there is no app
+    /// extension), so caching the decoded values in process is safe as long as writes update the
+    /// cache before persisting.
+    private static var cachedValues: [String: Identity]?
+    #if DEBUG
+    /// DEBUG only: how many times the whole table was actually decoded from UserDefaults.
+    static var debugTableLoadCount = 0
+    #endif
 
     static func identity(providerID: UUID, partitionID: String) -> Identity {
         lock.lock(); defer { lock.unlock() }
@@ -42,7 +52,15 @@ enum ProviderCapabilityIdentityStore {
     #if DEBUG
     static func resetForTesting() {
         lock.lock(); defer { lock.unlock() }
+        cachedValues = nil
         UserDefaults.standard.removeObject(forKey: defaultsKey)
+    }
+
+    /// Drops only the in-process cache and keeps what is persisted, the way an app relaunch
+    /// reads the table again.
+    static func dropCacheForTesting() {
+        lock.lock(); defer { lock.unlock() }
+        cachedValues = nil
     }
     #endif
 
@@ -58,11 +76,20 @@ enum ProviderCapabilityIdentityStore {
     private static func key(providerID: UUID, partitionID: String) -> String { "\(partitionID)|\(providerID.uuidString)" }
     private static func token() -> String { UUID().uuidString.lowercased() }
     private static func load() -> [String: Identity] {
+        if let cachedValues { return cachedValues }
+        #if DEBUG
+        debugTableLoadCount += 1
+        #endif
         guard let data = UserDefaults.standard.data(forKey: defaultsKey),
-              let values = try? JSONDecoder().decode([String: Identity].self, from: data) else { return [:] }
+              let values = try? JSONDecoder().decode([String: Identity].self, from: data) else {
+            cachedValues = [:]
+            return [:]
+        }
+        cachedValues = values
         return values
     }
     private static func save(_ values: [String: Identity]) {
+        cachedValues = values
         UserDefaults.standard.set(try? JSONEncoder().encode(values), forKey: defaultsKey)
     }
 }

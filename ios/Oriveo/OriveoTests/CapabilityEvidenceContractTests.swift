@@ -991,6 +991,52 @@ struct CapabilityEvidenceContractTests {
         #expect(recreated.credentialEpoch != afterCredential.credentialEpoch)
     }
 
+    @Test("identity table is decoded once per process and writes still persist")
+    func identityStoreDecodesTableOncePerProcess() {
+        ProviderCapabilityIdentityStore.resetForTesting()
+        defer { ProviderCapabilityIdentityStore.resetForTesting() }
+        // A long-lived install's table: several partitions times official providers and relays.
+        let providerIDs = (0..<40).map { _ in UUID() }
+        for partition in ["u1", "capability-presentation"] {
+            for providerID in providerIDs {
+                _ = ProviderCapabilityIdentityStore.identity(providerID: providerID, partitionID: partition)
+            }
+        }
+        let target = providerIDs[7]
+        let first = ProviderCapabilityIdentityStore.identity(providerID: target, partitionID: "u1")
+
+        // Decoding the whole table on every lookup, for comparison. Wall time is only printed;
+        // the assertions pin decode counts.
+        let lookups = 1_000
+        let uncachedStart = Date()
+        for _ in 0..<lookups {
+            ProviderCapabilityIdentityStore.dropCacheForTesting()
+            _ = ProviderCapabilityIdentityStore.identity(providerID: target, partitionID: "u1")
+        }
+        let uncachedElapsed = Date().timeIntervalSince(uncachedStart)
+
+        ProviderCapabilityIdentityStore.debugTableLoadCount = 0
+        let cachedStart = Date()
+        for _ in 0..<lookups {
+            #expect(ProviderCapabilityIdentityStore.identity(providerID: target, partitionID: "u1") == first)
+        }
+        let cachedElapsed = Date().timeIntervalSince(cachedStart)
+        print("""
+        [HANG-COST] capability identity table \(providerIDs.count * 2) entries x \(lookups) lookups: \
+        decode each time \(String(format: "%.1f", uncachedElapsed * 1000))ms, cached \(String(format: "%.1f", cachedElapsed * 1000))ms
+        """)
+        #expect(ProviderCapabilityIdentityStore.debugTableLoadCount <= 1)
+
+        ProviderCapabilityIdentityStore.advanceCredentialEpoch(providerID: target, partitionID: "u1")
+        let advanced = ProviderCapabilityIdentityStore.identity(providerID: target, partitionID: "u1")
+        #expect(advanced.credentialEpoch != first.credentialEpoch)
+        #expect(ProviderCapabilityIdentityStore.debugTableLoadCount <= 1)
+
+        // After a relaunch the advanced value is read back from disk: the cache did not swallow the write.
+        ProviderCapabilityIdentityStore.dropCacheForTesting()
+        #expect(ProviderCapabilityIdentityStore.identity(providerID: target, partitionID: "u1") == advanced)
+    }
+
     // MARK: - Fixture loading
 
     private static func loadContract() throws -> Contract {
