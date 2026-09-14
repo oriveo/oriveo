@@ -19,6 +19,11 @@ final class MessageWindowLoader {
 
     private(set) var revision: UInt = 0
 
+    #if DEBUG
+    nonisolated(unsafe) static var contentChangeCount = 0
+    static func resetContentChangeCount() { contentChangeCount = 0 }
+    #endif
+
     private(set) var hasMoreAbove: Bool = false
 
     private(set) var hasMoreBelow: Bool = false
@@ -230,6 +235,20 @@ final class MessageWindowLoader {
 
     // MARK: - Private
 
+    /// The generating cursor already arrives through ChatManager's publisher.
+    /// Do not rewrite the window array or bump revision for it, or @Observable
+    /// punches through ChatView / the list body.
+    private func applyMessagesIfContentChanged(_ newMessages: [ChatMessage]) {
+        if WindowSnapshot.messagesMatchIgnoringGeneratingCursor(newMessages, messages) {
+            return
+        }
+        messages = newMessages
+        revision &+= 1
+        #if DEBUG
+        Self.contentChangeCount += 1
+        #endif
+    }
+
     private func applySnapshot(_ snapshot: WindowSnapshot) {
         initialLoadFailed = false
 
@@ -267,17 +286,9 @@ final class MessageWindowLoader {
             return
         }
         if let cutIndex = messages.firstIndex(where: { $0.id == snapshotHeadID }) {
-            let newMessages = mergePrefix(upTo: cutIndex, with: snapshot.messages)
-            if newMessages != messages {
-                messages = newMessages
-                revision &+= 1
-            }
+            applyMessagesIfContentChanged(mergePrefix(upTo: cutIndex, with: snapshot.messages))
         } else if let alignedIndex = findSnapshotAlignmentIndex(snapshot: snapshot.messages, in: messages) {
-            let newMessages = mergePrefix(upTo: alignedIndex, with: snapshot.messages)
-            if newMessages != messages {
-                messages = newMessages
-                revision &+= 1
-            }
+            applyMessagesIfContentChanged(mergePrefix(upTo: alignedIndex, with: snapshot.messages))
         } else {
             messages = snapshot.messages
             earliestBoundary = snapshot.earliestBoundary
@@ -285,13 +296,20 @@ final class MessageWindowLoader {
             hasMoreAbove = snapshot.hasMoreAbove
             hasMoreBelow = snapshot.hasMoreBelow
             revision &+= 1
+            #if DEBUG
+            Self.contentChangeCount += 1
+            #endif
             return
         }
         latestBoundary = snapshot.latestBoundary
-        hasMoreBelow = snapshot.hasMoreBelow
+        if hasMoreBelow != snapshot.hasMoreBelow {
+            hasMoreBelow = snapshot.hasMoreBelow
+        }
         if earliestBoundary == nil {
             earliestBoundary = snapshot.earliestBoundary
-            hasMoreAbove = snapshot.hasMoreAbove
+            if hasMoreAbove != snapshot.hasMoreAbove {
+                hasMoreAbove = snapshot.hasMoreAbove
+            }
         }
     }
 
@@ -394,7 +412,9 @@ final class MessageWindowLoader {
                 if left.state == .generating {
                     continue
                 }
-                if left != right {
+                // A checkpoint re-decodes the whole window. Full Equatable includes
+                // timestamps and attachment sidecars, so it is not a content-change signal.
+                if left.text != right.text {
                     return false
                 }
             }

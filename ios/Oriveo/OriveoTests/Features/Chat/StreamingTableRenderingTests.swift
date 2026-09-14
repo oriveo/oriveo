@@ -1,3 +1,4 @@
+import QuartzCore
 import Testing
 import UIKit
 @testable import Oriveo
@@ -313,5 +314,67 @@ struct StreamingTableRenderingTests {
 
         let scrollView = try #require(card.subviews.compactMap { $0 as? UIScrollView }.first)
         #expect(abs(scrollView.contentSize.width - contentWidth) < 0.5)
+    }
+
+    @Test("Streaming table step cost tracks new rows, not the full prefix, at ≥20k characters")
+    @MainActor
+    func streamingTableStepCostTracksNewRowsNotFullPrefix() {
+        func replay(prefixChars: Int, rows: Int) -> (parse: [CFTimeInterval], card: [CFTimeInterval]) {
+            let unit = "completed paragraph of the answer with enough words. "
+            var prefix = ""
+            while prefix.count < prefixChars {
+                prefix += unit
+            }
+            let header = ["| ColA | ColB | ColC |", "|---|---|---|"]
+            var tableRows: [String] = []
+            var parseTimes: [CFTimeInterval] = []
+            var cardTimes: [CFTimeInterval] = []
+            var card: UIKitStreamingTableCard?
+            for index in 0..<rows {
+                tableRows.append("| **r\(index)** | \(index) | notes \(index) |")
+                let text = prefix + "\n" + (header + tableRows).joined(separator: "\n")
+                var start = CACurrentMediaTime()
+                let parsed = StreamingSegmentParser.parse(text)
+                parseTimes.append(CACurrentMediaTime() - start)
+                let lines = parsed.streamingTable ?? (header + tableRows)
+                start = CACurrentMediaTime()
+                if let card {
+                    _ = card.updateLines(lines)
+                    card.layoutIfNeeded()
+                } else {
+                    let created = UIKitStreamingTableCard(initialLines: lines)
+                    created?.frame = CGRect(x: 0, y: 0, width: 350, height: 400)
+                    created?.layoutIfNeeded()
+                    card = created
+                }
+                cardTimes.append(CACurrentMediaTime() - start)
+            }
+            if let card {
+                let lines = header + tableRows
+                let start = CACurrentMediaTime()
+                _ = card.updateLines(lines)
+                card.layoutIfNeeded()
+                let sameLines = CACurrentMediaTime() - start
+                print("[HANG-COST] streaming table prefix \(prefixChars) chars same-lines re-apply \(String(format: "%.2f", sameLines * 1000))ms")
+            }
+            return (parseTimes, cardTimes)
+        }
+
+        let short = replay(prefixChars: 2_000, rows: 24)
+        let long = replay(prefixChars: 20_000, rows: 24)
+        func median(_ values: [CFTimeInterval]) -> CFTimeInterval {
+            let sorted = values.sorted()
+            return sorted[sorted.count / 2]
+        }
+        let shortCard = median(Array(short.card.suffix(8)))
+        let longCard = median(Array(long.card.suffix(8)))
+        let shortParse = median(Array(short.parse.suffix(8)))
+        let longParse = median(Array(long.parse.suffix(8)))
+        print("""
+        [HANG-COST] streaming table replay (production parser + UIKitStreamingTableCard)
+          2k prefix last 8 steps card median \(String(format: "%.2f", shortCard * 1000))ms parse \(String(format: "%.2f", shortParse * 1000))ms
+          20k prefix last 8 steps card median \(String(format: "%.2f", longCard * 1000))ms parse \(String(format: "%.2f", longParse * 1000))ms
+        """)
+        #expect(longCard < shortCard * 6 + 0.004, "Adding one row must not grow linearly with the accumulated prefix")
     }
 }
