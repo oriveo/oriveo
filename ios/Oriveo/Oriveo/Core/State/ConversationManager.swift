@@ -87,10 +87,6 @@ enum ConversationProjectionMerger {
             return preferred.displayMessageCount > fallback.displayMessageCount ? preferred : fallback
         }
 
-        if preferred.messages.count != fallback.messages.count {
-            return preferred.messages.count > fallback.messages.count ? preferred : fallback
-        }
-
         return preservingFolderID(in: preferred, from: fallback)
     }
 
@@ -118,16 +114,13 @@ enum ConversationProjectionMerger {
             return true
         }
 
-        if recovered.messages.count > authoritative.messages.count,
-           recovered.displayMessageCount >= authoritative.displayMessageCount {
-            return true
-        }
-
+        // Summary projections keep `messages` empty and the count in `displayMessageCount`.
+        // A recovered snapshot that still has bodies must not win just because of that,
+        // or cold start rehydrates every thread into memory.
         let recoveredMetadataUpdatedAt = recovered.metadataUpdatedAt ?? .distantPast
         let authoritativeMetadataUpdatedAt = authoritative.metadataUpdatedAt ?? .distantPast
         if recoveredMetadataUpdatedAt > authoritativeMetadataUpdatedAt,
-           recovered.displayMessageCount >= authoritative.displayMessageCount,
-           recovered.messages.count >= authoritative.messages.count {
+           recovered.displayMessageCount >= authoritative.displayMessageCount {
             return true
         }
 
@@ -486,6 +479,7 @@ final class ConversationManager {
         let visibleConversations = searchSource.filter(\.isVisibleInConversationList)
         return visibleConversations.filter { conversation in
             conversation.title.localizedCaseInsensitiveContains(normalizedQuery) ||
+            conversation.previewText.localizedCaseInsensitiveContains(normalizedQuery) ||
             conversation.messages.contains { $0.text.localizedCaseInsensitiveContains(normalizedQuery) }
         }
     }
@@ -603,12 +597,12 @@ final class ConversationManager {
             from: ungroupedConversations,
             now: now
         )
+        let costAggregates = monthlyCostAggregates(from: allActiveConversations, now: now)
         cachedMonthlyCostSummary = CostSummaryCalculator.makeMonthlySummary(
-            from: allActiveConversations,
-            providers: appState.providers,
-            now: now
+            from: costAggregates,
+            providers: appState.providers
         )
-        cachedMonthlyCostByProvider = CostSummaryCalculator.monthlyCostByProvider(from: allActiveConversations, now: now)
+        cachedMonthlyCostByProvider = CostSummaryCalculator.monthlyCostByProvider(from: costAggregates)
         cachedSearchResults.removeAll(keepingCapacity: true)
         cachedConversationVersion = appState.conversationsVersion
         cachedDayKey = dayKey ?? Self.dayKey(for: now)
@@ -624,10 +618,26 @@ final class ConversationManager {
               DatabaseManager.shared.hasDatabase(for: partitionUID) else {
             return conversations
         }
-        return (try? appState.authoritativeConversationProjection(
-            for: partitionUID,
-            hydrateFilePayloads: false
+        // Cache rebuild and grouping only need conversation rows. Message bodies
+        // come from FTS / the chat window on demand; cold start no longer hydrates the store.
+        return (try? appState.conversationRuntimeBridge.fetchConversationSummaryProjection(
+            uid: partitionUID
         )) ?? conversations
+    }
+
+    private func monthlyCostAggregates(
+        from conversations: [Conversation],
+        now: Date
+    ) -> [MonthlyCostAggregate] {
+        let hydrated = conversations.filter { !$0.messages.isEmpty }
+        let hydratedIDs = Set(hydrated.map(\.id))
+        let fromMemory = CostSummaryCalculator.aggregates(from: hydrated, now: now)
+        let fromStore = (try? appState.conversationRuntimeBridge.fetchMonthlyCostAggregates(
+            uid: appState.sessionPartitionUID,
+            now: now,
+            excludingConversationIDs: hydratedIDs
+        )) ?? []
+        return fromMemory + fromStore
     }
 
     private func authoritativeSearchResults(matching query: String) async -> [Conversation]? {
@@ -683,12 +693,12 @@ final class ConversationManager {
         )
         if cachedMonthKey != monthKey {
             let allActive = conversations.filter(\.isVisibleInConversationList)
+            let costAggregates = monthlyCostAggregates(from: allActive, now: now)
             cachedMonthlyCostSummary = CostSummaryCalculator.makeMonthlySummary(
-                from: allActive,
-                providers: appState.providers,
-                now: now
+                from: costAggregates,
+                providers: appState.providers
             )
-            cachedMonthlyCostByProvider = CostSummaryCalculator.monthlyCostByProvider(from: allActive, now: now)
+            cachedMonthlyCostByProvider = CostSummaryCalculator.monthlyCostByProvider(from: costAggregates)
         }
         cachedDayKey = dayKey
         cachedMonthKey = monthKey

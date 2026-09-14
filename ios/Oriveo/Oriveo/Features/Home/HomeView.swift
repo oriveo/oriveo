@@ -1250,9 +1250,18 @@ struct HomeView: View {
                     Label(L10n.tr("Rename"), systemImage: "pencil")
                 }
 
-                if let lastMessage = conversation.messages.last {
+                if conversation.displayMessageCount > 0 {
                     Button {
-                        UIPasteboard.general.string = lastMessage.text
+                        if let lastMessage = conversation.messages.last {
+                            UIPasteboard.general.string = lastMessage.text
+                        } else if let hydrated = try? appState.conversationRuntimeBridge.fetchConversationProjection(
+                            id: conversation.id,
+                            uid: appState.sessionPartitionUID
+                        ), let lastMessage = hydrated.messages.last {
+                            UIPasteboard.general.string = lastMessage.text
+                        } else if !conversation.previewText.isEmpty {
+                            UIPasteboard.general.string = conversation.previewText
+                        }
                     } label: {
                         Label(L10n.tr("Copy Last Message", table: .home), systemImage: "doc.on.doc")
                     }

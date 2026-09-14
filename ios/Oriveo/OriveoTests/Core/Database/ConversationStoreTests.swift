@@ -1062,6 +1062,83 @@ struct ConversationStoreTests {
         )
         #expect(harness.fileStore.exists(id: savedID) == true)
     }
+
+    @Test("a summary writeback only changes the title and must not delete stored messages")
+    func metadataOnlyUpsertDoesNotDeleteMessages() throws {
+        let harness = try TestHarness()
+        defer { harness.cleanup() }
+
+        let messages = (0..<5).map { index in
+            TestFactories.makeMessage(
+                role: index.isMultiple(of: 2) ? .user : .assistant,
+                text: "keep-\(index)",
+                estimatedCost: index.isMultiple(of: 2) ? 0 : 0.01
+            )
+        }
+        let original = TestFactories.makeConversation(title: "Original", messages: messages)
+        try harness.store.upsertConversation(original)
+
+        let listed = try harness.store.fetchConversationSummary(id: original.id)
+        var summary = ConversationProjectionBuilder.buildLegacyConversation(
+            summary: try #require(listed),
+            messages: []
+        )
+        summary.title = "Renamed"
+        try harness.store.upsertConversation(summary)
+
+        let restored = try harness.store.fetchConversationThread(id: original.id, hydrateFilePayloads: false)
+        let thread = try #require(restored)
+        #expect(thread.summary.title == "Renamed")
+        #expect(thread.messages.map(\.text) == messages.map(\.text))
+        #expect(thread.summary.messageCount == 5)
+    }
+
+    @Test("monthly cost SQL aggregates match a scan of hydrated messages")
+    func monthlyCostSQLMatchesInMemoryScan() throws {
+        let harness = try TestHarness()
+        defer { harness.cleanup() }
+
+        let now = Date()
+        let providerID = UUID()
+        let inMonthAssistant = TestFactories.makeMessage(
+            role: .assistant,
+            text: "a",
+            providerID: providerID,
+            estimatedCost: 0.42,
+            state: .delivered,
+            createdAt: now
+        )
+        let inMonth = TestFactories.makeConversation(
+            providerID: providerID,
+            messages: [
+                TestFactories.makeMessage(role: .user, text: "q", estimatedCost: 0),
+                inMonthAssistant
+            ]
+        )
+        let oldDate = now.addingTimeInterval(-40 * 24 * 3600)
+        let outsideAssistant = TestFactories.makeMessage(
+            role: .assistant,
+            text: "old",
+            providerID: providerID,
+            estimatedCost: 9,
+            state: .delivered,
+            createdAt: oldDate
+        )
+        var outside = TestFactories.makeConversation(
+            providerID: providerID,
+            messages: [outsideAssistant]
+        )
+        outside.updatedAt = oldDate
+        try harness.store.replaceAllConversations([inMonth, outside])
+
+        let hydrated = try harness.store.fetchAllConversations(hydrateFilePayloads: false)
+        let fromMemory = CostSummaryCalculator.aggregates(from: hydrated, now: now)
+        let fromSQL = try harness.store.fetchMonthlyCostAggregates(now: now)
+        let memoryTotal = fromMemory.map(\.cost).reduce(0, +)
+        let sqlTotal = fromSQL.map(\.cost).reduce(0, +)
+        #expect(abs(sqlTotal - memoryTotal) < 0.000_001)
+        #expect(abs((fromSQL.first?.cost ?? 0) - 0.42) < 0.000_001)
+    }
 }
 
 @MainActor

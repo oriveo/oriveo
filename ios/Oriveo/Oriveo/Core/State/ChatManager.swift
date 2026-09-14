@@ -93,6 +93,19 @@ final class ChatManager {
         appState.conversations
     }
 
+    /// Cold-start memory is a summary projection. Send / continue / retry must hydrate the
+    /// thread first, otherwise `messages.append` followed by upsert deletes the stored history.
+    private func hydrateConversationMessagesIfNeeded(id: UUID) {
+        guard let index = appState.conversations.firstIndex(where: { $0.id == id }) else { return }
+        let conversation = appState.conversations[index]
+        guard conversation.messages.isEmpty, conversation.displayMessageCount > 0 else { return }
+        guard let hydrated = try? appState.conversationRuntimeBridge.fetchConversationProjection(
+            id: id,
+            uid: appState.sessionPartitionUID
+        ), !hydrated.messages.isEmpty else { return }
+        appState.conversations[index] = hydrated
+    }
+
     // MARK: - Streaming sessions
 
     /// Registers a streaming session and publishes the active conversation set.
@@ -445,6 +458,7 @@ final class ChatManager {
     ) async -> UUID? {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty || !attachments.isEmpty else { return nil }
+        hydrateConversationMessagesIfNeeded(id: conversationID)
         guard let index = conversations.firstIndex(where: { $0.id == conversationID }) else { return nil }
         guard let provider = appState.provider(for: conversations[index].providerID) else {
             ToastManager.shared.show(L10n.tr("The selected provider is no longer available."))
@@ -840,6 +854,7 @@ final class ChatManager {
         in conversationID: UUID,
         capabilitySelection: ChatCapabilitySelection = ChatCapabilitySelection()
     ) async {
+        hydrateConversationMessagesIfNeeded(id: conversationID)
         guard let convIndex = conversations.firstIndex(where: { $0.id == conversationID }) else { return }
         guard let msgIndex = conversations[convIndex].messages.firstIndex(where: { $0.id == messageID }),
               conversations[convIndex].messages[msgIndex].role == .assistant else { return }
@@ -913,6 +928,7 @@ final class ChatManager {
         capabilitySelection: ChatCapabilitySelection = ChatCapabilitySelection(),
         localCustomFragmentDisposition: LocalCustomFragmentDisposition = .include
     ) async {
+        hydrateConversationMessagesIfNeeded(id: conversationID)
         guard let convIndex = conversations.firstIndex(where: { $0.id == conversationID }),
               let msgIndex = conversations[convIndex].messages.firstIndex(where: { $0.id == messageID }),
               conversations[convIndex].messages[msgIndex].role == .assistant,

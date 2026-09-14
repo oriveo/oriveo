@@ -64,6 +64,15 @@ final class ConversationRuntimeBridge {
         try persistRecoveryProjection(conversations, for: uid, source: "ConversationRuntimeBridge.recovery")
     }
 
+    func persistRecoveryProjectionFromDatabase(uid: String) throws {
+        let conversations = try makeStore(for: uid).fetchAllConversations(hydrateFilePayloads: false)
+        try persistRecoveryProjection(
+            conversations,
+            for: uid,
+            source: "ConversationRuntimeBridge.recovery-from-db"
+        )
+    }
+
     func fetchConversationProjection(uid: String, hydrateFilePayloads: Bool = true) throws -> [Conversation] {
         try makeStore(for: uid).fetchAllConversations(hydrateFilePayloads: hydrateFilePayloads)
     }
@@ -230,9 +239,30 @@ final class ConversationRuntimeBridge {
     }
 
     func loadLegacyProjection(uid: String, hydrateFilePayloads: Bool = true) throws -> [Conversation] {
-        let conversations = try makeStore(for: uid).fetchAllConversations(hydrateFilePayloads: hydrateFilePayloads)
-        scheduleRecoveryProjectionPersist(conversations, for: uid, source: "ConversationRuntimeBridge.load")
+        // Cold start reads conversation rows only. `hydrateFilePayloads` stays on the
+        // signature for callers; message bodies come from `fetchConversationProjection(id:)`
+        // / the chat `MessageWindowLoader` on demand. The recovery snapshot still needs
+        // full threads, so it is loaded from the database in the background instead of
+        // snapshotting this empty-messages projection.
+        _ = hydrateFilePayloads
+        let conversations = try fetchConversationSummaryProjection(uid: uid)
+        scheduleRecoveryProjectionPersistFromDatabase(uid: uid, source: "ConversationRuntimeBridge.load")
         return conversations
+    }
+
+    func fetchMonthlyCostAggregates(
+        uid: String,
+        now: Date,
+        excludingConversationIDs: Set<UUID> = []
+    ) throws -> [MonthlyCostAggregate] {
+        try makeStore(for: uid).fetchMonthlyCostAggregates(
+            now: now,
+            excludingConversationIDs: excludingConversationIDs
+        )
+    }
+
+    func sanitizeStaleGeneratingMessages(uid: String) throws {
+        try makeStore(for: uid).sanitizeStaleGeneratingMessages()
     }
 
     func loadRecoveryProjection(snapshot: AppSessionSnapshot?, uid: String) -> [Conversation] {
@@ -328,13 +358,24 @@ final class ConversationRuntimeBridge {
         qos: .utility
     )
 
-    private func scheduleRecoveryProjectionPersist(
-        _ conversations: [Conversation],
-        for uid: String,
-        source: String
-    ) {
-        Self.recoverySnapshotQueue.async {
-            try? Self.writeRecoveryProjection(conversations, for: uid, source: source)
+    /// Cold-start memory is a summary projection; the snapshot must load full threads
+    /// from the database so a later SQLite read failure does not drop messages.
+    private func scheduleRecoveryProjectionPersistFromDatabase(uid: String, source: String) {
+        Self.recoverySnapshotQueue.async { [databaseManager, attachmentFileStoreOverride] in
+            do {
+                let pool = try databaseManager.openIfNeeded(for: uid)
+                let attachmentFileStore = attachmentFileStoreOverride
+                    ?? AttachmentFileStore(rootDirectory: AppSessionStore.filesDir(for: uid))
+                let store = ConversationStore(
+                    dbPool: pool,
+                    attachmentFileStore: attachmentFileStore,
+                    continuationOrphanSweep: nil
+                )
+                let conversations = try store.fetchAllConversations(hydrateFilePayloads: false)
+                try Self.writeRecoveryProjection(conversations, for: uid, source: source)
+            } catch {
+                return
+            }
         }
     }
 

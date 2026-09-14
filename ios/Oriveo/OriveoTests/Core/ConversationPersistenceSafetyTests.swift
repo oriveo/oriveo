@@ -89,7 +89,7 @@ struct ConversationPersistenceSafetyTests {
         DatabaseManager.shared.close()
 
         let state = AppState(sessionUID: uid)
-        state.conversations = [conversation]
+        state.upsertConversationProjection(conversation)
         state.persistSessionNow()
 
         DatabaseManager.shared.close()
@@ -204,7 +204,7 @@ struct ConversationPersistenceSafetyTests {
         DatabaseManager.shared.close()
 
         let state = AppState(sessionUID: uid)
-        state.conversations = [conversation]
+        state.upsertConversationProjection(conversation)
         try? FileManager.default.removeItem(at: recoveryURL)
 
         state.persistLifecycleCriticalData(checkpoint: false)
@@ -251,9 +251,15 @@ struct ConversationPersistenceSafetyTests {
 
         let state = AppState(sessionUID: uid)
 
-        let conversation = try #require(state.conversations.first(where: { $0.id == conversationID }))
-        let recoveredAssistant = try #require(conversation.messages.first(where: { $0.id == assistantMessageID }))
-        let recoveredUser = try #require(conversation.messages.first(where: { $0.id == userMessageID }))
+        let listed = try #require(state.conversations.first(where: { $0.id == conversationID }))
+        #expect(listed.messages.isEmpty, "cold-start memory keeps a summary projection")
+        #expect(listed.displayMessageCount == 2)
+
+        let hydrated = try #require(
+            try state.conversationRuntimeBridge.fetchConversationProjection(id: conversationID, uid: uid)
+        )
+        let recoveredAssistant = try #require(hydrated.messages.first(where: { $0.id == assistantMessageID }))
+        let recoveredUser = try #require(hydrated.messages.first(where: { $0.id == userMessageID }))
 
         #expect(recoveredAssistant.state == .interrupted)
         #expect(recoveredAssistant.text == "Partial reply before crash")

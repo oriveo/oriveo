@@ -151,8 +151,8 @@ struct ConversationColdStartLoadTests {
 
         let rebuilt = try #require(manager.recentConversations.first)
         #expect(rebuilt.id == stored.id)
-        #expect(rebuilt.messages.first?.text == "body")
-        #expect(rebuilt.messages.first?.attachments?.first?.base64Data == nil)
+        #expect(rebuilt.messages.isEmpty, "cache rebuild uses the summary projection and does not load message bodies")
+        #expect(rebuilt.displayMessageCount == 1)
 
         let hydrated = try state.authoritativeConversationProjection(for: uid, hydrateFilePayloads: true)
         #expect(hydrated.first?.messages.first?.attachments?.first?.base64Data == attachment.base64Data)

@@ -523,23 +523,9 @@ final class AppState {
     }
 
     /// Mark leftover `.generating` assistants as interrupted after a cold start.
+    /// Cold-start memory is a summary projection, so this has to be SQL.
     private func sanitizeStaleGeneratingMessages() {
-        var dirty: [Conversation] = []
-        for conv in conversations {
-            var hasGenerating = false
-            var updated = conv
-            for mi in updated.messages.indices
-                where updated.messages[mi].role == .assistant
-                    && updated.messages[mi].state == .generating {
-                updated.messages[mi].state = .interrupted
-                hasGenerating = true
-            }
-            if hasGenerating {
-                dirty.append(updated)
-            }
-        }
-        guard !dirty.isEmpty else { return }
-        upsertConversationProjections(dirty)
+        try? conversationRuntimeBridge.sanitizeStaleGeneratingMessages(uid: boundPartitionUID)
     }
 
     func upsertConversationProjection(_ conversation: Conversation, expectedUID: String? = nil) {
@@ -694,12 +680,11 @@ final class AppState {
 
     func persistRecoverySnapshotAfterDestructiveChange() {
         guard persistsSession else { return }
-        let conversationsSnapshot = conversations
         let persistedUID = boundPartitionUID
         let bridge = conversationRuntimeBridge
         conversationPersistQueue.async(qos: .userInitiated) {
             Self.runConversationPersistWrite(op: "persist_recovery_snapshot_after_destructive_change") {
-                try bridge.persistRecoveryProjectionOnly(conversationsSnapshot, for: persistedUID)
+                try bridge.persistRecoveryProjectionFromDatabase(uid: persistedUID)
             }
         }
     }
@@ -1484,12 +1469,11 @@ final class AppState {
             lastUsedModelRef: lastUsedModelRef,
             folders: folders
         )
-        let conversationsSnapshot = conversations
         let uid = persistedUID ?? boundPartitionUID
         let bridge = conversationRuntimeBridge
         return {
             Self.runConversationPersistWrite(op: "persist_recovery_projection_immediate") {
-                try bridge.persistRecoveryProjectionOnly(conversationsSnapshot, for: uid)
+                try bridge.persistRecoveryProjectionFromDatabase(uid: uid)
             }
             AppSessionStore.save(snapshot, for: uid)
         }
@@ -1507,7 +1491,6 @@ final class AppState {
             lastUsedModelRef: lastUsedModelRef,
             folders: folders
         )
-        let conversationsSnapshot = conversations
         let bridge = conversationRuntimeBridge
 
         pendingSessionPersistWorkItem?.cancel()
@@ -1519,7 +1502,7 @@ final class AppState {
 
         conversationPersistQueue.async(qos: .userInitiated) {
             Self.runConversationPersistWrite(op: "persist_lifecycle_recovery") {
-                try bridge.persistRecoveryProjectionOnly(conversationsSnapshot, for: persistedUID)
+                try bridge.persistRecoveryProjectionFromDatabase(uid: persistedUID)
             }
             AppSessionStore.save(snapshot, for: persistedUID)
             if checkpoint {

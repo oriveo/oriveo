@@ -189,6 +189,71 @@ final class ConversationStore: @unchecked Sendable {
         }
     }
 
+    /// Same accounting as `CostSummaryCalculator.aggregates(from:)` without loading messages.
+    nonisolated func fetchMonthlyCostAggregates(
+        now: Date,
+        excludingConversationIDs: Set<UUID> = []
+    ) throws -> [MonthlyCostAggregate] {
+        let bounds = CostSummaryCalculator.utcMonthBounds(containing: now)
+        return try dbPool.read { db in
+            var sql = """
+                SELECT COALESCE(m.providerID, c.providerID) AS pid,
+                       m.providerKind AS providerKind,
+                       SUM(m.estimatedCost) AS cost
+                FROM message m
+                JOIN conversation c ON c.id = m.conversationID
+                WHERE c.isDraft = 0
+                  AND m.role = ?
+                  AND m.state = ?
+                  AND m.estimatedCost > ?
+                  AND COALESCE(m.createdAt, c.updatedAt) >= ?
+                  AND COALESCE(m.createdAt, c.updatedAt) < ?
+                """
+            var arguments: [DatabaseValueConvertible] = [
+                ChatRole.assistant.rawValue,
+                ChatMessageState.delivered.rawValue,
+                CostFormatter.costEpsilon,
+                bounds.start,
+                bounds.end
+            ]
+            if !excludingConversationIDs.isEmpty {
+                let placeholders = excludingConversationIDs.map { _ in "?" }.joined(separator: ",")
+                sql += " AND c.id NOT IN (\(placeholders))"
+                arguments.append(contentsOf: excludingConversationIDs.map(\.uuidString))
+            }
+            sql += " GROUP BY pid, m.providerKind"
+            let rows = try Row.fetchAll(db, sql: sql, arguments: StatementArguments(arguments))
+            return rows.compactMap { row in
+                guard let pid: String = row["pid"],
+                      let providerID = UUID(uuidString: pid),
+                      let kindRaw: String = row["providerKind"],
+                      let kind = ProviderKind(rawValue: kindRaw),
+                      let cost: Double = row["cost"]
+                else { return nil }
+                return MonthlyCostAggregate(providerKind: kind, providerID: providerID, cost: cost)
+            }
+        }
+    }
+
+    /// Mark leftover `.generating` assistants as `.interrupted`. Cold-start memory no longer
+    /// carries message bodies, so this has to be SQL rather than a scan of `Conversation.messages`.
+    nonisolated func sanitizeStaleGeneratingMessages() throws {
+        try dbPool.write { db in
+            try db.execute(
+                sql: """
+                    UPDATE message
+                    SET state = ?
+                    WHERE role = ? AND state = ?
+                    """,
+                arguments: [
+                    ChatMessageState.interrupted.rawValue,
+                    ChatRole.assistant.rawValue,
+                    ChatMessageState.generating.rawValue
+                ]
+            )
+        }
+    }
+
     nonisolated func replaceAllConversations(_ conversations: [Conversation]) throws {
         var referencedFileIDs = Set<String>()
 
@@ -1156,8 +1221,12 @@ final class ConversationStore: @unchecked Sendable {
             providerKind = conversation.providerKind.rawValue
             modelID = conversation.modelID
             previewText = conversation.previewText
-            messageCount = conversation.messages.count
-            remoteMessageCount = conversation.messageCountOverride ?? conversation.messages.count
+            // Summary projections have empty `messages`; the count lives in the override.
+            // Using `messages.count` would persist 0 over a conversation that already has rows.
+            messageCount = conversation.messages.isEmpty
+                ? (conversation.messageCountOverride ?? 0)
+                : conversation.messages.count
+            remoteMessageCount = conversation.messageCountOverride ?? messageCount
             estimatedCost = conversation.estimatedCost
             isDraft = conversation.isDraft
             draftText = conversation.draftText
@@ -1212,6 +1281,38 @@ final class ConversationStore: @unchecked Sendable {
             metadataUpdatedAt = excluded.metadataUpdatedAt,
             messagesHydratedAt = excluded.messagesHydratedAt,
             messagesStale = excluded.messagesStale,
+            deletedAt = excluded.deletedAt,
+            isConflictCopy = excluded.isConflictCopy,
+            originalConversationId = excluded.originalConversationId,
+            pinnedNoteIds = excluded.pinnedNoteIds
+        """
+
+    /// Metadata-only writeback: never touch `messageCount` or message rows.
+    /// Empty in-memory `messages` means the thread is not hydrated, not "delete every message".
+    nonisolated private static let conversationMetadataOnlyUpsertSQL = """
+        INSERT INTO conversation (
+            id, title, hasCustomTitle, providerID, providerKind, modelID, previewText, messageCount,
+            remoteMessageCount,
+            estimatedCost, isDraft, draftText, createdAt, updatedAt, folderID,
+            useMemory, skillId, metadataUpdatedAt, messagesHydratedAt, messagesStale,
+            deletedAt, isConflictCopy, originalConversationId, pinnedNoteIds
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+            title = excluded.title,
+            hasCustomTitle = excluded.hasCustomTitle,
+            providerID = excluded.providerID,
+            providerKind = excluded.providerKind,
+            modelID = excluded.modelID,
+            previewText = excluded.previewText,
+            estimatedCost = excluded.estimatedCost,
+            isDraft = excluded.isDraft,
+            draftText = excluded.draftText,
+            createdAt = excluded.createdAt,
+            updatedAt = excluded.updatedAt,
+            folderID = excluded.folderID,
+            useMemory = excluded.useMemory,
+            skillId = excluded.skillId,
+            metadataUpdatedAt = excluded.metadataUpdatedAt,
             deletedAt = excluded.deletedAt,
             isConflictCopy = excluded.isConflictCopy,
             originalConversationId = excluded.originalConversationId,
@@ -1465,6 +1566,25 @@ final class ConversationStore: @unchecked Sendable {
         referencedFileIDs: inout Set<String>
     ) throws {
         let convIDString = conversation.id.uuidString
+        let existingMessageIDs = try String.fetchAll(
+            db,
+            sql: "SELECT id FROM message WHERE conversationID = ?",
+            arguments: [convIDString]
+        )
+
+        // Summary writeback: empty `messages` means "not hydrated", not "delete every row".
+        if conversation.messages.isEmpty, !existingMessageIDs.isEmpty {
+            let cols = ConversationColumnValues(
+                from: conversation,
+                messagesHydratedAt: nil,
+                messagesStale: true
+            )
+            try db.execute(
+                sql: Self.conversationMetadataOnlyUpsertSQL,
+                arguments: StatementArguments(cols.arguments)
+            )
+            return
+        }
 
         let cols = ConversationColumnValues(
             from: conversation,
@@ -1474,11 +1594,6 @@ final class ConversationStore: @unchecked Sendable {
         try db.execute(sql: Self.conversationUpsertSQL, arguments: StatementArguments(cols.arguments))
 
         let newMessageIDs = Set(conversation.messages.map { $0.id.uuidString })
-        let existingMessageIDs = try String.fetchAll(
-            db,
-            sql: "SELECT id FROM message WHERE conversationID = ?",
-            arguments: [convIDString]
-        )
         let toDelete = existingMessageIDs.filter { !newMessageIDs.contains($0) }
         if !toDelete.isEmpty {
             let placeholders = toDelete.map { _ in "?" }.joined(separator: ",")
