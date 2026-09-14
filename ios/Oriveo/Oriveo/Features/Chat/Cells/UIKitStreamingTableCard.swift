@@ -157,7 +157,24 @@ final class UIKitStreamingTableCard: UIView {
     }
 
     private func applyDataRows(_ newRows: [[String]]) {
-        let measured = computeColumnWidthsFromContent(headerCells: headers, dataRows: newRows)
+        let tailHash = newRows.last?.joined(separator: "\u{1e}").hashValue ?? 0
+        if newRows.count == dataRows.count,
+           tailHash == lastTailCellsHash,
+           !columnWidths.isEmpty {
+            return
+        }
+        lastTailCellsHash = tailHash
+
+        // Measure only new rows plus the changed tail, then take max with existing widths.
+        let measuredFrom: [[String]]
+        if dataRows.isEmpty {
+            measuredFrom = newRows
+        } else if newRows.count > dataRows.count {
+            measuredFrom = Array(newRows.dropFirst(max(0, dataRows.count - 1)))
+        } else {
+            measuredFrom = newRows.suffix(1).map { $0 }
+        }
+        let measured = computeColumnWidthsFromContent(headerCells: headers, dataRows: measuredFrom)
         var widthsChanged = false
         if columnWidths.isEmpty {
             columnWidths = measured

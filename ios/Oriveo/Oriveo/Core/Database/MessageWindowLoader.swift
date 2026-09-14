@@ -370,6 +370,36 @@ final class MessageWindowLoader {
         let latestBoundary: ConversationStore.MessageBoundary?
         let hasMoreAbove: Bool
         let hasMoreBelow: Bool
+
+        /// Streaming checkpoints rewrite the generating row's text. The live body already
+        /// arrives through the publisher; those field changes must not punch through
+        /// observation → revision → a full page rebuild.
+        static func == (lhs: WindowSnapshot, rhs: WindowSnapshot) -> Bool {
+            lhs.earliestBoundary == rhs.earliestBoundary
+                && lhs.latestBoundary == rhs.latestBoundary
+                && lhs.hasMoreAbove == rhs.hasMoreAbove
+                && lhs.hasMoreBelow == rhs.hasMoreBelow
+                && messagesMatchIgnoringGeneratingCursor(lhs.messages, rhs.messages)
+        }
+
+        nonisolated static func messagesMatchIgnoringGeneratingCursor(
+            _ lhs: [ChatMessage],
+            _ rhs: [ChatMessage]
+        ) -> Bool {
+            guard lhs.count == rhs.count else { return false }
+            for (left, right) in zip(lhs, rhs) {
+                if left.id != right.id || left.role != right.role || left.state != right.state {
+                    return false
+                }
+                if left.state == .generating {
+                    continue
+                }
+                if left != right {
+                    return false
+                }
+            }
+            return true
+        }
     }
 
     nonisolated private static func fetchWindowSnapshot(

@@ -597,6 +597,42 @@ struct MessageWindowLoaderTests {
         return TestFactories.makeConversation(messages: messages)
     }
 
+    @Test("a generating cursor change does not make WindowSnapshot unequal")
+    func generatingCursorDoesNotBreakSnapshotEquality() {
+        var generating = TestFactories.makeMessage(
+            role: .assistant,
+            text: "Hello",
+            state: .generating
+        )
+        let delivered = TestFactories.makeMessage(role: .user, text: "Hi", state: .delivered)
+        let first = MessageWindowLoader.WindowSnapshot(
+            messages: [delivered, generating],
+            earliestBoundary: nil,
+            latestBoundary: nil,
+            hasMoreAbove: false,
+            hasMoreBelow: false
+        )
+        generating.text = "Hello world"
+        let second = MessageWindowLoader.WindowSnapshot(
+            messages: [delivered, generating],
+            earliestBoundary: nil,
+            latestBoundary: nil,
+            hasMoreAbove: false,
+            hasMoreBelow: false
+        )
+        #expect(first == second)
+
+        generating.state = .delivered
+        let finalized = MessageWindowLoader.WindowSnapshot(
+            messages: [delivered, generating],
+            earliestBoundary: nil,
+            latestBoundary: nil,
+            hasMoreAbove: false,
+            hasMoreBelow: false
+        )
+        #expect(first != finalized)
+    }
+
     @MainActor
     private func makeViewModel(conversationID: UUID, messages: [ChatMessage]) -> ChatCollectionViewModel {
         let metadata = ChatCollectionProviderMetadata.empty
