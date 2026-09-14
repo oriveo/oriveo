@@ -56,12 +56,50 @@ enum ModelPickerCapabilityFilter {
         intentCapabilities(model: model, provider: provider).contains(capability)
     }
 
-    static func counts(sections: [ModelPickerSection]) -> [Capability: Int] {
-        var result: [Capability: Int] = [:]
-        for capability in Capability.allCases {
-            result[capability] = sections.reduce(0) { partial, section in
-                partial + section.models.reduce(0) { inner, model in
-                    inner + (matches(model: model, provider: section.provider, capability: capability) ? 1 : 0)
+    /// `providerID/modelID` -> that row's intent badges, so each model builds its capability
+    /// presentation once. Counts walk the catalog once per capability, and with a chip selected the
+    /// filter re-runs over the whole catalog on every body evaluation (typing a search, expanding or
+    /// collapsing a group); evaluating row by row that is over a thousand presentations for 810
+    /// models. The rule is still only `intentCapabilities`.
+    typealias IntentIndex = [String: [Capability]]
+
+    static func indexKey(providerID: UUID, modelID: String) -> String {
+        "\(providerID.uuidString)/\(modelID)"
+    }
+
+    /// A model id repeated under the same provider (a messy relay catalog) stays out of the index and
+    /// is evaluated row by row, so two same-named models with different declarations never share a result.
+    static func intentIndex(sections: [ModelPickerSection]) -> IntentIndex {
+        var index: IntentIndex = [:]
+        var duplicated: Set<String> = []
+        for section in sections {
+            for model in section.models {
+                let key = indexKey(providerID: section.provider.id, modelID: model.id)
+                guard !duplicated.contains(key) else { continue }
+                if index[key] != nil {
+                    index.removeValue(forKey: key)
+                    duplicated.insert(key)
+                    continue
+                }
+                index[key] = intentCapabilities(model: model, provider: section.provider)
+            }
+        }
+        return index
+    }
+
+    private static func intentCapabilities(
+        model: AIModel, provider: Provider, index: IntentIndex
+    ) -> [Capability] {
+        index[indexKey(providerID: provider.id, modelID: model.id)]
+            ?? intentCapabilities(model: model, provider: provider)
+    }
+
+    static func counts(sections: [ModelPickerSection], index: IntentIndex = [:]) -> [Capability: Int] {
+        var result = Dictionary(uniqueKeysWithValues: Capability.allCases.map { ($0, 0) })
+        for section in sections {
+            for model in section.models {
+                for capability in intentCapabilities(model: model, provider: section.provider, index: index) {
+                    result[capability, default: 0] += 1
                 }
             }
         }
@@ -69,12 +107,13 @@ enum ModelPickerCapabilityFilter {
     }
 
     static func apply(
-        sections: [ModelPickerSection], active: Set<Capability>
+        sections: [ModelPickerSection], active: Set<Capability>, index: IntentIndex = [:]
     ) -> [ModelPickerSection] {
         guard !active.isEmpty else { return sections }
         return sections.compactMap { section in
             let models = section.models.filter { model in
-                active.allSatisfy { matches(model: model, provider: section.provider, capability: $0) }
+                let intent = intentCapabilities(model: model, provider: section.provider, index: index)
+                return active.allSatisfy { intent.contains($0) }
             }
             return models.isEmpty ? nil : ModelPickerSection(provider: section.provider, models: models)
         }

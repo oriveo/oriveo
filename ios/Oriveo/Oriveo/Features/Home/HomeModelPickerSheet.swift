@@ -12,7 +12,14 @@ enum ModelPickerContext {
 
 private struct CapabilityCountKey: Equatable {
     let query: String
+    let index: CapabilityIndexKey
+}
+
+/// The catalog and capability evidence generations an intent badge index was built for; a change
+/// in either rebuilds it.
+private struct CapabilityIndexKey: Equatable {
     let revision: UInt64
+    let catalogGeneration: Int
 }
 
 struct ModelPickerSelection {
@@ -104,6 +111,13 @@ struct ModelPickerSheet: View {
     @State private var refreshedSections: [ModelPickerSection]?
     @State private var activeCapabilityFilters: Set<ModelPickerCapabilityFilter.Capability> = []
     @State private var capabilityCounts: [ModelPickerCapabilityFilter.Capability: Int] = [:]
+    /// Each model's intent badges, shared by the counts and the chip filter (see
+    /// `ModelPickerCapabilityFilter.IntentIndex`). Built in `.task` alongside the counts and rebuilt
+    /// only when the catalog or capability evidence changes generation, never while typing a search.
+    @State private var intentIndex: ModelPickerCapabilityFilter.IntentIndex = [:]
+    @State private var intentIndexKey: CapabilityIndexKey?
+    /// Incremented whenever `refreshedSections` is replaced; the index's catalog generation.
+    @State private var catalogGeneration = 0
     @State private var searchHaystacks: [String: String] = [:]
 
     init(
@@ -186,7 +200,11 @@ struct ModelPickerSheet: View {
 
     private var providerSections: [ModelPickerSection] {
         ModelPickerCapabilityFilter.apply(
-            sections: searchedSections, active: activeCapabilityFilters
+            sections: searchedSections,
+            active: activeCapabilityFilters,
+            // For the frame where evidence or the catalog has moved on but the index is not rebuilt
+            // yet, evaluate row by row instead of filtering with a stale index.
+            index: intentIndexKey == currentCapabilityIndexKey ? intentIndex : [:]
         )
     }
 
@@ -239,6 +257,7 @@ struct ModelPickerSheet: View {
 
         guard catalogSignature(ordered) != catalogSignature(baseSections) else { return }
         refreshedSections = ordered
+        catalogGeneration += 1
         searchHaystacks = Self.buildSearchHaystacks(ordered)
     }
 
@@ -273,6 +292,10 @@ struct ModelPickerSheet: View {
 
     private var capabilityEvidenceRevision: UInt64 {
         CapabilityEvidenceObservationBridge.shared.contentRevision
+    }
+
+    private var currentCapabilityIndexKey: CapabilityIndexKey {
+        CapabilityIndexKey(revision: capabilityEvidenceRevision, catalogGeneration: catalogGeneration)
     }
 
     var body: some View {
@@ -313,8 +336,13 @@ struct ModelPickerSheet: View {
                     }
                     searchQuery = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
                 }
-                .task(id: CapabilityCountKey(query: searchQuery, revision: capabilityEvidenceRevision)) {
-                    capabilityCounts = ModelPickerCapabilityFilter.counts(sections: searchedSections)
+                .task(id: CapabilityCountKey(query: searchQuery, index: currentCapabilityIndexKey)) {
+                    let indexKey = currentCapabilityIndexKey
+                    if intentIndexKey != indexKey {
+                        intentIndex = ModelPickerCapabilityFilter.intentIndex(sections: baseSections)
+                        intentIndexKey = indexKey
+                    }
+                    capabilityCounts = ModelPickerCapabilityFilter.counts(sections: searchedSections, index: intentIndex)
                 }
 
         }

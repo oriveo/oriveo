@@ -61,6 +61,13 @@ struct ModelPickerHangCostTests {
         }
     }
 
+    private func yieldMainActor(for seconds: TimeInterval) async throws {
+        let deadline = Date().addingTimeInterval(seconds)
+        while Date() < deadline {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+    }
+
     @Test("10 providers x 80 models: first presentation of the picker from a chat")
     func chatPickerFirstPresentation() async throws {
         let state = AppState(seedDemoData: false, sessionUID: "picker-hang-cost-\(UUID().uuidString)")
@@ -106,12 +113,19 @@ struct ModelPickerHangCostTests {
             )
             .environment(state)
         )
-        let window = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+        // Attach to the scene: a window that is never on screen does not run onAppear or .task,
+        // so the capability counts would not be measured.
+        let scene = try #require(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
+        let window = UIWindow(windowScene: scene)
+        window.frame = CGRect(x: 0, y: 0, width: 390, height: 844)
         window.rootViewController = host
-        window.isHidden = false
+        window.makeKeyAndVisible()
         host.view.frame = window.bounds
         host.view.layoutIfNeeded()
-        pumpMainRunLoop(1.5)
+        // Pumping the run loop synchronously keeps the test on the MainActor, so the sheet's `.task`
+        // (capability counts) never gets scheduled; awaiting yields the MainActor, like the frames
+        // right after the sheet is presented in the app.
+        try await yieldMainActor(for: 1.5)
         probe.stop()
 
         let presentations = providers.reduce(0) { partial, provider in
@@ -148,12 +162,13 @@ struct ModelPickerHangCostTests {
             )
             .environment(state)
         )
-        let secondWindow = UIWindow(frame: CGRect(x: 0, y: 0, width: 390, height: 844))
+        let secondWindow = UIWindow(windowScene: scene)
+        secondWindow.frame = CGRect(x: 0, y: 0, width: 390, height: 844)
         secondWindow.rootViewController = secondHost
-        secondWindow.isHidden = false
+        secondWindow.makeKeyAndVisible()
         secondHost.view.frame = secondWindow.bounds
         secondHost.view.layoutIfNeeded()
-        pumpMainRunLoop(1.0)
+        try await yieldMainActor(for: 1.0)
         secondProbe.stop()
         print("""
         [HANG-COST] model picker second presentation (warm)
@@ -162,5 +177,43 @@ struct ModelPickerHangCostTests {
         secondWindow.isHidden = true
         secondWindow.rootViewController = nil
         #expect(presentations >= 0)
+
+        // With capability chips selected, every body evaluation re-filters the whole catalog
+        // (typing a search, expanding or collapsing a group, selecting a row).
+        let sections = presentation.sections
+        let rounds = 5
+        func totalPresentations() -> Int {
+            providers.reduce(0) { partial, provider in
+                partial + provider.models.reduce(0) {
+                    $0 + ModelCapabilityEvidencePresentation.constructionCountForTesting(providerKind: provider.kind, modelID: $1.id)
+                }
+            }
+        }
+        var directTotal: CFTimeInterval = 0
+        ModelCapabilityEvidencePresentation.resetConstructionCountsForTesting()
+        for _ in 0..<rounds {
+            let start = CACurrentMediaTime()
+            _ = ModelPickerCapabilityFilter.apply(sections: sections, active: [.web, .reasoning])
+            directTotal += CACurrentMediaTime() - start
+        }
+        let directPresentations = totalPresentations() / rounds
+
+        ModelCapabilityEvidencePresentation.resetConstructionCountsForTesting()
+        let index = ModelPickerCapabilityFilter.intentIndex(sections: sections)
+        let indexPresentations = totalPresentations()
+        var indexedTotal: CFTimeInterval = 0
+        for _ in 0..<rounds {
+            let start = CACurrentMediaTime()
+            _ = ModelPickerCapabilityFilter.apply(sections: sections, active: [.web, .reasoning], index: index)
+            _ = ModelPickerCapabilityFilter.counts(sections: sections, index: index)
+            indexedTotal += CACurrentMediaTime() - start
+        }
+        print("""
+        [HANG-COST] capability filter (web + reasoning), one body re-filtering the whole catalog: \
+        row by row \(String(format: "%.1f", directTotal / Double(rounds) * 1000))ms / \(directPresentations) presentations; \
+        indexed with counts \(String(format: "%.2f", indexedTotal / Double(rounds) * 1000))ms / 0 presentations (building the index once: \(indexPresentations))
+        """)
+        #expect(totalPresentations() == indexPresentations)
+        #expect(indexPresentations == providers.reduce(0) { $0 + $1.models.count })
     }
 }

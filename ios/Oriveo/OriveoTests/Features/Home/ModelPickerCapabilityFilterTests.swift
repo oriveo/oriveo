@@ -94,6 +94,44 @@ struct ModelPickerCapabilityFilterTests {
         await MetadataClient.shared.resetForTesting()
     }
 
+    @Test("the intent badge index matches row-by-row evaluation, builds each presentation once, and never shares duplicate ids")
+    func intentIndexMatchesDirectEvaluation() async throws {
+        try await Self.loadFixture()
+        let provider = TestFactories.makeProvider(id: UUID(), kind: .openAI)
+        // A repeated model id: one declares capabilities, the other does not (a messy relay catalog).
+        let duplicatePlain = TestFactories.makeModel(id: "m-both", capabilities: [.text])
+        let sections = [ModelPickerSection(provider: provider, models: Self.fixtureModels + [duplicatePlain])]
+
+        ModelCapabilityEvidencePresentation.resetConstructionCountsForTesting()
+        let index = ModelPickerCapabilityFilter.intentIndex(sections: sections)
+        let constructions = (Self.fixtureModels.map(\.id)).reduce(0) {
+            $0 + ModelCapabilityEvidencePresentation.constructionCountForTesting(providerKind: .openAI, modelID: $1)
+        }
+        // Building the index constructs each id once; the colliding duplicate is neither precomputed nor indexed.
+        #expect(constructions == Self.fixtureModels.count)
+        #expect(index[ModelPickerCapabilityFilter.indexKey(providerID: provider.id, modelID: "m-both")] == nil)
+        #expect(index.count == Self.fixtureModels.count - 1)
+
+        #expect(
+            ModelPickerCapabilityFilter.counts(sections: sections, index: index)
+                == ModelPickerCapabilityFilter.counts(sections: sections)
+        )
+        for active in [Set<ModelPickerCapabilityFilter.Capability>([.web]), [.reasoning], [.web, .reasoning]] {
+            let indexed = ModelPickerCapabilityFilter.apply(sections: sections, active: active, index: index)
+            let direct = ModelPickerCapabilityFilter.apply(sections: sections, active: active)
+            #expect(indexed.flatMap(\.models).map(\.id) == direct.flatMap(\.models).map(\.id))
+        }
+
+        // Looking up the index builds no presentations, except for the duplicate rows evaluated row by row.
+        ModelCapabilityEvidencePresentation.resetConstructionCountsForTesting()
+        _ = ModelPickerCapabilityFilter.apply(sections: sections, active: [.web, .reasoning], index: index)
+        let afterApply = Self.fixtureModels.map(\.id).reduce(0) {
+            $0 + ModelCapabilityEvidencePresentation.constructionCountForTesting(providerKind: .openAI, modelID: $1)
+        }
+        #expect(afterApply == 2, "only the two rows sharing a duplicate id should be evaluated row by row, got \(afterApply)")
+        await MetadataClient.shared.resetForTesting()
+    }
+
     @Test("Picker Consumes The Shared Filter")
     func pickerConsumesTheSharedFilter() throws {
         let sheet = try Self.source([
