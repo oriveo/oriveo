@@ -98,7 +98,7 @@ enum NoteSourceJumpConsumption {
     }
 }
 
-struct ChatMessageList: View {
+struct ChatMessageList: View, Equatable {
     nonisolated struct RowsCacheKey: Equatable, Sendable {
         let conversationID: UUID?
         let messageRevision: UInt
@@ -237,7 +237,27 @@ struct ChatMessageList: View {
         )
     }
 
+    #if DEBUG
+    nonisolated(unsafe) static var bodyEvaluationCount = 0
+    static func resetBodyEvaluationCount() { bodyEvaluationCount = 0 }
+    #endif
+
+    static func == (lhs: ChatMessageList, rhs: ChatMessageList) -> Bool {
+        // Do not compare the full `projection` (it walks every message body),
+        // and do not compare insets (the keyboard would jitter).
+        lhs.conversationID == rhs.conversationID
+            && lhs.projection.messageRevision == rhs.projection.messageRevision
+            && lhs.projection.loadState == rhs.projection.loadState
+            && lhs.isSendingMessage == rhs.isSendingMessage
+            && lhs.capabilitySelection == rhs.capabilitySelection
+            && lhs.windowLoader.hasMoreAbove == rhs.windowLoader.hasMoreAbove
+            && lhs.windowLoader.hasMoreBelow == rhs.windowLoader.hasMoreBelow
+    }
+
     var body: some View {
+        #if DEBUG
+        let _ = { Self.bodyEvaluationCount += 1 }()
+        #endif
         let canReplaceCurrentNote = ChatNoteReferences.canReplaceCurrentNote(
             returnToNoteID: appState.activeReturnToNoteID,
             activeNotes: appState.noteSummaries,

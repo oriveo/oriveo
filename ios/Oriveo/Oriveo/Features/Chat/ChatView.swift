@@ -1027,6 +1027,7 @@ struct ChatView: View {
             ),
             composerFocused: $composerFocused
         )
+        .equatable()
         .id(conversationID)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
