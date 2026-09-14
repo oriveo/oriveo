@@ -290,17 +290,61 @@ nonisolated enum AppSessionStore {
     }()
 
 
+    private static let activeUIDLock = NSLock()
+    /// Chat cells read this on every configure, and several screens use it as a `.task(id:)` key in
+    /// their body (over a hundred call sites). Opening the file on each read is pure waste: only the
+    /// setter below writes it, so caching the value in process is enough.
+    nonisolated(unsafe) private static var cachedActiveUID: String?
+    #if DEBUG
+    nonisolated(unsafe) private static var debugActiveUIDDiskReadStorage = 0
+
+    /// DEBUG only: how many times the active-uid file was actually read from disk.
+    static var debugActiveUIDDiskReadCount: Int {
+        activeUIDLock.lock()
+        defer { activeUIDLock.unlock() }
+        return debugActiveUIDDiskReadStorage
+    }
+
+    /// Drops only the in-process cache, the way an app relaunch reads the file again.
+    static func dropActiveUIDCacheForTesting() {
+        activeUIDLock.lock()
+        defer { activeUIDLock.unlock() }
+        cachedActiveUID = nil
+    }
+    #endif
+
     static var activeUID: String {
         get {
+            activeUIDLock.lock()
+            defer { activeUIDLock.unlock() }
+            if let cachedActiveUID { return cachedActiveUID }
+            #if DEBUG
+            debugActiveUIDDiskReadStorage += 1
+            #endif
             let file = baseDir.appendingPathComponent("active-uid")
-            guard let raw = try? String(contentsOf: file, encoding: .utf8) else { return "guest" }
-            let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-            return trimmed.isEmpty ? "guest" : trimmed
+            let raw = try? String(contentsOf: file, encoding: .utf8)
+            let resolved = normalizedActiveUID(raw)
+            cachedActiveUID = resolved
+            return resolved
         }
         set {
+            activeUIDLock.lock()
+            defer { activeUIDLock.unlock() }
             let file = baseDir.appendingPathComponent("active-uid")
-            try? newValue.write(to: file, atomically: true, encoding: .utf8)
+            do {
+                try newValue.write(to: file, atomically: true, encoding: .utf8)
+                cachedActiveUID = normalizedActiveUID(newValue)
+            } catch {
+                // The file still holds the previous value, so the next read goes back to disk,
+                // exactly as it would without a cache.
+                cachedActiveUID = nil
+            }
         }
+    }
+
+    private static func normalizedActiveUID(_ raw: String?) -> String {
+        let trimmed = raw?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return trimmed.isEmpty ? "guest" : trimmed
     }
 
 
