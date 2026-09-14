@@ -18,12 +18,12 @@ struct ImmediateSessionPersistTests {
         DatabaseManager.shared.close()
 
         let state = AppState(sessionUID: uid)
-        state.conversations = [
-            TestFactories.makeConversation(
-                title: "Sync Persist",
-                messages: [TestFactories.makeMessage(text: "hi")]
-            )
-        ]
+        let conversation = TestFactories.makeConversation(
+            title: "Sync Persist",
+            messages: [TestFactories.makeMessage(text: "hi")]
+        )
+        _ = try state.conversationRuntimeBridge.replaceAllConversations([conversation], uid: uid)
+        state.conversations = [conversation]
 
         state.persistSessionNow()
 
@@ -48,6 +48,7 @@ struct ImmediateSessionPersistTests {
             messages: [TestFactories.makeMessage(text: "hi")]
         )
         let state = AppState(sessionUID: uid)
+        _ = try state.conversationRuntimeBridge.replaceAllConversations([conversation], uid: uid)
         state.conversations = [conversation]
 
         await state.persistSessionNowOffMainThread()

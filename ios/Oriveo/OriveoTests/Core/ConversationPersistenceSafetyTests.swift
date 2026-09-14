@@ -89,7 +89,8 @@ struct ConversationPersistenceSafetyTests {
         DatabaseManager.shared.close()
 
         let state = AppState(sessionUID: uid)
-        state.upsertConversationProjection(conversation)
+        _ = try state.conversationRuntimeBridge.replaceAllConversations([conversation], uid: uid)
+        state.conversations = [conversation]
         state.persistSessionNow()
 
         DatabaseManager.shared.close()
