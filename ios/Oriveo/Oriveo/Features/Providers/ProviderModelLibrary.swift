@@ -170,9 +170,19 @@ struct ProviderModelLibrarySection: View {
 
     // MARK: - Library Groups
 
+    /// Only the providers or metadata generation moved (balance refreshes and sync writes bump
+    /// providersVersion) while the search text and provider stayed the same: keep showing the previous
+    /// catalog while the new projection is computed in the background. Otherwise every write swaps the
+    /// whole catalog for a spinner and rebuilds it, making the page jump and re-lay out.
+    private var showsPreviousProjectionWhileRefreshing: Bool {
+        guard let projectedRequest else { return false }
+        return projectedRequest.snapshot.providerID == provider.id
+            && projectedRequest.normalizedQuery == projectionRequest.normalizedQuery
+    }
+
     @ViewBuilder
     private func libraryContent() -> some View {
-        if projectedRequest != projectionRequest {
+        if projectedRequest != projectionRequest && !showsPreviousProjectionWhileRefreshing {
             ProgressView()
                 .frame(maxWidth: .infinity, minHeight: 72)
         } else if projectedGroups.isEmpty {
@@ -223,12 +233,21 @@ struct ProviderModelLibrarySection: View {
 
 // MARK: - Catalog Model Row
 
-struct ProviderCatalogModelRow: View {
+struct ProviderCatalogModelRow: View, Equatable {
     let model: AIModel
     let provider: Provider
     let capabilityEvidenceRevision: UInt64
     var nested: Bool = false
     var addAction: () -> Void
+
+    /// Every providers write recomputes the catalog section, and the closure is a new instance each
+    /// time; comparing by rendering inputs lets unchanged visible rows be skipped.
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.model == rhs.model &&
+            lhs.provider == rhs.provider &&
+            lhs.capabilityEvidenceRevision == rhs.capabilityEvidenceRevision &&
+            lhs.nested == rhs.nested
+    }
 
     var body: some View {
         let specifications = providerModelSpecifications(for: model)

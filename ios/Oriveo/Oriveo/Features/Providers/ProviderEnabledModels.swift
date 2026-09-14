@@ -2,7 +2,13 @@ import SwiftUI
 
 // MARK: - Enabled Models Section
 
-struct ProviderEnabledModelsSection: View {
+/// Any `appState.providers` write on the detail page (balance refresh, catalog sync, re-validation)
+/// recomputes the page body, and this section renders every enabled model eagerly. Its closures are
+/// fresh instances each time, so the default comparison can never tell that nothing changed; with
+/// 150 models every write rebuilt capability projections, specs and sort order for all rows.
+/// Compare by the inputs that actually drive rendering; the closures only capture those inputs, so
+/// equal inputs mean equal behavior.
+struct ProviderEnabledModelsSection: View, Equatable {
     let provider: Provider
     let highlightedModelID: String?
     let coordinateSpaceName: String
@@ -13,6 +19,13 @@ struct ProviderEnabledModelsSection: View {
 
     @Environment(\.colorScheme) private var colorScheme
     @State private var expandedGroupIDs: Set<String> = []
+
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.provider == rhs.provider &&
+            lhs.highlightedModelID == rhs.highlightedModelID &&
+            lhs.coordinateSpaceName == rhs.coordinateSpaceName &&
+            lhs.enabledModelsFrameBox === rhs.enabledModelsFrameBox
+    }
 
     private var capabilityEvidenceRevision: UInt64 {
         CapabilityEvidenceObservationBridge.shared.contentRevision
@@ -73,14 +86,15 @@ struct ProviderEnabledModelsSection: View {
 
     private var groupedModelsPanel: some View {
         let enabledModels = sortedEnabledModels(for: provider)
-        return VStack(spacing: 0) {
+        let catalogMembership = RelayCatalogMembership.Index(provider: provider)
+        return LazyVStack(spacing: 0) {
             ForEach(Array(enabledModels.enumerated()), id: \.element.id) { index, model in
                 ProviderEnabledModelRow(
                     model: model,
                     provider: provider,
                     capabilityEvidenceRevision: capabilityEvidenceRevision,
                     isHighlighted: highlightedModelID == model.id,
-                    isMissingFromCatalog: RelayCatalogMembership.isMissingEnabledModel(model, from: provider),
+                    isMissingFromCatalog: catalogMembership.isMissingEnabledModel(model),
                     isLast: index == enabledModels.count - 1,
                     canSetDefault: !model.isDefault,
                     canRemove: (usesManagedLibrary || provider.kind == .relay) && provider.models.count > 1,
@@ -88,6 +102,7 @@ struct ProviderEnabledModelsSection: View {
                     chatAction: { onChat(model) },
                     removeAction: { onRemove(model) }
                 )
+                .equatable()
                 .transition(.asymmetric(
                     insertion: .opacity.combined(with: .move(edge: .top)),
                     removal: .opacity
@@ -106,7 +121,8 @@ struct ProviderEnabledModelsSection: View {
     }
 
     private var serverGroupedModelsPanel: some View {
-        VStack(spacing: 10) {
+        let catalogMembership = RelayCatalogMembership.Index(provider: provider)
+        return VStack(spacing: 10) {
             ForEach(detailGroups) { group in
                 let isExpanded = expandedGroupIDs.contains(group.id)
 
@@ -164,7 +180,7 @@ struct ProviderEnabledModelsSection: View {
                                 provider: provider,
                                 capabilityEvidenceRevision: capabilityEvidenceRevision,
                                 isHighlighted: highlightedModelID == model.id,
-                                isMissingFromCatalog: RelayCatalogMembership.isMissingEnabledModel(model, from: provider),
+                                isMissingFromCatalog: catalogMembership.isMissingEnabledModel(model),
                                 isLast: index == group.models.count - 1,
                                 canSetDefault: !model.isDefault,
                                 canRemove: (usesManagedLibrary || provider.kind == .relay) && provider.models.count > 1,
@@ -172,6 +188,7 @@ struct ProviderEnabledModelsSection: View {
                                 chatAction: { onChat(model) },
                                 removeAction: { onRemove(model) }
                             )
+                            .equatable()
                         }
                     }
                 }
@@ -213,7 +230,7 @@ struct ProviderEnabledModelsSection: View {
 
 // MARK: - Enabled Model Row
 
-struct ProviderEnabledModelRow: View {
+struct ProviderEnabledModelRow: View, Equatable {
     let model: AIModel
     let provider: Provider
     let capabilityEvidenceRevision: UInt64
@@ -228,6 +245,19 @@ struct ProviderEnabledModelRow: View {
 
     @Environment(\.colorScheme) private var colorScheme
 
+    /// Updates that touch one or two rows (such as moving the highlight) should not make every other
+    /// row redo its capability projection and specs.
+    static func == (lhs: Self, rhs: Self) -> Bool {
+        lhs.model == rhs.model &&
+            lhs.provider == rhs.provider &&
+            lhs.capabilityEvidenceRevision == rhs.capabilityEvidenceRevision &&
+            lhs.isHighlighted == rhs.isHighlighted &&
+            lhs.isMissingFromCatalog == rhs.isMissingFromCatalog &&
+            lhs.isLast == rhs.isLast &&
+            lhs.canSetDefault == rhs.canSetDefault &&
+            lhs.canRemove == rhs.canRemove
+    }
+
     private var rowBackgroundTint: Color {
         if isHighlighted {
             return OriveoTheme.Palette.primary.opacity(colorScheme == .dark ? 0.12 : 0.07)
@@ -235,7 +265,30 @@ struct ProviderEnabledModelRow: View {
         return Color.clear
     }
 
+    #if DEBUG
+    private static let debugBodyEvaluationLock = NSLock()
+    nonisolated(unsafe) private static var debugBodyEvaluationStorage = 0
+
+    /// DEBUG only: how many times a row body was actually evaluated. Hang regression tests use it to
+    /// pin "a providers write recomputes no rows" and "first appearance builds only visible rows".
+    static var debugBodyEvaluationCount: Int {
+        get {
+            debugBodyEvaluationLock.lock()
+            defer { debugBodyEvaluationLock.unlock() }
+            return debugBodyEvaluationStorage
+        }
+        set {
+            debugBodyEvaluationLock.lock()
+            defer { debugBodyEvaluationLock.unlock() }
+            debugBodyEvaluationStorage = newValue
+        }
+    }
+    #endif
+
     var body: some View {
+        #if DEBUG
+        let _ = Self.debugBodyEvaluationCount += 1
+        #endif
         let visibleMetadataCapabilities = model.visibleMetadataCapabilities(provider: provider)
         let specifications = providerModelSpecifications(for: model)
         let hasDetailedSpecifications = !specifications.isEmpty

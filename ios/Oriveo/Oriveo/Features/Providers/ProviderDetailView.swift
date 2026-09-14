@@ -265,6 +265,7 @@ struct ProviderDetailView: View {
                 handleEnabledModelRemove(model, for: provider)
             }
         )
+        .equatable()
 
         if usesManagedLibrary {
             ProviderModelLibrarySection(

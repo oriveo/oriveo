@@ -85,6 +85,92 @@ struct ProviderPresentationTests {
         #expect(!RelayCatalogMembership.isMissingEnabledModel(retained, from: noCatalogEvidence))
     }
 
+    @Test("the relay catalog index agrees with the linear scan: case, canonical id, shared name, manual, unavailable catalog")
+    @MainActor
+    func relayCatalogMembershipIndexMatchesLinearScan() {
+        var canonical = TestFactories.makeModel(id: "snapshot-2026-01", name: "Canonical Named")
+        canonical.canonicalModelId = "Vendor/Canonical"
+        let catalog = [
+            TestFactories.makeModel(id: "GPT-Listed", name: "Listed Model"),
+            canonical,
+            TestFactories.makeModel(id: "other-id", name: "Shared Display Name"),
+            TestFactories.makeModel(id: "ÉCOLE-model", name: "École"),
+        ]
+        var enabledCanonical = TestFactories.makeModel(id: "different-snapshot", name: "whatever")
+        enabledCanonical.canonicalModelId = "vendor/canonical"
+        let enabled = [
+            TestFactories.makeModel(id: "gpt-listed"),
+            enabledCanonical,
+            TestFactories.makeModel(id: "renamed-id", name: "shared display name"),
+            TestFactories.makeModel(id: "école-model"),
+            TestFactories.makeModel(id: "gone-upstream", name: "Gone"),
+            TestFactories.makeModel(id: "manual-only", isManual: true),
+        ]
+
+        let providers = [
+            TestFactories.makeProvider(kind: .relay, models: enabled, catalogModels: catalog),
+            TestFactories.makeProvider(
+                kind: .relay,
+                models: enabled,
+                catalogModels: catalog,
+                lastError: ProviderIssueMessage.catalogUnavailableKey
+            ),
+            TestFactories.makeProvider(kind: .relay, models: enabled),
+            TestFactories.makeProvider(kind: .openRouter, models: enabled, catalogModels: catalog),
+        ]
+        for provider in providers {
+            let index = RelayCatalogMembership.Index(provider: provider)
+            for model in enabled {
+                #expect(
+                    index.isMissingEnabledModel(model)
+                        == RelayCatalogMembership.isMissingEnabledModel(model, from: provider),
+                    "\(provider.kind.rawValue) / \(model.id)"
+                )
+            }
+        }
+        let active = RelayCatalogMembership.Index(provider: providers[0])
+        #expect(active.isMissingEnabledModel(enabled[4]))
+        #expect(!active.isMissingEnabledModel(enabled[2]))
+    }
+
+    @Test("enabled model rows compare by rendering inputs: different closures are equal, model, highlight and catalog state are not")
+    @MainActor
+    func enabledModelRowEqualityIgnoresClosures() {
+        let model = TestFactories.makeModel(id: "row-model", capabilities: [.text, .web])
+        let provider = TestFactories.makeProvider(kind: .openAI, models: [model])
+        func row(
+            model: AIModel = model,
+            provider: Provider = provider,
+            highlighted: Bool = false,
+            missing: Bool = false,
+            action: @escaping () -> Void = {}
+        ) -> ProviderEnabledModelRow {
+            ProviderEnabledModelRow(
+                model: model,
+                provider: provider,
+                capabilityEvidenceRevision: 1,
+                isHighlighted: highlighted,
+                isMissingFromCatalog: missing,
+                isLast: true,
+                canSetDefault: true,
+                canRemove: false,
+                setDefaultAction: action,
+                chatAction: action,
+                removeAction: action
+            )
+        }
+
+        #expect(row(action: {}) == row(action: { _ = 1 }))
+        #expect(row() != row(highlighted: true))
+        #expect(row() != row(missing: true))
+        var renamed = model
+        renamed.name = "Renamed"
+        #expect(row() != row(model: renamed))
+        var erroredProvider = provider
+        erroredProvider.lastError = "boom"
+        #expect(row() != row(provider: erroredProvider))
+    }
+
     @Test("Official Provider Display Name Uses Custom Name")
     func officialProviderDisplayNameUsesCustomName() {
         let provider = Provider(

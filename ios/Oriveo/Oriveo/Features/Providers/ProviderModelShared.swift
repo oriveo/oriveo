@@ -10,6 +10,45 @@ enum RelayCatalogMembership {
                 ModelResolver.modelsShareSameRemoteModel($0, model, providerKind: provider.kind)
             }
     }
+
+    /// For checking every enabled row: scanning the whole catalog per row costs enabled × catalog
+    /// comparisons. Fold the catalog identifiers and names into sets once, then answer each row in
+    /// O(1) with the same rule as the linear comparison above.
+    struct Index {
+        private let isActive: Bool
+        private let providerKind: ProviderKind
+        private let identifiers: Set<String>
+        private let names: Set<String>
+
+        init(provider: Provider) {
+            providerKind = provider.kind
+            isActive = provider.kind == .relay
+                && !provider.catalogModels.isEmpty
+                && provider.lastError != ProviderIssueMessage.catalogUnavailableKey
+            guard isActive else {
+                identifiers = []
+                names = []
+                return
+            }
+            identifiers = Set(provider.catalogModels.map {
+                Self.fold(ModelResolver.preferredStoredModelIdentifier(for: $0, providerKind: provider.kind))
+            })
+            names = Set(provider.catalogModels.map { Self.fold($0.name) })
+        }
+
+        func isMissingEnabledModel(_ model: AIModel) -> Bool {
+            guard isActive, !model.isManual else { return false }
+            let identifier = Self.fold(ModelResolver.preferredStoredModelIdentifier(for: model, providerKind: providerKind))
+            if identifiers.contains(identifier) { return false }
+            if providerKind != .openRouter, names.contains(Self.fold(model.name)) { return false }
+            return true
+        }
+
+        /// Case folding that matches `caseInsensitiveCompare == .orderedSame`.
+        private static func fold(_ value: String) -> String {
+            value.folding(options: .caseInsensitive, locale: nil)
+        }
+    }
 }
 
 // MARK: - Shared Types
@@ -952,6 +991,7 @@ private struct ProviderCatalogGroupCard: View {
         ) {
             onAddModel(model, rowFrames.frame(for: model.id))
         }
+        .equatable()
 
         if let coordinateSpaceName {
             row.onGeometryChange(for: CGRect.self) { proxy in
