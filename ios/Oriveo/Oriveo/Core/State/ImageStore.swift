@@ -55,7 +55,14 @@ nonisolated enum ImageStore {
         ensuredImageDirectoriesLock.lock()
         ensuredImageDirectories.removeAll()
         ensuredImageDirectoriesLock.unlock()
+        #if DEBUG
+        aspectRatioDiskProbeCount = 0
+        #endif
     }
+
+    #if DEBUG
+    nonisolated(unsafe) static var aspectRatioDiskProbeCount = 0
+    #endif
 
     // MARK: - NSCache
 
@@ -90,11 +97,13 @@ nonisolated enum ImageStore {
     static func save(imageData: Data, for id: String, partitionUID: String? = nil) {
         guard let url = imageURL(for: id, partitionUID: partitionUID) else { return }
         try? imageData.write(to: url, options: .atomic)
+        clearMissingAspectRatio(for: id, thumbnail: false, partitionUID: partitionUID)
     }
 
     static func saveThumbnail(imageData: Data, for id: String, partitionUID: String? = nil) {
         guard let url = thumbnailURL(for: id, partitionUID: partitionUID) else { return }
         try? imageData.write(to: url, options: .atomic)
+        clearMissingAspectRatio(for: id, thumbnail: true, partitionUID: partitionUID)
     }
 
 
@@ -118,6 +127,9 @@ nonisolated enum ImageStore {
         partitionUID: String? = nil
     ) -> CGFloat? {
         let cacheKey = aspectRatioCacheKey(for: id, thumbnail: thumbnail, partitionUID: partitionUID)
+        if hasCachedAspectRatioMiss(for: cacheKey) {
+            return nil
+        }
         if let cached = cachedAspectRatio(for: cacheKey) {
             return cached
         }
@@ -131,7 +143,10 @@ nonisolated enum ImageStore {
         let url = thumbnail
             ? thumbnailURL(for: id, partitionUID: partitionUID)
             : imageURL(for: id, partitionUID: partitionUID)
-        guard let ratio = aspectRatio(for: url) else { return nil }
+        guard let ratio = aspectRatio(for: url) else {
+            cacheMissingAspectRatio(for: cacheKey)
+            return nil
+        }
         cacheAspectRatio(ratio, for: cacheKey)
         return ratio
     }
@@ -328,6 +343,9 @@ nonisolated enum ImageStore {
 
     private static func aspectRatio(for url: URL?) -> CGFloat? {
         guard let url else { return nil }
+        #if DEBUG
+        aspectRatioDiskProbeCount += 1
+        #endif
         guard let source = imageSource(for: url) else { return nil }
         return aspectRatio(for: source)
     }
@@ -427,11 +445,34 @@ nonisolated enum ImageStore {
         (partitionUID.map { "\($0)|" } ?? "") + "orig|" + id
     }
 
+    private static let missingAspectRatioSentinel: Double = -1
+
     private static func cacheAspectRatio(_ ratio: CGFloat, for key: String) {
         aspectRatioCache.setObject(NSNumber(value: Double(ratio)), forKey: key as NSString)
     }
 
+    private static func cacheMissingAspectRatio(for key: String) {
+        aspectRatioCache.setObject(NSNumber(value: missingAspectRatioSentinel), forKey: key as NSString)
+    }
+
+    private static func clearMissingAspectRatio(
+        for id: String,
+        thumbnail: Bool,
+        partitionUID: String?
+    ) {
+        aspectRatioCache.removeObject(
+            forKey: aspectRatioCacheKey(for: id, thumbnail: thumbnail, partitionUID: partitionUID) as NSString
+        )
+    }
+
+    private static func hasCachedAspectRatioMiss(for key: String) -> Bool {
+        guard let number = aspectRatioCache.object(forKey: key as NSString) else { return false }
+        return number.doubleValue < 0
+    }
+
     private static func cachedAspectRatio(for key: String) -> CGFloat? {
-        aspectRatioCache.object(forKey: key as NSString).map { CGFloat(truncating: $0) }
+        guard let number = aspectRatioCache.object(forKey: key as NSString) else { return nil }
+        let value = CGFloat(truncating: number)
+        return value < 0 ? nil : value
     }
 }

@@ -1348,10 +1348,10 @@ extension ChatListViewController: ChatLayoutDelegate {
                 ? max(120, min(userBubbleMaxWidth, width * 0.82)) - 8
                 : assistantContentWidth(for: width)
             let ratios = imageAttachments.map {
-                UIKitAssistantImageView.preferredAspectRatio(
+                CachedAttachmentImage.cachedPreferredAspectRatio(
                     for: $0,
                     partitionUID: AppSessionStore.activeUID
-                )
+                ) ?? CachedAttachmentImage.fallbackAspectRatio
             }
             height += estimatedImagesHeight(imageWidth: imageWidth, ratios: ratios)
         }
