@@ -7,7 +7,31 @@ struct NoteCard: View {
 
     init(summary: NoteSummary) {
         self.summary = summary
-        self.preview = NoteText.previewAttributed(from: summary.body)
+        self.preview = Self.preview(for: summary.body)
+    }
+
+    private final class PreviewBox {
+        let value: AttributedString
+        init(_ value: AttributedString) { self.value = value }
+    }
+
+    /// Previews are cached by body. NotesView's body reads the search query, so every keystroke,
+    /// every search result and every filter change re-creates a screen of cards; deriving a preview
+    /// takes a dozen regex replacements plus a Markdown parse, and the result depends only on the body.
+    private static let previewCache: NSCache<NSString, PreviewBox> = {
+        let cache = NSCache<NSString, PreviewBox>()
+        cache.countLimit = 200
+        return cache
+    }()
+
+    static func preview(for body: String) -> AttributedString {
+        let key = body as NSString
+        if let cached = previewCache.object(forKey: key) {
+            return cached.value
+        }
+        let preview = NoteText.previewAttributed(from: body)
+        previewCache.setObject(PreviewBox(preview), forKey: key)
+        return preview
     }
 
     @Environment(\.colorScheme) private var colorScheme
