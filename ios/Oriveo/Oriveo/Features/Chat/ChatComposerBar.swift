@@ -19,8 +19,10 @@ private struct NoteRecallTaskID: Hashable {
     let isSendingMessage: Bool
 }
 
-/// ChatView pushes draft restore / send-fail restore / edit restore into the bar.
+/// ChatView pushes clear-after-send / send-fail restore / edit restore into the bar.
 /// The token is the trigger so typing does not live in ChatView `@State` and rebuild the page.
+/// The stored draft does not come through here; the bar reconciles it against `storeDraft`
+/// itself (see `ChatComposerDraftSession`).
 struct ChatComposerTextPush: Equatable {
     var token: UInt = 0
     var text: String = ""
@@ -28,6 +30,81 @@ struct ChatComposerTextPush: Equatable {
     mutating func push(_ text: String) {
         token += 1
         self.text = text
+    }
+}
+
+/// Reconciliation state between the composer and the conversation's stored draft. It changes only
+/// on discrete events (conversation switch, focus loss, disappear, background, store echo).
+///
+/// Deduplication uses only the stored value this bar knows about (read on entry, last written, or
+/// an external change), never ChatView's live projection: the two onDisappear callbacks run in no
+/// guaranteed order, and once the observation stops first the projected draft reads "".
+struct ChatComposerDraftSession: Equatable {
+    struct Write: Equatable {
+        let conversationID: UUID
+        let text: String
+    }
+
+    private(set) var isBound = false
+    private(set) var conversationID: UUID?
+    /// Known stored draft; nil means the bar has not read the store yet (new conversation or
+    /// observation not ready) and counts as "" when deduplicating.
+    private(set) var persistedText: String?
+    /// The last observed store value. When the conversation is not in memory, it tells a real store
+    /// change apart from the same value being read again after the observation restarts.
+    private var lastStoreDraft: String?
+
+    /// Binds to a conversation and returns the text the composer should show. The caller commits the
+    /// previous conversation first.
+    mutating func bind(conversationID: UUID?, storeDraft: String?) -> String {
+        isBound = true
+        self.conversationID = conversationID
+        persistedText = storeDraft
+        lastStoreDraft = storeDraft
+        return storeDraft ?? ""
+    }
+
+    /// Writes only when the text differs from the known stored value. A write counts as stored right
+    /// away; its asynchronous echo is filtered by `reconcile`.
+    mutating func commit(_ text: String) -> Write? {
+        guard isBound, let conversationID, text != (persistedText ?? "") else { return nil }
+        persistedText = text
+        return Write(conversationID: conversationID, text: text)
+    }
+
+    /// Reconciles a change of the stored draft and returns the text to put in the composer
+    /// (nil leaves the composer alone).
+    /// - Parameter latestDraft: The conversation's latest draft in memory. Store writes are
+    ///   asynchronous and memory is synchronous, so a mismatch means this is the echo of an older write.
+    mutating func reconcile(
+        storeDraft: String?,
+        latestDraft: String?,
+        composerText: String,
+        isFocused: Bool
+    ) -> String? {
+        guard isBound, let storeDraft else { return nil }
+        let previousStoreDraft = lastStoreDraft
+        lastStoreDraft = storeDraft
+
+        guard let persistedText else {
+            // First store read: this bar has not written anything, so there is no stale echo. Keep
+            // existing input (typed first, or restored after a failed first send); it is written
+            // back on focus loss or when leaving.
+            self.persistedText = storeDraft
+            return composerText.isEmpty && !storeDraft.isEmpty ? storeDraft : nil
+        }
+        if let latestDraft {
+            guard latestDraft == storeDraft else { return nil }
+        } else {
+            guard storeDraft != previousStoreDraft else { return nil }
+        }
+        // The echo of our own write, or already in sync.
+        guard storeDraft != persistedText else { return nil }
+        self.persistedText = storeDraft
+        // An external change (regenerate clearing the draft, an edit restore). Do not interrupt
+        // typing while focused; focus loss writes the current text back.
+        guard !isFocused, storeDraft != composerText else { return nil }
+        return storeDraft
     }
 }
 
@@ -190,15 +267,19 @@ struct ChatComposerBar: View {
     let generationParameterScopeID: UUID
     var isReadOnly: Bool = false
     var transparentChrome: Bool = false
-    /// Conversation draft on first appear. The live input lives in this bar's `@State`.
-    let initialDraft: String
-    /// External push (clear after send, restore after failure, restore from edit, sync draft).
+    /// The conversation's stored draft; nil means the observation is not ready or has stopped (not
+    /// that the draft is empty). The live input lives in this bar's `@State`.
+    let storeDraft: String?
+    /// External push (clear after send, restore after failure, restore from edit).
     /// Ignored while the token is unchanged.
     let textPush: ChatComposerTextPush
-    /// Hands the current text back to ChatView to persist a draft. Not called while typing.
-    let onDraftChange: (String) -> Void
+    /// Persists the draft on conversation switch, focus loss, disappear and entering the background.
+    /// The second argument is the conversation to write to, not ChatView's current one. Not called
+    /// while typing.
+    let onDraftCommit: (_ text: String, _ conversationID: UUID) -> Void
 
     @State private var composerText = ""
+    @State private var draftSession = ChatComposerDraftSession()
     @Binding var pendingAttachments: [Attachment]
     @Binding var pendingQuoteContext: QuoteContext?
     @Binding var reasoningMode: ReasoningMode
@@ -215,6 +296,7 @@ struct ChatComposerBar: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.scenePhase) private var scenePhase
     @Environment(AppState.self) private var appState
     @State private var highlightPulse = false
     @State private var highlightPulseToken = 0
@@ -530,29 +612,30 @@ struct ChatComposerBar: View {
         .sensoryFeedback(.selection, trigger: reasoningMode)
         .sensoryFeedback(.selection, trigger: webEnabled)
         .onAppear {
-            composerText = initialDraft
+            // When a pushed page covered the chat and navigation comes back, @State is still here:
+            // the same conversation does not reload, so unsent input stays.
+            if !draftSession.isBound || draftSession.conversationID != conversationID {
+                commitDraft()
+                composerText = draftSession.bind(conversationID: conversationID, storeDraft: storeDraft)
+            }
             configureHighlightPulse()
             syncStoredCapabilitySelection()
         }
-        .onDisappear {
-            onDraftChange(composerText)
+        .onDisappear(perform: commitDraft)
+        // Going to the background while focused neither loses focus nor disappears, and the draft
+        // would be lost if the system then terminates the app. Write once against the stored snapshot
+        // (nothing is written when unchanged).
+        .onChange(of: scenePhase) { _, phase in
+            guard phase == .background else { return }
+            commitDraft()
         }
         .onChange(of: reduceMotion) { _, _ in configureHighlightPulse() }
         .onChange(of: currentModel?.id) { _, _ in syncStoredCapabilitySelection() }
-        .onChange(of: conversationID) { _, _ in
-            composerText = initialDraft
-            syncStoredCapabilitySelection()
-        }
-        .onChange(of: textPush.token) { _, _ in
-            composerText = textPush.text
-        }
-        .onChange(of: composerText) { _, newValue in
-            guard !composerFocused.wrappedValue else { return }
-            onDraftChange(newValue)
-        }
-        .onChange(of: composerFocused.wrappedValue) { _, focused in
-            guard !focused else { return }
-            onDraftChange(composerText)
+        .onChange(of: conversationID) { _, _ in syncStoredCapabilitySelection() }
+        // A conversation switch, an external push, focus loss and a store echo can land in the same
+        // update; separate onChange handlers run in no guaranteed order.
+        .onChange(of: draftInputs) { old, new in
+            applyDraftInputs(old: old, new: new)
         }
         .onChange(of: showsModelControls) { _, isOpen in
             guard !isOpen else { return }
@@ -571,6 +654,51 @@ struct ChatComposerBar: View {
         .task(id: noteRecallTaskID) {
             await refreshRelatedNotes()
         }
+    }
+
+    private struct DraftInputs: Equatable {
+        let conversationID: UUID?
+        let storeDraft: String?
+        let pushToken: UInt
+        let isFocused: Bool
+    }
+
+    private var draftInputs: DraftInputs {
+        DraftInputs(
+            conversationID: conversationID,
+            storeDraft: storeDraft,
+            pushToken: textPush.token,
+            isFocused: composerFocused.wrappedValue
+        )
+    }
+
+    /// Fixed order: write the previous conversation's draft back and rebind → apply an external push
+    /// (it wins over the rebound initial text) → persist on focus loss → reconcile the store echo.
+    private func applyDraftInputs(old: DraftInputs, new: DraftInputs) {
+        if !draftSession.isBound || draftSession.conversationID != new.conversationID {
+            commitDraft()
+            composerText = draftSession.bind(conversationID: new.conversationID, storeDraft: new.storeDraft)
+        }
+        if new.pushToken != old.pushToken {
+            composerText = textPush.text
+        }
+        if old.isFocused, !new.isFocused {
+            commitDraft()
+        }
+        if new.storeDraft != old.storeDraft,
+           let draft = draftSession.reconcile(
+               storeDraft: new.storeDraft,
+               latestDraft: draftSession.conversationID.flatMap { appState.conversation(for: $0)?.draftText },
+               composerText: composerText,
+               isFocused: new.isFocused
+           ) {
+            composerText = draft
+        }
+    }
+
+    private func commitDraft() {
+        guard let write = draftSession.commit(composerText) else { return }
+        onDraftCommit(write.text, write.conversationID)
     }
 
     private func refreshRelatedNotes() async {

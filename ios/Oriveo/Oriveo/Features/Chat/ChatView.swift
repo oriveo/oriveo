@@ -119,8 +119,8 @@ struct ChatView: View {
     @Environment(AppState.self) private var appState
 
     /// Input text is not ChatView `@State`: each keystroke would rebuild the page
-    /// (list, toolbar, capability strip). The live text lives in ChatComposerBar;
-    /// this only pushes on send-clear / fail-restore / edit-restore.
+    /// (list, toolbar, capability strip). The live text and draft persistence live in
+    /// ChatComposerBar; this only pushes on send-clear / fail-restore / edit-restore.
     @State private var composerTextPush = ChatComposerTextPush()
     @State private var modelPickerPresentation: ModelPickerPresentationSnapshot?
     @State private var pendingModelSelection: ModelPickerSelection?
@@ -852,10 +852,6 @@ struct ChatView: View {
             restoreCapabilityPreferences(provider: provider, model: currentModel, conversationID: projection.activeConversationID)
             handleAppear(currentModel: currentModel)
         }
-        .onChange(of: projection.draftText) { _, draftText in
-            guard !composerFocused else { return }
-            composerTextPush.push(draftText)
-        }
         .onChange(of: pendingQuoteContext) { oldValue, newValue in
             guard oldValue != newValue else { return }
             pendingQuoteAttachedAt = newValue == nil ? nil : Date()
@@ -972,11 +968,12 @@ struct ChatView: View {
                 generationParameterScopeID: projection.activeConversationID ?? generationParameterDraftSessionID,
                 isReadOnly: isComposerReadOnly,
                 transparentChrome: projection.messages.isEmpty,
-                initialDraft: projection.draftText,
+                // Not `projection.draftText`: it reads "" while the summary is nil (observation not ready
+                // or stopped), and the composer would take "unknown" for "draft cleared".
+                storeDraft: projection.summary?.draftText,
                 textPush: composerTextPush,
-                onDraftChange: { text in
-                    guard let conversationID = projection.activeConversationID else { return }
-                    syncDraftIfNeeded(text, in: conversationID)
+                onDraftCommit: { text, conversationID in
+                    appState.updateDraftText(text, in: conversationID)
                 },
                 pendingAttachments: $pendingAttachments,
                 pendingQuoteContext: $pendingQuoteContext,
@@ -1242,12 +1239,9 @@ struct ChatView: View {
         return (metadata.displayName ?? modelID, metadata.promptPerToken)
     }
 
-    private func syncDraftIfNeeded(_ text: String, in conversationID: UUID) {
-        guard projection.draftText != text else { return }
-        appState.updateDraftText(text, in: conversationID)
-    }
-
     private func handleDisappear() {
+        // The draft is written by ChatComposerBar.onDisappear against its own stored snapshot, so it
+        // does not depend on the order relative to this.
         conversationObservation.stop()
         windowLoader.stop()
         appState.activeReturnToNoteID = nil
@@ -1258,7 +1252,8 @@ struct ChatView: View {
     }
 
     private func handleAppear(currentModel: AIModel?) {
-        composerTextPush.push(projection.draftText)
+        // No draft push here: when returning to this page the observation was just stopped and the
+        // projected draft is "", which would clear unsent text in the composer.
         syncCapabilitySelection(for: currentModel)
         pruneUnsupportedPendingAttachments()
     }
