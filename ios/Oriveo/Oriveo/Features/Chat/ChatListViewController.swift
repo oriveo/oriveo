@@ -277,6 +277,11 @@ final class ChatListViewController: UIViewController {
                 self?.scheduleQuiescentInsetReconcile()
             }
         }
+        // Switching between light and dark: pooled rich cards built in the old appearance are not worth
+        // keeping (they would correct their colors when taken back, but formulas and markdown re-render).
+        registerForTraitChanges([UITraitUserInterfaceStyle.self]) { (_: ChatListViewController, _: UITraitCollection) in
+            ChatRichCardRecycling.purgeAll()
+        }
     }
 
     override func viewDidLayoutSubviews() {
@@ -736,6 +741,8 @@ final class ChatListViewController: UIViewController {
             lastHandledAnchorID = nil
             anchorUserMessageID = nil
             stopStreamingReconcileTick()
+            // A different conversation: the previous conversation's table and code cards will not be taken back.
+            ChatRichCardRecycling.purgeAll()
         }
         let isInitialOrReset = lastConversationID == nil || isConversationSwitch || widthChanged
         lastMeasuredWidth = width

@@ -12,15 +12,11 @@ final class UIKitCodeBlockCard: UIView {
     private weak var parentViewController: UIViewController?
 
     /// Same-content card reuse, matching `UIKitTableCard.make` / `recycle`. Only detached cards are kept.
-    private static let recycledCards: NSCache<NSString, UIKitCodeBlockCard> = {
-        let cache = NSCache<NSString, UIKitCodeBlockCard>()
-        cache.countLimit = 8
-        return cache
-    }()
-    private var recycleKey: NSString?
+    private static let recycledCards = ChatRichCardRecyclePool<UIKitCodeBlockCard>(countLimit: 8)
+    private var recycleKey: String?
 
-    private static func recycleKey(language: String?, content: String) -> NSString {
-        NSString(string: "\(language ?? "")\n\(content)")
+    private static func recycleKey(language: String?, content: String) -> String {
+        "\(language ?? "")\n\(content)"
     }
 
     static func make(
@@ -31,8 +27,7 @@ final class UIKitCodeBlockCard: UIView {
         initialAttributedText: NSAttributedString? = nil
     ) -> UIKitCodeBlockCard {
         let key = recycleKey(language: language, content: content)
-        if let card = recycledCards.object(forKey: key), card.superview == nil {
-            recycledCards.removeObject(forKey: key)
+        if let card = recycledCards.take(key: key) {
             card.prepareForReuse(parentViewController: parentViewController)
             return card
         }
@@ -47,10 +42,27 @@ final class UIKitCodeBlockCard: UIView {
         return card
     }
 
+    /// Disconnects the previous cell as soon as the card enters the pool: callbacks capture the whole
+    /// message list through the render context, and clearing them only on the next take would keep
+    /// that list alive for as long as the card sits in the pool.
     static func recycle(_ card: UIKitCodeBlockCard) {
         guard card.superview == nil, let key = card.recycleKey else { return }
-        recycledCards.setObject(card, forKey: key)
+        card.onSaveNote = nil
+        card.onAskSelection = nil
+        card.onIntrinsicHeightDidChange = nil
+        card.parentViewController = nil
+        card.copyResetWorkItem?.cancel()
+        card.copyResetWorkItem = nil
+        recycledCards.put(card, key: key)
     }
+
+    static func purgeRecycledCards() {
+        recycledCards.removeAll()
+    }
+
+    #if DEBUG
+    static var recycledCardCountForTesting: Int { recycledCards.count }
+    #endif
 
     private func prepareForReuse(parentViewController: UIViewController?) {
         layer.removeAllAnimations()
@@ -58,12 +70,7 @@ final class UIKitCodeBlockCard: UIView {
         alpha = 1
         transform = .identity
         copied = false
-        copyResetWorkItem?.cancel()
-        copyResetWorkItem = nil
         updateCopyButtonState()
-        onSaveNote = nil
-        onAskSelection = nil
-        onIntrinsicHeightDidChange = nil
         self.parentViewController = parentViewController
         pendingHeightHostNotify = false
     }
@@ -112,6 +119,11 @@ final class UIKitCodeBlockCard: UIView {
     private var saveTrailingToExpand: NSLayoutConstraint!
     private var saveTrailingToHeader: NSLayoutConstraint!
     private var lastResolvedWidth: CGFloat = -1
+    /// The appearance the border and shadow CGColors were last resolved for (nil means they were only
+    /// resolved at build time with the traits current then).
+    private var appliedColorStyle: UIUserInterfaceStyle?
+    /// The appearance markdown-language code was last rendered in.
+    private var markdownRenderStyle: UIUserInterfaceStyle?
 
     private var pendingHeightHostNotify: Bool = false
 
@@ -293,8 +305,31 @@ final class UIKitCodeBlockCard: UIView {
         applyCodeHeight(forWidth: width, notifyHost: false)
     }
 
+    /// Refreshes CGColor resources (border and shadow) when the appearance changes. Markdown-language
+    /// code is rendered into attributed text with colors resolved at render time, so it is rendered
+    /// again. A pooled card may have been built in the other appearance and is corrected here when it
+    /// returns to a window.
     private func updateTraitDependentColors() {
-        contentContainer.layer.borderColor = Self.borderColor.cgColor
+        contentContainer.layer.borderColor = Self.borderColor.resolvedColor(with: traitCollection).cgColor
+        layer.shadowColor = UIColor(OriveoTheme.Palette.shadow).resolvedColor(with: traitCollection).cgColor
+        let style = Self.effectiveStyle(traitCollection)
+        appliedColorStyle = style
+        if isMarkdownLanguage, let markdownRenderStyle, markdownRenderStyle != style {
+            traitCollection.performAsCurrent {
+                renderCode()
+            }
+            refreshCodeHeightAfterRehighlight()
+        }
+    }
+
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        guard window != nil, appliedColorStyle != Self.effectiveStyle(traitCollection) else { return }
+        updateTraitDependentColors()
+    }
+
+    private static func effectiveStyle(_ traits: UITraitCollection) -> UIUserInterfaceStyle {
+        traits.userInterfaceStyle == .dark ? .dark : .light
     }
 
     private func setupHeader() {
@@ -457,6 +492,9 @@ final class UIKitCodeBlockCard: UIView {
         let preview = displayText
         let shouldAsync = lineCount > Self.asyncHighlightThresholdLines
             || codeText.count > Self.asyncHighlightThresholdChars
+        if isMarkdownLanguage {
+            markdownRenderStyle = Self.effectiveStyle(UITraitCollection.current)
+        }
 
         guard shouldAsync else {
             renderCodeSync(previewText: preview)

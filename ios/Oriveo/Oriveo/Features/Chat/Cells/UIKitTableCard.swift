@@ -104,26 +104,16 @@ final class UIKitTableCard: UIView {
 
     /// Chat list cell reuse clears frozen views; when the same table scrolls back on screen, take back
     /// the detached card instead of rebuilding the whole table (one UITextView per cell, about 100ms
-    /// for 30 x 5). Matches the raw markdown lines exactly and only holds detached cards, so the same
-    /// table shown in two cells at once still builds a second card. NSCache evicts under memory pressure.
-    private static let recycledCards: NSCache<NSString, UIKitTableCard> = {
-        let cache = NSCache<NSString, UIKitTableCard>()
-        cache.countLimit = 8
-        return cache
-    }()
+    /// for 30 x 5). Matches the raw markdown lines exactly.
+    private static let recycledCards = ChatRichCardRecyclePool<UIKitTableCard>(countLimit: 8)
 
-    private var recycleKey: NSString?
-
-    private static func recycleKey(for lines: [String]) -> NSString {
-        NSString(string: lines.joined(separator: "\n"))
-    }
+    private var recycleKey: String?
 
     /// Takes back a detached card with the same content or builds a new one; returns nil when the
     /// lines do not parse as a table (the caller renders them as plain text).
     static func make(lines: [String]) -> UIKitTableCard? {
-        let key = recycleKey(for: lines)
-        if let card = recycledCards.object(forKey: key), card.superview == nil {
-            recycledCards.removeObject(forKey: key)
+        let key = lines.joined(separator: "\n")
+        if let card = recycledCards.take(key: key) {
             card.prepareForReuse()
             return card
         }
@@ -133,21 +123,31 @@ final class UIKitTableCard: UIView {
         return card
     }
 
-    /// Returns a card to the reuse pool after it has been removed from its cell.
+    /// Returns a card to the reuse pool after it has been removed from its cell. The previous cell's
+    /// callbacks are cleared right away: the selection callback captures the whole message list through
+    /// the render context, and clearing it only on the next take would keep that list alive in the pool.
     static func recycle(_ card: UIKitTableCard) {
         guard card.superview == nil, let key = card.recycleKey else { return }
-        recycledCards.setObject(card, forKey: key)
+        card.onIntrinsicHeightDidChange = nil
+        card.onAskSelection = nil
+        recycledCards.put(card, key: key)
     }
 
+    static func purgeRecycledCards() {
+        recycledCards.removeAll()
+    }
+
+    #if DEBUG
+    static var recycledCardCountForTesting: Int { recycledCards.count }
+    #endif
+
     /// Restores a freshly built card's state before it joins a new cell: no leftover entrance
-    /// animation, horizontal scroll position or callbacks from the previous cell.
+    /// animation or horizontal scroll position.
     private func prepareForReuse() {
         layer.removeAllAnimations()
         alpha = 1
         transform = .identity
         scrollView.setContentOffset(.zero, animated: false)
-        onIntrinsicHeightDidChange = nil
-        onAskSelection = nil
     }
 
     // MARK: - Init
@@ -208,9 +208,16 @@ final class UIKitTableCard: UIView {
 
     override func didMoveToWindow() {
         super.didMoveToWindow()
+        guard window != nil else { return }
+        // A pooled card may be taken back by a cell in the other appearance; returning to a window at
+        // the same size does not run layoutSubviews again.
+        revalidateTraitDependentAppearance()
+        if needsCellContentRender {
+            setNeedsLayout()
+        }
         // The scheduler skips this card while it is off screen or in the reuse pool; back in a window,
         // the remaining placeholders continue upgrading to UITextViews.
-        if window != nil, placeholderCount > 0 {
+        if placeholderCount > 0 {
             TableCardCellUpgradeScheduler.shared.enqueue(self)
         }
     }

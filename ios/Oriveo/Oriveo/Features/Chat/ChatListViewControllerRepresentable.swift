@@ -43,6 +43,12 @@ struct ChatListViewControllerRepresentable: UIViewControllerRepresentable {
         ChatListViewController()
     }
 
+    /// Leaving the chat screen: pooled rich cards only serve scrolling back within the current
+    /// conversation, so they are released with the screen.
+    static func dismantleUIViewController(_ uiViewController: ChatListViewController, coordinator: ()) {
+        ChatRichCardRecycling.purgeAll()
+    }
+
     func updateUIViewController(_ controller: ChatListViewController, context: Context) {
         controller.update(
             viewModel: viewModel,
