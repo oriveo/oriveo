@@ -44,7 +44,12 @@ final class UIKitStreamingTableCard: UIView {
     private var latexObserver: NSObjectProtocol?
     var onIntrinsicHeightDidChange: (() -> Void)?
 
-    private var lastTailCellsHash: Int = 0
+    #if DEBUG
+    /// Test seam: the text each row's labels currently show (index 0 is the header).
+    var _testCellTexts: [[String]] {
+        cellLabels.map { $0.map { $0.attributedText?.string ?? "" } }
+    }
+    #endif
 
     // MARK: - Init
 
@@ -157,23 +162,23 @@ final class UIKitStreamingTableCard: UIView {
     }
 
     private func applyDataRows(_ newRows: [[String]]) {
-        let tailHash = newRows.last?.joined(separator: "\u{1e}").hashValue ?? 0
-        if newRows.count == dataRows.count,
-           tailHash == lastTailCellsHash,
-           !columnWidths.isEmpty {
+        // Skip the step only when the content is identical. Comparing only the row count and the last
+        // row returned early when a token corrected a middle row, leaving that row on its old text.
+        if newRows == dataRows, !columnWidths.isEmpty {
             return
         }
-        lastTailCellsHash = tailHash
 
-        // Measure only new rows plus the changed tail, then take max with existing widths.
-        let measuredFrom: [[String]]
-        if dataRows.isEmpty {
-            measuredFrom = newRows
-        } else if newRows.count > dataRows.count {
-            measuredFrom = Array(newRows.dropFirst(max(0, dataRows.count - 1)))
-        } else {
-            measuredFrom = newRows.suffix(1).map { $0 }
-        }
+        let oldCount = dataRows.count
+        let newCount = newRows.count
+        // Existing rows to refresh: a streamed last row that was completed, or a middle row a token
+        // corrected. When rows are only appended this is empty and the cost follows the new rows.
+        let changedRows = (0..<min(oldCount, newCount)).filter { dataRows[$0] != newRows[$0] }
+        let appendedRows = newCount > oldCount ? Array(oldCount..<newCount) : []
+
+        // Column widths only grow: measure appended and changed rows, then take max with existing widths.
+        let measuredFrom: [[String]] = dataRows.isEmpty
+            ? newRows
+            : (changedRows + appendedRows).map { newRows[$0] }
         let measured = computeColumnWidthsFromContent(headerCells: headers, dataRows: measuredFrom)
         var widthsChanged = false
         if columnWidths.isEmpty {
@@ -194,29 +199,16 @@ final class UIKitStreamingTableCard: UIView {
             rowViews.append(headerRow)
         }
 
-        let oldCount = dataRows.count
-        let newCount = newRows.count
-
-        let stableEnd = max(0, min(oldCount, newCount) - 1)
-        for i in 0..<stableEnd {
-            if dataRows[i] != newRows[i] {
-                updateRowCells(rowIndex: i + 1, cells: newRows[i])
-            }
+        // Rows overlapping the old ones update their labels in place when the content changed, including
+        // an old last row completed in the same update that appends new rows (appending alone skipped it,
+        // so a row restored mid-way stayed truncated); rows beyond the old count are appended.
+        for i in changedRows {
+            updateRowCells(rowIndex: i + 1, cells: newRows[i])
         }
-
-        if newCount > 0 {
-            let tailIdx = newCount - 1
-            if tailIdx < oldCount {
-                if dataRows[tailIdx] != newRows[tailIdx] {
-                    updateRowCells(rowIndex: tailIdx + 1, cells: newRows[tailIdx])
-                }
-            } else {
-                for i in oldCount..<newCount {
-                    let row = buildDataRow(cells: newRows[i], rowIndex: i)
-                    tableContainer.addSubview(row)
-                    rowViews.append(row)
-                }
-            }
+        for i in appendedRows {
+            let row = buildDataRow(cells: newRows[i], rowIndex: i)
+            tableContainer.addSubview(row)
+            rowViews.append(row)
         }
 
         while rowViews.count - 1 > newCount {

@@ -253,6 +253,12 @@ enum StreamingSegmentParser {
                         var end = i + 2
                         while end < lines.count {
                             let dataLine = lines[end].trimmingCharacters(in: .whitespaces)
+                            // Lenient: any line containing | is a table row; only an empty or non-table
+                            // line ends the table. A last line without a trailing newline may be a partial
+                            // row (a restored snapshot or reattached stream can stop mid-row), but the
+                            // parser cannot tell it from a complete last row that simply has no newline
+                            // (finalize's flattenedFinalSegments goes through here too), so it is kept;
+                            // once completed, UIKitStreamingTableCard diffs row content and refreshes it in place.
                             if dataLine.isEmpty || !dataLine.contains("|") { break }
                             end += 1
                         }

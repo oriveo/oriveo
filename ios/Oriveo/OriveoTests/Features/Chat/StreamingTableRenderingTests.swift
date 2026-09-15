@@ -259,6 +259,52 @@ struct StreamingTableRenderingTests {
         #expect(abs(h2 - h1) < 50)
     }
 
+    @Test("with the row count and last row unchanged, a token correction to a middle row still refreshes its label")
+    @MainActor
+    func middleRowCorrectionRefreshesLabel() throws {
+        let card = try #require(UIKitStreamingTableCard(initialLines: [
+            "| A | B |",
+            "|---|---|",
+            "| 1 | old |",
+            "| 2 | middle |",
+            "| 3 | last |",
+        ]))
+        #expect(card._testCellTexts[2] == ["2", "middle"])
+
+        card.updateLines([
+            "| A | B |",
+            "|---|---|",
+            "| 1 | old |",
+            "| 2 | middle corrected |",
+            "| 3 | last |",
+        ])
+        #expect(card._testCellTexts[2] == ["2", "middle corrected"], "The middle row change was swallowed by the early return")
+        #expect(card._testCellTexts[3] == ["3", "last"])
+    }
+
+    @Test("a snapshot stopped mid-row: when one update completes the old last row and appends a new one, the old last row shows its full content")
+    @MainActor
+    func completingPartialRowWhileAppendingRefreshesOldTail() throws {
+        // The production parser treats a partial row without a trailing newline as a table row (it cannot
+        // tell it from a complete last row that has no newline).
+        let snapshot = "Intro text\n| Item | Notes |\n|------|------|\n| Size | small fish |\n| Temper | ca"
+        let partial = try #require(StreamingSegmentParser.parse(snapshot).streamingTable)
+        #expect(partial.last == "| Temper | ca")
+        let card = try #require(UIKitStreamingTableCard(initialLines: partial))
+        card.frame = CGRect(x: 0, y: 0, width: 342, height: 200)
+        card.layoutIfNeeded()
+        #expect(card._testCellTexts[2] == ["Temper", "ca"])
+
+        let advanced = snapshot + "lm |\n| Lifespan | 3 years |\n"
+        let completed = try #require(StreamingSegmentParser.parse(advanced).streamingTable)
+        #expect(completed.count == partial.count + 1)
+        card.updateLines(completed)
+        card.layoutIfNeeded()
+        #expect(card._testCellTexts[2] == ["Temper", "calm"], "The old last row stayed partial: \(card._testCellTexts[2])")
+        #expect(card._testCellTexts[3] == ["Lifespan", "3 years"])
+        #expect(card._testCellTexts.count == 4)
+    }
+
     @Test("Header Change Rebuilds")
     @MainActor
     func headerChangeRebuilds() {
@@ -318,8 +364,8 @@ struct StreamingTableRenderingTests {
 
     @Test("Streaming table step cost tracks new rows, not the full prefix, at ≥20k characters")
     @MainActor
-    func streamingTableStepCostTracksNewRowsNotFullPrefix() {
-        func replay(prefixChars: Int, rows: Int) -> (parse: [CFTimeInterval], card: [CFTimeInterval]) {
+    func streamingTableStepCostTracksNewRowsNotFullPrefix() throws {
+        func replay(prefixChars: Int, rows: Int) throws -> (parse: [CFTimeInterval], card: [CFTimeInterval]) {
             let unit = "completed paragraph of the answer with enough words. "
             var prefix = ""
             while prefix.count < prefixChars {
@@ -336,7 +382,10 @@ struct StreamingTableRenderingTests {
                 var start = CACurrentMediaTime()
                 let parsed = StreamingSegmentParser.parse(text)
                 parseTimes.append(CACurrentMediaTime() - start)
-                let lines = parsed.streamingTable ?? (header + tableRows)
+                // The production parser must recognize the trailing table as a streaming table; a miss has to
+                // fail here rather than fall back to rows the test assembled itself.
+                let lines = try #require(parsed.streamingTable, "The parser did not recognize the streaming table at a \(prefixChars)-character prefix, row \(index)")
+                #expect(lines == header + tableRows)
                 start = CACurrentMediaTime()
                 if let card {
                     _ = card.updateLines(lines)
@@ -360,8 +409,8 @@ struct StreamingTableRenderingTests {
             return (parseTimes, cardTimes)
         }
 
-        let short = replay(prefixChars: 2_000, rows: 24)
-        let long = replay(prefixChars: 20_000, rows: 24)
+        let short = try replay(prefixChars: 2_000, rows: 24)
+        let long = try replay(prefixChars: 20_000, rows: 24)
         func median(_ values: [CFTimeInterval]) -> CFTimeInterval {
             let sorted = values.sorted()
             return sorted[sorted.count / 2]
