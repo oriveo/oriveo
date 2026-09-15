@@ -479,7 +479,15 @@ struct ChatComposerBar: View {
         }
     }
 
+    #if DEBUG
+    nonisolated(unsafe) static var bodyEvaluationCount = 0
+    static func resetBodyEvaluationCount() { bodyEvaluationCount = 0 }
+    #endif
+
     var body: some View {
+        #if DEBUG
+        let _ = { Self.bodyEvaluationCount += 1 }()
+        #endif
         let _ = CapabilityEvidenceObservationBridge.shared.contentRevision
         VStack(alignment: .leading, spacing: 10) {
             noteContextSection
