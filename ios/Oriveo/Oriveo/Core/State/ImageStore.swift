@@ -1,5 +1,6 @@
 import UIKit
 import ImageIO
+import os
 
 nonisolated enum ImageStore {
 
@@ -56,12 +57,15 @@ nonisolated enum ImageStore {
         ensuredImageDirectories.removeAll()
         ensuredImageDirectoriesLock.unlock()
         #if DEBUG
-        aspectRatioDiskProbeCount = 0
+        aspectRatioDiskProbeCounter.withLock { $0 = 0 }
         #endif
     }
 
     #if DEBUG
-    nonisolated(unsafe) static var aspectRatioDiskProbeCount = 0
+    // Probes also run on background threads (row height estimates, prefetching), so the counter needs a
+    // lock; otherwise DEBUG builds have a data race.
+    private static let aspectRatioDiskProbeCounter = OSAllocatedUnfairLock(initialState: 0)
+    static var aspectRatioDiskProbeCount: Int { aspectRatioDiskProbeCounter.withLock { $0 } }
     #endif
 
     // MARK: - NSCache
@@ -344,7 +348,7 @@ nonisolated enum ImageStore {
     private static func aspectRatio(for url: URL?) -> CGFloat? {
         guard let url else { return nil }
         #if DEBUG
-        aspectRatioDiskProbeCount += 1
+        aspectRatioDiskProbeCounter.withLock { $0 += 1 }
         #endif
         guard let source = imageSource(for: url) else { return nil }
         return aspectRatio(for: source)
