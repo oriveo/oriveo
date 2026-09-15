@@ -250,6 +250,30 @@ final class AssistantStaticBodyRenderer {
         committedSegmentCount = count
     }
 
+    /// Reattaches the current selection and save note callbacks to existing frozen views, the same way
+    /// they are attached when built. Every configure brings a new set of callbacks (nil while generating,
+    /// set once delivered, with closures capturing that message), and finalize reuses the longest common
+    /// prefix, so without rebinding the views keep the nil callbacks from streaming. Plain text segments a
+    /// table fell back to get no callbacks when built, and none here either.
+    func rebindFrozenViewCallbacks() {
+        for (view, segment) in zip(frozenViews, frozenSegments) {
+            switch segment.kind {
+            case .text:
+                guard let textBlock = view as? ChatPassiveTextView else { continue }
+                textBlock.onSaveSelection = onSaveSelection
+                textBlock.onAskSelection = onAskSelection
+                textBlock.onReplaceSelection = onReplaceSelection
+            case .codeBlock(let language):
+                guard let card = view as? UIKitCodeBlockCard else { continue }
+                let content = segment.content
+                card.onSaveNote = onSaveCodeBlock.map { handler in { handler(content, language) } }
+                card.onAskSelection = onAskSelection
+            case .table:
+                (view as? UIKitTableCard)?.onAskSelection = onAskSelection
+            }
+        }
+    }
+
     @discardableResult
     func rerenderFrozenLabels(containing latex: String) -> Bool {
         var didRerender = false

@@ -192,4 +192,55 @@ struct FinalizeFrozenReuseTests {
         #expect(cell.textView.isHidden,
                 Comment(rawValue: "after finalize the tail has been lifted into a frozen segment, so the textView must be hidden"))
     }
+
+    @Test("finalize reusing text segments, code cards and table cards frozen while streaming binds ask and save note callbacks in the same pass, without waiting for cell reuse")
+    func finalizeRebindsSelectionCallbacksOnReusedFrozenViews() throws {
+        let id = UUID()
+        let cell = AssistantMessageCell(frame: CGRect(x: 0, y: 0, width: Self.width, height: 200))
+        let vc = UIViewController()
+        let full = "First, the comparison.\n\n| Model | Context |\n|---|---|\n| alpha | 128K |\n\nThen the code:\n\n```swift\nlet a = 1\n```\n\nThat is all."
+
+        // While generating, the data source passes no ask callback.
+        cell.configure(model: model(makeMessage(id: id, text: "", generating: true), isStreaming: true),
+                       parentViewController: vc, onContentHeightDidChange: nil, onRetry: nil, onContinue: nil,
+                       onAskSelection: nil)
+        cell.updateStreamingText(full)
+        relayout(cell)
+        let streamingText = try #require(cell.bodyStack.arrangedSubviews
+            .compactMap { $0 as? ChatPassiveTextView }
+            .first { $0 !== cell.textView && ($0.text ?? "").contains("First, the comparison") })
+        let streamingCode = try #require(cell.bodyStack.arrangedSubviews.compactMap { $0 as? UIKitCodeBlockCard }.first)
+        let streamingTable = try #require(cell.bodyStack.arrangedSubviews.compactMap { $0 as? UIKitTableCard }.first)
+        #expect(streamingText.onAskSelection == nil, "Precondition: segments frozen while streaming have no ask callback")
+        #expect(streamingCode.onAskSelection == nil)
+
+        var asked: [QuoteSelectionContent] = []
+        var savedCode: (String, String?)?
+        cell.configure(model: model(makeMessage(id: id, text: full, generating: false), isStreaming: false),
+                       parentViewController: vc, onContentHeightDidChange: nil, onRetry: nil, onContinue: nil,
+                       onSaveSelection: { _ in },
+                       onAskSelection: { asked.append($0) },
+                       onSaveCodeBlock: { code, language in savedCode = (code, language) })
+        relayout(cell)
+
+        let finalText = try #require(cell.bodyStack.arrangedSubviews.compactMap { $0 as? ChatPassiveTextView }
+            .first { ($0.text ?? "").contains("First, the comparison") })
+        let finalCode = try #require(cell.bodyStack.arrangedSubviews.compactMap { $0 as? UIKitCodeBlockCard }.first)
+        let finalTable = try #require(cell.bodyStack.arrangedSubviews.compactMap { $0 as? UIKitTableCard }.first)
+        #expect(finalText === streamingText && finalCode === streamingCode && finalTable === streamingTable,
+                "Precondition: finalize should reuse the views frozen while streaming")
+
+        #expect(finalText.onAskSelection != nil, "The reused text segment has no ask callback")
+        #expect(finalText.onSaveSelection != nil)
+        #expect(finalCode.onAskSelection != nil, "The reused code card has no ask callback")
+        let saveNote = try #require(finalCode.onSaveNote, "The reused code card has no save note action")
+        saveNote()
+        #expect(savedCode?.0 == "let a = 1" && savedCode?.1 == "swift")
+
+        finalTable.completeDeferredRows()
+        let cellView = try #require(finalTable._testCell(row: 1, column: 1)?.view as? ChatPassiveTextView)
+        let askFromTable = try #require(cellView.onAskSelection, "A cell of the reused table card has no ask callback")
+        askFromTable(QuoteSelectionContent(contentKind: .table, leadingText: "", selectedText: "128K", trailingText: ""))
+        #expect(asked.last?.leadingText == "alpha | ")
+    }
 }

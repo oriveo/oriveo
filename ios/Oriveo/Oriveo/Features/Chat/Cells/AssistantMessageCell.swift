@@ -238,6 +238,10 @@ final class AssistantMessageCell: UICollectionViewCell {
         staticBodyRenderer.onAskSelection = onAskSelection
         staticBodyRenderer.onReplaceSelection = onReplaceSelection
         staticBodyRenderer.onSaveCodeBlock = onSaveCodeBlock
+        // While generating, the data source passes nil (no ask or replace). Finalize reuses the views
+        // frozen during streaming as they are, so without rebinding here the menu would only come back
+        // once the cell is reused.
+        staticBodyRenderer.rebindFrozenViewCallbacks()
         textView.onSaveSelection = onSaveSelection
         textView.onAskSelection = onAskSelection
         textView.quoteContentKind = .prose
