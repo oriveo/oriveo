@@ -21,6 +21,22 @@ final class ConversationStore: @unchecked Sendable {
         self.continuationOrphanSweep = continuationOrphanSweep
     }
 
+    /// In-process write generation of this database file (incremented by every write transaction
+    /// that goes through this type). Recovery snapshots use it to skip a full dump when nothing has
+    /// been written since the last export.
+    nonisolated var writeGeneration: UInt64 {
+        ConversationWriteGeneration.current(path: dbPool.path)
+    }
+
+    nonisolated var databasePath: String {
+        dbPool.path
+    }
+
+    nonisolated private func write<T>(_ updates: (Database) throws -> T) throws -> T {
+        defer { ConversationWriteGeneration.bump(path: dbPool.path) }
+        return try dbPool.write(updates)
+    }
+
     nonisolated func fetchConversationList() throws -> [ConversationSummary] {
         try dbPool.read { db in
             let rows = try Row.fetchAll(
@@ -238,7 +254,7 @@ final class ConversationStore: @unchecked Sendable {
     /// Mark leftover `.generating` assistants as `.interrupted`. Cold-start memory no longer
     /// carries message bodies, so this has to be SQL rather than a scan of `Conversation.messages`.
     nonisolated func sanitizeStaleGeneratingMessages() throws {
-        try dbPool.write { db in
+        try write { db in
             try db.execute(
                 sql: """
                     UPDATE message
@@ -254,25 +270,48 @@ final class ConversationStore: @unchecked Sendable {
         }
     }
 
+    /// Rewrites the conversation table to match the given set: conversations outside the set are
+    /// deleted together with their messages, conversations inside it are upserted one by one.
+    ///
+    /// This must not "DELETE the whole table, then INSERT the projection": callers usually pass the
+    /// in-memory mirror (cold-start merge, migrations), where conversations that were never hydrated
+    /// have empty `messages`. A full rewrite would delete their message rows, attachments and search
+    /// index. The incremental upsert writes metadata only for them
+    /// (see `upsertConversation(_:into:...)`).
     nonisolated func replaceAllConversations(_ conversations: [Conversation]) throws {
         var referencedFileIDs = Set<String>()
 
-        try dbPool.write { db in
-            let inheritedFileRefs = try Self.allAttachmentFileRefs(db: db)
-
-            if try db.tableExists("search_index") {
-                try? db.execute(sql: "DELETE FROM search_index")
+        try write { db in
+            let keptIDs = Set(conversations.map { $0.id.uuidString })
+            let existingIDs = try String.fetchAll(db, sql: "SELECT id FROM conversation")
+            let removedIDs = existingIDs.filter { !keptIDs.contains($0) }
+            for start in stride(from: 0, to: removedIDs.count, by: 500) {
+                let chunk = Array(removedIDs[start..<min(start + 500, removedIDs.count)])
+                let placeholders = chunk.map { _ in "?" }.joined(separator: ",")
+                try db.execute(
+                    sql: "DELETE FROM conversation WHERE id IN (\(placeholders))",
+                    arguments: StatementArguments(chunk)
+                )
+                if try db.tableExists("search_index") {
+                    try? db.execute(
+                        sql: "DELETE FROM search_index WHERE conversationID IN (\(placeholders))",
+                        arguments: StatementArguments(chunk)
+                    )
+                }
             }
-            try db.execute(sql: "DELETE FROM conversation")
 
             for conversation in conversations {
-                try insert(
-                    conversation: conversation,
+                try upsertConversation(
+                    conversation,
                     into: db,
-                    inheritedFileRefs: inheritedFileRefs,
                     referencedFileIDs: &referencedFileIDs
                 )
             }
+
+            // The prune allowlist comes from the attachment rows that remain in the database:
+            // message rows kept as-is never went through the resolve above, so relying on
+            // referencedFileIDs alone would delete their sidecars as orphans.
+            referencedFileIDs.formUnion(try Self.allReferencedSidecarFileIDs(db: db))
         }
         try continuationOrphanSweep?()
         attachmentFileStore.prune(keeping: referencedFileIDs)
@@ -280,73 +319,154 @@ final class ConversationStore: @unchecked Sendable {
 
     nonisolated func insertConversation(_ summary: ConversationSummary) throws {
         let cols = ConversationColumnValues(from: summary)
-        try dbPool.write { db in
+        try write { db in
             try db.execute(sql: Self.conversationUpsertSQL, arguments: StatementArguments(cols.arguments))
         }
     }
 
-    nonisolated func upsertConversation(_ conversation: Conversation) throws {
-        try upsertConversations([conversation])
+    /// - Parameter deletingMessageIDs: Messages the caller explicitly removed (for example an edit
+    ///   that truncates the thread). An empty `messages` array alone never means "delete everything"
+    ///   (see `upsertConversation(_:into:...)`), so truncating to zero messages must pass the ids.
+    nonisolated func upsertConversation(
+        _ conversation: Conversation,
+        deletingMessageIDs: Set<UUID> = []
+    ) throws {
+        try upsertConversations(
+            [conversation],
+            deletingMessageIDs: deletingMessageIDs.isEmpty ? [:] : [conversation.id: deletingMessageIDs]
+        )
     }
 
-    nonisolated func upsertConversations(_ conversations: [Conversation]) throws {
+    nonisolated func upsertConversations(
+        _ conversations: [Conversation],
+        deletingMessageIDs: [UUID: Set<UUID>] = [:]
+    ) throws {
         guard !conversations.isEmpty else { return }
 
         let prepared = conversations.map(deriveConversationForMutationWrite)
         var referencedFileIDs = Set<String>()
 
-        try dbPool.write { db in
+        try write { db in
             for conversation in prepared {
                 try upsertConversation(
                     conversation,
                     into: db,
-                    referencedFileIDs: &referencedFileIDs
+                    referencedFileIDs: &referencedFileIDs,
+                    deletingMessageIDs: deletingMessageIDs[conversation.id] ?? []
                 )
             }
         }
         try continuationOrphanSweep?()
     }
 
+    /// The minimal attachment fields needed to clean up files before deleting a conversation.
+    /// Summary projections carry no messages, so in-memory attachments cannot be used.
+    nonisolated struct AttachmentCleanupRef: Equatable, Sendable {
+        let id: UUID
+        let kind: AttachmentKind
+        let localImageID: String?
+    }
+
+    nonisolated func fetchAttachmentCleanupRefs(conversationIDs: [UUID]) throws -> [AttachmentCleanupRef] {
+        guard !conversationIDs.isEmpty else { return [] }
+        return try dbPool.read { db in
+            var refs: [AttachmentCleanupRef] = []
+            let ids = conversationIDs.map(\.uuidString)
+            for start in stride(from: 0, to: ids.count, by: 500) {
+                let chunk = Array(ids[start..<min(start + 500, ids.count)])
+                let placeholders = chunk.map { _ in "?" }.joined(separator: ",")
+                let rows = try Row.fetchAll(
+                    db,
+                    sql: """
+                        SELECT a.id AS id, a.kind AS kind, a.localImageID AS localImageID
+                        FROM attachment a
+                        JOIN message m ON m.id = a.messageID
+                        WHERE m.conversationID IN (\(placeholders))
+                        """,
+                    arguments: StatementArguments(chunk)
+                )
+                for row in rows {
+                    guard let rawID: String = row["id"], let id = UUID(uuidString: rawID),
+                          let rawKind: String = row["kind"], let kind = AttachmentKind(rawValue: rawKind)
+                    else { continue }
+                    refs.append(AttachmentCleanupRef(
+                        id: id,
+                        kind: kind,
+                        localImageID: row["localImageID"]
+                    ))
+                }
+            }
+            return refs
+        }
+    }
+
     nonisolated func upsertHydratedMessages(_ messages: [ChatMessage], conversationID: UUID) throws {
         guard messages.isEmpty == false else { return }
         var referencedFileIDs = Set<String>()
 
-        try dbPool.write { db in
+        try write { db in
             guard let summary = try Self.fetchConversationSummary(db: db, id: conversationID) else { return }
-            let existing = try Self.fetchMessages(
-                db: db,
+            try mergeMessageRowsAdditively(
+                messages,
                 conversationID: conversationID,
-                hydrateFilePayloads: false,
-                attachmentFileStore: attachmentFileStore
-            )
-            var byID = Dictionary(uniqueKeysWithValues: existing.map { ($0.id, $0) })
-            for message in messages {
-                byID[message.id] = message
-            }
-            let mergedMessages = byID.values.sorted { lhs, rhs in
-                let lhsDate = lhs.createdAt ?? .distantPast
-                let rhsDate = rhs.createdAt ?? .distantPast
-                if lhsDate != rhsDate { return lhsDate < rhsDate }
-                return lhs.id.uuidString < rhs.id.uuidString
-            }
-
-            try upsertMessageRows(
-                mergedMessages,
-                conversationID: conversationID,
+                title: summary.title,
                 into: db,
                 referencedFileIDs: &referencedFileIDs
-            )
-            try Self.rebuildSearchIndex(
-                db: db,
-                conversationID: conversationID.uuidString,
-                title: summary.title,
-                messages: mergedMessages
             )
         }
     }
 
+    /// Merges `messages` into the stored messages by id (new values replace the same id) without
+    /// deleting any existing row. Use it when the caller does not hold the complete thread: stored
+    /// messages it has not seen must stay as they are.
+    nonisolated private func mergeMessageRowsAdditively(
+        _ messages: [ChatMessage],
+        conversationID: UUID,
+        title: String,
+        into db: Database,
+        referencedFileIDs: inout Set<String>
+    ) throws {
+        let existing = try Self.fetchMessages(
+            db: db,
+            conversationID: conversationID,
+            hydrateFilePayloads: false,
+            attachmentFileStore: attachmentFileStore
+        )
+        var byID = Dictionary(uniqueKeysWithValues: existing.map { ($0.id, $0) })
+        for message in messages {
+            byID[message.id] = message
+        }
+        let mergedMessages = byID.values.sorted { lhs, rhs in
+            let lhsDate = lhs.createdAt ?? .distantPast
+            let rhsDate = rhs.createdAt ?? .distantPast
+            if lhsDate != rhsDate { return lhsDate < rhsDate }
+            return lhs.id.uuidString < rhs.id.uuidString
+        }
+
+        try upsertMessageRows(
+            mergedMessages,
+            conversationID: conversationID,
+            into: db,
+            referencedFileIDs: &referencedFileIDs
+        )
+        try Self.rebuildSearchIndex(
+            db: db,
+            conversationID: conversationID.uuidString,
+            title: title,
+            messages: mergedMessages
+        )
+        // The local column must at least keep up with the real row count (the cold-start merge
+        // compares counts to decide whether the database lost messages, and a lagging column would
+        // trigger a full rewrite on every launch). A partial window is only a slice of the thread,
+        // so never lower a larger count.
+        try db.execute(
+            sql: "UPDATE conversation SET messageCount = MAX(messageCount, ?) WHERE id = ?",
+            arguments: [mergedMessages.count, conversationID.uuidString]
+        )
+    }
+
     nonisolated func deleteConversation(id: UUID, enqueueForSync: Bool = true) throws {
-        try dbPool.write { db in
+        try write { db in
             try Self.removeFromSearchIndex(db: db, conversationID: id.uuidString)
             try db.execute(sql: "DELETE FROM conversation WHERE id = ?", arguments: [id.uuidString])
             if enqueueForSync {
@@ -360,7 +480,7 @@ final class ConversationStore: @unchecked Sendable {
     nonisolated func deleteConversations(ids: [UUID], enqueueForSync: Bool = true) throws {
         guard !ids.isEmpty else { return }
         let idStrings = ids.map(\.uuidString)
-        try dbPool.write { db in
+        try write { db in
             let chunkSize = 500
             var offset = 0
             while offset < idStrings.count {
@@ -411,7 +531,7 @@ final class ConversationStore: @unchecked Sendable {
     nonisolated func clearPendingDeletions(ids: [UUID]) throws {
         guard !ids.isEmpty else { return }
         let idStrings = ids.map(\.uuidString)
-        try dbPool.write { db in
+        try write { db in
             let chunkSize = 500
             var offset = 0
             while offset < idStrings.count {
@@ -427,7 +547,7 @@ final class ConversationStore: @unchecked Sendable {
     }
 
     nonisolated func updateTitle(id: UUID, title: String, hasCustomTitle: Bool) throws {
-        try dbPool.write { db in
+        try write { db in
             try db.execute(
                 sql: """
                     UPDATE conversation
@@ -440,7 +560,7 @@ final class ConversationStore: @unchecked Sendable {
     }
 
     nonisolated func updateDraft(id: UUID, draftText: String, isDraft: Bool) throws {
-        try dbPool.write { db in
+        try write { db in
             try db.execute(
                 sql: """
                     UPDATE conversation
@@ -453,7 +573,7 @@ final class ConversationStore: @unchecked Sendable {
     }
 
     nonisolated func updateCost(id: UUID, cost: Double) throws {
-        try dbPool.write { db in
+        try write { db in
             try db.execute(
                 sql: "UPDATE conversation SET estimatedCost = ? WHERE id = ?",
                 arguments: [cost, id.uuidString]
@@ -468,7 +588,7 @@ final class ConversationStore: @unchecked Sendable {
         modelID: String,
         metadataUpdatedAt: Date? = nil
     ) throws {
-        try dbPool.write { db in
+        try write { db in
             try db.execute(
                 sql: """
                     UPDATE conversation
@@ -487,7 +607,7 @@ final class ConversationStore: @unchecked Sendable {
     }
 
     nonisolated func setUseMemory(id: UUID, useMemory: Bool) throws {
-        try dbPool.write { db in
+        try write { db in
             try db.execute(
                 sql: "UPDATE conversation SET useMemory = ? WHERE id = ?",
                 arguments: [useMemory, id.uuidString]
@@ -496,7 +616,7 @@ final class ConversationStore: @unchecked Sendable {
     }
 
     nonisolated func moveToFolder(id: UUID, folderID: UUID?) throws {
-        try dbPool.write { db in
+        try write { db in
             try db.execute(
                 sql: """
                     UPDATE conversation
@@ -1130,6 +1250,38 @@ final class ConversationStore: @unchecked Sendable {
         )
     }
 
+    /// Writes that change the title without touching message bodies (renaming a summary projection)
+    /// still need title search to follow. When the index row is missing it is rebuilt from the stored
+    /// messages, so a metadata-only write never drops the conversation from search.
+    nonisolated static func updateSearchIndexTitle(
+        db: Database,
+        conversationID: String,
+        title: String
+    ) throws {
+        guard try db.tableExists("search_index") else { return }
+        let hasRow = (try? Bool.fetchOne(
+            db,
+            sql: "SELECT EXISTS(SELECT 1 FROM search_index WHERE conversationID = ?)",
+            arguments: [conversationID]
+        )) ?? false
+        if hasRow {
+            try? db.execute(
+                sql: "UPDATE search_index SET title = ? WHERE conversationID = ?",
+                arguments: [title, conversationID]
+            )
+            return
+        }
+        let texts = try String.fetchAll(
+            db,
+            sql: "SELECT text FROM message WHERE conversationID = ? ORDER BY sortOrder",
+            arguments: [conversationID]
+        )
+        try? db.execute(
+            sql: "INSERT INTO search_index(conversationID, title, messageText) VALUES (?, ?, ?)",
+            arguments: [conversationID, title, texts.joined(separator: " ")]
+        )
+    }
+
     nonisolated static func removeFromSearchIndex(db: Database, conversationID: String) throws {
         guard try db.tableExists("search_index") else { return }
         try? db.execute(
@@ -1212,7 +1364,8 @@ final class ConversationStore: @unchecked Sendable {
         nonisolated init(
             from conversation: Conversation,
             messagesHydratedAt: Double? = nil,
-            messagesStale: Bool = false
+            messagesStale: Bool = false,
+            localRowCount: Int? = nil
         ) {
             id = conversation.id.uuidString
             title = conversation.title
@@ -1221,11 +1374,10 @@ final class ConversationStore: @unchecked Sendable {
             providerKind = conversation.providerKind.rawValue
             modelID = conversation.modelID
             previewText = conversation.previewText
-            // Summary projections have empty `messages`; the count lives in the override.
-            // Using `messages.count` would persist 0 over a conversation that already has rows.
-            messageCount = conversation.messages.isEmpty
-                ? (conversation.messageCountOverride ?? 0)
-                : conversation.messages.count
+            // The local column records real message rows only: a full write uses messages.count,
+            // a metadata-only write passes the row count (its ON CONFLICT branch leaves this column
+            // alone). The display count goes to remoteMessageCount.
+            messageCount = localRowCount ?? conversation.messages.count
             remoteMessageCount = conversation.messageCountOverride ?? messageCount
             estimatedCost = conversation.estimatedCost
             isDraft = conversation.isDraft
@@ -1287,8 +1439,9 @@ final class ConversationStore: @unchecked Sendable {
             pinnedNoteIds = excluded.pinnedNoteIds
         """
 
-    /// Metadata-only writeback: never touch `messageCount` or message rows.
-    /// Empty in-memory `messages` means the thread is not hydrated, not "delete every message".
+    /// Metadata-only writeback: never touch the local `messageCount` or message rows.
+    /// In-memory mirrors whose `messages` were not loaded take this path; a full upsert would diff
+    /// away every stored message.
     nonisolated private static let conversationMetadataOnlyUpsertSQL = """
         INSERT INTO conversation (
             id, title, hasCustomTitle, providerID, providerKind, modelID, previewText, messageCount,
@@ -1304,6 +1457,7 @@ final class ConversationStore: @unchecked Sendable {
             providerKind = excluded.providerKind,
             modelID = excluded.modelID,
             previewText = excluded.previewText,
+            remoteMessageCount = excluded.remoteMessageCount,
             estimatedCost = excluded.estimatedCost,
             isDraft = excluded.isDraft,
             draftText = excluded.draftText,
@@ -1317,16 +1471,6 @@ final class ConversationStore: @unchecked Sendable {
             isConflictCopy = excluded.isConflictCopy,
             originalConversationId = excluded.originalConversationId,
             pinnedNoteIds = excluded.pinnedNoteIds
-        """
-
-    nonisolated private static let conversationInsertSQL = """
-        INSERT INTO conversation (
-            id, title, hasCustomTitle, providerID, providerKind, modelID, previewText, messageCount,
-            remoteMessageCount,
-            estimatedCost, isDraft, draftText, createdAt, updatedAt, folderID,
-            useMemory, skillId, metadataUpdatedAt, messagesHydratedAt, messagesStale,
-            deletedAt, isConflictCopy, originalConversationId, pinnedNoteIds
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """
 
 
@@ -1346,12 +1490,16 @@ final class ConversationStore: @unchecked Sendable {
         )
     }
 
-    nonisolated private static func allAttachmentFileRefs(db: Database) throws -> [String: AttachmentFileRefs] {
-        try attachmentFileRefs(
-            db: db,
-            sql: "SELECT id, localFileID, originalFileID FROM attachment",
-            arguments: []
-        )
+    /// Every sidecar file id (extracted text and original bytes) still referenced by an attachment
+    /// row, used as the prune allowlist.
+    nonisolated private static func allReferencedSidecarFileIDs(db: Database) throws -> Set<String> {
+        let rows = try Row.fetchAll(db, sql: "SELECT localFileID, originalFileID FROM attachment")
+        var ids = Set<String>()
+        for row in rows {
+            if let localFileID = row["localFileID"] as String?, !localFileID.isEmpty { ids.insert(localFileID) }
+            if let originalFileID = row["originalFileID"] as String?, !originalFileID.isEmpty { ids.insert(originalFileID) }
+        }
+        return ids
     }
 
     nonisolated private static func attachmentFileRefs(
@@ -1563,26 +1711,53 @@ final class ConversationStore: @unchecked Sendable {
     nonisolated private func upsertConversation(
         _ conversation: Conversation,
         into db: Database,
-        referencedFileIDs: inout Set<String>
+        referencedFileIDs: inout Set<String>,
+        deletingMessageIDs: Set<UUID> = []
     ) throws {
         let convIDString = conversation.id.uuidString
+        if !deletingMessageIDs.isEmpty {
+            let ids = deletingMessageIDs.map(\.uuidString)
+            let placeholders = ids.map { _ in "?" }.joined(separator: ",")
+            try db.execute(
+                sql: "DELETE FROM message WHERE conversationID = ? AND id IN (\(placeholders))",
+                arguments: StatementArguments([convIDString] + ids)
+            )
+        }
         let existingMessageIDs = try String.fetchAll(
             db,
             sql: "SELECT id FROM message WHERE conversationID = ?",
             arguments: [convIDString]
         )
 
-        // Summary writeback: empty `messages` means "not hydrated", not "delete every row".
-        if conversation.messages.isEmpty, !existingMessageIDs.isEmpty {
+        // Two cases never diff messages away:
+        // - summary projections (messagesAreLoaded == false): messages are not the whole thread;
+        // - empty in-memory messages while rows still exist: the source is a metadata projection.
+        //   Callers that really truncate to zero messages already deleted them above through
+        //   deletingMessageIDs.
+        if !conversation.messagesAreLoaded || (conversation.messages.isEmpty && !existingMessageIDs.isEmpty) {
             let cols = ConversationColumnValues(
                 from: conversation,
                 messagesHydratedAt: nil,
-                messagesStale: true
+                messagesStale: true,
+                localRowCount: existingMessageIDs.count
             )
             try db.execute(
                 sql: Self.conversationMetadataOnlyUpsertSQL,
                 arguments: StatementArguments(cols.arguments)
             )
+            if conversation.messages.isEmpty {
+                try Self.updateSearchIndexTitle(db: db, conversationID: convIDString, title: conversation.title)
+            } else {
+                // Messages arrived without the full thread loaded: add and update only, and keep
+                // every other stored message.
+                try mergeMessageRowsAdditively(
+                    conversation.messages,
+                    conversationID: conversation.id,
+                    title: conversation.title,
+                    into: db,
+                    referencedFileIDs: &referencedFileIDs
+                )
+            }
             return
         }
 
@@ -1735,107 +1910,22 @@ final class ConversationStore: @unchecked Sendable {
             messages: conversation.messages
         )
     }
+}
 
-    nonisolated private func insert(
-        conversation: Conversation,
-        into db: Database,
-        inheritedFileRefs: [String: AttachmentFileRefs],
-        referencedFileIDs: inout Set<String>
-    ) throws {
-        let cols = ConversationColumnValues(
-            from: conversation,
-            messagesHydratedAt: Date().timeIntervalSince1970,
-            messagesStale: false
-        )
-        try db.execute(sql: Self.conversationInsertSQL, arguments: StatementArguments(cols.arguments))
+/// In-process write generation per conversation database file.
+nonisolated enum ConversationWriteGeneration {
+    private static let lock = NSLock()
+    nonisolated(unsafe) private static var generations: [String: UInt64] = [:]
 
-        for (messageSortOrder, message) in conversation.messages.enumerated() {
-            try db.execute(
-                sql: """
-                    INSERT INTO message (
-                        id, conversationID, role, text, quoteContext, providerID, providerKind, providerName,
-                        modelID, modelName, servedModelID, estimatedCost, state,
-                        errorTitle, errorDetail, createdAt, sortOrder, citations,
-                        reasoningText, reasoningDurationMs,
-                        cachedInputTokens, cacheCreation5mTokens, cacheCreation1hTokens, costSource,
-                        inputTokens, outputTokens, cacheCreationInputTokens,
-                        capabilityExecution, unhandledToolCalls
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """,
-                arguments: [
-                    message.id.uuidString,
-                    conversation.id.uuidString,
-                    message.role.rawValue,
-                    message.text,
-                    RecordMappers.encodeQuoteContext(message.quoteContext),
-                    message.providerID?.uuidString,
-                    message.providerKind.rawValue,
-                    message.providerName,
-                    message.modelID,
-                    message.modelName,
-                    message.servedModelID,
-                    message.estimatedCost,
-                    message.state.rawValue,
-                    message.errorTitle,
-                    message.errorDetail,
-                    message.createdAt?.timeIntervalSince1970,
-                    messageSortOrder,
-                    RecordMappers.encodeCitations(message.citations),
-                    message.reasoningText,
-                    message.reasoningDurationMs,
-                    message.cachedInputTokens,
-                    message.cacheCreation5mTokens,
-                    message.cacheCreation1hTokens,
-                    message.costSource?.rawValue,
-                    message.inputTokens,
-                    message.outputTokens,
-                    message.cacheCreationInputTokens,
-                    RecordMappers.encodeCapabilityExecution(message.capabilityExecution),
-                    RecordMappers.encodeUnhandledToolCalls(message.unhandledToolCalls),
-                ]
-            )
+    static func bump(path: String) {
+        lock.lock()
+        defer { lock.unlock() }
+        generations[path, default: 0] &+= 1
+    }
 
-            for (sortOrder, attachment) in (message.attachments ?? []).enumerated() {
-                let (localFileID, originalFileID) = try resolveSidecarFileIDs(
-                    for: attachment,
-                    inherited: inheritedFileRefs[attachment.id.uuidString],
-                    referencedFileIDs: &referencedFileIDs
-                )
-
-                try db.execute(
-                    sql: """
-                        INSERT INTO attachment (
-                            id, messageID, kind, fileName, mimeType, localFileID,
-                            localImageID, thumbnailBase64, sortOrder,
-                            extractedTotalLines, extractedTruncated, extractedSizeBytes,
-                            extractionErrorCode, originalFileID
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                        """,
-                    arguments: [
-                        attachment.id.uuidString,
-                        message.id.uuidString,
-                        attachment.kind.rawValue,
-                        attachment.fileName,
-                        attachment.mimeType,
-                        localFileID,
-                        attachment.localImageID,
-                        attachment.thumbnailBase64,
-                        sortOrder,
-                        attachment.extractedTotalLines,
-                        attachment.extractedTruncated.map { $0 ? 1 : 0 },
-                        attachment.extractedSizeBytes,
-                        attachment.extractionErrorCode,
-                        originalFileID
-                    ]
-                )
-            }
-        }
-
-        try Self.rebuildSearchIndex(
-            db: db,
-            conversationID: conversation.id.uuidString,
-            title: conversation.title,
-            messages: conversation.messages
-        )
+    static func current(path: String) -> UInt64 {
+        lock.lock()
+        defer { lock.unlock() }
+        return generations[path] ?? 0
     }
 }

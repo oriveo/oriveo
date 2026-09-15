@@ -65,8 +65,10 @@ struct ConversationStoreTests {
         #expect(String(decoding: encoded, as: UTF8.self).contains("resp_fixture") == false)
 
         // A disappeared message is deleted through the FK lifecycle, not resurrected by replace.
+        // (An empty `messages` array is not a deletion: it is what summary projections carry, so the
+        // replacement names a different message instead.)
         var removed = conversation
-        removed.messages = []
+        removed.messages = [TestFactories.makeMessage(role: .assistant, text: "replacement")]
         try harness.store.replaceAllConversations([removed])
         #expect(try continuation.load(messageID: message.id) == nil)
 

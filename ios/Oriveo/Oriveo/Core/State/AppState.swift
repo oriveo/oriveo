@@ -526,9 +526,36 @@ final class AppState {
     /// Cold-start memory is a summary projection, so this has to be SQL.
     private func sanitizeStaleGeneratingMessages() {
         try? conversationRuntimeBridge.sanitizeStaleGeneratingMessages(uid: boundPartitionUID)
+        // When the database cannot be opened, memory comes from the recovery snapshot (full threads)
+        // and the SQL above fails, so memory is the only copy. Without settling it here a leftover
+        // .generating message keeps spinning forever.
+        var dirty: [Conversation] = []
+        for conversation in conversations where conversation.messagesAreLoaded {
+            var updated = conversation
+            var hasGenerating = false
+            for index in updated.messages.indices
+                where updated.messages[index].role == .assistant
+                    && updated.messages[index].state == .generating {
+                updated.messages[index].state = .interrupted
+                hasGenerating = true
+            }
+            if hasGenerating {
+                dirty.append(updated)
+            }
+        }
+        if !dirty.isEmpty {
+            upsertConversationProjections(dirty)
+        }
     }
 
-    func upsertConversationProjection(_ conversation: Conversation, expectedUID: String? = nil) {
+    /// - Parameter deletingMessageIDs: Message ids removed by this change (for example an edit that
+    ///   truncates the thread). The store never treats an empty `messages` as "delete everything", so
+    ///   truncating to zero messages must pass them, or the old rows stay in the database.
+    func upsertConversationProjection(
+        _ conversation: Conversation,
+        expectedUID: String? = nil,
+        deletingMessageIDs: Set<UUID> = []
+    ) {
         guard partitionIsStillBound(expectedUID) else { return }
 
         // Keep the in-memory array in sync with the metadata the DB write derives
@@ -548,9 +575,54 @@ final class AppState {
         let bridge = conversationRuntimeBridge
         conversationPersistQueue.async(qos: .userInitiated) {
             Self.runConversationPersistWrite(op: "upsert_conversation_projection") {
-                try bridge.upsertConversationWithoutReadback(conversation, uid: persistedUID)
+                try bridge.upsertConversationWithoutReadback(
+                    conversation,
+                    uid: persistedUID,
+                    deletingMessageIDs: deletingMessageIDs
+                )
             }
         }
+    }
+
+    /// Cold-start memory is a summary projection. Every path that reads or writes a conversation's
+    /// messages (send, edit, retry, merge) calls this first to bring the thread back from the
+    /// database; editing an empty `messages` and writing it back would lose data or fail silently.
+    ///
+    /// Only messages are filled in: in-memory metadata can be newer than the database (a rename or
+    /// draft write may still be queued) and must not be overwritten by the stored row.
+    /// - Parameter acceptsEmptyThread: Whether an empty local thread still counts as loaded when the
+    ///   display count says there is history. Sending does not accept it (context would be lost).
+    /// - Returns: true when memory already holds the full thread or hydration succeeded; false when the
+    ///   read fails, the conversation is not in the database, or (unless accepted) the stored thread is
+    ///   empty while the display count says otherwise.
+    @discardableResult
+    func hydrateConversationMessagesIfNeeded(
+        id: UUID,
+        hydrateFilePayloads: Bool = true,
+        acceptsEmptyThread: Bool = false
+    ) -> Bool {
+        guard let index = conversations.firstIndex(where: { $0.id == id }) else { return false }
+        let conversation = conversations[index]
+        guard !conversation.messagesAreLoaded else { return true }
+        guard let fetched = try? conversationRuntimeBridge.fetchConversationProjections(
+            ids: [id],
+            uid: sessionPartitionUID,
+            hydrateFilePayloads: hydrateFilePayloads
+        ).first else {
+            return false
+        }
+        // The count says there is history but no local message exists: sending on an empty thread
+        // would silently drop context.
+        if !acceptsEmptyThread, fetched.messages.isEmpty, conversation.displayMessageCount > 0 {
+            return false
+        }
+        guard let currentIndex = conversations.firstIndex(where: { $0.id == id }) else { return false }
+        var merged = conversations[currentIndex]
+        merged.messages = fetched.messages
+        merged.messagesAreLoaded = true
+        merged.messageCountOverride = max(merged.messageCountOverride ?? 0, fetched.displayMessageCount)
+        conversations[currentIndex] = merged
+        return true
     }
 
     func upsertConversationProjections(
@@ -606,20 +678,30 @@ final class AppState {
         persistedUID: String? = nil
     ) throws {
         let persistedUID = persistedUID ?? boundPartitionUID
+        // The readback is a summary: the database holds the bodies, so all messages and attachments are
+        // not loaded into memory again. Conversations passed in with full threads keep them, which saves
+        // a hydrate when one is opened right away.
         let refreshedProjection = try conversationRuntimeBridge.replaceAllConversations(replacement, uid: persistedUID)
         let refreshedByID = Dictionary(uniqueKeysWithValues: refreshedProjection.map { ($0.id, $0) })
         conversations = replacement.compactMap { conversation in
-            guard let refreshed = refreshedByID[conversation.id] else { return conversation }
-            return normalizeRuntimeConversation(refreshed, preservingTimestampsFrom: conversation)
+            guard var refreshed = refreshedByID[conversation.id] else { return conversation }
+            refreshed = normalizeRuntimeConversation(refreshed, preservingTimestampsFrom: conversation)
+            if conversation.messagesAreLoaded, !conversation.messages.isEmpty {
+                refreshed.messages = conversation.messages
+                refreshed.messagesAreLoaded = true
+            }
+            return refreshed
         }
         syncRuntimePinnedNotesWithConversationProjection()
     }
 
     func replaceConversationProjection(_ replacement: [Conversation]) {
+        // Update memory right away, keeping the messages and load state of conversations that are streaming.
         conversations = replacement.compactMap { conv in
             if let existing = conversationLookup[conv.id], !existing.messages.isEmpty, conv.messages.isEmpty {
                 var merged = conv
                 merged.messages = existing.messages
+                merged.messagesAreLoaded = existing.messagesAreLoaded
                 return merged
             }
             return conv
@@ -1340,7 +1422,8 @@ final class AppState {
             let now = Date()
             AppLog.info(
                 "Loaded session: stored=\(authoritativeProjection.count) recovered=\(recoveredProjection.count) "
-                + "merged=\(mergedProjection.count) usedMerge=\(mergedProjection != authoritativeProjection)",
+                + "merged=\(mergedProjection.count) "
+                + "usedMerge=\(ConversationProjectionMerger.hasRecoveredChanges(merged: mergedProjection, authoritative: authoritativeProjection))",
                 module: "Conversations"
             )
             for c in authoritativeProjection.prefix(10) {
@@ -1354,7 +1437,13 @@ final class AppState {
             }
             #endif
 
-            if mergedProjection != authoritativeProjection {
+            // Compare by id and content, not array order: the merge sorts with `sort`, SQL orders by
+            // updatedAt/createdAt/id, and when updatedAt ties the orders differ. A positional compare
+            // would report a recovery and rewrite the whole table.
+            if ConversationProjectionMerger.hasRecoveredChanges(
+                merged: mergedProjection,
+                authoritative: authoritativeProjection
+            ) {
                 conversations = (try? conversationRuntimeBridge.replaceAllConversations(
                     mergedProjection,
                     uid: activeUID
@@ -1473,7 +1562,7 @@ final class AppState {
         let bridge = conversationRuntimeBridge
         return {
             Self.runConversationPersistWrite(op: "persist_recovery_projection_immediate") {
-                try bridge.persistRecoveryProjectionFromDatabase(uid: uid)
+                try bridge.persistRecoveryProjectionFromDatabase(uid: uid, skipIfUnchanged: true)
             }
             AppSessionStore.save(snapshot, for: uid)
         }
@@ -1502,7 +1591,7 @@ final class AppState {
 
         conversationPersistQueue.async(qos: .userInitiated) {
             Self.runConversationPersistWrite(op: "persist_lifecycle_recovery") {
-                try bridge.persistRecoveryProjectionFromDatabase(uid: persistedUID)
+                try bridge.persistRecoveryProjectionFromDatabase(uid: persistedUID, skipIfUnchanged: true)
             }
             AppSessionStore.save(snapshot, for: persistedUID)
             if checkpoint {

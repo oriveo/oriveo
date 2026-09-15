@@ -59,6 +59,15 @@ enum ConversationProjectionMerger {
         return mergedByID.values.sorted(by: sort)
     }
 
+    /// Whether the cold-start recovery merge actually changed the authoritative projection
+    /// (compared by id and content, independent of order).
+    static func hasRecoveredChanges(merged: [Conversation], authoritative: [Conversation]) -> Bool {
+        guard merged.count == authoritative.count else { return true }
+        let authoritativeByID = Dictionary(authoritative.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        guard authoritativeByID.count == authoritative.count else { return true }
+        return merged.contains { authoritativeByID[$0.id] != $0 }
+    }
+
     static func sort(_ lhs: Conversation, _ rhs: Conversation) -> Bool {
         if lhs.updatedAt != rhs.updatedAt {
             return lhs.updatedAt > rhs.updatedAt
@@ -486,24 +495,53 @@ final class ConversationManager {
 
 
     func deleteConversation(id: UUID) {
-        if let ci = conversations.firstIndex(where: { $0.id == id }) {
-            if conversations[ci].messages.contains(where: { $0.state == .generating }) {
-                appState.cancelGeneration(in: id)
-            }
-            cleanupDiskImages(in: [conversations[ci]])
+        guard let conversation = conversations.first(where: { $0.id == id }) else {
+            appState.deleteConversationProjection(id: id)
+            return
         }
-        appState.deleteConversationProjection(id: id)
+        deleteConversations([conversation]) {
+            appState.deleteConversationProjection(id: id)
+        }
     }
 
     func deleteConversations(ids: Set<UUID>) {
         let toRemove = conversations.filter { ids.contains($0.id) }
+        deleteConversations(toRemove) {
+            appState.deleteConversationProjections(ids: ids)
+        }
+    }
+
+    /// Removes the conversations' on-device images before deleting them. Cold-start memory is a
+    /// summary (no messages), so attachment references are read from the database, and they must be
+    /// read before the rows are deleted.
+    private func deleteConversations(_ toRemove: [Conversation], deleteProjection: () -> Void) {
         for conv in toRemove {
-            if conv.messages.contains(where: { $0.state == .generating }) {
+            if conv.messages.contains(where: { $0.state == .generating })
+                || appState.streamingConversationIDs.contains(conv.id) {
                 appState.cancelGeneration(in: conv.id)
             }
         }
-        cleanupDiskImages(in: toRemove)
-        appState.deleteConversationProjections(ids: ids)
+        let partitionUID = AppSessionStore.activeUID
+        cleanupDiskImages(attachmentCleanupRefs(for: toRemove), partitionUID: partitionUID)
+        deleteProjection()
+    }
+
+    private func attachmentCleanupRefs(for conversations: [Conversation]) -> [ConversationStore.AttachmentCleanupRef] {
+        var refs = conversations.filter(\.messagesAreLoaded).flatMap { conversation in
+            conversation.messages.flatMap { message in
+                (message.attachments ?? []).map {
+                    ConversationStore.AttachmentCleanupRef(id: $0.id, kind: $0.kind, localImageID: $0.localImageID)
+                }
+            }
+        }
+        let unloadedIDs = conversations.filter { !$0.messagesAreLoaded }.map(\.id)
+        if !unloadedIDs.isEmpty {
+            refs += (try? appState.conversationRuntimeBridge.fetchAttachmentCleanupRefs(
+                conversationIDs: unloadedIDs,
+                uid: appState.sessionPartitionUID
+            )) ?? []
+        }
+        return refs
     }
 
     func renameConversation(id: UUID, newTitle: String) {
@@ -646,7 +684,9 @@ final class ConversationManager {
         from conversations: [Conversation],
         now: Date
     ) -> [MonthlyCostAggregate] {
-        let hydrated = conversations.filter { !$0.messages.isEmpty }
+        // Conversations with a loaded thread use memory (a background write may not have landed yet);
+        // the rest are aggregated in SQL.
+        let hydrated = conversations.filter { $0.messagesAreLoaded && !$0.messages.isEmpty }
         let hydratedIDs = Set(hydrated.map(\.id))
         let fromMemory = CostSummaryCalculator.aggregates(from: hydrated, now: now)
         let fromStore = (try? appState.conversationRuntimeBridge.fetchMonthlyCostAggregates(
@@ -801,19 +841,26 @@ final class ConversationManager {
     }
 
 
-    func cleanupDiskImages(in convos: [Conversation]) {
-        let partitionUID = AppSessionStore.activeUID
-        for conv in convos {
-            for msg in conv.messages {
-                guard let atts = msg.attachments else { continue }
-                for att in atts {
-                    if let lid = att.localImageID {
-                        ImageStore.deleteImage(for: lid, partitionUID: partitionUID)
-                    }
-                    if att.kind == .image {
-                        ImageStore.deleteImage(for: att.id.uuidString, partitionUID: partitionUID)
-                    }
+    func cleanupDiskImages(in convos: [Conversation], partitionUID: String = AppSessionStore.activeUID) {
+        let refs = convos.flatMap { conv in
+            conv.messages.flatMap { msg in
+                (msg.attachments ?? []).map {
+                    ConversationStore.AttachmentCleanupRef(id: $0.id, kind: $0.kind, localImageID: $0.localImageID)
                 }
+            }
+        }
+        cleanupDiskImages(refs, partitionUID: partitionUID)
+    }
+
+    /// The caller captures the partition when the deletion starts, so the files are removed from the
+    /// partition the conversations belonged to.
+    private func cleanupDiskImages(_ refs: [ConversationStore.AttachmentCleanupRef], partitionUID: String) {
+        for att in refs {
+            if let lid = att.localImageID {
+                ImageStore.deleteImage(for: lid, partitionUID: partitionUID)
+            }
+            if att.kind == .image {
+                ImageStore.deleteImage(for: att.id.uuidString, partitionUID: partitionUID)
             }
         }
     }

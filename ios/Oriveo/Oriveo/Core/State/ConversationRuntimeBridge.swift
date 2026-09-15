@@ -64,13 +64,42 @@ final class ConversationRuntimeBridge {
         try persistRecoveryProjection(conversations, for: uid, source: "ConversationRuntimeBridge.recovery")
     }
 
-    func persistRecoveryProjectionFromDatabase(uid: String) throws {
-        let conversations = try makeStore(for: uid).fetchAllConversations(hydrateFilePayloads: false)
+    /// Exports the recovery snapshot from the database (reads every full thread).
+    /// - Parameter skipIfUnchanged: Pass true for frequent calls such as entering the background or an
+    ///   immediate session save: when this process has written nothing to the conversation database
+    ///   since the last export and the snapshot file still exists, the dump is skipped. Destructive
+    ///   changes (delete, truncate) must pass false, or a crash would let the cold-start merge bring
+    ///   the removed content back.
+    func persistRecoveryProjectionFromDatabase(uid: String, skipIfUnchanged: Bool = false) throws {
+        let store = try makeStore(for: uid)
+        let generation = store.writeGeneration
+        if skipIfUnchanged,
+           Self.lastRecoveryDumpGeneration(path: store.databasePath) == generation,
+           FileManager.default.fileExists(atPath: AppSessionStore.recoverySnapshotPath(for: uid).path) {
+            return
+        }
+        let conversations = try store.fetchAllConversations(hydrateFilePayloads: false)
         try persistRecoveryProjection(
             conversations,
             for: uid,
             source: "ConversationRuntimeBridge.recovery-from-db"
         )
+        Self.recordRecoveryDump(path: store.databasePath, generation: generation)
+    }
+
+    nonisolated private static let recoveryDumpLock = NSLock()
+    nonisolated(unsafe) private static var recoveryDumpGenerations: [String: UInt64] = [:]
+
+    nonisolated private static func lastRecoveryDumpGeneration(path: String) -> UInt64? {
+        recoveryDumpLock.lock()
+        defer { recoveryDumpLock.unlock() }
+        return recoveryDumpGenerations[path]
+    }
+
+    nonisolated private static func recordRecoveryDump(path: String, generation: UInt64) {
+        recoveryDumpLock.lock()
+        defer { recoveryDumpLock.unlock() }
+        recoveryDumpGenerations[path] = generation
     }
 
     func fetchConversationProjection(uid: String, hydrateFilePayloads: Bool = true) throws -> [Conversation] {
@@ -84,7 +113,9 @@ final class ConversationRuntimeBridge {
     /// call for 300 conversations with 30 messages each on a simulator.
     func fetchConversationSummaryProjection(uid: String) throws -> [Conversation] {
         try makeStore(for: uid).fetchConversationList().map {
-            RecordMappers.conversation(from: ConversationThread(summary: $0, messages: []))
+            var conversation = RecordMappers.conversation(from: ConversationThread(summary: $0, messages: []))
+            conversation.messagesAreLoaded = false
+            return conversation
         }
     }
 
@@ -177,10 +208,13 @@ final class ConversationRuntimeBridge {
         )
     }
 
+    /// - Returns: The summary projection after the write (`messagesAreLoaded == false`). Reading every
+    ///   full thread back would load all messages and attachment payloads into memory; callers that
+    ///   need bodies hydrate per conversation.
     func replaceAllConversations(_ conversations: [Conversation], uid: String) throws -> [Conversation] {
         let store = try makeStore(for: uid)
         try store.replaceAllConversations(conversations)
-        return try store.fetchAllConversations(hydrateFilePayloads: true)
+        return try fetchConversationSummaryProjection(uid: uid)
     }
 
     func upsertConversation(_ conversation: Conversation, uid: String) throws -> Conversation {
@@ -192,8 +226,12 @@ final class ConversationRuntimeBridge {
         return RecordMappers.conversation(from: refreshed)
     }
 
-    func upsertConversationWithoutReadback(_ conversation: Conversation, uid: String) throws {
-        try makeStore(for: uid).upsertConversation(conversation)
+    func upsertConversationWithoutReadback(
+        _ conversation: Conversation,
+        uid: String,
+        deletingMessageIDs: Set<UUID> = []
+    ) throws {
+        try makeStore(for: uid).upsertConversation(conversation, deletingMessageIDs: deletingMessageIDs)
     }
 
     func upsertConversations(_ conversations: [Conversation], uid: String) throws -> [Conversation] {
@@ -214,6 +252,13 @@ final class ConversationRuntimeBridge {
             return nil
         }
         return RecordMappers.conversation(from: refreshed)
+    }
+
+    func fetchAttachmentCleanupRefs(
+        conversationIDs: [UUID],
+        uid: String
+    ) throws -> [ConversationStore.AttachmentCleanupRef] {
+        try makeStore(for: uid).fetchAttachmentCleanupRefs(conversationIDs: conversationIDs)
     }
 
     func deleteConversation(id: UUID, uid: String) throws {
@@ -371,8 +416,10 @@ final class ConversationRuntimeBridge {
                     attachmentFileStore: attachmentFileStore,
                     continuationOrphanSweep: nil
                 )
+                let generation = store.writeGeneration
                 let conversations = try store.fetchAllConversations(hydrateFilePayloads: false)
                 try Self.writeRecoveryProjection(conversations, for: uid, source: source)
+                Self.recordRecoveryDump(path: store.databasePath, generation: generation)
             } catch {
                 return
             }
@@ -394,6 +441,9 @@ final class ConversationRuntimeBridge {
         for uid: String,
         source: String
     ) throws {
+        // The snapshot is the only fallback when the database cannot be read, so it must carry full
+        // threads. Writing a summary projection into it would turn the fallback itself into an empty shell.
+        guard !conversations.contains(where: { !$0.messagesAreLoaded }) else { return }
         let snapshot = LegacyConversationRecoverySnapshot(
             conversations: conversations,
             exportedAt: Date(),

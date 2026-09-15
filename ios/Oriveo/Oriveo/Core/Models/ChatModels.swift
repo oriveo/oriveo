@@ -855,6 +855,11 @@ struct Conversation: Identifiable, Hashable, Codable {
     var skillId: UUID?
     var metadataUpdatedAt: Date?
     var messageCountOverride: Int?
+    /// Whether `messages` is the complete stored thread. Summary projections that read only the
+    /// conversation row set this to false: an empty `messages` then means "not read", not "deleted",
+    /// so the store writes conversation metadata only and keeps the message rows. Hydrate before
+    /// changing messages. Not part of Codable: recovery snapshots always carry full threads.
+    var messagesAreLoaded: Bool = true
     var deletedAt: Date?
     var isConflictCopy: Bool = false
     var originalConversationId: UUID?

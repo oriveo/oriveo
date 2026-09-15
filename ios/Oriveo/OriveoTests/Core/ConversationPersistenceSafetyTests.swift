@@ -147,8 +147,11 @@ struct ConversationPersistenceSafetyTests {
 
         #expect(restored.title == "Fresh")
         #expect(restored.displayMessageCount == 3)
-        #expect(restored.messages.count == 3)
         #expect(restored.updatedAt == freshUpdatedAt)
+        // Cold-start memory stays a summary; the recovered bodies must actually be written back to the database.
+        #expect(!restored.messagesAreLoaded)
+        let stored = try #require(try bridge.fetchConversationProjection(id: conversationID, uid: uid))
+        #expect(stored.messages.map(\.text) == ["stale", "fresh user", "fresh assistant"])
     }
 
     @Test("Conversation changes no longer trigger a full recovery snapshot write")

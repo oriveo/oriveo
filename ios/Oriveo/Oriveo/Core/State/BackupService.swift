@@ -183,7 +183,7 @@ enum BackupService {
 
         // Cold-start memory is a summary (messages is empty). Export must hydrate
         // full threads from the store, or a backup taken right after launch writes 0 bodies.
-        let conversationsForExport = Self.conversationsHydratedForExport(
+        let conversationsForExport = try Self.conversationsHydratedForExport(
             conversations,
             storeUID: imagePartitionUID
         )
@@ -281,24 +281,34 @@ enum BackupService {
         return PreparedBackupPayload(backupFile: backupFile, imageEntries: imageEntries)
     }
 
-    /// Summary projections keep `messages` empty. When `displayMessageCount` is
-    /// greater than zero, hydrate the authoritative thread from the store.
+    /// Summary projections carry no message bodies, so export hydrates them from the authoritative
+    /// store; conversations already loaded keep their in-memory version (a background write may not
+    /// have landed yet). A failed read throws: silently exporting a backup without bodies is worse
+    /// than a failed export.
     static func conversationsHydratedForExport(
         _ conversations: [Conversation],
         storeUID: String?
-    ) -> [Conversation] {
-        guard let storeUID,
-              conversations.contains(where: { $0.messages.isEmpty && $0.displayMessageCount > 0 })
-        else {
+    ) throws -> [Conversation] {
+        guard conversations.contains(where: { !$0.messagesAreLoaded }) else {
             return conversations
         }
-        let full = (try? ConversationRuntimeBridge().fetchConversationProjection(
+        guard let storeUID else {
+            throw BackupError.noDataToExport
+        }
+        // One read transaction for the whole store is much faster than querying per conversation;
+        // loaded conversations still use their in-memory version below.
+        let full = try ConversationRuntimeBridge().fetchConversationProjection(
             uid: storeUID,
             hydrateFilePayloads: true
-        )) ?? []
-        guard !full.isEmpty else { return conversations }
-        let byID = Dictionary(uniqueKeysWithValues: full.map { ($0.id, $0) })
-        return conversations.map { byID[$0.id] ?? $0 }
+        )
+        let byID = Dictionary(full.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        return conversations.map { conversation in
+            guard !conversation.messagesAreLoaded, let stored = byID[conversation.id] else { return conversation }
+            var hydrated = conversation
+            hydrated.messages = stored.messages
+            hydrated.messagesAreLoaded = true
+            return hydrated
+        }
     }
 
 

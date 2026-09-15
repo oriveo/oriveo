@@ -93,22 +93,11 @@ final class ChatManager {
         appState.conversations
     }
 
-    /// Cold-start memory is a summary projection. Send / continue / retry / edit must
-    /// hydrate the thread first, otherwise `messages.append` followed by upsert deletes
-    /// the stored history, and edit silently fails because the message is not in memory.
-    /// - Returns: true if memory already has bodies, this is an empty draft, or hydrate succeeded.
+    /// Cold-start memory is a summary projection, so the thread must be loaded before its
+    /// messages are read or written (see the AppState method of the same name).
     @discardableResult
     private func hydrateConversationMessagesIfNeeded(id: UUID) -> Bool {
-        guard let index = appState.conversations.firstIndex(where: { $0.id == id }) else { return false }
-        let conversation = appState.conversations[index]
-        if !conversation.messages.isEmpty { return true }
-        guard conversation.displayMessageCount > 0 else { return true }
-        guard let hydrated = try? appState.conversationRuntimeBridge.fetchConversationProjection(
-            id: id,
-            uid: appState.sessionPartitionUID
-        ), !hydrated.messages.isEmpty else { return false }
-        appState.conversations[index] = hydrated
-        return true
+        appState.hydrateConversationMessagesIfNeeded(id: id)
     }
 
     // MARK: - Streaming sessions
@@ -463,7 +452,13 @@ final class ChatManager {
     ) async -> UUID? {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty || !attachments.isEmpty else { return nil }
-        guard hydrateConversationMessagesIfNeeded(id: conversationID) else { return nil }
+        guard conversations.contains(where: { $0.id == conversationID }) else { return nil }
+        guard hydrateConversationMessagesIfNeeded(id: conversationID) else {
+            // The local thread is not available (the database read failed, or the stored thread has
+            // fewer messages than its count says): sending on an empty thread would silently drop context.
+            ToastManager.shared.show(L10n.tr("Loading conversation…", table: .chat))
+            return nil
+        }
         guard let index = conversations.firstIndex(where: { $0.id == conversationID }) else { return nil }
         guard let provider = appState.provider(for: conversations[index].providerID) else {
             ToastManager.shared.show(L10n.tr("The selected provider is no longer available."))
@@ -907,7 +902,10 @@ final class ChatManager {
         updatedForRegen.draftText = ""
         updatedForRegen.isDraft = false
         ConversationListMetadata.apply(to: &updatedForRegen)
-        appState.upsertConversationProjection(updatedForRegen)
+        appState.upsertConversationProjection(
+            updatedForRegen,
+            deletingMessageIDs: Set(removedMessages.map(\.id))
+        )
         appState.persistRecoverySnapshotAfterDestructiveChange()
 
         let requestSnapshot = prepareRequestSnapshot(
@@ -2895,13 +2893,24 @@ final class ChatManager {
 
         let messageText = conversations[convIndex].messages[messageIndex].text
         var updated = conversations[convIndex]
+        let truncatedSegment = Array(updated.messages[messageIndex...])
         updated.messages.removeSubrange(messageIndex...)
+        // Lower the display count with the truncation: a stale count would make the summary projection
+        // after a restart believe there is history that was never loaded.
+        updated.messageCountOverride = updated.messageCountOverride.map {
+            max(updated.messages.count, $0 - truncatedSegment.count)
+        }
         updated.draftText = messageText
         updated.previewText = messageText
 
         updated.updatedAt = ConversationListMetadata.computeActivityAt(for: updated)
         updated.isDraft = updated.messages.isEmpty
-        appState.upsertConversationProjection(updated)
+        // Truncating to zero messages leaves `messages` empty, which the store does not treat as a
+        // deletion, so the removed ids are passed explicitly.
+        appState.upsertConversationProjection(
+            updated,
+            deletingMessageIDs: Set(truncatedSegment.map(\.id))
+        )
         appState.persistRecoverySnapshotAfterDestructiveChange()
 
         return messageText
