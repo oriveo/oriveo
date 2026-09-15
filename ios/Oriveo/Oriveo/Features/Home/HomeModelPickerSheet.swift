@@ -12,14 +12,28 @@ enum ModelPickerContext {
 
 private struct CapabilityCountKey: Equatable {
     let query: String
-    let index: CapabilityIndexKey
+    let index: ModelPickerCapabilityIndexKey
 }
 
-/// The catalog and capability evidence generations an intent badge index was built for; a change
-/// in either rebuilds it.
-private struct CapabilityIndexKey: Equatable {
+/// The catalog and metadata generations an intent badge index was built for; a change in any of
+/// them rebuilds it.
+struct ModelPickerCapabilityIndexKey: Equatable {
+    /// The observable capability evidence signal; it makes the picker recompute.
     let revision: UInt64
+    /// Generation of the shared metadata snapshot. Badges also read model facts (the reasoning
+    /// levels a subscription upstream declares), and merging or withdrawing them changes this
+    /// generation too. Keying on the revision alone would keep filtering chips with a stale index
+    /// whenever a generation change missed the signal, disagreeing with the per-row badges.
+    let metadataGeneration: UInt64
     let catalogGeneration: Int
+
+    static func current(catalogGeneration: Int) -> ModelPickerCapabilityIndexKey {
+        ModelPickerCapabilityIndexKey(
+            revision: CapabilityEvidenceObservationBridge.shared.contentRevision,
+            metadataGeneration: MetadataClient.sharedSnapshotGeneration(),
+            catalogGeneration: catalogGeneration
+        )
+    }
 }
 
 struct ModelPickerSelection {
@@ -115,7 +129,7 @@ struct ModelPickerSheet: View {
     /// `ModelPickerCapabilityFilter.IntentIndex`). Built in `.task` alongside the counts and rebuilt
     /// only when the catalog or capability evidence changes generation, never while typing a search.
     @State private var intentIndex: ModelPickerCapabilityFilter.IntentIndex = [:]
-    @State private var intentIndexKey: CapabilityIndexKey?
+    @State private var intentIndexKey: ModelPickerCapabilityIndexKey?
     /// Incremented whenever `refreshedSections` is replaced; the index's catalog generation.
     @State private var catalogGeneration = 0
     @State private var searchHaystacks: [String: String] = [:]
@@ -294,8 +308,8 @@ struct ModelPickerSheet: View {
         CapabilityEvidenceObservationBridge.shared.contentRevision
     }
 
-    private var currentCapabilityIndexKey: CapabilityIndexKey {
-        CapabilityIndexKey(revision: capabilityEvidenceRevision, catalogGeneration: catalogGeneration)
+    private var currentCapabilityIndexKey: ModelPickerCapabilityIndexKey {
+        .current(catalogGeneration: catalogGeneration)
     }
 
     var body: some View {

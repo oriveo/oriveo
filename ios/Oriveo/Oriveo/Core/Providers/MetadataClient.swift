@@ -2266,6 +2266,9 @@ actor MetadataClient {
                 replaceTable(withdrawn)
                 Self.replaceSharedState(snapshot: withdrawn, etag: storedETag)
                 persistCache(withdrawn, etag: storedETag, boundUID: requestedUID)
+                // Capability decisions such as subscription reasoning levels read model facts; without
+                // the signal an open model picker or chat screen would not recompute.
+                await publishCapabilityEvidenceContent(snapshot: withdrawn, etag: storedETag)
                 return
             }
             guard http.statusCode == 200 else { return }
@@ -2284,6 +2287,7 @@ actor MetadataClient {
             storedModelFactsETag = responseETag
             UserDefaults.standard.set(responseETag, forKey: modelFactsETagKey(for: requestedUID))
             persistCache(merged, etag: storedETag, boundUID: requestedUID)
+            await publishCapabilityEvidenceContent(snapshot: merged, etag: storedETag)
         } catch {
             errorReporter(error, ["operation": "model_facts_fetch"])
         }
