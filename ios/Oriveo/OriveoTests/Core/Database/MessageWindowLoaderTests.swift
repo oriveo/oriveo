@@ -633,6 +633,61 @@ struct MessageWindowLoaderTests {
         #expect(first != finalized)
     }
 
+    @Test("capability execution or unhandled tool call changes on a generating row make WindowSnapshot unequal")
+    func generatingNonCursorFieldsBreakSnapshotEquality() {
+        let user = TestFactories.makeMessage(role: .user, text: "Hi", state: .delivered)
+        var generating = TestFactories.makeMessage(role: .assistant, text: "", state: .generating)
+        let first = MessageWindowLoader.WindowSnapshot(
+            messages: [user, generating],
+            earliestBoundary: nil,
+            latestBoundary: nil,
+            hasMoreAbove: false,
+            hasMoreBelow: false
+        )
+        generating.capabilityExecution = CapabilityExecutionResult(states: ["webSearch": .requested])
+        let requested = MessageWindowLoader.WindowSnapshot(
+            messages: [user, generating],
+            earliestBoundary: nil,
+            latestBoundary: nil,
+            hasMoreAbove: false,
+            hasMoreBelow: false
+        )
+        #expect(first != requested, "Capability results render from the window's messages")
+
+        generating.unhandledToolCalls = [UnhandledToolCall(id: "c1", name: "search", arguments: "{}")]
+        let toolCalls = MessageWindowLoader.WindowSnapshot(
+            messages: [user, generating],
+            earliestBoundary: nil,
+            latestBoundary: nil,
+            hasMoreAbove: false,
+            hasMoreBelow: false
+        )
+        #expect(requested != toolCalls)
+    }
+
+    @Test("token usage and cost changes on a delivered row make WindowSnapshot unequal")
+    func deliveredUsageBreaksSnapshotEquality() {
+        var assistant = TestFactories.makeMessage(role: .assistant, text: "done", state: .delivered)
+        let before = MessageWindowLoader.WindowSnapshot(
+            messages: [assistant],
+            earliestBoundary: nil,
+            latestBoundary: nil,
+            hasMoreAbove: false,
+            hasMoreBelow: false
+        )
+        assistant.inputTokens = 120
+        assistant.outputTokens = 40
+        assistant.estimatedCost = 0.002
+        let after = MessageWindowLoader.WindowSnapshot(
+            messages: [assistant],
+            earliestBoundary: nil,
+            latestBoundary: nil,
+            hasMoreAbove: false,
+            hasMoreBelow: false
+        )
+        #expect(before != after, "Usage and cost written after the text settles must still reach the message metadata")
+    }
+
     @MainActor
     private func makeViewModel(conversationID: UUID, messages: [ChatMessage]) -> ChatCollectionViewModel {
         let metadata = ChatCollectionProviderMetadata.empty

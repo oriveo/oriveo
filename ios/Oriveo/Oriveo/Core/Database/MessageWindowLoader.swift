@@ -389,7 +389,7 @@ final class MessageWindowLoader {
         let hasMoreAbove: Bool
         let hasMoreBelow: Bool
 
-        /// Streaming checkpoints rewrite the generating row's text. The live body already
+        /// Streaming checkpoints only advance the generating row's text. The live body already
         /// arrives through the publisher; those field changes must not punch through
         /// observation → revision → a full page rebuild.
         static func == (lhs: WindowSnapshot, rhs: WindowSnapshot) -> Bool {
@@ -400,25 +400,33 @@ final class MessageWindowLoader {
                 && messagesMatchIgnoringGeneratingCursor(lhs.messages, rhs.messages)
         }
 
+        /// Ignores the checkpoint column only on rows that are generating on both sides. Every other
+        /// field (capability execution, unhandled tool calls, citations, attachments) and every row
+        /// that is not generating is compared in full: capability results, token usage and cost all
+        /// refresh through the window's messages, and swallowing a change leaves them stale.
         nonisolated static func messagesMatchIgnoringGeneratingCursor(
             _ lhs: [ChatMessage],
             _ rhs: [ChatMessage]
         ) -> Bool {
             guard lhs.count == rhs.count else { return false }
             for (left, right) in zip(lhs, rhs) {
-                if left.id != right.id || left.role != right.role || left.state != right.state {
-                    return false
-                }
-                if left.state == .generating {
-                    continue
-                }
-                // A checkpoint re-decodes the whole window. Full Equatable includes
-                // timestamps and attachment sidecars, so it is not a content-change signal.
-                if left.text != right.text {
+                if left.state == .generating, right.state == .generating {
+                    if withoutCheckpointCursor(left) != withoutCheckpointCursor(right) {
+                        return false
+                    }
+                } else if left != right {
                     return false
                 }
             }
             return true
+        }
+
+        /// Matches what a streaming checkpoint writes to the generating row (see
+        /// `ChatManager.flushStreamingTextToMessage`).
+        nonisolated private static func withoutCheckpointCursor(_ message: ChatMessage) -> ChatMessage {
+            var cursorless = message
+            cursorless.text = ""
+            return cursorless
         }
     }
 
