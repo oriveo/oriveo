@@ -3,6 +3,7 @@ package ai.oriveo.community.core.data.repository
 import ai.oriveo.community.core.data.database.LOCAL_PARTITION_ID
 import ai.oriveo.community.core.data.dao.NoteDao
 import ai.oriveo.community.core.data.dao.NoteFolderDao
+import ai.oriveo.community.core.data.entity.NoteSummary
 import ai.oriveo.community.core.data.mapper.NoteFolderMapper.toDomain
 import ai.oriveo.community.core.data.mapper.NoteFolderMapper.toEntity
 import ai.oriveo.community.core.data.mapper.NoteMapper
@@ -41,6 +42,15 @@ class NoteRepository(
     @OptIn(ExperimentalCoroutinesApi::class)
     fun observeActive(): Flow<List<Note>> =
         noteDao.observeActive(accountId).map { list -> list.map { it.toDomain() } }
+
+    /**
+     * Summary for the notes card on the home screen (active count plus the most recent title),
+     * read through the DAO's single-row projection.
+     *
+     * Do not switch it to [observeActive]: that is a `SELECT *` followed by mapping every row to a
+     * domain object, just to take one size and one title.
+     */
+    fun observeActiveSummary(): Flow<NoteSummary> = noteDao.observeActiveSummary(accountId)
 
     @OptIn(ExperimentalCoroutinesApi::class)
     fun observeTrash(): Flow<List<Note>> =

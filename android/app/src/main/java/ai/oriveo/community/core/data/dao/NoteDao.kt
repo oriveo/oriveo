@@ -5,6 +5,7 @@ import androidx.room.Query
 import androidx.room.Transaction
 import androidx.room.Upsert
 import ai.oriveo.community.core.data.entity.NoteEntity
+import ai.oriveo.community.core.data.entity.NoteSummary
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -12,6 +13,25 @@ interface NoteDao {
 
     @Query("SELECT * FROM notes WHERE accountId = :accountId AND deletedAt IS NULL ORDER BY updatedAt DESC")
     fun observeActive(accountId: String): Flow<List<NoteEntity>>
+
+    /**
+     * The notes card on the home screen needs only "how many active notes" and "the most recent
+     * title", so it reads this **single-row projection** rather than [observeActive].
+     *
+     * [observeActive] is a `SELECT *`: note bodies, source JSON and tag JSON are all read back and
+     * mapped to domain objects just to take one size and one title. Once a user has a few hundred
+     * notes that is a full table read plus full deserialisation, repeated every time the notes
+     * table changes.
+     */
+    @Query(
+        """
+        SELECT
+            (SELECT COUNT(*) FROM notes WHERE accountId = :accountId AND deletedAt IS NULL) AS activeCount,
+            (SELECT title FROM notes WHERE accountId = :accountId AND deletedAt IS NULL
+             ORDER BY updatedAt DESC LIMIT 1) AS latestTitle
+        """,
+    )
+    fun observeActiveSummary(accountId: String): Flow<NoteSummary>
 
     @Query("SELECT * FROM notes WHERE accountId = :accountId AND deletedAt IS NOT NULL ORDER BY deletedAt DESC")
     fun observeTrash(accountId: String): Flow<List<NoteEntity>>
