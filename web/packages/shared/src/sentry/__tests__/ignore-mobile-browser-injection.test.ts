@@ -219,6 +219,44 @@ describe('isIgnorableMobileBrowserInjection', () => {
     expect(isIgnorableMobileBrowserInjection(event)).toBe(true);
   });
 
+  it('filters the in-app WebView native bridge error observed on unload', () => {
+    // Observed shape: a super-app WebView tears down the page context on unload while its injected
+    // script is still calling back into its Java bridge. The stack holds no application frame (only
+    // <anonymous> injected-script frames) and the UA carries no brand token.
+    const event: SentryEventLike = {
+      exception: {
+        values: [{
+          type: 'Error',
+          value: 'Java bridge method invocation error',
+          stacktrace: {
+            frames: [
+              { filename: '../../node_modules/@sentry/browser/build/npm/esm/prod/helpers.js' },
+              { filename: '<anonymous>' },
+            ],
+          },
+        }],
+      },
+      tags: { 'browser.name': 'TikTok' },
+    };
+    expect(isIgnorableMobileBrowserInjection(event)).toBe(true);
+  });
+
+  it('KEEPS our own error that merely mentions a bridge, in the same WebView', () => {
+    const event: SentryEventLike = {
+      exception: {
+        values: [{
+          type: 'TypeError',
+          value: 'downloadBridge.open is not a function',
+          stacktrace: {
+            frames: [{ filename: 'app:///_next/static/chunks/download-page.js' }],
+          },
+        }],
+      },
+      tags: { 'browser.name': 'TikTok' },
+    };
+    expect(isIgnorableMobileBrowserInjection(event)).toBe(false);
+  });
+
   it('KEEPS a real TypeError from our own bundle inside the same WebView', () => {
     const event: SentryEventLike = {
       exception: {
