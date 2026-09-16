@@ -665,15 +665,53 @@ class CapabilityPreferenceStore internal constructor(
         merged
     }
 
-    private fun localPayload(): LocalCapabilityPreferencePayload = read()?.let { raw ->
-        runCatching { json.decodeFromString<LocalCapabilityPreferencePayload>(raw) }.getOrElse {
-            runCatching { LocalCapabilityPreferencePayload(records = json.decodeFromString<List<CapabilityPreferenceRecord>>(raw)) }.getOrDefault(LocalCapabilityPreferencePayload())
-        }
-    } ?: LocalCapabilityPreferencePayload()
+    /**
+     * One in-process decode cache for the committed records and one for the drafts, each **keyed on
+     * the raw string** returned by [read] and [readDrafts] (the same shape
+     * [LocalCapabilityCustomFragmentStore] uses).
+     *
+     * Opening the model controls, switching models or sending a message walks `scopeValues` (which
+     * itself reads once more while forward-porting), then `displaySelection`, then `resolved`, and
+     * each of those decodes the same JSON in full; a draft conversation decodes a second payload on
+     * top. None of that data changes within one such event.
+     *
+     * The two caches are separate so that writing a committed record does not throw away the draft
+     * decode. Keying on the raw string rather than invalidating on write is deliberate: several
+     * store instances can be built over the same SharedPreferences, and a flag would only catch
+     * writes made through this one.
+     */
+    private var cachedPayloadRaw: String? = null
+    private var cachedPayload: LocalCapabilityPreferencePayload = LocalCapabilityPreferencePayload()
+    private var hasCachedPayload = false
+    private var cachedDraftsRaw: String? = null
+    private var cachedDrafts: List<CapabilityPreferenceRecord> = emptyList()
+    private var hasCachedDrafts = false
+
+    private fun localPayload(): LocalCapabilityPreferencePayload = synchronized(this) {
+        val raw = read()
+        if (hasCachedPayload && raw == cachedPayloadRaw) return@synchronized cachedPayload
+        val decoded = raw?.let {
+            runCatching { json.decodeFromString<LocalCapabilityPreferencePayload>(it) }.getOrElse { _ ->
+                runCatching { LocalCapabilityPreferencePayload(records = json.decodeFromString<List<CapabilityPreferenceRecord>>(it)) }.getOrDefault(LocalCapabilityPreferencePayload())
+            }
+        } ?: LocalCapabilityPreferencePayload()
+        cachedPayloadRaw = raw
+        cachedPayload = decoded
+        hasCachedPayload = true
+        decoded
+    }
     private fun records(): List<CapabilityPreferenceRecord> = localPayload().records
-    private fun draftRecords(): List<CapabilityPreferenceRecord> = readDrafts()?.let { raw ->
-        runCatching { json.decodeFromString<List<CapabilityPreferenceRecord>>(raw) }.getOrDefault(emptyList())
-    } ?: emptyList()
+    private fun draftRecords(): List<CapabilityPreferenceRecord> = synchronized(this) {
+        val raw = readDrafts()
+        if (hasCachedDrafts && raw == cachedDraftsRaw) return@synchronized cachedDrafts
+        val decoded = raw?.let {
+            runCatching { json.decodeFromString<List<CapabilityPreferenceRecord>>(it) }.getOrDefault(emptyList())
+        }.orEmpty()
+        cachedDraftsRaw = raw
+        cachedDrafts = decoded
+        hasCachedDrafts = true
+        decoded
+    }
     private fun write(payload: LocalCapabilityPreferencePayload) = write(json.encodeToString(payload))
 
     private fun toSyncRecord(record: CapabilityPreferenceRecord): CapabilityPreferenceSyncRecord = CapabilityPreferenceSyncRecord(

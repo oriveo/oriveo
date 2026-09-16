@@ -189,9 +189,33 @@ class GenerationParameterSettingsStore(
         writePayload(json.encodeToString(capped(next)))
     }
 
-    private fun rawRecords(): List<Record> = readPayload()?.let { payload ->
-        runCatching { json.decodeFromString<List<Record>>(payload) }.getOrDefault(emptyList())
-    } ?: emptyList()
+    /**
+     * In-process decode cache, **keyed on the raw string** returned by [readPayload] (the same
+     * shape [LocalCapabilityCustomFragmentStore] uses).
+     *
+     * One discrete event — opening the model controls, switching models, sending a message — walks
+     * `modelDefaults`, `connectionDefaults`, `sessionOverrides` and `resolve` in sequence, each
+     * decoding the same JSON in full, while the data itself cannot change within that event.
+     *
+     * Keyed on the raw string rather than invalidated on write, because a write may come from this
+     * object or from another store built over the same SharedPreferences; a flag would only catch
+     * the first kind, whereas comparing the string covers both.
+     */
+    private var cachedPayload: String? = null
+    private var cachedRecords: List<Record> = emptyList()
+    private var hasCachedRecords = false
+
+    private fun rawRecords(): List<Record> = synchronized(this) {
+        val payload = readPayload()
+        if (hasCachedRecords && payload == cachedPayload) return@synchronized cachedRecords
+        val decoded = payload?.let {
+            runCatching { json.decodeFromString<List<Record>>(it) }.getOrDefault(emptyList())
+        }.orEmpty()
+        cachedPayload = payload
+        cachedRecords = decoded
+        hasCachedRecords = true
+        decoded
+    }
 
     private fun records(): List<Record> = rawRecords()
         .filter { it.updatedAt == null || it.updatedAt >= System.currentTimeMillis() - RECORD_TTL_MILLIS }
