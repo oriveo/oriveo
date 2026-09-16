@@ -68,6 +68,9 @@ open the pull request; CI is the second opinion, not a substitute.
 - Interface strings are translated into sixteen locales. Add a new string to the English source
   first and leave the others to follow; do not hand-translate sixteen files in the same pull
   request.
+- Each locale is written by a native speaker from what the English line means, not word for word.
+  Machine-translated strings are not accepted: a literal rendering of an idiom reads as nonsense
+  in most of the sixteen languages.
 - Match the surrounding code. There is no separate formatting pass to hide behind.
 - Explain *why* in a comment, not *what*. The code already says what.
 
