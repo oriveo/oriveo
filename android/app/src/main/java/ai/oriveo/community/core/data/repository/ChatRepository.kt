@@ -843,8 +843,15 @@ class ChatRepository(
      *
      * The screen reads the streaming text from a flow, not from the row, so this write is only
      * about surviving process death: without it, killing the app mid-answer loses everything that
-     * had already arrived. It is throttled rather than per-token because each write invalidates
-     * the conversation query and re-lays out the list.
+     * had already arrived. It is throttled rather than per-token because each write invalidates the
+     * message window query.
+     *
+     * What actually keeps that invalidation off the screen is
+     * [ai.oriveo.community.core.data.repository.chat.messageWindowSnapshotsEquivalent]: a
+     * checkpoint column never reaches `toDomain()` while the message is still generating. Without
+     * it, a re-emitted window maps all of its rows again — several JSON fields per message — and
+     * hands the list a new set of instances, so every visible cell recomposes along with its
+     * markdown subtree. Check that predicate before changing which columns this method writes.
      */
     suspend fun flushPartialToMessage(
         messageId: String,

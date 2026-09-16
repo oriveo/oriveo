@@ -7,6 +7,7 @@ import ai.oriveo.community.core.data.dao.MessageDao
 import ai.oriveo.community.core.data.database.LOCAL_PARTITION_ID
 import ai.oriveo.community.core.data.entity.MessageEntity
 import ai.oriveo.community.core.model.ChatMessage
+import ai.oriveo.community.core.model.ChatMessageState
 import ai.oriveo.community.core.util.dedupeByNormalizedId
 import ai.oriveo.community.core.util.normalizeMessageIds
 import ai.oriveo.community.core.util.normalizeUuid
@@ -75,7 +76,7 @@ class MessageWindowLoader(
 
         observeJob = scope.launch {
             messageDao.observeLatestMessageWindow(accountId, normalized, windowSize)
-                .distinctUntilChanged()
+                .distinctUntilChanged(::messageWindowSnapshotsEquivalent)
                 .catchCorruptRowRead("observeLatestMessageWindow")
                 .collect { entities ->
                     if (observedConversationId != normalized) return@collect
@@ -290,7 +291,7 @@ class MessageWindowLoader(
                     beforeLimit = beforeLimit,
                     afterLimit = afterLimit,
                 )
-                    .distinctUntilChanged()
+                    .distinctUntilChanged(::messageWindowSnapshotsEquivalent)
                     .catchCorruptRowRead("observeMessageWindowAround")
                     .collect { entities ->
                         if (
@@ -472,6 +473,56 @@ class MessageWindowLoader(
         const val SNAPSHOT_ALIGNMENT_PROBE_LIMIT = 16
     }
 }
+
+/**
+ * Deduplication predicate for window emissions — it sits **after** Room emits and **before**
+ * [toDomain].
+ *
+ * Why a bare `distinctUntilChanged()` is not enough: a long answer checkpoints its partial text
+ * every few thousand characters or every minute, and each of those writes touches `text` and
+ * `reasoningText`. A single changed column makes the whole window (sixty rows) run through
+ * `toDomain()` again, and the message mapper decodes several JSON fields per row — that is where
+ * the cost is. Meanwhile the generating body never reaches the screen from here at all: the UI
+ * trusts the streaming flows instead. Putting the predicate *after* `toDomain()` would therefore
+ * be pointless, because the decoding has already been paid for.
+ *
+ * The rule: those columns are ignored **only while the same message is `Generating` on both
+ * sides**.
+ * - `state` itself takes part in the comparison, so finalising (Generating to Delivered, Failed or
+ *   Interrupted) always passes through and brings the final text into the window; from then on the
+ *   columns compare normally again.
+ * - It is written as "copy the new values onto the old row and see whether the rows are equal",
+ *   not as an allow-list of columns. When a column is added to `messages` later, it automatically
+ *   lands on the side that **passes changes through**, so nothing new can be swallowed silently.
+ * - A checkpoint that writes several columns in one UPDATE is either ignored as a whole or passed
+ *   through as a whole, so there is no half-applied state.
+ */
+internal fun messageWindowSnapshotsEquivalent(
+    old: List<MessageEntity>,
+    new: List<MessageEntity>,
+): Boolean {
+    if (old === new) return true
+    if (old.size != new.size) return false
+    for (index in old.indices) {
+        val previous = old[index]
+        val current = new[index]
+        if (previous == current) continue
+        if (!isGeneratingCheckpointOnlyChange(previous, current)) return false
+    }
+    return true
+}
+
+/** Whether two snapshots of one still-generating message differ only in checkpoint columns. */
+private fun isGeneratingCheckpointOnlyChange(old: MessageEntity, new: MessageEntity): Boolean {
+    if (old.id != new.id) return false
+    if (old.state != GENERATING_STATE || new.state != GENERATING_STATE) return false
+    return old.copy(
+        text = new.text,
+        reasoningText = new.reasoningText,
+    ) == new
+}
+
+private val GENERATING_STATE = ChatMessageState.Generating.name
 
 private fun canonicalizeMessageEntities(entities: List<MessageEntity>): List<MessageEntity> =
     dedupeByNormalizedId(
