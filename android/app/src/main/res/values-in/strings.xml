@@ -2,7 +2,7 @@
     <string name="app_name">Oriveo</string>
     <string name="app_tagline">Semua Model Anda, Satu Aplikasi</string>
     <string name="provider_disclosure_ack_failed">Pemberitahuan penyedia tidak dapat dikonfirmasi. Periksa koneksi Anda dan coba lagi.</string>
-    <string name="tab_home">Rumah</string>
+    <string name="tab_home">Beranda</string>
     <string name="tab_providers">Penyedia</string>
     <string name="tab_settings">Pengaturan</string>
     <string name="back">Kembali</string>

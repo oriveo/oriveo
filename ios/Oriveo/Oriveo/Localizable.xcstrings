@@ -10867,13 +10867,13 @@
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "घर"
+            "value": "होम"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Rumah"
+            "value": "Beranda"
           }
         },
         "ja": {
@@ -10897,19 +10897,19 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Дом"
+            "value": "Главная"
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "บ้าน"
+            "value": "หน้าแรก"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ev"
+            "value": "Ana Sayfa"
           }
         },
         "vi": {

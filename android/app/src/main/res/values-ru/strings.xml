@@ -2,7 +2,7 @@
     <string name="app_name">Oriveo</string>
     <string name="app_tagline">Все ваши модели в одном приложении</string>
     <string name="provider_disclosure_ack_failed">Не удалось подтвердить уведомление провайдера. Проверьте подключение и повторите попытку.</string>
-    <string name="tab_home">Дом</string>
+    <string name="tab_home">Главная</string>
     <string name="tab_providers">Провайдеры</string>
     <string name="tab_settings">Настройки</string>
     <string name="back">Назад</string>

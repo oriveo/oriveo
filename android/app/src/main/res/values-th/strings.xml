@@ -2,7 +2,7 @@
     <string name="app_name">Oriveo</string>
     <string name="app_tagline">โมเดลทั้งหมดของคุณในแอปเดียว</string>
     <string name="provider_disclosure_ack_failed">ยืนยันประกาศของผู้ให้บริการไม่สำเร็จ โปรดตรวจสอบการเชื่อมต่อแล้วลองอีกครั้ง</string>
-    <string name="tab_home">บ้าน</string>
+    <string name="tab_home">หน้าแรก</string>
     <string name="tab_providers">ผู้ให้บริการ</string>
     <string name="tab_settings">การตั้งค่า</string>
     <string name="back">กลับ</string>

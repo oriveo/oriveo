@@ -2,7 +2,7 @@
     <string name="app_name">Oriveo</string>
     <string name="app_tagline">आपके सभी मॉडल, एक ऐप</string>
     <string name="provider_disclosure_ack_failed">प्रदाता की सूचना की पुष्टि नहीं हो सकी। अपना कनेक्शन जांचें और फिर से कोशिश करें।</string>
-    <string name="tab_home">घर</string>
+    <string name="tab_home">होम</string>
     <string name="tab_providers">प्रदाताओं</string>
     <string name="tab_settings">सेटिंग्स</string>
     <string name="back">पीछे</string>

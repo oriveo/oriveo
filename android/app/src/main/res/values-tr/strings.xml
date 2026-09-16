@@ -2,7 +2,7 @@
     <string name="app_name">Oriveo</string>
     <string name="app_tagline">Tüm Modelleriniz, Tek Uygulama</string>
     <string name="provider_disclosure_ack_failed">Sağlayıcı bildirimi doğrulanamadı. Bağlantınızı kontrol edip tekrar deneyin.</string>
-    <string name="tab_home">Ev</string>
+    <string name="tab_home">Ana Sayfa</string>
     <string name="tab_providers">Sağlayıcılar</string>
     <string name="tab_settings">Ayarlar</string>
     <string name="back">Geri</string>
