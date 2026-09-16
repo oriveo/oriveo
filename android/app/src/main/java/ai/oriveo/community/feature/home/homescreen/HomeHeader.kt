@@ -32,7 +32,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -93,7 +95,8 @@ internal val HOME_HEADER_ACTION_ICON_BOX = 18.dp
 internal fun HomeHeader(
     isSearching: Boolean,
     isEditing: Boolean,
-    searchQuery: String,
+    /** The search field's initial text when search opens; after that [HomeSearchBar] owns it and reports changes back through [onSearchQueryChange]. */
+    initialSearchQuery: String,
     hasConversations: Boolean,
     isDark: Boolean,
     onSearchQueryChange: (String) -> Unit,
@@ -114,7 +117,7 @@ internal fun HomeHeader(
 
         if (isSearching) {
             HomeSearchBar(
-                searchQuery = searchQuery,
+                initialSearchQuery = initialSearchQuery,
                 onSearchQueryChange = onSearchQueryChange,
                 onCancel = onToggleSearch,
                 modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 18.dp),
@@ -415,12 +418,19 @@ private fun HeroGreeting(
 /** Search state: a capsule search field (cardFill + 0.8dp cardBorder) with Cancel on the right. */
 @Composable
 private fun HomeSearchBar(
-    searchQuery: String,
+    initialSearchQuery: String,
     onSearchQueryChange: (String) -> Unit,
     onCancel: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val accent = AuroraTheme.accent()
+    // The text is the search field's own state: reading it back from the view model's StateFlow adds
+    // a coroutine dispatch, so typed characters would only echo a frame later. More importantly, that
+    // would punch through the caller's scope and invalidate the whole home screen on every keystroke.
+    // Changes are only reported back to the view model to drive the query. Leaving search removes the
+    // whole search bar from composition, discarding this state in step with the view model's
+    // exitSearch() clearing the query.
+    var searchQuery by rememberSaveable { mutableStateOf(initialSearchQuery) }
     Row(
         modifier = modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
@@ -446,7 +456,10 @@ private fun HomeSearchBar(
             val placeholder = stringResource(R.string.search_conversation_titles_or_content)
             BasicTextField(
                 value = searchQuery,
-                onValueChange = onSearchQueryChange,
+                onValueChange = {
+                    searchQuery = it
+                    onSearchQueryChange(it)
+                },
                 singleLine = true,
                 textStyle = textStyle,
                 cursorBrush = SolidColor(accent),

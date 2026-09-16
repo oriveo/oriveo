@@ -245,12 +245,16 @@ fun HomeScreen(
     val skillsById = remember(homeSkills) { homeSkills.associateBy { it.id } }
 
     val foldersById = remember(folders) { folders.associateBy { it.id } }
-    val searchQuery by viewModel.searchQuery.collectAsStateWithLifecycle()
-    val showingSearchResults = homeShowsSearchResults(viewModel.isSearching, searchQuery)
+    // The search text is not subscribed to in the root scope: it changes on every keystroke and would
+    // invalidate the whole home screen (every LazyColumn item lambda with it). The root only needs
+    // three booleans -- they stay constant while typing, so the scope is not invalidated -- and the
+    // full text stays in the view model and inside the search field itself.
+    val isSearching by viewModel.isSearching.collectAsStateWithLifecycle()
+    val showingSearchResults by viewModel.isSearchActive.collectAsStateWithLifecycle()
     // No "no results" verdict while results lag behind the input (debounce + DB query in flight); matches iOS searchInFlight
-    val searchInFlight = showingSearchResults && searchSnapshot.query != searchQuery
-    val visibleTopLevelConversations = remember(homeSections, pinnedConversations, searchResults, searchQuery, viewModel.isSearching) {
-        if (homeShowsSearchResults(viewModel.isSearching, searchQuery)) {
+    val searchInFlight by viewModel.searchInFlight.collectAsStateWithLifecycle()
+    val visibleTopLevelConversations = remember(homeSections, pinnedConversations, searchResults, showingSearchResults) {
+        if (showingSearchResults) {
             searchResults
         } else {
 
@@ -310,8 +314,8 @@ fun HomeScreen(
 
     val homeMetricsMode = when {
         viewModel.isEditing -> "editing"
-        viewModel.isSearching && searchQuery.isNotBlank() -> "search_results"
-        viewModel.isSearching -> "search"
+        showingSearchResults -> "search_results"
+        isSearching -> "search"
         else -> "default"
     }
     DisposableEffect(metricsStateHolder, homeMetricsMode) {
@@ -348,15 +352,17 @@ fun HomeScreen(
             // ── Masthead: centered brand + trailing capsule, followed by the centered greeting (a search field while searching) ──
             item(key = "header") {
                 HomeHeader(
-                    isSearching = viewModel.isSearching,
+                    isSearching = isSearching,
                     isEditing = viewModel.isEditing,
-                    searchQuery = searchQuery,
+                    // The search field's text is its own local state (see HomeSearchBar); this only
+                    // seeds it when search opens.
+                    initialSearchQuery = viewModel.searchQuery.value,
                     hasConversations = visibleTopLevelConversations.isNotEmpty() || folders.isNotEmpty(),
                     isDark = isDark,
                     onSearchQueryChange = { viewModel.setSearchQuery(it) },
                     onToggleSearch = {
-                        if (viewModel.isSearching) viewModel.exitSearch()
-                        else viewModel.isSearching = true
+                        if (viewModel.isSearching.value) viewModel.exitSearch()
+                        else viewModel.enterSearch()
                     },
                     onExitEdit = { viewModel.exitEditMode() },
                     onCreateFolder = {
@@ -393,7 +399,7 @@ fun HomeScreen(
                                 heroText = viewModel.heroText,
                                 onHeroTextChange = { viewModel.heroText = it },
                                 isSendingFromHero = viewModel.isSendingFromHero,
-                                isSearchActive = viewModel.isSearching,
+                                isSearchActive = isSearching,
                                 onSend = {
                                     viewModel.sendFromHero(
                                         onConversationCreated = { id -> onNavigateToChat(id, null) },
@@ -644,7 +650,7 @@ fun HomeScreen(
                                     isStreaming = conversation.id in streamingConvIds,
                                     isPinned = pinnedIds.contains(conversation.id),
                                     onToggleSelection = { viewModel.toggleSelection(conversation.id) },
-                                    onClick = { onNavigateToChat(conversation.id, searchQuery) },
+                                    onClick = { onNavigateToChat(conversation.id, viewModel.searchQuery.value) },
                                     onRename = { viewModel.conversationToRename = conversation },
                                     onCopy = { viewModel.copyLastMessage(conversation.id, context) },
                                     onShare = { viewModel.shareConversation(conversation.id, context) },
@@ -778,9 +784,7 @@ fun HomeScreen(
                 },
                 onMove = {
                     pendingMoveConversationIds = viewModel.selectedIds.toList()
-                    hasConversationInFolder = allConversations.any {
-                        it.id in viewModel.selectedIds && it.folderID != null
-                    }
+                    hasConversationInFolder = viewModel.selectedConversationsHaveFolder()
                     showMoveSheet = true
                 },
                 onDelete = { viewModel.showBatchDeleteConfirm = true },

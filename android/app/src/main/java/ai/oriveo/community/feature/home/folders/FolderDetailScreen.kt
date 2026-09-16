@@ -72,18 +72,26 @@ fun FolderDetailScreen(
     val screenH = OriveoTheme.layout.screenH
     var searchQuery by remember { mutableStateOf("") }
 
-    val conversations = remember(allConversations, folderID, searchQuery) {
+    val folderConversations = remember(allConversations, folderID) {
         allConversations
             .filter { it.folderID == folderID }
-            .filter {
-                if (searchQuery.isBlank()) {
-                    true
-                } else {
-                    val query = searchQuery.lowercase()
-                    it.title.lowercase().contains(query) || it.previewText.lowercase().contains(query)
-                }
-            }
             .sortedByDescending { it.updatedAt }
+    }
+    // The lowercased haystack is computed once per list, not once per keystroke: the original ran
+    // lowercase() twice over every conversation on every character typed, which is pure repeated
+    // allocation -- titles and preview text do not change between two keystrokes.
+    val searchHaystack = remember(folderConversations) {
+        folderConversations.map { conversation ->
+            conversation to (conversation.title + '\u0000' + conversation.previewText).lowercase()
+        }
+    }
+    val conversations = remember(searchHaystack, searchQuery) {
+        if (searchQuery.isBlank()) {
+            searchHaystack.map { it.first }
+        } else {
+            val query = searchQuery.lowercase()
+            searchHaystack.filter { it.second.contains(query) }.map { it.first }
+        }
     }
 
     // On a fresh ViewModel's first frame, folders is still the stateIn initial emptyList, which does not mean the

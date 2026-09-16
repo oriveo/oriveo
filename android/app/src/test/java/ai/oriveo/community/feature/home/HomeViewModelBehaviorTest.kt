@@ -7,6 +7,7 @@ import ai.oriveo.community.R
 import ai.oriveo.community.core.app.AppPreferencesRepository
 import ai.oriveo.community.core.app.GlobalSnackbarManager
 import ai.oriveo.community.core.app.UiText
+import ai.oriveo.community.core.data.entity.NoteSummary
 import ai.oriveo.community.core.data.repository.ConversationRepository
 import ai.oriveo.community.core.data.repository.ProviderRepository
 import ai.oriveo.community.core.data.repository.SkillRepository
@@ -68,7 +69,7 @@ class HomeViewModelBehaviorTest {
         every { conversationRepository.observeUngroupedEarlierCount(any()) } returns flowOf(0)
         every { conversationRepository.search(any()) } returns flowOf(emptyList())
         every { folderRepository.observeAll() } returns flowOf(emptyList())
-        every { noteRepository.observeActive() } returns flowOf(emptyList())
+        every { noteRepository.observeActiveSummary() } returns flowOf(NoteSummary(0, null))
         coEvery { folderRepository.migrateColorTags() } returns Unit
         coEvery { skillRepository.refreshAll() } returns Unit
         coEvery { appPreferencesRepository.setLastUsedModel(any<String>(), any<String>()) } returns Unit
@@ -296,13 +297,13 @@ class HomeViewModelBehaviorTest {
             chatStreamingManager = chatStreamingManager,
             ioDispatcher = dispatcher,
         )
-        viewModel.isSearching = true
+        viewModel.enterSearch()
         viewModel.setSearchQuery("quota")
 
         viewModel.startEditingWithSelection("conversation-42")
 
         assertTrue(viewModel.isEditing)
-        assertFalse(viewModel.isSearching)
+        assertFalse(viewModel.isSearching.value)
         assertEquals("", viewModel.searchQuery.value)
         assertEquals(setOf("conversation-42"), viewModel.selectedIds)
     }

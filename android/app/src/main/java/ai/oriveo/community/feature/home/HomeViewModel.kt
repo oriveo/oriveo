@@ -50,6 +50,7 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -118,11 +119,18 @@ class HomeViewModel(
 
     /**
      * Data for the home Notes entry card: active note count + latest title, from **one** Room subscription.
+     *
      * Subscribing to observeActive() once for the count and once for the title mapped every change through
      * toDomain twice, on the main thread, and flashed a frame with the count updated but the title not yet.
+     *
+     * It now goes one step further and reads a **single-row projection** from the DAO
+     * (`observeActiveSummary`). The card only needs one number and one title, whereas
+     * `observeActive()` is a `SELECT *` that reads every note's body, source JSON and tag JSON and
+     * deserializes them again. Once there are many notes that is a real full-table read, repeated
+     * on every change to the notes table.
      */
-    private val activeNotesSummary: StateFlow<Pair<Int, String?>> = noteRepository.observeActive()
-        .map { notes -> notes.size to notes.firstOrNull()?.title?.trim() }
+    private val activeNotesSummary: StateFlow<Pair<Int, String?>> = noteRepository.observeActiveSummary()
+        .map { summary -> summary.activeCount to summary.latestTitle?.trim() }
         .flowOn(defaultDispatcher)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0 to null)
 
@@ -132,8 +140,8 @@ class HomeViewModel(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
 
     /**
-     * Home Notes entry card: title of the most recently updated note (observeActive is sorted by updatedAt DESC,
-     * already trimmed). null when there are no notes; "" when there are notes but the latest has an empty title,
+     * Home Notes entry card: title of the most recently updated note (the projection already takes the
+     * first row by updatedAt DESC; it is trimmed here). null when there are no notes; "" when there are notes but the latest has an empty title,
      * which the card renders as "Untitled" (matches iOS NoteText.displayTitle).
      */
     val latestNoteTitle: StateFlow<String?> = activeNotesSummary
@@ -203,6 +211,18 @@ class HomeViewModel(
 
     val searchQuery = MutableStateFlow("")
 
+    private val isSearchingState = MutableStateFlow(false)
+
+    /**
+     * Search mode toggle (whether the search field is expanded).
+     *
+     * A StateFlow rather than a Compose `mutableStateOf`: [isSearchActive] and [searchInFlight]
+     * combine it with [searchQuery] into boolean projections inside the view model, and composing
+     * Compose snapshot state there would need `snapshotFlow`, which depends on the host applying
+     * snapshots and never emits in a plain JVM unit test.
+     */
+    val isSearching: StateFlow<Boolean> = isSearchingState.asStateFlow()
+
     /**
      * Searched and filtered conversation list (non-draft).
      *
@@ -224,6 +244,38 @@ class HomeViewModel(
             }
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), HomeSearchResults("", emptyList()))
+
+    /**
+     * "Searching and the query is non-blank" -- the home root scope subscribes to this boolean, not
+     * to the input text.
+     *
+     * The root used to collect [searchQuery] directly, so **every keystroke invalidated the whole
+     * page** (every LazyColumn item lambda re-ran) although only the search field itself actually
+     * needs the text. The predicate still goes through [homeShowsSearchResults], the same function
+     * the structure test asserts on.
+     */
+    val isSearchActive: StateFlow<Boolean> = combine(isSearchingState, searchQuery) { searching, query ->
+        homeShowsSearchResults(searching, query)
+    }
+        .distinctUntilChanged()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
+    /**
+     * True while results lag behind the current input (250ms debounce + DB query in flight), which the
+     * UI uses to withhold a "no results" verdict (matches iOS searchInFlight).
+     *
+     * Comparing snapshot.query with the current query needs the full text, so the comparison lives
+     * here; the root only ever sees the boolean.
+     */
+    val searchInFlight: StateFlow<Boolean> = combine(
+        isSearchingState,
+        searchQuery,
+        searchResults,
+    ) { searching, query, snapshot ->
+        homeShowsSearchResults(searching, query) && snapshot.query != query
+    }
+        .distinctUntilChanged()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
     val lastUsedModelRef: StateFlow<LastUsedModelRef?> = appPreferencesRepository.lastUsedModelRef
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
@@ -350,6 +402,22 @@ class HomeViewModel(
         selectedIds = selectedIds - conversations.map { it.id }.toSet()
     }
 
+    /**
+     * Whether any selected conversation already sits in a folder -- the "move to folder" sheet uses it
+     * to decide whether to offer "remove from folder".
+     *
+     * This used to live in HomeScreen (`allConversations.any { ... }`), which forced the home root
+     * scope to subscribe to the entire conversation list: any row update (a streaming write back, a
+     * rename) invalidated the whole screen. Down here it is computed once, at the moment "move" is
+     * tapped. It reads [allConversations]'s current value, which is hot while home is visible because
+     * [pinnedConversations] keeps it subscribed. The predicate stays `folderID != null` (a blank string
+     * still counts as being in a folder), character for character the old behaviour.
+     */
+    fun selectedConversationsHaveFolder(): Boolean {
+        val ids = selectedIds
+        return allConversations.value.any { it.id in ids && it.folderID != null }
+    }
+
     fun exitEditMode() {
         isEditing = false
         selectedIds = emptySet()
@@ -357,7 +425,7 @@ class HomeViewModel(
 
     fun startEditingWithSelection(conversationId: String) {
         isEditing = true
-        isSearching = false
+        isSearchingState.value = false
         searchQuery.value = ""
         selectedIds = setOf(conversationId)
     }
@@ -372,14 +440,16 @@ class HomeViewModel(
 
     fun isFolderExpanded(folderId: String): Boolean = expandedFolderIds.contains(folderId)
 
-    var isSearching by mutableStateOf(false)
-
     fun setSearchQuery(query: String) {
         searchQuery.value = query
     }
 
+    fun enterSearch() {
+        isSearchingState.value = true
+    }
+
     fun exitSearch() {
-        isSearching = false
+        isSearchingState.value = false
         searchQuery.value = ""
     }
 
