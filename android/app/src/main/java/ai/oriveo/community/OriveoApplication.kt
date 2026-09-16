@@ -94,6 +94,15 @@ class OriveoApplication : Application() {
             if (!databaseHealthProbe.awaitHealthy()) return@launch
             koinApp.koin.get<ai.oriveo.community.core.data.repair.MessageAttachmentRepairTask>().runIfNeeded()
         }
+        // Builds the conversation full-text index for a database upgraded from v1: the migration
+        // only enqueued the message rowids without reading any bodies, and the CJK bigram
+        // tokenising happens here in batches. Fire and forget, so it never blocks onCreate or the
+        // first frame; until it catches up, only message bodies are unsearchable, while titles and
+        // preview text are unaffected.
+        appScope.launch {
+            if (!databaseHealthProbe.awaitHealthy()) return@launch
+            koinApp.koin.get<ai.oriveo.community.core.data.search.ConversationSearchIndexer>().drain()
+        }
         ProcessLifecycleOwner.get().lifecycle.addObserver(
             koinApp.koin.get<StreamingLifecycleObserver>(),
         )

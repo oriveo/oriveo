@@ -66,6 +66,7 @@ val repositoryModule = module {
             messageDao = get(),
             runInTransaction = { block -> db.withTransaction { block() } },
             continuationDao = get(),
+            searchIndexer = get(),
         )
     }
 

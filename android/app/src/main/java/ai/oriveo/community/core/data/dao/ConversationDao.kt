@@ -17,11 +17,22 @@ interface ConversationDao {
     @Query("SELECT COUNT(*) FROM conversations WHERE accountId = :accountId")
     fun observeCount(accountId: String): Flow<Int>
 
+    /**
+     * The conversation list, with message counts.
+     *
+     * The count comes from `conversation_message_counts`, a small trigger-maintained table read by
+     * primary key, rather than a correlated `COUNT(*) FROM messages`. What changes is the
+     * *subscription surface*: a correlated subquery hangs this Flow off invalidation of the whole
+     * `messages` table, so a streaming checkpoint that only rewrites `text` made SQLite re-run a
+     * full count for the entire list.
+     */
     @Query(
         """
         SELECT c.*,
-               (SELECT COUNT(*) FROM messages m WHERE m.accountId = c.accountId AND m.conversationId = c.id) AS messageCount
+               IFNULL(mc.messageCount, 0) AS messageCount
         FROM conversations c
+        LEFT JOIN conversation_message_counts mc
+          ON mc.accountId = c.accountId AND mc.conversationId = c.id
         WHERE c.accountId = :accountId
         ORDER BY c.updatedAt DESC
         """,
@@ -31,8 +42,10 @@ interface ConversationDao {
     @Query(
         """
         SELECT c.*,
-               (SELECT COUNT(*) FROM messages m WHERE m.accountId = c.accountId AND m.conversationId = c.id) AS messageCount
+               IFNULL(mc.messageCount, 0) AS messageCount
         FROM conversations c
+        LEFT JOIN conversation_message_counts mc
+          ON mc.accountId = c.accountId AND mc.conversationId = c.id
         WHERE c.accountId = :accountId
           AND c.folderID IS NULL
           AND c.updatedAt >= :recentStartMillis
@@ -47,8 +60,10 @@ interface ConversationDao {
     @Query(
         """
         SELECT c.*,
-               (SELECT COUNT(*) FROM messages m WHERE m.accountId = c.accountId AND m.conversationId = c.id) AS messageCount
+               IFNULL(mc.messageCount, 0) AS messageCount
         FROM conversations c
+        LEFT JOIN conversation_message_counts mc
+          ON mc.accountId = c.accountId AND mc.conversationId = c.id
         WHERE c.accountId = :accountId
           AND c.folderID IS NULL
           AND c.updatedAt < :recentStartMillis
@@ -66,12 +81,14 @@ interface ConversationDao {
         """
         SELECT COUNT(*)
         FROM conversations c
+        LEFT JOIN conversation_message_counts mc
+          ON mc.accountId = c.accountId AND mc.conversationId = c.id
         WHERE c.accountId = :accountId
           AND c.folderID IS NULL
           AND c.updatedAt < :recentStartMillis
           AND (
             c.isDraft = 0
-            OR EXISTS (SELECT 1 FROM messages m WHERE m.accountId = c.accountId AND m.conversationId = c.id)
+            OR IFNULL(mc.messageCount, 0) > 0
           )
         """,
     )
@@ -103,27 +120,92 @@ interface ConversationDao {
     @Query("SELECT * FROM conversations WHERE accountId = :accountId ORDER BY updatedAt DESC")
     suspend fun getAll(accountId: String): List<ConversationEntity>
 
+    /**
+     * Search, with message counts.
+     *
+     * Message bodies are matched through `conversation_search_index` (FTS4, CJK tokenised as
+     * bigrams) instead of scanning `messages.text` with `LIKE '%q%'`. In `EXPLAIN QUERY PLAN` the
+     * `LIST SUBQUERY` reads `SCAN … VIRTUAL TABLE INDEX` (the inverted index) and `messages` no
+     * longer appears in the plan at all.
+     *
+     * Titles and preview text deliberately keep their substring `LIKE`: `conversations` has few
+     * rows with short fields so scanning it is not the bottleneck, and a title search is expected
+     * to match substrings — token matching would be a regression there.
+     *
+     * `ftsQuery` is built by [ai.oriveo.community.core.data.search.ConversationFtsQuery], which
+     * drops FTS syntax characters from the user's input as separators, so a malformed MATCH
+     * expression cannot be constructed.
+     *
+     * LIMIT 200: search results have no paging semantics (the one consumer lays them all out at
+     * once), so a user with thousands of conversations typing one common character would otherwise
+     * pull every match back and render it in a single frame. 200 is already far past what anyone
+     * scrolls through by eye; beyond that it is memory and first-frame cost for nothing.
+     */
     @Query(
         """
-        SELECT DISTINCT conversations.* FROM conversations
-        LEFT JOIN messages ON conversations.accountId = messages.accountId
-          AND conversations.id = messages.conversationId
-        WHERE conversations.accountId = :accountId
+        SELECT c.*,
+               IFNULL(mc.messageCount, 0) AS messageCount
+        FROM conversations c
+        LEFT JOIN conversation_message_counts mc
+          ON mc.accountId = c.accountId AND mc.conversationId = c.id
+        WHERE c.accountId = :accountId
           AND (
-            conversations.title LIKE '%' || :query || '%'
-            OR conversations.previewText LIKE '%' || :query || '%'
-            OR messages.text LIKE '%' || :query || '%'
+            c.title LIKE '%' || :query || '%'
+            OR c.previewText LIKE '%' || :query || '%'
+            OR c.id IN (
+              SELECT f.conversationId FROM conversation_search_index f
+              WHERE conversation_search_index MATCH :ftsQuery AND f.accountId = :accountId
+            )
           )
-        ORDER BY conversations.updatedAt DESC
+        ORDER BY c.updatedAt DESC
+        LIMIT 200
         """
     )
-    fun search(query: String, accountId: String): Flow<List<ConversationEntity>>
+    fun searchWithCount(query: String, ftsQuery: String, accountId: String): Flow<List<ConversationWithCount>>
 
+    /**
+     * Search when the input holds nothing indexable (pure punctuation or symbols): titles and
+     * preview text only.
+     *
+     * This is a separate query rather than passing an empty MATCH parameter, because an empty
+     * string handed to FTS4 raises a syntax error.
+     */
+    @Query(
+        """
+        SELECT c.*,
+               IFNULL(mc.messageCount, 0) AS messageCount
+        FROM conversations c
+        LEFT JOIN conversation_message_counts mc
+          ON mc.accountId = c.accountId AND mc.conversationId = c.id
+        WHERE c.accountId = :accountId
+          AND (
+            c.title LIKE '%' || :query || '%'
+            OR c.previewText LIKE '%' || :query || '%'
+          )
+        ORDER BY c.updatedAt DESC
+        LIMIT 200
+        """
+    )
+    fun searchMetadataWithCount(query: String, accountId: String): Flow<List<ConversationWithCount>>
+
+    /**
+     * Search on the **degraded path used while the index is still being built**: message bodies are
+     * still matched with `LIKE '%q%'` over `messages.text`.
+     *
+     * Used only while `conversation_search_dirty` is not yet empty, which is the window right after
+     * an existing database is upgraded. During that window, not finding message bodies at all would
+     * read as "search is broken", which is much worse than search being slow, so this slow path has
+     * to stay;
+     * [ai.oriveo.community.core.data.repository.conversation.ConversationSearchService] switches to
+     * it automatically. The count still comes from the join, never from a correlated subquery.
+     */
     @Query(
         """
         SELECT DISTINCT c.*,
-               (SELECT COUNT(*) FROM messages m WHERE m.accountId = c.accountId AND m.conversationId = c.id) AS messageCount
+               IFNULL(mc.messageCount, 0) AS messageCount
         FROM conversations c
+        LEFT JOIN conversation_message_counts mc
+          ON mc.accountId = c.accountId AND mc.conversationId = c.id
         LEFT JOIN messages ON c.accountId = messages.accountId AND c.id = messages.conversationId
         WHERE c.accountId = :accountId
           AND (
@@ -135,7 +217,7 @@ interface ConversationDao {
         LIMIT 200
         """
     )
-    fun searchWithCount(query: String, accountId: String): Flow<List<ConversationWithCount>>
+    fun searchPendingIndexWithCount(query: String, accountId: String): Flow<List<ConversationWithCount>>
 
     @Upsert
     suspend fun upsert(entity: ConversationEntity)
@@ -206,8 +288,10 @@ interface ConversationDao {
         """
         SELECT EXISTS(
             SELECT 1 FROM conversations c
+            LEFT JOIN conversation_message_counts mc
+              ON mc.accountId = c.accountId AND mc.conversationId = c.id
             WHERE c.accountId = :accountId
-              AND (SELECT COUNT(*) FROM messages m WHERE m.accountId = c.accountId AND m.conversationId = c.id) > 0
+              AND IFNULL(mc.messageCount, 0) > 0
             LIMIT 1
         )
         """,

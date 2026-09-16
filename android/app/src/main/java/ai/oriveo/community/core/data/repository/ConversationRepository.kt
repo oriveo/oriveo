@@ -46,8 +46,9 @@ class ConversationRepository(
     private val runInTransaction: suspend (suspend () -> Unit) -> Unit = { block -> block() },
     private val onAssistantDelivered: suspend (String) -> Unit = {},
     private val continuationDao: MessageContinuationDao? = null,
+    private val searchIndexer: ai.oriveo.community.core.data.search.ConversationSearchIndexer? = null,
 ) {
-    private val searchService = ConversationSearchService(conversationDao)
+    private val searchService = ConversationSearchService(conversationDao, searchIndexer)
     private val usageAnalytics = ConversationUsageAnalytics(messageDao)
     private val pinnedNoteIdsJson =
         kotlinx.serialization.json.Json { ignoreUnknownKeys = true; coerceInputValues = true }

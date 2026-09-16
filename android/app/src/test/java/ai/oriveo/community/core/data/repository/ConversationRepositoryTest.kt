@@ -577,7 +577,7 @@ class ConversationRepositoryTest {
             folderID = "FOLDER-1",
             title = "AI Discussion"
         )
-        every { conversationDao.searchWithCount("AI", testAccountId) } returns flowOf(
+        every { conversationDao.searchWithCount("AI", any(), testAccountId) } returns flowOf(
             listOf(ConversationWithCount(entity = entityInFolder, messageCount = 0))
         )
 
@@ -594,7 +594,7 @@ class ConversationRepositoryTest {
             folderID = "FOLDER-2",
             title = "Budget Planning"
         )
-        every { conversationDao.searchWithCount("Budget", testAccountId) } returns flowOf(
+        every { conversationDao.searchWithCount("Budget", any(), testAccountId) } returns flowOf(
             listOf(ConversationWithCount(entity = entityInFolder, messageCount = 0))
         )
 
@@ -607,7 +607,7 @@ class ConversationRepositoryTest {
     @Test
     fun `TC-8-1-3 search result has null folderID for unfiled conversations`() = runTest {
         val entity = makeConversationEntity(id = "CONV-NO-FOLDER")
-        every { conversationDao.searchWithCount("Test", testAccountId) } returns flowOf(
+        every { conversationDao.searchWithCount("Test", any(), testAccountId) } returns flowOf(
             listOf(ConversationWithCount(entity = entity, messageCount = 0))
         )
 
