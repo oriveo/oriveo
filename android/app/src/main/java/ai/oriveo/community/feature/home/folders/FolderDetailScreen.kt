@@ -62,7 +62,12 @@ fun FolderDetailScreen(
     @Suppress("NAME_SHADOWING")
     val folderID = normalizeUuid(folderID)
     val folders by viewModel.folders.collectAsStateWithLifecycle()
-    val allConversations by viewModel.allConversations.collectAsStateWithLifecycle()
+    // Subscribe only to this folder's slice: the view model has already grouped and sorted it by
+    // updatedAt descending off the main thread (see HomeViewModel.conversationsByFolder). Reading the
+    // whole allConversations list and filtering every conversation of the account here would be
+    // main-thread work, and would also tie this screen's scope to the entire list so that any row
+    // update re-runs it.
+    val conversationsByFolder by viewModel.conversationsByFolder.collectAsStateWithLifecycle()
     val providers by viewModel.providers.collectAsStateWithLifecycle()
     val streamingConvIds by viewModel.streamingConversationIds.collectAsStateWithLifecycle()
     val contentLoaded by viewModel.initialContentLoaded.collectAsStateWithLifecycle()
@@ -72,10 +77,8 @@ fun FolderDetailScreen(
     val screenH = OriveoTheme.layout.screenH
     var searchQuery by remember { mutableStateOf("") }
 
-    val folderConversations = remember(allConversations, folderID) {
-        allConversations
-            .filter { it.folderID == folderID }
-            .sortedByDescending { it.updatedAt }
+    val folderConversations = remember(conversationsByFolder, folderID) {
+        conversationsByFolder[folderID].orEmpty()
     }
     // The lowercased haystack is computed once per list, not once per keystroke: the original ran
     // lowercase() twice over every conversation on every character typed, which is pure repeated
@@ -168,7 +171,14 @@ fun FolderDetailScreen(
                     )
                 }
             } else {
-                items(conversations, key = { it.id }) { conversation ->
+                // contentType lets the list rebuilt after a search filter reuse the composition and
+                // measure caches of same-type items; otherwise every filter pass takes the first-frame
+                // path again for an "unknown" type (the home sections already all declare one).
+                items(
+                    items = conversations,
+                    key = { it.id },
+                    contentType = { "folder_detail_conversation" },
+                ) { conversation ->
                     Box(modifier = Modifier.padding(horizontal = screenH)) {
                         FolderDetailConversationRow(
                             conversation = conversation,

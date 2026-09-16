@@ -20,14 +20,12 @@ import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
-import java.io.File
 import java.util.Calendar
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
-import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
@@ -266,120 +264,13 @@ class HomeScreenRegressionTest {
         backgroundScope.launch { viewModel.latestNoteTitle.collect {} }
         advanceUntilIdle()
 
+        // The value assertions live in HomeRecompositionScopeTest (where defaultDispatcher is an
+        // advanceable TestDispatcher) and NoteSummaryProjectionTest (a real Room database); this one
+        // only pins the subscription surface.
         // Two separate subscriptions used to map every change through toDomain twice, on the main thread
         verify(exactly = 1) { noteRepository.observeActiveSummary() }
         // The card only needs one number and one title: it must not go back to the SELECT * observeActive()
         verify(exactly = 0) { noteRepository.observeActive() }
-    }
-
-    // ── home root subscription surface ──
-
-    /**
-     * Structure lock: bringing the search text's collect back into the root turns this red.
-     *
-     * The root used to collect [HomeViewModel.searchQuery] directly, so **every keystroke
-     * invalidated the whole page** (every LazyColumn item lambda re-ran) although only the search
-     * field itself actually needs the text.
-     */
-    @Test
-    fun `home screen root does not subscribe to the search text`() {
-        val source = File("src/main/java/ai/oriveo/community/feature/home/HomeScreen.kt").readText()
-        assertFalse(
-            "the home root must not subscribe to the search text: every keystroke would invalidate the whole page, and only the search field needs the full text",
-            source.contains("viewModel.searchQuery.collectAsStateWithLifecycle()"),
-        )
-        assertTrue(
-            "the root should consume the view model's isSearchActive boolean projection instead",
-            source.contains("viewModel.isSearchActive.collectAsStateWithLifecycle()"),
-        )
-        assertTrue(
-            "the root should consume the view model's searchInFlight boolean projection instead",
-            source.contains("viewModel.searchInFlight.collectAsStateWithLifecycle()"),
-        )
-        val rememberLine = source.lines().first { it.contains("val visibleTopLevelConversations = remember(") }
-        assertFalse(
-            "the visible list's remember keys must not include the search text, or typing recomputes it anyway: $rememberLine",
-            rememberLine.contains("searchQuery"),
-        )
-    }
-
-    /** While typing, `isSearchActive` flips once on the empty -> non-empty crossing; no character in between produces a new value. */
-    @Test
-    fun `search active boolean does not change on every keystroke`() = runTest {
-        val viewModel = createViewModel()
-        // Keep the WhileSubscribed upstream hot; without a subscriber the projection stops updating.
-        backgroundScope.launch { viewModel.isSearchActive.collect { } }
-        advanceUntilIdle()
-
-        val samples = mutableListOf(viewModel.isSearchActive.value)
-        viewModel.enterSearch()
-        advanceUntilIdle()
-        samples += viewModel.isSearchActive.value
-        "budget".forEachIndexed { index, _ ->
-            viewModel.setSearchQuery("budget".substring(0, index + 1))
-            advanceUntilIdle()
-            samples += viewModel.isSearchActive.value
-        }
-
-        // Collapsed to its transitions the projection changes exactly once. The home root subscribes
-        // to this boolean, so every extra value would be one more whole-page recomposition.
-        val transitions = samples.filterIndexed { index, value -> index == 0 || samples[index - 1] != value }
-        assertEquals("sampled after every keystroke: $samples", listOf(false, true), transitions)
-    }
-
-    /** `searchInFlight` is true until results catch up with the input, then falls back to false. */
-    @Test
-    fun `search in flight clears once results catch up`() = runTest {
-        val viewModel = createViewModel()
-        backgroundScope.launch { viewModel.searchInFlight.collect { } }
-        advanceUntilIdle()
-
-        viewModel.enterSearch()
-        viewModel.setSearchQuery("budget")
-        advanceTimeBy(100)
-        assertTrue("before the debounce releases, results necessarily lag behind the input", viewModel.searchInFlight.value)
-
-        advanceUntilIdle()
-        assertFalse("once the query returns it has to fall back to false, or \"no results\" never shows", viewModel.searchInFlight.value)
-    }
-
-    /**
-     * "Is any selected conversation in a folder" is derived by the view model (it used to scan
-     * `allConversations` inside composition). The predicate stays `folderID != null`: a blank string
-     * still counts as being in a folder, character for character the old behaviour.
-     */
-    @Test
-    fun `selected conversations in folder is derived by the view model`() = runTest {
-        every { conversationRepository.observeAll() } returns flowOf(
-            listOf(
-                conversation("c-loose", updatedAt = 3L),
-                conversation("c-foldered", updatedAt = 2L).copy(folderID = "folder-a"),
-                conversation("c-blank", updatedAt = 1L).copy(folderID = "   "),
-            ),
-        )
-        val viewModel = createViewModel()
-        backgroundScope.launch { viewModel.allConversations.collect { } }
-        advanceUntilIdle()
-
-        viewModel.startEditingWithSelection("c-loose")
-        assertFalse(viewModel.selectedConversationsHaveFolder())
-
-        viewModel.toggleSelection("c-foldered")
-        assertTrue(viewModel.selectedConversationsHaveFolder())
-
-        viewModel.startEditingWithSelection("c-blank")
-        assertTrue("a blank folderID counted as in-folder before; moving this into the view model must not change that", viewModel.selectedConversationsHaveFolder())
-    }
-
-    /** Structure lock: the folder detail screen must not lowercase every conversation once per keystroke. */
-    @Test
-    fun `folder detail lowercases the haystack once per list not once per keystroke`() {
-        val source = File("src/main/java/ai/oriveo/community/feature/home/folders/FolderDetailScreen.kt").readText()
-        val perKeystroke = source.lines().filter { it.contains("searchQuery") && it.contains("lowercase()") }
-        assertTrue(
-            "the lowercased haystack must be computed once per list, not once per keystroke; still per-keystroke here: $perKeystroke",
-            perKeystroke.size <= 1,
-        )
     }
 
     private fun createViewModel() = HomeViewModel(

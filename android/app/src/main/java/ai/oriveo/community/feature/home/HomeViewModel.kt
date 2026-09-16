@@ -77,6 +77,10 @@ class HomeViewModel(
     private val skillRepository: SkillRepository,
     private val chatStreamingManager: ChatStreamingManager,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
+    // Every list derivation (filter / sort / groupBy / associateBy) runs on this dispatcher. It is
+    // injectable rather than a hardcoded Dispatchers.Default because once flowOn moves work onto a
+    // real background thread, a unit test's TestScheduler no longer controls it and
+    // advanceUntilIdle() stops waiting for it -- tests turn falsely green or flaky.
     private val defaultDispatcher: CoroutineDispatcher = Dispatchers.Default,
     private val generationParameterSettingsStore: GenerationParameterSettingsStore? = null,
     private val capabilityPreferenceStore: ai.oriveo.community.core.model.CapabilityPreferenceStore? = null,
@@ -151,7 +155,28 @@ class HomeViewModel(
     val allConversations: StateFlow<List<Conversation>> = conversationRepository.observeAll()
         .onEach { conversationsLoaded.value = true }
         .map { items -> items.filter { !it.isDraft || it.messageCount > 0 } }
+        // stateIn collects on viewModelScope (Main.immediate), so without this the filter above runs
+        // on the main thread. Any change to any conversation row re-runs it over the whole table,
+        // and on a low-end device a modest number of conversations is enough to cost a frame.
+        .flowOn(defaultDispatcher)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    /**
+     * Folder id -> that folder's conversations (updatedAt descending), for the home folder sections
+     * and the folder detail screen.
+     *
+     * This used to be `remember(allConversations) { groupConversationsByFolder(...) }` inside
+     * HomeScreen: a **main-thread computation during composition** (a filter + groupBy + per-group
+     * sort over the whole table) re-run on every change to allConversations. It also made the home
+     * scope subscribe to the entire conversation list, so any single row update (a streaming write
+     * back, a rename) invalidated the whole home screen and re-ran every LazyColumn item. Computing
+     * it here moves the work off the main thread and narrows what the UI observes to "the grouping
+     * actually changed".
+     */
+    val conversationsByFolder: StateFlow<Map<String, List<Conversation>>> = allConversations
+        .map { conversations -> groupConversationsByFolder(conversations) }
+        .flowOn(defaultDispatcher)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
 
     val conflictCopies: StateFlow<List<Conversation>> = MutableStateFlow(emptyList())
 
@@ -168,7 +193,10 @@ class HomeViewModel(
             val byId = all.associateBy { it.id }
             ids.mapNotNull { byId[it] }
         }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+    }
+        // associateBy builds an O(N) HashMap over the whole table and re-runs on every change to allConversations
+        .flowOn(defaultDispatcher)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val homeSections: StateFlow<List<HomeConversationSection>> = combine(
         // The list and the count must come from the same window start: read separately at the moment the start changes, they would combine into a mismatched remainder
@@ -198,7 +226,9 @@ class HomeViewModel(
         )
     }
 
-        .flowOn(Dispatchers.Default)
+        // The DB observer pushes at a high rate while streaming; the filter and
+        // buildHomeConversationSections (grouping and sorting) stay off the main thread.
+        .flowOn(defaultDispatcher)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val initialContentLoaded: StateFlow<Boolean> = combine(
@@ -410,7 +440,7 @@ class HomeViewModel(
      * scope to subscribe to the entire conversation list: any row update (a streaming write back, a
      * rename) invalidated the whole screen. Down here it is computed once, at the moment "move" is
      * tapped. It reads [allConversations]'s current value, which is hot while home is visible because
-     * [pinnedConversations] keeps it subscribed. The predicate stays `folderID != null` (a blank string
+     * [conversationsByFolder] and [pinnedConversations] keep it subscribed. The predicate stays `folderID != null` (a blank string
      * still counts as being in a folder), character for character the old behaviour.
      */
     fun selectedConversationsHaveFolder(): Boolean {

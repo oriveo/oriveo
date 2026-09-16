@@ -229,7 +229,6 @@ fun HomeScreen(
     val latestNoteTitle by viewModel.latestNoteTitle.collectAsStateWithLifecycle()
     val providers by viewModel.providers.collectAsStateWithLifecycle()
     val folders by viewModel.folders.collectAsStateWithLifecycle()
-    val allConversations by viewModel.allConversations.collectAsStateWithLifecycle()
     val searchSnapshot by viewModel.searchResults.collectAsStateWithLifecycle()
     val searchResults = searchSnapshot.items
     val homeSections by viewModel.homeSections.collectAsStateWithLifecycle()
@@ -283,21 +282,16 @@ fun HomeScreen(
     var folderToRename by remember { mutableStateOf<Folder?>(null) }
     var folderToDelete by remember { mutableStateOf<Folder?>(null) }
     var colorPickerFolder by remember { mutableStateOf<Folder?>(null) }
-    var isHomeResumed by remember {
-        mutableStateOf(lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED))
-    }
-    var reviewPolicyRevision by remember { mutableStateOf(0) }
-    val conversationsByFolder = remember(allConversations) {
-        groupConversationsByFolder(allConversations)
-    }
+    // The grouping is computed by the view model off the main thread (see
+    // HomeViewModel.conversationsByFolder). Writing remember(allConversations) { ... } here instead
+    // would subscribe the home scope to the entire conversation list, so any row change would
+    // invalidate the whole HomeScreen and re-run every LazyColumn item lambda.
+    val conversationsByFolder by viewModel.conversationsByFolder.collectAsStateWithLifecycle()
 
     androidx.compose.runtime.DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
-                isHomeResumed = true
                 viewModel.refreshActiveProviderIfNeeded()
-            } else if (event == Lifecycle.Event.ON_PAUSE) {
-                isHomeResumed = false
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
