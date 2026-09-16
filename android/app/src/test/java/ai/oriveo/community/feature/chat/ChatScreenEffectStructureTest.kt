@@ -170,7 +170,12 @@ class ChatScreenEffectStructureTest {
         // "arrived from a note" and "this message is already saved as a note" show the entry;
         // canReplaceCurrentNote only gates the returnToNoteId argument, never the callback itself
         // (gating the callback would cut off the saved-note-link-only path and diverge from iOS/Web).
-        assertTrue(contentSource.contains("onReplaceSelectionInCurrentNote = { message, text, noteId ->"))
+        // This lambda captures the ViewModel (unstable), so it has to be remembered before being
+        // passed to ChatMessagesList; otherwise a single root recomposition swaps in a fresh
+        // intervalContent and recomposes the whole list. The shape changed, the "unconditional,
+        // three arguments" contract itself did not.
+        assertTrue(contentSource.contains("{ message: ChatMessage, text: String, noteId: String? ->"))
+        assertTrue(contentSource.contains("onReplaceSelectionInCurrentNote = onReplaceSelectionInCurrentNote,"))
         assertTrue(contentSource.contains("returnToNoteId = if (canReplaceCurrentNote) viewModel.noteCoordinator.returnToNoteId else null"))
         assertTrue(!contentSource.contains("onReplaceSelectionInCurrentNote = if (canReplaceCurrentNote)"))
         assertTrue(!contentSource.contains("onReplaceSelectionInCurrentNote = viewModel.noteCoordinator.returnToNoteId?.let"))

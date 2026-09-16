@@ -1,5 +1,6 @@
 package ai.oriveo.community.feature.chat.composer
 
+import androidx.annotation.StringRes
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
@@ -87,6 +88,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
@@ -153,7 +155,22 @@ import org.koin.compose.koinInject
 )
 @Composable
 internal fun EnhancedComposer(
-    inputText: String,
+    /**
+     * Reads the composer text **lazily**: only the composable that calls it subscribes to text
+     * changes.
+     *
+     * Deliberately not `inputText: String` -- a changing parameter makes this function non
+     * skippable, so its thousand-plus line body (capability resolution, attachment counting, a pile
+     * of `stringResource` lookups) would run on every keystroke. [ComposerTextField] is now the
+     * only caller, which confines per-keystroke recomposition to that one composable.
+     */
+    inputTextProvider: () -> String,
+    /**
+     * Whether the text is non-blank. The body only needs this boolean (send button enablement,
+     * draft highlight); the caller derives it with `derivedStateOf`, so it flips only when the text
+     * crosses between empty and non-empty.
+     */
+    hasComposerText: Boolean,
     onInputChange: (String) -> Unit,
     pendingAttachments: List<Attachment>,
     pendingQuoteContext: QuoteContext?,
@@ -568,7 +585,7 @@ internal fun EnhancedComposer(
         supportsFileAttachment -> Icons.Outlined.Description
         else -> Icons.Filled.Add
     }
-    val hasComposerContent = inputText.trim().isNotEmpty() || pendingAttachments.isNotEmpty()
+    val hasComposerContent = hasComposerText || pendingAttachments.isNotEmpty()
     val dormantCapabilityOwners = modelControlRuntimeIdentity?.let { identity ->
         setOf("web", "reasoning").filterTo(linkedSetOf()) { owner ->
             ModelControlRejectionCache.isRejectedByAnySource(identity, owner)
@@ -980,44 +997,18 @@ internal fun EnhancedComposer(
                             )
                         }
 
-                        BasicTextField(
-                            value = inputText,
+                        ComposerTextField(
+                            textProvider = inputTextProvider,
                             onValueChange = onInputChange,
-                            modifier = Modifier
-                                .weight(1f)
-                                .focusRequester(composerFocusRequester)
-                                .onFocusChanged { composerFocused = it.isFocused },
                             enabled = controlsEnabled,
-                            minLines = 1,
-                            maxLines = 5,
-                            textStyle = OriveoTheme.typography.body.copy(
-                                color = if (controlsEnabled) colors.textPrimary else colors.textTertiary,
-                            ),
-                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Default),
-                            cursorBrush = SolidColor(colors.primary),
-                            decorationBox = { innerTextField ->
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .heightIn(min = 44.dp)
-                                        .padding(vertical = 8.dp),
-                                    contentAlignment = Alignment.CenterStart,
-                                ) {
-                                    if (inputText.isBlank()) {
-                                        val placeholderText = when {
-                                            isGenerating -> stringResource(R.string.ai_is_answering)
-                                            isReadOnly -> stringResource(R.string.chat_read_only_placeholder)
-                                            else -> stringResource(R.string.type_a_message)
-                                        }
-                                        Text(
-                                            text = placeholderText,
-                                            style = OriveoTheme.typography.body,
-                                            color = if (controlsEnabled) colors.textSecondary else colors.textTertiary,
-                                        )
-                                    }
-                                    innerTextField()
-                                }
+                            placeholderRes = when {
+                                isGenerating -> R.string.ai_is_answering
+                                isReadOnly -> R.string.chat_read_only_placeholder
+                                else -> R.string.type_a_message
                             },
+                            focusRequester = composerFocusRequester,
+                            onFocusChanged = { composerFocused = it },
+                            modifier = Modifier.weight(1f),
                         )
                     }
 
@@ -1053,6 +1044,66 @@ internal fun EnhancedComposer(
             }
         }
     }
+}
+
+/**
+ * The text field itself. **The only composable that recomposes per keystroke.**
+ *
+ * [textProvider] is a lazy read: the text lives in the local snapshot state of `ChatComposerHost`
+ * further up the call chain, and calling the provider here is what creates the subscription. So a
+ * keystroke invalidates this function and nothing else -- not `EnhancedComposer` (a thousand plus
+ * lines of capability resolution and `stringResource` lookups), not `ChatComposerHost`, not
+ * `ChatScreenContent`, and not `ChatMessagesList`. Taking `value: String` as a parameter here would
+ * void that protection entirely (a changed parameter makes the caller non skippable).
+ */
+@Composable
+private fun ComposerTextField(
+    textProvider: () -> String,
+    onValueChange: (String) -> Unit,
+    enabled: Boolean,
+    @StringRes placeholderRes: Int,
+    focusRequester: FocusRequester,
+    onFocusChanged: (Boolean) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = OriveoTheme.colors
+    val text = textProvider()
+    BasicTextField(
+        value = text,
+        onValueChange = onValueChange,
+        modifier = modifier
+            // UI tests locate the field by resource-id rather than by coordinates, which break as
+            // soon as the screen resolution changes.
+            .testTag("chat_composer_input")
+            .focusRequester(focusRequester)
+            .onFocusChanged { onFocusChanged(it.isFocused) },
+        enabled = enabled,
+        minLines = 1,
+        maxLines = 5,
+        textStyle = OriveoTheme.typography.body.copy(
+            color = if (enabled) colors.textPrimary else colors.textTertiary,
+        ),
+        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Default),
+        cursorBrush = SolidColor(colors.primary),
+        decorationBox = { innerTextField ->
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 44.dp)
+                    .padding(vertical = 8.dp),
+                contentAlignment = Alignment.CenterStart,
+            ) {
+                if (text.isBlank()) {
+                    Text(
+                        text = stringResource(placeholderRes),
+                        style = OriveoTheme.typography.body,
+                        color = if (enabled) colors.textSecondary else colors.textTertiary,
+                    )
+                }
+                innerTextField()
+            }
+        },
+    )
 }
 
 private const val DRAFT_GLOW_ALPHA_RATIO = 0.705f

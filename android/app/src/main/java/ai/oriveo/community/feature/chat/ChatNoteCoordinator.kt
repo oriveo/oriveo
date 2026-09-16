@@ -86,7 +86,13 @@ class ChatNoteCoordinator(
     conversation: StateFlow<ConversationRenderState>,
     private val activeConversationId: StateFlow<String?>,
     private val currentConversation: () -> Conversation?,
-    private val inputTextProvider: () -> String,
+    /**
+     * Composer text flow. Deliberately not `() -> String` + `snapshotFlow`: the composer text has
+     * been moved out of snapshot state and down into the composer's local state (see
+     * [ChatViewModel.inputText]), and `snapshotFlow` over a non-snapshot field never fires again,
+     * so related notes would silently stop updating.
+     */
+    private val inputText: StateFlow<String>,
     savedStateHandle: SavedStateHandle,
     private val recallDispatcher: CoroutineDispatcher = Dispatchers.Default,
 ) {
@@ -171,7 +177,7 @@ class ChatNoteCoordinator(
 
     /** Related older notes surfaced above the input field (at most 2, excluding ones already attached or dismissed; debounced 250ms). */
     val relatedNotes: StateFlow<List<Note>> = combine(
-        snapshotFlow { inputTextProvider() }.debounce(250),
+        inputText.debounce(250),
         activeNotes,
         attachedNotes.map { list -> list.map { normalizeUuid(it.id) }.toSet() }.distinctUntilChanged(),
         dismissedRelatedNoteIds,

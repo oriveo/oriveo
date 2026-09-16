@@ -222,7 +222,7 @@ class ChatViewModel(
         generationParameterDraftSessionId = { generationParameterDraftSessionId },
         onQuoteConsumed = quoteCoordinator::consume,
         onComposerConsumed = { conversationId ->
-            inputText = ""
+            draftCoordinator.pushText("")
             pendingAttachments = emptyList()
             draftCoordinator.cancelPendingFlush()
             conversationRepository.updateDraft(conversationId, "")
@@ -351,7 +351,20 @@ class ChatViewModel(
         .reasoningActiveFlow(activeConversationId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
-    var inputText: String by mutableStateOf("")
+    /**
+     * Outbound truth for the composer text (sending, drafts and note recall all read it). It is
+     * **not** Compose snapshot state -- the per-keystroke text is held by `ChatComposerHost` in
+     * local state, so writing here invalidates no composable. The state itself and the one-shot
+     * push-back protocol live in [ChatDraftCoordinator], which already owns the draft debounce.
+     */
+    var inputText: String
+        get() = draftCoordinator.text
+        set(value) {
+            draftCoordinator.text = value
+        }
+
+    /** One-shot "push this text back into the composer" request; `ChatComposerHost` is the only reader, the root scope never subscribes. */
+    val composerTextRestore: ChatComposerTextRestore get() = draftCoordinator.restore
 
     /** Single pending Ask snapshot; a later selection replaces it. */
     val pendingQuoteContext get() = quoteCoordinator.pending
@@ -506,7 +519,7 @@ class ChatViewModel(
         conversation = conversation,
         activeConversationId = activeConversationId,
         currentConversation = { currentConversation },
-        inputTextProvider = { inputText },
+        inputText = draftCoordinator.textFlow,
         savedStateHandle = savedStateHandle,
     )
     init {
@@ -583,10 +596,10 @@ class ChatViewModel(
             conversation.collect { conversationState ->
                 val conv = conversationState.conversation
                 if (conv?.id != lastDraftConversationId) {
-                    inputText = conv?.draftText.orEmpty()
+                    draftCoordinator.pushText(conv?.draftText.orEmpty())
                     lastDraftConversationId = conv?.id
                 } else if (conv == null && inputText.isNotEmpty()) {
-                    inputText = ""
+                    draftCoordinator.pushText("")
                 }
             }
         }
@@ -782,13 +795,11 @@ class ChatViewModel(
         pendingPinUserMessageId = null
     }
 
-    fun onInputTextChanged(text: String) {
-        draftCoordinator.onInputTextChanged(
-            text = text,
-            conversationId = activeConversationId.value,
-            updateInput = { inputText = it },
-        )
-    }
+    /** Typing callback: only updates the outbound truth and queues the draft debounce, never bumps the restore token (see the coordinator). */
+    fun onInputTextChanged(text: String) = draftCoordinator.onInputTextChanged(text, activeConversationId.value)
+
+    /** External push of text back into the composer (inline message edit and the like): reaches the composer and still goes through the draft debounce. */
+    fun restoreInputText(text: String) = draftCoordinator.restoreText(text, activeConversationId.value)
 
     fun flushDraft() {
         draftCoordinator.flushDraft(activeConversationId.value, inputText)
@@ -856,7 +867,7 @@ class ChatViewModel(
 
         activeConversationId.value = null
         bootstrapConversation = null
-        inputText = ""
+        draftCoordinator.pushText("")
         pendingAttachments = emptyList()
         pendingPinUserMessageId = null
         pinRequested = false

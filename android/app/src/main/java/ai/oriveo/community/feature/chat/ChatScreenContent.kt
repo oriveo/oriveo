@@ -136,7 +136,6 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
@@ -153,11 +152,13 @@ import ai.oriveo.community.core.data.remote.MetadataClient
 import ai.oriveo.community.core.model.AIModel
 import ai.oriveo.community.core.model.Attachment
 import ai.oriveo.community.core.model.AttachmentKind
+import ai.oriveo.community.core.model.ChatMessage
 import ai.oriveo.community.core.model.Conversation
 import ai.oriveo.community.core.model.ModelCapability
 import ai.oriveo.community.core.model.Provider
 import ai.oriveo.community.core.model.ProviderConnectionState
 import ai.oriveo.community.core.model.ProviderKind
+import ai.oriveo.community.core.model.QuoteSelectionContent
 import ai.oriveo.community.core.model.ReasoningMode
 import ai.oriveo.community.core.model.RelayKind
 import ai.oriveo.community.core.model.resolveProviderLogoKind
@@ -177,13 +178,12 @@ import ai.oriveo.community.feature.chat.components.ConversationBootstrapState
 import ai.oriveo.community.feature.chat.components.ConversationIssueBanner
 import ai.oriveo.community.feature.chat.components.ConversationStalledState
 import ai.oriveo.community.feature.chat.components.EmptyChatState
-import ai.oriveo.community.feature.chat.components.ExpensiveModelHintBanner
 import ai.oriveo.community.feature.chat.composer.NotePreviewSheet
 import ai.oriveo.community.feature.chat.crosscheck.CrosscheckSheet
 import ai.oriveo.community.feature.chat.components.ProviderDisclosureSheet
 import ai.oriveo.community.feature.chat.components.SkillStarterView
 
-import ai.oriveo.community.feature.chat.composer.EnhancedComposer
+import ai.oriveo.community.feature.chat.composer.ChatComposerHost
 import ai.oriveo.community.feature.modelpicker.ModelPickerContext
 import ai.oriveo.community.feature.modelpicker.ModelPickerSheet
 import ai.oriveo.community.ui.component.CostPill
@@ -279,8 +279,11 @@ internal fun ChatScreenContent(
     val chatLoadState = viewModel.chatLoadState
     val currentSkill by viewModel.currentSkill.collectAsStateWithLifecycle()
 
-    val attachedNotes by viewModel.noteCoordinator.attachedNotes.collectAsStateWithLifecycle()
-    val relatedNotes by viewModel.noteCoordinator.relatedNotes.collectAsStateWithLifecycle()
+    // attachedNotes / relatedNotes are deliberately not collected here: relatedNotes is a
+    // `debounce(250)` derivative of the composer text, so subscribing to it in the root scope
+    // pushes the whole page (every visible cell of ChatMessagesList included) into the
+    // recomposition queue every 250ms. Both are only consumed by the composer, and now live in
+    // [ChatComposerHost].
     val savedNoteLinksByMessage by viewModel.noteCoordinator.savedNoteLinksByMessage.collectAsStateWithLifecycle()
     val canReplaceCurrentNote by viewModel.noteCoordinator.canReplaceCurrentNote.collectAsStateWithLifecycle()
     val listState = rememberLazyListState()
@@ -311,6 +314,51 @@ internal fun ChatScreenContent(
         }
     }
     val handleScreenLeaving by rememberUpdatedState(newValue = { viewModel.handleChatScreenLeaving() })
+    val flushDraft by rememberUpdatedState(newValue = { viewModel.flushDraft() })
+
+    // Callbacks for ChatMessagesList: a lambda that captures an **unstable** reference such as the
+    // ViewModel or the Context has to be remembered by hand. The Compose compiler only memoizes
+    // lambdas whose captures are all stable; otherwise a single root recomposition hands the
+    // LazyColumn fresh instances, `rememberLazyListItemProviderLambda` swaps in a new
+    // intervalContent, and **every visible cell recomposes along with its markdown subtree**.
+    // Callbacks that merely forward a parameter (onNavigateToXxx) are exempt: function types are
+    // themselves stable, so the compiler already memoized them.
+    val onCopyMessage = remember(viewModel, context) { { message: ChatMessage -> viewModel.copyMessage(message, context) } }
+    val onEditMessage = remember(viewModel) {
+        { message: ChatMessage ->
+            val restoredText = viewModel.editMessageInline(message.id)
+            if (restoredText != null) {
+                viewModel.restoreInputText(restoredText)
+            }
+        }
+    }
+    val onRegenerateMessage = remember(viewModel) { viewModel::regenerateMessage }
+    val onContinueMessage = remember(viewModel) { viewModel::continueMessage }
+    val onRetryMessage = remember(viewModel) { viewModel::retryMessage }
+    val onRetryWithoutLocalCustomFields = remember(viewModel) { viewModel::retryWithoutLocalCustomFields }
+    val onSwitchModel = remember(viewModel) { { viewModel.showModelSwitcher = true } }
+    val onShareMessage = remember(viewModel, context) { { message: ChatMessage -> viewModel.shareMessage(message, context) } }
+    val onSaveMessageAsNote = remember(viewModel) { { message: ChatMessage -> viewModel.noteCoordinator.saveMessageAsNote(message.id) } }
+    val onSaveSelectionAsNote = remember(viewModel) {
+        { message: ChatMessage, text: String -> viewModel.noteCoordinator.saveSelectionAsNote(message.id, text) }
+    }
+    val onReplaceSelectionInCurrentNote = remember(viewModel) {
+        { message: ChatMessage, text: String, noteId: String? ->
+            viewModel.noteCoordinator.replaceCurrentNoteSelection(message.id, text, noteId)
+        }
+    }
+    val onCrosscheckMessage = remember(viewModel) { { message: ChatMessage -> viewModel.noteCoordinator.openCrosscheck(message.id) } }
+    val onAskSelection = remember(viewModel, context, resources) {
+        { message: ChatMessage, selection: QuoteSelectionContent ->
+            if (!viewModel.askAboutSelection(message, selection)) {
+                android.widget.Toast.makeText(
+                    context,
+                    resources.getString(R.string.chat_selection_too_long),
+                    android.widget.Toast.LENGTH_SHORT,
+                ).show()
+            }
+        }
+    }
 
     val lastDeliveredAssistant = remember(messages) {
         messages.lastOrNull { it.role == ai.oriveo.community.core.model.ChatRole.Assistant && it.state == ai.oriveo.community.core.model.ChatMessageState.Delivered }
@@ -484,6 +532,11 @@ internal fun ChatScreenContent(
 
     ChatScreenLeavingEffect(handleScreenLeaving)
 
+    // Pressing Home or backgrounding the app does not dispose this composition, so onDispose never
+    // fires and the draft's 350ms debounce is lost if the process is then reclaimed. ON_STOP
+    // persists it once on its own.
+    ChatDraftLifecycleFlushEffect(flushDraft = flushDraft)
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -631,35 +684,22 @@ internal fun ChatScreenContent(
                         onPointerDownChange = { isPointerDown = it },
                         isGenerating = viewModel.isGenerating,
                         isRateLimitError = ::isRateLimitError,
-                        onCopy = { message -> viewModel.copyMessage(message, context) },
-                        onEdit = { message ->
-                            val restoredText = viewModel.editMessageInline(message.id)
-                            if (restoredText != null) {
-                                viewModel.onInputTextChanged(restoredText)
-                            }
-                        },
-                        onRegenerate = viewModel::regenerateMessage,
-                        onContinue = viewModel::continueMessage,
-                        onRetry = viewModel::retryMessage,
-                        onRetryWithoutLocalCustomFields = viewModel::retryWithoutLocalCustomFields,
-                        onSwitchModel = { viewModel.showModelSwitcher = true },
-                        onShare = { message -> viewModel.shareMessage(message, context) },
-                        onSaveAsNote = { message -> viewModel.noteCoordinator.saveMessageAsNote(message.id) },
-                        onSaveCodeAsNote = { message, code -> viewModel.noteCoordinator.saveSelectionAsNote(message.id, code) },
-                        onSaveSelectionAsNote = { message, text -> viewModel.noteCoordinator.saveSelectionAsNote(message.id, text) },
-                        onAskSelection = { message, selection ->
-                            if (!viewModel.askAboutSelection(message, selection)) {
-                                android.widget.Toast.makeText(
-                                    context,
-                                    resources.getString(R.string.chat_selection_too_long),
-                                    android.widget.Toast.LENGTH_SHORT,
-                                ).show()
-                            }
-                        },
-                        onReplaceSelectionInCurrentNote = { message, text, noteId ->
-                            viewModel.noteCoordinator.replaceCurrentNoteSelection(message.id, text, noteId)
-                        },
-                        onCrosscheck = { message -> viewModel.noteCoordinator.openCrosscheck(message.id) },
+                        onCopy = onCopyMessage,
+                        onEdit = onEditMessage,
+                        onRegenerate = onRegenerateMessage,
+                        onContinue = onContinueMessage,
+                        onRetry = onRetryMessage,
+                        onRetryWithoutLocalCustomFields = onRetryWithoutLocalCustomFields,
+                        onSwitchModel = onSwitchModel,
+                        onShare = onShareMessage,
+                        onSaveAsNote = onSaveMessageAsNote,
+                        // Saving a code block and saving a selection are the same production path
+                        // (saveSelectionAsNote), so they share one instance.
+                        onSaveCodeAsNote = onSaveSelectionAsNote,
+                        onSaveSelectionAsNote = onSaveSelectionAsNote,
+                        onAskSelection = onAskSelection,
+                        onReplaceSelectionInCurrentNote = onReplaceSelectionInCurrentNote,
+                        onCrosscheck = onCrosscheckMessage,
                         savedNoteLinksByMessage = savedNoteLinksByMessage,
                         returnToNoteId = if (canReplaceCurrentNote) viewModel.noteCoordinator.returnToNoteId else null,
                         onOpenSavedNote = onNavigateToNoteDetail,
@@ -674,63 +714,26 @@ internal fun ChatScreenContent(
 
         }
 
-        Column(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .onSizeChanged { composerOverlayHeightPx = it.height },
-        ) {
-            viewModel.expensiveModelHint?.let { hint ->
-                ExpensiveModelHintBanner(
-                    hint = hint,
-                    onDismiss = { viewModel.dismissExpensiveModelHint() },
-                )
-            }
-
-            EnhancedComposer(
-                inputText = viewModel.inputText,
-                onInputChange = viewModel::onInputTextChanged,
-                pendingAttachments = viewModel.pendingAttachments,
-                pendingQuoteContext = viewModel.pendingQuoteContext,
-                onRemoveQuote = viewModel::removePendingQuote,
-                onAttachmentRemove = viewModel::removeAttachment,
-                currentModel = viewModel.conversationState.model,
-                generationParameterProvider = activeProvider,
-                generationParameterConversationId = conversationId ?: viewModel.generationParameterDraftSessionId,
-                isExistingConversation = conversationId != null,
-                conversationSkillId = conversation?.skillId,
-                modelControlsFinalTransport = viewModel.modelControlsFinalTransport(),
-                supportsImageAttachment = viewModel.supportsImage(),
-                supportsVideoAttachment = viewModel.supportsVideo(),
-                supportsFileAttachment = viewModel.supportsFile(),
-                onSelectReasoningMode = viewModel::selectReasoningMode,
-                onSelectModel = viewModel::selectModel,
-                onOpenModelSwitcher = { viewModel.showModelSwitcher = true },
-                showAttachmentSizeLimitDialog = viewModel.showAttachmentSizeLimitDialog,
-                onDismissAttachmentSizeLimitDialog = viewModel::dismissAttachmentSizeLimitDialog,
-                onProcessImageUri = { uri -> viewModel.processImageUri(context, uri) },
-                onProcessFileUri = { uri -> viewModel.processFileUri(context, uri) },
-                onSendClick = viewModel::sendMessage,
-                onStopGeneration = viewModel::stopGeneration,
-                providerKind = activeProvider?.kind,
-                onNavigateToProviderSetup = onNavigateToProviderSetup,
-                onNavigateToProviderDetail = onNavigateToProviderDetail,
-
-                onNavigateToSkillEdit = onNavigateToSkillEdit,
-                isGenerating = viewModel.isGenerating,
-
-                isReadOnly = !viewModel.canSendMessages || chatLoadState.blocksSending(),
-                transparentChrome = messagesEmpty,
-                hazeState = hazeState,
-                trueTransparentBlurEnabled = trueTransparentBlurEnabled,
-                attachedNotes = attachedNotes,
-                relatedNotes = relatedNotes,
-                onAttachNote = viewModel.noteCoordinator::attachNoteToContext,
-                onDismissRelatedNote = viewModel.noteCoordinator::dismissRelatedNote,
-                onDetachNote = viewModel.noteCoordinator::detachNoteFromContext,
-                onPreviewNote = viewModel.noteCoordinator::showNotePreview,
-            )
-        }
+        // Composer overlay -- mirrors the iOS safeAreaInset layout so messages scroll underneath
+        // the composer for the transparent effect. The composer text, related notes, attachments
+        // and other per-keystroke/high-frequency state all live inside the host: reading them in
+        // the root scope means recomposing the entire page (and with it the whole message list) on
+        // every character. See the KDoc on ChatComposerHost.
+        ChatComposerHost(
+            viewModel = viewModel,
+            activeProvider = activeProvider,
+            conversationId = conversationId,
+            conversationSkillId = conversation?.skillId,
+            sendingBlockedByLoadState = chatLoadState.blocksSending(),
+            transparentChrome = messagesEmpty,
+            hazeState = hazeState,
+            trueTransparentBlurEnabled = trueTransparentBlurEnabled,
+            onOverlayHeightChange = { composerOverlayHeightPx = it },
+            onNavigateToProviderSetup = onNavigateToProviderSetup,
+            onNavigateToProviderDetail = onNavigateToProviderDetail,
+            onNavigateToSkillEdit = onNavigateToSkillEdit,
+            modifier = Modifier.align(Alignment.BottomCenter),
+        )
         }
     }
 

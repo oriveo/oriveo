@@ -9,23 +9,79 @@ import ai.oriveo.community.core.model.GenerationParameterSettingsStore
 import ai.oriveo.community.core.model.CapabilityPreferenceStore
 import ai.oriveo.community.core.model.LocalCapabilityCustomFragmentStore
 import ai.oriveo.community.core.streaming.ChatStreamingManager
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
+/**
+ * A one-shot "push this text back into the composer" request.
+ *
+ * [token] is bumped on every external write, [text] is what should replace the field. The composer
+ * only overwrites its local text when the token changes, so typing is never interrupted by it, and
+ * pushing the same text twice in a row (two clears, say) still takes effect twice.
+ */
+data class ChatComposerTextRestore(val token: Long, val text: String)
+
+/**
+ * Sole owner of the composer text and of the debounced draft write.
+ *
+ * The text is deliberately **not** Compose snapshot state. It used to be a `mutableStateOf` on
+ * `ChatViewModel` that `ChatScreenContent` read in its root function body, so every keystroke
+ * invalidated the whole screen. Once `ChatMessagesList` recomposes with it, foundation's
+ * `rememberLazyListItemProviderLambda` swaps in a fresh `LazyListIntervalContent` and **every
+ * visible cell, markdown subtree included, recomposes**.
+ *
+ * Per-keystroke text now lives in `ChatComposerHost`'s local state. What stays here is the
+ * outbound truth (sending, draft persistence and note recall all read it) plus the one-shot
+ * push-back channel [restore].
+ */
 internal class ChatDraftCoordinator(
     private val viewModelScope: CoroutineScope,
     private val conversationRepository: ConversationRepository,
 ) {
     private var draftFlushJob: Job? = null
 
-    fun onInputTextChanged(
-        text: String,
-        conversationId: String?,
-        updateInput: (String) -> Unit,
-    ) {
-        updateInput(text)
+    /** Input source for note recall. `snapshotFlow` cannot observe a non-snapshot field, so related notes subscribe to this flow. */
+    val textFlow = MutableStateFlow("")
+
+    /** Outbound truth for the composer text. Writing it only updates [textFlow]; the snapshot system is never touched. */
+    var text: String
+        get() = textFlow.value
+        set(value) {
+            textFlow.value = value
+        }
+
+    /** One-shot push-back request; only external writes bump the token, typing never does. */
+    var restore: ChatComposerTextRestore by mutableStateOf(ChatComposerTextRestore(0L, ""))
+        private set
+
+    /** External write into the composer (draft hydration, clear after send, new chat): update the truth and bump the token. */
+    fun pushText(text: String) {
+        this.text = text
+        restore = ChatComposerTextRestore(restore.token + 1, text)
+    }
+
+    /** External restore (inline message edit): push to the composer and still go through the draft debounce. */
+    fun restoreText(text: String, conversationId: String?) {
+        pushText(text)
+        onInputTextChanged(text, conversationId)
+    }
+
+    /**
+     * Typing: update the outbound truth and queue a draft write 350ms out, replacing the pending one.
+     *
+     * It deliberately does **not** bump [restore]'s token -- doing so would push the text straight
+     * back into the composer on every keystroke. This used to call back into `updateInput` to write
+     * a `mutableStateOf`, which wrote into the snapshot system once per keystroke and dragged the
+     * whole chat screen into the recomposition queue.
+     */
+    fun onInputTextChanged(text: String, conversationId: String?) {
+        this.text = text
         if (conversationId == null) return
         draftFlushJob?.cancel()
         draftFlushJob = viewModelScope.launch {

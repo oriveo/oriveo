@@ -12,6 +12,9 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
@@ -389,6 +392,32 @@ internal fun ChatScreenLeavingEffect(
         onDispose {
             handleScreenLeaving()
         }
+    }
+}
+
+/**
+ * Persists the draft on ON_STOP.
+ *
+ * **`onDispose` cannot catch this**: pressing Home or backgrounding the app does not dispose the
+ * chat screen's composition, it only goes through `ON_STOP`. The draft is debounced by 350ms, so if
+ * the user types the last character, leaves immediately and the process is then reclaimed, that
+ * text is never persisted. [ChatScreenLeavingEffect] only covers actually leaving the screen.
+ *
+ * The flush is idempotent (writing the same text again is a no-op UPDATE), so pairing it with
+ * onDispose is safe rather than conflicting.
+ */
+@Composable
+internal fun ChatDraftLifecycleFlushEffect(flushDraft: () -> Unit) {
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val latestFlushDraft by rememberUpdatedState(flushDraft)
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_STOP) {
+                latestFlushDraft()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 }
 
