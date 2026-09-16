@@ -601,13 +601,13 @@
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "اسأل أي شيء، أو ابدأ بالكتابة."
+            "value": "يمكنك السؤال عن أي شيء، أو البدء بالكتابة مباشرة."
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Fragen Sie etwas oder fangen Sie einfach an zu tippen."
+            "value": "Frag, was du willst – oder tipp einfach los."
           }
         },
         "en": {
@@ -619,79 +619,79 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pregunta cualquier cosa o simplemente empieza a escribir."
+            "value": "Pregunta lo que quieras o empieza a escribir."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Demandez n'importe quoi ou commencez simplement à taper."
+            "value": "Demande ce que tu veux, ou commence à écrire."
           }
         },
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "कुछ भी पूछें, या बस टाइप करना शुरू करें।"
+            "value": "कुछ भी पूछिए, या सीधे लिखना शुरू कीजिए।"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tanyakan apa saja, atau mulailah mengetik."
+            "value": "Tanya apa saja, atau langsung ketik."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "何か質問するか、単に入力を開始してください。"
+            "value": "何でも気軽に入力してね"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "무엇이든 물어보거나 입력을 시작해 보세요."
+            "value": "무엇이든 편하게 입력하세요"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pergunte qualquer coisa ou simplesmente comece a digitar."
+            "value": "Pergunte o que quiser ou comece a digitar."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Спросите что-нибудь или просто начните печатать."
+            "value": "Спрашивай что угодно или просто начни писать."
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "ถามอะไรก็ได้หรือเพียงแค่เริ่มพิมพ์"
+            "value": "ถามอะไรก็ได้ พิมพ์มาได้เลย"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "İstediğiniz şeyi sorun veya yazmaya başlayın."
+            "value": "Ne istersen sor ya da yazmaya başla."
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hỏi bất cứ điều gì, hoặc chỉ cần bắt đầu gõ."
+            "value": "Hỏi gì cũng được, hoặc cứ gõ luôn."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "问点什么，或者直接开始输入。"
+            "value": "问什么都行，直接打字就好。"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "問點什麼，或者直接開始輸入。"
+            "value": "想問什麼都可以，直接打字就好。"
           }
         }
       }
@@ -14086,13 +14086,13 @@
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "ماذا يمكننا أن نكتشف معا؟"
+            "value": "ما الذي نحلّه معًا؟"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Was können wir gemeinsam herausfinden?"
+            "value": "Was klären wir zusammen?"
           }
         },
         "en": {
@@ -14104,79 +14104,79 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "¿Qué podemos resolver juntos?"
+            "value": "¿A qué le damos vueltas?"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Que pouvons-nous découvrir ensemble ?"
+            "value": "On démêle quoi ensemble ?"
           }
         },
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "हम मिलकर क्या पता लगा सकते हैं?"
+            "value": "मिलकर क्या सुलझाएँ?"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Apa yang bisa kita pikirkan bersama?"
+            "value": "Mau pecahkan apa bareng?"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "一緒に何を見つけられるでしょうか？"
+            "value": "一緒に何を考えようか？"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "우리는 무엇을 함께 알아낼 수 있나요?"
+            "value": "함께 풀어 볼 문제가 있나요?"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "O que podemos descobrir juntos?"
+            "value": "O que vamos destrinchar?"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Что мы можем выяснить вместе?"
+            "value": "Над чем подумаем вместе?"
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "เราจะคิดออกอะไรร่วมกัน?"
+            "value": "มีอะไรให้ช่วยกันคิดไหม?"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Birlikte neyi çözebiliriz?"
+            "value": "Birlikte neyi çözelim?"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Chúng ta có thể cùng nhau tìm ra điều gì?"
+            "value": "Có gì cần cùng gỡ rối?"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "想一起弄清楚什么？"
+            "value": "想一起理清什么？"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "想一起弄清楚什麼？"
+            "value": "想一起釐清什麼？"
           }
         }
       }
@@ -14187,13 +14187,13 @@
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "ما الذي يجب أن نستكشفه؟"
+            "value": "ماذا نستكشف اليوم؟"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Was sollten wir erforschen?"
+            "value": "Woran tüfteln wir heute?"
           }
         },
         "en": {
@@ -14205,79 +14205,79 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "¿Qué debemos explorar?"
+            "value": "¿Qué exploramos hoy?"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Que devrions-nous explorer ?"
+            "value": "On explore quoi ?"
           }
         },
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "हमें क्या तलाशना चाहिए?"
+            "value": "आज क्या जानने का मन है?"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Apa yang harus kita jelajahi?"
+            "value": "Mau bahas apa hari ini?"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "何を探求すべきでしょうか?"
+            "value": "今日は何を調べよう？"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "우리는 무엇을 탐구해야 할까요?"
+            "value": "오늘은 무엇을 알아볼까요?"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "O que devemos explorar?"
+            "value": "O que vamos explorar hoje?"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Что нам следует изучить?"
+            "value": "Что сегодня разберём?"
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "เราควรสำรวจอะไรบ้าง?"
+            "value": "วันนี้อยากรู้เรื่องอะไร?"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Neyi keşfetmeliyiz?"
+            "value": "Bugün neye kafa yoralım?"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Chúng ta nên khám phá những gì?"
+            "value": "Hôm nay tìm hiểu gì đây?"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "今天想探索点什么？"
+            "value": "今天想琢磨点什么？"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "今天想探索點什麼？"
+            "value": "今天想研究點什麼？"
           }
         }
       }
@@ -14294,7 +14294,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Was hast du im Kopf?"
+            "value": "Was beschäftigt dich?"
           }
         },
         "en": {
@@ -14312,55 +14312,55 @@
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Qu'est-ce qui préoccupe votre esprit?"
+            "value": "À quoi tu penses ?"
           }
         },
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "आपके दिमाग में क्या है?"
+            "value": "मन में क्या चल रहा है?"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Apa yang ada di pikiranmu?"
+            "value": "Lagi mikirin apa?"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "何を考えているの？"
+            "value": "気になってることある？"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "무슨 생각을 하고 있나요?"
+            "value": "무슨 생각 하고 계세요?"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "O que está em sua mente?"
+            "value": "No que você está pensando?"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Что у тебя на уме?"
+            "value": "О чём думаешь?"
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "คุณคิดอะไรอยู่?"
+            "value": "กำลังคิดอะไรอยู่?"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Aklınızdan ne geçiyor?"
+            "value": "Aklında ne var?"
           }
         },
         "vi": {
@@ -14372,13 +14372,13 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "在想些什么？"
+            "value": "在想什么呢？"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "在想些什麼？"
+            "value": "在想什麼呢？"
           }
         }
       }
@@ -14389,13 +14389,13 @@
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "أين يجب أن نبدأ؟"
+            "value": "من أين نبدأ؟"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Wo sollen wir anfangen?"
+            "value": "Wo fangen wir an?"
           }
         },
         "en": {
@@ -14407,79 +14407,79 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "¿Por dónde deberíamos empezar?"
+            "value": "¿Por dónde empezamos?"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Par où devrions-nous commencer ?"
+            "value": "Par où on commence ?"
           }
         },
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "हमें कहां से शुरुआत करनी चाहिए?"
+            "value": "कहाँ से शुरू करें?"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Di mana kita harus mulai?"
+            "value": "Kita mulai dari mana?"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "どこから始めればよいでしょうか?"
+            "value": "どこから始めようか？"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "어디서부터 시작해야 할까요?"
+            "value": "어디서부터 시작해 볼까요?"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Por onde devemos começar?"
+            "value": "Por onde começamos?"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "С чего нам начать?"
+            "value": "С чего начнём?"
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "เราควรเริ่มจากตรงไหน?"
+            "value": "เริ่มจากตรงไหนดี?"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Nereden başlamalıyız?"
+            "value": "Nereden başlayalım?"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Chúng ta nên bắt đầu từ đâu?"
+            "value": "Mình bắt đầu từ đâu nhỉ?"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "我们从哪里开始？"
+            "value": "从哪儿开始好呢？"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "我們從哪裡開始？"
+            "value": "要從哪裡開始呢？"
           }
         }
       }

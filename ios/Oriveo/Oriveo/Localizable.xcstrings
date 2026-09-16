@@ -1827,13 +1827,13 @@
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "نهارك سعيد"
+            "value": "كيف يمضي يومك؟"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tag"
+            "value": "Na, wie läuft's?"
           }
         },
         "en": {
@@ -1845,79 +1845,79 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tardes"
+            "value": "¿Cómo va todo?"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Après-midi"
+            "value": "Ça va ?"
           }
         },
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "दोपहर"
+            "value": "दिन कैसा चल रहा है?"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Siang"
+            "value": "Gimana harimu?"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "午後だね"
+            "value": "おつかれさま"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "오후"
+            "value": "잘 지내요?"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tarde"
+            "value": "Tudo bem?"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "День"
+            "value": "Как дела?"
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "บ่ายแล้ว"
+            "value": "บ่ายนี้เป็นไงบ้าง"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tünaydın"
+            "value": "Nasılsın?"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Buổi chiều"
+            "value": "Chiều vui vẻ"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "午安"
+            "value": "嘿，下午好"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "下午好"
+            "value": "嗨，午安"
           }
         }
       }
@@ -3092,103 +3092,103 @@
         }
       }
     },
-    "Breathe, I'll wait.": {
+    "Hello": {
       "extractionState": "manual",
       "localizations": {
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "تنفّس، أنا أنتظر."
+            "value": "مرحبًا"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Atme, ich warte."
+            "value": "Hallo"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Breathe, I'll wait."
+            "value": "Hello"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Respira, te espero."
+            "value": "Hola"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Respire, je t'attends."
+            "value": "Salut"
           }
         },
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "साँस लो, मैं रुकता हूँ।"
+            "value": "नमस्ते"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tarik napas, aku menunggu."
+            "value": "Halo"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "深呼吸、待ってるよ"
+            "value": "ようこそ"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "숨 한 번 쉬어, 기다릴게"
+            "value": "안녕하세요"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Respira, eu espero."
+            "value": "Olá"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Вдохни, я подожду."
+            "value": "Здравствуй"
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "หายใจเข้าลึก ๆ ฉันรออยู่"
+            "value": "สวัสดี"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Nefes al, beklerim."
+            "value": "Merhaba"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hít thở đi, mình đợi bạn."
+            "value": "Xin chào"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "深呼吸，我等你"
+            "value": "你好呀"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "深呼吸，我等你"
+            "value": "你好"
           }
         }
       }
@@ -6293,103 +6293,103 @@
         }
       }
     },
-    "Dreams can come later.": {
+    "Hi there": {
       "extractionState": "manual",
       "localizations": {
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "الأحلام يمكن أن تأتي لاحقًا."
+            "value": "أهلًا"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Träume können später kommen."
+            "value": "Hey"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Dreams can come later."
+            "value": "Hi there"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Los sueños pueden esperar."
+            "value": "¡Ey!"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Les rêves peuvent attendre."
+            "value": "Coucou"
           }
         },
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "सपने बाद में आ सकते हैं।"
+            "value": "हैलो"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Mimpi bisa datang nanti."
+            "value": "Hai"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "夢はあとからでいいよ"
+            "value": "どうも"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "꿈은 나중에 와도 돼"
+            "value": "오셨어요?"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Os sonhos podem chegar depois."
+            "value": "E aí?"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Сны могут подождать."
+            "value": "Привет"
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "ความฝันมาทีหลังก็ได้"
+            "value": "หวัดดี"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Rüyalar sonra da gelebilir."
+            "value": "Selam"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Giấc mơ có thể đến sau."
+            "value": "Chào bạn"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "梦可以晚点来"
+            "value": "嗨"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "夢可以晚點來"
+            "value": "哈囉"
           }
         }
       }
@@ -6685,13 +6685,13 @@
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "مساؤك"
+            "value": "مساؤك سعيد"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Abend"
+            "value": "Na, alles klar?"
           }
         },
         "en": {
@@ -6703,19 +6703,19 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Esta noche"
+            "value": "¡Buenas!"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ce soir"
+            "value": "Quoi de neuf ?"
           }
         },
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "शाम"
+            "value": "गुड ईवनिंग"
           }
         },
         "id": {
@@ -6727,964 +6727,964 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "今夜は"
+            "value": "おかえり"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "저녁"
+            "value": "오늘 어땠어요?"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Esta noite"
+            "value": "Como vai?"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Вечер"
+            "value": "Как вечер?"
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "ค่ำแล้ว"
+            "value": "วันนี้เป็นไงบ้าง"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Akşam"
+            "value": "Nasıl gidiyor?"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Buổi tối"
+            "value": "Hôm nay thế nào?"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "今晚好"
+            "value": "嘿，晚上好"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "今晚好"
+            "value": "嗨，晚上好"
           }
         }
       }
     },
-    "Evening doesn't need more.": {
+    "Nice to see you": {
       "extractionState": "manual",
       "localizations": {
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "المساء لا يحتاج المزيد."
+            "value": "يسعدني رؤيتك"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Der Abend braucht nichts mehr."
+            "value": "Da bist du ja"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Evening doesn't need more."
+            "value": "Nice to see you"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "La noche no pide más."
+            "value": "Qué gusto verte"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Le soir n'a pas besoin de plus."
+            "value": "Ah, te voilà"
           }
         },
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "शाम को और कुछ नहीं चाहिए।"
+            "value": "आपको देखकर अच्छा लगा"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Malam tidak butuh lebih."
+            "value": "Senang kamu mampir"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "夜はもう足してなくていい"
+            "value": "元気？"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "저녁엔 더 없어도 돼"
+            "value": "반가워요"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "A noite não pede mais nada."
+            "value": "Que bom te ver"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Вечеру больше ничего не нужно."
+            "value": "А вот и ты"
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "ค่ำนี้ไม่ต้องเพิ่มอะไรแล้ว"
+            "value": "ดีใจที่ได้เจอกันนะ"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Akşamın daha fazlasına ihtiyacı yok."
+            "value": "Hoş geldin"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tối nay không cần thêm gì nữa."
+            "value": "Mừng bạn ghé chơi"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "晚上不用再加了"
+            "value": "见到你真好"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "晚上不用再加了"
+            "value": "見到你真好"
           }
         }
       }
     },
-    "Hello again": {
+    "Up late": {
       "extractionState": "manual",
       "localizations": {
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "أهلاً من جديد"
+            "value": "تقدّم الليل"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Schon wieder da"
+            "value": "Na, du Nachteule"
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hello again"
+            "value": "Up late"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hola de nuevo"
+            "value": "¿Trasnochando?"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Re-bonjour"
+            "value": "On veille ?"
           }
         },
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "फिर मिले"
+            "value": "काफ़ी रात हो गई"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ketemu lagi"
+            "value": "Lagi begadang?"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "また会えた"
+            "value": "夜も更けたね"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "또 만났네"
+            "value": "밤이 깊었네요"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Oi de novo"
+            "value": "Até essa hora?"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Снова ты"
+            "value": "Полуночничаем?"
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "เจอกันอีกแล้ว"
+            "value": "สวัสดียามดึก"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Yine merhaba"
+            "value": "Epey geç olmuş"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Lại gặp bạn"
+            "value": "Khuya rồi nhỉ"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "又见面了"
+            "value": "夜深了"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "又見面了"
+            "value": "夜深了"
           }
         }
       }
     },
-    "Here today": {
+    "No question is too small.": {
       "extractionState": "manual",
       "localizations": {
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "هنا اليوم"
+            "value": "كل سؤال يستحق أن يُطرح"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Auch heute da"
+            "value": "Keine Frage ist zu klein."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Here today"
+            "value": "No question is too small."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Aquí hoy"
+            "value": "No hay preguntas tontas."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Là aujourd'hui"
+            "value": "Il n'y a pas de petite question."
           }
         },
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "आज भी हो"
+            "value": "कोई भी सवाल छोटा नहीं होता"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hari ini juga"
+            "value": "Pertanyaan kecil pun boleh."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "今日もいるね"
+            "value": "ささいな質問でも大丈夫"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "오늘도 있네"
+            "value": "작은 질문도 환영해요"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Aqui hoje"
+            "value": "Não existe pergunta boba."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "И сегодня здесь"
+            "value": "Мелких вопросов не бывает."
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "วันนี้ก็มานะ"
+            "value": "คำถามเล็กแค่ไหนก็ถามได้นะ"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bugün de buradasın"
+            "value": "Hiçbir soru küçük değil."
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hôm nay cũng đây"
+            "value": "Câu hỏi nhỏ mấy cũng được."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "今天也在"
+            "value": "再小的问题也可以问"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "今天也在"
+            "value": "再小的問題都可以問"
           }
         }
       }
     },
-    "Here you are": {
+    "Start with what's on your mind.": {
       "extractionState": "manual",
       "localizations": {
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "ها أنت"
+            "value": "يمكنك البدء بأي فكرة تخطر لك"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Da bist du"
+            "value": "Fang mit dem an, was dir einfällt."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Here you are"
+            "value": "Start with what's on your mind."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Aquí estás"
+            "value": "Empieza por lo que tengas en mente."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tu es là"
+            "value": "Pars de ce qui te vient à l'esprit."
           }
         },
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "हो ना"
+            "value": "जो मन में है, वहीं से शुरू करें"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Kamu di sini"
+            "value": "Mulai dari yang ada di pikiranmu."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "いるね"
+            "value": "気になることから始めよう"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "있네"
+            "value": "궁금한 것부터 시작해요"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Aqui está você"
+            "value": "Comece pelo que está na sua cabeça."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ты здесь"
+            "value": "Начни с того, что на уме."
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "อยู่นี่นะ"
+            "value": "นึกอะไรออก เริ่มจากตรงนั้นได้เลย"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Buradasın"
+            "value": "Aklına ne geliyorsa oradan başla."
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bạn đây"
+            "value": "Nghĩ gì thì bắt đầu từ đó."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "你在呢"
+            "value": "想到哪儿，就从哪儿开始"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "你在呢"
+            "value": "想到哪裡，就從哪裡開始"
           }
         }
       }
     },
-    "I'm here": {
+    "A good day to try something new.": {
       "extractionState": "manual",
       "localizations": {
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "أنا هنا"
+            "value": "اليوم مناسب لتجربة شيء جديد"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ich bin da"
+            "value": "Ein guter Tag für etwas Neues."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "I'm here"
+            "value": "A good day to try something new."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Estoy aquí"
+            "value": "Un día ideal para probar algo nuevo."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Je suis là"
+            "value": "Un bon jour pour essayer du neuf."
           }
         },
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "मैं यहाँ हूँ"
+            "value": "आज कुछ नया आज़माने का अच्छा दिन है"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Aku di sini"
+            "value": "Hari yang pas untuk coba hal baru."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "いるよ"
+            "value": "新しいことを試してみよう"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "여기 있어"
+            "value": "새로운 걸 시도해 봐요"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Estou aqui"
+            "value": "Hoje é dia de testar algo novo."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Я здесь"
+            "value": "Хороший день для чего-то нового."
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "ฉันอยู่นี่"
+            "value": "วันนี้เหมาะจะลองอะไรใหม่ ๆ"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Buradayım"
+            "value": "Yeni bir şey denemenin tam günü."
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Mình ở đây"
+            "value": "Hôm nay hợp để thử điều mới."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "我就在"
+            "value": "今天适合试试新东西"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "我就在"
+            "value": "今天很適合試試新東西"
           }
         }
       }
     },
-    "I'm still here": {
+    "Think out loud here.": {
       "extractionState": "manual",
       "localizations": {
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "أنا ما زلت هنا"
+            "value": "هنا يمكنك التفكير بصوت عالٍ"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Noch da"
+            "value": "Hier kannst du laut denken."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "I'm still here"
+            "value": "Think out loud here."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sigo aquí"
+            "value": "Aquí puedes pensar en voz alta."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Je suis encore là"
+            "value": "Ici, tu peux penser à voix haute."
           }
         },
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "मैं अभी भी हूँ"
+            "value": "यहाँ सोचते-सोचते लिखिए"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Aku masih di sini"
+            "value": "Ngobrol sambil berpikir juga boleh."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "まだいるよ"
+            "value": "思ったまま話していいよ"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "아직 여기 있어"
+            "value": "떠오르는 대로 말해 보세요"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ainda estou aqui"
+            "value": "Aqui você pode pensar em voz alta."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Я всё ещё здесь"
+            "value": "Здесь можно думать вслух."
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "ฉันยังอยู่นะ"
+            "value": "คิดไปพิมพ์ไปได้เลยนะ"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hâlâ buradayım"
+            "value": "Burada sesli düşünebilirsin."
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Mình vẫn đây"
+            "value": "Cứ vừa nghĩ vừa nói ở đây."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "我还在"
+            "value": "可以边想边说"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "我還在"
+            "value": "邊想邊說也沒關係"
           }
         }
       }
     },
-    "It's you": {
+    "One thing at a time.": {
       "extractionState": "manual",
       "localizations": {
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "إنه أنت"
+            "value": "خطوة بخطوة"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Du bist es"
+            "value": "Eins nach dem anderen."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "It's you"
+            "value": "One thing at a time."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Eres tú"
+            "value": "Una cosa a la vez."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "C'est toi"
+            "value": "Une chose à la fois."
           }
         },
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "तुम हो"
+            "value": "एक समय में एक काम"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Kamu ya"
+            "value": "Satu per satu saja."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "あなただね"
+            "value": "ひとつずつ片づけよう"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "너구나"
+            "value": "하나씩 차근차근 해요"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "É você"
+            "value": "Uma coisa de cada vez."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Это ты"
+            "value": "Всё по порядку."
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "เป็นเธอนี่เอง"
+            "value": "ทำทีละอย่างก็พอ"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sensin"
+            "value": "Her şey sırayla."
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Là bạn đây"
+            "value": "Từng việc một thôi."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "见到你了"
+            "value": "一件一件来"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "見到你了"
+            "value": "一次做一件事就好"
           }
         }
       }
     },
-    "Just this hour.": {
+    "Sort out your thoughts.": {
       "extractionState": "manual",
       "localizations": {
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "هذه الساعة فقط."
+            "value": "لنرتّب الأفكار معًا"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Nur diese eine Stunde."
+            "value": "Bring Ordnung in deine Gedanken."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Just this hour."
+            "value": "Sort out your thoughts."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Solo esta hora."
+            "value": "Pon en orden tus ideas."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Juste cette heure-ci."
+            "value": "Mets de l'ordre dans tes idées."
           }
         },
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "बस यही घंटा।"
+            "value": "अपने विचारों को सुलझाइए"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Jam ini saja."
+            "value": "Yuk, rapikan isi pikiranmu."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "まずはこの一時間"
+            "value": "考えを整理してみよう"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "일단 이 한 시간만"
+            "value": "생각을 정리해 봐요"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Só esta hora."
+            "value": "Coloque as ideias em ordem."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Только этот час."
+            "value": "Разложи мысли по полочкам."
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "ชั่วโมงนี้ก่อนก็พอ"
+            "value": "มาเรียบเรียงความคิดกัน"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Şimdilik bu saat."
+            "value": "Düşüncelerini birlikte toparlayalım."
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Chỉ giờ này thôi."
+            "value": "Sắp xếp lại suy nghĩ nào."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "先过这一小时"
+            "value": "把思路理一理"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "先過這一小時"
+            "value": "把思緒整理一下"
           }
         }
       }
     },
-    "Late night": {
+    "Take a break if you need one.": {
       "extractionState": "manual",
       "localizations": {
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "ليل هادئ"
+            "value": "لا بأس باستراحة قصيرة"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Späte Nacht"
+            "value": "Gönn dir eine Pause, wenn nötig."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Late night"
+            "value": "Take a break if you need one."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Madrugada"
+            "value": "Haz una pausa si la necesitas."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Nuit calme"
+            "value": "Fais une pause si besoin."
           }
         },
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "देर रात"
+            "value": "थकान हो तो थोड़ा आराम कर लीजिए"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Malam larut"
+            "value": "Kalau lelah, istirahat dulu."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "夜だね"
+            "value": "ときどきひと息ついてね"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "늦은 밤"
+            "value": "지치면 잠깐 쉬어 가요"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Madrugada"
+            "value": "Faça uma pausa se precisar."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Поздняя ночь"
+            "value": "Если нужно, сделай перерыв."
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "ดึกแล้วนะ"
+            "value": "เหนื่อยก็พักก่อนนะ"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Geç saat"
+            "value": "Gerekirse biraz mola ver."
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Đêm muộn"
+            "value": "Mệt thì nghỉ một chút nhé."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "夜里好"
+            "value": "累了就歇一歇"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "夜裡好"
+            "value": "累了就休息一下"
           }
         }
       }
@@ -7695,13 +7695,13 @@
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "صباحًا"
+            "value": "صباحك سعيد"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Morgen"
+            "value": "Ausgeschlafen?"
           }
         },
         "en": {
@@ -7713,19 +7713,19 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Buen día"
+            "value": "¿Descansaste?"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Salut"
+            "value": "Bien dormi ?"
           }
         },
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "सुबह"
+            "value": "गुड मॉर्निंग"
           }
         },
         "id": {
@@ -7737,863 +7737,863 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "おはよう"
+            "value": "よく眠れた？"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "좋은 아침"
+            "value": "굿모닝"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Oi"
+            "value": "Dormiu bem?"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Утро"
+            "value": "Как спалось?"
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "สวัสดีตอนเช้า"
+            "value": "เช้านี้เป็นไงบ้าง"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Selam"
+            "value": "Güzel sabahlar"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Buổi sáng"
+            "value": "Chào ngày mới"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "今早好"
+            "value": "早呀"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "今早好"
+            "value": "早啊"
           }
         }
       }
     },
-    "Morning to you": {
+    "Talk it through.": {
       "extractionState": "manual",
       "localizations": {
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "صباح مشرق"
+            "value": "الحديث يوضّح الأمور"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Schönen Morgen"
+            "value": "Drüber reden macht vieles klarer."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Morning to you"
+            "value": "Talk it through."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Un buen día"
+            "value": "Hablarlo ayuda a verlo claro."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Belle matinée"
+            "value": "En parler aide à y voir clair."
           }
         },
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "आपको सुप्रभात"
+            "value": "बात करने से चीज़ें साफ़ होती हैं"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pagi ya"
+            "value": "Ceritakan, biar lebih jelas."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "今日もおはよう"
+            "value": "言葉にすると見えてくるよ"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "아침이에요"
+            "value": "말하다 보면 정리돼요"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Um bom dia"
+            "value": "Falar ajuda a clarear as ideias."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Доброго утра"
+            "value": "Проговори — станет яснее."
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "อรุณสวัสดิ์นะ"
+            "value": "ลองเล่าออกมา จะชัดขึ้นเยอะ"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hayırlı sabahlar"
+            "value": "Anlatınca her şey netleşir."
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Chào buổi sáng nhé"
+            "value": "Nói ra sẽ rõ hơn nhiều."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "早安"
+            "value": "说出来，会清楚很多"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "晨安"
+            "value": "說出來，會清楚很多"
           }
         }
       }
     },
-    "No next step needed.": {
+    "Break it into smaller steps.": {
       "extractionState": "manual",
       "localizations": {
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "لا حاجة لخطوة تالية."
+            "value": "المهام الكبيرة أسهل على خطوات صغيرة"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Kein nächster Schritt nötig."
+            "value": "Schritt für Schritt geht's leichter."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "No next step needed."
+            "value": "Break it into smaller steps."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "No hace falta un siguiente paso."
+            "value": "Vamos por partes."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pas besoin d'une prochaine étape."
+            "value": "Avance par petites étapes."
           }
         },
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "अगला कदम ज़रूरी नहीं।"
+            "value": "बड़े काम को छोटे कदमों में बाँटें"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tidak perlu langkah berikutnya."
+            "value": "Bagi jadi langkah-langkah kecil."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "次の一歩はなくていいよ"
+            "value": "小さなステップに分けよう"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "다음 단계는 없어도 돼"
+            "value": "할 일은 작게 나눠 봐요"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Não precisa do próximo passo."
+            "value": "Vamos por partes."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Следующий шаг не обязателен."
+            "value": "Разбей задачу на маленькие шаги."
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "ไม่ต้องมีขั้นต่อไปก็ได้"
+            "value": "แบ่งเรื่องใหญ่เป็นขั้นเล็ก ๆ"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sonraki adım gerekmiyor."
+            "value": "Büyük işi küçük adımlara böl."
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Không cần bước tiếp theo."
+            "value": "Chia việc lớn thành bước nhỏ."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "没有下一步也行"
+            "value": "大事拆成小步走"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "沒有下一步也行"
+            "value": "把大事拆成小步驟"
           }
         }
       }
     },
-    "No one is keeping score.": {
+    "Ask it your own way.": {
       "extractionState": "manual",
       "localizations": {
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "لا أحد يحصي النقاط."
+            "value": "يمكنك السؤال بأسلوبك"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Niemand führt Punktestand."
+            "value": "Frag einfach, wie es dir einfällt."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "No one is keeping score."
+            "value": "Ask it your own way."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Nadie está llevando la cuenta."
+            "value": "Pregunta con tus propias palabras."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Personne ne tient le score."
+            "value": "Demande avec tes propres mots."
           }
         },
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "कोई अंक नहीं गिन रहा।"
+            "value": "जैसे मन में आए, वैसे पूछिए"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tidak ada yang menilai."
+            "value": "Tanya saja dengan caramu."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "誰も採点してないよ"
+            "value": "聞き方は自由でいいよ"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "아무도 점수 안 매겨"
+            "value": "편하게 물어보세요"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ninguém está anotando pontos."
+            "value": "Pergunte do seu jeito."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Никто не ведёт счёт."
+            "value": "Спрашивай своими словами."
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "ไม่มีใครให้คะแนนอยู่"
+            "value": "ถามตามที่คิดได้เลย"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Kimse puan tutmuyor."
+            "value": "Aklına geldiği gibi sor."
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Không ai đang chấm điểm."
+            "value": "Nghĩ sao thì hỏi vậy."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "没人打分"
+            "value": "怎么想就怎么问"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "沒人打分"
+            "value": "怎麼想就怎麼問"
           }
         }
       }
     },
-    "No rush to start.": {
+    "Pick up where you left off.": {
       "extractionState": "manual",
       "localizations": {
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "لا داعي للبدء الآن."
+            "value": "يمكنك المتابعة من حيث توقفت"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Kein Grund, schon zu starten."
+            "value": "Mach weiter, wo du aufgehört hast."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "No rush to start."
+            "value": "Pick up where you left off."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "No hace falta empezar ya."
+            "value": "Sigue donde lo dejaste."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pas besoin de commencer tout de suite."
+            "value": "Reprends là où tu en étais."
           }
         },
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "शुरू करने की जल्दी नहीं।"
+            "value": "जहाँ छोड़ा था, वहीं से आगे बढ़ें"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tidak perlu langsung mulai."
+            "value": "Lanjutkan dari yang terakhir."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "急いで始めなくていいよ"
+            "value": "続きから話してもいいよ"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "바로 시작하지 않아도 돼"
+            "value": "하던 얘기를 이어가도 좋아요"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sem pressa para começar."
+            "value": "Continue de onde parou."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Не обязательно сразу начинать."
+            "value": "Продолжим с того же места."
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "ยังไม่ต้องเริ่มก็ได้"
+            "value": "ต่อจากที่ค้างไว้ได้เลย"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Başlamak için acele yok."
+            "value": "Kaldığın yerden devam et."
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Không cần bắt đầu ngay."
+            "value": "Tiếp tục từ chỗ dang dở."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "不用马上开始"
+            "value": "上次没聊完的，也能接着聊"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "不用馬上開始"
+            "value": "上次沒聊完的，也能接著聊"
           }
         }
       }
     },
-    "Nothing left to prove.": {
+    "Ask whenever you're ready.": {
       "extractionState": "manual",
       "localizations": {
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "لم يبقَ شيء لتثبته."
+            "value": "الأسئلة مرحّب بها في أي وقت"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Nichts mehr zu beweisen."
+            "value": "Frag, wann immer du so weit bist."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Nothing left to prove."
+            "value": "Ask whenever you're ready."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ya no hay nada que demostrar."
+            "value": "Pregunta cuando quieras."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Plus rien à prouver."
+            "value": "Pose ta question quand tu veux."
           }
         },
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "अब कुछ साबित नहीं करना।"
+            "value": "जब तैयार हों, पूछ लीजिए"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tidak perlu membuktikan apa-apa."
+            "value": "Tanya kapan pun kamu siap."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "もう証明しなくていいよ"
+            "value": "聞きたくなったらいつでも"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "더 증명할 필요 없어"
+            "value": "준비되면 언제든 말해 주세요"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Nada mais a provar."
+            "value": "Quando quiser, é só perguntar."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Больше нечего доказывать."
+            "value": "Спрашивай, когда захочешь."
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "ไม่ต้องพิสูจน์อะไรอีก"
+            "value": "พร้อมเมื่อไหร่ค่อยถามก็ได้"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Kanıtlanacak bir şey kalmadı."
+            "value": "Hazır olduğunda sor."
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Không còn gì phải chứng minh."
+            "value": "Sẵn sàng thì cứ hỏi."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "不必再证明什么"
+            "value": "想好了随时问"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "不必再證明什麼"
+            "value": "想好了隨時問"
           }
         }
       }
     },
-    "Quiet is allowed.": {
+    "A fresh angle can help.": {
       "extractionState": "manual",
       "localizations": {
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "الهدوء مسموح."
+            "value": "النظر من زاوية أخرى قد يفيد"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Stille ist erlaubt."
+            "value": "Ein neuer Blickwinkel hilft oft."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Quiet is allowed."
+            "value": "A fresh angle can help."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "El silencio también vale."
+            "value": "Otro punto de vista puede ayudar."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Le silence est permis."
+            "value": "Un autre regard peut aider."
           }
         },
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "चुप रहना भी ठीक है।"
+            "value": "नए नज़रिए से सोचकर देखिए"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Diam juga boleh."
+            "value": "Coba lihat dari sudut lain."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "静かにしてていいよ"
+            "value": "別の角度から考えてみよう"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "조용해도 괜찮아"
+            "value": "다른 각도로 생각해 봐요"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "O silêncio é permitido."
+            "value": "Outro ponto de vista pode ajudar."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Можно просто помолчать."
+            "value": "Иногда помогает свежий взгляд."
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "เงียบอยู่ก็ได้นะ"
+            "value": "ลองมองอีกมุมดูนะ"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sessizlik de olur."
+            "value": "Farklı bir açıdan bakmak iyi gelir."
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Im lặng cũng được."
+            "value": "Thử nhìn từ góc khác xem."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "安静着也行"
+            "value": "换个角度想想"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "安靜著也行"
+            "value": "換個角度想想看"
           }
         }
       }
     },
-    "Right here": {
+    "It doesn't have to be perfect.": {
       "extractionState": "manual",
       "localizations": {
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "هنا"
+            "value": "لا يلزم أن يكون كل شيء مثاليًا"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Genau hier"
+            "value": "Es muss nicht perfekt sein."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Right here"
+            "value": "It doesn't have to be perfect."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Justo aquí"
+            "value": "No tiene que ser perfecto."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Juste ici"
+            "value": "Pas besoin que ce soit parfait."
           }
         },
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "यहीं"
+            "value": "सब कुछ परफ़ेक्ट होना ज़रूरी नहीं"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Di sini"
+            "value": "Tidak harus sempurna."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "ここにいるよ"
+            "value": "完璧じゃなくて大丈夫"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "여기"
+            "value": "완벽하지 않아도 돼요"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bem aqui"
+            "value": "Não precisa ficar perfeito."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Вот тут"
+            "value": "Можно и не идеально."
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "ตรงนี้นะ"
+            "value": "ไม่ต้องสมบูรณ์แบบก็ได้"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tam burada"
+            "value": "Mükemmel olması gerekmiyor."
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ngay đây"
+            "value": "Không cần hoàn hảo đâu."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "我在这"
+            "value": "不用一次就完美"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "我在這"
+            "value": "不用一次就做到完美"
           }
         }
       }
     },
-    "Say it when you want.": {
+    "Hope today went well.": {
       "extractionState": "manual",
       "localizations": {
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "قُل متى شئت."
+            "value": "عسى أن يكون يومك قد مضى بخير"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sag es, wann du willst."
+            "value": "Hoffentlich war dein Tag gut."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Say it when you want."
+            "value": "Hope today went well."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Dilo cuando quieras."
+            "value": "Ojalá hoy te haya ido bien."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Dis-le quand tu veux."
+            "value": "J'espère que ta journée a été bonne."
           }
         },
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "जब चाहो तब कहना।"
+            "value": "उम्मीद है आज का दिन अच्छा रहा"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bilang kapan kamu mau."
+            "value": "Semoga harimu tadi menyenangkan."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "言いたくなったら言って"
+            "value": "いい一日だったといいな"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "말하고 싶을 때 말해"
+            "value": "좋은 하루였길 바라요"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Fala quando quiser."
+            "value": "Tomara que seu dia tenha sido bom."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Скажи, когда захочешь."
+            "value": "Надеюсь, день прошёл хорошо."
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "อยากพูดเมื่อไหร่ก็พูด"
+            "value": "หวังว่าวันนี้ราบรื่นดีนะ"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "İstediğin zaman söyle."
+            "value": "Umarım günün iyi geçmiştir."
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Muốn nói lúc nào cũng được."
+            "value": "Mong hôm nay mọi việc đều ổn."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "想说随时开口"
+            "value": "希望你今天过得顺心"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "想說隨時開口"
+            "value": "希望你今天過得順心"
           }
         }
       }
@@ -9655,103 +9655,103 @@
         }
       }
     },
-    "Glad you're up.": {
+    "Look back on today.": {
       "extractionState": "manual",
       "localizations": {
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "سعيدٌ برؤيتك."
+            "value": "ما رأيك في مراجعة سريعة ليومك؟"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Schön, dich zu sehen."
+            "value": "Zeit, auf den Tag zurückzublicken."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Glad you're up."
+            "value": "Look back on today."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Me alegra verte."
+            "value": "Buen momento para repasar el día."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Heureux de te voir."
+            "value": "Le moment de faire le point."
           }
         },
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "तुम्हें देखकर अच्छा लगा।"
+            "value": "आज के दिन पर एक नज़र डालें"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Senang melihatmu."
+            "value": "Waktunya merangkum hari ini."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "おはよう、会えてうれしいよ"
+            "value": "今日をふり返ってみよう"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "만나서 반가워"
+            "value": "오늘을 한번 돌아봐요"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Que bom te ver."
+            "value": "Bom momento para repassar o dia."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Рад тебя видеть."
+            "value": "Можно подвести итоги дня."
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "ดีใจที่ได้เจอ"
+            "value": "ลองทบทวนวันนี้ดูไหม"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Seni görmek güzel."
+            "value": "Günü şöyle bir gözden geçir."
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vui khi gặp bạn."
+            "value": "Cùng nhìn lại hôm nay nhé."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "见到你真好"
+            "value": "回头看看今天"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "見到你真好"
+            "value": "適合回顧一下今天"
           }
         }
       }
@@ -9762,7 +9762,7 @@
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "طاب نهارك"
+            "value": "طاب يومك"
           }
         },
         "de": {
@@ -9786,7 +9786,7 @@
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bon après-midi"
+            "value": "Bonjour"
           }
         },
         "hi": {
@@ -9798,7 +9798,7 @@
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Selamat siang"
+            "value": "Apa kabar?"
           }
         },
         "ja": {
@@ -9828,7 +9828,7 @@
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "สวัสดียามบ่าย"
+            "value": "สวัสดีตอนบ่าย"
           }
         },
         "tr": {
@@ -9881,7 +9881,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Buenas noches"
+            "value": "¿Qué tal todo?"
           }
         },
         "fr": {
@@ -9911,7 +9911,7 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "좋은 저녁이에요"
+            "value": "저녁 드셨어요?"
           }
         },
         "pt-BR": {
@@ -9929,7 +9929,7 @@
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "สวัสดียามค่ำ"
+            "value": "สวัสดีตอนเย็น"
           }
         },
         "tr": {
@@ -10006,7 +10006,7 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "おはようございます"
+            "value": "おはよう"
           }
         },
         "ko": {
@@ -10356,103 +10356,103 @@
         }
       }
     },
-    "Halfway is plenty.": {
+    "Follow your curiosity.": {
       "extractionState": "manual",
       "localizations": {
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "نصف الطريق يكفي."
+            "value": "الفضول بداية جيدة للحديث"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Die Hälfte ist schon viel."
+            "value": "Folge deiner Neugier."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Halfway is plenty."
+            "value": "Follow your curiosity."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hasta la mitad ya es suficiente."
+            "value": "Déjate llevar por la curiosidad."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "La moitié, c'est déjà beaucoup."
+            "value": "Laisse parler ta curiosité."
           }
         },
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "आधा रास्ता ही काफ़ी है।"
+            "value": "जो जानने का मन हो, पूछ लीजिए"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Setengah jalan sudah cukup."
+            "value": "Ikuti rasa penasaranmu."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "半分でも十分だよ"
+            "value": "好奇心のままに話そう"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "반쯤이면 충분해"
+            "value": "호기심 가는 대로 이야기해요"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Até a metade já é muito."
+            "value": "Siga sua curiosidade."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Полпути — уже достаточно."
+            "value": "Дай волю любопытству."
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "แค่ครึ่งทางก็มากพอแล้ว"
+            "value": "สงสัยอะไร คุยกันได้เลย"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Yarısı bile yeterli."
+            "value": "Merak ettiklerinin peşine düş."
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Nửa chặng đường là đủ."
+            "value": "Tò mò gì thì cứ hỏi."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "做到一半也很好"
+            "value": "跟着好奇心聊聊"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "做到一半也很好"
+            "value": "跟著好奇心聊聊"
           }
         }
       }
@@ -11514,103 +11514,103 @@
         }
       }
     },
-    "It's okay to be up.": {
+    "Plan tomorrow in a few lines.": {
       "extractionState": "manual",
       "localizations": {
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "لا بأس أن تظل مستيقظًا."
+            "value": "لنرسم خطة الغد في بضعة أسطر"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Es ist okay, wach zu sein."
+            "value": "Kurz planen, was morgen ansteht."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "It's okay to be up."
+            "value": "Plan tomorrow in a few lines."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "No pasa nada por estar despierto."
+            "value": "Planea lo de mañana en pocas líneas."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "C'est OK de veiller."
+            "value": "Prépare demain en quelques lignes."
           }
         },
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "जगे रहना भी ठीक है।"
+            "value": "कुछ लाइनों में कल की योजना बना लें"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tak apa kalau masih bangun."
+            "value": "Rencana besok, cukup beberapa baris."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "起きてても大丈夫"
+            "value": "明日の計画を立てておこう"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "안 자도 괜찮아"
+            "value": "내일 계획을 간단히 세워요"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tudo bem ficar acordado."
+            "value": "Planeje o amanhã em poucas linhas."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ничего, что не спишь."
+            "value": "Набросай план на завтра."
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "ตื่นอยู่ก็ไม่เป็นไรนะ"
+            "value": "วางแผนพรุ่งนี้สั้น ๆ สักหน่อย"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Uyumamak sorun değil."
+            "value": "Yarını birkaç satırda planla."
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Thức cũng không sao."
+            "value": "Vài dòng cho kế hoạch ngày mai."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "醒着也没关系"
+            "value": "几句话，把明天理清楚"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "醒著也沒關係"
+            "value": "幾句話，先把明天規劃好"
           }
         }
       }
@@ -15736,103 +15736,103 @@
         }
       }
     },
-    "Pause if you need.": {
+    "The rest can wait till tomorrow.": {
       "extractionState": "manual",
       "localizations": {
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "استرح إن شئت."
+            "value": "ما تبقّى يمكنه الانتظار إلى الغد"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Mach Pause, wenn du willst."
+            "value": "Der Rest hat Zeit bis morgen."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pause if you need."
+            "value": "The rest can wait till tomorrow."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pausa si lo necesitas."
+            "value": "Lo demás puede esperar a mañana."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Fais une pause si tu veux."
+            "value": "Le reste attendra demain."
           }
         },
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "चाहो तो रुक जाओ।"
+            "value": "बाकी काम कल भी हो सकता है"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Istirahat dulu kalau perlu."
+            "value": "Sisanya bisa besok."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "疲れたら休んでね"
+            "value": "残りは明日でいいよ"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "힘들면 쉬어"
+            "value": "나머지는 내일 해도 돼요"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Faça uma pausa, se precisar."
+            "value": "O resto pode ficar para amanhã."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Можно сделать паузу."
+            "value": "Остальное подождёт до завтра."
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "พักก่อนก็ได้นะ"
+            "value": "ที่เหลือไว้ต่อพรุ่งนี้ก็ได้"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "İhtiyacın varsa mola ver."
+            "value": "Gerisi yarına kalsın."
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Nghỉ một chút nếu bạn muốn."
+            "value": "Phần còn lại để mai tính."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "累了就歇一歇"
+            "value": "没做完的，明天也来得及"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "累了就歇一歇"
+            "value": "沒做完的，明天也來得及"
           }
         }
       }
@@ -18943,204 +18943,204 @@
         }
       }
     },
-    "Soft landing.": {
+    "Just chatting is fine too.": {
       "extractionState": "manual",
       "localizations": {
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "هبوط هادئ."
+            "value": "لا بأس بمجرد الدردشة أيضًا"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sanfte Landung."
+            "value": "Einfach plaudern geht auch."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Soft landing."
+            "value": "Just chatting is fine too."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Aterriza despacio."
+            "value": "Solo charlar también está bien."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Atterrissage en douceur."
+            "value": "Juste discuter, c'est bien aussi."
           }
         },
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "हल्की लैंडिंग।"
+            "value": "बस यूँ ही बातें करना भी अच्छा है"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Mendarat perlahan."
+            "value": "Sekadar ngobrol juga boleh."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "そっと着地"
+            "value": "雑談だけでもいいよ"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "부드럽게 내려앉기"
+            "value": "가볍게 수다만 떨어도 좋아요"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pouso suave."
+            "value": "Só bater papo também vale."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Мягкая посадка."
+            "value": "Можно просто поболтать."
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "ลงจอดอย่างนุ่มนวล"
+            "value": "แค่คุยเล่นก็ได้นะ"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Yumuşak bir iniş."
+            "value": "Sadece sohbet etmek de güzel."
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hạ cánh nhẹ nhàng."
+            "value": "Tán gẫu thôi cũng được."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "轻轻落地"
+            "value": "随便聊聊也很好"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "輕輕落地"
+            "value": "隨便聊聊也很好"
           }
         }
       }
     },
-    "Soft morning.": {
+    "A good evening to think.": {
       "extractionState": "manual",
       "localizations": {
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "صباح هادئ."
+            "value": "المساء وقت جميل للتأمل"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ein sanfter Morgen."
+            "value": "Ein guter Abend zum Nachdenken."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Soft morning."
+            "value": "A good evening to think."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Una mañana suave."
+            "value": "Un rato tranquilo para pensar."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Douce matinée."
+            "value": "Une soirée calme pour réfléchir."
           }
         },
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "कोमल सुबह।"
+            "value": "शांत शाम, सोचने का अच्छा समय"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pagi yang tenang."
+            "value": "Malam yang tenang untuk berpikir."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "やわらかな朝"
+            "value": "考えごとにちょうどいい夜"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "부드러운 아침"
+            "value": "생각하기 좋은 저녁이에요"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Manhã tranquila."
+            "value": "Uma noite tranquila para pensar."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Тихое утро."
+            "value": "Тихий вечер — время подумать."
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "เช้าที่อ่อนโยน"
+            "value": "ค่ำ ๆ แบบนี้ เหมาะกับการนั่งคิด"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Yumuşak bir sabah."
+            "value": "Düşünmek için sakin bir akşam."
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Buổi sáng dịu dàng."
+            "value": "Tối yên tĩnh, hợp để suy ngẫm."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "温柔的早晨"
+            "value": "安静的晚上，适合想想事"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "溫柔的早晨"
+            "value": "安靜的晚上，適合想想事情"
           }
         }
       }
@@ -19240,204 +19240,204 @@
         }
       }
     },
-    "Still around": {
+    "A calm end to the day.": {
       "extractionState": "manual",
       "localizations": {
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "ما زلت هنا"
+            "value": "ختام هادئ ليومك"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Immer noch da"
+            "value": "Lass den Tag ruhig ausklingen."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Still around"
+            "value": "A calm end to the day."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sigues aquí"
+            "value": "Cierra el día con calma."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Toujours là"
+            "value": "Termine la journée en douceur."
           }
         },
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "अभी भी हो"
+            "value": "दिन को सुकून से विदा करें"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Masih di sini"
+            "value": "Tutup hari dengan tenang."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "まだいるんだね"
+            "value": "一日の終わりをおだやかに"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "아직 있네"
+            "value": "하루를 차분하게 마무리해요"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ainda por aqui"
+            "value": "Feche o dia com calma."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Всё ещё здесь"
+            "value": "Пусть день закончится спокойно."
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "ยังอยู่นะ"
+            "value": "ปิดท้ายวันอย่างสบาย ๆ"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hâlâ buradasın"
+            "value": "Güne huzurlu bir kapanış."
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vẫn còn đây"
+            "value": "Khép lại một ngày nhẹ nhàng."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "还在呀"
+            "value": "让这一天轻松收尾"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "還在呀"
+            "value": "讓這一天輕鬆收尾"
           }
         }
       }
     },
-    "Still here, still listening.": {
+    "I'm here if you need me.": {
       "extractionState": "manual",
       "localizations": {
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "ما زلت هنا، أصغي إليك."
+            "value": "أنا هنا متى احتجتني"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ich bin da und höre zu."
+            "value": "Ich bin da, wenn du mich brauchst."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Still here, still listening."
+            "value": "I'm here if you need me."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Aquí estoy, escuchando."
+            "value": "Aquí estoy si me necesitas."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Toujours là, à l'écoute."
+            "value": "Je suis là si tu as besoin."
           }
         },
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "यहीं हूँ, सुन रहा हूँ।"
+            "value": "ज़रूरत हो तो मैं यहीं हूँ"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Masih di sini, masih mendengarkan."
+            "value": "Aku di sini kalau kamu butuh."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "ずっとここで、聴いてるよ"
+            "value": "いつでもここにいるよ"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "여전히 여기, 듣고 있어"
+            "value": "필요할 땐 언제든 여기 있어요"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ainda aqui, ouvindo."
+            "value": "Estou aqui se precisar."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Всё ещё здесь, всё ещё слушаю."
+            "value": "Если что — я рядом."
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "ยังอยู่ตรงนี้ ยังฟังอยู่"
+            "value": "มีอะไรก็เรียกได้เสมอนะ"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hâlâ buradayım, hâlâ dinliyorum."
+            "value": "İhtiyacın olursa buradayım."
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vẫn ở đây, vẫn lắng nghe."
+            "value": "Cần gì thì mình vẫn ở đây."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "我还在，也在听"
+            "value": "需要的话，随时找我"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "我還在，也在聽"
+            "value": "需要的話，隨時找我"
           }
         }
       }
@@ -19448,7 +19448,7 @@
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "ما زلت مستيقظًا؟"
+            "value": "ألم يغلبك النعاس بعد؟"
           }
         },
         "de": {
@@ -19466,61 +19466,61 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "¿Aún despierto?"
+            "value": "¿Sin sueño?"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Encore debout ?"
+            "value": "Pas sommeil ?"
           }
         },
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "अभी तक जाग रहे हो?"
+            "value": "अभी तक नींद नहीं आई?"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Masih bangun?"
+            "value": "Belum tidur?"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "まだ起きてるの？"
+            "value": "まだ起きてた？"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "아직 깨어 있네요"
+            "value": "아직 안 주무세요?"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ainda acordado?"
+            "value": "Ainda de pé?"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ещё не спите?"
+            "value": "Ещё не спишь?"
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "ยังไม่นอนเหรอ?"
+            "value": "ยังไม่นอนเหรอ"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hâlâ ayakta mısın?"
+            "value": "Uyumadın mı?"
           }
         },
         "vi": {
@@ -19538,108 +19538,108 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "還沒睡呀"
+            "value": "還沒睡喔"
           }
         }
       }
     },
-    "Still with you.": {
+    "Can't sleep? Let's talk.": {
       "extractionState": "manual",
       "localizations": {
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "ما زلت معك."
+            "value": "إن جافاك النوم، فلنتحدث"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ich bin noch da."
+            "value": "Schlaflos? Lass uns reden."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Still with you."
+            "value": "Can't sleep? Let's talk."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sigo contigo."
+            "value": "Si no puedes dormir, hablemos."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Je suis toujours là."
+            "value": "Si le sommeil tarde, discutons."
           }
         },
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "मैं अब भी यहाँ हूँ।"
+            "value": "रात लंबी लगे तो चलिए बातें करें"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Masih di sini bersamamu."
+            "value": "Kalau belum bisa tidur, yuk ngobrol."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "ずっとそばにいるよ"
+            "value": "眠れないなら、少し話そう"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "여기 있어"
+            "value": "잠이 안 오면 이야기해요"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ainda aqui contigo."
+            "value": "Sem sono? Vamos conversar."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Я рядом."
+            "value": "Если сон не идёт — давай поговорим."
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "ยังอยู่ตรงนี้นะ"
+            "value": "ถ้านอนไม่หลับ มาคุยกันนะ"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hâlâ buradayım."
+            "value": "Uykun tutmuyorsa konuşalım."
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vẫn ở đây với bạn."
+            "value": "Khó ngủ thì mình trò chuyện nhé."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "我还在呢"
+            "value": "睡不着的话，来聊聊吧"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "我還在呢"
+            "value": "睡不著的話，來聊聊吧"
           }
         }
       }
@@ -20125,13 +20125,13 @@
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "على مهلك."
+            "value": "على مهلك، لا داعي للعجلة"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Lass dir Zeit."
+            "value": "Ganz in Ruhe."
           }
         },
         "en": {
@@ -20143,19 +20143,19 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sin prisa."
+            "value": "Sin prisa, con calma."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Prends ton temps."
+            "value": "Tout en douceur."
           }
         },
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "आराम से।"
+            "value": "आराम से, कोई जल्दी नहीं"
           }
         },
         "id": {
@@ -20173,37 +20173,37 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "천천히 해도 돼"
+            "value": "천천히 해도 괜찮아요"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sem pressa."
+            "value": "Com calma, sem pressa."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Не торопись."
+            "value": "Можно не торопиться."
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "ไม่ต้องรีบ"
+            "value": "ค่อย ๆ เป็นค่อย ๆ ไปนะ"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Acele etme."
+            "value": "Acelesi yok, yavaş yavaş."
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Cứ thong thả."
+            "value": "Cứ thong thả nhé."
           }
         },
         "zh-Hans": {
@@ -20220,204 +20220,204 @@
         }
       }
     },
-    "Take your time, the night is patient.": {
+    "Take your time.": {
       "extractionState": "manual",
       "localizations": {
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "على مهلك، الليل صبور."
+            "value": "الوقت متّسع"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Lass dir Zeit, die Nacht hat Geduld."
+            "value": "Lass dir ruhig Zeit."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Take your time, the night is patient."
+            "value": "Take your time."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sin prisa: la noche es paciente."
+            "value": "Tómate tu tiempo."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Prends ton temps, la nuit est patiente."
+            "value": "Prends tout ton temps."
           }
         },
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "इत्मीनान से, रात धीरज रखती है।"
+            "value": "जितना समय चाहिए, लीजिए"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pelan-pelan, malam ini sabar."
+            "value": "Santai, pikir sepuasnya."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "あせらないで、夜は気長だから"
+            "value": "焦らなくていいよ"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "천천히 해도 돼, 밤은 길어"
+            "value": "급할 것 없어요"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sem pressa, a noite é paciente."
+            "value": "Leve o tempo que precisar."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Не спеши, ночь терпелива."
+            "value": "Думай сколько нужно."
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "ค่อย ๆ นะ คืนนี้ยังรอได้"
+            "value": "ค่อย ๆ คิดได้เลย"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Acele etme, gece sabırlı."
+            "value": "İstediğin kadar düşün."
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Cứ thong thả, đêm vẫn kiên nhẫn."
+            "value": "Cứ từ từ suy nghĩ."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "不急，夜晚很有耐心"
+            "value": "想多久都可以"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "不急，夜晚很有耐心"
+            "value": "想多久都可以"
           }
         }
       }
     },
-    "Talk, or don't.": {
+    "Write down what's on your mind.": {
       "extractionState": "manual",
       "localizations": {
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "تكلّم، أو لا."
+            "value": "ما يدور في ذهنك يستحق أن يُكتب"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Rede, oder lass es."
+            "value": "Schreib auf, was dich beschäftigt."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Talk, or don't."
+            "value": "Write down what's on your mind."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Habla, o no."
+            "value": "Escribe lo que te ronda la cabeza."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Parle, ou pas."
+            "value": "Écris ce qui te trotte dans la tête."
           }
         },
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "बोलो, या मत बोलो।"
+            "value": "मन में जो है, उसे लिख डालिए"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bicara, atau tidak."
+            "value": "Tuliskan apa yang ada di benakmu."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "話しても、話さなくても"
+            "value": "頭の中を書き出してみよう"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "말해도 되고, 안 해도 되고"
+            "value": "마음속 생각을 적어 봐요"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Fala, ou não."
+            "value": "Escreva o que passa pela cabeça."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Говори — или не говори."
+            "value": "Запиши то, что крутится в голове."
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "จะพูดหรือไม่พูดก็ได้"
+            "value": "มีอะไรในใจ เขียนออกมาได้เลย"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Konuş, ya da konuşma."
+            "value": "Aklından geçenleri yaz."
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Nói cũng được, không nói cũng được."
+            "value": "Viết ra điều bạn đang nghĩ."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "说不说话都行"
+            "value": "把心里的想法写下来"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "說不說話都行"
+            "value": "把心裡的想法寫下來"
           }
         }
       }
@@ -20909,13 +20909,13 @@
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "اليوم لك."
+            "value": "ليكن يومك على إيقاعك"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Der Tag gehört dir."
+            "value": "Heute in deinem Tempo."
           }
         },
         "en": {
@@ -20927,67 +20927,67 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "El día es tuyo."
+            "value": "Hoy, a tu ritmo."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "La journée est à toi."
+            "value": "Aujourd'hui, à ton rythme."
           }
         },
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "यह दिन तुम्हारा है।"
+            "value": "आज अपनी रफ़्तार से चलिए"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hari ini milikmu."
+            "value": "Jalani hari dengan ritmemu."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "今日はあなたのペースで"
+            "value": "今日は自分のペースでね"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "오늘은 당신의 속도로"
+            "value": "오늘은 편한 페이스로 해요"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "O dia é seu."
+            "value": "Hoje, no seu ritmo."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Этот день — твой."
+            "value": "Сегодня всё в твоём темпе."
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "วันนี้เป็นของคุณ"
+            "value": "วันนี้ไปตามจังหวะของคุณ"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Gün senin."
+            "value": "Bugün kendi temponda ilerle."
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hôm nay, cứ theo nhịp của bạn."
+            "value": "Hôm nay theo nhịp của bạn."
           }
         },
         "zh-Hans": {
@@ -20999,108 +20999,108 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "今天按你的節奏來"
+            "value": "今天照你的步調來"
           }
         }
       }
     },
-    "The light won't rush you.": {
+    "Don't forget to rest.": {
       "extractionState": "manual",
       "localizations": {
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "الضوء لا يستعجل عليك."
+            "value": "الراحة مهمة أيضًا"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Das Licht drängt dich nicht."
+            "value": "Vergiss nicht, dich auszuruhen."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "The light won't rush you."
+            "value": "Don't forget to rest."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "La luz no te apura."
+            "value": "No olvides descansar."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "La lumière ne te presse pas."
+            "value": "N'oublie pas de te reposer."
           }
         },
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "रोशनी तुम्हें नहीं धकेलती।"
+            "value": "आराम करना भी न भूलें"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Cahaya tidak memburumu."
+            "value": "Jangan lupa istirahat, ya."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "光は急かさないよ"
+            "value": "休むことも忘れずにね"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "빛이 재촉하지 않아"
+            "value": "푹 쉬는 것도 잊지 마세요"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "A luz não vai te apressar."
+            "value": "Não se esqueça de descansar."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Свет не торопит тебя."
+            "value": "Не забывай отдыхать."
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "แสงไม่ได้เร่งคุณ"
+            "value": "อย่าลืมพักผ่อนด้วยนะ"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Işık seni acele ettirmez."
+            "value": "Dinlenmeyi unutma."
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ánh sáng không hối bạn."
+            "value": "Nhớ nghỉ ngơi nhé."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "光不催你"
+            "value": "聊完也记得休息"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "光不催你"
+            "value": "聊完也記得休息"
           }
         }
       }
@@ -21978,13 +21978,13 @@
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "العالم أكثر هدوءًا الآن."
+            "value": "هدأ كل شيء من حولك"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Die Welt ist jetzt leiser."
+            "value": "Draußen ist es jetzt ruhig."
           }
         },
         "en": {
@@ -21996,67 +21996,67 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "El mundo se aquietó."
+            "value": "Todo está más tranquilo ahora."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Le monde est plus calme maintenant."
+            "value": "Dehors, tout s'est apaisé."
           }
         },
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "अब दुनिया शांत है।"
+            "value": "अब चारों ओर शांति है"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Dunia jadi lebih tenang sekarang."
+            "value": "Dunia sudah lebih tenang."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "世界が静かになったね"
+            "value": "外も静かになったね"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "이제 세상이 조용해졌어"
+            "value": "주변이 조용해졌어요"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "O mundo está mais calmo agora."
+            "value": "Tudo está mais quieto agora."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Мир теперь тише."
+            "value": "Вокруг стало тише."
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "ตอนนี้โลกเงียบลงแล้ว"
+            "value": "ตอนนี้รอบตัวเงียบสงบแล้ว"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Dünya artık daha sakin."
+            "value": "Etraf artık sessiz."
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Thế giới giờ yên tĩnh hơn rồi."
+            "value": "Mọi thứ đã lặng yên hơn."
           }
         },
         "zh-Hans": {
@@ -22174,103 +22174,103 @@
         }
       }
     },
-    "There you are": {
+    "Quiet hours, clear thoughts.": {
       "extractionState": "manual",
       "localizations": {
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "ها أنت ذا"
+            "value": "في الهدوء تصفو الأفكار"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Da bist du ja"
+            "value": "Stille Stunden, klare Gedanken."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "There you are"
+            "value": "Quiet hours, clear thoughts."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ahí estás"
+            "value": "Noche en calma, ideas claras."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Te voilà"
+            "value": "Nuit calme, idées claires."
           }
         },
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "आ गए"
+            "value": "शांत रात में विचार साफ़ होते हैं"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Kamu datang"
+            "value": "Malam sunyi, pikiran jernih."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "来たんだね"
+            "value": "夜は考えがまとまりやすい"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "왔구나"
+            "value": "고요한 밤엔 생각이 맑아져요"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Você chegou"
+            "value": "Noite calma, ideias claras."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Вот и ты"
+            "value": "Ночью думается яснее."
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "มาแล้วนะ"
+            "value": "ยามเงียบ ๆ ความคิดมักชัดขึ้น"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "İşte buradasın"
+            "value": "Gece sessiz, zihin berrak."
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bạn đến rồi"
+            "value": "Đêm tĩnh, suy nghĩ rõ ràng."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "来了呀"
+            "value": "这个点，思路往往更清楚"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "來了呀"
+            "value": "這個時間，思緒往往更清楚"
           }
         }
       }
@@ -22869,204 +22869,103 @@
         }
       }
     },
-    "Today was a lot.": {
+    "No rush tonight.": {
       "extractionState": "manual",
       "localizations": {
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "كان يومًا طويلًا."
+            "value": "لا عجلة الليلة"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Heute war viel los."
+            "value": "Heute Nacht drängt nichts."
           }
         },
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Today was a lot."
+            "value": "No rush tonight."
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hoy fue un día intenso."
+            "value": "Esta noche no hay prisa."
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Cette journée a été longue."
+            "value": "Rien ne presse cette nuit."
           }
         },
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "आज का दिन भारी रहा।"
+            "value": "आज रात कोई जल्दी नहीं"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hari ini berat, ya."
+            "value": "Malam ini tak perlu terburu-buru."
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "きょうはお疲れさま"
+            "value": "今夜はのんびりいこう"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "오늘 수고했어"
+            "value": "오늘 밤은 느긋하게 해요"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "O dia foi puxado."
+            "value": "Hoje à noite, sem pressa."
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "День был непростым."
+            "value": "Сейчас спешить некуда."
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "วันนี้เหนื่อยน่าดู"
+            "value": "คืนนี้ไม่มีอะไรต้องรีบ"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Yorucu bir gündü."
+            "value": "Bu gece acele yok."
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Hôm nay vất vả rồi."
+            "value": "Đêm nay chẳng cần vội."
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "今天辛苦了"
+            "value": "今晚不赶时间"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "今天辛苦了"
-          }
-        }
-      }
-    },
-    "Tomorrow can take the rest.": {
-      "extractionState": "manual",
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "الباقي يمكن أن ينتظر الغد."
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Den Rest kann morgen übernehmen."
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tomorrow can take the rest."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "El resto puede esperar a mañana."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Le reste peut attendre demain."
-          }
-        },
-        "hi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "बाकी कल सँभाल लेगा।"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sisanya biar besok."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "残りは明日でいいよ"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "나머지는 내일이 맡으면 돼"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "O resto pode ficar pra amanhã."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Остальное подождёт до завтра."
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ที่เหลือเอาไว้พรุ่งนี้ก็ได้"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Kalanı yarına kalabilir."
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Phần còn lại để mai."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "剩下的明天再说"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "剩下的明天再說"
+            "value": "今晚不用趕時間"
           }
         }
       }
@@ -24176,19 +24075,19 @@
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Comment puis-je t'aider ?"
+            "value": "Comment puis-je t'aider ?"
           }
         },
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "मैं क्या मदद कर सकता हूँ?"
+            "value": "बताइए, क्या मदद करूँ?"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ada yang bisa saya bantu?"
+            "value": "Ada yang bisa aku bantu?"
           }
         },
         "ja": {
@@ -24230,7 +24129,7 @@
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tôi có thể giúp gì?"
+            "value": "Mình giúp gì được cho bạn?"
           }
         },
         "zh-Hans": {
@@ -24532,612 +24431,6 @@
         }
       }
     },
-    "You can change your mind.": {
-      "extractionState": "manual",
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "يمكنك أن تغيّر رأيك."
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Du darfst deine Meinung ändern."
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "You can change your mind."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Puedes cambiar de idea."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tu peux changer d'avis."
-          }
-        },
-        "hi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "राय बदल सकते हो।"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Boleh berubah pikiran."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "考えが変わってもいいよ"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "마음 바꿔도 돼"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pode mudar de ideia."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Можно передумать."
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "เปลี่ยนใจก็ได้นะ"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Fikrini değiştirebilirsin."
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Đổi ý cũng được."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "改主意也行"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "改主意也行"
-          }
-        }
-      }
-    },
-    "You can close the day.": {
-      "extractionState": "manual",
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "يمكنك إنهاء اليوم."
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Du kannst den Tag schließen."
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "You can close the day."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Puedes cerrar el día."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tu peux clore la journée."
-          }
-        },
-        "hi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "दिन समेट सकते हो।"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Boleh menutup hari ini."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "きょうはもう閉じていいよ"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "오늘은 마무리해도 돼"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pode encerrar o dia."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Можно закрыть этот день."
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ปิดวันนี้ได้แล้วนะ"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Günü kapatabilirsin."
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Có thể khép lại ngày hôm nay."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "可以收工了"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "可以收工了"
-          }
-        }
-      }
-    },
-    "You can let it rest.": {
-      "extractionState": "manual",
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "يمكن أن ينتظر قليلًا."
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Du kannst es kurz ruhen lassen."
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "You can let it rest."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Puedes dejarlo un rato."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tu peux laisser ça de côté."
-          }
-        },
-        "hi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "इसे थोड़ी देर के लिए छोड़ सकते हो।"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Boleh ditaruh dulu."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "少し置いておいていいよ"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "잠시 내려놓아도 돼"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pode deixar isso por agora."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Можно пока отложить."
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "พักไว้ก่อนก็ได้นะ"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Biraz bırakabilirsin."
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Để đó một chút cũng được."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "先放一放也没关系"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "先放一放也沒關係"
-          }
-        }
-      }
-    },
-    "You can stay in the quiet.": {
-      "extractionState": "manual",
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "يمكنك البقاء في الهدوء."
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Du darfst in der Stille bleiben."
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "You can stay in the quiet."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Puedes quedarte en el silencio."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tu peux rester dans le calme."
-          }
-        },
-        "hi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "खामोशी में रह सकते हो।"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Boleh tinggal dalam sunyi."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "静けさのままでいいよ"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "고요함 속에 있어도 돼"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Pode ficar no silêncio."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Можно остаться в тишине."
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "อยู่ในความเงียบก็ได้นะ"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sessizlikte kalabilirsin."
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Có thể ở lại trong yên lặng."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "可以待在安静里"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "可以待在安靜裡"
-          }
-        }
-      }
-    },
-    "You did enough today.": {
-      "extractionState": "manual",
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "اليوم بذلت ما يكفي."
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Du hast heute genug getan."
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "You did enough today."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Hoy hiciste suficiente."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tu en as assez fait pour aujourd'hui."
-          }
-        },
-        "hi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "आज तुमने बहुत कर लिया।"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Hari ini kamu sudah cukup."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "きょうは十分がんばったね"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "오늘은 충분히 했어"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Hoje você já fez o bastante."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "На сегодня достаточно."
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "วันนี้คุณทำเยอะพอแล้ว"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bugün yeterince yaptın."
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Hôm nay bạn đã làm đủ rồi."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "今天做得够多了"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "今天做得夠多了"
-          }
-        }
-      }
-    },
-    "You don't have to finish.": {
-      "extractionState": "manual",
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ليس عليك أن تنهي كل شيء."
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Du musst nicht alles fertig machen."
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "You don't have to finish."
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "No tienes que terminarlo todo."
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tu n'as pas à tout finir."
-          }
-        },
-        "hi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "पूरा करना ज़रूरी नहीं।"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tidak harus selesai sekarang."
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "全部やらなくていいよ"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "다 끝내지 않아도 돼"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Você não precisa terminar."
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Не обязательно всё доделать."
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ไม่ต้องทำให้เสร็จก็ได้"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bitirmek zorunda değilsin."
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Không cần phải làm xong."
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "不必一次做完"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "不必一次做完"
-          }
-        }
-      }
-    },
     "You need at least one AI provider to start a conversation.": {
       "extractionState": "manual",
       "localizations": {
@@ -25235,208 +24528,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "至少需要一個 AI 供應商才能開始對話。"
-          }
-        }
-      }
-    },
-    "You're here": {
-      "extractionState": "manual",
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "أنت هنا"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Du bist da"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "You're here"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Estás aquí"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tu es là"
-          }
-        },
-        "hi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "तुम हो न"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Kamu di sini"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "いるんだね"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "있네"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Você está aqui"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ты здесь"
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "อยู่นี่นะ"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Buradasın"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bạn đây"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "你在呀"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "你在呀"
-          }
-        }
-      }
-    },
-    "You're up": {
-      "extractionState": "manual",
-      "localizations": {
-        "ar": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "أنت مستيقظ"
-          }
-        },
-        "de": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Du bist wach"
-          }
-        },
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "You're up"
-          }
-        },
-        "es": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Estás despierto"
-          }
-        },
-        "fr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tu es debout"
-          }
-        },
-        "hi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "जाग रहे हो"
-          }
-        },
-        "id": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Kamu bangun"
-          }
-        },
-        "ja": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "起きてる"
-          }
-        },
-        "ko": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "깨어 있네"
-          }
-        },
-        "pt-BR": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Você está acordado"
-          }
-        },
-        "ru": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Ты не спишь"
-          }
-        },
-        "th": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "ตื่นอยู่"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Uyanıksın"
-          }
-        },
-        "vi": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bạn đang thức"
-          }
-        },
-        "zh-Hans": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "你醒着"
-          }
-        },
-        "zh-Hant": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "你醒著"
           }
         }
       }

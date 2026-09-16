@@ -185,4 +185,32 @@ class HomeHeroVisualContractTest {
         assertTrue(themeSource.contains("greeting_morning_5"))
         assertTrue(themeSource.contains("tagline_morning_8"))
     }
+
+    @Test
+    fun `production pools rotate through every line so both platforms pick the same index`() {
+        // Walk the production functions day by day: a pool one line short picks a different index than iOS
+        for (hour in listOf(9, 15, 20, 2)) {
+            val greetings = mutableSetOf<Int>()
+            val taglines = mutableSetOf<Int>()
+            for (offset in 0 until 40) {
+                val day = Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply {
+                    clear()
+                    set(2026, Calendar.MARCH, 1, hour, 0, 0)
+                    add(Calendar.DAY_OF_YEAR, offset)
+                }
+                greetings += AuroraGreeting.greetingResId(day)
+                taglines += AuroraGreeting.taglineResId(day)
+            }
+            assertEquals("hour=$hour greeting pool should have 5 lines", 5, greetings.size)
+            assertEquals("hour=$hour tagline pool should have 8 lines", 8, taglines.size)
+        }
+
+        // Same anchor as iOS HomeViewTests: 2026-09-16 afternoon -> greeting 5, tagline 8
+        val anchor = Calendar.getInstance(TimeZone.getTimeZone("UTC")).apply {
+            clear()
+            set(2026, Calendar.SEPTEMBER, 16, 15, 0, 0)
+        }
+        assertEquals(ai.oriveo.community.R.string.greeting_afternoon_5, AuroraGreeting.greetingResId(anchor))
+        assertEquals(ai.oriveo.community.R.string.tagline_afternoon_8, AuroraGreeting.taglineResId(anchor))
+    }
 }

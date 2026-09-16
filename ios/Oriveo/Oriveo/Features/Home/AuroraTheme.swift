@@ -756,35 +756,37 @@ enum AuroraGreeting {
         return abs(dayOfYear &* salt &+ year) % count
     }
 
-    /// Five greetings per time of day. The first line is the original greeting; the rest rotate by day.
+    /// Five greetings per time of day: two tied to the hour plus three generic ones. The generic three
+    /// sit at different positions in each bucket so one day rarely repeats the same line across buckets.
+    /// Every line has to be a greeting people actually use in each language.
     static let greetings: [Bucket: [String]] = [
         .morning: [
             "Good morning",
             "Morning",
-            "Morning to you",
-            "There you are",
-            "Hello again"
+            "Hello",
+            "Hi there",
+            "Nice to see you"
         ],
         .afternoon: [
             "Good afternoon",
             "Afternoon",
-            "Still around",
-            "Right here",
-            "It's you"
+            "Hi there",
+            "Nice to see you",
+            "Hello"
         ],
         .evening: [
             "Good evening",
             "Evening",
-            "Here today",
-            "I'm still here",
-            "You're here"
+            "Nice to see you",
+            "Hello",
+            "Hi there"
         ],
         .night: [
             "Still up",
-            "You're up",
-            "Here you are",
-            "I'm here",
-            "Late night"
+            "Up late",
+            "Hi there",
+            "Nice to see you",
+            "Hello"
         ]
     ]
 
@@ -802,56 +804,56 @@ enum AuroraGreeting {
 
     // MARK: - Tagline (32 lines = 4 buckets × 8, one picked per day by hash)
 
-    /// Taglines by time of day, written around self-compassion, autonomy, companionship,
-    /// containment, validation and presence. They deliberately avoid toxic positivity ("you've got
-    /// this", "keep pushing").
+    /// Taglines by time of day: light company plus a nudge toward asking something, readable with no
+    /// context. They do not assume the reader is tired or stressed, do not lecture, and avoid metaphors.
+    /// Each locale writes them from the intent, not word for word from the English.
     static let taglines: [Bucket: [String]] = [
         .morning: [
-            "Soft morning.",
             "Take it slow.",
-            "Glad you're up.",
             "The day is yours.",
-            "No rush to start.",
-            "The light won't rush you.",
-            "Just this hour.",
-            "Quiet is allowed."
+            "No question is too small.",
+            "Start with what's on your mind.",
+            "A good day to try something new.",
+            "Think out loud here.",
+            "One thing at a time.",
+            "Sort out your thoughts."
         ],
         .afternoon: [
-            "Pause if you need.",
-            "Still with you.",
-            "Halfway is plenty.",
-            "Breathe, I'll wait.",
-            "You don't have to finish.",
-            "Say it when you want.",
-            "You can change your mind.",
-            "No one is keeping score."
+            "Take a break if you need one.",
+            "Talk it through.",
+            "Break it into smaller steps.",
+            "Ask it your own way.",
+            "Pick up where you left off.",
+            "Ask whenever you're ready.",
+            "A fresh angle can help.",
+            "It doesn't have to be perfect."
         ],
         .evening: [
-            "You did enough today.",
-            "Soft landing.",
-            "You can let it rest.",
-            "Today was a lot.",
-            "Tomorrow can take the rest.",
-            "Nothing left to prove.",
-            "You can close the day.",
-            "Evening doesn't need more."
+            "Hope today went well.",
+            "Look back on today.",
+            "Follow your curiosity.",
+            "Plan tomorrow in a few lines.",
+            "The rest can wait till tomorrow.",
+            "Just chatting is fine too.",
+            "A good evening to think.",
+            "A calm end to the day."
         ],
         .night: [
-            "Still here, still listening.",
-            "It's okay to be up.",
+            "I'm here if you need me.",
+            "Can't sleep? Let's talk.",
             "The world is quieter now.",
-            "Take your time, the night is patient.",
-            "Talk, or don't.",
-            "Dreams can come later.",
-            "You can stay in the quiet.",
-            "No next step needed."
+            "Take your time.",
+            "Write down what's on your mind.",
+            "Don't forget to rest.",
+            "Quiet hours, clear thoughts.",
+            "No rush tonight."
         ]
     ]
 
     /// The tagline i18n key for the current time of day. Stable within a day (no flicker), new line the next day.
     static func taglineKey(date: Date = .now, calendar: Calendar = .current) -> String {
         let bucket = Bucket.current(date: date, calendar: calendar)
-        let pool = taglines[bucket] ?? ["Soft morning."]
+        let pool = taglines[bucket] ?? ["Take it slow."]
         return pool[dailyIndex(date: date, calendar: calendar, salt: taglineSalt, count: pool.count)]
     }
 }

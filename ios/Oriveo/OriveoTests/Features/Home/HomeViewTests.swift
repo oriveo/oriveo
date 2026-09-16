@@ -46,12 +46,39 @@ struct HomeViewTests {
         #expect(AuroraGreeting.dailyIndex(date: morning, calendar: calendar, salt: 17, count: 5) == 3)
         #expect(AuroraGreeting.dailyIndex(date: morning, calendar: calendar, salt: 31, count: 8) == 2)
 
+        // Same anchor as the Android HomeHeroVisualContractTest: 2026-09-16 afternoon -> greeting 5, tagline 8
+        let anchor = calendar.date(from: DateComponents(year: 2026, month: 9, day: 16, hour: 15))!
+        #expect(AuroraGreeting.currentKey(date: anchor, calendar: calendar) == AuroraGreeting.greetings[.afternoon]?[4])
+        #expect(AuroraGreeting.taglineKey(date: anchor, calendar: calendar) == AuroraGreeting.taglines[.afternoon]?[7])
+
         let uniqueGreetings = Set((0..<40).compactMap { offset -> String? in
             calendar.date(byAdding: .day, value: offset, to: morning).map {
                 AuroraGreeting.currentKey(date: $0, calendar: calendar)
             }
         })
         #expect(uniqueGreetings.count >= 4)
+    }
+
+    @Test("every greeting and tagline key is written for all sixteen locales")
+    func greetingAndTaglineKeysCoverEveryLocale() throws {
+        let catalogURL = try sourceRoot()
+            .appendingPathComponent("Oriveo")
+            .appendingPathComponent("Localizable.xcstrings")
+        let catalog = try JSONSerialization.jsonObject(with: Data(contentsOf: catalogURL)) as? [String: Any]
+        let strings = try #require(catalog?["strings"] as? [String: Any])
+
+        let keys = Set(AuroraGreeting.greetings.values.flatMap { $0 })
+            .union(AuroraGreeting.taglines.values.flatMap { $0 })
+        #expect(keys.count == 11 + 32)
+        for key in keys {
+            let entry = try #require(strings[key] as? [String: Any], "missing key \(key)")
+            let localizations = try #require(entry["localizations"] as? [String: Any])
+            #expect(localizations.count == 16, "\(key) should cover 16 locales, found \(localizations.count)")
+            for (language, value) in localizations {
+                let text = ((value as? [String: Any])?["stringUnit"] as? [String: Any])?["value"] as? String
+                #expect(text?.isEmpty == false, "\(key) [\(language)] has no text")
+            }
+        }
     }
 
     @Test("the top bar capsule buttons keep the design width and a 44pt hit height on the button itself")
