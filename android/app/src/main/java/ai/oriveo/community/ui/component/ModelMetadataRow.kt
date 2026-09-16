@@ -1,5 +1,6 @@
 package ai.oriveo.community.ui.component
 
+import androidx.annotation.VisibleForTesting
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -248,6 +249,42 @@ fun ModelMetadataInlineStrip(
     }
 }
 
+/**
+ * The degradation ladder for one metadata row, from "fully expanded" down to "only the single most
+ * important item left".
+ *
+ * Extracting it as a pure function makes it possible to assert directly how many rungs a given call
+ * site can ever probe -- each probe is one subcomposition, and the provider catalog page can reach
+ * 400-700 rows. The `distinct()` matters: without a price, the first rung and "all capabilities, no
+ * price" are the same rung, so after de-duplication a catalog row has exactly one rung and the whole
+ * probing pass can be skipped.
+ *
+ * The order is the priority; it must not be reshuffled.
+ */
+@VisibleForTesting
+internal fun modelListMetadataRowCandidates(
+    capabilityCount: Int,
+    includePrice: Boolean,
+    hasStatusText: Boolean,
+): List<Pair<Int, Boolean>> = buildList {
+    add(capabilityCount to includePrice)
+    if (includePrice && capabilityCount > 2) {
+        add(2 to true)
+    }
+    if (includePrice && capabilityCount > 0) {
+        add(1 to true)
+    }
+    if (capabilityCount > 0) {
+        add(capabilityCount to false)
+    }
+    if (hasStatusText) {
+        add(0 to false)
+    }
+    if (includePrice) {
+        add(0 to true)
+    }
+}.distinct()
+
 @Composable
 fun ModelListMetadataRow(
     model: AIModel,
@@ -266,24 +303,11 @@ fun ModelListMetadataRow(
 
     if (statusText == null && !includePrice && capabilities.isEmpty()) return
 
-    val rowCandidates = buildList {
-        add(capabilities.size to includePrice)
-        if (includePrice && capabilities.size > 2) {
-            add(2 to true)
-        }
-        if (includePrice && capabilities.isNotEmpty()) {
-            add(1 to true)
-        }
-        if (capabilities.isNotEmpty()) {
-            add(capabilities.size to false)
-        }
-        if (statusText != null) {
-            add(0 to false)
-        }
-        if (includePrice) {
-            add(0 to true)
-        }
-    }.distinct()
+    val rowCandidates = modelListMetadataRowCandidates(
+        capabilityCount = capabilities.size,
+        includePrice = includePrice,
+        hasStatusText = statusText != null,
+    )
 
     SubcomposeLayout(modifier = modifier) { constraints ->
         val probeConstraints = Constraints(
@@ -293,22 +317,31 @@ fun ModelListMetadataRow(
             maxHeight = if (constraints.hasBoundedHeight) constraints.maxHeight else Constraints.Infinity,
         )
 
-        val selectedIndex = rowCandidates.indexOfFirst { (capabilityCount, includePrice) ->
-            val placeable = subcompose("metadata_list_probe_$capabilityCount$includePrice") {
-                ModelListMetadataCandidateRow(
-                    priceTier = priceTier,
-                    capabilities = capabilities.take(capabilityCount),
-                    includePrice = includePrice,
-                    prominentPrice = prominentPrice,
-                    compact = compact,
-                    iconOnly = iconOnly,
-                    statusText = statusText,
-                    statusTone = statusTone,
-                )
-            }.single().measure(probeConstraints)
+        // With a single rung there is nothing to choose: `indexOfFirst` either returns 0 (it fits)
+        // or -1, which falls back to `lastIndex` == 0, so the result is always 0. The whole probing
+        // pass can therefore be skipped, saving one subcomposition. This is not a micro
+        // optimization: the provider catalog (`CatalogModelRow` passes showPrice = false and no
+        // statusText) has exactly one rung, and that page can reach 400-700 rows.
+        val selectedIndex = if (rowCandidates.size == 1) {
+            0
+        } else {
+            rowCandidates.indexOfFirst { (capabilityCount, includePrice) ->
+                val placeable = subcompose("metadata_list_probe_$capabilityCount$includePrice") {
+                    ModelListMetadataCandidateRow(
+                        priceTier = priceTier,
+                        capabilities = capabilities.take(capabilityCount),
+                        includePrice = includePrice,
+                        prominentPrice = prominentPrice,
+                        compact = compact,
+                        iconOnly = iconOnly,
+                        statusText = statusText,
+                        statusTone = statusTone,
+                    )
+                }.single().measure(probeConstraints)
 
-            !constraints.hasBoundedWidth || placeable.width <= constraints.maxWidth
-        }.takeIf { it >= 0 } ?: rowCandidates.lastIndex
+                !constraints.hasBoundedWidth || placeable.width <= constraints.maxWidth
+            }.takeIf { it >= 0 } ?: rowCandidates.lastIndex
+        }
 
         val (selectedCapabilityCount, selectedIncludePrice) = rowCandidates[selectedIndex]
         val selectedPlaceable = subcompose("metadata_list_selected") {
@@ -318,6 +351,9 @@ fun ModelListMetadataRow(
                 includePrice = selectedIncludePrice,
                 prominentPrice = prominentPrice,
                 compact = compact,
+                // Dropping iconOnly here measured the icon-only variant while rendering the one with
+                // labels, which makes the width decision meaningless.
+                iconOnly = iconOnly,
                 statusText = statusText,
                 statusTone = statusTone,
             )

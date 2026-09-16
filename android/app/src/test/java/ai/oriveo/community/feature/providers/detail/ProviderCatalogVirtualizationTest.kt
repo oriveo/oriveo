@@ -1,6 +1,8 @@
 package ai.oriveo.community.feature.providers.detail
 
+import ai.oriveo.community.ui.component.modelListMetadataRowCandidates
 import java.io.File
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -181,6 +183,54 @@ class ProviderCatalogVirtualizationTest {
         assertTrue(
             "model rows must be emitted row by row as lazy items to get row-level recycling",
             flattened.contains("itemsIndexed("),
+        )
+    }
+
+    // ── per-row measure cost ──
+    //
+    // Every probed degradation rung is one subcomposition. This page can reach 400-700 rows, so
+    // "how many rungs does a catalog row probe" is a first-class invariant here, not a micro
+    // optimization.
+
+    /**
+     * Catalog rows pass `showPrice = false` and carry no statusText, so after de-duplication the
+     * degradation ladder has **exactly one rung** -- there is nothing to choose, and the whole
+     * probing pass can be skipped (the `rowCandidates.size == 1` short circuit in
+     * `ModelListMetadataRow`).
+     */
+    @Test
+    fun `catalog rows have a single metadata candidate so probing can be skipped`() {
+        val catalogRow = catalogComponents.requiredSlice(
+            from = "ModelListMetadataRow(",
+            to = "ModelSpecInline(model = model)",
+        )
+        assertTrue("catalog rows must keep the price rung off, or the ladder grows back to 6 rungs", catalogRow.contains("showPrice = false"))
+        assertFalse("catalog rows carry no statusText; adding one would add a rung", catalogRow.contains("statusText ="))
+
+        // The capability count varies per model; every value in range must still yield one rung
+        (0..3).forEach { capabilityCount ->
+            assertEquals(
+                "a catalog row with capabilityCount=$capabilityCount must not have a second rung",
+                1,
+                modelListMetadataRowCandidates(capabilityCount, includePrice = false, hasStatusText = false).size,
+            )
+        }
+    }
+
+    /** Counter-sample: priced call sites keep the same number of rungs -- the short circuit must not trim the ladder. */
+    @Test
+    fun `priced rows keep the full degradation ladder in order`() {
+        assertEquals(
+            listOf(3 to true, 2 to true, 1 to true, 3 to false, 0 to true),
+            modelListMetadataRowCandidates(3, includePrice = true, hasStatusText = false),
+        )
+        assertEquals(
+            listOf(3 to true, 2 to true, 1 to true, 3 to false, 0 to false, 0 to true),
+            modelListMetadataRowCandidates(3, includePrice = true, hasStatusText = true),
+        )
+        assertEquals(
+            listOf(0 to true),
+            modelListMetadataRowCandidates(0, includePrice = true, hasStatusText = false),
         )
     }
 }
