@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
@@ -33,6 +32,7 @@ import androidx.compose.ui.unit.sp
 import ai.oriveo.community.R
 import ai.oriveo.community.feature.home.AuroraSectionRule
 import ai.oriveo.community.feature.home.AuroraTheme
+import ai.oriveo.community.feature.home.AuroraTitleCount
 import ai.oriveo.community.ui.theme.OriveoTheme
 
 /**
@@ -52,22 +52,12 @@ internal fun V2SectionHeader(
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
         AuroraSectionRule()
-        Text(
-            text = title,
-            style = AuroraTheme.Typography.section,
-            color = AuroraTheme.textPrimary(),
-            maxLines = 1,
+        AuroraTitleCount(
+            title = title,
+            titleStyle = AuroraTheme.Typography.section,
+            count = count,
+            spacing = 10.dp,
         )
-        if (count != null && count > 0) {
-            Text(
-                text = count.toString(),
-                style = AuroraTheme.Typography.countMono,
-                color = AuroraTheme.accent(),
-                maxLines = 1,
-                // iOS baselineOffset(1): the mono count sits 1pt above the centered position
-                modifier = Modifier.offset(y = (-1).dp),
-            )
-        }
     }
 }
 

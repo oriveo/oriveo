@@ -81,6 +81,77 @@ struct HomeViewTests {
         }
     }
 
+    @Test("titles and their counts line up on their visual centers (Latin and CJK)")
+    func titleCountInkCentersAlign() throws {
+        // The Notes card once used baseline alignment, which dropped the count about 1.5pt below the
+        // middle of a Chinese title; the group header added a baselineOffset that lifted it too high.
+        // Latin titles avoid descenders, which would pull the ink center down.
+        // The tolerance of 0.7pt is two pixels at 3x: top-heavy Chinese glyphs already sit ~0.6pt high.
+        // Chinese titles are escaped: notes, yesterday, pinned.
+        let chineseTitles = ["\u{7B14}\u{8BB0}", "\u{6628}\u{5929}", "\u{7F6E}\u{9876}"]
+        for title in chineseTitles + ["Notes", "Pinned", "ノート", "노트"] {
+            for (fontName, font) in [("notes", Font.system(size: 17, weight: .semibold)), ("section", AuroraTheme.Typography.section)] {
+                let content = AuroraTitleCount(title: title, titleFont: font, count: 2)
+                    .padding(8)
+                    .background(Color.white)
+                    .environment(\.colorScheme, .light)
+                let renderer = ImageRenderer(content: content)
+                renderer.scale = 3
+                let image = try #require(renderer.cgImage)
+                let centers = try #require(Self.inkCenters(image), "\(title) rendered no ink")
+                let delta = centers.count - centers.title
+                #expect(abs(delta) <= 0.7, "\(title) [\(fontName)] count sits \(delta)pt below the title (negative is above)")
+            }
+        }
+
+        // Both call sites have to use the component rather than drifting back to their own alignment
+        let notesSource = try source(named: "HomeNotesEntryCard.swift")
+        let viewSource = try source(named: "HomeView.swift")
+        #expect(notesSource.contains("AuroraTitleCount("))
+        #expect(viewSource.contains("AuroraTitleCount("))
+        #expect(!notesSource.contains(".firstTextBaseline"))
+        #expect(!viewSource.contains(".baselineOffset(1)"))
+    }
+
+    /// Splits title ink (near black) from count ink (violet) by color and returns their vertical centers
+    /// in points for a 3x render.
+    private static func inkCenters(_ image: CGImage) -> (title: Double, count: Double)? {
+        let width = image.width
+        let height = image.height
+        var pixels = [UInt8](repeating: 0, count: width * height * 4)
+        guard let context = CGContext(
+            data: &pixels,
+            width: width,
+            height: height,
+            bitsPerComponent: 8,
+            bytesPerRow: width * 4,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else { return nil }
+        context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+
+        var titleRows: [Int] = []
+        var countRows: [Int] = []
+        for y in 0..<height {
+            var hasTitle = false
+            var hasCount = false
+            for x in 0..<width {
+                let offset = (y * width + x) * 4
+                let r = Int(pixels[offset]), g = Int(pixels[offset + 1]), b = Int(pixels[offset + 2])
+                if b - g > 50, b > 150 {
+                    hasCount = true
+                } else if max(r, g, b) < 120, b - g < 40 {
+                    hasTitle = true
+                }
+            }
+            if hasTitle { titleRows.append(y) }
+            if hasCount { countRows.append(y) }
+        }
+        guard let titleTop = titleRows.first, let titleBottom = titleRows.last,
+              let countTop = countRows.first, let countBottom = countRows.last else { return nil }
+        return (Double(titleTop + titleBottom) / 6, Double(countTop + countBottom) / 6)
+    }
+
     @Test("the top bar capsule buttons keep the design width and a 44pt hit height on the button itself")
     func headerCapsuleButtonsKeepHIGHitHeight() throws {
         #expect(homeHeaderCapsuleHeight == 38)

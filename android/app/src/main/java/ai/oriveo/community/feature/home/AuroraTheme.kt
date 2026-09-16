@@ -5,13 +5,17 @@ import androidx.compose.animation.core.EaseInOut
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithCache
@@ -667,6 +671,44 @@ internal fun Modifier.auroraNotesSurface(isDark: Boolean, cornerRadius: Dp): Mod
             drawAuroraCrown(borderPath, hairlineWidth, scale = AURORA_CROWN_NOTES_SCALE, hotCore = false, alpha = 1f)
         } else {
             drawPath(path = borderPath, brush = border, style = Stroke(width = hairlineWidth))
+        }
+    }
+}
+
+// -- Title Count (a title with a mono count) --
+
+/**
+ * A title with a mono count beside it, shared by the Notes entry card and the conversation group
+ * headers, following the same rule as iOS `AuroraTitleCount`: both are centered on their line boxes.
+ * Baseline alignment drops the count below the visual middle of CJK titles, and no extra lift is
+ * added either; on iOS, rendering shows the centered count already lines up and a lift puts it too high.
+ */
+@Composable
+internal fun AuroraTitleCount(
+    title: String,
+    titleStyle: TextStyle,
+    count: Int?,
+    modifier: Modifier = Modifier,
+    spacing: Dp = 8.dp,
+) {
+    Row(
+        modifier = modifier,
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(spacing),
+    ) {
+        Text(
+            text = title,
+            style = titleStyle,
+            color = AuroraTheme.textPrimary(),
+            maxLines = 1,
+        )
+        if (count != null && count > 0) {
+            Text(
+                text = count.toString(),
+                style = AuroraTheme.Typography.countMono,
+                color = AuroraTheme.accent(),
+                maxLines = 1,
+            )
         }
     }
 }

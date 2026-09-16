@@ -580,6 +580,33 @@ struct AuroraSectionRule: View {
     }
 }
 
+// MARK: - Aurora Title Count
+
+/// A title with a mono count beside it, shared by the Notes entry card and the conversation group headers.
+/// The two are centered on their line boxes. Baseline alignment drops the count about 1.5pt below the
+/// visual middle of CJK titles, and an extra baselineOffset lifts it too high; centered, Latin and CJK
+/// titles land within ±0.7pt of the count (measured by rendering in HomeViewTests).
+struct AuroraTitleCount: View {
+    let title: String
+    let titleFont: Font
+    let count: Int?
+    var spacing: CGFloat = 8
+
+    var body: some View {
+        HStack(alignment: .center, spacing: spacing) {
+            Text(title)
+                .font(titleFont)
+                .tracking(-0.3)
+                .foregroundStyle(AuroraTheme.Colors.textPrimary)
+            if let count, count > 0 {
+                Text("\(count)")
+                    .font(AuroraTheme.Typography.countMono)
+                    .foregroundStyle(AuroraTheme.Colors.accent)
+            }
+        }
+    }
+}
+
 // MARK: - Aurora Grouped Card
 
 /// The conversation group card on Home: one card per group, no separators inside, rows kept apart by

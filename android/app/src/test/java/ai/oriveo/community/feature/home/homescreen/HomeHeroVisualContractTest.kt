@@ -213,4 +213,20 @@ class HomeHeroVisualContractTest {
         assertEquals(ai.oriveo.community.R.string.greeting_afternoon_5, AuroraGreeting.greetingResId(anchor))
         assertEquals(ai.oriveo.community.R.string.tagline_afternoon_8, AuroraGreeting.taglineResId(anchor))
     }
+
+    @Test
+    fun `notes card and section header share the centered title count`() {
+        // The Notes card once used baseline alignment, which dropped the count below the middle of CJK
+        // titles; the group header lifted it by an extra 1dp
+        val notesSource = File("src/main/java/ai/oriveo/community/feature/notes/HomeNotesEntryCard.kt").readText()
+        val headerSource = File("src/main/java/ai/oriveo/community/feature/home/homescreen/HomeEditingToolbar.kt").readText()
+        val themeSource = File("src/main/java/ai/oriveo/community/feature/home/AuroraTheme.kt").readText()
+        assertTrue(notesSource.contains("AuroraTitleCount("))
+        assertTrue(headerSource.contains("AuroraTitleCount("))
+        assertFalse(notesSource.contains("alignByBaseline"))
+        assertFalse(headerSource.contains("offset(y ="))
+        val titleCount = themeSource.substringAfter("internal fun AuroraTitleCount(").substringBefore("// -- Section Rule")
+        assertTrue(titleCount.contains("verticalAlignment = Alignment.CenterVertically"))
+        assertFalse(titleCount.contains("offset("))
+    }
 }

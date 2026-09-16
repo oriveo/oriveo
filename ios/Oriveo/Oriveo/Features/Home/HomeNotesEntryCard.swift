@@ -3,7 +3,7 @@ import SwiftUI
 /// The fixed Notes entry card on Home, built from the same material as the hero composer card
 /// (AuroraHeroSurface with a single soft glow top-right).
 ///
-/// Left: `Notes` 17/semibold, the count (monospaced accent, baseline aligned) and the title of the
+/// Left: `Notes` 17/semibold, the count (monospaced accent, centered, see AuroraTitleCount) and the title of the
 /// most recent note (single line, truncated).
 /// Right: the Lucide notebook-pen line glyph at 40pt (without the binder ticks, see notebookGlyph),
 /// tinted with a #C4B5FD → #EC8FEA → #8DB4FF linear gradient.
@@ -27,18 +27,12 @@ struct HomeNotesEntryCard: View {
         Button(action: onOpen) {
             HStack(spacing: 16) {
                 VStack(alignment: .leading, spacing: 4) {
-                    HStack(alignment: .firstTextBaseline, spacing: 8) {
-                        Text(L10n.tr("Notes", table: .notes))
-                            .font(.system(size: 17, weight: .semibold))
-                            .tracking(-0.3)
-                            .foregroundStyle(AuroraTheme.Colors.textPrimary)
-                            .lineLimit(1)
-                        if hasNotes {
-                            Text("\(count)")
-                                .font(AuroraTheme.Typography.countMono)
-                                .foregroundStyle(AuroraTheme.Colors.accent)
-                        }
-                    }
+                    AuroraTitleCount(
+                        title: L10n.tr("Notes", table: .notes),
+                        titleFont: .system(size: 17, weight: .semibold),
+                        count: count
+                    )
+                    .lineLimit(1)
                     // Line heights are 22 / 18 (SF's natural line heights are about 20 / 15.3);
                     // without padding the line boxes the card ends up 4pt short.
                     .frame(minHeight: 22)

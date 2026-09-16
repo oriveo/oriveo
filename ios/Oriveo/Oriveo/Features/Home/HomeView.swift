@@ -1108,17 +1108,7 @@ struct HomeView: View {
         HStack(alignment: .center, spacing: 10) {
             AuroraSectionRule()
 
-            Text(title)
-                .font(AuroraTheme.Typography.section)
-                .foregroundStyle(AuroraTheme.Colors.textPrimary)
-                .tracking(-0.3)
-
-            if let count, count > 0 {
-                Text("\(count)")
-                    .font(AuroraTheme.Typography.countMono)
-                    .foregroundStyle(AuroraTheme.Colors.accent)
-                    .baselineOffset(1)
-            }
+            AuroraTitleCount(title: title, titleFont: AuroraTheme.Typography.section, count: count, spacing: 10)
 
             Spacer(minLength: 0)
         }

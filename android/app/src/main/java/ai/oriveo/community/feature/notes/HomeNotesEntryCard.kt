@@ -22,12 +22,14 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import ai.oriveo.community.R
 import ai.oriveo.community.feature.home.AuroraTheme
+import ai.oriveo.community.feature.home.AuroraTitleCount
 import ai.oriveo.community.feature.home.auroraNotesSurface
 import ai.oriveo.community.ui.theme.OriveoTheme
 
@@ -37,7 +39,7 @@ private val HOME_NOTES_CORNER_RADIUS = 26.dp
  * The fixed Notes entry card on Home (matches iOS HomeNotesEntryCard): the same material as the hero composer,
  * keeping only the top-right glow.
  *
- * Left: `Notes` 17/semibold + count (mono accent, baseline aligned) + the latest note title (single line);
+ * Left: `Notes` 17/semibold + count (mono accent, centered, see AuroraTitleCount) + the latest note title (single line);
  * right: a 40dp notebook-pen line glyph (without the binding ticks) in a #C4B5FD → #EC8FEA → #8DB4FF gradient.
  * No chevron, count badge, watermark or solid icon tile; the whole card opens the notes list.
  * The design is a 1dp stroke plus padding 16/18/16/20 (border-box), so content sits 1dp further from the outer
@@ -82,33 +84,18 @@ fun HomeNotesEntryCard(
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(4.dp),
         ) {
-            Row(
-                // The design uses line heights 22 / 18; without padding the line boxes the card ends up too short
-                modifier = Modifier.heightIn(min = 22.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = title,
+            AuroraTitleCount(
+                title = title,
+                titleStyle = TextStyle(
                     fontSize = 17.sp,
                     lineHeight = 22.sp,
                     fontWeight = FontWeight.SemiBold,
                     letterSpacing = (-0.3).sp,
-                    color = AuroraTheme.textPrimary(),
-                    maxLines = 1,
-                    modifier = Modifier.alignByBaseline(),
-                )
-                if (hasNotes) {
-                    Text(
-                        text = "$noteCount",
-                        style = AuroraTheme.Typography.countMono,
-                        color = AuroraTheme.accent(),
-                        maxLines = 1,
-                        modifier = Modifier
-                            .padding(start = 8.dp)
-                            .alignByBaseline(),
-                    )
-                }
-            }
+                ),
+                count = noteCount,
+                // The design uses line heights 22 / 18; without padding the line boxes the card ends up too short
+                modifier = Modifier.heightIn(min = 22.dp),
+            )
             Text(
                 text = previewLine,
                 fontSize = 13.sp,
