@@ -316,7 +316,7 @@ class ConversationRepositoryTest {
         )
 
         coEvery { conversationDao.getById(testAccountId, "CONV-1") } returns entity
-        coEvery { messageDao.getByConversation(testAccountId, "CONV-1") } returns listOf(lastDelivered)
+        coEvery { messageDao.lastDelivered(testAccountId, "CONV-1") } returns lastDelivered
         val updatedEntitySlot = slot<ConversationEntity>()
         coEvery { conversationDao.update(capture(updatedEntitySlot)) } just runs
 
@@ -325,6 +325,8 @@ class ConversationRepositoryTest {
         assertTrue(updatedEntitySlot.isCaptured)
         assertEquals("", updatedEntitySlot.captured.draftText)
         assertEquals("Last delivered reply", updatedEntitySlot.captured.previewText)
+        // Clearing the draft runs after every send, so it must never hydrate the whole thread again.
+        coVerify(exactly = 0) { messageDao.getByConversation(any(), any()) }
     }
 
     @Test
@@ -336,7 +338,7 @@ class ConversationRepositoryTest {
         )
 
         coEvery { conversationDao.getById(testAccountId, "CONV-1") } returns entity
-        coEvery { messageDao.getByConversation(testAccountId, "CONV-1") } returns emptyList()
+        coEvery { messageDao.lastDelivered(testAccountId, "CONV-1") } returns null
         val updatedEntitySlot = slot<ConversationEntity>()
         coEvery { conversationDao.update(capture(updatedEntitySlot)) } just runs
 
@@ -345,6 +347,7 @@ class ConversationRepositoryTest {
         assertTrue(updatedEntitySlot.isCaptured)
         assertEquals("", updatedEntitySlot.captured.draftText)
         assertEquals("", updatedEntitySlot.captured.previewText)
+        coVerify(exactly = 0) { messageDao.getByConversation(any(), any()) }
     }
 
     @Test

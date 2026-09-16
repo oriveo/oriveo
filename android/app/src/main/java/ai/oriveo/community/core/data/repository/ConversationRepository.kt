@@ -20,7 +20,6 @@ import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.core.model.RelayKind
 import ai.oriveo.community.core.model.computeConversationActivityAt
 import ai.oriveo.community.core.model.deriveConversationMetadata
-import ai.oriveo.community.core.model.lastDeliveredMessage
 import ai.oriveo.community.core.model.makeConversationPreviewText
 import ai.oriveo.community.core.usage.MonthlyCostSummary
 import ai.oriveo.community.core.usage.ProviderUsageSummary
@@ -537,25 +536,32 @@ class ConversationRepository(
         val normalizedId = normalizeUuid(id)
         conversationDao.getById(scopedAccountId, normalizedId)?.let { entity ->
             val trimmed = text.trim()
-            val messages = if (trimmed.isEmpty()) {
-
-                readMessagesOrNull(normalizedId, "updateDraft", scopedAccountId)
-                    ?.map { normalizeMessageIds(it.toDomain()) }
-                    ?: emptyList()
-            } else {
-                emptyList()
-            }
             val updatedEntity = entity.copy(
                 draftText = text,
                 previewText = if (trimmed.isNotEmpty()) {
                     if (trimmed.length > 100) trimmed.take(100) + "…" else trimmed
                 } else {
-                    lastDeliveredMessage(messages)?.let(::makeConversationPreviewText).orEmpty()
+                    // Clearing the draft only needs the preview of the last delivered message. The
+                    // previous implementation ran an unbounded getByConversation here and hydrated
+                    // the whole thread, attachment JSON included — on a path that runs after every
+                    // send. This is an indexed LIMIT 1 lookup instead.
+                    latestDeliveredPreviewText(scopedAccountId, normalizedId)
                 },
                 updatedAt = System.currentTimeMillis(),
             )
             conversationDao.update(updatedEntity)
         }
+    }
+
+    /** Preview text of the last delivered message; empty when a corrupt row cannot be read, so the draft update still goes through. */
+    private suspend fun latestDeliveredPreviewText(scopedAccountId: String, normalizedId: String): String {
+        val latest = try {
+            messageDao.lastDelivered(scopedAccountId, normalizedId)
+        } catch (e: android.database.sqlite.SQLiteException) {
+            android.util.Log.e("ConversationRepository", "corrupt row read at updateDraft: ${e.localizedMessage}", e)
+            null
+        }
+        return latest?.let { makeConversationPreviewText(normalizeMessageIds(it.toDomain())) }.orEmpty()
     }
 
     suspend fun updateProviderAndModel(
@@ -701,6 +707,22 @@ private data class ConversationStreamFingerprint(
     val messagesHash: Int,
 )
 
+/**
+ * Metadata-only fingerprint (no messages), used by [ConversationRepository.observeMetadata] with
+ * `distinctUntilChanged` so the chat screen does not re-emit on every `messages` invalidation.
+ *
+ * **It carries only fields the chat screen actually consumes.** The one subscriber is the chat
+ * view model's conversation flow, and every emission recomposes the whole screen, message list
+ * included. Three fields used to be in here that guaranteed the debounced draft writes would punch
+ * straight through it:
+ * - `draftTextHash` / `previewTextHash`: `updateDraft` rewrites both on every keystroke batch, but
+ *   the screen only uses `draftText.isNotBlank()` (see `resolveChatLoadState`) and
+ *   `previewText.isNotBlank()`, so booleans are enough;
+ * - `updatedAt`: `updateDraft` stamps the wall clock every time, and the chat screen never renders
+ *   it (export reads the conversation directly, the home screen sorts on a different flow).
+ * Before adding a field, ask whether the chat screen really reads it — one that it cannot reach
+ * only hangs a full-screen recomposition off it.
+ */
 private data class ConversationMetadataFingerprint(
     val id: String,
     val title: String,
@@ -708,12 +730,11 @@ private data class ConversationMetadataFingerprint(
     val providerID: String,
     val providerKind: String,
     val modelID: String,
-    val previewTextHash: Int,
+    val hasPreviewText: Boolean,
     val estimatedCostBits: Long,
     val isDraft: Boolean,
     val messageCount: Int,
-    val draftTextHash: Int,
-    val updatedAt: Long,
+    val hasDraftText: Boolean,
     val folderID: String?,
     val skillId: String?,
     val useMemory: Boolean,
@@ -728,12 +749,11 @@ private fun Conversation.metadataFingerprint(): ConversationMetadataFingerprint 
         providerID = providerID,
         providerKind = providerKind.name,
         modelID = modelID,
-        previewTextHash = previewText.hashCode(),
+        hasPreviewText = previewText.isNotBlank(),
         estimatedCostBits = estimatedCost.toBits(),
         isDraft = isDraft,
         messageCount = messageCount,
-        draftTextHash = draftText.hashCode(),
-        updatedAt = updatedAt,
+        hasDraftText = draftText.isNotBlank(),
         folderID = folderID,
         skillId = skillId,
         useMemory = useMemory,
