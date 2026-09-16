@@ -37,6 +37,24 @@ object OnboardingMath {
         val x = clamp(t, 0f, 1f)
         return x * x * (3f - 2f * x)
     }
+
+    /**
+     * Round-trip triangle wave: rises linearly from 0 to 1 over [period] seconds, then falls back to
+     * 0 over the same span.
+     *
+     * Pointwise equivalent to the
+     * `infiniteRepeatable(tween(period, LinearEasing), RepeatMode.Reverse)` it replaces, but driven
+     * by the stage's single time source. It is used instead of opening another
+     * `rememberInfiniteTransition` because that frame loop is not governed by
+     * `isOrbitClockPaused`: it keeps running once the stage clock has stopped, pinning the whole
+     * page to the display refresh rate.
+     */
+    fun pingPong(seconds: Float, period: Float): Float {
+        if (period <= 0f) return 0f
+        val phase = (seconds % (period * 2f)) / period
+        val wrapped = if (phase < 0f) phase + 2f else phase
+        return if (wrapped <= 1f) wrapped else 2f - wrapped
+    }
 }
 
 data class OnboardingRgb(val red: Float, val green: Float, val blue: Float) {

@@ -1,11 +1,5 @@
 package ai.oriveo.community.feature.onboarding
 
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -86,6 +80,10 @@ object OnboardingPalette {
 }
 
 private val NUCLEUS_SIZE = 68.dp
+
+/** The two axes the cost card floats on: the periods are deliberately not integer multiples, so the combined path never looks like it loops. */
+private const val COST_CARD_LIFT_PERIOD_SECONDS = 6f
+private const val COST_CARD_DRIFT_PERIOD_SECONDS = 7.4f
 private val NUCLEUS_CORNER_RADIUS = 16.dp
 
 private fun orbiterLogoRes(id: String): Int = when (id) {
@@ -149,7 +147,7 @@ fun OnboardingOrbitStage(
 
         Nucleus(values = values, revealed = nucleusRevealed, modifier = Modifier.zIndex(0f))
 
-        ByokPiece(values = values, reduceMotion = reduceMotion, modifier = Modifier.zIndex(2f))
+        ByokPiece(values = values, time = time, modifier = Modifier.zIndex(2f))
     }
 }
 
@@ -237,23 +235,22 @@ private fun Nucleus(values: OnboardingStageValues, revealed: Boolean, modifier: 
 }
 
 @Composable
-private fun ByokPiece(values: OnboardingStageValues, reduceMotion: Boolean, modifier: Modifier = Modifier) {
+private fun ByokPiece(values: OnboardingStageValues, time: Float, modifier: Modifier = Modifier) {
     val density = LocalDensity.current
 
-    val transition = rememberInfiniteTransition(label = "costCard")
-    val animatedTarget = if (reduceMotion) 0f else 1f
-    val lift by transition.animateFloat(
-        initialValue = 0f,
-        targetValue = animatedTarget,
-        animationSpec = infiniteRepeatable(tween(6000, easing = LinearEasing), RepeatMode.Reverse),
-        label = "lift",
-    )
-    val drift by transition.animateFloat(
-        initialValue = 0f,
-        targetValue = animatedTarget,
-        animationSpec = infiniteRepeatable(tween(7400, easing = LinearEasing), RepeatMode.Reverse),
-        label = "drift",
-    )
+    // The cost card's float is split across two independent axes whose periods are deliberately not
+    // integer multiples (6.0s / 7.4s): the combined path is a non-repeating Lissajous curve, which
+    // reads far better than a single axis translating up and down.
+    //
+    // Both axes hang off the one time source this page already has (shared with the orbit rings and
+    // the electrons) instead of opening their own `rememberInfiniteTransition`: that frame loop is
+    // not governed by `clockPaused`, so it keeps running once the stage clock has stopped and pins
+    // the whole page to the display refresh rate. `pingPong` is pointwise equivalent to the previous
+    // `infiniteRepeatable(tween(..., LinearEasing), RepeatMode.Reverse)`; when the clock is paused
+    // `time == 0f` and both axes return to 0, which is exactly the resting composition (reduce
+    // motion goes through the same path -- see isOrbitClockPaused).
+    val lift = OnboardingMath.pingPong(time, COST_CARD_LIFT_PERIOD_SECONDS)
+    val drift = OnboardingMath.pingPong(time, COST_CARD_DRIFT_PERIOD_SECONDS)
 
     Box(
         modifier = modifier.graphicsLayer {

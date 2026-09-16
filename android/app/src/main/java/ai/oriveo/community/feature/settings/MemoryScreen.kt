@@ -91,6 +91,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.AnnotatedString
@@ -107,6 +108,7 @@ import androidx.compose.ui.unit.sp
 import ai.oriveo.community.R
 import ai.oriveo.community.core.util.graphemeCount
 import ai.oriveo.community.ui.component.OriveoPrimaryButton
+import ai.oriveo.community.ui.component.isReduceMotionEnabled
 import ai.oriveo.community.ui.theme.OriveoBorderWidth
 import ai.oriveo.community.ui.theme.OriveoTheme
 import ai.oriveo.community.ui.theme.OriveoScreenBackground
@@ -160,7 +162,12 @@ fun MemoryScreen(
         hasRecentConversations = hasRecentConversations,
     )
 
-    val reduceMotion = false
+    // Android's equivalent of "reduce motion" is ANIMATOR_DURATION_SCALE == 0, and
+    // isReduceMotionEnabled (process-level cache + ContentObserver) is this repository's single
+    // read point for it. This was hardcoded to false, so the whole screen (entrance fade/slide, the
+    // unsaved pulse dot) ignored the user's accessibility setting.
+    val context = LocalContext.current
+    val reduceMotion = remember(context) { isReduceMotionEnabled(context) }
 
     var pageAppeared by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { pageAppeared = true }
