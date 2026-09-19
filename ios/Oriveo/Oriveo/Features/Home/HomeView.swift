@@ -215,6 +215,13 @@ struct HomeView: View {
     @State private var showMoveToFolderSheet = false
     @State private var pendingMoveConversationID: UUID?
     @State private var contentAppeared = false
+    /// Whether the conversation section is visible. `contentAppeared` only drives **this**
+    /// entrance animation; once it has played, `appState.hasPlayedHomeIntro` takes over, so a
+    /// rebuild (folding/unfolding swaps the view tree, switching tabs, popping back) can never
+    /// leave the whole section at opacity 0. This fallback depends on no post-rebuild callback.
+    private var showsConversationContent: Bool {
+        contentAppeared || appState.hasPlayedHomeIntro
+    }
     @State private var earlierDisplayCount = homeEarlierPageSize
     @State private var cachedConversationModelLookup = ModelDisplayLookup.empty
     @State private var cachedConversationModelLookupVersion: UInt = .max
@@ -1038,15 +1045,15 @@ struct HomeView: View {
                 conversationEmptyPlaceholder(folders: folders, groups: groups, pinned: pinnedConversations)
                     .padding(.top, homeListFirstBlockTopSpacing)
                     .padding(.horizontal, OriveoTheme.V2.Sp.s20)
-                    .opacity(contentAppeared ? 1 : 0)
-                    .offset(y: contentAppeared ? 0 : 8)
+                    .opacity(showsConversationContent ? 1 : 0)
+                    .offset(y: showsConversationContent ? 0 : 8)
             } else {
                 ForEach(items) { item in
                     homeListItemView(item)
                         .padding(.horizontal, OriveoTheme.V2.Sp.s20)
                         .padding(.top, item.topSpacing)
-                        .opacity(contentAppeared ? 1 : 0)
-                        .offset(y: contentAppeared ? 0 : 8)
+                        .opacity(showsConversationContent ? 1 : 0)
+                        .offset(y: showsConversationContent ? 0 : 8)
                 }
             }
         }

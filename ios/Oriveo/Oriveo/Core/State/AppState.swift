@@ -157,6 +157,19 @@ final class AppState {
     /// path, and going around them would put the message ahead of them.
     var pendingComposerPrefill: String?
 
+    /// Whether the home conversation section has already played its entrance animation
+    /// (UI only, not persisted, valid for the lifetime of the app).
+    ///
+    /// The animation is driven by `HomeView`'s `@State contentAppeared`, and `@State` resets
+    /// whenever the view is rebuilt. The wide-screen two-column layout makes rebuilds a frequent
+    /// path — folding and unfolding swaps between `NavigationSplitView { HomeView }` and a bare
+    /// `HomeView()` — and once a rebuild's onAppear fails to set it back, the whole conversation
+    /// section sits at `opacity 0`: the home screen looks like it holds no conversations at all,
+    /// not even the empty-state placeholder, while the data is perfectly fine.
+    /// Visibility therefore cannot rest on a post-rebuild callback alone; once the entrance has
+    /// played, this flag keeps the section visible.
+    var hasPlayedHomeIntro = false
+
     var expandedFolderIDs: Set<UUID> = []
     var preferences: AppPreference
     var pendingSuccessBanner: String?

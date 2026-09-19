@@ -83,6 +83,22 @@ struct NotesView: View {
     private var header: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: OriveoTheme.Spacing.sm) {
+                // Back button. This screen is pushed onto the outer NavigationStack, and
+                // `oriveoNavigationChrome()` hides the native navigation bar along with the
+                // system back button — of all the pushed routes this was the only one that
+                // never placed its own, leaving the edge swipe as the single way out: findable
+                // on a phone, effectively no exit at all on a wide screen. Spec follows
+                // `NoteDetailView.detailHeader` so both notes screens feel the same.
+                Button { appState.navigation.pop() } label: {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundStyle(OriveoTheme.Palette.textPrimary)
+                        .frame(width: 40, height: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel(L10n.tr("Back"))
+
                 brandIcon
                 Text(L10n.tr("Notes", table: .notes))
                     .font(.system(size: 28, weight: .bold))

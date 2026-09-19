@@ -273,18 +273,19 @@ struct ModelControlsSheet: View {
 
     private var subjectHeader: some View {
         VStack(alignment: .leading, spacing: 4) {
+            // The model name is not repeated here — `navigationTitle` already is it. On a phone
+            // in portrait the inline title and a headline here sit far enough apart in the
+            // hierarchy to get away with it; in a ~580pt wide sheet the two lines land less than
+            // 50pt apart and the same string appearing twice is simply a duplicate. What stays
+            // is where the model came from: the provider badge and the source subtitle.
             HStack(spacing: 8) {
                 ProviderBadgeIcon(kind: provider.kind, size: 20, relayKind: provider.relayKind)
-                Text(model.name)
-                    .font(.headline)
-                    .foregroundStyle(OriveoTheme.Palette.textPrimary)
-                    .lineLimit(1)
+                Text(subjectSubtitle)
+                    .font(.subheadline)
+                    .foregroundStyle(OriveoTheme.Palette.textSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
                 Spacer(minLength: 0)
             }
-            Text(subjectSubtitle)
-                .font(.caption)
-                .foregroundStyle(OriveoTheme.Palette.textTertiary)
-                .fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 2)

@@ -66,6 +66,10 @@ struct AppRootView: View {
             // layout is drawn and which carrier holds the conversation are always the same
             // judgement and can never be a frame apart.
             appState.navigation.updateLayoutWidth(isRegular: sizeClass == .regular)
+            // A size class change swaps the Home tab's view tree, and the outer nav may be
+            // rebuilt with it. The back swipe recognizer is bound to that nav, so re-confirm
+            // here — a no-op when it is still attached.
+            SwipeBackCoordinator.shared.refreshIfNeeded()
         }
         .onAppear {
             SwipeBackCoordinator.shared.setupIfNeeded()
@@ -138,26 +142,57 @@ private extension View {
 
 final class SwipeBackCoordinator: NSObject, UIGestureRecognizerDelegate {
     static let shared = SwipeBackCoordinator()
-    private var isSetup = false
     private weak var navController: UINavigationController?
+    private weak var attachedWindow: UIWindow?
+    private weak var attachedGesture: UIPanGestureRecognizer?
     var isBackSwipeEnabled = true
 
+    /// Whether the current binding still holds.
+    ///
+    /// This used to be a one-shot `isSetup` flag paired with a `weak navController`, and the two
+    /// together have an inevitable consequence: once the outer nav is rebuilt the weak reference
+    /// goes nil while `isSetup` stays true, so setup never runs again and
+    /// `gestureRecognizerShouldBegin` returns false forever — **the back swipe is dead, with no
+    /// error anywhere**. The two-column layout adds a trigger for exactly that: the Home tab
+    /// swaps its whole view tree between `NavigationSplitView` and a bare `HomeView` as the
+    /// width changes. So the binding has to be re-entrant and judged on "is it still attached".
+    private var isBound: Bool {
+        guard let navController, navController.viewIfLoaded?.window != nil else { return false }
+        return attachedGesture != nil && attachedWindow != nil
+    }
+
     func setupIfNeeded() {
-        guard !isSetup else { return }
+        guard !isBound else { return }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
-            self?.setup()
+            self?.bind()
         }
     }
 
-    private func setup() {
-        guard !isSetup else { return }
+    /// Re-confirms the binding after the window structure may have changed (a size class swap).
+    /// A no-op when it is still attached.
+    func refreshIfNeeded() {
+        guard !isBound else { return }
+        bind()
+    }
+
+    private func bind() {
         guard let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
-              let window = windowScene.windows.first,
-              let root = window.rootViewController,
+              let window = windowScene.windows.first else { return }
+        bind(to: window)
+    }
+
+    private func bind(to window: UIWindow) {
+        guard let root = window.rootViewController,
               let nav = Self.findNavController(from: root) else { return }
 
-        isSetup = true
-        self.navController = nav
+        // Detach the previous recognizer before rebinding, otherwise every rebind leaves another
+        // one on the window and they all recognise the same swipe.
+        if let attachedGesture, let attachedWindow {
+            attachedWindow.removeGestureRecognizer(attachedGesture)
+        }
+        attachedGesture = nil
+        attachedWindow = nil
+        navController = nav
 
         guard let systemGesture = nav.interactivePopGestureRecognizer,
               let systemTarget = systemGesture.delegate else { return }
@@ -169,7 +204,21 @@ final class SwipeBackCoordinator: NSObject, UIGestureRecognizerDelegate {
         panGesture.maximumNumberOfTouches = 1
         panGesture.delegate = self
         window.addGestureRecognizer(panGesture)
+        attachedWindow = window
+        attachedGesture = panGesture
     }
+
+    #if DEBUG
+    /// Testing hook: run a binding against a given window, bypassing the "first connected scene"
+    /// lookup (there is no real scene in a unit test).
+    func bindForTesting(window: UIWindow) { bind(to: window) }
+
+    /// Testing hook: the depth-first lookup is a pure function; exposing it is what lets a test
+    /// assert that the **outer** nav is the one that wins.
+    static func findNavControllerForTesting(from vc: UIViewController?) -> UINavigationController? {
+        findNavController(from: vc)
+    }
+    #endif
 
     // MARK: - UIGestureRecognizerDelegate
 

@@ -150,9 +150,18 @@ struct ChatComposerDraftLifecycleTests {
         Self.type("first message", into: input)
         try await Self.waitUntil { input.text == "first message" }
 
-        harness.push.push("")
+                harness.push.push("")
         harness.setFocus?(false)
-        try await Self.waitUntil { input.text.isEmpty }
+        // Wait for the blur too, not just the text. `isFocused` comes from `FocusState`,
+        // whose blur is driven asynchronously by the UIKit first responder change; waiting
+        // only on the text lets the blur slip into the next statement's update — the one
+        // that switches conversations. `applyDraftInputs` runs in a fixed order there:
+        // ①rebind to the new conversation → ②a push overwrites the text → ③blur commits,
+        // so ③ would write ②'s restored text under the **new** conversation id, which is
+        // exactly what this case asserts must not happen yet. Not a production defect —
+        // after the rebind the composer text does belong to the new conversation — the
+        // wait condition was simply missing half of what it had to wait for.
+        try await Self.waitUntil { input.text.isEmpty && !harness.isFocused }
 
         // Replacing the new-chat route with the created conversation and sendMessage returning nil
         // happen in the same pass.
@@ -329,8 +338,13 @@ struct ChatComposerDraftLifecycleTests {
         }
     }
 
+    /// The default timeout is 8s: this group runs host-based tests that wait on real UIKit first
+    /// responder changes, SwiftUI updates and GRDB writes. 3s is not enough on a machine also
+    /// building or capturing screenshots, where it turns "not yet" into a failure. The condition
+    /// returns as soon as it holds, so a longer ceiling only affects the failing path — a real
+    /// deadlock still fails, just a few seconds later.
     static func waitUntil(
-        timeout: TimeInterval = 3,
+        timeout: TimeInterval = 8,
         _ condition: () -> Bool,
         sourceLocation: SourceLocation = #_sourceLocation
     ) async throws {
