@@ -65,7 +65,7 @@
     <string name="regenerate">Tạo lại</string>
     <string name="continue_generating">Tiếp tục tạo</string>
     <string name="edit_message">Chỉnh sửa tin nhắn</string>
-    <string name="model_switcher">Người mẫu</string>
+    <string name="model_switcher">Mô hình</string>
     <string name="select_model">Chọn mẫu</string>
     <string name="temperature">Nhiệt độ</string>
     <string name="max_tokens">Mã thông báo tối đa</string>
@@ -140,7 +140,7 @@
     <string name="relay_delete_provider_confirm">Thao tác này xóa kết nối, khóa API, các mô hình đã bật, thư viện mô hình và cài đặt hành vi mô hình. Thao tác không xóa cuộc trò chuyện; lịch sử tin nhắn vẫn còn và các mô hình được dùng ở đó được đánh dấu là không khả dụng. Không thể hoàn tác.</string>
     <string name="set_as_default">Đặt làm mặc định</string>
     <string name="provider_detail_api_key_required">API không được để trống.</string>
-    <string name="provider_detail_models_title">Người mẫu</string>
+    <string name="provider_detail_models_title">Mô hình</string>
     <string name="provider_detail_add_model_finish_setup">Thêm ID mẫu máy để hoàn tất quá trình thiết lập</string>
     <string name="provider_detail_add_model_manually">+ Thêm ID mẫu theo cách thủ công</string>
     <string name="provider_detail_available_models">Các mẫu có sẵn %d</string>
@@ -460,7 +460,7 @@
     <string name="skills_providerRequiredTitle">Thêm nhà cung cấp để dùng Kỹ năng này</string>
     <string name="skills_systemPromptPlaceholder">ví dụ. Bạn là người đánh giá mã cấp cao. Xem lại mã về tính bảo mật, hiệu suất và khả năng đọc. Trả lời bằng ngôn ngữ của người dùng.</string>
     <string name="skills_advanced">Trình độ cao</string>
-    <string name="skills_modelCapability">Ưu tiên người mẫu</string>
+    <string name="skills_modelCapability">Ưu tiên mô hình</string>
     <string name="skills_capabilityAny">Bất kì</string>
     <string name="skills_capabilityReasoning">Lý luận</string>
     <string name="skills_capabilityVision">Tầm nhìn</string>

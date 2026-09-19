@@ -848,7 +848,7 @@
     "relayDetail": {
       "added": "Đã thêm",
       "endpoint": "URL yêu cầu",
-      "models": "Người mẫu",
+      "models": "Mô hình",
       "modelsCount": "{count, plural, =0 {Không có mô hình} =1 {1 mô hình} other {# mô hình}}",
       "noModels": "Chưa có mô hình nào được thêm vào.",
       "noModelsHint": "Thêm ID model để bắt đầu trò chuyện với Custom LLM này.",
@@ -1503,7 +1503,7 @@
     "noReferenceFiles": "Chưa có tài liệu tham khảo",
     "addFile": "Thêm tập tin",
     "filesQuota": "{count} / {max}",
-    "modelPreference": "Ưu tiên người mẫu",
+    "modelPreference": "Ưu tiên mô hình",
     "icon": "Biểu tượng",
     "iconHint": "Bất kỳ biểu tượng cảm xúc nào",
     "name": "Tên",
