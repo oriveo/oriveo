@@ -35,6 +35,7 @@ struct NotesView: View {
             }
             .padding(.horizontal, OriveoTheme.Spacing.lg)
             .padding(.vertical, OriveoTheme.Spacing.md)
+            .oriveoContentWidth()
         }
         .background(notesBackground.ignoresSafeArea())
         .navigationTitle(L10n.tr("Notes", table: .notes))

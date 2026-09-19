@@ -181,6 +181,21 @@ enum OriveoTheme {
         static let xxl: CGFloat = 32
     }
 
+    enum Layout {
+        /// Upper bound on readable content width in a wide container.
+        ///
+        /// The app is universal (`TARGETED_DEVICE_FAMILY = "1,2"`) and supports landscape, so a
+        /// top-level page can be handed far more width than a phone in portrait: an unfolded
+        /// iPhone Duo gives 867pt of safe area, a 13-inch iPad in landscape roughly 1376pt.
+        /// Without a clamp a settings row turns into a long bar with the icon pinned left, the
+        /// chevron pinned right, and hundreds of points of nothing in between.
+        ///
+        /// 620 follows what the project already did by hand (the Relay and Local compute setup
+        /// footers use 608, the composer's free-tier banner 620); this token is where those
+        /// settled. A phone in portrait is at most 440pt wide, so it never triggers there.
+        static let contentMaxWidth: CGFloat = 620
+    }
+
     enum Radius {
         static let sm: CGFloat = 8
         static let md: CGFloat = 12
@@ -586,6 +601,28 @@ extension View {
     }
     func cardShine(cornerRadius: CGFloat = 16) -> some View {
         modifier(CardShineModifier(cornerRadius: cornerRadius))
+    }
+
+    /// Clamps content to a readable width and centres it in a wider container.
+    ///
+    /// Apply it to the **content container inside a ScrollView**, not to the ScrollView or the
+    /// page itself: the page background (gradient / aurora) hangs off the ScrollView's
+    /// `.background()`, and clamping from the outside squeezes that background into a stripe
+    /// with bare margins either side.
+    ///
+    /// ```swift
+    /// ScrollView {
+    ///     VStack { ... }
+    ///         .oriveoContentWidth()
+    /// }
+    /// ```
+    ///
+    /// The trailing `frame(maxWidth: .infinity)` stretches the outer frame back to full width,
+    /// so any material or chrome layered after this modifier still spans the container and only
+    /// the content is centred.
+    func oriveoContentWidth(_ maxWidth: CGFloat = OriveoTheme.Layout.contentMaxWidth) -> some View {
+        frame(maxWidth: maxWidth)
+            .frame(maxWidth: .infinity)
     }
 
     @ViewBuilder

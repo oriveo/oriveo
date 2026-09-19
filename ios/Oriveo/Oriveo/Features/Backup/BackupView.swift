@@ -15,6 +15,7 @@ struct BackupView: View {
             }
             .padding(OriveoTheme.Spacing.xl)
             .padding(.bottom, OriveoTheme.Spacing.xxl)
+            .oriveoContentWidth()
         }
         .oriveoScreenBackground()
     }

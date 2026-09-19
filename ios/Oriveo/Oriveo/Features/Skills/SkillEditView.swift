@@ -132,6 +132,7 @@ struct SkillEditView: View {
             .padding(.horizontal, Sp.s20)
             .padding(.top, Sp.s20)
             .padding(.bottom, Sp.s32)
+            .oriveoContentWidth()
         }
         .oriveoV2ScreenBackground()
         .onChange(of: suggestedProviderId) { _, _ in

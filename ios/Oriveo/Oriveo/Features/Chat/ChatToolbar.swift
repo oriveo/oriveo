@@ -16,13 +16,17 @@ struct ChatToolbar: View {
 
     var body: some View {
         HStack(spacing: OriveoTheme.Spacing.sm) {
-            Button {
-                appState.pop()
-            } label: {
-                ChatToolbarIconCapsule(systemImage: "chevron.backward")
+            // No back button in the two-column layout: there is nowhere to go back to, because
+            // the sidebar stays on screen (the same rule the system split view follows).
+            if !appState.navigation.isRegularWidth {
+                Button {
+                    appState.pop()
+                } label: {
+                    ChatToolbarIconCapsule(systemImage: "chevron.backward")
+                }
+                .buttonStyle(ChatToolbarPressableStyle())
+                .accessibilityLabel(L10n.tr("Back"))
             }
-            .buttonStyle(ChatToolbarPressableStyle())
-            .accessibilityLabel(L10n.tr("Back"))
 
             if let skillId = projection.skillID,
                let skill = appState.skillManager.skill(by: skillId) {

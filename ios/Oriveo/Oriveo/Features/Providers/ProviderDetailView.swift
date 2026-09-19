@@ -53,7 +53,13 @@ struct ProviderDetailView: View {
 
     var body: some View {
         GeometryReader { proxy in
-            let contentWidth = max(proxy.size.width - OriveoTheme.Spacing.xl * 2, 0)
+            // Clamp to a readable width before subtracting padding: contentWidth is fed down to
+            // the model library and the usage chart, so centring only the outer container would
+            // still leave those children laying themselves out against the full width.
+            let contentWidth = max(
+                min(proxy.size.width, OriveoTheme.Layout.contentMaxWidth) - OriveoTheme.Spacing.xl * 2,
+                0
+            )
             Group {
                 if let provider {
                     ZStack(alignment: .topLeading) {

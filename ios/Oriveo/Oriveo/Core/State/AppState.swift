@@ -151,6 +151,11 @@ final class AppState {
     private(set) var notesVersion: UInt = 0
     var pendingNoteSourceJump: NoteSourceJump?
     var activeReturnToNoteID: UUID?
+    /// Text waiting to be placed in the composer, from a starter chip in the wide-screen detail
+    /// column's empty state. ChatView consumes it on appear and clears it.
+    /// Prefill only, never send: the checks that run before a first message hang off the send
+    /// path, and going around them would put the message ahead of them.
+    var pendingComposerPrefill: String?
 
     var expandedFolderIDs: Set<UUID> = []
     var preferences: AppPreference
@@ -830,8 +835,23 @@ final class AppState {
         navigation.openManualModelEntry(providerID: providerID, context: context)
     }
 
+    /// The single entry point for opening a conversation.
+    ///
+    /// At regular width the detail column lives **inside the Home tab**, so writing
+    /// `chatDetail` alone is not enough: while another route is still on the outer stack (a note
+    /// detail, a folder detail, the skills list), the conversation opens behind that full-screen
+    /// page and the user sees nothing happen. Compact pushes onto the outer stack, which covers
+    /// the screen anyway, so the stack is only cleared at regular width.
+    private func presentChat(conversationID: UUID?) {
+        if navigation.isRegularWidth {
+            selectedTab = .home
+            navigation.popToRoot()
+        }
+        navigation.presentChat(conversationID: conversationID)
+    }
+
     func openChat(conversationID: UUID) {
-        navigation.openChat(conversationID: conversationID)
+        presentChat(conversationID: conversationID)
     }
 
     private func rebuildProviderLookup() {
@@ -987,20 +1007,20 @@ final class AppState {
         case .welcome:
             hasCompletedOnboarding = true
             selectedTab = .home
-            commitNavigationPath([.chat(conversationID: nil)], deferringIfNeeded: !navigation.path.isEmpty)
+            commitNewChatNavigation(deferringIfNeeded: !navigation.path.isEmpty)
         case .providers:
             selectedTab = .home
-            commitNavigationPath([.chat(conversationID: nil)], deferringIfNeeded: !navigation.path.isEmpty)
+            commitNewChatNavigation(deferringIfNeeded: !navigation.path.isEmpty)
         case .modelPicker, .skillEdit:
-            navigation.path = ProviderSetupCompletionPolicy.returnedCallerPath(from: navigation.path)
+            navigation.returnToProviderSetupCaller()
         }
     }
 
-    private func commitNavigationPath(_ path: [AppRoute], deferringIfNeeded: Bool) {
+    private func commitNewChatNavigation(deferringIfNeeded: Bool) {
         pendingNavigationPathCommitTask?.cancel()
 
         guard deferringIfNeeded else {
-            navigation.path = path
+            navigation.resetToNewChat()
             pendingNavigationPathCommitTask = nil
             return
         }
@@ -1011,7 +1031,7 @@ final class AppState {
         pendingNavigationPathCommitTask = Task { @MainActor [weak self] in
             await Task.yield()
             guard let self, !Task.isCancelled else { return }
-            self.navigation.path = path
+            self.navigation.resetToNewChat()
             self.pendingNavigationPathCommitTask = nil
         }
     }
@@ -1037,7 +1057,7 @@ final class AppState {
             completeProviderSetup(providerID: providerID, entryPoint: .welcome)
         case .providers:
             selectedTab = .providers
-            navigation.path = []
+            navigation.popToRoot()
         case .providerDetail:
             pop()
         case .modelPicker:
@@ -1074,7 +1094,7 @@ final class AppState {
         GenerationParameterSettingsStore.shared.removeCapabilityScopes(providerID: providerID)
         GenerationParameterPresetStore.shared.removeScopes(providerID: providerID)
         selectedTab = .providers
-        navigation.path = []
+        navigation.popToRoot()
         return true
     }
 
@@ -1096,6 +1116,18 @@ final class AppState {
         conversationManager.renameConversation(id: id, newTitle: newTitle)
     }
 
+    /// Starts a new conversation with the starter text already in the composer. Whether to send
+    /// it stays with the user.
+    func startNewChat(withPrefilledText text: String) {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            startNewChat()
+            return
+        }
+        pendingComposerPrefill = trimmed
+        startNewChat()
+    }
+
     func startNewChat(preferredProviderID: UUID? = nil, preferredModelID: String? = nil) {
         let resolvedProvider: Provider
         let resolvedModelID: String
@@ -1114,11 +1146,7 @@ final class AppState {
 
         setActiveModel(providerID: resolvedProvider.id, modelID: resolvedModelID)
 
-        if case .chat = navigation.path.last {
-            navigation.replaceLast(with: .chat(conversationID: nil))
-        } else {
-            navigation.path.append(.chat(conversationID: nil))
-        }
+        presentChat(conversationID: nil)
     }
 
     func startNewChatWithProviderFallback() async {
@@ -1248,11 +1276,7 @@ final class AppState {
             upsertConversationProjection(newConversation)
             targetConversationID = newConversation.id
 
-            if case .chat = navigation.path.last {
-                navigation.replaceLast(with: .chat(conversationID: targetConversationID))
-            } else {
-                navigation.path.append(.chat(conversationID: targetConversationID))
-            }
+            presentChat(conversationID: targetConversationID)
         }
 
         guard let targetConversation = conversation(for: targetConversationID) else {
@@ -1684,11 +1708,11 @@ final class AppState {
     // MARK: - Skills
 
     func openSkillsList() {
-        navigation.path.append(.skillsList)
+        navigation.openSkillsList()
     }
 
     func openSkillEdit(skillID: UUID? = nil) {
-        navigation.path.append(.skillEdit(skillID))
+        navigation.openSkillEdit(skillID: skillID)
     }
 
     func startConversationWithSkill(_ skill: Skill) {
@@ -1710,11 +1734,7 @@ final class AppState {
         conversation.isDraft = true
         upsertConversationProjection(conversation)
 
-        if case .chat = navigation.path.last {
-            navigation.replaceLast(with: .chat(conversationID: conversation.id))
-        } else {
-            navigation.path.append(.chat(conversationID: conversation.id))
-        }
+        presentChat(conversationID: conversation.id)
 
         Task { await skillManager.recordUse(skill.id) }
     }

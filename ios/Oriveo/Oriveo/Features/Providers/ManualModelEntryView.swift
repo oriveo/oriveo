@@ -35,6 +35,7 @@ struct ManualModelEntryView: View {
     var body: some View {
         VStack(spacing: 0) {
             topBar
+            .oriveoContentWidth()
 
             if provider == nil {
                 Spacer()
@@ -83,6 +84,7 @@ struct ManualModelEntryView: View {
                 .padding(.horizontal, OriveoTheme.Spacing.xl)
             }
             .padding(.bottom, OriveoTheme.Spacing.xxl)
+            .oriveoContentWidth()
             .animation(
                 .spring(response: 0.36, dampingFraction: 0.84),
                 value: trimmedModelID.isEmpty
@@ -366,6 +368,7 @@ struct ManualModelEntryView: View {
         }
         .padding(.horizontal, OriveoTheme.Spacing.xl)
         .padding(.vertical, OriveoTheme.Spacing.lg)
+        .oriveoContentWidth()
         .background(.ultraThinMaterial)
         .overlay(alignment: .top) {
             Rectangle()

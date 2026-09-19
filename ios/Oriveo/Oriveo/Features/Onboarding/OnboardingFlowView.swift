@@ -30,24 +30,32 @@ struct OnboardingFlowView: View {
         GeometryReader { proxy in
             let metrics = OnboardingLayoutMetrics(size: proxy.size)
             let values = OnboardingStageValues(progress: progress, width: Double(proxy.size.width))
+            let contentCenterShift = Self.centeringShift(for: proxy)
 
             ScrollViewReader { reader in
                 ZStack {
+                    // The background already ignores the safe area, so its glow is positioned
+                    // against the physical screen and takes no part in this shift.
                     auroraBackground(values: values)
 
-                    OnboardingOrbitStage(
-                        values: values,
-                        scale: metrics.stageScale,
-                        ringsRevealed: ringsRevealed,
-                        nucleusRevealed: nucleusRevealed,
-                        isAnimating: isStageAnimating,
-                    )
-                    .position(x: proxy.size.width / 2, y: metrics.orbitCenterY)
+                    ZStack {
+                        OnboardingOrbitStage(
+                            values: values,
+                            scale: metrics.stageScale,
+                            ringsRevealed: ringsRevealed,
+                            nucleusRevealed: nucleusRevealed,
+                            isAnimating: isStageAnimating,
+                        )
+                        .position(x: proxy.size.width / 2, y: metrics.orbitCenterY)
 
-                    copyPager(metrics: metrics, values: values)
+                        copyPager(metrics: metrics, values: values)
 
-                    controlLayer(metrics: metrics, values: values, reader: reader)
+                        controlLayer(metrics: metrics, values: values, reader: reader)
+                    }
+                    .offset(x: contentCenterShift)
 
+                    // Skip stays put: it hugs the top trailing corner and moving it further
+                    // would push it into the status bar.
                     skipButton(values: values, reader: reader)
                 }
                 .onAppear {
@@ -66,6 +74,44 @@ struct OnboardingFlowView: View {
         .onDisappear {
             isStageAnimating = false
         }
+    }
+
+    // MARK: - Centring on wide screens
+
+    /// Moves the centring reference from the navigation container back to the physical screen
+    /// and returns the horizontal shift needed to get there.
+    ///
+    /// Onboarding runs inside the `NavigationStack`, and at regular width that container does
+    /// not span the window. On an unfolded iPhone Duo the window is 951pt while the
+    /// GeometryReader is handed `x=34, width=803` — a 34pt margin on the left and 114pt on the
+    /// right. The extra strip on the right is the system chrome column (the status bar;
+    /// onboarding is a full-screen flow with no tab bar, so the lower half of that strip is
+    /// empty). Centring on the container therefore pushes the whole page about 40pt to the left.
+    ///
+    /// `proxy.safeAreaInsets` cannot answer this: those insets are measured **relative to the
+    /// container**, and they come back symmetric (34 on each side), so their difference is
+    /// always zero. Only the window width exposes the asymmetry.
+    ///
+    /// Feeding a different width into `OnboardingLayoutMetrics` / `OnboardingStageValues` is not
+    /// an option either — a batch of derived values hang off that width (`pillWidth = width - 72`,
+    /// `byokOffsetX = width * 0.25`), and changing the basis blows up the CTA pill. So this only
+    /// shifts *where the content is drawn*, never *what width it is laid out against*.
+    ///
+    /// On a narrow screen the container fills the window, the two centres coincide, and this
+    /// returns 0 — phones in portrait are unaffected.
+    private static func centeringShift(for proxy: GeometryProxy) -> CGFloat {
+        guard let windowWidth = keyWindowWidth(), windowWidth > 0 else { return 0 }
+        return windowWidth / 2 - proxy.frame(in: .global).midX
+    }
+
+    /// Reads the current key window's width. `UIScreen.main` is deprecated and, on a folding
+    /// device, reports the folded measurement even while unfolded (466pt against a 951pt window).
+    private static func keyWindowWidth() -> CGFloat? {
+        UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .flatMap(\.windows)
+            .first { $0.isKeyWindow }?
+            .bounds.width
     }
 
     private func auroraBackground(values: OnboardingStageValues) -> some View {

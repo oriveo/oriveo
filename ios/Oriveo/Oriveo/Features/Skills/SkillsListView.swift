@@ -114,6 +114,7 @@ struct SkillsListView: View {
             .padding(.horizontal, Sp.s20)
             .padding(.top, Sp.s20)
             .padding(.bottom, Sp.s32)
+            .oriveoContentWidth()
             .opacity(hasAppeared ? 1 : 0)
             .offset(y: hasAppeared ? 0 : 8)
         }

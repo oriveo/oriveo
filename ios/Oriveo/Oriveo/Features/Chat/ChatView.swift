@@ -516,9 +516,12 @@ struct ChatView: View {
             } else if projection.loadState == .stalled {
                 conversationStalledState
             } else if projection.loadState == .deleted {
+                // The conversation was deleted, so leave it. Dismissing goes through the
+                // carrier in use: compact pops the chat route, regular returns the detail
+                // column to its empty state.
                 Color.clear.onAppear {
-                    if appState.navigation.path.last == .chat(conversationID: conversationID) {
-                        appState.navigation.path.removeLast()
+                    if let conversationID {
+                        appState.navigation.dismissChat(conversationID: conversationID)
                     }
                 }
             } else if let resolvedChatContext {
@@ -812,6 +815,16 @@ struct ChatView: View {
         }
 
         let styledContent = content
+        // Clamp the content to 620, the same rule the settings and detail pages follow rather
+        // than a second one for the conversation screen. A phone in portrait (402) and the
+        // detail column of an unfolded Duo (467) are both under 620 and never trigger it; an
+        // iPad does, at 632 in portrait and 976 in landscape.
+        //
+        // This has to sit *before* the backgrounds: the trailing `frame(maxWidth: .infinity)`
+        // inside `oriveoContentWidth` stretches the outer frame back to full width, so the
+        // aurora and the screen background layered after it still span the container and only
+        // the content is centred. The other order squeezes the whole backdrop into a stripe.
+        .oriveoContentWidth()
         .background(ChatEmptyStateAurora(prominent: projection.messages.isEmpty))
         .oriveoScreenBackground()
         .animation(preferredAnimation, value: expensiveModelHint)
@@ -1256,6 +1269,12 @@ struct ChatView: View {
         // projected draft is "", which would clear unsent text in the composer.
         syncCapabilitySelection(for: currentModel)
         pruneUnsupportedPendingAttachments()
+        // Starter chips in the detail column's empty state only prefill; consume the text right
+        // away so it cannot reappear the next time a conversation opens.
+        if let prefill = appState.pendingComposerPrefill {
+            appState.pendingComposerPrefill = nil
+            composerTextPush.push(prefill)
+        }
     }
 }
 struct ExpensiveModelHintData: Equatable {

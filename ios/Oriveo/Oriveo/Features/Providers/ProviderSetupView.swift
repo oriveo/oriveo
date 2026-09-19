@@ -45,6 +45,7 @@ struct ProviderSetupView: View {
         VStack(spacing: 0) {
             if !isModelPickerContext {
                 topBar
+                .oriveoContentWidth()
             }
 
             if let setupError {
@@ -53,6 +54,7 @@ struct ProviderSetupView: View {
                 }
                 .padding(.horizontal, OriveoTheme.Spacing.xl)
                 .padding(.bottom, OriveoTheme.Spacing.md)
+                .oriveoContentWidth()
                 .transition(.move(edge: .top).combined(with: .opacity))
             }
 
@@ -60,6 +62,7 @@ struct ProviderSetupView: View {
                 providerSetupSyncingStatusBanner(text: inlineStatusText)
                     .padding(.horizontal, OriveoTheme.Spacing.xl)
                     .padding(.bottom, OriveoTheme.Spacing.md)
+                    .oriveoContentWidth()
                     .transition(.move(edge: .top).combined(with: .opacity))
             }
 
@@ -139,6 +142,7 @@ struct ProviderSetupView: View {
                     .padding(.horizontal, OriveoTheme.Spacing.xl)
                     .padding(.bottom, OriveoTheme.Spacing.xl)
                     .padding(.top, OriveoTheme.Spacing.xs)
+                    .oriveoContentWidth()
                     .animation(.spring(response: 0.4, dampingFraction: 0.88), value: selectedKind != nil)
                     .animation(.spring(response: 0.3, dampingFraction: 0.85), value: selectedCategory)
                 }
@@ -189,6 +193,7 @@ struct ProviderSetupView: View {
                     .padding(.horizontal, OriveoTheme.Spacing.xl)
                     .padding(.top, OriveoTheme.Spacing.lg)
                     .padding(.bottom, OriveoTheme.Spacing.lg)
+                    .oriveoContentWidth()
                     .background(OriveoTheme.Palette.surfaceChrome)
                 }
             }

@@ -324,6 +324,7 @@ struct HomeView: View {
             }
             .padding(.top, OriveoTheme.V2.Sp.s16)
             .padding(.bottom, isEditing ? 80 : OriveoTheme.V2.Sp.s32)
+            .oriveoContentWidth()
         }
         .auroraBackground()
         .animation(preferredAnimation, value: heroState)
@@ -1354,6 +1355,7 @@ struct HomeView: View {
             }
             .padding(.horizontal, OriveoTheme.V2.Sp.s20)
             .padding(.vertical, OriveoTheme.V2.Sp.s12)
+            .oriveoContentWidth()
             .background(OriveoTheme.V2.Colors.surfaceElevated)
         }
     }

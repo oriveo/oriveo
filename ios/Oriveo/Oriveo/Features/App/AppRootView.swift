@@ -15,13 +15,13 @@ struct AppRootView: View {
     @Environment(\.locale) private var locale
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Bindable var appState: AppState
     @State private var hasStartedBackgroundServices = false
     @State private var reachability = ServiceReachabilityMonitor.shared
 
     private var isOnChatScreen: Bool {
-        if case .chat = appState.navigation.path.last { return true }
-        return false
+        appState.navigation.isShowingChat
     }
 
     var body: some View {
@@ -59,6 +59,13 @@ struct AppRootView: View {
             }
         } message: {
             Text(L10n.tr("This Skill needs an available AI provider before it can start a conversation."))
+        }
+        .onChange(of: horizontalSizeClass, initial: true) { _, sizeClass in
+            // Moves the conversation to the carrier that matches the new width (folding and
+            // unfolding). The render branch reads `navigation.isRegularWidth` too, so which
+            // layout is drawn and which carrier holds the conversation are always the same
+            // judgement and can never be a frame apart.
+            appState.navigation.updateLayoutWidth(isRegular: sizeClass == .regular)
         }
         .onAppear {
             SwipeBackCoordinator.shared.setupIfNeeded()
@@ -253,7 +260,7 @@ private struct MainTabView: View {
         // through public API cannot reproduce them.
         TabView(selection: $appState.selectedTab) {
             Tab(AppTab.home.title, image: Self.icon(for: .home, selected: appState.selectedTab), value: AppTab.home) {
-                HomeView()
+                homeTabContent
             }
 
             Tab(AppTab.providers.title, image: Self.icon(for: .providers, selected: appState.selectedTab), value: AppTab.providers) {
@@ -270,6 +277,32 @@ private struct MainTabView: View {
         .modifier(LegacyTabBarBackground())
         .animation(.easeInOut(duration: 0.2), value: appState.selectedTab)
         .id(appState.preferences.language)
+    }
+
+    /// Two columns on a wide screen: the sidebar is the whole HomeView, unchanged, so the home
+    /// screen looks the same on a phone, an unfolded Duo and an iPad; the detail column is the
+    /// conversation. At compact width there is no split view — the conversation still goes
+    /// through the outer NavigationStack, exactly as it did before two columns (covering the
+    /// screen including the tab bar, with an edge swipe popping back to the previous route).
+    ///
+    /// The fixed 400pt sidebar is how "the same layout in all three shapes" is delivered: 400
+    /// lines up with the 402pt of a phone in portrait. 360–440 is adjustable; giving the sidebar
+    /// less leaves the detail column more.
+    @ViewBuilder
+    private var homeTabContent: some View {
+        if appState.navigation.isRegularWidth {
+            NavigationSplitView {
+                HomeView()
+                    .navigationSplitViewColumnWidth(min: 360, ideal: 400, max: 440)
+                    .toolbar(.hidden, for: .navigationBar)
+            } detail: {
+                ChatDetailColumn()
+                    .navigationBarBackButtonHidden(true)
+                    .toolbar(.hidden, for: .navigationBar)
+            }
+        } else {
+            HomeView()
+        }
     }
 
     /// The selected tab gets the icon with the gradient baked in; the others use the monochrome template

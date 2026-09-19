@@ -108,6 +108,7 @@ struct ProvidersView: View {
             .padding(.horizontal, OriveoTheme.Spacing.lg)
             .padding(.top, 8)
             .padding(.bottom, 180)
+            .oriveoContentWidth()
         }
         .scrollIndicators(.hidden)
         .background(ProvidersScreenBackground())

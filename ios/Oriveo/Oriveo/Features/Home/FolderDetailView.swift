@@ -75,6 +75,7 @@ struct FolderDetailView: View {
                 }
             }
             .padding(OriveoTheme.Spacing.xl)
+            .oriveoContentWidth()
         }
         .oriveoScreenBackground()
         .navigationTitle(folder?.name ?? "")

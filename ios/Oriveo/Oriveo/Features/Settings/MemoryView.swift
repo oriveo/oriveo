@@ -170,6 +170,7 @@ struct MemoryView: View {
             .padding(.horizontal, 20)
             .padding(.top, 20)
             .padding(.bottom, 64)
+            .oriveoContentWidth()
             .animation(reduceMotion ? nil : .spring(response: 0.42, dampingFraction: 0.86), value: presentation.mode)
         }
         .scrollDismissesKeyboard(.interactively)
@@ -779,6 +780,7 @@ struct MemoryView: View {
             }
             .padding(.horizontal, 20)
             .padding(.vertical, 12)
+            .oriveoContentWidth()
             .background(.ultraThinMaterial)
             .overlay(alignment: .top) {
                 Rectangle()
