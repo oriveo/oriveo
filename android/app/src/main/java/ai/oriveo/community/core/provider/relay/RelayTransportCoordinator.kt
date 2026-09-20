@@ -1079,6 +1079,11 @@ internal class RelayTransportCoordinator(
                             var firstContentEmitted = false
                             val emittedImageIds = mutableSetOf<String>()
                             var currentEvent = ""
+                            // Only the **last** data line matters: a malformed chunk mid-stream is
+                            // reset by the next good one, while a dropped final line is exactly the
+                            // "incomplete trailing line" the SSE spec describes — the upstream was
+                            // cut while writing it.
+                            var lastChunkDropped = false
                             val toolCallParser = NativeToolCallParser(NativeToolProtocol.OpenAIResponses)
 
                             response.bodyAsChannel()
@@ -1118,7 +1123,7 @@ internal class RelayTransportCoordinator(
                                                 // Only SerializationException is swallowed: ProviderServiceError and
                                                 // RelayResponsesRejectedSettingSignal raised by the `response.failed` / `error`
                                                 // branches are not subclasses of it and still propagate unchanged.
-                                                SseParser.tolerantParseChunk {
+                                                val parsedChunk = SseParser.tolerantParseChunk {
                                                     when (currentEvent) {
                                                         "response.output_text.delta" -> {
                                                             val delta = json.decodeFromString<ResponsesStreamDelta>(payload).delta.orEmpty()
@@ -1173,12 +1178,25 @@ internal class RelayTransportCoordinator(
                                                         }
                                                     }
                                                 }
+                                                lastChunkDropped = parsedChunk == null
 
                                                 currentEvent = ""
                                             }
                                         }
                                     }
                                 }
+
+                            // The tolerance should absorb a half-written line, not the fact that the
+                            // stream was cut. Without this, the text accumulated so far is delivered as
+                            // Done and stored as a finished reply — no truncation hint, no retry — and if
+                            // `response.completed` was the line that got cut, usage stays null and the
+                            // turn is recorded as 0 tokens at 0 cost. Network matches what the llama.cpp
+                            // loop already raises when its payload fails to parse.
+                            if (lastChunkDropped) {
+                                throw ProviderServiceError.Network(
+                                    "The custom LLM Responses stream ended mid-event.",
+                                )
+                            }
 
                             val breakdown = openAIResponsesUsageBreakdown(
                                 inputTokens = lastUsage?.input_tokens,

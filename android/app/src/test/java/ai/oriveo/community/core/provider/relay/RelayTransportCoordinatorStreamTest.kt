@@ -208,13 +208,40 @@ class RelayTransportCoordinatorStreamTest {
             append("data: {\"sequence_number\":1464,\"type\":\"response.output_text.delta\",\"content_index\":0,\"delta\":\"x\",\"item_id\":\"msg_e94b2c9c-f985-9")
         }
 
+        val received = mutableListOf<StreamEvent>()
+        val thrown = runCatching {
+            responsesStreamEvents(stream).collect { received += it }
+        }.exceptionOrNull()
+
+        // Text emitted before the cut must survive: the partial line is skipped, not fatal
+        // to what already arrived.
+        assertEquals(listOf("hello"), received.filterIsInstance<StreamEvent.Delta>().map { it.text })
+
+        // But the cut itself has to surface as a network failure rather than masquerade as a
+        // completed answer. Finishing quietly would store a half reply as a finished one — no
+        // truncation hint, no retry — and if `response.completed` was the line that got cut,
+        // usage stays null and the turn is recorded as 0 tokens at 0 cost.
+        assertTrue("Expected a Network error, got: $thrown", thrown is ProviderServiceError.Network)
+        assertTrue("Must not finish with Done", received.none { it is StreamEvent.Done })
+    }
+
+    /** A malformed chunk mid-stream is not a cut: more good chunks follow it. */
+    @Test
+    fun `openai responses relay tolerates a malformed chunk in the middle`() = runTest {
+        val stream = buildString {
+            append("event: response.output_text.delta\n")
+            append("data: {\"type\":\"response.output_text.delta\",\"delta\":\"one\",\"item_id\":\"m1\"}\n\n")
+            append("event: response.output_text.delta\n")
+            append("data: {not json at all\n\n")
+            append("event: response.output_text.delta\n")
+            append("data: {\"type\":\"response.output_text.delta\",\"delta\":\"two\",\"item_id\":\"m1\"}\n\n")
+            append("data: [DONE]\n\n")
+        }
+
         val events = responsesStreamEvents(stream).toList()
 
-        // Text emitted before the cut must survive: the partial line is skipped, not fatal.
-        assertEquals(listOf("hello"), events.filterIsInstance<StreamEvent.Delta>().map { it.text })
-        val done = events.last()
-        assertTrue("Expected the stream to still finish with Done, got: $done", done is StreamEvent.Done)
-        assertEquals("hello", (done as StreamEvent.Done).result.text)
+        assertEquals(listOf("one", "two"), events.filterIsInstance<StreamEvent.Delta>().map { it.text })
+        assertTrue("A mid-stream bad chunk must not be treated as a cut", events.last() is StreamEvent.Done)
     }
 
     /**
