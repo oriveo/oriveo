@@ -22,7 +22,7 @@ final class ChatListViewController: UIViewController {
         return layout
     }()
     private lazy var collectionView: UICollectionView = {
-        let cv = UICollectionView(frame: .zero, collectionViewLayout: chatLayout)
+        let cv = ChatListCollectionView(frame: .zero, collectionViewLayout: chatLayout)
         cv.backgroundColor = .clear
         cv.contentInsetAdjustmentBehavior = .never
         cv.contentInset.bottom = Self.bottomBreathingRoom
@@ -1572,4 +1572,33 @@ extension ChatListViewController: ChatStickToBottomGeometry {
     var bottomObstruction: CGFloat {
         max(0, collectionView.bounds.height - viewportHeight)
     }
+}
+
+
+/// The chat list's collection view. Its only job is to stop the first responder chain here.
+///
+/// `updateUIViewController` runs inside the SwiftUI host's AttributeGraph update pass by
+/// definition. The batch update we perform there makes UIKit relocate the first responder, and
+/// if a cell currently holds one, `resignFirstResponder` walks the responder chain *upwards*
+/// looking for something willing to take over.
+///
+/// That does not require an editable field: message bodies are `isEditable = false` but
+/// `isSelectable = true` text views, and a text view holding a selection is a first responder
+/// all the same. With every link in the chain declining, the walk leaves the collection view
+/// and eventually asks the `_UIHostingView` that owns the representable, whose
+/// `canBecomeFirstResponder` getter has to evaluate `responderNode` — re-entering the very
+/// same host's graph update. The same attribute lands on the update stack twice,
+/// AttributeGraph reports a cycle, and printing that diagnostic blocks the main thread on a
+/// synchronous write until the watchdog kills the app.
+///
+/// `nextFirstResponder` stops at the first responder that answers true, so answering true here
+/// removes the edge itself rather than the moment it fires: it holds regardless of when the
+/// batch update starts or why the resign happens (batch update, cell reuse, scrolling away,
+/// VoiceOver focus changes, interactive keyboard dismissal).
+///
+/// Letting the list hold focus is also the more accurate semantic for VoiceOver and hardware
+/// keyboards — it is an interactive scrolling container, and the composer takes focus back with
+/// its own `becomeFirstResponder` when the user starts typing.
+final class ChatListCollectionView: UICollectionView {
+    override var canBecomeFirstResponder: Bool { true }
 }
