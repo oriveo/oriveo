@@ -446,16 +446,23 @@ nonisolated enum AppSessionStore {
         save(snapshot, for: activeUID)
     }
 
+    /// This snapshot is the only place providers, the account and folders are persisted
+    /// (conversations have the database as a fallback; these do not). Encoding and writing used to
+    /// swallow a `try?` each, so on a full disk the provider list and its API key references went
+    /// missing without a single trace — the next launch simply had no providers.
     static func save(_ snapshot: AppSessionSnapshot, for uid: String) {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
 
         let dir = userDir(for: uid)
-        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-
         let persistedSnapshot = snapshot.persistingProviderAPIKeys(for: uid)
-        guard let data = try? encoder.encode(persistedSnapshot) else { return }
-        try? data.write(to: snapshotPath(for: uid), options: .atomic)
+        do {
+            try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+            let data = try encoder.encode(persistedSnapshot)
+            try data.write(to: snapshotPath(for: uid), options: .atomic)
+        } catch {
+            AppLog.error(error, module: "persistence", context: ["op": "saveSessionSnapshot"])
+        }
     }
 
     static func clear() {

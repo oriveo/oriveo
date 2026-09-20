@@ -154,6 +154,102 @@ struct ConversationPersistenceSafetyTests {
         #expect(stored.messages.map(\.text) == ["stale", "fresh user", "fresh assistant"])
     }
 
+    /// A deleted conversation must not come back.
+    ///
+    /// Chain: the snapshot refresh that follows a destructive change does not land (a full disk,
+    /// a killed process, a power cut all do it — it runs on a background queue) → the snapshot
+    /// still lists the deleted conversation → cold start's `ConversationProjectionMerger.recover`
+    /// adopts snapshot-only conversations unconditionally → `replaceAllConversations` writes it
+    /// back into the database.
+    ///
+    /// The test cannot be "is the snapshot fresh" — that is the step that failed. It is the
+    /// deletion journal, whose rows are written in the same transaction as the hard delete.
+    @Test("A stale recovery snapshot must not resurrect a deleted conversation")
+    @MainActor
+    func staleRecoverySnapshotDoesNotResurrectDeletedConversation() async throws {
+        let uid = "persist-delete-resurrect-\(UUID().uuidString)"
+        let recoveryURL = AppSessionStore.recoverySnapshotPath(for: uid)
+        let kept = TestFactories.makeConversation(title: "Kept")
+        let deleted = TestFactories.makeConversation(title: "Deleted On Purpose")
+
+        defer {
+            DatabaseManager.shared.close()
+            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: uid))
+        }
+
+        DatabaseManager.shared.close()
+
+        let state = AppState(sessionUID: uid)
+        _ = try state.conversationRuntimeBridge.replaceAllConversations([kept, deleted], uid: uid)
+        state.conversations = [kept, deleted]
+
+        // Delete through the production path: journal row and hard delete land in one transaction,
+        // and the snapshot refresh is scheduled afterwards.
+        state.deleteConversationProjection(id: deleted.id)
+        #expect(state.conversations.map(\.id) == [kept.id])
+
+        // Wait for that refresh to actually land — which also shows the healthy path works — then
+        // put the snapshot back to its pre-delete contents. Staleness is then a fact of the test
+        // rather than a race against a background queue.
+        let keptID = kept.id
+        try await waitUntil {
+            let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .iso8601
+            guard let data = try? Data(contentsOf: recoveryURL),
+                  let snapshot = try? decoder.decode(
+                      LegacyConversationRecoverySnapshot.self,
+                      from: data
+                  ) else { return false }
+            return snapshot.conversations.map(\.id) == [keptID]
+        }
+        try state.conversationRuntimeBridge.persistRecoveryProjectionOnly([kept, deleted], for: uid)
+
+        DatabaseManager.shared.close()
+        let relaunched = AppState(sessionUID: uid)
+
+        #expect(relaunched.conversations.map(\.id) == [kept.id], "deleted conversation came back")
+        // Not resurrecting it in memory is not enough: the merge result is written back through
+        // `replaceAllConversations`, so the database must not hold it either.
+        let persisted = try state.conversationRuntimeBridge.loadLegacyProjection(uid: uid, hydrateFilePayloads: false)
+        #expect(persisted.map(\.id) == [kept.id], "deleted conversation was written back to the store")
+    }
+
+    /// Fail closed when the journal cannot be read: not recovering beats resurrecting.
+    @Test("An unreadable deletion journal drops the whole recovery projection")
+    @MainActor
+    func unreadableDeletionJournalDropsRecoveryProjection() throws {
+        let uid = "persist-journal-unreadable-\(UUID().uuidString)"
+        let kept = TestFactories.makeConversation(title: "Kept")
+        let onlyInSnapshot = TestFactories.makeConversation(title: "Only In Snapshot")
+
+        defer {
+            DatabaseManager.shared.close()
+            try? FileManager.default.removeItem(at: AppSessionStore.userDir(for: uid))
+        }
+
+        DatabaseManager.shared.close()
+
+        let state = AppState(sessionUID: uid)
+        _ = try state.conversationRuntimeBridge.replaceAllConversations([kept], uid: uid)
+        try state.conversationRuntimeBridge.persistRecoveryProjectionOnly([kept, onlyInSnapshot], for: uid)
+
+        // Dropping the table is a journal read failure. The database itself still opens, so this
+        // is not the "SQLite is unreadable" fallback path.
+        DatabaseManager.shared.close()
+        let pool = try DatabasePool(
+            path: AppSessionStore.databasePath(for: uid).path,
+            configuration: DatabaseSchema.makeConfiguration()
+        )
+        try pool.write { db in
+            try db.execute(sql: "DROP TABLE conversation_deletion_journal")
+        }
+        try pool.close()
+
+        let relaunched = AppState(sessionUID: uid)
+
+        #expect(relaunched.conversations.map(\.id) == [kept.id])
+    }
+
     @Test("Conversation changes no longer trigger a full recovery snapshot write")
     @MainActor
     func conversationMutationDoesNotWriteRecoverySnapshot() async throws {
@@ -173,7 +269,12 @@ struct ConversationPersistenceSafetyTests {
 
         let snapshotURL = AppSessionStore.snapshotPath(for: uid)
         let state = AppState(sessionUID: uid)
-        try? FileManager.default.removeItem(at: recoveryURL)
+        // `loadSession` schedules one **asynchronous** recovery snapshot write. Clearing the
+        // baseline before it lands is a race against it: with several suites running the write
+        // often arrives after the removal, the file reappears, and the test fails over something
+        // this assertion is not about.
+        try await waitUntil { FileManager.default.fileExists(atPath: recoveryURL.path) }
+        try FileManager.default.removeItem(at: recoveryURL)
         try? FileManager.default.removeItem(at: snapshotURL)
 
         state.conversations = [conversation]

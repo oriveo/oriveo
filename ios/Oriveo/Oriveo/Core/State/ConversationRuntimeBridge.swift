@@ -263,24 +263,22 @@ final class ConversationRuntimeBridge {
 
     func deleteConversation(id: UUID, uid: String) throws {
         let store = try makeStore(for: uid)
-        try store.deleteConversation(id: id, enqueueForSync: Self.shouldEnqueueDeletion(uid: uid))
+        try store.deleteConversation(id: id)
     }
 
     func deleteConversations(ids: [UUID], uid: String) throws {
         let store = try makeStore(for: uid)
-        try store.deleteConversations(ids: ids, enqueueForSync: Self.shouldEnqueueDeletion(uid: uid))
+        try store.deleteConversations(ids: ids)
     }
 
-    private static func shouldEnqueueDeletion(uid: String) -> Bool {
-        !uid.isEmpty && uid != "guest"
+    /// Every conversation this device has deleted.
+    func deletedConversationIDs(uid: String) throws -> Set<UUID> {
+        try makeStore(for: uid).deletedConversationIDs()
     }
 
-    func pendingDeletionIDs(uid: String) throws -> [UUID] {
-        try makeStore(for: uid).pendingDeletionIDs()
-    }
-
-    func clearPendingDeletions(ids: [UUID], uid: String) throws {
-        try makeStore(for: uid).clearPendingDeletions(ids: ids)
+    /// Drop journal rows past the retention window.
+    func pruneDeletionJournal(uid: String) throws {
+        try makeStore(for: uid).pruneDeletionJournal()
     }
 
     func loadLegacyProjection(uid: String, hydrateFilePayloads: Bool = true) throws -> [Conversation] {

@@ -465,19 +465,23 @@ final class ConversationStore: @unchecked Sendable {
         )
     }
 
-    nonisolated func deleteConversation(id: UUID, enqueueForSync: Bool = true) throws {
+    /// - Parameter recordDeletion: whether this removal is a user deleting a conversation.
+    ///   Only then does it belong in the deletion journal; bulk local rewrites are not deletions.
+    nonisolated func deleteConversation(id: UUID, recordDeletion: Bool = true) throws {
         try write { db in
             try Self.removeFromSearchIndex(db: db, conversationID: id.uuidString)
             try db.execute(sql: "DELETE FROM conversation WHERE id = ?", arguments: [id.uuidString])
-            if enqueueForSync {
-                try Self.enqueuePendingDeletions(db: db, ids: [id.uuidString])
+            // Same transaction as the hard delete: the row and the record of it cannot
+            // succeed independently.
+            if recordDeletion {
+                try Self.recordDeletions(db: db, ids: [id.uuidString])
             }
         }
         try continuationOrphanSweep?()
         try pruneAttachmentFilesToDatabase()
     }
 
-    nonisolated func deleteConversations(ids: [UUID], enqueueForSync: Bool = true) throws {
+    nonisolated func deleteConversations(ids: [UUID], recordDeletion: Bool = true) throws {
         guard !ids.isEmpty else { return }
         let idStrings = ids.map(\.uuidString)
         try write { db in
@@ -496,8 +500,8 @@ final class ConversationStore: @unchecked Sendable {
                     sql: "DELETE FROM conversation WHERE id IN (\(placeholders))",
                     arguments: StatementArguments(chunk)
                 )
-                if enqueueForSync {
-                    try Self.enqueuePendingDeletions(db: db, ids: chunk)
+                if recordDeletion {
+                    try Self.recordDeletions(db: db, ids: chunk)
                 }
                 offset += chunkSize
             }
@@ -507,12 +511,23 @@ final class ConversationStore: @unchecked Sendable {
     }
 
 
-    nonisolated private static func enqueuePendingDeletions(db: Database, ids: [String]) throws {
+    // MARK: - Deletion journal
+
+    /// How long a deletion stays on record.
+    ///
+    /// It has to cover the window in which the recovery snapshot can be older than the deletion.
+    /// The snapshot is refreshed whenever the app goes to the background, so only a device that
+    /// keeps failing to write stays behind — months of headroom is plenty. A row is under 50 bytes.
+    nonisolated static let deletionJournalRetention: TimeInterval = 180 * 24 * 60 * 60
+
+    /// Record that the user deleted these conversations. Deleting the same id twice is
+    /// idempotent and only refreshes the timestamp.
+    nonisolated private static func recordDeletions(db: Database, ids: [String]) throws {
         let now = Date().timeIntervalSince1970
         for id in ids {
             try db.execute(
                 sql: """
-                INSERT INTO pending_conversation_deletion (conversationID, enqueuedAt) VALUES (?, ?)
+                INSERT INTO conversation_deletion_journal (conversationID, enqueuedAt) VALUES (?, ?)
                 ON CONFLICT(conversationID) DO UPDATE SET enqueuedAt = excluded.enqueuedAt
                 """,
                 arguments: [id, now]
@@ -520,29 +535,33 @@ final class ConversationStore: @unchecked Sendable {
         }
     }
 
-    nonisolated func pendingDeletionIDs() throws -> [UUID] {
+    /// Every conversation this device has deleted. Cold start uses it to decide what the
+    /// recovery snapshot is not allowed to bring back.
+    nonisolated func deletedConversationIDs() throws -> Set<UUID> {
         try dbPool.read { db in
-            try String
-                .fetchAll(db, sql: "SELECT conversationID FROM pending_conversation_deletion ORDER BY enqueuedAt")
-                .compactMap(UUID.init(uuidString:))
+            Set(
+                try String
+                    .fetchAll(db, sql: "SELECT conversationID FROM conversation_deletion_journal")
+                    .compactMap(UUID.init(uuidString:))
+            )
         }
     }
 
-    nonisolated func clearPendingDeletions(ids: [UUID]) throws {
-        guard !ids.isEmpty else { return }
-        let idStrings = ids.map(\.uuidString)
+    /// Drop journal rows past the retention window.
+    ///
+    /// Read the oldest row before deciding to write: this runs at cold start and most launches
+    /// have nothing to drop, so it should not take the write lock while the first frame is due.
+    nonisolated func pruneDeletionJournal(now: Date = Date()) throws {
+        let cutoff = now.timeIntervalSince1970 - Self.deletionJournalRetention
+        let oldest = try dbPool.read { db in
+            try Double.fetchOne(db, sql: "SELECT MIN(enqueuedAt) FROM conversation_deletion_journal")
+        }
+        guard let oldest, oldest < cutoff else { return }
         try write { db in
-            let chunkSize = 500
-            var offset = 0
-            while offset < idStrings.count {
-                let chunk = Array(idStrings[offset..<min(offset + chunkSize, idStrings.count)])
-                let placeholders = chunk.map { _ in "?" }.joined(separator: ",")
-                try db.execute(
-                    sql: "DELETE FROM pending_conversation_deletion WHERE conversationID IN (\(placeholders))",
-                    arguments: StatementArguments(chunk)
-                )
-                offset += chunkSize
-            }
+            try db.execute(
+                sql: "DELETE FROM conversation_deletion_journal WHERE enqueuedAt < ?",
+                arguments: [cutoff]
+            )
         }
     }
 

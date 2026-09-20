@@ -3,11 +3,17 @@ import GRDB
 import Testing
 @testable import Oriveo
 
-@Suite("ConversationPendingDeletion", .serialized)
+/// The deletion journal.
+///
+/// A conversation row is hard-deleted, so without a record of it nothing downstream can tell
+/// "the user deleted this" apart from "the database lost it". Cold start needs that distinction:
+/// it merges the recovery snapshot back in, and a snapshot that missed its post-delete refresh
+/// still lists the deleted conversation.
+@Suite("ConversationDeletionJournal", .serialized)
 struct ConversationPendingDeletionTests {
 
-    @Test("Delete Enqueues Pending Deletion")
-    func deleteEnqueuesPendingDeletion() throws {
+    @Test("Deleting a conversation records it in the journal")
+    func deleteRecordsInJournal() throws {
         let uid = makeUID()
         defer { cleanup(uid) }
         let store = try makeStore(uid: uid)
@@ -17,11 +23,11 @@ struct ConversationPendingDeletionTests {
         try store.deleteConversation(id: conv.id)
 
         #expect(try store.fetchConversationCount() == 0)
-        #expect(try store.pendingDeletionIDs() == [conv.id])
+        #expect(try store.deletedConversationIDs() == [conv.id])
     }
 
-    @Test("Batch Delete Enqueues All")
-    func batchDeleteEnqueuesAll() throws {
+    @Test("Batch delete records every conversation")
+    func batchDeleteRecordsAll() throws {
         let uid = makeUID()
         defer { cleanup(uid) }
         let store = try makeStore(uid: uid)
@@ -31,11 +37,11 @@ struct ConversationPendingDeletionTests {
         try store.deleteConversations(ids: convs.map(\.id))
 
         #expect(try store.fetchConversationCount() == 0)
-        #expect(Set(try store.pendingDeletionIDs()) == Set(convs.map(\.id)))
+        #expect(try store.deletedConversationIDs() == Set(convs.map(\.id)))
     }
 
-    @Test("Repeated Enqueue Is Idempotent")
-    func repeatedEnqueueIsIdempotent() throws {
+    @Test("Deleting the same id twice is idempotent")
+    func repeatedDeleteIsIdempotent() throws {
         let uid = makeUID()
         defer { cleanup(uid) }
         let store = try makeStore(uid: uid)
@@ -45,53 +51,13 @@ struct ConversationPendingDeletionTests {
         try store.deleteConversation(id: conv.id)
         try store.deleteConversation(id: conv.id)
 
-        #expect(try store.pendingDeletionIDs() == [conv.id])
+        #expect(try store.deletedConversationIDs() == [conv.id])
     }
 
-    @Test("Ack Clears Queue")
-    func ackClearsQueue() throws {
-        let uid = makeUID()
-        defer { cleanup(uid) }
-        let store = try makeStore(uid: uid)
-        let conv = TestFactories.makeConversation(title: "Acked")
-        try store.replaceAllConversations([conv])
-        try store.deleteConversation(id: conv.id)
-
-        try store.clearPendingDeletions(ids: [conv.id])
-
-        #expect(try store.pendingDeletionIDs().isEmpty)
-    }
-
-    @Test("Partial Ack Keeps Remainder")
-    func partialAckKeepsRemainder() throws {
-        let uid = makeUID()
-        defer { cleanup(uid) }
-        let store = try makeStore(uid: uid)
-        let convs = (0..<3).map { TestFactories.makeConversation(title: "Chat \($0)") }
-        try store.replaceAllConversations(convs)
-        try store.deleteConversations(ids: convs.map(\.id))
-
-        try store.clearPendingDeletions(ids: [convs[0].id])
-
-        #expect(Set(try store.pendingDeletionIDs()) == Set([convs[1].id, convs[2].id]))
-    }
-
-    @Test("Guest Partition Does Not Enqueue")
-    func guestPartitionDoesNotEnqueue() throws {
-        let uid = makeUID()
-        defer { cleanup(uid) }
-        let store = try makeStore(uid: uid)
-        let conv = TestFactories.makeConversation(title: "Guest Chat")
-        try store.replaceAllConversations([conv])
-
-        try store.deleteConversation(id: conv.id, enqueueForSync: false)
-
-        #expect(try store.fetchConversationCount() == 0)
-        #expect(try store.pendingDeletionIDs().isEmpty)
-    }
-
-    @Test("Replace All Does Not Enqueue")
-    func replaceAllDoesNotEnqueue() throws {
+    /// A local rewrite is not a deletion. Recording one would tell cold start that every
+    /// conversation the rewrite happened to drop must never come back.
+    @Test("Replacing the whole table records nothing")
+    func replaceAllRecordsNothing() throws {
         let uid = makeUID()
         defer { cleanup(uid) }
         let store = try makeStore(uid: uid)
@@ -100,12 +66,29 @@ struct ConversationPendingDeletionTests {
 
         try store.replaceAllConversations([TestFactories.makeConversation(title: "New")])
 
-        #expect(try store.pendingDeletionIDs().isEmpty)
+        #expect(try store.deletedConversationIDs().isEmpty)
+    }
+
+    @Test("Pruning only drops rows past the retention window")
+    func pruneOnlyDropsExpiredRows() throws {
+        let uid = makeUID()
+        defer { cleanup(uid) }
+        let store = try makeStore(uid: uid)
+        let conv = TestFactories.makeConversation(title: "Old Deletion")
+        try store.replaceAllConversations([conv])
+        try store.deleteConversation(id: conv.id)
+
+        try store.pruneDeletionJournal(now: Date())
+        #expect(try store.deletedConversationIDs() == [conv.id])
+
+        let beyondRetention = Date().addingTimeInterval(ConversationStore.deletionJournalRetention + 60)
+        try store.pruneDeletionJournal(now: beyondRetention)
+        #expect(try store.deletedConversationIDs().isEmpty)
     }
 
     // MARK: - Helpers
 
-    private func makeUID() -> String { "pending-del-\(UUID().uuidString)" }
+    private func makeUID() -> String { "deletion-journal-\(UUID().uuidString)" }
 
     private func makeStore(uid: String) throws -> ConversationStore {
         try FileManager.default.createDirectory(

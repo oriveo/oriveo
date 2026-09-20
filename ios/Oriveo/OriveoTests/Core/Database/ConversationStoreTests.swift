@@ -17,14 +17,14 @@ struct ConversationStoreTests {
         var conversation = TestFactories.makeConversation(messages: [first, second])
         try store.upsertConversation(conversation)
         try continuation.save(messageID: first.id, kind: "previous_id", state: ["previousResponseId": .string("first")])
-        try store.deleteConversation(id: conversation.id, enqueueForSync: false)
+        try store.deleteConversation(id: conversation.id, recordDeletion: false)
         #expect(try continuation.load(messageID: first.id) == nil)
 
         let bulkMessage = TestFactories.makeMessage(role: .assistant, text: "bulk")
         let bulkConversation = TestFactories.makeConversation(messages: [bulkMessage])
         try store.upsertConversation(bulkConversation)
         try continuation.save(messageID: bulkMessage.id, kind: "previous_id", state: ["previousResponseId": .string("bulk")])
-        try store.deleteConversations(ids: [bulkConversation.id], enqueueForSync: false)
+        try store.deleteConversations(ids: [bulkConversation.id], recordDeletion: false)
         #expect(try continuation.load(messageID: bulkMessage.id) == nil)
 
         try store.upsertConversation(conversation)

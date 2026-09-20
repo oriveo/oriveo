@@ -778,6 +778,18 @@ final class AppState {
         }
     }
 
+    /// Refresh the recovery snapshot right after a destructive change (deleting a conversation,
+    /// truncating messages on edit-resend or regenerate).
+    ///
+    /// The snapshot is no longer written on every `conversations` change; it is written at cold
+    /// start, on backgrounding and on partition switches, so a destructive change has to ask for
+    /// one or the snapshot stays on the pre-change state.
+    ///
+    /// This refresh is best effort, not a safety guarantee: it runs on a background queue, and a
+    /// full disk, a killed process or a power cut all make it silently not happen. Deleted
+    /// conversations are kept from coming back by `recoveryProjectionExcludingDeleted` instead.
+    /// What this protects is message truncation, which has no journal and depends on the snapshot
+    /// being fresh.
     func persistRecoverySnapshotAfterDestructiveChange() {
         guard persistsSession else { return }
         let persistedUID = boundPartitionUID
@@ -787,6 +799,37 @@ final class AppState {
                 try bridge.persistRecoveryProjectionFromDatabase(uid: persistedUID)
             }
         }
+    }
+
+    /// Drop conversations this device has already deleted from the cold-start recovery projection.
+    ///
+    /// The recovery snapshot is always dumped from the database, so "in the snapshot, not in the
+    /// database" has only two sources: the user deleted it and the refresh that should have
+    /// followed never landed, or the database really lost rows. The first is an everyday action,
+    /// the second takes the whole SQLite transaction layer failing. Meanwhile
+    /// `ConversationProjectionMerger.recover` adopts snapshot-only conversations unconditionally
+    /// and `replaceAllConversations` writes the result back, so one failed snapshot refresh is
+    /// enough to bring a deleted conversation back for good.
+    ///
+    /// The test is the deletion journal, not how fresh the snapshot looks: journal rows are
+    /// written in the same transaction as the hard delete, so they cannot half-succeed. If the
+    /// journal cannot be read the whole recovery projection is dropped — a database that opens
+    /// but cannot answer this query is already in an unexpected state, and not recovering beats
+    /// resurrecting.
+    private func recoveryProjectionExcludingDeleted(
+        _ recovered: [Conversation],
+        uid: String
+    ) -> [Conversation] {
+        guard !recovered.isEmpty else { return recovered }
+        let deletedIDs: Set<UUID>
+        do {
+            deletedIDs = try conversationRuntimeBridge.deletedConversationIDs(uid: uid)
+        } catch {
+            AppLog.error(error, module: "Conversations", context: ["op": "readDeletionJournal"])
+            return []
+        }
+        guard !deletedIDs.isEmpty else { return recovered }
+        return recovered.filter { !deletedIDs.contains($0.id) }
     }
 
     func authoritativeConversationProjection(
@@ -1452,7 +1495,7 @@ final class AppState {
             let authoritativeProjection = try conversationRuntimeBridge.loadLegacyProjection(uid: activeUID, hydrateFilePayloads: false)
             let mergedProjection = ConversationProjectionMerger.recover(
                 authoritative: authoritativeProjection,
-                recovered: recoveredProjection
+                recovered: recoveryProjectionExcludingDeleted(recoveredProjection, uid: activeUID)
             )
 
             #if DEBUG
@@ -1493,6 +1536,14 @@ final class AppState {
             AppLog.error(error, module: "Conversations", context: ["op": "loadSession"])
             #endif
             conversations = conversationRuntimeBridge.loadRecoveryProjection(snapshot: snapshot, uid: activeUID)
+        }
+
+        // Age out the deletion journal. Cold start on a background queue is fine: it only drops
+        // rows past the retention window, so running it a few launches late changes nothing.
+        let journalUID = activeUID
+        let journalBridge = conversationRuntimeBridge
+        conversationPersistQueue.async(qos: .utility) {
+            try? journalBridge.pruneDeletionJournal(uid: journalUID)
         }
 
         migrateProvidersToDeterministicIDsIfNeeded(uid: activeUID)

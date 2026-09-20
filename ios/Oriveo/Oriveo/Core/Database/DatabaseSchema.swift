@@ -178,6 +178,17 @@ enum DatabaseSchema {
                 )
                 """)
         }
+        migrator.registerMigration("v27_conversation_deletion_journal") { db in
+            // A deleted conversation used to leave no lasting trace: the row is hard-deleted and
+            // nothing else records that the user meant it to be gone. Cold start merges the
+            // recovery snapshot back in, and any snapshot refresh that did not land (a full disk,
+            // a killed process, a power cut) leaves the snapshot sitting on the pre-delete state,
+            // so the merge adopts the deleted conversation again and rewrites it into the table.
+            //
+            // The table now records the deletion itself rather than a queue entry: rows stay until
+            // they age out, and cold start uses them to decide what must never come back.
+            try db.execute(sql: "ALTER TABLE pending_conversation_deletion RENAME TO conversation_deletion_journal")
+        }
         return migrator
     }
 
