@@ -43579,6 +43579,579 @@
           }
         }
       }
+    },
+    "Out of Storage": {
+      "comment": "Blocking page title when the local database cannot be opened and the device is out of space.",
+      "extractionState": "manual",
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "مساحة التخزين ممتلئة"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Speicher voll"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Almacenamiento lleno"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Stockage saturé"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "स्टोरेज भर गया"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Penyimpanan penuh"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "空き容量がありません"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "저장 공간 부족"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Armazenamento cheio"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Нет свободного места"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "พื้นที่เก็บข้อมูลเต็ม"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Depolama alanı dolu"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hết dung lượng"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "存储空间已满"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "儲存空間已滿"
+          }
+        }
+      }
+    },
+    "Your device has no free space left, so Oriveo can't open its local data. Free up some space and try again — your chats are still saved on this device.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "لم تعد هناك مساحة خالية على جهازك، لذا لا يستطيع Oriveo فتح بياناته المحلية. أفرِغ بعض المساحة ثم أعد المحاولة — محادثاتك ما زالت محفوظة على هذا الجهاز."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auf Ihrem Gerät ist kein Speicherplatz mehr frei, daher kann Oriveo seine lokalen Daten nicht öffnen. Schaffen Sie etwas Platz und versuchen Sie es erneut – Ihre Chats sind weiterhin auf diesem Gerät gespeichert."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tu dispositivo no tiene espacio libre, así que Oriveo no puede abrir sus datos locales. Libera espacio y vuelve a intentarlo: tus chats siguen guardados en este dispositivo."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Votre appareil n'a plus d'espace libre, Oriveo ne peut donc pas ouvrir ses données locales. Libérez de l'espace puis réessayez — vos conversations restent enregistrées sur cet appareil."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "आपके डिवाइस में जगह नहीं बची है, इसलिए Oriveo अपना लोकल डेटा नहीं खोल पा रहा। कुछ जगह खाली करके दोबारा कोशिश करें — आपकी चैट इसी डिवाइस पर सुरक्षित हैं।"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ruang penyimpanan perangkat sudah habis, jadi Oriveo tidak bisa membuka data lokalnya. Kosongkan sebagian ruang lalu coba lagi — obrolan tetap tersimpan di perangkat ini."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "端末の空き容量がなくなり、Oriveo はローカルデータを開けません。空き容量を確保してから、もう一度お試しください。会話はこの端末に残っています。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "기기에 남은 저장 공간이 없어 Oriveo가 로컬 데이터를 열 수 없습니다. 공간을 확보한 뒤 다시 시도해 주세요. 대화는 이 기기에 그대로 저장되어 있습니다."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seu dispositivo está sem espaço livre, então o Oriveo não consegue abrir os dados locais. Libere espaço e tente de novo — suas conversas continuam salvas neste aparelho."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "На устройстве не осталось свободного места, поэтому Oriveo не может открыть локальные данные. Освободите место и повторите попытку — переписка по-прежнему хранится на этом устройстве."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "อุปกรณ์ของคุณไม่เหลือพื้นที่ว่าง Oriveo จึงเปิดข้อมูลในเครื่องไม่ได้ ลบไฟล์ที่ไม่ได้ใช้เพื่อเพิ่มพื้นที่ว่าง แล้วลองอีกครั้ง — แชทของคุณยังอยู่ในเครื่องนี้"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cihazınızda boş alan kalmadı, bu yüzden Oriveo yerel verilerini açamıyor. Biraz yer açıp yeniden deneyin — sohbetleriniz bu cihazda duruyor."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thiết bị của bạn không còn dung lượng trống nên Oriveo không mở được dữ liệu trên máy. Hãy dọn bớt dung lượng rồi thử lại — các cuộc trò chuyện vẫn còn nguyên trên máy."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "设备已经没有可用空间，Oriveo 打不开本机数据。腾出一些空间后重试——你的会话还好好地存在这台设备上。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "裝置已經沒有可用空間，Oriveo 打不開本機資料。騰出一些空間後再試一次——你的對話還好好地存在這台裝置上。"
+          }
+        }
+      }
+    },
+    "Can't Open Local Data": {
+      "comment": "Blocking page title when the local database cannot be opened with space to spare (corruption / migration / permissions).",
+      "extractionState": "manual",
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "تعذّر فتح البيانات المحلية"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lokale Daten nicht lesbar"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pueden abrir los datos locales"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Données locales inaccessibles"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "लोकल डेटा नहीं खुल रहा"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Data lokal tidak bisa dibuka"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ローカルデータを開けません"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "로컬 데이터를 열 수 없음"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Não foi possível abrir os dados locais"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не удаётся открыть локальные данные"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "เปิดข้อมูลในเครื่องไม่ได้"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yerel veriler açılamıyor"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không mở được dữ liệu trên máy"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "无法打开本机数据"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "無法開啟本機資料"
+          }
+        }
+      }
+    },
+    "Oriveo couldn't open its local data on this device. Retry, or contact support if this keeps happening.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "تعذّر على Oriveo فتح البيانات المحلية على هذا الجهاز. أعد المحاولة، وإن تكرّر الأمر فتواصل مع الدعم."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oriveo konnte die lokalen Daten auf diesem Gerät nicht öffnen. Versuchen Sie es erneut oder wenden Sie sich an den Support, falls das Problem bestehen bleibt."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oriveo no pudo abrir los datos locales de este dispositivo. Vuelve a intentarlo o escribe a soporte si el problema continúa."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oriveo n'a pas pu ouvrir les données locales de cet appareil. Réessayez, ou contactez le support si le problème persiste."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oriveo इस डिवाइस का लोकल डेटा नहीं खोल पाया। दोबारा कोशिश करें, और अगर यह बार-बार हो तो सपोर्ट से संपर्क करें।"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oriveo tidak bisa membuka data lokal di perangkat ini. Coba lagi, atau hubungi dukungan kalau terus terjadi."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "この端末のローカルデータを開けませんでした。もう一度お試しください。繰り返す場合はサポートまでご連絡ください。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이 기기의 로컬 데이터를 열지 못했습니다. 다시 시도해 보시고, 계속 이러면 고객지원에 문의해 주세요."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "O Oriveo não conseguiu abrir os dados locais deste aparelho. Tente de novo ou fale com o suporte se continuar acontecendo."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oriveo не смог открыть локальные данные на этом устройстве. Повторите попытку, а если это повторяется — напишите в поддержку."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oriveo เปิดข้อมูลในเครื่องนี้ไม่ได้ ลองใหม่อีกครั้ง หรือติดต่อฝ่ายสนับสนุนหากยังเป็นแบบนี้อยู่"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oriveo bu cihazdaki yerel verileri açamadı. Yeniden deneyin, sorun sürerse destek ekibine yazın."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oriveo không mở được dữ liệu trên máy này. Hãy thử lại, hoặc liên hệ bộ phận hỗ trợ nếu tình trạng này lặp lại."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oriveo 打不开这台设备上的本机数据。可以重试一次；如果一直这样，请联系客服。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oriveo 打不開這台裝置上的本機資料。可以再試一次；若一直如此，請聯絡客服。"
+          }
+        }
+      }
+    },
+    "Your device is out of space. New messages might not be saved — free up space to keep this conversation.": {
+      "comment": "Persistent banner for the soft failure: the database opens but writes fail. It must not claim chats are still saved — new messages really may not be.",
+      "extractionState": "manual",
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "لم تعد هناك مساحة خالية على جهازك. قد لا تُحفظ الرسائل الجديدة — أفرِغ بعض المساحة للحفاظ على هذه المحادثة."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Auf Ihrem Gerät ist kein Speicherplatz mehr frei. Neue Nachrichten werden möglicherweise nicht gespeichert – schaffen Sie Platz, damit dieses Gespräch erhalten bleibt."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tu dispositivo no tiene espacio libre. Puede que los mensajes nuevos no se guarden; libera espacio para conservar esta conversación."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Votre appareil n'a plus d'espace. Les nouveaux messages risquent de ne pas être enregistrés : libérez de l'espace pour conserver cette conversation."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "डिवाइस में जगह नहीं बची है। नए मैसेज शायद सेव न हों — इस बातचीत को बचाने के लिए कुछ जगह खाली करें।"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Penyimpanan perangkat penuh. Pesan baru mungkin tidak tersimpan — kosongkan ruang agar obrolan ini tidak hilang."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "端末の空き容量がありません。新しいメッセージが保存されないことがあります。この会話を残すには空き容量を確保してください。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "기기 저장 공간이 부족합니다. 새 메시지가 저장되지 않을 수 있어요. 이 대화를 남기려면 공간을 확보해 주세요."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seu dispositivo está sem espaço. As mensagens novas podem não ser salvas — libere espaço para não perder esta conversa."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "На устройстве нет свободного места. Новые сообщения могут не сохраниться — освободите место, чтобы не потерять эту переписку."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "อุปกรณ์ไม่เหลือพื้นที่ว่าง ข้อความใหม่อาจไม่ถูกบันทึก เพิ่มพื้นที่ว่างเพื่อไม่ให้บทสนทนานี้หายไป"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cihazınızda boş alan kalmadı. Yeni mesajlar kaydedilmeyebilir — bu sohbeti kaybetmemek için yer açın."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thiết bị đã hết dung lượng. Tin nhắn mới có thể không được lưu — hãy dọn bớt dung lượng để giữ lại cuộc trò chuyện này."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "设备空间不足，新消息可能存不下来。请腾出一些空间，以免这段对话丢失。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "裝置空間不足，新訊息可能存不下來。請騰出一些空間，以免這段對話遺失。"
+          }
+        }
+      }
+    },
+    "Couldn't load this conversation.": {
+      "extractionState": "manual",
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "تعذّر تحميل هذه المحادثة."
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dieses Gespräch konnte nicht geladen werden."
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudo cargar esta conversación."
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Impossible de charger cette conversation."
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "यह बातचीत लोड नहीं हो सकी।"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Obrolan ini tidak bisa dimuat."
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "この会話を読み込めませんでした。"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이 대화를 불러오지 못했습니다."
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Não foi possível carregar esta conversa."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не удалось загрузить этот чат."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "โหลดบทสนทนานี้ไม่สำเร็จ"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu sohbet yüklenemedi."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không tải được cuộc trò chuyện này."
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "这个会话没能加载出来。"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "這個對話沒能載入。"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

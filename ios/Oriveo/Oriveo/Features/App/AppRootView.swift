@@ -25,7 +25,30 @@ struct AppRootView: View {
     }
 
     var body: some View {
+        Group {
+            if let blockedReason = appState.databaseHealthProbe.health.blockedReason {
+                // The local data cannot be opened: going any further would keep nothing, so the
+                // screen stops here and explains itself.
+                StorageBlockedView(reason: blockedReason) {
+                    appState.loadSession()
+                }
+            } else {
+                mainContent
+            }
+        }
+        .animation(.snappy, value: appState.databaseHealthProbe.health)
+    }
+
+    private var mainContent: some View {
         VStack(spacing: 0) {
+            // Writes are failing: history is intact and still readable, but whatever is new may
+            // not be kept. That is an ongoing condition, not a one-off notice, so the banner stays
+            // (unlike the sync notice below, which leaves after five seconds).
+            if StorageWriteHealth.shared.isDegraded {
+                StorageDegradedBannerView()
+                    .transition(.move(edge: .top).combined(with: .opacity))
+            }
+
             if !isOnChatScreen {
                 ServiceReachabilityBannerView(state: reachability.bannerState) {
                     reachability.dismissCurrentBanner()
@@ -50,6 +73,7 @@ struct AppRootView: View {
             .toolbar(.hidden, for: .navigationBar)
             .environment(appState)
         }
+        .animation(.snappy, value: StorageWriteHealth.shared.isDegraded)
         .animation(.snappy, value: reachability.bannerState)
         .overlay { ToastOverlay() }
         .alert(L10n.tr("Add provider to use this Skill"), isPresented: $appState.showSkillProviderPrompt) {

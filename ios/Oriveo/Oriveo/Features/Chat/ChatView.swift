@@ -608,11 +608,23 @@ struct ChatView: View {
         }
     }
 
+    /// Loading the conversation failed.
+    ///
+    /// This used to be a ⚠️ and a Retry button and nothing else — the only error state in this
+    /// file that did not explain itself. What the user saw was a triangle and a button, with no
+    /// idea what went wrong or what pressing it would do.
     private var conversationBootstrapFailureState: some View {
         VStack(spacing: OriveoTheme.Spacing.md) {
             Image(systemName: "exclamationmark.triangle")
                 .font(.system(size: 32))
                 .foregroundStyle(OriveoTheme.Palette.textTertiary)
+
+            Text(L10n.tr("Couldn't load this conversation."))
+                .font(OriveoTheme.Typography.body)
+                .foregroundStyle(OriveoTheme.Palette.textSecondary)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.horizontal, OriveoTheme.Spacing.xl)
 
             Button(L10n.tr("Retry")) {
                 Task {

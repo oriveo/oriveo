@@ -250,6 +250,11 @@ final class AppState {
         set { pendingWorkItems.navigationPathCommit = newValue }
     }
     private let conversationPersistQueue = DispatchQueue(label: "com.oriveo.conversation-persist", qos: .utility)
+
+    /// The three states of the local database. The real result of the cold-start read feeds it,
+    /// and the UI decides from it whether to show the blocking page.
+    let databaseHealthProbe = DatabaseHealthProbe()
+
     nonisolated(unsafe) private static let conversationPersistFailureThrottle = AppLog.FailureThrottle()
 
     nonisolated private static func reportConversationPersistFailure(_ error: Error, op: String) {
@@ -267,11 +272,17 @@ final class AppState {
     nonisolated private static func runConversationPersistWrite(op: String, _ write: () throws -> Void) {
         do {
             try SQLitePersistRetry.run(write)
+            // A successful write means the path recovered. Only dispatches while degraded.
+            StorageWriteHealthSignal.recordSuccess()
         } catch {
             #if DEBUG
             AppLog.error(error, module: "AppState", context: ["op": op])
             #endif
             reportConversationPersistFailure(error, op: op)
+            // The log is for us, the banner is for the user. Messages come from a
+            // `ValueObservation`, not an in-memory array, so saying nothing leaves the user
+            // watching the model's reply vanish.
+            StorageWriteHealthSignal.recordFailure(error)
         }
     }
     @ObservationIgnored private var providerLookup: [UUID: Provider] = [:]
@@ -1531,10 +1542,18 @@ final class AppState {
             } else {
                 conversations = authoritativeProjection
             }
+            // The local database read through. While blocked, this success is the user having
+            // freed space and retried.
+            databaseHealthProbe.recordSuccess()
         } catch {
             #if DEBUG
             AppLog.error(error, module: "Conversations", context: ["op": "loadSession"])
             #endif
+            // The recovery snapshot below keeps the app looking usable — but from here on nothing
+            // the user does is kept. Saying nothing would be a lie, so turn the failure into a
+            // blocked state and let the UI explain it. A false return means the failure is not a
+            // storage access failure, and then only the snapshot fallback applies.
+            databaseHealthProbe.recordFailure(error)
             conversations = conversationRuntimeBridge.loadRecoveryProjection(snapshot: snapshot, uid: activeUID)
         }
 
