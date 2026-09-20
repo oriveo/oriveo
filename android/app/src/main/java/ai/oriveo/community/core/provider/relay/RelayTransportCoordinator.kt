@@ -1110,57 +1110,67 @@ internal class RelayTransportCoordinator(
                                                     ?.takeIf { it.isNotEmpty() }
                                                     ?.let { emit(StreamEvent.ToolCallDeltas(it)) }
 
-                                                when (currentEvent) {
-                                                    "response.output_text.delta" -> {
-                                                        val delta = json.decodeFromString<ResponsesStreamDelta>(payload).delta.orEmpty()
-                                                        if (delta.isNotEmpty()) {
-                                                            accumulatedText += delta
-                                                            firstContentEmitted = true
-                                                            emit(StreamEvent.Delta(delta))
+                                                // When the upstream goes away mid-line, BufferedReader.readLine() still returns the
+                                                // trailing partial line at EOF, so half a JSON object reaches decodeFromString and the
+                                                // resulting JsonDecodingException tears down the whole stream.
+                                                // Every other parse path already tolerates a malformed chunk here; this hand-rolled
+                                                // loop did not, because it bypasses the shared parser.
+                                                // Only SerializationException is swallowed: ProviderServiceError and
+                                                // RelayResponsesRejectedSettingSignal raised by the `response.failed` / `error`
+                                                // branches are not subclasses of it and still propagate unchanged.
+                                                SseParser.tolerantParseChunk {
+                                                    when (currentEvent) {
+                                                        "response.output_text.delta" -> {
+                                                            val delta = json.decodeFromString<ResponsesStreamDelta>(payload).delta.orEmpty()
+                                                            if (delta.isNotEmpty()) {
+                                                                accumulatedText += delta
+                                                                firstContentEmitted = true
+                                                                emit(StreamEvent.Delta(delta))
+                                                            }
                                                         }
-                                                    }
-                                                    "response.output_image.done",
-                                                    "response.image_generation_call.completed",
-                                                    -> {
-                                                        val imageDone = json.decodeFromString<ResponsesStreamImageDone>(payload)
-                                                        val itemId = imageDone.item_id ?: imageDone.id
-                                                        if (!imageDone.result.isNullOrBlank() && (itemId == null || emittedImageIds.add(itemId))) {
-                                                            firstContentEmitted = true
-                                                            emit(buildImageEvent(imageDone.result))
+                                                        "response.output_image.done",
+                                                        "response.image_generation_call.completed",
+                                                        -> {
+                                                            val imageDone = json.decodeFromString<ResponsesStreamImageDone>(payload)
+                                                            val itemId = imageDone.item_id ?: imageDone.id
+                                                            if (!imageDone.result.isNullOrBlank() && (itemId == null || emittedImageIds.add(itemId))) {
+                                                                firstContentEmitted = true
+                                                                emit(buildImageEvent(imageDone.result))
+                                                            }
                                                         }
-                                                    }
-                                                    "response.output_item.done" -> {
-                                                        val itemDone = json.decodeFromString<ResponsesStreamOutputItemDone>(payload)
-                                                        val item = itemDone.item
-                                                        val itemId = item?.id
-                                                        if (item?.type == "image_generation_call" &&
-                                                            !item.result.isNullOrBlank() &&
-                                                            (itemId == null || emittedImageIds.add(itemId))
-                                                        ) {
-                                                            firstContentEmitted = true
-                                                            emit(buildImageEvent(item.result))
+                                                        "response.output_item.done" -> {
+                                                            val itemDone = json.decodeFromString<ResponsesStreamOutputItemDone>(payload)
+                                                            val item = itemDone.item
+                                                            val itemId = item?.id
+                                                            if (item?.type == "image_generation_call" &&
+                                                                !item.result.isNullOrBlank() &&
+                                                                (itemId == null || emittedImageIds.add(itemId))
+                                                            ) {
+                                                                firstContentEmitted = true
+                                                                emit(buildImageEvent(item.result))
+                                                            }
                                                         }
-                                                    }
-                                                    "response.completed" -> {
-                                                        lastUsage = json.decodeFromString<ResponsesStreamCompleted>(payload).resolvedUsage
-                                                    }
-                                                    "response.failed", "error" -> {
-                                                        // A structured image-tool rejection seen
-                                                        // before any content has been emitted is
-                                                        // only surfaced, never resent.
-                                                        val streamPayload = parseStreamErrorPayload(payload)
-                                                        if (!firstContentEmitted && !hints.removeTools
-                                                            && RelayErrorMapper.isImageGenerationToolUnsupportedError(streamPayload, 400)
-                                                        ) {
-                                                            throw RelayResponsesRejectedSettingSignal(RelayRetryHints(removeTools = true))
+                                                        "response.completed" -> {
+                                                            lastUsage = json.decodeFromString<ResponsesStreamCompleted>(payload).resolvedUsage
                                                         }
-                                                        throw ProviderServiceError.Upstream(
-                                                            statusCode = 200,
-                                                            // The raw message only feeds the
-                                                            // structural classification above; it
-                                                            // is never persisted or shown.
-                                                            detail = "The custom LLM Responses stream reported a failure.",
-                                                        )
+                                                        "response.failed", "error" -> {
+                                                            // A structured image-tool rejection seen
+                                                            // before any content has been emitted is
+                                                            // only surfaced, never resent.
+                                                            val streamPayload = parseStreamErrorPayload(payload)
+                                                            if (!firstContentEmitted && !hints.removeTools
+                                                                && RelayErrorMapper.isImageGenerationToolUnsupportedError(streamPayload, 400)
+                                                            ) {
+                                                                throw RelayResponsesRejectedSettingSignal(RelayRetryHints(removeTools = true))
+                                                            }
+                                                            throw ProviderServiceError.Upstream(
+                                                                statusCode = 200,
+                                                                // The raw message only feeds the
+                                                                // structural classification above; it
+                                                                // is never persisted or shown.
+                                                                detail = "The custom LLM Responses stream reported a failure.",
+                                                            )
+                                                        }
                                                     }
                                                 }
 

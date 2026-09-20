@@ -67,6 +67,22 @@ class RelayTransportCoordinatorStreamTest {
         ),
     )
 
+    private fun responsesStreamEvents(stream: String) = coordinator(stream).sendMessageStream(
+        apiKey = "sk-relay",
+        modelID = "grok-4.5",
+        messages = listOf(ProviderTestFixtures.userMessage("Hi", ProviderKind.Relay, "grok-4.5")),
+        baseUrl = "https://relay.example.com/v1",
+        supportsImageGen = false,
+        reasoningMode = ReasoningMode.Automatic,
+        webSearchEnabled = false,
+        requestOptions = ChatRequestOptions(
+            relayRequested = RelayRequestedConfig(
+                transport = RelayTransport.OpenAIResponses,
+                authMode = RelayAuthMode.Bearer,
+            ),
+        ),
+    )
+
     private fun geminiStreamEvents(stream: String) = coordinator(stream).sendMessageStream(
         apiKey = "goog-key",
         modelID = "gemini-2.5-pro",
@@ -170,5 +186,58 @@ class RelayTransportCoordinatorStreamTest {
         assertEquals("hello", (events.first() as StreamEvent.Delta).text)
         val done = events.last() as StreamEvent.Done
         assertEquals("hello", done.result.text)
+    }
+
+    /**
+     * The upstream can go away while a `data:` line is only half written, leaving the final
+     * line without a trailing newline.
+     *
+     * `BufferedReader.readLine()` still hands that partial line back at EOF, so half a JSON
+     * object reaches `decodeFromString` and the resulting JsonDecodingException tears down the
+     * whole stream. Every other parse path already tolerates a malformed chunk at this point;
+     * this hand-rolled loop did not, because it bypasses the shared parser.
+     */
+    @Test
+    fun `openai responses relay survives upstream cut mid data line`() = runTest {
+        val stream = buildString {
+            append("event: response.output_text.delta\n")
+            append("data: {\"sequence_number\":1463,\"type\":\"response.output_text.delta\",\"content_index\":0,\"delta\":\"hello\",\"item_id\":\"msg_1\"}\n")
+            append("\n")
+            append("event: response.output_text.delta\n")
+            // Cut point: the JSON stops mid-string and the line has no trailing newline.
+            append("data: {\"sequence_number\":1464,\"type\":\"response.output_text.delta\",\"content_index\":0,\"delta\":\"x\",\"item_id\":\"msg_e94b2c9c-f985-9")
+        }
+
+        val events = responsesStreamEvents(stream).toList()
+
+        // Text emitted before the cut must survive: the partial line is skipped, not fatal.
+        assertEquals(listOf("hello"), events.filterIsInstance<StreamEvent.Delta>().map { it.text })
+        val done = events.last()
+        assertTrue("Expected the stream to still finish with Done, got: $done", done is StreamEvent.Done)
+        assertEquals("hello", (done as StreamEvent.Done).result.text)
+    }
+
+    /**
+     * Counterpart to the test above: the tolerance only swallows SerializationException and must
+     * not silently absorb in-stream failure events, which would turn a truncated reply into an
+     * apparently successful one.
+     */
+    @Test
+    fun `openai responses relay still surfaces stream failure event`() = runTest {
+        val stream = buildString {
+            append("event: response.output_text.delta\n")
+            append("data: {\"type\":\"response.output_text.delta\",\"delta\":\"partial\",\"item_id\":\"msg_1\"}\n")
+            append("\n")
+            append("event: response.failed\n")
+            append("data: {\"type\":\"response.failed\",\"response\":{\"error\":{\"code\":\"server_error\",\"message\":\"upstream exploded\"}}}\n")
+            append("\n")
+        }
+
+        try {
+            responsesStreamEvents(stream).toList()
+            fail("response.failed must raise instead of being swallowed by the parse tolerance")
+        } catch (error: ProviderServiceError) {
+            // Expected: the error card semantics stay unchanged.
+        }
     }
 }

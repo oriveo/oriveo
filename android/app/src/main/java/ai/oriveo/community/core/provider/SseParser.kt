@@ -78,7 +78,12 @@ object SseParser {
      * left staring at an "empty response" with nothing to go on. See the historical note in
      * OpenAICompatibleService.
      */
-    private inline fun <T> tolerantParseChunk(block: () -> T): T? = try {
+    /**
+     * internal rather than private: the openai_responses loop in [RelayTransportCoordinator]
+     * does not go through this object's parse* entry points and must reuse the exact same
+     * tolerance semantics instead of growing a second implementation.
+     */
+    internal inline fun <T> tolerantParseChunk(block: () -> T): T? = try {
         block()
     } catch (_: kotlinx.serialization.SerializationException) {
         null
