@@ -36,6 +36,10 @@ struct ParagraphWritingDirectionTests {
         #expect(ParagraphWritingDirection.firstStrongDirection(in: "\u{0301}مرحبا") == .rightToLeft)
         // The Arabic question mark is AL, a strong character.
         #expect(ParagraphWritingDirection.firstStrongDirection(in: "؟ hello") == .rightToLeft)
+        // Exceptions: NKo and Adlam digits are Nd but strong R in UAX#9; the Syriac abbreviation mark is Cf but AL.
+        #expect(ParagraphWritingDirection.firstStrongDirection(in: "\u{07C1} hello") == .rightToLeft)
+        #expect(ParagraphWritingDirection.firstStrongDirection(in: "\u{1E951} hello") == .rightToLeft)
+        #expect(ParagraphWritingDirection.firstStrongDirection(in: "\u{070F}hello") == .rightToLeft)
     }
 
     @Test("Neutral Only Paragraph Stays Natural")

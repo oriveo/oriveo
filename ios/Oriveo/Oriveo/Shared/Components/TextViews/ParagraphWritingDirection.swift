@@ -69,6 +69,10 @@ nonisolated enum ParagraphWritingDirection {
             return .leftToRight
         case 0x061C, 0x200F, 0x202B, 0x202E, 0x2067:  // ALM / RLM / RLE / RLO / RLI
             return .rightToLeft
+        // The category filter below would skip these as weak, but UAX#9 makes them strong:
+        // the Syriac abbreviation mark (Cf, AL), NKo digits and Adlam digits (Nd, R).
+        case 0x070F, 0x07C0...0x07C9, 0x1E950...0x1E959:
+            return .rightToLeft
         default:
             break
         }
