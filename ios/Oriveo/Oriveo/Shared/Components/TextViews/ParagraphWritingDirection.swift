@@ -60,7 +60,8 @@ nonisolated enum ParagraphWritingDirection {
         0x1E800...0x1EFFF  // Mende Kikakui, Adlam, Arabic Mathematical Alphabetic Symbols
     ]
 
-    private static let letters = CharacterSet.letters
+    /// Weak punctuation inside RTL blocks: Arabic comma (CS), percent sign (ET), decimal and thousands separators (AN).
+    private static let weakRightToLeftPunctuation: Set<UInt32> = [0x060C, 0x066A, 0x066B, 0x066C]
 
     private static func strongDirection(of scalar: Unicode.Scalar) -> NSWritingDirection? {
         switch scalar.value {
@@ -71,9 +72,28 @@ nonisolated enum ParagraphWritingDirection {
         default:
             break
         }
+        // Digits (EN/AN), combining marks (NSM) and format characters are not strong; keep scanning.
+        // This has to run before the block check: Arabic-Indic digits and harakat live inside the RTL
+        // blocks, and treating them as strong R would resolve "١٢٣ hello" to RTL while TextKit's
+        // natural direction (P2/P3) resolves it to LTR, flipping the paragraph once it is pinned.
+        switch scalar.properties.generalCategory {
+        case .decimalNumber, .letterNumber, .otherNumber,
+             .nonspacingMark, .spacingMark, .enclosingMark, .format, .control:
+            return nil
+        default:
+            break
+        }
+        if weakRightToLeftPunctuation.contains(scalar.value) { return nil }
         for range in rightToLeftRanges where range.contains(scalar.value) {
             return .rightToLeft
         }
-        return letters.contains(scalar) ? .leftToRight : nil
+        // Everything else that is strong is a letter: Latin, Cyrillic, Greek, Han, kana, Hangul... all L.
+        // `CharacterSet.letters` is not used because it also includes combining marks (M*).
+        switch scalar.properties.generalCategory {
+        case .uppercaseLetter, .lowercaseLetter, .titlecaseLetter, .modifierLetter, .otherLetter:
+            return .leftToRight
+        default:
+            return nil
+        }
     }
 }

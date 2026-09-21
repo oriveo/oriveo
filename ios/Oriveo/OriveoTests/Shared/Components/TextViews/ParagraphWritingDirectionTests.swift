@@ -22,6 +22,22 @@ struct ParagraphWritingDirectionTests {
         #expect(ParagraphWritingDirection.firstStrongDirection(in: "سلام Hello") == .rightToLeft)
     }
 
+    @Test("Weak Characters Inside RTL Blocks Are Skipped")
+    func weakCharactersInsideRightToLeftBlocksAreSkipped() {
+        // Arabic-Indic (AN) and extended Arabic-Indic (EN) digits sit in the U+0600 block; they are weak,
+        // so a paragraph that opens with them takes its direction from the first letter, as TextKit does.
+        #expect(ParagraphWritingDirection.firstStrongDirection(in: "١٢٣ hello") == .leftToRight)
+        #expect(ParagraphWritingDirection.firstStrongDirection(in: "۱۲۳ hello") == .leftToRight)
+        #expect(ParagraphWritingDirection.firstStrongDirection(in: "١٢٣ مرحبا") == .rightToLeft)
+        // Leading harakat (combining marks) and the Arabic comma / percent sign are weak as well.
+        #expect(ParagraphWritingDirection.firstStrongDirection(in: "\u{064E}hello") == .leftToRight)
+        #expect(ParagraphWritingDirection.firstStrongDirection(in: "، ٪ hello") == .leftToRight)
+        // A combining mark is not a strong L either.
+        #expect(ParagraphWritingDirection.firstStrongDirection(in: "\u{0301}مرحبا") == .rightToLeft)
+        // The Arabic question mark is AL, a strong character.
+        #expect(ParagraphWritingDirection.firstStrongDirection(in: "؟ hello") == .rightToLeft)
+    }
+
     @Test("Neutral Only Paragraph Stays Natural")
     func neutralOnlyParagraphStaysNatural() {
         #expect(ParagraphWritingDirection.firstStrongDirection(in: "12345 -- 67.89") == nil)
