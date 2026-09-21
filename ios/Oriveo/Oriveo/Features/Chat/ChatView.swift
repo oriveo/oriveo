@@ -142,7 +142,8 @@ struct ChatView: View {
     @State private var showAttachmentSizeLimitAlert = false
     @State private var showDeleteConfirmation = false
     @State private var expensiveModelHint: ExpensiveModelHintData?
-    @FocusState private var composerFocused: Bool
+    /// The input is a UIKit view (ComposerTextView) that bridges focus to first responder by hand, not through FocusState.
+    @State private var composerFocused = false
     @State private var bootstrapLoadFailed = false
     @State private var conversationObservation = CurrentConversationObservation()
     @State private var windowLoader = MessageWindowLoader()

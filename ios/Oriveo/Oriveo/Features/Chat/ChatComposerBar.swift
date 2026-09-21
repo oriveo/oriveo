@@ -285,7 +285,7 @@ struct ChatComposerBar: View {
     @Binding var reasoningMode: ReasoningMode
     @Binding var reasoningIntentSelection: String?
     @Binding var webEnabled: Bool
-    var composerFocused: FocusState<Bool>.Binding
+    var composerFocused: Binding<Bool>
 
     let onSend: (_ text: String, _ attachments: [Attachment]) -> Void
     let onChooseModel: () -> Void
@@ -905,18 +905,17 @@ struct ChatComposerBar: View {
                 attachmentEntryButton
             }
 
-            TextField(
-                isSendingMessage
+            // Not a SwiftUI TextField: it re-lays out a long single paragraph on every layout pass, see ComposerTextView.
+            ComposerTextView(
+                text: $composerText,
+                isFocused: composerFocused,
+                placeholder: isSendingMessage
                     ? L10n.tr("AI is answering...", table: .chat)
                     : L10n.tr("Type a message...", table: .chat),
-                text: $composerText,
-                axis: .vertical
+                font: Self.inputFont,
+                textColor: controlsDisabled ? Self.inputDisabledColor : Self.inputTextColor,
+                isEnabled: !controlsDisabled
             )
-            .focused(composerFocused)
-            .lineLimit(1...5)
-            .disabled(controlsDisabled)
-            .font(OriveoTheme.Typography.body)
-            .foregroundStyle(controlsDisabled ? OriveoTheme.Palette.textTertiary : OriveoTheme.Palette.textPrimary)
             .padding(.vertical, 8)
             .frame(minHeight: 44, alignment: .center)
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -946,6 +945,13 @@ struct ChatComposerBar: View {
         .animation(.easeInOut(duration: 0.2), value: focused)
         .animation(.easeInOut(duration: 0.18), value: hasComposerContent)
     }
+
+    // Same values as the old TextField's `.font(Typography.body)` / `.foregroundStyle(textPrimary | textTertiary)`.
+    // Cached as single instances: ComposerTextView compares styles by equality, and a dynamic color created anew each
+    // time would look changed and rewrite the attributes of the whole text.
+    private static let inputFont = UIFont.systemFont(ofSize: 16)
+    private static let inputTextColor = UIColor(OriveoTheme.Palette.textPrimary)
+    private static let inputDisabledColor = UIColor(OriveoTheme.Palette.textTertiary)
 
     private var composerShellFill: Color {
         if composerFocused.wrappedValue {

@@ -152,8 +152,8 @@ struct ChatComposerDraftLifecycleTests {
 
                 harness.push.push("")
         harness.setFocus?(false)
-        // Wait for the blur too, not just the text. `isFocused` comes from `FocusState`,
-        // whose blur is driven asynchronously by the UIKit first responder change; waiting
+        // Wait for the blur too, not just the text. `isFocused` is written back through the host's
+        // onChange, and it propagates asynchronously just like the UIKit first responder resign; waiting
         // only on the text lets the blur slip into the next statement's update — the one
         // that switches conversations. `applyDraftInputs` runs in a fixed order there:
         // ①rebind to the new conversation → ②a push overwrites the text → ③blur commits,
@@ -358,7 +358,7 @@ struct ChatComposerDraftLifecycleTests {
         }
     }
 
-    /// Focuses through FocusState (the same path ChatView uses to drive `composerFocused`) and waits
+    /// Focuses through the focus binding (the same path ChatView uses to drive `composerFocused`) and waits
     /// until the text view really is the first responder.
     private static func focus(_ harness: ComposerDraftHarness, _ input: UITextView) async throws {
         harness.setFocus?(true)
@@ -492,7 +492,7 @@ private final class ComposerDraftHarness {
     var showsComposer = true
     var scenePhase: ScenePhase = .active
     var commits: [ChatComposerDraftSession.Write] = []
-    /// Mirror of the host view's FocusState, plus a way to set it.
+    /// Mirror of the host view's focus state, plus a way to set it.
     var isFocused = false
     @ObservationIgnored var setFocus: ((Bool) -> Void)?
 
@@ -512,7 +512,7 @@ private struct ComposerDraftHarnessView: View {
     @State private var reasoningIntent: String?
     @State private var webEnabled = false
     @State private var scopeID = UUID()
-    @FocusState private var focused: Bool
+    @State private var focused = false
 
     var body: some View {
         VStack {

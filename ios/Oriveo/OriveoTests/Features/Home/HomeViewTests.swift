@@ -418,7 +418,8 @@ struct HomeViewTests {
             from: "private var heroComposerInput",
             to: "/// The model selector chip"
         ))
-        #expect(inputSource.contains(".accessibilityLabel(Text(composerPlaceholder))"))
+        // The input is ComposerTextView (UIKit): the accessibility name is passed in and set on its UITextView.
+        #expect(inputSource.contains("accessibilityLabel: composerPlaceholder"))
         #expect(inputSource.contains(".accessibilityHidden(true)"))
     }
 

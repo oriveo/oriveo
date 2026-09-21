@@ -227,7 +227,8 @@ struct HomeView: View {
     @State private var cachedConversationModelLookupVersion: UInt = .max
     @State private var cachedConversationModelLookupFingerprint: Int?
     @State private var heroText = ""
-    @FocusState private var heroFocused: Bool
+    /// The input is a UIKit view (ComposerTextView) that bridges focus to first responder by hand, not through FocusState.
+    @State private var heroFocused = false
     @State private var isSendingFromHero = false
     @State private var heroDisclosureProvider: ProviderKind?
     @State private var pendingHeroSend: HeroPendingSend?
@@ -788,7 +789,7 @@ struct HomeView: View {
     /// model pill plus a solid send button
     private var auroraComposerCard: some View {
         VStack(alignment: .leading, spacing: 12) {
-            // A real TextField plus the decorative blinking cursor (shown while unfocused and empty)
+            // The real input plus the decorative blinking cursor (shown while unfocused and empty)
             heroComposerInput
 
             // Model pill (tonal, no stroke) plus the send button (solid violet circle); no attachment button
@@ -819,20 +820,27 @@ struct HomeView: View {
         .auroraGlassCard(cornerRadius: 26, focused: heroFocused)
     }
 
+    // Same values as the old TextField's font(composerPlaceholder) / foregroundStyle(textPrimary) / tint(accentGlow),
+    // cached as single instances because ComposerTextView compares styles by equality.
+    private static let heroInputFont = UIFont.systemFont(ofSize: 18, weight: .medium)
+    private static let heroInputTextColor = UIColor(AuroraTheme.Colors.textPrimary)
+    private static let heroInputTint = UIColor(AuroraTheme.Colors.accentGlow)
+
     private var heroComposerInput: some View {
         ZStack(alignment: .leading) {
-            TextField("", text: $heroText, axis: .vertical)
-                .focused($heroFocused)
-                .font(AuroraTheme.Typography.composerPlaceholder)
-                .foregroundStyle(AuroraTheme.Colors.textPrimary)
+            // The same component as the chat composer: a SwiftUI TextField re-lays out a long single paragraph on
+            // every layout pass.
+            ComposerTextView(
+                text: $heroText,
+                isFocused: $heroFocused,
+                font: Self.heroInputFont,
+                textColor: Self.heroInputTextColor,
                 // The system caret uses the same colour as the decorative cursor (dark #C4B5FD / light #8B5CF6)
-                .tint(AuroraTheme.Colors.accentGlow)
-                .lineLimit(1...5)
-                .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
-                .submitLabel(.return)
-                // The TextField prompt is empty (the placeholder is drawn by the decorative layer below), so VoiceOver
-                // needs an explicit name
-                .accessibilityLabel(Text(composerPlaceholder))
+                tintColor: Self.heroInputTint,
+                // The placeholder is drawn by the decorative layer below, so VoiceOver needs an explicit name
+                accessibilityLabel: composerPlaceholder
+            )
+            .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
 
             if !heroFocused && heroText.isEmpty {
                 HStack(spacing: 4) {

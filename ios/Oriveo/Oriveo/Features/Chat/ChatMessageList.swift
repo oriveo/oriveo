@@ -148,7 +148,7 @@ struct ChatMessageList: View, Equatable {
     var onRestoreComposerText: (String) -> Void
     @Binding var pendingQuoteContext: QuoteContext?
     @Binding var showModelSwitcher: Bool
-    var composerFocused: FocusState<Bool>.Binding
+    var composerFocused: Binding<Bool>
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(AppState.self) private var appState
