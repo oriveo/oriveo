@@ -28,23 +28,17 @@ final class ChatPassiveTextView: UITextView {
         didSet { invalidateIntrinsicContentSize() }
     }
 
-    var hugsContentWidth: Bool = false {
-        didSet { if hugsContentWidth != oldValue { invalidateIntrinsicContentSize() } }
-    }
-
-    var maxContentWidth: CGFloat = .greatestFiniteMagnitude {
-        didSet { if hugsContentWidth, maxContentWidth != oldValue { invalidateIntrinsicContentSize() } }
-    }
-
     var onSaveSelection: ((String) -> Void)?
     var onReplaceSelection: ((String) -> Void)?
     var onAskSelection: ((QuoteSelectionContent) -> Void)?
     var quoteContentKind: QuoteContentKind = .prose
+    /// Set on text views whose display string carries `SoftParagraphBreaks` soft breaks (U+2029), the user bubble:
+    /// Copy / Save as Note / Ask must get the source text. Other text views never insert U+2029 and stay as they are.
+    var stripsSoftParagraphBreaks = false
+    /// Injected by tests; always the system pasteboard in production.
+    var pasteboard: UIPasteboard = .general
 
     override var intrinsicContentSize: CGSize {
-        if hugsContentWidth {
-            return hugIntrinsicContentSize()
-        }
         let width: CGFloat = {
             if useStableWidthForIntrinsic, let stable = computeStableWidth(), stable > 0 {
                 return stable
@@ -83,37 +77,6 @@ final class ChatPassiveTextView: UITextView {
     }
 
     private var cachedIntrinsic: (width: CGFloat, height: CGFloat, length: Int)?
-
-    private var cachedHugIntrinsic: (cap: CGFloat, length: Int, size: CGSize)?
-
-    private func hugIntrinsicContentSize() -> CGSize {
-        let cap = maxContentWidth
-        guard cap > 0, cap < .greatestFiniteMagnitude else { return super.intrinsicContentSize }
-        let length = textStorage.length
-        if let cached = cachedHugIntrinsic, cached.length == length, abs(cached.cap - cap) < 0.5 {
-            return cached.size
-        }
-        let insetsH = textContainerInset.left + textContainerInset.right + textContainer.lineFragmentPadding * 2
-        let insetsV = textContainerInset.top + textContainerInset.bottom
-        let attr = attributedText ?? NSAttributedString(
-            string: text ?? "", attributes: [.font: font ?? UIFont.systemFont(ofSize: 17)])
-        guard attr.length > 0 else {
-            let size = CGSize(width: 0, height: insetsV)
-            cachedHugIntrinsic = (cap, 0, size)
-            return size
-        }
-        let innerCap = max(1, cap - insetsH)
-        let rect = attr.boundingRect(
-            with: CGSize(width: innerCap, height: .greatestFiniteMagnitude),
-            options: [.usesLineFragmentOrigin, .usesFontLeading],
-            context: nil
-        )
-        let width = min(ceil(rect.width) + insetsH, cap)
-        let height = ceil(rect.height) + insetsV
-        let size = CGSize(width: width, height: height)
-        cachedHugIntrinsic = (cap, length, size)
-        return size
-    }
 
     private func computeStableWidth() -> CGFloat? {
         var view: UIView? = superview
@@ -224,10 +187,21 @@ final class ChatPassiveTextView: UITextView {
     override func copy(_ sender: Any?) {
         let range = selectedRange
         if range.length > 0, let attributed = attributedText, selectionContainsMathAttachment(in: range) {
-            UIPasteboard.general.string = Self.sourceText(in: attributed, range: range)
+            pasteboard.string = sourceTextStrippingSoftBreaks(Self.sourceText(in: attributed, range: range))
             return
         }
+        if stripsSoftParagraphBreaks, range.length > 0, NSMaxRange(range) <= textStorage.length {
+            let selected = (textStorage.string as NSString).substring(with: range)
+            if selected.utf16.contains(SoftParagraphBreaks.separator) {
+                pasteboard.string = SoftParagraphBreaks.source(fromDisplay: selected)
+                return
+            }
+        }
         super.copy(sender)
+    }
+
+    private func sourceTextStrippingSoftBreaks(_ text: String) -> String {
+        stripsSoftParagraphBreaks ? SoftParagraphBreaks.source(fromDisplay: text) : text
     }
 
     private func configureForChat() {
@@ -252,17 +226,23 @@ extension ChatPassiveTextView: UITextViewDelegate {
               let attributed = textView.attributedText else {
             return UIMenu(children: suggestedActions)
         }
-        let selected = Self.sourceText(in: attributed, range: range)
+        let selected = sourceTextStrippingSoftBreaks(Self.sourceText(in: attributed, range: range))
         guard !selected.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             return UIMenu(children: suggestedActions)
         }
         var customActions: [UIMenuElement] = []
         if let onAskSelection,
-           let content = Self.quoteSelectionContent(
+           let raw = Self.quoteSelectionContent(
                in: attributed,
                range: range,
                contentKind: quoteContentKind
            ) {
+            let content = QuoteSelectionContent(
+                contentKind: raw.contentKind,
+                leadingText: sourceTextStrippingSoftBreaks(raw.leadingText),
+                selectedText: sourceTextStrippingSoftBreaks(raw.selectedText),
+                trailingText: sourceTextStrippingSoftBreaks(raw.trailingText)
+            )
             customActions.append(UIAction(
                 title: L10n.tr("Ask", table: .chat),
                 image: UIImage(systemName: "quote.bubble")

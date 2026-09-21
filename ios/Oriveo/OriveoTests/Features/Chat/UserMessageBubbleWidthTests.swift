@@ -12,8 +12,8 @@ import UIKit
 /// `maxBubbleWidth`.
 ///
 /// The fix uses explicit constraints (right-aligned to the left of the avatar, with a `leading >=`
-/// so the bubble can shrink to the right) and lets the text view's intrinsic width drive the bubble
-/// width. This suite pins: short text hugs, long text is capped, and both are right-aligned.
+/// so the bubble can shrink to the right) and sizes the bubble directly from the measured text width
+/// (`UserBubbleTextLayout`). This suite pins: short text hugs, long text is capped, and both are right-aligned.
 @Suite("User message bubble hugs its content")
 @MainActor
 struct UserMessageBubbleWidthTests {

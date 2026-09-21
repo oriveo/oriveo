@@ -697,7 +697,9 @@ final class ChatListViewController: UIViewController {
         )
         let context = ChatListDataSource.RenderContext(
             parentViewController: self,
-            maxBubbleWidth: Self.userBubbleMaxWidth,
+            // The bubble limit also loses the avatar and both side margins: on a 393 pt wide phone the bubble is at
+            // most 301, and measuring at 320 counts too few lines and clips the last one.
+            maxBubbleWidth: min(Self.userBubbleMaxWidth, max(120, width - UserMessageCell.horizontalChrome)),
             onRetry: onRetry,
             onContinue: onContinue,
             onSaveNote: onSaveNote,
@@ -1379,8 +1381,10 @@ extension ChatListViewController: ChatLayoutDelegate {
         max(160, width - ChatCardStableWidth.contentChrome)
     }
 
+    /// Clamped by the cell width the same way the cell measures (`UserMessageCell.horizontalChrome`):
+    /// a 393 pt wide phone only has 301, not 320.
     nonisolated static func userContentWidth(for width: CGFloat) -> CGFloat {
-        max(120, min(userBubbleMaxWidth, width * 0.82))
+        max(120, min(userBubbleMaxWidth, width * 0.82, width - UserMessageCell.horizontalChrome))
     }
 
     nonisolated static func estimatedRecoveryCardHeight(charsPerLine: CGFloat) -> CGFloat {
