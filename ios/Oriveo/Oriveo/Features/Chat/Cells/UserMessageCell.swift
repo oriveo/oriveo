@@ -380,14 +380,23 @@ final class UserMessageCell: UICollectionViewCell {
                 hug: hugText,
                 scale: scale
             )
+            // Settle the insets and frame on the measured result before filling in the text: iOS's TextKit 1 lays the
+            // whole paragraph out synchronously both on a storage edit and on a container geometry change
+            // (`_markSelfAsDirtyForBackgroundLayout -> _fillLayoutHole`). Filling the text first and letting the host's
+            // layoutSubviews change the frame later makes a fresh cell lay out the full text once at the stale width
+            // and again at the real size (~470ms each for 200K characters of Arabic).
+            if textView.textContainerInset != insets {
+                textView.textContainerInset = insets
+            }
+            let textFrame = CGRect(origin: .zero, size: size)
+            if textView.frame != textFrame {
+                textView.frame = textFrame
+            }
             // Reconfiguring the same message (stream finished, metadata refreshed) or changing width never resets the
             // whole string: a reset makes TextKit lay out the full paragraph again.
             if appliedDisplayKey != displayKey {
                 textView.attributedText = display
                 appliedDisplayKey = displayKey
-            }
-            if textView.textContainerInset != insets {
-                textView.textContainerInset = insets
             }
             textView.isHidden = false
             textHost.isHidden = false

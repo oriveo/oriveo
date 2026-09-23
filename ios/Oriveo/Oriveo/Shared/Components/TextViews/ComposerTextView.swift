@@ -156,6 +156,15 @@ struct ComposerTextView: UIViewRepresentable {
 
         func textView(_ textView: UITextView, shouldChangeTextIn range: NSRange, replacementText text: String) -> Bool {
             let length = (text as NSString).length
+            // Whole-block insertions that bypass the paste delegate (a third-party keyboard's clipboard, dictation,
+            // Live Text, programmatic insertText): UIKit lays the whole block out in the viewport to place the caret
+            // right after inserting, 17s on the main thread for a single 200K-character Arabic paragraph, too late for
+            // the after-the-fact split. Intercept before the insertion and write the split display string into
+            // storage ourselves, so an overlong paragraph never reaches storage.
+            if let composer = textView as? ComposerUITextView,
+               replaceIfOverlong(text, in: range, of: composer) {
+                return false
+            }
             // This replacement follows right after the paste delegate handed out its display string; don't compare
             // contents, smart insert may add spaces at either end.
             pendingEdit = (NSRange(location: range.location, length: length), pendingPasteDisplay != nil)
@@ -172,6 +181,41 @@ struct ComposerTextView: UIViewRepresentable {
             if parent.text != source {
                 parent.text = source
             }
+        }
+
+        /// Rewrites an insertion containing an overlong paragraph into the split display string and returns true
+        /// (the caller drops the original insertion). Display strings handed out by the paste delegate and
+        /// insertions during IME composition are left alone.
+        func replaceIfOverlong(_ text: String, in range: NSRange, of textView: ComposerUITextView) -> Bool {
+            guard pendingPasteDisplay == nil,
+                  (text as NSString).length > SoftParagraphBreaks.maxParagraphUTF16,
+                  textView.markedTextRange == nil else { return false }
+            let display = SoftParagraphBreaks.display(forSource: text)
+            guard display != text else { return false }
+            replaceWithSoftBrokenDisplay(display, in: range, of: textView)
+            return true
+        }
+
+        /// Writes the split display string on the inserter's behalf. Storage is edited directly and bypasses the undo
+        /// stack (the same trade-off as the after-the-fact split: older steps would point at shifted ranges, so the
+        /// stack is cleared), and the input system is notified once, as for any programmatic change. The edited range
+        /// is marked as our own insertion so the U+2029 in the display string is not taken for foreign text and
+        /// turned into \n.
+        private func replaceWithSoftBrokenDisplay(_ display: String, in range: NSRange, of textView: ComposerUITextView) {
+            let storage = textView.textStorage
+            let safeRange = NSRange(
+                location: min(range.location, storage.length),
+                length: min(range.length, max(0, storage.length - min(range.location, storage.length)))
+            )
+            let length = (display as NSString).length
+            textView.inputDelegate?.textWillChange(textView)
+            storage.replaceCharacters(in: safeRange, with: NSAttributedString(string: display, attributes: textAttributes(parent)))
+            textView.selectedRange = NSRange(location: safeRange.location + length, length: 0)
+            textView.inputDelegate?.textDidChange(textView)
+            pendingEdit = (NSRange(location: safeRange.location, length: length), true)
+            textViewDidChange(textView)
+            textView.undoManager?.removeAllActions()
+            textView.scrollRangeToVisible(textView.selectedRange)
         }
 
         private func contentDidChange(in textView: ComposerUITextView) {
@@ -569,6 +613,13 @@ final class ComposerUITextView: UITextView {
         var copy = attributes
         copy[.paragraphStyle] = mutable
         return copy
+    }
+
+    /// The keyboard (including a third-party keyboard's clipboard), dictation and programmatic insertion all land
+    /// here, and some of those paths never ask shouldChangeTextIn first, so intercept at the entry point too.
+    override func insertText(_ text: String) {
+        if let coordinator, coordinator.replaceIfOverlong(text, in: selectedRange, of: self) { return }
+        super.insertText(text)
     }
 
     override func didMoveToWindow() {

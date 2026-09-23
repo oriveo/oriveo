@@ -27,9 +27,14 @@ High-level notes for the chat surface.
   leaves a view (bindings, drafts, copy, Save as Note, Ask) gets the source text back.
 - A text view whose height grows with its content must not join Auto Layout directly: UIKit computes its baseline on
   every constraint pass by laying the whole text out. The user bubble hosts its `ChatPassiveTextView` in
-  `UserBubbleTextHost` and sizes it from one cached measurement (`UserBubbleTextLayout`).
+  `UserBubbleTextHost` and sizes it from one cached measurement (`UserBubbleTextLayout`). Configure sets the text
+  view's frame to the measured size **before** filling in the text: TextKit 1 lays the whole text out synchronously on
+  both storage edits and container geometry changes, so the reverse order lays a fresh cell out once more at the stale
+  width.
 - The composer and the Home hero use `ComposerTextView`, not SwiftUI `TextField(axis: .vertical)`, which lays the whole
-  text out again for every size proposal.
+  text out again for every size proposal. Pastes go through the paste delegate; every other whole-block insertion is
+  split at the `insertText` / `shouldChangeTextIn` entry points before it is written, so an overlong paragraph never
+  reaches storage.
 
 ## Debugging scroll jumps
 
