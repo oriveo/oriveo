@@ -2,10 +2,12 @@ package ai.oriveo.community.core.provider
 
 import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.core.model.Provider
+import ai.oriveo.community.core.model.ProviderServiceError
 import java.net.URI
 import java.time.Duration
 import java.time.Instant
 import java.util.concurrent.ConcurrentHashMap
+import kotlinx.coroutines.CancellationException
 
 /**
  * Reads the credit balance the user holds with their own provider account. Only four
@@ -132,10 +134,44 @@ class ProviderBalanceRepository(
         val service = requireNotNull(services[provider.kind]) {
             "Balance service is not registered for ${provider.kind}"
         }
-        val fresh = service.fetchBalance(apiKey, baseURL.ifEmpty { null })
+        val fresh = try {
+            service.fetchBalance(apiKey, baseURL.ifEmpty { null })
+        } catch (error: ProviderServiceError) {
+            // A rejected key makes the last balance meaningless for this key
+            if (error.isRejectedKey()) cache.remove(provider.id)
+            throw error
+        }
         cache[provider.id] = CacheEntry(apiKey = apiKey, baseURL = baseURL, balance = fresh)
         return fresh
     }
+
+    /**
+     * The last balance fetched with the same key and endpoint, ignoring the TTL. The list shows it
+     * on the first frame and replaces it in place once the refresh lands.
+     */
+    fun cachedBalance(provider: Provider): ProviderBalance? {
+        val cached = cache[provider.id] ?: return null
+        if (cached.apiKey != provider.apiKey.trim()) return null
+        if (cached.baseURL != provider.baseUrlText?.trim().orEmpty()) return null
+        return cached.balance
+    }
+
+    /**
+     * Refresh for the provider list: network and upstream failures keep the last good balance
+     * (as the detail page does), a rejected key yields null.
+     */
+    suspend fun fetchBalanceForDisplay(provider: Provider): ProviderBalance? =
+        try {
+            fetchBalance(provider)
+        } catch (cancellation: CancellationException) {
+            throw cancellation
+        } catch (_: Exception) {
+            cachedBalance(provider)
+        }
+
+    private fun ProviderServiceError.isRejectedKey(): Boolean =
+        this is ProviderServiceError.InvalidAPIKey ||
+            (this is ProviderServiceError.Upstream && (statusCode == 401 || statusCode == 403))
 
     fun retainProviders(validProviderIds: Set<String>) {
         cache.keys.removeIf { it !in validProviderIds }

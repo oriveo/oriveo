@@ -15,12 +15,8 @@ import ai.oriveo.community.core.provider.ProviderBalanceRepository
 import ai.oriveo.community.core.usage.CostSummaryCalculator
 import ai.oriveo.community.core.usage.MonthlyCostSummary
 import kotlinx.coroutines.CoroutineDispatcher
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.async
-import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -28,6 +24,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 class ProvidersViewModel(
@@ -96,29 +93,33 @@ class ProvidersViewModel(
 
     fun refreshProviderBalances() {
         val repository = providerBalanceRepository ?: return
-        val candidates = providers.value.filter { provider ->
+        val currentProviders = providers.value
+        val candidates = currentProviders.filter { provider ->
             provider.kind in BALANCE_CAPABLE_KINDS && provider.apiKey.isNotBlank()
         }
         val generation = ++providerBalancesRefreshGeneration
-        _providerBalances.value = emptyMap()
-        repository.retainProviders(candidates.mapTo(mutableSetOf()) { it.id })
+        // Before the first database emission providers is still the empty initial list; pruning
+        // then would wipe the shared cache the detail page just filled
+        if (currentProviders.isNotEmpty()) {
+            repository.retainProviders(candidates.mapTo(mutableSetOf()) { it.id })
+        }
+        // Don't blank the rows to "--" first: show the last balance for the same key, then replace
+        // each one in place as the refresh lands. On a cache hit the map is equal and the StateFlow
+        // doesn't re-emit.
+        _providerBalances.value = candidates.mapNotNull { provider ->
+            repository.cachedBalance(provider)?.let { provider.id to it }
+        }.toMap()
 
         viewModelScope.launch {
-            val loaded = coroutineScope {
-                candidates.map { provider ->
-                    async {
-                        try {
-                            provider.id to repository.fetchBalance(provider)
-                        } catch (error: CancellationException) {
-                            throw error
-                        } catch (_: Exception) {
-                            null
-                        }
+            // Apply each result as it arrives so one slow provider doesn't hold back the rest
+            candidates.forEach { provider ->
+                launch {
+                    val balance = repository.fetchBalanceForDisplay(provider)
+                    if (providerBalancesRefreshGeneration != generation) return@launch
+                    _providerBalances.update { current ->
+                        if (balance == null) current - provider.id else current + (provider.id to balance)
                     }
-                }.awaitAll().filterNotNull().toMap()
-            }
-            if (providerBalancesRefreshGeneration == generation) {
-                _providerBalances.value = loaded
+                }
             }
         }
     }

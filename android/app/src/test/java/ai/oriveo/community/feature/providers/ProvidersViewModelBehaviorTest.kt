@@ -7,6 +7,10 @@ import ai.oriveo.community.core.model.AIModel
 import ai.oriveo.community.core.model.Provider
 import ai.oriveo.community.core.model.ProviderConnectionState
 import ai.oriveo.community.core.model.ProviderKind
+import ai.oriveo.community.core.model.ProviderServiceError
+import ai.oriveo.community.core.provider.BalanceQueryable
+import ai.oriveo.community.core.provider.ProviderBalance
+import ai.oriveo.community.core.provider.ProviderBalanceRepository
 import ai.oriveo.community.core.provider.MetadataTestFixtures
 import ai.oriveo.community.core.provider.ProviderCatalogResolver
 import ai.oriveo.community.core.usage.MonthlyCostSummary
@@ -26,6 +30,8 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
+import java.time.Duration
+import java.time.Instant
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Before
@@ -164,4 +170,64 @@ class ProvidersViewModelBehaviorTest {
         collectionJob.cancel()
     }
 
+    @Test
+    fun `provider balance refresh keeps the last balance instead of blanking the row`() = runTest {
+        var now = Instant.parse("2026-07-22T00:00:00Z")
+        val provider = Provider(
+            id = "deepseek-1",
+            kind = ProviderKind.DeepSeek,
+            apiKey = "sk-test",
+            status = ProviderConnectionState.Connected,
+        )
+        every { providerRepository.observeAll() } returns flowOf(listOf(provider))
+        val service = ScriptedBalanceService()
+        val viewModel = ProvidersViewModel(
+            providerRepository = providerRepository,
+            conversationRepository = conversationRepository,
+            metadataRefreshEventBus = metadataRefreshEventBus,
+            providerBalanceRepository = ProviderBalanceRepository(
+                services = mapOf(ProviderKind.DeepSeek to service),
+                now = { now },
+            ),
+            defaultDispatcher = dispatcher,
+        )
+        val collectionJob = backgroundScope.launch { viewModel.providers.collect() }
+        advanceUntilIdle()
+
+        viewModel.refreshProviderBalances()
+        advanceUntilIdle()
+        assertEquals(1.0, viewModel.providerBalances.value["deepseek-1"]?.total)
+
+        // Expired and the upstream fails: the last balance stays during and after the refresh
+        now = now.plus(Duration.ofMinutes(10))
+        service.error = ProviderServiceError.Network("offline")
+        viewModel.refreshProviderBalances()
+        assertEquals(1.0, viewModel.providerBalances.value["deepseek-1"]?.total)
+        advanceUntilIdle()
+        assertEquals(1.0, viewModel.providerBalances.value["deepseek-1"]?.total)
+
+        // Successful refresh: the old value shows first and is replaced in place
+        service.error = null
+        viewModel.refreshProviderBalances()
+        assertEquals(1.0, viewModel.providerBalances.value["deepseek-1"]?.total)
+        advanceUntilIdle()
+        assertEquals(3.0, viewModel.providerBalances.value["deepseek-1"]?.total)
+
+        collectionJob.cancel()
+    }
+
+    private class ScriptedBalanceService : BalanceQueryable {
+        var calls = 0
+        var error: Exception? = null
+
+        override suspend fun fetchBalance(apiKey: String, baseURL: String?): ProviderBalance {
+            calls += 1
+            error?.let { throw it }
+            return ProviderBalance(
+                currency = "USD",
+                total = calls.toDouble(),
+                fetchedAt = Instant.parse("2026-07-22T00:00:00Z"),
+            )
+        }
+    }
 }
