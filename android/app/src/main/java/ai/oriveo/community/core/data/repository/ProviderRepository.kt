@@ -255,7 +255,10 @@ class ProviderRepository(
         val entity = dao.getById(targetAccountId, normalizedId) ?: return null
         if (entity.kind !in ProviderKind.entries.map { it.name }) return null
         val apiKey = loadApiKey(entity.accountId, entity.id)
-        return normalizeProviderIds(entity.toDomain(apiKey))
+        // Decoding the whole model catalog is pure O(catalog) work: a relay catalog comes from the user's own
+        // server (tens of thousands of entries on some public relays), and selecting or enabling a model in the
+        // Home model picker calls this from viewModelScope (Main).
+        return withContext(cpuDispatcher) { normalizeProviderIds(entity.toDomain(apiKey)) }
     }
 
     suspend fun registerProvider(

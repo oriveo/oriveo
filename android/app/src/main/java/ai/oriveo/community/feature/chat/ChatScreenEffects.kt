@@ -381,6 +381,17 @@ internal fun ChatMetricsEffect(
             metricsStateHolder.state?.removeState("chat_generation")
         }
     }
+
+    // PerformanceMetricsState lives on the whole window hierarchy and is not cleared when the chat screen goes
+    // away, and the LaunchedEffects above never reach removeState once they are cancelled. Leaving mid-generation
+    // would otherwise keep both values attached to every later jank frame on other routes, e.g. a stale
+    // chat_generation=streaming long after the stream failed. Cleared the same way as home_mode.
+    DisposableEffect(metricsStateHolder) {
+        onDispose {
+            metricsStateHolder.state?.removeState("chat_list")
+            metricsStateHolder.state?.removeState("chat_generation")
+        }
+    }
 }
 
 @Composable

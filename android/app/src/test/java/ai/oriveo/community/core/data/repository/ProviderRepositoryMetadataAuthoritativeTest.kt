@@ -7,6 +7,7 @@ import ai.oriveo.community.core.data.dao.ConversationDao
 import ai.oriveo.community.core.data.dao.ProviderDao
 import ai.oriveo.community.core.data.entity.ProviderEntity
 import ai.oriveo.community.core.model.AIModel
+import ai.oriveo.community.core.model.ModelCapability
 import ai.oriveo.community.core.model.Provider
 import ai.oriveo.community.core.model.ProviderConnectionState
 import ai.oriveo.community.core.model.ProviderKind
@@ -1218,6 +1219,59 @@ class ProviderRepositoryMetadataAuthoritativeTest {
             )
         } finally {
             unmockkStatic(PROVIDER_CATALOG_RESOLVER_KT)
+            caller.close()
+        }
+    }
+
+    /**
+     * Selecting or enabling a model in the Home model picker goes through HomeViewModel's
+     * viewModelScope (Main) into [ProviderRepository.getById]. Some public relays list tens of
+     * thousands of models; if decoding the catalog JSON stays on the calling thread, its cost lands
+     * on the main thread unchanged.
+     *
+     * Method: CPU time actually consumed by the calling thread (fake-main) during one getById
+     * (ThreadMXBean), median of 5 runs after 2 warmups. Only the caller is measured: once decoding
+     * moves elsewhere, all that is left there is the suspend/resume overhead.
+     */
+    @Test
+    fun `getById decodes a large relay catalog off the calling thread`() = runTest {
+        val catalog = (0 until 22_000).map { index ->
+            AIModel(
+                id = "org-${index % 3_000}/gemma-4-31B-it-variant-$index",
+                name = "org-${index % 3_000}/gemma-4-31B-it-variant-$index",
+                capabilities = listOf(ModelCapability.Text),
+                contextLength = 32_768,
+            )
+        }
+        val relay = provider(
+            id = "6F1C7C52-5A8E-4A0E-9D7E-3B1F0A9C2E22",
+            kind = ProviderKind.Relay,
+            models = listOf(catalog.first().copy(isDefault = true)),
+            catalogModels = catalog,
+        ).copy(baseUrlText = "https://relay.example.com/v1")
+        coEvery { dao.getById(accountId, relay.id) } returns relay.toEntity(accountId)
+        coEvery { secureKeyStore.getApiKey(any(), relay.id) } returns "sk-relay"
+
+        val callerExecutor = Executors.newSingleThreadExecutor { runnable -> Thread(runnable, "fake-main") }
+        val caller = callerExecutor.asCoroutineDispatcher()
+        val threadMx = java.lang.management.ManagementFactory.getThreadMXBean()
+        try {
+            val samples = (1..7).map {
+                withContext(caller) {
+                    val cpuBefore = threadMx.currentThreadCpuTime
+                    val loaded = repository.getById(relay.id)
+                    val cpuMs = (threadMx.currentThreadCpuTime - cpuBefore) / 1_000_000.0
+                    assertEquals("precondition: production decoding must yield the whole catalog", 22_000, loaded?.catalogModels?.size)
+                    cpuMs
+                }
+            }.drop(2).sorted()
+            val medianMs = samples[samples.size / 2]
+            println("ProviderRepositoryMetadataAuthoritativeTest getById relay catalog=22000 callerCpuMedian=${"%.2f".format(medianMs)}ms samples=$samples")
+            assertTrue(
+                "getById used ${"%.2f".format(medianMs)}ms of CPU on the calling thread: catalog decoding still runs on the caller (Main on Home)",
+                medianMs < 5.0,
+            )
+        } finally {
             caller.close()
         }
     }
