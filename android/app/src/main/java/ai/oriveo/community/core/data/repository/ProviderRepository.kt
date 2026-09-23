@@ -69,6 +69,7 @@ import java.net.URI
 import ai.oriveo.community.core.util.sameNormalizedUuid
 import java.time.Instant
 import java.util.UUID
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -114,9 +115,27 @@ class ProviderRepository(
     private val capabilityPreferenceStore: ai.oriveo.community.core.model.CapabilityPreferenceStore? = null,
     private val localCapabilityCustomFragmentStore: ai.oriveo.community.core.model.LocalCapabilityCustomFragmentStore? = null,
     private val toolCallMemoryStore: ToolCallMemoryStore? = null,
+    // Dispatcher for the pre-write enrichment, catalog resolution and JSON encoding; injectable for tests.
+    private val cpuDispatcher: CoroutineDispatcher = Dispatchers.Default,
 ) {
 
     private val accountId: String get() = LOCAL_PARTITION_ID
+
+    /**
+     * The CPU stage shared by every write path: relay enrichment (matching each model
+     * against the official catalogs), catalog resolution, and JSON encoding of both model
+     * lists, all pure O(catalog) work. Most callers run on viewModelScope (Main), and a
+     * relay catalog comes from the user's own server and can hold thousands of entries,
+     * so leaving this on the main thread turns into dropped frames on save or model switch
+     * that grow with the catalog size.
+     */
+    private suspend fun finalizeForUpsert(
+        provider: Provider,
+        targetAccountId: String,
+    ): Pair<Provider, ProviderEntity> = withContext(cpuDispatcher) {
+        val finalized = prepareProviderForUpsert(provider)
+        finalized to finalized.toEntity(targetAccountId)
+    }
 
     val grokSubscriptionRuntime: GrokSubscriptionRuntime by lazy {
         GrokSubscriptionRuntime(
@@ -1499,8 +1518,7 @@ class ProviderRepository(
         commitGuard: () -> Boolean,
         normalizeConversations: Boolean,
     ): GuardedProviderWrite? {
-        val finalized = prepareProviderForUpsert(provider)
-        val entity = finalized.toEntity(targetAccountId)
+        val (finalized, entity) = finalizeForUpsert(provider, targetAccountId)
         return try {
             runInTransaction {
                 if (!commitGuard()) throw StaleProviderMutation()
@@ -1538,8 +1556,7 @@ class ProviderRepository(
         targetAccountId: String,
         commitGuard: () -> Boolean,
     ): GuardedProviderWrite? {
-        val finalized = prepareProviderForUpsert(provider)
-        val entity = finalized.toEntity(targetAccountId)
+        val (finalized, entity) = finalizeForUpsert(provider, targetAccountId)
         return try {
             runInTransaction {
                 if (!commitGuard()) throw StaleProviderMutation()
@@ -1765,10 +1782,10 @@ class ProviderRepository(
         provider: Provider,
         expectedAccountId: String,
     ): Provider {
-        val finalized = prepareProviderForUpsert(provider)
-        val normalizedId = normalizeUuid(finalized.id)
         val targetAccountId = expectedAccountId
-        dao.upsert(finalized.toEntity(targetAccountId))
+        val (finalized, entity) = finalizeForUpsert(provider, targetAccountId)
+        val normalizedId = normalizeUuid(finalized.id)
+        dao.upsert(entity)
         return finalized
     }
 

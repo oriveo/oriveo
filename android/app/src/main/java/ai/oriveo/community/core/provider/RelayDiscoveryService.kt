@@ -32,7 +32,10 @@ import java.nio.charset.StandardCharsets
 import java.net.UnknownHostException
 import javax.net.ssl.SSLException
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -103,6 +106,8 @@ class RelayDiscoveryService(
     client: HttpClient,
     private val json: Json,
     private val retryBackoffMs: List<Long> = listOf(400L, 1_200L),
+    // Dispatcher for parsing the catalog JSON: discover is called directly from viewModelScope (Main).
+    private val parseDispatcher: CoroutineDispatcher = Dispatchers.Default,
 ) {
     companion object {
         const val SENTINEL_PROBE_MODEL_ID = "oriveo-endpoint-probe-no-such-model"
@@ -182,7 +187,8 @@ class RelayDiscoveryService(
 
                 when (snapshot.statusCode) {
                     in 200..299 -> {
-                        val modelIDs = parseModelIDs(snapshot.body, transport)
+                        // Parsing the full JSON tree of a large catalog must not stay on the caller's main thread.
+                        val modelIDs = withContext(parseDispatcher) { parseModelIDs(snapshot.body, transport) }
                         if (modelIDs == null) {
                             attempts += attempt(candidate, requestUrl, snapshot, RelayDiscoveryFailureKind.InvalidResponse)
                             continue

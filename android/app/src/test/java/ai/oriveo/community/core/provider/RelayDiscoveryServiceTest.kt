@@ -13,6 +13,11 @@ import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
 import java.net.SocketTimeoutException
+import java.util.concurrent.atomic.AtomicInteger
+import kotlin.coroutines.CoroutineContext
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Runnable
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
@@ -49,6 +54,44 @@ class RelayDiscoveryServiceTest {
         assertEquals(listOf("/models", "/v1/models"), requestedPaths)
         assertEquals(listOf("gpt-a", "gpt-b"), result.detections.first().modelIDs)
         assertEquals(RelayDiscoveryFailureKind.InvalidResponse, result.attempts.first().failure)
+    }
+
+    /**
+     * discover is called straight from RelaySetupViewModel's viewModelScope (Main), so
+     * parsing the whole JSON tree of a catalog with thousands of entries must happen on
+     * parseDispatcher, not on the calling thread.
+     */
+    @Test
+    fun `large catalog is parsed on the parse dispatcher`() = runTest {
+        val ids = (0 until 1_500).map { "vendor-${it % 7}/relay-model-$it" }
+        val body = ids.joinToString(prefix = "{\"data\":[", postfix = "]}") {
+            "{\"id\":\"$it\",\"object\":\"model\",\"owned_by\":\"relay\",\"supported_endpoint_types\":[\"openai\"]}"
+        }
+        val parseDispatcher = RecordingDispatcher(Dispatchers.Default)
+        val service = RelayDiscoveryService(
+            client = HttpClient(
+                MockEngine {
+                    respond(body, HttpStatusCode.OK, headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString()))
+                },
+            ),
+            json = json,
+            retryBackoffMs = emptyList(),
+            parseDispatcher = parseDispatcher,
+        )
+
+        val result = service.discover("https://relay.test/v1", "sk-test", null, includeGenerationProbe = false)
+
+        assertEquals(ids, result.detections.first().modelIDs)
+        assertTrue("catalog parsing did not run on parseDispatcher", parseDispatcher.dispatches.get() > 0)
+    }
+
+    private class RecordingDispatcher(private val delegate: CoroutineDispatcher) : CoroutineDispatcher() {
+        val dispatches = AtomicInteger()
+
+        override fun dispatch(context: CoroutineContext, block: Runnable) {
+            dispatches.incrementAndGet()
+            delegate.dispatch(context, block)
+        }
     }
 
     @Test

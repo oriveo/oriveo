@@ -3,6 +3,8 @@ package ai.oriveo.community.core.provider
 import ai.oriveo.community.core.model.AIModel
 import ai.oriveo.community.core.model.Provider
 import ai.oriveo.community.core.model.ProviderKind
+import java.util.TreeMap
+import java.util.TreeSet
 
 /**
  * Model selection and matching helpers: picking a sensible default, deciding whether
@@ -57,6 +59,64 @@ object ModelSelectionUtils {
             }
         }
     }
+
+    /**
+     * Catalog match index: the batch form of [matchingModel] and of "does this model
+     * [modelsShareSameRemoteModel] with anything in the catalog".
+     *
+     * Scanning the whole catalog once per model is O(N x catalog), and [modelIdentifiers]
+     * runs two to four regexes plus a handful of string allocations per model. A relay
+     * catalog comes from the user's own server and can hold thousands of entries, and
+     * "add all" writes the whole catalog into provider.models, so at 1500 x 1500 a single
+     * [ProviderCatalogResolver.resolve] takes hundreds of milliseconds, and it runs twice
+     * on every Provider write. Building the index once turns each query into a lookup per
+     * candidate.
+     *
+     * Equivalence: comparisons use `String.CASE_INSENSITIVE_ORDER`, the same folding as
+     * `equals(ignoreCase = true)` (a plain `lowercase()` diverges on non-ASCII ids, and a
+     * relay catalog cannot be assumed to be ASCII). "First match in catalog order" is
+     * preserved by recording the index of each identifier's first occurrence.
+     */
+    class CatalogMatchIndex internal constructor(private val models: List<AIModel>) {
+        // First pass of matchingModel: the untrimmed model.id against each candidate, first in catalog order.
+        private val firstByExactId = TreeMap<String, AIModel>(String.CASE_INSENSITIVE_ORDER)
+        // Second pass: catalog index of the first model whose identifiers contain a candidate.
+        private val firstIndexByIdentifier = TreeMap<String, Int>(String.CASE_INSENSITIVE_ORDER)
+        private val names = TreeSet(String.CASE_INSENSITIVE_ORDER)
+
+        init {
+            models.forEachIndexed { index, model ->
+                firstByExactId.putIfAbsent(model.id, model)
+                modelIdentifiers(model).forEach { identifier ->
+                    firstIndexByIdentifier.putIfAbsent(identifier, index)
+                }
+                names.add(model.name)
+            }
+        }
+
+        /** Returns exactly what `matchingModel(models, targetId)` returns. */
+        fun match(targetId: String): AIModel? {
+            val trimmedTarget = targetId.trim()
+            if (trimmedTarget.isEmpty()) return null
+            val candidates = lookupCandidates(trimmedTarget)
+            candidates.forEach { candidate ->
+                firstByExactId[candidate]?.let { return it }
+            }
+            val firstIndex = candidates.mapNotNull { firstIndexByIdentifier[it] }.minOrNull() ?: return null
+            return models[firstIndex]
+        }
+
+        /** Returns exactly what `models.any { modelsShareSameRemoteModel(model, it, providerKind) }` returns. */
+        fun sharesRemoteModelWithAny(model: AIModel, providerKind: ProviderKind): Boolean {
+            if (modelIdentifiers(model).any { it in firstIndexByIdentifier }) return true
+            if (providerKind == ProviderKind.OpenRouter || providerKind == ProviderKind.SiliconFlow) {
+                return false
+            }
+            return model.name.isNotBlank() && model.name in names
+        }
+    }
+
+    fun catalogMatchIndex(models: List<AIModel>): CatalogMatchIndex = CatalogMatchIndex(models)
 
     /** Decides whether two model records stand for the same remote model. */
     fun modelsShareSameRemoteModel(

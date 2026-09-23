@@ -84,8 +84,13 @@ object ProviderCatalogResolver {
     fun resolve(provider: Provider, metadata: MetadataClient = MetadataClient.instance): ResolvedProviderCatalog {
         debugResolveCounter.incrementAndGet()
         val catalogModels = buildCatalogModels(provider, metadata)
-        val enabledIds = buildEnabledIdSet(provider, catalogModels, metadata)
-        val manualModels = buildManualModels(provider, catalogModels, provider.kind)
+        // Build the catalog index once and share it between the enabled set and the manual
+        // models: scanning the whole catalog per enabled model is O(enabled x catalog) with a
+        // regex per pair, and a relay catalog of thousands after "add all" made a single
+        // resolve take hundreds of milliseconds.
+        val catalogIndex = ModelSelectionUtils.catalogMatchIndex(catalogModels)
+        val enabledIds = buildEnabledIdSet(provider, catalogModels, catalogIndex, metadata)
+        val manualModels = buildManualModels(provider, catalogIndex, provider.kind)
 
         // Assemble the full catalog.
         val catalog = catalogModels.map { model ->
@@ -204,12 +209,13 @@ object ProviderCatalogResolver {
     private fun buildEnabledIdSet(
         provider: Provider,
         catalogModels: List<AIModel>,
+        catalogIndex: ModelSelectionUtils.CatalogMatchIndex,
         metadata: MetadataClient,
     ): Set<String> {
         val enabledIds = mutableSetOf<String>()
         for (enabledModel in provider.models) {
             // Direct match against the catalog.
-            val matched = ModelSelectionUtils.matchingModel(catalogModels, enabledModel.id)
+            val matched = catalogIndex.match(enabledModel.id)
             if (matched != null) {
                 enabledIds.add(matched.id)
                 continue
@@ -219,7 +225,7 @@ object ProviderCatalogResolver {
                 val resolved = metadata.resolveCatalogModel(enabledModel.id, provider.kind)
                 if (resolved != null) {
                     val catalogMatch = catalogModels.firstOrNull { it.id == resolved.canonicalModelId }
-                        ?: ModelSelectionUtils.matchingModel(catalogModels, resolved.canonicalModelId)
+                        ?: catalogIndex.match(resolved.canonicalModelId)
                     if (catalogMatch != null) {
                         enabledIds.add(catalogMatch.id)
                         continue
@@ -235,13 +241,11 @@ object ProviderCatalogResolver {
      */
     private fun buildManualModels(
         provider: Provider,
-        catalogModels: List<AIModel>,
+        catalogIndex: ModelSelectionUtils.CatalogMatchIndex,
         providerKind: ProviderKind,
     ): List<AIModel> {
         return provider.models.filter { enabledModel ->
-            catalogModels.none { catalogModel ->
-                ModelSelectionUtils.modelsShareSameRemoteModel(enabledModel, catalogModel, providerKind)
-            }
+            !catalogIndex.sharesRemoteModelWithAny(enabledModel, providerKind)
         }
     }
 

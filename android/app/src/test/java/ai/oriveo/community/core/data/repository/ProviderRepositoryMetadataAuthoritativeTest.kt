@@ -15,6 +15,7 @@ import ai.oriveo.community.core.model.ProviderServiceError
 import ai.oriveo.community.core.model.RelayAuthMode
 import ai.oriveo.community.core.model.RelayKind
 import ai.oriveo.community.core.model.RelayRequestedConfig
+import ai.oriveo.community.core.model.RelayTransport
 import ai.oriveo.community.core.provider.AnthropicService
 import ai.oriveo.community.core.provider.DeepSeekService
 import ai.oriveo.community.core.provider.FireworksService
@@ -33,9 +34,12 @@ import ai.oriveo.community.core.provider.RelayService
 import ai.oriveo.community.core.provider.SiliconFlowService
 import ai.oriveo.community.core.provider.TogetherService
 import ai.oriveo.community.core.provider.ZhipuService
+import ai.oriveo.community.core.provider.prepareProviderForUpsert
 import ai.oriveo.community.core.security.SecureKeyStore
 import ai.oriveo.community.core.util.normalizeUuid
 import io.ktor.client.HttpClient
+import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.Executors
 import io.ktor.client.engine.mock.MockEngine
 import io.ktor.client.engine.mock.respond
 import io.ktor.http.HttpStatusCode
@@ -46,12 +50,16 @@ import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
 import io.mockk.mockkObject
+import io.mockk.mockkStatic
 import io.mockk.runs
 import io.mockk.slot
 import io.mockk.unmockkObject
+import io.mockk.unmockkStatic
 import io.mockk.verify
+import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withContext
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -1161,6 +1169,59 @@ class ProviderRepositoryMetadataAuthoritativeTest {
         }
     }
 
+    /**
+     * Relay enrichment, catalog resolution and JSON encoding are pure O(catalog) work, and the
+     * callers (RelaySetupViewModel / ProviderDetailViewModel) run on viewModelScope (Main). This
+     * stage must leave the calling thread, or saving a relay with thousands of models, or
+     * switching its model, stalls the main thread in proportion to the catalog size.
+     */
+    @Test
+    fun `relay writes finalize the catalog off the calling thread`() = runTest {
+        val callerExecutor = Executors.newSingleThreadExecutor { runnable -> Thread(runnable, "fake-main") }
+        val caller = callerExecutor.asCoroutineDispatcher()
+        val finalizeThreads = CopyOnWriteArrayList<String>()
+        var persisted: ProviderEntity? = null
+        coEvery { dao.getById(any(), any()) } coAnswers {
+            persisted?.takeIf { entity ->
+                entity.accountId == firstArg<String>() && entity.id == secondArg<String>()
+            }
+        }
+        coEvery { dao.upsert(any()) } coAnswers { persisted = firstArg() }
+        mockkStatic(PROVIDER_CATALOG_RESOLVER_KT)
+        try {
+            every { prepareProviderForUpsert(any(), any()) } answers {
+                finalizeThreads += Thread.currentThread().name
+                callOriginal()
+            }
+            val catalogIDs = (0 until 1_500).map { "vendor-${it % 7}/relay-model-$it" }
+
+            withContext(caller) {
+                val registered = repository.registerRelayProvider(
+                    apiKey = "sk-large",
+                    baseUrl = "https://relay.example.com/v1",
+                    customName = "Large Relay",
+                    relayKind = RelayKind.OpenAICompatible,
+                    relayRequested = RelayRequestedConfig(
+                        transport = RelayTransport.OpenAIChatCompletions,
+                        resolvedAPIBaseURL = "https://relay.example.com/v1",
+                    ),
+                    catalogModelIDs = catalogIDs,
+                    preferredModelID = catalogIDs.first(),
+                )
+                repository.updateProvider(registered.copy(models = registered.catalogModels))
+            }
+
+            assertTrue("precondition: both register and update must reach the pre-write finalize", finalizeThreads.size >= 2)
+            assertTrue(
+                "finalize ran on the calling thread: $finalizeThreads",
+                finalizeThreads.none { it == "fake-main" },
+            )
+        } finally {
+            unmockkStatic(PROVIDER_CATALOG_RESOLVER_KT)
+            caller.close()
+        }
+    }
+
     // ── Helpers ──
 
     private fun provider(
@@ -1192,3 +1253,6 @@ class ProviderRepositoryMetadataAuthoritativeTest {
         canonicalModelId = canonicalModelId,
     )
 }
+
+/** The top-level file class holding prepareProviderForUpsert; mockkStatic intercepts through it. */
+private const val PROVIDER_CATALOG_RESOLVER_KT = "ai.oriveo.community.core.provider.ProviderCatalogResolverKt"

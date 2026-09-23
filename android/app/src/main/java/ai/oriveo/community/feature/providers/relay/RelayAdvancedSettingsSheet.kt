@@ -126,6 +126,11 @@ internal fun RelayAdvancedSettingsSheet(
     val catalogModelIDs = remember(provider.catalogModels) {
         provider.catalogModels.map { it.id }.distinct()
     }
+    // Every row of the default-model menu checks whether the model is gone from the catalog;
+    // running matchingModel over the whole catalog per row is O(options x catalog).
+    val catalogIndex = remember(provider.catalogModels) {
+        ModelSelectionUtils.catalogMatchIndex(provider.catalogModels)
+    }
     val selectableCatalogModelIDs = remember(catalogModelIDs, draftRequested.modelID) {
         (listOfNotNull(draftRequested.modelID?.trim()?.takeIf(String::isNotEmpty)) + catalogModelIDs)
             .distinct()
@@ -353,10 +358,10 @@ internal fun RelayAdvancedSettingsSheet(
                         value = draftRequested.modelID.orEmpty(),
                         options = selectableCatalogModelIDs,
                         label = { modelID ->
-                            val currentStored = ModelSelectionUtils.matchingModel(provider.models, modelID)
-                                ?: ModelSelectionUtils.matchingModel(provider.catalogModels, modelID)
-                            val missing = currentStored?.isManual != true &&
-                                ModelSelectionUtils.matchingModel(provider.catalogModels, modelID) == null
+                            // A model in the catalog is never missing; only when it is absent does the
+                            // enabled copy decide, by whether the user entered it by hand.
+                            val missing = catalogIndex.match(modelID) == null &&
+                                ModelSelectionUtils.matchingModel(provider.models, modelID)?.isManual != true
                             when {
                                 modelID.isBlank() -> stringResource(R.string.relay_default_model_placeholder)
                                 missing -> "$modelID · ${stringResource(R.string.relay_model_missing_from_catalog)}"

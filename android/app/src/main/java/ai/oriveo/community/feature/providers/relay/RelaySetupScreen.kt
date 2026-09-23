@@ -501,12 +501,13 @@ private fun RelayDetectedModelPicker(viewModel: RelaySetupViewModel) {
                 Icon(Icons.Filled.ExpandMore, contentDescription = null, tint = colors.textTertiary)
             }
             DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-                viewModel.detectedModelIDs.forEach { modelID ->
-                    DropdownMenuItem(
-                        text = { Text(modelID, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                        onClick = { viewModel.updateDefaultModel(modelID); expanded = false },
-                    )
-                }
+                // The detected list is the whole catalog; putting each entry into DropdownMenu composes thousands of rows at once.
+                RelayMenuOptions(
+                    options = viewModel.detectedModelIDs,
+                    label = { it },
+                    onSelect = { modelID -> viewModel.updateDefaultModel(modelID); expanded = false },
+                    maxLines = 1,
+                )
             }
         }
         Text(
