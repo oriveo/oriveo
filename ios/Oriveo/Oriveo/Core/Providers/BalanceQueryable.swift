@@ -116,16 +116,54 @@ final class ProviderBalanceStore {
         guard let service = serviceFactory(kind) else {
             throw BalanceQueryError.silentHidden(detail: "Balance is not supported for \(kind.rawValue).")
         }
-        let balance = try await service.fetchBalance(
-            apiKey: normalizedKey,
-            baseURL: normalizedBaseURL.isEmpty ? nil : normalizedBaseURL
-        )
+        let balance: ProviderBalance
+        do {
+            balance = try await service.fetchBalance(
+                apiKey: normalizedKey,
+                baseURL: normalizedBaseURL.isEmpty ? nil : normalizedBaseURL
+            )
+        } catch let error as BalanceQueryError {
+            // A rejected key, or a key that cannot read its balance, makes the last balance meaningless
+            switch error {
+            case .keyInvalid, .silentHidden:
+                entries[providerID] = nil
+            case .network, .decoding:
+                break
+            }
+            throw error
+        }
         entries[providerID] = CacheEntry(
             apiKey: normalizedKey,
             baseURL: normalizedBaseURL,
             balance: balance
         )
         return balance
+    }
+
+    /// The last balance fetched with the same key and endpoint, ignoring the TTL. The list shows it
+    /// on the first frame and replaces it in place once the refresh lands.
+    func cachedBalance(providerID: UUID, apiKey: String, baseURL: String?) -> ProviderBalance? {
+        guard let cached = entries[providerID],
+              cached.apiKey == apiKey.trimmingCharacters(in: .whitespacesAndNewlines),
+              cached.baseURL == (baseURL?.trimmingCharacters(in: .whitespacesAndNewlines) ?? "") else {
+            return nil
+        }
+        return cached.balance
+    }
+
+    /// Refresh for the provider list: network and decoding failures keep the last good balance,
+    /// a rejected key yields nil.
+    func loadForDisplay(
+        providerID: UUID,
+        kind: ProviderKind,
+        apiKey: String,
+        baseURL: String?
+    ) async -> ProviderBalance? {
+        do {
+            return try await load(providerID: providerID, kind: kind, apiKey: apiKey, baseURL: baseURL)
+        } catch {
+            return cachedBalance(providerID: providerID, apiKey: apiKey, baseURL: baseURL)
+        }
     }
 
     func removeMissingProviders(validIDs: Set<UUID>) {

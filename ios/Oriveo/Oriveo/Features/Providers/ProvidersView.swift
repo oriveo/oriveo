@@ -235,7 +235,20 @@ struct ProvidersView: View {
         }
         let validIDs = Set(providers.map(\.id))
         ProviderBalanceStore.shared.removeMissingProviders(validIDs: validIDs)
-        providerBalancesByID = [:]
+        // Don't blank the rows to "--" first: show the last balance for the same key, then replace
+        // each one in place as the refresh lands. On a cache hit this equals the current value and
+        // causes no extra render.
+        var cached: [UUID: ProviderBalance] = [:]
+        for provider in providers {
+            cached[provider.id] = ProviderBalanceStore.shared.cachedBalance(
+                providerID: provider.id,
+                apiKey: provider.apiKey,
+                baseURL: provider.baseURLText
+            )
+        }
+        if providerBalancesByID != cached {
+            providerBalancesByID = cached
+        }
 
         await withTaskGroup(of: (UUID, ProviderBalance?).self) { group in
             for provider in providers {
@@ -244,7 +257,7 @@ struct ProvidersView: View {
                 let apiKey = provider.apiKey
                 let baseURL = provider.baseURLText
                 group.addTask {
-                    let balance = try? await ProviderBalanceStore.shared.load(
+                    let balance = await ProviderBalanceStore.shared.loadForDisplay(
                         providerID: providerID,
                         kind: kind,
                         apiKey: apiKey,
@@ -254,12 +267,14 @@ struct ProvidersView: View {
                 }
             }
 
-            var loaded: [UUID: ProviderBalance] = [:]
+            // Apply each result as it arrives so one slow provider doesn't hold back the rest;
+            // skip unchanged values to avoid re-running the whole page body
             for await (providerID, balance) in group {
-                if let balance { loaded[providerID] = balance }
+                guard Task.isCancelled == false else { return }
+                if providerBalancesByID[providerID] != balance {
+                    providerBalancesByID[providerID] = balance
+                }
             }
-            guard Task.isCancelled == false else { return }
-            providerBalancesByID = loaded
         }
     }
 }
