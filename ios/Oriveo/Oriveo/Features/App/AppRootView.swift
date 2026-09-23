@@ -346,9 +346,13 @@ private struct MainTabView: View {
         }
         // The selected icon and label take the current tab's colour (Home violet / Providers teal /
         // Settings orange), and controls inside the page follow it too
-        .tint(Self.tint(for: appState.selectedTab))
+        // The animation is scoped to the tint only: attached to the whole TabView it also animates every
+        // layout change inside the tab content during the switch (on iOS 27 the Providers balance label
+        // and amount slide from left to right when the balance resets to "--").
+        .animation(.easeInOut(duration: 0.2)) { content in
+            content.tint(Self.tint(for: appState.selectedTab))
+        }
         .modifier(LegacyTabBarBackground())
-        .animation(.easeInOut(duration: 0.2), value: appState.selectedTab)
         .id(appState.preferences.language)
     }
 
