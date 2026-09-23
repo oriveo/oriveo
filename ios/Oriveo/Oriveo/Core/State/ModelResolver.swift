@@ -25,6 +25,61 @@ nonisolated enum ModelResolver {
         }
     }
 
+    /// Batch form of `matchingModel(modelID:in:providerKind:)`. Querying the same list repeatedly by scanning it
+    /// each time is O(queries x list), and the fuzzy pass runs two regexes for every model it misses. This builds
+    /// the index once and each query only checks its candidates. "First match in list order" is preserved by
+    /// recording the index of each key's first occurrence; the fuzzy-pass index (two regexes per model) is only
+    /// built when some query misses the exact pass.
+    struct MatchingModelIndex {
+        private let models: [AIModel]
+        private let providerKind: ProviderKind
+        private var firstIndexByID: [String: Int] = [:]
+        private var firstIndexByStoredIdentifier: [String: Int]?
+
+        init(_ models: [AIModel], providerKind: ProviderKind) {
+            self.models = models
+            self.providerKind = providerKind
+            for (index, model) in models.enumerated() {
+                let key = RemoteModelIndex.fold(model.id)
+                if firstIndexByID[key] == nil { firstIndexByID[key] = index }
+            }
+        }
+
+        /// Returns exactly what `matchingModel(modelID:in: models, providerKind:)` returns.
+        mutating func match(_ modelID: String) -> AIModel? {
+            let lookupCandidates = normalizedLookupCandidates(for: modelID, providerKind: providerKind)
+            for candidate in lookupCandidates {
+                if let index = firstIndexByID[RemoteModelIndex.fold(candidate)] {
+                    return models[index]
+                }
+            }
+            guard !lookupCandidates.isEmpty else { return nil }
+            let storedIndex = firstIndexByStoredIdentifier ?? buildStoredIdentifierIndex()
+            firstIndexByStoredIdentifier = storedIndex
+            let firstIndex = lookupCandidates.compactMap { storedIndex[RemoteModelIndex.fold($0)] }.min()
+            return firstIndex.map { models[$0] }
+        }
+
+        /// The four identifiers `modelMatchesStoredIdentifier` compares. Empty strings are not indexed: query
+        /// candidates are never empty, so they never match in the pairwise comparison either.
+        private func buildStoredIdentifierIndex() -> [String: Int] {
+            var index: [String: Int] = [:]
+            for (position, model) in models.enumerated() {
+                let identifiers = [
+                    preferredStoredModelIdentifier(for: model, providerKind: providerKind),
+                    resolvedProviderModelIdentifier(model.id, providerKind: providerKind),
+                    stripSnapshotDateSuffix(model.id),
+                    model.canonicalModelId.map(stripSnapshotDateSuffix) ?? "",
+                ]
+                for identifier in identifiers where !identifier.isEmpty {
+                    let key = RemoteModelIndex.fold(identifier)
+                    if index[key] == nil { index[key] = position }
+                }
+            }
+            return index
+        }
+    }
+
     static func modelsShareSameRemoteModel(_ lhs: AIModel, _ rhs: AIModel, providerKind: ProviderKind) -> Bool {
         let lhsIdentifier = preferredStoredModelIdentifier(for: lhs, providerKind: providerKind)
         let rhsIdentifier = preferredStoredModelIdentifier(for: rhs, providerKind: providerKind)
@@ -38,6 +93,42 @@ nonisolated enum ModelResolver {
         }
 
         return lhs.name.caseInsensitiveCompare(rhs.name) == .orderedSame
+    }
+
+    /// Batch form of `modelsShareSameRemoteModel`: "does this model point at the same remote model as any model in
+    /// the set". Pairwise comparison is O(queries x set), and a relay catalog can hold tens of thousands of models;
+    /// this folds the set's identifiers and names into sets once, so each query is O(1). Case folding matches
+    /// `caseInsensitiveCompare == .orderedSame` (as in `RelayCatalogMembership.Index`), and the rules mirror the
+    /// pairwise comparison above.
+    struct RemoteModelIndex {
+        private let providerKind: ProviderKind
+        private var identifiers: Set<String> = []
+        private var names: Set<String> = []
+
+        init(_ models: some Sequence<AIModel>, providerKind: ProviderKind) {
+            self.providerKind = providerKind
+            for model in models {
+                insert(model)
+            }
+        }
+
+        mutating func insert(_ model: AIModel) {
+            identifiers.insert(Self.fold(preferredStoredModelIdentifier(for: model, providerKind: providerKind)))
+            if providerKind != .openRouter {
+                names.insert(Self.fold(model.name))
+            }
+        }
+
+        func containsRemoteModel(of model: AIModel) -> Bool {
+            if identifiers.contains(Self.fold(preferredStoredModelIdentifier(for: model, providerKind: providerKind))) {
+                return true
+            }
+            return providerKind != .openRouter && names.contains(Self.fold(model.name))
+        }
+
+        static func fold(_ value: String) -> String {
+            value.folding(options: .caseInsensitive, locale: nil)
+        }
     }
 
     static func preferredStoredModelIdentifier(for model: AIModel, providerKind: ProviderKind) -> String {
@@ -195,8 +286,11 @@ nonisolated enum ModelResolver {
     ) -> [AIModel] {
         guard !catalogModels.isEmpty else { return existingEnabledModels }
 
+        // A relay catalog can hold tens of thousands of models and the enabled list thousands: one matchingModel per
+        // enabled model is "enabled x catalog" comparisons.
+        var catalogIndex = MatchingModelIndex(catalogModels, providerKind: providerKind)
         let resolvedExistingModels = existingEnabledModels.compactMap { existingModel in
-            matchingModel(modelID: existingModel.id, in: catalogModels, providerKind: providerKind)
+            catalogIndex.match(existingModel.id)
         }
 
         let selectedModels: [AIModel]

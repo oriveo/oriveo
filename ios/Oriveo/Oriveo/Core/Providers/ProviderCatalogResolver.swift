@@ -214,11 +214,15 @@ enum ProviderCatalogResolver {
         var enabledModels: [ResolvedModel] = []
         var hasManualModels = false
 
+        // Both "does this share a remote model with anything on the other side" checks use an index instead of
+        // pairwise comparison: a relay catalog comes from the user's own server (tens of thousands of models on some
+        // public relays), pairwise is "catalog x enabled" comparisons, and this function runs on every Provider write.
+        // The rules match `modelsShareSameRemoteModel` pair for pair.
+        let enabledIndex = ModelResolver.RemoteModelIndex(provider.models, providerKind: provider.kind)
+        catalog.reserveCapacity(enrichedCatalogModels.count)
         for model in enrichedCatalogModels {
             let isEnabled = enabledIds.contains(model.id)
-                || provider.models.contains(where: {
-                    ModelResolver.modelsShareSameRemoteModel($0, model, providerKind: provider.kind)
-                })
+                || enabledIndex.containsRemoteModel(of: model)
             let isManual = forceManual || ModelResolver.isManualModel(model, providerKind: provider.kind)
             let resolved = ResolvedModel(model: model, isEnabled: isEnabled, isManual: isManual)
             catalog.append(resolved)
@@ -226,16 +230,25 @@ enum ProviderCatalogResolver {
             if isManual { hasManualModels = true }
         }
 
+        // Models in `models` but not in the catalog. The pairwise version compared against the catalog as it stood
+        // at that moment, including models inserted earlier in this loop, so inserted models join the index too.
+        var catalogIndex = ModelResolver.RemoteModelIndex(catalog.lazy.map(\.model), providerKind: provider.kind)
+        var missingFromCatalog: [ResolvedModel] = []
         for model in provider.models {
-            if !catalog.contains(where: {
-                ModelResolver.modelsShareSameRemoteModel($0.model, model, providerKind: provider.kind)
-            }) {
+            if !catalogIndex.containsRemoteModel(of: model) {
                 let isManual = forceManual || ModelResolver.isManualModel(model, providerKind: provider.kind)
                 let resolved = ResolvedModel(model: model, isEnabled: true, isManual: isManual)
-                catalog.insert(resolved, at: 0)
-                enabledModels.insert(resolved, at: 0)
+                missingFromCatalog.append(resolved)
+                catalogIndex.insert(model)
                 if isManual { hasManualModels = true }
             }
+        }
+        // The pairwise version inserted each one at index 0, so later ones came first. Splice them in once in reverse
+        // order instead of repeatedly prepending to an array of tens of thousands.
+        if !missingFromCatalog.isEmpty {
+            missingFromCatalog.reverse()
+            catalog.insert(contentsOf: missingFromCatalog, at: 0)
+            enabledModels.insert(contentsOf: missingFromCatalog, at: 0)
         }
 
         let resolvedDefault = resolveDefaultModel(

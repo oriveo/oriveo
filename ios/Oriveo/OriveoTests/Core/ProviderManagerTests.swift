@@ -587,7 +587,7 @@ struct ProviderManagerTests {
     }
 
     @Test("Discovered Catalog Feeds The Model Library")
-    func discoveredCatalogFeedsTheModelLibrary() throws {
+    func discoveredCatalogFeedsTheModelLibrary() async throws {
         let appState = makeState()
         appState.providers = []
         let discovered = [
@@ -606,6 +606,7 @@ struct ProviderManagerTests {
         )
         provider.relayKind = .openaiCompatible
         appState.providerManager.updateProvider(provider)
+        await appState.providerManager.waitForRelayFinalizeForTesting(providerID: provider.id)
 
         let saved = try #require(appState.provider(for: provider.id))
         #expect(saved.catalogModels.map(\.id) == discovered)
@@ -644,7 +645,7 @@ struct ProviderManagerTests {
     }
 
     @Test("Relay Duplicate Catalog IDs Do Not Trap During Enrichment")
-    func relayDuplicateCatalogIDsDoNotTrapDuringEnrichment() throws {
+    func relayDuplicateCatalogIDsDoNotTrapDuringEnrichment() async throws {
         let appState = makeState()
         var provider = appState.providerManager.registerRelay(
             name: "Duplicate Relay",
@@ -662,6 +663,7 @@ struct ProviderManagerTests {
         provider.models = [first]
 
         appState.providerManager.updateProvider(provider)
+        await appState.providerManager.waitForRelayFinalizeForTesting(providerID: provider.id)
 
         let updated = try #require(appState.provider(for: provider.id))
         #expect(updated.models.first?.capabilities == [.text, .reasoning])
@@ -901,6 +903,8 @@ struct ProviderManagerTests {
         appState.providers = [provider]
 
         appState.providerManager.updateProvider(provider)
+        // Enrichment is merged once the background finalize completes.
+        await appState.providerManager.waitForRelayFinalizeForTesting(providerID: providerID)
 
         let updatedProvider = try #require(appState.providers.first(where: { $0.id == providerID }))
         let updatedModel = try #require(updatedProvider.models.first)

@@ -66,6 +66,9 @@ final class ProviderManager {
 
     unowned private(set) var appState: AppState!
     private var relayCatalogRefreshTokens: [UUID: UUID] = [:]
+    /// In-flight background finalize tasks for relay writes (whole-catalog resolve + official catalog enrichment);
+    /// only the latest one per Provider is kept.
+    private var relayFinalizeTasks: [UUID: Task<Void, Never>] = [:]
 
 
     init(session: URLSession = .shared) {
@@ -139,9 +142,12 @@ final class ProviderManager {
             kind: .relay,
             fallbackName: relayDomainName(from: endpoint) ?? ProviderKind.relay.displayName
         )
+        // A discovered catalog can hold tens of thousands of models: deduplicate with a set, since checking
+        // `result.contains` for each one is quadratic in the catalog size.
+        var seenModelIDs = Set<String>()
         let uniqueModelIDs = catalogModelIDs.reduce(into: [String]()) { result, modelID in
             let trimmed = modelID.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !trimmed.isEmpty, !result.contains(trimmed) else { return }
+            guard !trimmed.isEmpty, seenModelIDs.insert(trimmed).inserted else { return }
             result.append(trimmed)
         }
         let preferred = preferredModelID.flatMap { preferred in
@@ -769,10 +775,9 @@ final class ProviderManager {
         // Keep previously enabled remote models that disappeared from `/models`;
         // their row is annotated from membership in `catalogModels`, while their
         // `isAvailable` value keeps its actual sendability semantics.
+        let refreshedIndex = ModelResolver.RemoteModelIndex(refreshedEnabled, providerKind: provider.kind)
         let retained = provider.models.filter { enabled in
-            !refreshedEnabled.contains {
-                ModelResolver.modelsShareSameRemoteModel($0, enabled, providerKind: provider.kind)
-            }
+            !refreshedIndex.containsRemoteModel(of: enabled)
         }
         provider.models = refreshedEnabled + retained
     }
@@ -1153,10 +1158,9 @@ final class ProviderManager {
             _ = ProviderCapabilityIdentityStore.identity(providerID: p.id, partitionID: appState.sessionPartitionUID)
         }
         p.updatedAt = Date()
-        let resolved = ProviderCatalogResolver.resolve(provider: p)
-        p.cachedAvailableModelCount = resolved.availableModelCount
-        if p.kind == .relay {
-            p = applyRelayEnrichment(to: p, resolved: resolved)
+        // A relay's resolve-derived fields are finalized in the background, see `scheduleRelayFinalize`.
+        if p.kind != .relay {
+            p.cachedAvailableModelCount = ProviderCatalogResolver.resolve(provider: p).availableModelCount
         }
         if let index = providers.firstIndex(where: { $0.id == p.id }) {
             providers[index] = p
@@ -1164,6 +1168,9 @@ final class ProviderManager {
             providers.insert(p, at: 0)
         }
         normalizeConversationModelSelections(for: p)
+        if p.kind == .relay {
+            scheduleRelayFinalize(for: p)
+        }
         return true
     }
 
@@ -1175,14 +1182,68 @@ final class ProviderManager {
             ToolCallMemoryStore.shared.clear(connectionID: p.id)
         }
         p.updatedAt = Date()
-        let resolved = ProviderCatalogResolver.resolve(provider: p)
-        p.cachedAvailableModelCount = resolved.availableModelCount
-        if p.kind == .relay {
-            p = applyRelayEnrichment(to: p, resolved: resolved)
+        // A relay's resolve-derived fields are finalized in the background, see `scheduleRelayFinalize`.
+        if p.kind != .relay {
+            p.cachedAvailableModelCount = ProviderCatalogResolver.resolve(provider: p).availableModelCount
         }
         providers[index] = p
         normalizeConversationModelSelections(for: p)
+        if p.kind == .relay {
+            scheduleRelayFinalize(for: p)
+        }
     }
+
+    /// Finalizes a relay write: the cached available-model count and the enriched capabilities written back into
+    /// the models both derive from `ProviderCatalogResolver.resolve` over the whole catalog. A relay catalog comes
+    /// from the user's own server (tens of thousands of models on some public relays), and enriching each one
+    /// against every official catalog takes hundreds of milliseconds on the main thread. The caller has already
+    /// stored the user's change and normalized conversations synchronously; this only fills in the derived fields
+    /// in the background.
+    ///
+    /// Ordering: the result is only merged into a Provider that is still exactly this write. Any later write (a
+    /// new update/upsert always carries a new `updatedAt`, and a delete removes it) invalidates it. The newer write
+    /// schedules its own finalize, so a result computed from older input never overwrites newer state and never
+    /// brings a deleted Provider back.
+    private func scheduleRelayFinalize(for written: Provider) {
+        relayFinalizeTasks[written.id]?.cancel()
+        relayFinalizeTasks[written.id] = Task { [weak self] in
+            let finalized = await Task.detached(priority: .userInitiated) {
+                Self.relayFinalized(written)
+            }.value
+            guard !Task.isCancelled, let self else { return }
+            self.commitRelayFinalize(finalized, over: written)
+        }
+    }
+
+    private func commitRelayFinalize(_ finalized: Provider, over written: Provider) {
+        guard let index = providers.firstIndex(where: { $0.id == written.id }) else {
+            relayFinalizeTasks[written.id] = nil
+            return
+        }
+        guard providers[index] == written else { return }
+        relayFinalizeTasks[written.id] = nil
+        guard finalized != written else { return }
+        providers[index] = finalized
+        normalizeConversationModelSelections(for: finalized)
+    }
+
+    /// Pure function: reads only the Provider value and MetadataClient's shared, lock-protected snapshot, so it can
+    /// run on a background thread.
+    nonisolated private static func relayFinalized(_ provider: Provider) -> Provider {
+        let resolved = ProviderCatalogResolver.resolve(provider: provider)
+        var p = provider
+        p.cachedAvailableModelCount = resolved.availableModelCount
+        // Write the enriched capabilities back into catalogModels and models, so the chat screen sees
+        // per-model selections plus the capabilities of catalog matches when it reads provider.allModels.
+        return applyRelayEnrichment(to: p, resolved: resolved)
+    }
+
+#if DEBUG
+    /// Test-only: waits for this Provider's current relay finalize task (returns at once when none is in flight).
+    func waitForRelayFinalizeForTesting(providerID: UUID) async {
+        await relayFinalizeTasks[providerID]?.value
+    }
+#endif
 
     private func advanceCapabilityIdentity(from old: Provider, to new: Provider) {
         let partitionID = appState.sessionPartitionUID
@@ -1197,10 +1258,10 @@ final class ProviderManager {
         }
     }
 
-    private func applyRelayEnrichment(to provider: Provider, resolved: ResolvedProviderCatalog) -> Provider {
+    nonisolated private static func applyRelayEnrichment(to provider: Provider, resolved: ResolvedProviderCatalog) -> Provider {
         var p = provider
         let enrichedById = resolved.catalog.reduce(into: [String: AIModel]()) { result, entry in
-            if result[entry.model.id] == nil {
+            if result.index(forKey: entry.model.id) == nil {
                 result[entry.model.id] = entry.model
             }
         }
