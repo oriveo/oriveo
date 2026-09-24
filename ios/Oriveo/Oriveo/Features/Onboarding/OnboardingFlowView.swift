@@ -307,8 +307,11 @@ struct OnboardingFlowView: View {
         .accessibilityElement(children: .ignore)
         .accessibilityAddTraits(.isButton)
         .accessibilityLabel(L10n.tr("Get Started", table: .onboarding))
-        .accessibilityHidden(values.ctaMorph < 0.5)
-        .accessibilityAction { handleStart() }
+        .accessibilityHidden(!values.isCTAInteractive)
+        .accessibilityAction {
+            guard values.isCTAInteractive else { return }
+            handleStart()
+        }
     }
 
     private func dot(
