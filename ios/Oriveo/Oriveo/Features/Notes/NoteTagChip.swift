@@ -6,12 +6,31 @@ struct NoteTagChip: View {
     let hasSource: Bool
     var role: NoteTagChipVisualRole = .applied
     var isSelected = false
+    /// Read-only chips (on a note card, already applied in the detail view) pass nil; see `tappable`.
     var onTap: (() -> Void)?
     var onRemove: (() -> Void)?
 
     var body: some View {
+        tappable(chip)
+            .accessibilityElement(children: .combine)
+            .accessibilityAddTraits(onTap == nil ? [] : .isButton)
+    }
+
+    /// No tap action means no gesture: the chip often sits inside an outer Button's label (a note card in the list),
+    /// and a child's tap gesture wins over the outer Button, so an empty gesture would swallow a tap on the tag and
+    /// the note would not open.
+    @ViewBuilder
+    private func tappable(_ content: some View) -> some View {
+        if let onTap {
+            content.onTapGesture(perform: onTap)
+        } else {
+            content
+        }
+    }
+
+    private var chip: some View {
         let colors = Self.colors(role: role, isSelected: isSelected)
-        HStack(spacing: 5) {
+        return HStack(spacing: 5) {
             Image(systemName: "tag.fill")
                 .font(.system(size: 10, weight: .semibold))
                 .foregroundStyle(colors.icon)
@@ -42,11 +61,6 @@ struct NoteTagChip: View {
                 )
         )
         .contentShape(Capsule(style: .continuous))
-        .onTapGesture {
-            onTap?()
-        }
-        .accessibilityElement(children: .combine)
-        .accessibilityAddTraits(onTap == nil ? [] : .isButton)
     }
 
     private struct ChipColors {
