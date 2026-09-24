@@ -155,15 +155,10 @@ class ProviderSetupViewModel(
 
     val canSubmit: Boolean
         get() {
-            val kind = selectedKind ?: return false
+            if (selectedKind == null) return false
 
             if (usesSubscriptionFlow) return false
-            val hasRequiredApiKey = if (kind == ProviderKind.OpenAI) {
-                true
-            } else {
-                apiKey.trim().isNotEmpty()
-            }
-            return hasRequiredApiKey && !isLoading
+            return apiKey.trim().isNotEmpty() && !isLoading
         }
 
     fun submitApiKey() {

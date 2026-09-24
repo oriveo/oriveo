@@ -278,7 +278,6 @@
     <string name="search_models">मॉडल खोजें…</string>
     <string name="all_models_enabled">सभी मॉडल पहले से ही सक्षम हैं</string>
     <string name="no_matching_models">कोई मेल खाता मॉडल नहीं मिला</string>
-    <string name="no_enabled_models_yet">अभी तक कोई सक्षम मॉडल नहीं है</string>
     <string name="export_backup_title">निर्यात</string>
     <string name="include_api_keys">API कुंजियाँ शामिल करें</string>
     <string name="encryption_password">एन्क्रिप्शन पासवर्ड</string>
@@ -856,7 +855,6 @@
     <!-- Usage Insights demo card -->
 <string name="providers_active_this_month">इस माह सक्रिय</string>
     <string name="providers_all_providers">सभी प्रदाता</string>
-    <string name="providers_free_pill">मुक्त</string>
     <string name="providers_today">आज</string>
     <string name="providers_all_synced">सभी सिंक हो गए</string>
     <string name="providers_summary_count">%d प्रदाता</string>

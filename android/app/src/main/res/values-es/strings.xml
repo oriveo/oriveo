@@ -404,7 +404,6 @@
     <string name="model_id_footnote">Solo ingresa un ID de modelo válido. No necesitas entender los detalles del protocolo.</string>
     <string name="model_id_label">ID de modelo</string>
     <string name="never">Nunca</string>
-    <string name="no_enabled_models_yet">Aún no hay modelos activados</string>
     <string name="no_search_results">Ninguna conversación coincide</string>
     <string name="preparing">Preparando…</string>
     <string name="provider_detail_add_model_finish_setup">Agrega un ID de modelo para terminar la configuración</string>
@@ -892,7 +891,6 @@
     <!-- Usage Insights demo card -->
 <string name="providers_active_this_month">Activos este mes</string>
     <string name="providers_all_providers">Todos los proveedores</string>
-    <string name="providers_free_pill">Gratis</string>
     <string name="providers_today">Hoy</string>
     <string name="providers_all_synced">Todo sincronizado</string>
     <string name="providers_summary_count">%d proveedores</string>

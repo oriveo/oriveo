@@ -22,10 +22,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Forum
-import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Memory
 import androidx.compose.material3.DropdownMenu
@@ -71,7 +69,6 @@ import ai.oriveo.community.core.data.repository.ProviderRepository
 import ai.oriveo.community.core.provider.ModelPricingFormatter
 import ai.oriveo.community.core.provider.ModelSelectionUtils
 import ai.oriveo.community.ui.component.HeroModelCapabilityStrip
-import ai.oriveo.community.ui.component.ModelVendorIcon
 import ai.oriveo.community.ui.component.localizedPriceTier
 import ai.oriveo.community.ui.component.visibleMetadataCapabilities
 import ai.oriveo.community.core.provider.CapabilityEvidenceProductionAdapter
@@ -87,9 +84,6 @@ fun LazyListScope.providerDetailEnabledModels(
     titleRes: Int,
     capabilityObservationRevision: Long,
     sortedModels: List<AIModel>,
-    serverGroups: List<VendorGroup>,
-    serverExpandedGroupIds: Set<String>,
-    onToggleServerGroup: (String) -> Unit,
     highlightedModelID: String?,
     onToggleModel: (AIModel) -> Unit,
     onSetDefault: (AIModel) -> Unit,
@@ -107,17 +101,11 @@ fun LazyListScope.providerDetailEnabledModels(
      */
     confirmedRelayCatalogIndex: Set<String>? = null,
 ) {
-    val supportsMultipleEnabled = provider.kind != ProviderKind.OpenAI
-
     item(key = "enabled_models_header") {
         ProviderDetailSectionHeader(
             modifier = Modifier.padding(bottom = OriveoTheme.spacing.md),
             title = stringResource(titleRes),
-            trailing = if (supportsMultipleEnabled) {
-                stringResource(R.string.provider_detail_n_models, provider.enabledModelCount)
-            } else {
-                null
-            },
+            trailing = stringResource(R.string.provider_detail_n_models, provider.enabledModelCount),
             helpMessage = stringResource(R.string.enabled_models_help),
         )
     }
@@ -125,21 +113,6 @@ fun LazyListScope.providerDetailEnabledModels(
     if (sortedModels.isEmpty()) {
         item(key = "enabled_models_empty") {
             EmptyModelsPanel(provider = provider)
-        }
-    } else if (provider.kind == ProviderKind.OpenAI && serverGroups.size > 1) {
-
-        item(key = "enabled_models_server_groups") {
-            ServerGroupedModelsPanels(
-                provider = provider,
-                capabilityObservationRevision = capabilityObservationRevision,
-                groups = serverGroups,
-                expandedGroupIds = serverExpandedGroupIds,
-                onToggleGroup = onToggleServerGroup,
-                highlightedModelID = highlightedModelID,
-                onToggleModel = onToggleModel,
-                onSetDefault = onSetDefault,
-                onStartChat = onStartChat,
-            )
         }
     } else {
         val canRemove = (provider.kind.isAggregatedProvider || provider.kind == ProviderKind.Relay) &&
@@ -172,7 +145,7 @@ fun LazyListScope.providerDetailEnabledModels(
                         !ModelSelectionUtils.catalogIndexContains(confirmedRelayCatalogIndex, model.id),
                     isDefault = isDefault,
                     isHighlighted = highlightedModelID == model.id,
-                    canSetDefault = !isDefault && supportsMultipleEnabled,
+                    canSetDefault = !isDefault,
                     canRemove = canRemove,
                     onStartChat = { onStartChat(model) },
                     onSetDefault = { onSetDefault(model) },
@@ -292,10 +265,10 @@ private data class EnabledModelsCardShadowShape(val position: CatalogRowPosition
 @Composable
 private fun EmptyModelsPanel(provider: Provider) {
     val colors = OriveoTheme.colors
-    val text = when (provider.kind) {
-        ProviderKind.OpenAI -> stringResource(R.string.no_enabled_models_yet)
-        ProviderKind.Relay -> stringResource(R.string.provider_detail_relay_empty_description)
-        else -> stringResource(R.string.no_added_models_yet)
+    val text = if (provider.kind == ProviderKind.Relay) {
+        stringResource(R.string.provider_detail_relay_empty_description)
+    } else {
+        stringResource(R.string.no_added_models_yet)
     }
     Box(
         modifier = Modifier
@@ -312,122 +285,6 @@ private fun EmptyModelsPanel(provider: Provider) {
             color = colors.textSecondary,
             textAlign = TextAlign.Center,
         )
-    }
-}
-
-@Composable
-private fun ServerGroupedModelsPanels(
-    provider: Provider,
-    capabilityObservationRevision: Long,
-    groups: List<VendorGroup>,
-    expandedGroupIds: Set<String>,
-    onToggleGroup: (String) -> Unit,
-    highlightedModelID: String?,
-    onToggleModel: (AIModel) -> Unit,
-    onSetDefault: (AIModel) -> Unit,
-    onStartChat: (AIModel) -> Unit,
-) {
-    val colors = OriveoTheme.colors
-    val shape = RoundedCornerShape(16.dp)
-    val isDark = OriveoTheme.isDark
-
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        groups.forEach { group ->
-            val isExpanded = group.id in expandedGroupIds
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .shadow(
-                        elevation = 8.dp,
-                        shape = shape,
-                        ambientColor = colors.shadow.opacity(if (isDark) 0.34f else 0.42f),
-                        spotColor = colors.shadow.opacity(if (isDark) 0.34f else 0.42f),
-                    )
-                    .clip(shape)
-                    .background(colors.surfaceElevated)
-                    .border(1.dp, colors.border.opacity(0.72f), shape),
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { onToggleGroup(group.id) }
-                        .padding(horizontal = OriveoTheme.spacing.md, vertical = 14.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(OriveoTheme.spacing.md),
-                ) {
-                    ModelVendorIcon(
-                        groupKey = group.groupKey,
-                        groupName = group.groupName ?: provider.displayName,
-                        size = 36.dp,
-                    )
-                    Column(
-                        modifier = Modifier.weight(1f),
-                        verticalArrangement = Arrangement.spacedBy(2.dp),
-                    ) {
-                        Text(
-                            text = group.groupName ?: provider.displayName,
-                            style = OriveoTheme.typography.title3.copy(fontWeight = FontWeight.SemiBold),
-                            color = colors.textPrimary,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
-                        Text(
-                            text = stringResource(R.string.provider_detail_n_models, group.models.size),
-                            style = OriveoTheme.typography.footnote,
-                            color = colors.textSecondary,
-                        )
-                    }
-                    Box(
-                        modifier = Modifier
-                            .size(28.dp)
-                            .clip(CircleShape)
-                            .background(colors.surfaceInset.opacity(0.7f)),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Icon(
-                            imageVector = if (isExpanded) Icons.Filled.ExpandMore else Icons.Filled.ChevronRight,
-                            contentDescription = null,
-                            modifier = Modifier.size(14.dp),
-                            tint = colors.textSecondary,
-                        )
-                    }
-                }
-
-                if (isExpanded) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(0.5.dp)
-                            .background(colors.border.opacity(0.45f)),
-                    )
-                    group.models.forEachIndexed { index, model ->
-                        val isDefault = provider.defaultModel?.id == model.id
-                        EnabledModelRow(
-                            provider = provider,
-                            model = model,
-                            capabilityObservationRevision = capabilityObservationRevision,
-                            isDefault = isDefault,
-                            isHighlighted = highlightedModelID == model.id,
-                            canSetDefault = !isDefault && provider.kind != ProviderKind.OpenAI,
-                            canRemove = (provider.kind.isAggregatedProvider || provider.kind == ProviderKind.Relay) &&
-                                provider.models.size > 1,
-                            onStartChat = { onStartChat(model) },
-                            onSetDefault = { onSetDefault(model) },
-                            onToggle = { onToggleModel(model) },
-                        )
-                        if (index != group.models.lastIndex) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(start = 14.dp)
-                                    .height(0.5.dp)
-                                    .background(colors.border.opacity(0.45f)),
-                            )
-                        }
-                    }
-                }
-            }
-        }
     }
 }
 

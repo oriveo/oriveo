@@ -278,7 +278,6 @@
     <string name="search_models">Поиск моделей…</string>
     <string name="all_models_enabled">Все модели уже включены</string>
     <string name="no_matching_models">Подходящих моделей не найдено</string>
-    <string name="no_enabled_models_yet">Подключенных моделей пока нет</string>
     <string name="export_backup_title">Экспорт</string>
     <string name="include_api_keys">Включить ключи API</string>
     <string name="encryption_password">Пароль шифрования</string>
@@ -856,7 +855,6 @@
     <!-- Usage Insights demo card -->
 <string name="providers_active_this_month">Активные в этом месяце</string>
     <string name="providers_all_providers">Все поставщики</string>
-    <string name="providers_free_pill">Бесплатно</string>
     <string name="providers_today">Сегодня</string>
     <string name="providers_all_synced">Всё синхронизировано</string>
     <string name="providers_summary_count">Поставщики %d</string>

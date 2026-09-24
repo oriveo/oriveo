@@ -278,7 +278,6 @@
     <string name="search_models">Model pencarian…</string>
     <string name="all_models_enabled">Semua model sudah diaktifkan</string>
     <string name="no_matching_models">Tidak ditemukan model yang cocok</string>
-    <string name="no_enabled_models_yet">Belum ada model yang diaktifkan</string>
     <string name="export_backup_title">Ekspor</string>
     <string name="include_api_keys">Sertakan Kunci API</string>
     <string name="encryption_password">Kata Sandi Enkripsi</string>
@@ -856,7 +855,6 @@
     <!-- Usage Insights demo card -->
 <string name="providers_active_this_month">Aktif bulan ini</string>
     <string name="providers_all_providers">Semua penyedia</string>
-    <string name="providers_free_pill">Bebas</string>
     <string name="providers_today">Hari ini</string>
     <string name="providers_all_synced">Semua tersinkron</string>
     <string name="providers_summary_count">Penyedia %d</string>

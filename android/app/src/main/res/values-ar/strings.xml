@@ -347,7 +347,6 @@
     <string name="model_id_footnote">أدخل معرّف نموذج واحد صالح فقط. لا حاجة لفهم تفاصيل البروتوكول.</string>
     <string name="model_id_label">معرّف النموذج</string>
     <string name="never">أبداً</string>
-    <string name="no_enabled_models_yet">لا توجد نماذج مفعّلة بعد</string>
     <string name="no_search_results">لا توجد محادثات مطابقة</string>
     <string name="preparing">جارٍ التحضير…</string>
     <string name="provider_detail_add_model_finish_setup">أضف معرّف النموذج لإتمام الإعداد</string>
@@ -892,7 +891,6 @@
     <!-- Usage Insights demo card -->
 <string name="providers_active_this_month">نشط هذا الشهر</string>
     <string name="providers_all_providers">جميع المزودين</string>
-    <string name="providers_free_pill">مجاني</string>
     <string name="providers_today">اليوم</string>
     <string name="providers_all_synced">تمت مزامنة الكل</string>
     <string name="providers_summary_count">%d مزود</string>

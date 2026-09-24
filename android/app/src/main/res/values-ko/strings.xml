@@ -405,7 +405,6 @@
     <string name="model_id_footnote">사용 가능한 모델 ID 하나만 입력하면 됩니다. 프로토콜 세부 사항은 몰라도 됩니다.</string>
     <string name="model_id_label">모델 ID</string>
     <string name="never">없음</string>
-    <string name="no_enabled_models_yet">활성화된 모델 없음</string>
     <string name="no_search_results">일치하는 대화 없음</string>
     <string name="preparing">준비 중…</string>
     <string name="provider_detail_add_model_finish_setup">모델 ID를 추가하여 설정 완료</string>
@@ -894,7 +893,6 @@
     <!-- Usage Insights demo card -->
 <string name="providers_active_this_month">이번 달 활성</string>
     <string name="providers_all_providers">모든 제공업체</string>
-    <string name="providers_free_pill">무료</string>
     <string name="providers_today">오늘</string>
     <string name="providers_all_synced">모두 동기화됨</string>
     <string name="providers_summary_count">%d개 제공업체</string>

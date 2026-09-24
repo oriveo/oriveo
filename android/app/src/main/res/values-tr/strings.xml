@@ -278,7 +278,6 @@
     <string name="search_models">Modelleri ara…</string>
     <string name="all_models_enabled">Tüm modeller zaten etkindir</string>
     <string name="no_matching_models">Eşleşen model bulunamadı</string>
-    <string name="no_enabled_models_yet">Henüz etkin model yok</string>
     <string name="export_backup_title">İhracat</string>
     <string name="include_api_keys">API Anahtarlarını Ekle</string>
     <string name="encryption_password">Şifreleme Şifresi</string>
@@ -856,7 +855,6 @@
     <!-- Usage Insights demo card -->
 <string name="providers_active_this_month">Bu ay etkin</string>
     <string name="providers_all_providers">Tüm sağlayıcılar</string>
-    <string name="providers_free_pill">Özgür</string>
     <string name="providers_today">Bugün</string>
     <string name="providers_all_synced">Tümü senkronize</string>
     <string name="providers_summary_count">%d sağlayıcı</string>

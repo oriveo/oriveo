@@ -474,7 +474,6 @@
     <string name="search_models">搜索模型…</string>
     <string name="all_models_enabled">所有模型均已启用</string>
     <string name="no_matching_models">没有找到匹配的模型</string>
-    <string name="no_enabled_models_yet">还没有已启用的模型</string>
     <string name="no_added_models_yet">还没有添加模型</string>
 
     <!-- Usage Stats -->
@@ -926,7 +925,6 @@
     <string name="streaming_pulse_a11y">生成中</string>
     <string name="providers_active_this_month">本月活跃</string>
     <string name="providers_all_providers">全部服务商</string>
-    <string name="providers_free_pill">免费</string>
     <string name="providers_today">今天</string>
     <string name="providers_all_synced">全部已同步</string>
     <string name="providers_summary_count">%d 个供应商</string>

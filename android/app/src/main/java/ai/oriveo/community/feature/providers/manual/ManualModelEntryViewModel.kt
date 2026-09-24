@@ -13,7 +13,6 @@ import ai.oriveo.community.core.error.ErrorMapper
 import ai.oriveo.community.core.model.OriveoError
 import ai.oriveo.community.core.model.OriveoErrorSeverity
 import ai.oriveo.community.core.model.Provider
-import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.core.model.ProviderServiceError
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -46,20 +45,11 @@ class ManualModelEntryViewModel(
         private set
 
     val canSave: Boolean
-        get() = modelID.trim().isNotEmpty() &&
-            !isSaving &&
-            provider.value?.kind != ProviderKind.OpenAI
+        get() = modelID.trim().isNotEmpty() && !isSaving
 
     fun saveManualModel() {
         val trimmed = modelID.trim()
         if (trimmed.isEmpty()) return
-        if (provider.value?.kind == ProviderKind.OpenAI) {
-            val blockedError = ProviderServiceError.InvalidConfiguration(
-                detail = "This provider does not support saving a manual model.",
-            )
-            error = localizedProviderError(blockedError, OriveoErrorSeverity.Warning)
-            return
-        }
 
         viewModelScope.launch {
             isSaving = true

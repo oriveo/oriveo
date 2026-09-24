@@ -403,7 +403,6 @@
     <string name="model_id_footnote">Saisissez simplement un ID de modèle utilisable. Inutile de connaître les détails du protocole.</string>
     <string name="model_id_label">ID du modèle</string>
     <string name="never">Jamais</string>
-    <string name="no_enabled_models_yet">Aucun modèle activé pour l\'instant</string>
     <string name="no_search_results">Aucune conversation trouvée</string>
     <string name="preparing">Préparation…</string>
     <string name="provider_detail_add_model_finish_setup">Ajoutez un ID de modèle pour terminer la configuration</string>
@@ -892,7 +891,6 @@
     <!-- Usage Insights demo card -->
 <string name="providers_active_this_month">Actifs ce mois-ci</string>
     <string name="providers_all_providers">Tous les fournisseurs</string>
-    <string name="providers_free_pill">Gratuit</string>
     <string name="providers_today">Aujourd\'hui</string>
     <string name="providers_all_synced">Tout synchronisé</string>
     <string name="providers_summary_count">%d fournisseurs</string>

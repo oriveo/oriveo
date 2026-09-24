@@ -11,9 +11,9 @@ import ai.oriveo.community.core.provider.ResolvedProviderCatalog
 /**
  * `models` is written once at construction and only read afterwards, and `AIModel` is itself
  * @Immutable, so both classes really are immutable to Compose. Without the annotation the
- * `List<AIModel>` field makes the whole class unstable, and `CatalogGroupHeader` /
- * `ServerGroupedModelsPanels` can never skip recomposition. Declaring `kotlin.collections.List`
- * stable in `compose-stability.txt` instead would be false: `MutableList` implements it too.
+ * `List<AIModel>` field makes the whole class unstable, and `CatalogGroupHeader` can never skip
+ * recomposition. Declaring `kotlin.collections.List` stable in `compose-stability.txt` instead
+ * would be false: `MutableList` implements it too.
  */
 @Immutable
 data class ProviderCatalogGroup(
@@ -167,38 +167,6 @@ fun groupModelsByVendor(
     }
 
     return groups
-}
-
-/**
- * Provider detail grouping preserves the catalog's own order exactly: models arrive in
- * group/model sort order, and applying client-side popularity scoring here would keep a catalog
- * reordering from taking effect until the next app release.
- */
-fun detailEnabledModelGroups(provider: Provider): List<VendorGroup> {
-    // Collect into mutable buckets in first-seen order, then build each VendorGroup once.
-    // Copying the whole list with `existing.models + model` for every model was O(n^2), "add all"
-    // can write an entire catalog into provider.models, and this runs on the main thread.
-    data class Bucket(val groupKey: String?, val groupName: String?, val models: MutableList<AIModel>)
-    val buckets = LinkedHashMap<String, Bucket>()
-
-    provider.models.forEach { model ->
-        val identity = explicitVendorGroupIdentity(model)
-        val groupId = identity?.id ?: "${provider.id}-ungrouped"
-        buckets.getOrPut(groupId) {
-            Bucket(groupKey = identity?.id, groupName = identity?.title, models = mutableListOf())
-        }.models += model
-    }
-
-    return buckets.map { (groupId, bucket) ->
-        VendorGroup(
-            id = groupId,
-            groupKey = bucket.groupKey,
-            groupName = bucket.groupName,
-            // toList(): VendorGroup is @Immutable, so the mutable bucket must not escape.
-            // One copy per group keeps the total at O(n).
-            models = bucket.models.toList(),
-        )
-    }
 }
 
 fun comparePickerModels(lhs: AIModel, rhs: AIModel): Int {
@@ -386,12 +354,12 @@ private fun resolveCatalogGroupIdentity(
     models = emptyList(),
 )
 
-internal data class ExplicitVendorIdentity(
+private data class ExplicitVendorIdentity(
     val id: String,
     val title: String,
 )
 
-internal fun explicitVendorGroupIdentity(model: AIModel): ExplicitVendorIdentity? {
+private fun explicitVendorGroupIdentity(model: AIModel): ExplicitVendorIdentity? {
     val groupKey = model.groupKey?.trim().takeUnless { it.isNullOrEmpty() } ?: return null
     val groupName = model.groupName?.trim().takeUnless { it.isNullOrEmpty() } ?: return null
     return ExplicitVendorIdentity(groupKey, groupName)

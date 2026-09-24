@@ -278,7 +278,6 @@
     <string name="search_models">ค้นหารุ่น...</string>
     <string name="all_models_enabled">เปิดใช้งานทุกรุ่นแล้ว</string>
     <string name="no_matching_models">ไม่พบรุ่นที่ตรงกัน</string>
-    <string name="no_enabled_models_yet">ยังไม่มีรุ่นที่เปิดใช้งาน</string>
     <string name="export_backup_title">ส่งออก</string>
     <string name="include_api_keys">รวมคีย์ API</string>
     <string name="encryption_password">รหัสผ่านการเข้ารหัส</string>
@@ -856,7 +855,6 @@
     <!-- Usage Insights demo card -->
 <string name="providers_active_this_month">ใช้งานเดือนนี้</string>
     <string name="providers_all_providers">ผู้ให้บริการทั้งหมด</string>
-    <string name="providers_free_pill">ฟรี</string>
     <string name="providers_today">วันนี้</string>
     <string name="providers_all_synced">ซิงค์ทั้งหมดแล้ว</string>
     <string name="providers_summary_count">ผู้ให้บริการ %d</string>

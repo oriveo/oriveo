@@ -278,7 +278,6 @@
     <string name="search_models">Tìm kiếm mô hình…</string>
     <string name="all_models_enabled">Tất cả các mô hình đã được kích hoạt</string>
     <string name="no_matching_models">Không tìm thấy mô hình phù hợp</string>
-    <string name="no_enabled_models_yet">Chưa có mô hình nào được kích hoạt</string>
     <string name="export_backup_title">Xuất khẩu</string>
     <string name="include_api_keys">Bao gồm các phím API</string>
     <string name="encryption_password">Mật khẩu mã hóa</string>
@@ -856,7 +855,6 @@
     <!-- Usage Insights demo card -->
 <string name="providers_active_this_month">Hoạt động tháng này</string>
     <string name="providers_all_providers">Tất cả nhà cung cấp</string>
-    <string name="providers_free_pill">Miễn phí</string>
     <string name="providers_today">Hôm nay</string>
     <string name="providers_all_synced">Đã đồng bộ tất cả</string>
     <string name="providers_summary_count">Nhà cung cấp %d</string>

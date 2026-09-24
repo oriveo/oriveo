@@ -404,7 +404,6 @@
     <string name="model_id_footnote">Gib einfach eine verwendbare Modell-ID ein. Du musst die Protokolldetails nicht kennen.</string>
     <string name="model_id_label">Modell-ID</string>
     <string name="never">Nie</string>
-    <string name="no_enabled_models_yet">Noch keine Modelle aktiviert</string>
     <string name="no_search_results">Keine passenden Unterhaltungen</string>
     <string name="preparing">Wird vorbereitet…</string>
     <string name="provider_detail_add_model_finish_setup">Modell-ID hinzufügen, um die Einrichtung abzuschließen</string>
@@ -892,7 +891,6 @@
     <!-- Usage Insights demo card -->
 <string name="providers_active_this_month">Diesen Monat aktiv</string>
     <string name="providers_all_providers">Alle Anbieter</string>
-    <string name="providers_free_pill">Kostenlos</string>
     <string name="providers_today">Heute</string>
     <string name="providers_all_synced">Alles synchronisiert</string>
     <string name="providers_summary_count">%d Anbieter</string>

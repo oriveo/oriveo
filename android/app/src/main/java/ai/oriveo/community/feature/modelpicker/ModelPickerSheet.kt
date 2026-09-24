@@ -100,7 +100,6 @@ import ai.oriveo.community.feature.providers.detail.comparePickerModels
 import ai.oriveo.community.feature.providers.detail.sortedEnabledModels
 import ai.oriveo.community.feature.providers.detail.sortedProvidersForModelPicker
 import ai.oriveo.community.ui.component.FixedHeroModelCapabilityStrip
-import ai.oriveo.community.ui.component.ModelVendorIcon
 import ai.oriveo.community.ui.component.OriveoSheetDragHandle
 import ai.oriveo.community.ui.component.ProviderBadgeIcon
 import ai.oriveo.community.ui.component.localizedPriceTier
@@ -219,7 +218,6 @@ fun ModelPickerSheet(
     val isCrosscheck = context == ModelPickerContext.Crosscheck
     var searchText by remember { mutableStateOf("") }
     var expandedProviderIds by remember { mutableStateOf<Set<String>>(emptySet()) }
-    var expandedVendorGroupIds by remember { mutableStateOf<Map<String, Set<String>>>(emptyMap()) }
     var catalogProviderId by remember { mutableStateOf<String?>(null) }
 
     val currentProvider = remember(providers, activeProviderId) {
@@ -307,26 +305,6 @@ fun ModelPickerSheet(
         )
     }
 
-    LaunchedEffect(providerSections, activeProviderId, currentModelId) {
-        expandedVendorGroupIds = buildMap {
-            providerSections.forEach { section ->
-                if (section.provider.kind != ProviderKind.OpenAI) return@forEach
-                val groups = groupModelPickerModelsByVendor(section.models)
-                if (groups.size <= 1) return@forEach
-                val availableIds = groups.mapTo(linkedSetOf()) { it.id }
-                val existing = expandedVendorGroupIds[section.provider.id]
-                    .orEmpty()
-                    .intersect(availableIds)
-                    .toMutableSet()
-                if (section.provider.id == activeProviderId && currentModelId != null) {
-                    groups.firstOrNull { group -> group.models.any { it.id == currentModelId } }
-                        ?.let { existing += it.id }
-                }
-                put(section.provider.id, existing)
-            }
-        }
-    }
-
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -369,19 +347,10 @@ fun ModelPickerSheet(
                     onSearchChange = { searchText = it },
                     onSearchClear = { searchText = "" },
                     expandedProviderIds = expandedProviderIds,
-                    expandedVendorGroupIds = expandedVendorGroupIds,
                     onToggleProvider = { providerId ->
                         if (searchText.isBlank()) {
                             haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                             expandedProviderIds = expandedProviderIds.toggle(providerId)
-                        }
-                    },
-                    onToggleVendorGroup = { providerId, groupId ->
-                        if (searchText.isBlank()) {
-                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                            val current = expandedVendorGroupIds[providerId].orEmpty()
-                            expandedVendorGroupIds = expandedVendorGroupIds +
-                                (providerId to current.toggle(groupId))
                         }
                     },
                     onSelectModel = { providerId, modelId ->
@@ -426,9 +395,7 @@ private fun ColumnScope.ModelPickerContent(
     onSearchChange: (String) -> Unit,
     onSearchClear: () -> Unit,
     expandedProviderIds: Set<String>,
-    expandedVendorGroupIds: Map<String, Set<String>>,
     onToggleProvider: (String) -> Unit,
-    onToggleVendorGroup: (providerId: String, groupId: String) -> Unit,
     onSelectModel: (providerId: String, modelId: String) -> Unit,
     isModelSelected: (providerId: String, model: AIModel) -> Boolean,
     onOpenCatalog: (providerId: String) -> Unit,
@@ -446,7 +413,6 @@ private fun ColumnScope.ModelPickerContent(
         providerSections,
         searchText,
         expandedProviderIds,
-        expandedVendorGroupIds,
         isSingleProvider,
         isHome,
         isCrosscheck,
@@ -455,7 +421,6 @@ private fun ColumnScope.ModelPickerContent(
             providerSections = providerSections,
             searchText = searchText,
             expandedProviderIds = expandedProviderIds,
-            expandedVendorGroupIds = expandedVendorGroupIds,
             isSingleProvider = isSingleProvider,
             isHome = isHome,
             isCrosscheck = isCrosscheck,
@@ -535,7 +500,6 @@ private fun ColumnScope.ModelPickerContent(
                         capabilityObservationRevision = capabilityObservationRevision,
                         toolCallMemoryVerdict = toolCallMemoryVerdict,
                         onToggleProvider = onToggleProvider,
-                        onToggleVendorGroup = onToggleVendorGroup,
                         onSelectModel = onSelectModel,
                         isModelSelected = isModelSelected,
                         onOpenCatalog = onOpenCatalog,
@@ -887,17 +851,10 @@ internal sealed interface ModelPickerListContent {
         val isCollapsible: Boolean,
     ) : ModelPickerListContent
 
-    data class VendorHeader(
-        val providerId: String,
-        val group: ModelPickerVendorGroup,
-        val isExpanded: Boolean,
-    ) : ModelPickerListContent
-
     data class ModelRow(
         val provider: Provider,
         val model: AIModel,
         val groupId: String,
-        val isNestedUnderVendor: Boolean,
     ) : ModelPickerListContent
 
     data class AddModels(val providerId: String) : ModelPickerListContent
@@ -915,7 +872,6 @@ internal fun buildModelPickerListEntries(
     providerSections: List<ModelPickerSection>,
     searchText: String,
     expandedProviderIds: Set<String>,
-    expandedVendorGroupIds: Map<String, Set<String>>,
     isSingleProvider: Boolean,
     isHome: Boolean,
     isCrosscheck: Boolean = false,
@@ -938,43 +894,16 @@ internal fun buildModelPickerListEntries(
             }
 
             if (isExpanded) {
-                val groups = groupModelPickerModelsByVendor(section.models)
-
-                if (groups.size > 1 && provider.kind == ProviderKind.OpenAI) {
-                    groups.forEach { group ->
-                        val groupExpanded = searchText.isNotBlank() ||
-                            expandedVendorGroupIds[providerId].orEmpty().contains(group.id)
-                        add(
-                            "provider/$providerId/vendor/${group.id}" to
-                                ModelPickerListContent.VendorHeader(providerId, group, groupExpanded),
-                        )
-                        if (groupExpanded) {
-                            group.models.forEach { model ->
-                                add(
-                                    "provider/$providerId/vendor/${group.id}/model/${model.id}" to
-                                        ModelPickerListContent.ModelRow(
-                                            provider = provider,
-                                            model = model,
-                                            groupId = group.id,
-                                            isNestedUnderVendor = true,
-                                        ),
-                                )
-                            }
-                        }
-                    }
-                } else {
-                    val groupId = groups.firstOrNull()?.id ?: "ungrouped"
-                    section.models.forEach { model ->
-                        add(
-                            "provider/$providerId/model/$groupId/${model.id}" to
-                                ModelPickerListContent.ModelRow(
-                                    provider = provider,
-                                    model = model,
-                                    groupId = groupId,
-                                    isNestedUnderVendor = false,
-                                ),
-                        )
-                    }
+                val groupId = groupModelPickerModelsByVendor(section.models).firstOrNull()?.id ?: "ungrouped"
+                section.models.forEach { model ->
+                    add(
+                        "provider/$providerId/model/$groupId/${model.id}" to
+                            ModelPickerListContent.ModelRow(
+                                provider = provider,
+                                model = model,
+                                groupId = groupId,
+                            ),
+                    )
                 }
 
                 if (!isCrosscheck && searchText.isBlank() && provider.hasMoreModelsForPicker()) {
@@ -1015,7 +944,6 @@ internal fun buildModelPickerListEntries(
 private val ModelPickerListContent.contentType: String
     get() = when (this) {
         is ModelPickerListContent.ProviderHeader -> "provider_header"
-        is ModelPickerListContent.VendorHeader -> "vendor_header"
         is ModelPickerListContent.ModelRow -> "model_row"
         is ModelPickerListContent.AddModels -> "add_models"
         is ModelPickerListContent.Gap -> "gap"
@@ -1035,7 +963,6 @@ private fun ModelPickerListEntryRow(
     toolCallMemoryVerdict: (Provider, AIModel) -> Boolean?,
     modifier: Modifier = Modifier,
     onToggleProvider: (String) -> Unit,
-    onToggleVendorGroup: (providerId: String, groupId: String) -> Unit,
     onSelectModel: (providerId: String, modelId: String) -> Unit,
     isModelSelected: (providerId: String, model: AIModel) -> Boolean,
     onOpenCatalog: (providerId: String) -> Unit,
@@ -1057,9 +984,7 @@ private fun ModelPickerListEntryRow(
             positionedEntry.position == ModelPickerRowPosition.Last
         ) {
             if (content is ModelPickerListContent.ModelRow) {
-                IndentedHairline(
-                    startIndent = if (content.isNestedUnderVendor) 52.dp else 16.dp,
-                )
+                IndentedHairline(startIndent = 16.dp)
             } else {
                 HairlineDivider()
             }
@@ -1073,17 +998,11 @@ private fun ModelPickerListEntryRow(
                 isCollapsible = content.isCollapsible,
                 onToggle = { onToggleProvider(content.provider.id) },
             )
-            is ModelPickerListContent.VendorHeader -> ModelPickerVendorGroupHeader(
-                group = content.group,
-                isExpanded = content.isExpanded,
-                onToggle = { onToggleVendorGroup(content.providerId, content.group.id) },
-            )
             is ModelPickerListContent.ModelRow -> ModelPickerRow(
                 provider = content.provider,
                 model = content.model,
                 capabilityObservationRevision = capabilityObservationRevision,
                 toolCallMemoryVerdict = toolCallMemoryVerdict(content.provider, content.model),
-                isNestedUnderVendor = content.isNestedUnderVendor,
                 isSelected = isModelSelected(content.provider.id, content.model),
                 onClick = { onSelectModel(content.provider.id, content.model.id) },
             )
@@ -1305,61 +1224,11 @@ private fun AddModelsRow(onClick: () -> Unit) {
 }
 
 @Composable
-private fun ModelPickerVendorGroupHeader(
-    group: ModelPickerVendorGroup,
-    isExpanded: Boolean,
-    onToggle: () -> Unit,
-) {
-    val v2 = rememberV2PickerColors()
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(v2.bgInset.copy(alpha = 0.32f))
-            .clickable(onClick = onToggle)
-            // heightIn must wrap padding; reversing these makes the row 48 + 20 = 68dp.
-            .heightIn(min = 48.dp)
-            .padding(horizontal = 16.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-    ) {
-        ModelVendorIcon(groupKey = group.id, groupName = group.name, size = 24.dp)
-        Text(
-            text = group.name,
-            style = OriveoTheme.typography.body.copy(
-                fontSize = 14.sp,
-                lineHeight = 17.sp,
-                fontWeight = FontWeight.SemiBold,
-            ),
-            color = v2.textPrimary,
-            modifier = Modifier.weight(1f),
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-        )
-        Text(
-            text = group.models.size.toString(),
-            style = OriveoTheme.typography.footnote.copy(
-                fontSize = 12.sp,
-                lineHeight = 14.sp,
-                fontWeight = FontWeight.SemiBold,
-            ),
-            color = v2.textTertiary,
-        )
-        Icon(
-            imageVector = if (isExpanded) Icons.Filled.ExpandMore else Icons.Filled.ChevronRight,
-            contentDescription = null,
-            modifier = Modifier.size(14.dp),
-            tint = v2.textTertiary,
-        )
-    }
-}
-
-@Composable
 private fun ModelPickerRow(
     provider: Provider,
     model: AIModel,
     capabilityObservationRevision: Long,
     toolCallMemoryVerdict: Boolean?,
-    isNestedUnderVendor: Boolean,
     isSelected: Boolean,
     onClick: () -> Unit,
 ) {
@@ -1374,8 +1243,7 @@ private fun ModelPickerRow(
     val sourceName = model.groupName
         ?.trim()
         ?.takeIf {
-            !isNestedUnderVendor &&
-                shouldShowModelPickerVendorSource(provider) &&
+            shouldShowModelPickerVendorSource(provider) &&
                 it.isNotEmpty() &&
                 it != provider.displayName
         }
@@ -1427,7 +1295,7 @@ private fun ModelPickerRow(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(
-                    start = if (isNestedUnderVendor) 52.dp else 16.dp,
+                    start = 16.dp,
                     end = 16.dp,
                     top = 13.dp,
                     bottom = 13.dp,
@@ -1813,18 +1681,6 @@ fun groupModelPickerModelsByVendor(models: List<AIModel>): List<ModelPickerVendo
     return groups.map { (id, group) ->
         ModelPickerVendorGroup(id = id, name = group.name, models = group.models.toList())
     }
-}
-
-fun defaultExpandedModelPickerVendorGroupIds(
-    groups: List<ModelPickerVendorGroup>,
-    selectedModelId: String?,
-    searchText: String,
-): Set<String> {
-    if (searchText.isNotBlank()) return groups.mapTo(linkedSetOf()) { it.id }
-    val activeGroup = selectedModelId?.let { selectedId ->
-        groups.firstOrNull { group -> group.models.any { it.id == selectedId } }
-    }
-    return activeGroup?.let { setOf(it.id) }.orEmpty()
 }
 
 fun AIModel.modelPickerDisplayTitle(): String {

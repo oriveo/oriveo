@@ -94,6 +94,28 @@ class ManualModelEntryViewModelTest {
     }
 
     @Test
+    fun `saveManualModel saves for an OpenAI provider the screen is observing`() = runTest {
+        providerFlow.value = sampleProvider(kind = ProviderKind.OpenAI)
+        coEvery { providerRepository.saveManualModel("provider-1", "gpt-4.1-mini") } returns Unit
+        val viewModel = createViewModel()
+        val providerJob = backgroundScope.launch(dispatcher) {
+            viewModel.provider.collect {}
+        }
+        advanceUntilIdle()
+        assertEquals(ProviderKind.OpenAI, viewModel.provider.value?.kind)
+
+        viewModel.modelID = "gpt-4.1-mini"
+        assertTrue(viewModel.canSave)
+        viewModel.saveManualModel()
+        advanceUntilIdle()
+
+        assertTrue(viewModel.saveCompleted)
+        assertNull(viewModel.error)
+        coVerify(exactly = 1) { providerRepository.saveManualModel("provider-1", "gpt-4.1-mini") }
+        providerJob.cancel()
+    }
+
+    @Test
     fun `saveManualModel keeps isSaving true while request in flight`() = runTest {
         val gate = CompletableDeferred<Unit>()
         coEvery { providerRepository.saveManualModel("provider-1", "model-a") } coAnswers {

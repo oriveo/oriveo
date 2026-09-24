@@ -262,12 +262,6 @@ fun ProviderDetailScreen(
                 val enabledSortedModels = remember(currentProvider.models) {
                     sortedEnabledModels(currentProvider)
                 }
-                val enabledServerGroups = remember(currentProvider.models) {
-                    detailEnabledModelGroups(currentProvider)
-                }
-                var enabledServerExpandedGroups by remember(currentProvider.id) {
-                    mutableStateOf(emptySet<String>())
-                }
                 // Relay "missing from catalog" check: build the index once here (O(catalog)) and
                 // let each row only look it up. It is built in remember rather than on a background
                 // producer because the value must be null (no badge) while the catalog is
@@ -383,11 +377,7 @@ fun ProviderDetailScreen(
                                         viewModel.removeApiKey()
                                     }
                                 },
-                                onEditName = if (viewModel.canRenameProvider(currentProvider)) {
-                                    { renameProvider = currentProvider }
-                                } else {
-                                    null
-                                },
+                                onEditName = { renameProvider = currentProvider },
                                 isResyncing = viewModel.isResyncing,
                             )
                         }
@@ -411,15 +401,6 @@ fun ProviderDetailScreen(
                             titleRes = viewModel.enabledModelsTitle(currentProvider),
                             capabilityObservationRevision = capabilityObservationRevision,
                             sortedModels = enabledSortedModels,
-                            serverGroups = enabledServerGroups,
-                            serverExpandedGroupIds = enabledServerExpandedGroups,
-                            onToggleServerGroup = { groupId ->
-                                enabledServerExpandedGroups = if (groupId in enabledServerExpandedGroups) {
-                                    enabledServerExpandedGroups - groupId
-                                } else {
-                                    enabledServerExpandedGroups + groupId
-                                }
-                            },
                             highlightedModelID = highlightedModelID,
                             onToggleModel = { model ->
                                 val willDisable = currentProvider.models.any { it.id == model.id }

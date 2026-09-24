@@ -23,8 +23,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -124,7 +122,6 @@ fun ProviderHeroCard(
         ProviderEffectiveStatusKind.NeedsKey -> stringResource(R.string.needs_api_key)
     }
 
-    val shouldDisplayCost = provider.kind != ProviderKind.OpenAI
     val isZeroCost = monthlyEstimatedCost <= CostFormatter.COST_EPSILON
     val monthlyCostText = remember(monthlyEstimatedCost) {
         val formatted = CostFormatter.format(monthlyEstimatedCost)
@@ -203,7 +200,6 @@ fun ProviderHeroCard(
                 statusColor = statusColor,
                 statusText = statusText,
                 statusIsPulsing = statusIsPulsing,
-                shouldDisplayCost = shouldDisplayCost,
                 monthlyCostText = monthlyCostText,
                 isZeroCost = isZeroCost,
                 hasWeeklySignal = hasWeeklySignal,
@@ -390,7 +386,6 @@ private fun HeroStatsColumn(
     statusColor: Color,
     statusText: String,
     statusIsPulsing: Boolean,
-    shouldDisplayCost: Boolean,
     monthlyCostText: String,
     isZeroCost: Boolean,
     hasWeeklySignal: Boolean,
@@ -421,7 +416,6 @@ private fun HeroStatsColumn(
         Spacer(modifier = Modifier.weight(1f))
 
         HeroCostView(
-            shouldDisplayCost = shouldDisplayCost,
             monthlyCostText = monthlyCostText,
             isZeroCost = isZeroCost,
             hasWeeklySignal = hasWeeklySignal,
@@ -463,46 +457,11 @@ private fun HeroModelRow(modelName: String) {
 
 @Composable
 private fun HeroCostView(
-    shouldDisplayCost: Boolean,
     monthlyCostText: String,
     isZeroCost: Boolean,
     hasWeeklySignal: Boolean,
     weekly: List<Double>,
 ) {
-    if (!shouldDisplayCost) {
-
-        Row(
-            modifier = Modifier
-                .clip(CircleShape)
-                .background(Color.White.copy(alpha = 0.22f))
-                .border(width = 0.6.dp, color = Color.White.copy(alpha = 0.30f), shape = CircleShape)
-                .padding(horizontal = 10.dp, vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
-            Icon(
-                imageVector = Icons.Outlined.AutoAwesome,
-                contentDescription = null,
-                modifier = Modifier.size(11.dp),
-                tint = Color.White,
-            )
-            Text(
-                text = stringResource(R.string.providers_free_pill),
-                style = compactTextStyle(
-                    TextStyle(
-                        fontSize = 11.5.sp,
-                        fontWeight = FontWeight.Bold,
-                        lineHeight = 13.sp,
-                        letterSpacing = 0.6.sp,
-                    ),
-                ),
-                color = Color.White,
-                maxLines = 1,
-            )
-        }
-        return
-    }
-
     Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(1.dp)) {
             Text(

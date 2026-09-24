@@ -12,23 +12,20 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 /**
- * Locks the three main-thread hot paths of the provider detail catalog. It only locks that the
+ * Locks the two main-thread hot paths of the provider detail catalog. It only locks that the
  * results did not change, not how they are computed.
  *
- * The three original forms and their cost:
+ * The two original forms and their cost:
  *   1. Every "enabled models" row ran `matchingModel(wholeRelayCatalog, model.id)` during
  *      composition, an O(catalog) scan that, on a miss, also runs two regexes per catalog model.
  *      A relay catalog comes from the user's own server and can hold thousands of entries.
  *   2. `sortedEnabledModels` computed `enabledModelPriorityScore` (an `id.lowercase()` plus ten
  *      `contains`) inside the comparator, twice per comparison across n log n comparisons, on
  *      the main thread.
- *   3. `detailEnabledModelGroups` copied the whole list with `existing.models + model` for every
- *      model, which is O(n^2).
  *
- * All three equivalence checks use the production functions themselves as the reference
- * (`ModelSelectionUtils.matchingModel`, `enabledModelPriorityScore`, `explicitVendorGroupIdentity`)
- * rather than a copy of the scoring or grouping rules in the test; a copy would only prove that
- * the copy agrees with itself.
+ * Both equivalence checks use the production functions themselves as the reference
+ * (`ModelSelectionUtils.matchingModel`, `enabledModelPriorityScore`) rather than a copy of the
+ * matching or scoring rules in the test; a copy would only prove that the copy agrees with itself.
  *
  * Inputs come out of `ProviderCatalogResolver.resolve()` (a relay reads its local `catalogModels`,
  * the only source of a relay catalog), not from hand-built bare `AIModel` lists.
@@ -76,7 +73,7 @@ class ProviderDetailCatalogHotPathTest {
     fun `sorted enabled models match the pre-freeze comparator item by item`() {
         val provider = relayProviderWithProductionCatalog().let { relay ->
             // The whole catalog as enabled models: what "add all" produces, and exactly where the
-            // quadratic grouping and the in-comparator scoring show up.
+            // in-comparator scoring shows up.
             relay.copy(models = ProviderCatalogResolver.resolve(relay).catalog.map { it.model })
         }
 
@@ -102,44 +99,7 @@ class ProviderDetailCatalogHotPathTest {
         )
     }
 
-    // ---- 3. detailEnabledModelGroups without the quadratic copy matches item by item ----
-
-    @Test
-    fun `detail enabled groups match the quadratic reference accumulation`() {
-        val base = relayProviderWithProductionCatalog()
-        val provider = base.copy(models = ProviderCatalogResolver.resolve(base).catalog.map { it.model })
-
-        // Reference: the accumulation as it was, copying the whole list with `existing.models + model`.
-        val reference = mutableListOf<VendorGroup>()
-        val referenceIndexes = mutableMapOf<String, Int>()
-        provider.models.forEach { model ->
-            val identity = explicitVendorGroupIdentity(model)
-            val groupId = identity?.id ?: "${provider.id}-ungrouped"
-            val existingIndex = referenceIndexes[groupId]
-            if (existingIndex == null) {
-                referenceIndexes[groupId] = reference.size
-                reference += VendorGroup(groupId, identity?.id, identity?.title, listOf(model))
-            } else {
-                val existing = reference[existingIndex]
-                reference[existingIndex] = existing.copy(models = existing.models + model)
-            }
-        }
-
-        val actual = detailEnabledModelGroups(provider)
-        assertEquals(
-            "group order and identity must match item by item",
-            reference.map { it.id to it.groupName },
-            actual.map { it.id to it.groupName },
-        )
-        assertEquals(
-            "model order within each group must match item by item",
-            reference.map { group -> group.models.map { it.id } },
-            actual.map { group -> group.models.map { it.id } },
-        )
-        assertTrue("there must be at least one real group, or this test degrades into a no-op", actual.size >= 2)
-    }
-
-    // ---- 4. Source contract: the whole-catalog scan must not move back into the rows ----
+    // ---- 3. Source contract: the whole-catalog scan must not move back into the rows ----
 
     /** A `matchingModel(` call inside the rows would put the O(catalog) scan back into every row's composition. */
     @Test

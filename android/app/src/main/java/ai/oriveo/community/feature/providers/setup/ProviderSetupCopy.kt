@@ -20,7 +20,7 @@ object ProviderSetupCopy {
 
     @StringRes
     fun autoFillNote(kind: ProviderKind): Int? = when (kind) {
-        ProviderKind.Relay, ProviderKind.OpenAI -> null
+        ProviderKind.Relay -> null
         else -> R.string.auto_fill_note
     }
 

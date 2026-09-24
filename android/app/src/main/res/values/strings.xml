@@ -446,7 +446,6 @@
     <string name="search_models">Search models…</string>
     <string name="all_models_enabled">All models are already enabled</string>
     <string name="no_matching_models">No matching models found</string>
-    <string name="no_enabled_models_yet">No enabled models yet</string>
     <string name="no_added_models_yet">No models added yet</string>
     <string name="catalog_state_offline_title">Unable to load official models</string>
     <string name="catalog_state_offline_subtitle">Connect to Oriveo to load the official catalog.</string>
@@ -957,7 +956,6 @@
 <string name="streaming_pulse_a11y">Generating</string>
     <string name="providers_active_this_month">Active this month</string>
     <string name="providers_all_providers">All providers</string>
-    <string name="providers_free_pill">Free</string>
     <string name="providers_today">Today</string>
     <string name="providers_all_synced">All synced</string>
     <string name="providers_summary_count">%d providers</string>

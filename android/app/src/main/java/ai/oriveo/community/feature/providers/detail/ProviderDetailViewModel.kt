@@ -1173,7 +1173,7 @@ class ProviderDetailViewModel(
     }
 
     fun enabledModelsTitle(provider: Provider): Int = when (provider.kind) {
-        ProviderKind.Relay, ProviderKind.OpenAI -> R.string.provider_detail_models_title
+        ProviderKind.Relay -> R.string.provider_detail_models_title
         else -> R.string.added_models
     }
 
@@ -1234,8 +1234,6 @@ class ProviderDetailViewModel(
                 .regionOptions(provider.kind).isNotEmpty()
 
     fun canAccessAdvancedSettings(provider: Provider): Boolean = provider.kind.allowsAdvancedSettings
-
-    fun canRenameProvider(provider: Provider): Boolean = provider.kind != ProviderKind.OpenAI
 
     fun canAddManualModel(provider: Provider): Boolean =
         when {

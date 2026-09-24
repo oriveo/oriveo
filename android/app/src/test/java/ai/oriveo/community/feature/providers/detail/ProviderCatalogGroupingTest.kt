@@ -334,22 +334,6 @@ class ProviderCatalogGroupingTest {
         assertEquals(listOf("orphan/model"), groups.last().models.map { it.id })
     }
 
-    @Test
-    fun `detail enabled groups preserve enabled model order`() {
-        val provider = makeProvider(
-            models = listOf(
-                makeModel("zeta/model-2", groupKey = "zeta", groupName = "Zeta", sortRank = 1),
-                makeModel("zeta/model-1", groupKey = "zeta", groupName = "Zeta", sortRank = 999),
-                makeModel("alpha/model", groupKey = "alpha", groupName = "Alpha", sortRank = 500),
-            ),
-        ).copy(kind = ProviderKind.OpenAI)
-
-        val groups = detailEnabledModelGroups(provider)
-
-        assertEquals(listOf("zeta", "alpha"), groups.map { it.id })
-        assertEquals(listOf("zeta/model-2", "zeta/model-1"), groups.first().models.map { it.id })
-    }
-
     /** BYOK providers are sorted by sortRank descending; a higher published rank comes first. */
     @Test
     fun `sortedEnabledModels still scores BYOK provider models`() {

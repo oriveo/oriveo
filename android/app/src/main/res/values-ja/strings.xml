@@ -405,7 +405,6 @@
     <string name="model_id_footnote">使用可能なモデル ID を1つ入力するだけです。プロトコルの詳細は不要です。</string>
     <string name="model_id_label">モデル ID</string>
     <string name="never">なし</string>
-    <string name="no_enabled_models_yet">有効なモデルがありません</string>
     <string name="no_search_results">一致する会話がありません</string>
     <string name="preparing">準備中…</string>
     <string name="provider_detail_add_model_finish_setup">モデル ID を追加してセットアップを完了</string>
@@ -894,7 +893,6 @@
     <!-- Usage Insights demo card -->
 <string name="providers_active_this_month">今月のアクティブ</string>
     <string name="providers_all_providers">すべてのプロバイダー</string>
-    <string name="providers_free_pill">無料</string>
     <string name="providers_today">今日</string>
     <string name="providers_all_synced">すべて同期済み</string>
     <string name="providers_summary_count">%d プロバイダー</string>

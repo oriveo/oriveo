@@ -199,10 +199,16 @@ class ProviderSetupViewModelTest {
     }
 
     @Test
-    fun `oriveo free can submit without api key`() = runTest {
+    fun `openai cannot submit until an api key is entered`() = runTest {
         val viewModel = createViewModel()
         viewModel.selectKind(ProviderKind.OpenAI)
 
+        assertEquals(false, viewModel.canSubmit)
+
+        viewModel.apiKey = "   "
+        assertEquals(false, viewModel.canSubmit)
+
+        viewModel.apiKey = "sk-test"
         assertEquals(true, viewModel.canSubmit)
     }
 
