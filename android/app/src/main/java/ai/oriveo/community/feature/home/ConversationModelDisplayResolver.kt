@@ -10,6 +10,8 @@ internal fun resolveConversationModelName(
     displayLookup: ModelDisplayLookup,
 ): String {
     if (provider == null) return conversation.modelID
+    // The lookup's first build has not finished in the background: show no model name yet, so a fallback name never flashes before the real one
+    if (!displayLookup.isReady) return ""
 
     // The fallback is computed only when the lookup has no answer (a hit never reads it, so the result is the same as
     // computing it first), and it looks enabled models up in the lookup's index: after "add all" the enabled models

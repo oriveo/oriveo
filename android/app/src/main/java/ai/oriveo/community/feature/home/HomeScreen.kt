@@ -85,7 +85,6 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
-import ai.oriveo.community.core.provider.ModelDisplayLookup
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.platform.testTag
 import androidx.metrics.performance.PerformanceMetricsState
@@ -240,7 +239,8 @@ fun HomeScreen(
     val initialContentLoaded by viewModel.initialContentLoaded.collectAsStateWithLifecycle()
     val streamingConvIds by viewModel.streamingConversationIds.collectAsStateWithLifecycle()
     val providersById = remember(providers) { providers.associateBy { it.id } }
-    val modelDisplayLookup = remember(providers) { ModelDisplayLookup(providers) }
+    // Built and index-prewarmed in the background per providers emission; composition only reads it (indexing a 22k relay catalog takes tens of milliseconds)
+    val modelDisplayLookup by viewModel.modelDisplayLookup.collectAsStateWithLifecycle()
     val skillsById = remember(homeSkills) { homeSkills.associateBy { it.id } }
 
     val foldersById = remember(folders) { folders.associateBy { it.id } }

@@ -166,7 +166,6 @@ import ai.oriveo.community.core.model.Skill
 import ai.oriveo.community.core.util.localizedDescription
 import ai.oriveo.community.core.util.localizedName
 import ai.oriveo.community.core.util.localizedStarterMessages
-import ai.oriveo.community.core.provider.ModelDisplayLookup
 import ai.oriveo.community.core.provider.CapabilityEvidenceObservationBridge
 import ai.oriveo.community.core.provider.ProviderSelectionSnapshot
 import ai.oriveo.community.feature.chat.attachments.AttachmentConflictDialog
@@ -302,7 +301,8 @@ internal fun ChatScreenContent(
     var noteFocusHighlightId by remember { mutableStateOf<String?>(null) }
 
     val providersById = remember(providers) { providers.associateBy { it.id } }
-    val displayLookup = remember(providers) { ModelDisplayLookup(providers) }
+    // Built and index-prewarmed in the background per providers emission; composition only reads it (indexing a 22k relay catalog takes tens of milliseconds)
+    val displayLookup by viewModel.modelDisplayLookup.collectAsStateWithLifecycle()
     val hasVerifiedConnectedUserProvider = remember(providers) { providers.isNotEmpty() }
     val conversationId = conversation?.id
     val searchTargetIndex = remember(searchQuery, messages) {

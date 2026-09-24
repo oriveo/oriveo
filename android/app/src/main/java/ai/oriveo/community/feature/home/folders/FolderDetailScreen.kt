@@ -73,7 +73,8 @@ fun FolderDetailScreen(
     val contentLoaded by viewModel.initialContentLoaded.collectAsStateWithLifecycle()
     val folder = folders.firstOrNull { it.id == folderID }
     val providersById = remember(providers) { providers.associateBy { it.id } }
-    val modelDisplayLookup = remember(providers) { ModelDisplayLookup(providers) }
+    // Built and index-prewarmed in the background per providers emission; composition only reads it (indexing a 22k relay catalog takes tens of milliseconds)
+    val modelDisplayLookup by viewModel.modelDisplayLookup.collectAsStateWithLifecycle()
     val screenH = OriveoTheme.layout.screenH
     var searchQuery by remember { mutableStateOf("") }
 

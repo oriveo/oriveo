@@ -5,6 +5,12 @@ import ai.oriveo.community.core.data.remote.MetadataClient
 import ai.oriveo.community.core.model.AIModel
 import ai.oriveo.community.core.model.Provider
 import ai.oriveo.community.core.model.ProviderKind
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.mapLatest
 
 /**
  * Lightweight read path for display names: it resolves a provider name, a model
@@ -17,18 +23,25 @@ import ai.oriveo.community.core.model.ProviderKind
  * Every conversation row on Home and every message in a chat asks it once, and a relay
  * catalog comes from the user's own server (a public catalog can hold 22,000 models). So
  * each provider's local model index is built once per instance and every row after that is
- * a lookup instead of a scan. Callers build a new instance per providers emission
- * (`remember(providers)`), so the indexes go away with it and never answer from an old
- * catalog.
+ * a lookup instead of a scan. Screens get instances from [modelDisplayLookups], which builds
+ * one per providers emission in the background and [prewarm]s it, so composition only reads a
+ * finished one; the indexes go away with the instance and never answer from an old catalog.
  *
  * The indexes are internal memoization that changes no observable result, so the class is
  * still stable for Compose.
  */
 @Stable
-class ModelDisplayLookup(
+class ModelDisplayLookup private constructor(
     providers: List<Provider>,
-    private val metadata: MetadataClient = MetadataClient.instance,
+    private val metadata: MetadataClient,
+    /** False only for [Pending]: the screen has no lookup built from any emission yet, and callers must not show its fallback as a display name. */
+    val isReady: Boolean,
 ) {
+    constructor(
+        providers: List<Provider>,
+        metadata: MetadataClient = MetadataClient.instance,
+    ) : this(providers, metadata, isReady = true)
+
     private val providersById = providers.associateBy { it.id }
     private val localIndexes = HashMap<String, ModelSelectionUtils.CatalogMatchIndex>()
     private val enabledIndexes = HashMap<String, ModelSelectionUtils.CatalogMatchIndex>()
@@ -100,6 +113,14 @@ class ModelDisplayLookup(
         }
     }
 
+    /** Builds every provider's local and enabled indexes (fuzzy layer included) now. Call it off the main thread; queries after that are table lookups. */
+    fun prewarm() {
+        providersById.values.forEach { provider ->
+            localIndex(provider).prewarm()
+            enabledIndex(provider).prewarm()
+        }
+    }
+
     /** Returns exactly what `matchingModel(localCandidates, targetId)` returns, with the same candidates in the same order. */
     private fun localModel(provider: Provider, targetId: String): AIModel? =
         localIndex(provider).match(targetId)
@@ -120,4 +141,22 @@ class ModelDisplayLookup(
             ModelSelectionUtils.catalogMatchIndex(ProviderSelectionSnapshot.enabledModels(provider))
         }
     }
+
+    companion object {
+        /** Placeholder until a lookup has been built from any emission. */
+        val Pending: ModelDisplayLookup by lazy { ModelDisplayLookup(emptyList(), MetadataClient.instance, isReady = false) }
+    }
 }
+
+/**
+ * Builds a [ModelDisplayLookup] for each providers emission on [dispatcher] and calls [ModelDisplayLookup.prewarm], so
+ * Home, folders and chat only read a finished lookup during composition. Indexing a 22k relay catalog takes tens of
+ * milliseconds of CPU, which the first row used to pay on the main thread after `remember(providers)`. A new emission
+ * discards an unfinished older build.
+ */
+@OptIn(ExperimentalCoroutinesApi::class)
+fun Flow<List<Provider>>.modelDisplayLookups(
+    dispatcher: CoroutineDispatcher = Dispatchers.Default,
+): Flow<ModelDisplayLookup> = mapLatest { providers ->
+    ModelDisplayLookup(providers).also { it.prewarm() }
+}.flowOn(dispatcher)

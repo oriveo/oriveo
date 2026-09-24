@@ -160,6 +160,63 @@ class HomeRecompositionScopeTest {
         collector.cancel()
     }
 
+    /**
+     * The view model builds the lookup conversation rows use for model names on the injected defaultDispatcher; the
+     * first screen shows no content until the first one is ready, so a row never shows a fallback name and then swaps it.
+     */
+    @Test
+    fun `model display lookup is built on the default dispatcher and gates first content`() = runTest {
+        val provider = ai.oriveo.community.core.model.Provider(
+            id = "relay-1",
+            kind = ProviderKind.Relay,
+            status = ai.oriveo.community.core.model.ProviderConnectionState.Connected,
+            models = listOf(AIModel(id = "vendor/model-a", name = "Model A", isDefault = true)),
+            catalogModels = listOf(
+                AIModel(id = "vendor/model-a", name = "Model A"),
+                AIModel(id = "vendor/model-b", name = "Model B"),
+            ),
+        )
+        every { providerRepository.observeAll() } returns flowOf(listOf(provider))
+        val viewModel = createViewModel()
+        // Home subscribes to all of these: providers, folders and conversations each flip their own "loaded" flag
+        val collectors = listOf(
+            launch { viewModel.providers.collect { } },
+            launch { viewModel.folders.collect { } },
+            launch { viewModel.conversationsByFolder.collect { } },
+            launch { viewModel.initialContentLoaded.collect { } },
+            launch { viewModel.modelDisplayLookup.collect { } },
+        )
+
+        assertFalse("before the first lookup is built it is the placeholder", viewModel.modelDisplayLookup.value.isReady)
+        assertFalse("before the first lookup is built the first screen shows no content", viewModel.initialContentLoaded.value)
+        val before = recordingDefaultDispatcher.dispatchCount.get()
+        advanceUntilIdle()
+
+        val lookup = viewModel.modelDisplayLookup.value
+        assertTrue("after providers emit, the lookup should be built on defaultDispatcher", lookup.isReady)
+        assertTrue("the first screen shows content once providers, conversations, folders and the lookup are all ready", viewModel.initialContentLoaded.value)
+        assertEquals("Model B", lookup.modelDisplayName("relay-1", "vendor/model-b", fallback = null))
+        assertTrue(
+            "the lookup must be built through the injected defaultDispatcher (no new dispatches means it moved back to the collector's thread)",
+            recordingDefaultDispatcher.dispatchCount.get() > before,
+        )
+        collectors.forEach { it.cancel() }
+    }
+
+    /** Turns red if Home, folder detail or chat builds `ModelDisplayLookup(providers)` again during composition. */
+    @Test
+    fun `screens read the prebuilt model display lookup instead of building one in composition`() {
+        listOf(
+            "feature/home/HomeScreen.kt" to "viewModel.modelDisplayLookup.collectAsStateWithLifecycle()",
+            "feature/home/folders/FolderDetailScreen.kt" to "viewModel.modelDisplayLookup.collectAsStateWithLifecycle()",
+            "feature/chat/ChatScreenContent.kt" to "viewModel.modelDisplayLookup.collectAsStateWithLifecycle()",
+        ).forEach { (path, expected) ->
+            val source = homeSource(path)
+            assertFalse("$path must not build a ModelDisplayLookup during composition (a 22k relay catalog would be indexed on the main thread)", source.contains("ModelDisplayLookup("))
+            assertTrue("$path should read the lookup the view model built in the background", source.contains(expected))
+        }
+    }
+
     /** Turns red if HomeScreen brings back `remember(allConversations) { groupConversationsByFolder(...) }`. */
     @Test
     fun `home screen does not regroup folders inside composition`() {

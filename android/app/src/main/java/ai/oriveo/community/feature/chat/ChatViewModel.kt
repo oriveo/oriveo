@@ -37,7 +37,9 @@ import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.core.model.ReasoningMode
 import ai.oriveo.community.core.model.Skill
 import ai.oriveo.community.core.model.resolveActiveModel
+import ai.oriveo.community.core.provider.ModelDisplayLookup
 import ai.oriveo.community.core.provider.ModelSelectionUtils
+import ai.oriveo.community.core.provider.modelDisplayLookups
 
 import ai.oriveo.community.core.provider.ProviderSelectionSnapshot
 
@@ -306,6 +308,11 @@ class ChatViewModel(
 
     val providers: StateFlow<List<Provider>> = providerRepository.observeAll()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    /** The lookup that resolves model display names in message metadata: built and index-prewarmed in the background per providers emission; composition only reads it. */
+    val modelDisplayLookup: StateFlow<ModelDisplayLookup> = providerRepository.observeAll()
+        .modelDisplayLookups()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), ModelDisplayLookup.Pending)
 
     private val lastUsedModelRef = appPreferencesRepository.lastUsedModelRef
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)

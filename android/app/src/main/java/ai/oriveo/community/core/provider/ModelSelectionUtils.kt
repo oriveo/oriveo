@@ -132,6 +132,12 @@ object ModelSelectionUtils {
             TreeSet(String.CASE_INSENSITIVE_ORDER).also { set -> models.forEach { set.add(it.name) } }
         }
 
+        /** Builds the on-demand second-pass index and the name set now (call it off the main thread). */
+        internal fun prewarm() {
+            firstIndexByIdentifier.size
+            names.size
+        }
+
         /** Returns exactly what `matchingModel(models, targetId)` returns. */
         fun match(targetId: String): AIModel? {
             val trimmedTarget = targetId.trim()

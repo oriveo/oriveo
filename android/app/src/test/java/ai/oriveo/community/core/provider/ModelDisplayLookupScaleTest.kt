@@ -14,8 +14,16 @@ import ai.oriveo.community.core.model.RelayRequestedConfig
 import ai.oriveo.community.core.model.RelayTransport
 import ai.oriveo.community.feature.chat.resolveMessageDisplayMetadata
 import ai.oriveo.community.feature.home.resolveConversationModelName
+import java.util.concurrent.Executors
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.asCoroutineDispatcher
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 import org.junit.After
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -143,6 +151,54 @@ class ModelDisplayLookupScaleTest {
                 largeRowsOnly / smallRowsOnly < 2.5,
             )
         }
+    }
+
+    /**
+     * Home, folders and chat only read the lookup the view model built in the background ([modelDisplayLookups]):
+     * after a fresh emission, the composition thread's CPU for the first rows includes no index build. Before, composition
+     * did `remember(providers) { ModelDisplayLookup(providers) }` and the first row built the 22k catalog index on the
+     * main thread (fuzzy layer included: these rows have canonical ids and retired models).
+     */
+    @Test
+    fun `rows on the composition thread do not build the 22k catalog index`() = runBlocking {
+        val composition = Executors.newSingleThreadExecutor { Thread(it, "fake-main") }.asCoroutineDispatcher()
+        try {
+            val medians = listOf(false, true).map { enableAll ->
+                val provider = relayProvider(catalogSize = 22_000, enableAll = enableAll)
+                val rows = conversations(provider, count = ROWS)
+                val samples = (1..7).map {
+                    // Every round is a fresh emission, built in the background as in production
+                    val lookup = flowOf(listOf(provider)).modelDisplayLookups(Dispatchers.Default).first()
+                    withContext(composition) {
+                        val start = threadCpuNanos()
+                        rows.forEach { resolveConversationModelName(it, provider, lookup) }
+                        (threadCpuNanos() - start) / 1_000_000.0
+                    }
+                }.drop(2).sorted()
+                val median = samples[samples.size / 2]
+                val label = if (enableAll) "allEnabled" else "enabled=$ENABLED"
+                println("ModelDisplayLookupScaleTest $label catalog=22000 composition-thread CPU for first $ROWS rows of a fresh emission=${"%.2f".format(median)}ms samples=$samples")
+                label to median
+            }
+            medians.forEach { (label, median) ->
+                assertTrue(
+                    "$label: the first $ROWS rows after a fresh emission took ${"%.2f".format(median)}ms CPU on the composition thread; the index is still built there",
+                    median < 5.0,
+                )
+            }
+        } finally {
+            composition.close()
+        }
+    }
+
+    @Test
+    fun `a pending lookup never shows a fallback name`() {
+        val provider = relayProvider(catalogSize = 200)
+        val row = conversations(provider, count = 1).single()
+        assertFalse(ModelDisplayLookup.Pending.isReady)
+        assertEquals("", resolveConversationModelName(row, provider, ModelDisplayLookup.Pending))
+        assertEquals("a deleted provider still shows the stored id", row.modelID, resolveConversationModelName(row, null, ModelDisplayLookup.Pending))
+        assertTrue(runBlocking { flowOf(listOf(provider)).modelDisplayLookups().first().isReady })
     }
 
     // ---- Equivalence: index lookups == the per-row scan they replace ----

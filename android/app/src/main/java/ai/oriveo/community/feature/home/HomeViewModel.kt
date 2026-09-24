@@ -32,7 +32,9 @@ import ai.oriveo.community.core.model.ProviderConnectionState
 import ai.oriveo.community.core.model.ProviderIssueInfo
 import ai.oriveo.community.core.model.resolveActiveModel
 import ai.oriveo.community.core.model.selectHomeSkills
+import ai.oriveo.community.core.provider.ModelDisplayLookup
 import ai.oriveo.community.core.provider.ModelSelectionUtils
+import ai.oriveo.community.core.provider.modelDisplayLookups
 import ai.oriveo.community.core.provider.CapabilityEvidenceProductionAdapter
 import ai.oriveo.community.core.provider.CapabilityEvidenceObservationBridge
 import ai.oriveo.community.core.provider.ProviderSelectionSnapshot
@@ -112,6 +114,15 @@ class HomeViewModel(
     val providers: StateFlow<List<Provider>> = providerRepository.observeAll()
         .onEach { providersLoaded.value = true }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    /**
+     * The lookup conversation rows use to resolve model display names: built and index-prewarmed on
+     * [defaultDispatcher] per providers emission; composition only reads it. It subscribes to the repository's shared
+     * flow directly (the same objects [providers] receives), not through the empty initial value of [providers].
+     */
+    val modelDisplayLookup: StateFlow<ModelDisplayLookup> = providerRepository.observeAll()
+        .modelDisplayLookups(defaultDispatcher)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), ModelDisplayLookup.Pending)
 
     val folders: StateFlow<List<Folder>> = folderRepository.observeAll()
         .onEach { foldersLoaded.value = true }
@@ -235,8 +246,10 @@ class HomeViewModel(
         providersLoaded,
         conversationsLoaded,
         foldersLoaded,
-    ) { hasProviders, hasConversations, hasFolders ->
-        hasProviders && hasConversations && hasFolders
+        // The first screen of conversation rows needs it to resolve model names: wait for the first build, so a fallback name never shows and then changes
+        modelDisplayLookup.map { it.isReady },
+    ) { hasProviders, hasConversations, hasFolders, hasModelDisplayLookup ->
+        hasProviders && hasConversations && hasFolders && hasModelDisplayLookup
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
     val searchQuery = MutableStateFlow("")
