@@ -223,9 +223,6 @@ struct HomeView: View {
         contentAppeared || appState.hasPlayedHomeIntro
     }
     @State private var earlierDisplayCount = homeEarlierPageSize
-    @State private var cachedConversationModelLookup = ModelDisplayLookup.empty
-    @State private var cachedConversationModelLookupVersion: UInt = .max
-    @State private var cachedConversationModelLookupFingerprint: Int?
     @State private var heroText = ""
     /// The input is a UIKit view (ComposerTextView) that bridges focus to first responder by hand, not through FocusState.
     @State private var heroFocused = false
@@ -266,8 +263,8 @@ struct HomeView: View {
         appState.folderManager.createFolder(name: name)
     }
 
-    private var conversationModelLookup: ModelDisplayLookup {
-        cachedConversationModelLookup
+    private var conversationModelLookupStore: ConversationModelLookupStore {
+        appState.conversationModelLookupStore
     }
 
     private var groupedConversations: [HomeConversationSectionState] {
@@ -1155,11 +1152,11 @@ struct HomeView: View {
 
     private func conversationButton(for conversation: Conversation, showFolderTag: Bool = false, grouped: Bool = false) -> some View {
         let provider = appState.provider(for: conversation.providerID)
-        let resolvedModelName = ConversationRow.resolveModelName(
-            for: conversation,
-            provider: provider,
-            lookup: conversationModelLookup
-        )
+        // Show no model name until the background lookup is ready, so a fallback name never flashes before the real one
+        let lookupStore = conversationModelLookupStore
+        let resolvedModelName = lookupStore.isReady
+            ? ConversationRow.resolveModelName(for: conversation, provider: provider, lookup: lookupStore.lookup)
+            : nil
 
         return Button {
             if isEditing {
@@ -1304,14 +1301,9 @@ struct HomeView: View {
     }
 
     private func refreshConversationModelLookup() {
-        let fingerprint = ModelDisplayLookup.fingerprint(providers: appState.providers)
-        if fingerprint == cachedConversationModelLookupFingerprint {
-            cachedConversationModelLookupVersion = appState.providersVersion
-            return
-        }
-        cachedConversationModelLookup = ModelDisplayLookup(providers: appState.providers)
-        cachedConversationModelLookupVersion = appState.providersVersion
-        cachedConversationModelLookupFingerprint = fingerprint
+        // providersVersion also bumps for unrelated fields such as status and lastCheckedAt; fingerprinting and
+        // rebuilding both run in the background, and nothing is rebuilt while the models and metadata are unchanged
+        conversationModelLookupStore.refresh(providers: appState.providers)
     }
 
     // MARK: - Editing Toolbar

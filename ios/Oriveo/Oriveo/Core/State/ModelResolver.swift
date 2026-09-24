@@ -60,6 +60,14 @@ nonisolated enum ModelResolver {
             return firstIndex.map { models[$0] }
         }
 
+        /// Builds the fuzzy-layer index (two regexes per model) now: call it off the main thread, so later queries on
+        /// the main thread are only table lookups.
+        mutating func prepareStoredIdentifierIndex() {
+            if firstIndexByStoredIdentifier == nil {
+                firstIndexByStoredIdentifier = buildStoredIdentifierIndex()
+            }
+        }
+
         /// The four identifiers `modelMatchesStoredIdentifier` compares. Empty strings are not indexed: query
         /// candidates are never empty, so they never match in the pairwise comparison either.
         private func buildStoredIdentifierIndex() -> [String: Int] {

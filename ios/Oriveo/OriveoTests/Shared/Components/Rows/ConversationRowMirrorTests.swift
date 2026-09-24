@@ -65,7 +65,7 @@ struct ConversationRowMirrorTests {
             let resolvedModelName = ConversationRow.resolveModelName(
                 for: conversation,
                 provider: provider,
-                metadata: MetadataClient.shared
+                lookup: ModelDisplayLookup(providers: [provider], metadata: MetadataClient.shared)
             )
 
             #expect(resolvedModelName == "GPT-4o Latest")

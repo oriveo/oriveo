@@ -48,30 +48,25 @@ struct ConversationRow: View, Equatable {
         return lhs.isPinned == rhs.isPinned
     }
 
+    /// The caller must pass `lookup`: Home and folders pass the one `ConversationModelLookupStore` built in the
+    /// background. A per-row default used to build one for each row, a full pass over a 22k relay catalog per row
+    /// (four sets of lookup keys per model, two regexes each).
     nonisolated static func resolveModelName(
         for conversation: Conversation,
         provider: Provider?,
-        lookup: ModelDisplayLookup? = nil,
-        metadata: MetadataClient = .shared
+        lookup: ModelDisplayLookup
     ) -> String? {
         guard let provider else { return nil }
 
-        let resolvedLookup = lookup ?? ModelDisplayLookup(
-            providers: [provider],
-            metadata: metadata
-        )
-        if let modelName = resolvedLookup.modelDisplayName(
+        if let modelName = lookup.modelDisplayName(
             providerID: provider.id,
             modelID: conversation.modelID
         ) {
             return modelName
         }
 
-        return ModelResolver.matchingModel(
-            modelID: conversation.modelID,
-            in: ProviderSelectionSnapshot.enabledModels(in: provider),
-            providerKind: provider.kind
-        )?.name
+        // Search the enabled models again: equivalent to matchingModel over ProviderSelectionSnapshot.enabledModels(in:)
+        return lookup.matchingEnabledModel(modelID: conversation.modelID, in: provider)?.name
     }
 
     // MARK: - Body

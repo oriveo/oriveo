@@ -290,6 +290,9 @@ final class AppState {
     @ObservationIgnored private var boundPartitionUID: String
     private(set) var providersVersion: UInt = 0
     private(set) var conversationsVersion: UInt = 0
+    /// The model display name lookup shared by Home and folder conversation rows (built in the background, reused by
+    /// fingerprint); see `ConversationModelLookupStore`.
+    @ObservationIgnored let conversationModelLookupStore = ConversationModelLookupStore()
     private var lastAutoRefreshDate: Date?
 
     init(

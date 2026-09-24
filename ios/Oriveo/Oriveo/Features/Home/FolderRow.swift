@@ -224,13 +224,14 @@ struct FolderRow: View {
                             : OriveoTheme.V2.Colors.textTertiary)
                 }
                 let provider = appState.provider(for: conversation.providerID)
+                // The same background-built lookup as Home (Home refreshes it); each row used to build its own over the whole catalog
+                let lookupStore = appState.conversationModelLookupStore
                 ConversationRow(
                     conversation: conversation,
                     provider: provider,
-                    resolvedModelName: ConversationRow.resolveModelName(
-                        for: conversation,
-                        provider: provider
-                    ),
+                    resolvedModelName: lookupStore.isReady
+                        ? ConversationRow.resolveModelName(for: conversation, provider: provider, lookup: lookupStore.lookup)
+                        : nil,
                     skillIcon: conversation.skillId.flatMap { appState.skillManager.skill(by: $0)?.icon },
                     grouped: true,
                     isEditing: isEditing,

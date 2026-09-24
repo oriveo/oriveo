@@ -562,6 +562,174 @@ struct RelayCatalogScaleTests {
         }
     }
 
+    // MARK: - Model display names in Home and folder conversation rows
+
+    /// A relay Provider produced by the production write path (updateProvider plus the background finalize enrichment).
+    private func finalizedRelayProvider(catalogCount: Int = catalogCount, enabledCount: Int = enabledCount) async throws -> Provider {
+        var provider = Self.makeRelayProvider(catalogCount: catalogCount, enabledCount: enabledCount)
+        provider.cachedAvailableModelCount = nil
+        let state = makeState(with: provider)
+        state.providerManager.updateProvider(provider)
+        await state.providerManager.waitForRelayFinalizeForTesting(providerID: provider.id)
+        return try #require(state.providers.first { $0.id == provider.id })
+    }
+
+    /// Home (and folders) refresh the `ModelDisplayLookup` used by conversation rows whenever providers change:
+    /// fingerprint the whole catalog, and rebuild when the fingerprint changes (one metadata lookup per catalog model,
+    /// four sets of lookup keys, two date-suffix regexes each). Both steps used to run on the main thread.
+    @Test("Home row lookup: refreshing a 22k catalog stalls the main thread < 50ms; matches a direct build; unchanged fingerprint is not rebuilt")
+    func homeModelLookupRefreshKeepsMainThreadResponsive() async throws {
+        try await loadWhitelistMetadata()
+        defer { ProviderCatalogResolver.resetMemoForTesting() }
+        let provider = try await finalizedRelayProvider()
+        var added = provider
+        let enabledIDs = Set(provider.models.map(\.id))
+        added.models.append(try #require(provider.catalogModels.first { !enabledIDs.contains($0.id) }))
+        var statusOnly = added
+        statusOnly.lastCheckedAt = Date()
+
+        let store = ConversationModelLookupStore()
+        let probe = MainThreadStallProbe()
+        probe.start()
+        pumpMainRunLoop(0.05)
+        let clock = ContinuousClock()
+        let start = clock.now
+        store.refresh(providers: [provider])                  // first build
+        await store.waitForRefreshForTesting()
+        let firstReadyMs = Self.milliseconds(clock.now - start)
+        store.refresh(providers: [added])                     // one model added: fingerprint changes, rebuild
+        await store.waitForRefreshForTesting()
+        store.refresh(providers: [statusOnly])                // status only: fingerprint unchanged, reuse
+        await store.waitForRefreshForTesting()
+        pumpMainRunLoop(0.05)
+        probe.stop()
+        let stallMs = probe.maxStall * 1_000
+        print("[RelayCatalogScale] home model lookup refresh \(Self.catalogCount): first ready = \(String(format: "%.1f", firstReadyMs))ms, main-thread max stall (2 builds + 1 reuse) = \(String(format: "%.1f", stallMs))ms")
+
+        #expect(store.isReady)
+        #expect(store.buildCountForTesting == 2)
+        let direct = ModelDisplayLookup(providers: [added])
+        let probes = added.models.prefix(40).map(\.id) + added.catalogModels.prefix(40).map(\.id)
+            + ["Vendor-3/Retired-1", "vendor-9/model-9-20250101", "", "  \(added.catalogModels[17].id.uppercased())  "]
+        for modelID in probes {
+            #expect(store.lookup.modelDisplayName(providerID: added.id, modelID: modelID) == direct.modelDisplayName(providerID: added.id, modelID: modelID), "\(modelID)")
+            #expect(store.lookup.contextLength(providerID: added.id, modelID: modelID) == direct.contextLength(providerID: added.id, modelID: modelID), "\(modelID)")
+        }
+        #expect(stallMs < Self.mainThreadBudgetMs, "longest main-thread stall \(stallMs)ms exceeds \(Self.mainThreadBudgetMs)ms")
+    }
+
+    /// `ConversationRow.resolveModelName` as it was before, kept verbatim as the reference: when the lookup has no
+    /// answer, run matchingModel over the enabled models one by one.
+    nonisolated private static func referenceRowModelName(
+        _ conversation: Conversation,
+        provider: Provider?,
+        lookup: ModelDisplayLookup
+    ) -> String? {
+        guard let provider else { return nil }
+        if let name = lookup.modelDisplayName(providerID: provider.id, modelID: conversation.modelID) {
+            return name
+        }
+        return ModelResolver.matchingModel(
+            modelID: conversation.modelID,
+            in: ProviderSelectionSnapshot.enabledModels(in: provider),
+            providerKind: provider.kind
+        )?.name
+    }
+
+    /// A row with no display name (its model was removed from the relay) falls back to searching the enabled models.
+    /// After "Add all" the enabled models are the whole catalog: each row used to run matchingModel model by model,
+    /// with two more regexes per model once the exact pass missed.
+    @Test("row fallback: with everything enabled the per-row cost does not grow with the catalog (22k / 2.2k < 3x) and matches per-model matchingModel")
+    func conversationRowFallbackDoesNotScaleWithEnabledCount() async throws {
+        await MetadataClient.shared.resetForTesting()
+        defer { ProviderCatalogResolver.resetMemoForTesting() }
+
+        func perRowMs(catalogCount: Int) throws -> Double {
+            let provider = Self.makeRelayProvider(catalogCount: catalogCount, enabledCount: catalogCount)
+            let lookup = ModelDisplayLookup(providers: [provider])
+            let rows = (0..<6).map {
+                TestFactories.makeConversation(providerID: provider.id, providerKind: .relay, modelID: "Vendor-\($0)/Retired-\($0)")
+            }
+            // The first pass builds this lookup's index; measure the marginal cost per row after that
+            for row in rows { _ = ConversationRow.resolveModelName(for: row, provider: provider, lookup: lookup) }
+            var samples: [Double] = []
+            for _ in 0..<2 {
+                samples.append(Self.measure {
+                    for row in rows { _ = ConversationRow.resolveModelName(for: row, provider: provider, lookup: lookup) }
+                } / Double(rows.count))
+            }
+            for row in rows {
+                #expect(ConversationRow.resolveModelName(for: row, provider: provider, lookup: lookup)
+                    == Self.referenceRowModelName(row, provider: provider, lookup: lookup))
+            }
+            return samples.min() ?? .infinity
+        }
+
+        let small = try perRowMs(catalogCount: Self.catalogCount / 10)
+        let large = try perRowMs(catalogCount: Self.catalogCount)
+        let ratio = large / small
+        print("[RelayCatalogScale] conversation row fallback (all enabled) per row: \(Self.catalogCount / 10) = \(String(format: "%.3f", small))ms, \(Self.catalogCount) = \(String(format: "%.3f", large))ms, ratio = \(String(format: "%.1f", ratio))")
+        #expect(ratio < 3, "the row fallback grows with the enabled count: \(small)ms → \(large)ms")
+    }
+
+    @Test("row display names match the previous resolution: seeded random catalogs, lookup built from the current Provider or an older one")
+    func conversationRowModelNameMatchesReference() async throws {
+        await MetadataClient.shared.resetForTesting()
+        defer { ProviderCatalogResolver.resetMemoForTesting() }
+
+        struct SplitMix64 {
+            var state: UInt64
+            mutating func next() -> UInt64 {
+                state &+= 0x9E37_79B9_7F4A_7C15
+                var z = state
+                z = (z ^ (z >> 30)) &* 0xBF58_476D_1CE4_E5B9
+                z = (z ^ (z >> 27)) &* 0x94D0_49BB_1331_11EB
+                return z ^ (z >> 31)
+            }
+            mutating func int(_ upper: Int) -> Int { Int(next() % UInt64(upper)) }
+        }
+        let stems = ["alpha", "Beta", "GAMMA", "Straße", "STRASSE", "e\u{301}clair", "delta-2025-01-01", "eps"]
+        func randomID(_ rng: inout SplitMix64) -> String {
+            var id = stems[rng.int(stems.count)] + "-\(rng.int(8))"
+            if rng.int(3) == 0 { id = id.uppercased() }
+            if rng.int(5) == 0 { id += "-20250101" }
+            if rng.int(9) == 0 { id = "relay-manual-" + id }
+            if rng.int(4) == 0 { id = stems[rng.int(stems.count)] }
+            return id
+        }
+        func randomModel(_ rng: inout SplitMix64) -> AIModel {
+            let id = randomID(&rng)
+            let canonical: String? = rng.int(3) == 0 ? randomID(&rng) : nil
+            return Self.model(id, name: "name-\(rng.int(40))", canonical: canonical)
+        }
+
+        var rng = SplitMix64(state: 0xFEED_0000_1111_2222)
+        for round in 0..<40 {
+            let kind: ProviderKind = [.relay, .openAI, .openRouter][round % 3]
+            var provider = Self.makeRelayProvider(catalogCount: 1, enabledCount: 1)
+            provider.kind = kind
+            if kind != .relay { provider.relayRequested = nil }
+            provider.catalogModels = (0..<(10 + rng.int(40))).map { _ in randomModel(&rng) }
+            provider.models = (0..<(1 + rng.int(20))).map { _ in randomModel(&rng) }
+            // Same source: the lookup was built from this Provider; different source: it was built before the change
+            // (the Home refresh has not caught up yet)
+            var stale = provider
+            stale.models = Array(provider.models.dropFirst()) + [randomModel(&rng)]
+            for lookupSource in [provider, stale] {
+                let lookup = ModelDisplayLookup(providers: [lookupSource])
+                for _ in 0..<30 {
+                    let modelID = rng.int(2) == 0 ? randomID(&rng) : provider.models[rng.int(provider.models.count)].id
+                    let row = TestFactories.makeConversation(providerID: provider.id, providerKind: kind, modelID: modelID)
+                    #expect(
+                        ConversationRow.resolveModelName(for: row, provider: provider, lookup: lookup)
+                            == Self.referenceRowModelName(row, provider: provider, lookup: lookup),
+                        "round=\(round) kind=\(kind) modelID=\(modelID)"
+                    )
+                }
+            }
+        }
+    }
+
     /// Model ids normalized by the production `updateProvider`, compared one by one with the per-conversation
     /// `matchingModel(for:in:)` plus default fallback it replaces. The catalog has case twins, date suffixes, legacy
     /// prefixes, canonical ids and duplicate ids; the conversations have retired models, whitespace, the same

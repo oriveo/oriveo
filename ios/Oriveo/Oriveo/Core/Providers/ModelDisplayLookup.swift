@@ -7,6 +7,44 @@ nonisolated struct ModelDisplayLookup: Sendable {
         let modelDisplayNamesByKey: [String: String]
         let contextLengthsByKey: [String: Int]
         let relayKind: RelayKind?
+        /// The enabled models this entry was built from. When a conversation row falls back to searching the
+        /// enabled models, the index below is used only if the caller's Provider holds this same array (shared
+        /// storage makes the comparison O(1)); otherwise it compares one by one as before.
+        let enabledModels: [AIModel]
+        let enabledModelIndex: SharedMatchingModelIndex
+    }
+
+    /// A shared `ModelResolver.MatchingModelIndex`: the lookup is a value type passed between views, so the index is
+    /// built once on demand and then shared by every holder. It is locked because a background prewarm and a
+    /// main-thread query can overlap.
+    nonisolated final class SharedMatchingModelIndex: @unchecked Sendable {
+        private let models: [AIModel]
+        private let providerKind: ProviderKind
+        private let lock = NSLock()
+        private var index: ModelResolver.MatchingModelIndex?
+
+        init(_ models: [AIModel], providerKind: ProviderKind) {
+            self.models = models
+            self.providerKind = providerKind
+        }
+
+        func match(_ modelID: String) -> AIModel? {
+            lock.lock()
+            defer { lock.unlock() }
+            var built = index ?? ModelResolver.MatchingModelIndex(models, providerKind: providerKind)
+            let result = built.match(modelID)
+            index = built
+            return result
+        }
+
+        /// Builds both the exact and the fuzzy layer now.
+        func prewarm() {
+            lock.lock()
+            defer { lock.unlock() }
+            var built = index ?? ModelResolver.MatchingModelIndex(models, providerKind: providerKind)
+            built.prepareStoredIdentifierIndex()
+            index = built
+        }
     }
 
     private let entriesByProviderID: [UUID: Entry]
@@ -54,6 +92,26 @@ nonisolated struct ModelDisplayLookup: Sendable {
             }
         }
         return hasher.finalize()
+    }
+
+    /// Exactly equivalent to `ModelResolver.matchingModel(modelID:in: provider.models, providerKind:)`. When this
+    /// lookup was built from `provider`'s current enabled models it queries the index (after "Add all" the enabled
+    /// models are the whole relay catalog, and comparing one by one per row grows with the catalog); otherwise it
+    /// compares one by one as before.
+    nonisolated func matchingEnabledModel(modelID: String, in provider: Provider) -> AIModel? {
+        guard let entry = entriesByProviderID[provider.id],
+              entry.providerKind == provider.kind,
+              entry.enabledModels == provider.models else {
+            return ModelResolver.matchingModel(modelID: modelID, in: provider.models, providerKind: provider.kind)
+        }
+        return entry.enabledModelIndex.match(modelID)
+    }
+
+    /// Builds every Provider's enabled-model index now. Call it off the main thread.
+    nonisolated func prewarm() {
+        for entry in entriesByProviderID.values {
+            entry.enabledModelIndex.prewarm()
+        }
     }
 
     nonisolated func providerDisplayName(providerID: UUID) -> String? {
@@ -165,7 +223,12 @@ private enum ModelDisplayLookupBuilder {
                         provider: provider,
                         metadata: metadata
                     ),
-                    relayKind: provider.kind == .relay ? provider.relayKind : nil
+                    relayKind: provider.kind == .relay ? provider.relayKind : nil,
+                    enabledModels: provider.models,
+                    enabledModelIndex: ModelDisplayLookup.SharedMatchingModelIndex(
+                        provider.models,
+                        providerKind: provider.kind
+                    )
                 )
             )
         })
