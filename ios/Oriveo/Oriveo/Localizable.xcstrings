@@ -1109,7 +1109,7 @@
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "API ยังคงอยู่ในอุปกรณ์ของคุณ"
+            "value": "คีย์ API ยังคงอยู่ในอุปกรณ์ของคุณ"
           }
         },
         "tr": {
@@ -1121,7 +1121,7 @@
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "API ở lại trên thiết bị của bạn"
+            "value": "Khóa API chỉ lưu trên thiết bị của bạn"
           }
         },
         "zh-Hans": {
@@ -11485,7 +11485,7 @@
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "คีย์ API Key ไม่ถูกต้อง"
+            "value": "คีย์ API ไม่ถูกต้อง"
           }
         },
         "tr": {
@@ -11497,7 +11497,7 @@
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Khóa API Key không hợp lệ"
+            "value": "Khóa API không hợp lệ"
           }
         },
         "zh-Hans": {

@@ -267,7 +267,7 @@
     "welcome": {
       "title": "Chào mừng đến với Oriveo",
       "tagline": "Tất cả mô hình của bạn, một ứng dụng.",
-      "slogan": "Chìa khóa của bạn, chi phí của bạn, dữ liệu của bạn.",
+      "slogan": "Khóa API của bạn, chi phí của bạn, dữ liệu của bạn.",
       "description": "Thiết lập nhà cung cấp AI đầu tiên của bạn để bắt đầu cuộc trò chuyện đa mô hình.",
       "addProvider": "Thêm nhà cung cấp",
       "enterHome": "Vào ứng dụng"
@@ -412,8 +412,8 @@
     "providerSetup": {
       "title": "Thêm nhà cung cấp",
       "selectProvider": "Chọn nhà cung cấp",
-      "apiKeyLabel": "Khóa API Key",
-      "getKeyAt": "Nhận chìa khóa của bạn tại {provider}",
+      "apiKeyLabel": "Khóa API",
+      "getKeyAt": "Lấy khóa API tại {provider}",
       "showKey": "Hiển thị khóa API",
       "hideKey": "Ẩn khóa API",
       "region": "Vùng đất",
@@ -455,7 +455,7 @@
       "relayNamePlaceholder": "ví dụ: LLM tùy chỉnh của tôi",
       "relayEndpointLabel": "URL yêu cầu",
       "relayEndpointPlaceholder": "https://api.example.com/v1",
-      "relayApiKeyLabel": "Khóa API Key",
+      "relayApiKeyLabel": "Khóa API",
       "relayApiKeyPlaceholder": "sk-...",
       "addRelay": "Thêm LLM tùy chỉnh",
       "relayNameRequired": "Vui lòng nhập tên",
@@ -588,7 +588,7 @@
       "addNew": "Thêm nhà cung cấp",
       "addProvider": "Thêm nhà cung cấp",
       "noProviders": "Không có nhà cung cấp nào được định cấu hình",
-      "noProvidersHint": "Thêm API đầu tiên của bạn để bắt đầu trò chuyện.",
+      "noProvidersHint": "Thêm khóa API đầu tiên để bắt đầu trò chuyện.",
       "lastSynced": "Đã kiểm tra {time}",
       "neverSynced": "Chưa bao giờ kiểm tra",
       "modelCount": "{đếm, số nhiều, =0 {Không có mô hình} =1 {1 mô hình} khác {# mô hình}}",
@@ -626,7 +626,7 @@
       "namePlaceholder": "ví dụ. Dịch vụ LLM tùy chỉnh của tôi",
       "endpointLabel": "URL yêu cầu",
       "endpointPlaceholder": "https://api.example.com/v1",
-      "apiKeyLabel": "Khóa API Key",
+      "apiKeyLabel": "Khóa API",
       "apiKeyPlaceholder": "sk-...",
       "defaultModelLabel": "Mô hình",
       "defaultModelOptional": "optional",
@@ -991,7 +991,7 @@
       "deleteProvider": "Xóa nhà cung cấp",
       "confirmDeleteTitle": "Xóa nhà cung cấp này?",
       "confirmDeleteDesc": "Điều này sẽ loại bỏ nhà cung cấp và tất cả các mô hình của nó. Các cuộc trò chuyện sử dụng nhà cung cấp này sẽ không còn hoạt động.",
-      "apiKey": "Khóa API Key",
+      "apiKey": "Khóa API",
       "editKey": "Chỉnh sửa khóa",
       "showKey": "Hiển thị khóa API",
       "hideKey": "Ẩn khóa API",
@@ -1054,7 +1054,7 @@
       "recoveryCard": {
         "needsKeyHeadline": "Khóa API chưa lưu trên thiết bị này. Chạm để thêm.",
         "connectionIssueHeadline": "Sự cố kết nối — vui lòng kiểm tra API key của bạn.",
-        "editApiKey": "Chỉnh sửa khóa API Key",
+        "editApiKey": "Chỉnh sửa khóa API",
         "retry": "Retry",
         "dismiss": "Đóng",
         "subscriptionNeedsAuthHeadline": "Thiết bị này chưa lưu thông tin đăng nhập gói đăng ký. Hãy cấp quyền lại.",
@@ -1063,7 +1063,7 @@
       },
       "settings": {
         "title": "Cài đặt",
-        "editApiKey": "Chỉnh sửa khóa API Key",
+        "editApiKey": "Chỉnh sửa khóa API",
         "advanced": "Cài đặt nâng cao"
       },
       "renameProviderTitle": "Đổi tên",
@@ -1112,10 +1112,10 @@
     },
     "providers": {
       "title": "Nhà cung cấp",
-      "description": "Quản lý kết nối nhà cung cấp AI của bạn và API.",
+      "description": "Quản lý kết nối nhà cung cấp AI và khóa API của bạn.",
       "addNew": "Thêm nhà cung cấp",
       "noProviders": "Không có nhà cung cấp nào được định cấu hình",
-      "noProvidersHint": "Thêm API đầu tiên của bạn để bắt đầu trò chuyện."
+      "noProvidersHint": "Thêm khóa API đầu tiên để bắt đầu trò chuyện."
     },
     "settings": {
       "title": "Cài đặt",
@@ -1152,7 +1152,7 @@
       "exportPrivateCatalogNotice": "Tệp này bao gồm danh sách mô hình riêng tư của LLM tùy chỉnh của bạn. Khóa API không bao giờ được đưa vào.",
       "password": "Mật khẩu",
       "confirmPassword": "Xác nhận mật khẩu",
-      "includeApiKeys": "Bao gồm các phím API",
+      "includeApiKeys": "Bao gồm khóa API",
       "export": "Xuất khẩu",
       "exporting": "Đang xuất…",
       "exportFailed": "Xuất không thành công. Vui lòng thử lại.",
@@ -1179,7 +1179,7 @@
       "previewCreatedAt": "Tạo",
       "previewPlatform": "Nền tảng",
       "previewVersion": "Phiên bản ứng dụng",
-      "previewContainsKeys": "Phím API",
+      "previewContainsKeys": "Khóa API",
       "previewYes": "Đúng",
       "previewNo": "KHÔNG",
       "previewDataContent": "Nội dung dữ liệu",
@@ -1195,8 +1195,8 @@
       "modeReplaceAll": "Thay thế tất cả",
       "modeReplaceAllHint": "Xóa tất cả dữ liệu cục bộ và thay thế bằng nội dung sao lưu.",
       "keyPasswordHint": "Bản sao lưu này chứa Khóa API được mã hóa. Nhập mật khẩu để khôi phục chúng.",
-      "keyPasswordPlaceholder": "Mật khẩu chính API Key",
-      "skipKeys": "Bỏ qua phím API",
+      "keyPasswordPlaceholder": "Mật khẩu mã hóa khóa API",
+      "skipKeys": "Bỏ qua khóa API",
       "restoreKeys": "Khôi phục khóa",
       "importComplete": "Nhập hoàn tất",
       "resultConversationsAdded": "Đã thêm cuộc trò chuyện",
@@ -1213,7 +1213,7 @@
       "encryptionPassword": "Mật khẩu mã hóa",
       "passwordPlaceholder": "Ít nhất 8 ký tự",
       "confirmPasswordPlaceholder": "Nhập lại mật khẩu",
-      "encryptionFootnote": "API sẽ được mã hóa bằng mật khẩu này. Giữ nó an toàn — bạn sẽ cần nó để khôi phục chìa khóa.",
+      "encryptionFootnote": "Khóa API sẽ được mã hóa bằng mật khẩu này. Hãy cất giữ mật khẩu này cẩn thận — bạn sẽ cần nó để khôi phục khóa API.",
       "yourData": "Dữ liệu của bạn",
       "dataConversations": "Cuộc trò chuyện",
       "dataProviders": "Nhà cung cấp",
@@ -1340,8 +1340,8 @@
   },
   "errors": {
     "invalidKey": {
-      "title": "Khóa API Key không hợp lệ",
-      "message": "API bạn nhập không hợp lệ hoặc đã bị thu hồi. Vui lòng kiểm tra chìa khóa của bạn và thử lại."
+      "title": "Khóa API không hợp lệ",
+      "message": "Khóa API bạn nhập không hợp lệ hoặc đã bị thu hồi. Vui lòng kiểm tra khóa và thử lại."
     },
     "rateLimited": {
       "title": "Tỷ lệ giới hạn",

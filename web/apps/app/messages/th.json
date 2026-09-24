@@ -267,7 +267,7 @@
     "welcome": {
       "title": "ยินดีต้อนรับสู่ Oriveo",
       "tagline": "โมเดลทั้งหมดของคุณในแอปเดียว",
-      "slogan": "กุญแจของคุณ ค่าใช้จ่ายของคุณ ข้อมูลของคุณ",
+      "slogan": "คีย์ของคุณ ค่าใช้จ่ายของคุณ ข้อมูลของคุณ",
       "description": "ตั้งค่าผู้ให้บริการ AI รายแรกของคุณเพื่อเริ่มต้นการสนทนาหลายรูปแบบ",
       "addProvider": "เพิ่มผู้ให้บริการ",
       "enterHome": "เข้าแอป"
@@ -412,8 +412,8 @@
     "providerSetup": {
       "title": "เพิ่มผู้ให้บริการ",
       "selectProvider": "เลือกผู้ให้บริการ",
-      "apiKeyLabel": "API Key คีย์",
-      "getKeyAt": "รับกุญแจได้ที่ {provider}",
+      "apiKeyLabel": "คีย์ API",
+      "getKeyAt": "รับคีย์ API ได้ที่ {provider}",
       "showKey": "แสดงคีย์",
       "hideKey": "ซ่อนคีย์",
       "region": "ภูมิภาค",
@@ -455,8 +455,8 @@
       "relayNamePlaceholder": "เช่น LLM แบบกำหนดเองของฉัน",
       "relayEndpointLabel": "URL คำขอ",
       "relayEndpointPlaceholder": "https://api.example.com/v1",
-      "relayApiKeyLabel": "API Key คีย์",
-      "relayApiKeyPlaceholder": "สค-...",
+      "relayApiKeyLabel": "คีย์ API",
+      "relayApiKeyPlaceholder": "sk-...",
       "addRelay": "เพิ่ม LLM แบบกำหนดเอง",
       "relayNameRequired": "กรุณากรอกชื่อ",
       "relayEndpointRequired": "โปรดป้อน URL คำขอ",
@@ -588,7 +588,7 @@
       "addNew": "เพิ่มผู้ให้บริการ",
       "addProvider": "เพิ่มผู้ให้บริการ",
       "noProviders": "ไม่มีการกำหนดค่าผู้ให้บริการ",
-      "noProvidersHint": "เพิ่ม API แรกของคุณเพื่อเริ่มแชท",
+      "noProvidersHint": "เพิ่มคีย์ API แรกของคุณเพื่อเริ่มแชท",
       "lastSynced": "ตรวจสอบ {time} แล้ว",
       "neverSynced": "ไม่เคยตรวจสอบ",
       "modelCount": "{count, พหูพจน์, =0 {ไม่มีรุ่น} =1 {1 รุ่น} อื่นๆ {# รุ่น}}",
@@ -626,8 +626,8 @@
       "namePlaceholder": "เช่น บริการ LLM แบบกำหนดเอง ของฉัน",
       "endpointLabel": "URL คำขอ",
       "endpointPlaceholder": "https://api.example.com/v1",
-      "apiKeyLabel": "API Key คีย์",
-      "apiKeyPlaceholder": "สค-...",
+      "apiKeyLabel": "คีย์ API",
+      "apiKeyPlaceholder": "sk-...",
       "defaultModelLabel": "โมเดล",
       "defaultModelOptional": "optional",
       "defaultModelPlaceholder": "e.g. gpt-5.4",
@@ -833,7 +833,7 @@
       "saveAndContinue": "บันทึกและดำเนินการต่อ",
       "noProtocolVerified": "ไม่พบโปรโตคอลที่ดำเนินการตามคำขอทดสอบสำเร็จ",
       "embeddedQuery": "ลบพารามิเตอร์การค้นหาออกจาก URL คำขอ Oriveo ไม่เคยลองใช้คีย์ API จากพารามิเตอร์การสืบค้นโดยอัตโนมัติ",
-      "authenticationRejected": "เซิร์ฟเวอร์ปฏิเสธคีย์ API ตรวจสอบกุญแจหรือเลือกโปรโตคอลที่บันทึกไว้ด้วยตนเอง",
+      "authenticationRejected": "เซิร์ฟเวอร์ปฏิเสธคีย์ API ตรวจสอบคีย์ หรือเลือกโปรโตคอลเองตามที่ระบุในเอกสาร",
       "relayRateLimited": "Custom LLM ถึงขีดจำกัดอัตราแล้ว รอแล้วลองอีกครั้ง Oriveo ไม่ได้เปลี่ยนข้อมูลรับรองหรือโปรโตคอล",
       "temporaryFailure": "ไม่สามารถเชื่อมต่อกับ Custom LLM ได้อย่างเสถียร ตรวจสอบที่อยู่แล้วลองอีกครั้ง",
       "networkFailure": "ไม่สามารถเชื่อมต่อกับ Custom LLM ได้อย่างเสถียร ตรวจสอบที่อยู่แล้วลองอีกครั้ง",
@@ -991,7 +991,7 @@
       "deleteProvider": "ลบผู้ให้บริการ",
       "confirmDeleteTitle": "ลบผู้ให้บริการรายนี้ใช่ไหม",
       "confirmDeleteDesc": "การดำเนินการนี้จะลบผู้ให้บริการและโมเดลทั้งหมดออก การสนทนาโดยใช้ผู้ให้บริการรายนี้จะใช้งานไม่ได้อีกต่อไป",
-      "apiKey": "API Key คีย์",
+      "apiKey": "คีย์ API",
       "editKey": "แก้ไขคีย์",
       "showKey": "แสดงคีย์",
       "hideKey": "ซ่อนคีย์",
@@ -1054,7 +1054,7 @@
       "recoveryCard": {
         "needsKeyHeadline": "ไม่ได้บันทึกคีย์ API บนอุปกรณ์นี้ แตะเพื่อเพิ่ม",
         "connectionIssueHeadline": "เกิดปัญหาการเชื่อมต่อ — โปรดตรวจสอบ API key",
-        "editApiKey": "แก้ไขคีย์ API Key",
+        "editApiKey": "แก้ไขคีย์ API",
         "retry": "Retry",
         "dismiss": "ปิด",
         "subscriptionNeedsAuthHeadline": "อุปกรณ์นี้ไม่ได้บันทึกการลงชื่อเข้าใช้แบบสมัครสมาชิก โปรดอนุญาตอีกครั้ง",
@@ -1063,7 +1063,7 @@
       },
       "settings": {
         "title": "การตั้งค่า",
-        "editApiKey": "แก้ไขคีย์ API Key",
+        "editApiKey": "แก้ไขคีย์ API",
         "advanced": "การตั้งค่าขั้นสูง"
       },
       "renameProviderTitle": "เปลี่ยนชื่อ",
@@ -1112,10 +1112,10 @@
     },
     "providers": {
       "title": "ผู้ให้บริการ",
-      "description": "จัดการการเชื่อมต่อผู้ให้บริการ AI ของคุณและ API",
+      "description": "จัดการการเชื่อมต่อผู้ให้บริการ AI และคีย์ API ของคุณ",
       "addNew": "เพิ่มผู้ให้บริการ",
       "noProviders": "ไม่มีการกำหนดค่าผู้ให้บริการ",
-      "noProvidersHint": "เพิ่ม API แรกของคุณเพื่อเริ่มแชท"
+      "noProvidersHint": "เพิ่มคีย์ API แรกของคุณเพื่อเริ่มแชท"
     },
     "settings": {
       "title": "การตั้งค่า",
@@ -1179,7 +1179,7 @@
       "previewCreatedAt": "สร้าง",
       "previewPlatform": "แพลตฟอร์ม",
       "previewVersion": "เวอร์ชันของแอป",
-      "previewContainsKeys": "API คีย์",
+      "previewContainsKeys": "คีย์ API",
       "previewYes": "ใช่",
       "previewNo": "เลขที่",
       "previewDataContent": "เนื้อหาข้อมูล",
@@ -1195,7 +1195,7 @@
       "modeReplaceAll": "แทนที่ทั้งหมด",
       "modeReplaceAllHint": "ล้างข้อมูลในเครื่องทั้งหมดและแทนที่ด้วยเนื้อหาสำรอง",
       "keyPasswordHint": "ข้อมูลสำรองนี้มีคีย์ API ที่เข้ารหัส ป้อนรหัสผ่านเพื่อกู้คืน",
-      "keyPasswordPlaceholder": "API Key รหัสผ่านที่สำคัญ",
+      "keyPasswordPlaceholder": "รหัสผ่านสำหรับเข้ารหัสคีย์ API",
       "skipKeys": "ข้ามคีย์ API",
       "restoreKeys": "คืนค่าคีย์",
       "importComplete": "นำเข้าเสร็จสมบูรณ์",
@@ -1213,7 +1213,7 @@
       "encryptionPassword": "รหัสผ่านการเข้ารหัส",
       "passwordPlaceholder": "อย่างน้อย 8 ตัวอักษร",
       "confirmPasswordPlaceholder": "ป้อนรหัสผ่านอีกครั้ง",
-      "encryptionFootnote": "API จะถูกเข้ารหัสด้วยรหัสผ่านนี้ เก็บไว้อย่างปลอดภัย คุณจะต้องใช้มันเพื่อกู้คืนกุญแจ",
+      "encryptionFootnote": "คีย์ API จะถูกเข้ารหัสด้วยรหัสผ่านนี้ โปรดเก็บรหัสผ่านไว้ให้ดี เพราะต้องใช้ในการกู้คืนคีย์",
       "yourData": "ข้อมูลของคุณ",
       "dataConversations": "บทสนทนา",
       "dataProviders": "ผู้ให้บริการ",
@@ -1340,8 +1340,8 @@
   },
   "errors": {
     "invalidKey": {
-      "title": "คีย์ API Key ไม่ถูกต้อง",
-      "message": "API ที่คุณป้อนไม่ถูกต้องหรือถูกเพิกถอนแล้ว โปรดตรวจสอบรหัสของคุณแล้วลองอีกครั้ง"
+      "title": "คีย์ API ไม่ถูกต้อง",
+      "message": "คีย์ API ที่คุณกรอกไม่ถูกต้องหรือถูกเพิกถอนแล้ว โปรดตรวจสอบคีย์แล้วลองอีกครั้ง"
     },
     "rateLimited": {
       "title": "อัตราจำกัด",

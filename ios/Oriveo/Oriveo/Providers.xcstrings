@@ -566,7 +566,7 @@
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "API Key คีย์"
+            "value": "คีย์ API"
           }
         },
         "tr": {
@@ -578,7 +578,7 @@
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Khóa API Key"
+            "value": "Khóa API"
           }
         },
         "zh-Hans": {
@@ -2740,7 +2740,7 @@
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "การเชื่อมต่อที่ไม่ได้เข้ารหัสไม่สามารถพกพากุญแจได้ เปลี่ยนที่อยู่และประเภทการเชื่อมต่อเป็น Public HTTPS"
+            "value": "การเชื่อมต่อที่ไม่เข้ารหัสส่งคีย์ไม่ได้ เปลี่ยนที่อยู่และประเภทการเชื่อมต่อเป็น Public HTTPS"
           }
         },
         "tr": {
@@ -12274,7 +12274,7 @@
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "แก้ไขคีย์ API Key"
+            "value": "แก้ไขคีย์ API"
           }
         },
         "tr": {
@@ -12286,7 +12286,7 @@
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Chỉnh sửa khóa API Key"
+            "value": "Chỉnh sửa khóa API"
           }
         },
         "zh-Hans": {
@@ -20323,7 +20323,7 @@
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "คีย์ API Key ใหม่"
+            "value": "คีย์ API ใหม่"
           }
         },
         "tr": {
@@ -20335,7 +20335,7 @@
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Khóa API Key mới"
+            "value": "Khóa API mới"
           }
         },
         "zh-Hans": {
@@ -24404,7 +24404,7 @@
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "API Qwen ถูกล็อคภูมิภาค เลือกภูมิภาคที่ตรงกับ API ของคุณ"
+            "value": "คีย์ API ของ Qwen ใช้ได้เฉพาะในภูมิภาคที่สร้างคีย์ เลือกภูมิภาคให้ตรงกับคีย์ API ของคุณ"
           }
         },
         "tr": {
@@ -32596,7 +32596,7 @@
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "เซิร์ฟเวอร์ปฏิเสธคีย์ API ตรวจสอบกุญแจหรือเลือกโปรโตคอลที่บันทึกไว้ด้วยตนเอง"
+            "value": "เซิร์ฟเวอร์ปฏิเสธคีย์ API ตรวจสอบคีย์ หรือเลือกโปรโตคอลเองตามที่ระบุในเอกสาร"
           }
         },
         "tr": {

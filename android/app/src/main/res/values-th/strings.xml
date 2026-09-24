@@ -23,7 +23,7 @@
     <string name="share">แบ่งปัน</string>
     <string name="legal_consent_notice">การดำเนินการต่อแสดงว่าคุณยอมรับข้อกำหนดทางกฎหมายด้านล่าง</string>
     <string name="get_started">เริ่มต้นเลย</string>
-    <string name="api_key">API Key คีย์</string>
+    <string name="api_key">คีย์ API</string>
     <string name="validating">กำลังตรวจสอบ...</string>
     <string name="auto_fill_note">จุดสิ้นสุดบริการจะถูกกรอกโดยอัตโนมัติสำหรับคุณ</string>
     <string name="add_provider">เพิ่มผู้ให้บริการ</string>
@@ -133,13 +133,13 @@
     <string name="provider_list_balance_label">ยอดคงเหลือ:</string>
     <string name="provider_list_usage_label">การใช้จ่าย:</string>
     <string name="expensive_model_hint">%1$s มีราคา ~%2$dx มากกว่า %3$s</string>
-    <string name="change_api_key">เปลี่ยนคีย์ API Key</string>
+    <string name="change_api_key">เปลี่ยนคีย์ API</string>
     <string name="delete_provider">ลบผู้ให้บริการ</string>
     <string name="delete_provider_confirm">คุณแน่ใจหรือไม่ว่าต้องการลบผู้ให้บริการรายนี้ การสนทนาที่เกี่ยวข้องทั้งหมดจะยังคงอยู่ แต่คุณจะไม่สามารถส่งข้อความใหม่กับผู้ให้บริการรายนี้ได้</string>
     <string name="relay_delete_provider_title">ลบ “%1$s” หรือไม่?</string>
     <string name="relay_delete_provider_confirm">การดำเนินการนี้จะลบการเชื่อมต่อ คีย์ API โมเดลที่เปิดใช้ ไลบรารีโมเดล และการตั้งค่าพฤติกรรมโมเดล จะไม่ลบการสนทนา ประวัติข้อความจะคงอยู่ และโมเดลที่ใช้ในนั้นจะถูกทำเครื่องหมายว่าไม่พร้อมใช้งาน การดำเนินการนี้ย้อนกลับไม่ได้</string>
     <string name="set_as_default">ตั้งเป็นค่าเริ่มต้น</string>
-    <string name="provider_detail_api_key_required">API ไม่สามารถเว้นว่างได้</string>
+    <string name="provider_detail_api_key_required">คีย์ API ต้องไม่เว้นว่าง</string>
     <string name="provider_detail_models_title">โมเดล</string>
     <string name="provider_detail_add_model_finish_setup">เพิ่มรหัสรุ่นเพื่อตั้งค่าให้เสร็จสิ้น</string>
     <string name="provider_detail_add_model_manually">+ เพิ่มรหัสรุ่นด้วยตนเอง</string>
@@ -176,10 +176,10 @@
     <string name="snackbar_provider_save_failed">ไม่สามารถบันทึกการเปลี่ยนแปลงได้ โปรดลองอีกครั้ง</string>
     <string name="backup_title">สำรองข้อมูลและส่งออก</string>
     <string name="import_backup">นำเข้าข้อมูลสำรอง</string>
-    <string name="error_invalid_api_key">คีย์ API Key ไม่ถูกต้อง</string>
+    <string name="error_invalid_api_key">คีย์ API ไม่ถูกต้อง</string>
     <string name="error_invalid_api_key_message">API ไม่สามารถตรวจสอบได้ ตรวจสอบค่าหรือสร้างคีย์ใหม่</string>
     <string name="provider_health_banner_message">เกิดปัญหาการเชื่อมต่อ — โปรดตรวจสอบ API key</string>
-    <string name="error_api_key_required">ต้องใช้รหัส API Key</string>
+    <string name="error_api_key_required">ต้องระบุคีย์ API</string>
     <string name="error_rate_limited">อัตราผู้ให้บริการ จำกัด</string>
     <string name="error_rate_limited_message">ผู้ให้บริการกำลังจำกัดอัตราคำขอนี้เป็นการชั่วคราว กรุณารอสักครู่แล้วลองอีกครั้ง</string>
     <string name="error_no_models">ไม่พบโมเดล</string>
@@ -282,7 +282,7 @@
     <string name="include_api_keys">รวมคีย์ API</string>
     <string name="encryption_password">รหัสผ่านการเข้ารหัส</string>
     <string name="encryption_password_placeholder">อย่างน้อย 8 ตัวอักษร</string>
-    <string name="encryption_password_footnote">API จะถูกเข้ารหัสด้วย AES-256-GCM</string>
+    <string name="encryption_password_footnote">คีย์ API จะถูกเข้ารหัสด้วย AES-256-GCM</string>
     <string name="confirm_password">ยืนยันรหัสผ่าน</string>
     <string name="confirm_password_placeholder">ทำซ้ำรหัสผ่าน</string>
     <string name="passwords_do_not_match">รหัสผ่านไม่ตรงกัน</string>
@@ -878,7 +878,7 @@
     <string name="provider_api_key_resync_note">การบันทึกจะส่งคำขอทดสอบขนาดเล็กมากหนึ่งครั้งเพื่อยืนยันว่าคีย์ใหม่ใช้ได้ แล้วจึงรีเฟรชแค็ตตาล็อกโมเดล</string>
     <string name="provider_api_key_verifying">กำลังตรวจสอบคีย์ API ใหม่…</string>
     <string name="model_library">ห้องสมุดโมเดล</string>
-    <string name="edit_api_key">แก้ไขคีย์ API Key</string>
+    <string name="edit_api_key">แก้ไขคีย์ API</string>
 
     <!-- Code Block Card -->
     <string name="code_block_default_language">รหัส</string>
@@ -1130,7 +1130,7 @@
     <string name="relay_quick_save_continue">บันทึกและดำเนินการต่อ</string>
     <string name="relay_quick_no_protocol_verified">ไม่พบโปรโตคอลที่ดำเนินการตามคำขอทดสอบสำเร็จ</string>
     <string name="relay_quick_embedded_query">ลบพารามิเตอร์การค้นหาออกจาก URL คำขอ Oriveo ไม่เคยลองใช้คีย์ API จากพารามิเตอร์การสืบค้นโดยอัตโนมัติ</string>
-    <string name="relay_quick_auth_rejected">เซิร์ฟเวอร์ปฏิเสธคีย์ API ตรวจสอบกุญแจหรือเลือกโปรโตคอลที่บันทึกไว้ด้วยตนเอง</string>
+    <string name="relay_quick_auth_rejected">เซิร์ฟเวอร์ปฏิเสธคีย์ API ตรวจสอบคีย์ หรือเลือกโปรโตคอลเองตามที่ระบุในเอกสาร</string>
     <string name="relay_quick_rate_limited">LLM แบบกำหนดเองมีอัตราจำกัด รอแล้วลองอีกครั้ง Oriveo ไม่ได้หมุนเวียนข้อมูลรับรองหรือโปรโตคอล</string>
     <string name="relay_quick_temporary_failure">ไม่สามารถเข้าถึงLLM แบบกำหนดเองได้อย่างน่าเชื่อถือ ตรวจสอบที่อยู่แล้วลองอีกครั้ง</string>
     <string name="relay_quick_network_failure">ไม่สามารถเข้าถึงLLM แบบกำหนดเองได้อย่างน่าเชื่อถือ ตรวจสอบที่อยู่แล้วลองอีกครั้ง</string>

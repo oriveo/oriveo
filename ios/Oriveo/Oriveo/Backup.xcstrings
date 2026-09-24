@@ -1112,7 +1112,7 @@
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "API จะถูกเข้ารหัสด้วยรหัสผ่านนี้ เก็บไว้อย่างปลอดภัย คุณจะต้องใช้มันเพื่อกู้คืนกุญแจ"
+            "value": "คีย์ API จะถูกเข้ารหัสด้วยรหัสผ่านนี้ โปรดเก็บรหัสผ่านไว้ให้ดี เพราะต้องใช้ในการกู้คืนคีย์"
           }
         },
         "tr": {
@@ -1124,7 +1124,7 @@
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "API sẽ được mã hóa bằng mật khẩu này. Giữ nó an toàn — bạn sẽ cần nó để khôi phục chìa khóa."
+            "value": "Khóa API sẽ được mã hóa bằng mật khẩu này. Hãy cất giữ mật khẩu này cẩn thận — bạn sẽ cần nó để khôi phục khóa API."
           }
         },
         "zh-Hans": {
@@ -3202,7 +3202,7 @@
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "ล้มเหลวในการเข้ารหัส API"
+            "value": "เข้ารหัสคีย์ API ไม่สำเร็จ"
           }
         },
         "tr": {
@@ -3214,7 +3214,7 @@
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Không thể mã hóa API."
+            "value": "Không thể mã hóa khóa API."
           }
         },
         "zh-Hans": {
@@ -4354,7 +4354,7 @@
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bao gồm các phím API"
+            "value": "Bao gồm khóa API"
           }
         },
         "zh-Hans": {
@@ -5880,7 +5880,7 @@
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bỏ qua phím API"
+            "value": "Bỏ qua khóa API"
           }
         },
         "zh-Hans": {

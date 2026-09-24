@@ -23,7 +23,7 @@
     <string name="share">Chia sẻ</string>
     <string name="legal_consent_notice">Bằng cách tiếp tục, bạn đồng ý với các điều khoản pháp lý bên dưới.</string>
     <string name="get_started">Bắt đầu</string>
-    <string name="api_key">Khóa API Key</string>
+    <string name="api_key">Khóa API</string>
     <string name="validating">Đang xác thực…</string>
     <string name="auto_fill_note">Điểm cuối dịch vụ được tự động điền cho bạn.</string>
     <string name="add_provider">Thêm nhà cung cấp</string>
@@ -133,13 +133,13 @@
     <string name="provider_list_balance_label">Số dư:</string>
     <string name="provider_list_usage_label">Mức dùng:</string>
     <string name="expensive_model_hint">%1$s có giá cao hơn %3$s ~%2$dx</string>
-    <string name="change_api_key">Thay đổi khóa API Key</string>
+    <string name="change_api_key">Thay đổi khóa API</string>
     <string name="delete_provider">Xóa nhà cung cấp</string>
     <string name="delete_provider_confirm">Bạn có chắc chắn muốn xóa nhà cung cấp này không? Tất cả các cuộc trò chuyện được liên kết sẽ vẫn khả dụng nhưng bạn sẽ không thể gửi tin nhắn mới với nhà cung cấp này.</string>
     <string name="relay_delete_provider_title">Xóa “%1$s”?</string>
     <string name="relay_delete_provider_confirm">Thao tác này xóa kết nối, khóa API, các mô hình đã bật, thư viện mô hình và cài đặt hành vi mô hình. Thao tác không xóa cuộc trò chuyện; lịch sử tin nhắn vẫn còn và các mô hình được dùng ở đó được đánh dấu là không khả dụng. Không thể hoàn tác.</string>
     <string name="set_as_default">Đặt làm mặc định</string>
-    <string name="provider_detail_api_key_required">API không được để trống.</string>
+    <string name="provider_detail_api_key_required">Khóa API không được để trống.</string>
     <string name="provider_detail_models_title">Mô hình</string>
     <string name="provider_detail_add_model_finish_setup">Thêm ID mẫu máy để hoàn tất quá trình thiết lập</string>
     <string name="provider_detail_add_model_manually">+ Thêm ID mẫu theo cách thủ công</string>
@@ -176,10 +176,10 @@
     <string name="snackbar_provider_save_failed">Không thể lưu thay đổi. Vui lòng thử lại.</string>
     <string name="backup_title">Sao lưu &amp; Xuất</string>
     <string name="import_backup">Nhập bản sao lưu</string>
-    <string name="error_invalid_api_key">Khóa API Key không hợp lệ</string>
+    <string name="error_invalid_api_key">Khóa API không hợp lệ</string>
     <string name="error_invalid_api_key_message">Không thể xác thực API. Kiểm tra giá trị hoặc tạo khóa mới.</string>
     <string name="provider_health_banner_message">Sự cố kết nối — vui lòng kiểm tra API key của bạn.</string>
-    <string name="error_api_key_required">Cần có khóa API Key</string>
+    <string name="error_api_key_required">Cần có khóa API</string>
     <string name="error_rate_limited">Tỷ lệ nhà cung cấp có giới hạn</string>
     <string name="error_rate_limited_message">Nhà cung cấp đang tạm thời giới hạn mức độ yêu cầu này. Vui lòng đợi một lát và thử lại.</string>
     <string name="error_no_models">Không tìm thấy mô hình nào</string>
@@ -279,10 +279,10 @@
     <string name="all_models_enabled">Tất cả các mô hình đã được kích hoạt</string>
     <string name="no_matching_models">Không tìm thấy mô hình phù hợp</string>
     <string name="export_backup_title">Xuất khẩu</string>
-    <string name="include_api_keys">Bao gồm các phím API</string>
+    <string name="include_api_keys">Bao gồm khóa API</string>
     <string name="encryption_password">Mật khẩu mã hóa</string>
     <string name="encryption_password_placeholder">Ít nhất 8 ký tự</string>
-    <string name="encryption_password_footnote">API sẽ được mã hóa bằng AES-256-GCM.</string>
+    <string name="encryption_password_footnote">Khóa API sẽ được mã hóa bằng AES-256-GCM.</string>
     <string name="confirm_password">Xác nhận mật khẩu</string>
     <string name="confirm_password_placeholder">Lặp lại mật khẩu</string>
     <string name="passwords_do_not_match">Mật khẩu không khớp.</string>
@@ -327,7 +327,7 @@
     <string name="password">Mật khẩu</string>
     <string name="enter_backup_password_placeholder">Nhập mật khẩu dự phòng</string>
     <string name="unlock_and_import">Mở khóa và nhập</string>
-    <string name="skip_api_keys">Bỏ qua phím API</string>
+    <string name="skip_api_keys">Bỏ qua khóa API</string>
     <string name="import_complete">Nhập hoàn tất</string>
     <string name="result_new_conversations">Đã thêm cuộc hội thoại mới %d</string>
     <string name="result_merged_conversations">Đã hợp nhất các cuộc hội thoại %d</string>
@@ -878,7 +878,7 @@
     <string name="provider_api_key_resync_note">Lưu sẽ gửi một yêu cầu kiểm tra rất nhỏ để xác nhận khóa mới hoạt động, sau đó làm mới danh mục mô hình.</string>
     <string name="provider_api_key_verifying">Đang xác minh khóa API mới…</string>
     <string name="model_library">Thư viện mẫu</string>
-    <string name="edit_api_key">Chỉnh sửa khóa API Key</string>
+    <string name="edit_api_key">Chỉnh sửa khóa API</string>
 
     <!-- Code Block Card -->
     <string name="code_block_default_language">Mã số</string>
@@ -1103,7 +1103,7 @@
     <string name="onboarding_subtitle_brand">15 nhà cung cấp chính thức và LLM tùy chỉnh trong cùng một cuộc trò chuyện.</string>
     <string name="onboarding_subtitle_models">GPT, Claude, Gemini, DeepSeek — đổi chỉ với một chạm mà không đứt mạch trò chuyện.</string>
     <string name="onboarding_subtitle_byok">Khóa API của bạn không bao giờ rời khỏi thiết bị này, và chi phí mỗi lượt gọi hiện ngay theo thời gian thực.</string>
-    <string name="onboarding_subtitle_start">Chìa khóa, chi phí và dữ liệu của bạn luôn nằm trong tầm kiểm soát của bạn</string>
+    <string name="onboarding_subtitle_start">Khóa API, chi phí và dữ liệu luôn nằm trong tầm kiểm soát của bạn</string>
     <string name="onboarding_eyebrow_models">Mô hình</string>
     <string name="onboarding_eyebrow_byok">BYOK</string>
     <string name="onboarding_eyebrow_start">Bắt đầu</string>
