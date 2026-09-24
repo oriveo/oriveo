@@ -179,7 +179,7 @@
     "together.reasoning": {
       "kind": "official_doc",
       "url": "https://docs.together.ai/docs/inference/chat/reasoning",
-      "reviewedAt": "2026-08-11",
+      "reviewedAt": "2026-09-24",
       "officialUpdatedAt": null
     },
     "fireworks.reasoning": {
@@ -204,6 +204,30 @@
       "kind": "official_doc",
       "url": "https://docs.bigmodel.cn/cn/guide/capabilities/thinking-mode",
       "reviewedAt": "2026-08-15",
+      "officialUpdatedAt": null
+    },
+    "qwen.deepseek_api": {
+      "kind": "official_doc",
+      "url": "https://www.alibabacloud.com/help/en/model-studio/deepseek-api",
+      "reviewedAt": "2026-09-24",
+      "officialUpdatedAt": null
+    },
+    "qwen.glm": {
+      "kind": "official_doc",
+      "url": "https://www.alibabacloud.com/help/en/model-studio/glm",
+      "reviewedAt": "2026-09-24",
+      "officialUpdatedAt": null
+    },
+    "groq.browser_search": {
+      "kind": "official_doc",
+      "url": "https://console.groq.com/docs/tool-use/built-in-tools/browser-search",
+      "reviewedAt": "2026-09-24",
+      "officialUpdatedAt": null
+    },
+    "groq.deprecations": {
+      "kind": "official_doc",
+      "url": "https://console.groq.com/docs/deprecations",
+      "reviewedAt": "2026-09-24",
       "officialUpdatedAt": null
     },
     "qwen.deep_thinking": {
@@ -620,6 +644,39 @@
         "qwen.web_search"
       ],
       "reviewedAt": "2026-08-11"
+    },
+    "qwen.chat.web.v2": {
+      "$comment": "Reviewed 2026-09-24. The support table on the web-search page gives qwen3.8-omni-flash the condition 'set the Chat Completions search strategy to agent': the request is enable_search=true plus search_options.search_strategy=agent, and v1's enable_search alone does not hold for it. The docs also say web search on multimodal models must stream (otherwise 'Non-streaming mode does not support Web Search'); chat sends on every client already stream, so streaming stays optional like every other recipe rather than introducing a required value no client has run.",
+      "id": "qwen.chat.web.v2",
+      "providerKind": "qwen",
+      "transport": {
+        "protocol": "openai_chat",
+        "endpointClass": "chat_completions",
+        "requiredHeaders": [],
+        "streaming": "optional"
+      },
+      "capability": "web",
+      "executionKind": "request_overlay",
+      "requestOps": [
+        {
+          "op": "set",
+          "pointer": "/enable_search",
+          "value": true
+        },
+        {
+          "op": "set",
+          "pointer": "/search_options/search_strategy",
+          "value": "agent"
+        }
+      ],
+      "responseParserKind": "qwen_chat_search_v1",
+      "continuationKind": "none",
+      "controlRefs": [],
+      "fallbackPolicy": "remove_auto_patch_once_pre_token",
+      "sourceRefs": [
+        "qwen.web_search"
+      ],
+      "reviewedAt": "2026-09-24"
     },
     "moonshot.chat.web.v1": {
       "$comment": "The older builtin $web_search, a bounded client tool loop (role=tool refills arguments). The official use-web-search page states: '$web_search works directly with each model's reasoning behavior: kimi-k3 always reasons, and kimi-k2.6 can also perform web search with thinking enabled' — meaning k2.6's thinking is **compatible** with the builtin search, not mutually exclusive with it. k2.5 is never named officially either way, and is treated as undocumented rather than assumed compatible. This recipe still does not claim ownership of the reasoning parameter.",
@@ -1496,6 +1553,55 @@
       ],
       "reviewedAt": "2026-08-23"
     },
+    "qwen.chat.reasoning.v2": {
+      "$comment": "Reviewed 2026-09-24. The reasoning_effort shape for third-party models on Model Studio. The deepseek-api page: deepseek-v4.1-flash is hybrid thinking controlled by enable_thinking (on by default) and also accepts a top-level reasoning_effort ∈ {low, high, max} (default high; minimal→low, medium/xhigh→high, ultra→max, so no balanced tier is declared). The glm page: glm-5.3 only has a thinking mode, which cannot be turned off, with the same low/high/max reasoning_effort. This recipe sends enable_thinking=false only for the off tier; every other tier sends only reasoning_effort and relies on thinking being on by default, so glm-5.3 never receives enable_thinking and has no off tier.",
+      "id": "qwen.chat.reasoning.v2",
+      "providerKind": "qwen",
+      "transport": {
+        "protocol": "openai_chat",
+        "endpointClass": "chat_completions",
+        "requiredHeaders": [],
+        "streaming": "optional"
+      },
+      "capability": "reasoning",
+      "executionKind": "request_overlay",
+      "requestOps": [
+        {
+          "op": "set",
+          "intent": "off",
+          "pointer": "/enable_thinking",
+          "value": false
+        },
+        {
+          "op": "set",
+          "intent": "low",
+          "pointer": "/reasoning_effort",
+          "value": "low"
+        },
+        {
+          "op": "set",
+          "intent": "deep",
+          "pointer": "/reasoning_effort",
+          "value": "high"
+        },
+        {
+          "op": "set",
+          "intent": "max",
+          "pointer": "/reasoning_effort",
+          "value": "max"
+        }
+      ],
+      "responseParserKind": "qwen_reasoning_v1",
+      "continuationKind": "none",
+      "controlRefs": [],
+      "fallbackPolicy": "remove_auto_patch_once_pre_token",
+      "sourceRefs": [
+        "qwen.deepseek_api",
+        "qwen.glm",
+        "qwen.deep_thinking"
+      ],
+      "reviewedAt": "2026-09-24"
+    },
     "moonshot.chat.reasoning.v1": {
       "$comment": "K3 always reasons and **must never be sent a thinking parameter** (the official migration guide says: 'When migrating from K2.x to K3, remove the K2.x thinking configuration and use top-level reasoning_effort as needed', and elsewhere: 'you do not need to (and should not) pass the thinking parameter'), so K3's availableIntents has no off, and a thinking-family op is never selected for it; K2.x only has the binary thinking.type switch and **does not support reasoning_effort**. K3's reasoning_effort officially has three tiers, low/high/max (default max); which tiers are available is still decided entirely by each model's availableIntents.",
       "id": "moonshot.chat.reasoning.v1",
@@ -1689,6 +1795,53 @@
       ],
       "reviewedAt": "2026-09-24"
     },
+    "groq.chat.reasoning.v2": {
+      "$comment": "Reviewed 2026-09-24. The parameter table on the official reasoning page: 'none and default are only supported by Qwen 3.8 27B. low, medium, and high are only supported by GPT-OSS 20B, GPT-OSS 120B, and Qwen 3.8 27B'. v1 has no off tier; this recipe adds none for qwen3.8-27b. The two official pages contradict each other on what default means (the reasoning page says no reasoning is returned, the model card says it is the thinking mode), so it is not declared.",
+      "id": "groq.chat.reasoning.v2",
+      "providerKind": "groq",
+      "transport": {
+        "protocol": "openai_chat",
+        "endpointClass": "chat_completions",
+        "requiredHeaders": [],
+        "streaming": "optional"
+      },
+      "capability": "reasoning",
+      "executionKind": "request_overlay",
+      "requestOps": [
+        {
+          "op": "set",
+          "intent": "off",
+          "pointer": "/reasoning_effort",
+          "value": "none"
+        },
+        {
+          "op": "set",
+          "intent": "low",
+          "pointer": "/reasoning_effort",
+          "value": "low"
+        },
+        {
+          "op": "set",
+          "intent": "balanced",
+          "pointer": "/reasoning_effort",
+          "value": "medium"
+        },
+        {
+          "op": "set",
+          "intent": "deep",
+          "pointer": "/reasoning_effort",
+          "value": "high"
+        }
+      ],
+      "responseParserKind": "groq_reasoning_v1",
+      "continuationKind": "none",
+      "controlRefs": [],
+      "fallbackPolicy": "remove_auto_patch_once_pre_token",
+      "sourceRefs": [
+        "groq.reasoning"
+      ],
+      "reviewedAt": "2026-09-24"
+    },
     "togetherai.chat.reasoning.v1": {
       "id": "togetherai.chat.reasoning.v1",
       "providerKind": "togetherAI",
@@ -1728,6 +1881,41 @@
         "together.reasoning"
       ],
       "reviewedAt": "2026-08-11"
+    },
+    "togetherai.chat.reasoning.v2": {
+      "$comment": "Reviewed 2026-09-24. The Hybrid section of the official reasoning page names MiniMax M3, DeepSeek V4 Pro 0813, GLM-5.2, Kimi K3, Qwen3.6 Plus and Qwen3.5 9B as models that 'accept reasoning={enabled: True/False}'. That switch shape and GPT-OSS's reasoning_effort (v1) do not carry over to each other, so it is a recipe of its own. Reasoning comes back in reasoning_content (DeepSeek V4 Pro 0813 uses the reasoning field instead), and the generic reasoning event produces the evidence.",
+      "id": "togetherai.chat.reasoning.v2",
+      "providerKind": "togetherAI",
+      "transport": {
+        "protocol": "openai_chat",
+        "endpointClass": "chat_completions",
+        "requiredHeaders": [],
+        "streaming": "optional"
+      },
+      "capability": "reasoning",
+      "executionKind": "request_overlay",
+      "requestOps": [
+        {
+          "op": "set",
+          "intent": "off",
+          "pointer": "/reasoning/enabled",
+          "value": false
+        },
+        {
+          "op": "set",
+          "intent": "balanced",
+          "pointer": "/reasoning/enabled",
+          "value": true
+        }
+      ],
+      "responseParserKind": "together_reasoning_v1",
+      "continuationKind": "none",
+      "controlRefs": [],
+      "fallbackPolicy": "remove_auto_patch_once_pre_token",
+      "sourceRefs": [
+        "together.reasoning"
+      ],
+      "reviewedAt": "2026-09-24"
     },
     "fireworksai.chat.reasoning.v1": {
       "id": "fireworksai.chat.reasoning.v1",

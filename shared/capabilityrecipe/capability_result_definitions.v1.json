@@ -45,6 +45,10 @@
       "responseEvidenceRef": "qwen.chat.web",
       "errorRecoveryRef": "qwen.chat.web"
     },
+    "qwen.chat.web.v2": {
+      "responseEvidenceRef": "qwen.chat.web",
+      "errorRecoveryRef": "qwen.chat.web"
+    },
     "moonshot.chat.web.v1": {
       "responseEvidenceRef": "moonshot.builtin.web",
       "errorRecoveryRef": "moonshot.builtin.web"
@@ -117,6 +121,10 @@
       "responseEvidenceRef": "qwen.chat.reasoning",
       "errorRecoveryRef": "qwen.chat.reasoning"
     },
+    "qwen.chat.reasoning.v2": {
+      "responseEvidenceRef": "qwen.chat.reasoning",
+      "errorRecoveryRef": "qwen.chat.reasoning"
+    },
     "moonshot.chat.reasoning.v1": {
       "responseEvidenceRef": "moonshot.chat.reasoning",
       "errorRecoveryRef": "moonshot.chat.reasoning"
@@ -133,7 +141,15 @@
       "responseEvidenceRef": "groq.chat.reasoning",
       "errorRecoveryRef": "groq.chat.reasoning"
     },
+    "groq.chat.reasoning.v2": {
+      "responseEvidenceRef": "groq.chat.reasoning",
+      "errorRecoveryRef": "groq.chat.reasoning"
+    },
     "togetherai.chat.reasoning.v1": {
+      "responseEvidenceRef": "together.chat.reasoning",
+      "errorRecoveryRef": "together.chat.reasoning"
+    },
+    "togetherai.chat.reasoning.v2": {
       "responseEvidenceRef": "together.chat.reasoning",
       "errorRecoveryRef": "together.chat.reasoning"
     },
