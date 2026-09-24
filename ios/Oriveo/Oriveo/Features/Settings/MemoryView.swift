@@ -205,10 +205,10 @@ struct MemoryView: View {
             Text(L10n.tr("You've edited the current text. Apply the generated draft and replace current content?", table: .settings))
         }
         .alert(L10n.tr("Memory saved", table: .settings), isPresented: $showSaveSuccessAlert) {
-            Button("OK", role: .cancel) { }
+            Button(L10n.tr("OK"), role: .cancel) { }
         }
         .alert(draftErrorTitle, isPresented: $showDraftErrorAlert) {
-            Button("OK", role: .cancel) { }
+            Button(L10n.tr("OK"), role: .cancel) { }
         } message: {
             Text(draftErrorMessage)
         }

@@ -372,6 +372,7 @@ struct ProviderEnabledModelRow: View, Equatable {
                             .fill(model.isAvailable ? OriveoTheme.Palette.primarySoft : OriveoTheme.Palette.surfaceInset.opacity(0.6))
                     )
             }
+            .accessibilityLabel(L10n.tr("New Chat"))
             .buttonStyle(.plain)
             .disabled(!model.isAvailable)
             .opacity(model.isAvailable ? 1 : 0.72)
@@ -399,6 +400,7 @@ struct ProviderEnabledModelRow: View, Equatable {
                                 .fill(OriveoTheme.Palette.surfaceInset.opacity(0.6))
                         )
                 }
+                .accessibilityLabel(L10n.tr("More", table: .chat))
                 .buttonStyle(.plain)
             }
         }

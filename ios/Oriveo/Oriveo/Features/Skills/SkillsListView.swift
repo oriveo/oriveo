@@ -169,6 +169,7 @@ struct SkillsListView: View {
             navToneButton(systemName: "plus", tint: Colors.primary) {
                 appState.openSkillEdit()
             }
+            .accessibilityLabel(L10n.tr("New Skill", table: .skills))
         }
     }
 

@@ -208,6 +208,7 @@ struct ChatAttachmentPicker {
                     .background(.ultraThinMaterial, in: Circle())
                     .shadow(color: OriveoTheme.Palette.shadow.opacity(0.10), radius: 5, y: 2)
             }
+            .accessibilityLabel(L10n.tr("Remove", table: .providers))
             .offset(x: 5, y: -5)
         }
     }

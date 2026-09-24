@@ -25075,7 +25075,7 @@
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Menghapus"
+            "value": "Hapus"
           }
         },
         "ja": {
@@ -25099,7 +25099,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Удалять"
+            "value": "Удалить"
           }
         },
         "th": {
@@ -25111,13 +25111,13 @@
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Kaldırmak"
+            "value": "Kaldır"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Di dời"
+            "value": "Gỡ bỏ"
           }
         },
         "zh-Hans": {

@@ -14597,7 +14597,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "ХОРОШО"
+            "value": "ОК"
           }
         },
         "th": {
@@ -14609,13 +14609,13 @@
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "TAMAM"
+            "value": "Tamam"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "ĐƯỢC RỒI"
+            "value": "OK"
           }
         },
         "zh-Hans": {

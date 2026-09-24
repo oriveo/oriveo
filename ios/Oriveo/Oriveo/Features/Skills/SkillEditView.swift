@@ -288,6 +288,8 @@ struct SkillEditView: View {
                         )
                         .shadow(color: skillColor.opacity(0.18), radius: 8, y: 4)
                 }
+                .accessibilityLabel(L10n.tr("Emoji Icon", table: .skills))
+                .accessibilityValue(icon)
                 .buttonStyle(.plain)
                 .frame(maxWidth: .infinity)
 
@@ -571,6 +573,7 @@ struct SkillEditView: View {
                                 .stroke(Colors.textTertiary.opacity(0.4), lineWidth: 1)
                         )
                 }
+                .accessibilityLabel(L10n.tr("Info", table: .skills))
                 .buttonStyle(.plain)
             }
 

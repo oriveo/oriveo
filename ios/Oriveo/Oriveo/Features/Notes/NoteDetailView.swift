@@ -732,6 +732,7 @@ struct NoteDetailView: View {
                     .font(.system(size: 22))
                     .foregroundStyle(canAddTag ? OriveoTheme.Palette.primary : OriveoTheme.Palette.textTertiary)
             }
+            .accessibilityLabel(L10n.tr("Add tag", table: .notes))
             .buttonStyle(.plain)
             .disabled(!canAddTag)
         }
