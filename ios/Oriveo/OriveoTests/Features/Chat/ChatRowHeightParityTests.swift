@@ -245,6 +245,10 @@ struct ChatRowHeightParityTests {
             ("user/long", Self.user(text: String(repeating: "これはないしつもです。", count: 40))),
             ("user/long ASCII", Self.user(text: String(repeating: "this is a question ", count: 40))),
             ("user/multi-line", Self.user(text: String(repeating: "ひとつです。\n", count: 12))),
+            // Past `UserMessageFold.thresholdUTF16`: a capped bubble plus the "Show full message" pill row, so the
+            // estimate must stop growing with the full length.
+            ("user/folded", Self.user(text: String(repeating: "これはながいしつもんです。", count: 700))),
+            ("user/folded ASCII", Self.user(text: String(repeating: "this is a question ", count: 2_000))),
         ], band: Self.userBand, measure: Self.measureUser)
     }
 

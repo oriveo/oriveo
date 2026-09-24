@@ -86,6 +86,7 @@ private final class GradientBubbleView: UIView {
 /// text view of the same class (`UserBubbleTextLayout`), cached per message and reused across cell reuse.
 private final class UserBubbleTextHost: UIView {
     let textView = ChatPassiveTextView()
+    private let fadeMask = CAGradientLayer()
 
     var measuredSize: CGSize = .zero {
         didSet {
@@ -95,11 +96,26 @@ private final class UserBubbleTextHost: UIView {
         }
     }
 
+    /// Full height of the prefix text when folded (`UserMessageFold`): the text view lays out at this height,
+    /// the host shows only `measuredSize` of it and fades out the bottom. nil means not folded, and the text view
+    /// matches the host.
+    var foldedTextHeight: CGFloat? {
+        didSet {
+            guard foldedTextHeight != oldValue else { return }
+            clipsToBounds = foldedTextHeight != nil
+            layer.mask = foldedTextHeight == nil ? nil : fadeMask
+            setNeedsLayout()
+        }
+    }
+
     override init(frame: CGRect) {
         super.init(frame: frame)
         textView.translatesAutoresizingMaskIntoConstraints = true
         textView.autoresizingMask = []
         addSubview(textView)
+        // The mask only changes opacity, so the faded text reveals the bubble's own diagonal gradient; a solid
+        // overlay could not match the colors at both ends.
+        fadeMask.colors = [UIColor.black.cgColor, UIColor.black.cgColor, UIColor.clear.cgColor]
     }
 
     @available(*, unavailable)
@@ -109,9 +125,17 @@ private final class UserBubbleTextHost: UIView {
 
     override func layoutSubviews() {
         super.layoutSubviews()
-        if textView.frame != bounds {
-            textView.frame = bounds
+        let target = CGRect(x: 0, y: 0, width: bounds.width, height: foldedTextHeight ?? bounds.height)
+        if textView.frame != target {
+            textView.frame = target
         }
+        guard foldedTextHeight != nil, bounds.height > 0 else { return }
+        CATransaction.begin()
+        CATransaction.setDisableActions(true)
+        fadeMask.frame = bounds
+        let fadeStart = max(0, 1 - UserMessageFold.fadeHeight / bounds.height)
+        fadeMask.locations = [0, NSNumber(value: Double(fadeStart)), 1]
+        CATransaction.commit()
     }
 }
 
@@ -221,6 +245,10 @@ final class UserMessageCell: UICollectionViewCell {
     private let bubbleStack = UIStackView()
     private let textHost = UserBubbleTextHost()
     private var textView: ChatPassiveTextView { textHost.textView }
+    /// The "Show full message" pill of a folded message; bubbleStack is `.fill`, so it needs a container to stay
+    /// trailing-aligned instead of being stretched.
+    private let fullTextButtonRow = UIView()
+    private let fullTextButton = UIButton(type: .system)
     private let savedNoteReferenceButton = UIButton(type: .system)
     private let avatarView = UIKitAvatarView()
 
@@ -286,6 +314,8 @@ final class UserMessageCell: UICollectionViewCell {
         textView.attributedText = nil
         textView.isHidden = false
         textHost.isHidden = false
+        textHost.foldedTextHeight = nil
+        fullTextButtonRow.isHidden = true
         tearDownAttachmentHost()
         tearDownQuoteHost()
     }
@@ -362,10 +392,13 @@ final class UserMessageCell: UICollectionViewCell {
                 ? effectiveBubbleWidth
                 : (effectiveBubbleWidth - OriveoTheme.Spacing.lg * 2)
             let hugText = attachments.isEmpty && quoteContext == nil
+            // Whether a message folds depends only on its text, so one displayKey always maps to one display
+            // string and the cache needs no extra key.
+            let folded = UserMessageFold.shouldFold(text)
             let displayKey = UserBubbleTextLayout.displayKey(messageID: model.messageID, textHash: model.textHash)
             let display = UserBubbleTextLayout.display(
                 forKey: displayKey,
-                text: text,
+                text: folded ? UserMessageFold.preview(of: text) : text,
                 attributes: [
                     .font: userFont,
                     .foregroundColor: UIColor.white,
@@ -400,7 +433,19 @@ final class UserMessageCell: UICollectionViewCell {
             }
             textView.isHidden = false
             textHost.isHidden = false
-            textHost.measuredSize = size
+            if folded {
+                // The text view still lays out the whole prefix (no line is cut in half at the viewport's bottom
+                // edge); the host shows only the capped part.
+                textHost.foldedTextHeight = size.height
+                textHost.measuredSize = CGSize(
+                    width: size.width,
+                    height: min(size.height, UserMessageFold.collapsedTextHeight)
+                )
+            } else {
+                textHost.foldedTextHeight = nil
+                textHost.measuredSize = size
+            }
+            fullTextButtonRow.isHidden = !folded
             textHost.setContentHuggingPriority(hugText ? .defaultHigh : .defaultLow, for: .horizontal)
             if hugText {
                 bubbleEqualWidthConstraint.constant = size.width + OriveoTheme.Spacing.lg * 2
@@ -411,6 +456,8 @@ final class UserMessageCell: UICollectionViewCell {
         } else {
             textView.isHidden = true
             textHost.isHidden = true
+            textHost.foldedTextHeight = nil
+            fullTextButtonRow.isHidden = true
             textHost.measuredSize = .zero
             textView.textContainerInset = .zero
             appliedDisplayKey = nil
@@ -481,6 +528,36 @@ final class UserMessageCell: UICollectionViewCell {
         textHost.setContentHuggingPriority(.defaultHigh, for: .horizontal)
         textHost.setContentHuggingPriority(.required, for: .vertical)
         bubbleStack.addArrangedSubview(textHost)
+
+        var fullTextConfig = UIButton.Configuration.filled()
+        fullTextConfig.image = UIImage(
+            systemName: "arrow.up.left.and.arrow.down.right",
+            withConfiguration: UIImage.SymbolConfiguration(pointSize: 11, weight: .semibold)
+        )
+        fullTextConfig.imagePadding = 5
+        fullTextConfig.baseForegroundColor = .white
+        fullTextConfig.baseBackgroundColor = UIColor.white.withAlphaComponent(0.18)
+        fullTextConfig.cornerStyle = .capsule
+        fullTextConfig.contentInsets = NSDirectionalEdgeInsets(top: 6, leading: 11, bottom: 6, trailing: 12)
+        var fullTextTitle = AttributedString(L10n.tr("Show full message", table: .chat))
+        fullTextTitle.font = UIFont.systemFont(
+            ofSize: UIFont.preferredFont(forTextStyle: .footnote).pointSize,
+            weight: .semibold
+        )
+        fullTextConfig.attributedTitle = fullTextTitle
+        fullTextButton.configuration = fullTextConfig
+        fullTextButton.accessibilityIdentifier = "user_message_show_full_text"
+        fullTextButton.addTarget(self, action: #selector(fullTextTapped), for: .touchUpInside)
+        fullTextButton.translatesAutoresizingMaskIntoConstraints = false
+        fullTextButtonRow.addSubview(fullTextButton)
+        NSLayoutConstraint.activate([
+            fullTextButton.topAnchor.constraint(equalTo: fullTextButtonRow.topAnchor),
+            fullTextButton.bottomAnchor.constraint(equalTo: fullTextButtonRow.bottomAnchor),
+            fullTextButton.trailingAnchor.constraint(equalTo: fullTextButtonRow.trailingAnchor),
+            fullTextButton.leadingAnchor.constraint(greaterThanOrEqualTo: fullTextButtonRow.leadingAnchor),
+        ])
+        fullTextButtonRow.isHidden = true
+        bubbleStack.addArrangedSubview(fullTextButtonRow)
 
         var savedNoteConfig = UIButton.Configuration.plain()
         savedNoteConfig.image = UIImage(
@@ -617,6 +694,28 @@ final class UserMessageCell: UICollectionViewCell {
     @objc private func savedNoteReferenceTapped() {
         onOpenNoteReferences?()
     }
+
+    @objc private func fullTextTapped() {
+        guard let parent = parentViewController else { return }
+        let sheet = UIHostingController(rootView: UserMessageFullTextSheet(text: currentText))
+        parent.present(sheet, animated: true)
+    }
+
+    /// For unit tests: the text actually laid out in the bubble when folded, and whether "Show full message" shows.
+    var foldStateForTesting: (displayedText: String, showsFullTextButton: Bool, visibleTextHeight: CGFloat) {
+        (textView.textStorage.string, !fullTextButtonRow.isHidden, textHost.bounds.height)
+    }
+
+    /// For unit tests: taps "Show full message".
+    func tapShowFullTextForTesting() {
+        fullTextTapped()
+    }
+
+    /// For unit tests: the center of the "Show full message" pill in bubble coordinates (long presses are
+    /// resolved in bubble coordinates).
+    var fullTextButtonCenterInBubbleForTesting: CGPoint {
+        bubbleView.convert(CGPoint(x: fullTextButton.bounds.midX, y: fullTextButton.bounds.midY), from: fullTextButton)
+    }
 }
 
 extension UserMessageCell: UIContextMenuInteractionDelegate {
@@ -654,6 +753,10 @@ extension UserMessageCell: UIContextMenuInteractionDelegate {
 
     private func shouldYieldContextMenuToTextSelection(at location: CGPoint) -> Bool {
         guard !textView.isHidden, textView.isSelectable else { return false }
+        // When folded, the text view is taller than its host and its lower part is clipped. Only a long press inside
+        // the host's visible area belongs to text selection; otherwise a long press on the "Show full message" pill
+        // (which sits right over the clipped part) could never open the message menu.
+        guard textHost.bounds.contains(textHost.convert(location, from: bubbleView)) else { return false }
 
         let textLocation = textView.convert(location, from: bubbleView)
         return textView.bounds.contains(textLocation)

@@ -31,6 +31,13 @@ High-level notes for the chat surface.
   view's frame to the measured size **before** filling in the text: TextKit 1 lays the whole text out synchronously on
   both storage edits and container geometry changes, so the reverse order lays a fresh cell out once more at the stale
   width.
+- Soft breaks only lower the constant; shaping stays linear in length. What actually bounds a user bubble is folding:
+  above 6,000 UTF-16 units (`UserMessageFold`, the same rule on every client) the bubble lays out only a prefix
+  (at most 2,000 UTF-16 units or 60 line breaks, cut on grapheme boundaries). The text view still lays out the whole
+  prefix while the host shows 320pt of it (`foldedTextHeight`, `clipsToBounds` and a 44pt opacity fade that lets the
+  bubble's gradient show through), and a "Show full message" pill opens `UserMessageFullTextSheet`, which reuses the
+  notes' bounded viewport `BoundedNoteTextView`. The context menu's Copy still copies the full text; row height
+  estimates and the costly-conversation score use the prefix for folded messages.
 - The composer and the Home hero use `ComposerTextView`, not SwiftUI `TextField(axis: .vertical)`, which lays the whole
   text out again for every size proposal. Pastes go through the paste delegate; every other whole-block insertion is
   split at the `insertText` / `shouldChangeTextIn` entry points before it is written, so an overlong paragraph never
@@ -48,4 +55,4 @@ High-level notes for the chat surface.
 - Streaming block chunker and table rendering tests
 - Scroll gesture + keyboard coordinator suites
 - Recovery card layout collapse tests
-- Long text: `ComposerTextViewTests`, `UserBubbleLongTextTests`
+- Long text: `ComposerTextViewTests`, `UserBubbleLongTextTests`, `UserMessageFoldTests`, `LongArabicTextHangCostTests`

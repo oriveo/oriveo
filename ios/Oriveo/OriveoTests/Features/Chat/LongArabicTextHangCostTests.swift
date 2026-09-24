@@ -220,7 +220,7 @@ struct LongArabicTextHangCostTests {
         #expect(sample.liveFullLayouts == 1, "the live view laid the whole text out \(sample.liveFullLayouts) times")
     }
 
-    @Test("user bubble cell: 64K characters (a realistic long message, ~110KB request body) < 500ms; 200K is recorded as is")
+    @Test("user bubble cell: 64K characters (a realistic long message, ~110KB request body) and 200K both < 500ms (very long messages fold to a prefix)")
     func userBubbleCellLongArabic() throws {
         let real = try measureUserBubble(utf16: 64_000)
         let huge = try measureUserBubble(utf16: Self.longUTF16)
@@ -229,12 +229,11 @@ struct LongArabicTextHangCostTests {
           64000 UTF-16: \(ms(real.seconds)); \(Self.longUTF16) UTF-16: \(ms(huge.seconds)) (cell height \(Int(huge.height))pt)
         """)
         #expect(real.seconds < 0.5, "a 64K-character bubble took \(ms(real.seconds)) on the main thread")
-        // 200K: the off-screen measurement and the live view each lay the whole text out once, and shaping cost is
-        // linear in length, so a synchronous path cannot get under 500ms. A real bound needs rendering only a prefix
-        // with an expand-to-full-text affordance (a bubble layout change); until then this is recorded, not faked.
-        withKnownIssue("a single 200K-character bubble still exceeds 500ms: needs a long-message collapse design", isIntermittent: true) {
-            #expect(huge.seconds < 0.5, "a 200K-character bubble took \(ms(huge.seconds)) on the main thread")
-        }
+        // Before folding, 200K took 906ms: the off-screen measurement and the live view each laid the whole text out
+        // once, at a shaping cost linear in length. Folded, both lay out only `UserMessageFold.preview`, so neither the
+        // cost nor the height depends on the full length.
+        #expect(huge.seconds < 0.5, "a 200K-character bubble took \(ms(huge.seconds)) on the main thread")
+        #expect(abs(huge.height - real.height) < 1, "a folded bubble's height should not change with the full length: \(real.height) vs \(huge.height)")
     }
 
     @Test("real chat screen: opening a conversation whose last user message is very long Arabic")
@@ -260,8 +259,57 @@ struct LongArabicTextHangCostTests {
             print("[HANG-COST] real chat screen first open (last user message a single Arabic paragraph of \(utf16) UTF-16): longest main-thread stall \(ms(probe.maxStall)), >16ms total \(ms(probe.jankTotal))")
         }
         #expect((stalls[64_000] ?? .infinity) < 0.5, "opening with 64K characters blocked the main thread for \(ms(stalls[64_000] ?? .infinity))")
-        withKnownIssue("a single 200K-character bubble still exceeds 500ms: needs a long-message collapse design", isIntermittent: true) {
-            #expect((stalls[Self.longUTF16] ?? .infinity) < 0.5, "opening with 200K characters blocked the main thread for \(ms(stalls[Self.longUTF16] ?? .infinity))")
+        #expect((stalls[Self.longUTF16] ?? .infinity) < 0.5, "opening with 200K characters blocked the main thread for \(ms(stalls[Self.longUTF16] ?? .infinity))")
+    }
+
+    private func firstView<T: UIView>(of type: T.Type, in view: UIView) -> T? {
+        if let found = view as? T { return found }
+        for subview in view.subviews {
+            if let found = firstView(of: type, in: subview) { return found }
         }
+        return nil
+    }
+
+    @Test("Show full message on a folded bubble: the sheet opens and scrolls to the end of 200K characters of Arabic without stalling, showing the original text")
+    func fullTextSheetOpensLongArabic() async throws {
+        let text = Self.arabic(utf16: Self.longUTF16)
+        let scene = try #require(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
+        let window = UIWindow(windowScene: scene)
+        window.frame = CGRect(x: 0, y: 0, width: 430, height: 932)
+        let root = UIViewController()
+        window.rootViewController = root
+        window.makeKeyAndVisible()
+        defer {
+            root.dismiss(animated: false)
+            window.isHidden = true
+            window.rootViewController = nil
+        }
+        try await yieldMainActor(for: 0.5)
+
+        let cell = UserMessageCell(frame: CGRect(x: 0, y: 0, width: 430, height: 100))
+        cell.configure(model: makeUserModel(text: text), maxBubbleWidth: 320, parentViewController: root)
+        #expect(cell.foldStateForTesting.showsFullTextButton)
+
+        let probe = MainThreadStallProbe()
+        probe.start()
+        cell.tapShowFullTextForTesting()
+        try await yieldMainActor(for: 2.0)
+        probe.stop()
+        let openStall = probe.maxStall
+
+        let presented = try #require(root.presentedViewController)
+        let reader = try #require(firstView(of: BoundedNoteUITextView.self, in: presented.view))
+        #expect(!reader.isEditable)
+        #expect(NoteSoftParagraphBreaks.strip(reader.textStorage) == text, "the sheet must hold the complete original text")
+
+        probe.start()
+        reader.setContentOffset(CGPoint(x: 0, y: max(0, reader.contentSize.height - reader.bounds.height)), animated: false)
+        try await yieldMainActor(for: 1.0)
+        probe.stop()
+        let scrollStall = probe.maxStall
+
+        print("[HANG-COST] full-text sheet · single Arabic paragraph of \(text.utf16.count) UTF-16: longest stall opening \(ms(openStall)), jumping to the end \(ms(scrollStall))")
+        #expect(openStall < 0.5, "opening the full-text sheet blocked the main thread for \(ms(openStall))")
+        #expect(scrollStall < 0.5, "jumping to the end of the full-text sheet blocked the main thread for \(ms(scrollStall))")
     }
 }

@@ -180,6 +180,11 @@ final class ChatListViewController: UIViewController {
         _ row: ChatCollectionProjectionBuilder.MessageRow
     ) -> Int {
         let text = row.message.text
+        // A folded long user message only measures its prefix (`UserMessageFold`). Scoring it by its full length
+        // would push a conversation that should render synchronously onto the skeleton path.
+        if row.message.role == .user, UserMessageFold.shouldFold(text) {
+            return UserMessageFold.previewUTF16 + (row.message.attachments?.isEmpty == false ? 1500 : 0)
+        }
         var cost = text.count
         if text.contains("```") { cost += 3000 }
         if text.contains("\n|") { cost += 2000 }
@@ -190,6 +195,9 @@ final class ChatListViewController: UIViewController {
     nonisolated private static func estimatedRowHeight(
         _ row: ChatCollectionProjectionBuilder.MessageRow
     ) -> CGFloat {
+        if row.message.role == .user, UserMessageFold.shouldFold(row.message.text) {
+            return UserMessageFold.collapsedTextHeight + userFullTextButtonRowHeight + 36
+        }
         let lines = max(1, (row.message.text.count + 29) / 30)
         return CGFloat(lines) * 22 + 36
     }
@@ -1340,11 +1348,22 @@ extension ChatListViewController: ChatLayoutDelegate {
             ? userBubbleChromeHeight
             : assistantChromeHeight(showMetadata: row.showMetadata)
 
-        height += estimatedMarkdownHeight(
-            for: message.text,
-            contentWidth: contentWidth,
-            metrics: isUser ? .userBubble : .assistantBody
-        )
+        // A folded long user message (`UserMessageFold`) shows only the capped part plus the "Show full message"
+        // pill row, independent of the full length.
+        if isUser, UserMessageFold.shouldFold(message.text) {
+            let preview = estimatedMarkdownHeight(
+                for: UserMessageFold.preview(of: message.text),
+                contentWidth: contentWidth,
+                metrics: .userBubble
+            )
+            height += min(preview, UserMessageFold.collapsedTextHeight) + userFullTextButtonRowHeight
+        } else {
+            height += estimatedMarkdownHeight(
+                for: message.text,
+                contentWidth: contentWidth,
+                metrics: isUser ? .userBubble : .assistantBody
+            )
+        }
         if message.text.contains("\n|") { height *= 1.1 }
 
         if !isUser, let reasoning = message.reasoningText, !reasoning.isEmpty {
@@ -1434,6 +1453,10 @@ extension ChatListViewController: ChatLayoutDelegate {
         showMetadata ? 104 : 76
     }
     nonisolated static let userBubbleChromeHeight: CGFloat = 28
+
+    /// The "Show full message" pill row of a folded user bubble (bubbleStack spacing 8 + the pill's footnote line
+    /// height + 12 of vertical padding).
+    nonisolated static let userFullTextButtonRowHeight: CGFloat = 36
 
     nonisolated static let reasoningCollapsedHeight: CGFloat = 58
 

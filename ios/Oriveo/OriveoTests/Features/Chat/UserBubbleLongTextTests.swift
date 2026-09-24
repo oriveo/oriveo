@@ -23,6 +23,11 @@ struct UserBubbleLongTextTests {
         return out
     }
 
+    /// The longest text that does not fold (`UserMessageFold`): the path where the whole text goes into the bubble is
+    /// verified at this size. `arabic(utf16:)` appends whole sentences and overshoots by less than one, hence the
+    /// one-sentence margin.
+    static let longestUnfolded = UserMessageFold.thresholdUTF16 - arabicSentence.utf16.count
+
     private func makeUserModel(
         id: UUID = UUID(),
         text: String,
@@ -124,7 +129,7 @@ struct UserBubbleLongTextTests {
         let counter = LayoutCounter()
         let tv = try #require(textView(in: cell))
         tv.layoutManager.delegate = counter
-        configure(cell, makeUserModel(text: Self.arabic(utf16: 20_000)), parent: UIViewController())
+        configure(cell, makeUserModel(text: Self.arabic(utf16: Self.longestUnfolded)), parent: UIViewController())
         counter.geometryChanges = 0
         fitAndLayOut(cell, width: 430)
         // Counts TextKit container geometry changes: every baseline computation is a "set size + restore" pair.
@@ -146,7 +151,7 @@ struct UserBubbleLongTextTests {
     func reconfigureSameMessageDoesNotResetText() throws {
         let cell = UserMessageCell(frame: CGRect(x: 0, y: 0, width: 430, height: 100))
         let parent = UIViewController()
-        let model = makeUserModel(text: Self.arabic(utf16: 8_000))
+        let model = makeUserModel(text: Self.arabic(utf16: Self.longestUnfolded))
         configure(cell, model, parent: parent)
         fitAndLayOut(cell, width: 430)
         let tv = try #require(textView(in: cell))
@@ -164,7 +169,7 @@ struct UserBubbleLongTextTests {
 
     @Test("a very long single paragraph: display paragraphs are bounded and keep one direction, copy and selection get the source")
     func softBreaksKeepDirectionAndSource() throws {
-        let source = Self.arabic(utf16: 20_000)
+        let source = Self.arabic(utf16: Self.longestUnfolded)
         let cell = UserMessageCell(frame: CGRect(x: 0, y: 0, width: 430, height: 100))
         configure(cell, makeUserModel(text: source), parent: UIViewController())
         fitAndLayOut(cell, width: 430)
@@ -181,7 +186,7 @@ struct UserBubbleLongTextTests {
             chunks += 1
             location = NSMaxRange(paragraph)
         }
-        #expect(chunks > 1, "a 20K single paragraph should be split into several chunks")
+        #expect(chunks > 1, "a \(source.utf16.count)-unit single paragraph should be split into several chunks")
         #expect(SoftParagraphBreaks.source(fromDisplay: display as String) == source)
 
         // No extra blank space: boundingRect switches internal paths on long strings (20K Arabic: 15796 vs the real
@@ -220,5 +225,61 @@ struct UserBubbleLongTextTests {
         fitAndLayOut(cell, width: 393)
         #expect(cell.bubbleFrameForTesting.width < 120, "the short text bubble does not hug: \(cell.bubbleFrameForTesting.width)")
         #expect(cell.bubbleFrameForTesting.height >= 36, "unexpected bubble height: \(cell.bubbleFrameForTesting.height)")
+    }
+
+    // MARK: - Folding very long messages (UserMessageFold)
+
+    @Test("Past the threshold the bubble lays out only the prefix, caps its visible height and shows Show full message; below it the whole text shows")
+    func overlongMessageFoldsToBoundedPrefix() throws {
+        for utf16 in [UserMessageFold.thresholdUTF16 + 1, 64_000, 200_000] {
+            let source = Self.arabic(utf16: utf16)
+            let cell = UserMessageCell(frame: CGRect(x: 0, y: 0, width: 393, height: 100))
+            configure(cell, makeUserModel(text: source), parent: UIViewController())
+            fitAndLayOut(cell, width: 393)
+            let state = cell.foldStateForTesting
+            let shown = SoftParagraphBreaks.source(fromDisplay: state.displayedText)
+            #expect(shown == UserMessageFold.preview(of: source), "\(utf16): the bubble should hold only the prefix")
+            #expect(shown.utf16.count <= UserMessageFold.previewUTF16)
+            #expect(state.showsFullTextButton, "\(utf16): a folded bubble must show Show full message")
+            #expect(abs(state.visibleTextHeight - UserMessageFold.collapsedTextHeight) < 1, "\(utf16): visible text height \(state.visibleTextHeight)")
+            // The bubble height does not depend on the full length: capped text + pill row + vertical padding.
+            #expect(cell.bubbleFrameForTesting.height < UserMessageFold.collapsedTextHeight + 90, "\(utf16): bubble height \(cell.bubbleFrameForTesting.height)")
+        }
+
+        let unfolded = String(repeating: "a", count: UserMessageFold.thresholdUTF16)
+        let cell = UserMessageCell(frame: CGRect(x: 0, y: 0, width: 393, height: 100))
+        configure(cell, makeUserModel(text: unfolded), parent: UIViewController())
+        fitAndLayOut(cell, width: 393)
+        #expect(SoftParagraphBreaks.source(fromDisplay: cell.foldStateForTesting.displayedText) == unfolded)
+        #expect(!cell.foldStateForTesting.showsFullTextButton)
+    }
+
+    @Test("A long press on the Show full message pill still opens the message menu instead of text selection on the clipped text below")
+    func longPressOnFullTextPillKeepsMessageMenu() throws {
+        let cell = UserMessageCell(frame: CGRect(x: 0, y: 0, width: 393, height: 100))
+        configure(cell, makeUserModel(text: Self.arabic(utf16: 20_000)), parent: UIViewController())
+        fitAndLayOut(cell, width: 393)
+        let interaction = UIContextMenuInteraction(delegate: cell)
+        let menu = cell.contextMenuInteraction(interaction, configurationForMenuAtLocation: cell.fullTextButtonCenterInBubbleForTesting)
+        #expect(menu != nil, "a long press on the pill should open the copy / save-as-note menu")
+    }
+
+    @Test("Reusing a folded cell for a plain message resets the mask, the clipping and the pill")
+    func reuseAfterFoldRestoresPlainBubble() throws {
+        let cell = UserMessageCell(frame: CGRect(x: 0, y: 0, width: 393, height: 100))
+        let parent = UIViewController()
+        configure(cell, makeUserModel(text: Self.arabic(utf16: 20_000)), parent: parent)
+        fitAndLayOut(cell, width: 393)
+        #expect(cell.foldStateForTesting.showsFullTextButton)
+
+        cell.prepareForReuse()
+        let text = String(repeating: "A long message line that wraps across the bubble several times. ", count: 20)
+        configure(cell, makeUserModel(text: text), parent: parent)
+        fitAndLayOut(cell, width: 393)
+        let tv = try #require(textView(in: cell))
+        #expect(!cell.foldStateForTesting.showsFullTextButton)
+        #expect(tv.superview?.layer.mask == nil, "a plain bubble must not keep the fade mask")
+        #expect(tv.superview?.clipsToBounds == false)
+        #expect(abs(tv.frame.height - cell.foldStateForTesting.visibleTextHeight) < 1, "a plain bubble's text view should match its host's height")
     }
 }
