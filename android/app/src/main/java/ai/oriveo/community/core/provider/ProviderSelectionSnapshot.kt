@@ -40,6 +40,20 @@ object ProviderSelectionSnapshot {
         provider: Provider?,
         modelId: String?,
         metadata: MetadataClient = MetadataClient.instance,
+    ): AIModel? = selectedModel(provider, modelId, metadata) { enabled, targetId ->
+        ModelSelectionUtils.matchingModel(enabled, targetId)
+    }
+
+    /**
+     * [enabledMatch] must return exactly what `ModelSelectionUtils.matchingModel(enabled, targetId)` returns, for
+     * example a [ModelSelectionUtils.CatalogMatchIndex] built over the same enabled list, which spares per-row
+     * callers a full scan.
+     */
+    internal fun selectedModel(
+        provider: Provider?,
+        modelId: String?,
+        metadata: MetadataClient,
+        enabledMatch: (enabled: List<AIModel>, targetId: String) -> AIModel?,
     ): AIModel? {
         val targetId = modelId?.trim().orEmpty()
         if (provider == null || targetId.isEmpty()) return null
@@ -47,13 +61,13 @@ object ProviderSelectionSnapshot {
         val enabled = enabledModels(provider)
         if (enabled.isEmpty()) return null
 
-        ModelSelectionUtils.matchingModel(enabled, targetId)?.let { return it }
+        enabledMatch(enabled, targetId)?.let { return it }
 
         if (provider.kind != ProviderKind.Relay) {
             val resolved = metadata.resolveCatalogModel(targetId, provider.kind)
             val canonical = resolved?.canonicalModelId
             if (!canonical.isNullOrBlank()) {
-                ModelSelectionUtils.matchingModel(enabled, canonical)?.let { return it }
+                enabledMatch(enabled, canonical)?.let { return it }
                 return metadataBackedHistoricalModel(
                     provider = provider,
                     resolved = resolved,

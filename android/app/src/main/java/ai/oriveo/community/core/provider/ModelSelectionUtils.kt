@@ -1,5 +1,6 @@
 package ai.oriveo.community.core.provider
 
+import androidx.annotation.VisibleForTesting
 import ai.oriveo.community.core.model.AIModel
 import ai.oriveo.community.core.model.Provider
 import ai.oriveo.community.core.model.ProviderKind
@@ -107,22 +108,28 @@ object ModelSelectionUtils {
      * `equals(ignoreCase = true)` (a plain `lowercase()` diverges on non-ASCII ids, and a
      * relay catalog cannot be assumed to be ASCII). "First match in catalog order" is
      * preserved by recording the index of each identifier's first occurrence.
+     *
+     * The second pass's identifier index strips a date suffix and assembles several
+     * identifiers for every model, so it is built only when actually needed: a query that
+     * the exact pass answers (the usual case when Home resolves a row's display name) pays
+     * only for the first pass.
      */
     class CatalogMatchIndex internal constructor(private val models: List<AIModel>) {
         // First pass of matchingModel: the untrimmed model.id against each candidate, first in catalog order.
-        private val firstByExactId = TreeMap<String, AIModel>(String.CASE_INSENSITIVE_ORDER)
-        // Second pass: catalog index of the first model whose identifiers contain a candidate.
-        private val firstIndexByIdentifier = TreeMap<String, Int>(String.CASE_INSENSITIVE_ORDER)
-        private val names = TreeSet(String.CASE_INSENSITIVE_ORDER)
+        private val firstByExactId = TreeMap<String, AIModel>(String.CASE_INSENSITIVE_ORDER).also { index ->
+            models.forEach { model -> index.putIfAbsent(model.id, model) }
+        }
 
-        init {
-            models.forEachIndexed { index, model ->
-                firstByExactId.putIfAbsent(model.id, model)
-                modelIdentifiers(model).forEach { identifier ->
-                    firstIndexByIdentifier.putIfAbsent(identifier, index)
+        // Second pass: catalog index of the first model whose identifiers contain a candidate.
+        private val firstIndexByIdentifier: Map<String, Int> by lazy {
+            TreeMap<String, Int>(String.CASE_INSENSITIVE_ORDER).also { index ->
+                models.forEachIndexed { position, model ->
+                    modelIdentifiers(model).forEach { identifier -> index.putIfAbsent(identifier, position) }
                 }
-                names.add(model.name)
             }
+        }
+        private val names: Set<String> by lazy {
+            TreeSet(String.CASE_INSENSITIVE_ORDER).also { set -> models.forEach { set.add(it.name) } }
         }
 
         /** Returns exactly what `matchingModel(models, targetId)` returns. */
@@ -434,6 +441,24 @@ object ModelSelectionUtils {
             .distinctBy { it.lowercase() }
     }
 
-    private fun stripSnapshotDateSuffix(modelId: String): String =
-        modelId.trim().replace(dateSuffixRegex, "")
+    @VisibleForTesting
+    internal fun stripSnapshotDateSuffix(modelId: String): String {
+        val trimmed = modelId.trim()
+        // The fuzzy pass strips every catalog model once; with a relay catalog of 20,000 models the regex is most of
+        // the index build, and for nearly every id the last character cannot end a match at all. Run the regex only
+        // when the last character could end a date suffix; the result is unchanged.
+        if (trimmed.isEmpty() || !mayEndDateSuffixMatch(trimmed.last())) return trimmed
+        return trimmed.replace(dateSuffixRegex, "")
+    }
+
+    /**
+     * A match must end in `\d` (followed by at most one line terminator before `$`). This takes the union of two
+     * engines: the JVM's `\d` is ASCII digits, while Android's regex is ICU, where `\d` is Unicode Nd (including
+     * supplementary planes, whose last char is a low surrogate); line terminators use ICU's wider set. Running the
+     * regex too often is fine; skipping it when it could match is not.
+     */
+    private fun mayEndDateSuffixMatch(last: Char): Boolean =
+        Character.isDigit(last) || Character.isSurrogate(last) || last in REGEX_LINE_TERMINATORS
+
+    private const val REGEX_LINE_TERMINATORS = "\n\u000B\u000C\r\u0085\u2028\u2029"
 }
