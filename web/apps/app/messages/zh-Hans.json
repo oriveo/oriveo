@@ -261,7 +261,9 @@
     "customRequestFieldsSwitchBackToAutomatic": "切回自动",
     "connectionDefaults": "连接默认值",
     "modelBehaviorConnectionScopeHint": "对这条连接上使用该模型的新消息生效，直到你在某个对话里单独覆盖。",
-    "retryWithoutCustomRequestFields": "不带自定义字段重试"
+    "retryWithoutCustomRequestFields": "不带自定义字段重试",
+    "showCharacters": "显示输入内容",
+    "hideCharacters": "隐藏输入内容"
   },
   "pages": {
     "welcome": {

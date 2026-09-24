@@ -261,7 +261,9 @@
     "customRequestFieldsSwitchBackToAutomatic": "Switch back to automatic",
     "connectionDefaults": "Connection Defaults",
     "modelBehaviorConnectionScopeHint": "Applies to new messages on this connection with this model, until you override them in a conversation.",
-    "retryWithoutCustomRequestFields": "Retry without custom fields"
+    "retryWithoutCustomRequestFields": "Retry without custom fields",
+    "showCharacters": "Show characters",
+    "hideCharacters": "Hide characters"
   },
   "pages": {
     "welcome": {

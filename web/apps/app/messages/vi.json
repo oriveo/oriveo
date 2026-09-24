@@ -261,7 +261,9 @@
     "customRequestFieldsSwitchBackToAutomatic": "Quay lại tự động",
     "connectionDefaults": "Giá trị mặc định của kết nối",
     "modelBehaviorConnectionScopeHint": "Áp dụng cho tin nhắn mới trên kết nối này với mô hình này, cho đến khi bạn ghi đè trong một cuộc trò chuyện.",
-    "retryWithoutCustomRequestFields": "Thử lại không có trường tùy chỉnh"
+    "retryWithoutCustomRequestFields": "Thử lại không có trường tùy chỉnh",
+    "showCharacters": "Hiện ký tự",
+    "hideCharacters": "Ẩn ký tự"
   },
   "pages": {
     "welcome": {

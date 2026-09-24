@@ -261,7 +261,9 @@
     "customRequestFieldsSwitchBackToAutomatic": "स्वचालित पर वापस जाएँ",
     "connectionDefaults": "कनेक्शन डिफ़ॉल्ट",
     "modelBehaviorConnectionScopeHint": "इस कनेक्शन पर इस मॉडल के साथ भेजे जाने वाले नए संदेशों पर लागू होता है, जब तक आप किसी बातचीत में इसे बदल न दें।",
-    "retryWithoutCustomRequestFields": "कस्टम फ़ील्ड के बिना फिर से प्रयास करें"
+    "retryWithoutCustomRequestFields": "कस्टम फ़ील्ड के बिना फिर से प्रयास करें",
+    "showCharacters": "अक्षर दिखाएँ",
+    "hideCharacters": "अक्षर छिपाएँ"
   },
   "pages": {
     "welcome": {

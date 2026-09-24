@@ -2,11 +2,12 @@
 
 import { useState, useRef, useCallback } from 'react';
 import { useTranslations } from 'next-intl';
-import { Button, Input, Dialog } from '@oriveo/ui';
+import { Button, Dialog } from '@oriveo/ui';
 import { parseBackupFile, generateImportPreview, executeImportAndRefreshStore } from '../../../lib/backup';
 import type { ImportMode, ImportPreview, ImportResult } from '../../../lib/backup';
 import { ImportResultCard } from './ImportResultCard';
 import { BackupPreviewCard } from './BackupPreviewCard';
+import { BackupPasswordInput } from './BackupPasswordInput';
 import styles from './BackupPage.module.css';
 
 type ImportStep = 'idle' | 'password' | 'preview' | 'keyPassword' | 'importing' | 'done';
@@ -124,7 +125,7 @@ export function ImportSection() {
               </div>
               <div className={styles.passwordSection}>
                 <span className={styles.passwordLabel}>{t('legacyPasswordHint')}</span>
-                <Input type="password" placeholder={t('importPassword')} value={importPassword}
+                <BackupPasswordInput placeholder={t('importPassword')} value={importPassword}
                   onChange={(e) => setImportPassword(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleDecryptLegacy()} />
               </div>
               {importError && <div className={styles.errorMsg}>{importError}</div>}
@@ -168,7 +169,7 @@ export function ImportSection() {
             <>
               <div className={styles.passwordSection}>
                 <span className={styles.passwordLabel}>{t('keyPasswordHint')}</span>
-                <Input type="password" placeholder={t('keyPasswordPlaceholder')} value={keyPassword}
+                <BackupPasswordInput placeholder={t('keyPasswordPlaceholder')} value={keyPassword}
                   onChange={(e) => { setKeyPassword(e.target.value); setImportError(''); }}
                   onKeyDown={(e) => e.key === 'Enter' && doImport()} />
               </div>

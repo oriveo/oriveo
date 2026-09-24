@@ -261,7 +261,9 @@
     "customRequestFieldsSwitchBackToAutomatic": "Voltar para automático",
     "connectionDefaults": "Padrões da conexão",
     "modelBehaviorConnectionScopeHint": "Aplica-se a novas mensagens nesta conexão com este modelo, até você substituí-las em uma conversa.",
-    "retryWithoutCustomRequestFields": "Tentar novamente sem campos personalizados"
+    "retryWithoutCustomRequestFields": "Tentar novamente sem campos personalizados",
+    "showCharacters": "Mostrar caracteres",
+    "hideCharacters": "Ocultar caracteres"
   },
   "pages": {
     "welcome": {

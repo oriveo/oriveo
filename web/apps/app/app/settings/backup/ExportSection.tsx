@@ -2,10 +2,11 @@
 
 import { useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { Button, Dialog, Input } from '@oriveo/ui';
+import { Button, Dialog } from '@oriveo/ui';
 import { exportBackup, saveBackupFile } from '../../../lib/backup';
 import { useAppStore } from '../../../providers/StoreProvider';
 import styles from './BackupPage.module.css';
+import { BackupPasswordInput } from './BackupPasswordInput';
 
 export function ExportSection() {
   const t = useTranslations('pages.backup');
@@ -76,8 +77,7 @@ export function ExportSection() {
             <>
               <div className={styles.fieldGroup}>
                 <label className={styles.fieldLabel}>{t('encryptionPassword')}</label>
-                <Input
-                  type="password"
+                <BackupPasswordInput
                   placeholder={t('passwordPlaceholder')}
                   value={exportPassword}
                   onChange={(e) => setExportPassword(e.target.value)}
@@ -85,8 +85,7 @@ export function ExportSection() {
               </div>
               <div className={styles.fieldGroup}>
                 <label className={styles.fieldLabel}>{t('confirmPassword')}</label>
-                <Input
-                  type="password"
+                <BackupPasswordInput
                   placeholder={t('confirmPasswordPlaceholder')}
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}

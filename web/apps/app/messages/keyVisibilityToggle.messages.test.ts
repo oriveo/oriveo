@@ -72,3 +72,29 @@ describe('API key visibility toggle aria-labels', () => {
     expect(problems).toEqual([]);
   });
 });
+
+// The backup password fields (BackupPasswordInput) read common.showCharacters / hideCharacters: the field holds a
+// password, not a key, so it cannot reuse showKey above; the wording matches the iOS / Android secure fields.
+describe('password visibility toggle aria-labels', () => {
+  it('exist in every locale, differ by state, and are translated', () => {
+    const locales = loadLocales();
+    expect(locales).toHaveLength(16);
+    const common = (messages: Messages): Record<string, unknown> =>
+      ((messages as { common?: Record<string, unknown> }).common ?? {});
+    const english = common(locales.find((entry) => entry.locale === 'en')?.messages ?? {});
+
+    const problems = locales.flatMap(({ locale, messages }) => {
+      const show = String(common(messages).showCharacters ?? '').trim();
+      const hide = String(common(messages).hideCharacters ?? '').trim();
+      const issues: string[] = [];
+      if (!show || !hide) issues.push(`${locale}: missing showCharacters/hideCharacters`);
+      if (show && show === hide) issues.push(`${locale}: show and hide read the same`);
+      if (locale !== 'en' && (show === english.showCharacters || hide === english.hideCharacters)) {
+        issues.push(`${locale}: still English`);
+      }
+      return issues;
+    });
+
+    expect(problems).toEqual([]);
+  });
+});

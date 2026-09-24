@@ -261,7 +261,9 @@
     "customRequestFieldsSwitchBackToAutomatic": "Zurück zu Automatisch",
     "connectionDefaults": "Verbindungsstandards",
     "modelBehaviorConnectionScopeHint": "Gilt für neue Nachrichten über diese Verbindung mit diesem Modell, bis du sie in einer Unterhaltung überschreibst.",
-    "retryWithoutCustomRequestFields": "Ohne benutzerdefinierte Felder erneut versuchen"
+    "retryWithoutCustomRequestFields": "Ohne benutzerdefinierte Felder erneut versuchen",
+    "showCharacters": "Eingabe anzeigen",
+    "hideCharacters": "Eingabe ausblenden"
   },
   "pages": {
     "welcome": {

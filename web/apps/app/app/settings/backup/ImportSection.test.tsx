@@ -137,6 +137,8 @@ vi.mock('@oriveo/ui', () => ({
       onKeyDown={(event) => onKeyDown?.({ key: event.key })}
     />
   ),
+  EyeIcon: () => <svg data-icon="eye" />,
+  EyeOffIcon: () => <svg data-icon="eye-off" />,
   Dialog: ({
     open,
     children,
@@ -197,6 +199,7 @@ describe('ImportSection', () => {
     await waitFor(() => {
       expect(screen.getByPlaceholderText('importPassword')).toBeTruthy();
     });
+    expect(screen.getByRole('button', { name: 'showCharacters' })).toBeTruthy();
 
     fireEvent.change(screen.getByPlaceholderText('importPassword'), {
       target: { value: 'legacy-password' },
@@ -249,6 +252,7 @@ describe('ImportSection', () => {
     await waitFor(() => {
       expect(screen.getByPlaceholderText('keyPasswordPlaceholder')).toBeTruthy();
     });
+    expect(screen.getByRole('button', { name: 'showCharacters' })).toBeTruthy();
 
     fireEvent.change(screen.getByPlaceholderText('keyPasswordPlaceholder'), {
       target: { value: 'restore-secret' },

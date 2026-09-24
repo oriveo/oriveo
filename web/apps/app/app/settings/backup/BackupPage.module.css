@@ -366,6 +366,41 @@
   color: var(--o-text);
 }
 
+/* Password field with a reveal button; the button matches the API key field's .toggleVis in provider setup */
+.passwordField {
+  position: relative;
+}
+
+.passwordField input {
+  padding-right: 40px;
+}
+
+/* Edge adds its own reveal button to type=password, which would duplicate ours */
+.passwordField input::-ms-reveal {
+  display: none;
+}
+
+.passwordToggle {
+  position: absolute;
+  right: var(--o-space-sm);
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  border-radius: var(--o-radius-sm);
+  background: transparent;
+  color: var(--o-text-tertiary);
+  cursor: pointer;
+}
+
+.passwordToggle:hover {
+  color: var(--o-text-secondary);
+}
+
 /* ── File info row ──────────────────── */
 
 .fileInfoRow {

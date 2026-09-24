@@ -261,7 +261,9 @@
     "customRequestFieldsSwitchBackToAutomatic": "Otomatiğe geri dön",
     "connectionDefaults": "Bağlantı Varsayılanları",
     "modelBehaviorConnectionScopeHint": "Bu bağlantıda bu modelle gönderilen yeni mesajlar için geçerlidir; bir sohbette geçersiz kılana kadar sürer.",
-    "retryWithoutCustomRequestFields": "Özel alanlar olmadan yeniden dene"
+    "retryWithoutCustomRequestFields": "Özel alanlar olmadan yeniden dene",
+    "showCharacters": "Karakterleri göster",
+    "hideCharacters": "Karakterleri gizle"
   },
   "pages": {
     "welcome": {

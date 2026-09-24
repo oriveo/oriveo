@@ -261,7 +261,9 @@
     "customRequestFieldsSwitchBackToAutomatic": "切回自動",
     "connectionDefaults": "連線預設值",
     "modelBehaviorConnectionScopeHint": "對這條連線上使用此模型的新訊息生效，直到你在某個對話中另行覆寫。",
-    "retryWithoutCustomRequestFields": "不含自訂欄位重試"
+    "retryWithoutCustomRequestFields": "不含自訂欄位重試",
+    "showCharacters": "顯示輸入內容",
+    "hideCharacters": "隱藏輸入內容"
   },
   "pages": {
     "welcome": {

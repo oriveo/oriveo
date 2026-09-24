@@ -261,7 +261,9 @@
     "customRequestFieldsSwitchBackToAutomatic": "กลับไปใช้อัตโนมัติ",
     "connectionDefaults": "ค่าเริ่มต้นของการเชื่อมต่อ",
     "modelBehaviorConnectionScopeHint": "ใช้กับข้อความใหม่บนการเชื่อมต่อนี้ที่ใช้โมเดลนี้ จนกว่าคุณจะกำหนดค่าทับในบทสนทนา",
-    "retryWithoutCustomRequestFields": "ลองอีกครั้งโดยไม่ใช้ฟิลด์ที่กำหนดเอง"
+    "retryWithoutCustomRequestFields": "ลองอีกครั้งโดยไม่ใช้ฟิลด์ที่กำหนดเอง",
+    "showCharacters": "แสดงอักขระ",
+    "hideCharacters": "ซ่อนอักขระ"
   },
   "pages": {
     "welcome": {

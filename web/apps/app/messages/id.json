@@ -261,7 +261,9 @@
     "customRequestFieldsSwitchBackToAutomatic": "Kembali ke otomatis",
     "connectionDefaults": "Bawaan Koneksi",
     "modelBehaviorConnectionScopeHint": "Berlaku untuk pesan baru pada koneksi ini dengan model ini, sampai Anda menimpanya di sebuah percakapan.",
-    "retryWithoutCustomRequestFields": "Coba lagi tanpa kolom kustom"
+    "retryWithoutCustomRequestFields": "Coba lagi tanpa kolom kustom",
+    "showCharacters": "Tampilkan karakter",
+    "hideCharacters": "Sembunyikan karakter"
   },
   "pages": {
     "welcome": {

@@ -61,6 +61,8 @@ vi.mock('@oriveo/ui', () => ({
       onChange={(event) => onChange?.({ target: { value: event.target.value } })}
     />
   ),
+  EyeIcon: () => <svg data-icon="eye" />,
+  EyeOffIcon: () => <svg data-icon="eye-off" />,
   Dialog: ({ open, children }: { open: boolean; children: ReactNode }) =>
     open ? <div role="dialog">{children}</div> : null,
 }));
@@ -92,6 +94,8 @@ describe('ExportSection', () => {
     render(<ExportSection />);
 
     fireEvent.click(screen.getByRole('checkbox'));
+    // Both the password and its confirmation can be checked, like the iOS / Android password fields
+    expect(screen.getAllByRole('button', { name: 'showCharacters' })).toHaveLength(2);
     fireEvent.change(screen.getByPlaceholderText('passwordPlaceholder'), {
       target: { value: 'password-123' },
     });

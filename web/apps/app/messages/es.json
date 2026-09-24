@@ -261,7 +261,9 @@
     "customRequestFieldsSwitchBackToAutomatic": "Volver a automático",
     "connectionDefaults": "Valores predeterminados de la conexión",
     "modelBehaviorConnectionScopeHint": "Se aplica a los mensajes nuevos de esta conexión con este modelo, hasta que los sustituyas en una conversación.",
-    "retryWithoutCustomRequestFields": "Reintentar sin campos personalizados"
+    "retryWithoutCustomRequestFields": "Reintentar sin campos personalizados",
+    "showCharacters": "Mostrar caracteres",
+    "hideCharacters": "Ocultar caracteres"
   },
   "pages": {
     "welcome": {

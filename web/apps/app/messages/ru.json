@@ -261,7 +261,9 @@
     "customRequestFieldsSwitchBackToAutomatic": "Вернуть автоматический режим",
     "connectionDefaults": "Значения по умолчанию для подключения",
     "modelBehaviorConnectionScopeHint": "Применяется к новым сообщениям в этом подключении с этой моделью, пока вы не переопределите их в диалоге.",
-    "retryWithoutCustomRequestFields": "Повторить без пользовательских полей"
+    "retryWithoutCustomRequestFields": "Повторить без пользовательских полей",
+    "showCharacters": "Показать символы",
+    "hideCharacters": "Скрыть символы"
   },
   "pages": {
     "welcome": {

@@ -261,7 +261,9 @@
     "customRequestFieldsSwitchBackToAutomatic": "自動に戻す",
     "connectionDefaults": "接続の既定値",
     "modelBehaviorConnectionScopeHint": "この接続でこのモデルを使う新しいメッセージに適用されます（会話ごとに上書きするまで）。",
-    "retryWithoutCustomRequestFields": "カスタム項目なしで再試行"
+    "retryWithoutCustomRequestFields": "カスタム項目なしで再試行",
+    "showCharacters": "入力内容を表示",
+    "hideCharacters": "入力内容を非表示"
   },
   "pages": {
     "welcome": {

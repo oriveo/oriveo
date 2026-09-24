@@ -261,7 +261,9 @@
     "customRequestFieldsSwitchBackToAutomatic": "العودة إلى الوضع التلقائي",
     "connectionDefaults": "الإعدادات الافتراضية للاتصال",
     "modelBehaviorConnectionScopeHint": "ينطبق على الرسائل الجديدة في هذا الاتصال مع هذا النموذج، إلى أن تتجاوزه في محادثة ما.",
-    "retryWithoutCustomRequestFields": "إعادة المحاولة بدون الحقول المخصصة"
+    "retryWithoutCustomRequestFields": "إعادة المحاولة بدون الحقول المخصصة",
+    "showCharacters": "إظهار الأحرف",
+    "hideCharacters": "إخفاء الأحرف"
   },
   "pages": {
     "welcome": {
