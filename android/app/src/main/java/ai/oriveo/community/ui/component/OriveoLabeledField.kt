@@ -21,11 +21,13 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import ai.oriveo.community.R
 import ai.oriveo.community.ui.theme.OriveoRadius
 import ai.oriveo.community.ui.theme.opacity
 import ai.oriveo.community.ui.theme.OriveoTheme
@@ -95,7 +97,11 @@ fun OriveoLabeledField(
                     IconButton(onClick = { passwordVisible = !passwordVisible }) {
                         Icon(
                             imageVector = if (passwordVisible) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility,
-                            contentDescription = if (passwordVisible) "Hide password" else "Show password",
+                            // The field holds API keys as well as passwords, so the label names neither;
+                            // it reads the action the button will perform in the current state.
+                            contentDescription = stringResource(
+                                if (passwordVisible) R.string.secure_field_hide else R.string.secure_field_show,
+                            ),
                             tint = colors.textTertiary,
                         )
                     }

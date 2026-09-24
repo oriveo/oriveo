@@ -1400,4 +1400,6 @@
         <item quantity="one">%1$d not</item>
         <item quantity="other">%1$d not</item>
     </plurals>
+    <string name="secure_field_show">Karakterleri göster</string>
+    <string name="secure_field_hide">Karakterleri gizle</string>
 </resources>

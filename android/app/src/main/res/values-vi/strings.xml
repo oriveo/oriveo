@@ -1399,4 +1399,6 @@
     <plurals name="notes_count">
         <item quantity="other">%1$d ghi chú</item>
     </plurals>
+    <string name="secure_field_show">Hiện ký tự</string>
+    <string name="secure_field_hide">Ẩn ký tự</string>
 </resources>

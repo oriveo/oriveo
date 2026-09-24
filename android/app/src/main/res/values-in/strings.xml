@@ -1399,4 +1399,6 @@
     <plurals name="notes_count">
         <item quantity="other">%1$d catatan</item>
     </plurals>
+    <string name="secure_field_show">Tampilkan karakter</string>
+    <string name="secure_field_hide">Sembunyikan karakter</string>
 </resources>

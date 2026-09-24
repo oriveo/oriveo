@@ -1402,4 +1402,6 @@
         <item quantity="many">%1$d заметок</item>
         <item quantity="other">%1$d заметки</item>
     </plurals>
+    <string name="secure_field_show">Показать символы</string>
+    <string name="secure_field_hide">Скрыть символы</string>
 </resources>

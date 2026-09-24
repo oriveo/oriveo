@@ -1455,4 +1455,6 @@
     <plurals name="notes_count">
         <item quantity="other">%1$d 則筆記</item>
     </plurals>
+    <string name="secure_field_show">顯示輸入內容</string>
+    <string name="secure_field_hide">隱藏輸入內容</string>
 </resources>

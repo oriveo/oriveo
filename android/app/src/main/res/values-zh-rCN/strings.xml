@@ -1457,4 +1457,6 @@
     <plurals name="notes_count">
         <item quantity="other">%1$d 条笔记</item>
     </plurals>
+    <string name="secure_field_show">显示输入内容</string>
+    <string name="secure_field_hide">隐藏输入内容</string>
 </resources>

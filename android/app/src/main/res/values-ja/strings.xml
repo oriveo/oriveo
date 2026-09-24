@@ -1444,4 +1444,6 @@
     <plurals name="notes_count">
         <item quantity="other">%1$d 件のノート</item>
     </plurals>
+    <string name="secure_field_show">入力内容を表示</string>
+    <string name="secure_field_hide">入力内容を非表示</string>
 </resources>

@@ -1400,4 +1400,6 @@
         <item quantity="one">%1$d नोट</item>
         <item quantity="other">%1$d नोट्स</item>
     </plurals>
+    <string name="secure_field_show">अक्षर दिखाएँ</string>
+    <string name="secure_field_hide">अक्षर छिपाएँ</string>
 </resources>

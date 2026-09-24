@@ -1445,4 +1445,6 @@
     <plurals name="notes_count">
         <item quantity="other">노트 %1$d개</item>
     </plurals>
+    <string name="secure_field_show">입력 내용 표시</string>
+    <string name="secure_field_hide">입력 내용 숨기기</string>
 </resources>

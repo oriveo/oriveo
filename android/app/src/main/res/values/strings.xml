@@ -1456,4 +1456,7 @@
         <item quantity="one">%1$d note</item>
         <item quantity="other">%1$d notes</item>
     </plurals>
+    <!-- Screen reader labels for the reveal toggle on secret fields. The same field holds API keys and passwords, so the label names neither; matches the iOS "Show characters" label. -->
+    <string name="secure_field_show">Show characters</string>
+    <string name="secure_field_hide">Hide characters</string>
 </resources>

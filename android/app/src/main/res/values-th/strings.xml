@@ -1399,4 +1399,6 @@
     <plurals name="notes_count">
         <item quantity="other">%1$d โน้ต</item>
     </plurals>
+    <string name="secure_field_show">แสดงอักขระ</string>
+    <string name="secure_field_hide">ซ่อนอักขระ</string>
 </resources>

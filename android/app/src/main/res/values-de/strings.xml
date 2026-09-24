@@ -1445,4 +1445,6 @@
         <item quantity="one">%1$d Notiz</item>
         <item quantity="other">%1$d Notizen</item>
     </plurals>
+    <string name="secure_field_show">Eingabe anzeigen</string>
+    <string name="secure_field_hide">Eingabe ausblenden</string>
 </resources>
