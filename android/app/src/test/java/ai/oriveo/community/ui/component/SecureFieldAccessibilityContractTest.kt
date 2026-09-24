@@ -68,6 +68,29 @@ class SecureFieldAccessibilityContractTest {
         }
     }
 
+    /**
+     * The relay quick setup API key field used to have only PasswordVisualTransformation and no
+     * show/hide button, so a pasted key could not be checked; the same field on iOS
+     * (RelaySetupField) has always had one.
+     */
+    @Test
+    fun `relay quick api key field can reveal and mask its text with a labeled toggle`() {
+        val code = codeWithoutComments("feature/providers/relay/RelaySetupScreen.kt")
+        val field = code.substringAfter("private fun RelayQuickField(", missingDelimiterValue = "")
+            .substringBefore("\n@Composable")
+        assertTrue("RelayQuickField not found", field.isNotEmpty())
+
+        assertFalse(
+            "the secret transformation must not depend on secure alone: it would stay masked and a pasted key could not be checked",
+            field.contains("if (secure) PasswordVisualTransformation()"),
+        )
+        assertTrue("a secure field needs a toggleable reveal button", field.contains("IconButton(") && field.contains("Icons.Outlined.Visibility"))
+        assertTrue(
+            "the reveal button must pick R.string.$showKey / R.string.$hideKey by its state, like OriveoLabeledField",
+            field.contains("R.string.$showKey") && field.contains("R.string.$hideKey"),
+        )
+    }
+
     private val resDir = File("src/main/res")
 
     private fun stringFiles(): List<Pair<String, File>> =

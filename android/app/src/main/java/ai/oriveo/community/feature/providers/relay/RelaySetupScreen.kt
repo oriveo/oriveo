@@ -36,6 +36,8 @@ import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.outlined.Visibility
+import androidx.compose.material.icons.outlined.VisibilityOff
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -421,6 +423,7 @@ private fun RelayQuickField(
     val colors = OriveoTheme.colors
     val surfaceFill = relayQuickSurfaceFillColor(colors, OriveoTheme.isDark)
     var focused by remember { mutableStateOf(false) }
+    var revealsSecureText by remember { mutableStateOf(false) }
     var fieldValue by remember { mutableStateOf(TextFieldValue(value, selection = TextRange(value.length))) }
     LaunchedEffect(value, selectionRange) {
         if (fieldValue.text != value || selectionRange != null) {
@@ -453,18 +456,37 @@ private fun RelayQuickField(
                     color = if (focused) colors.primary.copy(alpha = 0.72f) else Color.Transparent,
                     shape = RoundedCornerShape(OriveoTheme.radius.inset),
                 )
-                .padding(horizontal = 16.dp),
+                // Matches iOS RelaySetupField: a secret field gives its trailing space to the 44dp reveal button
+                .padding(start = 16.dp, end = if (secure) OriveoTheme.spacing.xs else 16.dp),
             textStyle = OriveoTheme.typography.body.copy(color = colors.textPrimary),
             cursorBrush = SolidColor(colors.primary),
             singleLine = true,
             keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
-            visualTransformation = if (secure) PasswordVisualTransformation() else VisualTransformation.None,
+            visualTransformation = if (secure && !revealsSecureText) PasswordVisualTransformation() else VisualTransformation.None,
             decorationBox = { inner ->
-                Box(contentAlignment = Alignment.CenterStart) {
-                    if (fieldValue.text.isEmpty()) {
-                        Text(placeholder, style = OriveoTheme.typography.body, color = colors.textTertiary)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.CenterStart) {
+                        if (fieldValue.text.isEmpty()) {
+                            Text(placeholder, style = OriveoTheme.typography.body, color = colors.textTertiary)
+                        }
+                        inner()
                     }
-                    inner()
+                    if (secure) {
+                        // A pasted key has to be checkable; same icons and screen reader labels as OriveoLabeledField
+                        IconButton(
+                            onClick = { revealsSecureText = !revealsSecureText },
+                            modifier = Modifier.size(44.dp),
+                        ) {
+                            Icon(
+                                imageVector = if (revealsSecureText) Icons.Outlined.VisibilityOff else Icons.Outlined.Visibility,
+                                contentDescription = stringResource(
+                                    if (revealsSecureText) R.string.secure_field_hide else R.string.secure_field_show,
+                                ),
+                                tint = colors.textTertiary,
+                                modifier = Modifier.size(20.dp),
+                            )
+                        }
+                    }
                 }
             },
         )
