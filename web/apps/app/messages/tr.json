@@ -1608,7 +1608,7 @@
       }
     },
     "sql_expert": {
-      "name": "SQL Uzman",
+      "name": "SQL Uzmanı",
       "description": "SQL sorguları, optimizasyon ve şema tasarımı",
       "starters": {
         "0": "Şuna bir SQL sorgusu yazın...",
@@ -1628,7 +1628,7 @@
       }
     },
     "writing_coach": {
-      "name": "Yazma Koçu",
+      "name": "Yazı Koçu",
       "description": "Yazı stilini, yapısını ve netliğini iyileştirin",
       "starters": {
         "0": "Bu paragrafı geliştirin",
@@ -1688,7 +1688,7 @@
       }
     },
     "learning_tutor": {
-      "name": "Öğrenme Öğretmeni",
+      "name": "Öğrenme Koçu",
       "description": "Sokratik yöntemle hasta eğitimi",
       "starters": {
         "0": "Bu kavramı bana açıkla",
@@ -1748,7 +1748,7 @@
       }
     },
     "brainstorm": {
-      "name": "Beyin fırtınası",
+      "name": "Beyin Fırtınası",
       "description": "Fikir üretin ve olasılıkları keşfedin",
       "starters": {
         "0": "Fikirler konusunda beyin fırtınası yapmama yardımcı olun...",
@@ -1758,7 +1758,7 @@
       }
     },
     "story_creator": {
-      "name": "Hikaye Oluşturucu",
+      "name": "Hikaye Yazarı",
       "description": "Kurgu yazımı, hikaye anlatımı ve dünya inşası",
       "starters": {
         "0": "Bu karakteri geliştirmeme yardım et",
@@ -1778,7 +1778,7 @@
       }
     },
     "interview_coach": {
-      "name": "Röportaj Koçu",
+      "name": "Mülakat Koçu",
       "description": "İş görüşmesine hazırlık ve deneme görüşmeleri",
       "starters": {
         "0": "Bir yazılım mühendisi rolü için benimle sahte röportaj",
@@ -1828,7 +1828,7 @@
       }
     },
     "image_analyst": {
-      "name": "İmaj Analisti",
+      "name": "Görsel Analisti",
       "description": "Görüntüleri tanımlayın, analiz edin ve görüntülerden bilgi çıkarın",
       "starters": {
         "0": "Bu resmi ayrıntılı olarak açıklayın",
@@ -1844,10 +1844,10 @@
       "translation": "Çeviri",
       "learning": "Öğrenme",
       "analysis": "Analiz",
-      "creative": "Yaratıcı",
+      "creative": "Yaratıcılık",
       "work": "İş",
-      "life": "Hayat",
-      "image": "Resim"
+      "life": "Yaşam",
+      "image": "Görsel"
     }
   },
   "avatarCrop": {

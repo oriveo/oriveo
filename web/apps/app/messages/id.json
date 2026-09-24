@@ -1608,7 +1608,7 @@
       }
     },
     "sql_expert": {
-      "name": "SQL Pakar",
+      "name": "Pakar SQL",
       "description": "Kueri SQL, pengoptimalan, dan desain skema",
       "starters": {
         "0": "Tulis kueri SQL ke...",
@@ -1648,7 +1648,7 @@
       }
     },
     "copywriting": {
-      "name": "penulisan salinan",
+      "name": "Copywriting",
       "description": "Salinan pemasaran, media sosial, dan pesan merek",
       "starters": {
         "0": "Tulis deskripsi produk untuk...",
@@ -1668,7 +1668,7 @@
       }
     },
     "translation_expert": {
-      "name": "Pakar Penerjemahan",
+      "name": "Pakar Terjemahan",
       "description": "Terjemahan akurat menjaga nada dan nuansa",
       "starters": {
         "0": "Terjemahkan ini ke bahasa Inggris",
@@ -1678,7 +1678,7 @@
       }
     },
     "proofreader": {
-      "name": "Korektor",
+      "name": "Pemeriksa Tulisan",
       "description": "Perbaiki tata bahasa, ejaan, dan tingkatkan kejelasan",
       "starters": {
         "0": "Koreksi teks ini",
@@ -1688,7 +1688,7 @@
       }
     },
     "learning_tutor": {
-      "name": "Guru Pembelajaran",
+      "name": "Tutor Belajar",
       "description": "Bimbingan pasien dengan metode Socrates",
       "starters": {
         "0": "Jelaskan konsep ini kepada saya",
@@ -1698,7 +1698,7 @@
       }
     },
     "research_assistant": {
-      "name": "Asisten Peneliti",
+      "name": "Asisten Riset",
       "description": "Tinjauan literatur, penulisan akademis, dan penelitian",
       "starters": {
         "0": "Ringkaslah temuan-temuan utama makalah ini",
@@ -1748,7 +1748,7 @@
       }
     },
     "brainstorm": {
-      "name": "Bertukar pikiran",
+      "name": "Curah Pendapat",
       "description": "Hasilkan ide dan jelajahi kemungkinan",
       "starters": {
         "0": "Bantu saya bertukar pikiran tentang ide untuk...",
@@ -1758,7 +1758,7 @@
       }
     },
     "story_creator": {
-      "name": "Pencipta Cerita",
+      "name": "Pembuat Cerita",
       "description": "Penulisan fiksi, bercerita, dan pembangunan dunia",
       "starters": {
         "0": "Bantu saya mengembangkan karakter ini",
@@ -1839,13 +1839,13 @@
     },
     "category": {
       "all": "Semua",
-      "coding": "Pengkodean",
+      "coding": "Pemrograman",
       "writing": "Menulis",
       "translation": "Terjemahan",
-      "learning": "Sedang belajar",
-      "analysis": "Analisa",
+      "learning": "Belajar",
+      "analysis": "Analisis",
       "creative": "Kreatif",
-      "work": "Bekerja",
+      "work": "Pekerjaan",
       "life": "Kehidupan",
       "image": "Gambar"
     }

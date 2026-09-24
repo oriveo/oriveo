@@ -1588,7 +1588,7 @@
   },
   "builtinSkills": {
     "code_assistant": {
-      "name": "Trợ lý mã",
+      "name": "Trợ lý lập trình",
       "description": "Lập trình hỏi đáp, tạo mã, gỡ lỗi",
       "starters": {
         "0": "Giúp tôi gỡ lỗi mã này",
@@ -1628,7 +1628,7 @@
       }
     },
     "writing_coach": {
-      "name": "Huấn luyện viên viết",
+      "name": "Huấn luyện viên viết lách",
       "description": "Cải thiện phong cách viết, cấu trúc và sự rõ ràng",
       "starters": {
         "0": "Cải thiện đoạn này",
@@ -1708,7 +1708,7 @@
       }
     },
     "language_teacher": {
-      "name": "Giáo viên ngôn ngữ",
+      "name": "Giáo viên ngoại ngữ",
       "description": "Luyện tập và học ngoại ngữ",
       "starters": {
         "0": "Hãy cùng luyện nói chuyện...",
@@ -1758,7 +1758,7 @@
       }
     },
     "story_creator": {
-      "name": "Người tạo câu chuyện",
+      "name": "Người sáng tác truyện",
       "description": "Viết tiểu thuyết, kể chuyện và xây dựng thế giới",
       "starters": {
         "0": "Giúp tôi phát triển nhân vật này",
@@ -1788,7 +1788,7 @@
       }
     },
     "presentation_outliner": {
-      "name": "Trình bày phác thảo",
+      "name": "Dàn ý thuyết trình",
       "description": "Dàn ý bài thuyết trình, các điểm thảo luận và nội dung slide",
       "starters": {
         "0": "Tạo dàn ý cho bài thuyết trình...",
@@ -1808,7 +1808,7 @@
       }
     },
     "travel_planner": {
-      "name": "Người lập kế hoạch du lịch",
+      "name": "Lên kế hoạch du lịch",
       "description": "Hành trình du lịch và gợi ý điểm đến",
       "starters": {
         "0": "Lên kế hoạch cho chuyến đi 5 ngày tới...",
@@ -1839,14 +1839,14 @@
     },
     "category": {
       "all": "Tất cả",
-      "coding": "Mã hóa",
+      "coding": "Lập trình",
       "writing": "Viết",
       "translation": "Dịch thuật",
-      "learning": "Học hỏi",
+      "learning": "Học tập",
       "analysis": "Phân tích",
       "creative": "Sáng tạo",
       "work": "Công việc",
-      "life": "Mạng sống",
+      "life": "Đời sống",
       "image": "Hình ảnh"
     }
   },
