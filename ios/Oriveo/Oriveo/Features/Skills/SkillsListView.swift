@@ -157,6 +157,7 @@ struct SkillsListView: View {
             navToneButton(systemName: "chevron.left", tint: Colors.textPrimary) {
                 appState.pop()
             }
+            .accessibilityLabel(L10n.tr("Back"))
 
             Spacer()
 
@@ -214,6 +215,7 @@ struct SkillsListView: View {
                         .contentShape(Rectangle())
                         .padding(.leading, 4)
                 }
+                .accessibilityLabel(L10n.tr("Clear"))
                 .buttonStyle(.plain)
                 .transition(.opacity.combined(with: .scale(scale: 0.85)))
             }

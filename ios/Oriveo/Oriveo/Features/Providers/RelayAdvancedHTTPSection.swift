@@ -170,6 +170,7 @@ struct RelayAdvancedHTTPSection: View {
                             Image(systemName: "minus.circle.fill")
                                 .foregroundStyle(OriveoTheme.Palette.danger)
                         }
+                        .accessibilityLabel(L10n.tr("Remove", table: .providers))
                         .buttonStyle(.plain)
                         .disabled(isSubmitting)
                     }

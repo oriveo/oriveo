@@ -507,6 +507,7 @@ struct ChatComposerBar: View {
                                 } label: {
                                     Image(systemName: "xmark.circle.fill").font(.system(size: 12))
                                 }
+                                .accessibilityLabel(L10n.tr("Unpin", table: .notes))
                                 .buttonStyle(.plain)
                             }
                             .foregroundStyle(OriveoTheme.Palette.primary)

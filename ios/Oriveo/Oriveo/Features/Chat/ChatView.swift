@@ -972,6 +972,7 @@ struct ChatView: View {
                             .font(.system(size: 11, weight: .semibold))
                             .foregroundStyle(OriveoTheme.Palette.textTertiary)
                     }
+                    .accessibilityLabel(L10n.tr("Close"))
                     .buttonStyle(.plain)
                 }
                 .padding(.horizontal, OriveoTheme.Spacing.lg)

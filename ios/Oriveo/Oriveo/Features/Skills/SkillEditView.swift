@@ -204,6 +204,7 @@ struct SkillEditView: View {
                     .foregroundStyle(Colors.textPrimary)
                     .frame(width: 36, height: 36)
             }
+            .accessibilityLabel(L10n.tr("Back"))
             .buttonStyle(.plain)
 
             Spacer()

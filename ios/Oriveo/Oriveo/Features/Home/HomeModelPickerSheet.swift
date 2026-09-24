@@ -555,6 +555,7 @@ struct ModelPickerSheet: View {
                         .font(.system(size: 14))
                         .foregroundStyle(OriveoTheme.V2.Colors.textTertiary)
                 }
+                .accessibilityLabel(L10n.tr("Clear"))
                 .buttonStyle(.plain)
                 .transition(.opacity)
             }
@@ -1592,6 +1593,7 @@ struct InlineModelCatalogView: View {
                                 Image(systemName: "xmark.circle.fill")
                                     .foregroundStyle(OriveoTheme.Palette.textSecondary)
                             }
+                            .accessibilityLabel(L10n.tr("Clear"))
                             .buttonStyle(.plain)
                         }
                     }

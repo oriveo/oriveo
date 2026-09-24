@@ -255,6 +255,7 @@ struct MemoryView: View {
                         shadow: .soft
                     )
             }
+            .accessibilityLabel(L10n.tr("Back"))
             .buttonStyle(.plain)
 
             Spacer()
