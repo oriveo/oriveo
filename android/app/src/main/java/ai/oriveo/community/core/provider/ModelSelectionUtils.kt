@@ -61,6 +61,37 @@ object ModelSelectionUtils {
     }
 
     /**
+     * Catalog membership index: answers only the "did [matchingModel] find anything"
+     * half of the question, replacing an O(catalog) scan per query with one index build
+     * and an O(candidates) lookup per query.
+     *
+     * Why not a `HashSet` of `lowercase()` ids: [matchingModel] compares with
+     * `equals(ignoreCase = true)`, which folds each character through upper then lower
+     * case, while `String.lowercase()` is a different folding and the two diverge on
+     * non-ASCII ids. A relay catalog comes from the user's own server and cannot be
+     * assumed to be ASCII, so the set is ordered by `String.CASE_INSENSITIVE_ORDER`, the
+     * same folding `equals(ignoreCase = true)` uses.
+     */
+    fun catalogMembershipIndex(models: List<AIModel>): Set<String> {
+        val index = TreeSet(String.CASE_INSENSITIVE_ORDER)
+        models.forEach { model ->
+            // model.id goes in on its own: the first pass of matchingModel compares the
+            // untrimmed model.id, while modelIdentifiers holds the trimmed form, and the two
+            // differ for an id with surrounding whitespace.
+            index.add(model.id)
+            index.addAll(modelIdentifiers(model))
+        }
+        return index
+    }
+
+    /** Equivalent to `matchingModel(models, targetId) != null` for an index built by [catalogMembershipIndex]. */
+    fun catalogIndexContains(index: Set<String>, targetId: String): Boolean {
+        val trimmed = targetId.trim()
+        if (trimmed.isEmpty()) return false
+        return lookupCandidates(trimmed).any { candidate -> candidate in index }
+    }
+
+    /**
      * Catalog match index: the batch form of [matchingModel] and of "does this model
      * [modelsShareSameRemoteModel] with anything in the catalog".
      *

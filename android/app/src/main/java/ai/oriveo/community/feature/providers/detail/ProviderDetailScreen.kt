@@ -132,6 +132,7 @@ import ai.oriveo.community.core.navigation.ManualModelEntryContext
 
 import ai.oriveo.community.core.provider.CapabilityEvidenceObservationBridge
 import ai.oriveo.community.core.provider.ModelPricingFormatter
+import ai.oriveo.community.core.provider.ModelSelectionUtils
 import ai.oriveo.community.feature.providers.ProviderEndpointSelector
 import ai.oriveo.community.feature.providers.localizedProviderEndpointLabel
 import ai.oriveo.community.feature.providers.relay.RelayConnectionTestResult
@@ -162,7 +163,10 @@ private fun LazyListScope.detailSection(
     key: String,
     content: @Composable () -> Unit,
 ) {
-    item(key = key) {
+    // contentType = key: the sections have unrelated structures. Sharing the default null reuse
+    // pool lets LazyList hand one section's slot to the next, reuse always fails, and the whole
+    // subtree is rebuilt.
+    item(key = key, contentType = key) {
         Box(modifier = Modifier.padding(bottom = OriveoTheme.spacing.lg)) {
             content()
         }
@@ -263,6 +267,18 @@ fun ProviderDetailScreen(
                 }
                 var enabledServerExpandedGroups by remember(currentProvider.id) {
                     mutableStateOf(emptySet<String>())
+                }
+                // Relay "missing from catalog" check: build the index once here (O(catalog)) and
+                // let each row only look it up. It is built in remember rather than on a background
+                // producer because the value must be null (no badge) while the catalog is
+                // unconfirmed; emitting null first and filling it in later would flash the badge.
+                val confirmedRelayCatalogIndex = remember(relayCatalogState, currentProvider.catalogModels) {
+                    when (relayCatalogState) {
+                        ProviderDetailViewModel.RelayCatalogUiState.Available ->
+                            ModelSelectionUtils.catalogMembershipIndex(currentProvider.catalogModels)
+                        ProviderDetailViewModel.RelayCatalogUiState.Empty -> emptySet()
+                        else -> null
+                    }
                 }
                 CapabilityObservationRevisionScope { capabilityObservationRevision ->
                     LazyColumn(
@@ -423,12 +439,7 @@ fun ProviderDetailScreen(
                             onStartChat = { model ->
                                 onStartChat(currentProvider.id, model.id)
                             },
-                            confirmedRelayCatalogModels = when (relayCatalogState) {
-                                ProviderDetailViewModel.RelayCatalogUiState.Available ->
-                                    currentProvider.catalogModels
-                                ProviderDetailViewModel.RelayCatalogUiState.Empty -> emptyList()
-                                else -> null
-                            },
+                            confirmedRelayCatalogIndex = confirmedRelayCatalogIndex,
                         )
 
                         val groups = catalogGroups

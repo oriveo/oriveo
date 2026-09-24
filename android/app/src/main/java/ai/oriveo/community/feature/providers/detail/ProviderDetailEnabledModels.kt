@@ -94,8 +94,18 @@ fun LazyListScope.providerDetailEnabledModels(
     onToggleModel: (AIModel) -> Unit,
     onSetDefault: (AIModel) -> Unit,
     onStartChat: (AIModel) -> Unit,
-
-    confirmedRelayCatalogModels: List<AIModel>? = null,
+    /**
+     * Membership index of the confirmed relay catalog; null means the catalog is unconfirmed or
+     * failed to load, so no model may be reported as gone from it.
+     *
+     * An index rather than the catalog itself: each row used to run
+     * `ModelSelectionUtils.matchingModel(wholeCatalog, model.id)` during composition, an O(catalog)
+     * scan that, on a miss, runs two regexes and several string allocations for every catalog
+     * model. A relay catalog comes from the user's own server and can hold thousands of entries,
+     * and that cost was paid for every row composed while scrolling. The caller remembers the
+     * index once; the verdict is exactly the one matchingModel gave.
+     */
+    confirmedRelayCatalogIndex: Set<String>? = null,
 ) {
     val supportsMultipleEnabled = provider.kind != ProviderKind.OpenAI
 
@@ -158,8 +168,8 @@ fun LazyListScope.providerDetailEnabledModels(
                     model = model,
                     capabilityObservationRevision = capabilityObservationRevision,
                     isMissingFromConfirmedCatalog = provider.kind == ProviderKind.Relay && !model.isManual &&
-                        confirmedRelayCatalogModels != null &&
-                        ModelSelectionUtils.matchingModel(confirmedRelayCatalogModels, model.id) == null,
+                        confirmedRelayCatalogIndex != null &&
+                        !ModelSelectionUtils.catalogIndexContains(confirmedRelayCatalogIndex, model.id),
                     isDefault = isDefault,
                     isHighlighted = highlightedModelID == model.id,
                     canSetDefault = !isDefault && supportsMultipleEnabled,

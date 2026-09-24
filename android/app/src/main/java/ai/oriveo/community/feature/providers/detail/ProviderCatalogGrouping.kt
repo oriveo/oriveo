@@ -1,5 +1,6 @@
 package ai.oriveo.community.feature.providers.detail
 
+import androidx.compose.runtime.Immutable
 import ai.oriveo.community.core.model.AIModel
 import ai.oriveo.community.core.model.ModelCapability
 import ai.oriveo.community.core.model.Provider
@@ -7,12 +8,21 @@ import ai.oriveo.community.core.provider.ModelSelectionUtils
 import ai.oriveo.community.core.provider.ProviderCatalogResolver
 import ai.oriveo.community.core.provider.ResolvedProviderCatalog
 
+/**
+ * `models` is written once at construction and only read afterwards, and `AIModel` is itself
+ * @Immutable, so both classes really are immutable to Compose. Without the annotation the
+ * `List<AIModel>` field makes the whole class unstable, and `CatalogGroupHeader` /
+ * `ServerGroupedModelsPanels` can never skip recomposition. Declaring `kotlin.collections.List`
+ * stable in `compose-stability.txt` instead would be false: `MutableList` implements it too.
+ */
+@Immutable
 data class ProviderCatalogGroup(
     val id: String,
     val title: String,
     val models: List<AIModel>,
 )
 
+@Immutable
 data class VendorGroup(
     val id: String,
     val groupKey: String?,
@@ -82,18 +92,28 @@ fun sortedProvidersForModelPicker(providers: List<Provider>): List<Provider> {
 }
 
 fun sortedEnabledModels(provider: Provider): List<AIModel> {
-    return provider.models.sortedWith { lhs, rhs ->
+    // Score every model once before sorting (decorate-sort-undecorate). Two reasons, and speed
+    // is only one of them:
+    //   1. enabledModelPriorityScore does an id.lowercase() plus ten contains() calls. Inside the
+    //      comparator it ran twice per comparison, n log n times, on the main thread (this is
+    //      remembered by ProviderDetailScreen), and "add all" can push n to several hundred.
+    //   2. Its recencyScore reads System.currentTimeMillis(), so a score could change in the
+    //      middle of a sort. A comparator that stops being transitive makes TimSort throw
+    //      "Comparison method violates its general contract!". Freezing the scores closes that window.
+    val scored = provider.models.map { model -> model to enabledModelPriorityScore(model) }
+    return scored.sortedWith { lhs, rhs ->
+        val left = lhs.first
+        val right = rhs.first
         when {
-            lhs.isDefault != rhs.isDefault -> if (lhs.isDefault) -1 else 1
-            lhs.isAvailable != rhs.isAvailable -> if (lhs.isAvailable) -1 else 1
-            (lhs.sortRank ?: 0) != (rhs.sortRank ?: 0) -> (rhs.sortRank ?: 0) - (lhs.sortRank ?: 0)
-            enabledModelPriorityScore(lhs) != enabledModelPriorityScore(rhs) ->
-                enabledModelPriorityScore(rhs) - enabledModelPriorityScore(lhs)
-            (lhs.createdAt ?: 0.0) != (rhs.createdAt ?: 0.0) ->
-                (rhs.createdAt ?: 0.0).compareTo(lhs.createdAt ?: 0.0)
-            else -> lhs.name.compareTo(rhs.name, ignoreCase = true)
+            left.isDefault != right.isDefault -> if (left.isDefault) -1 else 1
+            left.isAvailable != right.isAvailable -> if (left.isAvailable) -1 else 1
+            (left.sortRank ?: 0) != (right.sortRank ?: 0) -> (right.sortRank ?: 0) - (left.sortRank ?: 0)
+            lhs.second != rhs.second -> rhs.second - lhs.second
+            (left.createdAt ?: 0.0) != (right.createdAt ?: 0.0) ->
+                (right.createdAt ?: 0.0).compareTo(left.createdAt ?: 0.0)
+            else -> left.name.compareTo(right.name, ignoreCase = true)
         }
-    }
+    }.map { it.first }
 }
 
 fun groupModelsByVendor(
@@ -155,28 +175,30 @@ fun groupModelsByVendor(
  * reordering from taking effect until the next app release.
  */
 fun detailEnabledModelGroups(provider: Provider): List<VendorGroup> {
-    val groups = mutableListOf<VendorGroup>()
-    val groupIndexes = mutableMapOf<String, Int>()
+    // Collect into mutable buckets in first-seen order, then build each VendorGroup once.
+    // Copying the whole list with `existing.models + model` for every model was O(n^2), "add all"
+    // can write an entire catalog into provider.models, and this runs on the main thread.
+    data class Bucket(val groupKey: String?, val groupName: String?, val models: MutableList<AIModel>)
+    val buckets = LinkedHashMap<String, Bucket>()
 
     provider.models.forEach { model ->
         val identity = explicitVendorGroupIdentity(model)
         val groupId = identity?.id ?: "${provider.id}-ungrouped"
-        val existingIndex = groupIndexes[groupId]
-        if (existingIndex == null) {
-            groupIndexes[groupId] = groups.size
-            groups += VendorGroup(
-                id = groupId,
-                groupKey = identity?.id,
-                groupName = identity?.title,
-                models = listOf(model),
-            )
-        } else {
-            val existing = groups[existingIndex]
-            groups[existingIndex] = existing.copy(models = existing.models + model)
-        }
+        buckets.getOrPut(groupId) {
+            Bucket(groupKey = identity?.id, groupName = identity?.title, models = mutableListOf())
+        }.models += model
     }
 
-    return groups
+    return buckets.map { (groupId, bucket) ->
+        VendorGroup(
+            id = groupId,
+            groupKey = bucket.groupKey,
+            groupName = bucket.groupName,
+            // toList(): VendorGroup is @Immutable, so the mutable bucket must not escape.
+            // One copy per group keeps the total at O(n).
+            models = bucket.models.toList(),
+        )
+    }
 }
 
 fun comparePickerModels(lhs: AIModel, rhs: AIModel): Int {
@@ -292,7 +314,9 @@ private fun catalogPriorityScore(model: AIModel): Int {
     return score + recencyScore(model.createdAt)
 }
 
-private fun enabledModelPriorityScore(model: AIModel): Int {
+// internal so the equivalence test can use the production scoring function as its reference
+// instead of a copy that would only prove the copy agrees with itself.
+internal fun enabledModelPriorityScore(model: AIModel): Int {
     var score = 0
 
     if (model.isAvailable) score += 180
@@ -362,12 +386,12 @@ private fun resolveCatalogGroupIdentity(
     models = emptyList(),
 )
 
-private data class ExplicitVendorIdentity(
+internal data class ExplicitVendorIdentity(
     val id: String,
     val title: String,
 )
 
-private fun explicitVendorGroupIdentity(model: AIModel): ExplicitVendorIdentity? {
+internal fun explicitVendorGroupIdentity(model: AIModel): ExplicitVendorIdentity? {
     val groupKey = model.groupKey?.trim().takeUnless { it.isNullOrEmpty() } ?: return null
     val groupName = model.groupName?.trim().takeUnless { it.isNullOrEmpty() } ?: return null
     return ExplicitVendorIdentity(groupKey, groupName)
