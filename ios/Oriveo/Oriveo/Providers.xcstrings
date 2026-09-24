@@ -18440,7 +18440,7 @@
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "HTTP ท้องถิ่น"
+            "value": "HTTP ภายใน"
           }
         },
         "tr": {
@@ -37164,7 +37164,7 @@
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "ใช้ท้องถิ่น, LAN, ลิงค์ท้องถิ่นหรือที่อยู่ VPN ส่วนตัวที่รองรับ"
+            "value": "ใช้ที่อยู่ localhost, LAN, link-local หรือ VPN ส่วนตัวที่รองรับ"
           }
         },
         "tr": {
