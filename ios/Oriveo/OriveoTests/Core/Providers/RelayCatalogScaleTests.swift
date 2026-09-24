@@ -322,6 +322,213 @@ struct RelayCatalogScaleTests {
         #expect(!state.providers.contains { $0.id == provider.id })
     }
 
+    // MARK: - Conversation model normalization: conversations x catalog
+
+    private static let conversationCount = 1_500
+
+    /// Conversation model ids use the production `ProviderSelectionSnapshot.persistedModelID` (the value stored after
+    /// picking a model). One conversation in 100 points at a model since removed from the catalog (the same function
+    /// stores an unmatched id as is, minus its prefix), so normalization misses the exact pass and exercises the
+    /// fuzzy pass and the default-model fallback.
+    private static func makeConversations(for provider: Provider, count: Int) -> [Conversation] {
+        (0..<count).map { index in
+            let requested = index % 100 == 3
+                ? "Vendor-\(index % 300)/Retired-\(index)"
+                : provider.models[(index * 7) % provider.models.count].id
+            let stored = ProviderSelectionSnapshot.persistedModelID(requestedModelID: requested, in: provider) ?? requested
+            return TestFactories.makeConversation(providerID: provider.id, providerKind: .relay, modelID: stored)
+        }
+    }
+
+    /// The per-conversation decision `normalizeConversationModelSelections` made before, copied verbatim as the
+    /// reference.
+    private static func referenceNormalizedModelID(_ storedModelID: String, in provider: Provider) -> String {
+        if let resolved = ModelResolver.matchingModel(for: storedModelID, in: provider) {
+            return ModelResolver.preferredStoredModelIdentifier(for: resolved, providerKind: provider.kind)
+        }
+        if let defaultModel = provider.defaultModel {
+            return ModelResolver.preferredStoredModelIdentifier(for: defaultModel, providerKind: provider.kind)
+        }
+        return storedModelID
+    }
+
+    /// One "add" from the Home picker with 1,500 conversations on this relay: every Provider write normalizes their
+    /// model ids against the new catalog, which used to run `matchingModel` over the whole 22k catalog for each one.
+    @Test("conversation normalization: adding a model with a 22k catalog and 1.5k conversations stalls the main thread < 50ms and matches per-conversation matchingModel")
+    func conversationNormalizationKeepsMainThreadResponsive() async throws {
+        try await loadWhitelistMetadata()
+        defer { ProviderCatalogResolver.resetMemoForTesting() }
+        var provider = Self.makeRelayProvider()
+        provider.cachedAvailableModelCount = nil
+        let state = makeState(with: provider)
+        let conversations = Self.makeConversations(for: provider, count: Self.conversationCount)
+        state.conversations = conversations
+        let enabledIDs = Set(provider.models.map(\.id))
+        let modelID = try #require(provider.catalogModels.first { !enabledIDs.contains($0.id) }?.id)
+        ProviderCatalogResolver.resetMemoForTesting()
+
+        let probe = MainThreadStallProbe()
+        probe.start()
+        pumpMainRunLoop(0.05)
+        let callMs = Self.measure {
+            state.enableModel(modelID: modelID, for: provider.id)
+        }
+        let written = try #require(state.providers.first { $0.id == provider.id })
+        await state.providerManager.waitForRelayFinalizeForTesting(providerID: provider.id)
+        // The write and the finalize merge each queue a normalization; wait until everything queued has merged.
+        await state.providerManager.waitForConversationNormalizationForTesting(providerID: provider.id)
+        pumpMainRunLoop(0.05)
+        probe.stop()
+        let stallMs = probe.maxStall * 1_000
+        print("[RelayCatalogScale] enableModel \(Self.catalogCount)/\(Self.enabledCount) with \(Self.conversationCount) conversations: call = \(String(format: "%.1f", callMs))ms, main-thread max stall (incl. normalization commits) = \(String(format: "%.1f", stallMs))ms")
+
+        let updated = try #require(state.providers.first { $0.id == provider.id })
+        #expect(updated.models.contains { $0.id == modelID })
+        let storedByID = Dictionary(uniqueKeysWithValues: state.conversations.map { ($0.id, $0.modelID) })
+        // Every retired-model conversation is checked (fuzzy pass + default fallback) and the rest are sampled (a full
+        // comparison is itself conversations x catalog).
+        for (position, conversation) in conversations.enumerated() where position % 100 == 3 || position % 60 == 0 {
+            // The old timing: normalize against `written` at write time, then once more against the finalized
+            // Provider when the finalize merge changed it.
+            var expected = Self.referenceNormalizedModelID(conversation.modelID, in: written)
+            if updated != written { expected = Self.referenceNormalizedModelID(expected, in: updated) }
+            #expect(storedByID[conversation.id] == expected, "conversation #\(position) \(conversation.modelID)")
+        }
+        #expect(stallMs < Self.mainThreadBudgetMs, "longest main-thread stall \(stallMs)ms exceeds \(Self.mainThreadBudgetMs)ms")
+    }
+
+    /// The same 22k catalog with 15 vs 1,500 conversations: if normalization still scanned the catalog per
+    /// conversation, the time would grow with the conversation count; with one index the two differ only by lookups.
+    /// Measures wall clock from the write call to that write's normalization merging (normalization may run in the
+    /// background, so timing only the main-thread call would miss it).
+    @Test("conversation normalization: with a 22k catalog, write-to-merge time does not grow with conversations (1,500 / 15 < 3x)")
+    func conversationNormalizationCostDoesNotScaleWithConversationCount() async throws {
+        try await loadWhitelistMetadata()
+        defer { ProviderCatalogResolver.resetMemoForTesting() }
+
+        func bestSettleMs(conversationCount: Int) async throws -> (call: Double, settled: Double) {
+            let provider = Self.makeRelayProvider()
+            let state = makeState(with: provider)
+            let conversations = Self.makeConversations(for: provider, count: conversationCount)
+            var calls: [Double] = []
+            var settles: [Double] = []
+            for round in 0..<2 {
+                // Start every round from the original conversations: the previous round already moved the retired
+                // ones to the default model, and without a reset the fuzzy pass would not be measured.
+                state.conversations = conversations
+                var edited = try #require(state.providers.first { $0.id == provider.id })
+                edited.customName = "Scale Relay \(round)"
+                let clock = ContinuousClock()
+                let start = clock.now
+                calls.append(Self.measure { state.providerManager.updateProvider(edited) })
+                await state.providerManager.waitForConversationNormalizationForTesting(providerID: provider.id)
+                settles.append(Self.milliseconds(clock.now - start))
+                let stale = conversations.filter { $0.modelID.contains("/Retired-") }.map(\.id)
+                #expect(!stale.isEmpty)
+                #expect(state.conversations.filter { stale.contains($0.id) }.allSatisfy { !$0.modelID.contains("/Retired-") })
+                await state.providerManager.waitForRelayFinalizeForTesting(providerID: provider.id)
+                await state.providerManager.waitForConversationNormalizationForTesting(providerID: provider.id)
+            }
+            return (calls.min() ?? .infinity, settles.min() ?? .infinity)
+        }
+
+        let few = try await bestSettleMs(conversationCount: 15)
+        let many = try await bestSettleMs(conversationCount: Self.conversationCount)
+        let ratio = many.settled / few.settled
+        print("[RelayCatalogScale] updateProvider \(Self.catalogCount) catalog → normalization committed: conversations 15 = \(String(format: "%.1f", few.settled))ms (call \(String(format: "%.1f", few.call))ms), conversations \(Self.conversationCount) = \(String(format: "%.1f", many.settled))ms (call \(String(format: "%.1f", many.call))ms), ratio = \(String(format: "%.2f", ratio))")
+        #expect(ratio < 3, "conversation normalization grows with the conversation count: \(few.settled)ms → \(many.settled)ms")
+    }
+
+    /// Model ids normalized by the production `updateProvider`, compared one by one with the per-conversation
+    /// `matchingModel(for:in:)` plus default fallback it replaces. The catalog has case twins, date suffixes, legacy
+    /// prefixes, canonical ids and duplicate ids; the conversations have retired models, whitespace, the same
+    /// character written composed and decomposed (a stored id resolves once, so two canonically equivalent spellings
+    /// must not resolve differently), and another provider's conversation.
+    @Test("conversation normalization matches per-conversation matchingModel: seeded random catalogs x relay / built-in / openRouter")
+    func conversationNormalizationMatchesPerConversationReference() async throws {
+        await MetadataClient.shared.resetForTesting()
+        defer { ProviderCatalogResolver.resetMemoForTesting() }
+
+        struct SplitMix64 {
+            var state: UInt64
+            mutating func next() -> UInt64 {
+                state &+= 0x9e37_79b9_7f4a_7c15
+                var z = state
+                z = (z ^ (z >> 30)) &* 0xbf58_476d_1ce4_e5b9
+                z = (z ^ (z >> 27)) &* 0x94d0_49bb_1331_11eb
+                return z ^ (z >> 31)
+            }
+            mutating func int(_ upper: Int) -> Int { Int(next() % UInt64(upper)) }
+        }
+
+        let stems = ["alpha", "Beta", "GAMMA", "e\u{301}clair", "\u{E9}clair", "delta-2025-01-01", "Straße", "eps"]
+        func randomID(_ rng: inout SplitMix64) -> String {
+            var id = stems[rng.int(stems.count)] + "-\(rng.int(10))"
+            if rng.int(3) == 0 { id = id.uppercased() }
+            if rng.int(5) == 0 { id += "-20250101" }
+            if rng.int(9) == 0 { id = "relay-manual-" + id }
+            if rng.int(4) == 0 { id = stems[rng.int(stems.count)] }
+            return id
+        }
+        func randomModel(_ rng: inout SplitMix64) -> AIModel {
+            let id = randomID(&rng)
+            let canonical: String? = switch rng.int(4) {
+            case 0: randomID(&rng)
+            case 1: " " + randomID(&rng).lowercased() + " "
+            default: nil
+            }
+            return Self.model(id, name: rng.int(3) == 0 ? randomID(&rng) : id, canonical: canonical, isDefault: rng.int(8) == 0)
+        }
+
+        var rng = SplitMix64(state: 0x0bad_5eed_1234_5678)
+        for round in 0..<30 {
+            let kind: ProviderKind = [.relay, .openAI, .openRouter][round % 3]
+            var provider = Self.makeRelayProvider(catalogCount: 1, enabledCount: 1)
+            provider.kind = kind
+            if kind != .relay { provider.relayRequested = nil }
+            let catalog = (0..<(20 + rng.int(60))).map { _ in randomModel(&rng) }
+            provider.catalogModels = rng.int(4) == 0 ? [] : catalog
+            provider.models = (0..<(1 + rng.int(20))).map { _ in
+                rng.int(2) == 0 ? catalog[rng.int(catalog.count)] : randomModel(&rng)
+            }
+            let state = makeState(with: provider)
+            let otherProviderID = UUID()
+            var conversations: [Conversation] = (0..<60).map { _ in
+                let modelID: String = switch rng.int(6) {
+                case 0: randomID(&rng)
+                case 1: " " + catalog[rng.int(catalog.count)].id + " "
+                case 2: ""
+                default: catalog[rng.int(catalog.count)].id
+                }
+                return TestFactories.makeConversation(providerID: provider.id, providerKind: kind, modelID: modelID)
+            }
+            conversations.append(TestFactories.makeConversation(providerID: otherProviderID, modelID: catalog[0].id.uppercased()))
+            state.conversations = conversations
+
+            state.providerManager.updateProvider(provider)
+            let written = try #require(state.providers.first { $0.id == provider.id })
+            // A relay's normalization and finalize both run in the background: wait for the finalize merge, then for
+            // every queued normalization.
+            await state.providerManager.waitForRelayFinalizeForTesting(providerID: provider.id)
+            await state.providerManager.waitForConversationNormalizationForTesting(providerID: provider.id)
+            let settled = try #require(state.providers.first { $0.id == provider.id })
+            // The old timing: normalize against `written` at write time, then once more against the finalized
+            // Provider when the finalize merge changed it.
+            func reference(_ stored: String, in written: Provider) -> String {
+                written.allModels.isEmpty ? stored : Self.referenceNormalizedModelID(stored, in: written)
+            }
+            let storedByID = Dictionary(uniqueKeysWithValues: state.conversations.map { ($0.id, $0.modelID) })
+            for conversation in conversations {
+                var expected = conversation.modelID
+                if conversation.providerID == provider.id {
+                    expected = reference(expected, in: written)
+                    if settled != written { expected = reference(expected, in: settled) }
+                }
+                #expect(storedByID[conversation.id] == expected, "round=\(round) kind=\(kind) stored=\(conversation.modelID)")
+            }
+        }
+    }
+
     // MARK: - Equivalence: index lookup == pairwise comparison
 
     /// The pairwise matching of `resolveFromLocal`, copied verbatim as the reference: every catalog model against

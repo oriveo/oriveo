@@ -69,6 +69,9 @@ final class ProviderManager {
     /// In-flight background finalize tasks for relay writes (whole-catalog resolve + official catalog enrichment);
     /// only the latest one per Provider is kept.
     private var relayFinalizeTasks: [UUID: Task<Void, Never>] = [:]
+    /// Tail of each Provider's chain of background relay conversation normalizations: they merge in write order, and
+    /// the token keeps an old task from clearing a newer one's registration.
+    private var relayConversationNormalizeTasks: [UUID: (token: UUID, task: Task<Void, Never>)] = [:]
 
 
     init(session: URLSession = .shared) {
@@ -1301,42 +1304,161 @@ final class ProviderManager {
         return p
     }
 
+    /// Runs after every Provider write. A relay catalog comes from the user's own server (a public catalog can hold
+    /// 22,000 models), and calling `matchingModel(for:in:)` per conversation cost conversations x catalog size, all on
+    /// the main thread. Now the catalog is read once, indexed once, and each stored id resolved once, with results
+    /// identical to calling `matchingModel(for:in:)` per conversation. Building the index for 22k models still takes
+    /// over a hundred milliseconds, so for relays that step runs in the background and merges on the main thread.
+    ///
+    /// Ordering: a Provider's normalizations form one chain in write order. Each waits for the previous one to merge,
+    /// then reads the conversations and computes against the catalog of its own write, so the result matches the old
+    /// synchronous normalization after every write. The merge only changes conversations that still belong to this
+    /// Provider and still hold the model id read at computation time: a model switch, a deleted conversation or a
+    /// deleted Provider during the background work is never overwritten by a stale result. Built-in providers have
+    /// catalogs of metadata size and still normalize synchronously.
     private func normalizeConversationModelSelections(for provider: Provider) {
-        guard !provider.allModels.isEmpty else { return }
-
-        var modelUpdates: [ConversationModelUpdate] = []
-        let metadataUpdatedAt = Date()
-        for conversation in appState.conversations where conversation.providerID == provider.id {
-            var updatedModelID = conversation.modelID
-            if let resolvedModel = ModelResolver.matchingModel(for: conversation.modelID, in: provider) {
-                updatedModelID = ModelResolver.preferredStoredModelIdentifier(
-                    for: resolvedModel,
-                    providerKind: provider.kind
-                )
-            } else if let defaultModel = provider.defaultModel {
-                updatedModelID = ModelResolver.preferredStoredModelIdentifier(
-                    for: defaultModel,
-                    providerKind: provider.kind
-                )
-            }
-            if updatedModelID != conversation.modelID {
-                modelUpdates.append(
-                    ConversationModelUpdate(
-                        conversationID: conversation.id,
-                        providerID: conversation.providerID,
-                        providerKind: conversation.providerKind,
-                        modelID: updatedModelID,
-                        metadataUpdatedAt: metadataUpdatedAt
-                    )
-                )
-            }
+        let stored = storedConversationModels(for: provider.id)
+        guard !stored.isEmpty else { return }
+        // For built-in providers with no local catalog, allModels is a full resolve on every read, which used to run
+        // once per conversation.
+        let allModels = provider.allModels
+        guard !allModels.isEmpty else { return }
+        let enabledModels = provider.models
+        let providerKind = provider.kind
+        let defaultModelID = provider.defaultModel.map {
+            ModelResolver.preferredStoredModelIdentifier(for: $0, providerKind: providerKind)
         }
 
+        guard providerKind == .relay else {
+            applyConversationModelNormalizations(
+                Self.conversationModelNormalizations(
+                    stored,
+                    allModels: allModels,
+                    enabledModels: enabledModels,
+                    defaultModelID: defaultModelID,
+                    providerKind: providerKind
+                ),
+                providerID: provider.id
+            )
+            return
+        }
+
+        let providerID = provider.id
+        let token = UUID()
+        let previous = relayConversationNormalizeTasks[providerID]?.task
+        let task = Task { [weak self] in
+            await previous?.value
+            guard let self else { return }
+            defer {
+                if self.relayConversationNormalizeTasks[providerID]?.token == token {
+                    self.relayConversationNormalizeTasks[providerID] = nil
+                }
+            }
+            // The previous write's normalization has merged, so these are the conversations this write would have
+            // read when normalization ran synchronously.
+            let current = self.storedConversationModels(for: providerID)
+            guard !current.isEmpty else { return }
+            let normalizations = await Task.detached(priority: .userInitiated) {
+                Self.conversationModelNormalizations(
+                    current,
+                    allModels: allModels,
+                    enabledModels: enabledModels,
+                    defaultModelID: defaultModelID,
+                    providerKind: providerKind
+                )
+            }.value
+            guard self.providers.contains(where: { $0.id == providerID }) else { return }
+            self.applyConversationModelNormalizations(normalizations, providerID: providerID)
+        }
+        relayConversationNormalizeTasks[providerID] = (token, task)
+    }
+
+    private func storedConversationModels(for providerID: UUID) -> [StoredConversationModel] {
+        appState.conversations.compactMap { conversation in
+            guard conversation.providerID == providerID else { return nil }
+            return StoredConversationModel(conversationID: conversation.id, modelID: conversation.modelID)
+        }
+    }
+
+    /// Changes only conversations that still belong to the Provider and still hold the model id read at
+    /// normalization time (always true on the synchronous path).
+    private func applyConversationModelNormalizations(
+        _ normalizations: [ConversationModelNormalization],
+        providerID: UUID
+    ) {
+        guard !normalizations.isEmpty else { return }
+        var currentByID: [UUID: Conversation] = [:]
+        for conversation in appState.conversations
+        where conversation.providerID == providerID && currentByID[conversation.id] == nil {
+            currentByID[conversation.id] = conversation
+        }
+        let metadataUpdatedAt = Date()
+        let modelUpdates = normalizations.compactMap { normalization -> ConversationModelUpdate? in
+            guard let conversation = currentByID[normalization.conversationID],
+                  conversation.modelID == normalization.storedModelID else { return nil }
+            // Normalization only swaps the modelID, never the provider, so providerKind keeps its value.
+            return ConversationModelUpdate(
+                conversationID: conversation.id,
+                providerID: conversation.providerID,
+                providerKind: conversation.providerKind,
+                modelID: normalization.normalizedModelID,
+                metadataUpdatedAt: metadataUpdatedAt
+            )
+        }
         if !modelUpdates.isEmpty {
             appState.updateConversationModelProjections(modelUpdates)
         }
     }
 
+    /// Pure function over the values passed in, safe to run off the main thread. Each conversation's result is
+    /// exactly `matchingModel(for:in:)` (allModels first, then the enabled models) mapped to its stored id, or the
+    /// default model when nothing matches.
+    nonisolated private static func conversationModelNormalizations(
+        _ stored: [StoredConversationModel],
+        allModels: [AIModel],
+        enabledModels: [AIModel],
+        defaultModelID: String?,
+        providerKind: ProviderKind
+    ) -> [ConversationModelNormalization] {
+        var allModelsIndex = ModelResolver.MatchingModelIndex(allModels, providerKind: providerKind)
+        var enabledIndex: ModelResolver.MatchingModelIndex?
+        var normalizedByStoredID: [String: String] = [:]
+        var normalizations: [ConversationModelNormalization] = []
+        for conversation in stored {
+            let normalizedModelID: String
+            if let known = normalizedByStoredID[conversation.modelID] {
+                normalizedModelID = known
+            } else {
+                var resolvedModel = allModelsIndex.match(conversation.modelID)
+                if resolvedModel == nil {
+                    if enabledIndex == nil {
+                        enabledIndex = ModelResolver.MatchingModelIndex(enabledModels, providerKind: providerKind)
+                    }
+                    resolvedModel = enabledIndex?.match(conversation.modelID)
+                }
+                normalizedModelID = resolvedModel.map {
+                    ModelResolver.preferredStoredModelIdentifier(for: $0, providerKind: providerKind)
+                } ?? defaultModelID ?? conversation.modelID
+                normalizedByStoredID[conversation.modelID] = normalizedModelID
+            }
+            if normalizedModelID != conversation.modelID {
+                normalizations.append(ConversationModelNormalization(
+                    conversationID: conversation.conversationID,
+                    storedModelID: conversation.modelID,
+                    normalizedModelID: normalizedModelID
+                ))
+            }
+        }
+        return normalizations
+    }
+
+#if DEBUG
+    /// Tests only: waits until this Provider's queued relay conversation normalizations have all merged (returns
+    /// immediately when none is in flight).
+    func waitForConversationNormalizationForTesting(providerID: UUID) async {
+        await relayConversationNormalizeTasks[providerID]?.task.value
+    }
+#endif
 
     func applyValidationOutcome(_ result: ProviderKeyValidator.Result, to provider: inout Provider) {
         provider.lastCheckedAt = Date()
@@ -1389,4 +1511,18 @@ final class ProviderManager {
             }
         }
     }
+}
+
+/// Input snapshot for conversation model normalization: only the two values the background computation reads.
+private nonisolated struct StoredConversationModel: Sendable {
+    let conversationID: UUID
+    let modelID: String
+}
+
+/// Result of conversation model normalization: `storedModelID` is the value read at computation time, used before the
+/// merge to confirm the conversation has not changed.
+private nonisolated struct ConversationModelNormalization: Sendable {
+    let conversationID: UUID
+    let storedModelID: String
+    let normalizedModelID: String
 }
