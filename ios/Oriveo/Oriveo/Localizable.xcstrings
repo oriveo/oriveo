@@ -15216,6 +15216,30 @@
     },
     "Oriveo": {
       "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oriveo"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oriveo"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oriveo"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oriveo"
+          }
+        },
         "hi": {
           "stringUnit": {
             "state": "translated",
@@ -15223,6 +15247,24 @@
           }
         },
         "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oriveo"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oriveo"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oriveo"
+          }
+        },
+        "pt-BR": {
           "stringUnit": {
             "state": "translated",
             "value": "Oriveo"
@@ -15247,6 +15289,18 @@
           }
         },
         "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oriveo"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Oriveo"
+          }
+        },
+        "zh-Hant": {
           "stringUnit": {
             "state": "translated",
             "value": "Oriveo"
