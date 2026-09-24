@@ -38,6 +38,8 @@ struct OriveoLabeledField: View {
                             .foregroundStyle(OriveoTheme.Palette.textTertiary)
                     }
                     .buttonStyle(.plain)
+                    // Without a label VoiceOver reads the SF Symbol's system name ("Show"), which ignores the in-app language and never changes with state. The field holds API keys as well as passwords, so the label names neither.
+                    .accessibilityLabel(revealsSecureText ? L10n.tr("Hide characters") : L10n.tr("Show characters"))
                 }
             }
             .padding(.horizontal, OriveoTheme.Spacing.md)

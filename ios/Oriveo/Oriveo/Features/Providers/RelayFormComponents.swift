@@ -310,6 +310,8 @@ struct RelayInlineTextRow: View {
                         .frame(width: 32, height: 32)
                 }
                 .buttonStyle(.plain)
+                // Without a label VoiceOver reads the SF Symbol's system name ("Show"), which ignores the in-app language and never changes with state. This row can hold any secret, so the label does not name what it reveals.
+                .accessibilityLabel(revealsSecureText ? L10n.tr("Hide characters") : L10n.tr("Show characters"))
             }
         }
     }
