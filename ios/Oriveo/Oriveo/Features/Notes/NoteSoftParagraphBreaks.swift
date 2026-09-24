@@ -193,6 +193,31 @@ final class BoundedNoteUITextView: UITextView {
     /// Injectable for tests; always the general pasteboard in the app.
     var sourcePasteboard: UIPasteboard = .general
 
+    /// Display text held back until the view has a width. SwiftUI's makeUIView hands over a zero-size
+    /// view: loading hundreds of thousands of characters at zero width and then stretching the view to
+    /// its real width invalidates the whole text again for the new width (about 850ms on the main thread
+    /// for 200,000 characters of Arabic), while loading it once the width is known lays out only the
+    /// visible part (about 100ms). The user bubble sets its frame to the measured size before loading
+    /// its text for the same reason.
+    private var pendingDisplayText: NSAttributedString?
+
+    func setDisplayText(_ display: NSAttributedString) {
+        if bounds.width > 0 {
+            pendingDisplayText = nil
+            attributedText = display
+        } else {
+            pendingDisplayText = display
+        }
+    }
+
+    override func layoutSubviews() {
+        if let pending = pendingDisplayText, bounds.width > 0 {
+            pendingDisplayText = nil
+            attributedText = pending
+        }
+        super.layoutSubviews()
+    }
+
     override func copy(_ sender: Any?) {
         let source = selectedSourceTextIfSoftBroken()
         super.copy(sender)

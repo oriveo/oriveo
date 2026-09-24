@@ -994,7 +994,12 @@ struct BoundedNoteTextView: UIViewRepresentable {
     }
 
     private static func apply(_ source: String, to textView: UITextView, coordinator: Coordinator) {
-        textView.attributedText = displayText(for: source)
+        let display = displayText(for: source)
+        if let bounded = textView as? BoundedNoteUITextView {
+            bounded.setDisplayText(display)
+        } else {
+            textView.attributedText = display
+        }
         coordinator.appliedSource = source
     }
 

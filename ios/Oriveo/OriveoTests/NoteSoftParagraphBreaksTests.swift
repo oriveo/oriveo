@@ -193,6 +193,29 @@ struct BoundedNoteTextViewLayoutTests {
         return (window, host)
     }
 
+    /// Gives the view a real size without a window: in the app the text is loaded only once SwiftUI's
+    /// layout has given the view a width (see `BoundedNoteUITextView.setDisplayText`).
+    private func layOut(_ textView: UITextView) {
+        textView.frame = CGRect(x: 0, y: 0, width: 386, height: 540)
+        textView.layoutIfNeeded()
+    }
+
+    /// Loading hundreds of thousands of characters at zero width and then stretching the view to its
+    /// real width invalidates the whole text again for the new width (about 850ms for 200,000 characters
+    /// of Arabic, versus about 100ms when the width is known first). makeUIView hands over exactly such a
+    /// zero-size view, so the text must wait for the first real width.
+    @Test("A view created at zero size loads its text only once it has a width")
+    func displayTextWaitsForRealWidth() {
+        let (textView, coordinator, store) = makeProductionTextView(Self.hugeSingleParagraph, isEditable: false)
+        #expect(textView.bounds.width == 0)
+        #expect(textView.textStorage.length == 0, "loaded \(textView.textStorage.length) UTF-16 units at zero width")
+        #expect(coordinator.appliedSource == store.text, "appliedSource is recorded while pending, so updateUIView does not load it twice")
+        let (window, _) = mount(textView, size: CGSize(width: 386, height: 540))
+        defer { window.isHidden = true }
+        #expect(NoteSoftParagraphBreaks.strip(textView.textStorage) == store.text)
+        #expect(textView.layoutManager.firstUnlaidCharacterIndex() < Self.bound)
+    }
+
     private func firstSoftBreak(in textView: UITextView) -> Int? {
         var found: Int?
         let storage = textView.textStorage
@@ -222,6 +245,37 @@ struct BoundedNoteTextViewLayoutTests {
         #expect(textView.layoutManager.firstUnlaidCharacterIndex() < Self.bound)
     }
 
+    /// A real SwiftUI host, shaped like the note detail: `mount` above only simulates the bounds change,
+    /// this goes through UIHostingController's actual layout.
+    @Test("Hosted in SwiftUI with a fixed height, the view still lays out only the visible part")
+    func swiftUIHostedLayoutStaysBounded() throws {
+        let scene = try #require(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
+        let text = Self.hugeSingleParagraph
+        let window = UIWindow(windowScene: scene)
+        window.frame = CGRect(x: 0, y: 0, width: 430, height: 932)
+        let host = UIHostingController(
+            rootView: BoundedNoteTextView(text: .constant(text), isEditable: false).frame(height: 540).padding(18)
+        )
+        window.rootViewController = host
+        window.makeKeyAndVisible()
+        defer { window.isHidden = true }
+        host.view.setNeedsLayout()
+        host.view.layoutIfNeeded()
+        let textView = try #require(firstBoundedTextView(in: host.view))
+        #expect(textView.bounds.height > 100, "the viewport did not get the container's height: \(textView.bounds)")
+        #expect(NoteSoftParagraphBreaks.strip(textView.textStorage) == text)
+        let laidOut = textView.layoutManager.firstUnlaidCharacterIndex()
+        #expect(laidOut < Self.bound, "laid out \(laidOut) of \(textView.textStorage.length) UTF-16 units")
+    }
+
+    private func firstBoundedTextView(in view: UIView) -> BoundedNoteUITextView? {
+        if let found = view as? BoundedNoteUITextView { return found }
+        for subview in view.subviews {
+            if let found = firstBoundedTextView(in: subview) { return found }
+        }
+        return nil
+    }
+
     @Test("Editing stays bounded and remembers the source text without soft breaks")
     func editableViewStaysBounded() {
         let (textView, coordinator, store) = makeProductionTextView(Self.hugeSingleParagraph, isEditable: true)
@@ -236,6 +290,7 @@ struct BoundedNoteTextViewLayoutTests {
     func typingRightAfterSoftBreakIsKept() throws {
         let source = String(repeating: "ぶん。", count: 3_000)
         let (textView, coordinator, store) = makeProductionTextView(source, isEditable: true)
+        layOut(textView)
         let soft = try #require(firstSoftBreak(in: textView))
 
         textView.selectedRange = NSRange(location: soft + 1, length: 0)
@@ -257,12 +312,14 @@ struct BoundedNoteTextViewLayoutTests {
         defer { UIPasteboard.remove(withName: pasteboard.name) }
 
         let (reader, _, _) = makeProductionTextView(source, isEditable: false)
+        layOut(reader)
         reader.sourcePasteboard = pasteboard
         reader.selectedRange = NSRange(location: 0, length: reader.textStorage.length)
         reader.copy(nil)
         #expect(pasteboard.string == source)
 
         let (editor, coordinator, store) = makeProductionTextView(source, isEditable: true)
+        layOut(editor)
         editor.sourcePasteboard = pasteboard
         let soft = try #require(firstSoftBreak(in: editor))
         // Selection spans the soft break: three characters on each side.
