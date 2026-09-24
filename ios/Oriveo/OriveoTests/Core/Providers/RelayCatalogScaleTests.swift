@@ -477,6 +477,91 @@ struct RelayCatalogScaleTests {
         #expect(ratio < 20, "the conversation model merge grows faster than linearly: \(small)ms → \(large)ms")
     }
 
+    /// The in-memory merge of `upsertConversationProjections` as it was before indexing, kept verbatim as the
+    /// reference: a firstIndex per update, replace on a match, prepend on a miss (a prepend shifts every later index,
+    /// and a repeated new id in the same batch replaces the one inserted first).
+    private static func referenceUpsert(_ updates: [Conversation], into conversations: [Conversation]) -> [Conversation] {
+        var next = conversations
+        for updated in updates {
+            if let index = next.firstIndex(where: { $0.id == updated.id }) {
+                next[index] = updated
+            } else {
+                next.insert(updated, at: 0)
+            }
+        }
+        return next
+    }
+
+    /// Folder batch moves and deletes merge through `AppState.upsertConversationProjections`, which used a
+    /// `firstIndex` over the whole conversation list for every update: updates x conversations.
+    @Test("conversation batch upsert: 10x conversations and updates cost < 20x (linear)")
+    func conversationProjectionUpsertScalesLinearly() {
+        func bestMs(count: Int) -> Double {
+            let state = makeState(with: Self.makeRelayProvider(catalogCount: 1, enabledCount: 1))
+            let conversations = (0..<count).map {
+                TestFactories.makeConversation(title: "old-\($0)", providerID: UUID(), modelID: "m")
+            }
+            var samples: [Double] = []
+            for round in 0..<2 {
+                state.conversations = conversations
+                // Half update existing conversations (in reverse order), half are new.
+                let updates = conversations.reversed().prefix(count / 2).map { conversation -> Conversation in
+                    var updated = conversation
+                    updated.title = "new-\(round)-\(conversation.title)"
+                    return updated
+                } + (0..<(count / 2)).map {
+                    TestFactories.makeConversation(title: "fresh-\(round)-\($0)", providerID: UUID(), modelID: "m")
+                }
+                let expected = Self.referenceUpsert(updates, into: conversations)
+                samples.append(Self.measure { state.upsertConversationProjections(updates) })
+                #expect(state.conversations.map(\.id) == expected.map(\.id))
+                #expect(state.conversations.map(\.title) == expected.map(\.title))
+            }
+            return samples.min() ?? .infinity
+        }
+
+        let small = bestMs(count: 300)
+        let large = bestMs(count: 3_000)
+        let ratio = large / small
+        print("[RelayCatalogScale] upsertConversationProjections 300 = \(String(format: "%.1f", small))ms, 3000 = \(String(format: "%.1f", large))ms, ratio = \(String(format: "%.1f", ratio))")
+        #expect(ratio < 20, "the conversation batch upsert grows faster than linearly: \(small)ms → \(large)ms")
+    }
+
+    @Test("conversation batch upsert matches per-update firstIndex: replace / prepend / repeated ids in a batch (seeded)")
+    func conversationProjectionUpsertMatchesReference() {
+        struct SplitMix64 {
+            var state: UInt64
+            mutating func next() -> UInt64 {
+                state &+= 0x9E37_79B9_7F4A_7C15
+                var z = state
+                z = (z ^ (z >> 30)) &* 0xBF58_476D_1CE4_E5B9
+                z = (z ^ (z >> 27)) &* 0x94D0_49BB_1331_11EB
+                return z ^ (z >> 31)
+            }
+            mutating func int(_ upper: Int) -> Int { Int(next() % UInt64(upper)) }
+        }
+        var rng = SplitMix64(state: 0x0F0F_1234_ABCD_0042)
+        let state = makeState(with: Self.makeRelayProvider(catalogCount: 1, enabledCount: 1))
+        let ids = (0..<30).map { _ in UUID() }
+        for round in 0..<60 {
+            // Ids in the base list are unique (AppState indexes conversations by id); an update batch may repeat ids
+            // and carry ids the base list does not have.
+            var pool = ids
+            let base = (0..<rng.int(20)).map { position -> Conversation in
+                let id = pool.remove(at: rng.int(pool.count))
+                return TestFactories.makeConversation(id: id, title: "base-\(round)-\(position)", modelID: "m")
+            }
+            let updates = (0..<rng.int(20)).map {
+                TestFactories.makeConversation(id: ids[rng.int(ids.count)], title: "upd-\(round)-\($0)", modelID: "m")
+            }
+            state.conversations = base
+            state.upsertConversationProjections(updates)
+            let expected = Self.referenceUpsert(updates, into: base)
+            #expect(state.conversations.map(\.id) == expected.map(\.id), "round=\(round)")
+            #expect(state.conversations.map(\.title) == expected.map(\.title), "round=\(round)")
+        }
+    }
+
     /// Model ids normalized by the production `updateProvider`, compared one by one with the per-conversation
     /// `matchingModel(for:in:)` plus default fallback it replaces. The catalog has case twins, date suffixes, legacy
     /// prefixes, canonical ids and duplicate ids; the conversations have retired models, whitespace, the same

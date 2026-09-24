@@ -661,13 +661,30 @@ final class AppState {
         guard !updatedConversations.isEmpty else { return }
         guard partitionIsStillBound(expectedUID) else { return }
 
+        // Index by id once: a firstIndex per update costs updates x conversations, and folder batch moves and
+        // deletes come through here. The result matches replacing each match and prepending each miss in turn:
+        // new conversations end up first in reverse arrival order, and a repeated new id in the same batch
+        // replaces the earlier one.
         var nextConversations = conversations
+        var indexByID: [UUID: Int] = [:]
+        indexByID.reserveCapacity(nextConversations.count)
+        for (index, conversation) in nextConversations.enumerated() where indexByID[conversation.id] == nil {
+            indexByID[conversation.id] = index
+        }
+        var inserted: [Conversation] = []
+        var insertedIndexByID: [UUID: Int] = [:]
         for updated in updatedConversations {
-            if let index = nextConversations.firstIndex(where: { $0.id == updated.id }) {
+            if let index = indexByID[updated.id] {
                 nextConversations[index] = updated
+            } else if let index = insertedIndexByID[updated.id] {
+                inserted[index] = updated
             } else {
-                nextConversations.insert(updated, at: 0)
+                insertedIndexByID[updated.id] = inserted.count
+                inserted.append(updated)
             }
+        }
+        if !inserted.isEmpty {
+            nextConversations.insert(contentsOf: inserted.reversed(), at: 0)
         }
         conversations = nextConversations
 
