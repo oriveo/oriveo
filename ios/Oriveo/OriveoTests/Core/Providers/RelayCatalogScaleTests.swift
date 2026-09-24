@@ -439,6 +439,44 @@ struct RelayCatalogScaleTests {
         #expect(ratio < 3, "conversation normalization grows with the conversation count: \(few.settled)ms → \(many.settled)ms")
     }
 
+    /// Normalization results merge on the main thread through `AppState.updateConversationModelProjections`, which
+    /// used a `firstIndex` over the whole conversation list for every update: updates x conversations. When a model
+    /// is retired every conversation on it falls back to the default, so there are as many updates as conversations.
+    @Test("conversation model merge: 10x conversations and updates cost < 20x (linear), and every update is written")
+    func conversationModelProjectionUpdateScalesLinearly() {
+        func bestMs(count: Int) -> Double {
+            let providerID = UUID()
+            let state = makeState(with: Self.makeRelayProvider(catalogCount: 1, enabledCount: 1))
+            let conversations = (0..<count).map {
+                TestFactories.makeConversation(providerID: providerID, providerKind: .relay, modelID: "old-\($0)")
+            }
+            var samples: [Double] = []
+            for round in 0..<2 {
+                state.conversations = conversations
+                let updates = conversations.reversed().map {
+                    ConversationModelUpdate(
+                        conversationID: $0.id,
+                        providerID: providerID,
+                        providerKind: .relay,
+                        modelID: "new-\(round)-\($0.modelID)",
+                        metadataUpdatedAt: nil
+                    )
+                }
+                samples.append(Self.measure { state.updateConversationModelProjections(updates) })
+                let stored = Dictionary(uniqueKeysWithValues: state.conversations.map { ($0.id, $0.modelID) })
+                #expect(state.conversations.count == count)
+                #expect(conversations.allSatisfy { stored[$0.id] == "new-\(round)-\($0.modelID)" })
+            }
+            return samples.min() ?? .infinity
+        }
+
+        let small = bestMs(count: 300)
+        let large = bestMs(count: 3_000)
+        let ratio = large / small
+        print("[RelayCatalogScale] updateConversationModelProjections 300 = \(String(format: "%.1f", small))ms, 3000 = \(String(format: "%.1f", large))ms, ratio = \(String(format: "%.1f", ratio))")
+        #expect(ratio < 20, "the conversation model merge grows faster than linearly: \(small)ms → \(large)ms")
+    }
+
     /// Model ids normalized by the production `updateProvider`, compared one by one with the per-conversation
     /// `matchingModel(for:in:)` plus default fallback it replaces. The catalog has case twins, date suffixes, legacy
     /// prefixes, canonical ids and duplicate ids; the conversations have retired models, whitespace, the same

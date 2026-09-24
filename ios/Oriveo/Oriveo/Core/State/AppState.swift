@@ -683,9 +683,17 @@ final class AppState {
     func updateConversationModelProjections(_ updates: [ConversationModelUpdate]) {
         guard !updates.isEmpty else { return }
 
+        // Index by id once (first occurrence wins, as firstIndex did): a firstIndex per update costs updates x
+        // conversations, and when a model is retired every conversation on it falls back to the default, so there are
+        // as many updates as conversations.
         var nextConversations = conversations
+        var indexByID: [UUID: Int] = [:]
+        indexByID.reserveCapacity(nextConversations.count)
+        for (index, conversation) in nextConversations.enumerated() where indexByID[conversation.id] == nil {
+            indexByID[conversation.id] = index
+        }
         for update in updates {
-            guard let index = nextConversations.firstIndex(where: { $0.id == update.conversationID }) else { continue }
+            guard let index = indexByID[update.conversationID] else { continue }
             nextConversations[index].providerID = update.providerID
             nextConversations[index].providerKind = update.providerKind
             nextConversations[index].modelID = update.modelID
