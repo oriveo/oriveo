@@ -4,6 +4,7 @@ import {
   clampPreview,
   derivePreview,
   deriveOutlineTicks,
+  OUTLINE_PREVIEW_SCAN_LIMIT,
   outlineVisibleRange,
   previewCharLimit,
   resolveOutlineActiveIndex,
@@ -30,6 +31,14 @@ describe('derivePreview', () => {
   it('falls back to attachment label when text is empty', () => {
     expect(derivePreview(userMsg('1', '   '), '(att)')).toBe('(att)');
     expect(derivePreview(userMsg('1', ''), '(att)')).toBe('(att)');
+  });
+
+  it('scans only a bounded prefix of single-paragraph messages, matching the full derivation once clamped', () => {
+    const long = 'هذا   نص عربي طويل جدا بدون أي سطر جديد. '.repeat(5_000);
+    const preview = derivePreview(userMsg('1', long), '(att)');
+    expect(preview.length).toBeLessThanOrEqual(OUTLINE_PREVIEW_SCAN_LIMIT);
+    const full = long.replace(/\s+/g, ' ').trim();
+    expect(clampPreview(preview, 48)).toBe(clampPreview(full, 48));
   });
 
   it('uses attachment label for attachment-only messages', () => {

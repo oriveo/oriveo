@@ -25,6 +25,18 @@ struct ChatOutlineTests {
         #expect(ChatOutline.preview(of: message(.user, "a\t\tb"), attachmentLabel: "(att)") == "a b")
     }
 
+    @Test("Preview Scans Bounded Prefix")
+    func previewScansBoundedPrefix() {
+        let sentence = "هذا   نص عربي طويل جدا بدون أي سطر جديد. "
+        let long = String(repeating: sentence, count: 5_000)
+        let preview = ChatOutline.preview(of: message(.user, long), attachmentLabel: "(att)")
+        #expect(preview.count <= ChatOutline.previewScanLimit)
+        // The rail shows at most 48 characters, which must match deriving from the whole text.
+        let full = long.replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespaces)
+        #expect(ChatOutline.clampPreview(preview, maxChars: 48) == ChatOutline.clampPreview(full, maxChars: 48))
+    }
+
     @Test("Preview Empty Falls Back")
     func previewEmptyFallsBack() {
         #expect(ChatOutline.preview(of: message(.user, "   "), attachmentLabel: "(att)") == "(att)")

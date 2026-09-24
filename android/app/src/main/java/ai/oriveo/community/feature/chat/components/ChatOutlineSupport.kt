@@ -21,11 +21,23 @@ data class OutlineTick(
 private val WHITESPACE = Regex("\\s+")
 
 /**
+ * The preview only looks at this many leading characters. A tick shows at most 48 of them, but the
+ * "first line" of a long message with no line breaks is the whole text, so running the regex over
+ * it made every tick derivation grow with message length (tens of milliseconds on the main thread
+ * for 200,000 characters).
+ */
+const val OUTLINE_PREVIEW_SCAN_LIMIT = 512
+
+/**
  * Preview derivation: take the first line, collapse consecutive whitespace, then trim.
  * A user message with no text (attachment only) falls back to the localized [attachmentLabel].
  */
 fun derivePreview(message: ChatMessage, attachmentLabel: String): String {
-    val firstLine = message.text.substringBefore('\n')
+    val text = message.text
+    // Never cut a surrogate pair in half: drop one more character when a high surrogate is last.
+    var scanEnd = minOf(text.length, OUTLINE_PREVIEW_SCAN_LIMIT)
+    if (scanEnd < text.length && scanEnd > 0 && text[scanEnd - 1].isHighSurrogate()) scanEnd -= 1
+    val firstLine = text.substring(0, scanEnd).substringBefore('\n')
     val collapsed = WHITESPACE.replace(firstLine, " ").trim()
     if (collapsed.isNotEmpty()) return collapsed
     if (!message.attachments.isNullOrEmpty()) return attachmentLabel

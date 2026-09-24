@@ -7,6 +7,7 @@ import ai.oriveo.community.core.model.ChatMessageState
 import ai.oriveo.community.core.model.ChatRole
 import ai.oriveo.community.core.model.ProviderKind
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ChatOutlineSupportTest {
@@ -38,6 +39,16 @@ class ChatOutlineSupportTest {
     fun derivePreview_takesFirstLineCollapsesWhitespaceTrims() {
         assertEquals("hello world", derivePreview(msg("1", ChatRole.User, "  hello   world  \nsecond"), "(att)"))
         assertEquals("a b", derivePreview(msg("1", ChatRole.User, "a\t\tb"), "(att)"))
+    }
+
+    @Test
+    fun derivePreview_scansOnlyABoundedPrefixOfSingleParagraphMessages() {
+        val long = "هذا   نص عربي طويل جدا بدون أي سطر جديد. ".repeat(5_000)
+        val preview = derivePreview(msg("1", ChatRole.User, long), "(att)")
+        assertTrue(preview.length <= OUTLINE_PREVIEW_SCAN_LIMIT)
+        // The rail shows at most 48 characters, which must match deriving from the whole text.
+        val full = Regex("\\s+").replace(long, " ").trim()
+        assertEquals(clampPreview(full, 48), clampPreview(preview, 48))
     }
 
     @Test

@@ -51,8 +51,15 @@ nonisolated enum ChatOutline {
         }
     }
 
+    /// The preview only looks at this many leading characters. A tick shows at most 48 of them, but
+    /// the "first line" of a long message with no line breaks is the whole text, so running the regex
+    /// over it made every tick recomputation (each streaming checkpoint triggers one) grow with message
+    /// length: tens of milliseconds on the main thread for 200,000 characters.
+    static let previewScanLimit = 512
+
     static func preview(of message: ChatMessage, attachmentLabel: String) -> String {
-        let firstLine = message.text.split(separator: "\n", maxSplits: 1, omittingEmptySubsequences: false)
+        let firstLine = message.text.prefix(previewScanLimit)
+            .split(separator: "\n", maxSplits: 1, omittingEmptySubsequences: false)
             .first.map(String.init) ?? ""
         let collapsed = firstLine
             .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)

@@ -9,11 +9,24 @@ export interface OutlineTick {
 }
 
 /**
+ * The preview only looks at this many leading characters. A tick shows at most 48 of them, but
+ * splitting the whole text cuts a message of hundreds of thousands of characters into an array of
+ * lines, and the "first line" of a long message with no line breaks is the whole text, so every
+ * tick derivation grew with message length.
+ */
+export const OUTLINE_PREVIEW_SCAN_LIMIT = 512;
+
+/**
  * Derives the preview: take the first line, collapse runs of whitespace, trim.
  * A user message with attachments but no text falls back to the localized `attachmentLabel`.
  */
 export function derivePreview(message: ChatMessage, attachmentLabel: string): string {
-  const firstLine = (message.text ?? '').split('\n')[0] ?? '';
+  const text = message.text ?? '';
+  let scanEnd = Math.min(text.length, OUTLINE_PREVIEW_SCAN_LIMIT);
+  // Never cut a surrogate pair in half.
+  const last = text.charCodeAt(scanEnd - 1);
+  if (scanEnd < text.length && last >= 0xd800 && last <= 0xdbff) scanEnd -= 1;
+  const firstLine = text.slice(0, scanEnd).split('\n', 1)[0] ?? '';
   const collapsed = firstLine.replace(/\s+/g, ' ').trim();
   if (collapsed) return collapsed;
   if (message.attachments && message.attachments.length > 0) return attachmentLabel;
