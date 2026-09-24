@@ -18,7 +18,7 @@
     <string name="close">बंद करें</string>
     <string name="confirm">पुष्टि करना</string>
     <string name="search">खोज</string>
-    <string name="copy">प्रतिलिपि</string>
+    <string name="copy">कॉपी करें</string>
     <string name="copied">कॉपी किया गया</string>
     <string name="share">शेयर करना</string>
     <string name="legal_consent_notice">जारी रखकर, आप नीचे दी गई कानूनी शर्तों से सहमत हैं।</string>
@@ -882,7 +882,7 @@
 
     <!-- Code Block Card -->
     <string name="code_block_default_language">कोड</string>
-    <string name="code_block_expand">बढ़ाना</string>
+    <string name="code_block_expand">पूरा देखें</string>
     <string name="code_block_lines">%d लाइनें</string>
     <string name="no_internet_connection">इंटरनेट कनेक्शन नहीं है</string>
 

@@ -18,7 +18,7 @@
     <string name="close">Tutup</string>
     <string name="confirm">Mengonfirmasi</string>
     <string name="search">Mencari</string>
-    <string name="copy">Menyalin</string>
+    <string name="copy">Salin</string>
     <string name="copied">Disalin</string>
     <string name="share">Bagikan</string>
     <string name="legal_consent_notice">Dengan melanjutkan, Anda menyetujui persyaratan hukum di bawah ini.</string>
@@ -882,7 +882,7 @@
 
     <!-- Code Block Card -->
     <string name="code_block_default_language">Kode</string>
-    <string name="code_block_expand">Memperluas</string>
+    <string name="code_block_expand">Perluas</string>
     <string name="code_block_lines">%d baris</string>
     <string name="no_internet_connection">Tidak ada koneksi internet</string>
 

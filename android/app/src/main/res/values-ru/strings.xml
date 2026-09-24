@@ -882,7 +882,7 @@
 
     <!-- Code Block Card -->
     <string name="code_block_default_language">Код</string>
-    <string name="code_block_expand">Расширять</string>
+    <string name="code_block_expand">Развернуть</string>
     <string name="code_block_lines">%d строк</string>
     <string name="no_internet_connection">Нет подключения к интернету</string>
 

@@ -4868,13 +4868,13 @@
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "प्रतिलिपि"
+            "value": "कॉपी करें"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Menyalin"
+            "value": "Salin"
           }
         },
         "ja": {
@@ -4904,7 +4904,7 @@
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "สำเนา"
+            "value": "คัดลอก"
           }
         },
         "tr": {
@@ -8729,13 +8729,13 @@
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "बढ़ाना"
+            "value": "पूरा देखें"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Memperluas"
+            "value": "Perluas"
           }
         },
         "ja": {
@@ -8759,7 +8759,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Расширять"
+            "value": "Развернуть"
           }
         },
         "th": {
@@ -8771,7 +8771,7 @@
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Genişletmek"
+            "value": "Genişlet"
           }
         },
         "vi": {
