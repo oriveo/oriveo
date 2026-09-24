@@ -20,7 +20,7 @@
   padding: 6px 10px;
   margin-left: -10px;
   background: transparent;
-  color: var(--o-primary);
+  color: var(--o-primary-text-on-surface);
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
