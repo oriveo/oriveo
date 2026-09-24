@@ -45,6 +45,7 @@ import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.Description
 import androidx.compose.material.icons.outlined.FolderZip
 import androidx.compose.material.icons.outlined.Image
+import androidx.compose.material.icons.outlined.OpenInFull
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.PictureAsPdf
 import androidx.compose.material.icons.outlined.Refresh
@@ -74,14 +75,20 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawWithCache
+import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.RoundRect
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.asAndroidPath
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.input.pointer.PointerEventPass
@@ -93,6 +100,7 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.LocalTextToolbar
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -308,6 +316,12 @@ private fun UserBubble(
     } else {
         message.text
     }
+    // Very long messages fold (UserMessageFold): the bubble lays out only a prefix and the full
+    // text opens in a sheet.
+    val foldedPreview = remember(displayText) {
+        if (UserMessageFold.shouldFold(displayText)) UserMessageFold.preview(displayText) else null
+    }
+    var showFullText by remember(message.id) { mutableStateOf(false) }
 
     val imageAttachmentsForWidth = remember(message.attachments) {
         message.attachments?.filter { it.kind == AttachmentKind.Image }.orEmpty()
@@ -381,20 +395,34 @@ private fun UserBubble(
                             attachmentStore = attachmentStore,
                         )
                         if (hasText) {
-                            SelectableUserMessageText(
-                                text = displayText,
-                                modifier = Modifier.padding(
-                                    start = 16.dp,
-                                    end = 16.dp,
-                                    top = 8.dp,
-                                    bottom = 14.dp,
-                                ),
-                                onSaveSelection = onSaveSelection,
-                                onAskSelection = onAskPlainSelection,
-                                onReplaceSelection = onReplaceSelection,
-                                onSelectionToolbarVisibleChange = onSelectionToolbarVisibleChange,
-                                onSelectionGestureActiveChange = onSelectionGestureActiveChange,
+                            val textPadding = Modifier.padding(
+                                start = 16.dp,
+                                end = 16.dp,
+                                top = 8.dp,
+                                bottom = 14.dp,
                             )
+                            if (foldedPreview != null) {
+                                FoldedUserMessageText(
+                                    preview = foldedPreview,
+                                    modifier = textPadding,
+                                    onShowFullText = { showFullText = true },
+                                    onSaveSelection = onSaveSelection,
+                                    onAskSelection = onAskPlainSelection,
+                                    onReplaceSelection = onReplaceSelection,
+                                    onSelectionToolbarVisibleChange = onSelectionToolbarVisibleChange,
+                                    onSelectionGestureActiveChange = onSelectionGestureActiveChange,
+                                )
+                            } else {
+                                SelectableUserMessageText(
+                                    text = displayText,
+                                    modifier = textPadding,
+                                    onSaveSelection = onSaveSelection,
+                                    onAskSelection = onAskPlainSelection,
+                                    onReplaceSelection = onReplaceSelection,
+                                    onSelectionToolbarVisibleChange = onSelectionToolbarVisibleChange,
+                                    onSelectionGestureActiveChange = onSelectionGestureActiveChange,
+                                )
+                            }
                         }
                     }
                 } else {
@@ -420,6 +448,17 @@ private fun UserBubble(
 
                         when {
                             isGeneratingNoText -> TypingIndicator()
+                            hasText && foldedPreview != null -> {
+                                FoldedUserMessageText(
+                                    preview = foldedPreview,
+                                    onShowFullText = { showFullText = true },
+                                    onSaveSelection = onSaveSelection,
+                                    onAskSelection = onAskPlainSelection,
+                                    onReplaceSelection = onReplaceSelection,
+                                    onSelectionToolbarVisibleChange = onSelectionToolbarVisibleChange,
+                                    onSelectionGestureActiveChange = onSelectionGestureActiveChange,
+                                )
+                            }
                             hasText -> {
                                 SelectableUserMessageText(
                                     text = displayText,
@@ -445,6 +484,81 @@ private fun UserBubble(
             )
         }
 
+    }
+
+    if (showFullText) {
+        UserMessageFullTextSheet(text = displayText, onDismiss = { showFullText = false })
+    }
+}
+
+/**
+ * Folded body: the prefix is capped at [UserMessageFold.CollapsedTextHeight] and fades out at the
+ * bottom, with a "Show full message" pill below. The fade only changes opacity (DstIn), so what
+ * shows through is the bubble's own gradient; a solid overlay could not match both of its ends.
+ */
+@Composable
+private fun FoldedUserMessageText(
+    preview: String,
+    modifier: Modifier = Modifier,
+    onShowFullText: () -> Unit,
+    onSaveSelection: ((String) -> Unit)?,
+    onAskSelection: ((String) -> Unit)?,
+    onReplaceSelection: ((String) -> Unit)?,
+    onSelectionToolbarVisibleChange: (Boolean) -> Unit,
+    onSelectionGestureActiveChange: (Boolean) -> Unit,
+) {
+    Column(
+        modifier = modifier.testTag("user_message_folded_text"),
+        verticalArrangement = Arrangement.spacedBy(OriveoTheme.spacing.sm),
+        horizontalAlignment = Alignment.End,
+    ) {
+        SelectableUserMessageText(
+            text = preview,
+            modifier = Modifier
+                .heightIn(max = UserMessageFold.CollapsedTextHeight)
+                .clipToBounds()
+                .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+                .drawWithContent {
+                    drawContent()
+                    val fade = UserMessageFold.FadeHeight.toPx().coerceAtMost(size.height)
+                    drawRect(
+                        brush = Brush.verticalGradient(
+                            colors = listOf(Color.Black, Color.Transparent),
+                            startY = size.height - fade,
+                            endY = size.height,
+                        ),
+                        blendMode = BlendMode.DstIn,
+                    )
+                },
+            onSaveSelection = onSaveSelection,
+            onAskSelection = onAskSelection,
+            onReplaceSelection = onReplaceSelection,
+            onSelectionToolbarVisibleChange = onSelectionToolbarVisibleChange,
+            onSelectionGestureActiveChange = onSelectionGestureActiveChange,
+        )
+        Row(
+            modifier = Modifier
+                .clip(CircleShape)
+                .background(Color.White.copy(alpha = 0.18f))
+                .clickable(role = Role.Button, onClick = onShowFullText)
+                .testTag("user_message_show_full_text")
+                .padding(start = 11.dp, end = 12.dp, top = 6.dp, bottom = 6.dp),
+            horizontalArrangement = Arrangement.spacedBy(5.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(
+                imageVector = Icons.Outlined.OpenInFull,
+                contentDescription = null,
+                modifier = Modifier.size(11.dp),
+                tint = Color.White,
+            )
+            Text(
+                text = stringResource(R.string.chat_show_full_message),
+                style = OriveoTheme.typography.footnote.copy(fontWeight = FontWeight.SemiBold),
+                color = Color.White,
+                maxLines = 1,
+            )
+        }
     }
 }
 

@@ -883,6 +883,7 @@
     <!-- Code Block Card -->
     <string name="code_block_default_language">कोड</string>
     <string name="code_block_expand">पूरा देखें</string>
+    <string name="chat_show_full_message">पूरा संदेश देखें</string>
     <string name="code_block_lines">%d लाइनें</string>
     <string name="no_internet_connection">इंटरनेट कनेक्शन नहीं है</string>
 

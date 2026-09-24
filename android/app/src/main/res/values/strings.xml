@@ -984,6 +984,8 @@
     <!-- Code Block Card -->
     <string name="code_block_default_language">Code</string>
     <string name="code_block_expand">Expand</string>
+    <!-- Pill at the bottom of a folded long user message; opens the full-text sheet. -->
+    <string name="chat_show_full_message">Show full message</string>
     <string name="code_block_lines">%d lines</string>
     <string name="no_internet_connection">No internet connection</string>
 

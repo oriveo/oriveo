@@ -921,6 +921,7 @@
     <!-- Code Block Card -->
     <string name="code_block_default_language">코드</string>
     <string name="code_block_expand">펼치기</string>
+    <string name="chat_show_full_message">전체 보기</string>
     <string name="code_block_lines">%d줄</string>
     <string name="no_internet_connection">인터넷 연결 없음</string>
 

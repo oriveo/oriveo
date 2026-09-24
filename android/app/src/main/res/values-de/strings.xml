@@ -919,6 +919,7 @@
     <!-- Code Block Card -->
     <string name="code_block_default_language">Code</string>
     <string name="code_block_expand">Erweitern</string>
+    <string name="chat_show_full_message">Ganze Nachricht anzeigen</string>
     <string name="code_block_lines">%d Zeilen</string>
     <string name="no_internet_connection">Keine Internetverbindung</string>
 

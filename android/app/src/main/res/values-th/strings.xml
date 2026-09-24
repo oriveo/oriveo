@@ -883,6 +883,7 @@
     <!-- Code Block Card -->
     <string name="code_block_default_language">รหัส</string>
     <string name="code_block_expand">ขยาย</string>
+    <string name="chat_show_full_message">ดูข้อความเต็ม</string>
     <string name="code_block_lines">%d บรรทัด</string>
     <string name="no_internet_connection">ไม่มีการเชื่อมต่ออินเทอร์เน็ต</string>
 

@@ -921,6 +921,7 @@
     <!-- Code Block Card -->
     <string name="code_block_default_language">コード</string>
     <string name="code_block_expand">展開</string>
+    <string name="chat_show_full_message">全文を表示</string>
     <string name="code_block_lines">%d 行</string>
     <string name="no_internet_connection">インターネット接続がありません</string>
 

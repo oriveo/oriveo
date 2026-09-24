@@ -883,6 +883,7 @@
     <!-- Code Block Card -->
     <string name="code_block_default_language">Kode</string>
     <string name="code_block_expand">Perluas</string>
+    <string name="chat_show_full_message">Lihat pesan lengkap</string>
     <string name="code_block_lines">%d baris</string>
     <string name="no_internet_connection">Tidak ada koneksi internet</string>
 

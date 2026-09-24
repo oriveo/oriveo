@@ -883,6 +883,7 @@
     <!-- Code Block Card -->
     <string name="code_block_default_language">Mã số</string>
     <string name="code_block_expand">Mở rộng</string>
+    <string name="chat_show_full_message">Xem tin nhắn đầy đủ</string>
     <string name="code_block_lines">%d dòng</string>
     <string name="no_internet_connection">Không có kết nối internet</string>
 
