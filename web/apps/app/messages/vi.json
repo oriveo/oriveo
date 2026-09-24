@@ -637,7 +637,7 @@
       "saveAndStartChat": "Save and start chat",
       "nameRequired": "Vui lòng nhập tên",
       "endpointRequired": "Vui lòng nhập URL yêu cầu",
-      "apiKeyRequired": "Enter API Key to continue",
+      "apiKeyRequired": "Nhập khóa API để tiếp tục",
       "probePolicyUnavailable": "Tính năng kiểm tra LLM tùy chỉnh tạm thời không khả dụng. Vui lòng thử lại sau.",
       "probeBlocked": "Không thể dùng LLM tùy chỉnh này trực tiếp từ trình duyệt. Hãy kiểm tra CORS hoặc dùng ứng dụng native.",
       "probeTransientError": "Không thể kiểm tra LLM tùy chỉnh lúc này. Vui lòng thử lại.",
@@ -665,7 +665,7 @@
         "reasoningLabel": "Reasoning",
         "tierLabel": "Tier",
         "pasteAnother": "Paste another",
-        "requiredBelow": "1 required field below: API Key"
+        "requiredBelow": "Còn 1 trường bắt buộc bên dưới: Khóa API"
       },
       "family": {
         "codexResponses": "Codex Responses",
@@ -677,7 +677,7 @@
         "unknown": "Custom LLM tùy chỉnh"
       },
       "apiKey": {
-        "notInConfig": "API Key (not included in cc-switch config)",
+        "notInConfig": "Khóa API (không có trong cấu hình cc-switch)",
         "helper": "cc-switch does not include the key. Paste your LLM tùy chỉnh API key here."
       },
       "summary": {

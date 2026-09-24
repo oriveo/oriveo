@@ -637,7 +637,7 @@
       "saveAndStartChat": "Save and start chat",
       "nameRequired": "กรุณากรอกชื่อ",
       "endpointRequired": "โปรดป้อน URL คำขอ",
-      "apiKeyRequired": "Enter API Key to continue",
+      "apiKeyRequired": "กรอกคีย์ API เพื่อดำเนินการต่อ",
       "probePolicyUnavailable": "การตรวจสอบ LLM แบบกำหนดเอง ไม่พร้อมใช้งานชั่วคราว โปรดลองอีกครั้งภายหลัง",
       "probeBlocked": "LLM แบบกำหนดเอง นี้ไม่สามารถใช้งานตรงจากเบราว์เซอร์ได้ โปรดตรวจสอบ CORS หรือใช้แอปเนทีฟ",
       "probeTransientError": "ไม่สามารถตรวจสอบ LLM แบบกำหนดเอง ได้ในขณะนี้ โปรดลองอีกครั้ง",
@@ -665,7 +665,7 @@
         "reasoningLabel": "Reasoning",
         "tierLabel": "Tier",
         "pasteAnother": "Paste another",
-        "requiredBelow": "1 required field below: API Key"
+        "requiredBelow": "ยังต้องกรอกอีก 1 ช่องด้านล่าง: คีย์ API"
       },
       "family": {
         "codexResponses": "Codex Responses",
@@ -677,7 +677,7 @@
         "unknown": "Custom LLM แบบกำหนดเอง"
       },
       "apiKey": {
-        "notInConfig": "API Key (not included in cc-switch config)",
+        "notInConfig": "คีย์ API (ไม่มีในการตั้งค่า cc-switch)",
         "helper": "cc-switch does not include the key. Paste your LLM แบบกำหนดเอง API key here."
       },
       "summary": {
