@@ -866,4 +866,41 @@ describe('proxy-client', () => {
     expect(events.every((event) => event.type !== 'error' || event.errorKind !== 'customRequestFieldsRejected')).toBe(true);
     expect(handle.getCapabilityCustomRetryEligible()).toBe(false);
   });
+
+  // Checking for a custom-field rejection must not consume the 400 body: the generic error path reads
+  // it again, and an empty body leaves only the generic "The request was malformed" sentence.
+  it('keeps the proxy\'s own message on a plain 400', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(
+      JSON.stringify({ error: 'Attachment too large' }),
+      { status: 400, headers: { 'Content-Type': 'application/json', 'X-Oriveo-Error-Source': 'oriveo' } },
+    ));
+
+    const handle = sendStreamProxy('openAI', 'sk_test', 'gpt-5', [{ role: 'user', content: 'hello' }]);
+    await expect(collectEvents(handle.stream)).resolves.toEqual([
+      expect.objectContaining({
+        type: 'error',
+        error: 'Attachment too large',
+        errorKind: 'badRequest',
+        source: 'oriveo',
+      }),
+    ]);
+    expect(handle.getCapabilityCustomRetryEligible()).toBe(false);
+  });
+
+  it('keeps the upstream reason on a plain provider 400', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(
+      JSON.stringify({ error: { message: 'max_tokens is too large for this model' } }),
+      { status: 400, headers: { 'Content-Type': 'application/json', 'X-Oriveo-Error-Source': 'provider' } },
+    ));
+
+    const handle = sendStreamProxy('openAI', 'sk_test', 'gpt-5', [{ role: 'user', content: 'hello' }]);
+    await expect(collectEvents(handle.stream)).resolves.toEqual([
+      expect.objectContaining({
+        type: 'error',
+        error: 'max_tokens is too large for this model',
+        errorKind: 'badRequest',
+        source: 'provider',
+      }),
+    ]);
+  });
 });

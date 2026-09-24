@@ -212,7 +212,10 @@ export function sendStreamProxy(
       // `capabilityCustomRetryEligible` lets the recovery card offer "retry without custom
       // fields".
       if (!res.ok && res.status === 400) {
-        const rejection = await readCustomFragmentRejection(res);
+        // Read a clone: when this is not a custom-field rejection, the original body still has to
+        // reach createSSEStream below for the server's message. Reading the original would drain it
+        // and every 400 would end up as the generic English sentence.
+        const rejection = await readCustomFragmentRejection(res.clone());
         if (rejection) {
           capabilityCustomRetryEligible = true;
           ctrl.enqueue({
