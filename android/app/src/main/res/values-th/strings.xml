@@ -342,7 +342,7 @@
     <string name="import_result_no_changes">ไม่มีการนำเข้าข้อมูลใหม่จากข้อมูลสำรองนี้</string>
     <string name="backup_error_invalid_format">ไม่รู้จักรูปแบบไฟล์สำรอง</string>
     <string name="backup_error_version_too_new">การสำรองข้อมูลนี้ต้องใช้ Oriveo เวอร์ชันใหม่กว่า (เวอร์ชันรูปแบบ %1$d)</string>
-    <string name="backup_error_wrong_password">รหัสผ่านไม่ถูกต้อง ใช้ข้าม API Keys เพื่อดำเนินการต่อโดยไม่ต้องกู้คืนคีย์</string>
+    <string name="backup_error_wrong_password">รหัสผ่านไม่ถูกต้อง หากต้องการทำต่อโดยไม่กู้คืนคีย์ ให้เลือก “ข้ามคีย์ API”</string>
     <string name="backup_error_no_data_to_export">ยังไม่มีการสนทนาหรือผู้ให้บริการที่สามารถส่งออกได้</string>
     <string name="backup_error_account_changed">บัญชีมีการเปลี่ยนแปลงระหว่างการเตรียมการนำเข้านี้ เริ่มต้นการนำเข้าอีกครั้งสำหรับบัญชีปัจจุบัน</string>
     <string name="backup_error_save_failed">ไม่สามารถบันทึกไฟล์สำรองได้</string>
