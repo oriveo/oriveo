@@ -1969,21 +1969,27 @@ class ProviderRepository(
         val defaultModel = provider.defaultModel ?: return
         withContext(Dispatchers.IO) {
             val defaultStoredModelId = ModelSelectionUtils.preferredStoredModelIdentifier(defaultModel)
-            val availableModelIds = provider.allModels.map { it.id }.toSet()
+            // Read the catalog once and index it once: every read of allModels on a built-in provider is a full
+            // resolve, and a relay catalog comes from the user's own server (up to tens of thousands of models).
+            // Reading and scanning it per conversation cost conversations x catalog size.
+            val allModels by lazy { provider.allModels }
+            val availableModelIds by lazy { allModels.map { it.id }.toSet() }
+            val catalogIndex by lazy { ModelSelectionUtils.catalogMatchIndex(allModels) }
+            val resolvedByStoredId = HashMap<String, String>()
             val conversations = conversationDao.getAll(targetAccountId)
 
             val toUpdate = conversations
                 .filter { sameNormalizedUuid(it.providerID, provider.id) }
                 .mapNotNull { entity ->
-                    val resolvedModelId = ModelSelectionUtils.matchingModel(
-                        models = provider.allModels,
-                        targetId = entity.modelID,
-                    )?.let(ModelSelectionUtils::preferredStoredModelIdentifier)
-                        ?: if (availableModelIds.contains(entity.modelID)) {
-                            entity.modelID
-                        } else {
-                            defaultStoredModelId
-                        }
+                    val resolvedModelId = resolvedByStoredId.getOrPut(entity.modelID) {
+                        catalogIndex.match(entity.modelID)
+                            ?.let(ModelSelectionUtils::preferredStoredModelIdentifier)
+                            ?: if (availableModelIds.contains(entity.modelID)) {
+                                entity.modelID
+                            } else {
+                                defaultStoredModelId
+                            }
+                    }
 
                     if (resolvedModelId != entity.modelID) {
                         entity.copy(modelID = resolvedModelId)
