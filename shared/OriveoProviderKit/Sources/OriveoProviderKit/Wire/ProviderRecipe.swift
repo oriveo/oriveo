@@ -47,12 +47,16 @@ public enum ProviderRecipeValue: Hashable, Sendable {
         switch value {
         case is NSNull:
             return .null
-        case let value as Bool:
-            return .bool(value)
+        // NSNumber has to be matched before Bool: `NSNumber(1)` / `NSNumber(0)` produced by
+        // JSONSerialization bridge straight to a Swift `Bool`, so matching Bool first silently turns
+        // `"limit": 1` in a Gemini `functionCall.args` or a replayed `"offset": 0` into true / false.
+        // Real booleans are told apart by their CFBoolean type.
         case let value as NSNumber:
             if CFGetTypeID(value) == CFBooleanGetTypeID() { return .bool(value.boolValue) }
             if Decimal(value.int64Value) == value.decimalValue { return .integer(value.int64Value) }
             return .number(value.decimalValue)
+        case let value as Bool:
+            return .bool(value)
         case let value as String:
             return .string(value)
         case let value as [Any]:
