@@ -84,6 +84,8 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.PlatformTextStyle
 import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.text.style.TextAlign
@@ -961,9 +963,12 @@ fun SkillEditScreen(
                                                     color = colors.textTertiary,
                                                 )
                                             }
+                                            val useMemoryLabel = stringResource(R.string.skills_useMemory)
                                             Switch(
                                                 checked = useMemory,
                                                 onCheckedChange = { useMemory = it },
+                                                // // The switch has no label of its own; without a contentDescription it is announced only as "switch".
+                                                modifier = Modifier.semantics { contentDescription = useMemoryLabel },
                                                 colors = SwitchDefaults.colors(
                                                     checkedTrackColor = colors.primary,
                                                 ),

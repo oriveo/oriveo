@@ -39,6 +39,8 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -301,6 +303,8 @@ internal fun RelayToggleRow(
             checked = isOn,
             enabled = enabled,
             onCheckedChange = onToggle,
+            // // The switch has no label of its own; without a contentDescription it is announced only as "switch".
+            modifier = Modifier.semantics { contentDescription = title },
         )
     }
 }

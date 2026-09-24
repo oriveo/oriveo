@@ -93,6 +93,8 @@ import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
@@ -1133,9 +1135,12 @@ private fun AntiForgetCard(
                 overflow = TextOverflow.Ellipsis,
             )
         }
+        val antiForgetLabel = stringResource(R.string.memory_anti_forget_title)
         Switch(
             checked = enabled,
             onCheckedChange = onEnabledChange,
+            // // The switch has no label of its own; without a contentDescription it is announced only as "switch".
+            modifier = Modifier.semantics { contentDescription = antiForgetLabel },
             colors = SwitchDefaults.colors(
                 checkedThumbColor = Color.White,
                 checkedTrackColor = colors.primary,

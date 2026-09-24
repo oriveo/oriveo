@@ -36,6 +36,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import ai.oriveo.community.R
 import ai.oriveo.community.core.app.resolve
@@ -135,9 +137,12 @@ fun BackupScreen(
                             style = OriveoTheme.typography.body,
                             color = colors.textPrimary,
                         )
+                        val includeKeysLabel = stringResource(R.string.include_api_keys)
                         Switch(
                             checked = viewModel.includeKeys,
                             onCheckedChange = { viewModel.includeKeys = it },
+                            // // The switch has no label of its own; without a contentDescription it is announced only as "switch".
+                            modifier = Modifier.semantics { contentDescription = includeKeysLabel },
                             colors = SwitchDefaults.colors(checkedTrackColor = colors.primary),
                         )
                     }

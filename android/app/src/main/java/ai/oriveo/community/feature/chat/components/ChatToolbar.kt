@@ -33,6 +33,8 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -237,9 +239,13 @@ internal fun ChatToolbar(
                             text = { Text(stringResource(R.string.memory_use_toggle)) },
                             onClick = onToggleUseMemory,
                             trailingIcon = {
+                                val useMemoryLabel = stringResource(R.string.memory_use_toggle)
                                 Switch(
                                     checked = memoryEnabledForConversation,
                                     onCheckedChange = { onToggleUseMemory() },
+                                    // The switch is its own focus stop inside the menu item; without a
+                                    // contentDescription it is announced only as "switch".
+                                    modifier = Modifier.semantics { contentDescription = useMemoryLabel },
                                 )
                             },
                         )
