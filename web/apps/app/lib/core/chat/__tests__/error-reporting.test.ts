@@ -102,6 +102,14 @@ describe("shouldReportProviderError", () => {
     })).toBe(true);
   });
 
+  // An image generation prompt blocked by OpenAI's content moderation reaches the client through
+  // /api/chat/stream with source "oriveo" rather than "provider", and used to be reported.
+  it("drops upstream content moderation verdicts regardless of who relayed them", () => {
+    expect(shouldReportProviderError({ kind: "moderation", source: "oriveo" })).toBe(false);
+    expect(shouldReportProviderError({ kind: "moderation", source: "provider" })).toBe(false);
+    expect(shouldReportProviderError({ kind: "moderation" })).toBe(false);
+  });
+
   it("drops user-authored custom request field rejections (fail-closed is by design)", () => {
     expect(shouldReportProviderError({ kind: "customRequestFieldsRejected", source: "oriveo" })).toBe(false);
   });

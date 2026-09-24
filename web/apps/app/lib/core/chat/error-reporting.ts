@@ -28,6 +28,13 @@ const NON_REPORTABLE_PROVIDER_ERROR_KINDS = new Set<string>([
   'rateLimited',
   // A user-supplied custom request field the server compiler rejected: fail-closed is by design and the way out is to fix the JSON.
   'customRequestFieldsRejected',
+  // Upstream content moderation blocked the user's own prompt (OpenAI image generation's
+  // moderation_blocked and the like). It is the provider's policy verdict on the user's content,
+  // the error card already asks the user to rephrase and retry, and there is nothing to fix on the
+  // engineering side. Only the direct path with source=provider was dropped before; the same
+  // verdict relayed through /api/chat/stream arrives with source=oriveo and was reported as an
+  // error. Decided by kind, whoever relayed it.
+  'moderation',
   // Subscription-login account states: plan tier too low, authorisation expired, or this period's
   // quota used up. The user resolves all three in the vendor console.
   // `*SubscriptionUnavailable` is deliberately absent: it means a missing metadata recipe or a raised
