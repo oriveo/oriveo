@@ -13,11 +13,11 @@
     "searchPlaceholder": "Telusuri percakapan…",
     "clearSearch": "Hapus pencarian",
     "rename": "Ganti nama",
-    "deleteConversation": "Menghapus",
+    "deleteConversation": "Hapus",
     "confirmDelete": "Konfirmasi Hapus",
     "noResults": "Tidak ada percakapan yang ditemukan",
     "untitled": "Tanpa judul",
-    "more": "Lagi",
+    "more": "Lainnya",
     "today": "Hari ini",
     "yesterday": "Kemarin",
     "thisWeek": "Minggu ini",
@@ -64,7 +64,7 @@
     "exportMarkdown": "Ekspor Markdown",
     "exportJSON": "Ekspor JSON",
     "exportClipboard": "Salin ke Papan Klip",
-    "delete": "Menghapus",
+    "delete": "Hapus",
     "copy": "Salin",
     "copyMarkdown": "Salin Markdown",
     "copyCode": "Salin Kode",
@@ -167,9 +167,9 @@
     "generationGroupEngineRuntime": "Runtime Mesin",
     "retry": "Mencoba kembali",
     "cancel": "Membatalkan",
-    "save": "Menyimpan",
-    "delete": "Menghapus",
-    "confirm": "Mengonfirmasi",
+    "save": "Simpan",
+    "delete": "Hapus",
+    "confirm": "Konfirmasi",
     "back": "Kembali",
     "next": "Berikutnya",
     "done": "Selesai",
@@ -178,7 +178,7 @@
     "connected": "Terhubung",
     "syncing": "Menyinkronkan…",
     "issue": "Masalah",
-    "remove": "Menghapus",
+    "remove": "Hapus",
     "close": "Tutup",
     "apiKeyInvalidChars": "API Key mengandung karakter yang tidak didukung. Tempelkan ulang — kemungkinan terselip spasi lebar penuh, spasi lebar nol, atau karakter non-ASCII.",
     "relayHttpsRequired": "Gunakan URL permintaan HTTPS. Alamat jaringan lokal dan VPN didukung jika menggunakan sertifikat TLS yang valid.",
@@ -872,7 +872,7 @@
       "confirmDeleteTitle": "Hapus \"{name}\"?",
       "confirmDeleteDesc": "Koneksi ini beserta kuncinya, model yang diaktifkan dan pustaka modelnya, serta parameter perilaku model yang disimpan akan dihapus. Percakapan Anda tidak akan dihapus. Pesan lama tetap ada; model yang digunakan akan ditandai tidak tersedia.",
       "editName": "Sunting Nama",
-      "saveName": "Menyimpan",
+      "saveName": "Simpan",
       "defaultName": "LLM kustom",
       "privacyNote": "URL permintaan LLM kustom di jaringan lokal Anda terhubung langsung dari perangkat ini. URL permintaan publik diteruskan melalui server Oriveo untuk mengatasi batasan CORS browser — API Key Anda hanya berada di memori selama permintaan tersebut, tidak pernah disimpan atau dicatat. HTTPS diperlukan pada kedua kasus.",
       "relaySettings": "Pengaturan koneksi",
@@ -1001,7 +1001,7 @@
       "saveKey": "Simpan Kunci",
       "baseURL": "URL Permintaan",
       "editBaseURL": "Edit URL Permintaan",
-      "saveBaseURL": "Menyimpan",
+      "saveBaseURL": "Simpan",
       "defaultURL": "Bawaan",
       "usage": "Statistik Penggunaan",
       "usageSubtitle": "Berdasarkan riwayat percakapan lokal",
@@ -1515,7 +1515,7 @@
     "description": "Keterangan",
     "descriptionPlaceholder": "Deskripsi singkat tentang apa yang dilakukan Skill ini",
     "color": "Warna",
-    "save": "Menyimpan",
+    "save": "Simpan",
     "saving": "Penghematan...",
     "newChat": "Obrolan Baru",
     "allSkills": "Semua Keterampilan",
@@ -1567,7 +1567,7 @@
     "knowledgeStatusReady": "Tersedia",
     "knowledgeStatusFailed": "Gagal",
     "knowledgeStatusReplacing": "Mengganti",
-    "knowledgeStatusDeleting": "Menghapus",
+    "knowledgeStatusDeleting": "Hapus",
     "knowledgeStatusDisabled": "Tidak tersedia",
     "openai_not_configured": "Basis Pengetahuan memerlukan kunci API OpenAI resmi.",
     "openai_endpoint_not_official": "Basis Pengetahuan hanya berfungsi dengan titik akhir OpenAI resmi.",
@@ -1590,252 +1590,252 @@
   "builtinSkills": {
     "code_assistant": {
       "name": "Asisten Kode",
-      "description": "Pemrograman Q&A, pembuatan kode, debugging",
+      "description": "Penulisan kode, perbaikan, dan penjelasan cara kerjanya",
       "starters": {
-        "0": "Bantu saya men-debug kode ini",
-        "1": "Tuliskan fungsi yang...",
+        "0": "Bantu cari masalah di kode ini",
+        "1": "Tulis fungsi yang...",
         "2": "Jelaskan cara kerja kode ini",
-        "3": "Perbaiki ini agar lebih mudah dibaca"
+        "3": "Rapikan struktur kode ini biar lebih enak dibaca"
       }
     },
     "code_review": {
       "name": "Tinjauan Kode",
-      "description": "Tinjauan kualitas, keamanan, dan kinerja kode",
+      "description": "Tinjauan kualitas, keamanan, dan kecepatan kode",
       "starters": {
-        "0": "Tinjau kode ini untuk mengetahui masalah keamanan",
-        "1": "Periksa PR ini untuk masalah kinerja",
-        "2": "Analisis penanganan kesalahan fungsi ini",
-        "3": "Nilai kualitas keseluruhan kode ini"
+        "0": "Tinjau kode ini dari sisi keamanan",
+        "1": "Lihat PR ini, ada masalah performa nggak?",
+        "2": "Lihat bagaimana fungsi ini menangani kesalahan",
+        "3": "Bagaimana kualitas kode ini secara keseluruhan?"
       }
     },
     "sql_expert": {
       "name": "Pakar SQL",
-      "description": "Kueri SQL, pengoptimalan, dan desain skema",
+      "description": "Penulisan SQL, percepatan kueri lambat, dan rancangan tabel",
       "starters": {
-        "0": "Tulis kueri SQL ke...",
-        "1": "Optimalkan kueri lambat ini",
-        "2": "Rancanglah skema untuk...",
-        "3": "Jelaskan rencana eksekusi kueri ini"
+        "0": "Tulis SQL untuk...",
+        "1": "Percepat kueri lambat ini",
+        "2": "Rancang struktur tabel untuk...",
+        "3": "Rencana eksekusi kueri ini artinya apa?"
       }
     },
     "git_assistant": {
       "name": "Asisten Git",
-      "description": "Perintah Git, alur kerja, dan resolusi konflik",
+      "description": "Perintah Git, alur sehari-hari, dan konflik merge",
       "starters": {
-        "0": "Bantu saya menyelesaikan konflik penggabungan ini",
-        "1": "Tulis pesan komit untuk perubahan ini",
-        "2": "Bagaimana cara membatalkan komitmen terakhir saya?",
-        "3": "Jelaskan situasi Git ini"
+        "0": "Bantu selesaikan konflik merge ini",
+        "1": "Buatkan pesan commit dari perubahan ini",
+        "2": "Bagaimana cara membatalkan commit yang baru aku buat?",
+        "3": "Status Git yang sekarang ini maksudnya apa?"
       }
     },
     "writing_coach": {
       "name": "Pelatih Menulis",
-      "description": "Meningkatkan gaya, struktur, dan kejelasan penulisan",
+      "description": "Tulisan yang lebih enak dibaca, struktur lebih jelas, dan nada lebih pas",
       "starters": {
-        "0": "Perbaiki paragraf ini",
-        "1": "Jadikan ini lebih ringkas",
-        "2": "Sesuaikan nadanya agar lebih profesional",
-        "3": "Periksa struktur esai ini"
+        "0": "Perbaiki bagian ini",
+        "1": "Persingkat bagian ini",
+        "2": "Ubah nadanya biar lebih cocok untuk kerja",
+        "3": "Struktur tulisan ini sudah mengalir belum?"
       }
     },
     "email_assistant": {
       "name": "Asisten Email",
-      "description": "Draf email bisnis dan pribadi profesional",
+      "description": "Draf email kerja dan email pribadi",
       "starters": {
-        "0": "Draf email tindak lanjut",
-        "1": "Tulis penolakan yang sopan",
-        "2": "Balas email ini secara profesional",
-        "3": "Buat draf email penjangkauan yang dingin"
+        "0": "Buatkan draf email tindak lanjut",
+        "1": "Tulis email penolakan yang sopan",
+        "2": "Balas email ini dengan nada yang cocok untuk kerja",
+        "3": "Buatkan email pertama untuk orang yang belum aku kenal"
       }
     },
     "copywriting": {
       "name": "Copywriting",
-      "description": "Salinan pemasaran, media sosial, dan pesan merek",
+      "description": "Copywriting untuk iklan, postingan, dan cara merek bicara",
       "starters": {
-        "0": "Tulis deskripsi produk untuk...",
-        "1": "Buat postingan media sosial tentang...",
-        "2": "Draf salinan iklan untuk...",
-        "3": "Tulislah judul yang menarik untuk..."
+        "0": "Tulis perkenalan produk untuk...",
+        "1": "Tulis beberapa postingan tentang...",
+        "2": "Buatkan naskah iklan untuk...",
+        "3": "Tulis judul yang bikin penasaran untuk..."
       }
     },
     "blog_writer": {
       "name": "Penulis Blog",
-      "description": "Melibatkan konten berdurasi panjang dan postingan blog",
+      "description": "Artikel panjang dan tulisan blog",
       "starters": {
-        "0": "Tulis postingan blog tentang...",
-        "1": "Buatlah kerangka artikel tentang...",
-        "2": "Perbaiki struktur draf ini",
-        "3": "Sarankan ide topik blog untuk..."
+        "0": "Tulis blog tentang...",
+        "1": "Buatkan kerangka artikel tentang...",
+        "2": "Rapikan struktur draf ini",
+        "3": "Kasih ide judul blog untuk..."
       }
     },
     "translation_expert": {
       "name": "Pakar Terjemahan",
-      "description": "Terjemahan akurat menjaga nada dan nuansa",
+      "description": "Terjemahan yang menjaga nada dan nuansa aslinya",
       "starters": {
-        "0": "Terjemahkan ini ke bahasa Inggris",
-        "1": "Terjemahkan ini ke bahasa Mandarin",
-        "2": "Terjemahkan email ini dengan nada profesional",
-        "3": "Bagaimana Anda mengatakan ini secara alami dalam bahasa Jepang?"
+        "0": "Terjemahkan bagian ini ke bahasa Inggris",
+        "1": "Terjemahkan bagian ini ke bahasa Mandarin",
+        "2": "Terjemahkan email ini, nadanya tetap cocok untuk kerja",
+        "3": "Dalam bahasa Jepang, kalimat ini wajarnya bagaimana?"
       }
     },
     "proofreader": {
       "name": "Pemeriksa Tulisan",
-      "description": "Perbaiki tata bahasa, ejaan, dan tingkatkan kejelasan",
+      "description": "Pemeriksaan tata bahasa, ejaan, dan kejelasan kalimat",
       "starters": {
-        "0": "Koreksi teks ini",
-        "1": "Perbaiki tata bahasa pada paragraf ini",
-        "2": "Poles ini untuk dipublikasikan",
-        "3": "Periksa ini untuk konsistensi"
+        "0": "Periksa tulisan ini",
+        "1": "Betulkan kesalahan tata bahasa di bagian ini",
+        "2": "Poles bagian ini sampai layak dikirim",
+        "3": "Cek konsistensi dari awal sampai akhir"
       }
     },
     "learning_tutor": {
       "name": "Tutor Belajar",
-      "description": "Bimbingan pasien dengan metode Socrates",
+      "description": "Bimbingan belajar yang tidak terburu-buru, lewat pertanyaan sampai kamu paham sendiri",
       "starters": {
-        "0": "Jelaskan konsep ini kepada saya",
-        "1": "Bantu saya memahami cara... kerjanya",
-        "2": "aku bingung tentang...",
-        "3": "Tanyakan kepada saya tentang topik ini"
+        "0": "Coba jelaskan konsep ini",
+        "1": "Bantu aku paham cara kerja...",
+        "2": "Aku mentok di...",
+        "3": "Uji aku soal topik ini"
       }
     },
     "research_assistant": {
       "name": "Asisten Riset",
-      "description": "Tinjauan literatur, penulisan akademis, dan penelitian",
+      "description": "Pembacaan makalah, tulisan akademik, dan bantuan riset",
       "starters": {
-        "0": "Ringkaslah temuan-temuan utama makalah ini",
-        "1": "Bantu saya menulis bagian metodologi",
-        "2": "Kritik argumen ini",
-        "3": "Sarankan arah penelitian untuk..."
+        "0": "Ringkas temuan utama dari makalah ini",
+        "1": "Bantu aku menulis bagian metode",
+        "2": "Tunjukkan masalah dalam argumen ini",
+        "3": "Sarankan arah riset berikutnya untuk..."
       }
     },
     "language_teacher": {
       "name": "Guru Bahasa",
-      "description": "Berlatih dan belajar bahasa asing",
+      "description": "Latihan bahasa asing dan penjelasan tata bahasa",
       "starters": {
-        "0": "Mari kita berlatih percakapan...",
+        "0": "Aku mau latihan bicara bahasa...",
         "1": "Jelaskan aturan tata bahasa ini",
-        "2": "Bagaimana saya mengatakannya... secara alami?",
-        "3": "Tanyakan padaku tentang kosa kata"
+        "2": "Bagaimana ucapan yang alami untuk...",
+        "3": "Kasih aku kuis kosakata"
       }
     },
     "data_analyst": {
       "name": "Analis Data",
-      "description": "Interpretasi data, visualisasi, dan wawasan",
+      "description": "Pembacaan data, pilihan grafik, dan makna angkanya",
       "starters": {
-        "0": "Analisis data ini dan temukan wawasan",
-        "1": "Bagan apa yang harus saya gunakan untuk data ini?",
-        "2": "Bantu saya menafsirkan hasil ini",
-        "3": "Tulis ringkasan analisis ini"
+        "0": "Analisis data ini, lalu jelaskan apa yang kelihatan",
+        "1": "Data ini cocoknya pakai grafik apa?",
+        "2": "Bantu aku memahami hasil ini",
+        "3": "Buatkan ringkasan analisis ini"
       }
     },
     "math_tutor": {
       "name": "Guru Matematika",
-      "description": "Pemecahan masalah matematika langkah demi langkah",
+      "description": "Pengerjaan soal matematika langkah demi langkah",
       "starters": {
-        "0": "Selesaikan ini langkah demi langkah",
+        "0": "Kerjakan soal ini langkah demi langkah",
         "1": "Jelaskan konsep matematika ini",
-        "2": "Periksa apakah solusi saya benar",
-        "3": "Bantu saya dengan bukti ini"
+        "2": "Cek jawabanku, sudah benar belum?",
+        "3": "Bantu aku dengan pembuktian ini"
       }
     },
     "document_summarizer": {
       "name": "Peringkas Dokumen",
-      "description": "Ringkas dokumen dan ekstrak poin-poin penting",
+      "description": "Ringkasan dokumen beserta poin-poin kuncinya",
       "starters": {
-        "0": "Ringkaslah dokumen ini",
-        "1": "Ambil keputusan penting dari sini",
-        "2": "Apa saja item tindakan di sini?",
-        "3": "Beri saya ringkasan 3 kalimat"
+        "0": "Ringkas dokumen ini",
+        "1": "Tuliskan keputusan yang diambil di sini",
+        "2": "Dari sini, apa saja yang perlu dikerjakan?",
+        "3": "Ringkas dalam 3 kalimat"
       }
     },
     "brainstorm": {
       "name": "Curah Pendapat",
-      "description": "Hasilkan ide dan jelajahi kemungkinan",
+      "description": "Curah pendapat untuk ide dan berbagai kemungkinan",
       "starters": {
-        "0": "Bantu saya bertukar pikiran tentang ide untuk...",
-        "1": "Beri saya 10 pendekatan kreatif untuk...",
-        "2": "Apa solusi yang tidak biasa untuk...",
-        "3": "Bantu saya mengevaluasi pilihan ini"
+        "0": "Bantu curah pendapat soal...",
+        "1": "Kasih 10 cara yang beda-beda untuk...",
+        "2": "Apa ada cara yang tidak biasa untuk...",
+        "3": "Bandingkan pilihan-pilihan ini"
       }
     },
     "story_creator": {
       "name": "Pembuat Cerita",
-      "description": "Penulisan fiksi, bercerita, dan pembangunan dunia",
+      "description": "Novel, cerita, dan rancangan dunianya",
       "starters": {
-        "0": "Bantu saya mengembangkan karakter ini",
+        "0": "Kembangkan tokoh ini biar lebih hidup",
         "1": "Lanjutkan cerita ini",
-        "2": "Ciptakan dunia untuk ceritaku",
-        "3": "Perbaiki dialog ini"
+        "2": "Buatkan dunia untuk ceritaku",
+        "3": "Rapikan dialog ini"
       }
     },
     "meeting_notes": {
       "name": "Catatan Rapat",
-      "description": "Ubah transkrip rapat menjadi ringkasan terstruktur",
+      "description": "Catatan rapat yang disusun jadi notulen",
       "starters": {
-        "0": "Ubah catatan ini menjadi ringkasan rapat",
-        "1": "Ekstrak item tindakan dari transkrip ini",
-        "2": "Aturlah poin-poin diskusi ini",
+        "0": "Susun catatan ini jadi notulen rapat",
+        "1": "Ambil hal-hal yang harus dikerjakan dari transkrip ini",
+        "2": "Rapikan poin-poin diskusi ini",
         "3": "Tulis email tindak lanjut dari catatan ini"
       }
     },
     "interview_coach": {
       "name": "Pelatih Wawancara",
-      "description": "Persiapan wawancara kerja dan wawancara tiruan",
+      "description": "Persiapan wawancara kerja, termasuk simulasi",
       "starters": {
-        "0": "Mock mewawancarai saya untuk peran insinyur perangkat lunak",
-        "1": "Bantu saya menjawab 'Ceritakan tentang diri Anda'",
-        "2": "Latih pertanyaan wawancara perilaku",
-        "3": "Tinjau jawaban saya untuk pertanyaan ini"
+        "0": "Aku mau simulasi wawancara kerja untuk posisi software engineer",
+        "1": "Bantu aku menyiapkan jawaban untuk 'ceritakan tentang dirimu'",
+        "2": "Latih aku menjawab pertanyaan perilaku",
+        "3": "Lihat jawabanku untuk soal ini"
       }
     },
     "presentation_outliner": {
       "name": "Garis Besar Presentasi",
-      "description": "Garis besar presentasi, pokok pembicaraan, dan isi slide",
+      "description": "Garis besar presentasi, poin bicara, dan isi slide",
       "starters": {
-        "0": "Membuat kerangka presentasi untuk...",
-        "1": "Bantu saya menyusun pembicaraan 10 menit",
+        "0": "Buatkan garis besar presentasi tentang...",
+        "1": "Bantu aku menyusun struktur presentasi 10 menit",
         "2": "Tulis catatan pembicara untuk slide ini",
-        "3": "Sarankan visual untuk presentasi ini"
+        "3": "Gambar apa yang pas untuk presentasi ini?"
       }
     },
     "recipe_assistant": {
       "name": "Asisten Resep",
-      "description": "Resep, teknik memasak, dan perencanaan makan",
+      "description": "Resep, cara masak, dan menu seminggu",
       "starters": {
-        "0": "Apa yang bisa saya buat dengan bahan-bahan ini?",
-        "1": "Beri saya resep makan malam cepat di malam hari",
-        "2": "Bagaimana cara mengganti... dalam resep ini?",
-        "3": "Rencanakan makanan untuk minggu ini"
+        "0": "Dari bahan yang aku punya, bisa masak apa?",
+        "1": "Kasih resep makan malam cepat untuk hari kerja",
+        "2": "Pengganti yang pas untuk...",
+        "3": "Susun menu makan untuk seminggu ini"
       }
     },
     "travel_planner": {
       "name": "Perencana Perjalanan",
-      "description": "Rencana perjalanan dan rekomendasi tujuan",
+      "description": "Rencana perjalanan dan saran tujuan",
       "starters": {
-        "0": "Rencanakan perjalanan 5 hari ke...",
-        "1": "Apa yang harus saya lihat di...?",
-        "2": "Buat rencana perjalanan anggaran untuk...",
-        "3": "Kapan waktu terbaik untuk berkunjung...?"
+        "0": "Susun perjalanan 5 hari ke...",
+        "1": "Apa yang sebaiknya dilihat di...",
+        "2": "Buatkan rencana perjalanan yang hemat ke...",
+        "3": "Kapan sebaiknya pergi ke..."
       }
     },
     "fitness_coach": {
       "name": "Pelatih Kebugaran",
-      "description": "Rencana latihan, latihan, dan panduan nutrisi",
+      "description": "Rencana latihan, gerakan, dan pola makan",
       "starters": {
-        "0": "Buatlah rencana latihan untuk...",
-        "1": "Sarankan latihan untuk...",
-        "2": "Bantu saya dengan rencana makan",
-        "3": "Bagaimana cara melakukan latihan ini dengan benar?"
+        "0": "Buatkan rencana latihan untuk...",
+        "1": "Sarankan gerakan untuk...",
+        "2": "Bantu aku menyusun pola makan",
+        "3": "Bagaimana cara yang benar untuk gerakan ini?"
       }
     },
     "image_analyst": {
       "name": "Analis Gambar",
-      "description": "Jelaskan, analisis, dan ekstrak informasi dari gambar",
+      "description": "Deskripsi foto atau tangkapan layar, serta teks dan data di dalamnya",
       "starters": {
-        "0": "Jelaskan gambar ini secara detail",
-        "1": "Ekstrak teks dari gambar ini",
-        "2": "Data apa yang ditunjukkan bagan ini?",
-        "3": "Analisislah komposisi foto ini"
+        "0": "Deskripsikan gambar ini secara rinci",
+        "1": "Ambil teks yang ada di gambar ini",
+        "2": "Data di grafik ini menunjukkan apa?",
+        "3": "Analisis komposisi foto ini"
       }
     },
     "category": {

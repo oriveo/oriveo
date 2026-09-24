@@ -617,9 +617,9 @@ fun GenerationParameterDefaultsSheet(
 
                 if (conversationId == null && true) {
                     val diagnostics = GenerationParameterDiagnosticStore.list(modelId)
-                    Text(stringResource(R.string.provider_detail_badge_recent), style = OriveoTheme.typography.title3)
+                    Text(stringResource(R.string.generation_diagnostics_section), style = OriveoTheme.typography.title3)
                     if (diagnostics.isEmpty()) {
-                        Text(stringResource(R.string.no_tracked_usage_in_period), style = OriveoTheme.typography.caption)
+                        Text(stringResource(R.string.generation_diagnostics_empty), style = OriveoTheme.typography.caption)
                     }
                     diagnostics.take(20).forEach { entry ->
                         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
@@ -1352,7 +1352,7 @@ private fun updateValue(
 @androidx.annotation.StringRes
 internal fun generationParameterTitleRes(raw: String): Int = when (raw) {
     "max_output_tokens" -> R.string.max_tokens
-    "stop" -> R.string.stop
+    "stop" -> R.string.generation_parameter_name_stop
     "temperature" -> R.string.temperature
     "top_p" -> R.string.generation_parameter_name_top_p
     "top_k" -> R.string.generation_parameter_name_top_k

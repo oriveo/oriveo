@@ -1460,4 +1460,7 @@
     <!-- Screen reader labels for the reveal toggle on secret fields. The same field holds API keys and passwords, so the label names neither; matches the iOS "Show characters" label. -->
     <string name="secure_field_show">Show characters</string>
     <string name="secure_field_hide">Hide characters</string>
+    <string name="generation_parameter_name_stop">Stop sequences</string>
+    <string name="generation_diagnostics_section">Diagnostic records</string>
+    <string name="generation_diagnostics_empty">No diagnostic records yet</string>
 </resources>

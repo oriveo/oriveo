@@ -271,7 +271,7 @@
     <string name="import_failed">فشل الاستيراد</string>
     <string name="choose_another_backup">اختر نسخة احتياطية أخرى</string>
     <string name="import_preview_title">معاينة الاستيراد</string>
-    <string name="import_action">يستورد</string>
+    <string name="import_action">استيراد</string>
     <string name="backup_info">معلومات النسخ الاحتياطي</string>
     <string name="created">مخلوق</string>
     <string name="platform">منصة</string>
@@ -1452,4 +1452,7 @@
     </plurals>
     <string name="secure_field_show">إظهار الأحرف</string>
     <string name="secure_field_hide">إخفاء الأحرف</string>
+    <string name="generation_parameter_name_stop">نصوص الإيقاف</string>
+    <string name="generation_diagnostics_section">تشخيص إعدادات التوليد</string>
+    <string name="generation_diagnostics_empty">لا توجد سجلات تشخيص بعد</string>
 </resources>

@@ -285,7 +285,7 @@
     <string name="import_failed">匯入失敗</string>
     <string name="choose_another_backup">選擇另一個備份</string>
     <string name="import_preview_title">導入預覽</string>
-    <string name="import_action">進口</string>
+    <string name="import_action">匯入</string>
     <string name="backup_info">備份訊息</string>
     <string name="created">已創建</string>
     <string name="platform">平台</string>
@@ -1458,4 +1458,7 @@
     </plurals>
     <string name="secure_field_show">顯示輸入內容</string>
     <string name="secure_field_hide">隱藏輸入內容</string>
+    <string name="generation_parameter_name_stop">停止序列</string>
+    <string name="generation_diagnostics_section">生成設定診斷</string>
+    <string name="generation_diagnostics_empty">你還沒有診斷記錄</string>
 </resources>

@@ -1460,4 +1460,7 @@
     </plurals>
     <string name="secure_field_show">显示输入内容</string>
     <string name="secure_field_hide">隐藏输入内容</string>
+    <string name="generation_parameter_name_stop">停止序列</string>
+    <string name="generation_diagnostics_section">生成设置诊断</string>
+    <string name="generation_diagnostics_empty">你还没有诊断记录</string>
 </resources>

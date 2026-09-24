@@ -17210,7 +17210,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Недавний"
+            "value": "Недавние"
           }
         },
         "th": {
@@ -17964,7 +17964,7 @@
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "पुन: प्रयास करें"
+            "value": "फिर से आज़माएँ"
           }
         },
         "id": {
@@ -18974,7 +18974,7 @@
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Yetenekler"
+            "value": "Beceriler"
           }
         },
         "vi": {
@@ -26937,6 +26937,18 @@
             "value": "Contenu long-format engageant et articles de blog"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "पाठकों के लिए लंबे लेख और ब्लॉग"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Artikel panjang dan tulisan blog"
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -26953,6 +26965,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Conteúdo longo envolvente e posts de blog"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Длинные статьи и записи в блог"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "บทความยาวและบล็อกที่เขียนให้คนอ่าน"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Okura yönelik uzun yazı ve blog"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bài blog và bài dài cho người đọc"
           }
         },
         "zh-Hans": {
@@ -27103,6 +27139,18 @@
             "value": "Écris un article de blog sur…"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "एक ब्लॉग लिखें, विषय यह है..."
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tulis blog tentang..."
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -27119,6 +27167,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Escreva um post de blog sobre..."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Напиши пост в блог про..."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ช่วยเขียนบล็อกเรื่อง..."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bir blog yazısı yaz, konu..."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bạn viết giúp mình một bài blog về..."
           }
         },
         "zh-Hans": {
@@ -27168,6 +27240,18 @@
             "value": "Crée un plan pour un article sur…"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "लेख की रूपरेखा बनाएँ, विषय यह है..."
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Buatkan kerangka artikel tentang..."
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -27184,6 +27268,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Crie um outline para um artigo sobre..."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Составь план статьи про..."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ช่วยวางโครงบทความเรื่อง..."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bir yazının ana hatlarını çıkar, konu..."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bạn lập dàn ý một bài về..."
           }
         },
         "zh-Hans": {
@@ -27233,6 +27341,18 @@
             "value": "Améliore la structure de ce brouillon"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "इस मसौदे का ढाँचा सँवारें"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rapikan struktur draf ini"
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -27249,6 +27369,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Melhore a estrutura deste rascunho"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Поправь структуру этого черновика"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ช่วยจัดโครงฉบับร่างนี้ให้ลงตัว"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu taslağın yapısını düzelt"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bạn chỉnh lại cấu trúc bản nháp này"
           }
         },
         "zh-Hans": {
@@ -27298,6 +27442,18 @@
             "value": "Propose des idées de sujets de blog pour…"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ब्लॉग के ऐसे शीर्षक सुझाएँ जो..."
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kasih ide judul blog untuk..."
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -27314,6 +27470,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Sugira ideias de temas de blog para..."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Предложи темы для блога: ..."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ช่วยคิดหัวข้อบล็อกสำหรับ..."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bir blog için başlık öner, kime ya da hangi yönde..."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bạn nghĩ giúp mình tiêu đề blog cho..."
           }
         },
         "zh-Hans": {
@@ -27363,6 +27543,18 @@
             "value": "Générer des idées et explorer les possibilités"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "नए विचार और खुली संभावनाएँ"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Curah pendapat untuk ide dan berbagai kemungkinan"
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -27379,6 +27571,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Gerar ideias e explorar possibilidades"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Идеи и возможности"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "การระดมความคิดและการกางทางเลือก"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yeni fikirler ve açık olasılıklar"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ý tưởng và những khả năng khi động não"
           }
         },
         "zh-Hans": {
@@ -27529,6 +27745,18 @@
             "value": "Aide-moi à brainstormer des idées pour…"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "विचार-मंथन करें, विषय यह है..."
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bantu curah pendapat soal..."
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -27545,6 +27773,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Me ajuda a fazer um brainstorm para..."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Накидай идеи для..."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ช่วยระดมความคิดเรื่อง..."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fikir üretmeme yardım et, konu..."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bạn động não giúp mình về..."
           }
         },
         "zh-Hans": {
@@ -27594,6 +27846,18 @@
             "value": "Donne-moi 10 approches créatives pour…"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "10 अलग-अलग तरीके बताएँ, मकसद यह है..."
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kasih 10 cara yang beda-beda untuk..."
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -27610,6 +27874,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Me dê 10 abordagens criativas para..."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Дай 10 разных способов для..."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ช่วยเสนอ 10 วิธีที่คนละแนว สำหรับ..."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "10 farklı yol öner, ne için..."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bạn đưa 10 cách khác nhau cho..."
           }
         },
         "zh-Hans": {
@@ -27659,6 +27947,18 @@
             "value": "Quelles sont les solutions originales pour… ?"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "आम ढर्रे से हटकर कोई तरीका है क्या, बात यह है..."
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apa ada cara yang tidak biasa untuk..."
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -27675,6 +27975,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Quais são soluções não convencionais para..."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "А есть нестандартный вариант для..."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "มีวิธีนอกกรอบไหม สำหรับ..."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alışılmışın dışında bir yol var mı, ne için..."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Có cách nào không theo lối cũ cho..."
           }
         },
         "zh-Hans": {
@@ -27724,6 +28048,18 @@
             "value": "Aide-moi à évaluer ces options"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "इन विकल्पों की तुलना करें"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bandingkan pilihan-pilihan ini"
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -27740,6 +28076,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Me ajuda a avaliar estas opções"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сравни эти варианты"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ช่วยเทียบทางเลือกพวกนี้ให้ดู"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu seçenekleri karşılaştırmama yardım et"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bạn so sánh giúp mình các lựa chọn này"
           }
         },
         "zh-Hans": {
@@ -28698,6 +29058,18 @@
             "value": "Questions de programmation, génération de code, débogage"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "कोड का लेखन, सुधार और उसके काम की समझ"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Penulisan kode, perbaikan, dan penjelasan cara kerjanya"
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -28714,6 +29086,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Perguntas de programação, geração de código, depuração"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Написание, правка и объяснение кода"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "การเขียนโค้ด การแก้โค้ด และคำอธิบายการทำงาน"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kod yazımı, düzeltme ve işleyişin anlatımı"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Việc viết, sửa và giải thích đoạn lập trình"
           }
         },
         "zh-Hans": {
@@ -28864,6 +29260,18 @@
             "value": "Aide-moi à déboguer ce code"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "इस कोड में गड़बड़ी ढूँढें"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bantu cari masalah di kode ini"
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -28880,6 +29288,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Me ajuda a depurar este código"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Помоги найти, что не так в этом коде"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ช่วยหาให้หน่อยว่าโค้ดนี้ผิดตรงไหน"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu koddaki sorunu bul"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bạn tìm giúp mình chỗ đang sai trong đoạn lập trình này"
           }
         },
         "zh-Hans": {
@@ -28929,6 +29361,18 @@
             "value": "Écris une fonction qui…"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "एक फ़ंक्शन लिखें जो..."
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tulis fungsi yang..."
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -28945,6 +29389,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Escreva uma função que..."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Напиши функцию, которая..."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ช่วยเขียนฟังก์ชันที่..."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bir fonksiyon yaz..."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bạn viết giúp mình một hàm..."
           }
         },
         "zh-Hans": {
@@ -28994,6 +29462,18 @@
             "value": "Explique comment ce code fonctionne"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "यह कोड कैसे काम करता है, समझाएँ"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Jelaskan cara kerja kode ini"
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -29010,6 +29490,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Explica como este código funciona"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Объясни, как работает этот код"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ช่วยอธิบายการทำงานของโค้ดนี้"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu kodun nasıl işlediğini anlat"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bạn giải thích giúp mình đoạn lập trình này chạy thế nào?"
           }
         },
         "zh-Hans": {
@@ -29059,6 +29563,18 @@
             "value": "Refactorise ça pour une meilleure lisibilité"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "इस कोड का ढाँचा सँवारें, ताकि आसानी से पढ़ा जाए"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rapikan struktur kode ini biar lebih enak dibaca"
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -29075,6 +29591,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Refatore isso para melhorar a legibilidade"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Приведи структуру этого кода в порядок, чтобы его было легче читать"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ช่วยจัดโครงสร้างโค้ดนี้ให้อ่านง่ายขึ้น"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu kodun yapısını daha rahat okunacak şekilde düzenle"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bạn xếp lại cấu trúc đoạn lập trình này cho dễ đọc"
           }
         },
         "zh-Hans": {
@@ -29124,6 +29664,18 @@
             "value": "Revue de qualité, sécurité et performance du code"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "कोड की गुणवत्ता, सुरक्षा और गति की समीक्षा"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tinjauan kualitas, keamanan, dan kecepatan kode"
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -29140,6 +29692,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Revisão de qualidade, segurança e desempenho do código"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Качество, безопасность и скорость кода"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "คุณภาพโค้ด ความปลอดภัย และประสิทธิภาพ"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kalite, güvenlik ve hız incelemesi"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Chất lượng mã, lỗ hổng bảo mật và chỗ chạy chậm"
           }
         },
         "zh-Hans": {
@@ -29290,6 +29866,18 @@
             "value": "Vérifie ce code pour les failles de sécurité"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "सुरक्षा की नज़र से इस कोड की समीक्षा करें"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tinjau kode ini dari sisi keamanan"
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -29306,6 +29894,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Revise este código quanto a problemas de segurança"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Посмотри этот код со стороны безопасности"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ช่วยรีวิวโค้ดนี้ในแง่ความปลอดภัย"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu koda güvenlik açısından bak"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bạn đánh giá giúp mình đoạn mã này về mặt bảo mật"
           }
         },
         "zh-Hans": {
@@ -29355,6 +29967,18 @@
             "value": "Examine cette PR pour les problèmes de performance"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "इस PR में धीमेपन की जाँच करें"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lihat PR ini, ada masalah performa nggak?"
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -29371,6 +29995,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Verifique este PR quanto a problemas de performance"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Проверь этот PR на производительность"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ช่วยดู PR นี้ว่ามีปัญหาด้านประสิทธิภาพไหม"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu PR'da performans sorunu var mı, bir bak"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bạn xem PR này có vấn đề hiệu năng không?"
           }
         },
         "zh-Hans": {
@@ -29420,6 +30068,18 @@
             "value": "Analyse la gestion d'erreurs de cette fonction"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "इस फ़ंक्शन में गलती आने पर क्या होता है, देखें"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lihat bagaimana fungsi ini menangani kesalahan"
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -29436,6 +30096,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Analise o tratamento de erros desta função"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Разбери, как эта функция обрабатывает ошибки"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ช่วยดูว่าฟังก์ชันนี้รับมือตอนผิดพลาดยังไง"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu fonksiyon hata verince ne yapıyor, ona bak"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bạn xem hàm này gặp lỗi thì xử lý thế nào?"
           }
         },
         "zh-Hans": {
@@ -29485,6 +30169,18 @@
             "value": "Évalue la qualité globale de ce code"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "इस पूरे कोड की गुणवत्ता पर राय दें"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bagaimana kualitas kode ini secara keseluruhan?"
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -29501,6 +30197,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Avalie a qualidade geral deste código"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Оцени этот код в целом"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ช่วยประเมินคุณภาพโดยรวมของโค้ดนี้"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu kodun genel kalitesini değerlendir"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bạn đánh giá giúp mình chất lượng chung của đoạn mã này"
           }
         },
         "zh-Hans": {
@@ -29550,6 +30270,18 @@
             "value": "Textes marketing, réseaux sociaux et messages de marque"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "विज्ञापन वाक्य, सोशल पोस्ट और ब्रांड का लहजा"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copywriting untuk iklan, postingan, dan cara merek bicara"
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -29566,6 +30298,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Textos de marketing, mídias sociais e mensagens de marca"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Рекламные фразы, посты и голос бренда"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ประโยคโฆษณา โพสต์โซเชียล และน้ำเสียงแบรนด์"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reklam metni, sosyal paylaşım ve marka dili"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Câu quảng cáo, bài mạng xã hội và giọng thương hiệu"
           }
         },
         "zh-Hans": {
@@ -29716,6 +30472,18 @@
             "value": "Écris une description de produit pour…"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "उत्पाद का परिचय लिखें, उत्पाद यह है..."
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tulis perkenalan produk untuk..."
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -29732,6 +30500,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Escreva uma descrição de produto para..."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Напиши описание продукта: ..."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ช่วยเขียนข้อความแนะนำสินค้า..."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bir ürün tanıtımı yaz, ürün..."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bạn viết lời giới thiệu cho sản phẩm..."
           }
         },
         "zh-Hans": {
@@ -29781,6 +30573,18 @@
             "value": "Crée des posts pour les réseaux sociaux sur…"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "कुछ सोशल पोस्ट लिखें, विषय यह है..."
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tulis beberapa postingan tentang..."
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -29797,6 +30601,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Crie posts para redes sociais sobre..."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Напиши несколько постов для соцсетей про..."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ช่วยเขียนโพสต์โซเชียลหลายอัน เรื่อง..."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Birkaç sosyal paylaşım yaz, konu..."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bạn viết vài bài đăng mạng xã hội về..."
           }
         },
         "zh-Hans": {
@@ -29846,6 +30674,18 @@
             "value": "Rédige un texte publicitaire pour…"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "विज्ञापन लिखें, विषय यह है..."
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Buatkan naskah iklan untuk..."
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -29862,6 +30702,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Redija um texto publicitário para..."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Набросай рекламный текст для..."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ช่วยร่างคำโฆษณาสำหรับ..."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bir reklam metni yaz, tanıtılan şey..."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bạn viết quảng cáo cho..."
           }
         },
         "zh-Hans": {
@@ -29911,6 +30775,18 @@
             "value": "Écris un titre accrocheur pour…"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ध्यान खींचने वाला शीर्षक लिखें, विषय यह है..."
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tulis judul yang bikin penasaran untuk..."
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -29927,6 +30803,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Escreva um título chamativo para..."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Придумай цепляющий заголовок для..."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ช่วยคิดพาดหัวที่ดึงคนอ่าน สำหรับ..."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Vurucu bir başlık yaz, ne için..."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bạn viết một tiêu đề gây chú ý cho..."
           }
         },
         "zh-Hans": {
@@ -29976,6 +30876,18 @@
             "value": "Interprétation des données, visualisation et insights"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "डेटा का विश्लेषण, चार्ट का चुनाव और अंकों का अर्थ"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pembacaan data, pilihan grafik, dan makna angkanya"
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -29992,6 +30904,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Interpretação de dados, visualização e insights"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Разбор данных, выбор графика и смысл цифр"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "การอ่านข้อมูล การเลือกกราฟ และความหมายของตัวเลข"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Veri okuma, grafik seçimi ve sayıların anlamı"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dữ liệu, lựa chọn biểu đồ và ý của các con số"
           }
         },
         "zh-Hans": {
@@ -30142,6 +31078,18 @@
             "value": "Analyse ces données et trouve des insights"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "इस डेटा का विश्लेषण करें और बताएँ कि क्या दिखता है"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Analisis data ini, lalu jelaskan apa yang kelihatan"
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -30158,6 +31106,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Analise estes dados e encontre insights"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Разбери эти данные и скажи, что из них видно"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ช่วยวิเคราะห์ข้อมูลชุดนี้ แล้วบอกว่าเห็นอะไร"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu verileri analiz et, ne göründüğünü söyle"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bạn phân tích dữ liệu này và nói cho mình biết nó cho thấy gì"
           }
         },
         "zh-Hans": {
@@ -30207,6 +31179,18 @@
             "value": "Quel graphique utiliser pour ces données ?"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "इस डेटा के लिए कौन सा चार्ट ठीक रहेगा?"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Data ini cocoknya pakai grafik apa?"
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -30223,6 +31207,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Qual gráfico devo usar para estes dados?"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Какой график выбрать для этих данных?"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ข้อมูลชุดนี้ควรใช้กราฟแบบไหน"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu verilere hangi grafik uyar?"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dữ liệu này nên vẽ biểu đồ gì?"
           }
         },
         "zh-Hans": {
@@ -30272,6 +31280,18 @@
             "value": "Aide-moi à interpréter ces résultats"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "इन नतीजों का मतलब समझाएँ"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bantu aku memahami hasil ini"
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -30288,6 +31308,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Me ajuda a interpretar estes resultados"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Помоги понять эти результаты"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ช่วยอ่านผลลัพธ์พวกนี้ให้เข้าใจ"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu sonuçları okumama yardım et"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bạn giúp mình đọc các kết quả này"
           }
         },
         "zh-Hans": {
@@ -30337,6 +31381,18 @@
             "value": "Rédige un résumé de cette analyse"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "इस विश्लेषण का छोटा सार लिखें"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Buatkan ringkasan analisis ini"
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -30353,6 +31409,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Escreva um resumo desta análise"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Напиши короткий вывод по этому анализу"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ช่วยเขียนสรุปการวิเคราะห์นี้เป็นย่อหน้า"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu analizi bir özet paragrafına dök"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bạn viết một đoạn tóm tắt cho lần phân tích này"
           }
         },
         "zh-Hans": {
@@ -30402,6 +31482,18 @@
             "value": "Résumer des documents et extraire les points clés"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "दस्तावेज़ का संक्षिप्त सारांश और मुख्य बातें"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ringkasan dokumen beserta poin-poin kuncinya"
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -30418,6 +31510,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Resumir documentos e extrair pontos-chave"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сжатый конспект и ключевые пункты"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "การสรุปเอกสารให้สั้น พร้อมประเด็นสำคัญ"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kısa belge özeti ve ana noktalar"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bản tóm tắt tài liệu cho gọn, kèm ý chính"
           }
         },
         "zh-Hans": {
@@ -30568,6 +31684,18 @@
             "value": "Résume ce document"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "इस दस्तावेज़ का सारांश लिखें"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ringkas dokumen ini"
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -30584,6 +31712,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Resuma este documento"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сделай конспект этого документа"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ช่วยสรุปเอกสารนี้"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu belgeyi özetle"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bạn tóm tắt tài liệu này giúp mình"
           }
         },
         "zh-Hans": {
@@ -30633,6 +31785,18 @@
             "value": "Extrais les décisions clés de ce texte"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "यहाँ लिए गए फ़ैसले निकालें"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tuliskan keputusan yang diambil di sini"
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -30649,6 +31813,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Extraia as decisões principais disto"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Выпиши решения, которые здесь приняты"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ช่วยดึงสิ่งที่ตัดสินใจแล้วออกมาจากตรงนี้"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Burada alınan kararları çıkar"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bạn rút những quyết định đã có trong này"
           }
         },
         "zh-Hans": {
@@ -30698,6 +31886,18 @@
             "value": "Quels sont les points d'action ici ?"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "यहाँ कौन से काम बाकी हैं?"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dari sini, apa saja yang perlu dikerjakan?"
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -30714,6 +31914,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Quais são os itens de ação aqui?"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Что здесь нужно сделать?"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ในนี้มีอะไรที่ต้องทำบ้าง"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Burada yapılacak işler neler?"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Trong này có những việc gì cần làm?"
           }
         },
         "zh-Hans": {
@@ -30763,6 +31987,18 @@
             "value": "Donne-moi un résumé en 3 phrases"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "3 वाक्यों में सारांश लिखें"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ringkas dalam 3 kalimat"
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -30779,6 +32015,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Me dê um resumo em 3 frases"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Перескажи в 3 предложениях"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ช่วยสรุปเป็น 3 ประโยค"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "3 cümleyle özetle"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bạn tóm tắt trong 3 câu"
           }
         },
         "zh-Hans": {
@@ -30828,6 +32088,18 @@
             "value": "Rédiger des e-mails professionnels et personnels"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "कामकाजी और निजी ईमेल के मसौदे"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Draf email kerja dan email pribadi"
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -30844,6 +32116,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Redigir e-mails profissionais e pessoais"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Черновики деловых и личных писем"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "การร่างอีเมลงานและอีเมลส่วนตัว"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "İş ve kişisel e-posta taslakları"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Email công việc và email riêng"
           }
         },
         "zh-Hans": {
@@ -30994,6 +32290,18 @@
             "value": "Rédige un e-mail de suivi"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "बात आगे बढ़ाने के लिए ईमेल का मसौदा लिखें"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Buatkan draf email tindak lanjut"
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -31010,6 +32318,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Escreva um e-mail de acompanhamento"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Набросай письмо, чтобы продолжить разговор"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ช่วยร่างอีเมลตามงาน"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bir takip e-postası taslağı yaz"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bạn soạn giúp mình email nhắc lại việc đã bàn"
           }
         },
         "zh-Hans": {
@@ -31059,6 +32391,18 @@
             "value": "Écris un refus poli"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "शिष्ट इनकार वाली ईमेल लिखें"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tulis email penolakan yang sopan"
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -31075,6 +32419,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Escreva uma recusa educada"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Напиши вежливый отказ"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ช่วยเขียนอีเมลปฏิเสธอย่างสุภาพ"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kibar bir ret e-postası yaz"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bạn viết giúp mình một email từ chối cho khéo"
           }
         },
         "zh-Hans": {
@@ -31124,6 +32492,18 @@
             "value": "Réponds à cet e-mail de manière professionnelle"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "इस ईमेल का जवाब कामकाजी लहजे में लिखें"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Balas email ini dengan nada yang cocok untuk kerja"
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -31140,6 +32520,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Responda este e-mail de forma profissional"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ответь на это письмо в деловом тоне"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ช่วยตอบอีเมลนี้ด้วยน้ำเสียงแบบที่ทำงาน"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu e-postaya iş tonuyla yanıt yaz"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bạn trả lời email này bằng giọng công sở giúp mình"
           }
         },
         "zh-Hans": {
@@ -31189,6 +32593,18 @@
             "value": "Rédige un e-mail de prospection à froid"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "जिससे पहले बात नहीं हुई, उसे पहली ईमेल लिखें"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Buatkan email pertama untuk orang yang belum aku kenal"
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -31205,6 +32621,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Redija um e-mail de prospecção"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Набросай первое письмо незнакомому человеку"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ช่วยร่างอีเมลฉบับแรกถึงคนที่ยังไม่รู้จัก"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Henüz tanımadığım birine ilk e-postayı yaz"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bạn soạn giúp mình một email đầu tiên gửi người mình chưa quen"
           }
         },
         "zh-Hans": {
@@ -31254,6 +32694,18 @@
             "value": "Plans d'entraînement, exercices et conseils nutritionnels"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "फिटनेस की योजना, व्यायाम और खानपान"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rencana latihan, gerakan, dan pola makan"
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -31270,6 +32722,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Planos de treino, exercícios e orientação nutricional"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Тренировки, упражнения и питание"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "แผนฟิตเนส ท่าออกกำลังกาย และเรื่องกิน"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fitness antrenmanı, hareket ve beslenme"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kế hoạch tập thể hình, động tác và các bữa ăn"
           }
         },
         "zh-Hans": {
@@ -31420,6 +32896,18 @@
             "value": "Crée un programme d'entraînement pour…"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "फिटनेस योजना बनाएँ, लक्ष्य यह है..."
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Buatkan rencana latihan untuk..."
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -31436,6 +32924,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Crie um plano de treino para..."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Составь план тренировок для..."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ช่วยจัดแผนฝึกสำหรับ..."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bir antrenman planı hazırla, hedef..."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bạn lập kế hoạch tập cho mục tiêu..."
           }
         },
         "zh-Hans": {
@@ -31485,6 +32997,18 @@
             "value": "Propose des exercices pour…"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "व्यायाम सुझाएँ, मकसद यह है..."
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sarankan gerakan untuk..."
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -31501,6 +33025,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Sugira exercícios para..."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Предложи упражнения для..."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ช่วยแนะนำท่าออกกำลังสำหรับ..."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Uygun hareketler öner, amaç..."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bạn gợi ý động tác thể hình cho..."
           }
         },
         "zh-Hans": {
@@ -31550,6 +33098,18 @@
             "value": "Aide-moi avec un plan de repas"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "खानपान की योजना बनाएँ"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bantu aku menyusun pola makan"
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -31566,6 +33126,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Me ajuda com um plano alimentar"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Помоги составить план питания"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ช่วยจัดเรื่องกินให้เข้ากับแผนฝึก"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ne yiyeceğimi planlamama yardım et"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bạn sắp xếp giúp mình các bữa ăn"
           }
         },
         "zh-Hans": {
@@ -31615,6 +33199,18 @@
             "value": "Comment faire cet exercice correctement ?"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "यह व्यायाम सही कैसे करें?"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bagaimana cara yang benar untuk gerakan ini?"
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -31631,6 +33227,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Como fazer este exercício corretamente?"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Как правильно делать это упражнение?"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ท่านี้ทำยังไงให้ถูกท่า"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu hareketi doğru nasıl yaparım?"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Động tác này làm thế nào cho đúng?"
           }
         },
         "zh-Hans": {
@@ -31680,6 +33300,18 @@
             "value": "Commandes Git, workflows et résolution de conflits"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Git कमांड, रोज़ का सिलसिला और मर्ज का टकराव"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Perintah Git, alur sehari-hari, dan konflik merge"
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -31696,6 +33328,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Comandos Git, fluxos de trabalho e resolução de conflitos"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Команды Git, повседневная работа и конфликты слияния"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "คำสั่ง Git ขั้นตอนประจำวัน และ merge conflict"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Git komutları, günlük iş akışı ve birleştirme çakışması"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lệnh Git, quy trình hằng ngày và xung đột khi gộp"
           }
         },
         "zh-Hans": {
@@ -31846,6 +33502,18 @@
             "value": "Aide-moi à résoudre ce conflit de merge"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "इस मर्ज टकराव को सुलझाएँ"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bantu selesaikan konflik merge ini"
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -31862,6 +33530,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Me ajuda a resolver este conflito de merge"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Помоги разрешить этот конфликт слияния"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ช่วยแก้ merge conflict รอบนี้ให้หน่อย"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Şu birleştirme çakışmasını çöz"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bạn gỡ giúp mình chỗ xung đột khi gộp lần này"
           }
         },
         "zh-Hans": {
@@ -31911,6 +33603,18 @@
             "value": "Écris un message de commit pour ces changements"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "इन बदलावों के लिए कमिट संदेश लिखें"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Buatkan pesan commit dari perubahan ini"
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -31927,6 +33631,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Escreva uma mensagem de commit para estas mudanças"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Напиши сообщение коммита по этим изменениям"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ช่วยเขียนข้อความ commit จากสิ่งที่เปลี่ยนไป"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu değişikliklere göre bir commit mesajı yaz"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bạn viết giúp mình dòng commit theo các thay đổi này"
           }
         },
         "zh-Hans": {
@@ -31976,6 +33704,18 @@
             "value": "Comment annuler mon dernier commit ?"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "अभी वाली कमिट कैसे वापस लूँ?"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bagaimana cara membatalkan commit yang baru aku buat?"
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -31992,6 +33732,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Como eu desfaço meu último commit?"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Как отменить мой последний коммит?"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "จะย้อน commit ที่เพิ่งทำไป ได้ยังไง"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Az önce yaptığım commit'i nasıl geri alırım?"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bạn chỉ mình cách hoàn tác commit vừa rồi"
           }
         },
         "zh-Hans": {
@@ -32041,6 +33805,18 @@
             "value": "Explique cette situation Git"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "अभी की Git स्थिति समझाएँ"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Status Git yang sekarang ini maksudnya apa?"
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -32057,6 +33833,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Explica esta situação no Git"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Объясни, что значит текущий статус Git"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ช่วยอธิบายสถานะ Git ตอนนี้ให้หน่อย"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Şu anki Git durumunun ne olduğunu anlat"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bạn giải thích giúp mình trạng thái Git hiện tại đang thế nào?"
           }
         },
         "zh-Hans": {
@@ -32106,6 +33906,18 @@
             "value": "Décrire, analyser et extraire des informations d'images"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "फ़ोटो या स्क्रीनशॉट जैसी छवि का वर्णन, लिखी बात और डेटा"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Deskripsi foto atau tangkapan layar, serta teks dan data di dalamnya"
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -32122,6 +33934,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Descrever, analisar e extrair informações de imagens"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Описание изображения, текст и данные с него"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "คำบรรยายรูปถ่ายหรือภาพหน้าจอ และข้อความหรือข้อมูลในรูป"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fotoğraf ve ekran görüntüsünün anlatımı, yazısı ve verisi"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lời mô tả hình ảnh, chữ và số liệu rút từ ảnh"
           }
         },
         "zh-Hans": {
@@ -32272,6 +34108,18 @@
             "value": "Décris cette image en détail"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "इस छवि का पूरा वर्णन करें"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Deskripsikan gambar ini secara rinci"
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -32288,6 +34136,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Descreva esta imagem em detalhes"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Подробно опиши это изображение"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ช่วยบรรยายรูปนี้ให้ละเอียด"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu görseli ayrıntısıyla anlat"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bạn mô tả kỹ hình ảnh này giúp mình"
           }
         },
         "zh-Hans": {
@@ -32337,6 +34209,18 @@
             "value": "Extrais le texte de cette image"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "इस छवि में जो लिखा है, उसे निकालें"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ambil teks yang ada di gambar ini"
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -32353,6 +34237,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Extraia o texto desta imagem"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Вытащи текст из этого изображения"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ช่วยดึงข้อความออกจากรูปนี้"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Görseldeki yazıyı çıkar"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bạn rút chữ trong hình này ra"
           }
         },
         "zh-Hans": {
@@ -32402,6 +34310,18 @@
             "value": "Quelles données montre ce graphique ?"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "इस चार्ट का डेटा क्या कह रहा है?"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Data di grafik ini menunjukkan apa?"
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -32418,6 +34338,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Quais dados este gráfico mostra?"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Что показывают данные на этом графике?"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ตัวเลขบนกราฟนี้กำลังบอกอะไร"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu grafikteki veriler ne anlatıyor?"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Số liệu trên biểu đồ này đang nói gì?"
           }
         },
         "zh-Hans": {
@@ -32467,6 +34411,18 @@
             "value": "Analyse la composition de cette photo"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "इस फ़ोटो में चीज़ें कैसे सजी हैं, उसका विश्लेषण करें"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Analisis komposisi foto ini"
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -32483,6 +34439,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Analise a composição desta foto"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Разбери композицию этой фотографии"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ช่วยวิเคราะห์องค์ประกอบของรูปถ่ายนี้"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu fotoğrafın kompozisyonunu incele"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bạn phân tích bố cục bức ảnh này"
           }
         },
         "zh-Hans": {
@@ -32532,6 +34512,18 @@
             "value": "Préparation aux entretiens et simulations"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "नौकरी के इंटरव्यू की तैयारी और अभ्यास"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Persiapan wawancara kerja, termasuk simulasi"
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -32548,6 +34540,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Preparação para entrevistas e simulações"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Подготовка к собеседованию на работу и пробный прогон"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "การเตรียมสัมภาษณ์งาน รวมการสัมภาษณ์จำลอง"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "İş mülakatına hazırlık ve deneme mülakatı"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Buổi luyện phỏng vấn xin việc, gồm cả phỏng vấn thử"
           }
         },
         "zh-Hans": {
@@ -32698,6 +34714,18 @@
             "value": "Simule un entretien pour un poste d'ingénieur logiciel"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "सॉफ़्टवेयर इंजीनियर के पद के लिए मेरा इंटरव्यू लें"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aku mau simulasi wawancara kerja untuk posisi software engineer"
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -32714,6 +34742,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Simule uma entrevista para vaga de engenheiro de software"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Проведи со мной пробное собеседование на инженера-программиста"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ช่วยจัดสัมภาษณ์จำลอง สำหรับตำแหน่งวิศวกรซอฟต์แวร์"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yazılım mühendisi için benimle deneme mülakatı yap"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bạn phỏng vấn thử mình cho vị trí kỹ sư phần mềm"
           }
         },
         "zh-Hans": {
@@ -32763,6 +34815,18 @@
             "value": "Aide-moi à répondre à « Parlez-moi de vous »"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "अपने बारे में बताएँ वाले सवाल का जवाब तैयार करवाएँ"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bantu aku menyiapkan jawaban untuk 'ceritakan tentang dirimu'"
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -32779,6 +34843,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Me ajuda a responder 'Fale sobre você'"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Помоги с ответом «Расскажи о себе»"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ช่วยเตรียมคำตอบสำหรับคำถามแนะนำตัวเอง"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mülakattaki kendini tanıtma sorusuna beni hazırla"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bạn giúp mình chuẩn bị câu giới thiệu bản thân khi phỏng vấn"
           }
         },
         "zh-Hans": {
@@ -32828,6 +34916,18 @@
             "value": "Entraîne-moi aux questions d'entretien comportemental"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "व्यवहार पर आधारित इंटरव्यू के सवालों का अभ्यास करवाएँ"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Latih aku menjawab pertanyaan perilaku"
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -32844,6 +34944,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Pratique perguntas comportamentais"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Потренируй меня на поведенческих вопросах"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ช่วยซ้อมคำถามสัมภาษณ์เชิงพฤติกรรม"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Davranışsal mülakat sorularıyla beni çalıştır"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bạn luyện cùng mình câu hỏi phỏng vấn hành vi"
           }
         },
         "zh-Hans": {
@@ -32893,6 +35017,18 @@
             "value": "Évalue ma réponse à cette question"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "इस सवाल पर मेरा जवाब देखें"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lihat jawabanku untuk soal ini"
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -32909,6 +35045,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Avalie minha resposta para esta pergunta"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Посмотри, как звучит мой ответ"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ช่วยดูคำตอบของข้อนี้ให้หน่อย"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu soruya verdiğim cevaba bak"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bạn xem giúp mình phần mình vừa trả lời"
           }
         },
         "zh-Hans": {
@@ -32958,6 +35118,18 @@
             "value": "Pratiquer et apprendre des langues étrangères"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "भाषा का अभ्यास और व्याकरण"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Latihan bahasa asing dan penjelasan tata bahasa"
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -32974,6 +35146,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Praticar e aprender idiomas estrangeiros"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Устная практика языка и разбор грамматики"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "การฝึกภาษาต่างประเทศและการอธิบายไวยากรณ์"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yabancı dil pratiği ve dilbilgisi anlatımı"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bài luyện ngoại ngữ và phần ngữ pháp"
           }
         },
         "zh-Hans": {
@@ -33124,6 +35320,18 @@
             "value": "Pratiquons la conversation en…"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "मेरे साथ बोलचाल का अभ्यास करें, भाषा यह है..."
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aku mau latihan bicara bahasa..."
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -33140,6 +35348,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Vamos praticar conversação em..."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Хочу попрактиковать разговорный..."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "อยากฝึกพูดภาษา..."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Konuşma pratiği istiyorum, dil..."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mình muốn luyện nói tiếng..."
           }
         },
         "zh-Hans": {
@@ -33189,6 +35421,18 @@
             "value": "Explique cette règle de grammaire"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "यह व्याकरण नियम समझाएँ"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Jelaskan aturan tata bahasa ini"
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -33205,6 +35449,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Explique esta regra gramatical"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Объясни это правило грамматики"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ช่วยอธิบายกฎไวยากรณ์ข้อนี้"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu dilbilgisi kuralını anlat"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bạn giảng giúp mình quy tắc ngữ pháp này"
           }
         },
         "zh-Hans": {
@@ -33254,6 +35522,18 @@
             "value": "Comment dit-on… naturellement ?"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "सहज कैसे कहें, वाक्य यह है..."
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bagaimana ucapan yang alami untuk..."
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -33270,6 +35550,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Como eu digo... naturalmente?"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Как это сказать естественно: ..."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "อยากรู้ว่าจะพูดแบบธรรมชาติว่ายังไง ถ้าจะบอกว่า..."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Doğal olarak nasıl söylenir, cümle..."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bạn chỉ mình cách nói tự nhiên cho câu..."
           }
         },
         "zh-Hans": {
@@ -33319,6 +35623,18 @@
             "value": "Interroge-moi sur le vocabulaire"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "शब्दों पर मुझे परखें"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kasih aku kuis kosakata"
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -33335,6 +35651,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Me teste no vocabulário"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Погоняй меня по словам"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ช่วยทดสอบคำศัพท์หน่อย"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Beni kelimelerle sınava çek"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bạn ra câu hỏi từ vựng cho mình"
           }
         },
         "zh-Hans": {
@@ -33384,6 +35724,18 @@
             "value": "Tutorat patient avec la méthode socratique"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "धैर्यवान ट्यूटर, सवाल पहले और जवाब बाद में"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bimbingan belajar yang tidak terburu-buru, lewat pertanyaan sampai kamu paham sendiri"
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -33400,6 +35752,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Tutoria paciente com o método socrático"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Терпеливые вопросы вместо готового ответа"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "การติวที่ไม่รีบเฉลย ชวนคิดด้วยคำถามจนเข้าใจเอง"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sabırla ve sorularla kendi kendine öğrenme"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cách học kiên nhẫn, hỏi để tự nghĩ ra, không vội đưa đáp án"
           }
         },
         "zh-Hans": {
@@ -33550,6 +35926,18 @@
             "value": "Explique-moi ce concept"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "यह अवधारणा मुझे समझाएँ"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Coba jelaskan konsep ini"
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -33566,6 +35954,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Me explica este conceito"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Объясни мне это понятие"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ช่วยอธิบายแนวคิดนี้ให้ฟัง"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu kavramı bana anlat"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bạn giảng khái niệm này cho mình nghe"
           }
         },
         "zh-Hans": {
@@ -33615,6 +36027,18 @@
             "value": "Aide-moi à comprendre comment… fonctionne"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "समझाएँ कि यह कैसे काम करता है, विषय यह है..."
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bantu aku paham cara kerja..."
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -33631,6 +36055,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Me ajuda a entender como... funciona"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Помоги разобраться, как это работает: ..."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ช่วยพาให้เข้าใจการทำงานของ..."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nasıl çalıştığını anlamama yardım et, konu..."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bạn giúp mình hiểu cách hoạt động của..."
           }
         },
         "zh-Hans": {
@@ -33680,6 +36128,18 @@
             "value": "J'ai du mal à comprendre…"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "समझ नहीं आ रही, बात यह है..."
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Aku mentok di..."
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -33696,6 +36156,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Estou confuso sobre..."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не получается с..."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ตอนนี้ติดอยู่ตรง..."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Şurada takıldım..."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Mình đang kẹt ở..."
           }
         },
         "zh-Hans": {
@@ -33745,6 +36229,18 @@
             "value": "Interroge-moi sur ce sujet"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "इस विषय पर मुझे परखें"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Uji aku soal topik ini"
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -33761,6 +36257,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Me faça perguntas sobre este tema"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Погоняй меня вопросами по этой теме"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ช่วยทดสอบเรื่องนี้ด้วยคำถาม"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu konuda beni sınava çek"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bạn ra cho mình vài câu hỏi về chủ đề này"
           }
         },
         "zh-Hans": {
@@ -33810,6 +36330,18 @@
             "value": "Résolution de problèmes mathématiques étape par étape"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "कदम-दर-कदम गणित के सवाल"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pengerjaan soal matematika langkah demi langkah"
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -33826,6 +36358,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Resolução de problemas matemáticos passo a passo"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Пошаговое решение задач по математике"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "การไล่โจทย์คณิตศาสตร์ทีละขั้น"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Adım adım matematik çözümü"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lời giải từng bước cho bài Toán"
           }
         },
         "zh-Hans": {
@@ -33976,6 +36532,18 @@
             "value": "Résous ça étape par étape"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "इस सवाल को कदम-दर-कदम हल करें"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kerjakan soal ini langkah demi langkah"
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -33992,6 +36560,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Resolva isso passo a passo"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Реши эту задачу по шагам"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ช่วยไล่ทำโจทย์นี้ทีละขั้น"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu soruyu adım adım çöz"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bạn giải bài này từng bước giúp mình"
           }
         },
         "zh-Hans": {
@@ -34041,6 +36633,18 @@
             "value": "Explique ce concept mathématique"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "यह गणित की अवधारणा समझाएँ"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Jelaskan konsep matematika ini"
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -34057,6 +36661,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Explique este conceito matemático"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Объясни это математическое понятие"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ช่วยอธิบายแนวคิดคณิตศาสตร์นี้"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu matematik kavramını anlat"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bạn giảng giúp mình khái niệm Toán này"
           }
         },
         "zh-Hans": {
@@ -34106,6 +36734,18 @@
             "value": "Vérifie si ma solution est correcte"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "मेरा हल सही है या नहीं, जाँचें"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cek jawabanku, sudah benar belum?"
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -34122,6 +36762,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Verifique se minha solução está correta"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Проверь, верно ли это решение"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ช่วยตรวจว่าคำตอบนี้ถูกไหม"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Çözümüm doğru mu, kontrol et"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bạn xem lời giải của mình đã đúng chưa?"
           }
         },
         "zh-Hans": {
@@ -34171,6 +36835,18 @@
             "value": "Aide-moi avec cette démonstration"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "इस प्रमाण में मेरा साथ दें"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bantu aku dengan pembuktian ini"
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -34187,6 +36863,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Me ajuda com esta demonstração"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Помоги с этим доказательством"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ช่วยพิสูจน์ข้อนี้ให้ดู"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu ispatta bana yardım et"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bạn giúp mình làm chứng minh này"
           }
         },
         "zh-Hans": {
@@ -34236,6 +36936,18 @@
             "value": "Transformer les transcriptions de réunion en résumés structurés"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "मीटिंग नोट्स का सुव्यवस्थित सार"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Catatan rapat yang disusun jadi notulen"
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -34252,6 +36964,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Transformar transcrições de reuniões em resumos estruturados"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ясный итог из заметок встречи"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "การจัดบันทึกการประชุมให้มีโครงสร้าง"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Toplantı notlarının derli toplu özeti"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ghi chú cuộc họp xếp thành biên bản rõ mạch"
           }
         },
         "zh-Hans": {
@@ -34402,6 +37138,18 @@
             "value": "Transforme ces notes en compte rendu de réunion"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "इन मीटिंग नोट्स से बैठक का सार बनाएँ"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Susun catatan ini jadi notulen rapat"
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -34418,6 +37166,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Transforme estas notas em um resumo de reunião"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Собери эти заметки в итог встречи"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ช่วยจัดโน้ตพวกนี้เป็นบันทึกการประชุม"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu notları derli toplu bir toplantı özetine çevir"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bạn xếp các ghi chú này thành biên bản cuộc họp"
           }
         },
         "zh-Hans": {
@@ -34467,6 +37239,18 @@
             "value": "Extrais les actions à mener de cette transcription"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "इस शब्दशः लेख से तय काम निकालें"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ambil hal-hal yang harus dikerjakan dari transkrip ini"
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -34483,6 +37267,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Extraia os itens de ação desta transcrição"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Выпиши задачи из этой стенограммы"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ช่วยดึงงานที่ต้องทำออกจากบทถอดความนี้"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu konuşma metninden yapılacakları çıkar"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bạn rút các việc cần làm từ bản chép lời này"
           }
         },
         "zh-Hans": {
@@ -34532,6 +37340,18 @@
             "value": "Organise ces points de discussion"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "इन चर्चाओं को क्रम से लगाएँ"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rapikan poin-poin diskusi ini"
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -34548,6 +37368,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Organize estes pontos de discussão"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Разложи эти пункты обсуждения по полочкам"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ช่วยเรียงประเด็นที่คุยกันให้เป็นระเบียบ"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Şu tartışma maddelerini sıraya diz"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bạn xếp lại các ý đã bàn cho có mạch"
           }
         },
         "zh-Hans": {
@@ -34597,6 +37441,18 @@
             "value": "Rédige un e-mail de suivi à partir de ces notes"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "इन मीटिंग नोट्स से आगे की ईमेल लिखें"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tulis email tindak lanjut dari catatan ini"
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -34613,6 +37469,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Escreva um e-mail de acompanhamento com base nestas notas"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Напиши письмо по итогам этих заметок"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ช่วยร่างอีเมลตามงานจากโน้ตพวกนี้"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu notlardan bir takip e-postası yaz"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bạn soạn email nhắc lại dựa trên các ghi chú này"
           }
         },
         "zh-Hans": {
@@ -34662,6 +37542,18 @@
             "value": "Plans de présentation, points clés et contenu de diapositives"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "प्रस्तुति की रूपरेखा, बात के बिंदु और स्लाइड की सामग्री"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Garis besar presentasi, poin bicara, dan isi slide"
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -34678,6 +37570,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Estruturas de apresentação, pontos-chave e conteúdo de slides"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Структура презентации, тезисы и текст слайдов"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "โครงร่างการนำเสนอ ประเด็นพูด และเนื้อบนสไลด์"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sunum taslağı, anlatılacak noktalar ve slayt içeriği"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dàn ý thuyết trình, ý cần nói và chữ trên trang chiếu"
           }
         },
         "zh-Hans": {
@@ -34828,6 +37744,18 @@
             "value": "Crée un plan de présentation pour…"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "प्रस्तुति की रूपरेखा बनाएँ, विषय यह है..."
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Buatkan garis besar presentasi tentang..."
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -34844,6 +37772,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Crie um outline de apresentação para..."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Составь план презентации про..."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ช่วยทำโครงร่างการนำเสนอเรื่อง..."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bir sunum taslağı çıkar, konu..."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bạn lập dàn ý thuyết trình về..."
           }
         },
         "zh-Hans": {
@@ -34893,6 +37845,18 @@
             "value": "Aide-moi à structurer un exposé de 10 minutes"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "10 मिनट की प्रस्तुति का ढाँचा बनाएँ"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bantu aku menyusun struktur presentasi 10 menit"
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -34909,6 +37873,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Me ajuda a estruturar uma palestra de 10 minutos"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Собери структуру выступления на 10 минут"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ช่วยวางโครงให้การพูด 10 นาที"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "10 dakikalık bir konuşmanın iskeletini çıkar"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bạn dựng giúp mình cấu trúc cho bài thuyết trình 10 phút"
           }
         },
         "zh-Hans": {
@@ -34958,6 +37946,18 @@
             "value": "Écris les notes du présentateur pour cette slide"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "इस स्लाइड पर क्या कहें, वह लिखें"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tulis catatan pembicara untuk slide ini"
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -34974,6 +37974,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Escreva notas do apresentador para este slide"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Напиши, что говорить на этом слайде"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ช่วยเขียนโน้ตพูดให้สไลด์หน้านี้"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu slayt için konuşmacı notu yaz"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bạn viết gợi ý lời nói cho trang chiếu này"
           }
         },
         "zh-Hans": {
@@ -35023,6 +38047,18 @@
             "value": "Propose des visuels pour cette présentation"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "इस प्रस्तुति के लिए चित्र सुझाएँ"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gambar apa yang pas untuk presentasi ini?"
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -35039,6 +38075,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Sugira visuais para esta apresentação"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Предложи изображения для этой презентации"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ช่วยแนะนำว่าการนำเสนอนี้ควรใช้ภาพแบบไหน"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu sunuma uygun görseller öner"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bạn gợi ý bài thuyết trình này nên kèm hình gì"
           }
         },
         "zh-Hans": {
@@ -35088,6 +38148,18 @@
             "value": "Corriger la grammaire, l'orthographe et améliorer la clarté"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "व्याकरण, वर्तनी और स्पष्टता की प्रूफ़"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pemeriksaan tata bahasa, ejaan, dan kejelasan kalimat"
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -35104,6 +38176,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Corrigir gramática, ortografia e melhorar a clareza"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Грамматика, орфография и ясность фраз"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ไวยากรณ์ การสะกด และความชัดของประโยค"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dilbilgisi ve yazım düzeltmesi, daha açık cümle"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Phần soát lỗi ngữ pháp, chính tả và câu chưa rõ"
           }
         },
         "zh-Hans": {
@@ -35254,6 +38350,18 @@
             "value": "Relis ce texte"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "इस पाठ की प्रूफ़ करें"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Periksa tulisan ini"
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -35270,6 +38378,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Revise este texto"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Вычитай этот текст"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ช่วยพิสูจน์อักษรข้อความนี้"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Şu metni baştan sona düzelt"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bạn soát lỗi đoạn này giúp mình"
           }
         },
         "zh-Hans": {
@@ -35319,6 +38451,18 @@
             "value": "Corrige la grammaire de ce paragraphe"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "इस अनुच्छेद में व्याकरण की गलतियाँ सुधारें"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Betulkan kesalahan tata bahasa di bagian ini"
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -35335,6 +38479,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Corrija a gramática deste parágrafo"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Исправь грамматику в этом абзаце"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ช่วยแก้ไวยากรณ์ที่ผิดในย่อหน้านี้"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu paragraftaki dilbilgisi hatalarını düzelt"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bạn sửa lỗi ngữ pháp trong đoạn này"
           }
         },
         "zh-Hans": {
@@ -35384,6 +38552,18 @@
             "value": "Peaufine ça pour la publication"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "इसे भेजने लायक सँवारें"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Poles bagian ini sampai layak dikirim"
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -35400,6 +38580,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Dê um polimento para publicação"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Причеши этот текст перед отправкой"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ช่วยเกลาข้อความนี้ให้พร้อมส่ง"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bunu gönderilecek hale getir"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bạn chỉnh giúp mình đoạn này cho gửi đi"
           }
         },
         "zh-Hans": {
@@ -35449,6 +38653,18 @@
             "value": "Vérifie la cohérence de ce texte"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "पूरे पाठ में एकरूपता जाँचें"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Cek konsistensi dari awal sampai akhir"
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -35465,6 +38681,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Verifique a consistência deste texto"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Проверь, нет ли разнобоя от начала до конца"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ช่วยเช็กว่าทั้งข้อความสอดคล้องกันไหม"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Baştan sona tutarlı mı, bir bak"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bạn xem trước sau có khớp nhau không?"
           }
         },
         "zh-Hans": {
@@ -35514,6 +38754,18 @@
             "value": "Recettes, techniques culinaires et planification de repas"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "रेसिपी, विधि और हफ़्ते का खाना"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Resep, cara masak, dan menu seminggu"
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -35530,6 +38782,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Receitas, técnicas culinárias e planejamento de refeições"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Рецепты, готовка и меню на неделю"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "สูตรอาหาร วิธีทำ และมื้ออาหารทั้งสัปดาห์"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tarif, yapılış ve haftalık öğün planı"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Công thức nấu ăn, cách làm và bữa ăn cả tuần"
           }
         },
         "zh-Hans": {
@@ -35680,6 +38956,18 @@
             "value": "Qu'est-ce que je peux préparer avec ces ingrédients ?"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "हाथ में जो है, उससे कौन सी रेसिपी बनेगी?"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dari bahan yang aku punya, bisa masak apa?"
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -35696,6 +38984,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "O que posso fazer com estes ingredientes?"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Что приготовить из того, что есть под рукой?"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "วัตถุดิบที่มีอยู่ เอามาทำอะไรได้บ้าง"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Elimdeki malzemelerle ne pişirebilirim?"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Với nguyên liệu đang có, mình nấu được món gì?"
           }
         },
         "zh-Hans": {
@@ -35745,6 +39057,18 @@
             "value": "Donne-moi une recette rapide pour un soir de semaine"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "काम वाले दिन की शाम के लिए जल्दी वाली रेसिपी दें"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kasih resep makan malam cepat untuk hari kerja"
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -35761,6 +39085,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Me dê uma receita rápida para o jantar"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Дай рецепт быстрого ужина на вечер буднего дня"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ช่วยหาเมนูมื้อเย็นวันทำงานที่ทำให้เสร็จเร็ว"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "İş çıkışı çabuk pişen bir akşam yemeği öner"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bạn cho mình một công thức bữa tối nấu nhanh sau giờ làm"
           }
         },
         "zh-Hans": {
@@ -35810,6 +39158,18 @@
             "value": "Comment remplacer… dans cette recette ?"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "इस रेसिपी में इसकी जगह क्या डालें, सामग्री यह है..."
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pengganti yang pas untuk..."
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -35826,6 +39186,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Como substituir... nesta receita?"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Чем в этом рецепте заменить..."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ในสูตรนี้จะใช้อะไรแทน..."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu yemekte yerine ne kullanayım, malzeme..."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Trong món này, thay gì cho..."
           }
         },
         "zh-Hans": {
@@ -35875,6 +39259,18 @@
             "value": "Planifie les repas de cette semaine"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "इस हफ़्ते के खाने की योजना बनाएँ"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Susun menu makan untuk seminggu ini"
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -35891,6 +39287,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Planeje refeições para esta semana"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Составь меню на эту неделю"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ช่วยจัดมื้ออาหารทั้งสัปดาห์นี้"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu haftanın yemeklerini planla"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bạn xếp bữa ăn cả tuần cho mình"
           }
         },
         "zh-Hans": {
@@ -35940,6 +39360,18 @@
             "value": "Revue de littérature, rédaction académique et recherche"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "शोधपत्र, शोध लेखन और अनुसंधान में सहायता"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pembacaan makalah, tulisan akademik, dan bantuan riset"
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -35956,6 +39388,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Revisão de literatura, escrita acadêmica e pesquisa"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Научные статьи, текст и ход исследования"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "การอ่านงานวิจัย งานเขียนวิชาการ และการช่วยทำวิจัย"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Makale okuma, akademik yazı ve araştırma yardımı"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bài báo, phần viết học thuật và việc nghiên cứu"
           }
         },
         "zh-Hans": {
@@ -36106,6 +39562,18 @@
             "value": "Résume les conclusions clés de cet article"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "इस शोधपत्र के मुख्य निष्कर्ष बताएँ"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ringkas temuan utama dari makalah ini"
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -36122,6 +39590,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Resuma as principais conclusões deste artigo"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Перескажи главные результаты этой статьи"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ช่วยสรุปข้อค้นพบหลักของงานวิจัยนี้"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu makalenin ana bulgularını özetle"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bạn tóm tắt phát hiện chính của bài báo này"
           }
         },
         "zh-Hans": {
@@ -36171,6 +39663,18 @@
             "value": "Aide-moi à rédiger la section méthodologie"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "कार्यप्रणाली वाला खंड लिखें"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bantu aku menulis bagian metode"
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -36187,6 +39691,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Me ajuda a escrever a seção de metodologia"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Помоги написать раздел «Методы»"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ช่วยเขียนส่วนวิธีการวิจัย"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yöntem bölümünü yazmama yardım et"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bạn viết giúp mình phần phương pháp"
           }
         },
         "zh-Hans": {
@@ -36236,6 +39764,18 @@
             "value": "Critique cet argument"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "इस तर्क की कमियाँ बताएँ"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tunjukkan masalah dalam argumen ini"
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -36252,6 +39792,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Critique este argumento"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Покажи слабые места в этом рассуждении"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ช่วยชี้จุดอ่อนของข้อถกเถียงนี้"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu savdaki sorunu göster"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bạn chỉ giúp mình chỗ lập luận này chưa ổn"
           }
         },
         "zh-Hans": {
@@ -36301,6 +39865,18 @@
             "value": "Propose des pistes de recherche pour…"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "आगे के अनुसंधान की दिशा सुझाएँ, विषय यह है..."
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sarankan arah riset berikutnya untuk..."
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -36317,6 +39893,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Sugira direções de pesquisa para..."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Предложи, что исследовать дальше по теме..."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ช่วยแนะนำแนวที่ควรวิจัยต่อ ในหัวข้อ..."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bundan sonra araştırılabilecek yönleri öner, konu..."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bạn gợi ý hướng nghiên cứu tiếp theo cho..."
           }
         },
         "zh-Hans": {
@@ -36366,6 +39966,18 @@
             "value": "Requêtes SQL, optimisation et conception de schémas"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "SQL लेखन, क्वेरी की तेज़ी और टेबल का ढाँचा"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Penulisan SQL, percepatan kueri lambat, dan rancangan tabel"
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -36382,6 +39994,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Consultas SQL, otimização e design de esquemas"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Запросы SQL, ускорение и структура таблиц"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "การเขียน SQL การเร่งคิวรีช้า และโครงสร้างตาราง"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "SQL, daha hızlı sorgu ve tablo tasarımı"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Câu SQL, tăng tốc truy vấn chậm và cấu trúc bảng"
           }
         },
         "zh-Hans": {
@@ -36532,6 +40168,18 @@
             "value": "Écris une requête SQL pour…"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "एक SQL लिखें जो..."
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tulis SQL untuk..."
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -36548,6 +40196,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Escreva uma query SQL para..."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Напиши SQL-запрос, чтобы..."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ช่วยเขียน SQL ที่..."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bir SQL yaz, amaç..."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bạn viết giúp mình một câu SQL..."
           }
         },
         "zh-Hans": {
@@ -36597,6 +40269,18 @@
             "value": "Optimise cette requête lente"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "इस धीमी क्वेरी को तेज़ करें"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Percepat kueri lambat ini"
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -36613,6 +40297,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Otimize esta query lenta"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ускорь этот медленный запрос"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ช่วยปรับคิวรีช้าตัวนี้ให้เร็วขึ้น"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Şu yavaş sorguyu hızlandır"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bạn làm câu truy vấn chậm này chạy nhanh hơn"
           }
         },
         "zh-Hans": {
@@ -36662,6 +40370,18 @@
             "value": "Conçois un schéma pour…"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "टेबल का ऐसा ढाँचा बनाएँ जो..."
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rancang struktur tabel untuk..."
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -36678,6 +40398,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Projete um schema para..."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Спроектируй структуру таблиц для..."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ช่วยออกแบบโครงสร้างตารางสำหรับ..."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tablo yapısı tasarla, ne için..."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bạn thiết kế cấu trúc bảng cho..."
           }
         },
         "zh-Hans": {
@@ -36727,6 +40471,18 @@
             "value": "Explique le plan d'exécution de cette requête"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "इस क्वेरी का एक्ज़ीक्यूशन प्लान क्या कह रहा है?"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rencana eksekusi kueri ini artinya apa?"
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -36743,6 +40499,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Explique o plano de execução desta query"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Объясни, что говорит план выполнения этого запроса"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ช่วยอธิบายว่าแผนการประมวลผลของคิวรีนี้บอกอะไร"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu sorgunun yürütme planı ne diyor, anlat"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bạn giải thích giúp mình kế hoạch thực thi câu này đang nói gì?"
           }
         },
         "zh-Hans": {
@@ -36792,6 +40572,18 @@
             "value": "Écriture de fiction, narration et construction de mondes"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "उपन्यास, कहानी और कथा-संसार"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Novel, cerita, dan rancangan dunianya"
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -36808,6 +40600,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Escrita de ficção, narrativa e construção de mundos"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Рассказы, сюжет и мир истории"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "นิยาย เรื่องเล่า และโลกของเรื่อง"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hikaye, roman ve hikaye evreni"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Truyện sáng tác, lời kể và thế giới của truyện"
           }
         },
         "zh-Hans": {
@@ -36958,6 +40774,18 @@
             "value": "Aide-moi à développer ce personnage"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "इस पात्र को भरा-पूरा लिखें"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kembangkan tokoh ini biar lebih hidup"
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -36974,6 +40802,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Me ajuda a desenvolver este personagem"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Помоги раскрыть этого персонажа"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ช่วยทำให้ตัวละครนี้มีเลือดมีเนื้อ"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu karakteri daha dolu hale getir"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bạn viết nhân vật này cho có da có thịt hơn"
           }
         },
         "zh-Hans": {
@@ -37023,6 +40875,18 @@
             "value": "Continue cette histoire"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "इस कहानी को आगे लिखें"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lanjutkan cerita ini"
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -37039,6 +40903,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Continue esta história"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Продолжи эту историю"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ช่วยเขียนเรื่องนี้ต่อ"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu hikayeyi devam ettir"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bạn viết tiếp truyện này"
           }
         },
         "zh-Hans": {
@@ -37088,6 +40976,18 @@
             "value": "Crée un univers pour mon histoire"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "इस कहानी का संसार रचें"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Buatkan dunia untuk ceritaku"
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -37104,6 +41004,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Crie um mundo para minha história"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Придумай мир для моей истории"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ช่วยสร้างโลกให้เรื่องนี้"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hikayem için bir dünya kur"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bạn dựng thế giới cho truyện của mình"
           }
         },
         "zh-Hans": {
@@ -37153,6 +41077,18 @@
             "value": "Améliore ce dialogue"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "इस संवाद को सँवारें"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rapikan dialog ini"
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -37169,6 +41105,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Melhore este diálogo"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Поправь этот диалог"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ช่วยเกลาบทสนทนาช่วงนี้"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Şu diyaloğu elden geçir"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bạn chỉnh giúp mình đoạn đối thoại này"
           }
         },
         "zh-Hans": {
@@ -37218,6 +41178,18 @@
             "value": "Traduction précise préservant le ton et les nuances"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "मूल लहजा और बारीकियाँ समेत अनुवाद"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Terjemahan yang menjaga nada dan nuansa aslinya"
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -37234,6 +41206,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Tradução precisa preservando tom e nuances"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Перевод с тоном и оттенками оригинала"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "การแปลที่คงน้ำเสียงและความหมายละเอียดเดิม"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tonu ve incelikleri koruyan çeviri"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dịch thuật giữ giọng và sắc thái của bản gốc"
           }
         },
         "zh-Hans": {
@@ -37384,6 +41380,18 @@
             "value": "Traduis ça en anglais"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "इसका अंग्रेज़ी में अनुवाद करें"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Terjemahkan bagian ini ke bahasa Inggris"
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -37400,6 +41408,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Traduza isso para inglês"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Переведи этот текст на английский"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ช่วยแปลข้อความนี้เป็นภาษาอังกฤษ"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bunu ingilizceye çevir"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bạn dịch đoạn này sang tiếng Anh giúp mình"
           }
         },
         "zh-Hans": {
@@ -37449,6 +41481,18 @@
             "value": "Traduis ça en chinois"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "इसका चीनी में अनुवाद करें"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Terjemahkan bagian ini ke bahasa Mandarin"
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -37465,6 +41509,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Traduza isso para chinês"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Переведи этот текст на китайский"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ช่วยแปลข้อความนี้เป็นภาษาจีน"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bunu çinceye çevir"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bạn dịch đoạn này sang tiếng Trung giúp mình"
           }
         },
         "zh-Hans": {
@@ -37514,6 +41582,18 @@
             "value": "Traduis cet e-mail en gardant un ton professionnel"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "इस ईमेल का अनुवाद करें, लहजा कामकाजी रहे"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Terjemahkan email ini, nadanya tetap cocok untuk kerja"
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -37530,6 +41610,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Traduza este e-mail mantendo o tom profissional"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Переведи это письмо и сохрани деловой тон"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ช่วยแปลอีเมลนี้ให้คงน้ำเสียงแบบที่ทำงาน"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu e-postayı çevir, ton iş ortamına uygun kalsın"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bạn dịch email này và giữ giọng công sở giúp mình"
           }
         },
         "zh-Hans": {
@@ -37579,6 +41683,18 @@
             "value": "Comment dirait-on ça naturellement en japonais ?"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "जापानी में यह सहज कैसे कहा जाता है?"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dalam bahasa Jepang, kalimat ini wajarnya bagaimana?"
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -37595,6 +41711,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Como você diria isso naturalmente em japonês?"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Как это естественно сказать по-японски?"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ประโยคนี้ภาษาญี่ปุ่นพูดแบบธรรมชาติว่ายังไง"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu cümle japoncada doğal olarak nasıl söylenir?"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Câu này tiếng Nhật nói sao cho tự nhiên?"
           }
         },
         "zh-Hans": {
@@ -37644,6 +41784,18 @@
             "value": "Itinéraires de voyage et recommandations de destinations"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "यात्रा की योजना और जगहों के सुझाव"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Rencana perjalanan dan saran tujuan"
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -37660,6 +41812,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Roteiros de viagem e recomendações de destinos"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Маршруты и идеи для путешествия"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "แผนการเดินทางและคำแนะนำจุดหมาย"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seyahat planı ve gidilecek yer önerileri"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lịch trình du lịch và gợi ý điểm đến"
           }
         },
         "zh-Hans": {
@@ -37810,6 +41986,18 @@
             "value": "Planifie un voyage de 5 jours à…"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "5 दिन की यात्रा की योजना बनाएँ, जगह यह है..."
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Susun perjalanan 5 hari ke..."
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -37826,6 +42014,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Planeje uma viagem de 5 dias para..."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Спланируй путешествие на 5 дней в..."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ช่วยจัดแผนการเดินทาง 5 วัน ไป..."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "5 günlük bir seyahat planla, nereye..."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bạn lên kế hoạch du lịch 5 ngày tới..."
           }
         },
         "zh-Hans": {
@@ -37875,6 +42087,18 @@
             "value": "Que faut-il voir à… ?"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "क्या-क्या देखें, जगह यह है..."
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Apa yang sebaiknya dilihat di..."
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -37891,6 +42115,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "O que devo ver em...?"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Что посмотреть в..."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "มีอะไรน่าไปดูที่..."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Neler görülmeli, yer..."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Nên xem gì khi tới..."
           }
         },
         "zh-Hans": {
@@ -37940,6 +42188,18 @@
             "value": "Crée un itinéraire économique pour…"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "कम खर्च वाली यात्रा की योजना बनाएँ, जगह यह है..."
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Buatkan rencana perjalanan yang hemat ke..."
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -37956,6 +42216,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Crie um roteiro econômico para..."
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Составь недорогой маршрут в..."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ช่วยจัดแผนการเดินทางแบบประหยัด ไป..."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ucuza gelen bir seyahat planla, nereye..."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bạn lên kế hoạch du lịch ít tốn tới..."
           }
         },
         "zh-Hans": {
@@ -38005,6 +42289,18 @@
             "value": "Quelle est la meilleure période pour visiter… ?"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "यात्रा का सबसे अच्छा समय कौन सा है, जगह यह है..."
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kapan sebaiknya pergi ke..."
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -38021,6 +42317,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Qual a melhor época para visitar...?"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Когда лучше поехать в..."
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ควรไปช่วงไหนดีที่สุด ที่..."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu gezi için en iyi zaman hangisi, nereye..."
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Thời điểm nào đẹp nhất để tới..."
           }
         },
         "zh-Hans": {
@@ -38070,6 +42390,18 @@
             "value": "Améliorer le style, la structure et la clarté de l'écriture"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "सुपाठ्य लेखन, साफ़ ढाँचा और सही लहजा"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tulisan yang lebih enak dibaca, struktur lebih jelas, dan nada lebih pas"
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -38086,6 +42418,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Melhorar estilo, estrutura e clareza da escrita"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Читаемость, структура и тон текста"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ความอ่านง่าย โครงที่ชัด และน้ำเสียงที่เข้าที่"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Daha okunaklı yazı, daha net yapı, uygun ton"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Đoạn viết lách dễ đọc, rõ mạch và đúng giọng"
           }
         },
         "zh-Hans": {
@@ -38236,6 +42592,18 @@
             "value": "Améliore ce paragraphe"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "इस अनुच्छेद का लेखन सँवारें"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Perbaiki bagian ini"
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -38252,6 +42620,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Melhore este parágrafo"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Поправь этот абзац"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ช่วยเกลาย่อหน้านี้ให้หน่อย"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Şu paragrafı elden geçir"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bạn chỉnh đoạn viết lách này cho hay hơn giúp mình"
           }
         },
         "zh-Hans": {
@@ -38301,6 +42693,18 @@
             "value": "Rends ça plus concis"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "इस हिस्से को छोटा लिखें"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Persingkat bagian ini"
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -38317,6 +42721,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Torne isso mais conciso"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сократи этот кусок"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ช่วยตัดข้อความนี้ให้สั้นลง"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bunu daha kısa yaz"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bạn viết lại đoạn này cho ngắn hơn"
           }
         },
         "zh-Hans": {
@@ -38366,6 +42794,18 @@
             "value": "Ajuste le ton pour être plus professionnel"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "इसे कामकाज के लहजे में लिखें"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Ubah nadanya biar lebih cocok untuk kerja"
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -38382,6 +42822,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Ajuste o tom para ser mais profissional"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Сделай тон более деловым"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ช่วยปรับน้ำเสียงให้เหมาะกับที่ทำงาน"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tonu iş ortamına uygun hale getir"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bạn đổi giọng đoạn này sang giọng công sở"
           }
         },
         "zh-Hans": {
@@ -38431,6 +42895,18 @@
             "value": "Vérifie la structure de cet essai"
           }
         },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "इस लेख का ढाँचा ठीक है या नहीं, देखें"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Struktur tulisan ini sudah mengalir belum?"
+          }
+        },
         "ja": {
           "stringUnit": {
             "state": "translated",
@@ -38447,6 +42923,30 @@
           "stringUnit": {
             "state": "translated",
             "value": "Verifique a estrutura desta redação"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Посмотри, складно ли выстроена эта статья"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ช่วยดูว่าโครงบทความนี้ต่อเนื่องดีไหม"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu yazının yapısı akıyor mu, bak"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bạn xem cấu trúc bài này có liền mạch không?"
           }
         },
         "zh-Hans": {

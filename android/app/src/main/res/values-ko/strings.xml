@@ -329,7 +329,7 @@
     <string name="import_failed">가져오기 실패</string>
     <string name="choose_another_backup">다른 백업 선택</string>
     <string name="import_preview_title">가져오기 미리보기</string>
-    <string name="import_action">수입</string>
+    <string name="import_action">가져오기</string>
     <string name="backup_info">백업 정보</string>
     <string name="created">생성됨</string>
     <string name="platform">플랫폼</string>
@@ -1448,4 +1448,7 @@
     </plurals>
     <string name="secure_field_show">입력 내용 표시</string>
     <string name="secure_field_hide">입력 내용 숨기기</string>
+    <string name="generation_parameter_name_stop">중지 문자열</string>
+    <string name="generation_diagnostics_section">생성 설정 진단</string>
+    <string name="generation_diagnostics_empty">진단 기록이 아직 없어요</string>
 </resources>

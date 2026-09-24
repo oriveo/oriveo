@@ -1449,4 +1449,7 @@
     </plurals>
     <string name="secure_field_show">Mostrar caracteres</string>
     <string name="secure_field_hide">Ocultar caracteres</string>
+    <string name="generation_parameter_name_stop">Textos de interrupção</string>
+    <string name="generation_diagnostics_section">Diagnósticos das configurações de geração</string>
+    <string name="generation_diagnostics_empty">Você ainda não tem registros de diagnóstico</string>
 </resources>

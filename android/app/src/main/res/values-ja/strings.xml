@@ -329,7 +329,7 @@
     <string name="import_failed">インポートに失敗しました</string>
     <string name="choose_another_backup">別のバックアップを選択</string>
     <string name="import_preview_title">インポートプレビュー</string>
-    <string name="import_action">輸入</string>
+    <string name="import_action">インポート</string>
     <string name="backup_info">バックアップ情報</string>
     <string name="created">作成されました</string>
     <string name="platform">プラットフォーム</string>
@@ -1447,4 +1447,7 @@
     </plurals>
     <string name="secure_field_show">入力内容を表示</string>
     <string name="secure_field_hide">入力内容を非表示</string>
+    <string name="generation_parameter_name_stop">停止文字列</string>
+    <string name="generation_diagnostics_section">生成設定の診断</string>
+    <string name="generation_diagnostics_empty">診断記録はまだありません</string>
 </resources>

@@ -13,7 +13,7 @@
     "searchPlaceholder": "Konuşmaları ara…",
     "clearSearch": "Aramayı temizle",
     "rename": "Yeniden isimlendirmek",
-    "deleteConversation": "Silmek",
+    "deleteConversation": "Sil",
     "confirmDelete": "Silmeyi Onayla",
     "noResults": "Hiçbir görüşme bulunamadı",
     "untitled": "İsimsiz",
@@ -64,7 +64,7 @@
     "exportMarkdown": "Markdown'yi dışa aktar",
     "exportJSON": "JSON'yi dışa aktar",
     "exportClipboard": "Panoya kopyala",
-    "delete": "Silmek",
+    "delete": "Sil",
     "copy": "Kopyala",
     "copyMarkdown": "Markdown'yi kopyala",
     "copyCode": "Kodu Kopyala",
@@ -82,7 +82,7 @@
     "saveAsNote": "Not olarak kaydet"
   },
   "export": {
-    "title": "İhracat",
+    "title": "Sohbeti dosyaya kaydet",
     "markdown": "Markdown'yi dışa aktar",
     "json": "JSON'yi dışa aktar",
     "clipboard": "Panoya kopyala"
@@ -167,9 +167,9 @@
     "generationGroupEngineRuntime": "Motor Çalışma Zamanı",
     "retry": "Yeniden dene",
     "cancel": "İptal etmek",
-    "save": "Kaydetmek",
-    "delete": "Silmek",
-    "confirm": "Onaylamak",
+    "save": "Kaydet",
+    "delete": "Sil",
+    "confirm": "Onayla",
     "back": "Geri",
     "next": "Sonraki",
     "done": "Tamamlamak",
@@ -328,7 +328,7 @@
       "stop": "Oluşturmayı durdur",
       "generating": "Oluşturuluyor…",
       "aiAnswering": "AI cevap veriyor…",
-      "export": "İhracat",
+      "export": "Bu sohbeti dışa aktar",
       "continueAnswering": "Yanıtlamaya Devam Et",
       "recovery": {
         "retryBtn": "Yeniden dene",
@@ -872,7 +872,7 @@
       "confirmDeleteTitle": "\"{name}\" silinsin mi?",
       "confirmDeleteDesc": "Bu bağlantı ve anahtarı, etkin modelleri ve model kitaplığı ile kayıtlı model davranışı parametreleri silinir. Görüşmeleriniz silinmez. Eski mesajlar kalır; içlerinde kullanılan modeller kullanılamaz olarak işaretlenir.",
       "editName": "Adı Düzenle",
-      "saveName": "Kaydetmek",
+      "saveName": "Kaydet",
       "defaultName": "Özel LLM",
       "privacyNote": "Yerel ağınızdaki Özel LLM istek URL'leri bu cihazdan doğrudan bağlanır. Genel istek URL'leri, tarayıcının CORS kısıtlamalarını aşmak için Oriveo sunucusu üzerinden iletilir — API anahtarınız yalnızca o istek boyunca bellekte tutulur, asla saklanmaz veya günlüğe yazılmaz. Her iki durumda da HTTPS gereklidir.",
       "relaySettings": "Bağlantı ayarları",
@@ -1001,7 +1001,7 @@
       "saveKey": "Anahtarı Kaydet",
       "baseURL": "İstek URL'si",
       "editBaseURL": "Temel URL'yi Düzenle",
-      "saveBaseURL": "Kaydetmek",
+      "saveBaseURL": "Kaydet",
       "defaultURL": "Varsayılan",
       "usage": "Kullanım İstatistikleri",
       "usageSubtitle": "Yerel konuşma geçmişine dayalı",
@@ -1137,7 +1137,7 @@
       "privacyPolicy": "Gizlilik Politikası",
       "sourceCode": "Kaynak Kodu",
       "aiSection": "yapay zeka",
-      "skills": "Yetenekler",
+      "skills": "Beceriler",
       "dataSection": "Veri",
       "backupImportExport": "Yedekleme ve İçe Aktarma/Dışa Aktarma",
       "privacySubtitle": "Verileriniz yerel kalır",
@@ -1156,7 +1156,7 @@
       "password": "Şifre",
       "confirmPassword": "Şifreyi Onayla",
       "includeApiKeys": "API Anahtarlarını Ekle",
-      "export": "İhracat",
+      "export": "Yedek dosyasını dışa aktar",
       "exporting": "Dışa aktarılıyor…",
       "exportFailed": "Dışa aktarma başarısız oldu. Lütfen tekrar deneyin.",
       "passwordTooShort": "Şifre en az 8 karakter olmalıdır",
@@ -1165,7 +1165,7 @@
       "dropZone": "Yedekleme dosyasını buraya bırakın veya göz atmak için tıklayın",
       "importPassword": "Yedekleme Şifresi",
       "preview": "Önizleme",
-      "import": "İçe aktarmak",
+      "import": "Yedek dosyasını içe aktar",
       "importing": "İçe aktarılıyor…",
       "importFailed": "İçe aktarma başarısız oldu. Lütfen tekrar deneyin.",
       "passwordMismatch": "Şifreler eşleşmiyor",
@@ -1479,7 +1479,7 @@
     "retry": "Tekrar deneyin"
   },
   "skills": {
-    "title": "Yetenekler",
+    "title": "Beceriler",
     "mySkills": "Becerilerim",
     "builtinSkills": "Yerleşik Beceriler",
     "pinned": "Sabitlendi",
@@ -1515,7 +1515,7 @@
     "description": "Tanım",
     "descriptionPlaceholder": "Bu Becerinin ne yaptığının kısa açıklaması",
     "color": "Renk",
-    "save": "Kaydetmek",
+    "save": "Kaydet",
     "saving": "Kaydediliyor...",
     "newChat": "Yeni Sohbet",
     "allSkills": "Tüm Beceriler",
@@ -1590,252 +1590,252 @@
   "builtinSkills": {
     "code_assistant": {
       "name": "Kod Asistanı",
-      "description": "Programlama Soru-Cevap, kod oluşturma, hata ayıklama",
+      "description": "Kod yazımı, düzeltme ve işleyişin anlatımı",
       "starters": {
-        "0": "Bu koddaki hataları ayıklamama yardım et",
-        "1": "Bunu sağlayan bir fonksiyon yazın...",
-        "2": "Bu kodun nasıl çalıştığını açıklayın",
-        "3": "Daha iyi okunabilirlik için bunu yeniden düzenleyin"
+        "0": "Bu koddaki sorunu bul",
+        "1": "Bir fonksiyon yaz...",
+        "2": "Bu kodun nasıl işlediğini anlat",
+        "3": "Bu kodun yapısını daha rahat okunacak şekilde düzenle"
       }
     },
     "code_review": {
       "name": "Kod İncelemesi",
-      "description": "Kod kalitesi, güvenlik ve performans incelemesi",
+      "description": "Kalite, güvenlik ve hız incelemesi",
       "starters": {
-        "0": "Güvenlik sorunları için bu kodu inceleyin",
-        "1": "Performans sorunları için bu PR'yi kontrol edin",
-        "2": "Bu işlevin hata işlemesini analiz edin",
-        "3": "Bu kodun genel kalitesini değerlendirin"
+        "0": "Bu koda güvenlik açısından bak",
+        "1": "Bu PR'da performans sorunu var mı, bir bak",
+        "2": "Bu fonksiyon hata verince ne yapıyor, ona bak",
+        "3": "Bu kodun genel kalitesini değerlendir"
       }
     },
     "sql_expert": {
       "name": "SQL Uzmanı",
-      "description": "SQL sorguları, optimizasyon ve şema tasarımı",
+      "description": "SQL, daha hızlı sorgu ve tablo tasarımı",
       "starters": {
-        "0": "Şuna bir SQL sorgusu yazın...",
-        "1": "Bu yavaş sorguyu optimize edin",
-        "2": "Şunun için bir şema tasarlayın:",
-        "3": "Bu sorgunun yürütme planını açıklayın"
+        "0": "Bir SQL yaz, amaç...",
+        "1": "Şu yavaş sorguyu hızlandır",
+        "2": "Tablo yapısı tasarla, ne için...",
+        "3": "Bu sorgunun yürütme planı ne diyor, anlat"
       }
     },
     "git_assistant": {
       "name": "Git Asistanı",
-      "description": "Git komutları, iş akışları ve çakışma çözümü",
+      "description": "Git komutları, günlük iş akışı ve birleştirme çakışması",
       "starters": {
-        "0": "Bu birleştirme anlaşmazlığını çözmeme yardım et",
-        "1": "Bu değişiklikler için bir taahhüt mesajı yazın",
-        "2": "Son işlemimi nasıl geri alabilirim?",
-        "3": "Bu Git durumunu açıklayın"
+        "0": "Şu birleştirme çakışmasını çöz",
+        "1": "Bu değişikliklere göre bir commit mesajı yaz",
+        "2": "Az önce yaptığım commit'i nasıl geri alırım?",
+        "3": "Şu anki Git durumunun ne olduğunu anlat"
       }
     },
     "writing_coach": {
       "name": "Yazı Koçu",
-      "description": "Yazı stilini, yapısını ve netliğini iyileştirin",
+      "description": "Daha okunaklı yazı, daha net yapı, uygun ton",
       "starters": {
-        "0": "Bu paragrafı geliştirin",
-        "1": "Bunu daha kısa hale getirin",
-        "2": "Tonunuzu daha profesyonel olacak şekilde ayarlayın",
-        "3": "Bu makalenin yapısını kontrol edin"
+        "0": "Şu paragrafı elden geçir",
+        "1": "Bunu daha kısa yaz",
+        "2": "Tonu iş ortamına uygun hale getir",
+        "3": "Bu yazının yapısı akıyor mu, bak"
       }
     },
     "email_assistant": {
       "name": "E-posta Asistanı",
-      "description": "Profesyonel iş ve kişisel e-posta taslakları hazırlayın",
+      "description": "İş ve kişisel e-posta taslakları",
       "starters": {
-        "0": "Bir takip e-postası taslağı hazırlayın",
-        "1": "Kibar bir ret yazın",
-        "2": "Bu e-postayı profesyonelce yanıtlayın",
-        "3": "Soğuk bir destek e-postası taslağı hazırlayın"
+        "0": "Bir takip e-postası taslağı yaz",
+        "1": "Kibar bir ret e-postası yaz",
+        "2": "Bu e-postaya iş tonuyla yanıt yaz",
+        "3": "Henüz tanımadığım birine ilk e-postayı yaz"
       }
     },
     "copywriting": {
       "name": "Metin Yazarlığı",
-      "description": "Pazarlama metni, sosyal medya ve marka mesajları",
+      "description": "Reklam metni, sosyal paylaşım ve marka dili",
       "starters": {
-        "0": "Ürün açıklaması yazın...",
-        "1": "Şununla ilgili sosyal medya gönderileri oluşturun:",
-        "2": "Şunun için taslak reklam metni:",
-        "3": "İlgi çekici bir başlık yazın..."
+        "0": "Bir ürün tanıtımı yaz, ürün...",
+        "1": "Birkaç sosyal paylaşım yaz, konu...",
+        "2": "Bir reklam metni yaz, tanıtılan şey...",
+        "3": "Vurucu bir başlık yaz, ne için..."
       }
     },
     "blog_writer": {
       "name": "Blog Yazarı",
-      "description": "Uzun biçimli içerik ve blog gönderilerinin ilgi çekici olması",
+      "description": "Okura yönelik uzun yazı ve blog",
       "starters": {
-        "0": "Hakkında bir blog yazısı yazın...",
-        "1": "Bir makale için bir taslak oluşturun...",
-        "2": "Bu taslağın yapısını geliştirin",
-        "3": "Şunlar için blog konusu fikirleri önerin:"
+        "0": "Bir blog yazısı yaz, konu...",
+        "1": "Bir yazının ana hatlarını çıkar, konu...",
+        "2": "Bu taslağın yapısını düzelt",
+        "3": "Bir blog için başlık öner, kime ya da hangi yönde..."
       }
     },
     "translation_expert": {
       "name": "Çeviri Uzmanı",
-      "description": "Ton ve nüansı koruyan doğru çeviri",
+      "description": "Tonu ve incelikleri koruyan çeviri",
       "starters": {
-        "0": "Bunu İngilizceye çevir",
-        "1": "Bunu Çinceye çevir",
-        "2": "Bu e-postayı profesyonel bir üslupla çevirin",
-        "3": "Bunu Japonca'da doğal bir şekilde nasıl söylersiniz?"
+        "0": "Bunu ingilizceye çevir",
+        "1": "Bunu çinceye çevir",
+        "2": "Bu e-postayı çevir, ton iş ortamına uygun kalsın",
+        "3": "Bu cümle japoncada doğal olarak nasıl söylenir?"
       }
     },
     "proofreader": {
       "name": "Düzeltmen",
-      "description": "Dil bilgisini ve yazımı düzeltin ve anlaşılırlığı artırın",
+      "description": "Dilbilgisi ve yazım düzeltmesi, daha açık cümle",
       "starters": {
-        "0": "Bu metni düzeltin",
-        "1": "Bu paragraftaki dilbilgisini düzeltin",
-        "2": "Bunu yayınlanmak üzere parlatın",
-        "3": "Tutarlılık için bunu kontrol edin"
+        "0": "Şu metni baştan sona düzelt",
+        "1": "Bu paragraftaki dilbilgisi hatalarını düzelt",
+        "2": "Bunu gönderilecek hale getir",
+        "3": "Baştan sona tutarlı mı, bir bak"
       }
     },
     "learning_tutor": {
       "name": "Öğrenme Koçu",
-      "description": "Sokratik yöntemle hasta eğitimi",
+      "description": "Sabırla ve sorularla kendi kendine öğrenme",
       "starters": {
-        "0": "Bu kavramı bana açıkla",
-        "1": "Nasıl çalıştığını anlamama yardım et...",
-        "2": "Şu konuda kafam karıştı...",
-        "3": "Bu konu hakkında beni sorgula"
+        "0": "Bu kavramı bana anlat",
+        "1": "Nasıl çalıştığını anlamama yardım et, konu...",
+        "2": "Şurada takıldım...",
+        "3": "Bu konuda beni sınava çek"
       }
     },
     "research_assistant": {
       "name": "Araştırma Asistanı",
-      "description": "Literatür taraması, akademik yazı ve araştırma",
+      "description": "Makale okuma, akademik yazı ve araştırma yardımı",
       "starters": {
-        "0": "Bu makalenin temel bulgularını özetleyin",
-        "1": "Metodoloji bölümünü yazmama yardım et",
-        "2": "Bu iddiayı eleştirin",
-        "3": "Şunlar için araştırma talimatları önerin:"
+        "0": "Bu makalenin ana bulgularını özetle",
+        "1": "Yöntem bölümünü yazmama yardım et",
+        "2": "Bu savdaki sorunu göster",
+        "3": "Bundan sonra araştırılabilecek yönleri öner, konu..."
       }
     },
     "language_teacher": {
       "name": "Dil Öğretmeni",
-      "description": "Yabancı dilleri pratik yapın ve öğrenin",
+      "description": "Yabancı dil pratiği ve dilbilgisi anlatımı",
       "starters": {
-        "0": "Konuşma pratiği yapalım...",
-        "1": "Bu gramer kuralını açıklayın",
-        "2": "Nasıl desem... doğal olarak?",
-        "3": "Kelime bilgisi konusunda beni test et"
+        "0": "Konuşma pratiği istiyorum, dil...",
+        "1": "Bu dilbilgisi kuralını anlat",
+        "2": "Doğal olarak nasıl söylenir, cümle...",
+        "3": "Beni kelimelerle sınava çek"
       }
     },
     "data_analyst": {
       "name": "Veri Analisti",
-      "description": "Veri yorumlama, görselleştirme ve içgörüler",
+      "description": "Veri okuma, grafik seçimi ve sayıların anlamı",
       "starters": {
-        "0": "Bu verileri analiz edin ve içgörüler bulun",
-        "1": "Bu veriler için hangi grafiği kullanmalıyım?",
-        "2": "Bu sonuçları yorumlamama yardım et",
-        "3": "Bu analizin bir özetini yazın"
+        "0": "Bu verileri analiz et, ne göründüğünü söyle",
+        "1": "Bu verilere hangi grafik uyar?",
+        "2": "Bu sonuçları okumama yardım et",
+        "3": "Bu analizi bir özet paragrafına dök"
       }
     },
     "math_tutor": {
       "name": "Matematik Öğretmeni",
-      "description": "Adım adım matematik problem çözümü",
+      "description": "Adım adım matematik çözümü",
       "starters": {
-        "0": "Bunu adım adım çözün",
-        "1": "Bu matematik kavramını açıklayın",
-        "2": "Çözümümün doğru olup olmadığını kontrol et",
-        "3": "Bu kanıt konusunda bana yardım et"
+        "0": "Bu soruyu adım adım çöz",
+        "1": "Bu matematik kavramını anlat",
+        "2": "Çözümüm doğru mu, kontrol et",
+        "3": "Bu ispatta bana yardım et"
       }
     },
     "document_summarizer": {
       "name": "Belge Özetleyici",
-      "description": "Belgeleri özetleyin ve önemli noktaları çıkarın",
+      "description": "Kısa belge özeti ve ana noktalar",
       "starters": {
-        "0": "Bu belgeyi özetleyin",
-        "1": "Önemli kararları bundan çıkarın",
-        "2": "Buradaki eylem öğeleri nelerdir?",
-        "3": "Bana 3 cümlelik bir özet ver"
+        "0": "Bu belgeyi özetle",
+        "1": "Burada alınan kararları çıkar",
+        "2": "Burada yapılacak işler neler?",
+        "3": "3 cümleyle özetle"
       }
     },
     "brainstorm": {
       "name": "Beyin Fırtınası",
-      "description": "Fikir üretin ve olasılıkları keşfedin",
+      "description": "Yeni fikirler ve açık olasılıklar",
       "starters": {
-        "0": "Fikirler konusunda beyin fırtınası yapmama yardımcı olun...",
-        "1": "Bana 10 yaratıcı yaklaşım söyle...",
-        "2": "Alışılmadık çözümler nelerdir?",
-        "3": "Bu seçenekleri değerlendirmeme yardım et"
+        "0": "Fikir üretmeme yardım et, konu...",
+        "1": "10 farklı yol öner, ne için...",
+        "2": "Alışılmışın dışında bir yol var mı, ne için...",
+        "3": "Bu seçenekleri karşılaştırmama yardım et"
       }
     },
     "story_creator": {
       "name": "Hikaye Yazarı",
-      "description": "Kurgu yazımı, hikaye anlatımı ve dünya inşası",
+      "description": "Hikaye, roman ve hikaye evreni",
       "starters": {
-        "0": "Bu karakteri geliştirmeme yardım et",
-        "1": "Bu hikayeye devam et",
-        "2": "Hikayem için bir dünya yarat",
-        "3": "Bu diyaloğu geliştirin"
+        "0": "Bu karakteri daha dolu hale getir",
+        "1": "Bu hikayeyi devam ettir",
+        "2": "Hikayem için bir dünya kur",
+        "3": "Şu diyaloğu elden geçir"
       }
     },
     "meeting_notes": {
       "name": "Toplantı Notları",
-      "description": "Toplantı transkriptlerini yapılandırılmış özetlere dönüştürün",
+      "description": "Toplantı notlarının derli toplu özeti",
       "starters": {
-        "0": "Bu notları toplantı özetine dönüştürün",
-        "1": "Bu transkriptten eylem öğelerini çıkarın",
-        "2": "Bu tartışma noktalarını düzenleyin",
-        "3": "Bu notlardan takip e-postası yazın"
+        "0": "Bu notları derli toplu bir toplantı özetine çevir",
+        "1": "Bu konuşma metninden yapılacakları çıkar",
+        "2": "Şu tartışma maddelerini sıraya diz",
+        "3": "Bu notlardan bir takip e-postası yaz"
       }
     },
     "interview_coach": {
       "name": "Mülakat Koçu",
-      "description": "İş görüşmesine hazırlık ve deneme görüşmeleri",
+      "description": "İş mülakatına hazırlık ve deneme mülakatı",
       "starters": {
-        "0": "Bir yazılım mühendisi rolü için benimle sahte röportaj",
-        "1": "'Bana kendinden bahset' sorusunu yanıtlamama yardım et",
-        "2": "Davranışsal röportaj sorularını uygulayın",
-        "3": "Bu soruya verdiğim cevabı inceleyin"
+        "0": "Yazılım mühendisi için benimle deneme mülakatı yap",
+        "1": "Mülakattaki kendini tanıtma sorusuna beni hazırla",
+        "2": "Davranışsal mülakat sorularıyla beni çalıştır",
+        "3": "Bu soruya verdiğim cevaba bak"
       }
     },
     "presentation_outliner": {
       "name": "Sunum Taslağı",
-      "description": "Sunum ana hatları, konuşma noktaları ve slayt içeriği",
+      "description": "Sunum taslağı, anlatılacak noktalar ve slayt içeriği",
       "starters": {
-        "0": "Bir sunum taslağı oluşturun...",
-        "1": "10 dakikalık bir konuşma hazırlamama yardım et",
-        "2": "Bu slayt için konuşmacı notları yazın",
-        "3": "Bu sunum için görsel önerin"
+        "0": "Bir sunum taslağı çıkar, konu...",
+        "1": "10 dakikalık bir konuşmanın iskeletini çıkar",
+        "2": "Bu slayt için konuşmacı notu yaz",
+        "3": "Bu sunuma uygun görseller öner"
       }
     },
     "recipe_assistant": {
       "name": "Tarif Asistanı",
-      "description": "Yemek tarifleri, pişirme teknikleri ve yemek planlama",
+      "description": "Tarif, yapılış ve haftalık öğün planı",
       "starters": {
-        "0": "Bu malzemelerle ne yapabilirim?",
-        "1": "Bana hızlı bir hafta içi akşam yemeği tarifi ver",
-        "2": "Bu tarifte...'yi nasıl değiştirebilirim?",
-        "3": "Bu hafta için yemek planlayın"
+        "0": "Elimdeki malzemelerle ne pişirebilirim?",
+        "1": "İş çıkışı çabuk pişen bir akşam yemeği öner",
+        "2": "Bu yemekte yerine ne kullanayım, malzeme...",
+        "3": "Bu haftanın yemeklerini planla"
       }
     },
     "travel_planner": {
       "name": "Seyahat Planlayıcısı",
-      "description": "Seyahat programları ve varış noktası önerileri",
+      "description": "Seyahat planı ve gidilecek yer önerileri",
       "starters": {
-        "0": "5 günlük bir gezi planlayın...",
-        "1": "Ne görmeliyim...?",
-        "2": "Bir bütçe seyahat planı oluşturun...",
-        "3": "Ziyaret etmek için en iyi zaman hangisidir?"
+        "0": "5 günlük bir seyahat planla, nereye...",
+        "1": "Neler görülmeli, yer...",
+        "2": "Ucuza gelen bir seyahat planla, nereye...",
+        "3": "Bu gezi için en iyi zaman hangisi, nereye..."
       }
     },
     "fitness_coach": {
       "name": "Fitness Antrenörü",
-      "description": "Egzersiz planları, egzersizler ve beslenme rehberliği",
+      "description": "Fitness antrenmanı, hareket ve beslenme",
       "starters": {
-        "0": "Bir egzersiz planı oluşturun...",
-        "1": "Egzersiz önerin...",
-        "2": "Yemek planı konusunda bana yardım et",
-        "3": "Bu egzersizi doğru şekilde nasıl yaparım?"
+        "0": "Bir antrenman planı hazırla, hedef...",
+        "1": "Uygun hareketler öner, amaç...",
+        "2": "Ne yiyeceğimi planlamama yardım et",
+        "3": "Bu hareketi doğru nasıl yaparım?"
       }
     },
     "image_analyst": {
       "name": "Görsel Analisti",
-      "description": "Görüntüleri tanımlayın, analiz edin ve görüntülerden bilgi çıkarın",
+      "description": "Fotoğraf ve ekran görüntüsünün anlatımı, yazısı ve verisi",
       "starters": {
-        "0": "Bu resmi ayrıntılı olarak açıklayın",
-        "1": "Metni bu görüntüden çıkarın",
-        "2": "Bu grafik hangi verileri gösteriyor?",
-        "3": "Bu fotoğrafın kompozisyonunu analiz edin"
+        "0": "Bu görseli ayrıntısıyla anlat",
+        "1": "Görseldeki yazıyı çıkar",
+        "2": "Bu grafikteki veriler ne anlatıyor?",
+        "3": "Bu fotoğrafın kompozisyonunu incele"
       }
     },
     "category": {

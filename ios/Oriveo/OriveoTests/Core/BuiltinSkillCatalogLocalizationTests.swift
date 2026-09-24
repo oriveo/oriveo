@@ -7,18 +7,27 @@ import Testing
 ///
 /// hi / id / ru / th / tr / vi once had translations of the key itself rather than of the English text, so the UI
 /// showed "कौशल.श्रेणी.सीखना", "keterampilan.brainstorm.nama", "цвет_синий" or "ทักษะการระดมสมองคำอธิบาย". Skill names,
-/// category names and color names were rewritten for their meaning and match Android; the descriptions and starter
-/// messages in those six languages were removed and fall back to the text the catalog ships
-/// (`Skill.localizedDescription` uses `description` when there is no translation).
-/// This locks two things: no translation in any language keeps identifier fragments, and in those six languages the
-/// skill and category names match Android entry by entry. Folder color names only exist on iOS, so the fragment check
-/// alone covers them.
+/// category names and color names were rewritten for their meaning and match Android. Descriptions and starter
+/// messages in those six languages are native copy and match Android and the web catalog entry by entry.
+/// This locks three things: no translation keeps identifier fragments, names match Android, and descriptions
+/// and starters match across the three clients instead of falling back to English. Folder color names only exist
+/// on iOS, so the fragment check alone covers them.
 @Suite("Builtin skill and folder color catalog")
 struct BuiltinSkillCatalogLocalizationTests {
     private static let identifierKey = "^(skill\\.[a-z_]+\\.(name|description|starter_[0-9])|skill\\.category\\.[a-z_]+|color_[a-z]+)$"
     private static let sharedNameKey = "^(skill\\.[a-z_]+\\.name|skill\\.category\\.[a-z_]+)$"
     private static let repairedLocales: [String: String] = [
         "hi": "values-hi", "id": "values-in", "ru": "values-ru", "th": "values-th", "tr": "values-tr", "vi": "values-vi",
+    ]
+    private static let copyLocales = ["hi", "id", "ru", "th", "tr", "vi"]
+    /// Known mistranslations from the old skill descriptions: patient, commitment, and Thai polite particles.
+    private static let bannedSkillSubstrings: [String: [String]] = [
+        "hi": ["रोगी", "प्रतिबद्ध"],
+        "id": ["pasien", "komitmen"],
+        "ru": ["пациент"],
+        "th": ["ครับ", "ค่ะ", "ผม", "เธอ"],
+        "tr": ["taahhüt", "hasta eğit"],
+        "vi": ["bệnh nhân", "cam kết"],
     ]
 
     @Test("Translations of identifier-style keys keep no key fragments (underscores, dots followed by letters)")
@@ -52,6 +61,41 @@ struct BuiltinSkillCatalogLocalizationTests {
         #expect(problems.isEmpty, "differs from Android:\n\(problems.prefix(40).joined(separator: "\n"))")
     }
 
+    /// Descriptions and starters in the six rewritten languages must be the same sentence on iOS, Android, and web.
+    @Test("Skill descriptions and starters in six languages match across clients")
+    func skillDescriptionsMatchAcrossClients() throws {
+        let entries = try identifierEntries().filter {
+            $0.key.range(of: #"^skill\.[a-z0-9_]+\.(description|starter_[0-9])$"#, options: .regularExpression) != nil
+        }
+        #expect(entries.count >= 100, "too few description keys: \(entries.count)")
+        var problems: [String] = []
+        for locale in Self.copyLocales {
+            let android = try androidStrings(Self.repairedLocales[locale]!)
+            let web = try webSkills(locale)
+            for (key, localizations) in entries {
+                let english = localizations["en"] ?? ""
+                let ios = localizations[locale]
+                let androidValue = android[androidName(for: key)]
+                let webValue = webSkillValue(web, key: key)
+                let rendered = ios ?? "<nil>"
+                if ios == nil || androidValue == nil || webValue == nil || ios != androidValue || ios != webValue {
+                    problems.append("\(key) [\(locale)] iOS=\(rendered) Android=\(androidValue ?? "<nil>") Web=\(webValue ?? "<nil>")")
+                    continue
+                }
+                if rendered == english || rendered.isEmpty {
+                    problems.append("\(key) [\(locale)] still English or empty")
+                }
+                if english.contains("..."), !rendered.contains("...") {
+                    problems.append("\(key) [\(locale)] lost the ... placeholder")
+                }
+                for needle in Self.bannedSkillSubstrings[locale] ?? [] where rendered.localizedCaseInsensitiveContains(needle) {
+                    problems.append("\(key) [\(locale)] contains \(needle)")
+                }
+            }
+        }
+        #expect(problems.isEmpty, "skill copy is not aligned:\n\(problems.prefix(40).joined(separator: "\n"))")
+    }
+
     // MARK: - Helpers
 
     private func identifierEntries() throws -> [String: [String: String]] {
@@ -69,6 +113,22 @@ struct BuiltinSkillCatalogLocalizationTests {
     }
 
     /// `skill.math_tutor.name` → `skill_math_tutor_name`; `skill.category.coding` → `skill_category_coding`
+    private func webSkills(_ locale: String) throws -> [String: Any] {
+        let url = repositoryRoot.appendingPathComponent("web/apps/app/messages/\(locale).json")
+        #expect(FileManager.default.fileExists(atPath: url.path), "web \(locale).json not found")
+        let root = try #require(JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any])
+        return try #require(root["builtinSkills"] as? [String: Any])
+    }
+
+    private func webSkillValue(_ catalog: [String: Any], key: String) -> String? {
+        let parts = key.split(separator: ".").map(String.init)
+        guard parts.count == 3, let skill = catalog[parts[1]] as? [String: Any] else { return nil }
+        if parts[2] == "description" { return skill["description"] as? String }
+        guard parts[2].hasPrefix("starter_"),
+              let starters = skill["starters"] as? [String: Any] else { return nil }
+        return starters[String(parts[2].dropFirst("starter_".count))] as? String
+    }
+
     private func androidName(for key: String) -> String {
         let parts = key.split(separator: ".").map(String.init)
         if parts[1] == "category" { return "skill_category_\(parts[2])" }

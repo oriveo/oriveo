@@ -82,7 +82,7 @@
     "saveAsNote": "Lưu thành ghi chú"
   },
   "export": {
-    "title": "Xuất khẩu",
+    "title": "Lưu cuộc trò chuyện ra tệp",
     "markdown": "Xuất Markdown",
     "json": "Xuất JSON",
     "clipboard": "Sao chép vào Clipboard"
@@ -328,7 +328,7 @@
       "stop": "Dừng tạo",
       "generating": "Đang tạo…",
       "aiAnswering": "AI đang trả lời…",
-      "export": "Xuất khẩu",
+      "export": "Xuất cuộc trò chuyện này",
       "continueAnswering": "Tiếp tục trả lời",
       "recovery": {
         "retryBtn": "Thử lại",
@@ -464,7 +464,7 @@
       "relayNameRequired": "Vui lòng nhập tên",
       "relayEndpointRequired": "Nhập URL yêu cầu",
       "directProvidersTitle": "Direct AI Providers",
-      "directProvidersSubtitle": "Connect directly to official provider APIs",
+      "directProvidersSubtitle": "Kết nối thẳng với API của nhà cung cấp chính thức.",
       "aggregatorsTitle": "Third-Party Aggregators",
       "aggregatorsSubtitle": "Access multiple AI models through one platform",
       "relaySubtitle": "Kết nối dịch vụ mô hình của riêng bạn",
@@ -496,7 +496,7 @@
         "together": "Mô hình nguồn mở",
         "fireworks": "Nhanh & tiết kiệm"
       },
-      "kindAlreadyConnected": "You’re already connected to {provider}.",
+      "kindAlreadyConnected": "Bạn đã kết nối với {provider} rồi.",
       "manageExisting": "Manage existing",
       "addAnotherAccount": "Add another account",
       "grokSubscription": {
@@ -635,7 +635,7 @@
       "defaultModelOptional": "optional",
       "defaultModelPlaceholder": "e.g. gpt-5.4",
       "addRelay": "Thêm LLM tùy chỉnh",
-      "saveAndStartChat": "Save and start chat",
+      "saveAndStartChat": "Lưu và bắt đầu trò chuyện",
       "nameRequired": "Vui lòng nhập tên",
       "endpointRequired": "Vui lòng nhập URL yêu cầu",
       "apiKeyRequired": "Nhập khóa API để tiếp tục",
@@ -646,13 +646,13 @@
       "backToSimple": "Back to Simple",
       "advancedModeHeader": "Thêm LLM tùy chỉnh - Nâng cao",
       "importBanner": {
-        "title": "Import from cc-switch config",
+        "title": "Nhập config từ cc-switch",
         "description": "Dán một config.toml — chúng tôi sẽ phát hiện URL yêu cầu, model, giao thức, suy luận và cài đặt hình ảnh."
       },
       "paste": {
         "title": "Paste from cc-switch",
         "description": "Dán nội dung config.toml của bạn. Chúng tôi sẽ phát hiện URL yêu cầu, model, giao thức, suy luận và khả năng hình ảnh.",
-        "placeholder": "Paste your cc-switch config.toml here…",
+        "placeholder": "Dán config.toml của cc-switch vào đây",
         "fromClipboard": "Paste from clipboard",
         "examplesLabel": "Examples",
         "exampleCodexBasic": "Codex basic",
@@ -686,7 +686,7 @@
         "needsReview": "Needs Review",
         "ignored": "Ignored",
         "fieldCount": "{count, plural, =0 {0 fields} =1 {1 field} other {# fields}}",
-        "willApplyEmpty": "Nothing to apply yet",
+        "willApplyEmpty": "Hiện chưa có mục nào sẽ được áp dụng.",
         "needsReviewEmpty": "Nothing to review",
         "ignoredEmpty": "Nothing ignored"
       },
@@ -722,9 +722,9 @@
         "webSearchToolName": "Web search tool name"
       },
       "error": {
-        "parseFailed": "We couldn't parse the config. Paste a Codex, Claude, or Gemini provider config, or switch back to Simple Mode.",
-        "unrecognized": "We couldn't recognize this as a supported cc-switch import. Try a different example or switch back to Simple Mode.",
-        "empty": "Paste your cc-switch config first."
+        "parseFailed": "Không đọc được cấu hình này. Hãy dán cấu hình nhà cung cấp của Codex, Claude hoặc Gemini, hoặc quay lại chế độ đơn giản.",
+        "unrecognized": "Không nhận ra đây là bản nhập cc-switch được hỗ trợ. Đổi ví dụ khác, hoặc quay lại chế độ đơn giản.",
+        "empty": "Dán config cc-switch vào trước."
       },
       "kind": {
         "title": "Loại giao thức",
@@ -759,7 +759,7 @@
       "reasoningEffort": "Reasoning effort",
       "serviceTier": "OpenAI service tier",
       "stream": "Stream responses",
-      "disableResponseStorage": "Don't keep responses in the cloud",
+      "disableResponseStorage": "Không giữ câu trả lời trên đám mây",
       "codexCompatIdentity": "Codex compatible identity",
       "webSearchToolName": "Tên công cụ tìm kiếm web",
       "customUserAgent": "Custom User-Agent",
@@ -897,7 +897,7 @@
       "serviceTier": "OpenAI service tier",
       "customUserAgent": "Custom User-Agent",
       "stream": "Stream responses",
-      "disableResponseStorage": "Don't keep responses in the cloud",
+      "disableResponseStorage": "Không giữ câu trả lời trên đám mây",
       "codexCompatIdentity": "Codex compatible identity",
       "webSearchToolName": "Tên công cụ tìm kiếm web",
       "headers": "Custom Headers",
@@ -908,7 +908,7 @@
       "removeQueryParam": "Remove query param",
       "keyPlaceholder": "Key",
       "valuePlaceholder": "Value",
-      "modelKindSuggestionDetail": "{model} looks more compatible with {suggested}. Current type is {current}.",
+      "modelKindSuggestionDetail": "{model} hợp với {suggested} hơn. Loại hiện tại là {current}.",
       "applySuggestedKind": "Apply suggestion",
       "keepCurrentKind": "Keep current type",
       "kindChangeApplied": "LLM tùy chỉnh type updated. You can undo this change briefly.",
@@ -1150,13 +1150,13 @@
     },
     "backup": {
       "title": "Sao lưu & dữ liệu",
-      "exportSection": "Xuất bản sao lưu",
+      "exportSection": "Sao lưu ra tệp",
       "exportDescription": "Tạo bản sao lưu các cuộc hội thoại và cài đặt nhà cung cấp của bạn.",
       "exportPrivateCatalogNotice": "Tệp này bao gồm danh sách mô hình riêng tư của LLM tùy chỉnh của bạn. Khóa API không bao giờ được đưa vào.",
       "password": "Mật khẩu",
       "confirmPassword": "Xác nhận mật khẩu",
       "includeApiKeys": "Bao gồm khóa API",
-      "export": "Xuất khẩu",
+      "export": "Xuất tệp sao lưu",
       "exporting": "Đang xuất…",
       "exportFailed": "Xuất không thành công. Vui lòng thử lại.",
       "passwordTooShort": "Mật khẩu phải có ít nhất 8 ký tự",
@@ -1165,8 +1165,8 @@
       "dropZone": "Thả tập tin sao lưu vào đây hoặc nhấp để duyệt",
       "importPassword": "Mật khẩu dự phòng",
       "preview": "Xem trước",
-      "import": "Nhập khẩu",
-      "importing": "Đang nhập khẩu…",
+      "import": "Nhập tệp sao lưu",
+      "importing": "Đang nhập tệp sao lưu…",
       "importFailed": "Nhập không thành công. Vui lòng thử lại.",
       "passwordMismatch": "Mật khẩu không khớp",
       "wrongPassword": "Mật khẩu không chính xác",
@@ -1227,7 +1227,7 @@
       "resultSkillsAdded": "Skills added",
       "resultSkillsMerged": "Skills merged",
       "resultSkillsSkipped": "Skills skipped",
-      "knowledgeReuploadNotice": "Knowledge base files need to be re-uploaded before they can be used again."
+      "knowledgeReuploadNotice": "Tệp trong cơ sở kiến thức phải tải lên lại mới dùng được."
     },
     "memory": {
       "title": "Ký ức",
@@ -1590,252 +1590,252 @@
   "builtinSkills": {
     "code_assistant": {
       "name": "Trợ lý lập trình",
-      "description": "Lập trình hỏi đáp, tạo mã, gỡ lỗi",
+      "description": "Việc viết, sửa và giải thích đoạn lập trình",
       "starters": {
-        "0": "Giúp tôi gỡ lỗi mã này",
-        "1": "Viết hàm ...",
-        "2": "Giải thích cách hoạt động của mã này",
-        "3": "Cấu trúc lại cái này để dễ đọc hơn"
+        "0": "Bạn tìm giúp mình chỗ đang sai trong đoạn lập trình này",
+        "1": "Bạn viết giúp mình một hàm...",
+        "2": "Bạn giải thích giúp mình đoạn lập trình này chạy thế nào?",
+        "3": "Bạn xếp lại cấu trúc đoạn lập trình này cho dễ đọc"
       }
     },
     "code_review": {
       "name": "Đánh giá mã",
-      "description": "Đánh giá chất lượng, bảo mật và hiệu suất mã",
+      "description": "Chất lượng mã, lỗ hổng bảo mật và chỗ chạy chậm",
       "starters": {
-        "0": "Xem lại mã này để biết các vấn đề bảo mật",
-        "1": "Kiểm tra PR này để biết các vấn đề về hiệu suất",
-        "2": "Phân tích cách xử lý lỗi của hàm này",
-        "3": "Đánh giá chất lượng tổng thể của mã này"
+        "0": "Bạn đánh giá giúp mình đoạn mã này về mặt bảo mật",
+        "1": "Bạn xem PR này có vấn đề hiệu năng không?",
+        "2": "Bạn xem hàm này gặp lỗi thì xử lý thế nào?",
+        "3": "Bạn đánh giá giúp mình chất lượng chung của đoạn mã này"
       }
     },
     "sql_expert": {
       "name": "Chuyên gia SQL",
-      "description": "Truy vấn, tối ưu hóa và thiết kế lược đồ SQL",
+      "description": "Câu SQL, tăng tốc truy vấn chậm và cấu trúc bảng",
       "starters": {
-        "0": "Viết truy vấn SQL tới...",
-        "1": "Tối ưu hóa truy vấn chậm này",
-        "2": "Thiết kế sơ đồ cho...",
-        "3": "Giải thích kế hoạch thực hiện truy vấn này"
+        "0": "Bạn viết giúp mình một câu SQL...",
+        "1": "Bạn làm câu truy vấn chậm này chạy nhanh hơn",
+        "2": "Bạn thiết kế cấu trúc bảng cho...",
+        "3": "Bạn giải thích giúp mình kế hoạch thực thi câu này đang nói gì?"
       }
     },
     "git_assistant": {
       "name": "Trợ lý Git",
-      "description": "Lệnh Git, quy trình làm việc và giải quyết xung đột",
+      "description": "Lệnh Git, quy trình hằng ngày và xung đột khi gộp",
       "starters": {
-        "0": "Giúp tôi giải quyết xung đột hợp nhất này",
-        "1": "Viết một thông điệp cam kết cho những thay đổi này",
-        "2": "Làm cách nào để hoàn tác cam kết cuối cùng của tôi?",
-        "3": "Giải thích tình huống Git này"
+        "0": "Bạn gỡ giúp mình chỗ xung đột khi gộp lần này",
+        "1": "Bạn viết giúp mình dòng commit theo các thay đổi này",
+        "2": "Bạn chỉ mình cách hoàn tác commit vừa rồi",
+        "3": "Bạn giải thích giúp mình trạng thái Git hiện tại đang thế nào?"
       }
     },
     "writing_coach": {
       "name": "Huấn luyện viên viết lách",
-      "description": "Cải thiện phong cách viết, cấu trúc và sự rõ ràng",
+      "description": "Đoạn viết lách dễ đọc, rõ mạch và đúng giọng",
       "starters": {
-        "0": "Cải thiện đoạn này",
-        "1": "Làm cho điều này ngắn gọn hơn",
-        "2": "Điều chỉnh giọng điệu chuyên nghiệp hơn",
-        "3": "Kiểm tra cấu trúc của bài luận này"
+        "0": "Bạn chỉnh đoạn viết lách này cho hay hơn giúp mình",
+        "1": "Bạn viết lại đoạn này cho ngắn hơn",
+        "2": "Bạn đổi giọng đoạn này sang giọng công sở",
+        "3": "Bạn xem cấu trúc bài này có liền mạch không?"
       }
     },
     "email_assistant": {
       "name": "Trợ lý email",
-      "description": "Soạn thảo email cá nhân và doanh nghiệp chuyên nghiệp",
+      "description": "Email công việc và email riêng",
       "starters": {
-        "0": "Soạn thảo một email tiếp theo",
-        "1": "Viết lời từ chối lịch sự",
-        "2": "Trả lời email này một cách chuyên nghiệp",
-        "3": "Soạn thảo một email tiếp cận lạnh lùng"
+        "0": "Bạn soạn giúp mình email nhắc lại việc đã bàn",
+        "1": "Bạn viết giúp mình một email từ chối cho khéo",
+        "2": "Bạn trả lời email này bằng giọng công sở giúp mình",
+        "3": "Bạn soạn giúp mình một email đầu tiên gửi người mình chưa quen"
       }
     },
     "copywriting": {
       "name": "Viết quảng cáo",
-      "description": "Bản sao tiếp thị, phương tiện truyền thông xã hội và tin nhắn thương hiệu",
+      "description": "Câu quảng cáo, bài mạng xã hội và giọng thương hiệu",
       "starters": {
-        "0": "Viết mô tả sản phẩm cho...",
-        "1": "Tạo các bài đăng trên mạng xã hội về...",
-        "2": "Bản thảo quảng cáo dành cho...",
-        "3": "Viết tiêu đề hấp dẫn cho..."
+        "0": "Bạn viết lời giới thiệu cho sản phẩm...",
+        "1": "Bạn viết vài bài đăng mạng xã hội về...",
+        "2": "Bạn viết quảng cáo cho...",
+        "3": "Bạn viết một tiêu đề gây chú ý cho..."
       }
     },
     "blog_writer": {
       "name": "Người viết blog",
-      "description": "Thu hút nội dung dài và bài đăng trên blog",
+      "description": "Bài blog và bài dài cho người đọc",
       "starters": {
-        "0": "Viết một bài blog về...",
-        "1": "Tạo dàn ý cho một bài viết về...",
-        "2": "Cải thiện cấu trúc của bản dự thảo này",
-        "3": "Đề xuất ý tưởng chủ đề blog cho..."
+        "0": "Bạn viết giúp mình một bài blog về...",
+        "1": "Bạn lập dàn ý một bài về...",
+        "2": "Bạn chỉnh lại cấu trúc bản nháp này",
+        "3": "Bạn nghĩ giúp mình tiêu đề blog cho..."
       }
     },
     "translation_expert": {
       "name": "Chuyên gia dịch thuật",
-      "description": "Bản dịch chính xác giữ nguyên giọng điệu và sắc thái",
+      "description": "Dịch thuật giữ giọng và sắc thái của bản gốc",
       "starters": {
-        "0": "Dịch cái này sang tiếng Anh",
-        "1": "Dịch cái này sang tiếng Trung",
-        "2": "Dịch email này với giọng điệu chuyên nghiệp",
-        "3": "Bạn sẽ nói điều này một cách tự nhiên như thế nào trong tiếng Nhật?"
+        "0": "Bạn dịch đoạn này sang tiếng Anh giúp mình",
+        "1": "Bạn dịch đoạn này sang tiếng Trung giúp mình",
+        "2": "Bạn dịch email này và giữ giọng công sở giúp mình",
+        "3": "Câu này tiếng Nhật nói sao cho tự nhiên?"
       }
     },
     "proofreader": {
       "name": "Người soát lỗi",
-      "description": "Sửa ngữ pháp, chính tả và cải thiện sự rõ ràng",
+      "description": "Phần soát lỗi ngữ pháp, chính tả và câu chưa rõ",
       "starters": {
-        "0": "Đọc lại văn bản này",
-        "1": "Sửa lỗi ngữ pháp ở đoạn này",
-        "2": "Đánh bóng cái này để xuất bản",
-        "3": "Kiểm tra điều này để đảm bảo tính nhất quán"
+        "0": "Bạn soát lỗi đoạn này giúp mình",
+        "1": "Bạn sửa lỗi ngữ pháp trong đoạn này",
+        "2": "Bạn chỉnh giúp mình đoạn này cho gửi đi",
+        "3": "Bạn xem trước sau có khớp nhau không?"
       }
     },
     "learning_tutor": {
       "name": "Gia sư học tập",
-      "description": "Dạy kèm bệnh nhân bằng phương pháp Socrates",
+      "description": "Cách học kiên nhẫn, hỏi để tự nghĩ ra, không vội đưa đáp án",
       "starters": {
-        "0": "Giải thích cho tôi khái niệm này",
-        "1": "Giúp tôi hiểu cách... hoạt động",
-        "2": "Tôi đang bối rối về...",
-        "3": "Đố tôi về chủ đề này"
+        "0": "Bạn giảng khái niệm này cho mình nghe",
+        "1": "Bạn giúp mình hiểu cách hoạt động của...",
+        "2": "Mình đang kẹt ở...",
+        "3": "Bạn ra cho mình vài câu hỏi về chủ đề này"
       }
     },
     "research_assistant": {
       "name": "Trợ lý nghiên cứu",
-      "description": "Đánh giá tài liệu, viết học thuật và nghiên cứu",
+      "description": "Bài báo, phần viết học thuật và việc nghiên cứu",
       "starters": {
-        "0": "Tóm tắt những phát hiện chính của bài viết này",
-        "1": "Giúp mình viết phần phương pháp luận",
-        "2": "Phê phán lập luận này",
-        "3": "Đề xuất hướng nghiên cứu cho..."
+        "0": "Bạn tóm tắt phát hiện chính của bài báo này",
+        "1": "Bạn viết giúp mình phần phương pháp",
+        "2": "Bạn chỉ giúp mình chỗ lập luận này chưa ổn",
+        "3": "Bạn gợi ý hướng nghiên cứu tiếp theo cho..."
       }
     },
     "language_teacher": {
       "name": "Giáo viên ngoại ngữ",
-      "description": "Luyện tập và học ngoại ngữ",
+      "description": "Bài luyện ngoại ngữ và phần ngữ pháp",
       "starters": {
-        "0": "Hãy cùng luyện nói chuyện...",
-        "1": "Giải thích quy tắc ngữ pháp này",
-        "2": "Làm thế nào để tôi nói... một cách tự nhiên?",
-        "3": "Đố tôi về từ vựng"
+        "0": "Mình muốn luyện nói tiếng...",
+        "1": "Bạn giảng giúp mình quy tắc ngữ pháp này",
+        "2": "Bạn chỉ mình cách nói tự nhiên cho câu...",
+        "3": "Bạn ra câu hỏi từ vựng cho mình"
       }
     },
     "data_analyst": {
       "name": "Nhà phân tích dữ liệu",
-      "description": "Giải thích dữ liệu, trực quan hóa và hiểu biết sâu sắc",
+      "description": "Dữ liệu, lựa chọn biểu đồ và ý của các con số",
       "starters": {
-        "0": "Phân tích dữ liệu này và tìm thông tin chi tiết",
-        "1": "Tôi nên sử dụng biểu đồ nào cho dữ liệu này?",
-        "2": "Giúp tôi giải thích những kết quả này",
-        "3": "Viết tóm tắt phân tích này"
+        "0": "Bạn phân tích dữ liệu này và nói cho mình biết nó cho thấy gì",
+        "1": "Dữ liệu này nên vẽ biểu đồ gì?",
+        "2": "Bạn giúp mình đọc các kết quả này",
+        "3": "Bạn viết một đoạn tóm tắt cho lần phân tích này"
       }
     },
     "math_tutor": {
       "name": "Gia sư Toán",
-      "description": "Giải bài toán theo từng bước",
+      "description": "Lời giải từng bước cho bài Toán",
       "starters": {
-        "0": "Giải quyết từng bước này",
-        "1": "Giải thích khái niệm toán học này",
-        "2": "Kiểm tra xem giải pháp của tôi có đúng không",
-        "3": "Giúp mình chứng minh này"
+        "0": "Bạn giải bài này từng bước giúp mình",
+        "1": "Bạn giảng giúp mình khái niệm Toán này",
+        "2": "Bạn xem lời giải của mình đã đúng chưa?",
+        "3": "Bạn giúp mình làm chứng minh này"
       }
     },
     "document_summarizer": {
       "name": "Tóm tắt tài liệu",
-      "description": "Tóm tắt tài liệu và trích xuất các điểm chính",
+      "description": "Bản tóm tắt tài liệu cho gọn, kèm ý chính",
       "starters": {
-        "0": "Tóm tắt tài liệu này",
-        "1": "Trích xuất các quyết định quan trọng từ đây",
-        "2": "Các mục hành động ở đây là gì?",
-        "3": "Hãy tóm tắt cho tôi 3 câu"
+        "0": "Bạn tóm tắt tài liệu này giúp mình",
+        "1": "Bạn rút những quyết định đã có trong này",
+        "2": "Trong này có những việc gì cần làm?",
+        "3": "Bạn tóm tắt trong 3 câu"
       }
     },
     "brainstorm": {
       "name": "Động não",
-      "description": "Tạo ý tưởng và khám phá các khả năng",
+      "description": "Ý tưởng và những khả năng khi động não",
       "starters": {
-        "0": "Hãy giúp tôi lên ý tưởng cho...",
-        "1": "Hãy cho tôi 10 cách tiếp cận sáng tạo để...",
-        "2": "Đâu là giải pháp độc đáo cho...",
-        "3": "Giúp tôi đánh giá các lựa chọn này"
+        "0": "Bạn động não giúp mình về...",
+        "1": "Bạn đưa 10 cách khác nhau cho...",
+        "2": "Có cách nào không theo lối cũ cho...",
+        "3": "Bạn so sánh giúp mình các lựa chọn này"
       }
     },
     "story_creator": {
       "name": "Người sáng tác truyện",
-      "description": "Viết tiểu thuyết, kể chuyện và xây dựng thế giới",
+      "description": "Truyện sáng tác, lời kể và thế giới của truyện",
       "starters": {
-        "0": "Giúp tôi phát triển nhân vật này",
-        "1": "Tiếp tục câu chuyện này",
-        "2": "Tạo thế giới cho câu chuyện của tôi",
-        "3": "Cải thiện cuộc đối thoại này"
+        "0": "Bạn viết nhân vật này cho có da có thịt hơn",
+        "1": "Bạn viết tiếp truyện này",
+        "2": "Bạn dựng thế giới cho truyện của mình",
+        "3": "Bạn chỉnh giúp mình đoạn đối thoại này"
       }
     },
     "meeting_notes": {
       "name": "Ghi chú cuộc họp",
-      "description": "Chuyển đổi bản ghi cuộc họp thành bản tóm tắt có cấu trúc",
+      "description": "Ghi chú cuộc họp xếp thành biên bản rõ mạch",
       "starters": {
-        "0": "Biến những ghi chú này thành bản tóm tắt cuộc họp",
-        "1": "Trích xuất các mục hành động từ bản ghi này",
-        "2": "Tổ chức các điểm thảo luận này",
-        "3": "Viết email tiếp theo từ những ghi chú này"
+        "0": "Bạn xếp các ghi chú này thành biên bản cuộc họp",
+        "1": "Bạn rút các việc cần làm từ bản chép lời này",
+        "2": "Bạn xếp lại các ý đã bàn cho có mạch",
+        "3": "Bạn soạn email nhắc lại dựa trên các ghi chú này"
       }
     },
     "interview_coach": {
       "name": "Huấn luyện viên phỏng vấn",
-      "description": "Chuẩn bị phỏng vấn xin việc và phỏng vấn thử",
+      "description": "Buổi luyện phỏng vấn xin việc, gồm cả phỏng vấn thử",
       "starters": {
-        "0": "Giả vờ phỏng vấn tôi cho vị trí kỹ sư phần mềm",
-        "1": "Giúp tôi trả lời 'Hãy kể cho tôi nghe về bản thân bạn'",
-        "2": "Thực hành các câu hỏi phỏng vấn hành vi",
-        "3": "Xem lại câu trả lời của tôi cho câu hỏi này"
+        "0": "Bạn phỏng vấn thử mình cho vị trí kỹ sư phần mềm",
+        "1": "Bạn giúp mình chuẩn bị câu giới thiệu bản thân khi phỏng vấn",
+        "2": "Bạn luyện cùng mình câu hỏi phỏng vấn hành vi",
+        "3": "Bạn xem giúp mình phần mình vừa trả lời"
       }
     },
     "presentation_outliner": {
       "name": "Dàn ý thuyết trình",
-      "description": "Dàn ý bài thuyết trình, các điểm thảo luận và nội dung slide",
+      "description": "Dàn ý thuyết trình, ý cần nói và chữ trên trang chiếu",
       "starters": {
-        "0": "Tạo dàn ý cho bài thuyết trình...",
-        "1": "Giúp tôi sắp xếp một bài nói chuyện dài 10 phút",
-        "2": "Viết ghi chú của người thuyết trình cho slide này",
-        "3": "Đề xuất hình ảnh cho bài thuyết trình này"
+        "0": "Bạn lập dàn ý thuyết trình về...",
+        "1": "Bạn dựng giúp mình cấu trúc cho bài thuyết trình 10 phút",
+        "2": "Bạn viết gợi ý lời nói cho trang chiếu này",
+        "3": "Bạn gợi ý bài thuyết trình này nên kèm hình gì"
       }
     },
     "recipe_assistant": {
       "name": "Trợ lý công thức nấu ăn",
-      "description": "Công thức nấu ăn, kỹ thuật nấu ăn và lập kế hoạch bữa ăn",
+      "description": "Công thức nấu ăn, cách làm và bữa ăn cả tuần",
       "starters": {
-        "0": "Tôi có thể làm gì với những nguyên liệu này?",
-        "1": "Hãy cho tôi một công thức nấu bữa tối cuối tuần nhanh chóng",
-        "2": "Làm cách nào để thay thế... trong công thức này?",
-        "3": "Lên kế hoạch bữa ăn cho tuần này"
+        "0": "Với nguyên liệu đang có, mình nấu được món gì?",
+        "1": "Bạn cho mình một công thức bữa tối nấu nhanh sau giờ làm",
+        "2": "Trong món này, thay gì cho...",
+        "3": "Bạn xếp bữa ăn cả tuần cho mình"
       }
     },
     "travel_planner": {
       "name": "Lên kế hoạch du lịch",
-      "description": "Hành trình du lịch và gợi ý điểm đến",
+      "description": "Lịch trình du lịch và gợi ý điểm đến",
       "starters": {
-        "0": "Lên kế hoạch cho chuyến đi 5 ngày tới...",
-        "1": "Tôi nên xem gì ở...?",
-        "2": "Lập kế hoạch ngân sách cho...",
-        "3": "Thời gian nào là tốt nhất để ghé thăm...?"
+        "0": "Bạn lên kế hoạch du lịch 5 ngày tới...",
+        "1": "Nên xem gì khi tới...",
+        "2": "Bạn lên kế hoạch du lịch ít tốn tới...",
+        "3": "Thời điểm nào đẹp nhất để tới..."
       }
     },
     "fitness_coach": {
       "name": "Huấn luyện viên thể hình",
-      "description": "Kế hoạch tập luyện, bài tập và hướng dẫn dinh dưỡng",
+      "description": "Kế hoạch tập thể hình, động tác và các bữa ăn",
       "starters": {
-        "0": "Lập kế hoạch tập luyện cho...",
-        "1": "Gợi ý các bài tập...",
-        "2": "Giúp tôi lập kế hoạch bữa ăn",
-        "3": "Làm thế nào để tôi thực hiện bài tập này một cách chính xác?"
+        "0": "Bạn lập kế hoạch tập cho mục tiêu...",
+        "1": "Bạn gợi ý động tác thể hình cho...",
+        "2": "Bạn sắp xếp giúp mình các bữa ăn",
+        "3": "Động tác này làm thế nào cho đúng?"
       }
     },
     "image_analyst": {
       "name": "Nhà phân tích hình ảnh",
-      "description": "Mô tả, phân tích và trích xuất thông tin từ hình ảnh",
+      "description": "Lời mô tả hình ảnh, chữ và số liệu rút từ ảnh",
       "starters": {
-        "0": "Mô tả chi tiết hình ảnh này",
-        "1": "Trích xuất văn bản từ hình ảnh này",
-        "2": "Biểu đồ này hiển thị dữ liệu gì?",
-        "3": "Phân tích bố cục của bức ảnh này"
+        "0": "Bạn mô tả kỹ hình ảnh này giúp mình",
+        "1": "Bạn rút chữ trong hình này ra",
+        "2": "Số liệu trên biểu đồ này đang nói gì?",
+        "3": "Bạn phân tích bố cục bức ảnh này"
       }
     },
     "category": {
@@ -1930,9 +1930,9 @@
   },
   "mobileHome": {
     "title": "Home",
-    "greeting": "What can I help you with?",
+    "greeting": "Hôm nay bạn muốn làm gì?",
     "greetingName": "Hi, {name}",
-    "subtitle": "All your models, one app.",
+    "subtitle": "Một app cho các mô hình của chính bạn.",
     "quickStart": "Quick start",
     "newChat": "New Chat",
     "composerPlaceholder": "Ask anything...",

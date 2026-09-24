@@ -1448,4 +1448,7 @@
     </plurals>
     <string name="secure_field_show">Eingabe anzeigen</string>
     <string name="secure_field_hide">Eingabe ausblenden</string>
+    <string name="generation_parameter_name_stop">Stoppsequenzen</string>
+    <string name="generation_diagnostics_section">Diagnose der Generierungseinstellungen</string>
+    <string name="generation_diagnostics_empty">Du hast noch keine Diagnoseeinträge</string>
 </resources>

@@ -2786,7 +2786,7 @@
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "बैकअप निर्यात करें"
+            "value": "बैकअप फ़ाइल सहेजें"
           }
         },
         "id": {
@@ -2834,7 +2834,7 @@
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Xuất bản sao lưu"
+            "value": "Xuất tệp sao lưu"
           }
         },
         "zh-Hans": {
@@ -3522,7 +3522,7 @@
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "يستورد"
+            "value": "استيراد"
           }
         },
         "de": {
@@ -3546,7 +3546,7 @@
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "आयात"
+            "value": "फ़ाइल लाएँ"
           }
         },
         "id": {
@@ -3558,13 +3558,13 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "輸入"
+            "value": "インポート"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "수입"
+            "value": "가져오기"
           }
         },
         "pt-BR": {
@@ -3588,13 +3588,13 @@
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "İçe aktarmak"
+            "value": "İçe aktar"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Nhập khẩu"
+            "value": "Nhập"
           }
         },
         "zh-Hans": {
@@ -3606,7 +3606,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "進口"
+            "value": "匯入"
           }
         }
       }
