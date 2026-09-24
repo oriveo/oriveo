@@ -1275,7 +1275,7 @@
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "जोड़ना"
+            "value": "जोड़ें"
           }
         },
         "id": {
@@ -3419,7 +3419,7 @@
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "बात करना"
+            "value": "चैट"
           }
         },
         "id": {
@@ -4577,7 +4577,7 @@
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "जारी रखना"
+            "value": "जारी रखें"
           }
         },
         "id": {
@@ -5355,7 +5355,7 @@
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "अँधेरा"
+            "value": "डार्क"
           }
         },
         "id": {
@@ -5450,7 +5450,7 @@
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "गलती करना"
+            "value": "डिफ़ॉल्ट"
           }
         },
         "id": {
@@ -5937,7 +5937,7 @@
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "खारिज करना"
+            "value": "खारिज करें"
           }
         },
         "id": {
@@ -6032,7 +6032,7 @@
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "नकार देना"
+            "value": "बंद करें"
           }
         },
         "id": {
@@ -6424,7 +6424,7 @@
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "संपादन करना"
+            "value": "संपादित करें"
           }
         },
         "id": {
@@ -9299,7 +9299,7 @@
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "सिस्टम का पालन करें"
+            "value": "सिस्टम के अनुसार"
           }
         },
         "id": {
@@ -12043,7 +12043,7 @@
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "रोशनी"
+            "value": "लाइट"
           }
         },
         "id": {
@@ -18837,7 +18837,7 @@
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "शेयर करना"
+            "value": "शेयर करें"
           }
         },
         "id": {
@@ -19918,7 +19918,7 @@
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "बदलना"
+            "value": "बदलें"
           }
         },
         "id": {

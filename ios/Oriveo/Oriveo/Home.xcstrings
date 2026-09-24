@@ -1296,7 +1296,7 @@
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "अचयनित"
+            "value": "चयन हटाएँ"
           }
         },
         "id": {
@@ -3761,7 +3761,7 @@
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "चुनना"
+            "value": "चुनें"
           }
         },
         "id": {
