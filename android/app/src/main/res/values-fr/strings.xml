@@ -388,6 +388,7 @@
     <string name="error_generic_message">Une erreur inattendue s\'est produite.</string>
     <string name="error_generic_title">Une erreur est survenue</string>
     <string name="export_backup_title">Exporter</string>
+    <string name="generation_diagnostics_export">Exporter les diagnostics</string>
     <string name="file_unavailable">Disponible uniquement sur l\'appareil d\'origine</string>
     <string name="generating">Génération en cours</string>
     <string name="hide_details">Masquer les détails</string>

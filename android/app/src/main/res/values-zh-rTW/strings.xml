@@ -263,6 +263,7 @@
 
     <!-- Backup - Export -->
     <string name="export_backup_title">匯出</string>
+    <string name="generation_diagnostics_export">匯出診斷記錄</string>
     <string name="include_api_keys">包括 API 金鑰</string>
     <string name="encryption_password">加密密碼</string>
     <string name="encryption_password_placeholder">至少 8 個字符</string>

@@ -18,6 +18,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -108,6 +110,7 @@ import ai.oriveo.community.core.provider.GenerationParameterDiagnosticStore
 import org.koin.compose.koinInject
 import kotlinx.coroutines.launch
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun GenerationParameterDefaultsSheet(
     provider: Provider,
@@ -629,13 +632,15 @@ fun GenerationParameterDefaultsSheet(
                         }
                     }
                     if (diagnostics.isNotEmpty()) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        // "Export diagnostics" varies a lot in length across languages: when it does not fit, the
+                        // whole button wraps to the next line instead of squeezing the Delete button next to it
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             TextButton(colors = modelControlTextButtonColors(), onClick = {
                                 launchExternalActivityOrNotify(context) {
                                     exportDiagnostics.launch("oriveo-generation-diagnostics.redacted.json")
                                 }
                             }) {
-                                Text(stringResource(R.string.export_backup_title))
+                                Text(stringResource(R.string.generation_diagnostics_export))
                             }
                             TextButton(colors = modelControlTextButtonColors(), onClick = {
                                 GenerationParameterDiagnosticStore.clear()

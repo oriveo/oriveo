@@ -279,6 +279,7 @@
     <string name="all_models_enabled">सभी मॉडल पहले से ही सक्षम हैं</string>
     <string name="no_matching_models">कोई मेल खाता मॉडल नहीं मिला</string>
     <string name="export_backup_title">निर्यात</string>
+    <string name="generation_diagnostics_export">डायग्नोस्टिक इतिहास निर्यात करें</string>
     <string name="include_api_keys">API कुंजियाँ शामिल करें</string>
     <string name="encryption_password">एन्क्रिप्शन पासवर्ड</string>
     <string name="encryption_password_placeholder">कम से कम 8 अक्षर</string>

@@ -157,6 +157,7 @@
     "saveConnectionDefaults": "Usar como padrão da conexão",
     "generationDiagnosticsHistory": "Histórico de diagnóstico",
     "generationDiagnosticsEmpty": "Ainda não há eventos de diagnóstico.",
+    "generationDiagnosticsExport": "Exportar diagnósticos",
     "generationGroupBudget": "Limite de saída",
     "generationGroupReasoning": "Raciocínio",
     "generationGroupSampling": "Amostragem",

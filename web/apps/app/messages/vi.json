@@ -157,6 +157,7 @@
     "saveConnectionDefaults": "Dùng làm mặc định kết nối",
     "generationDiagnosticsHistory": "Lịch sử chẩn đoán",
     "generationDiagnosticsEmpty": "Chưa có sự kiện chẩn đoán.",
+    "generationDiagnosticsExport": "Xuất lịch sử chẩn đoán",
     "generationGroupBudget": "Giới hạn đầu ra",
     "generationGroupReasoning": "Suy luận",
     "generationGroupSampling": "Lấy mẫu",

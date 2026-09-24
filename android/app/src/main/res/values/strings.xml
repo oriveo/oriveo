@@ -456,6 +456,7 @@
 
     <!-- Backup - Export -->
     <string name="export_backup_title">Export</string>
+    <string name="generation_diagnostics_export">Export diagnostics</string>
     <string name="include_api_keys">Include API Keys</string>
     <string name="encryption_password">Encryption Password</string>
     <string name="encryption_password_placeholder">At least 8 characters</string>

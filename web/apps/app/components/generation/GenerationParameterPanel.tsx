@@ -578,7 +578,7 @@ export function GenerationParameterPanel({
               anchor.download = 'oriveo-generation-diagnostics.redacted.json';
               anchor.click();
               URL.revokeObjectURL(url);
-            }}>{backupT('export')}</button>
+            }}>{tc('generationDiagnosticsExport')}</button>
             <button type="button" onClick={() => {
               clearGenerationParameterDiagnostics();
               setDiagnosticRevision((revision) => revision + 1);

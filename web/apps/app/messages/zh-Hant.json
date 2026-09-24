@@ -157,6 +157,7 @@
     "saveConnectionDefaults": "設為連接預設",
     "generationDiagnosticsHistory": "診斷歷史",
     "generationDiagnosticsEmpty": "暫無診斷記錄。",
+    "generationDiagnosticsExport": "匯出診斷記錄",
     "generationGroupBudget": "輸出與停止",
     "generationGroupReasoning": "推理控制",
     "generationGroupSampling": "採樣策略",

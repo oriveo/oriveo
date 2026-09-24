@@ -157,6 +157,7 @@
     "saveConnectionDefaults": "연결 기본값으로 사용",
     "generationDiagnosticsHistory": "진단 기록",
     "generationDiagnosticsEmpty": "아직 진단 이벤트가 없습니다.",
+    "generationDiagnosticsExport": "진단 기록 내보내기",
     "generationGroupBudget": "출력 한도",
     "generationGroupReasoning": "추론",
     "generationGroupSampling": "샘플링",

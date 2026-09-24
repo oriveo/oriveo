@@ -389,6 +389,7 @@
     <string name="error_generic_message">Ocurrió un error inesperado.</string>
     <string name="error_generic_title">Algo salió mal</string>
     <string name="export_backup_title">Exportar</string>
+    <string name="generation_diagnostics_export">Exportar diagnósticos</string>
     <string name="file_unavailable">Solo disponible en el dispositivo original</string>
     <string name="generating">Generando</string>
     <string name="hide_details">Ocultar detalles</string>

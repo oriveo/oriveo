@@ -332,6 +332,7 @@
     <string name="error_generic_message">حدث خطأ غير متوقع.</string>
     <string name="error_generic_title">حدث خطأ ما</string>
     <string name="export_backup_title">تصدير</string>
+    <string name="generation_diagnostics_export">تصدير سجل التشخيص</string>
     <string name="file_unavailable">متاح على الجهاز الأصلي فقط</string>
     <string name="generating">جارٍ الإنشاء</string>
     <string name="hide_details">إخفاء التفاصيل</string>

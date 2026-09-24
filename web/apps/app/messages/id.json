@@ -157,6 +157,7 @@
     "saveConnectionDefaults": "Gunakan sebagai default koneksi",
     "generationDiagnosticsHistory": "Riwayat diagnostik",
     "generationDiagnosticsEmpty": "Belum ada peristiwa diagnostik.",
+    "generationDiagnosticsExport": "Ekspor riwayat diagnostik",
     "generationGroupBudget": "Batas Output",
     "generationGroupReasoning": "Penalaran",
     "generationGroupSampling": "Sampling",

@@ -390,6 +390,7 @@
     <string name="error_generic_message">予期しないエラーが発生しました。</string>
     <string name="error_generic_title">エラーが発生しました</string>
     <string name="export_backup_title">エクスポート</string>
+    <string name="generation_diagnostics_export">診断履歴をエクスポート</string>
     <string name="file_unavailable">元のデバイスでのみ利用可能</string>
     <string name="generating">生成中</string>
     <string name="hide_details">詳細を隠す</string>

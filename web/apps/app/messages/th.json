@@ -157,6 +157,7 @@
     "saveConnectionDefaults": "ใช้เป็นค่าเริ่มต้นของการเชื่อมต่อ",
     "generationDiagnosticsHistory": "ประวัติการวินิจฉัย",
     "generationDiagnosticsEmpty": "ยังไม่มีเหตุการณ์วินิจฉัย",
+    "generationDiagnosticsExport": "ส่งออกประวัติการวินิจฉัย",
     "generationGroupBudget": "ขีดจำกัดผลลัพธ์",
     "generationGroupReasoning": "การใช้เหตุผล",
     "generationGroupSampling": "การสุ่มตัวอย่าง",

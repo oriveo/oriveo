@@ -279,6 +279,7 @@
     <string name="all_models_enabled">Tüm modeller zaten etkindir</string>
     <string name="no_matching_models">Eşleşen model bulunamadı</string>
     <string name="export_backup_title">İhracat</string>
+    <string name="generation_diagnostics_export">Tanılama kayıtlarını dışa aktar</string>
     <string name="include_api_keys">API Anahtarlarını Ekle</string>
     <string name="encryption_password">Şifreleme Şifresi</string>
     <string name="encryption_password_placeholder">En az 8 karakter</string>

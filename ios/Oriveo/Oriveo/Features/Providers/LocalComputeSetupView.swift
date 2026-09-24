@@ -655,9 +655,11 @@ struct LocalComputeSetupView: View {
         switch action {
         case .editAddress: L10n.tr("Request URL", table: .providers)
         case .chooseEngine: L10n.tr("Engine", table: .providers)
-        case .chooseModel: L10n.tr("Model", table: .providers)
+        // shortenContext does the same as chooseModel (clears the error and focuses the model field, see
+        // performRecovery), so it gets the same title
+        case .chooseModel, .shortenContext: L10n.tr("Model", table: .providers)
         case .openSettings: L10n.tr("Settings")
-        case .waitAndRetry, .startEngine, .freeMemory, .shortenContext: L10n.tr("Retry")
+        case .waitAndRetry, .startEngine, .freeMemory: L10n.tr("Retry")
         }
     }
 

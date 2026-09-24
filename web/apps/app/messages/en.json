@@ -157,6 +157,7 @@
     "saveConnectionDefaults": "Use as connection defaults",
     "generationDiagnosticsHistory": "Diagnostic history",
     "generationDiagnosticsEmpty": "No diagnostic events yet.",
+    "generationDiagnosticsExport": "Export diagnostics",
     "generationGroupBudget": "Output Budget",
     "generationGroupReasoning": "Reasoning",
     "generationGroupSampling": "Sampling",

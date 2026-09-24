@@ -157,6 +157,7 @@
     "saveConnectionDefaults": "कनेक्शन डिफ़ॉल्ट के रूप में उपयोग करें",
     "generationDiagnosticsHistory": "डायग्नोस्टिक इतिहास",
     "generationDiagnosticsEmpty": "अभी कोई डायग्नोस्टिक इवेंट नहीं है।",
+    "generationDiagnosticsExport": "डायग्नोस्टिक इतिहास निर्यात करें",
     "generationGroupBudget": "आउटपुट सीमा",
     "generationGroupReasoning": "रीज़निंग",
     "generationGroupSampling": "सैंपलिंग",

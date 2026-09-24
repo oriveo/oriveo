@@ -279,6 +279,7 @@
     <string name="all_models_enabled">Semua model sudah diaktifkan</string>
     <string name="no_matching_models">Tidak ditemukan model yang cocok</string>
     <string name="export_backup_title">Ekspor</string>
+    <string name="generation_diagnostics_export">Ekspor riwayat diagnostik</string>
     <string name="include_api_keys">Sertakan Kunci API</string>
     <string name="encryption_password">Kata Sandi Enkripsi</string>
     <string name="encryption_password_placeholder">Setidaknya 8 karakter</string>

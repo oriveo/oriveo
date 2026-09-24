@@ -279,6 +279,7 @@
     <string name="all_models_enabled">Все модели уже включены</string>
     <string name="no_matching_models">Подходящих моделей не найдено</string>
     <string name="export_backup_title">Экспорт</string>
+    <string name="generation_diagnostics_export">Экспортировать историю диагностики</string>
     <string name="include_api_keys">Включить ключи API</string>
     <string name="encryption_password">Пароль шифрования</string>
     <string name="encryption_password_placeholder">Минимум 8 символов</string>

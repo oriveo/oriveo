@@ -157,6 +157,7 @@
     "saveConnectionDefaults": "استخدام كإعدادات اتصال افتراضية",
     "generationDiagnosticsHistory": "سجل التشخيص",
     "generationDiagnosticsEmpty": "لا توجد أحداث تشخيص بعد.",
+    "generationDiagnosticsExport": "تصدير سجل التشخيص",
     "generationGroupBudget": "حد الإخراج",
     "generationGroupReasoning": "الاستدلال",
     "generationGroupSampling": "أخذ العينات",

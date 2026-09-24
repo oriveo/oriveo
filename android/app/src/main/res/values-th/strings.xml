@@ -279,6 +279,7 @@
     <string name="all_models_enabled">เปิดใช้งานทุกรุ่นแล้ว</string>
     <string name="no_matching_models">ไม่พบรุ่นที่ตรงกัน</string>
     <string name="export_backup_title">ส่งออก</string>
+    <string name="generation_diagnostics_export">ส่งออกประวัติการวินิจฉัย</string>
     <string name="include_api_keys">รวมคีย์ API</string>
     <string name="encryption_password">รหัสผ่านการเข้ารหัส</string>
     <string name="encryption_password_placeholder">อย่างน้อย 8 ตัวอักษร</string>

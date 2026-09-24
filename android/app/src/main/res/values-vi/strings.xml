@@ -279,6 +279,7 @@
     <string name="all_models_enabled">Tất cả các mô hình đã được kích hoạt</string>
     <string name="no_matching_models">Không tìm thấy mô hình phù hợp</string>
     <string name="export_backup_title">Xuất khẩu</string>
+    <string name="generation_diagnostics_export">Xuất lịch sử chẩn đoán</string>
     <string name="include_api_keys">Bao gồm khóa API</string>
     <string name="encryption_password">Mật khẩu mã hóa</string>
     <string name="encryption_password_placeholder">Ít nhất 8 ký tự</string>

@@ -157,6 +157,7 @@
     "saveConnectionDefaults": "设为连接默认",
     "generationDiagnosticsHistory": "诊断历史",
     "generationDiagnosticsEmpty": "暂无诊断记录。",
+    "generationDiagnosticsExport": "导出诊断记录",
     "generationGroupBudget": "输出与停止",
     "generationGroupReasoning": "推理控制",
     "generationGroupSampling": "采样策略",

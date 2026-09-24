@@ -157,6 +157,7 @@
     "saveConnectionDefaults": "Utiliser par défaut pour la connexion",
     "generationDiagnosticsHistory": "Historique de diagnostic",
     "generationDiagnosticsEmpty": "Aucun diagnostic pour le moment.",
+    "generationDiagnosticsExport": "Exporter les diagnostics",
     "generationGroupBudget": "Limite de sortie",
     "generationGroupReasoning": "Raisonnement",
     "generationGroupSampling": "Échantillonnage",

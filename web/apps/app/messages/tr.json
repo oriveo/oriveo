@@ -157,6 +157,7 @@
     "saveConnectionDefaults": "Bağlantı varsayılanı olarak kullan",
     "generationDiagnosticsHistory": "Tanılama geçmişi",
     "generationDiagnosticsEmpty": "Henüz tanılama olayı yok.",
+    "generationDiagnosticsExport": "Tanılama kayıtlarını dışa aktar",
     "generationGroupBudget": "Çıktı Sınırı",
     "generationGroupReasoning": "Akıl Yürütme",
     "generationGroupSampling": "Örnekleme",

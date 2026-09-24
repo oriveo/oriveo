@@ -389,6 +389,7 @@
     <string name="error_generic_message">Ein unerwarteter Fehler ist aufgetreten.</string>
     <string name="error_generic_title">Etwas ist schiefgelaufen</string>
     <string name="export_backup_title">Exportieren</string>
+    <string name="generation_diagnostics_export">Diagnoseverlauf exportieren</string>
     <string name="file_unavailable">Nur auf dem Originalgerät verfügbar</string>
     <string name="generating">Wird generiert</string>
     <string name="hide_details">Details ausblenden</string>

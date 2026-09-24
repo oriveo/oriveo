@@ -157,6 +157,7 @@
     "saveConnectionDefaults": "接続の既定値に設定",
     "generationDiagnosticsHistory": "診断履歴",
     "generationDiagnosticsEmpty": "診断イベントはまだありません。",
+    "generationDiagnosticsExport": "診断履歴をエクスポート",
     "generationGroupBudget": "出力上限",
     "generationGroupReasoning": "推論",
     "generationGroupSampling": "サンプリング",

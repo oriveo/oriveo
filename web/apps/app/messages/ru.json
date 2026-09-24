@@ -157,6 +157,7 @@
     "saveConnectionDefaults": "Использовать для подключения по умолчанию",
     "generationDiagnosticsHistory": "История диагностики",
     "generationDiagnosticsEmpty": "Диагностических событий пока нет.",
+    "generationDiagnosticsExport": "Экспортировать историю диагностики",
     "generationGroupBudget": "Лимит вывода",
     "generationGroupReasoning": "Рассуждение",
     "generationGroupSampling": "Сэмплирование",

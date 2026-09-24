@@ -390,6 +390,7 @@
     <string name="error_generic_message">예기치 않은 오류가 발생했습니다.</string>
     <string name="error_generic_title">오류가 발생했습니다</string>
     <string name="export_backup_title">내보내기</string>
+    <string name="generation_diagnostics_export">진단 기록 내보내기</string>
     <string name="file_unavailable">원본 기기에서만 사용 가능</string>
     <string name="generating">생성 중</string>
     <string name="hide_details">세부 정보 숨기기</string>
