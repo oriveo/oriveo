@@ -6,7 +6,7 @@ struct ProviderWatermarkSymbolTests {
 
     @Test("Unified Provider Assets Are Not Opaque Tiles")
     func unifiedProviderAssetsAreNotOpaqueTiles() {
-        let officialKinds = ProviderKind.allCases.filter { ![.relay, .openAI, .openAI].contains($0) }
+        let officialKinds = ProviderKind.allCases.filter { $0 != .relay }
         #expect(officialKinds.allSatisfy { !$0.brandLogoIsOpaqueTile })
     }
 

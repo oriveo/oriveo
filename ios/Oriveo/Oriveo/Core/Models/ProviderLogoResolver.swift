@@ -86,7 +86,6 @@ enum ProviderLogoResolver {
         if containsAny(hints, ["minimax", "minimaxi"]) { return .miniMax }
         if containsAny(hints, ["zhipu", "z.ai", "bigmodel", "glm"]) { return .zhipu }
         if containsAny(hints, ["siliconflow"]) { return .siliconFlow }
-        if containsAny(hints, ["oriveo"]) { return .openAI }
 
         return provider.relayKind.flatMap(logoKind(for:)) ?? .relay
     }

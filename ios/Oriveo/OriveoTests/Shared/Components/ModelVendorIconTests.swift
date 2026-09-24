@@ -30,8 +30,6 @@ struct ModelVendorIconTests {
     @Test("All Badge Assets Use Full Canvas")
     func allBadgeAssetsUseFullCanvas() {
         #expect(ProviderBadgeLogoMetrics.contentScale(for: .openAI) == 1)
-        #expect(ProviderBadgeLogoMetrics.contentScale(for: .openAI) == 1)
-        #expect(ProviderBadgeLogoMetrics.contentScale(for: .openAI) == 1)
     }
 
     @Test("Unified Provider Assets Exist")

@@ -53,4 +53,21 @@ struct ProviderLogoResolverTests {
         // One initial inference plus six real input changes; equal contents in new storage do not count.
         #expect(ProviderLogoResolver.computationCountForTesting(providerID: id) == 7)
     }
+
+    /// A relay whose name or address mentions the app itself says nothing about the upstream
+    /// vendor, so it must fall back to the relay's protocol instead of borrowing a vendor logo.
+    @Test("a relay that mentions the app name keeps its own fallback logo")
+    func relayMentioningAppNameKeepsFallbackLogo() {
+        var provider = TestFactories.makeProvider(
+            kind: .relay,
+            models: [],
+            baseURLText: "https://oriveo-relay.example.com/v1",
+            customName: "Oriveo Home Relay"
+        )
+        provider.relayKind = .custom
+        #expect(ProviderLogoResolver.logoKind(for: provider) == .relay)
+
+        provider.relayKind = .anthropicCompatible
+        #expect(ProviderLogoResolver.logoKind(for: provider) == .anthropic)
+    }
 }
