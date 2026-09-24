@@ -4,6 +4,7 @@ import { memo, useState, useCallback, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import type { ChatMessage, Attachment, Conversation, Provider } from "@oriveo/shared";
+import { Maximize2 } from "lucide-react";
 import { MarkdownRenderer } from "./MarkdownRenderer";
 import { MessageActions } from "./MessageActions";
 import { TypingIndicator } from "./TypingIndicator";
@@ -53,6 +54,11 @@ import { isLibraryFeatureEnabled } from "../../lib/core/library/feature-flag";
 import { CUSTOM_FRAGMENT_ERROR_KIND } from "../../lib/core/chat/custom-fragment-rejection";
 import { QuoteContextChip } from "./QuoteContextChip";
 import { UnhandledToolCallCard } from "./UnhandledToolCallCard";
+import { UserMessageFullTextDialog } from "./UserMessageFullTextDialog";
+import {
+  shouldFoldUserMessage,
+  userMessagePreview,
+} from "../../lib/core/chat/user-message-fold";
 import styles from "./MessageBubble.module.css";
 
 function hasActiveTextSelectionInside(element: HTMLElement): boolean {
@@ -131,6 +137,16 @@ export const MessageBubble = memo(function MessageBubble({
   const isFailed = message.state === "failed";
   const isInterrupted = message.state === "interrupted";
   const isWaitingForResponse = message.state === "generating" && !displayText;
+  // Very long user messages fold (see user-message-fold.ts): the bubble renders only a prefix and
+  // the full text opens in a dialog.
+  const foldedPreview = useMemo(
+    () =>
+      message.role === "user" && shouldFoldUserMessage(displayText)
+        ? userMessagePreview(displayText)
+        : null,
+    [message.role, displayText],
+  );
+  const [showFullText, setShowFullText] = useState(false);
 
   // While streaming, resolve the conversation id from message.id so MessageBubble can subscribe to
   // streamingReasoningText from the store itself, with no prop drilling.
@@ -519,6 +535,22 @@ export const MessageBubble = memo(function MessageBubble({
                       : undefined
                   }
                 />
+              ) : foldedPreview !== null ? (
+                <>
+                  <span data-quote-block="prose" className={styles.foldedText}>
+                    {foldedPreview}
+                  </span>
+                  <span className={styles.showFullTextRow}>
+                    <button
+                      type="button"
+                      className={styles.showFullText}
+                      onClick={() => setShowFullText(true)}
+                    >
+                      <Maximize2 size={12} strokeWidth={2.4} aria-hidden />
+                      {t("showFullMessage")}
+                    </button>
+                  </span>
+                </>
               ) : (
                 <span data-quote-block="prose">{displayText}</span>
               )}
@@ -660,6 +692,13 @@ export const MessageBubble = memo(function MessageBubble({
           originModel={originModel}
           providers={allProviders}
           onClose={() => setCrosscheckOpen(false)}
+        />
+      ) : null}
+      {foldedPreview !== null ? (
+        <UserMessageFullTextDialog
+          open={showFullText}
+          text={displayText}
+          onClose={() => setShowFullText(false)}
         />
       ) : null}
     </div>

@@ -373,6 +373,7 @@
       "outlineAttachmentOnly": "(Anhang)",
       "selectionAsk": "Fragen",
       "quoteFullContext": "Vollständiger Zitatkontext",
+      "showFullMessage": "Ganze Nachricht anzeigen",
       "quoteRemove": "Zitat entfernen",
       "quoteSelectedContent": "Ausgewählter Inhalt",
       "quoteSelectionTooLong": "Die Auswahl ist zu lang. Wähle einen kürzeren Abschnitt.",

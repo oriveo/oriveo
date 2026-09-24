@@ -1,0 +1,76 @@
+.panel {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-height: min(82vh, 820px);
+}
+
+/* Toolbar: copy on the leading side, close on the trailing side, as in the native full-text sheets. */
+.toolbar {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 16px 8px 20px;
+}
+
+.copy {
+  border: 0;
+  border-radius: var(--o-radius-control);
+  padding: 6px 10px;
+  margin-left: -10px;
+  background: transparent;
+  color: var(--o-primary);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.copy:hover {
+  background: color-mix(in srgb, var(--o-primary) 9%, transparent);
+}
+
+.close {
+  display: inline-flex;
+  width: 36px;
+  height: 36px;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: var(--o-radius-control);
+  background: transparent;
+  color: var(--o-text-tertiary);
+  cursor: pointer;
+}
+
+.close:hover {
+  background: color-mix(in srgb, var(--o-text) 7%, transparent);
+  color: var(--o-text);
+}
+
+.copy:focus-visible,
+.close:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--o-primary) 42%, transparent);
+  outline-offset: 2px;
+}
+
+.body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 4px 28px 28px;
+  color: var(--o-text);
+  font-size: var(--o-text-base);
+  line-height: 1.7;
+  word-break: break-word;
+}
+
+/* Lay out only visible chunks: off-screen chunks hold their place with contain-intrinsic-size until scrolled to. */
+.chunk {
+  margin: 0;
+  min-height: 1lh;
+  white-space: pre-wrap;
+  content-visibility: auto;
+  contain-intrinsic-size: auto 480px;
+}

@@ -2,6 +2,10 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ChatMessage, Provider } from "@oriveo/shared";
 import { MessageBubble } from "./MessageBubble";
+import {
+  USER_MESSAGE_FOLD_THRESHOLD,
+  userMessagePreview,
+} from "../../lib/core/chat/user-message-fold";
 
 const {
   mockCreateModelDisplayLookup,
@@ -508,6 +512,61 @@ describe("MessageBubble", () => {
       "saveAsNote",
       "editAndResend",
     ]);
+  });
+
+  it("folds an overlong user message to a bounded prefix and reads the whole text in a dialog", async () => {
+    mockCreateModelDisplayLookup.mockReturnValue({
+      resolve: vi.fn().mockReturnValue(null),
+    });
+    const long = "هذا نص عربي طويل جدا. ".repeat(10_000);
+
+    render(
+      <MessageBubble
+        message={{ ...baseMessage, role: "user", text: long }}
+        provider={provider}
+        conversationId="conv-1"
+      />,
+    );
+
+    const prose = document.querySelector('[data-quote-block="prose"]');
+    expect(prose?.textContent).toBe(userMessagePreview(long));
+    expect(screen.queryByTestId("user-message-full-text-dialog")).toBeNull();
+
+    // Copying the message still copies the full text, not the prefix shown in the bubble.
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      value: { writeText },
+      configurable: true,
+    });
+    fireEvent.contextMenu(screen.getByRole("article"));
+    const items = mockHandleContextMenu.mock.calls.at(-1)?.[1] as
+      Array<{ label: string; onAction: () => void }> | undefined;
+    items?.find((item) => item.label === "copy")?.onAction();
+    await vi.waitFor(() => expect(writeText).toHaveBeenCalledWith(long));
+
+    fireEvent.click(screen.getByRole("button", { name: "showFullMessage" }));
+    const dialog = screen.getByTestId("user-message-full-text-dialog");
+    const chunks = Array.from(dialog.querySelectorAll("p")).map((p) => p.textContent);
+    expect(chunks.length).toBeGreaterThan(50);
+    expect(chunks.join("")).toBe(long);
+  });
+
+  it("keeps user messages at the fold threshold fully rendered", () => {
+    mockCreateModelDisplayLookup.mockReturnValue({
+      resolve: vi.fn().mockReturnValue(null),
+    });
+    const text = "a".repeat(USER_MESSAGE_FOLD_THRESHOLD);
+
+    render(
+      <MessageBubble
+        message={{ ...baseMessage, role: "user", text }}
+        provider={provider}
+        conversationId="conv-1"
+      />,
+    );
+
+    expect(document.querySelector('[data-quote-block="prose"]')?.textContent).toBe(text);
+    expect(screen.queryByRole("button", { name: "showFullMessage" })).toBeNull();
   });
 
   it("does not open the whole-message context menu while text is selected inside the message", () => {

@@ -373,6 +373,7 @@
       "outlineAttachmentOnly": "(Attachment)",
       "selectionAsk": "Ask",
       "quoteFullContext": "Full quoted context",
+      "showFullMessage": "Show full message",
       "quoteRemove": "Remove quote",
       "quoteSelectedContent": "Selected content",
       "quoteSelectionTooLong": "Selection is too long. Select a shorter passage.",

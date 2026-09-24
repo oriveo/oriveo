@@ -373,6 +373,7 @@
       "outlineAttachmentOnly": "(ไฟล์แนบ)",
       "selectionAsk": "ถาม",
       "quoteFullContext": "บริบทคำอ้างอิงทั้งหมด",
+      "showFullMessage": "ดูข้อความเต็ม",
       "quoteRemove": "ลบคำอ้างอิง",
       "quoteSelectedContent": "เนื้อหาที่เลือก",
       "quoteSelectionTooLong": "ข้อความที่เลือกยาวเกินไป โปรดเลือกช่วงที่สั้นลง",

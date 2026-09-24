@@ -114,6 +114,49 @@
   color: color-mix(in srgb, var(--o-primary-active) 75%, #000);
 }
 
+/* Folded long user message: the prefix is capped at 320px and fades out over the bottom 44px. The
+ * mask only changes opacity, so what shows through is the bubble's own diagonal gradient; a solid
+ * overlay could not match both ends of the gradient. */
+.foldedText {
+  display: block;
+  max-height: 320px;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 44px), transparent);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 44px), transparent);
+}
+
+.showFullTextRow {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 8px;
+  white-space: normal;
+}
+
+.showFullText {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 0;
+  border-radius: 999px;
+  padding: 6px 12px 6px 11px;
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 16px;
+  letter-spacing: normal;
+  cursor: pointer;
+}
+
+.showFullText:hover {
+  background: rgba(255, 255, 255, 0.26);
+}
+
+.showFullText:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.9);
+  outline-offset: 2px;
+}
+
 /* Assistant messages — no bubble, open text layout */
 .row[data-role='assistant'] .bubble {
   background: transparent;

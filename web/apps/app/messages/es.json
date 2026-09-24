@@ -373,6 +373,7 @@
       "outlineAttachmentOnly": "(Adjunto)",
       "selectionAsk": "Preguntar",
       "quoteFullContext": "Contexto completo de la cita",
+      "showFullMessage": "Ver mensaje completo",
       "quoteRemove": "Quitar cita",
       "quoteSelectedContent": "Contenido seleccionado",
       "quoteSelectionTooLong": "La selección es demasiado larga. Selecciona un fragmento más corto.",

@@ -373,6 +373,7 @@
       "outlineAttachmentOnly": "（添付ファイル）",
       "selectionAsk": "質問",
       "quoteFullContext": "引用の完全なコンテキスト",
+      "showFullMessage": "全文を表示",
       "quoteRemove": "引用を削除",
       "quoteSelectedContent": "選択した内容",
       "quoteSelectionTooLong": "選択範囲が長すぎます。より短い範囲を選択してください。",

@@ -373,6 +373,7 @@
       "outlineAttachmentOnly": "(Ek)",
       "selectionAsk": "Sor",
       "quoteFullContext": "Alıntının tam bağlamı",
+      "showFullMessage": "Mesajın tamamını göster",
       "quoteRemove": "Alıntıyı kaldır",
       "quoteSelectedContent": "Seçili içerik",
       "quoteSelectionTooLong": "Seçim çok uzun. Daha kısa bir bölüm seçin.",

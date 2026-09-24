@@ -373,6 +373,7 @@
       "outlineAttachmentOnly": "(Pièce jointe)",
       "selectionAsk": "Demander",
       "quoteFullContext": "Contexte complet de la citation",
+      "showFullMessage": "Afficher tout le message",
       "quoteRemove": "Retirer la citation",
       "quoteSelectedContent": "Contenu sélectionné",
       "quoteSelectionTooLong": "La sélection est trop longue. Sélectionnez un passage plus court.",

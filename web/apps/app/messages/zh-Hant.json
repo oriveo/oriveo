@@ -373,6 +373,7 @@
       "outlineAttachmentOnly": "（附件）",
       "selectionAsk": "提問",
       "quoteFullContext": "完整引用上下文",
+      "showFullMessage": "查看全文",
       "quoteRemove": "移除引用",
       "quoteSelectedContent": "選取的內容",
       "quoteSelectionTooLong": "選取內容過長，請縮小範圍",

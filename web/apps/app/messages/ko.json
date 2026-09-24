@@ -373,6 +373,7 @@
       "outlineAttachmentOnly": "(첨부 파일)",
       "selectionAsk": "질문",
       "quoteFullContext": "전체 인용 문맥",
+      "showFullMessage": "전체 보기",
       "quoteRemove": "인용 제거",
       "quoteSelectedContent": "선택한 내용",
       "quoteSelectionTooLong": "선택 내용이 너무 깁니다. 더 짧은 부분을 선택하세요.",

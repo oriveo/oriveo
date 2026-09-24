@@ -373,6 +373,7 @@
       "outlineAttachmentOnly": "(Вложение)",
       "selectionAsk": "Спросить",
       "quoteFullContext": "Полный контекст цитаты",
+      "showFullMessage": "Показать полностью",
       "quoteRemove": "Удалить цитату",
       "quoteSelectedContent": "Выбранный текст",
       "quoteSelectionTooLong": "Выбран слишком длинный фрагмент. Выберите более короткий.",
