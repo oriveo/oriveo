@@ -125,7 +125,7 @@
     "anthropic.effort": {
       "kind": "official_doc",
       "url": "https://platform.claude.com/docs/en/build-with-claude/effort",
-      "reviewedAt": "2026-08-11",
+      "reviewedAt": "2026-09-24",
       "officialUpdatedAt": null
     },
     "gemini.thinking": {
@@ -143,14 +143,14 @@
     "deepseek.pricing": {
       "kind": "official_doc",
       "url": "https://api-docs.deepseek.com/quick_start/pricing",
-      "reviewedAt": "2026-08-15",
+      "reviewedAt": "2026-09-24",
       "officialUpdatedAt": null
     },
     "grok.reasoning": {
       "kind": "official_doc",
       "url": "https://docs.x.ai/developers/model-capabilities/text/reasoning",
-      "reviewedAt": "2026-08-15",
-      "officialUpdatedAt": null
+      "reviewedAt": "2026-09-24",
+      "officialUpdatedAt": "2026-09-21"
     },
     "grok.models": {
       "kind": "official_doc",
@@ -173,7 +173,7 @@
     "groq.reasoning": {
       "kind": "official_doc",
       "url": "https://console.groq.com/docs/reasoning",
-      "reviewedAt": "2026-08-11",
+      "reviewedAt": "2026-09-24",
       "officialUpdatedAt": null
     },
     "together.reasoning": {
@@ -197,7 +197,7 @@
     "zhipu.thinking": {
       "kind": "official_doc",
       "url": "https://docs.bigmodel.cn/cn/guide/capabilities/thinking",
-      "reviewedAt": "2026-09-04",
+      "reviewedAt": "2026-09-24",
       "officialUpdatedAt": null
     },
     "zhipu.thinking_mode": {
@@ -352,7 +352,7 @@
       "sourceRefs": [
         "anthropic.web_search"
       ],
-      "reviewedAt": "2026-08-11"
+      "reviewedAt": "2026-09-24"
     },
     "minimax.messages.web.v1": {
       "$comment": "MiniMax-M3 is an exact-model alternate route: a normal chat still goes through OpenAI Chat; only when the catalog's web control selects this recipe does the client switch, by route, to the official Anthropic Messages endpoint. The source/target protocol, method, auth/header, mapper, parser, and replay contract are all declared by the recipe — the client must never guess any of it from the model id.",
@@ -907,7 +907,7 @@
       "sourceRefs": [
         "anthropic.effort"
       ],
-      "reviewedAt": "2026-08-11"
+      "reviewedAt": "2026-09-24"
     },
     "gemini.generate_content.reasoning.v1": {
       "$comment": "The thinkingBudget shape, used by the 2.5 generation.",
@@ -998,7 +998,7 @@
       "reviewedAt": "2026-08-11"
     },
     "deepseek.chat.reasoning.v1": {
-      "$comment": "The switch is thinking.type enabled/disabled (default enabled); the tier is the top-level reasoning_effort ∈ {low, high, max}, default high. medium and xhigh are not invalid — the official docs state 'For compatibility, medium and xhigh are mapped to high', so they are legal but equivalent to high, and are therefore not declared as separate tiers (that would be a fake tier), while also never being rejected as invalid or self-healed away. The mapping table is identical for v4-pro and v4-flash per the official docs ('identical for deepseek-v4-flash and deepseek-v4-pro'), with low→low as its own tier on both models. The official vocabulary has no balanced value, so this recipe declares no balanced op.",
+      "$comment": "The switch is thinking.type enabled/disabled (default enabled); the tier is the top-level reasoning_effort ∈ {low, high, max}, default high. medium and xhigh are not invalid — the official docs state 'For compatibility, medium and xhigh are mapped to high', so they are legal but equivalent to high, and are therefore not declared as separate tiers (that would be a fake tier), while also never being rejected as invalid or self-healed away. The mapping table is identical for v4-pro and v4-flash per the official docs ('identical for deepseek-v4-flash and deepseek-v4-pro'), with low→low as its own tier on both models. The official vocabulary has no balanced value, so this recipe declares no balanced op. Reviewed again on 2026-09-24: the thinking_mode guide now uses deepseek-flash (DeepSeek-V4.1-Flash) as its example and no longer carries the 'identical for …' sentence, but it does not split the table by model either; the switch, low/high/max and the medium/xhigh→high mapping are unchanged. The pricing page lists only deepseek-flash and deepseek-v4-pro and notes that the old name deepseek-v4-flash is still accepted and served by V4.1-Flash. The request shape of this recipe needs no change.",
       "id": "deepseek.chat.reasoning.v1",
       "providerKind": "deepseek",
       "transport": {
@@ -1045,7 +1045,7 @@
         "deepseek.thinking_mode",
         "deepseek.chat_api"
       ],
-      "reviewedAt": "2026-08-15"
+      "reviewedAt": "2026-09-24"
     },
     "openrouter.chat.reasoning.v1": {
       "$comment": "OpenRouter's /api/v1/models.reasoning is the source of truth for a given exact model's tiers. This shape uses low and max; off sends the literal value none. The selector only emits an intent when supported_efforts actually contains the corresponding value.",
@@ -1305,7 +1305,7 @@
         "grok.reasoning",
         "grok.models"
       ],
-      "reviewedAt": "2026-08-15"
+      "reviewedAt": "2026-09-24"
     },
     "grok.chat.reasoning.v1": {
       "$comment": "No exact model currently defaults to this recipe (grok's defaultTransport only ever produces openai_responses, and the search_parameters field on /chat/completions now returns 410); no model routes here by default; the recipe is kept for the case where a model's transport is explicitly set back to openai_chat. The official summary table lists grok-4.6 as 'low / medium / high (default) / xhigh' and grok-4.5 as 'low / medium / high (default)', both noted as 'cannot be disabled' — so this recipe **provides no off**; there is no such thing as turning off thinking on Chat in the official vocabulary. max→xhigh only takes effect for an exact model that declares max.",
@@ -1459,7 +1459,7 @@
         "zhipu.thinking",
         "zhipu.thinking_mode"
       ],
-      "reviewedAt": "2026-09-04"
+      "reviewedAt": "2026-09-24"
     },
     "qwen.chat.reasoning.v1": {
       "$comment": "The official docs only guarantee the enable_thinking switch for hybrid thinking; thinking_budget's default ceiling varies by model and region, with no single set of four tiers across the board. The unsupported 1024/4096/16384/38000 automatic budgets are removed here, keeping only the two real semantics, off and on. A numeric budget can only be exposed once a typed control declares that model's constraints.",
@@ -1687,7 +1687,7 @@
       "sourceRefs": [
         "groq.reasoning"
       ],
-      "reviewedAt": "2026-08-11"
+      "reviewedAt": "2026-09-24"
     },
     "togetherai.chat.reasoning.v1": {
       "id": "togetherai.chat.reasoning.v1",
