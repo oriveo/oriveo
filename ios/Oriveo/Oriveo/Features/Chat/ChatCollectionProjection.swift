@@ -44,9 +44,12 @@ nonisolated struct ChatCollectionProviderMetadata: Sendable {
         return lookup.contextLength(providerID: providerID, modelID: modelID)
     }
 
+    /// Reads the lookup the shared store built in the background, O(1). Until it is built the store hands out
+    /// `.empty`: messages keep the providerName / modelName they carry (the names at send time), and the context
+    /// window is treated as unknown.
     @MainActor
-    static func resolve(from providers: [Provider], metadata: MetadataClient = .shared) -> Self {
-        Self(lookup: ModelDisplayLookup(providers: providers, metadata: metadata))
+    static func current(from store: ConversationModelLookupStore) -> Self {
+        Self(lookup: store.lookup)
     }
 }
 

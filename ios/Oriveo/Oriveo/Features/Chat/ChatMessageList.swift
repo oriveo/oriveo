@@ -170,8 +170,6 @@ struct ChatMessageList: View, Equatable {
         notesVersion: .max
     )
     @State private var cachedRows: [ChatCollectionProjectionBuilder.MessageRow] = []
-    @State private var cachedMetadata = ChatCollectionProviderMetadata.empty
-    @State private var cachedMetadataVersion: UInt = .max
     /// A reference box: reading and writing it in body does not invalidate the view.
     @State private var outlineTicksMemo = ChatOutlineTicksMemo()
 
@@ -183,7 +181,7 @@ struct ChatMessageList: View, Equatable {
         Self.makeRowsCacheKey(
             conversationID: projection.activeConversationID,
             messageRevision: projection.messageRevision,
-            providerMetadataVersion: appState.providersVersion,
+            providerMetadataVersion: providerMetadataVersion,
             notesVersion: appState.notesVersion
         )
     }
@@ -209,7 +207,7 @@ struct ChatMessageList: View, Equatable {
 
         return ChatCollectionProjectionBuilder.makeRows(
             from: projection.messages,
-            metadata: ChatCollectionProviderMetadata.resolve(from: appState.providers),
+            metadata: Self.providerMetadata(in: appState),
             noteReferencesByMessageID: noteReferencesByMessageID()
         )
     }
@@ -276,7 +274,7 @@ struct ChatMessageList: View, Equatable {
                 ChatListViewControllerRepresentable(
                     viewModel: controllerViewModel,
                     requestedAutoScrollEnabled: autoScrollEnabled,
-                    providerMetadataVersion: appState.providersVersion,
+                    providerMetadataVersion: providerMetadataVersion,
                     scrollToBottomRequest: scrollToBottomRequest,
                     streamingTextPublisher: streamingPublisher,
                     streamingReasoningPublisher: streamingReasoningPublisher,
@@ -367,6 +365,7 @@ struct ChatMessageList: View, Equatable {
             Button(L10n.tr("Cancel", table: .notes), role: .cancel) {}
         }
         .onAppear {
+            refreshConversationModelLookup()
             refreshCachedRows()
             finishEmptyStateOpenTraceIfNeeded()
             consumeNoteSourceJumpIfNeeded()
@@ -385,6 +384,10 @@ struct ChatMessageList: View, Equatable {
             consumeNoteSourceJumpIfNeeded()
         }
         .onChange(of: appState.providersVersion) { _, _ in
+            refreshConversationModelLookup()
+            refreshCachedRows()
+        }
+        .onChange(of: appState.conversationModelLookupStore.revision) { _, _ in
             refreshCachedRows()
         }
         .onChange(of: appState.notesVersion) { _, _ in
@@ -637,16 +640,29 @@ struct ChatMessageList: View, Equatable {
         )
     }
 
+    /// Provider / model display metadata for this screen's message rows: reads the lookup Home also uses, built in
+    /// the background, instead of building one on the main thread. Building it per message revision and per
+    /// provider change took hundreds of milliseconds with a 22k-model relay catalog.
+    static func providerMetadata(in appState: AppState) -> ChatCollectionProviderMetadata {
+        ChatCollectionProviderMetadata.current(from: appState.conversationModelLookupStore)
+    }
+
+    /// Row metadata version: rows are rebuilt and visible cells refreshed when providers change (other provider state
+    /// in the cell) or when the shared lookup merges a new build (names changed). Both counters only go up, so their
+    /// sum only goes up too.
+    private var providerMetadataVersion: UInt {
+        appState.providersVersion &+ appState.conversationModelLookupStore.revision
+    }
+
+    private func refreshConversationModelLookup() {
+        appState.conversationModelLookupStore.refresh(providers: appState.providers)
+    }
+
     private func refreshCachedRows() {
-        let currentVersion = appState.providersVersion
-        if cachedMetadataVersion != currentVersion {
-            cachedMetadata = ChatCollectionProviderMetadata.resolve(from: appState.providers)
-            cachedMetadataVersion = currentVersion
-        }
         cachedRowsKey = rowsCacheKey
         cachedRows = ChatCollectionProjectionBuilder.makeRows(
             from: projection.messages,
-            metadata: cachedMetadata,
+            metadata: Self.providerMetadata(in: appState),
             noteReferencesByMessageID: noteReferencesByMessageID()
         )
     }

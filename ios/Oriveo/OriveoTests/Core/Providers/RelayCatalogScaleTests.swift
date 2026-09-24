@@ -618,6 +618,54 @@ struct RelayCatalogScaleTests {
         #expect(stallMs < Self.mainThreadBudgetMs, "longest main-thread stall \(stallMs)ms exceeds \(Self.mainThreadBudgetMs)ms")
     }
 
+    /// The chat screen reads the provider / model display metadata for its message rows on every message revision
+    /// (new message, finalized reply) and every provider change. It used to build the whole lookup on the main thread
+    /// each time through `ChatCollectionProviderMetadata.resolve(from:)`, at the same cost as Home.
+    @Test("Chat message metadata: reading it with a 22k catalog does not build the lookup on the main thread (longest stall < 50ms); first frame keeps the stored names, then switches to display names once ready")
+    func chatProviderMetadataDoesNotBuildLookupOnMainThread() async throws {
+        try await loadWhitelistMetadata()
+        defer { ProviderCatalogResolver.resetMemoForTesting() }
+        let provider = try await finalizedRelayProvider()
+        let state = makeState(with: provider)
+        let catalogModel = provider.catalogModels[4_321]
+        let message = TestFactories.makeMessage(
+            role: .assistant,
+            providerID: provider.id,
+            providerKind: .relay,
+            providerName: "Stored Relay",
+            modelID: catalogModel.id,
+            modelName: "stored-model-name"
+        )
+        let direct = ModelDisplayLookup(providers: state.providers)
+        let expectedName = try #require(direct.modelDisplayName(providerID: provider.id, modelID: catalogModel.id))
+        #expect(expectedName != "stored-model-name")
+
+        let probe = MainThreadStallProbe()
+        probe.start()
+        pumpMainRunLoop(0.05)
+        // First frame: the screen just opened and the shared lookup is not built yet
+        var firstFrame: ChatCollectionProviderMetadata?
+        let firstMs = Self.measure { firstFrame = ChatMessageList.providerMetadata(in: state) }
+        // The screen refreshes the shared lookup when it appears (Home refreshes the same one)
+        state.conversationModelLookupStore.refresh(providers: state.providers)
+        await state.conversationModelLookupStore.waitForRefreshForTesting()
+        // Every later message revision reads it again
+        var ready: ChatCollectionProviderMetadata?
+        let readyMs = Self.measure { ready = ChatMessageList.providerMetadata(in: state) }
+        pumpMainRunLoop(0.05)
+        probe.stop()
+        let stallMs = probe.maxStall * 1_000
+        print("[RelayCatalogScale] chat provider metadata \(Self.catalogCount): first frame = \(String(format: "%.1f", firstMs))ms, after ready = \(String(format: "%.2f", readyMs))ms, main-thread max stall = \(String(format: "%.1f", stallMs))ms")
+
+        #expect(firstFrame?.resolvedModelName(for: message) == "stored-model-name")
+        #expect(firstFrame?.resolvedProviderName(for: message) == "Stored Relay")
+        #expect(ready?.resolvedModelName(for: message) == expectedName)
+        #expect(ready?.resolvedProviderName(for: message) == direct.providerDisplayName(providerID: provider.id))
+        #expect(ready?.resolvedContextLength(for: message) == direct.contextLength(providerID: provider.id, modelID: catalogModel.id))
+        #expect(ready?.relayKind(for: message) == direct.relayKind(providerID: provider.id))
+        #expect(stallMs < Self.mainThreadBudgetMs, "longest main-thread stall \(stallMs)ms exceeds \(Self.mainThreadBudgetMs)ms")
+    }
+
     /// `ConversationRow.resolveModelName` as it was before, kept verbatim as the reference: when the lookup has no
     /// answer, run matchingModel over the enabled models one by one.
     nonisolated private static func referenceRowModelName(

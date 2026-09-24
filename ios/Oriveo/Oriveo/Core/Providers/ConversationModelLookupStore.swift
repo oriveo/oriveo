@@ -1,7 +1,8 @@
 import Foundation
 import Observation
 
-/// The `ModelDisplayLookup` that Home and folder conversation rows share to resolve model display names.
+/// The `ModelDisplayLookup` that Home and folder conversation rows, and the chat message metadata, share to resolve
+/// model display names.
 ///
 /// It must refresh whenever providers change: fingerprint the whole catalog, and rebuild when the fingerprint
 /// changes (one metadata lookup per catalog model, four sets of lookup keys, two date-suffix regexes each). A relay
@@ -19,6 +20,9 @@ final class ConversationModelLookupStore {
     /// display name.
     private(set) var lookup: ModelDisplayLookup = .empty
     private(set) var isReady = false
+    /// Goes up by one each time a new lookup is merged. The chat screen folds it into its row metadata version, so a
+    /// merge rebuilds the rows and refreshes the visible cells.
+    private(set) var revision: UInt = 0
     @ObservationIgnored private var fingerprint: Int?
     @ObservationIgnored private var generation = 0
     @ObservationIgnored private var refreshTask: Task<Void, Never>?
@@ -48,6 +52,7 @@ final class ConversationModelLookupStore {
             self.lookup = built.lookup
             self.fingerprint = built.fingerprint
             self.isReady = true
+            self.revision &+= 1
             self.buildCountForTesting += 1
         }
     }
