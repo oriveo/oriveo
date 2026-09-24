@@ -391,33 +391,7 @@ struct HomeView: View {
                 .presentationDragIndicator(.visible)
                 .environment(appState)
         }
-        .alert(
-            L10n.tr("Delete this conversation?"),
-            isPresented: Binding(
-                get: { conversationToDelete != nil },
-                set: { if !$0 { conversationToDelete = nil } }
-            ),
-            presenting: conversationToDelete
-        ) { conv in
-            Button(L10n.tr("Cancel"), role: .cancel) {
-                conversationToDelete = nil
-            }
-            Button(L10n.tr("Delete"), role: .destructive) {
-                let id = conv.id
-                conversationToDelete = nil
-                withAnimation(preferredAnimation) {
-                    appState.deleteConversation(id: id)
-                }
-            }
-        } message: { conv in
-            let refCount = appState.noteManager.referenceCount(conversationID: conv.id)
-            if refCount > 0 {
-                Text(L10n.tr("This conversation and all its messages will be permanently deleted.")
-                    + "\n\n" + String(format: L10n.tr("This conversation is referenced by %d notes.", table: .notes), refCount))
-            } else {
-                Text(L10n.tr("This conversation and all its messages will be permanently deleted."))
-            }
-        }
+        .conversationDeleteConfirmation($conversationToDelete, animation: preferredAnimation)
         .alert(
             L10n.tr("Rename Conversation", table: .home),
             isPresented: Binding(

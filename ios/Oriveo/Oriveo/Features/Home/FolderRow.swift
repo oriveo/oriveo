@@ -12,6 +12,7 @@ struct FolderRow: View {
     @State private var showColorPicker = false
     @State private var conversationToRename: Conversation?
     @State private var convRenameText = ""
+    @State private var conversationToDelete: Conversation?
 
     private var isExpanded: Bool {
         appState.folderManager.isExpanded(folder.id)
@@ -54,6 +55,7 @@ struct FolderRow: View {
         } message: {
             Text(L10n.tr("Conversations inside will be kept.", table: .home))
         }
+        .conversationDeleteConfirmation($conversationToDelete, animation: nil)
         .alert(
             L10n.tr("Rename Conversation", table: .home),
             isPresented: Binding(
@@ -328,7 +330,7 @@ struct FolderRow: View {
         Divider()
 
         Button(role: .destructive) {
-            appState.deleteConversation(id: conversation.id)
+            conversationToDelete = conversation
         } label: {
             Label(L10n.tr("Delete"), systemImage: "trash")
         }
