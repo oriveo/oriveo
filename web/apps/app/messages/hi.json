@@ -27,8 +27,8 @@
     "pin": "नत्थी करना",
     "unpin": "अनपिन",
     "selectAll": "सबका चयन करें",
-    "deselectAll": "सबको अचयनित करो",
-    "batchDelete": "चयनित को हटाओ",
+    "deselectAll": "सबका चयन रद्द करें",
+    "batchDelete": "चुने गए हटाएँ",
     "batchDeleteConfirm": "{count} वार्तालाप हटाएं?",
     "editMode": "संपादन करना",
     "exitEditMode": "हो गया",
@@ -322,7 +322,7 @@
         "truncatedCtaKnowledge": "बड़ी फ़ाइल काट दी गई। पूर्ण खोज के लिए Skill Knowledge में जोड़ें →"
       },
       "dropFiles": "फ़ाइल यहां छोड़ें",
-      "stop": "उत्पादन बंद करो",
+      "stop": "जवाब लिखना रोकें",
       "generating": "उत्पन्न हो रहा है...",
       "aiAnswering": "AI उत्तर दे रहा है...",
       "export": "निर्यात",
@@ -1328,7 +1328,7 @@
     "title": "कुछ गलत हो गया",
     "description": "एक अप्रत्याशित त्रुटि हुई। आपका डेटा सुरक्षित है.",
     "retry": "पुनः प्रयास करें",
-    "goHome": "घर जाओ",
+    "goHome": "होम पर जाएँ",
     "technicalDetails": "टेक्निकल डिटेल"
   },
   "a11y": {

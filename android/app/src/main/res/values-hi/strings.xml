@@ -22,7 +22,7 @@
     <string name="copied">कॉपी किया गया</string>
     <string name="share">शेयर करना</string>
     <string name="legal_consent_notice">जारी रखकर, आप नीचे दी गई कानूनी शर्तों से सहमत हैं।</string>
-    <string name="get_started">शुरू हो जाओ</string>
+    <string name="get_started">शुरू करें</string>
     <string name="api_key">API Key कुंजी</string>
     <string name="validating">सत्यापन किया जा रहा है...</string>
     <string name="auto_fill_note">सेवा समापन बिंदु आपके लिए स्वतः भर गया है।</string>
@@ -117,7 +117,7 @@
     <string name="delete_conversations_confirm">क्या आप वाकई %d वार्तालाप हटाना चाहते हैं? इस एक्शन को वापस नहीं किया जा सकता।</string>
     <string name="fix_now">अब ठीक करें</string>
     <string name="deselect">अचयनित</string>
-    <string name="deselect_all">सबको अचयनित करो</string>
+    <string name="deselect_all">सबका चयन रद्द करें</string>
     <string name="selected_count">%d चयनित</string>
     <string name="home_no_provider_title">अभी तक कोई प्रदाता उपलब्ध नहीं है</string>
     <string name="home_no_provider_description">चैटिंग शुरू करने के लिए पहले एक प्रदाता जोड़ें और बाद में मॉडल बदलें।</string>
@@ -358,7 +358,7 @@
     <string name="file_unavailable">केवल मूल डिवाइस पर उपलब्ध है</string>
         <string name="error_generic_title">कुछ गलत हो गया</string>
     <string name="error_generic_message">एक अप्रत्याशित त्रुटि हुई।</string>
-    <string name="hide_details">विवरण छुपाओ</string>
+    <string name="hide_details">विवरण छिपाएँ</string>
     <string name="provider_setup_failed_title">सेटअप विफल</string>
     <string name="manual_model_save_failed_title">सहेजें विफल</string>
     <string name="manual_model_sync_not_supported_title">सिंक समर्थित नहीं</string>
