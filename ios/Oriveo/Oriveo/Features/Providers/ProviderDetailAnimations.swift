@@ -19,37 +19,6 @@ struct ProviderModelRemovalBannerState: Identifiable {
 
 // MARK: - Animation Views
 
-struct ProviderModelRemovalBanner: View {
-    let model: AIModel
-    var undoAction: () -> Void
-
-    var body: some View {
-        HStack(spacing: OriveoTheme.Spacing.md) {
-            Image(systemName: "minus.circle.fill")
-                .font(.system(size: 18, weight: .semibold))
-                .foregroundStyle(OriveoTheme.Palette.warning)
-
-            Text(String(format: L10n.tr("Removed %@", table: .providers), model.name))
-                .font(OriveoTheme.Typography.caption)
-                .foregroundStyle(OriveoTheme.Palette.textPrimary)
-                .lineLimit(1)
-
-            Spacer(minLength: OriveoTheme.Spacing.md)
-
-            Button(L10n.tr("Undo", table: .providers), action: undoAction)
-                .buttonStyle(OriveoTextButtonStyle())
-        }
-        .padding(.horizontal, OriveoTheme.Spacing.lg)
-        .padding(.vertical, OriveoTheme.Spacing.md)
-        .oriveoRoundedSurface(
-            fill: OriveoTheme.Palette.surfaceElevated,
-            border: OriveoTheme.Palette.borderStrong,
-            radius: OriveoTheme.Radius.md
-        )
-        .shadow(color: OriveoTheme.Palette.shadow, radius: 18, x: 0, y: 10)
-    }
-}
-
 struct ProviderModelAddFeedbackChip: View {
     let model: AIModel
 

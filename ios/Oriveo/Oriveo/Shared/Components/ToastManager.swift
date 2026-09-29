@@ -2,11 +2,14 @@ import Foundation
 import Observation
 import SwiftUI
 
+/// Semantic toast type: picks the color and glyph of the round icon (mapped in ToastOverlay).
 enum ToastStyle: Sendable {
     case success
     case error
     case warning
     case info
+    /// Removal actions (e.g. "Removed X · Undo"): neutral gray circle with a minus glyph.
+    case removed
     case neutral
 }
 

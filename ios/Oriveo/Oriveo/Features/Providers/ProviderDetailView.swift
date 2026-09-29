@@ -158,7 +158,6 @@ struct ProviderDetailView: View {
                         .coordinateSpace(name: providerDetailCoordinateSpace)
 
                         addFeedbackOverlay
-                        removalBannerOverlay
                     }
                     .oriveoScreenBackground()
                     .sheet(isPresented: $showConnectionSettings) {
@@ -476,18 +475,15 @@ struct ProviderDetailView: View {
     }
 
     private func presentRemovalBanner(_ removal: ProviderModelRemovalBannerState) {
-        withAnimation(.snappy) {
-            pendingRemovalBanner = removal
-        }
-
-        Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 4_000_000_000)
-            if pendingRemovalBanner?.id == removal.id {
-                withAnimation(.easeOut(duration: 0.22)) {
-                    pendingRemovalBanner = nil
-                }
-            }
-        }
+        // Same top capsule toast as "Added"; pendingRemovalBanner only keeps the state Undo needs.
+        pendingRemovalBanner = removal
+        ToastManager.shared.show(
+            String(format: L10n.tr("Removed %@", table: .providers), removal.model.name),
+            style: .removed,
+            duration: 4,
+            actionTitle: L10n.tr("Undo", table: .providers),
+            action: { undoPendingRemoval() }
+        )
     }
 
     private func undoPendingRemoval() {
@@ -528,26 +524,6 @@ struct ProviderDetailView: View {
                 .allowsHitTesting(false)
                 .zIndex(10)
         }
-    }
-
-    @ViewBuilder
-    private var removalBannerOverlay: some View {
-        VStack {
-            Spacer()
-
-            if let pendingRemovalBanner {
-                ProviderModelRemovalBanner(
-                    model: pendingRemovalBanner.model,
-                    undoAction: undoPendingRemoval
-                )
-                .padding(.horizontal, OriveoTheme.Spacing.xl)
-                .padding(.bottom, OriveoTheme.Spacing.lg)
-                .transition(.move(edge: .bottom).combined(with: .opacity))
-                .zIndex(12)
-            }
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .allowsHitTesting(pendingRemovalBanner != nil)
     }
 
     private func updateAddFeedback(id: UUID, update: (inout ProviderModelAddFeedbackState) -> Void) {
