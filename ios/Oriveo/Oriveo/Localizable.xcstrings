@@ -1061,7 +1061,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Las claves API permanecen en su dispositivo"
+            "value": "Las claves API permanecen en tu dispositivo"
           }
         },
         "fr": {
@@ -1263,7 +1263,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Añadir"
+            "value": "Agregar"
           }
         },
         "fr": {
@@ -1554,7 +1554,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Añade un proveedor para usar esta habilidad"
+            "value": "Agrega un proveedor para usar esta habilidad"
           }
         },
         "fr": {
@@ -8984,6 +8984,106 @@
         }
       }
     },
+    "Failed to save image": {
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "فشل حفظ الصورة"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bild konnte nicht gespeichert werden"
+          }
+        },
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Failed to save image"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No se pudo guardar la imagen"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Échec de l'enregistrement de l'image"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "इमेज सेव नहीं हो सकी"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gagal menyimpan gambar"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "画像の保存に失敗しました"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "이미지 저장에 실패했습니다"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Falha ao salvar imagem"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Не удалось сохранить изображение"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ไม่สามารถบันทึกภาพได้"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Resim kaydedilemedi"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Không lưu được hình ảnh"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "保存图片失败"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "儲存圖片失敗"
+          }
+        }
+      }
+    },
     "Fast & affordable": {
       "extractionState": "manual",
       "localizations": {
@@ -9115,7 +9215,7 @@
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Mengajukan"
+            "value": "File"
           }
         },
         "ja": {
@@ -9157,7 +9257,7 @@
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tài liệu"
+            "value": "Tệp"
           }
         },
         "zh-Hans": {
@@ -11223,13 +11323,13 @@
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "رؤية"
+            "value": "فهم الصور"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vision"
+            "value": "Bilderkennung"
           }
         },
         "en": {
@@ -11253,13 +11353,13 @@
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "दृष्टि"
+            "value": "इमेज पहचान"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Penglihatan"
+            "value": "Baca gambar"
           }
         },
         "ja": {
@@ -11271,7 +11371,7 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "비전"
+            "value": "이미지 인식"
           }
         },
         "pt-BR": {
@@ -11289,19 +11389,19 @@
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "วิสัยทัศน์"
+            "value": "อ่านภาพ"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Görüş"
+            "value": "Görsel"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Tầm nhìn"
+            "value": "Đọc ảnh"
           }
         },
         "zh-Hans": {
@@ -14383,13 +14483,13 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "今じゃない"
+            "value": "今はしない"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "지금은 아님"
+            "value": "나중에"
           }
         },
         "pt-BR": {
@@ -14407,7 +14507,7 @@
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "ไม่ใช่ตอนนี้"
+            "value": "ไว้ทีหลัง"
           }
         },
         "tr": {
@@ -14419,7 +14519,7 @@
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Không phải bây giờ"
+            "value": "Để sau"
           }
         },
         "zh-Hans": {
@@ -19716,7 +19816,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Resuma las quejas más comunes de la investigación de usuarios..."
+            "value": "Resume las quejas más comunes de la investigación de usuarios..."
           }
         },
         "fr": {
@@ -20684,7 +20784,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Texto, imagen y vídeo"
+            "value": "Texto, imagen y video"
           }
         },
         "fr": {
@@ -23630,7 +23730,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sube vídeos al chat"
+            "value": "Sube videos al chat"
           }
         },
         "fr": {
@@ -23826,7 +23926,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Vídeo"
+            "value": "Video"
           }
         },
         "fr": {
@@ -24218,7 +24318,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Se añadirá"
+            "value": "Se agregará"
           }
         },
         "fr": {
@@ -26827,7 +26927,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Primero agregue y habilite {model} en su proveedor de OpenAI."
+            "value": "Primero agrega y habilita {model} en tu proveedor de OpenAI."
           }
         },
         "fr": {

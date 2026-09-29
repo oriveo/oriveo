@@ -684,7 +684,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "%d nuevas skills añadidas"
+            "value": "%d nuevas skills agregadas"
           }
         },
         "fr": {
@@ -1634,7 +1634,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Elija otra copia de seguridad"
+            "value": "Elige otra copia de seguridad"
           }
         },
         "fr": {
@@ -1729,7 +1729,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Borre todos los datos locales y reemplácelos con contenidos de respaldo."
+            "value": "Borra todos los datos locales y reemplázalos con el contenido de la copia de seguridad."
           }
         },
         "fr": {
@@ -2489,7 +2489,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ingrese la contraseña de respaldo"
+            "value": "Ingresa la contraseña de respaldo"
           }
         },
         "fr": {
@@ -2584,7 +2584,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ingrese la contraseña de respaldo"
+            "value": "Ingresa la contraseña de respaldo"
           }
         },
         "fr": {
@@ -2679,7 +2679,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ingrese la contraseña nuevamente"
+            "value": "Ingresa la contraseña de nuevo"
           }
         },
         "fr": {
@@ -4674,7 +4674,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Fusione mensajes en conversaciones existentes y agregue otras nuevas."
+            "value": "Fusiona los mensajes con las conversaciones existentes y agrega las nuevas."
           }
         },
         "fr": {
@@ -5725,7 +5725,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Restaure conversaciones, proveedores y configuraciones desde un archivo de respaldo."
+            "value": "Restaura conversaciones, proveedores y configuraciones desde un archivo de respaldo."
           }
         },
         "fr": {
@@ -5915,7 +5915,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Saltar conversaciones y proveedores existentes; solo agregue nuevos."
+            "value": "Omite las conversaciones y proveedores existentes; solo agrega los nuevos."
           }
         },
         "fr": {
@@ -6295,7 +6295,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Es posible que el archivo de copia de seguridad haya sido modificado o dañado. Proceda con precaución."
+            "value": "Es posible que el archivo de copia de seguridad haya sido modificado o dañado. Procede con precaución."
           }
         },
         "fr": {
@@ -6485,7 +6485,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Esta copia de seguridad contiene claves API cifradas. Ingrese la contraseña para restaurarlos u omita para importar sin claves."
+            "value": "Esta copia de seguridad contiene claves API cifradas. Ingresa la contraseña para restaurarlas u omite este paso para importar sin claves."
           }
         },
         "fr": {

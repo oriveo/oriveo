@@ -2811,7 +2811,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Introduce un objeto JSON para ver sus rutas de campo permitidas."
+            "value": "Ingresa un objeto JSON para ver sus rutas de campo permitidas."
           }
         },
         "fr": {
@@ -2912,7 +2912,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Introduce un JSON válido sin claves duplicadas."
+            "value": "Ingresa un JSON válido sin claves duplicadas."
           }
         },
         "fr": {
@@ -4207,7 +4207,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Archivo grande truncado. Añadir a Skill Knowledge para búsqueda completa →"
+            "value": "Archivo grande truncado. Agregar a Skill Knowledge para búsqueda completa →"
           }
         },
         "fr": {
@@ -4409,7 +4409,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Para un Relay, usa la documentación proporcionada por su administrador."
+            "value": "Para un LLM personalizado, usa la documentación proporcionada por su administrador."
           }
         },
         "fr": {
@@ -6310,7 +6310,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Coste"
+            "value": "Costo"
           }
         },
         "fr": {
@@ -9524,7 +9524,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Solo se aplica a esta conversación, conexión, modelo y transporte en este dispositivo. No se sincroniza, registra, envía a telemetría ni se incluye en diagnósticos de soporte. Puede cambiar el coste y el tratamiento de datos del proveedor."
+            "value": "Solo se aplica a esta conversación, conexión, modelo y transporte en este dispositivo. No se sincroniza, registra, envía a telemetría ni se incluye en diagnósticos de soporte. Puede cambiar el costo y el tratamiento de datos del proveedor."
           }
         },
         "fr": {
@@ -9904,7 +9904,7 @@
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "إظهار أقل"
+            "value": "عرض أقل"
           }
         },
         "de": {
@@ -9952,7 +9952,7 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "간략히 보기"
+            "value": "접기"
           }
         },
         "pt-BR": {
@@ -15114,7 +15114,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Su mensaje será enviado a %@ para generar una respuesta. Oriveo no almacena sus mensajes ni claves API en nuestros servidores."
+            "value": "Tu mensaje será enviado a %@ para generar una respuesta. Oriveo no almacena tus mensajes ni claves API en nuestros servidores."
           }
         },
         "fr": {
@@ -15215,7 +15215,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Su mensaje se enviará al punto final personalizado que haya configurado. Oriveo no puede verificar las prácticas de privacidad de puntos finales de terceros."
+            "value": "Tu mensaje se enviará al punto final personalizado que configuraste. Oriveo no puede verificar las prácticas de privacidad de puntos finales de terceros."
           }
         },
         "fr": {
@@ -15281,7 +15281,7 @@
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "Your message will be sent to the custom endpoint you've configured. Oriveo cannot verify the privacy practices of third-party endpoints."
+            "value": "你的消息将发送到你配置的自定义端点。Oriveo 无法核实第三方端点的隐私做法。"
           }
         },
         "zh-Hant": {
@@ -17449,7 +17449,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Los campos se añaden a la solicitud tal como se escriben. Solo se admiten campos declarados oficialmente por el proveedor; los errores pueden hacer fallar la solicitud. Los borradores permanecen en este dispositivo."
+            "value": "Los campos se agregan a la solicitud tal como se escriben. Solo se admiten campos declarados oficialmente por el proveedor; los errores pueden hacer fallar la solicitud. Los borradores permanecen en este dispositivo."
           }
         },
         "fr": {

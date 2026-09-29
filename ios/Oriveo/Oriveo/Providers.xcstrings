@@ -67,7 +67,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Протоколы, совместимые с %d, будут протестированы автоматически."
+            "value": "Совместимых протоколов для автоматической проверки: %d."
           }
         },
         "th": {
@@ -1005,7 +1005,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Clave API no guardada en este dispositivo. Toca para añadir."
+            "value": "Clave API no guardada en este dispositivo. Toca para agregar."
           }
         },
         "fr": {
@@ -1344,7 +1344,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Добавить пользовательский ретранслятор"
+            "value": "Добавить службу ретрансляции"
           }
         },
         "th": {
@@ -1397,7 +1397,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Añadir modelo"
+            "value": "Agregar modelo"
           }
         },
         "fr": {
@@ -1492,7 +1492,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Añadir modelo"
+            "value": "Agregar modelo"
           }
         },
         "fr": {
@@ -1593,7 +1593,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Add another account"
+            "value": "Agregar otra cuenta"
           }
         },
         "fr": {
@@ -1694,7 +1694,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Añadir cabecera"
+            "value": "Agregar encabezado"
           }
         },
         "fr": {
@@ -1795,7 +1795,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Añadir parámetro de consulta"
+            "value": "Agregar parámetro de consulta"
           }
         },
         "fr": {
@@ -1896,7 +1896,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "%@ añadido"
+            "value": "%@ agregado"
           }
         },
         "fr": {
@@ -1914,7 +1914,7 @@
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Menambahkan %@"
+            "value": "%@ ditambahkan"
           }
         },
         "ja": {
@@ -1938,7 +1938,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Добавлен %@"
+            "value": "Добавлено: %@"
           }
         },
         "th": {
@@ -1997,7 +1997,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "No pudimos activar ese modelo. Por favor, inténtalo de nuevo."
+            "value": "No se pudo activar este modelo. Inténtalo de nuevo."
           }
         },
         "fr": {
@@ -2009,13 +2009,13 @@
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "हम उस मॉडल को सक्षम नहीं कर सके. कृपया पुन: प्रयास करें।"
+            "value": "यह मॉडल चालू नहीं हो सका। कृपया फिर से कोशिश करें।"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Kami tidak dapat mengaktifkan model tersebut. Silakan coba lagi."
+            "value": "Gagal mengaktifkan model. Silakan coba lagi."
           }
         },
         "ja": {
@@ -2027,7 +2027,7 @@
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "모델을 활성화할 수 없습니다. 다시 시도해 주세요."
+            "value": "모델을 활성화하지 못했습니다. 다시 시도해 주세요."
           }
         },
         "pt-BR": {
@@ -2039,25 +2039,25 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Мы не смогли включить эту модель. Пожалуйста, попробуйте еще раз."
+            "value": "Не удалось включить модель. Попробуйте ещё раз."
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "เราไม่สามารถเปิดใช้งานโมเดลนั้นได้ โปรดลองอีกครั้ง"
+            "value": "เปิดใช้โมเดลนี้ไม่สำเร็จ โปรดลองอีกครั้ง"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bu modeli etkinleştiremedik. Lütfen tekrar deneyin."
+            "value": "Model etkinleştirilemedi. Lütfen tekrar deneyin."
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Chúng tôi không thể kích hoạt mô hình đó. Vui lòng thử lại."
+            "value": "Không thể bật mô hình này. Vui lòng thử lại."
           }
         },
         "zh-Hans": {
@@ -2193,7 +2193,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Los modelos añadidos aparecen en el selector de modelos de la pantalla de inicio."
+            "value": "Los modelos agregados aparecen en el selector de modelos de la pantalla de inicio."
           }
         },
         "fr": {
@@ -2793,7 +2793,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Una conexión no cifrada no puede transportar una clave. Cambie la dirección y el tipo de conexión a HTTPS público."
+            "value": "Una conexión no cifrada no puede transportar una clave. Cambia la dirección y el tipo de conexión a HTTPS público."
           }
         },
         "fr": {
@@ -4819,7 +4819,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Может искать в вебе"
+            "value": "Может искать в интернете"
           }
         },
         "th": {
@@ -5068,7 +5068,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "La detección de catálogos no es suficiente. Las pruebas automáticas envían como máximo 1 token a través de la ruta de chat real y seleccionan un protocolo de trabajo para usted."
+            "value": "La detección de catálogos no es suficiente. Las pruebas automáticas envían como máximo 1 token por la ruta de chat real y eligen por ti un protocolo que funcione."
           }
         },
         "fr": {
@@ -5110,7 +5110,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Обнаружения каталога недостаточно. Автоматическое тестирование отправляет не более 1 токена по реальному пути чата и выбирает для вас рабочий протокол."
+            "value": "Одного обнаружения каталога недостаточно. Автоматическая проверка отправляет не больше 1 токена по реальному пути чата и сама выбирает рабочий протокол."
           }
         },
         "th": {
@@ -5169,7 +5169,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Se encontró el catálogo, pero no arrojó ningún ID de modelo. Ingrese un modelo arriba para continuar."
+            "value": "Se encontró el catálogo, pero no arrojó ningún ID de modelo. Ingresa un modelo arriba para continuar."
           }
         },
         "fr": {
@@ -5211,7 +5211,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Каталог найден, но идентификаторы моделей не возвращены. Введите модель выше, чтобы продолжить."
+            "value": "Каталог найден, но идентификаторы моделей не возвращены. Введи модель выше, чтобы продолжить."
           }
         },
         "th": {
@@ -6161,7 +6161,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Elija un protocolo manualmente"
+            "value": "Elige un protocolo manualmente"
           }
         },
         "fr": {
@@ -6203,7 +6203,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Выберите протокол вручную"
+            "value": "Выбрать протокол вручную"
           }
         },
         "th": {
@@ -6304,7 +6304,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Выберите тип протокола"
+            "value": "Выбрать тип протокола"
           }
         },
         "th": {
@@ -6357,7 +6357,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Elige tu proveedor de IA y luego introduce tu clave de API"
+            "value": "Elige tu proveedor de IA y luego ingresa tu clave de API"
           }
         },
         "fr": {
@@ -6957,7 +6957,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Se confirmó el protocolo %@, pero este LLM personalizado no publica un catálogo de modelos. Introduce un ID de modelo arriba para continuar."
+            "value": "Se confirmó el protocolo %@, pero este LLM personalizado no publica un catálogo de modelos. Ingresa un ID de modelo arriba para continuar."
           }
         },
         "fr": {
@@ -6999,7 +6999,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Протокол %@ подтверждён, но эта пользовательская LLM не публикует каталог моделей. Введите ID модели выше, чтобы продолжить."
+            "value": "Протокол %@ подтверждён, но эта пользовательская LLM не публикует каталог моделей. Введи ID модели выше, чтобы продолжить."
           }
         },
         "th": {
@@ -7343,7 +7343,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Primero conecte un proveedor. El cambio de modelo, el chat y la transparencia de costos comienzan aquí."
+            "value": "Primero conecta un proveedor. El cambio de modelo, el chat y la transparencia de costos comienzan aquí."
           }
         },
         "fr": {
@@ -7486,7 +7486,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Подключить пользовательский ретранслятор"
+            "value": "Подключить службу ретрансляции"
           }
         },
         "th": {
@@ -7587,7 +7587,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Подключите собственный сервис моделей или локальные и LAN-вычисления"
+            "value": "Подключи свой сервис моделей или локальные и LAN-вычисления"
           }
         },
         "th": {
@@ -7848,7 +7848,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Conéctese a través de LAN HTTP simple"
+            "value": "Conéctate por HTTP simple en la LAN"
           }
         },
         "fr": {
@@ -10135,7 +10135,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Cabeceras personalizadas"
+            "value": "Encabezados personalizados"
           }
         },
         "fr": {
@@ -10379,7 +10379,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Пользовательский ретранслятор"
+            "value": "Своя служба ретрансляции"
           }
         },
         "th": {
@@ -10836,7 +10836,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "El web_search predeterminado coincide con OpenAI y los relevos Codex principales. Cambia a web_search_preview para relevos antiguos."
+            "value": "El web_search predeterminado coincide con OpenAI y con los principales LLM personalizados de Codex. Cambia a web_search_preview para servicios antiguos."
           }
         },
         "fr": {
@@ -10878,7 +10878,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "По умолчанию web_search подходит для OpenAI и основных Codex пользовательская LLM. Для устаревших пользовательская LLM переключитесь на web_search_preview."
+            "value": "По умолчанию web_search подходит для OpenAI и основных пользовательских LLM на базе Codex. Для устаревших пользовательских LLM переключись на web_search_preview."
           }
         },
         "th": {
@@ -12969,7 +12969,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Эндпойнт не указан."
+            "value": "URL запроса не указан."
           }
         },
         "th": {
@@ -13129,7 +13129,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Introduce un ID de modelo que admita tu LLM personalizado."
+            "value": "Ingresa un ID de modelo que admita tu LLM personalizado."
           }
         },
         "fr": {
@@ -13171,7 +13171,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Введите ID модели, поддерживаемой вашим пользовательская LLM."
+            "value": "Введи ID модели, которую поддерживает твоя пользовательская LLM."
           }
         },
         "th": {
@@ -13230,7 +13230,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ingrese una URL de solicitud."
+            "value": "Ingresa una URL de solicitud."
           }
         },
         "fr": {
@@ -13272,7 +13272,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Введите URL-адрес запроса."
+            "value": "Введи URL запроса."
           }
         },
         "th": {
@@ -13331,7 +13331,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Introduzca un punto final HTTPS válido."
+            "value": "Ingresa un punto final HTTPS válido."
           }
         },
         "fr": {
@@ -13373,7 +13373,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Введите действительную конечную точку HTTPS."
+            "value": "Введи действительный HTTPS-URL запроса."
           }
         },
         "th": {
@@ -13432,7 +13432,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ingrese una URL de solicitud HTTPS válida."
+            "value": "Ingresa una URL de solicitud HTTPS válida."
           }
         },
         "fr": {
@@ -13474,7 +13474,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Введите действительный URL-адрес HTTPS-запроса."
+            "value": "Введи действительный HTTPS-URL запроса."
           }
         },
         "th": {
@@ -13527,7 +13527,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ingrese la ID del modelo manualmente"
+            "value": "Ingresa el ID del modelo manualmente"
           }
         },
         "fr": {
@@ -13569,7 +13569,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Введите идентификатор модели вручную"
+            "value": "Ввести ID модели вручную"
           }
         },
         "th": {
@@ -13628,7 +13628,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Introduce la dirección de API proporcionada por tu retransmisión."
+            "value": "Ingresa la dirección de API proporcionada por tu LLM personalizado."
           }
         },
         "fr": {
@@ -13670,7 +13670,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Введите адрес API, предоставленный вашим ретранслятором."
+            "value": "Введи адрес API, который выдала твоя пользовательская LLM."
           }
         },
         "th": {
@@ -13729,7 +13729,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Introduce el token de acceso que requiere este motor."
+            "value": "Ingresa el token de acceso que requiere este motor."
           }
         },
         "fr": {
@@ -13830,7 +13830,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ingrese la URL de solicitud y la clave API. Oriveo detectará la configuración de conexión por usted."
+            "value": "Ingresa la URL de solicitud y la clave API. Oriveo detectará la configuración de conexión por ti."
           }
         },
         "fr": {
@@ -13872,7 +13872,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Введите URL-адрес запроса и ключ API. Oriveo автоматически определит настройки подключения."
+            "value": "Введи URL запроса и API-ключ. Oriveo сам определит настройки подключения."
           }
         },
         "th": {
@@ -13931,7 +13931,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ingresa lo que te dio tu relevo. Oriveo detectará la raíz de la API, el estilo de autenticación y el protocolo compatible."
+            "value": "Ingresa los datos que te dio el proveedor de tu LLM personalizado. Oriveo detectará la raíz de la API, el estilo de autenticación y el protocolo compatible."
           }
         },
         "fr": {
@@ -13973,7 +13973,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Введите данные этой пользовательской LLM. Oriveo определит URL запроса, способ аутентификации и совместимый протокол."
+            "value": "Введи данные своей пользовательской LLM. Oriveo определит URL запроса, способ аутентификации и совместимый протокол."
           }
         },
         "th": {
@@ -14026,7 +14026,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Introduce tu clave de API para empezar"
+            "value": "Ingresa tu clave de API para empezar"
           }
         },
         "fr": {
@@ -14412,7 +14412,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Para request URLs de LLM personalizado compatibles con Claude."
+            "value": "Para URL de solicitud de LLM personalizado compatibles con Claude."
           }
         },
         "fr": {
@@ -14454,7 +14454,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Для пользовательская LLM request URL, совместимых с Claude."
+            "value": "Для URL запроса пользовательских LLM, совместимых с Claude."
           }
         },
         "th": {
@@ -14513,7 +14513,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Para request URLs de LLM personalizado compatibles con Gemini."
+            "value": "Para URL de solicitud de LLM personalizado compatibles con Gemini."
           }
         },
         "fr": {
@@ -14555,7 +14555,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Для пользовательская LLM request URL, совместимых с Gemini."
+            "value": "Для URL запроса пользовательских LLM, совместимых с Gemini."
           }
         },
         "th": {
@@ -14656,7 +14656,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Для OpenAI-совместимых пользовательская LLM и самостоятельно размещённых шлюзов."
+            "value": "Для OpenAI-совместимых пользовательских LLM и самостоятельно размещённых шлюзов."
           }
         },
         "th": {
@@ -14715,7 +14715,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Para direcciones en este dispositivo o su LAN. No está cifrado, por lo que no se envían credenciales."
+            "value": "Para direcciones en este dispositivo o en tu LAN. No está cifrado, por lo que no se envían credenciales."
           }
         },
         "fr": {
@@ -14757,7 +14757,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Для адресов на этом устройстве или в вашей локальной сети. Не зашифрован, поэтому учетные данные не отправляются."
+            "value": "Для адресов на этом устройстве или в твоей локальной сети. Соединение не зашифровано, поэтому учётные данные не отправляются."
           }
         },
         "th": {
@@ -15048,7 +15048,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Для пользовательская LLM, которым требуется Responses API."
+            "value": "Для пользовательских LLM, которым нужен Responses API."
           }
         },
         "th": {
@@ -15149,7 +15149,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "В каталоге найдены модели %d."
+            "value": "Моделей в каталоге: %d."
           }
         },
         "th": {
@@ -16586,31 +16586,31 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Bilderzeugung"
+            "value": "Bildgenerierung"
           }
         },
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Gen. de imagen"
+            "value": "Crear imágenes"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Gén. d'image"
+            "value": "Création d'images"
           }
         },
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "छवि जनरल"
+            "value": "इमेज जनरेशन"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Jenderal Gambar"
+            "value": "Buat gambar"
           }
         },
         "ja": {
@@ -16628,7 +16628,7 @@
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Geração de imagem"
+            "value": "Gerar imagens"
           }
         },
         "ru": {
@@ -16640,31 +16640,127 @@
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "อิมเมจเจน"
+            "value": "สร้างภาพ"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Görüntü Oluşturma"
+            "value": "Görsel oluşturma"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Gen hình ảnh"
+            "value": "Tạo ảnh"
           }
         },
         "zh-Hans": {
           "stringUnit": {
             "state": "translated",
-            "value": "图片生成"
+            "value": "生图"
           }
         },
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "圖像生成"
+            "value": "生圖"
+          }
+        }
+      }
+    },
+    "Files": {
+      "comment": "Model capability badge for files (plural sense, same value as Android capability_file / Web capability.file). The singular \"File\" in the attachment menu uses the Localizable table.",
+      "extractionState": "manual",
+      "localizations": {
+        "ar": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ملفات"
+          }
+        },
+        "de": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dateien"
+          }
+        },
+        "es": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Archivos"
+          }
+        },
+        "fr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Fichiers"
+          }
+        },
+        "hi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "फ़ाइलें"
+          }
+        },
+        "id": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "File"
+          }
+        },
+        "ja": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ファイル"
+          }
+        },
+        "ko": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "파일"
+          }
+        },
+        "pt-BR": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Arquivos"
+          }
+        },
+        "ru": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Файлы"
+          }
+        },
+        "th": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "ไฟล์"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dosyalar"
+          }
+        },
+        "vi": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tệp"
+          }
+        },
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "文件"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "檔案"
           }
         }
       }
@@ -16735,7 +16831,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Вложенные изображения используют схему, не подходящую для протокола этой пользовательской LLM. Возможно, модель и протокол не совпадают — откройте Поставщики → это подключение → Настройки подключения → тип протокола и переключитесь на тип, подходящий вашей модели, затем повторите."
+            "value": "Вложенные изображения используют схему, не подходящую для протокола этой пользовательской LLM. Возможно, модель и протокол не совпадают: открой Провайдеры → это подключение → Настройки подключения → Тип протокола, выбери тип, подходящий для модели, и попробуй ещё раз."
           }
         },
         "th": {
@@ -16836,7 +16932,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Генерация изображений недоступна в этом протоколе. Откройте Провайдеры → это подключение → Настройки подключения → Протокол и переключитесь на OpenAI Responses или Chat Completions."
+            "value": "Генерация изображений недоступна в этом протоколе. Открой Провайдеры → это подключение → Настройки подключения → Протокол и переключись на OpenAI Responses или Chat Completions."
           }
         },
         "th": {
@@ -17436,7 +17532,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Invalid endpoint"
+            "value": "Неверный URL запроса"
           }
         },
         "th": {
@@ -17786,7 +17882,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Simplemente ingrese una identificación de modelo utilizable. No es necesario comprender los detalles del protocolo."
+            "value": "Solo ingresa un ID de modelo que funcione. No necesitas entender los detalles del protocolo."
           }
         },
         "fr": {
@@ -17828,7 +17924,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Просто введите один используемый идентификатор модели. Вам не нужно разбираться в деталях протокола."
+            "value": "Просто введи один рабочий ID модели. Разбираться в деталях протокола не нужно."
           }
         },
         "th": {
@@ -17929,7 +18025,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Сохраняйте HTTPS"
+            "value": "Оставить HTTPS"
           }
         },
         "th": {
@@ -18030,7 +18126,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Продолжайте редактировать"
+            "value": "Продолжить редактирование"
           }
         },
         "th": {
@@ -18232,7 +18328,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Устаревшее имя протокола. Используйте его, только если эта пользовательская LLM отклоняет web_search."
+            "value": "Имя устаревшего протокола. Используй его, только если пользовательская LLM отклоняет web_search."
           }
         },
         "th": {
@@ -20323,7 +20419,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "По этому адресу не ответили ни каталог моделей, ни известный URL запроса для генерации. Проверьте адрес или выберите протокол вручную."
+            "value": "По этому адресу не ответил ни каталог моделей, ни известный URL генерации. Проверь адрес или выбери протокол вручную."
           }
         },
         "th": {
@@ -21511,7 +21607,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Модели еще не добавлены. Используйте кнопку ниже, чтобы добавить идентификаторы моделей."
+            "value": "Модели ещё не добавлены. Добавь идентификаторы моделей кнопкой ниже."
           }
         },
         "th": {
@@ -23471,7 +23567,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Añade un modelo de chat a este LLM personalizado antes de usar la generación de imágenes."
+            "value": "Agrega un modelo de chat a este LLM personalizado antes de usar la generación de imágenes."
           }
         },
         "fr": {
@@ -23513,7 +23609,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Добавьте модель чата в эту пользовательскую LLM, прежде чем использовать генерацию изображений."
+            "value": "Прежде чем использовать генерацию изображений, добавь в эту пользовательскую LLM модель для чата."
           }
         },
         "th": {
@@ -24647,7 +24743,7 @@
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Argumentation"
+            "value": "Denken"
           }
         },
         "en": {
@@ -24677,7 +24773,7 @@
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Pemikiran"
+            "value": "Penalaran"
           }
         },
         "ja": {
@@ -24713,13 +24809,13 @@
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "muhakeme"
+            "value": "Akıl yürütme"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Lý luận"
+            "value": "Suy luận"
           }
         },
         "zh-Hans": {
@@ -25354,7 +25450,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Elimine los parámetros de consulta de la URL de solicitud. Oriveo nunca prueba automáticamente las claves API de los parámetros de consulta."
+            "value": "Elimina los parámetros de consulta de la URL de solicitud. Oriveo nunca prueba automáticamente las claves API de los parámetros de consulta."
           }
         },
         "fr": {
@@ -25396,7 +25492,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Удалите параметры запроса из URL-адреса запроса. Oriveo никогда не пытается автоматически использовать ключи API из параметров запроса."
+            "value": "Убери параметры запроса из URL запроса. Oriveo никогда не пробует автоматически API-ключи из параметров запроса."
           }
         },
         "th": {
@@ -25556,25 +25652,25 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "%@ eliminado"
+            "value": "%@ quitado"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "%@ supprimé"
+            "value": "%@ retiré"
           }
         },
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "%@ हटा दिया गया"
+            "value": "%@ हटाया गया"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Menghapus %@"
+            "value": "%@ dihapus"
           }
         },
         "ja": {
@@ -25598,7 +25694,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Удален %@"
+            "value": "Удалено: %@"
           }
         },
         "th": {
@@ -26002,7 +26098,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Сбросить настройки пользовательская LLMа по умолчанию?"
+            "value": "Сбросить настройки пользовательской LLM по умолчанию?"
           }
         },
         "th": {
@@ -28794,7 +28890,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Начните с безопасных значений по умолчанию, затем настройте протокол, аутентификацию, заголовки и параметры запроса."
+            "value": "Начни с безопасных значений по умолчанию, затем настрой протокол, аутентификацию, заголовки и параметры запроса."
           }
         },
         "th": {
@@ -28936,13 +29032,13 @@
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "تدفق"
+            "value": "البث التدريجي"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Strom"
+            "value": "Streaming"
           }
         },
         "en": {
@@ -28954,67 +29050,67 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Arroyo"
+            "value": "Streaming"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Flux"
+            "value": "Streaming"
           }
         },
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "धारा"
+            "value": "स्ट्रीमिंग"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sungai kecil"
+            "value": "Streaming"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "ストリーム"
+            "value": "ストリーミング"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "개울"
+            "value": "스트리밍"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Fluxo"
+            "value": "Streaming"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Транслировать"
+            "value": "Потоковая передача"
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "ลำธาร"
+            "value": "สตรีมมิง"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Aktarım"
+            "value": "Yanıt akışı"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Suối"
+            "value": "Truyền theo luồng"
           }
         },
         "zh-Hans": {
@@ -29400,7 +29496,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Смена типа протокола сбросит протокол, аутентификацию и идентификатор Codex к новым значениям по умолчанию. ID модели и выбранные возможности сохранятся."
+            "value": "Смена типа протокола сбросит протокол, аутентификацию и идентификацию Codex к новым значениям по умолчанию. ID модели и выбранные возможности сохранятся."
           }
         },
         "th": {
@@ -29501,7 +29597,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Смена типа протокола сбросит протокол, аутентификацию и идентификатор Codex к рекомендуемым значениям."
+            "value": "Смена типа протокола сбросит протокол, аутентификацию и идентификацию Codex к рекомендуемым значениям."
           }
         },
         "th": {
@@ -29845,7 +29941,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Toca para rellenar"
+            "value": "Toca para completar"
           }
         },
         "fr": {
@@ -30279,7 +30375,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Протоколы испытаний автоматически"
+            "value": "Проверить протоколы автоматически"
           }
         },
         "th": {
@@ -30380,7 +30476,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Протоколы испытаний..."
+            "value": "Проверка протоколов…"
           }
         },
         "th": {
@@ -30635,7 +30731,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Se verifica la ruta de chat real. Puedes guardar este relevo ahora."
+            "value": "Se verificó la ruta de chat real. Ya puedes guardar este LLM personalizado."
           }
         },
         "fr": {
@@ -30677,7 +30773,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Фактический путь чата проверен. Вы можете сохранить это реле сейчас."
+            "value": "Реальный путь чата проверен. Теперь эту пользовательскую LLM можно сохранить."
           }
         },
         "th": {
@@ -30938,7 +31034,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "El catálogo no puede distinguir estos protocolos compatibles con OpenAI. No es necesario que adivine: utilice las pruebas automáticas a continuación y Oriveo seleccionará una que complete una solicitud real."
+            "value": "El catálogo no puede distinguir estos protocolos compatibles con OpenAI. No tienes que adivinar: usa las pruebas automáticas de abajo y Oriveo elegirá uno que complete una solicitud real."
           }
         },
         "fr": {
@@ -30980,7 +31076,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Каталог не может различить эти протоколы, совместимые с OpenAI. Вам не нужно гадать — используйте автоматическое тестирование ниже, и Oriveo выберет тот, который выполняет реальный запрос."
+            "value": "По каталогу эти OpenAI-совместимые протоколы не различить. Гадать не нужно: запусти автоматическую проверку ниже, и Oriveo выберет тот, что выполнит реальный запрос."
           }
         },
         "th": {
@@ -32186,7 +32282,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Не удалось установить стабильное подключение к этой пользовательской LLM. Проверьте адрес и повторите попытку."
+            "value": "Не удалось стабильно подключиться к пользовательской LLM. Проверь адрес и попробуй ещё раз."
           }
         },
         "th": {
@@ -32287,7 +32383,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Пользовательская LLM не смогла связаться со своим upstream-провайдером. Это не проблема вашей конфигурации: upstream-аккаунт администратора сервиса может быть недействительным, без средств или ограниченным по частоте запросов. Переключитесь на другую пользовательскую LLM или свяжитесь с администратором."
+            "value": "Пользовательской LLM не удалось связаться со своим upstream-провайдером. Дело не в твоей настройке: upstream-аккаунт администратора сервиса может быть недействителен, без средств или упираться в лимит частоты. Переключись на другую пользовательскую LLM или свяжись с администратором."
           }
         },
         "th": {
@@ -32346,7 +32442,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "El relevo tiene una velocidad limitada. Espere y vuelva a intentarlo; Oriveo no rotó credenciales ni protocolos."
+            "value": "Este LLM personalizado ha limitado las solicitudes. Espera y vuelve a intentarlo; Oriveo no cambió las credenciales ni los protocolos."
           }
         },
         "fr": {
@@ -32388,7 +32484,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Для этой пользовательской LLM действует ограничение частоты запросов. Подождите и повторите попытку; Oriveo не меняла учётные данные или протокол."
+            "value": "Пользовательская LLM ограничила частоту запросов. Подожди и попробуй ещё раз; Oriveo не меняла учётные данные и протоколы."
           }
         },
         "th": {
@@ -32489,7 +32585,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Upstream этой пользовательской LLM не предоставляет эту модель. Откройте Поставщики → это пользовательская LLM → Настройки подключения → Модель и выберите модель, которую эта пользовательская LLM действительно поддерживает (например, gpt-5.4). Точный список доступных идентификаторов уточните у администратора сервиса."
+            "value": "Upstream этой пользовательской LLM не предоставляет эту модель. Открой Провайдеры → это подключение → Настройки подключения → Модель и выбери модель, которую эта пользовательская LLM действительно поддерживает (например, gpt-5.4). Точный список доступных идентификаторов можно уточнить у администратора сервиса."
           }
         },
         "th": {
@@ -32649,7 +32745,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "El servidor rechazó la clave API. Verifique la clave o elija el protocolo documentado manualmente."
+            "value": "El servidor rechazó la clave API. Verifica la clave o elige manualmente el protocolo documentado."
           }
         },
         "fr": {
@@ -32691,7 +32787,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Сервер отклонил ключ API. Проверьте ключ или выберите документированный протокол вручную."
+            "value": "Сервер отклонил API-ключ. Проверь ключ или выбери протокол из документации вручную."
           }
         },
         "th": {
@@ -33089,7 +33185,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Эти параметры выведены из выбранного вами протокола. Oriveo не проверял, работают ли они на этом подключении."
+            "value": "Эти параметры выведены из выбранного тобой протокола. Oriveo не проверял, действуют ли они на этом подключении."
           }
         },
         "th": {
@@ -33487,7 +33583,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Этот адрес не соответствует способу подключения. Измените способ подключения, чтобы продолжить."
+            "value": "Этот адрес не соответствует способу подключения. Измени способ подключения, чтобы продолжить."
           }
         },
         "th": {
@@ -34633,7 +34729,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Actualmente, este proveedor no garantiza una sincronización automática estable del modelo. Continúe con una identificación de modelo manual."
+            "value": "Actualmente, este proveedor no garantiza una sincronización automática estable de modelos. Continúa ingresando un ID de modelo manualmente."
           }
         },
         "fr": {
@@ -34728,7 +34824,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Este proveedor no admite la sincronización automática de modelos. Puedes introducir un ID de modelo manualmente en su lugar."
+            "value": "Este proveedor no admite la sincronización automática de modelos. Puedes ingresar un ID de modelo manualmente en su lugar."
           }
         },
         "fr": {
@@ -34871,7 +34967,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Эта пользовательская LLM не принимает текущее значение OpenAI service tier. Откройте Поставщики → это подключение → Настройки подключения → Совместимость и очистите «OpenAI service tier», затем повторите."
+            "value": "Эта пользовательская LLM не принимает текущее значение OpenAI service tier. Открой Провайдеры → это подключение → Настройки подключения → Совместимость, очисти «OpenAI service tier» и попробуй ещё раз."
           }
         },
         "th": {
@@ -34930,7 +35026,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Este LLM personalizado no ofrece un request URL dedicado para imágenes. Abre Proveedores → este LLM personalizado → Configuración de conexión → Protocolo y cámbialo a OpenAI Responses. Oriveo usará la ruta del tool de imagen inline."
+            "value": "Este LLM personalizado no ofrece una URL de solicitud dedicada para imágenes. Abre Proveedores → este LLM personalizado → Configuración de conexión → Protocolo y cámbialo a OpenAI Responses. Oriveo usará la ruta del tool de imagen inline."
           }
         },
         "fr": {
@@ -34972,7 +35068,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "У этой пользовательской LLM нет отдельного URL запроса для изображений. Откройте Поставщики → это подключение → Настройки подключения → Протокол и выберите OpenAI Responses. Затем Oriveo использует встроенный путь инструмента изображений."
+            "value": "У этой пользовательской LLM нет отдельного URL запроса для изображений. Открой Провайдеры → это подключение → Настройки подключения → Протокол и выбери OpenAI Responses. Тогда Oriveo будет использовать встроенный инструмент изображений."
           }
         },
         "th": {
@@ -35073,7 +35169,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Этой пользовательской LLM нужен заголовок x-api-key в стиле Anthropic. Откройте Поставщики → это подключение → Настройки подключения → Аутентификация и переключитесь на «x-api-key», затем повторите."
+            "value": "Этой пользовательской LLM нужен заголовок x-api-key в стиле Anthropic. Открой Провайдеры → это подключение → Настройки подключения → Аутентификация, выбери «x-api-key» и попробуй ещё раз."
           }
         },
         "th": {
@@ -35174,7 +35270,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Эта пользовательская LLM предоставляет только /v1/responses и отклоняет /chat/completions. Откройте Поставщики → это подключение → Настройки подключения → тип протокола и переключитесь на «Codex style (Responses)», затем повторите."
+            "value": "Эта пользовательская LLM принимает только /v1/responses и отклоняет /chat/completions. Открой Провайдеры → это подключение → Настройки подключения → Тип протокола, выбери «Codex (Responses)» и попробуй ещё раз."
           }
         },
         "th": {
@@ -35275,7 +35371,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Эта пользовательская LLM отклоняет поле «store/disable_response_storage». Откройте Поставщики → это подключение → Настройки подключения → Совместимость и выключите «Don't keep responses in the cloud», затем повторите."
+            "value": "Эта пользовательская LLM отклоняет поле «store/disable_response_storage». Открой Провайдеры → это подключение → Настройки подключения → Совместимость, выключи «Не хранить ответы в облаке» и попробуй ещё раз."
           }
         },
         "th": {
@@ -35376,7 +35472,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Этой пользовательской LLM нужен протокол OpenAI Responses. Откройте Поставщики → это подключение → Настройки подключения → тип протокола и переключитесь на «Codex style (Responses)», затем повторите."
+            "value": "Этой пользовательской LLM нужен протокол OpenAI Responses. Открой Провайдеры → это подключение → Настройки подключения → Тип протокола, выбери «Codex (Responses)» и попробуй ещё раз."
           }
         },
         "th": {
@@ -35477,7 +35573,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Этой пользовательской LLM требуется параметр «max_tokens». Откройте настройки модели этой пользовательской LLM и задайте значение max_tokens (напр. 4096), затем повторите."
+            "value": "Этой пользовательской LLM нужен параметр «max_tokens». Открой настройки модели этой пользовательской LLM, задай значение max_tokens (например, 4096) и попробуй ещё раз."
           }
         },
         "th": {
@@ -35578,7 +35674,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Эта пользовательская LLM по-прежнему отклоняет идентификатор клиента Codex от Oriveo. Попробуйте задать собственный User-Agent в Настройки подключения → Расширенный HTTP или переключитесь на другую пользовательскую LLM / свяжитесь с администратором (upstream-аккаунт может быть не авторизован или ограничен)."
+            "value": "Эта пользовательская LLM всё ещё отклоняет идентификацию клиента Codex от Oriveo. Попробуй задать свой User-Agent в разделе Настройки подключения → Расширенный HTTP или переключись на другую пользовательскую LLM либо свяжись с администратором (upstream-аккаунт может быть не авторизован или упираться в лимит)."
           }
         },
         "th": {
@@ -36071,7 +36167,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Протокол, аутентификация и поведение управляются предустановкой. Перейдите в режим «Полная настройка», чтобы переопределить их."
+            "value": "Протокол, аутентификация и поведение задаются предустановкой. Чтобы переопределить их, перейди в режим «Полная настройка»."
           }
         },
         "th": {
@@ -36267,7 +36363,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Не удалось получить, повторите"
+            "value": "Не удалось загрузить, попробуй ещё раз"
           }
         },
         "th": {
@@ -36439,7 +36535,7 @@
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Membuka"
+            "value": "Urungkan"
           }
         },
         "ja": {
@@ -36914,7 +37010,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Utilice VPN privada"
+            "value": "Usar VPN privada"
           }
         },
         "fr": {
@@ -36956,7 +37052,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Используйте частный VPN"
+            "value": "Использовать частный VPN"
           }
         },
         "th": {
@@ -37217,7 +37313,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Utilice una dirección VPN local, LAN, de enlace local o privada compatible."
+            "value": "Usa una dirección local, LAN, de enlace local o de VPN privada compatible."
           }
         },
         "fr": {
@@ -37259,7 +37355,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Используйте локальный адрес, адрес локальной сети, локальный канал или поддерживаемый частный адрес VPN."
+            "value": "Используй локальный адрес, адрес LAN, link-local или поддерживаемый адрес частного VPN."
           }
         },
         "th": {
@@ -37360,7 +37456,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Используйте URL-адрес запроса HTTPS. Адреса локальной сети и VPN поддерживаются при наличии действительного TLS-сертификата."
+            "value": "Используй HTTPS-URL запроса. Адреса локальной сети и VPN поддерживаются при действующем TLS-сертификате."
           }
         },
         "th": {
@@ -37461,7 +37557,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Используйте только при сбое автоматического определения."
+            "value": "Используй, только если автоматическое определение не сработало."
           }
         },
         "th": {
@@ -37562,7 +37658,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Используйте точный ID модели, предоставляемый вашим пользовательская LLM."
+            "value": "Используй точный ID модели, который отдаёт твоя пользовательская LLM."
           }
         },
         "th": {
@@ -37663,7 +37759,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Выберите вариант, который указан у вашего пользовательская LLM-провайдера. Oriveo заполнит настройки подключения по умолчанию."
+            "value": "Выбери вариант, который указал провайдер твоей пользовательской LLM. Oriveo заполнит настройки подключения по умолчанию."
           }
         },
         "th": {
@@ -37966,7 +38062,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Подключите свой сервис моделей"
+            "value": "Подключи свой сервис моделей"
           }
         },
         "th": {
@@ -38067,7 +38163,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Используйте свой URL запроса и API-ключ"
+            "value": "Используй свой URL запроса и API-ключ"
           }
         },
         "th": {
@@ -38762,7 +38858,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Проверьте соединение"
+            "value": "Проверить подключение"
           }
         },
         "th": {
@@ -39813,7 +39909,7 @@
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Web"
+            "value": "वेब"
           }
         },
         "id": {
@@ -39825,13 +39921,13 @@
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "ネット"
+            "value": "ウェブ"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "인터넷"
+            "value": "웹"
           }
         },
         "pt-BR": {
@@ -39843,13 +39939,13 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Web"
+            "value": "Интернет"
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "Web"
+            "value": "เว็บ"
           }
         },
         "tr": {
@@ -39873,7 +39969,7 @@
         "zh-Hant": {
           "stringUnit": {
             "state": "translated",
-            "value": "聯網"
+            "value": "連網"
           }
         }
       }
@@ -40300,7 +40396,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "También puedes añadir manualmente un ID de modelo."
+            "value": "También puedes agregar manualmente un ID de modelo."
           }
         },
         "fr": {
@@ -40342,7 +40438,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Вы также можете добавить идентификатор модели вручную."
+            "value": "Идентификатор модели можно добавить и вручную."
           }
         },
         "th": {
@@ -40805,7 +40901,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Su clave API se almacena de forma segura en este dispositivo y se envía únicamente a su retransmisión."
+            "value": "Tu clave API se guarda de forma segura en este dispositivo y solo se envía a tu LLM personalizado."
           }
         },
         "fr": {
@@ -40847,7 +40943,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Ваш ключ API надежно хранится на этом устройстве и отправляется только на ваш пользовательская LLM."
+            "value": "Твой API-ключ надёжно хранится на этом устройстве и отправляется только в твою пользовательскую LLM."
           }
         },
         "th": {
@@ -41209,7 +41305,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Sus cambios en este relevo no se han guardado."
+            "value": "Tus cambios en este LLM personalizado no se han guardado."
           }
         },
         "fr": {
@@ -41857,7 +41953,7 @@
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "например Мой пользовательская LLM"
+            "value": "например, Моя пользовательская LLM"
           }
         },
         "th": {
@@ -41898,13 +41994,13 @@
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "llama.cpp native completion"
+            "value": "completion الأصلي في llama.cpp"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "llama.cpp native completion"
+            "value": "Native llama.cpp-Completion"
           }
         },
         "en": {
@@ -41916,67 +42012,67 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "llama.cpp native completion"
+            "value": "Completion nativo de llama.cpp"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "llama.cpp native completion"
+            "value": "Completion native llama.cpp"
           }
         },
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "llama.cpp native completion"
+            "value": "llama.cpp नेटिव completion"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "llama.cpp native completion"
+            "value": "Completion native llama.cpp"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "llama.cpp native completion"
+            "value": "llama.cpp ネイティブ completion"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "llama.cpp native completion"
+            "value": "llama.cpp 네이티브 completion"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "llama.cpp native completion"
+            "value": "Completion nativo do llama.cpp"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "llama.cpp native completion"
+            "value": "Нативный completion llama.cpp"
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "llama.cpp native completion"
+            "value": "completion แบบเนทีฟของ llama.cpp"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "llama.cpp native completion"
+            "value": "llama.cpp yerel completion"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "llama.cpp native completion"
+            "value": "Completion gốc của llama.cpp"
           }
         },
         "zh-Hans": {
@@ -42017,7 +42113,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "localhost se refiere a este teléfono, no a tu ordenador."
+            "value": "localhost se refiere a este teléfono, no a tu computadora."
           }
         },
         "fr": {
@@ -42427,7 +42523,7 @@
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "टूल"
+            "value": "टूल्स"
           }
         },
         "id": {

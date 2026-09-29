@@ -239,7 +239,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Añadir etiqueta"
+            "value": "Agregar etiqueta"
           }
         },
         "fr": {
@@ -6727,19 +6727,19 @@
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "This conversation is referenced by %d notes."
+            "value": "عدد الملاحظات التي تشير إلى هذه المحادثة: %d."
           }
         },
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "This conversation is referenced by %d notes."
+            "value": "%d नोट्स इस बातचीत को रेफ़र करते हैं।"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "This conversation is referenced by %d notes."
+            "value": "Percakapan ini dirujuk oleh %d catatan."
           }
         },
         "ru": {
@@ -6751,19 +6751,19 @@
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "This conversation is referenced by %d notes."
+            "value": "มีโน้ต %d รายการที่อ้างอิงถึงการสนทนานี้"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "This conversation is referenced by %d notes."
+            "value": "%d not bu sohbete atıfta bulunuyor."
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "This conversation is referenced by %d notes."
+            "value": "Có %d ghi chú tham chiếu đến cuộc trò chuyện này."
           }
         }
       }
@@ -6828,19 +6828,19 @@
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "These conversations are referenced by %d notes."
+            "value": "عدد الملاحظات التي تشير إلى هذه المحادثات: %d."
           }
         },
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "These conversations are referenced by %d notes."
+            "value": "%d नोट्स इन बातचीत को रेफ़र करते हैं।"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "These conversations are referenced by %d notes."
+            "value": "Percakapan-percakapan ini dirujuk oleh %d catatan."
           }
         },
         "ru": {
@@ -6852,19 +6852,19 @@
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "These conversations are referenced by %d notes."
+            "value": "มีโน้ต %d รายการที่อ้างอิงถึงการสนทนาเหล่านี้"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "These conversations are referenced by %d notes."
+            "value": "%d not bu sohbetlere atıfta bulunuyor."
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "These conversations are referenced by %d notes."
+            "value": "Có %d ghi chú tham chiếu đến các cuộc trò chuyện này."
           }
         }
       }
@@ -7006,7 +7006,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Mantén pulsada una nota para restaurarla o eliminarla."
+            "value": "Mantén presionada una nota para restaurarla o eliminarla."
           }
         },
         "fr": {
@@ -7915,7 +7915,7 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Este proveedor no está disponible. Añade un proveedor con tu propia clave."
+            "value": "Este proveedor no está disponible. Agrega un proveedor con tu propia clave."
           }
         },
         "fr": {

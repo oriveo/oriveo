@@ -588,7 +588,8 @@ enum ModelCapability: String, CaseIterable, Hashable, Identifiable, Codable {
         case .video:
             return L10n.tr("Video")
         case .file:
-            return L10n.tr("File")
+            // The capability badge uses its own plural key; the attachment menu's "File" is unaffected.
+            return L10n.tr("Files", table: .providers)
         case .web:
             return L10n.tr("Web", table: .providers)
         case .imageGen:
