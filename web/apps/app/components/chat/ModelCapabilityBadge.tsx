@@ -230,6 +230,26 @@ interface ModelCapabilityBadgesProps {
   badgeOrder?: string[];
   /** Compact mode: render the icon only. */
   iconOnly?: boolean;
+  /** Model rows pass `MODEL_ROW_MAX_CAPABILITY_BADGES` so iOS and Android truncate the same way; filter chips omit it. */
+  maxVisible?: number;
+}
+
+/** Maximum number of capability badges on a model row (picker, provider detail, model library); same value on every platform. */
+export const MODEL_ROW_MAX_CAPABILITY_BADGES = 3;
+
+/**
+ * Truncation rule shared by all platforms (iOS `visibleMetadataCapabilities` / the Android function of the same name):
+ * when over the limit, web and imageGeneration are guaranteed a slot at the end, and the rest fill in by original order.
+ * toolCall is not guaranteed a slot.
+ */
+export function limitCapabilityBadges(ordered: string[], maxVisible: number): string[] {
+  if (maxVisible <= 0) return [];
+  if (ordered.length <= maxVisible) return ordered;
+  const mustShow = ['web', 'imageGeneration'].filter((cap) => ordered.includes(cap));
+  if (mustShow.length === 0) return ordered.slice(0, maxVisible);
+  const reserved = Math.min(maxVisible, mustShow.length);
+  const regular = ordered.filter((cap) => !mustShow.includes(cap)).slice(0, maxVisible - reserved);
+  return [...regular, ...mustShow].slice(0, maxVisible);
 }
 
 export function ModelCapabilityBadges({
@@ -238,6 +258,7 @@ export function ModelCapabilityBadges({
   providerId,
   badgeOrder,
   iconOnly = false,
+  maxVisible,
 }: ModelCapabilityBadgesProps) {
   const visible = capabilities.filter((c) => c !== 'text');
   if (visible.length === 0) return null;
@@ -251,9 +272,10 @@ export function ModelCapabilityBadges({
   //   - a capability listed in badgeOrder that the client does not recognize gets the grey dot
   //     fallback rather than being skipped
   //   - without badgeOrder, fall back to the original `capabilities` order for older metadata
-  const ordered = badgeOrder && badgeOrder.length > 0
+  const sorted = badgeOrder && badgeOrder.length > 0
     ? orderByBadgeOrder(visible, badgeOrder)
     : visible;
+  const ordered = maxVisible === undefined ? sorted : limitCapabilityBadges(sorted, maxVisible);
   if (ordered.length === 0) return null;
 
   return (

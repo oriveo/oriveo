@@ -1,7 +1,7 @@
 import { Check } from "lucide-react";
 import { useTranslations } from "next-intl";
 import type { AIModel, Provider } from "@oriveo/shared";
-import { ModelCapabilityBadges } from "../ModelCapabilityBadge";
+import { MODEL_ROW_MAX_CAPABILITY_BADGES, ModelCapabilityBadges } from "../ModelCapabilityBadge";
 import { useModelPriceTierLabel } from "../model-price-tier-label";
 import styles from "../ModelSwitcher.module.css";
 import {
@@ -77,6 +77,7 @@ export function ModelRowItem({
                 capabilities={visibleCapabilities}
                 size="xs"
                 badgeOrder={model.badgeOrder}
+                maxVisible={MODEL_ROW_MAX_CAPABILITY_BADGES}
               />
             </span>
           ) : null}

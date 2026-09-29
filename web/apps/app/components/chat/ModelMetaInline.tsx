@@ -4,7 +4,7 @@ import type { AIModel, Provider } from '@oriveo/shared';
 import { useTranslations } from 'next-intl';
 import { formatPerMillionPrice } from '../../lib/utils/format-utils';
 import { formatContextLength } from './ModelSwitcher/model-switcher-data';
-import { ModelCapabilityBadges } from './ModelCapabilityBadge';
+import { MODEL_ROW_MAX_CAPABILITY_BADGES, ModelCapabilityBadges } from './ModelCapabilityBadge';
 import { useModelPriceTierLabel } from './model-price-tier-label';
 import {
   visibleModelCapabilityBadges,
@@ -126,6 +126,7 @@ function ModelMetaInlineContent({
           capabilities={capabilities}
           size={size}
           badgeOrder={model.badgeOrder}
+          maxVisible={MODEL_ROW_MAX_CAPABILITY_BADGES}
         />
       ) : null}
     </span>

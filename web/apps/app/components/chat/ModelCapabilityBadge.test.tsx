@@ -9,12 +9,16 @@
  */
 
 import React from 'react';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import { render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   ModelCapabilityBadge,
   ModelCapabilityBadges,
+  MODEL_ROW_MAX_CAPABILITY_BADGES,
   __resetUnknownReportedForTest,
+  limitCapabilityBadges,
 } from './ModelCapabilityBadge';
 
 // next-intl mock: return the key unchanged.
@@ -191,5 +195,43 @@ describe('ModelCapabilityBadges (Presentation Contract)', () => {
     render(<ModelCapabilityBadges capabilities={['reasoning', 'mystery']} />);
     expect(screen.getByText('reasoning')).toBeTruthy();
     expect(screen.getByText('Mystery')).toBeTruthy();
+  });
+});
+
+// Single source of truth for all platforms: iOS ModelRowCapabilityContractTests and Android
+// ModelRowCapabilityContractTest read the same fixture.
+const rowContract = JSON.parse(
+  readFileSync(
+    path.resolve(__dirname, '../../../../../shared/model-contracts/model_row_capability_badges.v1.json'),
+    'utf8',
+  ),
+) as { contractVersion: number; maxVisible: number; cases: { name: string; input: string[]; expected: string[] }[] };
+
+describe('model row capability badges (shared cross-platform contract)', () => {
+  it('uses the shared row limit', () => {
+    expect(rowContract.contractVersion).toBe(1);
+    expect(MODEL_ROW_MAX_CAPABILITY_BADGES).toBe(rowContract.maxVisible);
+  });
+
+  it.each(rowContract.cases.map((item) => [item.name, item] as const))('%s', (_name, item) => {
+    expect(limitCapabilityBadges(item.input, rowContract.maxVisible)).toEqual(item.expected);
+  });
+
+  it('model rows render at most the shared limit', () => {
+    render(
+      <ModelCapabilityBadges
+        capabilities={['image', 'file', 'web', 'toolCall']}
+        maxVisible={MODEL_ROW_MAX_CAPABILITY_BADGES}
+      />,
+    );
+    expect(screen.getByText('image')).toBeTruthy();
+    expect(screen.getByText('web')).toBeTruthy();
+    expect(screen.queryByText('toolCall')).toBeNull();
+  });
+
+  it('picker row and every model-row entry pass the shared limit', () => {
+    const read = (relative: string) => readFileSync(path.resolve(__dirname, relative), 'utf8');
+    expect(read('./ModelSwitcher/ModelRowItem.tsx')).toContain('maxVisible={MODEL_ROW_MAX_CAPABILITY_BADGES}');
+    expect(read('./ModelMetaInline.tsx')).toContain('maxVisible={MODEL_ROW_MAX_CAPABILITY_BADGES}');
   });
 });
