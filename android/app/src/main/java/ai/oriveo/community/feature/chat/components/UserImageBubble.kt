@@ -40,6 +40,7 @@ import ai.oriveo.community.ui.component.ImageViewerSheet
 import ai.oriveo.community.ui.component.decodeSampledBitmap
 import ai.oriveo.community.ui.component.rememberAttachmentDisplayBitmap
 import ai.oriveo.community.ui.component.rememberAttachmentThumbnailBitmap
+import ai.oriveo.community.ui.component.rememberGlobalSnackbarManager
 import ai.oriveo.community.ui.component.saveImageToGallery
 import ai.oriveo.community.ui.component.shareImage
 import ai.oriveo.community.ui.theme.OriveoTheme
@@ -305,6 +306,7 @@ private fun ImageContextDropdown(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val snackbar = rememberGlobalSnackbarManager()
     DropdownMenu(expanded = expanded, onDismissRequest = onDismiss) {
         DropdownMenuItem(
             text = { Text(stringResource(R.string.save_to_photos)) },
@@ -312,7 +314,7 @@ private fun ImageContextDropdown(
                 onDismiss()
                 scope.launch {
                     val bmp = loadAttachmentBitmap(context, attachmentStore, attachment) ?: return@launch
-                    saveImageToGallery(context, bmp)
+                    saveImageToGallery(context, bmp, snackbar)
                 }
             },
         )
@@ -322,7 +324,7 @@ private fun ImageContextDropdown(
                 onDismiss()
                 scope.launch {
                     val bmp = loadAttachmentBitmap(context, attachmentStore, attachment) ?: return@launch
-                    shareImage(context, bmp)
+                    shareImage(context, bmp, snackbar)
                 }
             },
         )

@@ -86,7 +86,6 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.stateDescription
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ai.oriveo.community.R
-import ai.oriveo.community.core.app.GlobalSnackbarManager
 import ai.oriveo.community.core.data.remote.MetadataClient
 import ai.oriveo.community.core.data.repository.ProviderRepository
 import ai.oriveo.community.core.model.AIModel
@@ -102,7 +101,6 @@ import ai.oriveo.community.feature.providers.detail.sortedEnabledModels
 import ai.oriveo.community.feature.providers.detail.sortedProvidersForModelPicker
 import ai.oriveo.community.ui.component.FixedHeroModelCapabilityStrip
 import ai.oriveo.community.ui.component.MODEL_ROW_MAX_CAPABILITIES
-import ai.oriveo.community.ui.component.GlobalToastHost
 import ai.oriveo.community.ui.component.OriveoSheetDragHandle
 import ai.oriveo.community.ui.component.ProviderBadgeIcon
 import ai.oriveo.community.ui.component.localizedPriceTier
@@ -276,7 +274,6 @@ fun ModelPickerSheet(
 
     val capabilityObservationRevision by CapabilityEvidenceObservationBridge.revision.collectAsStateWithLifecycle()
     val providerRepository: ProviderRepository = koinInject()
-    val globalSnackbarManager: GlobalSnackbarManager = koinInject()
     val toolCallMemoryStore: ToolCallMemoryStore = koinInject()
     val toolCallMemoryRevision by toolCallMemoryStore.revision.collectAsStateWithLifecycle()
     val toolCallMemoryVerdict: (Provider, AIModel) -> Boolean? = { provider, model ->
@@ -385,16 +382,6 @@ fun ModelPickerSheet(
                 )
             }
         }
-        // The global toast host lives in the root window, while a ModalBottomSheet renders in its own
-        // window on top of it. A toast raised from inside the picker (the "added" confirmation or a
-        // failure message) would be hidden behind the sheet. Host one here as well, on the same
-        // message flow; the copy in the covered root window is never visible, so nothing shows twice.
-        GlobalToastHost(
-            messages = globalSnackbarManager.messages,
-            modifier = Modifier
-                .align(Alignment.TopCenter)
-                .statusBarsPadding(),
-        )
     }
 }
 

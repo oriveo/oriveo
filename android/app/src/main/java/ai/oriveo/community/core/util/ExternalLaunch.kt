@@ -4,9 +4,12 @@ import android.content.ActivityNotFoundException
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
-import android.widget.Toast
 import androidx.browser.customtabs.CustomTabsIntent
 import ai.oriveo.community.R
+import ai.oriveo.community.core.app.GlobalSnackbarManager
+import ai.oriveo.community.core.app.GlobalSnackbarMessage
+import ai.oriveo.community.core.app.GlobalToastStyle
+import ai.oriveo.community.core.app.UiText
 
 enum class ExternalActivityLaunchOutcome {
     LAUNCHED,
@@ -23,9 +26,22 @@ fun launchExternalActivitySafely(launch: () -> Unit): ExternalActivityLaunchOutc
         ExternalActivityLaunchOutcome.UNAVAILABLE
     }
 
-fun launchExternalActivityOrNotify(context: Context, launch: () -> Unit) {
+/**
+ * Safe entry point for Activity Result requests (system gallery / camera / document picker /
+ * document creation): when nothing can handle it, say so with a top toast instead of letting
+ * `launcher.launch(...)` throw [ActivityNotFoundException] on the main thread and crash the process.
+ *
+ * These entry points usually sit behind buttons people tap again when nothing happens, and a silent
+ * failure is harder to diagnose than a crash, so give feedback rather than silence.
+ */
+fun launchExternalActivityOrNotify(snackbar: GlobalSnackbarManager?, launch: () -> Unit) {
     if (launchExternalActivitySafely(launch) == ExternalActivityLaunchOutcome.UNAVAILABLE) {
-        Toast.makeText(context, R.string.external_app_unavailable, Toast.LENGTH_LONG).show()
+        snackbar?.show(
+            GlobalSnackbarMessage(
+                UiText.Resource(R.string.external_app_unavailable),
+                style = GlobalToastStyle.Error,
+            ),
+        )
     }
 }
 

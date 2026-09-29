@@ -46,7 +46,7 @@ class MessageSelectionHierarchyContractTest {
 
         assertTrue(
             "ModalBottomSheet must clear a parent SelectionContainer before creating its separate layout root.",
-            imageViewer.contains("DisableSelection {\n        ModalBottomSheet("),
+            imageViewer.contains("DisableSelection {\n        OriveoModalBottomSheet("),
         )
         assertTrue(
             "DropdownMenu must clear a parent SelectionContainer before creating its Popup layout root.",
@@ -54,7 +54,7 @@ class MessageSelectionHierarchyContractTest {
         )
         assertTrue(
             "The full-screen code sheet must clear the message SelectionContainer before creating its layout root.",
-            codeBlock.contains("DisableSelection {\n        ModalBottomSheet("),
+            codeBlock.contains("DisableSelection {\n        OriveoModalBottomSheet("),
         )
         assertTrue(
             "Full-screen code must retain selection through a sheet-local SelectionContainer.",

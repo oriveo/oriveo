@@ -23,7 +23,7 @@ import androidx.compose.material.icons.outlined.Psychology
 import androidx.compose.material.icons.outlined.VisibilityOff
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.ModalBottomSheet
+import ai.oriveo.community.ui.component.OriveoModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -54,7 +54,7 @@ fun MemoryIndicatorSheet(
     val isDark = OriveoTheme.isDark
     val preview = memoryPopoverPreviewText(memoryText)
 
-    ModalBottomSheet(
+    OriveoModalBottomSheet(
         onDismissRequest = onDismiss,
         dragHandle = { OriveoSheetDragHandle() },
         containerColor = colors.surface,

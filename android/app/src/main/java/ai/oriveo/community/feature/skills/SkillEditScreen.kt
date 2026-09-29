@@ -13,6 +13,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import ai.oriveo.community.ui.component.rememberGlobalSnackbarManager
 import ai.oriveo.community.ui.theme.OriveoBorderWidth
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -146,6 +147,7 @@ fun SkillEditScreen(
 ) {
     val context = LocalResources.current
     val androidContext = LocalContext.current
+    val externalLaunchToast = rememberGlobalSnackbarManager()
     val colors = OriveoTheme.colors
     val spacing = OriveoTheme.spacing
     val layout = OriveoTheme.layout
@@ -786,7 +788,7 @@ fun SkillEditScreen(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .clickable {
-                                            launchExternalActivityOrNotify(androidContext) {
+                                            launchExternalActivityOrNotify(externalLaunchToast) {
                                                 referenceFilePickerLauncher.launch(
                                                     arrayOf(
                                                         "text/*",

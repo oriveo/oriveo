@@ -31,6 +31,7 @@ import ai.oriveo.community.core.provider.openai.OpenAISubscriptionError
 import ai.oriveo.community.core.provider.openai.OpenAISubscriptionTokens
 import ai.oriveo.community.ui.component.OriveoPrimaryButton
 import ai.oriveo.community.ui.component.OriveoTextButton
+import ai.oriveo.community.ui.component.rememberGlobalSnackbarManager
 import ai.oriveo.community.ui.theme.OriveoTheme
 
 @Composable
@@ -43,6 +44,7 @@ fun OpenAISubscriptionAuthorizationSheet(
     val colors = OriveoTheme.colors
     val spacing = OriveoTheme.spacing
     val context = LocalContext.current
+    val snackbar = rememberGlobalSnackbarManager()
 
     LaunchedEffect(config) { model.startIfIdle(config) }
 
@@ -128,7 +130,7 @@ fun OpenAISubscriptionAuthorizationSheet(
                     },
                     onClick = {
                         model.markVerificationPageOpened()
-                        openSubscriptionVerificationPage(context, phase.authorization.verificationUrl)
+                        openSubscriptionVerificationPage(context, phase.authorization.verificationUrl, snackbar)
                     },
                     modifier = Modifier.fillMaxWidth(),
                 )

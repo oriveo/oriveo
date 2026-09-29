@@ -1,6 +1,5 @@
 package ai.oriveo.community.ui.component.markdown
 
-import android.widget.Toast
 import androidx.collection.LruCache
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -56,10 +55,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import ai.oriveo.community.core.app.GlobalSnackbarManager
+import ai.oriveo.community.core.app.GlobalSnackbarMessage
+import ai.oriveo.community.core.app.GlobalToastStyle
+import ai.oriveo.community.core.app.UiText
 import ai.oriveo.community.ui.component.coerceHeightConstraintPx
 import ai.oriveo.community.R
 import ai.oriveo.community.core.util.openExternalUrl
 import ai.oriveo.community.ui.component.isReduceMotionEnabled
+import ai.oriveo.community.ui.component.rememberGlobalSnackbarManager
 import ai.oriveo.community.ui.component.streaming.StreamingRevealState
 import ai.oriveo.community.ui.component.streaming.rememberStreamingReveal
 import ai.oriveo.community.ui.theme.OriveoBorderWidth
@@ -737,7 +741,8 @@ private fun ParagraphWithInlineMath(
     val style = markdownBodyStyle().copy(color = mdColors.text)
     val context = LocalContext.current
     val withMath = remember(text, mdColors) { renderInlineMarkdownWithMath(text, mdColors) }
-    val annotated = remember(withMath, context) { withMath.annotated.withSafeLinkHandling(context) }
+    val snackbar = rememberGlobalSnackbarManager()
+    val annotated = remember(withMath, context, snackbar) { withMath.annotated.withSafeLinkHandling(context, snackbar) }
     val inlineContent = buildInlineMathContent(
         spans = withMath.mathSpans,
         style = style,
@@ -759,7 +764,8 @@ private fun ClickableAnnotatedText(
 ) {
 
     val context = LocalContext.current
-    val safeText = remember(text, context) { text.withSafeLinkHandling(context) }
+    val snackbar = rememberGlobalSnackbarManager()
+    val safeText = remember(text, context, snackbar) { text.withSafeLinkHandling(context, snackbar) }
     Text(
         text = safeText,
         style = style,
@@ -769,6 +775,7 @@ private fun ClickableAnnotatedText(
 
 private fun AnnotatedString.withSafeLinkHandling(
     context: android.content.Context,
+    snackbar: GlobalSnackbarManager?,
 ): AnnotatedString {
     if (getLinkAnnotations(0, length).isEmpty()) return this
     return mapAnnotations { range ->
@@ -776,7 +783,12 @@ private fun AnnotatedString.withSafeLinkHandling(
         val safe = LinkAnnotation.Url(link.url, link.styles) {
             val url = (it as LinkAnnotation.Url).url
             if (!openExternalUrl(context, url)) {
-                Toast.makeText(context, R.string.link_open_failed_message, Toast.LENGTH_LONG).show()
+                snackbar?.show(
+                    GlobalSnackbarMessage(
+                        UiText.Resource(R.string.link_open_failed_message),
+                        style = GlobalToastStyle.Error,
+                    ),
+                )
             }
         }
         @Suppress("UNCHECKED_CAST")
@@ -904,7 +916,8 @@ private fun TableCell(
     val context = LocalContext.current
 
     val withMath = remember(normalized, mdColors) { renderInlineMarkdownWithMath(normalized, mdColors) }
-    val annotated = remember(withMath, context) { withMath.annotated.withSafeLinkHandling(context) }
+    val snackbar = rememberGlobalSnackbarManager()
+    val annotated = remember(withMath, context, snackbar) { withMath.annotated.withSafeLinkHandling(context, snackbar) }
     val inlineContent = buildInlineMathContent(
         spans = withMath.mathSpans,
         style = style,

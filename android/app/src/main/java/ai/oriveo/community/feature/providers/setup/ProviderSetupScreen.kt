@@ -56,7 +56,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.ModalBottomSheet
+import ai.oriveo.community.ui.component.OriveoModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
@@ -375,7 +375,7 @@ fun ProviderSetupScreen(
 
                 viewModel.showGrokSubscriptionSheet = false
             } else {
-                ModalBottomSheet(
+                OriveoModalBottomSheet(
                     onDismissRequest = {
                         authorizationViewModel.grok.cancel()
                         viewModel.showGrokSubscriptionSheet = false
@@ -407,7 +407,7 @@ fun ProviderSetupScreen(
 
                 viewModel.showOpenAISubscriptionSheet = false
             } else {
-                ModalBottomSheet(
+                OriveoModalBottomSheet(
                     onDismissRequest = {
                         authorizationViewModel.openAI.cancel()
                         viewModel.showOpenAISubscriptionSheet = false
@@ -433,7 +433,7 @@ fun ProviderSetupScreen(
 
         if (showConnectionSettingsSheet) {
             val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-            ModalBottomSheet(
+            OriveoModalBottomSheet(
                 onDismissRequest = { showConnectionSettingsSheet = false },
                 sheetState = sheetState,
                 dragHandle = { OriveoSheetDragHandle() },

@@ -41,8 +41,10 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import android.widget.Toast
 import ai.oriveo.community.R
+import ai.oriveo.community.core.app.GlobalSnackbarMessage
+import ai.oriveo.community.core.app.GlobalToastStyle
+import ai.oriveo.community.core.app.UiText
 import ai.oriveo.community.core.data.remote.MetadataClient
 import ai.oriveo.community.core.model.AIModel
 import ai.oriveo.community.core.model.GenerationProfileRef
@@ -58,6 +60,7 @@ import ai.oriveo.community.feature.chat.composer.ModelControlInlineAction
 import ai.oriveo.community.feature.chat.composer.ModelControlNote
 import ai.oriveo.community.feature.chat.composer.modelControlOwnerOrder
 import ai.oriveo.community.feature.chat.composer.modelControlSurface
+import ai.oriveo.community.ui.component.rememberGlobalSnackbarManager
 import ai.oriveo.community.ui.theme.OriveoTheme
 import ai.oriveo.community.ui.theme.modelControlTextButtonColors
 
@@ -309,6 +312,7 @@ private fun CustomRequestFieldsOwnerCard(
     onRequestRemoval: () -> Unit,
 ) {
     val context = LocalContext.current
+    val snackbar = rememberGlobalSnackbarManager()
     val colors = OriveoTheme.colors
     val trimmed = raw.trim()
     val jsonLabel = stringResource(R.string.model_control_custom_json_a11y)
@@ -411,7 +415,9 @@ private fun CustomRequestFieldsOwnerCard(
                 icon = Icons.Outlined.Book,
                 onClick = {
                     if (!openExternalUrl(context, documentationURL)) {
-                        Toast.makeText(context, R.string.link_open_failed_message, Toast.LENGTH_LONG).show()
+                        snackbar?.show(
+                            GlobalSnackbarMessage(UiText.Resource(R.string.link_open_failed_message), style = GlobalToastStyle.Error),
+                        )
                     }
                 },
             )

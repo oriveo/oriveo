@@ -46,7 +46,8 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.ModalBottomSheet
+import ai.oriveo.community.ui.component.OriveoFullScreenDialog
+import ai.oriveo.community.ui.component.OriveoModalBottomSheet
 import androidx.compose.material3.TextButton
 import ai.oriveo.community.ui.component.OriveoSheetDragHandle
 import ai.oriveo.community.ui.component.rootTabTopInset
@@ -81,8 +82,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.material.icons.outlined.AutoAwesome
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
 import ai.oriveo.community.BuildConfig
 import ai.oriveo.community.ui.component.rememberBrandPainter
 import ai.oriveo.community.feature.home.resolveBackendDomainLabel
@@ -375,22 +374,15 @@ fun SettingsScreen(
         val rehearsalReduceMotion = remember(rehearsalContext) { isReduceMotionEnabled(rehearsalContext) }
 
         val rehearsalViewModel: OnboardingViewModel = koinViewModel()
-        Dialog(
-            onDismissRequest = { showOnboardingRehearsal = false },
-            properties = DialogProperties(
-                usePlatformDefaultWidth = false,
-                decorFitsSystemWindows = false,
-            ),
-        ) {
-            Box(modifier = Modifier.fillMaxSize()) {
-                OnboardingFlowScreen(
-                    reduceMotion = rehearsalReduceMotion,
-                    onActViewed = {},
-                    onSkipUsed = {},
-                    onGetStarted = { showOnboardingRehearsal = false },
-                    onBack = { showOnboardingRehearsal = false },
-                )
-            }
+        // The toast host inside the full-screen dialog keeps link failures on the last page visible.
+        OriveoFullScreenDialog(onDismissRequest = { showOnboardingRehearsal = false }) {
+            OnboardingFlowScreen(
+                reduceMotion = rehearsalReduceMotion,
+                onActViewed = {},
+                onSkipUsed = {},
+                onGetStarted = { showOnboardingRehearsal = false },
+                onBack = { showOnboardingRehearsal = false },
+            )
         }
     }
 
@@ -449,7 +441,7 @@ fun SettingsScreen(
     }
 
     if (showThemePicker) {
-        ModalBottomSheet(
+        OriveoModalBottomSheet(
             onDismissRequest = { showThemePicker = false },
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
             dragHandle = { OriveoSheetDragHandle() },
@@ -491,7 +483,7 @@ fun SettingsScreen(
     }
 
     if (showLanguagePicker) {
-        ModalBottomSheet(
+        OriveoModalBottomSheet(
             onDismissRequest = { showLanguagePicker = false },
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
             dragHandle = { OriveoSheetDragHandle() },

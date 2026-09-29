@@ -13,7 +13,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.text.selection.DisableSelection
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ModalBottomSheet
+import ai.oriveo.community.ui.component.OriveoModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -66,7 +66,7 @@ internal fun UserMessageFullTextSheet(
     // each text chunk its own SelectionContainer (as CodeBlockViewerSheet does; registering across
     // layout trees crashes on long press).
     DisableSelection {
-        ModalBottomSheet(
+        OriveoModalBottomSheet(
             onDismissRequest = onDismiss,
             sheetState = sheetState,
             containerColor = colors.background,

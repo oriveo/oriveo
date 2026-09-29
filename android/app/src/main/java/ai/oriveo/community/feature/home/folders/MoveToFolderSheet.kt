@@ -13,7 +13,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
-import androidx.compose.material3.ModalBottomSheet
+import ai.oriveo.community.ui.component.OriveoModalBottomSheet
 import ai.oriveo.community.core.model.FolderColor
 import ai.oriveo.community.ui.component.OriveoSheetDragHandle
 import androidx.compose.material3.Text
@@ -34,7 +34,7 @@ fun MoveToFolderSheet(
     onCreateFolderRequest: () -> Unit,
     onDismiss: () -> Unit,
 ) {
-    ModalBottomSheet(
+    OriveoModalBottomSheet(
         onDismissRequest = onDismiss,
         dragHandle = { OriveoSheetDragHandle() },
     ) {

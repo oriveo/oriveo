@@ -55,7 +55,7 @@ import androidx.compose.material.icons.outlined.Build
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.ModalBottomSheet
+import ai.oriveo.community.ui.component.OriveoModalBottomSheet
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -1149,7 +1149,7 @@ private fun MessageTokenUsageDialog(
         }
     }
 
-    ModalBottomSheet(
+    OriveoModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
         dragHandle = { OriveoSheetDragHandle() },

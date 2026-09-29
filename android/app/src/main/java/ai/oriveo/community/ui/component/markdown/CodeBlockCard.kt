@@ -38,7 +38,7 @@ import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.outlined.OpenInFull
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.ModalBottomSheet
+import ai.oriveo.community.ui.component.OriveoModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -550,7 +550,7 @@ private fun CodeBlockViewerSheet(
     // The viewer sheet has its own layout root. Drop the message-level registrar, then create a
     // root-local SelectionContainer only around code so full-screen selection/copy remains intact.
     DisableSelection {
-        ModalBottomSheet(
+        OriveoModalBottomSheet(
             onDismissRequest = onDismiss,
             sheetState = sheetState,
             containerColor = mdColors.codeBlockBg,

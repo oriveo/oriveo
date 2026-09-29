@@ -74,7 +74,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.ModalBottomSheet
+import ai.oriveo.community.ui.component.OriveoModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -654,7 +654,7 @@ fun ProviderDetailScreen(
         }
 
         if (showGenerationParameters) {
-            ModalBottomSheet(
+            OriveoModalBottomSheet(
                 onDismissRequest = { showGenerationParameters = false },
                 sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
             ) {
@@ -720,7 +720,7 @@ fun ProviderDetailScreen(
             viewModel.showGrokReauthorization = false
         } else {
             val grokSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-            ModalBottomSheet(
+            OriveoModalBottomSheet(
                 onDismissRequest = {
                     authorizationViewModel.grok.cancel()
                     viewModel.showGrokReauthorization = false
@@ -750,7 +750,7 @@ fun ProviderDetailScreen(
             viewModel.showOpenAIReauthorization = false
         } else {
             val openAISheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-            ModalBottomSheet(
+            OriveoModalBottomSheet(
                 onDismissRequest = {
                     authorizationViewModel.openAI.cancel()
                     viewModel.showOpenAIReauthorization = false
@@ -774,7 +774,7 @@ fun ProviderDetailScreen(
 
     if (viewModel.showApiKeyEditor && provider?.let(viewModel::canEditApiKey) == true) {
         val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-        ModalBottomSheet(
+        OriveoModalBottomSheet(
             onDismissRequest = { viewModel.showApiKeyEditor = false },
             sheetState = sheetState,
             dragHandle = { OriveoSheetDragHandle() },
@@ -867,7 +867,7 @@ fun ProviderDetailScreen(
         val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
         val currentEndpoint = ai.oriveo.community.feature.providers.setup.ProviderSetupCopy
             .resolveRegionOption(provider!!.kind, provider!!.baseUrlText)
-        ModalBottomSheet(
+        OriveoModalBottomSheet(
             onDismissRequest = { viewModel.showEndpointEditor = false },
             sheetState = sheetState,
             dragHandle = { OriveoSheetDragHandle() },
@@ -936,7 +936,7 @@ fun ProviderDetailScreen(
 
     if (showConnectionSettingsSheet && provider?.let(viewModel::canAccessAdvancedSettings) == true) {
         val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-        ModalBottomSheet(
+        OriveoModalBottomSheet(
             onDismissRequest = { showConnectionSettingsSheet = false },
             sheetState = sheetState,
             dragHandle = { OriveoSheetDragHandle() },

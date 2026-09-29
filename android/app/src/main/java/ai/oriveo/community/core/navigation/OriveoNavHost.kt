@@ -751,7 +751,7 @@ fun OriveoNavHost(
             }
 
             GlobalToastHost(
-                messages = appViewModel.globalMessages,
+                isRoot = true,
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .statusBarsPadding(),

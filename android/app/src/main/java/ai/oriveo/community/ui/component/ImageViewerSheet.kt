@@ -8,7 +8,6 @@ import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
 import android.util.Base64
-import android.widget.Toast
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTransformGestures
@@ -32,7 +31,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -60,6 +58,10 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import ai.oriveo.community.R
+import ai.oriveo.community.core.app.GlobalSnackbarManager
+import ai.oriveo.community.core.app.GlobalSnackbarMessage
+import ai.oriveo.community.core.app.GlobalToastStyle
+import ai.oriveo.community.core.app.UiText
 import ai.oriveo.community.core.data.attachment.AttachmentStore
 import ai.oriveo.community.core.model.Attachment
 import ai.oriveo.community.ui.theme.OriveoTheme
@@ -128,6 +130,7 @@ private fun ImageViewerSheetImpl(
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val snackbar = rememberGlobalSnackbarManager()
     val spacing = OriveoTheme.spacing
     val pageCount = attachments?.size ?: 1
     val pagerState = rememberPagerState(initialPage = initialIndex) { pageCount }
@@ -146,7 +149,7 @@ private fun ImageViewerSheetImpl(
     // ModalBottomSheet owns a separate layout root. Clear any inherited SelectionContainer registrar
     // so hosting this viewer below selectable chat text can never register cross-root Text nodes.
     DisableSelection {
-        ModalBottomSheet(
+        OriveoModalBottomSheet(
             onDismissRequest = onDismiss,
             sheetState = sheetState,
             containerColor = Color.Black,
@@ -226,10 +229,12 @@ private fun ImageViewerSheetImpl(
                         IconButton(
                             onClick = {
                                 scope.launch {
-                                    saveImageToGallery(context, bmp)
-                                    savedToPhotos = true
-                                    delay(2000)
-                                    savedToPhotos = false
+                                    // Only show the check mark when the image was really written; a failure was already reported by a toast, and the button stays in its retryable download state
+                                    if (saveImageToGallery(context, bmp, snackbar)) {
+                                        savedToPhotos = true
+                                        delay(2000)
+                                        savedToPhotos = false
+                                    }
                                 }
                             },
                         ) {
@@ -243,7 +248,7 @@ private fun ImageViewerSheetImpl(
 
                         Spacer(modifier = Modifier.width(spacing.sm))
 
-                        IconButton(onClick = { scope.launch { shareImage(context, bmp) } }) {
+                        IconButton(onClick = { scope.launch { shareImage(context, bmp, snackbar) } }) {
                             Icon(
                                 imageVector = Icons.Filled.Share,
                                 contentDescription = stringResource(R.string.share),
@@ -449,11 +454,19 @@ private suspend fun loadFullImageBytes(context: Context, attachment: Attachment)
  *
  * The work is suspended onto Dispatchers.IO because all of it blocks: JPEG encoding at the original
  * resolution and quality 95, the Binder IPC of the MediaStore insert and update, and the disk write
- * itself. On the main thread that drops frames in proportion to image size. The failure Toast is
- * raised back on the caller's main scope, since Toast.makeText requires a thread with a Looper.
+ * itself. On the main thread that drops frames in proportion to image size. Failure goes to the
+ * global top toast.
+ *
+ * @return whether the image was actually written to the gallery; callers use it to decide whether
+ * to show the "saved" state.
  */
-internal suspend fun saveImageToGallery(context: Context, bitmap: Bitmap) {
+internal suspend fun saveImageToGallery(
+    context: Context,
+    bitmap: Bitmap,
+    snackbar: GlobalSnackbarManager?,
+): Boolean {
     val saved = withContext(Dispatchers.IO) {
+        var imageUri: android.net.Uri? = null
         try {
             val contentValues = ContentValues().apply {
                 put(MediaStore.Images.Media.DISPLAY_NAME, "oriveo_${System.currentTimeMillis()}.jpg")
@@ -467,27 +480,33 @@ internal suspend fun saveImageToGallery(context: Context, bitmap: Bitmap) {
             val uri = context.contentResolver.insert(
                 MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
                 contentValues,
-            )
+            ) ?: return@withContext false
+            imageUri = uri
 
-            uri?.let { imageUri ->
-                context.contentResolver.openOutputStream(imageUri)?.use { out ->
-                    bitmap.compress(Bitmap.CompressFormat.JPEG, 95, out)
-                }
+            // A failed insert, an output stream that will not open, or a failed encode all count as failure, never as saved
+            val written = context.contentResolver.openOutputStream(uri)?.use { out ->
+                bitmap.compress(Bitmap.CompressFormat.JPEG, 95, out)
+            } == true
+            if (!written) throw java.io.IOException("gallery write failed")
 
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    contentValues.clear()
-                    contentValues.put(MediaStore.Images.Media.IS_PENDING, 0)
-                    context.contentResolver.update(imageUri, contentValues, null, null)
-                }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                contentValues.clear()
+                contentValues.put(MediaStore.Images.Media.IS_PENDING, 0)
+                context.contentResolver.update(uri, contentValues, null, null)
             }
             true
         } catch (_: Exception) {
+            // Delete the half-written entry so the gallery does not keep an empty image
+            imageUri?.let { runCatching { context.contentResolver.delete(it, null, null) } }
             false
         }
     }
     if (!saved) {
-        Toast.makeText(context, context.getString(R.string.save_failed), Toast.LENGTH_SHORT).show()
+        snackbar?.show(
+            GlobalSnackbarMessage(UiText.Resource(R.string.save_failed), style = GlobalToastStyle.Error),
+        )
     }
+    return saved
 }
 
 /**
@@ -495,9 +514,13 @@ internal suspend fun saveImageToGallery(context: Context, bitmap: Bitmap) {
  * MediaStore just to hand the bytes to another app.
  *
  * As with [saveImageToGallery], the JPEG encode and the cache write go to Dispatchers.IO; launching
- * the chooser and any failure Toast stay on the caller's main scope.
+ * the chooser and any failure toast stay on the caller's main scope.
  */
-internal suspend fun shareImage(context: Context, bitmap: Bitmap) {
+internal suspend fun shareImage(
+    context: Context,
+    bitmap: Bitmap,
+    snackbar: GlobalSnackbarManager?,
+) {
     val shareUri = withContext(Dispatchers.IO) {
         try {
             val cacheDir = java.io.File(context.cacheDir, "shared_images")
@@ -526,6 +549,8 @@ internal suspend fun shareImage(context: Context, bitmap: Bitmap) {
         }
         context.startActivity(Intent.createChooser(shareIntent, null))
     } catch (_: Exception) {
-        Toast.makeText(context, context.getString(R.string.share_failed), Toast.LENGTH_SHORT).show()
+        snackbar?.show(
+            GlobalSnackbarMessage(UiText.Resource(R.string.share_failed), style = GlobalToastStyle.Error),
+        )
     }
 }

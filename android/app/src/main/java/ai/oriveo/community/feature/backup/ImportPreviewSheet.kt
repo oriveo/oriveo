@@ -27,7 +27,7 @@ import androidx.compose.material.icons.outlined.RadioButtonUnchecked
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.ModalBottomSheet
+import ai.oriveo.community.ui.component.OriveoModalBottomSheet
 import ai.oriveo.community.ui.component.OriveoSheetDragHandle
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -70,7 +70,7 @@ fun ImportPreviewSheet(
     val spacing = OriveoTheme.spacing
     val layout = OriveoTheme.layout
 
-    ModalBottomSheet(
+    OriveoModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
         containerColor = colors.backgroundBase,

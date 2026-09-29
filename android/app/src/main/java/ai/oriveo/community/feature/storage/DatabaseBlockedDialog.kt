@@ -28,10 +28,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import ai.oriveo.community.R
 import ai.oriveo.community.core.data.database.DatabaseBlockedReason
+import ai.oriveo.community.ui.component.OriveoFullScreenDialog
 import ai.oriveo.community.ui.component.OriveoPrimaryButton
 import ai.oriveo.community.ui.theme.OriveoTheme
 
@@ -47,7 +47,8 @@ fun DatabaseBlockedDialog(
     val title = stringResource(
         if (isStorageFull) R.string.storage_blocked_title else R.string.database_unavailable_title,
     )
-    Dialog(
+    // A full-screen Dialog covers the main window's host; the wrapper brings its own toast host so failures to open settings stay visible.
+    OriveoFullScreenDialog(
         onDismissRequest = {},
         properties = DialogProperties(
             dismissOnBackPress = false,

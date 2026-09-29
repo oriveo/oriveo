@@ -1,6 +1,5 @@
 package ai.oriveo.community.feature.chat.components
 
-import android.widget.Toast
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
@@ -17,7 +16,10 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
+import ai.oriveo.community.core.app.GlobalSnackbarMessage
+import ai.oriveo.community.core.app.GlobalToastStyle
+import ai.oriveo.community.core.app.UiText
+import ai.oriveo.community.ui.component.OriveoModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -32,6 +34,7 @@ import ai.oriveo.community.R
 import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.core.util.openExternalUrl
 import ai.oriveo.community.feature.chat.ProviderDisclosurePrompt
+import ai.oriveo.community.ui.component.rememberGlobalSnackbarManager
 
 /**
  * Consent sheet shown before the first message is sent to a given provider, so the user knows what
@@ -46,8 +49,9 @@ fun ProviderDisclosureSheet(
 ) {
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val context = LocalContext.current
+    val snackbar = rememberGlobalSnackbarManager()
 
-    ModalBottomSheet(
+    OriveoModalBottomSheet(
         onDismissRequest = onCancel,
         sheetState = sheetState,
         shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp),
@@ -88,7 +92,9 @@ fun ProviderDisclosureSheet(
                 Spacer(Modifier.height(16.dp))
                 TextButton(onClick = {
                     if (!openExternalUrl(context, prompt.privacyPolicyUrl)) {
-                        Toast.makeText(context, R.string.link_open_failed_message, Toast.LENGTH_LONG).show()
+                        snackbar?.show(
+                            GlobalSnackbarMessage(UiText.Resource(R.string.link_open_failed_message), style = GlobalToastStyle.Error),
+                        )
                     }
                 }) {
                     Text(

@@ -65,8 +65,6 @@ class AppViewModel(
     val lastUsedModelRef: StateFlow<LastUsedModelRef?> = appPreferencesRepository.lastUsedModelRef
         .stateIn(databaseFlowScope, SharingStarted.WhileSubscribed(5000), null)
 
-    val globalMessages = globalSnackbarManager.messages
-
     private val providers = providerRepository.observeAll()
         .stateIn(databaseFlowScope, SharingStarted.WhileSubscribed(5000), emptyList())
 

@@ -17,6 +17,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import ai.oriveo.community.core.app.AppViewModel
+import ai.oriveo.community.core.app.GlobalSnackbarManager
 import ai.oriveo.community.core.data.database.DatabaseHealth
 import ai.oriveo.community.core.data.database.DatabaseHealthProbe
 import ai.oriveo.community.core.navigation.OriveoNavHost
@@ -36,6 +37,7 @@ class MainActivity : AppCompatActivity() {
     private var appJankStats: AppJankStats? = null
     private val reachabilityMonitor: ServiceReachabilityMonitor by inject()
     private val databaseHealthProbe: DatabaseHealthProbe by inject()
+    private val globalSnackbarManager: GlobalSnackbarManager by inject()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
@@ -81,7 +83,7 @@ class MainActivity : AppCompatActivity() {
                                 }
                             }
                         },
-                        onFreeUpSpace = { StorageSettingsLauncher.openStorageSettings(this@MainActivity) },
+                        onFreeUpSpace = { StorageSettingsLauncher.openStorageSettings(this@MainActivity, globalSnackbarManager) },
                         onContactSupport = { StorageSettingsLauncher.openSupport(this@MainActivity) },
                     )
                 }

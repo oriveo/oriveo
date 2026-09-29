@@ -599,14 +599,14 @@ fun GenerationParameterDefaultsSheet(
                             )
                         }) { Text(stringResource(R.string.save)) }
                         TextButton(colors = modelControlTextButtonColors(), onClick = {
-                            launchExternalActivityOrNotify(context) {
+                            launchExternalActivityOrNotify(snackbarManager) {
                                 exportSettings.launch("oriveo-generation-parameters.v1.json")
                             }
                         }) {
                             Text(stringResource(R.string.export_backup_title))
                         }
                         TextButton(colors = modelControlTextButtonColors(), onClick = {
-                            launchExternalActivityOrNotify(context) {
+                            launchExternalActivityOrNotify(snackbarManager) {
                                 importSettings.launch(arrayOf("application/json", "text/json"))
                             }
                         }) {
@@ -636,7 +636,7 @@ fun GenerationParameterDefaultsSheet(
                         // whole button wraps to the next line instead of squeezing the Delete button next to it
                         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             TextButton(colors = modelControlTextButtonColors(), onClick = {
-                                launchExternalActivityOrNotify(context) {
+                                launchExternalActivityOrNotify(snackbarManager) {
                                     exportDiagnostics.launch("oriveo-generation-diagnostics.redacted.json")
                                 }
                             }) {

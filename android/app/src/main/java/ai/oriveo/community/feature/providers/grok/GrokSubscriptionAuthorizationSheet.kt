@@ -29,6 +29,7 @@ import ai.oriveo.community.core.provider.grok.GrokSubscriptionError
 import ai.oriveo.community.core.provider.grok.GrokSubscriptionTokens
 import ai.oriveo.community.ui.component.OriveoPrimaryButton
 import ai.oriveo.community.ui.component.OriveoTextButton
+import ai.oriveo.community.ui.component.rememberGlobalSnackbarManager
 import ai.oriveo.community.ui.theme.OriveoTheme
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.VerifiedUser
@@ -44,6 +45,7 @@ fun GrokSubscriptionAuthorizationSheet(
     val colors = OriveoTheme.colors
     val spacing = OriveoTheme.spacing
     val context = LocalContext.current
+    val snackbar = rememberGlobalSnackbarManager()
 
     LaunchedEffect(config) { model.startIfIdle(config) }
 
@@ -129,7 +131,7 @@ fun GrokSubscriptionAuthorizationSheet(
                     },
                     onClick = {
                         model.markVerificationPageOpened()
-                        openSubscriptionVerificationPage(context, phase.authorization.verificationUrl)
+                        openSubscriptionVerificationPage(context, phase.authorization.verificationUrl, snackbar)
                     },
                     modifier = Modifier.fillMaxWidth(),
                 )

@@ -51,6 +51,7 @@ import ai.oriveo.community.ui.component.OriveoLabeledField
 import ai.oriveo.community.ui.component.OriveoPrimaryButton
 import ai.oriveo.community.ui.component.OriveoSecondaryButton
 import ai.oriveo.community.ui.component.OriveoSectionHeader
+import ai.oriveo.community.ui.component.rememberGlobalSnackbarManager
 import ai.oriveo.community.ui.theme.OriveoTheme
 import ai.oriveo.community.core.model.OriveoError
 import ai.oriveo.community.core.model.OriveoErrorSeverity
@@ -63,6 +64,7 @@ fun BackupScreen(
     viewModel: BackupViewModel = koinViewModel(),
 ) {
     val context = LocalContext.current
+    val externalLaunchToast = rememberGlobalSnackbarManager()
     val resources = LocalResources.current
     val colors = OriveoTheme.colors
     val spacing = OriveoTheme.spacing
@@ -85,7 +87,7 @@ fun BackupScreen(
                 java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
                     .format(java.util.Date())
             }.oriveo"
-            launchExternalActivityOrNotify(context) { exportSaveLauncher.launch(fileName) }
+            launchExternalActivityOrNotify(externalLaunchToast) { exportSaveLauncher.launch(fileName) }
         }
     }
 
@@ -237,7 +239,7 @@ fun BackupScreen(
                     OriveoSecondaryButton(
                         text = stringResource(R.string.import_backup),
                         onClick = {
-                            launchExternalActivityOrNotify(context) {
+                            launchExternalActivityOrNotify(externalLaunchToast) {
                                 filePickerLauncher.launch(
                                     arrayOf("application/zip", "application/json", "application/octet-stream"),
                                 )
@@ -259,7 +261,7 @@ fun BackupScreen(
                     ),
                     onAction = {
                         viewModel.clearImportError()
-                        launchExternalActivityOrNotify(context) {
+                        launchExternalActivityOrNotify(externalLaunchToast) {
                             filePickerLauncher.launch(
                                 arrayOf("application/zip", "application/json", "application/octet-stream"),
                             )

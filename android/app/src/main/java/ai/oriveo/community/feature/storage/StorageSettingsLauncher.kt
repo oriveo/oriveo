@@ -5,8 +5,11 @@ import android.content.Intent
 import android.net.Uri
 import android.os.storage.StorageManager
 import android.provider.Settings
-import android.widget.Toast
 import ai.oriveo.community.R
+import ai.oriveo.community.core.app.GlobalSnackbarManager
+import ai.oriveo.community.core.app.GlobalSnackbarMessage
+import ai.oriveo.community.core.app.GlobalToastStyle
+import ai.oriveo.community.core.app.UiText
 import ai.oriveo.community.core.util.ExternalActivityLaunchOutcome
 import ai.oriveo.community.core.util.launchExternalActivitySafely
 import ai.oriveo.community.ui.component.OriveoWebDestination
@@ -14,7 +17,8 @@ import ai.oriveo.community.ui.component.openOriveoWebPage
 
 object StorageSettingsLauncher {
 
-    fun openStorageSettings(context: Context) {
+    /** The failure toast is shown by the blocked screen's own toast host (NavHost is short-circuited then). */
+    fun openStorageSettings(context: Context, snackbar: GlobalSnackbarManager) {
         val candidates = listOf(
             Intent(StorageManager.ACTION_MANAGE_STORAGE),
             Intent(Settings.ACTION_INTERNAL_STORAGE_SETTINGS),
@@ -27,7 +31,9 @@ object StorageSettingsLauncher {
             }
             if (launched == ExternalActivityLaunchOutcome.LAUNCHED) return
         }
-        Toast.makeText(context, R.string.external_app_unavailable, Toast.LENGTH_LONG).show()
+        snackbar.show(
+            GlobalSnackbarMessage(UiText.Resource(R.string.external_app_unavailable), style = GlobalToastStyle.Error),
+        )
     }
 
     /** Support happens in the open, on the repository's issue tracker. */

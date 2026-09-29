@@ -32,6 +32,8 @@ import androidx.compose.material.icons.rounded.Remove
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -51,13 +53,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import ai.oriveo.community.core.app.GlobalSnackbarManager
 import ai.oriveo.community.core.app.GlobalSnackbarMessage
 import ai.oriveo.community.core.app.GlobalToastStyle
 import ai.oriveo.community.core.app.resolve
 import ai.oriveo.community.ui.theme.OriveoColors
 import ai.oriveo.community.ui.theme.OriveoTheme
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.Flow
+import org.koin.mp.KoinPlatform
 
 private const val TOAST_DURATION_MS = 3000L
 
@@ -71,26 +74,37 @@ internal val GlobalToastShape = RoundedCornerShape(percent = 50)
  * action; dismissed after 3s by default. Every platform uses the same spec (iOS `ToastOverlay` /
  * Web `components/Toast.tsx`), so change the look on all of them together.
  *
+ * Every window (the main window / a ModalBottomSheet / a full-screen Dialog) hosts its own copy, and
+ * [GlobalSnackbarManager] lets only the topmost one render. When an upper window closes, the remaining
+ * time hands back to the next one down, which keeps showing the toast. Sheets always go through
+ * [OriveoModalBottomSheet], which already hosts one, so don't add another by hand.
+ *
  * It does not add a status bar inset itself: the host decides based on whether it consumes systemBars.
+ *
+ * @param isRoot pass true for the main window's host, which always stays at the bottom of the stack.
  */
 @Composable
 fun GlobalToastHost(
-    messages: Flow<GlobalSnackbarMessage>,
     modifier: Modifier = Modifier,
+    isRoot: Boolean = false,
+    manager: GlobalSnackbarManager? = rememberGlobalSnackbarManager(),
 ) {
-    var current by remember { mutableStateOf<GlobalSnackbarMessage?>(null) }
-
+    manager ?: return
+    val token = remember { Any() }
+    DisposableEffect(manager, token, isRoot) {
+        manager.attachHost(token, isRoot)
+        onDispose { manager.detachHost(token) }
+    }
+    val topHost by manager.topHost.collectAsState()
+    val active by manager.active.collectAsState()
+    val current = active?.takeIf { topHost === token }
     var rendered by remember { mutableStateOf<GlobalSnackbarMessage?>(null) }
 
-    LaunchedEffect(messages) {
-        messages.collect { msg -> current = msg }
-    }
     LaunchedEffect(current) {
         val shown = current ?: return@LaunchedEffect
-        rendered = shown
-        delay(shown.durationMs ?: TOAST_DURATION_MS)
-
-        if (current === shown) current = null
+        rendered = shown.message
+        delay(manager.remainingMillis(shown, TOAST_DURATION_MS))
+        manager.dismiss(shown)
     }
 
     AnimatedVisibility(
@@ -109,12 +123,21 @@ fun GlobalToastHost(
                 message = msg,
                 onActionClick = {
                     msg.action?.onClick?.invoke()
-                    current = null
+                    current?.let(manager::dismiss)
                 },
             )
         }
     }
 }
+
+/**
+ * Looks up the global toast manager during composition. It is null when Koin has not started (UI tests
+ * without Koin, previews): no host is attached and toasts are dropped silently. Otherwise every
+ * component test that contains a sheet or a link would have to start Koin first.
+ */
+@Composable
+fun rememberGlobalSnackbarManager(): GlobalSnackbarManager? =
+    remember { KoinPlatform.getKoinOrNull()?.getOrNull<GlobalSnackbarManager>() }
 
 @Composable
 private fun ToastCapsule(

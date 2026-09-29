@@ -19,7 +19,7 @@ import androidx.compose.material.icons.filled.Image
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.ModalBottomSheet
+import ai.oriveo.community.ui.component.OriveoModalBottomSheet
 import ai.oriveo.community.ui.component.OriveoSheetDragHandle
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -32,6 +32,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import ai.oriveo.community.R
 import ai.oriveo.community.core.util.launchExternalActivityOrNotify
+import ai.oriveo.community.ui.component.rememberGlobalSnackbarManager
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -42,6 +43,7 @@ fun AttachmentPicker(
     onFileSelected: (List<Uri>) -> Unit,
 ) {
     val context = LocalContext.current
+    val externalLaunchToast = rememberGlobalSnackbarManager()
     val photoPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.PickMultipleVisualMedia(maxItems = 10),
     ) { uris ->
@@ -61,7 +63,7 @@ fun AttachmentPicker(
     }
 
     if (show) {
-        ModalBottomSheet(
+        OriveoModalBottomSheet(
             onDismissRequest = onDismiss,
             sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
             dragHandle = { OriveoSheetDragHandle() },
@@ -81,7 +83,7 @@ fun AttachmentPicker(
                     icon = Icons.Filled.Image,
                     label = stringResource(R.string.photo_library),
                     onClick = {
-                        launchExternalActivityOrNotify(context) {
+                        launchExternalActivityOrNotify(externalLaunchToast) {
                             photoPickerLauncher.launch(
                                 PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
                             )
@@ -93,7 +95,7 @@ fun AttachmentPicker(
                     icon = Icons.Filled.Description,
                     label = stringResource(R.string.choose_file),
                     onClick = {
-                        launchExternalActivityOrNotify(context) {
+                        launchExternalActivityOrNotify(externalLaunchToast) {
                             fileLauncher.launch(AttachmentImportPolicy.pickerMimeTypes)
                         }
                     },
