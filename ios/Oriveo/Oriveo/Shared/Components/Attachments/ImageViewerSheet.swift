@@ -65,11 +65,7 @@ struct ImageViewerSheet: View {
                     HStack(spacing: 16) {
                         Button {
                             guard let image = pageFullImage else { return }
-                            UIImageWriteToSavedPhotosAlbum(image, nil, nil, nil)
-                            withAnimation { savedToPhotos = true }
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                                withAnimation { savedToPhotos = false }
-                            }
+                            Task { await saveToPhotosReportingResult(image, saved: $savedToPhotos) }
                         } label: {
                             Image(systemName: savedToPhotos ? "checkmark.circle.fill" : "arrow.down.circle")
                                 .font(.system(size: 20))
@@ -282,9 +278,61 @@ func saveImageToPhotos(
     saved: Binding<Bool>
 ) {
     guard let image = resolveImage(for: attachment, partitionUID: partitionUID) else { return }
-    UIImageWriteToSavedPhotosAlbum(image, nil, nil, nil)
+    Task { await saveToPhotosReportingResult(image, saved: saved) }
+}
+
+/// Writes to the photo library and reports the real result: only a success shows "Saved" for 2 seconds;
+/// a failure (photo access denied, out of space) shows an error toast and leaves the button ready to retry.
+func saveToPhotosReportingResult(
+    _ image: UIImage,
+    saved: Binding<Bool>,
+    writer: PhotoAlbumWriter = UIImageWriteToSavedPhotosAlbum
+) async {
+    guard await writeImageToPhotoAlbum(image, writer: writer) else {
+        ToastManager.shared.show(L10n.tr("Failed to save image"), style: .error)
+        return
+    }
     withAnimation { saved.wrappedValue = true }
     DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
         withAnimation { saved.wrappedValue = false }
+    }
+}
+
+typealias PhotoAlbumWriter = (UIImage, Any?, Selector?, UnsafeMutableRawPointer?) -> Void
+
+/// Waits for the UIImageWriteToSavedPhotosAlbum completion callback before reporting a result.
+/// Without the callback a failure is invisible and the UI would show "Saved" anyway.
+func writeImageToPhotoAlbum(
+    _ image: UIImage,
+    writer: PhotoAlbumWriter = UIImageWriteToSavedPhotosAlbum
+) async -> Bool {
+    await withCheckedContinuation { continuation in
+        let completion = PhotoAlbumSaveCompletion { @Sendable error in continuation.resume(returning: error == nil) }
+        // UIKit does not guarantee it retains the target: keep one retain in contextInfo and release it in the callback.
+        writer(
+            image,
+            completion,
+            #selector(PhotoAlbumSaveCompletion.image(_:didFinishSavingWithError:contextInfo:)),
+            Unmanaged.passRetained(completion).toOpaque()
+        )
+    }
+}
+
+/// UIKit picks the callback thread, so this is not bound to MainActor; resuming the continuation is thread safe.
+nonisolated final class PhotoAlbumSaveCompletion: NSObject {
+    private var completion: (@Sendable (Error?) -> Void)?
+
+    init(_ completion: @escaping @Sendable (Error?) -> Void) {
+        self.completion = completion
+    }
+
+    @objc func image(_ image: UIImage, didFinishSavingWithError error: Error?, contextInfo: UnsafeMutableRawPointer?) {
+        // Fire once only, so the continuation is never resumed twice.
+        let completion = self.completion
+        self.completion = nil
+        completion?(error)
+        if let contextInfo {
+            Unmanaged<PhotoAlbumSaveCompletion>.fromOpaque(contextInfo).release()
+        }
     }
 }
