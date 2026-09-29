@@ -190,6 +190,38 @@ class ChatComposerRecompositionScopeTest {
         )
     }
 
+    /**
+     * `ChatViewModel.isGenerating` reads `StateFlow.value`, not snapshot state. The composer host is
+     * skippable and the recomposition caused by clearing the input on send runs before the stream is
+     * marked active, so a host that reads it directly stays on "send" and never shows the stop button.
+     */
+    @Test
+    fun `composer host subscribes to the generating state itself`() {
+        assertTrue(
+            "The host must collect streamingMessageId itself: it is skippable, root recomposition does not reach it",
+            composerHostSource.contains("viewModel.streamingMessageId.collectAsStateWithLifecycle()"),
+        )
+        assertTrue(
+            "isGenerating handed to EnhancedComposer must derive from the subscribed streamingMessageId",
+            Regex("""isGenerating\s*=\s*streamingMessageId\s*!=\s*null""").containsMatchIn(composerHostSource),
+        )
+    }
+
+    @Test
+    fun `composer package never reads the non-observable view model isGenerating`() {
+        val composerDir = File("src/main/java/ai/oriveo/community/feature/chat/composer")
+        val offenders = composerDir.walkTopDown()
+            .filter { it.isFile && it.extension == "kt" }
+            .filter { Regex("""viewModel\.isGenerating""").containsMatchIn(it.readText()) }
+            .map { it.name }
+            .toList()
+        assertTrue(
+            "These files read viewModel.isGenerating (StateFlow.value, no subscription): $offenders. " +
+                "Composer-side generating state must collect streamingMessageId itself",
+            offenders.isEmpty(),
+        )
+    }
+
     @Test
     fun `message list callbacks that capture the view model are remembered`() {
         val callAt = screenContentSource.indexOf("                    ChatMessagesList(")

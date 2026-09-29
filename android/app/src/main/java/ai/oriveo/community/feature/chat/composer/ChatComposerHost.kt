@@ -80,6 +80,12 @@ internal fun ChatComposerHost(
 
     val attachedNotes by viewModel.noteCoordinator.attachedNotes.collectAsStateWithLifecycle()
     val relatedNotes by viewModel.noteCoordinator.relatedNotes.collectAsStateWithLifecycle()
+    // Must be subscribed here: the view model's isGenerating reads StateFlow.value, which is not
+    // snapshot state. This host is skippable, so a recomposition of the screen root triggered by
+    // streamingMessageId skips it, and the recomposition caused by clearing the input on send runs
+    // before the stream is marked active. Without its own subscription the stop button never
+    // appears. The value flips once when a stream starts or ends, never per token.
+    val streamingMessageId by viewModel.streamingMessageId.collectAsStateWithLifecycle()
 
     Column(
         modifier = modifier
@@ -126,7 +132,7 @@ internal fun ChatComposerHost(
             onNavigateToProviderSetup = onNavigateToProviderSetup,
             onNavigateToProviderDetail = onNavigateToProviderDetail,
             onNavigateToSkillEdit = onNavigateToSkillEdit,
-            isGenerating = viewModel.isGenerating,
+            isGenerating = streamingMessageId != null,
             // Loading states (skeleton, backfilling) and stalled all block writing: allowing a send
             // while stalled means the user starts talking in a conversation that has history, and
             // the context is silently dropped. It becomes writable again once the backfill lands.

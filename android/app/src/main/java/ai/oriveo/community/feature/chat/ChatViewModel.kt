@@ -402,6 +402,13 @@ class ChatViewModel(
 
     fun retryConversationLoad() = conversationLoadCoordinator.retry()
 
+    /**
+     * Whether a stream is active for the current conversation.
+     *
+     * Reads `StateFlow.value`, which is **not snapshot state**: reading it in a composable
+     * subscribes to nothing. UI that must follow the generating state has to collect
+     * [streamingMessageId] itself (see `ChatComposerHost`).
+     */
     val isGenerating: Boolean
         get() = streamingMessageId.value != null
 
