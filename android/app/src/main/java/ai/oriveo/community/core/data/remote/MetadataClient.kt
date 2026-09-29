@@ -2377,6 +2377,12 @@ class MetadataClient internal constructor(
     internal fun handleNotModified() {
         val wasConfirmed = _snapshotConfirmedThisSession
         _snapshotConfirmedThisSession = true
+        // A 304 means the server confirmed this cached copy is current, so the source becomes
+        // network-confirmed too. If only a 200 set FreshNetwork, days when the catalog did not change
+        // (a 304 every time) would keep the CachedOffline left by cold-start hydration forever, and
+        // provider detail would keep showing "Showing results from the last sync".
+        // Set it before the emit below so subscribers read the new source when the refresh arrives.
+        if (table != null) _metadataSource = MetadataSource.FreshNetwork
         if (!wasConfirmed) {
             val current = evidencePublication
             evidencePublication = current.copy(contentRevision = current.contentRevision + 1)

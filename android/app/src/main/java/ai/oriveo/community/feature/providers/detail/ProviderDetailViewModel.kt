@@ -65,6 +65,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filterNotNull
@@ -323,7 +324,11 @@ class ProviderDetailViewModel(
     val catalogViewState: StateFlow<CatalogViewState> = combine(
         resolvedCatalog,
         provider,
-    ) { resolved, p ->
+        // metadataSource is not a Flow. After a 304 the catalog content is unchanged and the
+        // deduplicated resolvedCatalog does not emit, so re-read the source on every refresh signal,
+        // or the "last synced" banner stays stuck on the cold-start frame.
+        metadataRefreshSignal.onStart { emit(Unit) },
+    ) { resolved, p, _ ->
         val source = MetadataClient.metadataSource
         when {
             p == null -> CatalogViewState.Normal

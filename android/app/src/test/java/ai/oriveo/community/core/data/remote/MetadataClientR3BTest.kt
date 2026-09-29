@@ -95,7 +95,9 @@ class MetadataClientR3BTest {
 
         assertEquals(listOf("\"legacy-etag\""), validators)
         assertEquals(41, client.version)
-        assertEquals(MetadataClient.MetadataSource.CachedOffline, client.metadataSource)
+        // A 304 means the server confirmed the cache is current, so the source becomes FreshNetwork
+        // (otherwise the "last synced" banner never goes away).
+        assertEquals(MetadataClient.MetadataSource.FreshNetwork, client.metadataSource)
         assertTrue(client.snapshotConfirmedThisSession)
         assertEquals(2, dao.upsertCount)
         assertNotNull(dao.entity)
@@ -564,7 +566,8 @@ class MetadataClientR3BTest {
         client.initialize(metadataContext(prefs))
 
         assertEquals(90, client.version)
-        assertEquals(MetadataClient.MetadataSource.CachedOffline, client.metadataSource)
+        // The cache read back in chunks is then confirmed current by a 304.
+        assertEquals(MetadataClient.MetadataSource.FreshNetwork, client.metadataSource)
         // Reading in a single chunk means this fixture never crossed the chunking threshold, so
         // it wouldn't actually be testing the real shape.
         assertTrue("an oversized payload must be retrieved in multiple chunks", dao.chunkReads > 1)
@@ -653,6 +656,27 @@ class MetadataClientR3BTest {
      * cheapest controllable place to inflate; passing a non-BMP character as [filler] constructs
      * the "UTF-16 length != code point count" shape.
      */
+    /** Once a 304 confirms the cache is current, the source must become FreshNetwork, or the "last synced" banner never goes away. */
+    @Test
+    fun `not modified promotes a cache hydrated snapshot to fresh network`() {
+        val client = MetadataClient()
+        client.loadNetworkPayloadForTesting("""{"version":91,"contractVersion":1,"providers":{}}""", responseETag = null)
+        val sourceField = MetadataClient::class.java.getDeclaredField("_metadataSource")
+        sourceField.isAccessible = true
+        sourceField.set(client, MetadataClient.MetadataSource.CachedOffline)
+
+        client.handleNotModified()
+
+        assertEquals(MetadataClient.MetadataSource.FreshNetwork, client.metadataSource)
+    }
+
+    @Test
+    fun `not modified without any snapshot does not claim fresh network`() {
+        val client = MetadataClient()
+        client.handleNotModified()
+        assertEquals(MetadataClient.MetadataSource.Unknown, client.metadataSource)
+    }
+
     private fun oversizedRoomPayload(version: Int, eTag: String, filler: String = "x"): String {
         val blob = filler.repeat(6_000)
         val providers = (0 until 50).joinToString(",") { index ->
