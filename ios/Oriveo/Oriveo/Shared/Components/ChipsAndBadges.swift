@@ -17,7 +17,7 @@ extension AIModel {
     func visibleMetadataCapabilities(
         provider: Provider,
         identity: CapabilityEvidenceRequestIdentity? = nil,
-        maxCapabilities: Int = 3
+        maxCapabilities: Int = ModelCapability.modelRowMaxCapabilities
     ) -> [ModelCapability] {
         guard maxCapabilities > 0 else { return [] }
         let evidence = ModelCapabilityEvidencePresentation(
@@ -31,12 +31,25 @@ extension AIModel {
         if evidence.permitsToolCallDisplay() {
             nonText.append(.toolCall)
         }
-        let mustShow = [.web, .imageGen].filter { nonText.contains($0) }
-        guard nonText.count > maxCapabilities, !mustShow.isEmpty else {
-            return Array(nonText.prefix(maxCapabilities))
+        return ModelCapability.limitForModelRow(nonText, maxCapabilities: maxCapabilities)
+    }
+}
+
+extension ModelCapability {
+    /// Maximum number of capability badges on a model row (picker, provider detail, model library).
+    /// Every client uses the same value; see `shared/model-contracts/model_row_capability_badges.v1.json`.
+    static let modelRowMaxCapabilities = 3
+
+    /// Shared truncation rule: when over the limit, web / imageGen are kept and placed last,
+    /// the rest fill the remaining slots in their original order; tool calling is not reserved.
+    static func limitForModelRow(_ displayable: [ModelCapability], maxCapabilities: Int) -> [ModelCapability] {
+        guard maxCapabilities > 0 else { return [] }
+        let mustShow = [ModelCapability.web, .imageGen].filter { displayable.contains($0) }
+        guard displayable.count > maxCapabilities, !mustShow.isEmpty else {
+            return Array(displayable.prefix(maxCapabilities))
         }
         let reserved = min(maxCapabilities, mustShow.count)
-        var result = Array(nonText.filter { !mustShow.contains($0) }.prefix(maxCapabilities - reserved))
+        var result = Array(displayable.filter { !mustShow.contains($0) }.prefix(maxCapabilities - reserved))
         result.append(contentsOf: mustShow.prefix(maxCapabilities - result.count))
         return result
     }
@@ -547,7 +560,7 @@ struct ModelListMetadataRow: View {
     let provider: Provider
     let capabilityEvidenceRevision: UInt64
     var projectedCapabilities: [ModelCapability]? = nil
-    var maxCapabilities: Int = 3
+    var maxCapabilities: Int = ModelCapability.modelRowMaxCapabilities
     var prominentPrice: Bool = false
     var compact: Bool = false
     var iconOnly: Bool = false

@@ -140,8 +140,10 @@ struct ModelPickerCapabilityFilterTests {
         #expect(sheet.contains("capabilityFilterChips"), "the picker has no capability filter chips")
         #expect(sheet.contains("ModelPickerCapabilityFilter.apply("))
         #expect(sheet.contains("ModelPickerCapabilityFilter.counts("))
+        // Row badges and the filter share the visibleMetadataCapabilities projection; the row only
+        // truncates for display, the same way the provider detail row does.
         #expect(
-            sheet.contains("ModelPickerCapabilityFilter.intentCapabilities(visibleCapabilities:"),
+            sheet.contains("model.visibleMetadataCapabilities(provider: provider)"),
             "the row badge does not use the same rule"
         )
         #expect(

@@ -28,13 +28,6 @@ enum ModelPickerCapabilityFilter {
             case .reasoning: return L10n.tr("Can think", table: .providers)
             }
         }
-
-        var badgeAccessibilityLabel: String {
-            switch self {
-            case .web: return L10n.tr("Web")
-            case .reasoning: return L10n.tr("Reasoning", table: .providers)
-            }
-        }
     }
 
     static func intentCapabilities(model: AIModel, provider: Provider) -> [Capability] {

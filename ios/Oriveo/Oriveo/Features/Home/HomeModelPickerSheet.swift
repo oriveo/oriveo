@@ -1262,10 +1262,9 @@ private struct ModelPickerRow: View {
 
     @ViewBuilder
     private var rowMetadata: some View {
-        let visible = ModelPickerCapabilityFilter.visibleCapabilities(model: model, provider: provider)
-        let intent = ModelPickerCapabilityFilter.intentCapabilities(visibleCapabilities: visible)
-        let intentSet = Set(intent.map(\.modelCapability))
-        let others = Array(visible.filter { !intentSet.contains($0) }.prefix(2))
+        // Same projection and limit as the provider detail "Added models" row (3 by default, web / imageGen
+        // reserved). Web stays among the badges instead of a trailing icon, so both places show the same labels.
+        let capabilities = model.visibleMetadataCapabilities(provider: provider)
 
         HStack(spacing: 8) {
             if let sourceName {
@@ -1279,21 +1278,13 @@ private struct ModelPickerRow: View {
                 model: model,
                 provider: provider,
                 capabilityEvidenceRevision: capabilityEvidenceRevision,
-                projectedCapabilities: others,
-                maxCapabilities: 2,
+                projectedCapabilities: capabilities,
                 prominentPrice: false,
                 compact: true,
                 iconOnly: false,
                 showPrice: false
             )
             .frame(maxWidth: .infinity, alignment: .leading)
-
-            ForEach(intent) { capability in
-                Image(systemName: capability.symbolName)
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(OriveoTheme.V2.Colors.textSecondary)
-                    .accessibilityLabel(Text(capability.badgeAccessibilityLabel))
-            }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
