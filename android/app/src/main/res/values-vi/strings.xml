@@ -44,13 +44,13 @@
     <string name="status_connected">Đã kết nối</string>
     <string name="status_syncing">Đang đồng bộ hóa</string>
     <string name="status_issue">Vấn đề</string>
-    <string name="capability_reasoning">Lý luận</string>
+    <string name="capability_reasoning">Suy luận</string>
     <string name="capability_text">Chữ</string>
-    <string name="capability_image">Tầm nhìn</string>
-    <string name="capability_file">Tài liệu</string>
+    <string name="capability_image">Đọc ảnh</string>
+    <string name="capability_file">Tệp</string>
     <string name="attachment_photo">Ảnh</string>
     <string name="capability_web">Web</string>
-    <string name="capability_image_gen">Gen hình ảnh</string>
+    <string name="capability_image_gen">Tạo ảnh</string>
     <string name="capability_tool_call">Công cụ</string>
     <string name="reasoning_auto">Tự động</string>
     <string name="reasoning_fast">Nhanh</string>
@@ -167,7 +167,7 @@
     <string name="settings_report_issue">Báo cáo sự cố</string>
     <string name="snackbar_provider_ready">Nhà cung cấp đã sẵn sàng. Bạn có thể bắt đầu trò chuyện ngay bây giờ.</string>
     <string name="snackbar_model_added">Đã thêm %1$s</string>
-    <string name="snackbar_model_enable_failed">Chúng tôi không thể kích hoạt mô hình đó. Vui lòng thử lại.</string>
+    <string name="snackbar_model_enable_failed">Không thể bật mô hình này. Vui lòng thử lại.</string>
     <string name="snackbar_connection_verified">Đã xác minh kết nối.</string>
     <string name="snackbar_connection_check_failed">Kiểm tra kết nối thất bại: %1$s</string>
     <string name="provider_connection_unverified">Chúng tôi không thể xác minh kết nối. Bạn có thể thử lại từ chi tiết nhà cung cấp.</string>
@@ -676,9 +676,9 @@
     <string name="relay_advanced_auth_mode">Xác thực</string>
     <string name="relay_advanced_headers">Tiêu đề tùy chỉnh</string>
     <string name="relay_advanced_query_params">Thông số Query tùy chỉnh</string>
-    <string name="relay_advanced_reasoning_effort">Nỗ lực lý luận</string>
+    <string name="relay_advanced_reasoning_effort">Mức độ suy luận</string>
     <string name="relay_advanced_service_tier">Cấp dịch vụ</string>
-    <string name="relay_advanced_stream">Suối</string>
+    <string name="relay_advanced_stream">Truyền theo luồng</string>
     <string name="relay_advanced_disable_response_storage">Vô hiệu hóa lưu trữ phản hồi</string>
     <string name="relay_mode_simple">Chế độ đơn giản</string>
     <string name="relay_api_key_placeholder">sk-...</string>
@@ -1210,7 +1210,7 @@
     <string name="chat_token_usage_unavailable">Chưa có</string>
     <string name="generation_conversation_scope_hint">Chỉ áp dụng khi dùng mô hình này trong cuộc trò chuyện này. Giá trị không được sao chép khi đổi mô hình và sẽ được khôi phục khi quay lại.</string>
     <string name="generation_parameter_self_healed">Mô hình này đã từ chối %1$s. Đã thử lại với cài đặt mặc định.</string>
-    <string name="relay_transport_llamacpp_native">Hoàn tất nguyên bản llama.cpp</string>
+    <string name="relay_transport_llamacpp_native">Completion gốc của llama.cpp</string>
     <string name="relay_catalog_loading">Đang tải danh sách mô hình…</string>
     <string name="relay_catalog_failed">Không thể tải danh sách mô hình</string>
     <string name="relay_catalog_failed_hint">Bạn cũng có thể thêm ID mô hình theo cách thủ công.</string>
@@ -1390,13 +1390,13 @@
     <string name="storage_blocked_action_free_space">Giải phóng dung lượng</string>
     <string name="database_unavailable_title">Không mở được dữ liệu cục bộ</string>
     <string name="database_unavailable_message">Oriveo không mở được dữ liệu cục bộ trên thiết bị này. Hãy thử lại, hoặc liên hệ bộ phận hỗ trợ nếu tình trạng này lặp lại.</string>
-    <string name="link_open_failed_message">Thiết bị này không có trình duyệt khả dụng hoặc trình duyệt đã bị tắt. Hãy bật một trình duyệt rồi thử lại.</string>
+    <string name="link_open_failed_message">Không mở được liên kết. Hãy bật trình duyệt rồi thử lại.</string>
     <string name="contact_support">Liên hệ hỗ trợ</string>
     <string name="price_input">Đầu vào</string>
     <string name="price_output">Đầu ra</string>
     <string name="price_cache_read">Đọc cache</string>
     <string name="price_cache_write">Ghi cache</string>
-    <string name="external_app_unavailable">Không có ứng dụng nào trên thiết bị này xử lý được thao tác này. Hãy cài đặt hoặc bật một ứng dụng rồi thử lại.</string>
+    <string name="external_app_unavailable">Không có ứng dụng mở được mục này. Hãy cài hoặc bật một ứng dụng.</string>
     <plurals name="notes_count">
         <item quantity="other">%1$d ghi chú</item>
     </plurals>

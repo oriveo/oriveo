@@ -40,10 +40,10 @@
     <!-- Model Capability -->
     <string name="capability_reasoning">추론</string>
     <string name="capability_text">텍스트</string>
-    <string name="capability_image">비전</string>
+    <string name="capability_image">이미지 인식</string>
     <string name="capability_file">파일</string>
     <string name="attachment_photo">사진</string>
-    <string name="capability_web">인터넷</string>
+    <string name="capability_web">웹</string>
     <string name="capability_image_gen">이미지 생성</string>
     <string name="capability_tool_call">도구</string>
 
@@ -431,7 +431,7 @@
     <string name="search_models">모델 검색…</string>
     <string name="selected_state">선택됨</string>
     <string name="share_failed">이미지 공유에 실패했습니다</string>
-    <string name="snackbar_model_enable_failed">모델을 활성화할 수 없습니다. 다시 시도해 주세요.</string>
+    <string name="snackbar_model_enable_failed">모델을 활성화하지 못했습니다. 다시 시도해 주세요.</string>
     <string name="snackbar_connection_verified">연결이 확인되었습니다.</string>
     <string name="snackbar_connection_check_failed">연결 확인 실패: %1$s</string>
     <string name="provider_connection_unverified">연결을 확인할 수 없습니다. 공급자 세부 정보에서 다시 시도할 수 있습니다.</string>
@@ -772,9 +772,9 @@
     <string name="relay_advanced_auth_mode">인증</string>
     <string name="relay_advanced_headers">사용자 지정 헤더</string>
     <string name="relay_advanced_query_params">사용자 지정 Query 매개변수</string>
-    <string name="relay_advanced_reasoning_effort">추론 노력</string>
+    <string name="relay_advanced_reasoning_effort">추론 정도</string>
     <string name="relay_advanced_service_tier">서비스 계층</string>
-    <string name="relay_advanced_stream">개울</string>
+    <string name="relay_advanced_stream">스트리밍</string>
     <string name="relay_advanced_disable_response_storage">응답 저장 비활성화</string>
     <string name="relay_reasoning_automatic">자동</string>
     <string name="relay_reasoning_low">빠름</string>
@@ -984,7 +984,7 @@
     <string name="citations_view_all">인용 %1$d개 모두 보기</string>
     <string name="citations_collapse">접기</string>
     <string name="delete_conversation_title">이 대화를 삭제하시겠습니까?</string>
-    <string name="provider_detail_removed_model">%s을(를) 제거했습니다</string>
+    <string name="provider_detail_removed_model">%s 제거됨</string>
     <string name="status_unavailable">사용 불가</string>
     <string name="provider_detail_n_models">모델 %d개</string>
     <string name="api_endpoint">API 엔드포인트</string>
@@ -1436,13 +1436,13 @@
     <string name="storage_blocked_action_free_space">저장 공간 확보</string>
     <string name="database_unavailable_title">로컬 데이터를 열 수 없음</string>
     <string name="database_unavailable_message">이 기기에서 로컬 데이터를 열지 못했습니다. 다시 시도하거나, 계속 발생하면 지원팀에 문의하세요.</string>
-    <string name="link_open_failed_message">이 기기에 사용할 수 있는 브라우저가 없거나 비활성화되어 있습니다. 브라우저를 활성화한 후 다시 시도하세요.</string>
+    <string name="link_open_failed_message">링크를 열 수 없습니다. 브라우저를 활성화한 후 다시 시도하세요.</string>
     <string name="contact_support">지원팀에 문의</string>
     <string name="price_input">입력</string>
     <string name="price_output">출력</string>
     <string name="price_cache_read">캐시 읽기</string>
     <string name="price_cache_write">캐시 쓰기</string>
-    <string name="external_app_unavailable">이 작업을 처리할 수 있는 앱이 기기에 없습니다. 앱을 설치하거나 활성화한 후 다시 시도하세요.</string>
+    <string name="external_app_unavailable">열 수 있는 앱이 없습니다. 앱을 설치하거나 활성화하세요.</string>
     <plurals name="notes_count">
         <item quantity="other">노트 %1$d개</item>
     </plurals>

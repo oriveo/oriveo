@@ -46,11 +46,11 @@
     <string name="status_issue">ปัญหา</string>
     <string name="capability_reasoning">การใช้เหตุผล</string>
     <string name="capability_text">ข้อความ</string>
-    <string name="capability_image">วิสัยทัศน์</string>
+    <string name="capability_image">อ่านภาพ</string>
     <string name="capability_file">ไฟล์</string>
     <string name="attachment_photo">รูปถ่าย</string>
-    <string name="capability_web">Web</string>
-    <string name="capability_image_gen">อิมเมจเจน</string>
+    <string name="capability_web">เว็บ</string>
+    <string name="capability_image_gen">สร้างภาพ</string>
     <string name="capability_tool_call">เครื่องมือ</string>
     <string name="reasoning_auto">อัตโนมัติ</string>
     <string name="reasoning_fast">เร็ว</string>
@@ -82,7 +82,7 @@
     <string name="message_failed_body">คำขอไม่เสร็จสิ้นอย่างสมบูรณ์ ลองใหม่ทันทีหรือแก้ไขข้อความผู้ใช้ล่าสุดก่อนที่จะส่งอีกครั้ง</string>
     <string name="message_interrupted">การตอบสนองถูกขัดจังหวะ</string>
     <string name="message_interrupted_body">เก็บการตอบกลับบางส่วนไว้แล้ว แตะ สร้างต่อ เพื่อดำเนินการต่อจากจุดที่หยุด หรือแตะ สร้างใหม่ เพื่อขอคำตอบใหม่ทั้งหมด</string>
-    <string name="web_search">ค้นหา Web</string>
+    <string name="web_search">ค้นหาเว็บ</string>
     <string name="export_conversation">ส่งออกการสนทนา</string>
     <string name="chat_export_markdown_ready">แผ่นแบ่งปันที่เปิดสำหรับการส่งออก Markdown</string>
     <string name="chat_export_json_ready">แผ่นแบ่งปันที่เปิดสำหรับการส่งออก JSON</string>
@@ -167,7 +167,7 @@
     <string name="settings_report_issue">รายงานปัญหา</string>
     <string name="snackbar_provider_ready">ผู้ให้บริการพร้อมแล้ว คุณสามารถเริ่มแชทได้เลย</string>
     <string name="snackbar_model_added">เพิ่ม %1$s แล้ว</string>
-    <string name="snackbar_model_enable_failed">เราไม่สามารถเปิดใช้งานโมเดลนั้นได้ โปรดลองอีกครั้ง</string>
+    <string name="snackbar_model_enable_failed">เปิดใช้โมเดลนี้ไม่สำเร็จ โปรดลองอีกครั้ง</string>
     <string name="snackbar_connection_verified">ตรวจสอบการเชื่อมต่อแล้ว</string>
     <string name="snackbar_connection_check_failed">การตรวจสอบการเชื่อมต่อล้มเหลว: %1$s</string>
     <string name="provider_connection_unverified">ไม่สามารถตรวจสอบการเชื่อมต่อได้ คุณสามารถลองใหม่ได้จากรายละเอียดผู้ให้บริการ</string>
@@ -676,9 +676,9 @@
     <string name="relay_advanced_auth_mode">การยืนยันตัวตน</string>
     <string name="relay_advanced_headers">ส่วนหัวที่กำหนดเอง</string>
     <string name="relay_advanced_query_params">พารามิเตอร์ Query ที่กำหนดเอง</string>
-    <string name="relay_advanced_reasoning_effort">ความพยายามในการใช้เหตุผล</string>
+    <string name="relay_advanced_reasoning_effort">ปริมาณการให้เหตุผล</string>
     <string name="relay_advanced_service_tier">ระดับการบริการ</string>
-    <string name="relay_advanced_stream">ลำธาร</string>
+    <string name="relay_advanced_stream">สตรีมมิง</string>
     <string name="relay_advanced_disable_response_storage">ปิดการใช้งานที่เก็บข้อมูลการตอบสนอง</string>
     <string name="relay_mode_simple">โหมดเรียบง่าย</string>
     <string name="relay_api_key_placeholder">sk-...</string>
@@ -1210,7 +1210,7 @@
     <string name="chat_token_usage_unavailable">ไม่มีข้อมูล</string>
     <string name="generation_conversation_scope_hint">มีผลเฉพาะเมื่อใช้โมเดลนี้ในบทสนทนานี้ ค่าจะไม่ถูกคัดลอกเมื่อเปลี่ยนโมเดล และจะกลับมาเมื่อเปลี่ยนกลับ</string>
     <string name="generation_parameter_self_healed">โมเดลนี้ปฏิเสธ %1$s จึงลองใหม่ด้วยค่าเริ่มต้น</string>
-    <string name="relay_transport_llamacpp_native">การเติมเต็มแบบเนทีฟของ llama.cpp</string>
+    <string name="relay_transport_llamacpp_native">completion แบบเนทีฟของ llama.cpp</string>
     <string name="relay_catalog_loading">กำลังโหลดรายการโมเดล…</string>
     <string name="relay_catalog_failed">ไม่สามารถโหลดรายการโมเดลได้</string>
     <string name="relay_catalog_failed_hint">คุณยังเพิ่มรหัสโมเดลด้วยตนเองได้</string>
@@ -1390,13 +1390,13 @@
     <string name="storage_blocked_action_free_space">เพิ่มพื้นที่ว่าง</string>
     <string name="database_unavailable_title">เปิดข้อมูลในเครื่องไม่ได้</string>
     <string name="database_unavailable_message">Oriveo เปิดข้อมูลในเครื่องบนอุปกรณ์นี้ไม่ได้ กรุณาลองใหม่ หรือติดต่อฝ่ายสนับสนุนหากยังเกิดขึ้นซ้ำ</string>
-    <string name="link_open_failed_message">อุปกรณ์นี้ไม่มีเบราว์เซอร์ที่ใช้ได้ หรือถูกปิดใช้งานอยู่ โปรดเปิดใช้งานเบราว์เซอร์แล้วลองใหม่</string>
+    <string name="link_open_failed_message">เปิดลิงก์ไม่ได้ โปรดเปิดใช้งานเบราว์เซอร์แล้วลองใหม่</string>
     <string name="contact_support">ติดต่อฝ่ายสนับสนุน</string>
     <string name="price_input">อินพุต</string>
     <string name="price_output">เอาต์พุต</string>
     <string name="price_cache_read">อ่านแคช</string>
     <string name="price_cache_write">เขียนแคช</string>
-    <string name="external_app_unavailable">ไม่มีแอปในอุปกรณ์นี้ที่รองรับการทำงานนี้ โปรดติดตั้งหรือเปิดใช้งานแอปแล้วลองใหม่</string>
+    <string name="external_app_unavailable">ไม่มีแอปที่เปิดสิ่งนี้ได้ โปรดติดตั้งหรือเปิดใช้งานแอปแล้วลองใหม่</string>
     <plurals name="notes_count">
         <item quantity="other">%1$d โน้ต</item>
     </plurals>

@@ -41,10 +41,10 @@
     <string name="capability_reasoning">Raisonnement</string>
     <string name="capability_text">Texte</string>
     <string name="capability_image">Vision</string>
-    <string name="capability_file">Fichier</string>
+    <string name="capability_file">Fichiers</string>
     <string name="attachment_photo">Photo</string>
     <string name="capability_web">Web</string>
-    <string name="capability_image_gen">Gén. d\'image</string>
+    <string name="capability_image_gen">Création d\'images</string>
     <string name="capability_tool_call">Outils</string>
 
     <!-- Reasoning Mode -->
@@ -769,10 +769,10 @@
     <string name="relay_advanced_transport">Protocole</string>
     <string name="relay_advanced_auth_mode">Authentification</string>
     <string name="relay_advanced_headers">En-têtes personnalisés</string>
-    <string name="relay_advanced_query_params">Paramètres Query personnalisés</string>
-    <string name="relay_advanced_reasoning_effort">Effort de raisonnement</string>
+    <string name="relay_advanced_query_params">Paramètres de requête personnalisés</string>
+    <string name="relay_advanced_reasoning_effort">Niveau de raisonnement</string>
     <string name="relay_advanced_service_tier">Niveau de service</string>
-    <string name="relay_advanced_stream">Flux</string>
+    <string name="relay_advanced_stream">Streaming</string>
     <string name="relay_advanced_disable_response_storage">Désactiver le stockage des réponses</string>
     <string name="relay_mode_simple">Mode simple</string>
     <string name="relay_api_key_placeholder">sk-...</string>
@@ -982,7 +982,7 @@
     <string name="citations_view_all">Voir les %1$d citations</string>
     <string name="citations_collapse">Afficher moins</string>
     <string name="delete_conversation_title">Supprimer cette conversation ?</string>
-    <string name="provider_detail_removed_model">%s supprimé</string>
+    <string name="provider_detail_removed_model">%s retiré</string>
     <string name="status_unavailable">Indisponible</string>
     <string name="provider_detail_n_models">%d modèles</string>
     <string name="api_endpoint">Point de terminaison API</string>
@@ -1435,13 +1435,13 @@
     <string name="storage_blocked_action_free_space">Libérer de l\'espace</string>
     <string name="database_unavailable_title">Impossible d\'ouvrir les données locales</string>
     <string name="database_unavailable_message">Oriveo n\'a pas pu ouvrir ses données locales sur cet appareil. Réessayez, ou contactez le support si le problème persiste.</string>
-    <string name="link_open_failed_message">Aucun navigateur n’est disponible sur cet appareil, ou il est désactivé. Activez un navigateur, puis réessayez.</string>
+    <string name="link_open_failed_message">Impossible d’ouvrir le lien. Activez un navigateur, puis réessayez.</string>
     <string name="contact_support">Contacter l\'assistance</string>
     <string name="price_input">Entrée</string>
     <string name="price_output">Sortie</string>
     <string name="price_cache_read">Lecture cache</string>
     <string name="price_cache_write">Écriture cache</string>
-    <string name="external_app_unavailable">Aucune app de cet appareil ne peut effectuer cette action. Installez-en une ou activez-la, puis réessayez.</string>
+    <string name="external_app_unavailable">Aucune app ne peut ouvrir ceci. Installez-en ou activez-en une.</string>
     <plurals name="notes_count">
         <item quantity="one">%1$d note</item>
         <item quantity="many">%1$d notes</item>

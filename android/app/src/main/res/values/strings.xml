@@ -58,7 +58,7 @@
     <string name="capability_text">Text</string>
     <string name="capability_image">Vision</string>
     <string name="capability_video">Video</string>
-    <string name="capability_file">File</string>
+    <string name="capability_file">Files</string>
     <string name="attachment_photo">Photo</string>
     <string name="capability_web">Web</string>
     <string name="capability_image_gen">Image Gen</string>
@@ -193,7 +193,7 @@
     <string name="settings_report_issue">Report an Issue</string>
     <!-- Snackbars -->
     <string name="snackbar_provider_ready">Provider is ready. You can start chatting now.</string>
-    <string name="snackbar_model_added">%1$s added</string>
+    <string name="snackbar_model_added">Added %1$s</string>
     <string name="snackbar_model_enable_failed">We couldn\'t enable that model. Please try again.</string>
     <string name="snackbar_connection_verified">Connection verified.</string>
     <string name="snackbar_connection_check_failed">Connection check failed: %1$s</string>
@@ -1446,13 +1446,13 @@
     <string name="storage_blocked_action_free_space">Free Up Space</string>
     <string name="database_unavailable_title">Can\'t Open Local Data</string>
     <string name="database_unavailable_message">Oriveo couldn\'t open its local data on this device. Retry, or contact support if this keeps happening.</string>
-    <string name="link_open_failed_message">No browser is available on this device, or it has been disabled. Enable a browser app, then try again.</string>
+    <string name="link_open_failed_message">Couldn\'t open the link. Enable a browser and try again.</string>
     <string name="contact_support">Contact support</string>
     <string name="price_input">Input</string>
     <string name="price_output">Output</string>
     <string name="price_cache_read">Cache read</string>
     <string name="price_cache_write">Cache write</string>
-    <string name="external_app_unavailable">No app on this device can handle this action. Install or enable one, then try again.</string>
+    <string name="external_app_unavailable">No app can open this. Install or enable one and try again.</string>
     <plurals name="notes_count">
         <item quantity="one">%1$d note</item>
         <item quantity="other">%1$d notes</item>

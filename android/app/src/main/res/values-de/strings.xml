@@ -38,13 +38,13 @@
     <string name="status_issue">Problem</string>
 
     <!-- Model Capability -->
-    <string name="capability_reasoning">Argumentation</string>
+    <string name="capability_reasoning">Denken</string>
     <string name="capability_text">Text</string>
-    <string name="capability_image">Vision</string>
-    <string name="capability_file">Datei</string>
+    <string name="capability_image">Bilderkennung</string>
+    <string name="capability_file">Dateien</string>
     <string name="attachment_photo">Foto</string>
     <string name="capability_web">Web</string>
-    <string name="capability_image_gen">Bilderzeugung</string>
+    <string name="capability_image_gen">Bildgenerierung</string>
     <string name="capability_tool_call">Tools</string>
 
     <!-- Reasoning Mode -->
@@ -770,9 +770,9 @@
     <string name="relay_advanced_auth_mode">Authentifizierung</string>
     <string name="relay_advanced_headers">Eigene Header</string>
     <string name="relay_advanced_query_params">Eigene Query-Parameter</string>
-    <string name="relay_advanced_reasoning_effort">Argumentationsaufwand</string>
+    <string name="relay_advanced_reasoning_effort">Denkaufwand</string>
     <string name="relay_advanced_service_tier">Serviceebene</string>
-    <string name="relay_advanced_stream">Strom</string>
+    <string name="relay_advanced_stream">Streaming</string>
     <string name="relay_advanced_disable_response_storage">Antwortspeicher deaktivieren</string>
     <string name="relay_mode_simple">Einfacher Modus</string>
     <string name="relay_api_key_placeholder">sk-...</string>
@@ -1435,13 +1435,13 @@
     <string name="storage_blocked_action_free_space">Speicher freigeben</string>
     <string name="database_unavailable_title">Lokale Daten lassen sich nicht öffnen</string>
     <string name="database_unavailable_message">Oriveo konnte seine lokalen Daten auf diesem Gerät nicht öffnen. Versuche es erneut oder wende dich an den Support, wenn das Problem bestehen bleibt.</string>
-    <string name="link_open_failed_message">Auf diesem Gerät ist kein Browser verfügbar oder er wurde deaktiviert. Aktiviere einen Browser und versuche es erneut.</string>
+    <string name="link_open_failed_message">Link konnte nicht geöffnet werden. Aktiviere einen Browser.</string>
     <string name="contact_support">Support kontaktieren</string>
     <string name="price_input">Eingabe</string>
     <string name="price_output">Ausgabe</string>
     <string name="price_cache_read">Cache-Lesen</string>
     <string name="price_cache_write">Cache-Schreiben</string>
-    <string name="external_app_unavailable">Auf diesem Gerät gibt es keine App für diese Aktion. Installiere oder aktiviere eine App und versuche es erneut.</string>
+    <string name="external_app_unavailable">Keine App kann das öffnen. Installiere oder aktiviere eine.</string>
     <plurals name="notes_count">
         <item quantity="one">%1$d Notiz</item>
         <item quantity="other">%1$d Notizen</item>

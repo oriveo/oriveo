@@ -58,8 +58,8 @@
     <string name="capability_image">識圖</string>
     <string name="capability_file">檔案</string>
     <string name="attachment_photo">照片</string>
-    <string name="capability_web">聯網</string>
-    <string name="capability_image_gen">圖像生成</string>
+    <string name="capability_web">連網</string>
+    <string name="capability_image_gen">生圖</string>
     <string name="capability_tool_call">工具</string>
 
     <!-- Reasoning Mode -->
@@ -791,7 +791,7 @@
     <string name="relay_advanced_auth_mode">驗證方式</string>
     <string name="relay_advanced_headers">自訂 Headers</string>
     <string name="relay_advanced_query_params">自訂 Query 參數</string>
-    <string name="relay_advanced_reasoning_effort">推理</string>
+    <string name="relay_advanced_reasoning_effort">推理等級</string>
     <string name="relay_advanced_service_tier">服務等級</string>
     <string name="relay_advanced_stream">串流</string>
     <string name="relay_advanced_disable_response_storage">禁用響應存儲</string>
@@ -1446,13 +1446,13 @@
     <string name="storage_blocked_action_free_space">清理儲存空間</string>
     <string name="database_unavailable_title">無法開啟本機資料</string>
     <string name="database_unavailable_message">Oriveo 無法在這台裝置上開啟本機資料。請重試；若反覆出現，請聯絡支援。</string>
-    <string name="link_open_failed_message">這台裝置上沒有可用的瀏覽器，或瀏覽器已被停用。請啟用瀏覽器後再試一次。</string>
+    <string name="link_open_failed_message">無法開啟連結。請啟用瀏覽器後再試一次。</string>
     <string name="contact_support">聯絡支援</string>
     <string name="price_input">輸入</string>
     <string name="price_output">輸出</string>
     <string name="price_cache_read">快取讀取</string>
     <string name="price_cache_write">快取寫入</string>
-    <string name="external_app_unavailable">這台裝置上沒有可以完成此操作的應用程式。請先安裝或啟用後再試一次。</string>
+    <string name="external_app_unavailable">沒有能開啟此內容的應用程式。請安裝或啟用後再試一次。</string>
     <plurals name="notes_count">
         <item quantity="other">%1$d 則筆記</item>
     </plurals>
