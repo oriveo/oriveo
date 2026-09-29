@@ -40,6 +40,7 @@ import ai.oriveo.community.core.provider.CapabilityEvidenceObservationBridge
 import ai.oriveo.community.core.provider.ProviderSelectionSnapshot
 import ai.oriveo.community.core.streaming.ChatStreamingManager
 import ai.oriveo.community.core.util.TextShareLauncher
+import ai.oriveo.community.feature.modelpicker.enableCatalogModelWithFeedback
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -781,24 +782,7 @@ class HomeViewModel(
 
     fun enableModel(providerId: String, modelId: String) {
         viewModelScope.launch {
-            try {
-                val provider = providerRepository.getById(providerId) ?: return@launch
-                val model = ModelSelectionUtils.matchingModel(provider.allModels, modelId) ?: return@launch
-
-                if (provider.models.any { ModelSelectionUtils.modelsShareSameRemoteModel(it, model, provider.kind) }) {
-                    return@launch
-                }
-
-                providerRepository.updateProvider(
-                    ModelSelectionUtils.enableModel(provider, model),
-                )
-            } catch (_: Exception) {
-                globalSnackbarManager.show(
-                    GlobalSnackbarMessage(
-                        message = UiText.Resource(R.string.snackbar_model_enable_failed),
-                    ),
-                )
-            }
+            enableCatalogModelWithFeedback(providerRepository, globalSnackbarManager, providerId, modelId)
         }
     }
 

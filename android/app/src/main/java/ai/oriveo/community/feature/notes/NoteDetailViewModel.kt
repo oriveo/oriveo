@@ -22,14 +22,13 @@ import ai.oriveo.community.core.model.Provider
 import ai.oriveo.community.core.notes.NoteCapture
 import ai.oriveo.community.core.notes.NoteListing
 import ai.oriveo.community.core.notes.NoteTime
-import ai.oriveo.community.core.provider.ModelSelectionUtils
-import ai.oriveo.community.core.provider.ProviderSelectionSnapshot
 import ai.oriveo.community.core.util.TextShareLauncher
 import ai.oriveo.community.core.util.normalizeUuid
 import ai.oriveo.community.feature.chat.crosscheck.CrosscheckCoordinator
 import ai.oriveo.community.feature.chat.crosscheck.CrosscheckModelIdentity
 import ai.oriveo.community.feature.chat.crosscheck.CrosscheckOption
 import ai.oriveo.community.feature.chat.crosscheck.CrosscheckState
+import ai.oriveo.community.feature.modelpicker.enableCatalogModelWithFeedback
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -192,19 +191,7 @@ class NoteDetailViewModel(
 
     fun enableModel(providerId: String, modelId: String) {
         viewModelScope.launch {
-            try {
-                val provider = providerRepository.getById(providerId) ?: return@launch
-                val model = ProviderSelectionSnapshot.selectedModel(provider, modelId) ?: return@launch
-                providerRepository.updateProvider(
-                    ModelSelectionUtils.enableModel(provider, model),
-                )
-            } catch (_: Exception) {
-                globalSnackbarManager.show(
-                    GlobalSnackbarMessage(
-                        message = UiText.Resource(R.string.snackbar_model_enable_failed),
-                    ),
-                )
-            }
+            enableCatalogModelWithFeedback(providerRepository, globalSnackbarManager, providerId, modelId)
         }
     }
 

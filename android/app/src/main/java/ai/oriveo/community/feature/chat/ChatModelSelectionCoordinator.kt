@@ -1,15 +1,13 @@
 package ai.oriveo.community.feature.chat
 
-import ai.oriveo.community.R
 import ai.oriveo.community.core.app.AppPreferencesRepository
 import ai.oriveo.community.core.app.GlobalSnackbarManager
-import ai.oriveo.community.core.app.GlobalSnackbarMessage
-import ai.oriveo.community.core.app.UiText
 import ai.oriveo.community.core.data.repository.ConversationRepository
 import ai.oriveo.community.core.data.repository.ProviderRepository
 import ai.oriveo.community.core.model.Provider
 import ai.oriveo.community.core.provider.ModelSelectionUtils
 import ai.oriveo.community.core.provider.ProviderSelectionSnapshot
+import ai.oriveo.community.feature.modelpicker.enableCatalogModelWithFeedback
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
@@ -77,22 +75,7 @@ internal class ChatModelSelectionCoordinator(
 
     fun enableModel(providerId: String, modelId: String) {
         viewModelScope.launch {
-            try {
-                val provider = providerRepository.getById(providerId) ?: return@launch
-                val model = ProviderSelectionSnapshot.selectedModel(provider, modelId) ?: return@launch
-
-                providerRepository.updateProvider(
-                    ModelSelectionUtils.enableModel(provider, model),
-                )
-            } catch (cancellation: CancellationException) {
-                throw cancellation
-            } catch (_: Exception) {
-                globalSnackbarManager.show(
-                    GlobalSnackbarMessage(
-                        message = UiText.Resource(R.string.snackbar_model_enable_failed),
-                    ),
-                )
-            }
+            enableCatalogModelWithFeedback(providerRepository, globalSnackbarManager, providerId, modelId)
         }
     }
 }

@@ -6,6 +6,7 @@ import android.content.Intent
 import ai.oriveo.community.R
 import ai.oriveo.community.core.app.AppPreferencesRepository
 import ai.oriveo.community.core.app.GlobalSnackbarManager
+import ai.oriveo.community.core.app.GlobalToastStyle
 import ai.oriveo.community.core.app.UiText
 import ai.oriveo.community.core.data.entity.NoteSummary
 import ai.oriveo.community.core.data.repository.ConversationRepository
@@ -125,7 +126,10 @@ class HomeViewModelBehaviorTest {
         }
         coVerify(exactly = 0) { appPreferencesRepository.setLastUsedModel(any<String>(), any<String>()) }
         coVerify(exactly = 0) { appPreferencesRepository.setLastUsedModel(any<String>(), any<AIModel>()) }
-        verify(exactly = 0) { globalSnackbarManager.show(any()) }
+        // Tapping "+" in the picker must give visible feedback.
+        verify(exactly = 1) {
+            globalSnackbarManager.show(match { it.style == GlobalToastStyle.Success })
+        }
         assertTrue(viewModel.showModelPicker)
     }
 
