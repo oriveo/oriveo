@@ -1,7 +1,6 @@
 package ai.oriveo.community.ui.component
 
 import android.content.Context
-import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -13,8 +12,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import ai.oriveo.community.R
+import ai.oriveo.community.core.app.GlobalSnackbarManager
+import ai.oriveo.community.core.app.GlobalSnackbarMessage
+import ai.oriveo.community.core.app.GlobalToastStyle
+import ai.oriveo.community.core.app.UiText
 import ai.oriveo.community.core.util.openExternalUrl
 import ai.oriveo.community.ui.theme.OriveoTheme
+import org.koin.core.context.GlobalContext
 
 const val ORIVEO_REPOSITORY_URL = "https://github.com/oriveo/oriveo"
 
@@ -33,7 +37,16 @@ enum class OriveoWebDestination(val url: String) {
 
 fun Context.openOriveoWebPage(destination: OriveoWebDestination) {
     if (!openExternalUrl(this, destination.url)) {
-        Toast.makeText(this, R.string.link_open_failed_message, Toast.LENGTH_LONG).show()
+        // A Context extension cannot reach Compose injection, so, as in other non-Compose code,
+        // take the singleton from the global Koin container. Every caller lives in the main window,
+        // so the top capsule is never covered by a sheet.
+        GlobalContext.get().get<GlobalSnackbarManager>().show(
+            GlobalSnackbarMessage(
+                message = UiText.Resource(R.string.link_open_failed_message),
+                style = GlobalToastStyle.Error,
+                durationMs = 4000,
+            ),
+        )
     }
 }
 

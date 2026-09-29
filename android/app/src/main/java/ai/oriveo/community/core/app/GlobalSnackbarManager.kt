@@ -18,10 +18,18 @@ fun UiText.resolve(context: Context): String = when (this) {
     is UiText.Resource -> context.getString(resId, *args.toTypedArray())
 }
 
+/**
+ * Semantic type of the global top toast, matching iOS `ToastStyle`. It decides the color and glyph
+ * of the round icon on the left of the capsule (the visual mapping lives in
+ * [ai.oriveo.community.ui.component.GlobalToastHost], one table shared by every platform).
+ */
 enum class GlobalToastStyle {
     Success,
     Error,
     Warning,
+    Info,
+    /** Removal actions (such as "Removed X · Undo"): neutral gray circle with a minus sign. */
+    Removed,
     Neutral,
 }
 

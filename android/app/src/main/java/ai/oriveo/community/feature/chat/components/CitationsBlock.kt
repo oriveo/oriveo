@@ -1,7 +1,6 @@
 package ai.oriveo.community.feature.chat.components
 
 import android.net.Uri
-import android.widget.Toast
 import androidx.compose.foundation.border
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -35,6 +34,11 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import ai.oriveo.community.R
+import ai.oriveo.community.core.app.GlobalSnackbarManager
+import ai.oriveo.community.core.app.GlobalSnackbarMessage
+import ai.oriveo.community.core.app.GlobalToastStyle
+import ai.oriveo.community.core.app.UiText
+import org.koin.compose.koinInject
 import ai.oriveo.community.core.model.Citation
 import ai.oriveo.community.core.security.isSafeExternalUrl
 import ai.oriveo.community.core.util.openExternalUrl
@@ -61,6 +65,7 @@ fun CitationsBlock(
     val colors = OriveoTheme.colors
     val spacing = OriveoTheme.spacing
     val context = LocalContext.current
+    val globalSnackbarManager: GlobalSnackbarManager = koinInject()
 
     val collapsedLimit = 3
     var expanded by remember { mutableStateOf(false) }
@@ -106,7 +111,13 @@ fun CitationsBlock(
                 onClick = { url ->
                     if (!isOpenableCitationUrl(url)) return@CitationRow
                     if (!openExternalUrl(context, url)) {
-                        Toast.makeText(context, R.string.link_open_failed_message, Toast.LENGTH_LONG).show()
+                        globalSnackbarManager.show(
+                            GlobalSnackbarMessage(
+                                message = UiText.Resource(R.string.link_open_failed_message),
+                                style = GlobalToastStyle.Error,
+                                durationMs = 4000,
+                            ),
+                        )
                     }
                 },
             )

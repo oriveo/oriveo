@@ -4,7 +4,6 @@ import android.os.Build
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
@@ -12,11 +11,6 @@ import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
-import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import ai.oriveo.community.ui.theme.OriveoBorderWidth
@@ -61,7 +55,6 @@ import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.NetworkCheck
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.RemoveCircle
 import androidx.compose.material.icons.outlined.Warning
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Star
@@ -103,7 +96,6 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.scale
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.geometry.CornerRadius
@@ -143,7 +135,6 @@ import ai.oriveo.community.ui.component.OriveoCard
 import ai.oriveo.community.ui.component.OriveoPrimaryButton
 import ai.oriveo.community.ui.component.OriveoSectionHeader
 import ai.oriveo.community.ui.component.OriveoSecondaryButton
-import ai.oriveo.community.ui.component.OriveoTextButton
 import ai.oriveo.community.ui.component.ProviderBadgeIcon
 import ai.oriveo.community.ui.component.StatusPill
 import ai.oriveo.community.ui.component.StatusTone
@@ -153,11 +144,12 @@ import ai.oriveo.community.ui.theme.OriveoTheme
 import ai.oriveo.community.ui.util.formatRelativeTime
 import kotlinx.coroutines.delay
 import org.koin.androidx.compose.koinViewModel
-
-private data class RemovalBannerState(
-    val modelName: String,
-    val onUndo: () -> Unit,
-)
+import org.koin.compose.koinInject
+import ai.oriveo.community.core.app.GlobalSnackbarManager
+import ai.oriveo.community.core.app.GlobalSnackbarMessage
+import ai.oriveo.community.core.app.GlobalToastAction
+import ai.oriveo.community.core.app.GlobalToastStyle
+import ai.oriveo.community.core.app.UiText
 
 private fun LazyListScope.detailSection(
     key: String,
@@ -204,7 +196,8 @@ fun ProviderDetailScreen(
     var showGenerationParameters by remember { mutableStateOf(false) }
     var renameProvider: Provider? by remember { mutableStateOf(null) }
 
-    var removalBanner: RemovalBannerState? by remember { mutableStateOf(null) }
+    // "Removed X · Undo" goes through the global top capsule toast (matching iOS ToastStyle.removed) instead of a separate bottom banner
+    val globalSnackbarManager: GlobalSnackbarManager = koinInject()
 
     var dismissedHealthBanner by remember { mutableStateOf(false) }
 
@@ -220,13 +213,6 @@ fun ProviderDetailScreen(
 
     fun triggerHaptic() {
         vibrator?.vibrate(VibrationEffect.createOneShot(20, VibrationEffect.DEFAULT_AMPLITUDE))
-    }
-
-    LaunchedEffect(removalBanner) {
-        if (removalBanner != null) {
-            delay(4000)
-            removalBanner = null
-        }
     }
 
     LaunchedEffect(highlightedModelID) {
@@ -406,13 +392,22 @@ fun ProviderDetailScreen(
                                 val willDisable = currentProvider.models.any { it.id == model.id }
                                 viewModel.toggleModelEnabled(model)
                                 if (willDisable && currentProvider.models.size > 1) {
-                                    removalBanner = RemovalBannerState(
-                                        modelName = model.name,
-                                        onUndo = {
-                                            viewModel.toggleModelEnabled(model)
-                                            removalBanner = null
-                                            triggerHaptic()
-                                        },
+                                    globalSnackbarManager.show(
+                                        GlobalSnackbarMessage(
+                                            message = UiText.Resource(
+                                                R.string.provider_detail_removed_model,
+                                                listOf(model.name),
+                                            ),
+                                            style = GlobalToastStyle.Removed,
+                                            action = GlobalToastAction(
+                                                label = UiText.Resource(R.string.undo),
+                                                onClick = {
+                                                    viewModel.toggleModelEnabled(model)
+                                                    triggerHaptic()
+                                                },
+                                            ),
+                                            durationMs = 4000,
+                                        ),
                                     )
                                 }
                             },
@@ -668,23 +663,6 @@ fun ProviderDetailScreen(
                         provider = target,
                     )
                 }
-            }
-        }
-
-        AnimatedVisibility(
-            visible = removalBanner != null,
-            enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
-            exit = slideOutVertically(targetOffsetY = { it }) + fadeOut(tween(220)),
-            modifier = Modifier.align(Alignment.BottomCenter),
-        ) {
-            removalBanner?.let { banner ->
-                RemovalBanner(
-                    modelName = banner.modelName,
-                    onUndo = banner.onUndo,
-                    modifier = Modifier
-                        .padding(horizontal = OriveoTheme.layout.screenH)
-                        .padding(bottom = OriveoTheme.spacing.lg),
-                )
             }
         }
     } // Box
@@ -1025,47 +1003,6 @@ private fun SearchField(
                     innerTextField()
                 }
             },
-        )
-    }
-}
-
-@Composable
-private fun RemovalBanner(
-    modelName: String,
-    onUndo: () -> Unit,
-    modifier: Modifier = Modifier,
-) {
-    val colors = OriveoTheme.colors
-    val spacing = OriveoTheme.spacing
-
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .shadow(18.dp, RoundedCornerShape(OriveoTheme.radius.md))
-            .clip(RoundedCornerShape(OriveoTheme.radius.md))
-            .background(colors.surfaceElevated)
-            .border(OriveoBorderWidth.standard, colors.borderStrong, RoundedCornerShape(OriveoTheme.radius.md))
-            .padding(horizontal = spacing.lg, vertical = spacing.md),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(spacing.md),
-    ) {
-        Icon(
-            imageVector = Icons.Filled.RemoveCircle,
-            contentDescription = null,
-            modifier = Modifier.size(18.dp),
-            tint = colors.warning,
-        )
-        Text(
-            text = stringResource(R.string.provider_detail_removed_model, modelName),
-            style = OriveoTheme.typography.caption,
-            color = colors.textPrimary,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.weight(1f),
-        )
-        OriveoTextButton(
-            text = stringResource(R.string.undo),
-            onClick = onUndo,
         )
     }
 }

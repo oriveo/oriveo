@@ -73,7 +73,12 @@ class EnableCatalogModelTest {
 
         coVerify(exactly = 0) { providerRepository.updateProvider(any()) }
         verify(exactly = 1) {
-            snackbar.show(GlobalSnackbarMessage(message = UiText.Resource(R.string.snackbar_model_enable_failed)))
+            snackbar.show(
+                GlobalSnackbarMessage(
+                    message = UiText.Resource(R.string.snackbar_model_enable_failed),
+                    style = GlobalToastStyle.Error,
+                ),
+            )
         }
     }
 
@@ -84,7 +89,12 @@ class EnableCatalogModelTest {
         enableCatalogModelWithFeedback(providerRepository, snackbar, "gone", "gpt-4.1")
 
         verify(exactly = 1) {
-            snackbar.show(GlobalSnackbarMessage(message = UiText.Resource(R.string.snackbar_model_enable_failed)))
+            snackbar.show(
+                GlobalSnackbarMessage(
+                    message = UiText.Resource(R.string.snackbar_model_enable_failed),
+                    style = GlobalToastStyle.Error,
+                ),
+            )
         }
     }
 
@@ -99,7 +109,12 @@ class EnableCatalogModelTest {
         enableCatalogModelWithFeedback(providerRepository, snackbar, "relay-1", "gpt-4.1")
 
         verify(exactly = 1) {
-            snackbar.show(GlobalSnackbarMessage(message = UiText.Resource(R.string.snackbar_model_enable_failed)))
+            snackbar.show(
+                GlobalSnackbarMessage(
+                    message = UiText.Resource(R.string.snackbar_model_enable_failed),
+                    style = GlobalToastStyle.Error,
+                ),
+            )
         }
     }
 

@@ -4,7 +4,6 @@ import android.content.ClipData
 import android.content.Context
 import android.content.Intent
 import android.util.Base64
-import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.awaitEachGesture
@@ -98,7 +97,6 @@ import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.LocalTextToolbar
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
@@ -141,6 +139,10 @@ import ai.oriveo.community.ui.theme.opacity
 import android.graphics.BlurMaskFilter
 import android.graphics.Paint as AndroidPaint
 import org.koin.compose.koinInject
+import ai.oriveo.community.core.app.GlobalSnackbarManager
+import ai.oriveo.community.core.app.GlobalSnackbarMessage
+import ai.oriveo.community.core.app.GlobalToastStyle
+import ai.oriveo.community.core.app.UiText
 import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -1479,7 +1481,7 @@ private fun AssistantImageView(attachment: Attachment) {
 @Composable
 private fun UserFileChip(attachment: Attachment, attachmentStore: AttachmentStore) {
     val context = LocalContext.current
-    val resources = LocalResources.current
+    val globalSnackbarManager: GlobalSnackbarManager = koinInject()
     val scope = rememberCoroutineScope()
     var isDownloading by remember(attachment.id, attachment.base64Data, attachment.rawContentRef) {
         mutableStateOf(false)
@@ -1495,11 +1497,13 @@ private fun UserFileChip(attachment: Attachment, attachmentStore: AttachmentStor
                     val opened = runCatching { openFileAttachment(context, attachmentStore, attachment) }.getOrDefault(false)
                     isDownloading = false
                     if (!opened) {
-                        Toast.makeText(
-                            context,
-                            resources.getString(R.string.file_unavailable),
-                            Toast.LENGTH_SHORT,
-                        ).show()
+                        // The file is only available on the original device: an explanation, not a failure, so Info
+                        globalSnackbarManager.show(
+                            GlobalSnackbarMessage(
+                                message = UiText.Resource(R.string.file_unavailable),
+                                style = GlobalToastStyle.Info,
+                            ),
+                        )
                     }
                 }
             }

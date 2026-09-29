@@ -50,7 +50,11 @@ internal suspend fun enableCatalogModelWithFeedback(
     providerId: String,
     modelId: String,
 ) {
-    val failure = GlobalSnackbarMessage(message = UiText.Resource(R.string.snackbar_model_enable_failed))
+    // Failure uses the Error style (matching iOS `.error`) so it reads differently from the "Added" success at a glance
+    val failure = GlobalSnackbarMessage(
+        message = UiText.Resource(R.string.snackbar_model_enable_failed),
+        style = GlobalToastStyle.Error,
+    )
     try {
         when (val result = enableCatalogModel(providerRepository, providerId, modelId)) {
             is EnableCatalogModelResult.Added -> globalSnackbarManager.show(

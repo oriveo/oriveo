@@ -129,7 +129,6 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.platform.LocalDensity
@@ -257,8 +256,6 @@ internal fun ChatScreenContent(
     val markdownColors = MarkdownTheme.colors()
     val screenH = OriveoTheme.layout.screenH
     val context = LocalContext.current
-    val resources = LocalResources.current
-
     val view = LocalView.current
     val density = LocalDensity.current
     val keyboardController = LocalSoftwareKeyboardController.current
@@ -348,14 +345,17 @@ internal fun ChatScreenContent(
         }
     }
     val onCrosscheckMessage = remember(viewModel) { { message: ChatMessage -> viewModel.noteCoordinator.openCrosscheck(message.id) } }
-    val onAskSelection = remember(viewModel, context, resources) {
+    val globalSnackbarManager: ai.oriveo.community.core.app.GlobalSnackbarManager = org.koin.compose.koinInject()
+    val onAskSelection = remember(viewModel, globalSnackbarManager) {
         { message: ChatMessage, selection: QuoteSelectionContent ->
             if (!viewModel.askAboutSelection(message, selection)) {
-                android.widget.Toast.makeText(
-                    context,
-                    resources.getString(R.string.chat_selection_too_long),
-                    android.widget.Toast.LENGTH_SHORT,
-                ).show()
+                // An over-long selection is a correctable input problem, not a failure: Warning
+                globalSnackbarManager.show(
+                    ai.oriveo.community.core.app.GlobalSnackbarMessage(
+                        message = ai.oriveo.community.core.app.UiText.Resource(R.string.chat_selection_too_long),
+                        style = ai.oriveo.community.core.app.GlobalToastStyle.Warning,
+                    ),
+                )
             }
         }
     }
