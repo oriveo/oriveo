@@ -9,6 +9,10 @@ import UIKit
 @Suite("MainTabBar", .serialized)
 @MainActor
 struct MainTabBarTests {
+    init() throws {
+        try #require(ApplicationAccessibility.enable(), "application accessibility could not be turned on")
+    }
+
     @Test("every tab has its own line icon asset (a template image tinted by the system)")
     func everyTabHasItsLineIcon() {
         #expect(AppTab.allCases.map(\.tabBarIconAsset) == ["TabIconHome", "TabIconProviders", "TabIconSettings"])

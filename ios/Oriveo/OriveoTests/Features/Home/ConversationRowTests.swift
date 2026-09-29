@@ -6,6 +6,10 @@ import UIKit
 @Suite("ConversationRow", .serialized)
 @MainActor
 struct ConversationRowTests {
+    init() throws {
+        try #require(ApplicationAccessibility.enable(), "application accessibility could not be turned on")
+    }
+
     private func withOpenAIMetadata<Result>(
         displayName: String = "GPT-4o Latest",
         _ operation: () async throws -> Result

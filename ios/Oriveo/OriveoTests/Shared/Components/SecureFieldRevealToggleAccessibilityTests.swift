@@ -17,6 +17,10 @@ struct SecureFieldRevealToggleAccessibilityTests {
     private static let showKey = "Show characters"
     private static let hideKey = "Hide characters"
 
+    init() throws {
+        try #require(ApplicationAccessibility.enable(), "application accessibility could not be turned on")
+    }
+
     enum Subject: CaseIterable {
         case labeledField
         case relayInlineRow
