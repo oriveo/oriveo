@@ -360,6 +360,12 @@ struct ModelPickerSheet: View {
                 }
 
         }
+        // The global ToastOverlay is mounted on AppRootView, while a .sheet is presented above it, so
+        // the "added" / failure toast raised from inside the picker would be hidden and the user would
+        // only see the model disappear. Mount one on the sheet's own layer (same ToastManager.shared;
+        // the covered root copy is never visible, so nothing shows twice). Outside the NavigationStack
+        // so the pushed InlineModelCatalogView is covered too.
+        .overlay { ToastOverlay() }
     }
 
     // MARK: - Content
@@ -1630,7 +1636,9 @@ struct InlineModelCatalogView: View {
                         coordinateSpaceName: nil,
                         onToggleGroup: toggleGroup,
                         onAddModel: { model, _ in
-                            appState.enableModel(modelID: model.id, for: providerID)
+                            ModelEnableFeedback.announce(
+                                appState.enableModel(modelID: model.id, for: providerID)
+                            )
                         }
                     )
                 }

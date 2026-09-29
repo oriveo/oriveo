@@ -820,6 +820,28 @@ struct ProviderManagerTests {
         #expect(renamedFirst.customName == "BB.CC")
     }
 
+    @Test("enableModel reports added, already enabled and not found")
+    func enableModelReportsOutcome() {
+        let appState = makeState()
+        let providerID = UUID()
+        let enabled = TestFactories.makeModel(id: "openAI-gpt-4o", name: "GPT-4o", isDefault: true)
+        let catalogOnly = TestFactories.makeModel(id: "openAI-gpt-4.1", name: "GPT-4.1", isDefault: false)
+        appState.providers = [
+            TestFactories.makeProvider(
+                id: providerID,
+                kind: .openAI,
+                models: [enabled],
+                catalogModels: [enabled, catalogOnly]
+            ),
+        ]
+
+        #expect(appState.providerManager.enableModel(modelID: "openAI-gpt-4.1", for: providerID) == .added(modelName: "GPT-4.1"))
+        // Tapping again finds an equivalent enabled model: idempotent, not a failure.
+        #expect(appState.providerManager.enableModel(modelID: "openAI-gpt-4.1", for: providerID) == .alreadyEnabled)
+        #expect(appState.providerManager.enableModel(modelID: "openAI-does-not-exist", for: providerID) == .notFound)
+        #expect(appState.providerManager.enableModel(modelID: "openAI-gpt-4.1", for: UUID()) == .notFound)
+    }
+
     @Test("Enable Model Adds Catalog Model")
     func enableModelAddsCatalogModel() {
         let appState = makeState()

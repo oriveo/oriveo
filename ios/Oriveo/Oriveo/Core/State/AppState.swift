@@ -1281,7 +1281,8 @@ final class AppState {
         setActiveModel(providerID: providerID, modelID: modelID)
     }
 
-    func enableModel(modelID: String, for providerID: UUID) {
+    @discardableResult
+    func enableModel(modelID: String, for providerID: UUID) -> ProviderManager.EnableModelResult {
         providerManager.enableModel(modelID: modelID, for: providerID)
     }
 

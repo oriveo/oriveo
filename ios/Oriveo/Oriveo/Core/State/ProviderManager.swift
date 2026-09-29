@@ -1050,14 +1050,24 @@ final class ProviderManager {
         return ModelResolver.synchronizeDefaultSelection(in: candidate, preferredModelID: selectedModel.id)
     }
 
-    func enableModel(modelID: String, for providerID: UUID) {
+    /// Outcome of tapping "+" on a catalog row. Callers turn it into user feedback:
+    /// `.alreadyEnabled` is idempotent and not a failure, while `.notFound` (provider gone or
+    /// the id is not in the catalog) must be visible to the user rather than silent.
+    enum EnableModelResult: Equatable {
+        case added(modelName: String)
+        case alreadyEnabled
+        case notFound
+    }
+
+    @discardableResult
+    func enableModel(modelID: String, for providerID: UUID) -> EnableModelResult {
         guard var provider = provider(for: providerID),
               let resolvedModel = ModelResolver.matchingModel(for: modelID, in: provider) else {
-            return
+            return .notFound
         }
 
         if provider.models.contains(where: { ModelResolver.modelsShareSameRemoteModel($0, resolvedModel, providerKind: provider.kind) }) {
-            return
+            return .alreadyEnabled
         }
 
         var enabledModel = resolvedModel
@@ -1068,6 +1078,7 @@ final class ProviderManager {
             preferredModelID: provider.defaultModel?.id ?? enabledModel.id
         )
         updateProvider(provider)
+        return .added(modelName: enabledModel.name)
     }
 
     func disableModel(modelID: String, for providerID: UUID) {

@@ -426,15 +426,14 @@ struct ProviderDetailView: View {
         activeAddFeedbacks.append(feedback)
         addFeedbackTrigger += 1
 
+        var enableResult: ProviderManager.EnableModelResult = .notFound
         withAnimation(.snappy) {
-            appState.enableModel(modelID: model.id, for: provider.id)
+            enableResult = appState.enableModel(modelID: model.id, for: provider.id)
             highlightedEnabledModelID = model.id
         }
 
-        ToastManager.shared.show(
-            String(format: L10n.tr("Added %@", table: .providers), model.name),
-            style: .success
-        )
+        // Same copy and style as the Home picker, so neither surface adds a model silently.
+        ModelEnableFeedback.announce(enableResult)
 
         DispatchQueue.main.async {
             withAnimation(reduceMotion ? .easeOut(duration: 0.24) : .spring(response: 0.42, dampingFraction: 0.82)) {
