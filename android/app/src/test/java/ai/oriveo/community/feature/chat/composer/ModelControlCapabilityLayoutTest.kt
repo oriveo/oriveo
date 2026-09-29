@@ -155,12 +155,17 @@ class ModelControlCapabilityLayoutTest {
         assertFalse("cards have no outline and no backing plate", components.contains(".border("))
     }
 
-    /** The model list's capability badges and filter chips must reuse the single existing decision function, not add a second one. */
+    /**
+     * The model list's filter chips must reuse the single existing decision function, not add a second one.
+     * Row badges now use the same projection as provider detail (see ModelRowCapabilityContractTest)
+     * instead of a separate set of pills.
+     */
     @Test
     fun `the model picker badges and filters reuse the single capability decision function`() {
-        assertTrue(picker.contains("modelPickerCapabilityBadges("))
+        assertFalse(picker.contains("modelPickerCapabilityBadges("))
         assertTrue(picker.contains("modelPickerCapabilityFilterCounts("))
         val badgeSource = repoFile("feature/modelpicker/ModelPickerCapabilityFilter.kt").readText()
+        assertTrue(badgeSource.contains("fun modelPickerCapabilityBadges("))
         assertTrue(badgeSource.contains("CapabilityControlResolution.resolve("))
         assertTrue(picker.contains("R.string.model_picker_capability_filter_empty"))
     }

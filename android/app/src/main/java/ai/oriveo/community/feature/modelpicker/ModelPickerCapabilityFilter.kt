@@ -12,11 +12,10 @@ enum class ModelPickerCapabilityFilterKind(
 
     val owner: String,
     @param:StringRes val filterLabelRes: Int,
-    @param:StringRes val badgeLabelRes: Int,
 ) {
-    Web("web", R.string.model_picker_filter_web, R.string.web_search),
-    Reasoning("reasoning", R.string.model_picker_filter_reasoning, R.string.capability_reasoning),
-    Tool("tool_call", R.string.capability_tool_call, R.string.capability_tool_call),
+    Web("web", R.string.model_picker_filter_web),
+    Reasoning("reasoning", R.string.model_picker_filter_reasoning),
+    Tool("tool_call", R.string.capability_tool_call),
 }
 
 fun modelPickerCapabilityBadges(

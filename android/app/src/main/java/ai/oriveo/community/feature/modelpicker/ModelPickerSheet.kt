@@ -101,6 +101,7 @@ import ai.oriveo.community.feature.providers.detail.comparePickerModels
 import ai.oriveo.community.feature.providers.detail.sortedEnabledModels
 import ai.oriveo.community.feature.providers.detail.sortedProvidersForModelPicker
 import ai.oriveo.community.ui.component.FixedHeroModelCapabilityStrip
+import ai.oriveo.community.ui.component.MODEL_ROW_MAX_CAPABILITIES
 import ai.oriveo.community.ui.component.GlobalToastHost
 import ai.oriveo.community.ui.component.OriveoSheetDragHandle
 import ai.oriveo.community.ui.component.ProviderBadgeIcon
@@ -1268,17 +1269,14 @@ private fun ModelPickerRow(
                 .governedMetadataCapabilities(provider, model)
                 .toList(),
         ).visibleMetadataCapabilities(
-            maxCapabilities = 2,
+            // Same limit as the provider detail "added models" row: both places must show the same badges.
+            maxCapabilities = MODEL_ROW_MAX_CAPABILITIES,
             modelFactsToolCall = CapabilityEvidenceProductionAdapter.toolCallVerdict(
                 provider,
                 model,
                 memoryVerdict = toolCallMemoryVerdict,
             ),
         )
-    }
-
-    val capabilityBadges = remember(provider, model, capabilityObservationRevision, toolCallMemoryVerdict) {
-        modelPickerCapabilityBadges(provider, model, toolCallMemoryVerdict = toolCallMemoryVerdict)
     }
 
     val interactionSource = remember { MutableInteractionSource() }
@@ -1354,27 +1352,8 @@ private fun ModelPickerRow(
                         }
                         FixedHeroModelCapabilityStrip(
                             capabilities = visibleCapabilities,
-                            maximumVisibleItems = 2,
                             compact = true,
                         )
-                        capabilityBadges.forEach { kind ->
-                            val badgeLabel = stringResource(kind.badgeLabelRes)
-                            Text(
-                                text = badgeLabel,
-                                style = OriveoTheme.typography.footnote.copy(
-                                    fontSize = 11.sp,
-                                    lineHeight = 13.sp,
-                                    fontWeight = FontWeight.Medium,
-                                ),
-                                color = v2.primary,
-                                maxLines = 1,
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(999.dp))
-                                    .background(v2.primary.copy(alpha = if (OriveoTheme.isDark) 0.20f else 0.12f))
-                                    .padding(horizontal = 6.dp, vertical = 2.dp)
-                                    .semantics { contentDescription = badgeLabel },
-                            )
-                        }
                     }
                 }
                 ModelPickerPriceRow(

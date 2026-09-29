@@ -156,7 +156,7 @@ fun FixedHeroModelCapabilityStrip(
 fun ModelMetadataRow(
     model: AIModel,
     modifier: Modifier = Modifier,
-    maxCapabilities: Int = 3,
+    maxCapabilities: Int = MODEL_ROW_MAX_CAPABILITIES,
     prominentPrice: Boolean = false,
     compact: Boolean = false,
 ) {
@@ -173,7 +173,7 @@ fun ModelMetadataRow(
 fun ModelMetadataInlineStrip(
     model: AIModel,
     modifier: Modifier = Modifier,
-    maxCapabilities: Int = 3,
+    maxCapabilities: Int = MODEL_ROW_MAX_CAPABILITIES,
     prominentPrice: Boolean = false,
     compact: Boolean = false,
 ) {
@@ -289,7 +289,7 @@ internal fun modelListMetadataRowCandidates(
 fun ModelListMetadataRow(
     model: AIModel,
     modifier: Modifier = Modifier,
-    maxCapabilities: Int = 3,
+    maxCapabilities: Int = MODEL_ROW_MAX_CAPABILITIES,
     prominentPrice: Boolean = false,
     compact: Boolean = false,
     iconOnly: Boolean = false,
@@ -845,7 +845,23 @@ internal fun AIModel.visibleMetadataCapabilities(
             add(ModelCapability.ToolCall)
         }
     }
-    val mustShow = listOf(ModelCapability.Web, ModelCapability.ImageGen, ModelCapability.ToolCall)
+    return limitModelRowCapabilities(displayable, maxCapabilities)
+}
+
+/** Capability badge limit for model rows (picker / provider detail / model library); same value on every platform, see `shared/model-contracts/model_row_capability_badges.v1.json`. */
+const val MODEL_ROW_MAX_CAPABILITIES = 3
+
+/**
+ * Shared truncation rule: when over the limit, web / imageGen are reserved at the end and the
+ * rest fill in original order. Tool call is not reserved, otherwise it pushes vision and file
+ * out entirely and a typical chat model shows only "Web · Tools".
+ */
+internal fun limitModelRowCapabilities(
+    displayable: List<ModelCapability>,
+    maxCapabilities: Int,
+): List<ModelCapability> {
+    if (maxCapabilities <= 0) return emptyList()
+    val mustShow = listOf(ModelCapability.Web, ModelCapability.ImageGen)
         .filter { it in displayable }
     if (displayable.size > maxCapabilities && mustShow.isNotEmpty()) {
         val regularSlots = maxOf(0, maxCapabilities - mustShow.size)

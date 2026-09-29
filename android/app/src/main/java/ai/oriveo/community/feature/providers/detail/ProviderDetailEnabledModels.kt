@@ -69,6 +69,7 @@ import ai.oriveo.community.core.data.repository.ProviderRepository
 import ai.oriveo.community.core.provider.ModelPricingFormatter
 import ai.oriveo.community.core.provider.ModelSelectionUtils
 import ai.oriveo.community.ui.component.HeroModelCapabilityStrip
+import ai.oriveo.community.ui.component.MODEL_ROW_MAX_CAPABILITIES
 import ai.oriveo.community.ui.component.localizedPriceTier
 import ai.oriveo.community.ui.component.visibleMetadataCapabilities
 import ai.oriveo.community.core.provider.CapabilityEvidenceProductionAdapter
@@ -608,7 +609,8 @@ private fun EnabledModelMetadataRow(
             .governedMetadataCapabilities(provider, model)
             .toList(),
         ).visibleMetadataCapabilities(
-            maxCapabilities = 2,
+            // Same limit as the iOS added-models row and the model picker row (3, with web / imageGen reserved).
+            maxCapabilities = MODEL_ROW_MAX_CAPABILITIES,
             modelFactsToolCall = CapabilityEvidenceProductionAdapter.toolCallVerdict(
                 provider,
                 model,

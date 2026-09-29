@@ -58,4 +58,25 @@ class ModelMetadataRowTest {
         )
         assertEquals(listOf(ModelCapability.Text, ModelCapability.Reasoning), model.capabilities)
     }
+
+    @Test
+    fun `tool call never evicts vision and file from a three slot row`() {
+        // Typical OpenRouter chat model: image + file + web, plus toolCall=true. Reserving ToolCall
+        // with a limit of 2 left only "Web · Tools", while iOS showed "Vision · File · Web".
+        val model = AIModel(
+            id = "deepseek/deepseek-v4.1-flash",
+            name = "DeepSeek V4.1 Flash",
+            capabilities = listOf(
+                ModelCapability.Text,
+                ModelCapability.Image,
+                ModelCapability.File,
+                ModelCapability.Web,
+            ),
+        )
+
+        assertEquals(
+            listOf(ModelCapability.Image, ModelCapability.File, ModelCapability.Web),
+            model.visibleMetadataCapabilities(maxCapabilities = 3, modelFactsToolCall = true),
+        )
+    }
 }
