@@ -1086,6 +1086,7 @@
       "toast": {
         "connectionVerified": "已验证连接。",
         "modelAdded": "已添加 {model}",
+        "modelRemoved": "已移除 {model}",
         "connectionCheckFailed": "连接验证失败：{error}"
       },
       "grokSubscription": {

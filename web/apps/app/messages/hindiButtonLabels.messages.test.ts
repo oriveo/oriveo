@@ -12,6 +12,7 @@ const NOUNS_ENDING_IN_NA: Record<string, string> = {
   सालाना: 'yearly (adjective)',
   नमूना: 'sample (noun)',
   संरचना: 'composition (noun)',
+  अपना: 'own (possessive pronoun; "अपना User-Agent" means a custom User-Agent)',
 };
 
 type Tree = Record<string, unknown>;

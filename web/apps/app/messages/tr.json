@@ -756,19 +756,19 @@
       "testRelayPassed": "Bağlantı testi başarılı",
       "testRelayFailed": "Bağlantı testi başarısız",
       "transport": "Protokol",
-      "reasoningEffort": "Reasoning effort",
-      "serviceTier": "OpenAI service tier",
-      "stream": "Stream responses",
-      "disableResponseStorage": "Don't keep responses in the cloud",
-      "codexCompatIdentity": "Codex compatible identity",
+      "reasoningEffort": "Muhakeme yoğunluğu",
+      "serviceTier": "OpenAI hizmet katmanı",
+      "stream": "Yanıt akışı",
+      "disableResponseStorage": "Yanıtları bulutta tutma",
+      "codexCompatIdentity": "Codex uyumlu kimlik",
       "webSearchToolName": "Web arama araç adı",
-      "customUserAgent": "Custom User-Agent",
-      "headers": "Custom Headers",
-      "queryParams": "Custom Query Params",
-      "addHeader": "Add header",
-      "removeHeader": "Remove header",
-      "addQueryParam": "Add query param",
-      "removeQueryParam": "Remove query param",
+      "customUserAgent": "Özel User-Agent",
+      "headers": "Özel header’lar",
+      "queryParams": "Özel Query parametreleri",
+      "addHeader": "Header ekle",
+      "removeHeader": "Header’ı kaldır",
+      "addQueryParam": "Query parametresi ekle",
+      "removeQueryParam": "Query parametresini kaldır",
       "keyPlaceholder": "Key",
       "valuePlaceholder": "Value",
       "step1Of2": "STEP 1 OF 2",
@@ -1086,6 +1086,7 @@
       "toast": {
         "connectionVerified": "Bağlantı doğrulandı.",
         "modelAdded": "{model} eklendi",
+        "modelRemoved": "{model} kaldırıldı",
         "connectionCheckFailed": "Bağlantı kontrolü başarısız: {error}"
       },
       "grokSubscription": {
@@ -1224,10 +1225,10 @@
       "recommended": "Tavsiye edilen",
       "resultPreferencesRestored": "Tema ve dil geri yüklendi",
       "resultLastUsedModelRestored": "Son kullanılan model seçimi geri yüklendi",
-      "resultSkillsAdded": "Skills added",
-      "resultSkillsMerged": "Skills merged",
-      "resultSkillsSkipped": "Skills skipped",
-      "knowledgeReuploadNotice": "Knowledge base files need to be re-uploaded before they can be used again."
+      "resultSkillsAdded": "Beceriler eklendi",
+      "resultSkillsMerged": "Beceriler birleştirildi",
+      "resultSkillsSkipped": "Beceriler atlandı",
+      "knowledgeReuploadNotice": "Bilgi tabanı dosyalarının yeniden kullanılabilmesi için tekrar yüklenmesi gerekiyor."
     },
     "memory": {
       "title": "Hafıza",
@@ -1286,12 +1287,12 @@
     }
   },
   "capability": {
-    "reasoning": "muhakeme",
-    "image": "Görüş",
+    "reasoning": "Akıl yürütme",
+    "image": "Görsel",
     "video": "Video",
     "file": "Dosyalar",
     "web": "Web",
-    "imageGeneration": "Görüntü Oluşturma",
+    "imageGeneration": "Görsel oluşturma",
     "toolCall": "Araçlar"
   },
   "modelPricing": {

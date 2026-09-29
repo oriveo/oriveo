@@ -1086,6 +1086,7 @@
       "toast": {
         "connectionVerified": "已驗證連線。",
         "modelAdded": "已新增 {model}",
+        "modelRemoved": "已移除 {model}",
         "connectionCheckFailed": "連線驗證失敗：{error}"
       },
       "grokSubscription": {
@@ -1290,7 +1291,7 @@
     "image": "識圖",
     "video": "影片",
     "file": "檔案",
-    "web": "聯網",
+    "web": "連網",
     "imageGeneration": "生圖",
     "toolCall": "工具"
   },

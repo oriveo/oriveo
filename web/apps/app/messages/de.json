@@ -756,19 +756,19 @@
       "testRelayPassed": "Verbindungstest bestanden",
       "testRelayFailed": "Verbindungstest fehlgeschlagen",
       "transport": "Protokoll",
-      "reasoningEffort": "Reasoning effort",
-      "serviceTier": "OpenAI service tier",
-      "stream": "Stream responses",
-      "disableResponseStorage": "Don't keep responses in the cloud",
-      "codexCompatIdentity": "Codex compatible identity",
+      "reasoningEffort": "Denkaufwand",
+      "serviceTier": "OpenAI-Servicestufe",
+      "stream": "Antworten streamen",
+      "disableResponseStorage": "Antworten nicht in der Cloud speichern",
+      "codexCompatIdentity": "Codex-kompatible Identität",
       "webSearchToolName": "Name des Websuche-Tools",
-      "customUserAgent": "Custom User-Agent",
-      "headers": "Custom Headers",
-      "queryParams": "Custom Query Params",
-      "addHeader": "Add header",
-      "removeHeader": "Remove header",
-      "addQueryParam": "Add query param",
-      "removeQueryParam": "Remove query param",
+      "customUserAgent": "Eigener User-Agent",
+      "headers": "Eigene Header",
+      "queryParams": "Eigene Query-Parameter",
+      "addHeader": "Header hinzufügen",
+      "removeHeader": "Header entfernen",
+      "addQueryParam": "Query-Parameter hinzufügen",
+      "removeQueryParam": "Query-Parameter entfernen",
       "keyPlaceholder": "Key",
       "valuePlaceholder": "Value",
       "step1Of2": "STEP 1 OF 2",
@@ -1086,6 +1086,7 @@
       "toast": {
         "connectionVerified": "Verbindung verifiziert.",
         "modelAdded": "{model} hinzugefügt",
+        "modelRemoved": "{model} entfernt",
         "connectionCheckFailed": "Verbindungsprüfung fehlgeschlagen: {error}"
       },
       "grokSubscription": {
@@ -1224,10 +1225,10 @@
       "recommended": "Empfohlen",
       "resultPreferencesRestored": "Design und Sprache wiederhergestellt",
       "resultLastUsedModelRestored": "Letzte Modellauswahl wiederhergestellt",
-      "resultSkillsAdded": "Skills added",
-      "resultSkillsMerged": "Skills merged",
-      "resultSkillsSkipped": "Skills skipped",
-      "knowledgeReuploadNotice": "Knowledge base files need to be re-uploaded before they can be used again."
+      "resultSkillsAdded": "Fähigkeiten hinzugefügt",
+      "resultSkillsMerged": "Fähigkeiten zusammengeführt",
+      "resultSkillsSkipped": "Fähigkeiten übersprungen",
+      "knowledgeReuploadNotice": "Dateien der Wissensdatenbank müssen erneut hochgeladen werden, bevor sie wieder nutzbar sind."
     },
     "memory": {
       "title": "Gedächtnis",
@@ -1286,12 +1287,12 @@
     }
   },
   "capability": {
-    "reasoning": "Reasoning",
-    "image": "Vision",
+    "reasoning": "Denken",
+    "image": "Bilderkennung",
     "video": "Video",
     "file": "Dateien",
     "web": "Web",
-    "imageGeneration": "Bildgen.",
+    "imageGeneration": "Bildgenerierung",
     "toolCall": "Tools"
   },
   "modelPricing": {

@@ -756,19 +756,19 @@
       "testRelayPassed": "Kiểm tra kết nối thành công",
       "testRelayFailed": "Kiểm tra kết nối thất bại",
       "transport": "Giao thức",
-      "reasoningEffort": "Reasoning effort",
-      "serviceTier": "OpenAI service tier",
-      "stream": "Stream responses",
+      "reasoningEffort": "Mức độ suy luận",
+      "serviceTier": "Cấp dịch vụ OpenAI",
+      "stream": "Truyền phản hồi theo luồng",
       "disableResponseStorage": "Không giữ câu trả lời trên đám mây",
-      "codexCompatIdentity": "Codex compatible identity",
+      "codexCompatIdentity": "Danh tính tương thích Codex",
       "webSearchToolName": "Tên công cụ tìm kiếm web",
-      "customUserAgent": "Custom User-Agent",
-      "headers": "Custom Headers",
-      "queryParams": "Custom Query Params",
-      "addHeader": "Add header",
-      "removeHeader": "Remove header",
-      "addQueryParam": "Add query param",
-      "removeQueryParam": "Remove query param",
+      "customUserAgent": "User-Agent tùy chỉnh",
+      "headers": "Header tùy chỉnh",
+      "queryParams": "Tham số Query tùy chỉnh",
+      "addHeader": "Thêm header",
+      "removeHeader": "Xóa header",
+      "addQueryParam": "Thêm tham số Query",
+      "removeQueryParam": "Xóa tham số Query",
       "keyPlaceholder": "Key",
       "valuePlaceholder": "Value",
       "step1Of2": "STEP 1 OF 2",
@@ -1086,6 +1086,7 @@
       "toast": {
         "connectionVerified": "Đã xác minh kết nối.",
         "modelAdded": "Đã thêm {model}",
+        "modelRemoved": "Đã xóa {model}",
         "connectionCheckFailed": "Kiểm tra kết nối thất bại: {error}"
       },
       "grokSubscription": {
@@ -1224,9 +1225,9 @@
       "recommended": "Khuyến khích",
       "resultPreferencesRestored": "Đã khôi phục chủ đề và ngôn ngữ",
       "resultLastUsedModelRestored": "Đã khôi phục lựa chọn mô hình được sử dụng gần đây nhất",
-      "resultSkillsAdded": "Skills added",
-      "resultSkillsMerged": "Skills merged",
-      "resultSkillsSkipped": "Skills skipped",
+      "resultSkillsAdded": "Đã thêm kỹ năng",
+      "resultSkillsMerged": "Đã hợp nhất kỹ năng",
+      "resultSkillsSkipped": "Đã bỏ qua kỹ năng",
       "knowledgeReuploadNotice": "Tệp trong cơ sở kiến thức phải tải lên lại mới dùng được."
     },
     "memory": {
@@ -1286,12 +1287,12 @@
     }
   },
   "capability": {
-    "reasoning": "Lý luận",
-    "image": "Tầm nhìn",
+    "reasoning": "Suy luận",
+    "image": "Đọc ảnh",
     "video": "Video",
-    "file": "Tập tin",
+    "file": "Tệp",
     "web": "Web",
-    "imageGeneration": "Gen hình ảnh",
+    "imageGeneration": "Tạo ảnh",
     "toolCall": "Công cụ"
   },
   "modelPricing": {
