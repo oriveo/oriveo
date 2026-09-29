@@ -135,6 +135,9 @@ android {
     testOptions {
         unitTests {
             isReturnDefaultValues = true
+            // Robolectric rendering real Compose UI (stringResource, resource ids) needs the merged app
+            // resources; without them it fails with Resources$NotFoundException.
+            isIncludeAndroidResources = true
         }
         unitTests.all {
             // A fresh JVM per test class. Several of these tests exercise process-wide state
@@ -250,5 +253,6 @@ dependencies {
     testImplementation(libs.ktor.client.mock)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.robolectric)
+    testImplementation(libs.compose.ui.test.junit4)
     androidTestImplementation(libs.androidx.junit)
 }
