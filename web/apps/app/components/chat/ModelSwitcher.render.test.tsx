@@ -26,6 +26,11 @@ import {
 
 import { ModelSwitcher } from './ModelSwitcher';
 
+const mockShowToast = vi.hoisted(() => vi.fn());
+vi.mock('../Toast', () => ({
+  showToast: (...args: unknown[]) => mockShowToast(...args),
+}));
+
 afterEach(() => {
   cleanup();
   __resetMetadataClientForTest();
@@ -328,5 +333,30 @@ describe('ModelSwitcher rendering layer', () => {
     });
     expect(screen.getByText('Alpha Model')).toBeTruthy();
     expect(screen.queryByText('Gamma Model')).toBeNull();
+  });
+  it('adding a model from the catalog shows an "Added" success toast, matching iOS and Android', async () => {
+    mockShowToast.mockReset();
+    __resetMetadataClientForTest();
+    await __seedMetadataCacheForTest({
+      data: {
+        version: 1, contractVersion: 1, updatedAt: '2026-09-29T00:00:00Z',
+        profiles: { reasoning: {}, webSearch: {}, imageGen: {}, generation: {} },
+        providers: { openAI: { models: { charlie: { displayName: 'Charlie Model' } } } },
+        providerConfigs: [],
+      },
+      timestamp: Date.now(),
+    } as never);
+    await initMetadata();
+    const provider = makeProvider({
+      models: [makeModel({ id: 'alpha', name: 'Alpha Model', isDefault: true })],
+    });
+    const { onEnableAndSelect } = renderSwitcher({ providers: [provider] });
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'addModel' })[0]);
+    fireEvent.click(screen.getByText(/charlie/i).closest('button')!);
+
+    expect(onEnableAndSelect).toHaveBeenCalledTimes(1);
+    expect(onEnableAndSelect.mock.calls[0][0].id).toBe('charlie');
+    expect(mockShowToast).toHaveBeenCalledWith('toast.modelAdded', 3000, undefined, 'success');
   });
 });

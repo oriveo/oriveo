@@ -17,6 +17,9 @@ const mockClearRelayCredentials = vi.fn();
 const mockReconnectSecurityMode = vi.fn();
 const mockAddModels = vi.fn();
 const mockToggleModel = vi.fn();
+const mockRemoveModel = vi.fn();
+const mockShowToast = vi.fn();
+const mockEnableProviderModel = vi.fn();
 const mockPingRelay = vi.fn();
 const mockVerifyRelayConnection = vi.fn();
 const mockSaveRelaySettingsUnverified = vi.fn();
@@ -77,7 +80,7 @@ vi.mock('../../../lib/hooks/useProviderActions', () => ({
     refreshRelayCatalog: mockRefreshRelayCatalog,
     addModels: mockAddModels,
     toggleModel: mockToggleModel,
-    removeModel: vi.fn(),
+    removeModel: mockRemoveModel,
     deleteProvider: mockDeleteProvider,
   }),
 }));
@@ -93,6 +96,16 @@ vi.mock('../../../providers/StoreProvider', () => ({
       setLastUsedModelRef: mockSetLastUsedModelRef,
       setActiveConversationId: mockSetActiveConversationId,
     }),
+  getVanillaStore: () => ({ getState: () => ({ providers: [] }) }),
+}));
+
+vi.mock('../../../components/Toast', () => ({
+  showToast: (...args: unknown[]) => mockShowToast(...args),
+}));
+
+vi.mock('../../../lib/core/provider-model-ops', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../../lib/core/provider-model-ops')>()),
+  enableProviderModel: (...args: unknown[]) => mockEnableProviderModel(...args),
 }));
 
 vi.mock('./components/ConfirmDeleteDialog', () => ({
@@ -177,11 +190,30 @@ describe('RelayDetail', () => {
     });
     mockAddModels.mockReset();
     mockToggleModel.mockReset();
+    mockRemoveModel.mockReset();
+    mockShowToast.mockReset();
+    mockEnableProviderModel.mockReset();
     mockPingRelay.mockReset();
     mockVerifyRelayConnection.mockReset();
     mockVerifyRelayConnection.mockResolvedValue({ modelCount: 0, probedEndpoint: 'POST /chat/completions' });
     mockSetLastUsedModelRef.mockReset();
     mockSetActiveConversationId.mockReset();
+  });
+
+  it('removing an enabled relay model shows a removed toast whose undo re-enables it', () => {
+    const relayWithModel: Provider = { ...provider, models: [relayModel] };
+    render(<RelayDetail provider={relayWithModel} />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'removeModel' }));
+
+    expect(mockRemoveModel).toHaveBeenCalledWith('gpt-image-1');
+    const [message, duration, onUndo, variant, undoLabel] = mockShowToast.mock.calls[0];
+    expect(message).toBe('toast.modelRemoved({"model":"gpt-image-1"})');
+    expect(duration).toBe(4000);
+    expect(variant).toBe('removed');
+    expect(undoLabel).toBe('undo');
+    (onUndo as () => void)();
+    expect(mockEnableProviderModel).toHaveBeenCalledWith(expect.anything(), relayWithModel, relayModel);
   });
 
   it('shows the relay privacy disclosure on the detail page', () => {

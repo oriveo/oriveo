@@ -27,9 +27,10 @@ import { RelayPrivacyNotice } from '../../../components/providers/RelayPrivacyNo
 import { RelayKeyValueEditor } from '../../../components/providers/RelayKeyValueEditor';
 import { RelaySecurityModeControl } from '../../../components/providers/RelaySecurityModeControl';
 import { useProviderActions } from '../../../lib/hooks/useProviderActions';
-import { useAppStore } from '../../../providers/StoreProvider';
+import { useAppStore, getVanillaStore } from '../../../providers/StoreProvider';
 import { getProviderInstanceDisplayName } from '../../../lib/core/providers/provider-display';
-import { createRelayManualModel } from '../../../lib/core/provider-model-ops';
+import { createRelayManualModel, enableProviderModel } from '../../../lib/core/provider-model-ops';
+import { showToast } from '../../../components/Toast';
 import { resolveRelayRuntimeFields } from '../../../lib/core/providers/relay-resolution';
 import {
   isCleartextRelayConnection,
@@ -170,6 +171,27 @@ export function RelayDetail({ provider }: RelayDetailProps) {
     }
     return options;
   }, [provider.catalogModels, provider.models, selectedDefaultModelId]);
+
+  // Same capsule toast as the official provider page: "Added" when enabling from the catalog,
+  // "Removed" with an Undo action when removing.
+  const handleCatalogToggleModel = (model: AIModel) => {
+    const wasEnabled = provider.models.some((m) => m.id === model.id);
+    toggleModel(model);
+    if (!wasEnabled) {
+      showToast(t('toast.modelAdded', { model: model.name }), 3000, undefined, 'success');
+    }
+  };
+
+  const handleRemoveEnabledModel = (model: AIModel) => {
+    removeModel(model.id);
+    showToast(
+      t('toast.modelRemoved', { model: model.name }),
+      4000,
+      () => enableProviderModel(getVanillaStore(), provider, model),
+      'removed',
+      tc('undo'),
+    );
+  };
 
   const handleAddModels = () => {
     if (newModelIds.length === 0) return;
@@ -1008,7 +1030,7 @@ export function RelayDetail({ provider }: RelayDetailProps) {
                   <button
                     type="button"
                     className={styles.removeBtn}
-                    onClick={() => removeModel(model.id)}
+                    onClick={() => handleRemoveEnabledModel(model)}
                     aria-label={tr('removeModel')}
                   >
                     <CloseIcon />
@@ -1057,7 +1079,7 @@ export function RelayDetail({ provider }: RelayDetailProps) {
             providerKind="relay"
             providerLabel={providerDisplayName}
             provider={provider}
-            onToggleModel={toggleModel}
+            onToggleModel={handleCatalogToggleModel}
             preserveCatalogOrder
           />
         </div>

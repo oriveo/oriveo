@@ -1,0 +1,101 @@
+/* Top-centred capsule toast. Same spec as iOS ToastOverlay and Android GlobalToastHost; change all three together. */
+
+.host {
+  position: fixed;
+  top: calc(var(--o-space-lg) + env(safe-area-inset-top, 0px));
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10000;
+  width: max-content;
+  max-width: min(480px, calc(100vw - 32px));
+  pointer-events: none;
+}
+
+.capsule {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 16px 8px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--o-surface-overlay) 88%, transparent);
+  backdrop-filter: blur(16px) saturate(1.4);
+  -webkit-backdrop-filter: blur(16px) saturate(1.4);
+  border: 1px solid var(--o-border);
+  box-shadow: var(--o-elevation-modal);
+  cursor: default;
+  animation: toastIn 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.capsule[data-has-action] {
+  padding-right: 14px;
+}
+
+.icon {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  color: var(--toast-accent);
+  background: color-mix(in srgb, var(--toast-accent) 16%, transparent);
+}
+
+.message {
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.35;
+  color: var(--o-text);
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+.divider {
+  flex: none;
+  width: 1px;
+  height: 16px;
+  background: var(--o-border);
+}
+
+.action {
+  flex: none;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--o-primary-text-on-surface);
+  white-space: nowrap;
+}
+
+.action:focus-visible {
+  outline: 2px solid var(--o-primary);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+@keyframes toastIn {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .capsule {
+    animation: none;
+  }
+}

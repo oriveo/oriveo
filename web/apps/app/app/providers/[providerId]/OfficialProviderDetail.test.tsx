@@ -13,6 +13,8 @@ const mockSaveName = vi.fn();
 const mockSetLastUsedModelRef = vi.fn();
 const mockSetActiveConversationId = vi.fn();
 const mockShowToast = vi.fn();
+const mockToggleModel = vi.fn();
+const mockEnableProviderModel = vi.fn();
 const { initMetadataMock, refreshMetadataMock } = vi.hoisted(() => ({
   initMetadataMock: vi.fn(() => Promise.resolve()),
   refreshMetadataMock: vi.fn(() => Promise.resolve()),
@@ -85,7 +87,7 @@ vi.mock('../../../lib/hooks/useProviderActions', () => ({
     saveBaseURL: vi.fn(),
     saveName: mockSaveName,
     resync: vi.fn(),
-    toggleModel: vi.fn(),
+    toggleModel: mockToggleModel,
     enableAllModels: vi.fn(),
     disableAllModels: vi.fn(),
     addModels: vi.fn(),
@@ -104,6 +106,11 @@ vi.mock('../../../providers/StoreProvider', () => ({
       setActiveConversationId: mockSetActiveConversationId,
     }),
   getVanillaStore: () => ({ getState: () => ({ providers: storeProvidersMock }) }),
+}));
+
+vi.mock('../../../lib/core/provider-model-ops', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../../../lib/core/provider-model-ops')>()),
+  enableProviderModel: (...args: unknown[]) => mockEnableProviderModel(...args),
 }));
 
 vi.mock('../../../components/Toast', () => ({
@@ -256,6 +263,8 @@ describe('OfficialProviderDetail', () => {
       hasManualModels: false,
     };
     mockShowToast.mockReset();
+    mockToggleModel.mockReset();
+    mockEnableProviderModel.mockReset();
     storeProvidersMock = [provider];
     grokSubscriptionAvailabilityMock = { state: 'unavailable' };
     openAISubscriptionAvailabilityMock = { state: 'unavailable' };
@@ -621,5 +630,36 @@ describe('OfficialProviderDetail', () => {
       modelID: 'gpt-4o',
     });
     expect(routerPush).toHaveBeenCalledWith('/chat');
+  });
+  it('removing an enabled model shows a removed toast whose undo re-enables the original model', () => {
+    const rawModel = {
+      id: 'gpt-4o',
+      name: 'GPT-4o',
+      capabilities: ['text' as const],
+      reasoningModeAvailable: false,
+      isAvailable: true,
+      isDefault: true,
+      priceTier: '',
+    };
+    const providerWithModel: Provider = { ...provider, models: [rawModel] };
+    resolvedCatalogMock = {
+      ...resolvedCatalogMock,
+      enabledModels: [{ ...rawModel, isEnabled: true, isManual: false, sortRank: 180 }],
+    };
+
+    render(<OfficialProviderDetail provider={providerWithModel} />);
+    fireEvent.click(screen.getByRole('switch', { name: 'disableModelA11y:GPT-4o' }));
+
+    expect(mockToggleModel).toHaveBeenCalledTimes(1);
+    expect(mockShowToast).toHaveBeenCalledTimes(1);
+    const [message, duration, onUndo, variant, undoLabel] = mockShowToast.mock.calls[0];
+    expect(message).toBe('toast.modelRemoved:GPT-4o');
+    expect(duration).toBe(4000);
+    expect(variant).toBe('removed');
+    expect(undoLabel).toBe('undo');
+
+    (onUndo as () => void)();
+    // Undo restores the original entry from provider.models (with isDefault), so the default model comes back too.
+    expect(mockEnableProviderModel).toHaveBeenCalledWith(expect.anything(), providerWithModel, rawModel);
   });
 });

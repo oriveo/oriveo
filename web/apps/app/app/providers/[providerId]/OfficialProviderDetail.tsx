@@ -36,6 +36,7 @@ import {
   onVersionChange,
 } from '../../../lib/core/metadata/metadata-client';
 import * as providerOps from '../../../lib/core/provider-ops';
+import { enableProviderModel } from '../../../lib/core/provider-model-ops';
 import { ProviderSubscriptionCard } from './components/ProviderSubscriptionCard';
 import { GrokSubscriptionAuthorizationDialog } from '../../../components/providers/GrokSubscriptionAuthorizationDialog';
 import { OpenAISubscriptionAuthorizationDialog } from '../../../components/providers/OpenAISubscriptionAuthorizationDialog';
@@ -64,6 +65,22 @@ export function OfficialProviderDetail({ provider }: OfficialProviderDetailProps
     saveKey, saveBaseURL, saveName, resync,
     toggleModel, enableAllModels, disableAllModels, deleteProvider,
   } = useProviderActions(provider);
+
+  // Matches the "Removed X" toast with an Undo action on iOS: undo re-enables the snapshot against the latest
+  // provider in the store. The snapshot carries isDefault, so the default model is restored too.
+  // toggleModel cannot be reused here because the provider in its closure still contains the model.
+  const handleRemoveEnabledModel = (model: AIModel) => {
+    // The row shows the resolved catalog model; undo has to restore the original entry from provider.models.
+    const snapshot = provider.models.find((m) => m.id === model.id) ?? model;
+    toggleModel(model);
+    showToast(
+      t('toast.modelRemoved', { model: model.name }),
+      4000,
+      () => enableProviderModel(getVanillaStore(), provider, snapshot),
+      'removed',
+      tc('undo'),
+    );
+  };
 
   const [showConfirmDelete, setShowConfirmDelete] = useState(false);
   const [showRenameDialog, setShowRenameDialog] = useState(false);
@@ -347,7 +364,7 @@ export function OfficialProviderDetail({ provider }: OfficialProviderDetailProps
                     aria-checked="true"
                     aria-label={t('disableModelA11y', { model: model.name })}
                     data-on
-                    onClick={() => toggleModel(model)}
+                    onClick={() => handleRemoveEnabledModel(model)}
                   >
                     <span className={styles.toggleThumb} />
                   </button>

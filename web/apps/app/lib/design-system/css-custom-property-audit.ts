@@ -53,6 +53,12 @@ export interface AllowedCustomProperty {
 export const ALLOWED: readonly AllowedCustomProperty[] = [
   // Properties written from JS: inline style, setProperty, or a Tailwind arbitrary property.
   {
+    name: 'toast-accent',
+    kind: 'injected',
+    files: ['apps/app/components/Toast.module.css'],
+    reason: 'Set as an inline style by apps/app/components/Toast.tsx from TOAST_ACCENT, the accent of the round icon for each toast style.',
+  },
+  {
     name: 'kind-accent',
     kind: 'injected',
     files: ['apps/app/components/providers/RelayKindPicker.module.css'],

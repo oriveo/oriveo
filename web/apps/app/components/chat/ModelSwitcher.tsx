@@ -10,6 +10,7 @@ import { ManualEntryView } from "./ModelSwitcher/ManualEntryView";
 import { useArrowKeyboardNavigation } from "./ModelSwitcher/hooks/useArrowKeyboardNavigation";
 import { useModelSwitcherData } from "./ModelSwitcher/hooks/useModelSwitcherData";
 import { useCapabilityEvidenceCollectionExpiry } from "../../lib/core/chat/use-capability-evidence-expiry";
+import { showToast } from "../Toast";
 
 interface ModelSwitcherProps {
   providers: Provider[];
@@ -39,6 +40,7 @@ export function ModelSwitcher({
   requiredGenerationParameterId,
 }: ModelSwitcherProps) {
   const t = useTranslations("pages.modelSwitcher");
+  const tProviderDetail = useTranslations("pages.providerDetail");
   const evidenceTargets = useMemo(() => capabilityEvidenceTargets(providers), [providers]);
   const capabilityEvidenceTick = useCapabilityEvidenceCollectionExpiry(evidenceTargets);
 
@@ -48,7 +50,12 @@ export function ModelSwitcher({
     selectedModelId,
     currentModel,
     onSelect,
-    onEnableAndSelect,
+    // The catalog only lists models that are not enabled yet, so a click adds one: confirm with
+    // "Added X", as iOS and Android do.
+    onEnableAndSelect: (model, provider) => {
+      onEnableAndSelect(model, provider);
+      showToast(tProviderDetail("toast.modelAdded", { model: model.name }), 3000, undefined, "success");
+    },
     onAddManualAndSelect,
     capabilityEvidenceTick,
     requiredGenerationParameterId,
