@@ -370,6 +370,63 @@ class ProviderCatalogGroupingTest {
     // ProviderCatalogResolver does not feed catalogModels back for catalog-backed providers, so this
     // helper builds a Relay provider (whose catalog is client-side) and some tests copy it to
     // OpenRouter. The grouping logic under test is the same either way.
+    // -- The catalog must not keep rows equivalent to an enabled model (tapping "+" would be a silent no-op) --
+
+    @Test
+    fun `catalog hides a model that shares the remote model of an enabled one`() {
+        val provider = makeProvider(
+            models = listOf(makeModel("gpt-4.1")),
+            catalogModels = listOf(
+                makeModel("gpt-4.1"),
+                // Snapshot date suffix: same remote model as the enabled gpt-4.1, different id.
+                makeModel("gpt-4.1-2025-04-14", name = "GPT-4.1 (snapshot)"),
+                makeModel("gpt-4o", name = "GPT-4o"),
+            ),
+        )
+
+        val ids = buildProviderCatalogGroups(
+            provider, resolvedCatalog = resolvedCatalogFor(provider), searchQuery = "",
+        ).flatMap { it.models }.map { it.id }
+
+        assertEquals(listOf("gpt-4o"), ids)
+    }
+
+    @Test
+    fun `catalog hides a model that only shares the display name with an enabled one`() {
+        val provider = makeProvider(
+            models = listOf(makeModel("vendor-a/model-x", name = "Model X")),
+            catalogModels = listOf(
+                makeModel("vendor-a/model-x", name = "Model X"),
+                makeModel("vendor-b/model-x", name = "model x"),
+                makeModel("vendor-b/other", name = "Other"),
+            ),
+        )
+
+        val ids = buildProviderCatalogGroups(
+            provider, resolvedCatalog = resolvedCatalogFor(provider), searchQuery = "",
+        ).flatMap { it.models }.map { it.id }
+
+        assertEquals(listOf("vendor-b/other"), ids)
+    }
+
+    @Test
+    fun `openrouter never treats a shared display name as the same model`() {
+        val provider = makeProvider(
+            models = listOf(makeModel("vendor-a/model-x", name = "Model X")),
+            catalogModels = listOf(
+                makeModel("vendor-a/model-x", name = "Model X"),
+                makeModel("vendor-b/model-x", name = "Model X"),
+            ),
+            kind = ProviderKind.OpenRouter,
+        )
+
+        val ids = buildProviderCatalogGroups(
+            provider, resolvedCatalog = resolvedCatalogFor(provider), searchQuery = "",
+        ).flatMap { it.models }.map { it.id }
+
+        assertEquals("Same name from different vendors is two models on OpenRouter", listOf("vendor-b/model-x"), ids)
+    }
+
     private fun makeProvider(
         models: List<AIModel> = emptyList(),
         catalogModels: List<AIModel> = emptyList(),

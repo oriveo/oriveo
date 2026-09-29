@@ -36,6 +36,11 @@ fun buildProviderCatalogGroups(
     searchQuery: String,
 ): List<ProviderCatalogGroup> {
     val enabledIds = provider.models.map { it.id }.toSet()
+    // "Enabled" must mean the same thing as in enableModel (modelsShareSameRemoteModel: aliases,
+    // snapshot date suffixes, canonical ids, same display name). Filtering by exact id alone leaves
+    // rows in the catalog that enableModel then treats as already present, so tapping "+" does
+    // nothing and the row never goes away.
+    val enabledIndex = ModelSelectionUtils.catalogMatchIndex(provider.models)
     val normalizedQuery = searchQuery.trim().lowercase()
     val catalog = resolvedCatalog ?: ProviderCatalogResolver.resolve(provider)
     val dedupedCatalog = ModelSelectionUtils.deduplicateByCanonical(catalog.catalog.map { it.model })
@@ -56,7 +61,7 @@ fun buildProviderCatalogGroups(
     // Deduplicate again at the presentation layer as a safety net against duplicates left behind by
     // older persisted data.
     return dedupedCatalog
-        .filterNot { model -> model.id in enabledIds }
+        .filterNot { model -> model.id in enabledIds || enabledIndex.sharesRemoteModelWithAny(model, provider.kind) }
         .groupBy(::groupIdOf)
         .map { (groupId, models) ->
             val title = models.firstOrNull()?.let(::groupTitleOf) ?: provider.displayName
