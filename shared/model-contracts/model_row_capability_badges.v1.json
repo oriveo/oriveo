@@ -1,0 +1,106 @@
+{
+  "$comment": "Single cross-platform rule for model-row capability badges. Applies to the model picker row, the provider detail \"added models\" row and the model library row: all three must show the same badges. `input` is the displayable capability list after evidence gating, with text and native_pdf removed, ordered by badgeOrder (toolCall comes from evidence projection and is always appended last). `expected` is what the row renders. Rule: at most maxVisible badges; when over the limit, web and imageGeneration are reserved at the end and the rest fill in original order; toolCall is not reserved. Read by iOS ModelRowCapabilityContractTests, Android ModelRowCapabilityContractTest and Web ModelCapabilityBadge.test.tsx, so any platform that drifts fails its tests.",
+  "contractVersion": 1,
+  "maxVisible": 3,
+  "cases": [
+    {
+      "name": "openrouter_chat_vision_file_web_tool",
+      "input": [
+        "image",
+        "file",
+        "web",
+        "toolCall"
+      ],
+      "expected": [
+        "image",
+        "file",
+        "web"
+      ]
+    },
+    {
+      "name": "text_only_with_tool",
+      "input": [
+        "file",
+        "web",
+        "toolCall"
+      ],
+      "expected": [
+        "file",
+        "web",
+        "toolCall"
+      ]
+    },
+    {
+      "name": "vision_video_web",
+      "input": [
+        "image",
+        "video",
+        "web"
+      ],
+      "expected": [
+        "image",
+        "video",
+        "web"
+      ]
+    },
+    {
+      "name": "reasoning_crowded_web_reserved",
+      "input": [
+        "reasoning",
+        "image",
+        "file",
+        "web",
+        "toolCall"
+      ],
+      "expected": [
+        "reasoning",
+        "image",
+        "web"
+      ]
+    },
+    {
+      "name": "web_and_image_generation_both_reserved",
+      "input": [
+        "reasoning",
+        "image",
+        "file",
+        "web",
+        "imageGeneration"
+      ],
+      "expected": [
+        "reasoning",
+        "web",
+        "imageGeneration"
+      ]
+    },
+    {
+      "name": "no_reserved_capability_truncates_in_order",
+      "input": [
+        "reasoning",
+        "image",
+        "file",
+        "video",
+        "toolCall"
+      ],
+      "expected": [
+        "reasoning",
+        "image",
+        "file"
+      ]
+    },
+    {
+      "name": "tool_only",
+      "input": [
+        "toolCall"
+      ],
+      "expected": [
+        "toolCall"
+      ]
+    },
+    {
+      "name": "empty",
+      "input": [],
+      "expected": []
+    }
+  ]
+}
