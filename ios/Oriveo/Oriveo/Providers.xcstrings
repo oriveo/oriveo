@@ -1575,13 +1575,13 @@
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "Add another account"
+            "value": "إضافة حساب آخر"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Add another account"
+            "value": "Weiteres Konto hinzufügen"
           }
         },
         "en": {
@@ -1599,61 +1599,61 @@
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Add another account"
+            "value": "Ajouter un autre compte"
           }
         },
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Add another account"
+            "value": "एक और खाता जोड़ें"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Add another account"
+            "value": "Tambah akun lain"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "Add another account"
+            "value": "アカウントを追加"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "Add another account"
+            "value": "계정 추가"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Add another account"
+            "value": "Adicionar mais uma conta"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Add another account"
+            "value": "Добавь ещё учётную запись"
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "Add another account"
+            "value": "เพิ่มอีกหนึ่งบัญชี"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Add another account"
+            "value": "Başka hesap ekle"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Add another account"
+            "value": "Thêm tài khoản khác"
           }
         },
         "zh-Hans": {
@@ -18874,13 +18874,13 @@
         "ar": {
           "stringUnit": {
             "state": "translated",
-            "value": "Manage existing"
+            "value": "إدارة الحسابات الحالية"
           }
         },
         "de": {
           "stringUnit": {
             "state": "translated",
-            "value": "Manage existing"
+            "value": "Bestehende Konten verwalten"
           }
         },
         "en": {
@@ -18892,67 +18892,67 @@
         "es": {
           "stringUnit": {
             "state": "translated",
-            "value": "Manage existing"
+            "value": "Gestiona tus cuentas"
           }
         },
         "fr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Manage existing"
+            "value": "Gérer tes comptes"
           }
         },
         "hi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Manage existing"
+            "value": "मौजूदा खाते संभालें"
           }
         },
         "id": {
           "stringUnit": {
             "state": "translated",
-            "value": "Manage existing"
+            "value": "Kelola akunmu"
           }
         },
         "ja": {
           "stringUnit": {
             "state": "translated",
-            "value": "Manage existing"
+            "value": "アカウントを管理"
           }
         },
         "ko": {
           "stringUnit": {
             "state": "translated",
-            "value": "Manage existing"
+            "value": "계정 관리"
           }
         },
         "pt-BR": {
           "stringUnit": {
             "state": "translated",
-            "value": "Manage existing"
+            "value": "Gerencie suas contas"
           }
         },
         "ru": {
           "stringUnit": {
             "state": "translated",
-            "value": "Manage existing"
+            "value": "Управляй учётными записями"
           }
         },
         "th": {
           "stringUnit": {
             "state": "translated",
-            "value": "Manage existing"
+            "value": "จัดการบัญชีเดิม"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Manage existing"
+            "value": "Kayıtlı hesaplarını yönet"
           }
         },
         "vi": {
           "stringUnit": {
             "state": "translated",
-            "value": "Manage existing"
+            "value": "Quản lý tài khoản sẵn có"
           }
         },
         "zh-Hans": {
