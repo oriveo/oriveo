@@ -34,12 +34,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.outlined.NoteAdd
 import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Verified
 import androidx.compose.material3.ExperimentalMaterial3Api
+import ai.oriveo.community.ui.component.OriveoCloseButton
 import ai.oriveo.community.ui.component.OriveoModalBottomSheet
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -200,8 +200,11 @@ fun CrosscheckSheet(
                 }
             }
 
-            CloseButton(
+            // Shared flat close button, tinted textSecondary like the iOS cross-check sheet
+            OriveoCloseButton(
                 onClick = onDismiss,
+                contentDescription = stringResource(R.string.notes_crosscheck_close),
+                tint = OriveoTheme.colors.textSecondary,
                 modifier = Modifier
                     .align(Alignment.TopEnd)
                     .statusBarsPadding()
@@ -835,24 +838,6 @@ private fun OriginalSourceStrip(
                     .padding(16.dp),
             )
         }
-    }
-}
-
-@Composable
-private fun CloseButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
-    val colors = OriveoTheme.colors
-    Box(
-        modifier = modifier
-            .size(44.dp)
-            .clickable(onClick = onClick),
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(
-            imageVector = Icons.Filled.Close,
-            contentDescription = stringResource(R.string.notes_crosscheck_close),
-            modifier = Modifier.size(19.dp),
-            tint = colors.textSecondary,
-        )
     }
 }
 

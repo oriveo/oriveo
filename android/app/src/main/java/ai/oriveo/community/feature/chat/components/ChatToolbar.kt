@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.MoreHoriz
 import androidx.compose.material.icons.filled.UnfoldMore
@@ -32,18 +31,21 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import ai.oriveo.community.R
 import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.core.model.RelayKind
 import ai.oriveo.community.ui.component.CostPill
+import ai.oriveo.community.ui.component.OriveoBackButton
 import ai.oriveo.community.ui.component.ProviderBadgeIcon
 import ai.oriveo.community.ui.theme.OriveoTheme
 import dev.chrisbanes.haze.HazeState
@@ -110,10 +112,11 @@ internal fun ChatToolbar(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(OriveoTheme.spacing.sm),
         ) {
-            ChatToolbarIconButton(
-                icon = Icons.AutoMirrored.Filled.ArrowBack,
-                contentDescription = stringResource(R.string.back),
+            // Shared back button; it still occupies the old 36dp slot, so the toolbar height and
+            // the title's start position do not change
+            OriveoBackButton(
                 onClick = onBack,
+                modifier = Modifier.chatToolbarBackSlot(),
             )
 
             Row(
@@ -267,6 +270,22 @@ internal fun ChatToolbar(
         }
     }
 }
+
+/**
+ * Lets the 48dp-target [OriveoBackButton] take only the toolbar's original 36dp layout slot,
+ * centered in it, so the toolbar height and the model name's start position stay where they
+ * were. The part of the target outside the slot still responds: this modifier has no pointer
+ * input, so hit testing falls through to the button's own 48dp bounds.
+ */
+internal fun Modifier.chatToolbarBackSlot(): Modifier = layout { measurable, _ ->
+    val slot = ChatToolbarBackSlotSize.roundToPx()
+    val placeable = measurable.measure(Constraints())
+    layout(slot, slot) {
+        placeable.place((slot - placeable.width) / 2, (slot - placeable.height) / 2)
+    }
+}
+
+private val ChatToolbarBackSlotSize = 36.dp
 
 /**
  * 36dp flat bare icon button -- no fill / border / shadow, just a circular ripple on press.

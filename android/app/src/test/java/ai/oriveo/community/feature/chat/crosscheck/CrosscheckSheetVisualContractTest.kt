@@ -113,17 +113,12 @@ class CrosscheckSheetVisualContractTest {
     }
 
     @Test
-    fun `close button is restrained without double circular outline`() {
-        val closeButton = source.requiredSlice(
-            from = "private fun CloseButton(",
-            to = "@Composable\nprivate fun CommandDock(",
-        )
-
-        assertFalse(closeButton.contains(".border("))
-        assertFalse(closeButton.contains(".clip(CircleShape)"))
-        assertFalse(closeButton.contains(".background("))
-        assertTrue(closeButton.contains("Icons.Filled.Close"))
-        assertTrue(closeButton.contains(".size(44.dp)"))
+    fun `close button is the shared flat close key without its own outline`() {
+        // Sheet close buttons use OriveoCloseButton (a bare ×, no fill / border / shadow) instead of a local one
+        assertFalse(source.contains("private fun CloseButton("))
+        assertFalse(source.contains("Icons.Filled.Close"))
+        assertTrue(source.contains("OriveoCloseButton("))
+        assertTrue(source.contains("contentDescription = stringResource(R.string.notes_crosscheck_close)"))
     }
 
     @Test
