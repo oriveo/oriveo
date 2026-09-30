@@ -1575,6 +1575,13 @@ struct InlineModelCatalogView: View {
         return ProviderCatalogProjectionRequestIdentity(snapshot: snapshot, searchText: searchText)
     }
 
+    /// Enabling a model with "+" bumps providersVersion: keep the current catalog on screen instead
+    /// of swapping it for a spinner and rebuilding it.
+    private var showsPreviousProjectionWhileRefreshing: Bool {
+        guard let projectedRequest, let projectionRequest else { return false }
+        return projectedRequest.canStandIn(for: projectionRequest)
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: OriveoTheme.Spacing.lg) {
@@ -1606,7 +1613,7 @@ struct InlineModelCatalogView: View {
                     )
                 }
 
-                if projectedRequest != projectionRequest {
+                if projectedRequest != projectionRequest && !showsPreviousProjectionWhileRefreshing {
                     ProgressView()
                         .frame(maxWidth: .infinity, minHeight: 96)
                 } else if groups.isEmpty {

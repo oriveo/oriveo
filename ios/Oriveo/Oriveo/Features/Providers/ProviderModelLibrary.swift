@@ -170,14 +170,8 @@ struct ProviderModelLibrarySection: View {
 
     // MARK: - Library Groups
 
-    /// Only the providers or metadata generation moved (balance refreshes and sync writes bump
-    /// providersVersion) while the search text and provider stayed the same: keep showing the previous
-    /// catalog while the new projection is computed in the background. Otherwise every write swaps the
-    /// whole catalog for a spinner and rebuilds it, making the page jump and re-lay out.
     private var showsPreviousProjectionWhileRefreshing: Bool {
-        guard let projectedRequest else { return false }
-        return projectedRequest.snapshot.providerID == provider.id
-            && projectedRequest.normalizedQuery == projectionRequest.normalizedQuery
+        projectedRequest?.canStandIn(for: projectionRequest) ?? false
     }
 
     @ViewBuilder

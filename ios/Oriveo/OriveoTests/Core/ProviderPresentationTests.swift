@@ -171,6 +171,35 @@ struct ProviderPresentationTests {
         #expect(row() != row(provider: erroredProvider))
     }
 
+    @Test("a catalog projection can stand in across a version bump, but not across a provider or search change")
+    func catalogProjectionStandInOnlyAcrossVersionBumps() {
+        let providerID = UUID()
+        func request(
+            providerID: UUID,
+            providersVersion: UInt = 1,
+            metadataRevision: UInt64 = 1,
+            search: String = ""
+        ) -> ProviderCatalogProjectionRequestIdentity {
+            ProviderCatalogProjectionRequestIdentity(
+                snapshot: ProviderCatalogSnapshotIdentity(
+                    providerID: providerID,
+                    providersVersion: providersVersion,
+                    metadataContentRevision: metadataRevision,
+                    metadataETag: nil
+                ),
+                searchText: search
+            )
+        }
+        let shown = request(providerID: providerID, search: "gpt")
+
+        // Enabling a model or a sync write bumps providersVersion, metadata moves on: no spinner flash.
+        #expect(shown.canStandIn(for: request(providerID: providerID, providersVersion: 2, search: "gpt")))
+        #expect(shown.canStandIn(for: request(providerID: providerID, metadataRevision: 2, search: " gpt ")))
+        // A different search or provider is a different catalog, so wait for the new projection.
+        #expect(!shown.canStandIn(for: request(providerID: providerID, providersVersion: 2, search: "claude")))
+        #expect(!shown.canStandIn(for: request(providerID: UUID(), providersVersion: 2, search: "gpt")))
+    }
+
     @Test("Official Provider Display Name Uses Custom Name")
     func officialProviderDisplayNameUsesCustomName() {
         let provider = Provider(

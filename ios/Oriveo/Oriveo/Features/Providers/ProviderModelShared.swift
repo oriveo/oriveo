@@ -97,6 +97,16 @@ nonisolated struct ProviderCatalogProjectionRequestIdentity: Hashable, Sendable 
         self.snapshot = snapshot
         normalizedQuery = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
     }
+
+    /// Only the providers or metadata generation moved (enabling a model with "+", balance refreshes
+    /// and sync writes all bump providersVersion) while the provider and search text stayed the same:
+    /// this projection can keep showing while the new one is computed in the background. Otherwise
+    /// every write swaps the whole catalog for a spinner and rebuilds it, making the page flash and
+    /// re-lay out.
+    func canStandIn(for current: ProviderCatalogProjectionRequestIdentity) -> Bool {
+        snapshot.providerID == current.snapshot.providerID
+            && normalizedQuery == current.normalizedQuery
+    }
 }
 
 nonisolated struct ProviderCatalogProjectionInput: Sendable {
