@@ -37,7 +37,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AddLink
 import androidx.compose.material.icons.filled.Bolt
 import androidx.compose.material.icons.filled.Check
@@ -56,6 +55,8 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import ai.oriveo.community.ui.component.OriveoBackButton
+import ai.oriveo.community.ui.component.OriveoBackButtonDefaults
 import ai.oriveo.community.ui.component.OriveoModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -174,20 +175,11 @@ fun ProviderSetupScreen(
                         .padding(horizontal = 16.dp, vertical = 12.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .size(32.dp)
-                            .clip(CircleShape)
-                            .clickable(onClick = onBack),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = stringResource(R.string.back),
-                            modifier = Modifier.size(18.dp),
-                            tint = colors.textPrimary,
-                        )
-                    }
+                    OriveoBackButton(
+                        onClick = onBack,
+                        // Line the icon box up with the page margin
+                        modifier = Modifier.offset(x = -OriveoBackButtonDefaults.EdgeInset),
+                    )
 
                     Text(
                         text = stringResource(R.string.add_provider),
@@ -197,7 +189,7 @@ fun ProviderSetupScreen(
                         textAlign = TextAlign.Center,
                     )
 
-                    Spacer(modifier = Modifier.size(32.dp))
+                    Spacer(modifier = Modifier.size(OriveoBackButtonDefaults.HitSize))
                 }
 
                 AnimatedVisibility(

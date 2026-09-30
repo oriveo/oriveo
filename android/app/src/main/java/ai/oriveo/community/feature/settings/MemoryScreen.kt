@@ -54,7 +54,6 @@ import androidx.compose.material.icons.outlined.PriorityHigh
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
@@ -109,6 +108,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import ai.oriveo.community.R
 import ai.oriveo.community.core.util.graphemeCount
+import ai.oriveo.community.ui.component.OriveoBackButton
 import ai.oriveo.community.ui.component.OriveoPrimaryButton
 import ai.oriveo.community.ui.component.isReduceMotionEnabled
 import ai.oriveo.community.ui.theme.OriveoBorderWidth
@@ -210,7 +210,7 @@ fun MemoryScreen(
                         )
                     },
                     navigationIcon = {
-                        IconButton(
+                        OriveoBackButton(
                             onClick = {
                                 if (viewModel.hasChanges) {
                                     showUnsavedDialog = true
@@ -218,12 +218,7 @@ fun MemoryScreen(
                                     onNavigateBack()
                                 }
                             },
-                        ) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = stringResource(R.string.back),
-                            )
-                        }
+                        )
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
                         containerColor = Color.Transparent,

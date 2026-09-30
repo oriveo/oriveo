@@ -40,11 +40,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.sp
+import ai.oriveo.community.ui.component.OriveoBackButton
 import ai.oriveo.community.ui.theme.OriveoRadius
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.DriveFileMove
 import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.Delete
@@ -142,9 +142,7 @@ fun NoteDetailScreen(
                     colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.Transparent),
                     title = {},
                     navigationIcon = {
-                        IconButton(onClick = { leaveDetail() }) {
-                            Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = stringResource(R.string.back))
-                        }
+                        OriveoBackButton(onClick = { leaveDetail() })
                     },
                     actions = {
                         if (current != null && !current.isTrashed) {

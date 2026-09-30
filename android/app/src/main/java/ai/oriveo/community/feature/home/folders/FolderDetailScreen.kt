@@ -15,13 +15,11 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
-import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.outlined.Folder
 import androidx.compose.material.icons.outlined.Inbox
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -45,6 +43,7 @@ import ai.oriveo.community.core.util.normalizeUuid
 import ai.oriveo.community.feature.home.HomeViewModel
 import ai.oriveo.community.feature.home.resolveConversationModelName
 import ai.oriveo.community.ui.component.ConversationRow
+import ai.oriveo.community.ui.component.OriveoBackButton
 import ai.oriveo.community.ui.component.OriveoCard
 import ai.oriveo.community.ui.component.OriveoEmptyState
 import ai.oriveo.community.ui.theme.OriveoTheme
@@ -118,9 +117,7 @@ fun FolderDetailScreen(
                     )
                 },
                 navigationIcon = {
-                    IconButton(onClick = onNavigateBack) {
-                        Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = stringResource(R.string.back))
-                    }
+                    OriveoBackButton(onClick = onNavigateBack)
                 },
             )
         },

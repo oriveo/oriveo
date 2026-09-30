@@ -13,6 +13,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import ai.oriveo.community.ui.component.OriveoBackButton
 import ai.oriveo.community.ui.component.rememberGlobalSnackbarManager
 import ai.oriveo.community.ui.theme.OriveoBorderWidth
 import androidx.compose.foundation.clickable
@@ -37,7 +38,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Cancel
 import androidx.compose.material.icons.filled.ChevronRight
@@ -429,15 +429,9 @@ fun SkillEditScreen(
                         )
                     },
                     navigationIcon = {
-                        IconButton(onClick = {
+                        OriveoBackButton(onClick = {
                             if (hasChanges) showDiscardDialog = true else onBack()
-                        }) {
-                            Icon(
-                                Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = stringResource(R.string.back),
-                                tint = colors.textPrimary,
-                            )
-                        }
+                        })
                     },
                     actions = {
 

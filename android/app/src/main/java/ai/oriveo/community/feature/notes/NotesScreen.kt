@@ -15,7 +15,6 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.ArrowBack
 import androidx.compose.material.icons.automirrored.outlined.StickyNote2
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.outlined.Add
@@ -58,6 +57,7 @@ import ai.oriveo.community.core.model.Note
 import ai.oriveo.community.core.notes.NoteSort
 import ai.oriveo.community.feature.home.HOME_HEADER_ACTION_BUTTON_SIZE_DP
 import ai.oriveo.community.feature.home.HOME_HEADER_ACTION_ICON_SIZE_DP
+import ai.oriveo.community.ui.component.OriveoBackButton
 import ai.oriveo.community.ui.component.OriveoEmptyState
 import ai.oriveo.community.ui.theme.OriveoBorderWidth
 import ai.oriveo.community.ui.theme.OriveoRadius
@@ -311,14 +311,7 @@ private fun NotesHeader(
             .padding(top = OriveoTheme.spacing.xs),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        IconButton(onClick = onNavigateBack, modifier = Modifier.size(HOME_HEADER_ACTION_BUTTON_SIZE_DP.dp)) {
-            Icon(
-                Icons.AutoMirrored.Outlined.ArrowBack,
-                contentDescription = stringResource(R.string.back),
-                modifier = Modifier.size(HOME_HEADER_ACTION_ICON_SIZE_DP.dp),
-                tint = colors.textSecondary,
-            )
-        }
+        OriveoBackButton(onClick = onNavigateBack)
         Spacer(Modifier.size(OriveoTheme.spacing.xs))
 
         Box(

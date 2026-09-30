@@ -36,7 +36,6 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Cancel
 import androidx.compose.material.icons.filled.NorthWest
@@ -83,6 +82,7 @@ import ai.oriveo.community.core.model.Provider
 import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.core.model.RelayKind
 import ai.oriveo.community.feature.providers.relay.relayKindMeta
+import ai.oriveo.community.ui.component.OriveoBackButton
 import ai.oriveo.community.ui.component.OriveoErrorCard
 import ai.oriveo.community.ui.component.OriveoPrimaryButton
 import ai.oriveo.community.ui.component.OriveoSecondaryButton
@@ -123,13 +123,7 @@ fun ManualModelEntryScreen(
                     )
                 },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = stringResource(R.string.back),
-                            tint = colors.textPrimary,
-                        )
-                    }
+                    OriveoBackButton(onClick = onBack)
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = Color.Transparent,

@@ -36,7 +36,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.AutoAwesome
@@ -48,7 +47,6 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -87,6 +85,7 @@ import ai.oriveo.community.core.model.SkillCategory
 import ai.oriveo.community.core.util.SkillL10n
 import ai.oriveo.community.core.util.localizedDescription
 import ai.oriveo.community.core.util.localizedName
+import ai.oriveo.community.ui.component.OriveoBackButton
 import ai.oriveo.community.ui.theme.OriveoScreenBackground
 import ai.oriveo.community.ui.theme.OriveoTheme
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -215,13 +214,7 @@ fun SkillsListScreen(
                         )
                     },
                     navigationIcon = {
-                        Spacer(Modifier.width(8.dp))
-                        NavToneButton(
-                            icon = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = stringResource(R.string.back),
-                            tint = colors.textPrimary,
-                            onClick = onBack,
-                        )
+                        OriveoBackButton(onClick = onBack)
                     },
                     actions = {
                         NavToneButton(

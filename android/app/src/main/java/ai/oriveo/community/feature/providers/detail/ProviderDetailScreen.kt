@@ -13,6 +13,8 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import ai.oriveo.community.ui.component.OriveoBackButton
+import ai.oriveo.community.ui.component.OriveoBackButtonDefaults
 import ai.oriveo.community.ui.theme.OriveoBorderWidth
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -28,6 +30,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -35,11 +38,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import ai.oriveo.community.core.provider.grok.GrokSubscriptionAvailability
 import ai.oriveo.community.core.provider.openai.OpenAISubscriptionAvailability
 import ai.oriveo.community.feature.providers.SubscriptionAuthorizationViewModel
@@ -282,20 +283,11 @@ fun ProviderDetailScreen(
                                     .padding(vertical = 6.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                             ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(32.dp)
-                                        .clip(CircleShape)
-                                        .clickable(onClick = onBack),
-                                    contentAlignment = Alignment.Center,
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                        contentDescription = stringResource(R.string.back),
-                                        modifier = Modifier.size(18.dp),
-                                        tint = colors.textPrimary,
-                                    )
-                                }
+                                OriveoBackButton(
+                                    onClick = onBack,
+                                    // Line the icon box up with the page margin
+                                    modifier = Modifier.offset(x = -OriveoBackButtonDefaults.EdgeInset),
+                                )
                                 Spacer(modifier = Modifier.weight(1f))
                             }
                         }

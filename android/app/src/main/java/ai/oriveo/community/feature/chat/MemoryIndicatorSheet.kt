@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -17,7 +18,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Psychology
 import androidx.compose.material.icons.outlined.VisibilityOff
@@ -37,6 +37,8 @@ import androidx.compose.ui.unit.dp
 import ai.oriveo.community.R
 import ai.oriveo.community.core.util.graphemeCount
 import ai.oriveo.community.core.util.takeGraphemes
+import ai.oriveo.community.ui.component.OriveoBackButtonDefaults
+import ai.oriveo.community.ui.component.OriveoCloseButton
 import ai.oriveo.community.ui.component.OriveoSheetDragHandle
 import ai.oriveo.community.ui.theme.OriveoSurfaceStyle
 import ai.oriveo.community.ui.theme.OriveoTheme
@@ -128,22 +130,12 @@ fun MemoryIndicatorSheet(
                     }
                 }
 
-                Box(
-                    modifier = Modifier
-                        .size(30.dp)
-                        .clip(CircleShape)
-                        .background(colors.surfaceInset)
-                        .border(1.dp, colors.border, CircleShape)
-                        .clickable(onClick = onDismiss),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.Close,
-                        contentDescription = stringResource(R.string.close),
-                        tint = colors.textTertiary,
-                        modifier = Modifier.size(14.dp),
-                    )
-                }
+                OriveoCloseButton(
+                    onClick = onDismiss,
+                    contentDescription = stringResource(R.string.close),
+                    // Line the icon box up with the trailing margin
+                    modifier = Modifier.offset(x = OriveoBackButtonDefaults.EdgeInset),
+                )
             }
 
             MemoryPreviewCard(previewText = preview)

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Shared back chevron: same path as iOS and web (24 grid, 2.2 stroke). Tinted by OriveoBackButton; auto-mirrored for RTL. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="22dp"
+    android:height="22dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24"
+    android:autoMirrored="true">
+    <path
+        android:pathData="M14.5 5.5L8 12l6.5 6.5"
+        android:strokeColor="#FF000000"
+        android:strokeWidth="2.2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:fillColor="#00000000" />
+</vector>

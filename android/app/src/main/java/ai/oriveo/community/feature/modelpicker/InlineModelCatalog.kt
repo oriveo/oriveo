@@ -18,11 +18,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -46,6 +44,7 @@ import ai.oriveo.community.feature.providers.detail.ProviderCatalogGroup
 import ai.oriveo.community.feature.providers.detail.buildProviderCatalogGroups
 import ai.oriveo.community.feature.providers.detail.providerCatalogGroups
 import ai.oriveo.community.feature.providers.detail.shouldAutoExpandCatalogGroups
+import ai.oriveo.community.ui.component.OriveoBackButton
 import ai.oriveo.community.ui.theme.OriveoBorderWidth
 import ai.oriveo.community.ui.theme.OriveoTheme
 
@@ -93,13 +92,7 @@ fun InlineModelCatalog(
                 .padding(horizontal = spacing.sm, vertical = spacing.md),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            IconButton(onClick = onBack) {
-                Icon(
-                    Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = stringResource(R.string.back),
-                    tint = colors.primary,
-                )
-            }
+            OriveoBackButton(onClick = onBack)
             Text(
                 text = stringResource(R.string.add_models),
                 style = OriveoTheme.typography.title2,

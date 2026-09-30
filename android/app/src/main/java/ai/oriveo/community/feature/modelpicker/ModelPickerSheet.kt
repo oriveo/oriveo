@@ -26,6 +26,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -101,6 +102,8 @@ import ai.oriveo.community.feature.providers.detail.sortedEnabledModels
 import ai.oriveo.community.feature.providers.detail.sortedProvidersForModelPicker
 import ai.oriveo.community.ui.component.FixedHeroModelCapabilityStrip
 import ai.oriveo.community.ui.component.MODEL_ROW_MAX_CAPABILITIES
+import ai.oriveo.community.ui.component.OriveoBackButtonDefaults
+import ai.oriveo.community.ui.component.OriveoCloseButton
 import ai.oriveo.community.ui.component.OriveoSheetDragHandle
 import ai.oriveo.community.ui.component.ProviderBadgeIcon
 import ai.oriveo.community.ui.component.localizedPriceTier
@@ -663,22 +666,12 @@ private fun ChatHeader(
             }
         }
 
-        Box(
-            modifier = Modifier
-                .size(30.dp)
-                .clip(CircleShape)
-                .background(v2.bgInset, CircleShape)
-                .border(1.dp, v2.borderSubtle, CircleShape)
-                .clickable(onClick = onDismiss),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                imageVector = Icons.Filled.Close,
-                contentDescription = stringResource(R.string.cancel),
-                modifier = Modifier.size(12.dp),
-                tint = v2.textSecondary,
-            )
-        }
+        OriveoCloseButton(
+            onClick = onDismiss,
+            contentDescription = stringResource(R.string.cancel),
+            // Line the icon box up with the trailing margin
+            modifier = Modifier.offset(x = OriveoBackButtonDefaults.EdgeInset),
+        )
     }
 }
 

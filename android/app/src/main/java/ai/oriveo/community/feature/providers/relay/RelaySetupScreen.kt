@@ -14,17 +14,16 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.NetworkCheck
@@ -91,6 +90,8 @@ import ai.oriveo.community.core.navigation.ProviderSetupEntryPoint
 import ai.oriveo.community.feature.providers.CustomLLMConnectionMethod
 import ai.oriveo.community.feature.providers.local.LocalComputeSetupFields
 import ai.oriveo.community.feature.providers.local.LocalComputeSetupViewModel
+import ai.oriveo.community.ui.component.OriveoBackButton
+import ai.oriveo.community.ui.component.OriveoBackButtonDefaults
 import ai.oriveo.community.ui.component.OriveoCard
 import ai.oriveo.community.ui.component.OriveoErrorCard
 import ai.oriveo.community.ui.component.OriveoLabeledField
@@ -278,20 +279,11 @@ private fun RelaySetupTopBar(
             .padding(horizontal = 24.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Box(
-            modifier = Modifier
-                .size(36.dp)
-                .clip(CircleShape)
-                .clickable(onClick = onBack),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                contentDescription = stringResource(R.string.back),
-                tint = colors.textPrimary,
-                modifier = Modifier.size(17.dp),
-            )
-        }
+        OriveoBackButton(
+            onClick = onBack,
+            // Line the icon box up with the page margin
+            modifier = Modifier.offset(x = -OriveoBackButtonDefaults.EdgeInset),
+        )
 
         Text(
             text = title,
@@ -303,7 +295,7 @@ private fun RelaySetupTopBar(
             textAlign = TextAlign.Center,
         )
 
-        Spacer(modifier = Modifier.size(36.dp))
+        Spacer(modifier = Modifier.size(OriveoBackButtonDefaults.HitSize))
     }
 }
 
