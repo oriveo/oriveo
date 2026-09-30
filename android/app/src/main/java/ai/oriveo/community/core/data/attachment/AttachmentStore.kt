@@ -74,7 +74,12 @@ class AttachmentStore(private val context: Context) {
             inSampleSize = sampleSize
             inPreferredConfig = Bitmap.Config.ARGB_8888
         }
-        val original = BitmapFactory.decodeByteArray(data, 0, data.size, decodeOptions) ?: return id
+        val decoded = BitmapFactory.decodeByteArray(data, 0, data.size, decodeOptions) ?: return id
+        // Camera photos store pixels in sensor order and rely on the EXIF Orientation tag.
+        // Re-encoding to JPEG drops EXIF, so rotate the pixels first; the written file carries
+        // no orientation tag and viewers won't rotate it a second time.
+        val original = applyExifOrientation(decoded, exifOrientation(data))
+        if (original !== decoded) decoded.recycle()
 
         val scaled = scaleToFit(original, MAX_LONG_EDGE)
         File(ensureImageDir(), "$id.jpg").outputStream().use { out ->

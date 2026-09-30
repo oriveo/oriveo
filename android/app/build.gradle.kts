@@ -202,6 +202,7 @@ dependencies {
     implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.security.crypto)
     implementation(libs.androidx.browser)
+    implementation(libs.androidx.exifinterface)
 
     // Compose
     val composeBom = platform(libs.compose.bom)

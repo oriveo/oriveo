@@ -15,6 +15,7 @@ securityCrypto = "1.1.0"
 room = "2.8.4"
 robolectric = "4.16.1"
 browser = "1.10.0"
+exifInterface = "1.4.2"
 
 # Compose
 composeBom = "2026.08.00"
@@ -66,6 +67,7 @@ androidx-lifecycle-process = { group = "androidx.lifecycle", name = "lifecycle-p
 androidx-navigation-compose = { group = "androidx.navigation", name = "navigation-compose", version.ref = "navigation" }
 androidx-security-crypto = { group = "androidx.security", name = "security-crypto", version.ref = "securityCrypto" }
 androidx-browser = { group = "androidx.browser", name = "browser", version.ref = "browser" }
+androidx-exifinterface = { group = "androidx.exifinterface", name = "exifinterface", version.ref = "exifInterface" }
 
 # Room
 androidx-room-runtime = { group = "androidx.room", name = "room-runtime", version.ref = "room" }
