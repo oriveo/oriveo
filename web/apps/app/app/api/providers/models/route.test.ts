@@ -23,10 +23,12 @@ vi.mock("node:dns/promises", () => ({
   ...dnsMocks,
 }));
 
-// getRuntimeMetadata is shared with chat/stream, so this is the same lean view. The route only
-// reads the keys of providers[kind].models, and lean trims fields inside a model without
-// dropping model entries.
-const METADATA_URL = "https://api.oriveoai.com/api/metadata?view=lean";
+// getRuntimeMetadata is shared with chat/stream, so this also starts from the index. The mock
+// answers the index URL with a full lean snapshot (the compatibility path for older servers). The
+// route only reads the keys of providers[kind].models, and lean trims fields inside a model without
+// dropping model entries. Per-kind catalog fetching in the split view is covered by
+// chat/stream/runtime.test.ts.
+const METADATA_URL = "https://api.oriveoai.com/api/metadata?view=index";
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {

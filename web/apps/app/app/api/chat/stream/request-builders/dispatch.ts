@@ -18,5 +18,10 @@ const reportRejectedMetadataBaseURL: MetadataBaseURLRejectionReporter = (event) 
 };
 
 export function buildProviderRequest(params: RequestParams): Promise<ProviderRequest> {
-  return coreBuildProviderRequest(params, getRuntimeMetadata, reportRejectedMetadataBaseURL);
+  // Only the index plus this provider's catalog: other providers' catalogs are irrelevant here.
+  return coreBuildProviderRequest(
+    params,
+    () => getRuntimeMetadata(params.providerKind),
+    reportRejectedMetadataBaseURL,
+  );
 }

@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
   try {
     // Official providers: no upstream key ping, since the model catalog comes only from the metadata.
     if (providerKind !== "relay") {
-      const metadata = await getRuntimeMetadata();
+      const metadata = await getRuntimeMetadata(providerKind);
       const provider = metadata?.providers[providerKind];
       return Response.json({
         data: provider ? Object.keys(provider.models).sort().map((id) => ({ id })) : [],

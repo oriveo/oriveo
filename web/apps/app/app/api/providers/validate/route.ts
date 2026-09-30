@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
     // backend, so the key never reaches the Go backend. The three-way result is valid / invalid /
     // unverified.
     if (providerKind !== "relay") {
-      const metadata = await getRuntimeMetadata();
+      const metadata = await getRuntimeMetadata(providerKind);
       const validation = metadata?.providers[providerKind]?.validation;
       const resolvedBaseURL = resolveProviderBaseURL(providerKind, baseURL);
 

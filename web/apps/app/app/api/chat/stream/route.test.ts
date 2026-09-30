@@ -11,9 +11,12 @@ vi.mock("@sentry/nextjs", () => ({
   captureMessage: captureMessageMock,
 }));
 
-// Exact match: building a request only needs transport/endpoints/profiles, so use the lean
-// view (full is 2.4x its size). Dropping ?view=lean turns this whole file red.
-const METADATA_URL = "https://api.oriveoai.com/api/metadata?view=lean";
+// Exact match: building a request starts from the index rather than downloading the full snapshot.
+// The mock answers the index URL with a full lean snapshot, which exercises the compatibility path
+// for a server that ignores the view parameter; the split semantics (index plus one catalog per
+// kind) are covered by runtime.test.ts. Switching ?view=index back to a full view turns this whole
+// file red.
+const METADATA_URL = "https://api.oriveoai.com/api/metadata?view=index";
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
