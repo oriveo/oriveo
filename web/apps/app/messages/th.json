@@ -321,6 +321,7 @@
       "attachmentTooLargeAction": "ตกลง",
       "fileExtraction": {
         "extractedLines": "{count, plural, other {แยก # บรรทัด}}",
+        "errorGeneric": "ไม่สามารถประมวลผล {fileName} ได้ ลองอีกครั้งหรือเลือกไฟล์อื่น",
         "tooManyFiles": "คุณแนบไฟล์ได้สูงสุด {maxFiles} ไฟล์สำหรับโมเดลนี้",
         "truncatedCtaKnowledge": "ไฟล์ขนาดใหญ่ถูกตัดทอน เพิ่มลงใน Skill Knowledge เพื่อค้นหาแบบเต็ม →"
       },

@@ -321,6 +321,7 @@
       "attachmentTooLargeAction": "知道了",
       "fileExtraction": {
         "extractedLines": "{count, plural, other {已提取 # 行}}",
+        "errorGeneric": "無法處理 {fileName}，請重試或選擇其他檔案。",
         "tooManyFiles": "這個模型最多可加入 {maxFiles} 個附件。",
         "truncatedCtaKnowledge": "大檔案已截斷。新增到 Skill Knowledge 取得完整檢索 →"
       },

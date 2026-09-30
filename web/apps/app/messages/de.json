@@ -321,6 +321,7 @@
       "attachmentTooLargeAction": "OK",
       "fileExtraction": {
         "extractedLines": "{count, plural, other {# Zeilen extrahiert}}",
+        "errorGeneric": "{fileName} konnte nicht verarbeitet werden. Versuchen Sie es erneut oder wählen Sie eine andere Datei.",
         "tooManyFiles": "Für dieses Modell kannst du bis zu {maxFiles} Dateien anhängen.",
         "truncatedCtaKnowledge": "Große Datei abgeschnitten. Zu Skill Knowledge hinzufügen für vollständige Suche →"
       },

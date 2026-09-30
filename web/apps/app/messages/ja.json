@@ -321,6 +321,7 @@
       "attachmentTooLargeAction": "OK",
       "fileExtraction": {
         "extractedLines": "{count, plural, other {# 行を抽出しました}}",
+        "errorGeneric": "{fileName} を処理できませんでした。もう一度試すか、別のファイルを選択してください。",
         "tooManyFiles": "このモデルには最大 {maxFiles} 件のファイルを添付できます。",
         "truncatedCtaKnowledge": "大きなファイルが切り詰められました。完全な検索のために Skill Knowledge に追加 →"
       },

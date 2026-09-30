@@ -1097,7 +1097,7 @@ describe('InputComposer', () => {
 
     expect(mockLoadAttachmentUtils).toHaveBeenCalledTimes(1);
     await vi.waitFor(() => {
-      expect(mockValidateAndConvertFiles).toHaveBeenCalledWith([file], 'file', undefined);
+      expect(mockValidateAndConvertFiles).toHaveBeenCalledWith([file], 'file', undefined, expect.any(Function));
       expect(onAttachmentsChange).toHaveBeenCalledWith([
         expect.objectContaining({ id: 'attachment-1', kind: 'image' }),
       ]);
@@ -1164,7 +1164,7 @@ describe('InputComposer', () => {
     fireEvent.change(fileInput);
 
     await vi.waitFor(() => {
-      expect(mockValidateAndConvertFiles).toHaveBeenCalledWith([file], 'file', undefined);
+      expect(mockValidateAndConvertFiles).toHaveBeenCalledWith([file], 'file', undefined, expect.any(Function));
     });
     expect(onAttachmentsChange).toHaveBeenCalledWith([
       expect.objectContaining({ id: 'attachment-1', kind: 'image' }),

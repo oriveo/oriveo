@@ -313,13 +313,24 @@ export async function validateAndConvertFiles(
   files: File[],
   source: 'file' | 'drag_drop' | 'paste' = 'file',
   providerKind?: string,
+  onUnreadable?: (file: File) => void,
 ): Promise<Attachment[]> {
   const { trackEvent } = await import('../core/telemetry');
   const attachments: Attachment[] = [];
   for (const file of files) {
     const result = validateFile(file);
     if (!result.valid) continue;
-    const attachment = await fileToAttachment(file);
+    let attachment: Attachment;
+    try {
+      attachment = await fileToAttachment(file);
+    } catch (err) {
+      // A File is only a handle to a file on disk. Files dragged out of an archive or a cloud-drive
+      // placeholder on Windows, or moved after being picked, fail only when their bytes are read
+      // (NotFoundError / NotReadableError). Skip that one file instead of failing the whole batch.
+      if (!isUnreadableFileError(err)) throw err;
+      onUnreadable?.(file);
+      continue;
+    }
     attachments.push(attachment);
     trackEvent('attachment_added', {
       mime_type: file.type || 'unknown',
@@ -330,4 +341,9 @@ export async function validateAndConvertFiles(
     });
   }
   return attachments;
+}
+
+function isUnreadableFileError(err: unknown): boolean {
+  const name = (err as { name?: unknown } | null)?.name;
+  return name === 'NotFoundError' || name === 'NotReadableError';
 }

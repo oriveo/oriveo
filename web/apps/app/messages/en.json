@@ -321,6 +321,7 @@
       "attachmentTooLargeAction": "OK",
       "fileExtraction": {
         "extractedLines": "{count, plural, =0 {No lines extracted} =1 {1 line extracted} other {# lines extracted}}",
+        "errorGeneric": "Couldn't process {fileName}. Try again or pick another file.",
         "tooManyFiles": "You can attach up to {maxFiles} files for this model.",
         "truncatedCtaKnowledge": "Large file truncated. Add to Skill Knowledge for full search →"
       },

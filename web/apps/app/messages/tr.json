@@ -321,6 +321,7 @@
       "attachmentTooLargeAction": "Tamam",
       "fileExtraction": {
         "extractedLines": "{count, plural, other {# satır çıkarıldı}}",
+        "errorGeneric": "{fileName} işlenemedi. Tekrar deneyin veya başka bir dosya seçin.",
         "tooManyFiles": "Bu model için en fazla {maxFiles} dosya ekleyebilirsin.",
         "truncatedCtaKnowledge": "Büyük dosya kısaltıldı. Tam arama için Skill Knowledge'a ekleyin →"
       },

@@ -12,7 +12,11 @@ vi.mock('../../infra/storage/image-store', () => ({
   saveImage: mocks.saveImage,
 }));
 
-import { validateFile, fileToAttachment } from '../../utils/attachment-utils';
+vi.mock('../../core/telemetry', () => ({
+  trackEvent: vi.fn(),
+}));
+
+import { validateFile, fileToAttachment, validateAndConvertFiles } from '../../utils/attachment-utils';
 
 describe('validateFile', () => {
   function makeFile(name: string, type: string, size: number): File {
@@ -129,5 +133,45 @@ describe('fileToAttachment', () => {
       expect(thumbBlob).toBeNull();
       expect(storedMime).toBe('image/png');
     });
+  });
+});
+
+describe('validateAndConvertFiles', () => {
+  // Drive the real FileReader failure path: reader.error is the DOMException the browser reports
+  // once the file behind the handle is gone.
+  function failReadsOf(fileName: string, error: unknown) {
+    const original = FileReader.prototype.readAsDataURL;
+    return vi.spyOn(FileReader.prototype, 'readAsDataURL').mockImplementation(function (this: FileReader, blob: Blob) {
+      if ((blob as File).name !== fileName) return original.call(this, blob);
+      Object.defineProperty(this, 'error', { value: error });
+      setTimeout(() => this.onerror?.(new ProgressEvent('error') as ProgressEvent<FileReader>), 0);
+    });
+  }
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it.each(['NotFoundError', 'NotReadableError'])('skips only the unreadable file (%s), reports it, and converts the rest', async (name) => {
+    failReadsOf('gone.txt', new DOMException('A requested file or directory could not be found', name));
+    const onUnreadable = vi.fn();
+    const gone = new File(['x'], 'gone.txt', { type: 'text/plain' });
+    const ok = new File(['hello'], 'ok.txt', { type: 'text/plain' });
+
+    const attachments = await validateAndConvertFiles([gone, ok], 'drag_drop', undefined, onUnreadable);
+
+    expect(attachments.map((a) => a.fileName)).toEqual(['ok.txt']);
+    expect(onUnreadable).toHaveBeenCalledTimes(1);
+    expect(onUnreadable).toHaveBeenCalledWith(gone);
+  });
+
+  it('still throws errors that are not file-read failures', async () => {
+    failReadsOf('bad.txt', new TypeError('boom'));
+    const onUnreadable = vi.fn();
+
+    await expect(
+      validateAndConvertFiles([new File(['x'], 'bad.txt', { type: 'text/plain' })], 'file', undefined, onUnreadable),
+    ).rejects.toThrow('boom');
+    expect(onUnreadable).not.toHaveBeenCalled();
   });
 });

@@ -321,6 +321,7 @@
       "attachmentTooLargeAction": "OK",
       "fileExtraction": {
         "extractedLines": "{count, plural, other {Đã trích xuất # dòng}}",
+        "errorGeneric": "Không thể xử lý {fileName}. Thử lại hoặc chọn tệp khác.",
         "tooManyFiles": "Bạn có thể đính kèm tối đa {maxFiles} tệp cho mô hình này.",
         "truncatedCtaKnowledge": "Tệp lớn đã bị cắt. Thêm vào Skill Knowledge để tìm kiếm đầy đủ →"
       },

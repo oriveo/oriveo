@@ -321,6 +321,7 @@
       "attachmentTooLargeAction": "OK",
       "fileExtraction": {
         "extractedLines": "{count, plural, other {# baris diekstrak}}",
+        "errorGeneric": "Tidak dapat memproses {fileName}. Coba lagi atau pilih file lain.",
         "tooManyFiles": "Anda dapat melampirkan hingga {maxFiles} berkas untuk model ini.",
         "truncatedCtaKnowledge": "File besar dipotong. Tambahkan ke Skill Knowledge untuk pencarian lengkap →"
       },

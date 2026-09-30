@@ -321,6 +321,7 @@
       "attachmentTooLargeAction": "OK",
       "fileExtraction": {
         "extractedLines": "{count, plural, other {# पंक्तियाँ निकाली गईं}}",
+        "errorGeneric": "{fileName} को प्रोसेस नहीं किया जा सका। दोबारा प्रयास करें या कोई अन्य फ़ाइल चुनें।",
         "tooManyFiles": "इस मॉडल के लिए आप अधिकतम {maxFiles} फ़ाइलें जोड़ सकते हैं।",
         "truncatedCtaKnowledge": "बड़ी फ़ाइल काट दी गई। पूर्ण खोज के लिए Skill Knowledge में जोड़ें →"
       },

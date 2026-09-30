@@ -48,7 +48,12 @@ export function useAttachmentIntake({
       }
 
       const { validateAndConvertFiles } = await loadAttachmentUtils();
-      const newAttachments = await validateAndConvertFiles(accepted, 'file', providerKind);
+      const newAttachments = await validateAndConvertFiles(
+        accepted,
+        'file',
+        providerKind,
+        (file) => showToast(tfe('errorGeneric', { fileName: file.name })),
+      );
       if (newAttachments.length > 0) {
         onAttachmentsChange([...attachments, ...newAttachments]);
       }

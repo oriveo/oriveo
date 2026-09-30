@@ -321,6 +321,7 @@
       "attachmentTooLargeAction": "OK",
       "fileExtraction": {
         "extractedLines": "{count, plural, other {# lignes extraites}}",
+        "errorGeneric": "Impossible de traiter {fileName}. Réessayez ou choisissez un autre fichier.",
         "tooManyFiles": "Vous pouvez joindre jusqu’à {maxFiles} fichiers pour ce modèle.",
         "truncatedCtaKnowledge": "Fichier volumineux tronqué. Ajouter à Skill Knowledge pour une recherche complète →"
       },

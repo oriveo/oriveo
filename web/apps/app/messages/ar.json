@@ -321,6 +321,7 @@
       "attachmentTooLargeAction": "حسنًا",
       "fileExtraction": {
         "extractedLines": "{count, plural, other {تم استخراج # سطر}}",
+        "errorGeneric": "تعذّر معالجة {fileName}. حاول مجدداً أو اختر ملفاً آخر.",
         "tooManyFiles": "يمكنك إرفاق ما يصل إلى {maxFiles} ملفات لهذا النموذج.",
         "truncatedCtaKnowledge": "تم اقتطاع الملف الكبير. أضف إلى Skill Knowledge للبحث الكامل ←"
       },

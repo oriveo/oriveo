@@ -321,6 +321,7 @@
       "attachmentTooLargeAction": "OK",
       "fileExtraction": {
         "extractedLines": "{count, plural, other {Извлечено # строк}}",
+        "errorGeneric": "Не удалось обработать {fileName}. Попробуйте снова или выберите другой файл.",
         "tooManyFiles": "Для этой модели можно прикрепить до {maxFiles} файлов.",
         "truncatedCtaKnowledge": "Большой файл обрезан. Добавьте в Skill Knowledge для полного поиска →"
       },

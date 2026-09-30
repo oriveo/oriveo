@@ -28,6 +28,10 @@ export function useAttachmentDragDrop(
   const enabled = options.enabled ?? true;
   const canAcceptAttachment = options.canAcceptAttachment;
   const providerKind = options.providerKind;
+  const notifyUnreadable = useCallback(
+    (file: File) => showToast(tfe('errorGeneric', { fileName: file.name })),
+    [tfe],
+  );
   const existingAttachments = options.existingAttachments ?? [];
 
   const handleDragEnter = useCallback((e: React.DragEvent) => {
@@ -74,13 +78,13 @@ export function useAttachmentDragDrop(
       }
 
       const { validateAndConvertFiles } = await loadAttachmentUtils();
-      const newAttachments = (await validateAndConvertFiles(accepted, 'drag_drop', providerKind))
+      const newAttachments = (await validateAndConvertFiles(accepted, 'drag_drop', providerKind, notifyUnreadable))
         .filter((attachment) => canAcceptAttachment?.(attachment) ?? true);
       if (newAttachments.length > 0) {
         onFilesAccepted(newAttachments);
       }
     },
-    [canAcceptAttachment, enabled, existingAttachments, onFilesAccepted, onOversizedFiles, providerKind, tfe],
+    [canAcceptAttachment, enabled, existingAttachments, notifyUnreadable, onFilesAccepted, onOversizedFiles, providerKind, tfe],
   );
 
   // Global paste (Cmd+V of an image outside the textarea).
@@ -111,7 +115,7 @@ export function useAttachmentDragDrop(
           return;
         }
 
-        loadAttachmentUtils().then(({ validateAndConvertFiles }) => validateAndConvertFiles(accepted, 'paste', providerKind)).then((newAttachments) => {
+        loadAttachmentUtils().then(({ validateAndConvertFiles }) => validateAndConvertFiles(accepted, 'paste', providerKind, notifyUnreadable)).then((newAttachments) => {
           const filteredAttachments = newAttachments
             .filter((attachment) => canAcceptAttachment?.(attachment) ?? true);
           if (filteredAttachments.length > 0) {
@@ -123,7 +127,7 @@ export function useAttachmentDragDrop(
 
     document.addEventListener('paste', handleGlobalPaste);
     return () => document.removeEventListener('paste', handleGlobalPaste);
-  }, [canAcceptAttachment, enabled, existingAttachments, onFilesAccepted, onOversizedFiles, providerKind, tfe]);
+  }, [canAcceptAttachment, enabled, existingAttachments, notifyUnreadable, onFilesAccepted, onOversizedFiles, providerKind, tfe]);
 
   return {
     dragActive,
