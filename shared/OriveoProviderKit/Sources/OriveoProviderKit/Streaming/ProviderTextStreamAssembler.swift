@@ -419,16 +419,25 @@ public struct ProviderTextStreamAssembler: Sendable {
         output: [String: Any]?,
         previous: ProviderTokenUsage? = nil
     ) -> ProviderTokenUsage? {
-        let rawInput = input.flatMap { int64($0["input_tokens"]) } ?? previous?.inputTokens
-        let cacheRead = input.flatMap { int64($0["cache_read_input_tokens"]) }
-            ?? previous?.cachedInputTokens
-        let cacheCreate = input.flatMap { int64($0["cache_creation_input_tokens"]) } ?? 0
         let outputTokens = output.flatMap { int64($0["output_tokens"]) }
             ?? previous?.outputTokens ?? 0
-        guard let rawInput, rawInput >= 0, cacheCreate >= 0, outputTokens >= 0 else { return nil }
-        let total = rawInput.addingReportingOverflow(cacheCreate)
-        guard !total.overflow,
-              cacheRead.map({ $0 >= 0 && $0 <= total.partialValue }) ?? true else { return nil }
+        guard outputTokens >= 0 else { return nil }
+        // message_delta only carries the cumulative output count. Keep the input side that
+        // message_start already folded; recomputing it from raw fields would count cache reads twice.
+        guard let input else {
+            guard var usage = previous else { return nil }
+            usage.outputTokens = outputTokens
+            return usage
+        }
+        // Anthropic's input_tokens excludes cache reads and writes, while `inputTokens` here means
+        // all input including cache hits, so the three are summed.
+        guard let rawInput = int64(input["input_tokens"]), rawInput >= 0 else { return nil }
+        let cacheRead = int64(input["cache_read_input_tokens"])
+        let cacheCreate = int64(input["cache_creation_input_tokens"]) ?? 0
+        guard cacheCreate >= 0, cacheRead.map({ $0 >= 0 }) ?? true else { return nil }
+        let withCreate = rawInput.addingReportingOverflow(cacheCreate)
+        let total = withCreate.partialValue.addingReportingOverflow(cacheRead ?? 0)
+        guard !withCreate.overflow, !total.overflow else { return nil }
         return ProviderTokenUsage(
             inputTokens: total.partialValue,
             outputTokens: outputTokens,
