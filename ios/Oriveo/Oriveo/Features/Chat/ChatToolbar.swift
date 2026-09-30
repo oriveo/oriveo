@@ -19,13 +19,10 @@ struct ChatToolbar: View {
             // No back button in the two-column layout: there is nowhere to go back to, because
             // the sidebar stays on screen (the same rule the system split view follows).
             if !appState.navigation.isRegularWidth {
-                Button {
-                    appState.pop()
-                } label: {
-                    ChatToolbarIconCapsule(systemImage: "chevron.backward")
-                }
-                .buttonStyle(ChatToolbarPressableStyle())
-                .accessibilityLabel(L10n.tr("Back"))
+                OriveoBackButton { appState.pop() }
+                    // Keeps the old 36pt slot so the model picker does not move; the 44pt target
+                    // overflows it on every side, so the tappable area does not shrink
+                    .frame(width: 36, height: 36)
             }
 
             if let skillId = projection.skillID,

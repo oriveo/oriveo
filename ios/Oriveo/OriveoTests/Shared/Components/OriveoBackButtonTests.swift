@@ -66,6 +66,30 @@ struct OriveoBackButtonTests {
         #expect(tapped == 1)
     }
 
+    /// Page back buttons and sheet close buttons go through the shared components instead of
+    /// drawing their own SF Symbols. Scans the sources: these call sites used to draw a custom
+    /// chevron or a × on a round fill, and reverting any of them turns this red.
+    @Test("chat back, token usage sheet and cross-check sheet use the shared buttons")
+    func migratedCallSitesUseSharedButtons() throws {
+        let root = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()   // Shared/Components
+            .deletingLastPathComponent()   // Shared
+            .deletingLastPathComponent()   // OriveoTests
+            .deletingLastPathComponent()   // Oriveo
+            .appendingPathComponent("Oriveo")
+        let expectations: [(file: String, component: String)] = [
+            ("Features/Chat/ChatToolbar.swift", "OriveoBackButton { appState.pop() }"),
+            ("Features/Chat/Cells/AssistantMetadataView.swift", "OriveoCloseButton(accessibilityLabel: L10n.tr(\"Close\"))"),
+            ("Features/Chat/CrosscheckSheet.swift", "OriveoCloseButton(accessibilityLabel: L10n.tr(\"Close\", table: .notes))"),
+        ]
+        for (file, component) in expectations {
+            let source = try String(contentsOf: root.appendingPathComponent(file), encoding: .utf8)
+            #expect(source.contains(component), "\(file) does not use the shared component: \(component)")
+        }
+        let toolbar = try String(contentsOf: root.appendingPathComponent("Features/Chat/ChatToolbar.swift"), encoding: .utf8)
+        #expect(!toolbar.contains("\"chevron.backward\""), "ChatToolbar.swift still draws its own back chevron")
+    }
+
     private func findElement(labeled label: String, in root: NSObject) -> NSObject? {
         var visited = Set<ObjectIdentifier>()
         func search(_ node: NSObject) -> NSObject? {

@@ -293,18 +293,10 @@ struct CrosscheckSheet: View {
     }
 
     private var closeButton: some View {
-        Button {
+        OriveoCloseButton(accessibilityLabel: L10n.tr("Close", table: .notes)) {
             cancelRun()
             dismiss()
-        } label: {
-            Image(systemName: "xmark")
-                .font(.system(size: 17, weight: .semibold))
-                .foregroundStyle(OriveoTheme.Palette.textSecondary)
-                .frame(width: 44, height: 44)
-                .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
-        .accessibilityLabel(L10n.tr("Close", table: .notes))
     }
 
     private var modelComparisonRail: some View {

@@ -738,19 +738,12 @@ private struct MessageTokenUsageContent: View {
 
             Spacer(minLength: 12)
 
-            Button(action: { dismiss() }) {
-                Image(systemName: "xmark")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(OriveoTheme.Palette.textSecondary)
-                    .frame(width: 30, height: 30)
-                    .background(OriveoTheme.Palette.surfaceInset, in: Circle())
-                    .frame(width: 44, height: 44)
-                    .contentShape(Rectangle())
+            OriveoCloseButton(accessibilityLabel: L10n.tr("Close")) {
+                dismiss()
             }
-            .buttonStyle(.plain)
-            .padding(.trailing, -7)
-            .padding(.top, -7)
-            .accessibilityLabel(L10n.tr("Close"))
+            // Line the icon box up with the content's trailing margin and the top of the title
+            .padding(.trailing, -OriveoBackButton.edgeInset)
+            .padding(.top, -OriveoBackButton.edgeInset)
         }
     }
 
