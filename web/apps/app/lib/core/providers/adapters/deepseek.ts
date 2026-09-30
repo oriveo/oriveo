@@ -61,11 +61,11 @@ export async function syncModels(
     const json = await syncModelsProxy("deepseek", apiKey, baseURL) as {
       data?: RemoteModel[];
     };
-    await refreshMetadata().catch(() => initMetadata().catch(() => {}));
+    await refreshMetadata({ providerKinds: ["deepseek"] }).catch(() => initMetadata().catch(() => {}));
     return buildDeepSeekSyncResult(json.data ?? []);
   }
 
-  await refreshMetadata().catch(() => initMetadata().catch(() => {}));
+  await refreshMetadata({ providerKinds: ["deepseek"] }).catch(() => initMetadata().catch(() => {}));
   const modelIds = listProviderModelIds("deepseek");
   return buildDeepSeekSyncResult(modelIds.map((id) => ({ id })));
 }

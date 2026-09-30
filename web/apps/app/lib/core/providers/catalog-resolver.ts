@@ -90,6 +90,8 @@ export interface CatalogProviderMetadata {
 export interface CatalogMetadataInput {
   capabilityContractVersion?: number;
   providers: Record<string, CatalogProviderMetadata>;
+  /** Providers listed in the index whose catalog has not loaded yet (pending, not "no models"). */
+  catalogPendingProviders?: readonly string[];
 }
 
 /* -- Output types --------------------------------------- */
@@ -114,6 +116,12 @@ export interface ResolvedProviderCatalog {
   availableModelCount: number;
   /** Whether any manual model is present */
   hasManualModels: boolean;
+  /**
+   * This provider's catalog has not loaded yet. Enabled models are kept as they are and are not
+   * reclassified as manual, while the "available to add" part is missing for now; neither "not in
+   * the catalog" nor "zero available" may be concluded from it.
+   */
+  catalogPending?: boolean;
 }
 
 /* -- Minimal Provider input interface ------------------- */
@@ -147,6 +155,10 @@ export function resolveProviderCatalog(
   const providerMeta = provider.kind === 'relay' || usesSubscriptionCatalog
     ? null
     : metadata?.providers[provider.kind] ?? null;
+  const catalogPending = !providerMeta
+    && provider.kind !== 'relay'
+    && !usesSubscriptionCatalog
+    && Boolean(metadata?.catalogPendingProviders?.includes(provider.kind));
 
   // Relay: official enrichment on top of the local catalogModels (on a hit, merge the official
   //   display and capability data plus the transport intersection)
@@ -209,13 +221,15 @@ export function resolveProviderCatalog(
     });
   }
 
-  // Manual models: enabled by the user but absent from the catalog
+  // Manual models: enabled by the user but absent from the catalog.
+  // While the catalog is pending, a failed lookup does not mean "absent": keep each enabled model's
+  // existing manual flag instead of reaching a new conclusion.
   for (const userModel of provider.models) {
     if (!matchedEnabledIds.has(userModel.id)) {
       catalog.push({
         ...userModel,
         isEnabled: true,
-        isManual: true,
+        isManual: catalogPending ? userModel.isManual === true : true,
       });
     }
   }
@@ -240,6 +254,7 @@ export function resolveProviderCatalog(
     defaultModel,
     availableModelCount: catalog.length,
     hasManualModels,
+    catalogPending,
   };
 }
 

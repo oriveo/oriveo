@@ -8,6 +8,7 @@ const getModelTransport = vi.hoisted(() => vi.fn());
 const getRelayRuntimeConfig = vi.hoisted(() => vi.fn());
 const resolveCatalogModel = vi.hoisted(() => vi.fn());
 const isMetadataSnapshotConfirmed = vi.hoisted(() => vi.fn());
+const getProviderCatalogStatus = vi.hoisted(() => vi.fn(() => "loaded"));
 const isLibraryFeatureEnabled = vi.hoisted(() => vi.fn());
 const isLibraryBuildEnabled = vi.hoisted(() => vi.fn());
 
@@ -18,6 +19,7 @@ vi.mock("../metadata/metadata-client", () => ({
   getModelTransport,
   getRelayRuntimeConfig,
   isMetadataSnapshotConfirmed,
+  getProviderCatalogStatus,
   resolveCatalogModel,
 }));
 vi.mock("./feature-flag", () => ({
@@ -81,6 +83,7 @@ beforeEach(() => {
   resolveCatalogModel.mockReturnValue(null);
   // Likewise, the bar for a negative conclusion defaults to "confirmed in this session"; the unconfirmed case is tested separately.
   isMetadataSnapshotConfirmed.mockReturnValue(true);
+  getProviderCatalogStatus.mockReturnValue("loaded");
 });
 
 describe("isLibraryAgentSupported", () => {
@@ -674,6 +677,21 @@ describe("metadataCanDecideRoute", () => {
     expect(
       metadataCanDecideRoute(provider(), model({ libraryAgentic: true })),
     ).toBe(true);
+  });
+
+  it("cannot decide while the provider catalog is still pending, which is not a catalog miss", () => {
+    resolveCatalogModel.mockReturnValue(null);
+    getProviderCatalogStatus.mockReturnValue("pending");
+    expect(metadataCanDecideRoute(provider(), model())).toBe(false);
+    expect(getProviderCatalogStatus).toHaveBeenCalledWith(provider().kind);
+    expect(resolveLibraryResearchRoute(
+      provider(),
+      model(),
+      { ...config, serverResearchEnabled: false },
+      true,
+      undefined,
+      true,
+    )).toBe("pending");
   });
 });
 

@@ -46,6 +46,8 @@ export type TelemetryEventName =
   // Provider protocol health: a parameter the model rejected, or a shape this build cannot read.
   | 'self_heal_param_dropped'
   | 'metadata_base_url_rejected'
+  // A per-provider catalog was rejected (unresolved ref / revision mismatch / 404); carries only the kind and the reason
+  | 'metadata_catalog_rejected'
   | 'unknown_transport_kind'
   | 'tool_call_unhandled'
   | 'tool_call_capability_mismatch'
@@ -92,6 +94,7 @@ export const TELEMETRY_EVENTS: readonly TelemetryEventName[] = [
   'image_generated',
   'self_heal_param_dropped',
   'metadata_base_url_rejected',
+  'metadata_catalog_rejected',
   'unknown_transport_kind',
   'tool_call_unhandled',
   'tool_call_capability_mismatch',

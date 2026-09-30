@@ -79,7 +79,9 @@ describe("metadata-client", () => {
     const metadata = await import("../metadata-client");
     await metadata.initMetadata();
     expect(fetchSpy).toHaveBeenCalledTimes(1);
-    expect(String(fetchSpy.mock.calls[0]?.[0])).toMatch(/\/api\/metadata\?view=lean$/);
+    // The index is requested first; a server that ignores view and returns the full snapshot is
+    // adopted as-is without a second request.
+    expect(String(fetchSpy.mock.calls[0]?.[0])).toMatch(/\/api\/metadata\?view=index$/);
     await metadata.ensureModelFacts();
     expect(String(fetchSpy.mock.calls[1]?.[0])).toMatch(/\/api\/metadata\/model-facts$/);
 
@@ -950,10 +952,16 @@ describe("metadata-client", () => {
       },
     };
     fixtureData.providers.openAI.resolveMap["gpt-invalid-ref"] = "gpt-invalid-ref";
-    const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify(responseFixture), {
-      status: 200,
-      headers: { "Content-Type": "application/json", ETag: '"lean-r1"' },
-    }));
+    // A server that answers view=index with 400 falls back to lean, still through the production
+    // lean decoding path.
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation(async (input) => (
+      String(input).endsWith("view=index")
+        ? new Response(null, { status: 400 })
+        : new Response(JSON.stringify(responseFixture), {
+            status: 200,
+            headers: { "Content-Type": "application/json", ETag: '"lean-r1"' },
+          })
+    ));
 
     const [metadata, evidence, facade] = await Promise.all([
       import("../metadata-client"),
@@ -962,7 +970,8 @@ describe("metadata-client", () => {
     ]);
     await metadata.initMetadata();
 
-    expect(String(fetchSpy.mock.calls[0]?.[0])).toMatch(/\/api\/metadata\?view=lean$/);
+    expect(String(fetchSpy.mock.calls[0]?.[0])).toMatch(/\/api\/metadata\?view=index$/);
+    expect(String(fetchSpy.mock.calls[1]?.[0])).toMatch(/\/api\/metadata\?view=lean$/);
     const resolved = metadata.resolveCatalogModel("gpt-fixture", "openAI");
     expect(resolved?.capabilityEvidenceCandidates).toEqual([expect.objectContaining({
       key: "tool_call",

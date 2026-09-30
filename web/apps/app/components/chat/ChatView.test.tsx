@@ -585,6 +585,7 @@ vi.mock('../../lib/core/metadata/metadata-client', () => ({
   // before it is confirmed) is covered in library/routing.test.ts; these cases compute as
   // if the backend had already been asked this session.
   isMetadataSnapshotConfirmed: () => true,
+  getProviderCatalogStatus: () => 'loaded',
   getCachedMetadataVersion: () => 1,
   onVersionChange: () => () => {},
   refreshMetadata: (...args: unknown[]) => mockRefreshMetadata(...args),

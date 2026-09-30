@@ -23,12 +23,15 @@ import { detectStorageHealth, reportStorageHealth } from './storage-health';
 import { reportSilentError } from '../sentry/report-silent';
 import { collapseProvidersToDeterministicIds } from './provider-id-migration';
 import {
+  ensureProviderCatalogs,
   getMetadataContractVersion,
   getMetadataSnapshot,
+  getProviderCatalogStatus,
   getRelayRuntimeConfig,
   initMetadata,
   isMetadataRefreshDue,
   refreshMetadata,
+  setMetadataCatalogDemandSource,
 } from './metadata/metadata-client';
 import { isContractVersionDegraded } from './metadata/metadata-runtime';
 import { refreshAllSkills } from './skills/ops';
@@ -112,8 +115,50 @@ export async function bootstrapApp(
   }
 }
 
+/**
+ * The set of catalogs metadata needs comes from the configured providers. The source is registered
+ * once, and when the provider set changes (a provider is added or a backup is restored) only the
+ * providers that newly appeared and are not loaded yet are fetched.
+ */
+let metadataDemandStore: Store | null = null;
+let metadataDemandUnsubscribe: (() => void) | null = null;
+
+function metadataCatalogDemand(providers: AppStore['providers']): { providerKinds: string[]; hasRelay: boolean } {
+  const kinds = new Set<string>();
+  let hasRelay = false;
+  for (const provider of providers) {
+    if (provider.kind === 'relay') {
+      hasRelay = true;
+      continue;
+    }
+    kinds.add(provider.kind);
+  }
+  return { providerKinds: [...kinds], hasRelay };
+}
+
+function ensureMetadataCatalogDemand(store: Store): void {
+  setMetadataCatalogDemandSource(() => metadataCatalogDemand(store.getState().providers));
+  if (metadataDemandStore === store && metadataDemandUnsubscribe) return;
+  metadataDemandUnsubscribe?.();
+  metadataDemandStore = store;
+  metadataDemandUnsubscribe = store.subscribe((state, prevState) => {
+    if (state.providers === prevState.providers) return;
+    const demand = metadataCatalogDemand(state.providers);
+    const pendingKinds = demand.providerKinds.filter(
+      (kind) => getProviderCatalogStatus(kind) === 'pending',
+    );
+    if (demand.hasRelay && !prevState.providers.some((provider) => provider.kind === 'relay')) {
+      for (const kind of getRelayRuntimeConfig().officialProviderWhitelist) {
+        if (getProviderCatalogStatus(kind) === 'pending') pendingKinds.push(kind);
+      }
+    }
+    if (pendingKinds.length > 0) void ensureProviderCatalogs(pendingKinds).catch(() => {});
+  });
+}
+
 async function hydrateMetadataAndReconcileProviders(store: Store): Promise<void> {
   const started = Date.now();
+  ensureMetadataCatalogDemand(store);
 
   try {
     await withBudget(

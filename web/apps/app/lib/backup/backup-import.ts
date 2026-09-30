@@ -36,7 +36,7 @@ import { trackEvent } from '../core/telemetry';
 import { tryGetVanillaStore } from '../../providers/StoreProvider';
 import { loadCachedUserSkills, saveUserSkills } from '../core/skills/cache';
 import { buildOfficialEnabledModels } from '../core/providers/official-model-sync';
-import { getMetadataSnapshot } from '../core/metadata/metadata-client';
+import { ensureProviderCatalogs, getMetadataSnapshot } from '../core/metadata/metadata-client';
 import { normalizeNoteFolderIDs, normalizeNoteIDs, normalizeUUID } from '../utils/id-utils';
 import type { CatalogMetadataInput } from '../core/providers/catalog-resolver';
 import { getActiveUIDSync } from '../infra/storage/partition';
@@ -208,6 +208,16 @@ export async function executeImport(
       keys: { providerID: string; apiKey: string; apiKeyPreview: string }[];
     };
     keyMap = new Map(keysObj.keys.map((k) => [k.providerID, k]));
+  }
+
+  // Official providers in the backup may not be configured yet. Load their catalogs first,
+  // otherwise the rebuild sees "catalog not loaded" instead of the provider's real model catalog.
+  const importedOfficialKinds = [...new Set(backupFile.data.providers
+    .map((provider) => provider.kind)
+    .filter((kind) => kind !== 'relay'))];
+  if (importedOfficialKinds.length > 0) {
+    await ensureProviderCatalogs(importedOfficialKinds).catch(() => {});
+    assertExpectedImportUID(expectedUID);
   }
 
   if (mode === 'replaceAll') {

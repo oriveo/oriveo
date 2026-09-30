@@ -420,7 +420,8 @@ export function ProviderSetup() {
       const effectiveBase = effectiveBaseURL;
 
       // Refresh metadata so the canonical catalog is current; awaited so a stale catalog is not used.
-      await refreshMetadata().catch(() => {});
+      // The new provider is not configured yet, so its catalog has to be requested by name.
+      await refreshMetadata({ providerKinds: [selectedKind] }).catch(() => {});
 
       // The default or first instance gets a deterministic id (derived from kind and region, so
       // writes from several clients merge); an explicitly added extra account gets a random id.

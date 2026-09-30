@@ -1,7 +1,10 @@
 /**
  * Model metadata client.
  *
- * Resolves pricing, capabilities and canonical model identity from the bundled/local catalog.
+ * Resolves pricing, capabilities and canonical model identity from the public catalog.
+ * Fetching: the index first, then per-provider catalogs on demand, reassembled in memory into a
+ * lean-shaped snapshot; a server that answers the index request with 400 falls back to the full
+ * lean view.
  * Cache strategy: IndexedDB blob plus memory, 24h TTL, with ETag revalidation.
  */
 
@@ -31,10 +34,20 @@ import {
 } from "@oriveo/core/providers/openai-subscription";
 import { PUBLIC_METADATA_BASE_URL } from "@oriveo/shared";
 import { APP_VERSION } from "../../version";
-import { readBlob, writeBlob, pruneBlobs } from "../../infra/storage/blob-cache";
+import { readBlob, writeBlob, pruneBlobs, deleteBlob } from "../../infra/storage/blob-cache";
 import { safeLocalStorage } from "../../infra/storage/web-storage";
 import { SUPPORTED_CONTRACT_VERSION } from "./metadata-runtime";
 import { fetchWithReachability } from "../reachability/reachability-fetch";
+import { trackEvent } from "../telemetry";
+import {
+  assembleLeanFromSplit,
+  expandMetadataCatalog,
+  indexCatalogRevision,
+  isMetadataIndexPayload,
+  type CatalogRejectionReason,
+  type ExpandedMetadataCatalog,
+  type MetadataIndexPayload,
+} from "./metadata-split";
 import {
   DEFAULT_LIBRARY_RUNTIME_CONFIG as SHARED_DEFAULT_LIBRARY_RUNTIME_CONFIG,
   type LibraryRuntimeConfig,
@@ -650,6 +663,53 @@ interface MetadataBlob {
    * ever pays off on a cache written before the current rules.
    */
   allowlistVersion?: number;
+  /**
+   * Which URL the etag belongs to. A validator must never cross views: when a server ignores
+   * view=index and answers with the full snapshot, that snapshot's ETag may only be sent back to the
+   * index URL. Absent means an older lean cache.
+   */
+  etagView?: "index" | "lean";
+}
+
+/**
+ * Persistence for the index plus per-provider catalogs: one blob for the index and one per catalog,
+ * each with its own ETag and revision. A 304 only touches the timestamps in the manifest and never
+ * rewrites a body.
+ *
+ * The prefix deliberately does not start with `oriveo:metadata:c`: that is the prefix the lean
+ * bucket cleanup (pruneStaleBuckets) sweeps, and a collision would delete these as stale buckets.
+ */
+const SPLIT_BLOB_KEY_PREFIX = "oriveo:metadata:split:";
+
+interface SplitIndexBlob {
+  data: MetadataIndexPayload;
+  etag: string | null;
+}
+
+interface SplitCatalogBlob {
+  provider: string;
+  revision: string;
+  etag: string | null;
+  resolveMap?: Record<string, string>;
+  models: Record<string, ModelMetadata>;
+  generationParameters: NonNullable<MetadataResponse["generationParameterTables"]>;
+  allowlistVersion: number;
+}
+
+interface SplitManifestBlob {
+  /** When the server last confirmed the index (200 or 304). */
+  indexCheckedAt?: number;
+  /** When the server last confirmed each provider's catalog. */
+  catalogCheckedAt: Record<string, number>;
+}
+
+/** One provider's catalog in memory: allowlisted models plus its parameter tables. A null revision means it came from an older lean snapshot. */
+interface StoredCatalog {
+  revision: string | null;
+  etag: string | null;
+  resolveMap?: Record<string, string>;
+  models: Record<string, ModelMetadata>;
+  generationParameters: NonNullable<MetadataResponse["generationParameterTables"]>;
 }
 
 /** Current allowlist rewrite revision. Bump it when the rewrite rules change so existing caches are reprocessed. */
@@ -715,6 +775,41 @@ function cacheKeyFor(contractVersion: number): string {
 
 function etagKeyFor(contractVersion: number): string {
   return `${ETAG_KEY_PREFIX}${contractVersion}`;
+}
+
+function splitKeyPrefix(): string {
+  return `${SPLIT_BLOB_KEY_PREFIX}c${SUPPORTED_CONTRACT_VERSION}:`;
+}
+
+function splitIndexKey(): string {
+  return `${splitKeyPrefix()}index`;
+}
+
+function splitManifestKey(): string {
+  return `${splitKeyPrefix()}manifest`;
+}
+
+function splitCatalogKey(providerKind: string): string {
+  return `${splitKeyPrefix()}catalog:${providerKind}`;
+}
+
+/** Test-only: read back the persisted index, a provider's catalog, or the manifest. */
+export async function __readSplitMetadataCacheForTest(): Promise<{
+  index: SplitIndexBlob | null;
+  indexTimestamp: number | null;
+  manifest: SplitManifestBlob | null;
+  catalog: (providerKind: string) => Promise<{ value: SplitCatalogBlob; timestamp: number } | null>;
+}> {
+  const [index, manifest] = await Promise.all([
+    readBlob<SplitIndexBlob>(splitIndexKey()),
+    readBlob<SplitManifestBlob>(splitManifestKey()),
+  ]);
+  return {
+    index: index?.value ?? null,
+    indexTimestamp: index?.timestamp ?? null,
+    manifest: manifest?.value ?? null,
+    catalog: (providerKind) => readBlob<SplitCatalogBlob>(splitCatalogKey(providerKind)),
+  };
 }
 
 /** Drop every cache bucket that does not belong to the current contractVersion. */
@@ -814,6 +909,58 @@ let lastEmittedSignature: string | null = null;
 let snapshotConfirmedThisSession = false;
 
 /**
+ * Where the in-memory snapshot came from: `lean` is the full lean snapshot (the fallback for older
+ * servers, or an older cache), `split` is a lean-shaped object assembled from the index plus the
+ * per-provider catalogs loaded so far. Only `split` has the "this catalog is not loaded yet"
+ * (pending) state.
+ */
+let sourceMode: "lean" | "split" | null = null;
+/** Which URL `cachedETag` belongs to; a validator is only sent back to the view that issued it. */
+let cachedETagView: "index" | "lean" | null = null;
+/** The latest index (possibly not yet published into `cached`) and its ETag. */
+let splitIndex: MetadataIndexPayload | null = null;
+let splitIndexETag: string | null = null;
+/** Loaded catalogs (last-good), keyed by catalog provider kind. */
+const splitCatalogs = new Map<string, StoredCatalog>();
+/** In-flight request per catalog, so each provider is fetched at most once at a time. */
+const catalogFetches = new Map<string, Promise<CatalogFetchOutcome>>();
+/** When a fetch failed or was rejected; render-time lookups do not retry within the cooldown, which prevents refresh loops. */
+const catalogFailureAt = new Map<string, number>();
+const CATALOG_RETRY_COOLDOWN_MS = 60 * 1000;
+/** Catalogs the server confirmed this session (revision matches a confirmed index, or a 200/304). */
+const confirmedCatalogKinds = new Set<string>();
+/** Catalogs needed transiently: a provider being added or restored from backup, or one a pending lookup asked for. */
+const transientCatalogKinds = new Set<string>();
+let splitManifest: SplitManifestBlob = { catalogCheckedAt: {} };
+
+type CatalogFetchOutcome =
+  | "current"
+  | "accepted"
+  | "revision_mismatch"
+  | "rejected"
+  | "not_found"
+  | "failed"
+  | "absent";
+
+/** The configured providers, injected by bootstrap so the metadata module does not depend on the store. */
+export interface MetadataCatalogDemand {
+  providerKinds: readonly string[];
+  hasRelay: boolean;
+}
+
+let catalogDemandSource: (() => MetadataCatalogDemand) | null = null;
+
+/**
+ * Registers the source of "which catalogs are needed": the configured official providers, plus the
+ * relay official-provider whitelist when a relay exists, plus any transiently requested provider.
+ */
+export function setMetadataCatalogDemandSource(
+  source: (() => MetadataCatalogDemand) | null,
+): void {
+  catalogDemandSource = source;
+}
+
+/**
  * Metadata version subscription: subscribers are notified after every successful metadata refresh,
  * whether or not `version` changed, which is when the UI can recompute the resolved catalog.
  *
@@ -887,6 +1034,17 @@ export function __resetMetadataClientForTest(): void {
   versionListeners.clear();
   lastEmittedSignature = null;
   snapshotConfirmedThisSession = false;
+  sourceMode = null;
+  cachedETagView = null;
+  splitIndex = null;
+  splitIndexETag = null;
+  splitCatalogs.clear();
+  catalogFetches.clear();
+  catalogFailureAt.clear();
+  confirmedCatalogKinds.clear();
+  transientCatalogKinds.clear();
+  splitManifest = { catalogCheckedAt: {} };
+  catalogDemandSource = null;
 }
 
 /**
@@ -895,9 +1053,54 @@ export function __resetMetadataClientForTest(): void {
  * Library routing uses it to decide whether it may reach the negative conclusion "not supported".
  * Positive conclusions are not gated: getting one wrong costs a single failed retrieval and a
  * graceful degrade, far less than reporting a working feature as unsupported.
+ *
+ * With `providerKind` the answer is per provider: in split mode a confirmed index is not enough,
+ * that provider's catalog must also have been confirmed this session (a revision matching the
+ * confirmed index counts, no re-download needed). Kinds absent from the index, such as relay, only
+ * depend on the index being confirmed.
  */
-export function isMetadataSnapshotConfirmed(): boolean {
-  return snapshotConfirmedThisSession;
+export function isMetadataSnapshotConfirmed(providerKind?: string): boolean {
+  if (!snapshotConfirmedThisSession) return false;
+  if (!providerKind || sourceMode !== "split" || !splitIndex) return true;
+  const backendKind = KIND_MAP[providerKind] ?? providerKind;
+  if (!splitIndex.providers[backendKind]) return true;
+  return confirmedCatalogKinds.has(backendKind);
+}
+
+export type ProviderCatalogStatus = "loaded" | "pending" | "absent";
+
+/**
+ * Load state of a provider's catalog. `pending` (not loaded yet) and `absent` (the catalog really has
+ * no such provider) are always kept apart: pending must never be read as "the model is not in the
+ * catalog". Returning pending also triggers a fetch of just that provider.
+ *
+ * No snapshot at all (the first cold-start fetch has not finished) is pending too; a lean snapshot
+ * never has pending providers.
+ */
+export function getProviderCatalogStatus(providerKind: string): ProviderCatalogStatus {
+  if (!cached) return "pending";
+  const backendKind = KIND_MAP[providerKind] ?? providerKind;
+  if (sourceMode !== "split" || !splitIndex) {
+    return cached.providers[backendKind] ? "loaded" : "absent";
+  }
+  if (!splitIndex.providers[backendKind]) return "absent";
+  if (splitCatalogs.has(backendKind)) return "loaded";
+  requestCatalogLoad(backendKind);
+  return "pending";
+}
+
+/**
+ * Makes sure these providers' catalogs are loaded: catalogs whose revision matches the index cost no
+ * request, the rest are fetched in parallel. They are also registered as transiently needed for this
+ * session, so later refreshes keep them current.
+ */
+export async function ensureProviderCatalogs(providerKinds: readonly string[]): Promise<void> {
+  const kinds = providerKinds.map((kind) => KIND_MAP[kind] ?? kind);
+  for (const kind of kinds) transientCatalogKinds.add(kind);
+  if (refreshPromise) await refreshPromise.catch(() => {});
+  if (sourceMode !== "split" && !splitIndex) return;
+  const outcome = await syncCatalogs(kinds.filter((kind) => splitIndex?.providers[kind]), true);
+  settleSyncOutcome(outcome);
 }
 
 /**
@@ -1057,7 +1260,24 @@ export async function initMetadata(): Promise<void> {
 
     try {
       const currentKey = cacheKeyFor(SUPPORTED_CONTRACT_VERSION);
-      const entry = await readBlob<MetadataBlob>(currentKey);
+      const [leanEntry, split] = await Promise.all([
+        readBlob<MetadataBlob>(currentKey),
+        readSplitCache(),
+      ]);
+      // When both exist, take the newer one: a lean cache written after the server rolled back to
+      // lean-only must not be shadowed by an older split cache.
+      if (split && (!leanEntry || split.timestamp >= leanEntry.timestamp)) {
+        commitSplitCache(split);
+        publishSplitSnapshot();
+        cachedAt = split.timestamp;
+        if (Date.now() - split.timestamp < CACHE_TTL) {
+          refreshInBackground();
+          return;
+        }
+        await fetchMetadata();
+        return;
+      }
+      const entry = leanEntry;
       if (entry) {
         const cachedContract =
           (entry.value.data as MetadataResponse & { contractVersion?: number })
@@ -1067,6 +1287,8 @@ export async function initMetadata(): Promise<void> {
           await pruneStaleBuckets(SUPPORTED_CONTRACT_VERSION);
         } else {
           cachedETag = entry.value.etag;
+          cachedETagView = entry.value.etagView ?? "lean";
+          sourceMode = "lean";
           cachedAt = entry.timestamp;
           cached = normalizeMetadataEvidenceViews(
             entry.value.data,
@@ -1082,6 +1304,8 @@ export async function initMetadata(): Promise<void> {
           if (entry.value.allowlistVersion !== METADATA_ALLOWLIST_VERSION) {
             persistCache(cached, cachedContract);
           }
+          // An older lean cache is the last-good copy while migrating: use it as usual, and the
+          // next refresh switches to index + catalogs.
           // Notify subscribers immediately on a cache hit (allowDedup=false, the first emit must fire)
           emitVersionChange();
           if (Date.now() - entry.timestamp < CACHE_TTL) {
@@ -1541,6 +1765,7 @@ export const DEFAULT_RELAY_RUNTIME_CONFIG: RelayRuntimeConfig = {
     "miniMax",
     "zhipu",
     "qwen",
+    "moonshot",
   ],
   transportEnvelopes: {
     openai_responses: {
@@ -1892,9 +2117,17 @@ function mergeTransportEnvelopes(
   return merged;
 }
 
-/** Force a fresh read of the metadata, for cases such as a provider resync that need the latest data. */
-export async function refreshMetadata(): Promise<void> {
-  await fetchMetadata();
+/**
+ * Force a fresh read of the metadata, for cases such as a provider resync that need the latest data.
+ *
+ * In split mode this is a conditional index request, plus the needed catalogs (those whose revision
+ * matches the index cost no request), plus the catalogs named in `providerKinds` (providers being
+ * added or restored, which are not in the configured set yet).
+ */
+export async function refreshMetadata(
+  options: { providerKinds?: readonly string[] } = {},
+): Promise<void> {
+  await fetchMetadata(options.providerKinds ?? []);
 }
 
 /**
@@ -1974,6 +2207,8 @@ export function getMetadataSnapshot(): ReturnType<typeof projectMetadataSnapshot
 function projectMetadataSnapshot(source: MetadataResponse): {
   capabilityContractVersion?: number;
   capabilityRuntime?: CapabilityRuntimeEnvelope;
+  /** Split mode only: providers listed in the index whose catalog is not loaded yet. They are pending, not "no models". */
+  catalogPendingProviders?: string[];
   providers: Record<
     string,
     {
@@ -2043,9 +2278,13 @@ function projectMetadataSnapshot(source: MetadataResponse): {
     }
   >;
 } {
+  const catalogPendingProviders = sourceMode === "split" && splitIndex
+    ? Object.keys(splitIndex.providers).filter((kind) => !source.providers[kind])
+    : [];
   return {
     capabilityContractVersion: source.capabilityContractVersion,
     ...(source.capabilityRuntime ? { capabilityRuntime: source.capabilityRuntime } : {}),
+    ...(catalogPendingProviders.length > 0 ? { catalogPendingProviders } : {}),
     providers: Object.fromEntries(
       Object.entries(source.providers).map(([providerKind, provider]) => [
         providerKind,
@@ -2318,7 +2557,12 @@ function resolveModelEntry(
   if (!source) return null;
   const resolvedProviderKind = KIND_MAP[providerKind] ?? providerKind;
   const provider = source.providers[resolvedProviderKind];
-  if (!provider?.models) return null;
+  if (!provider?.models) {
+    // Split mode and this catalog is not loaded yet: a miss here does not mean "not in the catalog".
+    // Load just this provider and leave the verdict to pending-aware callers.
+    if (sourceMode === "split") requestCatalogLoad(resolvedProviderKind);
+    return null;
+  }
 
   // resolveMap is the only authority for aliases/date-suffix normalization.
   // A minimal lean fixture can omit it and still address an exact models key,
@@ -2355,7 +2599,15 @@ function resolveProviderData(
   if (!cached) return null;
 
   const backendKind = KIND_MAP[providerKind] ?? providerKind;
-  return cached.providers[backendKind] ?? null;
+  const loaded = cached.providers[backendKind];
+  if (loaded) return loaded;
+  // While the catalog is not loaded, provider-level fields (validation / defaultModelId / transport /
+  // attachment support) still come from the index: adding a provider and validating a key need them
+  // before the catalog arrives.
+  if (sourceMode === "split" && splitIndex?.providers[backendKind]) {
+    return { ...(splitIndex.providers[backendKind] as unknown as Omit<ProviderData, "models">), models: {} };
+  }
+  return null;
 }
 
 function normalizeRelayProbePolicy(raw: unknown): RelayProbePolicy | null {
@@ -3565,71 +3817,39 @@ function compareProviderConfigs(
   return left.kind.localeCompare(right.kind);
 }
 
-async function fetchMetadata(): Promise<void> {
+async function fetchMetadata(extraKinds: readonly string[] = []): Promise<void> {
+  const requestedKinds = extraKinds.map((kind) => KIND_MAP[kind] ?? kind);
+  for (const kind of requestedKinds) transientCatalogKinds.add(kind);
   if (refreshPromise) {
     await refreshPromise;
+    // The in-flight refresh started before these were known: once it settles, fetch only these
+    // rather than running a whole new round.
+    if (requestedKinds.length > 0) await ensureProviderCatalogs(requestedKinds);
     return;
   }
 
   const epoch = metadataSessionEpoch;
   refreshPromise = (async () => {
     try {
-      const backendURL = resolveMetadataBackendURL();
-      const url = `${backendURL}/api/metadata?view=lean`;
-      const headers: Record<string, string> = {};
-      if (cachedETag) {
-        headers["If-None-Match"] = cachedETag;
-      }
-
-      const res = await fetchWithReachability(url, { headers });
-      if (res.status === 304) {
-        // A 304 means the backend confirms the copy in hand is current, so it lifts the
-        // confirmation gate exactly like a 200 does.
-        const justConfirmed = !snapshotConfirmedThisSession;
-        snapshotConfirmedThisSession = true;
-        cachedAt = Date.now();
-        // Confirmation is observable state for the library's negative gate. The
-        // payload is unchanged, but useSyncExternalStore still needs one new
-        // snapshot value when this session first becomes confirmed.
-        if (justConfirmed) metadataContentRevision += 1;
-        // The content did not change, so dedup keeps an unchanged version from repeatedly
-        // re-running UI computation. The first confirmation still has to emit: the content is
-        // the same but "may we conclude unsupported" changed, and subscribers need that tick to
-        // turn a pending routing decision into a real verdict.
-        emitVersionChange({ allowDedup: !justConfirmed });
+      const indexOutcome = await fetchIndexOnce();
+      if (indexOutcome === "unsupported") {
+        // An older server does not know view=index (400): fall back to the full lean view so a cold
+        // start still works whatever order the server and client are deployed in.
+        await fetchLeanSnapshot();
         return;
       }
-      if (!res.ok) return;
+      if (indexOutcome !== "updated" && indexOutcome !== "not_modified") return;
 
-      const json = await res.json();
-      // The backend wraps responses in { code, data, message }, so unwrap it.
-      const data: MetadataResponse = json.data ?? json;
-      const contractVersion =
-        (data as MetadataResponse & { contractVersion?: number })
-          .contractVersion ?? 1;
-
-      // A contract change drops every cache bucket other than the current one.
-      void pruneStaleBuckets(contractVersion);
-
-      // The ETag lives in the same blob as the snapshot (see MetadataBlob) and persistCache
-      // writes both together; only the in-memory copy is updated here so the two media can never
-      // hold "an ETag with no data". A 200 without an ETag must not inherit the previous
-      // payload's revision, so it is set to null and written back with the snapshot.
-      cachedETag = res.headers.get("ETag");
-
+      const wasSplit = sourceMode === "split";
+      if (!wasSplit) seedCatalogsFromLeanSnapshot();
+      const outcome = await syncCatalogs(neededCatalogKinds(requestedKinds), true);
       if (epoch !== metadataSessionEpoch) return;
-      cached = normalizeMetadataEvidenceViews(data, cachedETag ?? undefined);
-      adoptLegacyModelFacts(cached);
-      // The sidecar has an independent validator. A newly accepted catalog
-      // representation makes the next catalog-external demand revalidate that
-      // validator; it must never inherit the lean ETag.
-      modelFactsInitialized = false;
-      cachedAt = Date.now();
-      metadataContentRevision += 1;
-      snapshotConfirmedThisSession = true;
-      persistCache(cached, contractVersion);
-      // A 200 always emits, because the content may be new.
-      emitVersionChange();
+      if (indexOutcome === "updated" || !wasSplit || outcome.accepted) {
+        publishSplitSnapshot();
+        if (!wasSplit) retireLeanCache();
+      } else {
+        settleSyncOutcome(outcome);
+      }
     } catch {
       // A network error keeps the existing cache.
     }
@@ -3642,6 +3862,428 @@ async function fetchMetadata(): Promise<void> {
   }
 }
 
+type IndexFetchOutcome = "updated" | "not_modified" | "unsupported" | "snapshot" | "failed";
+
+/**
+ * Conditional index request. A 200 only updates `splitIndex` (the caller publishes once the catalogs
+ * are in); a 304 renews it and lifts this session's confirmation gate; a server that ignores the view
+ * parameter and returns the full snapshot is adopted as a full snapshot.
+ */
+async function fetchIndexOnce(): Promise<IndexFetchOutcome> {
+  const epoch = metadataSessionEpoch;
+  const headers: Record<string, string> = {};
+  const validator = splitIndex
+    ? splitIndexETag
+    : sourceMode === "lean" && cachedETagView === "index"
+      ? cachedETag
+      : null;
+  if (validator) headers["If-None-Match"] = validator;
+
+  const res = await fetchWithReachability(
+    `${resolveMetadataBackendURL()}/api/metadata?view=index`,
+    { headers },
+  );
+  if (epoch !== metadataSessionEpoch) return "failed";
+  if (res.status === 304) {
+    if (!splitIndex) {
+      // With a full snapshot (or none yet) keep the lean semantics: a 304 confirms the copy in hand.
+      confirmCachedSnapshot();
+      return "snapshot";
+    }
+    // In split mode a 304 to a request without a validator cannot be trusted: there is no matching
+    // index body in hand.
+    if (!validator) return "failed";
+    const now = Date.now();
+    splitManifest = { ...splitManifest, indexCheckedAt: now };
+    persistSplitManifest();
+    if (sourceMode === "split") {
+      cachedAt = now;
+      confirmIndex();
+    }
+    return "not_modified";
+  }
+  if (res.status === 400) return "unsupported";
+  if (!res.ok) return "failed";
+
+  const json = await res.json();
+  if (epoch !== metadataSessionEpoch) return "failed";
+  const data = json?.data ?? json;
+  if (isMetadataIndexPayload(data)) {
+    const contractVersion = (data as { contractVersion?: number }).contractVersion ?? 1;
+    void pruneStaleBuckets(contractVersion);
+    splitIndex = data;
+    splitIndexETag = res.headers.get("ETag");
+    splitManifest = { ...splitManifest, indexCheckedAt: Date.now() };
+    persistSplitIndex(data, splitIndexETag);
+    // Catalogs whose revision changed under the new index are no longer confirmed; unchanged ones
+    // still match a confirmed index.
+    for (const kind of [...confirmedCatalogKinds]) {
+      if (splitCatalogs.get(kind)?.revision !== indexCatalogRevision(data, kind)) {
+        confirmedCatalogKinds.delete(kind);
+      }
+    }
+    snapshotConfirmedThisSession = true;
+    return "updated";
+  }
+  if (isRecord(data) && isRecord(data.providers)) {
+    adoptLeanSnapshot(data as unknown as MetadataResponse, res.headers.get("ETag"), "index");
+    return "snapshot";
+  }
+  return "failed";
+}
+
+/** Fallback for older servers: the full lean view, exactly as before the index existed. */
+async function fetchLeanSnapshot(): Promise<void> {
+  const epoch = metadataSessionEpoch;
+  const headers: Record<string, string> = {};
+  const validator = sourceMode === "lean" && cachedETagView !== "index" ? cachedETag : null;
+  if (validator) headers["If-None-Match"] = validator;
+
+  const res = await fetchWithReachability(
+    `${resolveMetadataBackendURL()}/api/metadata?view=lean`,
+    { headers },
+  );
+  if (epoch !== metadataSessionEpoch) return;
+  if (res.status === 304) {
+    if (validator) confirmCachedSnapshot();
+    return;
+  }
+  if (!res.ok) return;
+
+  const json = await res.json();
+  if (epoch !== metadataSessionEpoch) return;
+  // The backend wraps responses in { code, data, message }, so unwrap it.
+  const data: MetadataResponse = json.data ?? json;
+  adoptLeanSnapshot(data, res.headers.get("ETag"), "lean");
+}
+
+/** A 304 means the backend confirms the copy in hand is current, so it lifts the confirmation gate exactly like a 200 does. */
+function confirmCachedSnapshot(): void {
+  cachedAt = Date.now();
+  confirmIndex();
+}
+
+function confirmIndex(): void {
+  const justConfirmed = !snapshotConfirmedThisSession;
+  snapshotConfirmedThisSession = true;
+  // Confirmation is observable state for the library's negative gate. The
+  // payload is unchanged, but useSyncExternalStore still needs one new
+  // snapshot value when this session first becomes confirmed.
+  if (justConfirmed) metadataContentRevision += 1;
+  // The content did not change, so dedup keeps an unchanged version from repeatedly re-running UI
+  // computation. The first confirmation still has to emit: the content is the same but "may we
+  // conclude unsupported" changed, and subscribers need that tick to turn a pending routing decision
+  // into a real verdict.
+  emitVersionChange({ allowDedup: !justConfirmed });
+}
+
+function adoptLeanSnapshot(
+  data: MetadataResponse,
+  etag: string | null,
+  etagView: "index" | "lean",
+): void {
+  const contractVersion =
+    (data as MetadataResponse & { contractVersion?: number })
+      .contractVersion ?? 1;
+
+  // A contract change drops every cache bucket other than the current one.
+  void pruneStaleBuckets(contractVersion);
+
+  // A full snapshot has every provider loaded, so the in-memory split state is dropped (the persisted
+  // split cache is left for the next startup to compare by timestamp).
+  sourceMode = "lean";
+  splitIndex = null;
+  splitIndexETag = null;
+  splitCatalogs.clear();
+  confirmedCatalogKinds.clear();
+
+  // The ETag lives in the same blob as the snapshot (see MetadataBlob) and persistCache writes both
+  // together; only the in-memory copy is updated here so the two media can never hold "an ETag with
+  // no data". A 200 without an ETag must not inherit the previous payload's revision, so it is set
+  // to null and written back with the snapshot.
+  cachedETag = etag;
+  cachedETagView = etagView;
+
+  cached = normalizeMetadataEvidenceViews(data, cachedETag ?? undefined);
+  adoptLegacyModelFacts(cached);
+  // The sidecar has an independent validator. A newly accepted catalog
+  // representation makes the next catalog-external demand revalidate that
+  // validator; it must never inherit the lean ETag.
+  modelFactsInitialized = false;
+  cachedAt = Date.now();
+  metadataContentRevision += 1;
+  snapshotConfirmedThisSession = true;
+  persistCache(cached, contractVersion);
+  // A 200 always emits, because the content may be new.
+  emitVersionChange();
+}
+
+/** The set of needed catalogs, limited to kinds the index actually lists. */
+function neededCatalogKinds(extraKinds: readonly string[] = []): string[] {
+  const index = splitIndex;
+  if (!index) return [];
+  const kinds = new Set<string>();
+  let demand: MetadataCatalogDemand | null = null;
+  try {
+    demand = catalogDemandSource?.() ?? null;
+  } catch {
+    demand = null;
+  }
+  for (const kind of demand?.providerKinds ?? []) kinds.add(KIND_MAP[kind] ?? kind);
+  if (demand?.hasRelay) {
+    const remote = (index as { relayRuntimeConfig?: Partial<RelayRuntimeConfig> }).relayRuntimeConfig
+      ?.officialProviderWhitelist;
+    const whitelist = Array.isArray(remote) && remote.length > 0
+      ? remote
+      : DEFAULT_RELAY_RUNTIME_CONFIG.officialProviderWhitelist;
+    for (const kind of whitelist) kinds.add(kind);
+  }
+  for (const kind of transientCatalogKinds) kinds.add(kind);
+  for (const kind of extraKinds) kinds.add(KIND_MAP[kind] ?? kind);
+  return [...kinds].filter((kind) => Boolean(index.providers[kind]));
+}
+
+interface CatalogSyncOutcome {
+  accepted: boolean;
+  newlyConfirmed: boolean;
+}
+
+/**
+ * Brings these catalogs up to date with the current index. On a revision mismatch the index is
+ * fetched once more and the catalog retried; if it still does not match, the last-good copy is kept
+ * and a diagnostic is recorded. Reports whether any catalog was accepted and whether any was newly
+ * confirmed.
+ */
+async function syncCatalogs(
+  kinds: readonly string[],
+  allowIndexRetry: boolean,
+): Promise<CatalogSyncOutcome> {
+  const confirmedBefore = new Set(confirmedCatalogKinds);
+  let accepted = false;
+  let pending = [...new Set(kinds)];
+  for (let attempt = 0; attempt < 2 && pending.length > 0; attempt += 1) {
+    const index = splitIndex;
+    if (!index) break;
+    const outcomes = await Promise.all(
+      pending.map(async (kind) => [kind, await ensureCatalog(kind, index)] as const),
+    );
+    if (outcomes.some(([, outcome]) => outcome === "accepted")) accepted = true;
+    const mismatched = outcomes
+      .filter(([, outcome]) => outcome === "revision_mismatch")
+      .map(([kind]) => kind);
+    if (mismatched.length === 0) break;
+    if (attempt === 1 || !allowIndexRetry) {
+      for (const kind of mismatched) reportCatalogDiagnostic(kind, "revision_mismatch");
+      break;
+    }
+    const refreshed = await fetchIndexOnce().catch((): IndexFetchOutcome => "failed");
+    if (refreshed !== "updated" && refreshed !== "not_modified") {
+      for (const kind of mismatched) reportCatalogDiagnostic(kind, "revision_mismatch");
+      break;
+    }
+    if (refreshed === "updated") accepted = true;
+    pending = mismatched;
+  }
+  const newlyConfirmed = [...confirmedCatalogKinds].some((kind) => !confirmedBefore.has(kind));
+  return { accepted, newlyConfirmed };
+}
+
+/** Reassemble the snapshot when a catalog was accepted; when only confirmation changed, still give subscribers a tick. */
+function settleSyncOutcome(outcome: CatalogSyncOutcome): void {
+  if (outcome.accepted) {
+    publishSplitSnapshot();
+    return;
+  }
+  if (outcome.newlyConfirmed && sourceMode === "split") {
+    metadataContentRevision += 1;
+    emitVersionChange();
+  }
+}
+
+async function ensureCatalog(
+  kind: string,
+  index: MetadataIndexPayload,
+): Promise<CatalogFetchOutcome> {
+  const expected = indexCatalogRevision(index, kind);
+  if (!expected) return "absent";
+  const stored = splitCatalogs.get(kind);
+  // A revision matching the index means the content is unchanged: no network request.
+  if (stored?.revision === expected) {
+    confirmedCatalogKinds.add(kind);
+    return "current";
+  }
+  const inflight = catalogFetches.get(kind);
+  if (inflight) return inflight;
+  const promise = fetchCatalog(kind, expected).finally(() => {
+    catalogFetches.delete(kind);
+  });
+  catalogFetches.set(kind, promise);
+  return promise;
+}
+
+async function fetchCatalog(kind: string, expectedRevision: string): Promise<CatalogFetchOutcome> {
+  const epoch = metadataSessionEpoch;
+  const stored = splitCatalogs.get(kind);
+  const headers: Record<string, string> = {};
+  if (stored?.etag) headers["If-None-Match"] = stored.etag;
+  let res: Response;
+  try {
+    res = await fetchWithReachability(
+      `${resolveMetadataBackendURL()}/api/metadata?view=catalog&provider=${encodeURIComponent(kind)}`,
+      { headers },
+    );
+  } catch {
+    catalogFailureAt.set(kind, Date.now());
+    return "failed";
+  }
+  // A test reset abandoned this session: never write into the new one.
+  if (epoch !== metadataSessionEpoch) return "failed";
+
+  if (res.status === 304) {
+    if (!stored?.etag) {
+      catalogFailureAt.set(kind, Date.now());
+      return "failed";
+    }
+    if (stored.revision !== expectedRevision) return "revision_mismatch";
+    confirmedCatalogKinds.add(kind);
+    splitManifest = {
+      ...splitManifest,
+      catalogCheckedAt: { ...splitManifest.catalogCheckedAt, [kind]: Date.now() },
+    };
+    persistSplitManifest();
+    return "current";
+  }
+  if (res.status === 404) {
+    // Listed in the index but the catalog is 404: this is not an empty catalog, keep the last-good copy.
+    catalogFailureAt.set(kind, Date.now());
+    reportCatalogDiagnostic(kind, "not_found");
+    return "not_found";
+  }
+  if (!res.ok) {
+    catalogFailureAt.set(kind, Date.now());
+    return "failed";
+  }
+
+  let data: unknown;
+  try {
+    const json = await res.json();
+    data = isRecord(json) && json.data !== undefined ? json.data : json;
+  } catch {
+    catalogFailureAt.set(kind, Date.now());
+    return "failed";
+  }
+  if (epoch !== metadataSessionEpoch) return "failed";
+  const expanded = expandMetadataCatalog(data, { provider: kind, revision: expectedRevision });
+  if (!expanded.ok) {
+    if (expanded.reason === "revision_mismatch") return "revision_mismatch";
+    // Any unresolved ref rejects the whole catalog and keeps the last-good copy; models are never dropped one by one.
+    catalogFailureAt.set(kind, Date.now());
+    reportCatalogDiagnostic(kind, expanded.reason);
+    return "rejected";
+  }
+
+  const entry = storedCatalogFromExpanded(expanded.catalog, res.headers.get("ETag"));
+  splitCatalogs.set(kind, entry);
+  catalogFailureAt.delete(kind);
+  confirmedCatalogKinds.add(kind);
+  splitManifest = {
+    ...splitManifest,
+    catalogCheckedAt: { ...splitManifest.catalogCheckedAt, [kind]: Date.now() },
+  };
+  persistSplitCatalog(kind, entry);
+  return "accepted";
+}
+
+/** An expanded catalog goes through the same allowlist before it reaches memory or storage, so raw provenance is never persisted. */
+function storedCatalogFromExpanded(
+  catalog: ExpandedMetadataCatalog,
+  etag: string | null,
+): StoredCatalog {
+  const normalized = normalizeMetadataEvidenceViews({
+    view: "lean",
+    providers: {
+      [catalog.provider]: {
+        ...(catalog.resolveMap ? { resolveMap: catalog.resolveMap } : {}),
+        models: catalog.models as Record<string, ModelMetadata>,
+      },
+    },
+  } as unknown as MetadataResponse);
+  return {
+    revision: catalog.revision,
+    etag,
+    ...(catalog.resolveMap ? { resolveMap: catalog.resolveMap } : {}),
+    models: normalized.providers[catalog.provider]?.models ?? {},
+    generationParameters: catalog.generationParameters as StoredCatalog["generationParameters"],
+  };
+}
+
+/**
+ * Migration from an older lean snapshot: each needed catalog starts from that provider's lean copy
+ * as its last-good (revision unknown, so it is always refetched). If the fetch fails the user still
+ * sees the old snapshot's content rather than nothing.
+ */
+function seedCatalogsFromLeanSnapshot(): void {
+  if (sourceMode !== "lean" || !cached) return;
+  const source = cached;
+  for (const kind of neededCatalogKinds()) {
+    if (splitCatalogs.has(kind)) continue;
+    const provider = source.providers[kind];
+    if (!provider?.models) continue;
+    splitCatalogs.set(kind, {
+      revision: null,
+      etag: null,
+      ...(provider.resolveMap ? { resolveMap: provider.resolveMap } : {}),
+      models: provider.models,
+      generationParameters: source.generationParameterTables ?? {},
+    });
+  }
+}
+
+/** Assemble the index plus loaded catalogs into a lean-shaped snapshot and swap it into `cached` (the result still goes through the lean decoding). */
+function publishSplitSnapshot(): void {
+  const index = splitIndex;
+  if (!index) return;
+  const catalogs = new Map<string, StoredCatalog>();
+  for (const [kind, entry] of splitCatalogs) {
+    if (index.providers[kind]) catalogs.set(kind, entry);
+  }
+  const assembled = assembleLeanFromSplit(index, catalogs) as unknown as MetadataResponse;
+  sourceMode = "split";
+  cachedETag = splitIndexETag;
+  cachedETagView = "index";
+  cached = normalizeMetadataEvidenceViews(assembled, cachedETag ?? undefined);
+  modelFactsInitialized = false;
+  cachedAt = splitManifest.indexCheckedAt ?? Date.now();
+  metadataContentRevision += 1;
+  emitVersionChange();
+}
+
+/** Once the split cache is written, the older single-blob lean cache is no longer needed. */
+function retireLeanCache(): void {
+  void deleteBlob(cacheKeyFor(SUPPORTED_CONTRACT_VERSION));
+}
+
+/**
+ * Called when a render-time lookup finds a catalog not loaded yet: fetch just that provider, at most
+ * one request in flight per provider, with a cooldown after a failure so "miss, fetch, fail, miss,
+ * fetch" can never loop.
+ */
+function requestCatalogLoad(kind: string): void {
+  if (sourceMode !== "split" || !splitIndex?.providers[kind]) return;
+  if (splitCatalogs.has(kind) || catalogFetches.has(kind)) return;
+  const failedAt = catalogFailureAt.get(kind);
+  if (failedAt !== undefined && Date.now() - failedAt < CATALOG_RETRY_COOLDOWN_MS) return;
+  void ensureProviderCatalogs([kind]).catch(() => {});
+}
+
+function reportCatalogDiagnostic(
+  kind: string,
+  reason: CatalogRejectionReason | "not_found",
+): void {
+  // Only the provider kind and the reason enum are recorded, never any part of the response body.
+  trackEvent("metadata_catalog_rejected", { provider_kind: kind, reason });
+}
+
 function refreshInBackground(): void {
   // __seedMetadataCacheForTest installs a private fixture. A background refresh
   // against the public catalog would replace it mid-suite (availability contract
@@ -3651,13 +4293,17 @@ function refreshInBackground(): void {
   fetchMetadata().catch(() => {});
 }
 
-function persistCache(data: MetadataResponse, contractVersion: number): void {
-  // Deferred to idle: the IDB write itself is async, but structured-cloning a 3MB object still costs main-thread time
+function scheduleIdle(callback: () => void): void {
+  // Deferred to idle: the IDB write itself is async, but structured-cloning a large object still costs main-thread time
   const schedule =
     typeof requestIdleCallback === "function"
       ? requestIdleCallback
       : (cb: () => void) => setTimeout(cb, 0);
-  schedule(() => {
+  schedule(callback);
+}
+
+function persistCache(data: MetadataResponse, contractVersion: number): void {
+  scheduleIdle(() => {
     // A cache-hit allowlist rewrite is scheduled asynchronously. If a
     // newer fetch changed the contract bucket before this callback runs,
     // writing the old object would resurrect the stale bucket after prune.
@@ -3666,10 +4312,117 @@ function persistCache(data: MetadataResponse, contractVersion: number): void {
       data,
       etag: cachedETag,
       allowlistVersion: METADATA_ALLOWLIST_VERSION,
+      ...(cachedETagView ? { etagView: cachedETagView } : {}),
     };
     // writeBlob swallows its own failures: a cache write that does not land just means one more fetch next time, not an error
     void writeBlob(cacheKeyFor(contractVersion), blob);
   });
+}
+
+function persistSplitIndex(data: MetadataIndexPayload, etag: string | null): void {
+  scheduleIdle(() => {
+    if (splitIndex !== data) return;
+    void writeBlob<SplitIndexBlob>(splitIndexKey(), { data, etag });
+    void writeBlob<SplitManifestBlob>(splitManifestKey(), splitManifest);
+  });
+}
+
+function persistSplitCatalog(kind: string, entry: StoredCatalog): void {
+  scheduleIdle(() => {
+    if (splitCatalogs.get(kind) !== entry || entry.revision === null) return;
+    void writeBlob<SplitCatalogBlob>(splitCatalogKey(kind), {
+      provider: kind,
+      revision: entry.revision,
+      etag: entry.etag,
+      ...(entry.resolveMap ? { resolveMap: entry.resolveMap } : {}),
+      models: entry.models,
+      generationParameters: entry.generationParameters,
+      allowlistVersion: METADATA_ALLOWLIST_VERSION,
+    });
+    void writeBlob<SplitManifestBlob>(splitManifestKey(), splitManifest);
+  });
+}
+
+/** A 304 only updates timestamps: the manifest is small and the body blobs stay untouched. */
+function persistSplitManifest(): void {
+  const snapshot = splitManifest;
+  scheduleIdle(() => {
+    if (splitManifest !== snapshot) return;
+    void writeBlob<SplitManifestBlob>(splitManifestKey(), snapshot);
+  });
+}
+
+interface LoadedSplitCache {
+  index: MetadataIndexPayload;
+  etag: string | null;
+  catalogs: Map<string, StoredCatalog>;
+  manifest: SplitManifestBlob;
+  timestamp: number;
+}
+
+/** Read the split cache back. Unreadable, malformed or wrong-contract data counts as absent and never blocks startup. */
+async function readSplitCache(): Promise<LoadedSplitCache | null> {
+  try {
+    const [indexEntry, manifestEntry] = await Promise.all([
+      readBlob<SplitIndexBlob>(splitIndexKey()),
+      readBlob<SplitManifestBlob>(splitManifestKey()),
+    ]);
+    const data = indexEntry?.value?.data;
+    if (!indexEntry || !isMetadataIndexPayload(data)) return null;
+    const contractVersion = (data as { contractVersion?: number }).contractVersion ?? 1;
+    if (contractVersion !== SUPPORTED_CONTRACT_VERSION) return null;
+
+    const manifest: SplitManifestBlob = {
+      ...(typeof manifestEntry?.value?.indexCheckedAt === "number"
+        ? { indexCheckedAt: manifestEntry.value.indexCheckedAt }
+        : {}),
+      catalogCheckedAt: isRecord(manifestEntry?.value?.catalogCheckedAt)
+        ? manifestEntry.value.catalogCheckedAt
+        : {},
+    };
+    const kinds = Object.keys(data.providers);
+    const entries = await Promise.all(
+      kinds.map((kind) => readBlob<SplitCatalogBlob>(splitCatalogKey(kind))),
+    );
+    const catalogs = new Map<string, StoredCatalog>();
+    entries.forEach((entry, position) => {
+      const value = entry?.value;
+      const kind = kinds[position];
+      if (
+        !value
+        || value.provider !== kind
+        || typeof value.revision !== "string"
+        || !isRecord(value.models)
+        || value.allowlistVersion !== METADATA_ALLOWLIST_VERSION
+      ) {
+        return;
+      }
+      catalogs.set(kind, {
+        revision: value.revision,
+        etag: typeof value.etag === "string" ? value.etag : null,
+        ...(isRecord(value.resolveMap) ? { resolveMap: value.resolveMap } : {}),
+        models: value.models,
+        generationParameters: isRecord(value.generationParameters) ? value.generationParameters : {},
+      });
+    });
+    return {
+      index: data,
+      etag: typeof indexEntry.value.etag === "string" ? indexEntry.value.etag : null,
+      catalogs,
+      manifest,
+      timestamp: Math.max(indexEntry.timestamp, manifest.indexCheckedAt ?? 0),
+    };
+  } catch {
+    return null;
+  }
+}
+
+function commitSplitCache(split: LoadedSplitCache): void {
+  splitIndex = split.index;
+  splitIndexETag = split.etag;
+  splitManifest = split.manifest;
+  splitCatalogs.clear();
+  for (const [kind, entry] of split.catalogs) splitCatalogs.set(kind, entry);
 }
 
 /**

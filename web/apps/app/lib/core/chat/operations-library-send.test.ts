@@ -72,6 +72,7 @@ vi.mock("../metadata/metadata-client", async (importOriginal) => ({
   resolveCatalogModel: vi.fn(() => ({ contextLength: 128_000 })),
   // Routing itself is covered by library/routing.test.ts; here it only has to answer yes.
   isMetadataSnapshotConfirmed: vi.fn(() => true),
+  getProviderCatalogStatus: vi.fn(() => "loaded"),
 }));
 vi.mock("../providers/proxy-client", () => ({ sendLibraryAgentLeg: vi.fn() }));
 vi.mock('./capability-recovery-runtime', () => ({

@@ -481,8 +481,9 @@ export function ChatView({ conversationId, searchQuery }: ChatViewProps) {
   useEffect(() => {
     if (libraryResearchRoute !== 'pending') return;
     if (libraryRefreshedPendingKey === libraryPendingKey) return;
-    void refreshMetadata().finally(() => setLibraryRefreshedPendingKey(libraryPendingKey));
-  }, [libraryResearchRoute, libraryPendingKey, libraryRefreshedPendingKey]);
+    void refreshMetadata({ providerKinds: provider ? [provider.kind] : [] })
+      .finally(() => setLibraryRefreshedPendingKey(libraryPendingKey));
+  }, [libraryResearchRoute, libraryPendingKey, libraryRefreshedPendingKey, provider?.kind]);
   // Still pending after one refresh means it really is not in the catalog, so present it
   // as unavailable rather than leaving the copy at "confirming" forever.
   const libraryDisplayRoute =

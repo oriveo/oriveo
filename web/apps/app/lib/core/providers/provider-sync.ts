@@ -324,8 +324,9 @@ export async function resyncProviderInStore(
     lastError: undefined,
   });
 
-  // Refresh metadata so pricing and capability data are current.
-  await refreshMetadata().catch(() => {});
+  // Refresh metadata so pricing and capability data are current (a conditional index request plus
+  // this provider's catalog).
+  await refreshMetadata({ providerKinds: [provider.kind] }).catch(() => {});
 
   if (provider.kind === 'relay') {
     await resyncRelayProvider(store, provider);

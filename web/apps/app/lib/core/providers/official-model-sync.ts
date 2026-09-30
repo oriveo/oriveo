@@ -79,6 +79,12 @@ export interface OfficialProviderModelsBuild {
    * or to translate old ids to canonical ones while importing a backup.
    */
   aliasRemappings: Record<string, string>;
+  /**
+   * An empty result caused by the catalog not having loaded yet. Kept apart from "the catalog has
+   * no such provider / no models": callers should load this provider's catalog and rebuild rather
+   * than treat it as an empty catalog.
+   */
+  catalogPending?: boolean;
 }
 
 /**
@@ -114,7 +120,10 @@ export function buildOfficialEnabledModels(
     metadata,
   );
 
-  // The catalog has no entry for this provider -> safe degrade
+  // The catalog has no entry for this provider -> safe degrade; a pending catalog is flagged separately
+  if (resolved.catalogPending) {
+    return { ...empty, catalogPending: true };
+  }
   const canonicalCatalog = resolved.catalog.filter((model) => !model.isManual);
   if (canonicalCatalog.length === 0) {
     return empty;

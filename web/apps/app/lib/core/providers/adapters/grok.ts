@@ -54,11 +54,11 @@ export async function syncModels(
     const json = (await syncModelsProxy("grok", apiKey, baseURL)) as {
       data?: RemoteModel[];
     };
-    await refreshMetadata().catch(() => initMetadata().catch(() => {}));
+    await refreshMetadata({ providerKinds: ["grok"] }).catch(() => initMetadata().catch(() => {}));
     return buildGrokSyncResult(json.data ?? []);
   }
 
-  await refreshMetadata().catch(() => initMetadata().catch(() => {}));
+  await refreshMetadata({ providerKinds: ["grok"] }).catch(() => initMetadata().catch(() => {}));
   const modelIds = listProviderModelIds("grok");
   return buildGrokSyncResult(modelIds.map((id) => ({ id })));
 }

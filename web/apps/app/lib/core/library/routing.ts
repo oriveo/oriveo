@@ -1,6 +1,7 @@
 import type { AIModel, Provider } from "@oriveo/shared";
 import {
   getLibraryRuntimeConfig,
+  getProviderCatalogStatus,
   getRelayRuntimeConfig,
   isMetadataSnapshotConfirmed,
   resolveCatalogModel,
@@ -132,6 +133,16 @@ export function metadataCanDecideRoute(
   provider: Provider,
   model: AIModel,
 ): boolean {
+  // This provider's catalog has not loaded yet: the route cannot be decided, which is not the same
+  // as unsupported. The lookup itself loads just this provider. Subscription catalogs do not come
+  // from metadata and relay is not in the index (absent), so neither is affected by this gate.
+  if (
+    provider.kind !== "relay"
+    && provider.authMode !== "subscription"
+    && getProviderCatalogStatus(provider.kind) === "pending"
+  ) {
+    return false;
+  }
   return effectiveCapabilityTransport(provider, model) !== "unknown";
 }
 
@@ -160,7 +171,7 @@ export function resolveLibraryResearchRoute(
   snapshotConfirmed?: boolean,
   relayIdentity?: RelayCapabilityEvidenceIdentity,
 ): LibraryResearchRoute {
-  const confirmed = snapshotConfirmed ?? isMetadataSnapshotConfirmed();
+  const confirmed = snapshotConfirmed ?? isMetadataSnapshotConfirmed(provider?.kind);
   // When the build-time kill switch and the backend master switch are both off, both chains go down.
   // The build-time one is a locally certain fact (a new snapshot cannot change it), while the backend
   // `enabled` comes from metadata and must not yield an "unavailable" verdict before this session has
@@ -229,7 +240,7 @@ export function resolveLibraryResearchUnavailableReason(
   snapshotConfirmed?: boolean,
   relayIdentity?: RelayCapabilityEvidenceIdentity,
 ): "serverDisabled" | "providerDenied" | "modelUnsupported" | undefined {
-  const confirmed = snapshotConfirmed ?? isMetadataSnapshotConfirmed();
+  const confirmed = snapshotConfirmed ?? isMetadataSnapshotConfirmed(provider?.kind);
   if (!isLibraryFeatureEnabled()) {
     // Turning it off at build time is a locally certain fact; an unconfirmed backend enabled=false
     // actually routes to pending, so no "serverDisabled" verdict is drawn here either.

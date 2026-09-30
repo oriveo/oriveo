@@ -462,7 +462,7 @@ export function ModelOptionsPopover({
   const refetchRuntime = useCallback(async () => {
     setIsRefreshingRuntime(true);
     setRuntimeRefreshFailed(false);
-    await refreshMetadata();
+    await refreshMetadata({ providerKinds: provider ? [provider.kind] : [] });
     setIsRefreshingRuntime(false);
     // Still nothing after refetching means a real failure, and it has to be stated. Saying nothing
     // leaves the user unable to tell whether the button did nothing or they pressed the wrong one.

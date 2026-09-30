@@ -167,8 +167,10 @@ describe('metadata-fixture (shared with iOS / Android)', () => {
     await metadata.initMetadata();
 
     const runtime = metadata.getRelayRuntimeConfig();
-    // An empty array must be read as 'not sent' and fall back to the seven official providers.
-    expect(runtime.officialProviderWhitelist).toHaveLength(7);
+    // An empty array must be read as 'not sent' and fall back to the eight official providers the
+    // catalog service uses by default.
+    expect(runtime.officialProviderWhitelist).toHaveLength(8);
+    expect(runtime.officialProviderWhitelist).toContain('moonshot');
     expect(runtime.officialProviderWhitelist).toContain('openAI');
     expect(runtime.officialProviderWhitelist).toContain('anthropic');
   });
