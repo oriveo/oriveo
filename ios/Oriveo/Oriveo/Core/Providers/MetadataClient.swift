@@ -1998,7 +1998,8 @@ actor MetadataClient {
         guard scope == .providerModelTransport else { return false }
         switch source {
         case .serverTyped:
-            return grade == .machineVerified
+            // declared: tool-call support taken from models.dev rather than a provider machine field.
+            return grade == .machineVerified || grade == .declared
         case .serverProfile:
             return grade == .effectVerified || grade == .declared
         case .operatorOverride:

@@ -8,7 +8,9 @@ import java.io.File
 import java.net.HttpURLConnection
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonObject
 import org.junit.Assert.assertEquals
@@ -226,11 +228,118 @@ class MetadataLeanContractTest {
         assertNotNull(client.resolveCatalogModel("gpt-fixture", ProviderKind.OpenAI))
     }
 
+    /**
+     * Tool-call support taken from models.dev arrives as server_typed + declared. Both verdicts
+     * must survive lean decoding and reach the evidence facade.
+     */
+    @Test
+    fun `declared server typed tool call evidence reaches the facade verdict`() {
+        val client = MetadataClient()
+        client.loadNetworkPayloadForTesting(leanWithDeclaredToolCall("declared"), "etag-declared")
+
+        for ((id, support, policy) in listOf(
+            Triple(DECLARED_SUPPORTED, "supported", "allow"),
+            Triple(DECLARED_UNSUPPORTED, "unsupported", "omit_unsupported"),
+        )) {
+            val resolved = client.resolveCatalogModel(id, ProviderKind.OpenAI)!!
+            val candidate = resolved.capabilityEvidenceCandidates.orEmpty().single()
+            assertEquals("tool_call", candidate.key)
+            assertEquals("server_typed", candidate.source)
+            assertEquals("declared", candidate.grade)
+            assertEquals(support, candidate.support)
+
+            val decision = CapabilityEvidenceProductionAdapter.capabilityProjection(
+                provider = Provider(id = "official-openai", kind = ProviderKind.OpenAI),
+                model = AIModel(id = id, name = id),
+                keys = setOf("tool_call"),
+                finalTransport = resolved.transport,
+                metadataClient = client,
+                now = DECLARED_NOW,
+            ).decision("tool_call")!!
+            assertEquals(id, support, decision.resolution.support)
+            assertEquals(id, "server_typed", decision.resolution.source)
+            assertEquals(id, "declared", decision.resolution.grade)
+            assertEquals(id, policy, decision.resolution.requestPolicy)
+        }
+    }
+
+    @Test
+    fun `server typed evidence with a grade outside the public allowlist is still dropped`() {
+        val client = MetadataClient()
+        client.loadNetworkPayloadForTesting(leanWithDeclaredToolCall("observed"), "etag-observed")
+
+        val model = client.resolveCatalogModel(DECLARED_SUPPORTED, ProviderKind.OpenAI)!!
+        assertEquals(setOf("tool_call"), model.capabilityEvidenceOwnedKeys)
+        assertTrue(model.capabilityEvidenceCandidates.orEmpty().isEmpty())
+    }
+
+    /** The shared lean fixture plus one declared-supported and one declared-unsupported model. */
+    private fun leanWithDeclaredToolCall(grade: String): String {
+        val lean = Json.parseToJsonElement(contractFixture()).jsonObject.getValue("leanResponse").jsonObject
+        val data = lean.getValue("data").jsonObject
+        val openAI = data.getValue("providers").jsonObject.getValue("openAI").jsonObject
+        fun model(id: String, support: String) = buildJsonObject {
+            put("canonicalModelId", JsonPrimitive(id))
+            put("displayName", JsonPrimitive(id))
+            put("transport", JsonPrimitive(DECLARED_TRANSPORT))
+            put(
+                "capabilityEvidenceView",
+                buildJsonObject {
+                    put(
+                        "candidates",
+                        buildJsonArray {
+                            add(
+                                buildJsonObject {
+                                    put("key", JsonPrimitive("tool_call"))
+                                    put("support", JsonPrimitive(support))
+                                    put("source", JsonPrimitive("server_typed"))
+                                    put("grade", JsonPrimitive(grade))
+                                    put("observedAt", JsonPrimitive(DECLARED_OBSERVED_AT))
+                                    put("expiresAt", JsonPrimitive(DECLARED_EXPIRES_AT))
+                                },
+                            )
+                        },
+                    )
+                },
+            )
+        }
+        val provider = JsonObject(
+            openAI + mapOf(
+                "resolveMap" to JsonObject(
+                    openAI.getValue("resolveMap").jsonObject + mapOf(
+                        DECLARED_SUPPORTED to JsonPrimitive(DECLARED_SUPPORTED),
+                        DECLARED_UNSUPPORTED to JsonPrimitive(DECLARED_UNSUPPORTED),
+                    ),
+                ),
+                "models" to JsonObject(
+                    openAI.getValue("models").jsonObject + mapOf(
+                        DECLARED_SUPPORTED to model(DECLARED_SUPPORTED, "supported"),
+                        DECLARED_UNSUPPORTED to model(DECLARED_UNSUPPORTED, "unsupported"),
+                    ),
+                ),
+            ),
+        )
+        val providers = JsonObject(data.getValue("providers").jsonObject + mapOf("openAI" to provider))
+        return JsonObject(lean + mapOf("data" to JsonObject(data + mapOf("providers" to providers)))).toString()
+    }
+
     private fun contractFixture(): String {
         val path = generateSequence(File(System.getProperty("user.dir") ?: ".").absoluteFile) { it.parentFile }
             .map { File(it, "shared/model-contracts/metadata_lean_contract.v1.json") }
             .firstOrNull(File::exists)
             ?: error("metadata_lean_contract.v1.json not found")
         return path.readText(Charsets.UTF_8)
+    }
+
+    private companion object {
+        const val DECLARED_SUPPORTED = "gpt-declared-tools"
+        const val DECLARED_UNSUPPORTED = "gpt-declared-no-tools"
+        // Final transport as the catalog publishes it for OpenAI chat models.
+        const val DECLARED_TRANSPORT = "openai_chat"
+        const val DECLARED_OBSERVED_AT = 1_777_000_000_000L
+        const val DECLARED_EXPIRES_AT = DECLARED_OBSERVED_AT + 7 * 24 * 60 * 60 * 1000L
+
+        // Inside the evidence lifetime, so freshness does not depend on today's date.
+        const val DECLARED_NOW = DECLARED_OBSERVED_AT + (DECLARED_EXPIRES_AT - DECLARED_OBSERVED_AT) / 2
     }
 }

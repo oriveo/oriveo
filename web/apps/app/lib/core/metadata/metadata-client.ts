@@ -2964,7 +2964,8 @@ const PUBLIC_CAPABILITY_SOURCE_GRADE: Record<
   CapabilityEvidenceCandidateView["source"],
   readonly CapabilityEvidenceCandidateView["grade"][]
 > = {
-  server_typed: ["machine_verified"],
+  // declared: tool-call support taken from models.dev rather than a provider machine field.
+  server_typed: ["machine_verified", "declared"],
   server_profile: ["effect_verified", "declared"],
   operator_override: ["operator"],
 };

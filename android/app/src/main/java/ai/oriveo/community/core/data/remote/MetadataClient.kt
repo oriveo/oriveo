@@ -2753,7 +2753,8 @@ class MetadataClient internal constructor(
         private const val PUBLIC_CAPABILITY_EVIDENCE_SCHEMA = "capability-evidence-view/v1"
         private val PUBLIC_CAPABILITY_SUPPORT = setOf("supported", "unsupported", "unknown")
         private val PUBLIC_CAPABILITY_SOURCE_GRADE = mapOf(
-            "server_typed" to setOf("machine_verified"),
+            // declared: tool-call support taken from models.dev rather than a provider machine field.
+            "server_typed" to setOf("machine_verified", "declared"),
             "server_profile" to setOf("effect_verified", "declared"),
             "operator_override" to setOf("operator"),
         )

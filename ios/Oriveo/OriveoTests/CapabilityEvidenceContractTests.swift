@@ -596,6 +596,64 @@ struct CapabilityEvidenceContractTests {
         await MetadataClient.shared.resetForTesting()
     }
 
+    /// Tool-call support taken from models.dev arrives as server_typed + declared. Both verdicts
+    /// must survive lean decoding and reach the capability projection.
+    @Test("Declared Server Typed Tool Call Evidence Reaches Capability Projection")
+    func declaredServerTypedToolCallEvidenceReachesCapabilityProjection() async throws {
+        await MetadataClient.shared.resetForTesting()
+        let etag = "declared-etag"
+        try await MetadataClient.shared.loadForTesting(
+            json: try Self.leanWithDeclaredToolCall(grade: "declared"), metadataETag: etag
+        )
+        let provider = TestFactories.makeProvider(id: UUID(), kind: .openAI)
+        let cases: [(id: String, support: CapabilityEvidenceFacade.Support, policy: CapabilityEvidenceFacade.RequestPolicy)] = [
+            (Self.declaredSupportedID, .supported, .allow),
+            (Self.declaredUnsupportedID, .unsupported, .omitUnsupported),
+        ]
+        for item in cases {
+            let resolved = try #require(await MetadataClient.shared.resolveCatalogModel(
+                modelID: item.id, providerKind: .openAI
+            ))
+            let candidate = try #require(resolved.capabilityEvidenceCandidates.first, "\(item.id)")
+            #expect(resolved.capabilityEvidenceCandidates.count == 1)
+            #expect(candidate.key == "tool_call")
+            #expect(candidate.source == .serverTyped)
+            #expect(candidate.grade == .declared)
+            #expect(candidate.support == item.support)
+
+            let model = MetadataClient.shared.syncCurrentCapabilityEvidenceModel(
+                TestFactories.makeModel(id: item.id), providerKind: .openAI
+            )
+            // The projection reads the wall clock, so the fixture evidence is minted around it.
+            let identity = CapabilityEvidenceRequestIdentity.make(
+                provider: provider, model: model, partitionID: "u1",
+                hasExplicitValue: false, metadataETag: etag
+            )
+            let resolution = try #require(CapabilityEvidenceProductionAdapter.capabilityProjection(
+                provider: provider, model: model, identity: identity, keys: ["tool_call"]
+            ).resolution(for: "tool_call"))
+            #expect(resolution.support == item.support, "\(item.id)")
+            #expect(resolution.source == .serverTyped, "\(item.id)")
+            #expect(resolution.grade == .declared, "\(item.id)")
+            #expect(resolution.requestPolicy == item.policy, "\(item.id)")
+        }
+        await MetadataClient.shared.resetForTesting()
+    }
+
+    @Test("Server Typed Evidence With A Grade Outside The Allowlist Is Dropped")
+    func serverTypedEvidenceWithUnlistedGradeIsDropped() async throws {
+        await MetadataClient.shared.resetForTesting()
+        try await MetadataClient.shared.loadForTesting(
+            json: try Self.leanWithDeclaredToolCall(grade: "observed"), metadataETag: "observed-etag"
+        )
+        let resolved = try #require(await MetadataClient.shared.resolveCatalogModel(
+            modelID: Self.declaredSupportedID, providerKind: .openAI
+        ))
+        #expect(resolved.capabilityEvidenceOwnedKeys == ["tool_call"])
+        #expect(resolved.capabilityEvidenceCandidates.isEmpty)
+        await MetadataClient.shared.resetForTesting()
+    }
+
     @Test("Malformed Namespace Fails Closed For General Capabilities")
     func malformedNamespaceFailsClosedForGeneralCapabilities() async throws {
         await MetadataClient.shared.resetForTesting()
@@ -1038,6 +1096,56 @@ struct CapabilityEvidenceContractTests {
     }
 
     // MARK: - Fixture loading
+
+    private static let declaredSupportedID = "gpt-declared-tools"
+    private static let declaredUnsupportedID = "gpt-declared-no-tools"
+    // Final transport as the catalog publishes it for OpenAI chat models.
+    private static let declaredTransport = "openai_chat"
+
+    /// The shared lean fixture plus one declared-supported and one declared-unsupported model.
+    /// Evidence is observed an hour ago and expires in a week, relative to the real clock.
+    private static func leanWithDeclaredToolCall(grade: String) throws -> String {
+        let now = Int64(Date().timeIntervalSince1970 * 1_000)
+        let observedAt = now - 60 * 60 * 1_000
+        let expiresAt = now + 7 * 24 * 60 * 60 * 1_000
+        var folder = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+        var fixtureURL: URL?
+        while folder.path != "/" {
+            let candidate = folder.appendingPathComponent("shared/model-contracts/metadata_lean_contract.v1.json")
+            if FileManager.default.fileExists(atPath: candidate.path) { fixtureURL = candidate; break }
+            folder.deleteLastPathComponent()
+        }
+        let url = try #require(fixtureURL)
+        let root = try #require(JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any])
+        let response = try #require(root["leanResponse"] as? [String: Any])
+        var data = try #require(response["data"] as? [String: Any])
+        var providers = try #require(data["providers"] as? [String: Any])
+        var openAI = try #require(providers["openAI"] as? [String: Any])
+        var models = try #require(openAI["models"] as? [String: Any])
+        var resolveMap = try #require(openAI["resolveMap"] as? [String: Any])
+        for (id, support) in [(declaredSupportedID, "supported"), (declaredUnsupportedID, "unsupported")] {
+            models[id] = [
+                "canonicalModelId": id,
+                "displayName": id,
+                "capabilities": ["text"],
+                "transport": declaredTransport,
+                "capabilityEvidenceView": ["candidates": [[
+                    "key": "tool_call",
+                    "support": support,
+                    "source": "server_typed",
+                    "grade": grade,
+                    "observedAt": observedAt,
+                    "expiresAt": expiresAt,
+                ]]],
+            ] as [String: Any]
+            resolveMap[id] = id
+        }
+        openAI["models"] = models
+        openAI["resolveMap"] = resolveMap
+        providers["openAI"] = openAI
+        data["providers"] = providers
+        return String(decoding: try JSONSerialization.data(withJSONObject: data), as: UTF8.self)
+    }
 
     private static func loadContract() throws -> Contract {
         try loadJSON(relativePath: ["shared", "model-contracts", "capability_evidence_contract.v1.json"])
