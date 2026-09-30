@@ -343,7 +343,7 @@ describe("/api/chat/stream", () => {
     );
     expect(trackEventMock).toHaveBeenCalledWith("metadata_base_url_rejected", {
       provider_kind: "openAI",
-      base_url: "https://evil.example",
+      host: "evil.example",
       reason: "host_not_allowed",
     });
   });

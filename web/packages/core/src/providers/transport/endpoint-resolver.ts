@@ -20,9 +20,13 @@ export type GetProviderTransportFn = (
   providerKind: ProviderKind | string,
 ) => ProviderTransportDefinition | undefined;
 
+/**
+ * Payload for a rejected metadata baseURL. Carries only the host ('invalid' when it cannot be
+ * parsed), never the full URL, since a published address may include a path or credentials.
+ */
 export type MetadataBaseURLRejectionReporter = (event: {
   providerKind: string;
-  baseUrl: string;
+  host: string;
   reason: 'invalid_url' | 'non_https' | 'host_not_allowed';
 }) => void;
 
@@ -149,10 +153,10 @@ function normalizeBaseURL(url: string | undefined | null): string | undefined {
 function reportRejectedMetadataBaseURL(
   reporter: MetadataBaseURLRejectionReporter | undefined,
   providerKind: ProviderKind | string,
-  baseUrl: string,
+  host: string,
   reason: 'invalid_url' | 'non_https' | 'host_not_allowed',
 ) {
-  reporter?.({ providerKind: String(providerKind), baseUrl, reason });
+  reporter?.({ providerKind: String(providerKind), host, reason });
 }
 
 function hostnameAllowed(hostname: string, allowedSuffixes: string[]): boolean {
@@ -175,15 +179,15 @@ export function sanitizeMetadataBaseURL(
   try {
     parsed = new URL(normalized);
   } catch {
-    reportRejectedMetadataBaseURL(reporter, providerKind, normalized, 'invalid_url');
+    reportRejectedMetadataBaseURL(reporter, providerKind, 'invalid', 'invalid_url');
     return undefined;
   }
   if (parsed.protocol !== 'https:') {
-    reportRejectedMetadataBaseURL(reporter, providerKind, normalized, 'non_https');
+    reportRejectedMetadataBaseURL(reporter, providerKind, parsed.hostname, 'non_https');
     return undefined;
   }
   if (!hostnameAllowed(parsed.hostname, allowedSuffixes)) {
-    reportRejectedMetadataBaseURL(reporter, providerKind, normalized, 'host_not_allowed');
+    reportRejectedMetadataBaseURL(reporter, providerKind, parsed.hostname, 'host_not_allowed');
     return undefined;
   }
   return normalized;

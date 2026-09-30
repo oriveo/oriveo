@@ -12,7 +12,7 @@ import { getRuntimeMetadata } from "../runtime";
 const reportRejectedMetadataBaseURL: MetadataBaseURLRejectionReporter = (event) => {
   trackEvent("metadata_base_url_rejected", {
     provider_kind: event.providerKind,
-    base_url: event.baseUrl,
+    host: event.host,
     reason: event.reason,
   });
 };
