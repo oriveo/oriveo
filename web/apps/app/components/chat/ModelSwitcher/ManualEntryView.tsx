@@ -1,4 +1,4 @@
-import { ArrowLeft, X } from "lucide-react";
+import { BackButton, CloseButton } from "@oriveo/ui";
 import { useTranslations } from "next-intl";
 import type { Provider } from "@oriveo/shared";
 import { ProviderIcon } from "../../ProviderIcon";
@@ -30,14 +30,11 @@ export function ManualEntryView({ data, activeProvider, onClose }: ManualEntryVi
     <>
       <div className={styles.subHeader}>
         <div className={styles.subHeaderPrimary}>
-          <button
-            type="button"
+          <BackButton
             className={styles.backBtn}
+            label={tc("back")}
             onClick={() => setView({ kind: "browse" })}
-            aria-label={tc("back")}
-          >
-            <ArrowLeft size={16} />
-          </button>
+          />
           <div className={styles.subHeaderText}>
             <div className={styles.title}>{t("manualEntry")}</div>
             <div className={styles.subtitle}>
@@ -45,14 +42,11 @@ export function ManualEntryView({ data, activeProvider, onClose }: ManualEntryVi
             </div>
           </div>
         </div>
-        <button
-          type="button"
+        <CloseButton
           className={styles.closeBtn}
+          label={tc("cancel")}
           onClick={onClose}
-          aria-label={tc("cancel")}
-        >
-          <X size={16} />
-        </button>
+        />
       </div>
 
       <div className={styles.manualBody}>

@@ -78,7 +78,7 @@ describe('advanced settings developer group', () => {
 
     fireEvent.click(row);
     expect(screen.getByTestId('custom-request-fields')).toBeTruthy();
-    fireEvent.click(screen.getByText('back'));
+    fireEvent.click(screen.getByRole('button', { name: 'back' }));
     expect(screen.getByTestId('generation-developer-row')).toBeTruthy();
   });
 
@@ -87,7 +87,7 @@ describe('advanced settings developer group', () => {
     fireEvent.click(screen.getByTestId('generation-developer-row'));
 
     fireEvent.change(document.querySelector('textarea')!, { target: { value: '{"enable_search":true}' } });
-    fireEvent.click(screen.getByText('back'));
+    fireEvent.click(screen.getByRole('button', { name: 'back' }));
 
     expect(screen.getByTestId('generation-developer-row').textContent).toContain('customRequestFieldsInUse');
   });

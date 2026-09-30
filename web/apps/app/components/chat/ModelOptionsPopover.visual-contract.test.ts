@@ -340,7 +340,7 @@ describe('model options popover geometry', () => {
       return Number(/inset(?:-block)?\s*:\s*-(\d+(?:\.\d+)?)px/.exec(body)![1]);
     };
 
-    // Back control: 32 visually, extended by 6 on each side to 44x44. It is the only way out of a second-level pane, so a mis-tap costs the most.
+    // Back control (shared BackButton): 40 visually, extended by 2 on each side to 44x44. It is the only way out of a second-level pane, so a mis-tap costs the most.
     expect(minHeight('.modelControlsBack') + outset('.modelControlsBack::after') * 2)
       .toBeGreaterThanOrEqual(44);
     // Secondary in-card actions (switch model, refetch, open protocol settings): 36 visually plus 2x4.

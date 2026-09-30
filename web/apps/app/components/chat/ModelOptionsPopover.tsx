@@ -2,8 +2,9 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { Check, ChevronLeft, ChevronRight, Globe, Lock, RefreshCw, Settings2, SlidersHorizontal, Sparkles } from 'lucide-react';
+import { Check, ChevronRight, Globe, Lock, RefreshCw, Settings2, SlidersHorizontal, Sparkles } from 'lucide-react';
 import type { AIModel, Provider } from '@oriveo/shared';
+import { BackButton } from '@oriveo/ui';
 import type { ReasoningIntent } from '@oriveo/core/providers/request-preference/types';
 import { GenerationParameterPanel } from '../generation/GenerationParameterPanel';
 import { CustomRequestFieldsEditor } from '../generation/CustomRequestFieldsEditor';
@@ -888,15 +889,12 @@ export function ModelOptionsPopover({
   const advancedPane = (
     <>
       <header className={styles.modelControlsHeader} data-secondary="true">
-        <button
+        <BackButton
           ref={backRef}
-          type="button"
           className={styles.modelControlsBack}
-          aria-label={tCommon('back')}
+          label={tCommon('back')}
           onClick={() => setPane({ kind: 'main' })}
-        >
-          <ChevronLeft size={16} aria-hidden="true" />
-        </button>
+        />
         <strong className={styles.modelControlsTitle}>{tCommon('modelBehavior')}</strong>
       </header>
       <div className={styles.modelControlSections}>
@@ -940,15 +938,12 @@ export function ModelOptionsPopover({
   const customFieldsPane = (
     <>
       <header className={styles.modelControlsHeader} data-secondary="true">
-        <button
+        <BackButton
           ref={backRef}
-          type="button"
           className={styles.modelControlsBack}
-          aria-label={tCommon('back')}
+          label={tCommon('back')}
           onClick={() => setPane({ kind: 'advanced' })}
-        >
-          <ChevronLeft size={16} aria-hidden="true" />
-        </button>
+        />
         <strong className={styles.modelControlsTitle}>{tCommon('customRequestFieldsCustom')}</strong>
       </header>
       <div className={styles.modelControlSections}>
@@ -970,15 +965,12 @@ export function ModelOptionsPopover({
   const supportedModelsPane = (capability: CustomFragmentOwner) => (
     <>
       <header className={styles.modelControlsHeader} data-secondary="true">
-        <button
+        <BackButton
           ref={backRef}
-          type="button"
           className={styles.modelControlsBack}
-          aria-label={tCommon('back')}
+          label={tCommon('back')}
           onClick={() => setPane({ kind: 'main' })}
-        >
-          <ChevronLeft size={16} aria-hidden="true" />
-        </button>
+        />
         <strong className={styles.modelControlsTitle}>{tr(CAPABILITY_TITLE_KEYS[capability])}</strong>
       </header>
       <div className={styles.modelControlSections}>

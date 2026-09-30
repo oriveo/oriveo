@@ -115,9 +115,12 @@
   font-weight: 500;
 }
 
-.backBtn,
-.clearBtn,
-.closeBtn {
+/* Look comes from @oriveo/ui BackButton; this only lines the icon box up with the margin */
+.backBtn {
+  margin-inline-start: -9px;
+}
+
+.clearBtn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -131,14 +134,9 @@
     border-color 150ms ease;
 }
 
-.backBtn,
+/* Look comes from @oriveo/ui CloseButton; this only lines the icon box up with the trailing margin */
 .closeBtn {
-  width: 32px;
-  height: 32px;
-  border-radius: 10px;
-  flex-shrink: 0;
-  background: var(--o-mw-iconbtn-bg);
-  border-color: var(--o-mw-iconbtn-border);
+  margin-inline-end: -9px;
 }
 
 .clearBtn {
@@ -147,13 +145,6 @@
   border-radius: 999px;
   background: var(--o-mw-clearbtn-bg);
   color: var(--o-text-secondary);
-}
-
-.backBtn:hover,
-.closeBtn:hover {
-  background: var(--o-mw-iconbtn-hover-bg);
-  color: var(--o-text);
-  border-color: var(--o-mw-iconbtn-hover-border);
 }
 
 .clearBtn:hover {
@@ -1293,9 +1284,7 @@
 
 /* -- Focus visibility ---------------------------------------- */
 
-.backBtn:focus-visible,
 .clearBtn:focus-visible,
-.closeBtn:focus-visible,
 .providerAddButton:focus-visible,
 .emptyAction:focus-visible,
 .primaryAction:focus-visible,
@@ -1412,9 +1401,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   .dropdown,
-  .backBtn,
   .clearBtn,
-  .closeBtn,
   .providerAddButton,
   .emptyAction,
   .primaryAction,

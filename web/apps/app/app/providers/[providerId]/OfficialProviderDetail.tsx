@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import { ListChecks, ListX, MessageCircle, SlidersHorizontal } from 'lucide-react';
 import type { AIModel, Provider } from '@oriveo/shared';
-import { Button, BackArrowIcon } from '@oriveo/ui';
+import { BackButton, Button } from '@oriveo/ui';
 import { getProviderDisplayName } from '@oriveo/config';
 import { useProviderActions } from '../../../lib/hooks/useProviderActions';
 import { useAppStore, getVanillaStore } from '../../../providers/StoreProvider';
@@ -236,13 +236,7 @@ export function OfficialProviderDetail({ provider }: OfficialProviderDetailProps
     <div className={styles.page}>
       {/* Top bar: back only. The provider name is the hero's headline, not a title bar. */}
       <div className={styles.topBar}>
-        <button
-          className={styles.backBtn}
-          onClick={() => router.push('/providers')}
-          aria-label={tc('back')}
-        >
-          <BackArrowIcon />
-        </button>
+        <BackButton className={styles.backBtn} label={tc('back')} onClick={() => router.push('/providers')} />
       </div>
 
       {/* Recovery card: sits above the hero when the connection needs a new key or endpoint. */}

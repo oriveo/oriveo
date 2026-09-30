@@ -4,7 +4,6 @@ import { useState, useCallback, useRef, useMemo, useEffect, type ReactElement } 
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 import {
-  ArrowLeft,
   Atom,
   Bookmark,
   Brain,
@@ -15,7 +14,7 @@ import {
   ShieldAlert,
   Sparkles,
 } from 'lucide-react';
-import { Button, Dialog } from '@oriveo/ui';
+import { BackButton, Button, Dialog } from '@oriveo/ui';
 import { useAppStore } from '../../../providers/StoreProvider';
 import { getVanillaStore } from '../../../providers/StoreProvider';
 import * as preferenceOps from '../../../lib/core/preference-ops';
@@ -467,16 +466,7 @@ ${excerpts}`;
 
   return (
     <div className={`${styles.page} ${appeared ? styles.pageAppeared : ''}`}>
-      <a
-        className={styles.backLink}
-        onClick={handleBack}
-        role="button"
-        tabIndex={0}
-        onKeyDown={(e) => e.key === 'Enter' && handleBack()}
-      >
-        <ArrowLeft size={14} strokeWidth={2.4} />
-        <span>{t('backToSettings')}</span>
-      </a>
+      <BackButton className={styles.backLink} label={t('backToSettings')} onClick={handleBack} />
 
       <header className={styles.header}>
         <div className={styles.headerTitleRow}>

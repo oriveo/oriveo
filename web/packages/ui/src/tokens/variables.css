@@ -355,10 +355,6 @@
 
   /* ── ProviderDetail (`--o-pd-*`) ── */
   --o-pd-subtitledot-color: color-mix(in srgb, var(--o-text-tertiary) 52%, transparent);
-  --o-pd-back-bg: var(--o-surface);
-  --o-pd-back-border: rgba(15, 23, 42, 0.08);
-  --o-pd-back-hover-bg: var(--o-bg-subtle);
-  --o-pd-back-hover-border: rgba(15, 23, 42, 0.16);
   --o-pd-card-border: rgba(15, 23, 42, 0.08);
   --o-pd-card-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
   --o-pd-card-hover-border: rgba(15, 23, 42, 0.14);
@@ -507,10 +503,6 @@
      semantic-text-contrast.ts. */
   --o-model-control-badge-manual-bg: color-mix(in srgb, var(--o-warning) 12%, transparent);
   --o-model-control-badge-unavailable-bg: color-mix(in srgb, var(--o-error) 12%, transparent);
-  --o-mw-iconbtn-bg: rgba(15, 23, 42, 0.04);
-  --o-mw-iconbtn-border: transparent;
-  --o-mw-iconbtn-hover-bg: var(--o-bg-subtle);
-  --o-mw-iconbtn-hover-border: var(--o-border);
   --o-mw-clearbtn-bg: rgba(15, 23, 42, 0.08);
   --o-mw-clearbtn-hover-bg: rgba(15, 23, 42, 0.14);
   --o-mw-providerpill-bg: var(--o-bg-subtle);
@@ -830,10 +822,6 @@
 
   /* ── ProviderDetail (dark) ── */
   --o-pd-subtitledot-color: rgba(255, 255, 255, 0.28);
-  --o-pd-back-bg: rgba(255, 255, 255, 0.04);
-  --o-pd-back-border: var(--o-border);
-  --o-pd-back-hover-bg: rgba(255, 255, 255, 0.08);
-  --o-pd-back-hover-border: var(--o-border-strong);
   --o-pd-card-border: rgba(255, 255, 255, 0.08);
   --o-pd-card-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
   --o-pd-card-hover-border: rgba(255, 255, 255, 0.16);
@@ -965,10 +953,6 @@
      mode, and it is the badge's only container. */
   --o-model-control-badge-manual-bg: color-mix(in srgb, var(--o-warning) 20%, transparent);
   --o-model-control-badge-unavailable-bg: color-mix(in srgb, var(--o-error) 20%, transparent);
-  --o-mw-iconbtn-bg: rgba(255, 255, 255, 0.05);
-  --o-mw-iconbtn-border: rgba(255, 255, 255, 0.08);
-  --o-mw-iconbtn-hover-bg: rgba(255, 255, 255, 0.1);
-  --o-mw-iconbtn-hover-border: rgba(255, 255, 255, 0.16);
   --o-mw-clearbtn-bg: rgba(255, 255, 255, 0.08);
   --o-mw-clearbtn-hover-bg: rgba(255, 255, 255, 0.16);
   --o-mw-providerpill-bg: rgba(255, 255, 255, 0.06);

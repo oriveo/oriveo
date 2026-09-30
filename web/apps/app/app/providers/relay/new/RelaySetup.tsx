@@ -48,6 +48,7 @@ import {
   relaySensitiveCredentialValues,
 } from '@oriveo/core/providers/relay-runtime-support';
 import { extractErrorSnippet } from '@oriveo/core/util/error-snippet';
+import { BackButton } from '@oriveo/ui';
 import { relayFormFieldMessage } from '../../../../lib/core/providers/relay-form-messages';
 import { createCanonicalUUID } from '../../../../lib/utils/id-utils';
 import { consumeRelayHandoff } from '../../new/relay-handoff';
@@ -77,9 +78,7 @@ export function RelaySetup() {
   const router = useRouter();
   return (
     <main className={styles.page}>
-      <button className={styles.backButton} type="button" onClick={() => router.back()} aria-label={tc('back')}>
-        <span aria-hidden="true">&#8592;</span>
-      </button>
+      <BackButton className={styles.backButton} label={tc('back')} onClick={() => router.back()} />
       <header className={styles.hero}>
         <h1>{scenario === 'local' ? tp('localCompute') : tp('customEndpoint')}</h1>
         <p>{scenario === 'local' ? tp('localComputeSubtitle') : tp('relaySubtitle')}</p>

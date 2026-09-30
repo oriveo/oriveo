@@ -8,6 +8,7 @@ import { getVanillaStore } from '../../providers/StoreProvider';
 import * as folderOps from '../../lib/core/folder-ops';
 import * as conversationOps from '../../lib/core/conversation-ops';
 import { getFolderColorPair } from '@oriveo/shared';
+import { BackButton } from '@oriveo/ui';
 import { isVisibleConversation, sortConversationsByActivity } from '../../lib/utils/conversation-list';
 import { stripMarkdownForPreview } from '../../lib/utils/markdown-preview';
 import { formatCost } from '../../lib/utils/format-utils';
@@ -77,21 +78,8 @@ export function FolderDetailView({ folderId }: FolderDetailViewProps) {
       <div style={{
         display: 'flex', alignItems: 'center', gap: 12, marginBottom: 'var(--o-space-lg)',
       }}>
-        <button
-          type="button"
-          onClick={() => router.push('/')}
-          style={{
-            display: 'flex', alignItems: 'center', gap: 6,
-            background: 'none', border: 'none', cursor: 'pointer',
-            color: 'var(--o-text-secondary)', fontSize: 'var(--o-text-sm)',
-            padding: '6px 10px', borderRadius: 'var(--o-radius-md)',
-          }}
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <polyline points="15 18 9 12 15 6" />
-          </svg>
-          {t('back')}
-        </button>
+        {/* The negative margin lines the icon box up with the page margin */}
+        <BackButton label={t('back')} onClick={() => router.push('/')} style={{ marginInlineStart: -9 }} />
         <div style={{ flex: 1 }} />
         <button
           type="button"

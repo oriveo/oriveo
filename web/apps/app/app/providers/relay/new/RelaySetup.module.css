@@ -21,24 +21,11 @@
   mask-image: linear-gradient(to bottom, black, transparent);
 }
 
+/* Look comes from @oriveo/ui BackButton; this keeps it above the background glow and lines the icon box up with the page margin */
 .backButton {
   position: relative;
   z-index: 1;
-  display: grid;
-  width: 38px;
-  height: 38px;
-  place-items: center;
-  border: 0;
-  background: transparent;
-  color: var(--o-text-secondary);
-  font-size: 22px;
-  cursor: pointer;
-}
-
-.backButton:hover,
-.backButton:focus-visible {
-  color: var(--o-primary);
-  outline: none;
+  margin-inline-start: -9px;
 }
 
 .hero {

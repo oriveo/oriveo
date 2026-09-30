@@ -3,10 +3,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { ArrowLeft, Check, Download, FolderInput, Pencil, Pin, PinOff, Tag, Trash2, X } from 'lucide-react';
+import { Check, Download, FolderInput, Pencil, Pin, PinOff, Tag, Trash2, X } from 'lucide-react';
 import type { CSSProperties } from 'react';
 import type { Note } from '@oriveo/shared';
-import { Button, EmptyState } from '@oriveo/ui';
+import { BackButton, Button, EmptyState } from '@oriveo/ui';
 import { useAppStore, getVanillaStore } from '../../providers/StoreProvider';
 import {
   deleteNote,
@@ -218,10 +218,7 @@ export function NoteDetail({ noteId }: NoteDetailProps) {
   return (
     <div className={styles.detailShell} style={{ '--note-source-color': sourceColor } as CSSProperties}>
       <div className={styles.detailHeader}>
-        <Button tone="secondary" size="sm" onClick={handleBack}>
-          <ArrowLeft size={15} aria-hidden />
-          {t('actions.backToNotes')}
-        </Button>
+        <BackButton className={styles.detailBack} label={t('actions.backToNotes')} onClick={handleBack} />
         <div className={styles.detailHeaderActions}>
           <Button tone="secondary" size="sm" onClick={handleExport}>
             <Download size={15} aria-hidden />

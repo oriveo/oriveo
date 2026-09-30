@@ -243,13 +243,13 @@ describe('SkillEditPage', () => {
     fireEvent.change(screen.getByPlaceholderText('namePlaceholder'), {
       target: { value: 'Unsaved name' },
     });
-    fireEvent.click(screen.getByRole('button', { name: /title/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'back' }));
 
     expect(confirmSpy).toHaveBeenCalledWith('discardChangesMessage');
     expect(mocks.routerPush).not.toHaveBeenCalled();
 
     confirmSpy.mockReturnValue(true);
-    fireEvent.click(screen.getByRole('button', { name: /title/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'back' }));
 
     await waitFor(() => {
       expect(mocks.routerPush).toHaveBeenCalledWith('/skills');

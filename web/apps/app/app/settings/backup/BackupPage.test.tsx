@@ -30,15 +30,15 @@ describe('BackupPage', () => {
     expect(screen.getByTestId('import-section')).toBeTruthy();
   });
 
-  it('navigates back to settings from click and keyboard', () => {
+  // The back control is a native <button> (shared BackButton); the browser turns Enter / Space into a click, so no onKeyDown is needed
+  it('navigates back to settings from the shared back button', () => {
     render(<BackupPage />);
 
-    const backLink = screen.getByRole('button', { name: 'title' });
-    fireEvent.click(backLink);
-    fireEvent.keyDown(backLink, { key: 'Enter' });
+    const backButton = screen.getByRole('button', { name: 'back' });
+    expect(backButton.tagName).toBe('BUTTON');
+    fireEvent.click(backButton);
 
-    expect(mocks.routerPush).toHaveBeenCalledTimes(2);
-    expect(mocks.routerPush).toHaveBeenNthCalledWith(1, '/settings');
-    expect(mocks.routerPush).toHaveBeenNthCalledWith(2, '/settings');
+    expect(mocks.routerPush).toHaveBeenCalledTimes(1);
+    expect(mocks.routerPush).toHaveBeenCalledWith('/settings');
   });
 });

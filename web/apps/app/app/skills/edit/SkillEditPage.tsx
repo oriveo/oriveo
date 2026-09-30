@@ -30,6 +30,7 @@ import {
 } from './knowledge-utils';
 import { parseOfficeFile } from '../../../lib/utils/office-parser';
 import styles from './SkillEditPage.module.css';
+import { BackButton } from '@oriveo/ui';
 
 class KnowledgeApiError extends Error {
   code?: string;
@@ -209,6 +210,7 @@ async function extractPDFText(file: File): Promise<string> {
 
 export function SkillEditPage() {
   const t = useTranslations('skills');
+  const tc = useTranslations('common');
   const router = useRouter();
   const searchParams = useSearchParams();
   const editId = searchParams.get('id');
@@ -1074,9 +1076,7 @@ export function SkillEditPage() {
   return (
     <div className={styles.page}>
       <div className={styles.header}>
-        <button type="button" className={styles.backBtn} onClick={handleBack}>
-          ← {t('title')}
-        </button>
+        <BackButton className={styles.backBtn} label={tc('back')} onClick={handleBack} />
         <h1 className={styles.title}>
           {editId ? t('editSkill') : t('newSkill')}
         </h1>

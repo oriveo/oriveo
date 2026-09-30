@@ -1,0 +1,42 @@
+.backButton {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 0;
+  border-radius: var(--o-radius-md);
+  background: transparent;
+  color: var(--o-text);
+  cursor: pointer;
+  transition: color var(--o-transition-fast), opacity var(--o-transition-fast);
+}
+
+/* Hover only changes the colour; no background appears */
+.backButton:hover {
+  color: var(--o-text-secondary);
+}
+
+.backButton:active {
+  opacity: 0.5;
+}
+
+.backButton:focus-visible {
+  outline: none;
+  box-shadow: var(--o-focus-ring);
+}
+
+.backButton:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+
+.icon {
+  display: block;
+}
+
+.icon:dir(rtl) {
+  transform: scaleX(-1);
+}

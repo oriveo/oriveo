@@ -5,6 +5,8 @@ export { PageSection } from './components/PageSection/PageSection';
 export { InfoCard } from './components/InfoCard/InfoCard';
 export { ButtonLink } from './components/ButtonLink/ButtonLink';
 export { Button } from './components/Button/Button';
+export { BackButton } from './components/BackButton/BackButton';
+export { CloseButton } from './components/CloseButton/CloseButton';
 export { Badge } from './components/Badge/Badge';
 export { EmptyState } from './components/EmptyState/EmptyState';
 export { ErrorCard } from './components/ErrorCard/ErrorCard';
@@ -18,7 +20,6 @@ export {
   EditIcon,
   EyeIcon,
   EyeOffIcon,
-  BackArrowIcon,
   SearchIcon,
   CloseIcon,
   FileIcon,

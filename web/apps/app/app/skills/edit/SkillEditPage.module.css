@@ -11,18 +11,9 @@
   margin-bottom: var(--o-space-xl);
 }
 
+/* Look comes from @oriveo/ui BackButton; this only lines the icon box up with the page margin */
 .backBtn {
-  border: none;
-  background: transparent;
-  color: var(--o-text-secondary);
-  font-size: var(--o-text-sm);
-  cursor: pointer;
-  padding: 0;
-  white-space: nowrap;
-}
-
-.backBtn:hover {
-  color: var(--o-text);
+  margin-inline-start: -9px;
 }
 
 .title {

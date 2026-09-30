@@ -1,4 +1,5 @@
 import { Plus, Search, X } from "lucide-react";
+import { CloseButton } from "@oriveo/ui";
 import { useTranslations } from "next-intl";
 import { getModelSwitcherProviderLabel } from "../model-switcher-sorting";
 import styles from "../ModelSwitcher.module.css";
@@ -48,14 +49,11 @@ export function BrowseView({
             <div className={styles.title}>{t("selectModel")}</div>
             <div className={styles.subtitle}>{t("browseHint")}</div>
           </div>
-          <button
-            type="button"
+          <CloseButton
             className={styles.closeBtn}
+            label={tc("cancel")}
             onClick={onClose}
-            aria-label={tc("cancel")}
-          >
-            <X size={16} />
-          </button>
+          />
         </div>
       </div>
 

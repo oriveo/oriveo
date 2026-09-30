@@ -78,6 +78,9 @@ vi.mock('../../../components/Toast', () => ({
 }));
 
 vi.mock('@oriveo/ui', () => ({
+  BackButton: ({ label, onClick }: { label: string; onClick?: () => void }) => (
+    <button type="button" aria-label={label} onClick={onClick} />
+  ),
   Button: ({
     children,
     onClick,

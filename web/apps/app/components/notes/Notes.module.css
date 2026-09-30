@@ -904,6 +904,11 @@
   background: color-mix(in srgb, var(--o-primary) 4%, transparent);
 }
 
+/* Look comes from @oriveo/ui BackButton; this only lines the icon box up with the content margin */
+.detailBack {
+  margin-inline-start: -9px;
+}
+
 .detailHeader {
   margin-bottom: 16px;
   align-items: center;

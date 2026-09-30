@@ -22,7 +22,7 @@ import {
 } from '@oriveo/core/providers/relay-form-validation';
 import { relayHasCredentialMaterialAcross } from '@oriveo/core/providers/relay-runtime-support';
 import { normalizeEndpointForSecurityMode } from '@oriveo/core/providers/relay-security-mode';
-import { Button, BackArrowIcon, CloseIcon } from '@oriveo/ui';
+import { BackButton, Button, CloseIcon } from '@oriveo/ui';
 import { RelayPrivacyNotice } from '../../../components/providers/RelayPrivacyNotice';
 import { RelayKeyValueEditor } from '../../../components/providers/RelayKeyValueEditor';
 import { RelaySecurityModeControl } from '../../../components/providers/RelaySecurityModeControl';
@@ -489,9 +489,7 @@ export function RelayDetail({ provider }: RelayDetailProps) {
     <div className={styles.page}>
       {/* Header */}
       <div className={styles.header}>
-        <button className={styles.backBtn} onClick={() => router.push('/providers')} aria-label={tc('back')}>
-          <BackArrowIcon />
-        </button>
+        <BackButton className={styles.backBtn} label={tc('back')} onClick={() => router.push('/providers')} />
         <h1 className={styles.title}>{providerDisplayName}</h1>
       </div>
 

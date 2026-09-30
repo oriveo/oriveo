@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useTranslations } from 'next-intl';
 import { ChevronRight } from 'lucide-react';
 import type { AIModel, Provider } from '@oriveo/shared';
+import { BackButton } from '@oriveo/ui';
 import type { GenerationParameterOverrides, GenerationParameterProfile, GenerationParameterValue } from '@oriveo/core/providers/request-builders/types';
 import {
   previewGenerationCompatibility,
@@ -387,9 +388,7 @@ export function GenerationParameterPanel({
     return (
       <section className={styles.panel} data-embedded={embedded ? 'true' : undefined} aria-label={tc('customRequestFieldsCustom')}>
         <div className={styles.subPageHeader}>
-          <button type="button" className={styles.subPageBack} onClick={() => setOwnsCustomFieldsPage(false)}>
-            {tc('back')}
-          </button>
+          <BackButton className={styles.subPageBack} label={tc('back')} onClick={() => setOwnsCustomFieldsPage(false)} />
           <strong>{tc('customRequestFieldsCustom')}</strong>
         </div>
         <CustomRequestFieldsEditor

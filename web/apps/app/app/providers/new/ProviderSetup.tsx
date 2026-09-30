@@ -7,8 +7,8 @@ import type { AIModel, Provider, ProviderAuthMode, ProviderSubscriptionCredentia
 import { formatApiKeyPreview } from "@oriveo/shared";
 import type { ConfiguredProviderKind } from "@oriveo/config";
 import {
+  BackButton,
   Button,
-  BackArrowIcon,
   CloseIcon,
   EyeIcon,
   EyeOffIcon,
@@ -818,13 +818,7 @@ export function ProviderSetup() {
   return (
     <div className={styles.page}>
       <div className={styles.header}>
-        <button
-          className={styles.backBtn}
-          onClick={handleBack}
-          aria-label={tc("back")}
-        >
-          <BackArrowIcon />
-        </button>
+        <BackButton className={styles.backBtn} label={tc("back")} onClick={handleBack} />
         <h1 className={styles.title}>{t("title")}</h1>
       </div>
 

@@ -315,19 +315,10 @@
   animation: spin 1s linear infinite;
 }
 
+/* Look comes from @oriveo/ui BackButton; this only sets the gap to the header and lines the icon box up with the page margin */
 .backLink {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--o-space-xs);
-  font-size: var(--o-text-sm);
-  color: var(--o-text-secondary);
-  text-decoration: none;
-  cursor: pointer;
   margin-bottom: var(--o-space-md);
-}
-
-.backLink:hover {
-  color: var(--o-text);
+  margin-inline-start: -9px;
 }
 
 /* ── Confirm dialog ─────────────────── */

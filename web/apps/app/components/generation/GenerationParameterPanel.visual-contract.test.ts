@@ -171,16 +171,15 @@ describe('GenerationParameterPanel visual contract', () => {
   });
 
   /**
-   * The back button on the custom fields subpage is the only way out of that level, and the
-   * ~27px it gets from the line height of 12px text is hard to hit on touch. The visual stays as
-   * it is and the hit area is grown with a pseudo-element; both are pinned, since asserting only
-   * min-height would go green even after the pseudo-element is dropped.
+   * The back button on the custom fields subpage is the only way out of that level. It is the
+   * shared BackButton (a bare 40px chevron) and a pseudo-element grows the hit area to 44; both
+   * are pinned, since asserting only min-height would go green even after the pseudo-element is dropped.
    */
-  it('subpage back button keeps a 28px visual and a hit area of at least 44px', () => {
+  it('subpage back button is the 40px BackButton with a hit area of at least 44px', () => {
     const back = /\.subPageBack\s*\{([^}]*)\}/.exec(panelCss);
     expect(back, '.subPageBack rule exists').toBeTruthy();
     const visual = Number(/min-height\s*:\s*(\d+(?:\.\d+)?)px/.exec(back![1])![1]);
-    expect(visual, 'the visual height stays at 28px and is not grown into a 44px button').toBeLessThanOrEqual(32);
+    expect(visual, 'the visual is the 40px BackButton target, not grown into a 44px button').toBeLessThanOrEqual(40);
 
     const hit = /\.subPageBack::after\s*\{([^}]*)\}/.exec(panelCss);
     expect(hit, 'the hit-area pseudo-element must actually render').toBeTruthy();

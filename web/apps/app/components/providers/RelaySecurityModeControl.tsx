@@ -2,8 +2,8 @@
 
 import { useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { Check, ChevronRight, Globe2, LockKeyhole, Network, TriangleAlert, X } from 'lucide-react';
-import { Button } from '@oriveo/ui';
+import { Check, ChevronRight, Globe2, LockKeyhole, Network, TriangleAlert } from 'lucide-react';
+import { Button, CloseButton } from '@oriveo/ui';
 import type { RelayConnectionSecurityMode } from '@oriveo/shared';
 import {
   normalizeEndpointForSecurityMode,
@@ -103,9 +103,7 @@ export function RelaySecurityModeControl({
               <strong>{t('connectionType')}</strong>
               <p>{t('connectionTypeHint')}</p>
             </div>
-            <button type="button" className={styles.close} onClick={() => setOpen(false)} aria-label={tc('cancel')}>
-              <X size={15} aria-hidden="true" />
-            </button>
+            <CloseButton className={styles.close} label={tc('cancel')} onClick={() => setOpen(false)} />
           </div>
 
           {decision.suggestion && decision.suggestion !== value ? (

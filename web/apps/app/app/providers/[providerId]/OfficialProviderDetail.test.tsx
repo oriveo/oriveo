@@ -76,7 +76,9 @@ vi.mock('@oriveo/ui', () => ({
   } & Record<string, unknown>) => (
     <button onClick={onClick} disabled={disabled} {...rest}>{children}</button>
   ),
-  BackArrowIcon: () => <span data-testid="back-arrow" />,
+  BackButton: ({ label, onClick }: { label: string; onClick?: () => void }) => (
+    <button type="button" aria-label={label} onClick={onClick} />
+  ),
   StatusPill: ({ label }: { label: string }) => <span>{label}</span>,
 }));
 

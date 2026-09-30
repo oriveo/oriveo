@@ -36,6 +36,12 @@ vi.mock('../../../../providers/StoreProvider', () => ({
 }));
 
 vi.mock('@oriveo/ui', () => ({
+  BackButton: ({ label, onClick }: { label: string; onClick?: () => void }) => (
+    <button type="button" aria-label={label} onClick={onClick} />
+  ),
+  CloseButton: ({ label, onClick }: { label: string; onClick?: () => void }) => (
+    <button type="button" aria-label={label} onClick={onClick} />
+  ),
   Button: ({ children, onClick, disabled, className }: {
     children: React.ReactNode;
     onClick?: () => void;

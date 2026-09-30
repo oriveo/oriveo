@@ -41,30 +41,10 @@
 
 /* ── Back link ────────────────────────────────────── */
 
+/* Look comes from @oriveo/ui BackButton; this only sets the gap to the header and lines the icon box up with the page margin */
 .backLink {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
   margin-bottom: var(--o-space-md);
-  padding: 4px 8px 4px 4px;
-  border-radius: var(--o-radius-md);
-  font-size: var(--o-text-xs);
-  font-weight: 500;
-  color: var(--o-text-secondary);
-  background: transparent;
-  cursor: pointer;
-  text-decoration: none;
-  transition: color 160ms ease, background-color 160ms ease;
-}
-
-.backLink:hover {
-  color: var(--o-text);
-  background-color: color-mix(in srgb, var(--o-surface-raised) 70%, transparent);
-}
-
-.backLink:focus-visible {
-  outline: none;
-  box-shadow: var(--o-focus-ring);
+  margin-inline-start: -9px;
 }
 
 /* ── Page header ──────────────────────────────────── */

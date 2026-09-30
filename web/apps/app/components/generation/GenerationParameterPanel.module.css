@@ -149,13 +149,13 @@
 .parameterAnnotation { text-transform:none; color:var(--o-text-tertiary, #9ca3af); line-height:1.5; }
 /* Back row for the custom fields sub-page. The panel hosts this level itself rather than opening a second popover. */
 .subPageHeader { display:flex; align-items:center; gap:8px; margin-bottom:10px; }
-.subPageBack { position:relative; display:inline-flex; align-items:center; min-height:28px; border:0; border-radius:7px; padding:5px 9px; background:var(--o-surface-raised, #f3f4f6); color:inherit; font-size:12px; cursor:pointer; }
-/* Visual 28, hit area 44: this is the only way back out of the custom fields sub-page, and the 27px that a
-   12px font's line height produces is hard to hit on touch. The pseudo-element expands vertically only
-   (`inset-inline:0`), because the sub-page header has the title right next to it and a horizontal
-   expansion would put the hit area over unclickable text. The 8px expansion falls inside .panel's 16px
-   padding and is not clipped. */
-.subPageBack::after { content:''; position:absolute; inset-block:-8px; inset-inline:0; }
+/* Look comes from @oriveo/ui BackButton (a bare 40px chevron); this only handles alignment and the hit target. */
+.subPageBack { position:relative; min-height:40px; margin-inline-start:-9px; }
+/* Visual 40, hit area 44: this is the only way back out of the custom fields sub-page. The pseudo-element
+   expands vertically only (`inset-inline:0`), because the sub-page header has the title right next to it
+   and a horizontal expansion would put the hit area over unclickable text. The 2px expansion falls inside
+   .panel's 16px padding and is not clipped. */
+.subPageBack::after { content:''; position:absolute; inset-block:-2px; inset-inline:0; }
 /* Dormant summary: neutral textSecondary, not warning. Keeping a parameter around is not an error state. */
 .dormant { padding:10px 0; border-top:1px solid var(--o-border, #e5e7eb); }
 .dormant p { margin:0 0 8px; color:var(--o-text-secondary, #6b7280); font-size:12px; line-height:1.45; }

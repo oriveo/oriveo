@@ -42,26 +42,9 @@
   font-weight: 700;
 }
 
-/* 32x32 back chevron */
+/* Look comes from @oriveo/ui BackButton; this only lines the icon box up with the page margin */
 .backBtn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 32px;
-  height: 32px;
-  border: 1px solid var(--o-pd-back-border);
-  border-radius: 10px;
-  background: var(--o-pd-back-bg);
-  color: var(--o-text-secondary);
-  cursor: pointer;
-  flex-shrink: 0;
-  transition: border-color var(--o-transition-fast), background var(--o-transition-fast), color var(--o-transition-fast);
-}
-
-.backBtn:hover {
-  background: var(--o-pd-back-hover-bg);
-  border-color: var(--o-pd-back-hover-border);
-  color: var(--o-text);
+  margin-inline-start: -9px;
 }
 
 /* Title scale: 16pt semibold, a little larger on web while keeping the proportions */
