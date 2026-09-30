@@ -33,6 +33,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
@@ -142,77 +144,71 @@ private class CountingInputStream(input: InputStream) : FilterInputStream(input)
 private fun metadataBaseUrl(): String? =
     BuildConfig.METADATA_BASE_URL.trimEnd('/').takeIf { it.isNotBlank() }
 
-private object HttpUrlConnectionMetadataTransport : MetadataTransport {
-    override suspend fun fetch(ifNoneMatch: String?): MetadataTransportResponse {
-        val baseUrl = metadataBaseUrl() ?: return MetadataTransportResponse(
-            statusCode = HttpURLConnection.HTTP_NOT_IMPLEMENTED,
-            eTag = null,
-            body = null,
-            responseBytes = 0L,
-        )
-        val connection = URL("$baseUrl/api/metadata?view=lean").openConnection() as HttpURLConnection
-        return try {
-            connection.requestMethod = "GET"
-            connection.setRequestProperty("Accept", "application/json")
-            ifNoneMatch?.let { connection.setRequestProperty("If-None-Match", it) }
-            connection.connectTimeout = 10_000
-            connection.readTimeout = 15_000
+/**
+ * The index + per-provider catalog views. Injected separately from [MetadataTransport]: without
+ * it the client only uses the lean view (the unit-test default), so nothing reaches the split
+ * views by accident.
+ */
+internal interface MetadataSplitTransport {
+    suspend fun fetchIndex(ifNoneMatch: String?): MetadataTransportResponse
+    suspend fun fetchCatalog(provider: String, ifNoneMatch: String?): MetadataTransportResponse
+}
 
-            val statusCode = connection.responseCode
-            var bodyBytes = connection.contentLengthLong.coerceAtLeast(0L)
-            val body = if (statusCode == HttpURLConnection.HTTP_OK) {
-                val countingStream = CountingInputStream(connection.inputStream)
-                countingStream.bufferedReader().use { it.readText() }.also {
-                    bodyBytes = countingStream.bytesRead
-                }
-            } else {
-                null
+private suspend fun httpGetMetadata(pathAndQuery: String, ifNoneMatch: String?): MetadataTransportResponse {
+    val baseUrl = metadataBaseUrl() ?: return MetadataTransportResponse(
+        statusCode = HttpURLConnection.HTTP_NOT_IMPLEMENTED,
+        eTag = null,
+        body = null,
+        responseBytes = 0L,
+    )
+    val connection = URL("$baseUrl$pathAndQuery").openConnection() as HttpURLConnection
+    return try {
+        connection.requestMethod = "GET"
+        connection.setRequestProperty("Accept", "application/json")
+        ifNoneMatch?.let { connection.setRequestProperty("If-None-Match", it) }
+        connection.connectTimeout = 10_000
+        connection.readTimeout = 15_000
+
+        val statusCode = connection.responseCode
+        var bodyBytes = connection.contentLengthLong.coerceAtLeast(0L)
+        val body = if (statusCode == HttpURLConnection.HTTP_OK) {
+            val countingStream = CountingInputStream(connection.inputStream)
+            countingStream.bufferedReader().use { it.readText() }.also {
+                bodyBytes = countingStream.bytesRead
             }
-            MetadataTransportResponse(
-                statusCode = statusCode,
-                eTag = connection.getHeaderField("ETag")?.trim()?.takeIf { it.isNotEmpty() },
-                body = body,
-                responseBytes = bodyBytes,
-            )
-        } finally {
-            connection.disconnect()
+        } else {
+            null
         }
+        MetadataTransportResponse(
+            statusCode = statusCode,
+            eTag = connection.getHeaderField("ETag")?.trim()?.takeIf { it.isNotEmpty() },
+            body = body,
+            responseBytes = bodyBytes,
+        )
+    } finally {
+        connection.disconnect()
     }
 }
 
-private object HttpUrlConnectionModelFactsTransport : ModelFactsTransport {
-    override suspend fun fetch(ifNoneMatch: String?): MetadataTransportResponse {
-        val baseUrl = metadataBaseUrl() ?: return MetadataTransportResponse(
-            statusCode = HttpURLConnection.HTTP_NOT_IMPLEMENTED,
-            eTag = null,
-            body = null,
-            responseBytes = 0L,
+private object HttpUrlConnectionMetadataTransport : MetadataTransport {
+    override suspend fun fetch(ifNoneMatch: String?): MetadataTransportResponse =
+        httpGetMetadata("/api/metadata?view=lean", ifNoneMatch)
+}
+
+internal object HttpUrlConnectionMetadataSplitTransport : MetadataSplitTransport {
+    override suspend fun fetchIndex(ifNoneMatch: String?): MetadataTransportResponse =
+        httpGetMetadata("/api/metadata?view=index", ifNoneMatch)
+
+    override suspend fun fetchCatalog(provider: String, ifNoneMatch: String?): MetadataTransportResponse =
+        httpGetMetadata(
+            "/api/metadata?view=catalog&provider=" + java.net.URLEncoder.encode(provider, "UTF-8"),
+            ifNoneMatch,
         )
-        val connection = URL("$baseUrl/api/metadata/model-facts").openConnection() as HttpURLConnection
-        return try {
-            connection.requestMethod = "GET"
-            connection.setRequestProperty("Accept", "application/json")
-            ifNoneMatch?.let { connection.setRequestProperty("If-None-Match", it) }
-            connection.connectTimeout = 10_000
-            connection.readTimeout = 15_000
-            val statusCode = connection.responseCode
-            var bodyBytes = connection.contentLengthLong.coerceAtLeast(0L)
-            val body = if (statusCode == HttpURLConnection.HTTP_OK) {
-                val countingStream = CountingInputStream(connection.inputStream)
-                countingStream.bufferedReader().use { it.readText() }.also {
-                    bodyBytes = countingStream.bytesRead
-                }
-            } else null
-            MetadataTransportResponse(
-                statusCode = statusCode,
-                eTag = connection.getHeaderField("ETag")?.trim()?.takeIf { it.isNotEmpty() },
-                body = body,
-                responseBytes = bodyBytes,
-            )
-        } finally {
-            connection.disconnect()
-        }
-    }
+}
+
+private object HttpUrlConnectionModelFactsTransport : ModelFactsTransport {
+    override suspend fun fetch(ifNoneMatch: String?): MetadataTransportResponse =
+        httpGetMetadata("/api/metadata/model-facts", ifNoneMatch)
 }
 
 private class MetadataHttpStatusException(statusCode: Int) :
@@ -235,6 +231,8 @@ class MetadataClient internal constructor(
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
     private val metadataCacheDao: MetadataCacheDao? = null,
     private val metadataTransport: MetadataTransport = HttpUrlConnectionMetadataTransport,
+    /** When injected, the index + per-provider catalog views come first; lean is used only when an older server rejects view=index with 400. */
+    private val metadataSplitTransport: MetadataSplitTransport? = null,
     private val modelFactsTransport: ModelFactsTransport = HttpUrlConnectionModelFactsTransport,
     private val nowMillis: () -> Long = System::currentTimeMillis,
     private val failureReporter: (Map<String, String>) -> Unit = { tags ->
@@ -818,6 +816,31 @@ class MetadataClient internal constructor(
         val modelFactsETag: String? = null,
     )
 
+    /** The `index` row: the index data as served plus its ETag; the row's updatedAtMs is the timestamp. */
+    @Serializable
+    private data class SplitIndexCacheEnvelope(
+        val eTag: String? = null,
+        val data: JsonObject,
+    )
+
+    /**
+     * A `catalog:<provider>` row: the catalog data as served. Refs are validated again on read,
+     * so the cache itself is never trusted.
+     */
+    @Serializable
+    private data class CatalogCacheEnvelope(
+        val eTag: String? = null,
+        val data: JsonObject,
+    )
+
+    /** In split mode the model-facts sidecar has its own row instead of riding along with the snapshot. */
+    @Serializable
+    private data class ModelFactsCacheEnvelope(
+        val eTag: String? = null,
+        val revision: String? = null,
+        val facts: Map<String, ModelFacts>? = null,
+    )
+
     private data class JsonKeyScan(
         val nextIndex: Int,
         val matchesData: Boolean,
@@ -884,6 +907,14 @@ class MetadataClient internal constructor(
         val table: MetadataResponse?,
         val metadataRevision: String?,
         val contentRevision: Long,
+        /**
+         * Providers (backend keys) whose model catalog is actually present in this snapshot.
+         * null = a lean snapshot where everything is loaded. Non-null = a split snapshot: a
+         * provider listed in `providers` but missing here has a catalog that is not loaded yet
+         * (pending), which must never be read as "the model is not in the catalog". Published
+         * together with [table].
+         */
+        val loadedProviderKeys: Set<String>? = null,
     )
 
     @Volatile
@@ -891,6 +922,62 @@ class MetadataClient internal constructor(
 
     @Volatile
     private var pendingRefresh: Job? = null
+
+    // Index + per-provider catalog state; written only while holding fetchMutex.
+
+    private class SplitIndexState(
+        val data: JsonObject,
+        val eTag: String?,
+        val catalogRevisions: Map<String, String>,
+    )
+
+    private class LoadedCatalog(
+        val eTag: String?,
+        val catalog: MetadataCatalogAssembly.ExpandedCatalog,
+    )
+
+    @Volatile
+    private var splitIndex: SplitIndexState? = null
+
+    /** Validated catalogs (last good), keyed by backend provider key. */
+    private val loadedCatalogs = java.util.concurrent.ConcurrentHashMap<String, LoadedCatalog>()
+
+    /**
+     * The older single-row lean cache (or a full payload from the lean fallback), kept as last
+     * good after switching to split: a provider whose catalog has not arrived yet uses its models
+     * from here until every needed catalog is in, then this is dropped.
+     */
+    @Volatile
+    private var legacyLeanFallback: MetadataResponse? = null
+
+    /** Catalogs confirmed with the server this session (200, 304, or revision equal to a confirmed index). */
+    private val confirmedCatalogKeys: MutableSet<String> = java.util.concurrent.ConcurrentHashMap.newKeySet()
+
+    /** Providers needed ad hoc this session (being added, restored, pending on a route); merged into later syncs. */
+    private val sessionRequestedCatalogKeys: MutableSet<String> = java.util.concurrent.ConcurrentHashMap.newKeySet()
+
+    /** Dedupes pending-triggered single fetches: at most one automatic fetch per provider per refresh round, no spinning on failure. */
+    private val autoRequestedCatalogKeys: MutableSet<String> = java.util.concurrent.ConcurrentHashMap.newKeySet()
+
+    /** Where the needed catalog set comes from: the configured providers and whether a relay exists (supplied at app start). */
+    data class CatalogDemand(
+        val providerKinds: Set<ProviderKind>,
+        val hasRelay: Boolean,
+    )
+
+    @Volatile
+    var catalogDemandSupplier: (suspend () -> CatalogDemand)? = null
+
+    /** Load state of one provider's catalog. Only when [Loaded] does "not found" mean "not in the catalog". */
+    enum class CatalogLoadState {
+        /** No metadata snapshot at all yet (cold start in progress or loading failed): the usual "metadata unavailable". */
+        Unavailable,
+        /** The index says this provider has a catalog but it has not arrived; a fetch of just this provider has been started. */
+        Pending,
+        Loaded,
+        /** The current snapshot has no such provider (relay, or not served). */
+        Absent,
+    }
 
     @Volatile
     private var appContext: Context? = initialContext?.applicationContext
@@ -998,13 +1085,16 @@ class MetadataClient internal constructor(
         }
     }
 
-    private suspend fun readPersistedPayload(dao: MetadataCacheDao): String? {
-        val length = dao.payloadLength() ?: return null
+    private suspend fun readPersistedPayload(
+        dao: MetadataCacheDao,
+        key: String = MetadataCacheEntity.SINGLETON_KEY,
+    ): String? {
+        val length = dao.payloadLength(key) ?: return null
         if (length <= 0) return null
         val builder = StringBuilder(length)
         var readChars = 0
         while (readChars < length) {
-            val chunk = dao.payloadChunk(readChars + 1, PAYLOAD_CHUNK_CHARS) ?: return null
+            val chunk = dao.payloadChunk(readChars + 1, PAYLOAD_CHUNK_CHARS, key) ?: return null
             if (chunk.isEmpty()) break
             builder.append(chunk)
             readChars += chunk.codePointCount(0, chunk.length)
@@ -1101,33 +1191,51 @@ class MetadataClient internal constructor(
         initMutex.withLock {
             if (table != null) return
 
+            val splitCache = if (metadataSplitTransport != null) loadSplitCache() else null
             val cached = loadPersistedCache(context)
-            if (cached != null) {
-                // Cache bucketing: a cached contractVersion outside the compatible window
-                // [SUPPORTED_CONTRACT_VERSION - 1, SUPPORTED_CONTRACT_VERSION + 1] is discarded
-                // and the catalog is fetched again.
-                val cachedContract = cached.data.contractVersion
-                val inWindow = cachedContract == 0 ||
-                    cachedContract in (SUPPORTED_CONTRACT_VERSION - 1)..(SUPPORTED_CONTRACT_VERSION + 1)
-                if (!inWindow) {
-                    // An out-of-window contract is a cold path: drop the row and the legacy
-                    // preferences, then fetch in full without carrying the old ETag.
-                    clearPersistedCache(context)
+            if (splitCache == null && cached == null) {
+                // No usable cache is the cold path: no leftover ETag may turn an empty table into a 304.
+                fetchMetadata(bypassETag = true)
+                return
+            }
+            // Cache bucketing: a cached contractVersion outside the compatible window
+            // [SUPPORTED_CONTRACT_VERSION - 1, SUPPORTED_CONTRACT_VERSION + 1] is discarded
+            // and the catalog is fetched again.
+            val primaryContract = splitCache?.contractVersion ?: cached!!.data.contractVersion
+            if (!isCachedContractInWindow(primaryContract)) {
+                // An out-of-window contract is a cold path: drop the rows and the legacy
+                // preferences, then fetch in full without carrying the old ETag.
+                clearPersistedCache(context)
+                fetchMetadata(bypassETag = true)
+                return
+            }
+            val safeCached = cached
+                ?.takeIf { isCachedContractInWindow(it.data.contractVersion) }
+                ?.let { legacy ->
+                    normalizeMetadataEvidenceViews(
+                        data = legacy.data,
+                        metadataRevision = legacy.eTag,
+                        acceptPersistedProjection = true,
+                    )
+                }
+            val cachedAtMs: Long
+            val hydratedSplit = splitCache != null && hydrateSplitCache(splitCache, cached, safeCached)
+            if (hydratedSplit) {
+                cachedAtMs = splitCache.updatedAtMs
+            } else {
+                val legacy = cached
+                val safe = safeCached
+                if (legacy == null || safe == null) {
                     fetchMetadata(bypassETag = true)
                     return
                 }
-                val persistedETag = cached.eTag
-                val safeCached = normalizeMetadataEvidenceViews(
-                    data = cached.data,
-                    metadataRevision = persistedETag,
-                    acceptPersistedProjection = true,
-                )
-                table = safeCached
+                val persistedETag = legacy.eTag
+                table = safe
                 _metadataSource = MetadataSource.CachedOffline
                 storedETag = persistedETag
-                storedModelFactsETag = cached.modelFactsETag
+                storedModelFactsETag = legacy.modelFactsETag
                 evidencePublication = EvidencePublication(
-                    table = safeCached,
+                    table = safe,
                     metadataRevision = persistedETag,
                     contentRevision = evidencePublication.contentRevision + 1,
                 )
@@ -1135,24 +1243,76 @@ class MetadataClient internal constructor(
                 // before the network round trip finishes.
                 _refreshEvents.tryEmit(
                     RefreshEvent(
-                        version = safeCached.version,
-                        contractVersion = safeCached.contractVersion,
+                        version = safe.version,
+                        contractVersion = safe.contractVersion,
                         contentRevision = evidencePublication.contentRevision,
                     )
                 )
-                if (nowMillis() - cached.timestamp < CACHE_TTL_MS) {
-                    pendingRefresh = backgroundScope.launch {
-                        fetchMetadata(bypassETag = false)
-                        pendingRefresh = null
-                    }
-                    return
+                // A 304 refreshes only the row's updatedAtMs, not the timestamp inside the
+                // envelope, so take the newer of the two.
+                cachedAtMs = maxOf(legacy.timestamp, legacyRowUpdatedAtMs())
+            }
+            if (nowMillis() - cachedAtMs < CACHE_TTL_MS) {
+                pendingRefresh = backgroundScope.launch {
+                    fetchMetadata(bypassETag = false)
+                    pendingRefresh = null
                 }
-                fetchMetadata(bypassETag = false)
                 return
             }
+            fetchMetadata(bypassETag = false)
+        }
+    }
 
-            // No usable cache is the cold path: no leftover ETag may turn an empty table into a 304.
-            fetchMetadata(bypassETag = true)
+    /** The split cache wins; the older lean row only covers providers whose catalog is still missing. A bad cache never blocks startup. */
+    private suspend fun hydrateSplitCache(
+        splitCache: SplitCacheSnapshot,
+        cached: RoomCacheEnvelope?,
+        safeCached: MetadataResponse?,
+    ): Boolean {
+        splitIndex = splitCache.index
+        loadedCatalogs.putAll(splitCache.catalogs)
+        legacyLeanFallback = safeCached
+        val facts = splitCache.modelFacts
+        storedModelFactsETag = if (facts != null) facts.eTag else cached?.modelFactsETag
+        val startedAtMs = nowMillis()
+        return try {
+            publishSplitSnapshot(
+                index = splitCache.index,
+                indexConfirmed = false,
+                modelFacts = if (facts != null) facts.facts else safeCached?.modelFacts,
+                modelFactsRevision = if (facts != null) facts.revision else safeCached?.modelFactsRevision,
+            )
+            true
+        } catch (error: Exception) {
+            reportFailure("cache_decode", startedAtMs, 0L, null, error)
+            splitIndex = null
+            loadedCatalogs.clear()
+            legacyLeanFallback = null
+            storedModelFactsETag = null
+            metadataCacheDao?.let { dao ->
+                try {
+                    dao.deleteAllExcept(MetadataCacheEntity.SINGLETON_KEY)
+                } catch (cancelled: CancellationException) {
+                    throw cancelled
+                } catch (clearError: Exception) {
+                    reportFailure("cache_clear", startedAtMs, 0L, null, clearError)
+                }
+            }
+            false
+        }
+    }
+
+    private fun isCachedContractInWindow(contract: Int): Boolean =
+        contract == 0 || contract in (SUPPORTED_CONTRACT_VERSION - 1)..(SUPPORTED_CONTRACT_VERSION + 1)
+
+    private suspend fun legacyRowUpdatedAtMs(): Long {
+        val dao = metadataCacheDao ?: return 0L
+        return try {
+            dao.updatedAtMs(MetadataCacheEntity.SINGLETON_KEY) ?: 0L
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            0L
         }
     }
 
@@ -1166,14 +1326,21 @@ class MetadataClient internal constructor(
     }
 
     /** Forces a re-fetch from the catalog, for cases such as a provider resync. */
-    suspend fun refresh() {
+    suspend fun refresh() = refresh(emptySet())
+
+    /**
+     * Conditionally re-fetches the index, then syncs every catalog in "the needed set plus
+     * [kinds]" whose revision changed. Unchanged catalogs cost no request; in lean mode (no split
+     * transport, or an older server) this is a conditional refresh of the whole payload.
+     */
+    suspend fun refresh(kinds: Set<ProviderKind>) {
         // Same appContext guard as ensureInitialized()/persistCache(): with no context this
         // instance was never initialized, so fetchMetadata would issue a real request with
         // nowhere to persist the result. In the app there is always a context, so this is a
         // no-op there; in unit tests it stops a fire-and-forget refresh from racing the suite.
         appContext ?: return
         pendingRefresh?.join()
-        fetchMetadata(bypassETag = false)
+        fetchMetadata(bypassETag = false, requestedKeys = kinds.mapNotNull(::catalogKeyFor).toSet())
     }
 
     /** Only off-catalog and subscription models need the facts table; a cold start skips it. */
@@ -1190,9 +1357,72 @@ class MetadataClient internal constructor(
         fetchModelFacts()
     }
 
+    /**
+     * O(1) lookup through resolveMap.
+     *
+     * On a miss it also checks whether this provider's catalog is merely not loaded yet; if so,
+     * just that provider is fetched in the background (deduplicated, never a full reload). The
+     * return value is still null: callers that must tell pending from a miss read [catalogLoadState].
+     */
     fun resolveCatalogModel(modelID: String, providerKind: ProviderKind): ResolvedModelMetadata? {
         return resolveCatalogModel(table, modelID, providerKind)
+            ?: run {
+                catalogLoadState(providerKind)
+                null
+            }
     }
+
+    /**
+     * Whether this provider's catalog can back a conclusion right now (pending is not a miss).
+     * [CatalogLoadState.Pending] has already started a background fetch of just this provider.
+     */
+    fun catalogLoadState(providerKind: ProviderKind): CatalogLoadState {
+        val publication = evidencePublication
+        val snapshot = table ?: return CatalogLoadState.Unavailable
+        val key = catalogKeyFor(providerKind) ?: return CatalogLoadState.Absent
+        val loaded = publication.loadedProviderKeys
+            ?: return if (snapshot.providers.containsKey(key)) CatalogLoadState.Loaded else CatalogLoadState.Absent
+        if (key in loaded) return CatalogLoadState.Loaded
+        if (!snapshot.providers.containsKey(key)) return CatalogLoadState.Absent
+        requestCatalogInBackground(key)
+        return CatalogLoadState.Pending
+    }
+
+    fun isCatalogPending(providerKind: ProviderKind): Boolean =
+        catalogLoadState(providerKind) == CatalogLoadState.Pending
+
+    /**
+     * "Confirmed with the server this session", per provider. In split mode a confirmed index
+     * only proves provider-level fields are fresh; a negative conclusion about model capabilities
+     * also needs this provider's catalog confirmed this session. A provider without a catalog
+     * (relay) goes by the index. In lean mode this equals [snapshotConfirmedThisSession].
+     */
+    fun isSnapshotConfirmed(providerKind: ProviderKind): Boolean {
+        if (!_snapshotConfirmedThisSession) return false
+        val publication = evidencePublication
+        publication.loadedProviderKeys ?: return true
+        val key = catalogKeyFor(providerKind) ?: return true
+        if (table?.providers?.containsKey(key) != true) return true
+        return key in confirmedCatalogKeys
+    }
+
+    /** Source per provider: in split mode each catalog is fresh or cached on its own; a catalog not loaded is Unknown. */
+    fun metadataSource(providerKind: ProviderKind): MetadataSource {
+        val publication = evidencePublication
+        val loaded = publication.loadedProviderKeys ?: return _metadataSource
+        val key = catalogKeyFor(providerKind) ?: return _metadataSource
+        if (table?.providers?.containsKey(key) != true) return _metadataSource
+        if (key !in loaded) return MetadataSource.Unknown
+        return if (_snapshotConfirmedThisSession && key in confirmedCatalogKeys) {
+            MetadataSource.FreshNetwork
+        } else {
+            MetadataSource.CachedOffline
+        }
+    }
+
+    /** ProviderKind to the provider key in the metadata response; a relay has no official catalog. */
+    private fun catalogKeyFor(kind: ProviderKind): String? =
+        if (kind == ProviderKind.Relay) null else kindMap[kind.rawValue] ?: kind.rawValue
 
     fun currentMetadataRevision(): String? = evidencePublication.metadataRevision
 
@@ -1651,13 +1881,13 @@ class MetadataClient internal constructor(
         )
     }
 
-    fun resolveCatalogModelAcrossProviders(modelID: String): ResolvedModelMetadata? {
-        ProviderKind.entries.forEach { kind ->
-            if (kind == ProviderKind.Relay) return@forEach
-            resolveCatalogModel(modelID = modelID, providerKind = kind)?.let { return it }
-        }
-        return null
-    }
+    /**
+     * Official-catalog match used to build relay requests: scans only
+     * relayRuntimeConfig.officialProviderWhitelist. A miss still returns null and the caller
+     * fails open.
+     */
+    fun resolveCatalogModelAcrossProviders(modelID: String): ResolvedModelMetadata? =
+        resolveCatalogModelAcrossProvidersWithProvider(modelID)?.metadata
 
     fun resolveCatalogModelAcrossProvidersWithProvider(
         modelID: String,
@@ -1677,8 +1907,12 @@ class MetadataClient internal constructor(
             if (!ordered.contains(kind)) ordered.add(kind)
         }
 
+        // The cross-provider scan reads only catalogs that are already loaded and never fetches
+        // one per whitelisted provider: when a relay exists the whitelist is already in the needed
+        // set, and a caller without a relay should not download those catalogs for this.
+        val snapshot = table
         for (kind in ordered) {
-            val resolved = resolveCatalogModel(modelID = modelID, providerKind = kind) ?: continue
+            val resolved = resolveCatalogModel(snapshot, modelID, kind) ?: continue
             val source = if (priorityBackendKey != null && ordered.first() == kind) {
                 RelayCatalogMatchSource.TransportFirst
             } else {
@@ -2398,71 +2632,98 @@ class MetadataClient internal constructor(
         }
     }
 
-    private suspend fun fetchMetadata(bypassETag: Boolean = false) {
+    private suspend fun fetchMetadata(
+        bypassETag: Boolean = false,
+        requestedKeys: Set<String> = emptySet(),
+    ) {
         fetchMutex.withLock {
             withContext(ioDispatcher) {
-                val startedAtMs = nowMillis()
-                var phase = "fetch"
-                var responseBytes = 0L
-                var statusCode: Int? = null
-                try {
-                    val response = metadataTransport.fetch(
-                        ifNoneMatch = storedETag.takeUnless { bypassETag },
-                    )
-                    statusCode = response.statusCode
-                    responseBytes = response.responseBytes
-                    if (statusCode == HttpURLConnection.HTTP_NOT_MODIFIED) {
-                        handleNotModified()
-                        phase = "cache_write"
-                        evidencePublication.table?.let { safeSnapshot ->
-                            persistCache(
-                                RoomCacheEnvelope(
-                                    data = safeSnapshot,
-                                    timestamp = nowMillis(),
-                                    eTag = storedETag,
-                                    modelFactsETag = storedModelFactsETag,
-                                )
-                            )
-                        }
-                        return@withContext
-                    }
-                    if (statusCode != HttpURLConnection.HTTP_OK) {
-                        reportFailure(
-                            phase = phase,
-                            startedAtMs = startedAtMs,
-                            responseBytes = responseBytes,
-                            statusCode = statusCode,
-                            error = MetadataHttpStatusException(statusCode),
-                        )
-                        return@withContext
-                    }
-
-                    val body = response.body ?: throw EOFException("metadata response body missing")
-                    phase = "decode"
-                    val decoded = decodeMetadataPayload(body)
-                    publishNetworkSnapshot(decoded, response.eTag)
-                    phase = "cache_write"
-                    persistCache(
-                        RoomCacheEnvelope(
-                            data = evidencePublication.table ?: decoded,
-                            timestamp = nowMillis(),
-                            eTag = response.eTag,
-                            modelFactsETag = storedModelFactsETag,
-                        )
-                    )
-                } catch (cancelled: CancellationException) {
-                    throw cancelled
-                } catch (error: Exception) {
-                    reportFailure(phase, startedAtMs, responseBytes, statusCode, error)
-                } catch (error: Error) {
-                    try {
-                        reportFailure(phase, startedAtMs, responseBytes, statusCode, error)
-                    } catch (reportingFailure: Throwable) {
-                        error.addSuppressed(reportingFailure)
-                    }
-                    throw error
+                val split = metadataSplitTransport
+                if (split == null) {
+                    fetchLeanLocked(bypassETag)
+                } else {
+                    refreshSplitLocked(split, bypassETag, requestedKeys)
                 }
             }
+        }
+    }
+
+    /** The whole-payload lean path: no split transport injected, or an older server answered view=index with 400. */
+    private suspend fun fetchLeanLocked(bypassETag: Boolean) {
+        val startedAtMs = nowMillis()
+        var phase = "fetch"
+        var responseBytes = 0L
+        var statusCode: Int? = null
+        try {
+            val response = metadataTransport.fetch(
+                ifNoneMatch = storedETag.takeUnless { bypassETag },
+            )
+            statusCode = response.statusCode
+            responseBytes = response.responseBytes
+            if (statusCode == HttpURLConnection.HTTP_NOT_MODIFIED) {
+                handleNotModified()
+                phase = "cache_write"
+                // A 304 refreshes the timestamp only instead of rewriting the whole payload.
+                // The body is written again only when the row is missing (for example the last
+                // Room write failed and the snapshot lives only in memory).
+                val touched = metadataCacheDao?.touch(MetadataCacheEntity.SINGLETON_KEY, nowMillis()) ?: 1
+                if (touched == 0) {
+                    evidencePublication.table?.let { safeSnapshot ->
+                        persistCache(
+                            RoomCacheEnvelope(
+                                data = safeSnapshot,
+                                timestamp = nowMillis(),
+                                eTag = storedETag,
+                                modelFactsETag = storedModelFactsETag,
+                            )
+                        )
+                    }
+                }
+                return
+            }
+            if (statusCode != HttpURLConnection.HTTP_OK) {
+                reportFailure(
+                    phase = phase,
+                    startedAtMs = startedAtMs,
+                    responseBytes = responseBytes,
+                    statusCode = statusCode,
+                    error = MetadataHttpStatusException(statusCode),
+                )
+                return
+            }
+
+            val body = response.body ?: throw EOFException("metadata response body missing")
+            phase = "decode"
+            val decoded = decodeMetadataPayload(body)
+            // Older server or rollback: lean becomes the only source, and the split state and rows
+            // go with it, or the next cold start would let a stale index override this newer payload.
+            val leavingSplit = splitIndex != null || loadedCatalogs.isNotEmpty()
+            splitIndex = null
+            loadedCatalogs.clear()
+            confirmedCatalogKeys.clear()
+            legacyLeanFallback = null
+            publishNetworkSnapshot(decoded, response.eTag)
+            phase = "cache_write"
+            if (leavingSplit) metadataCacheDao?.deleteAllExcept(MetadataCacheEntity.SINGLETON_KEY)
+            persistCache(
+                RoomCacheEnvelope(
+                    data = evidencePublication.table ?: decoded,
+                    timestamp = nowMillis(),
+                    eTag = response.eTag,
+                    modelFactsETag = storedModelFactsETag,
+                )
+            )
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (error: Exception) {
+            reportFailure(phase, startedAtMs, responseBytes, statusCode, error)
+        } catch (error: Error) {
+            try {
+                reportFailure(phase, startedAtMs, responseBytes, statusCode, error)
+            } catch (reportingFailure: Throwable) {
+                error.addSuppressed(reportingFailure)
+            }
+            throw error
         }
     }
 
@@ -2494,14 +2755,7 @@ class MetadataClient internal constructor(
                                 contentRevision = nextContentRevision,
                             )
                         )
-                        persistCache(
-                            RoomCacheEnvelope(
-                                data = next,
-                                timestamp = nowMillis(),
-                                eTag = storedETag,
-                                modelFactsETag = null,
-                            )
-                        )
+                        persistModelFacts(next)
                         return@withContext
                     }
                     if (statusCode != HttpURLConnection.HTTP_OK) {
@@ -2535,14 +2789,7 @@ class MetadataClient internal constructor(
                             contentRevision = nextContentRevision,
                         )
                     )
-                    persistCache(
-                        RoomCacheEnvelope(
-                            data = next,
-                            timestamp = nowMillis(),
-                            eTag = storedETag,
-                            modelFactsETag = storedModelFactsETag,
-                        )
-                    )
+                    persistModelFacts(next)
                 } catch (cancelled: CancellationException) {
                     throw cancelled
                 } catch (error: Exception) {
@@ -2553,6 +2800,569 @@ class MetadataClient internal constructor(
                 }
             }
         }
+    }
+
+    // Index + per-provider catalog.
+
+    private sealed interface IndexFetch {
+        /** An older server answered view=index with 400: fall back to lean. */
+        data object Unsupported : IndexFetch
+        data object Failed : IndexFetch
+        data object NotModified : IndexFetch
+        class Fetched(val index: SplitIndexState) : IndexFetch
+    }
+
+    private enum class CatalogSyncResult { Current, Adopted, Mismatch, Failed }
+
+    private class CatalogRejectedException(reason: String) :
+        IllegalStateException("metadata catalog rejected: $reason")
+
+    private class CatalogRevisionMismatchException(provider: String) :
+        IllegalStateException("metadata catalog revision differs from index after refetch: $provider")
+
+    private suspend fun refreshSplitLocked(
+        split: MetadataSplitTransport,
+        bypassETag: Boolean,
+        requestedKeys: Set<String>,
+    ) {
+        // Each explicit refresh lets pending providers trigger once more, but never spins within a round.
+        autoRequestedCatalogKeys.clear()
+        sessionRequestedCatalogKeys.addAll(requestedKeys)
+        val previous = splitIndex
+        val index: SplitIndexState
+        var indexChanged = false
+        when (val fetched = fetchIndexLocked(split, previous?.eTag.takeUnless { bypassETag })) {
+            IndexFetch.Unsupported -> {
+                // The client shipped before the server: a cold start must not fail because of it.
+                fetchLeanLocked(bypassETag = bypassETag || previous != null)
+                return
+            }
+            IndexFetch.Failed -> return
+            IndexFetch.NotModified -> index = previous ?: return
+            is IndexFetch.Fetched -> {
+                index = fetched.index
+                indexChanged = true
+            }
+        }
+        if (previous == null && evidencePublication.loadedProviderKeys == null) {
+            // First switch from a full lean payload (old cache or lean fallback) to split: keep it as each provider's last good.
+            table?.let { legacyLeanFallback = it }
+        }
+        val (needed, demandKnown) = neededCatalogKeys(index, requestedKeys)
+        syncAndPublishLocked(
+            split = split,
+            initialIndex = index,
+            keys = needed,
+            indexChanged = indexChanged,
+            indexConfirmed = true,
+            firstSplitPublication = previous == null,
+            demandComplete = demandKnown,
+        )
+    }
+
+    /**
+     * Syncs a set of catalogs and publishes one snapshot if anything changed. When a catalog's
+     * revision differs from the index (a snapshot activated mid-sync), the index is fetched once
+     * more and the catalog retried; if it still differs, last good is kept and a redacted
+     * diagnostic is reported.
+     */
+    private suspend fun syncAndPublishLocked(
+        split: MetadataSplitTransport,
+        initialIndex: SplitIndexState,
+        keys: Set<String>,
+        indexChanged: Boolean,
+        indexConfirmed: Boolean,
+        firstSplitPublication: Boolean,
+        /** Whether [keys] covers the full needed set; only then may the legacy lean snapshot retire. */
+        demandComplete: Boolean,
+    ) {
+        var index = initialIndex
+        var changed = indexChanged
+        var results = syncCatalogsLocked(split, index, keys)
+        val mismatched = results.filterValues { it == CatalogSyncResult.Mismatch }.keys
+        if (mismatched.isNotEmpty()) {
+            val refetched = fetchIndexLocked(split, index.eTag)
+            if (refetched is IndexFetch.Fetched) {
+                index = refetched.index
+                changed = true
+            }
+            val retried = syncCatalogsLocked(split, index, mismatched)
+            results = results + retried
+            retried.filterValues { it == CatalogSyncResult.Mismatch }.keys.forEach { key ->
+                reportFailure(
+                    phase = "catalog_revision",
+                    startedAtMs = nowMillis(),
+                    responseBytes = 0L,
+                    statusCode = null,
+                    error = CatalogRevisionMismatchException(key),
+                )
+            }
+        }
+        if (changed) {
+            splitIndex = index
+            // After the index changes, a last good whose revision no longer matches is no longer confirmed this session.
+            confirmedCatalogKeys.removeAll { key ->
+                loadedCatalogs[key]?.catalog?.catalogRevision != index.catalogRevisions[key]
+            }
+            persistSplitIndex(index)
+        }
+        val adopted = results.values.any { it == CatalogSyncResult.Adopted }
+        val retiredLegacy = demandComplete && retireLegacyLeanIfComplete(keys)
+        if (changed || adopted || retiredLegacy || firstSplitPublication) {
+            if (publishSplitSnapshotReporting(index, indexConfirmed) && indexConfirmed) storedETag = null
+        } else if (indexConfirmed) {
+            handleNotModified()
+        }
+    }
+
+    private suspend fun fetchIndexLocked(split: MetadataSplitTransport, ifNoneMatch: String?): IndexFetch {
+        val startedAtMs = nowMillis()
+        var phase = "index_fetch"
+        var responseBytes = 0L
+        var statusCode: Int? = null
+        return try {
+            val response = split.fetchIndex(ifNoneMatch)
+            statusCode = response.statusCode
+            responseBytes = response.responseBytes
+            when (statusCode) {
+                HttpURLConnection.HTTP_NOT_MODIFIED -> if (ifNoneMatch != null && splitIndex != null) {
+                    touchRow(MetadataCacheEntity.INDEX_KEY)
+                    IndexFetch.NotModified
+                } else {
+                    reportFailure(phase, startedAtMs, responseBytes, statusCode, MetadataHttpStatusException(statusCode))
+                    IndexFetch.Failed
+                }
+                HttpURLConnection.HTTP_BAD_REQUEST -> IndexFetch.Unsupported
+                HttpURLConnection.HTTP_OK -> {
+                    phase = "index_decode"
+                    val body = response.body ?: throw EOFException("metadata index body missing")
+                    val data = MetadataCatalogAssembly.unwrapData(json.parseToJsonElement(body))
+                        ?.takeIf { (it["view"] as? JsonPrimitive)?.contentOrNull == "index" }
+                        ?: throw IllegalStateException("metadata index view missing")
+                    IndexFetch.Fetched(
+                        SplitIndexState(
+                            data = data,
+                            eTag = response.eTag,
+                            catalogRevisions = MetadataCatalogAssembly.indexCatalogRevisions(data),
+                        ),
+                    )
+                }
+                else -> {
+                    reportFailure(phase, startedAtMs, responseBytes, statusCode, MetadataHttpStatusException(statusCode))
+                    IndexFetch.Failed
+                }
+            }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (error: Exception) {
+            reportFailure(phase, startedAtMs, responseBytes, statusCode, error)
+            IndexFetch.Failed
+        }
+    }
+
+    private suspend fun syncCatalogsLocked(
+        split: MetadataSplitTransport,
+        index: SplitIndexState,
+        keys: Set<String>,
+    ): Map<String, CatalogSyncResult> = coroutineScope {
+        keys.filter { it in index.catalogRevisions }
+            .map { key -> key to async { syncOneCatalog(split, index, key) } }
+            .associate { (key, result) -> key to result.await() }
+    }
+
+    private suspend fun syncOneCatalog(
+        split: MetadataSplitTransport,
+        index: SplitIndexState,
+        key: String,
+    ): CatalogSyncResult {
+        val expectedRevision = index.catalogRevisions.getValue(key)
+        val cached = loadedCatalogs[key]
+        if (cached != null && cached.catalog.catalogRevision == expectedRevision) {
+            // Revision equals the index: already current, no request.
+            confirmedCatalogKeys.add(key)
+            return CatalogSyncResult.Current
+        }
+        val startedAtMs = nowMillis()
+        var phase = "catalog_fetch"
+        var responseBytes = 0L
+        var statusCode: Int? = null
+        try {
+            val response = split.fetchCatalog(key, cached?.eTag)
+            statusCode = response.statusCode
+            responseBytes = response.responseBytes
+            when (statusCode) {
+                // 304: the bytes on hand are still the current catalog, yet their revision differs from the index.
+                HttpURLConnection.HTTP_NOT_MODIFIED ->
+                    return if (cached != null) CatalogSyncResult.Mismatch else {
+                        reportFailure(phase, startedAtMs, responseBytes, statusCode, MetadataHttpStatusException(statusCode))
+                        CatalogSyncResult.Failed
+                    }
+                HttpURLConnection.HTTP_OK -> Unit
+                else -> {
+                    // A 404 is never an empty catalog: keep last good, so this provider stays pending or on its old catalog.
+                    reportFailure(phase, startedAtMs, responseBytes, statusCode, MetadataHttpStatusException(statusCode))
+                    return CatalogSyncResult.Failed
+                }
+            }
+            phase = "catalog_decode"
+            val body = response.body ?: throw EOFException("metadata catalog body missing")
+            val data = MetadataCatalogAssembly.unwrapData(json.parseToJsonElement(body))
+                ?: throw CatalogRejectedException("body")
+            val catalog = when (val expansion = MetadataCatalogAssembly.expandCatalog(data, key)) {
+                is MetadataCatalogAssembly.Expansion.Rejected -> throw CatalogRejectedException(expansion.reason)
+                is MetadataCatalogAssembly.Expansion.Accepted -> expansion.catalog
+            }
+            if (catalog.catalogRevision != expectedRevision) return CatalogSyncResult.Mismatch
+            loadedCatalogs[key] = LoadedCatalog(eTag = response.eTag, catalog = catalog)
+            confirmedCatalogKeys.add(key)
+            phase = "cache_write"
+            persistCatalogRow(key, response.eTag, data)
+            return CatalogSyncResult.Adopted
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (error: Exception) {
+            reportFailure(phase, startedAtMs, responseBytes, statusCode, error)
+            return if (phase == "cache_write") CatalogSyncResult.Adopted else CatalogSyncResult.Failed
+        }
+    }
+
+    /**
+     * The needed set = configured official providers, plus the official whitelist when a relay
+     * exists, plus providers requested ad hoc; limited to providers the index lists a catalog for.
+     */
+    private suspend fun neededCatalogKeys(
+        index: SplitIndexState,
+        requestedKeys: Set<String>,
+    ): Pair<Set<String>, Boolean> {
+        val demand = try {
+            catalogDemandSupplier?.invoke()
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            null
+        }
+        val keys = linkedSetOf<String>()
+        demand?.providerKinds?.forEach { kind -> catalogKeyFor(kind)?.let(keys::add) }
+        if (demand?.hasRelay == true) {
+            keys += MetadataCatalogAssembly.relayWhitelist(index.data)
+                ?: FALLBACK_RELAY_RUNTIME_CONFIG.officialProviderWhitelist
+        }
+        keys += requestedKeys
+        keys += sessionRequestedCatalogKeys
+        return keys.filterTo(linkedSetOf()) { it in index.catalogRevisions } to (demand != null)
+    }
+
+    /** Fetches one pending provider in the background; touches nothing else and never triggers a full reload. */
+    private fun requestCatalogInBackground(key: String) {
+        val split = metadataSplitTransport ?: return
+        appContext ?: return
+        if (splitIndex == null) return
+        if (!autoRequestedCatalogKeys.add(key)) return
+        sessionRequestedCatalogKeys.add(key)
+        backgroundScope.launch {
+            fetchMutex.withLock {
+                withContext(ioDispatcher) {
+                    val index = splitIndex ?: return@withContext
+                    if (key in evidencePublication.loadedProviderKeys.orEmpty()) return@withContext
+                    syncAndPublishLocked(
+                        split = split,
+                        initialIndex = index,
+                        keys = setOf(key),
+                        indexChanged = false,
+                        indexConfirmed = false,
+                        firstSplitPublication = false,
+                        demandComplete = false,
+                    )
+                }
+            }
+        }
+    }
+
+    /** Once every needed catalog is in, the legacy single-row lean snapshot retires (model facts move to their own row first). */
+    private suspend fun retireLegacyLeanIfComplete(neededKeys: Set<String>): Boolean {
+        legacyLeanFallback ?: return false
+        if (!neededKeys.all { loadedCatalogs.containsKey(it) }) return false
+        legacyLeanFallback = null
+        val dao = metadataCacheDao ?: return true
+        val startedAtMs = nowMillis()
+        try {
+            table?.takeIf { it.modelFacts != null }?.let { current -> persistModelFactsRow(current) }
+            dao.delete(MetadataCacheEntity.SINGLETON_KEY)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (error: Exception) {
+            reportFailure("cache_write", startedAtMs, 0L, null, error)
+        }
+        return true
+    }
+
+    /**
+     * Assembles the index and loaded catalogs into a lean-shaped snapshot and publishes it, still
+     * through the lean decode and evidence normalization. A provider without a catalog yet uses
+     * the legacy lean cache as last good when it has one, and stays pending otherwise.
+     */
+    private fun publishSplitSnapshotReporting(index: SplitIndexState, indexConfirmed: Boolean): Boolean {
+        val startedAtMs = nowMillis()
+        return try {
+            publishSplitSnapshot(index, indexConfirmed)
+            true
+        } catch (error: Exception) {
+            reportFailure("decode", startedAtMs, 0L, null, error)
+            false
+        }
+    }
+
+    private fun publishSplitSnapshot(
+        index: SplitIndexState,
+        indexConfirmed: Boolean,
+        modelFacts: Map<String, ModelFacts>? = table?.modelFacts,
+        modelFactsRevision: String? = table?.modelFactsRevision,
+    ) {
+        val catalogs = loadedCatalogs
+            .filterKeys { it in index.catalogRevisions }
+            .mapValues { it.value.catalog }
+        val assembled = MetadataCatalogAssembly.assembleLeanData(index.data, catalogs)
+        val decoded = json.decodeFromJsonElement(MetadataResponse.serializer(), assembled).copy(
+            modelFacts = modelFacts,
+            modelFactsRevision = modelFactsRevision,
+        )
+        val normalized = normalizeMetadataEvidenceViews(
+            data = decoded,
+            metadataRevision = index.eTag,
+            acceptPersistedProjection = false,
+        )
+        val legacy = legacyLeanFallback
+        val overlayKeys = legacy?.providers.orEmpty()
+            .filter { (key, provider) ->
+                key !in catalogs && key in normalized.providers && provider.models.isNotEmpty()
+            }
+            .keys
+        val safe = if (legacy == null || overlayKeys.isEmpty()) normalized else normalized.copy(
+            providers = normalized.providers.mapValues { (key, provider) ->
+                val old = legacy.providers[key]
+                if (key in overlayKeys && old != null) {
+                    provider.copy(resolveMap = old.resolveMap, models = old.models)
+                } else {
+                    provider
+                }
+            },
+            generationParameterTables = legacy.generationParameterTables.orEmpty() +
+                normalized.generationParameterTables.orEmpty(),
+        )
+        val nextRevision = evidencePublication.contentRevision + 1
+        evidencePublication = EvidencePublication(
+            table = safe,
+            metadataRevision = index.eTag,
+            contentRevision = nextRevision,
+            loadedProviderKeys = catalogs.keys + overlayKeys,
+        )
+        table = safe
+        if (indexConfirmed) {
+            _metadataSource = MetadataSource.FreshNetwork
+            _snapshotConfirmedThisSession = true
+        } else if (_metadataSource == MetadataSource.Unknown) {
+            _metadataSource = MetadataSource.CachedOffline
+        }
+        _refreshEvents.tryEmit(
+            RefreshEvent(
+                version = safe.version,
+                contractVersion = safe.contractVersion,
+                contentRevision = nextRevision,
+            )
+        )
+    }
+
+    private class SplitCacheSnapshot(
+        val index: SplitIndexState,
+        val catalogs: Map<String, LoadedCatalog>,
+        val modelFacts: ModelFactsCacheEnvelope?,
+        val updatedAtMs: Long,
+        val contractVersion: Int,
+    )
+
+    /** Reads the split cache back; a bad row drops only that row and never blocks startup. */
+    private suspend fun loadSplitCache(): SplitCacheSnapshot? {
+        val dao = metadataCacheDao ?: return null
+        val startedAtMs = nowMillis()
+        val indexPayload = try {
+            readPersistedPayload(dao, MetadataCacheEntity.INDEX_KEY)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (error: Exception) {
+            reportFailure("cache_read", startedAtMs, 0L, null, error)
+            return null
+        } ?: return null
+        val indexData = decodeCacheRow(dao, MetadataCacheEntity.INDEX_KEY, indexPayload) {
+            json.decodeFromString<SplitIndexCacheEnvelope>(it)
+        }?.takeIf { (it.data["view"] as? JsonPrimitive)?.contentOrNull == "index" } ?: return null
+        val index = SplitIndexState(
+            data = indexData.data,
+            eTag = indexData.eTag,
+            catalogRevisions = MetadataCatalogAssembly.indexCatalogRevisions(indexData.data),
+        )
+        val catalogs = linkedMapOf<String, LoadedCatalog>()
+        for (key in index.catalogRevisions.keys) {
+            val rowKey = MetadataCacheEntity.CATALOG_KEY_PREFIX + key
+            val payload = try {
+                readPersistedPayload(dao, rowKey)
+            } catch (cancelled: CancellationException) {
+                throw cancelled
+            } catch (error: Exception) {
+                reportFailure("cache_read", startedAtMs, 0L, null, error)
+                null
+            } ?: continue
+            val envelope = decodeCacheRow(dao, rowKey, payload) {
+                json.decodeFromString<CatalogCacheEnvelope>(it)
+            } ?: continue
+            when (val expansion = MetadataCatalogAssembly.expandCatalog(envelope.data, key)) {
+                is MetadataCatalogAssembly.Expansion.Accepted ->
+                    catalogs[key] = LoadedCatalog(eTag = envelope.eTag, catalog = expansion.catalog)
+                is MetadataCatalogAssembly.Expansion.Rejected -> {
+                    reportFailure("cache_decode", startedAtMs, payload.length.toLong(), null, CatalogRejectedException(expansion.reason))
+                    deleteRowQuietly(dao, rowKey)
+                }
+            }
+        }
+        val facts = try {
+            readPersistedPayload(dao, MetadataCacheEntity.MODEL_FACTS_KEY)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            null
+        }?.let { payload ->
+            decodeCacheRow(dao, MetadataCacheEntity.MODEL_FACTS_KEY, payload) {
+                json.decodeFromString<ModelFactsCacheEnvelope>(it)
+            }
+        }
+        val updatedAtMs = try {
+            dao.updatedAtMs(MetadataCacheEntity.INDEX_KEY) ?: 0L
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            0L
+        }
+        return SplitCacheSnapshot(
+            index = index,
+            catalogs = catalogs,
+            modelFacts = facts,
+            updatedAtMs = updatedAtMs,
+            contractVersion = (indexData.data["contractVersion"] as? JsonPrimitive)?.intOrNull ?: 0,
+        )
+    }
+
+    private suspend fun <T> decodeCacheRow(
+        dao: MetadataCacheDao,
+        key: String,
+        payload: String,
+        decode: (String) -> T,
+    ): T? {
+        val startedAtMs = nowMillis()
+        return try {
+            decode(payload)
+        } catch (error: Exception) {
+            reportFailure("cache_decode", startedAtMs, payload.length.toLong(), null, error)
+            deleteRowQuietly(dao, key)
+            null
+        }
+    }
+
+    private suspend fun deleteRowQuietly(dao: MetadataCacheDao, key: String) {
+        try {
+            dao.delete(key)
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (error: Exception) {
+            reportFailure("cache_clear", nowMillis(), 0L, null, error)
+        }
+    }
+
+    /** A 304 refreshes the timestamp only and never rewrites the body. */
+    private suspend fun touchRow(key: String) {
+        val dao = metadataCacheDao ?: return
+        val startedAtMs = nowMillis()
+        try {
+            dao.touch(key, nowMillis())
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (error: Exception) {
+            reportFailure("cache_write", startedAtMs, 0L, null, error)
+        }
+    }
+
+    private suspend fun persistSplitIndex(index: SplitIndexState) {
+        val dao = metadataCacheDao ?: return
+        val startedAtMs = nowMillis()
+        try {
+            dao.upsert(
+                MetadataCacheEntity(
+                    key = MetadataCacheEntity.INDEX_KEY,
+                    payload = json.encodeToString(
+                        SplitIndexCacheEnvelope.serializer(),
+                        SplitIndexCacheEnvelope(eTag = index.eTag, data = index.data),
+                    ),
+                    version = (index.data["version"] as? JsonPrimitive)?.intOrNull ?: 0,
+                    contractVersion = (index.data["contractVersion"] as? JsonPrimitive)?.intOrNull ?: 0,
+                    updatedAtMs = nowMillis(),
+                )
+            )
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (error: Exception) {
+            reportFailure("cache_write", startedAtMs, 0L, null, error)
+        }
+    }
+
+    private suspend fun persistCatalogRow(key: String, eTag: String?, data: JsonObject) {
+        val dao = metadataCacheDao ?: return
+        val index = splitIndex
+        dao.upsert(
+            MetadataCacheEntity(
+                key = MetadataCacheEntity.CATALOG_KEY_PREFIX + key,
+                payload = json.encodeToString(
+                    CatalogCacheEnvelope.serializer(),
+                    CatalogCacheEnvelope(eTag = eTag, data = data),
+                ),
+                version = (index?.data?.get("version") as? JsonPrimitive)?.intOrNull ?: 0,
+                contractVersion = (index?.data?.get("contractVersion") as? JsonPrimitive)?.intOrNull ?: 0,
+                updatedAtMs = nowMillis(),
+            )
+        )
+    }
+
+    /** Split mode writes the separate model_facts row; lean mode keeps the single-row envelope. */
+    private suspend fun persistModelFacts(next: MetadataResponse) {
+        if (splitIndex != null) {
+            persistModelFactsRow(next)
+        } else {
+            persistCache(
+                RoomCacheEnvelope(
+                    data = next,
+                    timestamp = nowMillis(),
+                    eTag = storedETag,
+                    modelFactsETag = storedModelFactsETag,
+                )
+            )
+        }
+    }
+
+    private suspend fun persistModelFactsRow(next: MetadataResponse) {
+        val dao = metadataCacheDao ?: return
+        dao.upsert(
+            MetadataCacheEntity(
+                key = MetadataCacheEntity.MODEL_FACTS_KEY,
+                payload = json.encodeToString(
+                    ModelFactsCacheEnvelope.serializer(),
+                    ModelFactsCacheEnvelope(
+                        eTag = storedModelFactsETag,
+                        revision = next.modelFactsRevision,
+                        facts = next.modelFacts,
+                    ),
+                ),
+                version = next.version,
+                contractVersion = next.contractVersion,
+                updatedAtMs = nowMillis(),
+            )
+        )
     }
 
     private fun publishNetworkSnapshot(decoded: MetadataResponse, responseETag: String?) {
@@ -2849,6 +3659,16 @@ class MetadataClient internal constructor(
         suspend fun initialize(context: Context) = instance.initialize(context)
         suspend fun ensureInitialized() = instance.ensureInitialized()
         suspend fun refresh() = instance.refresh()
+        suspend fun refresh(kinds: Set<ProviderKind>) = instance.refresh(kinds)
+
+        fun catalogLoadState(providerKind: ProviderKind): CatalogLoadState =
+            instance.catalogLoadState(providerKind)
+
+        fun isSnapshotConfirmed(providerKind: ProviderKind): Boolean =
+            instance.isSnapshotConfirmed(providerKind)
+
+        fun metadataSource(providerKind: ProviderKind): MetadataSource =
+            instance.metadataSource(providerKind)
         suspend fun ensureModelFactsLoaded() = instance.ensureModelFactsLoaded()
         suspend fun refreshModelFacts() = instance.refreshModelFacts()
 

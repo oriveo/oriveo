@@ -580,7 +580,7 @@ private fun ModelControlsPanel(
                                                             isRefreshingRuntime = true
                                                             runtimeRefreshFailed = false
                                                             scope.launch {
-                                                                metadata.refresh()
+                                                                metadata.refresh(setOf(provider.kind))
                                                                 val resolved = ModelControlRuntimeIdentityResolver
                                                                     .resolve(provider, model, metadata)
                                                                 refreshedIdentity = resolved

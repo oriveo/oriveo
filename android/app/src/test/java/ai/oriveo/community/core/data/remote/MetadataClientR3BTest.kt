@@ -61,7 +61,9 @@ class MetadataClientR3BTest {
         assertEquals(86, client.version)
         assertEquals(MetadataClient.MetadataSource.FreshNetwork, client.metadataSource)
         assertTrue(client.snapshotConfirmedThisSession)
-        assertEquals(2, dao.upsertCount)
+        // A 304 refreshes the timestamp only; the whole payload is not rewritten for it.
+        assertEquals(1, dao.upsertCount)
+        assertEquals(1, dao.touchCount)
         assertEquals(86, dao.entity?.version)
         assertEquals(2_000L, dao.entity?.updatedAtMs)
         assertTrue(dao.entity?.payload.orEmpty().contains("\"eTag\":\"\\\"etag-86\\\"\""))
@@ -99,7 +101,9 @@ class MetadataClientR3BTest {
         // (otherwise the "last synced" banner never goes away).
         assertEquals(MetadataClient.MetadataSource.FreshNetwork, client.metadataSource)
         assertTrue(client.snapshotConfirmedThisSession)
-        assertEquals(2, dao.upsertCount)
+        // The migration writes the body once; the following 304 only refreshes the timestamp.
+        assertEquals(1, dao.upsertCount)
+        assertEquals(1, dao.touchCount)
         assertNotNull(dao.entity)
         assertFalse(prefs.contains(LEGACY_CACHE_KEY))
         assertFalse(prefs.contains(LEGACY_ETAG_KEY))
@@ -359,7 +363,8 @@ class MetadataClientR3BTest {
             failureReporter = { error("unexpected producer failure: $it") },
         ).fetchMetadataForTesting()
         val originalEntity = dao.entity
-        dao.upsertFailure = IOException("database location must not leak")
+        // A 304 refreshes the timestamp only, so the write failure happens on touch.
+        dao.touchFailure = IOException("database location must not leak")
 
         val reports = mutableListOf<Map<String, String>>()
         val client = MetadataClient(
@@ -393,7 +398,7 @@ class MetadataClientR3BTest {
             nowMillis = { 1L },
             failureReporter = { error("unexpected producer failure: $it") },
         ).fetchMetadataForTesting()
-        dao.upsertFailure = CancellationException("cancel 304 write")
+        dao.touchFailure = CancellationException("cancel 304 write")
 
         val reports = mutableListOf<Map<String, String>>()
         val client = MetadataClient(
@@ -746,9 +751,11 @@ class MetadataClientR3BTest {
         var entity: MetadataCacheEntity? = null,
     ) : MetadataCacheDao {
         var upsertCount = 0
+        var touchCount = 0
         var clearCount = 0
         var readFailure: Throwable? = null
         var upsertFailure: Throwable? = null
+        var touchFailure: Throwable? = null
         var clearFailure: Throwable? = null
         /** Number of chunked calls, proving a large payload didn't actually go through a single-row read. */
         var chunkReads = 0
@@ -779,6 +786,25 @@ class MetadataClientR3BTest {
             upsertCount += 1
             upsertFailure?.let { throw it }
             this.entity = entity
+        }
+
+        override suspend fun updatedAtMs(key: String): Long? =
+            entity?.takeIf { it.key == key }?.updatedAtMs
+
+        override suspend fun touch(key: String, updatedAtMs: Long): Int {
+            touchCount += 1
+            touchFailure?.let { throw it }
+            val current = entity?.takeIf { it.key == key } ?: return 0
+            entity = current.copy(updatedAtMs = updatedAtMs)
+            return 1
+        }
+
+        override suspend fun delete(key: String) {
+            if (entity?.key == key) entity = null
+        }
+
+        override suspend fun deleteAllExcept(keep: String) {
+            if (entity?.key != keep) entity = null
         }
 
         override suspend fun clear() {

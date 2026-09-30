@@ -87,8 +87,12 @@ class OriveoApplication : Application() {
         }
         appScope.launch {
             if (!databaseHealthProbe.awaitHealthy()) return@launch
+            // The needed catalog set is the configured providers (plus the relay whitelist). It
+            // must be supplied before initialize so the first cold-start round fetches only those.
+            val providerRepository = koinApp.koin.get<ai.oriveo.community.core.data.repository.ProviderRepository>()
+            MetadataClient.instance.catalogDemandSupplier = { providerRepository.catalogDemand() }
             MetadataClient.initialize(this@OriveoApplication)
-            koinApp.koin.get<ai.oriveo.community.core.data.repository.ProviderRepository>().refreshProviderMetadata()
+            providerRepository.refreshProviderMetadata()
         }
         appScope.launch {
             if (!databaseHealthProbe.awaitHealthy()) return@launch

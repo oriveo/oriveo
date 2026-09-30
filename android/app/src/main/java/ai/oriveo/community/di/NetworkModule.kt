@@ -1,6 +1,7 @@
 package ai.oriveo.community.di
 
 import ai.oriveo.community.BuildConfig
+import ai.oriveo.community.core.data.remote.HttpUrlConnectionMetadataSplitTransport
 import ai.oriveo.community.core.data.remote.MetadataClient
 import ai.oriveo.community.core.data.remote.MetadataRefreshEventBus
 import ai.oriveo.community.core.network.NativeUserAgent
@@ -67,7 +68,13 @@ val networkModule = module {
     }
 
     single { MetadataRefreshEventBus() }
-    single { MetadataClient(androidContext(), metadataCacheDao = get()) }
+    single {
+        MetadataClient(
+            androidContext(),
+            metadataCacheDao = get(),
+            metadataSplitTransport = HttpUrlConnectionMetadataSplitTransport,
+        )
+    }
 
     single<CoroutineScope>(named("applicationScope")) {
         CoroutineScope(SupervisorJob() + Dispatchers.Default)

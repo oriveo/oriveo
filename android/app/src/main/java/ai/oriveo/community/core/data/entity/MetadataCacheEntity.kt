@@ -12,7 +12,10 @@ data class MetadataCacheEntity(
     val updatedAtMs: Long,
 ) {
     companion object {
-
+        /** The whole lean payload row; kept only as a compatibility snapshot. */
         const val SINGLETON_KEY: String = "metadata"
+        const val INDEX_KEY: String = "index"
+        const val CATALOG_KEY_PREFIX: String = "catalog:"
+        const val MODEL_FACTS_KEY: String = "model_facts"
     }
 }

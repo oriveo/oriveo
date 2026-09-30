@@ -24,6 +24,13 @@ data class ResolvedProviderCatalog(
     val defaultModel: ResolvedModel?,
     val availableModelCount: Int,
     val hasManualModels: Boolean,
+    /**
+     * This provider's metadata catalog has not loaded yet. An empty catalog then does not mean
+     * "the model is not in the catalog": enabled models show as manual for now, the available
+     * count keeps its last cached value, and callers must not conclude "unavailable" or "0 models"
+     * from it. refreshEvents triggers a recompute once the catalog arrives.
+     */
+    val catalogPending: Boolean = false,
 )
 
 /**
@@ -83,7 +90,8 @@ object ProviderCatalogResolver {
      */
     fun resolve(provider: Provider, metadata: MetadataClient = MetadataClient.instance): ResolvedProviderCatalog {
         debugResolveCounter.incrementAndGet()
-        val catalogModels = buildCatalogModels(provider, metadata)
+        val catalogPending = isOfficialCatalogPending(provider, metadata)
+        val catalogModels = if (catalogPending) emptyList() else buildCatalogModels(provider, metadata)
         // Build the catalog index once and share it between the enabled set and the manual
         // models: scanning the whole catalog per enabled model is O(enabled x catalog) with a
         // regex per pair, and a relay catalog of thousands after "add all" made a single
@@ -127,9 +135,22 @@ object ProviderCatalogResolver {
             enabledModels = enabledModels,
             recommendedModels = recommendedModels,
             defaultModel = defaultModel,
-            availableModelCount = catalog.count { it.model.isAvailable },
+            availableModelCount = if (catalogPending) {
+                provider.cachedAvailableModelCount ?: catalog.count { it.model.isAvailable }
+            } else {
+                catalog.count { it.model.isAvailable }
+            },
             hasManualModels = manualModels.isNotEmpty(),
+            catalogPending = catalogPending,
         )
+    }
+
+    /** Only official metadata catalogs can be pending; relay and subscription catalogs do not come from metadata. */
+    private fun isOfficialCatalogPending(provider: Provider, metadata: MetadataClient): Boolean {
+        if (provider.kind == ProviderKind.Relay) return false
+        if (provider.authMode == ProviderAuthMode.Subscription) return false
+        if (metadata.isContractVersionDegraded) return false
+        return metadata.catalogLoadState(provider.kind) == MetadataClient.CatalogLoadState.Pending
     }
 
     // ---- internals ----

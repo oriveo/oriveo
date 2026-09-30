@@ -329,10 +329,14 @@ class ProviderDetailViewModel(
         // or the "last synced" banner stays stuck on the cold-start frame.
         metadataRefreshSignal.onStart { emit(Unit) },
     ) { resolved, p, _ ->
-        val source = MetadataClient.metadataSource
+        // The source is per provider: with per-provider catalogs each one is fresh or cached on its own.
+        val source = p?.let { MetadataClient.metadataSource(it.kind) } ?: MetadataClient.metadataSource
         when {
             p == null -> CatalogViewState.Normal
             p.kind == ProviderKind.Relay -> CatalogViewState.Normal
+            // This catalog is still loading: neither offline nor "manual models only"; the refresh
+            // signal recomputes once it arrives.
+            resolved?.catalogPending == true -> CatalogViewState.Normal
             // Catalog not loaded and nothing manually retained: fully offline.
             resolved == null || (resolved.catalog.isEmpty() && !resolved.hasManualModels) ->
                 CatalogViewState.Offline

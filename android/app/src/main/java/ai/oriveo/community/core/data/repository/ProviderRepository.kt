@@ -765,8 +765,9 @@ class ProviderRepository(
         existingCatalogModels: List<ai.oriveo.community.core.model.AIModel>,
         preferredModelID: String? = null,
     ): Provider {
-
-        withContext(Dispatchers.IO) { MetadataClient.refresh() }
+        // Conditionally refresh the index plus this provider's catalog: a provider being added
+        // may not be in the needed catalog set yet.
+        withContext(Dispatchers.IO) { MetadataClient.refresh(setOf(kind)) }
 
         val seedProvider = Provider(
             id = providerID,
@@ -991,7 +992,8 @@ class ProviderRepository(
             originalEntity.toDomain(loadApiKey(originalEntity.accountId, originalEntity.id)),
         )
 
-        MetadataClient.refresh()
+        // Only the index and this provider's catalog are fetched.
+        MetadataClient.refresh(setOf(provider.kind))
         val isRelay = provider.kind == ProviderKind.Relay
         var expectedEntity = originalEntity
 
@@ -1068,6 +1070,12 @@ class ProviderRepository(
         commitGuard: () -> Boolean,
     ): Provider? {
         val resolvedCatalog = ProviderCatalogResolver.resolve(provider)
+        // The catalog is still missing after the refresh (the fetch failed), which is not an
+        // empty catalog: never rewrite the enabled models from it. Take the failure path so the
+        // existing models and availability are kept (pending is not a miss).
+        if (resolvedCatalog.catalogPending) {
+            throw ProviderServiceError.Network("metadata catalog not loaded")
+        }
         val metadataEnabled = resolvedCatalog.enabledModels
             .filter { !it.isManual }
             .map { it.model }
@@ -1361,6 +1369,17 @@ class ProviderRepository(
         }
     }
 
+    /** The configured providers, so MetadataClient knows which catalogs it needs. */
+    suspend fun catalogDemand(): MetadataClient.CatalogDemand {
+        val kinds = withContext(Dispatchers.IO) { dao.getAll(accountId) }
+            .map { it.toDomain().kind }
+            .toSet()
+        return MetadataClient.CatalogDemand(
+            providerKinds = kinds - ProviderKind.Relay,
+            hasRelay = ProviderKind.Relay in kinds,
+        )
+    }
+
     suspend fun refreshProviderMetadata() {
         val targetAccountId = accountId
         val entities = withContext(Dispatchers.IO) { dao.getAll(targetAccountId) }
@@ -1372,6 +1391,9 @@ class ProviderRepository(
 
             var updatedProvider = provider
             val resolvedCatalog = ProviderCatalogResolver.resolve(provider)
+            // Catalog not loaded yet: change nothing (resolve already started fetching just this
+            // provider); the refresh event after it arrives enriches the models.
+            if (resolvedCatalog.catalogPending) continue
             val canonicalCatalogModels = resolvedCatalog.catalog
                 .filter { !it.isManual }
                 .map { it.model }
