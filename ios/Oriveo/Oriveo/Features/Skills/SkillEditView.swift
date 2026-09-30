@@ -192,20 +192,14 @@ struct SkillEditView: View {
 
     private var navigationBar: some View {
         HStack {
-            Button {
+            OriveoBackButton {
                 if hasChanges {
                     showDiscardAlert = true
                 } else {
                     appState.pop()
                 }
-            } label: {
-                Image(systemName: "chevron.left")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(Colors.textPrimary)
-                    .frame(width: 36, height: 36)
             }
-            .accessibilityLabel(L10n.tr("Back"))
-            .buttonStyle(.plain)
+            .padding(.leading, -OriveoBackButton.edgeInset)
 
             Spacer()
 

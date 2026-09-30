@@ -87,17 +87,10 @@ struct NotesView: View {
                 // `oriveoNavigationChrome()` hides the native navigation bar along with the
                 // system back button — of all the pushed routes this was the only one that
                 // never placed its own, leaving the edge swipe as the single way out: findable
-                // on a phone, effectively no exit at all on a wide screen. Spec follows
-                // `NoteDetailView.detailHeader` so both notes screens feel the same.
-                Button { appState.navigation.pop() } label: {
-                    Image(systemName: "chevron.left")
-                        .font(.system(size: 17, weight: .semibold))
-                        .foregroundStyle(OriveoTheme.Palette.textPrimary)
-                        .frame(width: 40, height: 44)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(L10n.tr("Back"))
+                // on a phone, effectively no exit at all on a wide screen. Styled by the
+                // shared OriveoBackButton.
+                OriveoBackButton { appState.navigation.pop() }
+                    .padding(.leading, -OriveoBackButton.edgeInset)
 
                 brandIcon
                 Text(L10n.tr("Notes", table: .notes))

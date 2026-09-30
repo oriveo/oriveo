@@ -294,18 +294,12 @@ struct ProviderSetupView: View {
 
     private var topBar: some View {
         HStack {
-            Button {
+            OriveoBackButton {
                 appState.pop()
-            } label: {
-                Image(systemName: "chevron.left")
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundStyle(OriveoTheme.Palette.textPrimary)
-                    .frame(width: 32, height: 32)
             }
-            .accessibilityLabel(L10n.tr("Back"))
-            .buttonStyle(.plain)
             .disabled(isSubmitting)
             .opacity(isSubmitting ? 0.45 : 1)
+            .padding(.leading, -OriveoBackButton.edgeInset)
 
             Spacer()
 
@@ -316,7 +310,7 @@ struct ProviderSetupView: View {
             Spacer()
 
             Color.clear
-                .frame(width: 32, height: 32)
+                .frame(width: OriveoBackButton.hitSize - OriveoBackButton.edgeInset, height: 32)
         }
         .padding(.horizontal, OriveoTheme.Spacing.lg)
         .padding(.vertical, OriveoTheme.Spacing.md)

@@ -132,6 +132,11 @@ struct FolderDetailView: View {
 
     private var header: some View {
         HStack(spacing: OriveoTheme.Spacing.sm) {
+            // The native navigation bar is hidden; without its own back button the edge swipe is the only way out (no exit at all on wide screens)
+            OriveoBackButton {
+                appState.navigation.pop()
+            }
+            .padding(.leading, -OriveoBackButton.edgeInset)
             Text(folder?.name ?? "")
                 .font(OriveoTheme.Typography.title3)
                 .foregroundStyle(OriveoTheme.Palette.textPrimary)

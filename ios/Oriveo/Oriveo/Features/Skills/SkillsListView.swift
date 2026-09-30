@@ -154,10 +154,10 @@ struct SkillsListView: View {
 
     private var navigationBar: some View {
         HStack(spacing: 0) {
-            navToneButton(systemName: "chevron.left", tint: Colors.textPrimary) {
+            OriveoBackButton {
                 appState.pop()
             }
-            .accessibilityLabel(L10n.tr("Back"))
+            .padding(.leading, -OriveoBackButton.edgeInset)
 
             Spacer()
 

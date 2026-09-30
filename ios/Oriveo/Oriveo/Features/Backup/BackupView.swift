@@ -23,16 +23,10 @@ struct BackupView: View {
 
     private var topBar: some View {
         HStack {
-            Button {
+            OriveoBackButton {
                 appState.pop()
-            } label: {
-                Image(systemName: "chevron.left")
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundStyle(OriveoTheme.Palette.textPrimary)
-                    .frame(width: 32, height: 32)
             }
-            .accessibilityLabel(L10n.tr("Back"))
-            .buttonStyle(.plain)
+            .padding(.leading, -OriveoBackButton.edgeInset)
 
             Spacer()
 
@@ -43,7 +37,7 @@ struct BackupView: View {
             Spacer()
 
             Color.clear
-                .frame(width: 32, height: 32)
+                .frame(width: OriveoBackButton.hitSize - OriveoBackButton.edgeInset, height: 32)
         }
     }
 }

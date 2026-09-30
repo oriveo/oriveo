@@ -231,24 +231,11 @@ struct ChatToolbar: View {
 
                 Spacer(minLength: 0)
 
-                Button {
+                OriveoCloseButton(accessibilityLabel: L10n.tr("Dismiss")) {
                     showMemoryPopover = false
-                } label: {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundStyle(OriveoTheme.Palette.textTertiary)
-                        .frame(width: 30, height: 30)
-                        .background(
-                            Circle()
-                                .fill(OriveoTheme.Palette.surfaceInset)
-                        )
-                        .overlay(
-                            Circle()
-                                .stroke(OriveoTheme.Palette.border, lineWidth: 1)
-                        )
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel(L10n.tr("Dismiss"))
+                .padding(.trailing, -OriveoBackButton.edgeInset)
+                .padding(.vertical, -7)
             }
             .padding(OriveoTheme.Spacing.lg)
             .oriveoRoundedSurface(

@@ -488,20 +488,11 @@ struct ModelPickerSheet: View {
 
             Spacer(minLength: 8)
 
-            Button {
+            OriveoCloseButton(accessibilityLabel: L10n.tr("Cancel")) {
                 dismiss()
-            } label: {
-                Image(systemName: "xmark")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(OriveoTheme.V2.Colors.textSecondary)
-                    .frame(width: 30, height: 30)
-                    .background(
-                        Circle().fill(OriveoTheme.V2.Colors.surfaceDefault)
-                    )
-                    .contentShape(Circle())
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel(L10n.tr("Cancel"))
+            .padding(.trailing, -OriveoBackButton.edgeInset)
+            .padding(.top, -7)
         }
         .padding(.top, 2)
     }
@@ -522,18 +513,12 @@ struct ModelPickerSheet: View {
 
             Spacer(minLength: 8)
 
-            Button {
+            OriveoCloseButton(accessibilityLabel: L10n.tr("Close", table: .notes)) {
                 dismiss()
-            } label: {
-                Image(systemName: "xmark")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(OriveoTheme.V2.Colors.textSecondary)
-                    .frame(width: 30, height: 30)
-                    .background(Circle().fill(OriveoTheme.V2.Colors.surfaceDefault))
-                    .contentShape(Circle())
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel(L10n.tr("Close", table: .notes))
+            .padding(.trailing, -OriveoBackButton.edgeInset)
+            // The 44pt target is taller than the old 30pt plate; shift up 7pt so the × stays level with the first title line
+            .padding(.top, -7)
         }
         .padding(.top, 2)
     }

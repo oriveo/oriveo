@@ -242,21 +242,10 @@ struct MemoryView: View {
 
     private var toolbar: some View {
         HStack(spacing: OriveoTheme.Spacing.md) {
-            Button {
+            OriveoBackButton {
                 appState.pop()
-            } label: {
-                Image(systemName: "chevron.left")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(OriveoTheme.Palette.textPrimary)
-                    .frame(width: 36, height: 36)
-                    .oriveoRoundedSurface(
-                        fill: OriveoTheme.Palette.surfaceChrome,
-                        border: OriveoTheme.Palette.borderStrong,
-                        shadow: .soft
-                    )
             }
-            .accessibilityLabel(L10n.tr("Back"))
-            .buttonStyle(.plain)
+            .padding(.leading, -OriveoBackButton.edgeInset)
 
             Spacer()
 
@@ -267,7 +256,7 @@ struct MemoryView: View {
             Spacer()
 
             Color.clear
-                .frame(width: 36, height: 36)
+                .frame(width: OriveoBackButton.hitSize - OriveoBackButton.edgeInset, height: 36)
         }
         .padding(.horizontal, OriveoTheme.Spacing.xl)
         .padding(.vertical, OriveoTheme.Spacing.md)

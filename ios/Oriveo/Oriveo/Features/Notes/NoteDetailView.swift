@@ -146,15 +146,8 @@ struct NoteDetailView: View {
     @ViewBuilder
     private func detailHeader(_ note: Note) -> some View {
         HStack(spacing: 0) {
-            Button { leaveDetail() } label: {
-                Image(systemName: "chevron.left")
-                    .font(.system(size: 17, weight: .semibold))
-                    .foregroundStyle(OriveoTheme.Palette.textPrimary)
-                    .frame(width: 40, height: 44)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(L10n.tr("Back"))
+            OriveoBackButton { leaveDetail() }
+                .padding(.leading, -OriveoBackButton.edgeInset)
 
             Spacer(minLength: 0)
 

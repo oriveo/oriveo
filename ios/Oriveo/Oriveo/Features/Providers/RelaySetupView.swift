@@ -359,7 +359,7 @@ struct RelaySetupView: View {
                 .foregroundStyle(OriveoTheme.Palette.textPrimary)
 
             HStack {
-                Button {
+                OriveoBackButton {
                     if showsManualProfiles, selectedRelayKind != nil {
                         withAnimation(.snappy(duration: 0.18)) {
                             selectedRelayKind = nil
@@ -374,19 +374,12 @@ struct RelaySetupView: View {
                     } else {
                         appState.pop()
                     }
-                } label: {
-                    Image(systemName: "chevron.backward")
-                        .font(.system(size: 17, weight: .semibold))
-                        .foregroundStyle(OriveoTheme.Palette.textPrimary)
-                        .frame(width: 44, height: 44)
-                        .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel(L10n.tr("Back"))
+                .padding(.leading, -OriveoBackButton.edgeInset)
 
                 Spacer()
                 Color.clear
-                    .frame(width: 44, height: 44)
+                    .frame(width: OriveoBackButton.hitSize - OriveoBackButton.edgeInset, height: 44)
             }
         }
         .padding(.horizontal, OriveoTheme.Spacing.xl)
