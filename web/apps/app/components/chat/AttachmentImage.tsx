@@ -3,8 +3,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useTranslations } from 'next-intl';
-import { Download, X } from 'lucide-react';
+import { Download } from 'lucide-react';
 import type { Attachment } from '@oriveo/shared';
+import { CloseButton } from '@oriveo/ui';
 import { useAttachmentImage } from '../../lib/hooks/useAttachmentImage';
 import { loadImageData } from '../../lib/infra/storage/image-store';
 import { downloadAttachmentIfNeeded } from '../../lib/core/sync-port';
@@ -182,18 +183,15 @@ export function AttachmentImage({ attachment, className, linkClassName, asLink }
                     <Download size={18} aria-hidden="true" />
                   </a>
                 ) : null}
-                <button
-                  type="button"
-                  className={styles.previewToolButton}
-                  aria-label={t('close')}
+                <CloseButton
+                  label={t('close')}
                   title={t('close')}
                   onClick={(e) => {
                     e.stopPropagation();
                     closePreview();
                   }}
-                >
-                  <X size={18} aria-hidden="true" />
-                </button>
+                  className={styles.previewClose}
+                />
               </div>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img

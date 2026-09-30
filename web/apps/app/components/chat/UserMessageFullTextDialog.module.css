@@ -30,26 +30,7 @@
   background: color-mix(in srgb, var(--o-primary) 9%, transparent);
 }
 
-.close {
-  display: inline-flex;
-  width: 36px;
-  height: 36px;
-  align-items: center;
-  justify-content: center;
-  border: 0;
-  border-radius: var(--o-radius-control);
-  background: transparent;
-  color: var(--o-text-tertiary);
-  cursor: pointer;
-}
-
-.close:hover {
-  background: color-mix(in srgb, var(--o-text) 7%, transparent);
-  color: var(--o-text);
-}
-
-.copy:focus-visible,
-.close:focus-visible {
+.copy:focus-visible {
   outline: 2px solid color-mix(in srgb, var(--o-primary) 42%, transparent);
   outline-offset: 2px;
 }

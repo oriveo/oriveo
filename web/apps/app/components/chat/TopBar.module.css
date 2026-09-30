@@ -321,25 +321,10 @@
   display: none;
 }
 
+/* Appearance comes from the shared CloseButton. Negative margins keep the 40px hit area from growing the compact title row; the icon stays flush with the right edge. */
 .memoryPopoverClose {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 22px;
-  height: 22px;
-  padding: 0;
-  flex-shrink: 0;
-  border: none;
-  border-radius: var(--o-radius-sm);
-  background: transparent;
-  color: var(--o-text-tertiary);
-  cursor: pointer;
-  transition: color var(--o-transition-fast), background var(--o-transition-fast);
-}
-
-.memoryPopoverClose:hover {
-  color: var(--o-text);
-  background: var(--o-surface-raised);
+  margin-block: -9px;
+  margin-inline-end: -9px;
 }
 
 .memoryPopoverPreviewCard {

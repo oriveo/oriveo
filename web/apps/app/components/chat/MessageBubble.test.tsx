@@ -59,6 +59,9 @@ vi.mock("@oriveo/ui", () => ({
   // Shaped like the ones in ChatView.test.tsx and LibraryConfirmationDialog.test.tsx.
   Dialog: ({ open, children }: { open: boolean; children: React.ReactNode }) =>
     open ? <div role="dialog">{children}</div> : null,
+  CloseButton: ({ label, onClick }: { label: string; onClick?: () => void }) => (
+    <button type="button" aria-label={label} onClick={onClick} />
+  ),
 }));
 
 vi.mock("../../lib/utils/format-utils", () => ({

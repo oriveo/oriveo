@@ -1,8 +1,7 @@
 'use client';
 
 import { useLocale, useTranslations } from 'next-intl';
-import { Dialog } from '@oriveo/ui';
-import { X } from 'lucide-react';
+import { CloseButton, Dialog } from '@oriveo/ui';
 import styles from './MessageTokenUsageDialog.module.css';
 
 export interface MessageTokenUsageSnapshot {
@@ -64,14 +63,7 @@ export function MessageTokenUsageDialog({
       lockBodyScroll
     >
       <section className={styles.panel}>
-        <button
-          type="button"
-          className={styles.close}
-          onClick={onClose}
-          aria-label={tCommon('close')}
-        >
-          <X size={18} aria-hidden />
-        </button>
+        <CloseButton className={styles.close} label={tCommon('close')} onClick={onClose} />
         <header className={styles.header}>
           <h2 id="message-token-usage-title" className={styles.title}>
             {t('title')}

@@ -2,8 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useTranslations } from 'next-intl';
-import { Dialog } from '@oriveo/ui';
-import { X } from 'lucide-react';
+import { CloseButton, Dialog } from '@oriveo/ui';
 import { userMessageReadingChunks } from '../../lib/core/chat/user-message-fold';
 import { copyToClipboard } from '../../lib/utils/clipboard';
 import styles from './UserMessageFullTextDialog.module.css';
@@ -55,9 +54,7 @@ export function UserMessageFullTextDialog({ open, text, onClose }: UserMessageFu
           >
             {copied ? t('copied') : t('copy')}
           </button>
-          <button type="button" className={styles.close} onClick={onClose} aria-label={tCommon('close')}>
-            <X size={18} aria-hidden />
-          </button>
+          <CloseButton label={tCommon('close')} onClick={onClose} />
         </header>
         <div className={styles.body} dir="auto">
           {chunks.map((chunk, index) => (

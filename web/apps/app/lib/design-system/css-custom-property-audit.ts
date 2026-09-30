@@ -157,6 +157,14 @@ export const ALLOWED: readonly AllowedCustomProperty[] = [
     files: ['packages/ui/src/components/AppShell/AppShell.module.css'],
     reason: 'User-dragged sidebar width set as an inline style by packages/ui/src/components/AppShell/AppShell.tsx; it feeds --o-sidebar-width.',
   },
+  ...(['o-icon-button-color', 'o-icon-button-hover-color'] as const).map((name) => ({
+    name,
+    kind: 'injected' as const,
+    files: ['packages/ui/src/components/BackButton/BackButton.module.css'],
+    reason:
+      'Recolor hook for BackButton / CloseButton: panels with their own palette set it on the button '
+      + '(.previewClose in apps/app/components/chat/AttachmentImage.module.css); falls back to --o-text / --o-text-secondary.',
+  })),
   {
     name: 'o-mobile-tabbar-height',
     kind: 'injected',

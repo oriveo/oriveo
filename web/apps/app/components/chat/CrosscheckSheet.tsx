@@ -4,9 +4,9 @@ import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent as Reac
 import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
-import { Check, ChevronDown, X } from 'lucide-react';
+import { Check, ChevronDown } from 'lucide-react';
 import type { AIModel, ChatMessage, Conversation, Provider, ProviderKind } from '@oriveo/shared';
-import { Button } from '@oriveo/ui';
+import { Button, CloseButton } from '@oriveo/ui';
 import { getVanillaStore, useAppStore } from '../../providers/StoreProvider';
 import { crosscheckAnswer } from '../../lib/core/note-ai-ops';
 import { createNoteFromCrosscheck } from '../../lib/core/note-ops';
@@ -517,9 +517,7 @@ export function CrosscheckSheet({
             <h2>{t('title')}</h2>
             <p>{t('subtitle')}</p>
           </div>
-          <button type="button" className={styles.closeButton} onClick={onClose} aria-label={t('close')}>
-            <X size={18} strokeWidth={2.3} aria-hidden="true" />
-          </button>
+          <CloseButton className={styles.closeButton} label={t('close')} onClick={onClose} />
         </header>
 
         <div className={styles.controls}>

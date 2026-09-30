@@ -4,7 +4,8 @@ import { useState, useRef, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
 import { graphemeCount, takeGraphemes } from '../../lib/utils/grapheme-utils';
-import { CloseIcon, EditIcon, EyeOffIcon } from '../icons';
+import { CloseButton } from '@oriveo/ui';
+import { EditIcon, EyeOffIcon } from '../icons';
 import styles from './TopBar.module.css';
 
 function getMemoryPreview(memoryText?: string): string {
@@ -68,15 +69,12 @@ export function MemoryPopover({ memoryText, useMemory, onToggleMemory }: MemoryP
               <p className={styles.memoryPopoverTitle}>{tMemory('indicatorTitle')}</p>
               <span className={styles.memoryPopoverBadge}>{tMemory('title')}</span>
             </div>
-            <button
-              type="button"
+            <CloseButton
               className={styles.memoryPopoverClose}
-              aria-label={tMemory('close')}
+              label={tMemory('close')}
               title={tMemory('close')}
               onClick={() => setShowMemoryPopover(false)}
-            >
-              <CloseIcon />
-            </button>
+            />
           </div>
 
           <div className={styles.memoryPopoverPreviewCard}>

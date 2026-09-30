@@ -68,8 +68,7 @@
   gap: 2px;
 }
 
-.navBtn,
-.closeBtn {
+.navBtn {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -83,10 +82,14 @@
   transition: background var(--o-transition-fast), color var(--o-transition-fast);
 }
 
-.navBtn:hover:not(:disabled),
-.closeBtn:hover {
+.navBtn:hover:not(:disabled) {
   background: var(--o-primary-subtle);
   color: var(--o-text);
+}
+
+/* Appearance comes from the shared CloseButton. Its 40px hit area is taller than the search field; negative margins absorb the extra height so the search bar does not grow. */
+.closeBtn {
+  margin-block: -2px;
 }
 
 .navBtn:disabled {

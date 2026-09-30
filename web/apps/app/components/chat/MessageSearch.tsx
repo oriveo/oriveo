@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react';
 import { useTranslations } from 'next-intl';
-import { SearchIcon, CloseIcon } from '@oriveo/ui';
+import { SearchIcon, CloseButton } from '@oriveo/ui';
 import styles from './MessageSearch.module.css';
 
 interface MessageSearchProps {
@@ -110,15 +110,12 @@ export function MessageSearch({
             <polyline points="6 9 12 15 18 9" />
           </svg>
         </button>
-        <button
-          type="button"
+        <CloseButton
           className={styles.closeBtn}
-          onClick={onClose}
-          aria-label={t('close')}
+          label={t('close')}
           title={t('close')}
-        >
-          <CloseIcon />
-        </button>
+          onClick={onClose}
+        />
       </div>
     </div>
   );

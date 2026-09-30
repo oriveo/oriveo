@@ -46,6 +46,9 @@ vi.mock('@oriveo/ui', () => ({
       {children}
     </button>
   ),
+  CloseButton: ({ label, onClick }: { label: string; onClick?: () => void }) => (
+    <button type="button" aria-label={label} onClick={onClick} />
+  ),
 }));
 
 vi.mock('./MarkdownRenderer', () => ({

@@ -64,33 +64,10 @@
   font-size: 13px;
 }
 
+/* Appearance comes from the shared CloseButton; this only lifts the hit area to the touch minimum (min-* does not compete with its width). */
 .closeButton {
-  appearance: none;
   min-width: var(--o-touch-target);
   min-height: var(--o-touch-target);
-  width: var(--o-touch-target);
-  height: var(--o-touch-target);
-  border: 0;
-  border-radius: 12px;
-  background: transparent;
-  color: var(--o-text-secondary);
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  transition:
-    background var(--o-transition-fast),
-    color var(--o-transition-fast),
-    transform var(--o-transition-fast);
-}
-
-.closeButton:hover {
-  background: var(--o-primary-subtle);
-  color: var(--o-text);
-}
-
-.closeButton:active {
-  transform: scale(0.97);
 }
 
 .controls {

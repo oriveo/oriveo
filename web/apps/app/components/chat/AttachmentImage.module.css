@@ -41,7 +41,8 @@
   padding: 8px 12px;
   border-radius: 999px;
   background: rgba(20, 20, 24, 0.72);
-  color: var(--o-on-info);
+  /* The lightbox is always dark; --o-on-info is dark blue in the dark theme and disappears on it */
+  color: #fff;
   font-size: 13px;
   line-height: 1;
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.36);
@@ -51,7 +52,7 @@
   width: 14px;
   height: 14px;
   border: 2px solid rgba(255, 255, 255, 0.32);
-  border-top-color: var(--o-on-info);
+  border-top-color: #fff;
   border-radius: 50%;
   animation: previewSpin 800ms linear infinite;
 }
@@ -74,20 +75,27 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 36px;
-  border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  background: rgba(20, 20, 24, 0.6);
-  color: var(--o-on-info); /*   lightbox   */
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  /* Flat like the shared CloseButton next to it: always white, hover only changes the colour */
+  color: #fff;
   cursor: pointer;
-  transition: background 120ms ease, transform 120ms ease;
+  transition: color 120ms ease;
   text-decoration: none;
 }
 
 .previewToolButton:hover {
-  background: rgba(40, 40, 48, 0.85);
-  transform: scale(1.05);
+  color: rgba(255, 255, 255, 0.7);
+}
+
+/* The close button's look comes from the shared CloseButton. The lightbox is always dark, so the
+ * variables pin it to white; the theme-following --o-text would be dark on dark in the light theme */
+.previewClose {
+  --o-icon-button-color: #fff;
+  --o-icon-button-hover-color: rgba(255, 255, 255, 0.7);
 }
 
 .previewToolButton:focus-visible {
