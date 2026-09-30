@@ -235,7 +235,8 @@ final class ProviderManager {
                     )
                 )
             } else {
-                await MetadataClient.shared.forceRefresh()
+                // The provider being added is not configured yet, so name its catalog explicitly.
+                await MetadataClient.shared.forceRefresh(providerKinds: [kind])
                 let officialID: UUID? = isAdditionalInstance
                     ? nil
                     : DeterministicProviderID.make(
@@ -638,7 +639,7 @@ final class ProviderManager {
                     applyRelaySyncResult(syncResult, to: &provider)
                 }
             } else if provider.authMode == .subscription {
-                await MetadataClient.shared.forceRefresh()
+                await MetadataClient.shared.forceRefresh(providerKinds: [provider.kind])
                 try Task.checkCancellation()
                 guard commitGuard() else { throw CancellationError() }
                 if provider.kind == .openAI {
@@ -667,7 +668,7 @@ final class ProviderManager {
                     }
                 }
             } else {
-                await MetadataClient.shared.forceRefresh()
+                await MetadataClient.shared.forceRefresh(providerKinds: [provider.kind])
                 try Task.checkCancellation()
                 guard commitGuard() else { throw CancellationError() }
                 let resolvedCatalog = ProviderCatalogResolver.resolve(provider: provider)

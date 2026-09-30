@@ -638,11 +638,17 @@ enum BackupService {
         }
         guard !officialIndexes.isEmpty else { return }
 
-        await MetadataClient.shared.forceRefresh()
+        // Each restored official provider fetches its own catalog (no request if the revision matches).
+        await MetadataClient.shared.forceRefresh(
+            providerKinds: Set(officialIndexes.map { appState.providers[$0].kind })
+        )
 
         for index in officialIndexes {
             var provider = appState.providers[index]
             let resolvedCatalog = ProviderCatalogResolver.resolve(provider: provider)
+            // Catalog unavailable (offline, etc.): keep the import as is rather than rebuilding or
+            // pruning enabled models from a catalog that never loaded.
+            guard !resolvedCatalog.catalogPending else { continue }
             let catalogModels = resolvedCatalog.catalog.map(\.model)
             let legacyCatalogModels = provider.catalogModels
 

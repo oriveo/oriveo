@@ -109,6 +109,9 @@ final class AppState {
         didSet {
             providersVersion &+= 1
             rebuildProviderLookup()
+            // The needed catalogs follow the configured providers; new ones that are not loaded are
+            // fetched individually.
+            MetadataClient.shared.registerConfiguredProviders(providers)
             persistSessionIfNeeded()
         }
     }
@@ -1631,6 +1634,12 @@ final class AppState {
             }
             var updatedProvider = provider
             let resolvedCatalog = ProviderCatalogResolver.resolve(provider: updatedProvider)
+            // Catalog not loaded: no conclusion is possible, so leave the stored models alone until
+            // that provider arrives and the next refresh reconciles it.
+            guard !resolvedCatalog.catalogPending else {
+                enriched.append(provider)
+                continue
+            }
             let canonicalCatalogModels = resolvedCatalog.catalog
                 .filter { !$0.isManual }
                 .map(\.model)

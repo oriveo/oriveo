@@ -137,14 +137,16 @@ actor MetadataClient {
         let capabilities: [String]?
         let supportsPdfInput: Bool?
         let supportsServiceTier: Bool?
-        let profiles: ModelProfileRefs?
+        /// `var` because the catalog view fills it from `profilesRef` during expansion.
+        var profiles: ModelProfileRefs?
         let uiHints: ModelUIHints?
         let vendorKey: String?
         let vendorName: String?
         let toolCall: Bool?
         let libraryAgentic: Bool?
         let transport: String?
-        let capabilityControls: [String: CapabilityControl]?
+        /// `var` because the catalog view fills it from `capabilityControlsRef` during expansion.
+        var capabilityControls: [String: CapabilityControl]?
         @CapabilityEvidenceRawField var capabilityEvidenceView: JSONValue?
     }
 
@@ -842,6 +844,127 @@ actor MetadataClient {
         let modelFactsRevision: String?
     }
 
+    // MARK: - Index + per-provider catalog
+
+    /// A provider entry in the index: the lean provider minus models/resolveMap, plus the catalog
+    /// revision. Adding a provider, key validation and subscription auth read these before any
+    /// catalog has arrived, so they only ever come from the index.
+    private struct IndexProviderData: Codable, Sendable {
+        let displayName: String?
+        let attachmentSupport: AttachmentSupport?
+        let defaultModelId: String?
+        let validation: ProviderValidation?
+        let transport: ProviderTransportDefinition?
+        let modelCount: Int?
+        let catalogRevision: String?
+    }
+
+    /// `view=index`: same top level as lean, without generationParameterTables / modelFacts.
+    private struct IndexResponse: Codable, Sendable {
+        let version: Int
+        let view: String?
+        let contractVersion: Int?
+        let capabilityContractVersion: Int?
+        let updatedAt: String?
+        let profiles: ProfileDefinitions?
+        let providers: [String: IndexProviderData]
+        let providerConfigs: [PublicProviderConfig]?
+        let relayRuntimeConfig: RawRelayRuntimeConfig?
+        let runtimeConfig: RawRuntimeConfig?
+        let capabilityRuntime: CapabilityRuntimeEnvelope?
+    }
+
+    /// Content-deduplicated tables of one catalog; refs only resolve within that catalog.
+    private struct CatalogTables: Codable, Sendable {
+        var generationParameters: [String: [GenerationParameterRef]]?
+        var capabilityControls: [String: [String: CapabilityControl]]?
+        var profiles: [String: ModelProfileRefs]?
+        var capabilityEvidence: [String: JSONValue]?
+    }
+
+    /// A catalog model is the lean model minus three inline structures plus three refs. The body
+    /// reuses the lean `ModelMetadataEntry` decoding (unknown *Ref keys are ignored) and the refs are
+    /// read separately; encoding writes both back into the same object.
+    private struct CatalogModelEntry: Codable, Sendable {
+        var entry: ModelMetadataEntry
+        let capabilityControlsRef: String?
+        let profilesRef: String?
+        let capabilityEvidenceRef: String?
+
+        private enum RefKeys: String, CodingKey {
+            case capabilityControlsRef, profilesRef, capabilityEvidenceRef
+        }
+
+        init(from decoder: Decoder) throws {
+            entry = try ModelMetadataEntry(from: decoder)
+            let container = try decoder.container(keyedBy: RefKeys.self)
+            capabilityControlsRef = try container.decodeIfPresent(String.self, forKey: .capabilityControlsRef)
+            profilesRef = try container.decodeIfPresent(String.self, forKey: .profilesRef)
+            capabilityEvidenceRef = try container.decodeIfPresent(String.self, forKey: .capabilityEvidenceRef)
+        }
+
+        func encode(to encoder: Encoder) throws {
+            try entry.encode(to: encoder)
+            var container = encoder.container(keyedBy: RefKeys.self)
+            try container.encodeIfPresent(capabilityControlsRef, forKey: .capabilityControlsRef)
+            try container.encodeIfPresent(profilesRef, forKey: .profilesRef)
+            try container.encodeIfPresent(capabilityEvidenceRef, forKey: .capabilityEvidenceRef)
+        }
+    }
+
+    /// `view=catalog&provider=<kind>`. Identity fields are optional on purpose: a missing one is
+    /// rejected by validation as a whole-catalog rejection instead of an opaque decoding error.
+    private struct CatalogResponse: Codable, Sendable {
+        let view: String?
+        let provider: String?
+        let catalogRevision: String?
+        var tables: CatalogTables?
+        let resolveMap: [String: String]?
+        let models: [String: CatalogModelEntry]
+    }
+
+    /// One expanded catalog whose models have exactly the lean shape. `revision == nil` only appears on
+    /// last-good catalogs migrated from an old lean snapshot; it never equals the index revision, so
+    /// those catalogs are always refetched.
+    private struct ExpandedCatalog: Sendable {
+        let revision: String?
+        let resolveMap: [String: String]?
+        let models: [String: ModelMetadataEntry]
+        let generationParameters: [String: [GenerationParameterRef]]
+    }
+
+    private enum CatalogRejection: String, Error, Sendable {
+        case wrongView = "wrong_view"
+        case wrongProvider = "wrong_provider"
+        case revisionMismatch = "revision_mismatch"
+        case unresolvedRef = "unresolved_ref"
+    }
+
+    private struct CachedCatalog: Sendable {
+        let expanded: ExpandedCatalog
+        let etag: String?
+    }
+
+    /// All authoritative state in split mode; the in-memory lean-shaped snapshot is assembled from it.
+    private struct SplitState: Sendable {
+        var index: IndexResponse
+        var indexETag: String?
+        var catalogs: [String: CachedCatalog]
+        var modelFacts: [String: ModelFacts]?
+        var modelFactsRevision: String?
+    }
+
+    /// Catalog diagnostics carry the reason and provider only, never any payload.
+    private struct MetadataCatalogDiagnostic: LocalizedError, Sendable {
+        let reason: String
+        var errorDescription: String? { "metadata_catalog_\(reason)" }
+    }
+
+    private struct PersistedModelFacts: Codable, Sendable {
+        let revision: String
+        let facts: [String: ModelFacts]
+    }
+
     // MARK: - Contract Version
 
     static let supportedContractVersion = 1
@@ -977,6 +1100,10 @@ actor MetadataClient {
         let box: MetadataSnapshotBox?
         let etag: String?
         let generation: UInt64
+        /// Providers (backend kind) listed by the index whose catalog has not loaded yet. Swapped under
+        /// the same lock and generation as the snapshot, so a resolver that misses a model can tell
+        /// whether the catalog simply is not there yet. Always empty in lean mode.
+        var pendingCatalogKinds: Set<String> = []
     }
     private static let sharedStateLock = OSAllocatedUnfairLock(
         initialState: SharedMetadataState(box: nil, etag: nil, generation: 0)
@@ -996,14 +1123,19 @@ actor MetadataClient {
 
     nonisolated private static var sharedETag: String? { sharedStateLock.withLock { $0.etag } }
 
-    nonisolated private static func replaceSharedState(snapshot: MetadataResponse?, etag: String?) {
+    nonisolated private static func replaceSharedState(
+        snapshot: MetadataResponse?,
+        etag: String?,
+        pendingCatalogKinds: Set<String> = []
+    ) {
         let box = snapshot.map(MetadataSnapshotBox.init)
         let previous = sharedStateLock.withLock { state -> MetadataSnapshotBox? in
             let old = state.box
             state = SharedMetadataState(
                 box: box,
                 etag: etag,
-                generation: state.generation &+ 1
+                generation: state.generation &+ 1,
+                pendingCatalogKinds: snapshot == nil ? [] : pendingCatalogKinds
             )
             return old
         }
@@ -1016,7 +1148,44 @@ actor MetadataClient {
         set { snapshotConfirmedLock.withLock { $0 = newValue } }
     }
 
+    /// Session confirmation is tracked per provider: a confirmed index only says the global config is
+    /// current; whether a catalog matches that index is a separate fact. `all` is only true on the
+    /// lean fallback path, which fetches everything at once.
+    private struct ConfirmedCatalogState: Sendable {
+        var all = false
+        var kinds: Set<String> = []
+    }
+    private static let confirmedCatalogLock = OSAllocatedUnfairLock(initialState: ConfirmedCatalogState())
+
+    /// Configured providers (written whenever AppState.providers changes); decides which catalogs are needed.
+    private struct ConfiguredProviderState: Sendable {
+        var kinds: Set<String> = []
+        var hasRelay = false
+    }
+    private nonisolated let configuredProviderLock = OSAllocatedUnfairLock(initialState: ConfiguredProviderState())
+
+    /// A synchronous read that hits a pending catalog fetches only that provider, at most once per
+    /// cooldown window, so SwiftUI recomputing every frame while offline cannot become a request storm.
+    private static let catalogRequestCooldown: TimeInterval = 30
+    private nonisolated let catalogRequestLock = OSAllocatedUnfairLock(initialState: [String: Date]())
+    #if DEBUG
+    private nonisolated let catalogRequestTasksForTesting = OSAllocatedUnfairLock(initialState: [Task<Void, Never>]())
+    #endif
+
     private var table: MetadataResponse?
+    /// Split-mode state; nil means nothing fetched yet, a lean compatibility snapshot, or no index support.
+    private var split: SplitState?
+    /// The current split index was confirmed by the backend this session (200/304). The index is only
+    /// ever replaced by a confirmed response, so a single flag is enough.
+    private var splitIndexConfirmed = false
+    /// An older backend answers view=index with 400: fall back to lean for this process so a cold start
+    /// still works when the server has not been upgraded yet.
+    private var serverLacksSplitViews = false
+    /// Catalogs needed ad hoc this session (a provider being added, a pending hit, a backup restore);
+    /// later refreshes keep them current too.
+    private var sessionRequestedCatalogKinds: Set<String> = []
+    private var splitRefreshTask: Task<SplitRefreshOutcome, Never>?
+    private var backgroundRefreshTask: Task<Void, Never>?
     private var storedETag: String?
     private var storedModelFactsETag: String?
     private var boundUID: String?
@@ -1025,6 +1194,7 @@ actor MetadataClient {
     private var lastLibrarySettingsRefreshAtByUID: [String: Date] = [:]
     #if DEBUG
     private var grdbPersistCountForTesting = 0
+    private var splitBodyWriteCountForTesting = 0
     #endif
 
     init(
@@ -1077,11 +1247,31 @@ actor MetadataClient {
         boundUID = requestedUID
         replaceTable(nil)
         storedETag = nil
+        replaceSplit(nil)
+        splitIndexConfirmed = false
+        backgroundRefreshTask?.cancel()
+        backgroundRefreshTask = nil
+        Self.confirmedCatalogLock.withLock { $0 = ConfirmedCatalogState() }
         storedModelFactsETag = UserDefaults.standard.string(
             forKey: modelFactsETagKey(for: requestedUID)
         )
         Self.replaceSharedState(snapshot: nil, etag: nil)
 
+        // The split cache wins: one index row plus one row per catalog renders configured providers at once.
+        if let entry = loadSplitCache(boundUID: requestedUID) {
+            replaceSplit(entry.state)
+            storedModelFactsETag = entry.modelFactsETag
+            await publishSplitSnapshot()
+            if Date().timeIntervalSince1970 - entry.indexTimestamp < cacheTTL {
+                scheduleBackgroundRefresh(boundUID: requestedUID)
+                return
+            }
+            await refreshMetadata(boundUID: requestedUID)
+            return
+        }
+
+        // The old single-row lean cache still reads as a compatibility snapshot (last-good until the
+        // first split commit); an incompatible contractVersion is dropped by the loader.
         if let entry = loadPersistedCache(boundUID: requestedUID) {
             replaceTable(entry.data)
             Self.replaceSharedState(snapshot: entry.data, etag: entry.etag)
@@ -1092,7 +1282,7 @@ actor MetadataClient {
             Self.syncSelfHealPatternsToClassifier()
             storedETag = entry.etag
             if Date().timeIntervalSince1970 - entry.timestamp < cacheTTL {
-                await fetchMetadata(boundUID: requestedUID)
+                scheduleBackgroundRefresh(boundUID: requestedUID)
                 return
             }
         } else if let entry = loadLegacyUserDefaultsCache() {
@@ -1114,12 +1304,22 @@ actor MetadataClient {
                 boundUID: requestedUID
             )
             if Date().timeIntervalSince1970 - entry.timestamp < cacheTTL {
-                await fetchMetadata(boundUID: requestedUID)
+                scheduleBackgroundRefresh(boundUID: requestedUID)
                 return
             }
         }
 
-        await fetchMetadata(boundUID: requestedUID)
+        await refreshMetadata(boundUID: requestedUID)
+    }
+
+    /// A fresh cache already renders, so the conditional request runs in the background instead of
+    /// blocking cold start.
+    private func scheduleBackgroundRefresh(boundUID requestedUID: String) {
+        backgroundRefreshTask?.cancel()
+        backgroundRefreshTask = Task { [weak self] in
+            guard let self else { return }
+            await self.refreshMetadata(boundUID: requestedUID)
+        }
     }
 
     func ensureInitialized() async {
@@ -1131,22 +1331,39 @@ actor MetadataClient {
         await fetchModelFacts()
     }
 
-    func forceRefresh() async {
+    /// For callers that need current metadata (adding a provider, resync, subscription 426, self-heal,
+    /// backup import): a conditional index request, then only the needed catalogs plus `providerKinds`,
+    /// by revision. ETags are honored: an unchanged revision costs no request and a 304 only refreshes
+    /// timestamps.
+    func forceRefresh(providerKinds: Set<ProviderKind> = []) async {
         let requestedUID = AppSessionStore.activeUID
         if boundUID != requestedUID {
             boundUID = requestedUID
             bootstrappedUID = nil
             replaceTable(nil)
             storedETag = nil
+            replaceSplit(nil)
+            splitIndexConfirmed = false
             storedModelFactsETag = UserDefaults.standard.string(
                 forKey: modelFactsETagKey(for: requestedUID)
             )
             Self.replaceSharedState(snapshot: nil, etag: nil)
         }
-        await fetchMetadata(boundUID: requestedUID, bypassETag: true)
+        await refreshMetadata(
+            boundUID: requestedUID,
+            extraKinds: Set(providerKinds.compactMap(Self.catalogKind(for:)))
+        )
         if AppSessionStore.activeUID == requestedUID, boundUID == requestedUID {
             bootstrappedUID = requestedUID
         }
+    }
+
+    /// Fetch triggered by a pending hit: keeps the current index and fetches only these catalogs
+    /// (no request when the revision already matches).
+    func ensureCatalogs(_ kinds: Set<String>) async {
+        let requestedUID = AppSessionStore.activeUID
+        guard boundUID == requestedUID, split != nil, !kinds.isEmpty else { return }
+        await refreshMetadata(boundUID: requestedUID, extraKinds: kinds, refetchIndex: false)
     }
 
     @discardableResult
@@ -1166,7 +1383,7 @@ actor MetadataClient {
             return false
         }
         lastLibrarySettingsRefreshAtByUID[requestedUID] = now
-        await fetchMetadata(boundUID: requestedUID)
+        await refreshMetadata(boundUID: requestedUID)
         return true
     }
 
@@ -1496,17 +1713,6 @@ actor MetadataClient {
         return current
     }
 
-    nonisolated func syncResolveCatalogModelAcrossProviders(modelID: String) -> ResolvedModelMetadata? {
-        Self.withSharedSnapshot { snapshot -> ResolvedModelMetadata? in
-            for kind in ProviderKind.allCases where kind != .relay {
-                if let resolved = Self.resolveCatalogModel(in: snapshot, modelID: modelID, providerKind: kind) {
-                    return resolved
-                }
-            }
-            return nil
-        }
-    }
-
     nonisolated func syncResolveCatalogModelAcrossProvidersWithProvider(
         modelID: String,
         transportPriority: ProviderKind? = nil
@@ -1527,7 +1733,7 @@ actor MetadataClient {
             ordered.append(kind)
         }
 
-        return Self.withSharedSnapshot { snapshot -> RelayCatalogMatchResult? in
+        let match = Self.withSharedSnapshot { snapshot -> RelayCatalogMatchResult? in
             for kind in ordered {
                 if let resolved = Self.resolveCatalogModel(
                     in: snapshot,
@@ -1544,10 +1750,83 @@ actor MetadataClient {
             }
             return nil
         }
+        if match == nil {
+            // Whitelisted providers whose catalog has not loaded are not a miss: fetch just those and
+            // recompute when the snapshot generation advances.
+            let pending = Self.sharedStateLock.withLock { $0.pendingCatalogKinds }
+            let missing = Set(ordered.compactMap(Self.catalogKind(for:))).intersection(pending)
+            requestCatalogs(missing)
+        }
+        return match
     }
 
-    nonisolated func syncSnapshotConfirmedThisSession() -> Bool {
-        Self.snapshotConfirmedThisSession
+    /// Whether this provider's metadata was confirmed by the backend this session (200/304): the index
+    /// is confirmed and this provider's catalog matches it. Providers without an official catalog
+    /// (relay) only need the index. False while the catalog is unloaded or only last-good, so no
+    /// negative conclusion may rest on it.
+    nonisolated func syncSnapshotConfirmedThisSession(providerKind: ProviderKind) -> Bool {
+        guard Self.snapshotConfirmedThisSession else { return false }
+        guard let kind = Self.catalogKind(for: providerKind) else { return true }
+        return Self.confirmedCatalogLock.withLock { $0.all || $0.kinds.contains(kind) }
+    }
+
+    /// Whether this provider's catalog has not loaded yet (listed by the index, catalog not arrived).
+    /// When true it also fetches that one catalog.
+    ///
+    /// Strictly different from "the model is not in the catalog": only when this is false does a nil
+    /// from `resolveCatalogModel` mean a real miss. A missing snapshot is not pending; that is a cold
+    /// start that is not ready yet and is handled separately.
+    nonisolated func syncIsCatalogPending(providerKind: ProviderKind) -> Bool {
+        guard let kind = Self.catalogKind(for: providerKind) else { return false }
+        let pending = Self.sharedStateLock.withLock { $0.pendingCatalogKinds.contains(kind) }
+        if pending { requestCatalogs([kind]) }
+        return pending
+    }
+
+    /// Registered whenever AppState.providers changes; decides the set of needed catalogs. Newly
+    /// appearing providers (added or restored from a backup) whose catalog is not loaded are fetched
+    /// individually.
+    nonisolated func registerConfiguredProviders(_ providers: [Provider]) {
+        let kinds = Set(providers.compactMap { Self.catalogKind(for: $0.kind) })
+        let hasRelay = providers.contains { $0.kind == .relay }
+        let added = configuredProviderLock.withLock { state -> (kinds: Set<String>, relayAdded: Bool)? in
+            guard state.kinds != kinds || state.hasRelay != hasRelay else { return nil }
+            let result = (kinds.subtracting(state.kinds), hasRelay && !state.hasRelay)
+            state = ConfiguredProviderState(kinds: kinds, hasRelay: hasRelay)
+            return result
+        }
+        guard let added else { return }
+        var wanted = added.kinds
+        if added.relayAdded {
+            wanted.formUnion(syncRelayRuntimeConfig().officialProviderWhitelist.compactMap {
+                ProviderKind(rawValue: $0).flatMap(Self.catalogKind(for:))
+            })
+        }
+        let pending = Self.sharedStateLock.withLock { $0.pendingCatalogKinds }
+        requestCatalogs(wanted.intersection(pending))
+    }
+
+    nonisolated private func requestCatalogs(_ kinds: Set<String>) {
+        guard !kinds.isEmpty else { return }
+        let now = Date()
+        let fresh = catalogRequestLock.withLock { lastAttempt -> Set<String> in
+            let due = kinds.filter { kind in
+                guard let last = lastAttempt[kind] else { return true }
+                return now.timeIntervalSince(last) >= Self.catalogRequestCooldown
+            }
+            for kind in due { lastAttempt[kind] = now }
+            return Set(due)
+        }
+        guard !fresh.isEmpty else { return }
+        let task = Task { [weak self] in
+            guard let self else { return }
+            await self.ensureCatalogs(fresh)
+        }
+        #if DEBUG
+        catalogRequestTasksForTesting.withLock { $0.append(task) }
+        #else
+        _ = task
+        #endif
     }
 
     nonisolated func syncHasCatalogModel(modelID: String, providerKind: ProviderKind) -> Bool {
@@ -1707,6 +1986,11 @@ actor MetadataClient {
 
     private func providerData(for providerKind: ProviderKind) -> ProviderData? {
         Self.providerData(for: providerKind, in: table)
+    }
+
+    /// ProviderKind to backend catalog kind; nil for providers without an official catalog (relay).
+    nonisolated private static func catalogKind(for providerKind: ProviderKind) -> String? {
+        kindMap[providerKind.rawValue]
     }
 
     nonisolated private static func providerData(
@@ -2160,14 +2444,9 @@ actor MetadataClient {
         return normalized == trimmed ? [trimmed] : [trimmed, normalized]
     }
 
-    private func fetchMetadata(boundUID requestedUID: String, bypassETag: Bool = false) async {
-        #if DEBUG
-        if AppRuntime.isRunningTests
-            && !allowsNetworkRequestsInTests
-            && !Self.allowNetworkRequestsForTesting {
-            return
-        }
-        #endif
+    /// Lean compatibility path, used when an older backend answers view=index with 400.
+    private func fetchMetadata(boundUID requestedUID: String) async {
+        guard networkAllowed else { return }
         do {
             let resolvedURL = BackendURLResolver.resolve()
             guard !resolvedURL.isEmpty else { return }
@@ -2179,7 +2458,8 @@ actor MetadataClient {
             }
 
             var request = URLRequest(url: url)
-            if !bypassETag, boundUID == requestedUID, let etag = storedETag {
+            // storedETag is nil in split mode: a lean validator must never be reused across views.
+            if split == nil, boundUID == requestedUID, let etag = storedETag {
                 request.setValue(etag, forHTTPHeaderField: "If-None-Match")
             }
 
@@ -2187,8 +2467,9 @@ actor MetadataClient {
             guard let httpRes = response as? HTTPURLResponse else { return }
             AppLog.info("Metadata response: status=\(httpRes.statusCode) bytes=\(data.count)", module: "Metadata")
             if httpRes.statusCode == 304 {
-                if AppSessionStore.activeUID == requestedUID, boundUID == requestedUID {
+                if AppSessionStore.activeUID == requestedUID, boundUID == requestedUID, split == nil {
                     Self.snapshotConfirmedThisSession = true
+                    Self.confirmedCatalogLock.withLock { $0 = ConfirmedCatalogState(all: true) }
                 }
                 return
             }
@@ -2216,15 +2497,557 @@ actor MetadataClient {
             )
             persistCache(decoded, etag: responseETag, boundUID: requestedUID)
             guard AppSessionStore.activeUID == requestedUID, boundUID == requestedUID else { return }
+            // Lean returns every provider at once: back to lean mode, everything loaded and confirmed.
+            replaceSplit(nil)
             replaceTable(decoded)
             replaceStoredETag(responseETag)
             Self.replaceSharedState(snapshot: decoded, etag: responseETag)
             await publishCapabilityEvidenceContent(snapshot: decoded, etag: responseETag)
             Self.snapshotConfirmedThisSession = true
+            Self.confirmedCatalogLock.withLock { $0 = ConfirmedCatalogState(all: true) }
             Self.syncSelfHealPatternsToClassifier()
         } catch {
             AppLog.error(error, module: "Metadata", context: ["op": "fetch"])
         }
+    }
+
+    // MARK: - Index + per-provider catalog fetching
+
+    private enum SplitRefreshOutcome: Sendable {
+        case completed
+        /// An older backend answered view=index with 400.
+        case indexUnsupported
+        case failed
+    }
+
+    private enum IndexFetchResult: Sendable {
+        case updated(IndexResponse, etag: String?)
+        case notModified
+        case unsupported
+        case failed
+    }
+
+    private enum CatalogFetchResult: Sendable {
+        case updated(CatalogResponse, etag: String?)
+        case notModified
+        /// 404: the current snapshot has no such provider. Never the same as an empty catalog.
+        case notFound
+        case failed
+    }
+
+    private struct WrappedPayload<T: Decodable>: Decodable {
+        let data: T
+    }
+
+    /// Unit tests never hit the real API unless a test opts in.
+    private var networkAllowed: Bool {
+        #if DEBUG
+        if AppRuntime.isRunningTests
+            && !allowsNetworkRequestsInTests
+            && !Self.allowNetworkRequestsForTesting {
+            return false
+        }
+        #endif
+        return true
+    }
+
+    /// The single implementation behind every refresh entry point: split first, lean when the backend
+    /// lacks it. Refreshes are serialized; a later caller waits for the running one and then issues its
+    /// own conditional request (matching revisions cost nothing beyond one index 304).
+    private func refreshMetadata(
+        boundUID requestedUID: String,
+        extraKinds: Set<String> = [],
+        refetchIndex: Bool = true
+    ) async {
+        guard networkAllowed else { return }
+        if serverLacksSplitViews {
+            await fetchMetadata(boundUID: requestedUID)
+            return
+        }
+        while let running = splitRefreshTask {
+            _ = await running.value
+            if splitRefreshTask == running { splitRefreshTask = nil }
+        }
+        let task = Task {
+            await self.performSplitRefresh(
+                boundUID: requestedUID, refetchIndex: refetchIndex, extraKinds: extraKinds
+            )
+        }
+        splitRefreshTask = task
+        let outcome = await task.value
+        if splitRefreshTask == task { splitRefreshTask = nil }
+        if outcome == .indexUnsupported {
+            serverLacksSplitViews = true
+            await fetchMetadata(boundUID: requestedUID)
+        }
+    }
+
+    private func performSplitRefresh(
+        boundUID requestedUID: String,
+        refetchIndex: Bool,
+        extraKinds: Set<String>
+    ) async -> SplitRefreshOutcome {
+        guard boundUID == requestedUID else { return .failed }
+        let wasSplit = split != nil
+        var current = split
+        var indexConfirmed = false
+        var indexChanged = false
+        var indexTouched = false
+
+        if refetchIndex || current == nil {
+            switch await fetchIndex(etag: current?.indexETag) {
+            case .unsupported:
+                return .indexUnsupported
+            case .failed:
+                guard current != nil else { return .failed }
+            case .notModified:
+                indexConfirmed = true
+                indexTouched = true
+            case let .updated(index, etag):
+                current = rebasedSplitState(current, index: index, etag: etag)
+                indexConfirmed = true
+                indexChanged = true
+            }
+        }
+        guard var working = current,
+              boundUID == requestedUID,
+              AppSessionStore.activeUID == requestedUID else { return .failed }
+
+        sessionRequestedCatalogKinds.formUnion(extraKinds)
+        var needed = neededCatalogKinds(for: working.index)
+        var updatedCatalogs: [String: (raw: CatalogResponse, etag: String?)] = [:]
+        var touchedCatalogs: Set<String> = []
+        var rejections: [String: CatalogRejection] = [:]
+        var retriedIndex = false
+        var fetchKinds = Self.staleCatalogKinds(needed, in: working)
+
+        while !fetchKinds.isEmpty {
+            let results = await fetchCatalogs(fetchKinds, from: working)
+            var mismatched: Set<String> = []
+            for (kind, result) in results {
+                let expected = working.index.providers[kind]?.catalogRevision
+                switch result {
+                case .failed:
+                    continue
+                case .notFound:
+                    // Listed by the index yet 404: the snapshot rolled over; treat it like a revision mismatch.
+                    mismatched.insert(kind)
+                case .notModified:
+                    if let cached = working.catalogs[kind],
+                       cached.expanded.revision != nil,
+                       expected == nil || cached.expanded.revision == expected {
+                        touchedCatalogs.insert(kind)
+                    } else {
+                        mismatched.insert(kind)
+                    }
+                case let .updated(raw, etag):
+                    let safe = Self.sanitizedCatalogResponse(raw)
+                    switch Self.expandCatalog(safe, provider: kind, expectedRevision: expected) {
+                    case let .success(expanded):
+                        working.catalogs[kind] = CachedCatalog(expanded: expanded, etag: etag)
+                        updatedCatalogs[kind] = (safe, etag)
+                        touchedCatalogs.remove(kind)
+                        rejections[kind] = nil
+                    case .failure(.revisionMismatch):
+                        mismatched.insert(kind)
+                    case let .failure(reason):
+                        // An unresolved ref or wrong identity rejects the whole catalog; last-good stays.
+                        rejections[kind] = reason
+                    }
+                }
+            }
+            guard !mismatched.isEmpty, !retriedIndex else {
+                for kind in mismatched { rejections[kind] = .revisionMismatch }
+                break
+            }
+            // Revision disagrees with the index: refetch the index once and retry; if it still disagrees,
+            // keep last-good and report a diagnostic.
+            retriedIndex = true
+            switch await fetchIndex(etag: working.indexETag) {
+            case .notModified:
+                indexConfirmed = true
+                indexTouched = true
+            case let .updated(index, etag):
+                working = rebasedSplitState(working, index: index, etag: etag)
+                indexConfirmed = true
+                indexChanged = true
+                needed = neededCatalogKinds(for: working.index)
+            case .unsupported, .failed:
+                for kind in mismatched { rejections[kind] = .revisionMismatch }
+                fetchKinds = []
+                continue
+            }
+            fetchKinds = Self.staleCatalogKinds(needed, in: working)
+        }
+
+        guard boundUID == requestedUID, AppSessionStore.activeUID == requestedUID else { return .failed }
+
+        // Last-good catalogs migrated from lean only back up providers that are still needed; the rest
+        // are dropped on the first split commit.
+        let prunedSeeds = working.catalogs.filter { kind, cached in
+            cached.expanded.revision == nil && !needed.contains(kind)
+        }.map(\.key)
+        for kind in prunedSeeds { working.catalogs[kind] = nil }
+
+        for (kind, reason) in rejections {
+            reportCatalogDiagnostic(reason: reason.rawValue, provider: kind)
+        }
+
+        persistSplitCommit(
+            working,
+            writeIndex: indexChanged || !wasSplit,
+            touchIndex: indexTouched,
+            updatedCatalogs: updatedCatalogs,
+            touchedCatalogs: touchedCatalogs,
+            migratingFromLean: !wasSplit,
+            boundUID: requestedUID
+        )
+        if !wasSplit {
+            storedETag = nil
+        }
+        replaceSplit(working)
+        if indexConfirmed {
+            splitIndexConfirmed = true
+            Self.snapshotConfirmedThisSession = true
+        }
+        if !wasSplit || indexChanged || !updatedCatalogs.isEmpty || !prunedSeeds.isEmpty {
+            await publishSplitSnapshot()
+        } else {
+            publishConfirmedCatalogs()
+        }
+        return .completed
+    }
+
+    /// A new index keeps loaded catalogs as last-good until their new catalogs validate. On the first
+    /// switch from lean to split, the lean snapshot is split per provider into revision=nil last-good
+    /// catalogs and the model facts move along.
+    private func rebasedSplitState(
+        _ state: SplitState?,
+        index: IndexResponse,
+        etag: String?
+    ) -> SplitState {
+        if var state {
+            state.index = index
+            state.indexETag = etag
+            return state
+        }
+        var seeds: [String: CachedCatalog] = [:]
+        if let table {
+            let parameters = table.generationParameterTables ?? [:]
+            for (kind, provider) in table.providers {
+                seeds[kind] = CachedCatalog(
+                    expanded: ExpandedCatalog(
+                        revision: nil,
+                        resolveMap: provider.resolveMap,
+                        models: provider.models,
+                        generationParameters: parameters
+                    ),
+                    etag: nil
+                )
+            }
+        }
+        return SplitState(
+            index: index,
+            indexETag: etag,
+            catalogs: seeds,
+            modelFacts: table?.modelFacts,
+            modelFactsRevision: table?.modelFactsRevision
+        )
+    }
+
+    /// Needed catalogs = configured official providers ∪ (with a relay) the relay whitelist ∪ ad hoc
+    /// session requests.
+    private func neededCatalogKinds(for index: IndexResponse) -> Set<String> {
+        let configured = configuredProviderLock.withLock { $0 }
+        var needed = configured.kinds.union(sessionRequestedCatalogKinds)
+        if configured.hasRelay {
+            let whitelist = index.relayRuntimeConfig
+                .map { Self.mergeRelayRuntimeConfig(remote: $0).officialProviderWhitelist }
+                ?? RelayRuntimeConfig.fallback.officialProviderWhitelist
+            needed.formUnion(whitelist.compactMap {
+                ProviderKind(rawValue: $0).flatMap(Self.catalogKind(for:))
+            })
+        }
+        return needed
+    }
+
+    /// Providers missing from the index are not requested (not pending, simply absent from this
+    /// snapshot); a matching revision costs no request.
+    nonisolated private static func staleCatalogKinds(
+        _ needed: Set<String>,
+        in state: SplitState
+    ) -> Set<String> {
+        needed.filter { kind in
+            guard let entry = state.index.providers[kind] else { return false }
+            guard let expected = entry.catalogRevision else { return true }
+            return state.catalogs[kind]?.expanded.revision != expected
+        }
+    }
+
+    private func fetchCatalogs(
+        _ kinds: Set<String>,
+        from state: SplitState
+    ) async -> [String: CatalogFetchResult] {
+        await withTaskGroup(of: (String, CatalogFetchResult).self) { group in
+            for kind in kinds {
+                let etag = state.catalogs[kind]?.etag
+                group.addTask { (kind, await self.fetchCatalog(kind: kind, etag: etag)) }
+            }
+            var results: [String: CatalogFetchResult] = [:]
+            for await (kind, result) in group {
+                results[kind] = result
+            }
+            return results
+        }
+    }
+
+    private func fetchIndex(etag: String?) async -> IndexFetchResult {
+        let resolvedURL = BackendURLResolver.resolve()
+        guard !resolvedURL.isEmpty,
+              let url = URL(string: "\(resolvedURL)/api/metadata?view=index") else {
+            return .failed
+        }
+        var request = URLRequest(url: url)
+        if let etag {
+            request.setValue(etag, forHTTPHeaderField: "If-None-Match")
+        }
+        do {
+            let (data, response) = try await dataForBackendRequest(request)
+            guard let http = response as? HTTPURLResponse else { return .failed }
+            switch http.statusCode {
+            case 304:
+                return etag == nil ? .failed : .notModified
+            case 400:
+                return .unsupported
+            case 200:
+                guard let decoded = try? decodeWrappedPayload(IndexResponse.self, from: data),
+                      decoded.view == "index" else {
+                    reportMetadataDecodingFailure(source: .network, byteCount: data.count, statusCode: 200)
+                    return .failed
+                }
+                return .updated(decoded, etag: http.value(forHTTPHeaderField: "Etag"))
+            default:
+                return .failed
+            }
+        } catch {
+            return .failed
+        }
+    }
+
+    private func fetchCatalog(kind: String, etag: String?) async -> CatalogFetchResult {
+        let resolvedURL = BackendURLResolver.resolve()
+        guard !resolvedURL.isEmpty else { return .failed }
+        var components = URLComponents(string: "\(resolvedURL)/api/metadata")
+        components?.queryItems = [
+            URLQueryItem(name: "view", value: "catalog"),
+            URLQueryItem(name: "provider", value: kind),
+        ]
+        guard let url = components?.url else { return .failed }
+        var request = URLRequest(url: url)
+        if let etag {
+            request.setValue(etag, forHTTPHeaderField: "If-None-Match")
+        }
+        do {
+            let (data, response) = try await dataForBackendRequest(request)
+            guard let http = response as? HTTPURLResponse else { return .failed }
+            switch http.statusCode {
+            case 304:
+                return etag == nil ? .failed : .notModified
+            case 404:
+                return .notFound
+            case 200:
+                guard let decoded = try? decodeWrappedPayload(CatalogResponse.self, from: data) else {
+                    reportMetadataDecodingFailure(source: .network, byteCount: data.count, statusCode: 200)
+                    return .failed
+                }
+                return .updated(decoded, etag: http.value(forHTTPHeaderField: "Etag"))
+            default:
+                return .failed
+            }
+        } catch {
+            return .failed
+        }
+    }
+
+    private func decodeWrappedPayload<T: Decodable>(_ type: T.Type, from data: Data) throws -> T {
+        let decoder = JSONDecoder()
+        if let wrapped = try? decoder.decode(WrappedPayload<T>.self, from: data) {
+            return wrapped.data
+        }
+        guard let direct = try? decoder.decode(T.self, from: data) else {
+            throw MetadataPayloadDecodeSentinel()
+        }
+        return direct
+    }
+
+    /// Validates and expands one catalog. Any unresolved ref rejects the whole catalog: models are never
+    /// dropped one by one and no inline field is used as a fallback.
+    nonisolated private static func expandCatalog(
+        _ catalog: CatalogResponse,
+        provider: String,
+        expectedRevision: String?
+    ) -> Result<ExpandedCatalog, CatalogRejection> {
+        guard catalog.view == "catalog" else { return .failure(.wrongView) }
+        guard catalog.provider == provider else { return .failure(.wrongProvider) }
+        let tables = catalog.tables ?? CatalogTables()
+        let parameterTables = tables.generationParameters ?? [:]
+        var models: [String: ModelMetadataEntry] = [:]
+        models.reserveCapacity(catalog.models.count)
+        for (modelID, raw) in catalog.models {
+            var model = raw.entry
+            model.capabilityControls = nil
+            model.profiles = nil
+            model.clearCapabilityEvidenceView()
+            if let ref = raw.capabilityControlsRef {
+                guard let controls = tables.capabilityControls?[ref] else { return .failure(.unresolvedRef) }
+                model.capabilityControls = controls
+            }
+            if let ref = raw.profilesRef {
+                guard let profiles = tables.profiles?[ref] else { return .failure(.unresolvedRef) }
+                // The expanded parametersRef resolves against this catalog's generationParameters.
+                if let parametersRef = profiles.generation?.parametersRef {
+                    guard let key = trimmedNonEmpty(parametersRef), parameterTables[key] != nil else {
+                        return .failure(.unresolvedRef)
+                    }
+                }
+                model.profiles = profiles
+            }
+            if let ref = raw.capabilityEvidenceRef {
+                guard let evidence = tables.capabilityEvidence?[ref] else { return .failure(.unresolvedRef) }
+                model.setCapabilityEvidenceView(evidence)
+            }
+            models[modelID] = model
+        }
+        guard let revision = trimmedNonEmpty(catalog.catalogRevision) else {
+            return .failure(.revisionMismatch)
+        }
+        if let expectedRevision, revision != expectedRevision {
+            return .failure(.revisionMismatch)
+        }
+        return .success(ExpandedCatalog(
+            revision: revision,
+            resolveMap: catalog.resolveMap,
+            models: models,
+            generationParameters: parameterTables
+        ))
+    }
+
+    /// Same persistence boundary as lean: evidence tables keep allowlisted fields only, and models keep
+    /// the ref form only, so stray inline structures are never persisted (expansion trusts refs).
+    nonisolated private static func sanitizedCatalogResponse(_ catalog: CatalogResponse) -> CatalogResponse {
+        var safe = catalog
+        if let evidence = catalog.tables?.capabilityEvidence {
+            safe.tables?.capabilityEvidence = evidence.mapValues {
+                sanitizedCapabilityEvidenceRaw($0, allowsSchemaOmission: true)
+            }
+        }
+        let models = catalog.models.mapValues { raw -> CatalogModelEntry in
+            var entry = raw
+            entry.entry.capabilityControls = nil
+            entry.entry.profiles = nil
+            entry.entry.clearCapabilityEvidenceView()
+            return entry
+        }
+        return CatalogResponse(
+            view: safe.view,
+            provider: safe.provider,
+            catalogRevision: safe.catalogRevision,
+            tables: safe.tables,
+            resolveMap: safe.resolveMap,
+            models: models
+        )
+    }
+
+    /// Assembles an in-memory object shaped like a lean snapshot so downstream decoding stays the lean
+    /// path (parametersRef lookup, identity completion, evidence normalization). Providers whose
+    /// catalog is not loaded only carry provider-level fields.
+    nonisolated private static func assembleSplitSnapshot(_ state: SplitState) -> MetadataResponse {
+        var parameterTables: [String: [GenerationParameterRef]] = [:]
+        var providers: [String: ProviderData] = [:]
+        providers.reserveCapacity(state.index.providers.count)
+        for (kind, entry) in state.index.providers {
+            let catalog = state.catalogs[kind]?.expanded
+            if let catalog {
+                // Keys are content hashes of the parameter matrix, so equal keys mean equal values.
+                parameterTables.merge(catalog.generationParameters) { current, _ in current }
+            }
+            providers[kind] = ProviderData(
+                displayName: entry.displayName,
+                attachmentSupport: entry.attachmentSupport,
+                defaultModelId: entry.defaultModelId,
+                validation: entry.validation,
+                resolveMap: catalog?.resolveMap,
+                models: catalog?.models ?? [:],
+                transport: entry.transport
+            )
+        }
+        let index = state.index
+        return MetadataResponse(
+            version: index.version,
+            view: "lean",
+            contractVersion: index.contractVersion,
+            capabilityContractVersion: index.capabilityContractVersion,
+            updatedAt: index.updatedAt,
+            profiles: index.profiles,
+            generationParameterTables: parameterTables,
+            providers: providers,
+            providerConfigs: index.providerConfigs,
+            relayRuntimeConfig: index.relayRuntimeConfig,
+            runtimeConfig: index.runtimeConfig,
+            capabilityRuntime: index.capabilityRuntime,
+            modelFacts: state.modelFacts,
+            modelFactsRevision: state.modelFactsRevision
+        )
+    }
+
+    nonisolated private static func pendingCatalogKinds(in state: SplitState) -> Set<String> {
+        Set(state.index.providers.keys).subtracting(state.catalogs.keys)
+    }
+
+    private func publishSplitSnapshot() async {
+        guard let state = split else { return }
+        let snapshot = Self.assembleSplitSnapshot(state)
+        replaceTable(snapshot)
+        Self.replaceSharedState(
+            snapshot: snapshot,
+            etag: state.indexETag,
+            pendingCatalogKinds: Self.pendingCatalogKinds(in: state)
+        )
+        publishConfirmedCatalogs()
+        await publishCapabilityEvidenceContent(snapshot: snapshot, etag: state.indexETag)
+        Self.syncSelfHealPatternsToClassifier()
+    }
+
+    /// Only catalogs matching the index confirmed this session count as confirmed; last-good does not.
+    private func publishConfirmedCatalogs() {
+        guard let state = split, splitIndexConfirmed else {
+            Self.confirmedCatalogLock.withLock { $0 = ConfirmedCatalogState() }
+            return
+        }
+        let kinds = Set(state.catalogs.compactMap { kind, cached -> String? in
+            guard let revision = cached.expanded.revision,
+                  let entry = state.index.providers[kind],
+                  entry.catalogRevision == nil || entry.catalogRevision == revision else { return nil }
+            return kind
+        })
+        Self.confirmedCatalogLock.withLock { $0 = ConfirmedCatalogState(all: false, kinds: kinds) }
+    }
+
+    /// Replaces split state; the old tree is released on the release queue, as in `replaceTable`.
+    private func replaceSplit(_ newValue: SplitState?) {
+        let previous = split
+        split = newValue
+        guard let previous else { return }
+        Self.snapshotReleaseQueue.async {
+            withExtendedLifetime(previous) {}
+        }
+    }
+
+    private func reportCatalogDiagnostic(reason: String, provider: String) {
+        errorReporter(
+            MetadataCatalogDiagnostic(reason: reason),
+            ["operation": "catalog_\(reason)", "provider": provider]
+        )
     }
 
     private func dataForBackendRequest(_ request: URLRequest) async throws -> (Data, URLResponse) {
@@ -2259,17 +3082,17 @@ actor MetadataClient {
             if http.statusCode == 304 { return }
             if http.statusCode == 404 {
                 storedModelFactsETag = nil
-                UserDefaults.standard.removeObject(forKey: modelFactsETagKey(for: requestedUID))
                 guard AppSessionStore.activeUID == requestedUID,
                       boundUID == requestedUID,
-                      let current = table else { return }
+                      let current = table else {
+                    UserDefaults.standard.removeObject(forKey: modelFactsETagKey(for: requestedUID))
+                    return
+                }
                 let withdrawn = Self.removingModelFacts(from: current)
-                replaceTable(withdrawn)
-                Self.replaceSharedState(snapshot: withdrawn, etag: storedETag)
-                persistCache(withdrawn, etag: storedETag, boundUID: requestedUID)
+                commitModelFacts(withdrawn, facts: nil, etag: nil, boundUID: requestedUID)
                 // Capability decisions such as subscription reasoning levels read model facts; without
                 // the signal an open model picker or chat screen would not recompute.
-                await publishCapabilityEvidenceContent(snapshot: withdrawn, etag: storedETag)
+                await publishCapabilityEvidenceContent(snapshot: withdrawn, etag: currentSnapshotETag)
                 return
             }
             guard http.statusCode == 200 else { return }
@@ -2282,16 +3105,54 @@ actor MetadataClient {
                 facts: payload.facts,
                 revision: payload.revision
             )
-            replaceTable(merged)
-            Self.replaceSharedState(snapshot: merged, etag: storedETag)
             let responseETag = http.value(forHTTPHeaderField: "Etag")
             storedModelFactsETag = responseETag
-            UserDefaults.standard.set(responseETag, forKey: modelFactsETagKey(for: requestedUID))
-            persistCache(merged, etag: storedETag, boundUID: requestedUID)
-            await publishCapabilityEvidenceContent(snapshot: merged, etag: storedETag)
+            commitModelFacts(
+                merged,
+                facts: PersistedModelFacts(revision: payload.revision, facts: payload.facts),
+                etag: responseETag,
+                boundUID: requestedUID
+            )
+            await publishCapabilityEvidenceContent(snapshot: merged, etag: currentSnapshotETag)
         } catch {
             errorReporter(error, ["operation": "model_facts_fetch"])
         }
+    }
+
+    /// Model facts and their validator switch together: split mode writes the modelFacts row of
+    /// `metadata_split_cache`, lean mode keeps the snapshot row plus the UserDefaults ETag.
+    private func commitModelFacts(
+        _ snapshot: MetadataResponse,
+        facts: PersistedModelFacts?,
+        etag: String?,
+        boundUID requestedUID: String
+    ) {
+        replaceTable(snapshot)
+        if var state = split {
+            state.modelFacts = facts?.facts
+            state.modelFactsRevision = facts?.revision
+            replaceSplit(state)
+            Self.replaceSharedState(
+                snapshot: snapshot,
+                etag: state.indexETag,
+                pendingCatalogKinds: Self.pendingCatalogKinds(in: state)
+            )
+            persistSplitModelFacts(facts, etag: etag, boundUID: requestedUID)
+        } else {
+            Self.replaceSharedState(snapshot: snapshot, etag: storedETag)
+            if let etag {
+                UserDefaults.standard.set(etag, forKey: modelFactsETagKey(for: requestedUID))
+            } else {
+                UserDefaults.standard.removeObject(forKey: modelFactsETagKey(for: requestedUID))
+            }
+            persistCache(snapshot, etag: storedETag, boundUID: requestedUID)
+        }
+    }
+
+    /// Metadata revision bound to capability evidence: the index ETag in split mode (the index pins every
+    /// catalog revision), the lean ETag otherwise.
+    private var currentSnapshotETag: String? {
+        split?.indexETag ?? storedETag
     }
 
     private func reportMetadataDecodingFailure(
@@ -2504,6 +3365,227 @@ actor MetadataClient {
         }
     }
 
+    // MARK: - GRDB metadata_split_cache (one row for the index, one per catalog, one for model facts)
+
+    private static let splitIndexKey = "index"
+    private static let splitModelFactsKey = "modelFacts"
+    private static let splitCatalogKeyPrefix = "catalog:"
+
+    private struct SplitCacheEntry {
+        let state: SplitState
+        let indexTimestamp: TimeInterval
+        let modelFactsETag: String?
+    }
+
+    /// Anything unreadable counts as absent: a bad index drops the whole cache for a cold fetch; a bad
+    /// catalog drops only that provider, which is then refetched as pending.
+    private func loadSplitCache(boundUID requestedUID: String) -> SplitCacheEntry? {
+        do {
+            let pool = try DatabaseManager.shared.openIfNeeded(for: requestedUID)
+            let rows = try pool.read { db in
+                try Row.fetchAll(
+                    db,
+                    sql: "SELECT key, payload, revision, contractVersion, etag, updatedAt FROM metadata_split_cache"
+                )
+            }
+            guard let indexRow = rows.first(where: { ($0["key"] as String?) == Self.splitIndexKey }) else {
+                return nil
+            }
+            let contractVersion: Int = indexRow["contractVersion"]
+            guard contractVersion <= Self.supportedContractVersion + 1 else { return nil }
+            let indexPayload: String = indexRow["payload"]
+            guard let index = try? JSONDecoder().decode(IndexResponse.self, from: Data(indexPayload.utf8)),
+                  index.view == "index" else {
+                reportMetadataDecodingFailure(source: .grdb, byteCount: indexPayload.utf8.count)
+                return nil
+            }
+
+            var catalogs: [String: CachedCatalog] = [:]
+            var facts: PersistedModelFacts?
+            var factsETag: String?
+            for row in rows {
+                let key: String = row["key"]
+                let payload: String = row["payload"]
+                if key == Self.splitModelFactsKey {
+                    facts = try? JSONDecoder().decode(PersistedModelFacts.self, from: Data(payload.utf8))
+                    factsETag = facts == nil ? nil : row["etag"]
+                    continue
+                }
+                guard key.hasPrefix(Self.splitCatalogKeyPrefix) else { continue }
+                let kind = String(key.dropFirst(Self.splitCatalogKeyPrefix.count))
+                guard index.providers[kind] != nil else { continue }
+                let revision: String? = row["revision"]
+                guard let raw = try? JSONDecoder().decode(CatalogResponse.self, from: Data(payload.utf8)),
+                      case let .success(expanded) = Self.expandCatalog(
+                        raw, provider: kind, expectedRevision: revision
+                      ) else {
+                    reportMetadataDecodingFailure(source: .grdb, byteCount: payload.utf8.count)
+                    continue
+                }
+                catalogs[kind] = CachedCatalog(expanded: expanded, etag: row["etag"])
+            }
+            let indexETag: String? = indexRow["etag"]
+            let indexTimestamp: Double = indexRow["updatedAt"]
+            return SplitCacheEntry(
+                state: SplitState(
+                    index: index,
+                    indexETag: indexETag,
+                    catalogs: catalogs,
+                    modelFacts: facts?.facts,
+                    modelFactsRevision: facts?.revision
+                ),
+                indexTimestamp: indexTimestamp,
+                modelFactsETag: factsETag
+            )
+        } catch {
+            #if DEBUG
+            AppLog.warning("Failed to read the split metadata cache: \(error)", module: "Metadata")
+            #endif
+            return nil
+        }
+    }
+
+    /// One refresh persists in one transaction: a 200 writes the body, a 304 only the timestamp. The first
+    /// switch from lean also clears the old single-row cache and migrates model facts with their validator.
+    private func persistSplitCommit(
+        _ state: SplitState,
+        writeIndex: Bool,
+        touchIndex: Bool,
+        updatedCatalogs: [String: (raw: CatalogResponse, etag: String?)],
+        touchedCatalogs: Set<String>,
+        migratingFromLean: Bool,
+        boundUID requestedUID: String
+    ) {
+        let now = Date().timeIntervalSince1970
+        do {
+            let pool = try DatabaseManager.shared.openIfNeeded(for: requestedUID)
+            let encoder = JSONEncoder()
+            let indexPayload = writeIndex
+                ? String(decoding: try encoder.encode(state.index), as: UTF8.self)
+                : nil
+            var catalogRows: [(key: String, payload: String, revision: String?, etag: String?)] = []
+            for (kind, value) in updatedCatalogs {
+                catalogRows.append((
+                    Self.splitCatalogKeyPrefix + kind,
+                    String(decoding: try encoder.encode(value.raw), as: UTF8.self),
+                    value.raw.catalogRevision,
+                    value.etag
+                ))
+            }
+            var factsPayload: String?
+            if migratingFromLean, let facts = state.modelFacts, let revision = state.modelFactsRevision {
+                factsPayload = String(
+                    decoding: try encoder.encode(PersistedModelFacts(revision: revision, facts: facts)),
+                    as: UTF8.self
+                )
+            }
+            let factsETag = storedModelFactsETag
+            let contractVersion = state.index.contractVersion ?? 0
+            let indexETag = state.indexETag
+            try pool.write { db in
+                if let indexPayload {
+                    try Self.upsertSplitRow(
+                        db, key: Self.splitIndexKey, payload: indexPayload, revision: nil,
+                        contractVersion: contractVersion, etag: indexETag, updatedAt: now
+                    )
+                } else if touchIndex {
+                    try Self.touchSplitRow(db, key: Self.splitIndexKey, updatedAt: now)
+                }
+                for row in catalogRows {
+                    try Self.upsertSplitRow(
+                        db, key: row.key, payload: row.payload, revision: row.revision,
+                        contractVersion: contractVersion, etag: row.etag, updatedAt: now
+                    )
+                }
+                for kind in touchedCatalogs {
+                    try Self.touchSplitRow(db, key: Self.splitCatalogKeyPrefix + kind, updatedAt: now)
+                }
+                if migratingFromLean {
+                    try db.execute(sql: "DELETE FROM metadata_cache")
+                    if let factsPayload {
+                        try Self.upsertSplitRow(
+                            db, key: Self.splitModelFactsKey, payload: factsPayload, revision: nil,
+                            contractVersion: contractVersion, etag: factsETag, updatedAt: now
+                        )
+                    }
+                }
+            }
+            #if DEBUG
+            splitBodyWriteCountForTesting += (indexPayload == nil ? 0 : 1) + catalogRows.count
+            #endif
+            if migratingFromLean {
+                let defaults = UserDefaults.standard
+                defaults.removeObject(forKey: cacheKey)
+                defaults.removeObject(forKey: etagKey)
+                defaults.removeObject(forKey: modelFactsETagKey(for: requestedUID))
+            }
+        } catch {
+            #if DEBUG
+            AppLog.warning("Failed to write the split metadata cache: \(error)", module: "Metadata")
+            #endif
+        }
+    }
+
+    private func persistSplitModelFacts(
+        _ facts: PersistedModelFacts?,
+        etag: String?,
+        boundUID requestedUID: String
+    ) {
+        do {
+            let pool = try DatabaseManager.shared.openIfNeeded(for: requestedUID)
+            let payload = try facts.map { String(decoding: try JSONEncoder().encode($0), as: UTF8.self) }
+            let now = Date().timeIntervalSince1970
+            try pool.write { db in
+                if let payload {
+                    try Self.upsertSplitRow(
+                        db, key: Self.splitModelFactsKey, payload: payload, revision: nil,
+                        contractVersion: 0, etag: etag, updatedAt: now
+                    )
+                } else {
+                    try db.execute(
+                        sql: "DELETE FROM metadata_split_cache WHERE key = ?",
+                        arguments: [Self.splitModelFactsKey]
+                    )
+                }
+            }
+        } catch {
+            #if DEBUG
+            AppLog.warning("Failed to write model facts: \(error)", module: "Metadata")
+            #endif
+        }
+    }
+
+    nonisolated private static func upsertSplitRow(
+        _ db: Database,
+        key: String,
+        payload: String,
+        revision: String?,
+        contractVersion: Int,
+        etag: String?,
+        updatedAt: TimeInterval
+    ) throws {
+        try db.execute(
+            sql: """
+            INSERT INTO metadata_split_cache (key, payload, revision, contractVersion, etag, updatedAt)
+            VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(key) DO UPDATE SET
+                payload = excluded.payload,
+                revision = excluded.revision,
+                contractVersion = excluded.contractVersion,
+                etag = excluded.etag,
+                updatedAt = excluded.updatedAt
+            """,
+            arguments: [key, payload, revision, contractVersion, etag, updatedAt]
+        )
+    }
+
+    nonisolated private static func touchSplitRow(_ db: Database, key: String, updatedAt: TimeInterval) throws {
+        try db.execute(
+            sql: "UPDATE metadata_split_cache SET updatedAt = ? WHERE key = ?",
+            arguments: [updatedAt, key]
+        )
+    }
+
 
     private struct PersistedCacheEntry {
         let data: MetadataResponse
@@ -2598,6 +3680,18 @@ actor MetadataClient {
     }
 }
 
+extension MetadataClient.ModelMetadataEntry {
+    /// Catalog expansion only: `capabilityEvidenceRef` decides whether the evidence namespace is present,
+    /// so the present bit must be written along with the value.
+    fileprivate mutating func setCapabilityEvidenceView(_ value: MetadataClient.JSONValue) {
+        _capabilityEvidenceView = MetadataClient.CapabilityEvidenceRawField(presentValue: value)
+    }
+
+    fileprivate mutating func clearCapabilityEvidenceView() {
+        _capabilityEvidenceView = MetadataClient.CapabilityEvidenceRawField(wrappedValue: nil)
+    }
+}
+
 extension MetadataClient {
     func estimateCost(
         modelID: String,
@@ -2663,7 +3757,18 @@ extension MetadataClient {
 
     func resetForTesting() async {
         let requestedUID = AppSessionStore.activeUID
+        backgroundRefreshTask?.cancel()
+        backgroundRefreshTask = nil
+        await waitForBackgroundWorkForTesting()
         replaceTable(nil)
+        replaceSplit(nil)
+        splitIndexConfirmed = false
+        serverLacksSplitViews = false
+        sessionRequestedCatalogKinds = []
+        splitBodyWriteCountForTesting = 0
+        configuredProviderLock.withLock { $0 = ConfiguredProviderState() }
+        catalogRequestLock.withLock { $0 = [:] }
+        Self.confirmedCatalogLock.withLock { $0 = ConfirmedCatalogState() }
         Self.replaceSharedState(snapshot: nil, etag: nil)
         await CapabilityEvidenceObservationBridge.shared.resetForTesting()
         Self.snapshotConfirmedThisSession = false
@@ -2683,19 +3788,99 @@ extension MetadataClient {
         if let pool = try? DatabaseManager.shared.openIfNeeded(for: requestedUID) {
             try? await pool.write { db in
                 try? db.execute(sql: "DELETE FROM metadata_cache")
+                try? db.execute(sql: "DELETE FROM metadata_split_cache")
             }
+        }
+    }
+
+    /// Waits for background refreshes and pending-triggered fetches so tests can assert on requests.
+    func waitForBackgroundWorkForTesting() async {
+        while true {
+            let tasks = catalogRequestTasksForTesting.withLock { tasks -> [Task<Void, Never>] in
+                defer { tasks.removeAll() }
+                return tasks
+            }
+            let background = backgroundRefreshTask
+            backgroundRefreshTask = nil
+            let running = splitRefreshTask
+            if tasks.isEmpty, background == nil, running == nil { return }
+            for task in tasks { await task.value }
+            await background?.value
+            _ = await running?.value
+        }
+    }
+
+    /// Test only: injects a split snapshot (index plus catalogs) through the production expansion and
+    /// assembly path, treated as confirmed this session.
+    func loadSplitForTesting(
+        indexJSON: String,
+        indexETag: String?,
+        catalogJSONs: [String: String],
+        confirmed: Bool = true
+    ) async throws {
+        let index = try decodeWrappedPayload(IndexResponse.self, from: Data(indexJSON.utf8))
+        var catalogs: [String: CachedCatalog] = [:]
+        for (kind, json) in catalogJSONs {
+            let raw = try decodeWrappedPayload(CatalogResponse.self, from: Data(json.utf8))
+            let expanded = try Self.expandCatalog(
+                Self.sanitizedCatalogResponse(raw),
+                provider: kind,
+                expectedRevision: index.providers[kind]?.catalogRevision
+            ).get()
+            catalogs[kind] = CachedCatalog(expanded: expanded, etag: "catalog-etag-\(kind)")
+        }
+        let requestedUID = AppSessionStore.activeUID
+        boundUID = requestedUID
+        storedETag = nil
+        replaceSplit(SplitState(
+            index: index, indexETag: indexETag, catalogs: catalogs, modelFacts: nil, modelFactsRevision: nil
+        ))
+        splitIndexConfirmed = confirmed
+        Self.snapshotConfirmedThisSession = confirmed
+        await publishSplitSnapshot()
+        bootstrappedUID = requestedUID
+    }
+
+    func splitBodyWriteCountSnapshotForTesting() -> Int {
+        splitBodyWriteCountForTesting
+    }
+
+    /// Test only: reads (revision, etag, updatedAt) of every split cache row.
+    func splitCacheRowsForTesting(
+        boundUID requestedUID: String? = nil
+    ) throws -> [String: (revision: String?, etag: String?, updatedAt: Double)] {
+        let pool = try DatabaseManager.shared.openIfNeeded(for: requestedUID ?? AppSessionStore.activeUID)
+        return try pool.read { db in
+            var result: [String: (revision: String?, etag: String?, updatedAt: Double)] = [:]
+            for row in try Row.fetchAll(db, sql: "SELECT key, revision, etag, updatedAt FROM metadata_split_cache") {
+                result[row["key"]] = (row["revision"], row["etag"], row["updatedAt"])
+            }
+            return result
+        }
+    }
+
+    /// Test only: ages split cache timestamps to simulate TTL expiry.
+    func ageSplitCacheForTesting(by seconds: TimeInterval, boundUID requestedUID: String? = nil) throws {
+        let pool = try DatabaseManager.shared.openIfNeeded(for: requestedUID ?? AppSessionStore.activeUID)
+        try pool.write { db in
+            try db.execute(
+                sql: "UPDATE metadata_split_cache SET updatedAt = updatedAt - ?",
+                arguments: [seconds]
+            )
         }
     }
 
     func loadForTesting(json: String, metadataETag: String? = nil) async throws {
         let decoded = try JSONDecoder().decode(MetadataResponse.self, from: Data(json.utf8))
         let requestedUID = AppSessionStore.activeUID
+        replaceSplit(nil)
         replaceTable(decoded)
         boundUID = requestedUID
         storedETag = metadataETag
         Self.replaceSharedState(snapshot: decoded, etag: metadataETag)
         await publishCapabilityEvidenceContent(snapshot: decoded, etag: metadataETag)
         Self.snapshotConfirmedThisSession = true
+        Self.confirmedCatalogLock.withLock { $0 = ConfirmedCatalogState(all: true) }
         Self.syncSelfHealPatternsToClassifier()
         bootstrappedUID = requestedUID
     }

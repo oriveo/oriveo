@@ -362,7 +362,7 @@ struct ModelControlsSheet: View {
     private func refreshRuntime() async {
         isRefreshingRuntime = true
         runtimeRefreshFailed = false
-        await MetadataClient.shared.forceRefresh()
+        await MetadataClient.shared.forceRefresh(providerKinds: [provider.kind])
         let resolved = CapabilityPreferenceRuntimeIdentity.make(provider: provider, model: model)?.wireValue
         refreshedIdentity = resolved
         isRefreshingRuntime = false

@@ -189,6 +189,14 @@ enum DatabaseSchema {
             // they age out, and cold start uses them to decide what must never come back.
             try db.execute(sql: "ALTER TABLE pending_conversation_deletion RENAME TO conversation_deletion_journal")
         }
+        migrator.registerMigration("v28_metadata_split_cache") { db in
+            // Metadata moved from one lean payload to an index plus per-provider catalogs fetched on
+            // demand. Each row keeps its own ETag, revision and timestamp: a 304 only touches the
+            // timestamp, and a new catalog revision rewrites just that provider's row. The old
+            // single-row `metadata_cache` stays readable as a compatibility snapshot until the first
+            // split commit, which clears it.
+            try createMetadataSplitCacheTable(in: db)
+        }
         return migrator
     }
 
@@ -288,6 +296,20 @@ enum DatabaseSchema {
                 payload TEXT NOT NULL,
                 version INTEGER NOT NULL,
                 contractVersion INTEGER NOT NULL,
+                etag TEXT,
+                updatedAt REAL NOT NULL
+            )
+            """)
+    }
+
+    /// Split metadata cache rows: key = `index` / `catalog:<providerKind>` / `modelFacts`.
+    nonisolated private static func createMetadataSplitCacheTable(in db: Database) throws {
+        try db.execute(sql: """
+            CREATE TABLE metadata_split_cache (
+                key TEXT PRIMARY KEY NOT NULL,
+                payload TEXT NOT NULL,
+                revision TEXT,
+                contractVersion INTEGER NOT NULL DEFAULT 0,
                 etag TEXT,
                 updatedAt REAL NOT NULL
             )

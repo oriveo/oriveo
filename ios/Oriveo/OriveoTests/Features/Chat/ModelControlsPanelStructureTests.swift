@@ -63,7 +63,7 @@ struct ModelControlsPanelStructureTests {
         #expect(sheet.contains("Choose another model"))
         #expect(sheet.contains("Button(action: onChooseConnection)"))
         #expect(sheet.contains("Set the protocol"))
-        #expect(sheet.contains("await MetadataClient.shared.forceRefresh()"))
+        #expect(sheet.contains("await MetadataClient.shared.forceRefresh(providerKinds: [provider.kind])"))
 
         #expect(
             !sheet.contains("ProviderDetailView(providerID: provider.id)"),

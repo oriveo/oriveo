@@ -32,6 +32,11 @@ enum ManualRetainedPruningPolicy {
             return provider.models
         }
 
+        // A miss means nothing while the catalog has not loaded; never prune then.
+        if resolvedCatalog.catalogPending {
+            return provider.models
+        }
+
         let prunedIdentifiers = Set(
             resolvedCatalog.enabledModels
                 .filter(\.isManual)

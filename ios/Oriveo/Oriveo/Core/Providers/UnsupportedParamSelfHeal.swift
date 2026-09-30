@@ -776,7 +776,7 @@ enum UnsupportedParamSelfHealReporter {
         // A complete identity may suppress side effects only after its exact cache entry already exists.
         if firstTime || !canReuseAcrossRequests {
             Task(priority: .utility) {
-                await MetadataClient.shared.forceRefresh()
+                await MetadataClient.shared.forceRefresh(providerKinds: [providerKind])
             }
         }
         return firstTime

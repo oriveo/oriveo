@@ -17,6 +17,10 @@ struct ResolvedProviderCatalog: Sendable {
     let defaultModel: ResolvedModel?
     let availableModelCount: Int
     let hasManualModels: Bool
+    /// This provider's official catalog has not loaded yet. The list only echoes the user's enabled
+    /// models and says nothing about catalog membership: callers must not prune, mark models manual
+    /// or rewrite storage based on it.
+    var catalogPending = false
 }
 
 
@@ -105,6 +109,14 @@ enum ProviderCatalogResolver {
         let contract = metadata.contractVersionSnapshot()
         if contract.shouldSafeDegrade {
             return degradedCatalog(provider: provider)
+        }
+
+        // Not loaded is not "absent from the catalog": fetch just this provider and echo the enabled
+        // models meanwhile. The snapshot generation advances on arrival and invalidates the memo.
+        if metadata.syncIsCatalogPending(providerKind: provider.kind) {
+            var pending = resolveFromLocal(provider: provider, metadata: metadata)
+            pending.catalogPending = true
+            return pending
         }
 
         let metadataModelIDs = metadata.providerModelIDs(providerKind: provider.kind)
