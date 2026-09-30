@@ -9,14 +9,15 @@
   border: 0;
   border-radius: var(--o-radius-md);
   background: transparent;
-  color: var(--o-text);
+  /* Panels with their own palette recolor through variables; an inline color would override :hover */
+  color: var(--o-icon-button-color, var(--o-text));
   cursor: pointer;
   transition: color var(--o-transition-fast), opacity var(--o-transition-fast);
 }
 
 /* Hover only changes the colour; no background appears */
 .backButton:hover {
-  color: var(--o-text-secondary);
+  color: var(--o-icon-button-hover-color, var(--o-text-secondary));
 }
 
 .backButton:active {

@@ -42,13 +42,13 @@ describe('BackButton', () => {
     const base = ruleBody('.backButton');
     expect(base).toContain('width: 40px;');
     expect(base).toContain('height: 40px;');
-    expect(base).toContain('color: var(--o-text);');
+    expect(base).toContain('color: var(--o-icon-button-color, var(--o-text));');
     expect(base).toContain('background: transparent;');
     expect(base).toContain('border: 0;');
     expect(base).not.toMatch(/box-shadow/);
 
     const hover = ruleBody('.backButton:hover');
-    expect(hover.trim()).toBe('color: var(--o-text-secondary);');
+    expect(hover.trim()).toBe('color: var(--o-icon-button-hover-color, var(--o-text-secondary));');
 
     expect(ruleBody('.backButton:active')).toContain('opacity: 0.5;');
     expect(ruleBody('.icon:dir(rtl)')).toContain('transform: scaleX(-1);');

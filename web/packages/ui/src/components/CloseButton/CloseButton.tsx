@@ -10,9 +10,10 @@ interface CloseButtonProps extends Omit<ComponentPropsWithRef<'button'>, 'childr
 
 /**
  * The app-wide close button: a bare ×, same path as the iOS / Android `OriveoCloseButton`
- * (24 grid, 2 stroke). Defaults to --o-text; panels with their own palette pass
- * `style={{ color }}` rather than overriding color with a className, because the load order
- * of two CSS Modules is not guaranteed.
+ * (24 grid, 2 stroke). Defaults to --o-text; panels with their own palette set
+ * `--o-icon-button-color` / `--o-icon-button-hover-color` through `style`. Do not pass
+ * `style={{ color }}` (inline color beats :hover, so hover stops changing color), and do not
+ * override color with a className, because the load order of two CSS Modules is not guaranteed.
  */
 export function CloseButton({ label, className, type = 'button', ...rest }: CloseButtonProps) {
   return (
