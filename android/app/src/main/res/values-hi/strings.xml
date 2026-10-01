@@ -76,7 +76,8 @@
     <string name="n_models_enabled">%1$d मॉडल</string>
     <string name="n_providers">%1$d प्रोवाइडर</string>
     <string name="restore_defaults">डिफॉल्ट्स का पुनःस्थापन</string>
-    <string name="generating">उत्पादक</string>
+    <string name="generating">उत्पन्न हो रहा है</string>
+    <string name="stream_activity_web_search">वेब पर खोज जारी है</string>
     <string name="draft">मसौदा</string>
     <string name="message_failed">भेजना विफल</string>
     <string name="message_failed_body">अनुरोध साफ़-साफ़ ख़त्म नहीं हुआ. इसे अभी पुनः प्रयास करें या दोबारा भेजने से पहले अंतिम उपयोगकर्ता संदेश को संपादित करें।</string>
@@ -849,7 +850,7 @@
     <string name="relay_security_mode_option_unknown_disabled">इस कनेक्शन प्रकार को चुनने से पहले लोकल, LAN या निजी VPN पता दर्ज करें।</string>
     <string name="relay_connection_no_key_required_cleartext">इस कनेक्शन को कुंजी की ज़रूरत नहीं है · अनएन्क्रिप्टेड कनेक्शन कभी क्रेडेंशियल नहीं भेजते।</string>
     <string name="relay_remove_api_key">कुंजी हटाएँ</string>
-<string name="streaming_pulse_a11y">उत्पादक</string>
+<string name="streaming_pulse_a11y">उत्पन्न हो रहा है</string>
 
     <!-- Usage Insights demo card -->
 <string name="providers_active_this_month">इस माह सक्रिय</string>

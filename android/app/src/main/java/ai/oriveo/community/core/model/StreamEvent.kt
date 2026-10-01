@@ -27,6 +27,12 @@ sealed class StreamEvent {
     data class Citations(val citations: List<Citation>) : StreamEvent()
 
     /**
+     * An activity the provider was observed to start on the wire. Transient: it only drives the
+     * waiting label and is never persisted, synced or copied into a ChatMessage.
+     */
+    data class Activity(val activity: StreamActivity) : StreamEvent()
+
+    /**
      * A fully completed recipe continuation leg. It is local-only sidecar data: ChatRepository
      * persists it in Room and only an explicit continue/retry may consume it.
      */
@@ -39,6 +45,9 @@ sealed class StreamEvent {
     /** The stream finished; carries the final totals for the message. */
     data class Done(val result: ProviderChatResult) : StreamEvent()
 }
+
+/** The activities the waiting line can name. The set is closed. */
+enum class StreamActivity { WebSearch }
 
 @kotlinx.serialization.Serializable
 data class ToolCallDelta(

@@ -3,6 +3,7 @@ package ai.oriveo.community.core.provider
 import ai.oriveo.community.core.model.ChatRequestOptions
 import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.core.model.ReasoningMode
+import ai.oriveo.community.core.model.StreamActivity
 import ai.oriveo.community.core.model.StreamEvent
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
@@ -238,6 +239,104 @@ class AnthropicServiceTest {
         assertTrue("last event must be Done", events[2] is StreamEvent.Done)
         // Done.result.text accumulates the visible answer only, never the reasoning text
         assertEquals("hi", (events[2] as StreamEvent.Done).result.text)
+    }
+
+    // The start of a server-side web search is only a server_tool_use block named web_search.
+    @Test
+    fun `sendMessageStream emits web search activity when a server_tool_use web_search block starts`() = runTest {
+        val stream = ProviderTestFixtures.anthropicStream(
+            ProviderTestFixtures.anthropicEvent("message_start", "{\"type\":\"message_start\",\"message\":{\"usage\":{\"input_tokens\":2}}}"),
+            ProviderTestFixtures.anthropicEvent(
+                "content_block_delta",
+                "{\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"Let me look that up.\"}}",
+            ),
+            ProviderTestFixtures.anthropicEvent(
+                "content_block_start",
+                "{\"type\":\"content_block_start\",\"index\":1,\"content_block\":{\"type\":\"server_tool_use\",\"id\":\"srvtoolu_01\",\"name\":\"web_search\",\"input\":{}}}",
+            ),
+            ProviderTestFixtures.anthropicEvent(
+                "content_block_delta",
+                "{\"type\":\"content_block_delta\",\"index\":1,\"delta\":{\"type\":\"input_json_delta\",\"partial_json\":\"{\\\"query\\\":\\\"weather\\\"}\"}}",
+            ),
+            ProviderTestFixtures.anthropicEvent(
+                "content_block_delta",
+                "{\"type\":\"content_block_delta\",\"index\":3,\"delta\":{\"type\":\"text_delta\",\"text\":\"Sunny.\"}}",
+            ),
+            ProviderTestFixtures.anthropicEvent("message_delta", "{\"type\":\"message_delta\",\"usage\":{\"output_tokens\":1}}"),
+        )
+
+        val events = activityStreamEvents(stream)
+
+        assertEquals(
+            listOf(StreamEvent.Activity(StreamActivity.WebSearch)),
+            events.filterIsInstance<StreamEvent.Activity>(),
+        )
+        // The order is what the lifetime of the waiting line rests on: leading body text, then
+        // the activity start, then the next body text, which clears it.
+        val activityAt = events.indexOfFirst { it is StreamEvent.Activity }
+        assertEquals("Let me look that up.", (events[activityAt - 1] as StreamEvent.Delta).text)
+        assertEquals("Sunny.", (events.drop(activityAt + 1).first { it is StreamEvent.Delta } as StreamEvent.Delta).text)
+    }
+
+    @Test
+    fun `sendMessageStream never reports activity for client tool_use or other server tools`() = runTest {
+        val stream = ProviderTestFixtures.anthropicStream(
+            ProviderTestFixtures.anthropicEvent("message_start", "{\"type\":\"message_start\",\"message\":{\"usage\":{\"input_tokens\":2}}}"),
+            // A client tool that happens to be called web_search: nothing executes it, so it
+            // ends up in a result card and is not a waiting state.
+            ProviderTestFixtures.anthropicEvent(
+                "content_block_start",
+                "{\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"tool_use\",\"id\":\"toolu_01\",\"name\":\"web_search\",\"input\":{}}}",
+            ),
+            // A server tool outside the closed set must not be downgraded to a web search.
+            ProviderTestFixtures.anthropicEvent(
+                "content_block_start",
+                "{\"type\":\"content_block_start\",\"index\":1,\"content_block\":{\"type\":\"server_tool_use\",\"id\":\"srvtoolu_02\",\"name\":\"code_execution\",\"input\":{}}}",
+            ),
+            // The search result block itself is not a start.
+            ProviderTestFixtures.anthropicEvent(
+                "content_block_start",
+                "{\"type\":\"content_block_start\",\"index\":2,\"content_block\":{\"type\":\"web_search_tool_result\",\"tool_use_id\":\"srvtoolu_01\",\"content\":[]}}",
+            ),
+            ProviderTestFixtures.anthropicEvent("message_delta", "{\"type\":\"message_delta\",\"usage\":{\"output_tokens\":1}}"),
+        )
+
+        val events = activityStreamEvents(stream)
+
+        assertTrue(events.none { it is StreamEvent.Activity })
+        // Self-check: the production parser really did read the client tool_use, so the absence
+        // of an Activity above is not down to the frames going unparsed.
+        assertTrue(events.any { it is StreamEvent.ToolCallDeltas })
+    }
+
+    private suspend fun activityStreamEvents(stream: String): List<StreamEvent> {
+        MetadataTestFixtures.applyProviders(
+            MetadataTestFixtures.ProviderSpec(
+                providerKind = ProviderKind.Anthropic,
+                defaultModelId = "claude-3",
+                resolveMap = mapOf("claude-3" to "claude-3"),
+                models = listOf(MetadataTestFixtures.ModelSpec(id = "claude-3")),
+            )
+        )
+        val client = HttpClient(
+            MockEngine {
+                respond(
+                    content = stream,
+                    status = HttpStatusCode.OK,
+                    headers = headersOf(HttpHeaders.ContentType, "text/event-stream"),
+                )
+            }
+        )
+        return AnthropicService(client, json, transportRegistry).sendMessageStream(
+            apiKey = "sk-test",
+            modelID = "claude-3",
+            messages = listOf(ProviderTestFixtures.userMessage("Hi", ProviderKind.Anthropic, "claude-3")),
+            baseUrl = null,
+            supportsImageGen = false,
+            reasoningMode = ReasoningMode.Automatic,
+            webSearchEnabled = true,
+            requestOptions = ChatRequestOptions(),
+        ).toList()
     }
 
     @Test

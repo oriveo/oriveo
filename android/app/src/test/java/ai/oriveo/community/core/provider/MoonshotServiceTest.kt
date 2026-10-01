@@ -7,6 +7,7 @@ import ai.oriveo.community.core.model.ChatRole
 import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.core.model.ProviderServiceError
 import ai.oriveo.community.core.model.ReasoningMode
+import ai.oriveo.community.core.model.StreamActivity
 import ai.oriveo.community.core.model.StreamEvent
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
@@ -172,6 +173,19 @@ class MoonshotServiceTest {
         val done = events.last() as StreamEvent.Done
         assertEquals("the answer", done.result.text)
         assertEquals("first let me think\n\nnow to sum up", done.result.reasoningText)
+
+        // 4. This leg accepted $web_search, so "web search started" is emitted once before the
+        // feed-back: after the first leg's content and before anything from the second leg, whose
+        // first delta is what clears it.
+        assertEquals(
+            listOf(StreamEvent.Activity(StreamActivity.WebSearch)),
+            events.filterIsInstance<StreamEvent.Activity>(),
+        )
+        val activityAt = events.indexOfFirst { it is StreamEvent.Activity }
+        assertEquals("first let me think", (events[activityAt - 1] as StreamEvent.Reasoning).text)
+        assertTrue(
+            events.drop(activityAt + 1).filterIsInstance<StreamEvent.Reasoning>().any { it.text == "now to sum up" },
+        )
         assertEquals(30, done.result.promptTokens)
         assertEquals(12, done.result.completionTokens)
     }
@@ -212,6 +226,9 @@ class MoonshotServiceTest {
         ).toList()
 
         assertEquals(1, calls)
+        // No search was started by the model, so there is no activity: having web search switched
+        // on is not an observation.
+        assertTrue(events.none { it is StreamEvent.Activity })
         val done = events.last() as StreamEvent.Done
         assertEquals("a direct answer", done.result.text)
         assertEquals("thinking it through", done.result.reasoningText)
@@ -426,6 +443,9 @@ class MoonshotServiceTest {
             val finalChat = captured.last().second
             assertTrue(finalChat.contains("----MOONSHOT ENCRYPTED BEGIN----opaque----MOONSHOT ENCRYPTED END----"))
             assertTrue(events.any { it is StreamEvent.RecipeContinuation })
+            // The closed set holds only `$web_search`. The tool of the Formula loop is named
+            // `search`, which is not in it and must not be reported.
+            assertTrue(events.none { it is StreamEvent.Activity })
             assertEquals("done", (events.last() as StreamEvent.Done).result.text)
         }
 

@@ -122,6 +122,7 @@ import ai.oriveo.community.core.model.ChatMessageState
 import ai.oriveo.community.core.model.ChatRole
 import ai.oriveo.community.core.model.QuoteSelectionContent
 import ai.oriveo.community.core.model.RelayKind
+import ai.oriveo.community.core.model.StreamActivity
 import ai.oriveo.community.core.model.UnhandledToolCall
 import ai.oriveo.community.feature.chat.AssistantMessageFooterMetrics
 import ai.oriveo.community.ui.component.ImageViewerSheet
@@ -209,6 +210,14 @@ fun MessageBubble(
     streamingReasoning: String? = null,
 
     streamingReasoningActive: Boolean = false,
+    /** The activity observed in progress on the wire, such as a web search; non-null only for the streaming message. */
+    streamingActivity: StreamActivity? = null,
+    /**
+     * Whether a live streaming session is attached to this message right now. The waiting label
+     * only applies to it: a message whose persisted state is still Generating with no stream
+     * running has nothing on screen to wait for, and should not shimmer.
+     */
+    isLiveStream: Boolean = false,
     showMetadata: Boolean = true,
     providerNameOverride: String? = null,
     modelNameOverride: String? = null,
@@ -260,6 +269,8 @@ fun MessageBubble(
             streamingText = streamingText,
             streamingReasoning = streamingReasoning,
             streamingReasoningActive = streamingReasoningActive,
+            streamingActivity = streamingActivity,
+            isLiveStream = isLiveStream,
             showMetadata = showMetadata,
             providerNameOverride = providerNameOverride,
             modelNameOverride = modelNameOverride,
@@ -625,6 +636,8 @@ private fun AssistantMessage(
     streamingText: String?,
     streamingReasoning: String?,
     streamingReasoningActive: Boolean,
+    streamingActivity: StreamActivity?,
+    isLiveStream: Boolean,
     showMetadata: Boolean,
     providerNameOverride: String?,
     modelNameOverride: String?,
@@ -689,6 +702,32 @@ private fun AssistantMessage(
         displayText.isBlank() &&
         !showReasoningBlock
 
+    // Waiting label. A pause is judged only from what is visible on screen: the body follows the
+    // reveal's visible progress (onVisibleTextAdvanced), and reasoning counts only when its text
+    // changes; an empty-string heartbeat changes nothing visible and does not reset the timer.
+    // Setting or clearing the activity resets it once as well: a cleared activity means new
+    // content has just arrived, and the neutral label should not flash before it reaches the screen.
+    val waitingOnLiveStream = isStreaming && isLiveStream
+    val streamQuiet = remember(message.id) { StreamQuietState() }
+    LaunchedEffect(streamQuiet, waitingOnLiveStream) {
+        if (waitingOnLiveStream) streamQuiet.run()
+    }
+    LaunchedEffect(streamQuiet, waitingOnLiveStream, displayReasoningText, streamingActivity) {
+        if (waitingOnLiveStream) streamQuiet.noteVisibleChange()
+    }
+    val onVisibleBodyAdvanced: (() -> Unit)? = remember(streamQuiet, waitingOnLiveStream) {
+        if (waitingOnLiveStream) streamQuiet::noteVisibleChange else null
+    }
+    val activityPresentation = resolveStreamActivityPresentation(
+        isGenerating = waitingOnLiveStream,
+        hasBodyText = displayText.isNotBlank(),
+        typingIndicatorVisible = showTypingIndicator,
+        activity = streamingActivity,
+        quiet = streamQuiet.quiet,
+    )
+    val showBody = displayText.isNotBlank()
+    val activityLineLabel = (activityPresentation as? StreamActivityPresentation.StatusLine)?.label
+
     Box(
         modifier = modifier
             .fillMaxWidth()
@@ -744,38 +783,56 @@ private fun AssistantMessage(
                     )
                 }
 
-                when {
-                    showTypingIndicator -> {
+                // The body and the activity line share a small column with 8dp spacing, so the
+                // line sits right under the body instead of taking the outer 12dp block spacing.
+                // When none of the three is present the column is not emitted at all: an empty
+                // column would add one extra gap between the reasoning block and what follows.
+                if (showTypingIndicator || showBody || activityLineLabel != null) {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        when {
+                            showTypingIndicator -> {
 
-                        TypingIndicator()
-                    }
-                    displayText.isNotBlank() -> {
-                        val hapticContext = LocalContext.current
-                        MarkdownMessageView(
-                            text = displayText,
-                            modifier = Modifier.fillMaxWidth(),
-                            isStreaming = message.state == ChatMessageState.Generating,
-                            onSaveCodeBlock = onSaveCodeAsNote,
-                            onSaveSelection = onSaveSelection,
-                            onAskSelection = onAskSelection,
-                            onReplaceSelection = onReplaceSelection,
-                            onSelectionToolbarVisibleChange = onSelectionToolbarVisibleChange,
-                            onSelectionGestureActiveChange = onSelectionGestureActiveChange,
+                                TypingIndicator(
+                                    label = stringResource(
+                                        (activityPresentation as? StreamActivityPresentation.IndicatorLabel)
+                                            ?.label?.stringRes
+                                            ?: R.string.generating,
+                                    ),
+                                )
+                            }
+                            showBody -> {
+                                val hapticContext = LocalContext.current
+                                MarkdownMessageView(
+                                    text = displayText,
+                                    modifier = Modifier.fillMaxWidth(),
+                                    isStreaming = message.state == ChatMessageState.Generating,
+                                    onSaveCodeBlock = onSaveCodeAsNote,
+                                    onSaveSelection = onSaveSelection,
+                                    onAskSelection = onAskSelection,
+                                    onReplaceSelection = onReplaceSelection,
+                                    onSelectionToolbarVisibleChange = onSelectionToolbarVisibleChange,
+                                    onSelectionGestureActiveChange = onSelectionGestureActiveChange,
 
-                            onRenderSettled = {
-                                @Suppress("DEPRECATION")
-                                (hapticContext.getSystemService(Context.VIBRATOR_SERVICE) as? android.os.Vibrator)
-                                    ?.vibrate(
-                                        android.os.VibrationEffect.createOneShot(
-                                            30,
-                                            android.os.VibrationEffect.DEFAULT_AMPLITUDE,
-                                        ),
-                                    )
-                            },
-                            onRenderStreamingChanged = { renderStreaming ->
-                                isBodyRenderSettled = !renderStreaming
-                            },
-                        )
+                                    onRenderSettled = {
+                                        @Suppress("DEPRECATION")
+                                        (hapticContext.getSystemService(Context.VIBRATOR_SERVICE) as? android.os.Vibrator)
+                                            ?.vibrate(
+                                                android.os.VibrationEffect.createOneShot(
+                                                    30,
+                                                    android.os.VibrationEffect.DEFAULT_AMPLITUDE,
+                                                ),
+                                            )
+                                    },
+                                    onRenderStreamingChanged = { renderStreaming ->
+                                        isBodyRenderSettled = !renderStreaming
+                                    },
+                                    onVisibleTextAdvanced = onVisibleBodyAdvanced,
+                                )
+                            }
+                        }
+                        if (activityLineLabel != null) {
+                            StreamActivityLine(text = stringResource(activityLineLabel.stringRes))
+                        }
                     }
                 }
 

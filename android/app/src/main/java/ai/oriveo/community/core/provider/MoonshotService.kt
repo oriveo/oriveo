@@ -8,6 +8,7 @@ import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.core.model.ProviderServiceError
 import ai.oriveo.community.core.model.ProviderSyncResult
 import ai.oriveo.community.core.model.ReasoningMode
+import ai.oriveo.community.core.model.StreamActivity
 import ai.oriveo.community.core.model.StreamEvent
 import ai.oriveo.community.core.provider.transport.TransportKind
 import io.ktor.client.HttpClient
@@ -338,6 +339,11 @@ class MoonshotService(
                 // success: persisting/returning it would leave an orphan continuation.
                 if (leg >= maxToolLoops) {
                     throw ProviderServiceError.InvalidConfiguration("Moonshot tool-loop limit exceeded.")
+                }
+                // Emitted before the feed-back: the search really happens inside the next leg's
+                // request, and the screen needs a label during that wait.
+                if (toolCalls.any { StreamActivitySignals.moonshotToolCall(it.function?.name) != null }) {
+                    emit(StreamEvent.Activity(StreamActivity.WebSearch))
                 }
 
                 // Feed back: echo the assistant tool-call message plus the tool result, with

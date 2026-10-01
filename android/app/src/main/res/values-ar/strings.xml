@@ -333,7 +333,8 @@
     <string name="export_backup_title">تصدير</string>
     <string name="generation_diagnostics_export">تصدير سجل التشخيص</string>
     <string name="file_unavailable">متاح على الجهاز الأصلي فقط</string>
-    <string name="generating">جارٍ الإنشاء</string>
+    <string name="generating">جارٍ التوليد</string>
+    <string name="stream_activity_web_search">جارٍ البحث في الويب</string>
     <string name="hide_details">إخفاء التفاصيل</string>
     <string name="image_not_available">الصورة غير متاحة</string>
     <string name="loading_full_image">جارٍ تحميل الصورة الكاملة…</string>
@@ -885,7 +886,7 @@
     <string name="relay_security_mode_option_unknown_disabled">أدخل عنوانًا محليًا أو عنوان VPN خاصًا أولًا.</string>
     <string name="relay_connection_no_key_required_cleartext">لا يحتاج هذا الاتصال إلى مفتاح · الاتصالات غير المشفّرة لا ترسل بيانات اعتماد.</string>
     <string name="relay_remove_api_key">إزالة المفتاح</string>
-<string name="streaming_pulse_a11y">جارٍ الإنشاء</string>
+<string name="streaming_pulse_a11y">جارٍ التوليد</string>
 
     <!-- Usage Insights demo card -->
 <string name="providers_active_this_month">نشط هذا الشهر</string>

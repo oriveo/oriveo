@@ -696,6 +696,8 @@ open class OpenAICompatibleService(
                             nativeToolParser.parse(root["type"]?.jsonPrimitive?.contentOrNull, root)
                                 .takeIf { it.isNotEmpty() }
                                 ?.let { events += StreamEvent.ToolCallDeltas(it) }
+                            StreamActivitySignals.openAIResponses(root["type"]?.jsonPrimitive?.contentOrNull, root)
+                                ?.let { events += StreamEvent.Activity(it) }
                         }
 
                         if (root != null && strategy != null) {

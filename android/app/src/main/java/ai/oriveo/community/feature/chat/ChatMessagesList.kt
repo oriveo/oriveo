@@ -41,6 +41,7 @@ import ai.oriveo.community.core.model.ChatMessage
 import ai.oriveo.community.core.model.ChatMessageState
 import ai.oriveo.community.core.model.ChatRole
 import ai.oriveo.community.core.model.QuoteSelectionContent
+import ai.oriveo.community.core.model.StreamActivity
 import ai.oriveo.community.core.provider.ModelDisplayLookup
 import ai.oriveo.community.feature.chat.components.ChatOutlineRail
 import ai.oriveo.community.feature.chat.components.ScrollToBottomButton
@@ -59,6 +60,11 @@ internal fun BoxScope.ChatMessagesList(
     streamingReasoning: StateFlow<String>,
 
     streamingReasoningActive: StateFlow<Boolean>,
+    /**
+     * The activity observed in progress on the wire. Like the streaming text it is collected only
+     * inside the streaming cell, so it stays out of the list's own recomposition scope.
+     */
+    streamingActivity: StateFlow<StreamActivity?>,
     listState: LazyListState,
     scrollController: ChatScrollController,
     hasMoreAbove: Boolean,
@@ -162,6 +168,11 @@ internal fun BoxScope.ChatMessagesList(
 
             val liveReasoningActive: Boolean = isStreaming &&
                 streamingReasoningActive.collectAsStateWithLifecycle().value
+            val liveStreamingActivity: StreamActivity? = if (isStreaming) {
+                streamingActivity.collectAsStateWithLifecycle().value
+            } else {
+                null
+            }
             if (!liveStreamingText.isNullOrEmpty()) streamingHold.text = liveStreamingText
             if (!liveStreamingReasoning.isNullOrEmpty()) streamingHold.reasoning = liveStreamingReasoning
             val isPersistedGenerating = message.state == ChatMessageState.Generating
@@ -219,6 +230,8 @@ internal fun BoxScope.ChatMessagesList(
                     streamingText = cellStreamingText,
                     streamingReasoning = cellStreamingReasoning,
                     streamingReasoningActive = liveReasoningActive,
+                    streamingActivity = liveStreamingActivity,
+                    isLiveStream = isStreaming,
                     isSendingMessage = isGenerating,
                     isRateLimitError = isRateLimitError(message),
                     topPadding = topPadding,

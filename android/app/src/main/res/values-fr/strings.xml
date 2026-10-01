@@ -389,6 +389,7 @@
     <string name="generation_diagnostics_export">Exporter les diagnostics</string>
     <string name="file_unavailable">Disponible uniquement sur l\'appareil d\'origine</string>
     <string name="generating">Génération en cours</string>
+    <string name="stream_activity_web_search">Recherche web en cours</string>
     <string name="hide_details">Masquer les détails</string>
     <string name="image_not_available">Image non disponible</string>
     <string name="loading_full_image">Chargement de l’image complète…</string>

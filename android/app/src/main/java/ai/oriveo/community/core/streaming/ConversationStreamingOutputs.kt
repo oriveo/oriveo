@@ -1,5 +1,6 @@
 package ai.oriveo.community.core.streaming
 
+import ai.oriveo.community.core.model.StreamActivity
 import java.util.concurrent.atomic.AtomicLong
 import kotlinx.coroutines.flow.MutableStateFlow
 
@@ -27,6 +28,13 @@ data class ConversationStreamingOutputs(
      * [AtomicLong] compares by value, so the set-once compare-and-set below is exact.
      */
     val reasoningEndedAtMs: AtomicLong = AtomicLong(NOT_SET),
+    /**
+     * The activity observed in progress on the wire. Transient: never persisted and never copied
+     * into a ChatMessage. Set on a [ai.oriveo.community.core.model.StreamEvent.Activity]; cleared
+     * by the next body delta, the next non-empty reasoning delta, and when the stream finishes,
+     * fails or is stopped.
+     */
+    val streamingActivity: MutableStateFlow<StreamActivity?> = MutableStateFlow(null),
 ) {
     companion object {
         /** Sentinel for [reasoningEndedAtMs]: no visible token has arrived yet. */

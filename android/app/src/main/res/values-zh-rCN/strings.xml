@@ -90,6 +90,7 @@
     <string name="n_providers">%1$d 个供应商</string>
     <string name="restore_defaults">恢复默认</string>
     <string name="generating">生成中</string>
+    <string name="stream_activity_web_search">正在联网搜索</string>
     <string name="draft">草稿</string>
     <string name="message_failed">发送失败</string>
     <string name="message_failed_body">请求未正常完成。你可以立即重试，或编辑最后一条消息后重新发送。</string>

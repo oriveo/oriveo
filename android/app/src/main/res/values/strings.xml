@@ -92,6 +92,7 @@
     <string name="n_providers">%1$d providers</string>
     <string name="restore_defaults">Restore Defaults</string>
     <string name="generating">Generating</string>
+    <string name="stream_activity_web_search">Searching the web</string>
     <string name="draft">Draft</string>
     <string name="message_failed">Send Failed</string>
     <string name="message_failed_body">The request did not finish cleanly. Retry it now or edit the last user message before sending again.</string>

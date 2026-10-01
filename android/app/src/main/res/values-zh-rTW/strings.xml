@@ -90,6 +90,7 @@
     <string name="n_providers">%1$d 個供應商</string>
     <string name="restore_defaults">恢復預設</string>
     <string name="generating">生成中</string>
+    <string name="stream_activity_web_search">正在聯網搜尋</string>
     <string name="draft">草稿</string>
     <string name="message_failed">傳送失敗</string>
     <string name="message_failed_body">請求未正常完成。你可以立即重試，或編輯最後一條訊息後重新傳送。</string>

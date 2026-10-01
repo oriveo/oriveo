@@ -391,6 +391,7 @@
     <string name="generation_diagnostics_export">診断履歴をエクスポート</string>
     <string name="file_unavailable">元のデバイスでのみ利用可能</string>
     <string name="generating">生成中</string>
+    <string name="stream_activity_web_search">ウェブを検索中</string>
     <string name="hide_details">詳細を隠す</string>
     <string name="image_not_available">画像を利用できません</string>
     <string name="loading_full_image">元の画像を読み込み中…</string>

@@ -77,6 +77,7 @@
     <string name="n_providers">ผู้ให้บริการ %1$d</string>
     <string name="restore_defaults">คืนค่าเริ่มต้น</string>
     <string name="generating">กำลังสร้าง</string>
+    <string name="stream_activity_web_search">กำลังค้นหาบนเว็บ</string>
     <string name="draft">ร่าง</string>
     <string name="message_failed">ส่งล้มเหลว</string>
     <string name="message_failed_body">คำขอไม่เสร็จสิ้นอย่างสมบูรณ์ ลองใหม่ทันทีหรือแก้ไขข้อความผู้ใช้ล่าสุดก่อนที่จะส่งอีกครั้ง</string>

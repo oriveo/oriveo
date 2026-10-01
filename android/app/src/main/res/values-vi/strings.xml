@@ -77,6 +77,7 @@
     <string name="n_providers">Nhà cung cấp %1$d</string>
     <string name="restore_defaults">Khôi phục mặc định</string>
     <string name="generating">Đang tạo</string>
+    <string name="stream_activity_web_search">Đang tìm kiếm trên web</string>
     <string name="draft">Bản nháp</string>
     <string name="message_failed">Gửi không thành công</string>
     <string name="message_failed_body">Yêu cầu không hoàn thành rõ ràng. Hãy thử lại ngay bây giờ hoặc chỉnh sửa tin nhắn cuối cùng của người dùng trước khi gửi lại.</string>

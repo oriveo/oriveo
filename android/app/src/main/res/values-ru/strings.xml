@@ -76,7 +76,8 @@
     <string name="n_models_enabled">Модели %1$d</string>
     <string name="n_providers">Провайдеров: %1$d</string>
     <string name="restore_defaults">Восстановить настройки по умолчанию</string>
-    <string name="generating">Создание</string>
+    <string name="generating">Генерация</string>
+    <string name="stream_activity_web_search">Идёт поиск в интернете</string>
     <string name="draft">Черновик</string>
     <string name="message_failed">Отправить не удалось</string>
     <string name="message_failed_body">Запрос не был завершен корректно. Повторите попытку сейчас или отредактируйте последнее сообщение пользователя перед повторной отправкой.</string>
@@ -849,7 +850,7 @@
     <string name="relay_security_mode_option_unknown_disabled">Прежде чем выбрать этот тип подключения, введите локальный адрес, адрес LAN или частного VPN.</string>
     <string name="relay_connection_no_key_required_cleartext">Для этого подключения ключ не нужен · Незашифрованные подключения никогда не передают учётные данные.</string>
     <string name="relay_remove_api_key">Удалить ключ</string>
-<string name="streaming_pulse_a11y">Создание</string>
+<string name="streaming_pulse_a11y">Генерация</string>
 
     <!-- Usage Insights demo card -->
 <string name="providers_active_this_month">Активные в этом месяце</string>

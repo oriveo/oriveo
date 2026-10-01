@@ -152,6 +152,9 @@ class AnthropicService(
                         nativeToolParser.parse(eventType, eventRoot).takeIf { it.isNotEmpty() }?.let {
                             events += StreamEvent.ToolCallDeltas(it)
                         }
+                        StreamActivitySignals.anthropicMessages(eventType, eventRoot)?.let {
+                            events += StreamEvent.Activity(it)
+                        }
                     }
                     val blockIndex = (eventRoot?.get("index") as? JsonPrimitive)?.contentOrNull?.toIntOrNull() ?: 0
                     if (continuationRecipe != null) when (eventType) {

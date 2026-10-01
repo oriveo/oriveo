@@ -44,6 +44,7 @@ import ai.oriveo.community.core.model.ChatMessageState
 import ai.oriveo.community.core.model.ChatRole
 import ai.oriveo.community.core.provider.RelayEndpointPolicy
 import ai.oriveo.community.core.model.RelayKind
+import ai.oriveo.community.core.model.StreamActivity
 import ai.oriveo.community.feature.chat.AssistantMessageFooterMetrics
 import ai.oriveo.community.feature.chat.SavedNoteLink
 import ai.oriveo.community.feature.chat.components.MessageBubble
@@ -63,6 +64,10 @@ internal fun MessageItemWithActions(
     streamingReasoning: String?,
 
     streamingReasoningActive: Boolean = false,
+    /** The activity observed in progress on the wire; non-null only for the streaming message. */
+    streamingActivity: StreamActivity? = null,
+    /** Whether a live streaming session is attached to this message. The waiting label only applies to it. */
+    isLiveStream: Boolean = false,
     isSendingMessage: Boolean,
     isRateLimitError: Boolean,
     topPadding: Dp,
@@ -150,6 +155,8 @@ internal fun MessageItemWithActions(
                 streamingText = streamingText,
                 streamingReasoning = streamingReasoning,
                 streamingReasoningActive = streamingReasoningActive,
+                streamingActivity = streamingActivity,
+                isLiveStream = isLiveStream,
                 showMetadata = showMetadata,
                 providerNameOverride = providerNameOverride,
                 modelNameOverride = modelNameOverride,

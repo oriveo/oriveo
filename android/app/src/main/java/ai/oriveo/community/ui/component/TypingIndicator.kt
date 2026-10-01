@@ -27,9 +27,15 @@ import androidx.compose.ui.unit.dp
 import ai.oriveo.community.R
 import ai.oriveo.community.ui.theme.OriveoTheme
 
+/**
+ * Three bouncing dots and a label. When an activity in progress has been observed, such as a web
+ * search, the caller passes its label in place of the default; the dots and the layout stay the
+ * same.
+ */
 @Composable
 fun TypingIndicator(
     modifier: Modifier = Modifier,
+    label: String = stringResource(R.string.generating),
 ) {
     val colors = OriveoTheme.colors
     val dotColor = colors.primary.copy(alpha = 0.75f)
@@ -49,7 +55,7 @@ fun TypingIndicator(
         }
 
         Text(
-            text = stringResource(R.string.generating),
+            text = label,
             style = OriveoTheme.typography.footnote,
             color = colors.textSecondary,
         )

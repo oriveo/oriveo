@@ -7,6 +7,7 @@ import ai.oriveo.community.core.model.ChatRole
 import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.core.model.ProviderServiceError
 import ai.oriveo.community.core.model.ReasoningMode
+import ai.oriveo.community.core.model.StreamActivity
 import ai.oriveo.community.core.model.StreamEvent
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
@@ -382,6 +383,88 @@ class OpenAIServiceTest {
         }.exceptionOrNull()
 
         assertTrue(failure is ProviderServiceError.InvalidConfiguration)
+    }
+
+    // On the Responses API the start of a search is only output_item.added with an item of type web_search_call.
+    @Test
+    fun `responses stream emits web search activity when a web_search_call item is added`() = runTest {
+        val payload = """
+            event: response.output_text.delta
+            data: {"type":"response.output_text.delta","delta":"Let me check."}
+
+            event: response.output_item.added
+            data: {"type":"response.output_item.added","output_index":1,"item":{"id":"ws_1","type":"web_search_call","status":"in_progress"}}
+
+            event: response.web_search_call.searching
+            data: {"type":"response.web_search_call.searching","output_index":1,"item_id":"ws_1"}
+
+            event: response.output_item.done
+            data: {"type":"response.output_item.done","output_index":1,"item":{"id":"ws_1","type":"web_search_call","status":"completed"}}
+
+            event: response.output_text.delta
+            data: {"type":"response.output_text.delta","delta":"Sunny."}
+
+            event: response.completed
+            data: {"type":"response.completed","response":{"usage":{"input_tokens":3,"output_tokens":4}}}
+        """.trimIndent()
+
+        val events = responsesStreamEvents(payload)
+
+        // Only added is the start. done means the search has already finished, and reporting it
+        // again would light the label after the results are back.
+        assertEquals(
+            listOf(StreamEvent.Activity(StreamActivity.WebSearch)),
+            events.filterIsInstance<StreamEvent.Activity>(),
+        )
+        val activityAt = events.indexOfFirst { it is StreamEvent.Activity }
+        assertEquals("Let me check.", (events[activityAt - 1] as StreamEvent.Delta).text)
+        assertEquals("Sunny.", (events[activityAt + 1] as StreamEvent.Delta).text)
+        assertTrue(events.none { it is StreamEvent.ToolCallDeltas })
+    }
+
+    @Test
+    fun `responses stream never reports activity for function_call or other hosted tool items`() = runTest {
+        val payload = """
+            event: response.output_item.added
+            data: {"type":"response.output_item.added","output_index":0,"item":{"type":"function_call","call_id":"call_1","name":"web_search","arguments":""}}
+
+            event: response.output_item.added
+            data: {"type":"response.output_item.added","output_index":1,"item":{"id":"ci_1","type":"code_interpreter_call","status":"in_progress"}}
+
+            event: response.output_item.added
+            data: {"type":"response.output_item.added","output_index":2,"item":{"id":"msg_1","type":"message","role":"assistant","content":[]}}
+
+            event: response.completed
+            data: {"type":"response.completed","response":{"usage":{"input_tokens":3,"output_tokens":4}}}
+        """.trimIndent()
+
+        val events = responsesStreamEvents(payload)
+
+        assertTrue(events.none { it is StreamEvent.Activity })
+        // Self-check: the production parser really did read the function_call.
+        assertTrue(events.any { it is StreamEvent.ToolCallDeltas })
+    }
+
+    private suspend fun responsesStreamEvents(payload: String): List<StreamEvent> {
+        val client = HttpClient(
+            MockEngine {
+                respond(
+                    content = payload,
+                    status = HttpStatusCode.OK,
+                    headers = headersOf(HttpHeaders.ContentType, "text/event-stream"),
+                )
+            }
+        )
+        return OpenAIService(client = client, json = json, transportRegistry = transportRegistry).sendMessageStream(
+            apiKey = "sk-test",
+            modelID = "gpt-4o",
+            messages = listOf(userMessage("Hi")),
+            baseUrl = "https://api.openai.com/v1",
+            supportsImageGen = false,
+            reasoningMode = ReasoningMode.Automatic,
+            webSearchEnabled = false,
+            requestOptions = ChatRequestOptions(),
+        ).toList()
     }
 
     private fun userMessage(text: String) = ChatMessage(

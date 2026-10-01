@@ -498,6 +498,9 @@ class ChatRepository(
                                         now,
                                     )
                                 }
+                                // The model is talking again, so the activity is over. Cleared as
+                                // the event arrives rather than on the throttled flush.
+                                if (event.text.isNotEmpty()) outputs.streamingActivity.value = null
                                 val shouldFlush = tokenBuffer.appendDelta(event.text, now)
 
                                 if (shouldFlush) {
@@ -534,6 +537,9 @@ class ChatRepository(
                             is StreamEvent.Reasoning -> {
                                 val now = System.currentTimeMillis()
                                 outputs.reasoningStartedAtMs.compareAndSet(null, now)
+                                // An empty-string heartbeat changes nothing on screen, so it does
+                                // not end the activity.
+                                if (event.text.isNotEmpty()) outputs.streamingActivity.value = null
                                 val shouldFlushReasoning = tokenBuffer.appendReasoning(event.text, now)
                                 if (shouldFlushReasoning) {
                                     outputs.streamingReasoning.value = tokenBuffer.accumulatedReasoningText
@@ -561,6 +567,9 @@ class ChatRepository(
                             }
                             is StreamEvent.ToolCallDeltas -> {
                                 NativeToolCallAccumulator.merge(nativeToolCallDeltas, event.deltas)
+                            }
+                            is StreamEvent.Activity -> {
+                                outputs.streamingActivity.value = event.activity
                             }
                             is StreamEvent.ToolCall,
                             is StreamEvent.ToolResult -> Unit
@@ -834,6 +843,7 @@ class ChatRepository(
         } finally {
             outputs.streamingMessageId.value = null
             outputs.streamingText.value = ""
+            outputs.streamingActivity.value = null
             tokenBuffer.clear()
         }
     }

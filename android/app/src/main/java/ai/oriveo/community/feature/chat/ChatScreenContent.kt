@@ -671,6 +671,7 @@ internal fun ChatScreenContent(
                         streamingText = viewModel.streamingText,
                         streamingReasoning = viewModel.streamingReasoning,
                         streamingReasoningActive = viewModel.streamingReasoningActive,
+                        streamingActivity = viewModel.streamingActivity,
                         listState = listState,
                         scrollController = scrollController,
                         hasMoreAbove = hasMoreAbove,

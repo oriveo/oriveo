@@ -33,8 +33,10 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -147,6 +149,13 @@ fun MarkdownMessageView(
     onRenderSettled: (() -> Unit)? = null,
 
     onRenderStreamingChanged: ((Boolean) -> Unit)? = null,
+    /**
+     * Called each time the body text visible on screen advances; the reveal commits in chunks, at
+     * about 8 Hz. It feeds the "visible content has paused" timer: while the incoming text is ahead
+     * and the reveal is still catching up, text is still appearing on screen, so that stretch is
+     * not a pause.
+     */
+    onVisibleTextAdvanced: (() -> Unit)? = null,
 
     onSaveCodeBlock: ((String) -> Unit)? = null,
 
@@ -178,6 +187,13 @@ fun MarkdownMessageView(
         onRenderStreamingChanged?.invoke(renderStreaming)
         if (wasRenderStreaming && !renderStreaming) onRenderSettled?.invoke()
         wasRenderStreaming = renderStreaming
+    }
+
+    if (onVisibleTextAdvanced != null) {
+        val latestOnVisibleTextAdvanced = rememberUpdatedState(onVisibleTextAdvanced)
+        LaunchedEffect(reveal) {
+            snapshotFlow { reveal.visibleText.length }.collect { latestOnVisibleTextAdvanced.value() }
+        }
     }
 
     val flooredModifier = modifier.streamingHeightFloor(active = renderStreaming)

@@ -7,6 +7,7 @@ import ai.oriveo.community.core.model.ChatRequestOptions
 import ai.oriveo.community.core.model.Conversation
 import ai.oriveo.community.core.model.Provider
 import ai.oriveo.community.core.model.ReasoningMode
+import ai.oriveo.community.core.model.StreamActivity
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.atomic.AtomicReference
@@ -92,6 +93,18 @@ class ChatStreamingManager(
                 if (convId == null) flowOf(null) else streamingReasoningStartedAt(convId)
             }
             .map { it != null }
+
+    /**
+     * The activity in progress for the conversation on screen. It re-subscribes the same way
+     * [reasoningActiveFlow] does: when a regenerate swaps the session of the same conversation it
+     * follows to the new outputs, and it falls back to null once the session is released.
+     */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    fun streamingActivityFlow(activeConversationId: StateFlow<String?>): Flow<StreamActivity?> =
+        combine(activeConversationId, sessionsVersion) { convId, _ -> convId }
+            .flatMapLatest { convId ->
+                convId?.let { sessions[it]?.outputs?.streamingActivity } ?: flowOf(null)
+            }
 
     fun isBusyStreaming(conversationId: String): Boolean =
         sessions.containsKey(conversationId)

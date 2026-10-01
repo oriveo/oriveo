@@ -391,6 +391,7 @@
     <string name="generation_diagnostics_export">진단 기록 내보내기</string>
     <string name="file_unavailable">원본 기기에서만 사용 가능</string>
     <string name="generating">생성 중</string>
+    <string name="stream_activity_web_search">웹 검색 중</string>
     <string name="hide_details">세부 정보 숨기기</string>
     <string name="image_not_available">이미지를 사용할 수 없음</string>
     <string name="loading_full_image">원본 이미지를 불러오는 중…</string>

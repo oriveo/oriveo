@@ -36,6 +36,7 @@ import ai.oriveo.community.core.model.Provider
 import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.core.model.ReasoningMode
 import ai.oriveo.community.core.model.Skill
+import ai.oriveo.community.core.model.StreamActivity
 import ai.oriveo.community.core.model.resolveActiveModel
 import ai.oriveo.community.core.provider.ModelDisplayLookup
 import ai.oriveo.community.core.provider.ModelSelectionUtils
@@ -357,6 +358,11 @@ class ChatViewModel(
     val streamingReasoningActive: StateFlow<Boolean> = chatStreamingManager
         .reasoningActiveFlow(activeConversationId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
+
+    /** The activity observed in progress on the wire, such as a web search. Transient: it falls back to null when the stream ends. */
+    val streamingActivity: StateFlow<StreamActivity?> = chatStreamingManager
+        .streamingActivityFlow(activeConversationId)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
     /**
      * Outbound truth for the composer text (sending, drafts and note recall all read it). It is

@@ -76,7 +76,8 @@
     <string name="n_models_enabled">%1$d modelleri</string>
     <string name="n_providers">%1$d sağlayıcı</string>
     <string name="restore_defaults">Varsayılanları Geri Yükle</string>
-    <string name="generating">Üretiliyor</string>
+    <string name="generating">Oluşturuluyor</string>
+    <string name="stream_activity_web_search">Web\'de aranıyor</string>
     <string name="draft">Taslak</string>
     <string name="message_failed">Gönderim Başarısız Oldu</string>
     <string name="message_failed_body">İstek temiz bir şekilde tamamlanmadı. Şimdi yeniden deneyin veya tekrar göndermeden önce son kullanıcı mesajını düzenleyin.</string>
@@ -849,7 +850,7 @@
     <string name="relay_security_mode_option_unknown_disabled">Bu bağlantı türünü seçmeden önce yerel, LAN veya özel VPN adresi girin.</string>
     <string name="relay_connection_no_key_required_cleartext">Bu bağlantı için anahtar gerekmez · Şifrelenmemiş bağlantılar asla kimlik bilgisi göndermez.</string>
     <string name="relay_remove_api_key">Anahtarı kaldır</string>
-<string name="streaming_pulse_a11y">Üretiliyor</string>
+<string name="streaming_pulse_a11y">Oluşturuluyor</string>
 
     <!-- Usage Insights demo card -->
 <string name="providers_active_this_month">Bu ay etkin</string>

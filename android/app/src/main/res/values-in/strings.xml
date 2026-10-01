@@ -77,6 +77,7 @@
     <string name="n_providers">Penyedia %1$d</string>
     <string name="restore_defaults">Kembalikan Default</string>
     <string name="generating">Menghasilkan</string>
+    <string name="stream_activity_web_search">Mencari di web</string>
     <string name="draft">Draf</string>
     <string name="message_failed">Kirim Gagal</string>
     <string name="message_failed_body">Permintaan itu tidak diselesaikan dengan rapi. Coba lagi sekarang atau edit pesan pengguna terakhir sebelum mengirimnya lagi.</string>

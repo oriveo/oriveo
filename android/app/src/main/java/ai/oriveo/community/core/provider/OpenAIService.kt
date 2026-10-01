@@ -459,6 +459,9 @@ class OpenAIService(
                                         nativeToolParser.parse(currentEvent, root).takeIf { it.isNotEmpty() }?.let {
                                             emit(StreamEvent.ToolCallDeltas(it))
                                         }
+                                        StreamActivitySignals.openAIResponses(currentEvent, root)?.let {
+                                            emit(StreamEvent.Activity(it))
+                                        }
                                     }
 
                                     when (currentEvent) {
