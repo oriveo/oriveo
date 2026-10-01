@@ -12,7 +12,95 @@
     "anthropic": {
       "code": 0,
       "data": {
-        "catalogRevision": "sha256:8ed531f7ac57533da0d211d2a03f8b761b0f9360403790fc9fb0c222d8ffcb56",
+        "catalogRevision": "sha256:2ccf53c0a221968f36c91446b54c84dbe9ca2819bc253b080bae2077948ff64b",
+        "keyHelp": {
+          "consoleURL": "https://platform.claude.com/settings/keys",
+          "usageURL": "https://platform.claude.com/settings/keys",
+          "planURL": "https://platform.claude.com/settings/keys",
+          "keyPrefix": "sk-ant-",
+          "steps": {
+            "ar": [
+              "افتح لوحة التحكم.",
+              "أنشئ مفتاح API.",
+              "ألصق المفتاح هنا."
+            ],
+            "de": [
+              "Konsole öffnen.",
+              "API-Schlüssel erstellen.",
+              "Schlüssel hier einfügen."
+            ],
+            "en": [
+              "Open the console.",
+              "Create an API key.",
+              "Paste the key here."
+            ],
+            "es": [
+              "Abre la consola.",
+              "Crea una clave de API.",
+              "Pega la clave aquí."
+            ],
+            "fr": [
+              "Ouvrir la console.",
+              "Créer une clé API.",
+              "Coller la clé ici."
+            ],
+            "hi": [
+              "कंसोल खोलें।",
+              "API कुंजी बनाएँ।",
+              "कुंजी यहाँ चिपकाएँ।"
+            ],
+            "id": [
+              "Buka konsol.",
+              "Buat kunci API.",
+              "Tempel kunci di sini."
+            ],
+            "ja": [
+              "コンソールを開く。",
+              "API キーを作成する。",
+              "キーをここに貼り付ける。"
+            ],
+            "ko": [
+              "콘솔을 연다.",
+              "API 키를 만든다.",
+              "키를 여기에 붙여 넣는다."
+            ],
+            "pt-BR": [
+              "Abra o console.",
+              "Crie uma chave de API.",
+              "Cole a chave aqui."
+            ],
+            "ru": [
+              "Откройте консоль.",
+              "Создайте ключ API.",
+              "Вставьте ключ сюда."
+            ],
+            "th": [
+              "เปิดคอนโซล",
+              "สร้างคีย์ API",
+              "วางคีย์ที่นี่"
+            ],
+            "tr": [
+              "Konsolu açın.",
+              "Bir API anahtarı oluşturun.",
+              "Anahtarı buraya yapıştırın."
+            ],
+            "vi": [
+              "Mở bảng điều khiển.",
+              "Tạo khóa API.",
+              "Dán khóa vào đây."
+            ],
+            "zh-Hans": [
+              "打开控制台。",
+              "创建一个 API Key。",
+              "把 Key 粘贴到这里。"
+            ],
+            "zh-Hant": [
+              "打開控制台。",
+              "建立一組 API Key。",
+              "把 Key 貼到這裡。"
+            ]
+          }
+        },
         "models": {
           "claude-fable-5": {
             "billingSku": "claude-fable-5/payg",
@@ -127,6 +215,24 @@
             }
           }
         },
+        "tagline": {
+          "ar": "واجهة Claude الرسمية",
+          "de": "Offizielle Claude-API",
+          "en": "Claude's official API",
+          "es": "API oficial de Claude",
+          "fr": "API officielle de Claude",
+          "hi": "Claude का आधिकारिक API",
+          "id": "API resmi Claude",
+          "ja": "Claude 公式 API",
+          "ko": "Claude 공식 API",
+          "pt-BR": "API oficial do Claude",
+          "ru": "Официальный API Claude",
+          "th": "API ทางการของ Claude",
+          "tr": "Resmi Claude API",
+          "vi": "API chính thức của Claude",
+          "zh-Hans": "Claude 官方接口",
+          "zh-Hant": "Claude 官方介面"
+        },
         "view": "catalog"
       },
       "message": "ok"
@@ -134,7 +240,95 @@
     "openAI": {
       "code": 0,
       "data": {
-        "catalogRevision": "sha256:37834f94b845409cd7d9839958fd1af188c8cc525a34b5dfe9079e0749368910",
+        "catalogRevision": "sha256:fed3cf6ba7a0154f60d8a4f7aa99c7e9a9edf8ad971c5c087a839f28378720ad",
+        "keyHelp": {
+          "consoleURL": "https://platform.openai.com/api-keys",
+          "usageURL": "https://platform.openai.com/api-keys",
+          "planURL": "https://platform.openai.com/api-keys",
+          "keyPrefix": "sk-",
+          "steps": {
+            "ar": [
+              "افتح لوحة التحكم.",
+              "أنشئ مفتاح API.",
+              "ألصق المفتاح هنا."
+            ],
+            "de": [
+              "Konsole öffnen.",
+              "API-Schlüssel erstellen.",
+              "Schlüssel hier einfügen."
+            ],
+            "en": [
+              "Open the console.",
+              "Create an API key.",
+              "Paste the key here."
+            ],
+            "es": [
+              "Abre la consola.",
+              "Crea una clave de API.",
+              "Pega la clave aquí."
+            ],
+            "fr": [
+              "Ouvrir la console.",
+              "Créer une clé API.",
+              "Coller la clé ici."
+            ],
+            "hi": [
+              "कंसोल खोलें।",
+              "API कुंजी बनाएँ।",
+              "कुंजी यहाँ चिपकाएँ।"
+            ],
+            "id": [
+              "Buka konsol.",
+              "Buat kunci API.",
+              "Tempel kunci di sini."
+            ],
+            "ja": [
+              "コンソールを開く。",
+              "API キーを作成する。",
+              "キーをここに貼り付ける。"
+            ],
+            "ko": [
+              "콘솔을 연다.",
+              "API 키를 만든다.",
+              "키를 여기에 붙여 넣는다."
+            ],
+            "pt-BR": [
+              "Abra o console.",
+              "Crie uma chave de API.",
+              "Cole a chave aqui."
+            ],
+            "ru": [
+              "Откройте консоль.",
+              "Создайте ключ API.",
+              "Вставьте ключ сюда."
+            ],
+            "th": [
+              "เปิดคอนโซล",
+              "สร้างคีย์ API",
+              "วางคีย์ที่นี่"
+            ],
+            "tr": [
+              "Konsolu açın.",
+              "Bir API anahtarı oluşturun.",
+              "Anahtarı buraya yapıştırın."
+            ],
+            "vi": [
+              "Mở bảng điều khiển.",
+              "Tạo khóa API.",
+              "Dán khóa vào đây."
+            ],
+            "zh-Hans": [
+              "打开控制台。",
+              "创建一个 API Key。",
+              "把 Key 粘贴到这里。"
+            ],
+            "zh-Hant": [
+              "打開控制台。",
+              "建立一組 API Key。",
+              "把 Key 貼到這裡。"
+            ]
+          }
+        },
         "models": {
           "chat-latest": {
             "billingSku": "chat-latest/payg",
@@ -288,6 +482,24 @@
               "webSearch": null
             }
           }
+        },
+        "tagline": {
+          "ar": "واجهة OpenAI الرسمية",
+          "de": "Offizielle OpenAI-API",
+          "en": "OpenAI's official API",
+          "es": "API oficial de OpenAI",
+          "fr": "API officielle OpenAI",
+          "hi": "OpenAI का आधिकारिक API",
+          "id": "API resmi OpenAI",
+          "ja": "OpenAI 公式 API",
+          "ko": "OpenAI 공식 API",
+          "pt-BR": "API oficial da OpenAI",
+          "ru": "Официальный API OpenAI",
+          "th": "API ทางการของ OpenAI",
+          "tr": "Resmi OpenAI API",
+          "vi": "API chính thức của OpenAI",
+          "zh-Hans": "OpenAI 官方接口",
+          "zh-Hant": "OpenAI 官方介面"
         },
         "view": "catalog"
       },
@@ -3146,7 +3358,7 @@
             "nativeFile": true,
             "textFileInline": true
           },
-          "catalogRevision": "sha256:8ed531f7ac57533da0d211d2a03f8b761b0f9360403790fc9fb0c222d8ffcb56",
+          "catalogRevision": "sha256:2ccf53c0a221968f36c91446b54c84dbe9ca2819bc253b080bae2077948ff64b",
           "defaultModelId": "claude-fable-5",
           "displayName": "Anthropic",
           "modelCount": 1,
@@ -3175,7 +3387,7 @@
             "nativeFile": true,
             "textFileInline": true
           },
-          "catalogRevision": "sha256:37834f94b845409cd7d9839958fd1af188c8cc525a34b5dfe9079e0749368910",
+          "catalogRevision": "sha256:fed3cf6ba7a0154f60d8a4f7aa99c7e9a9edf8ad971c5c087a839f28378720ad",
           "defaultModelId": "chat-latest",
           "displayName": "OpenAI",
           "modelCount": 2,
@@ -6814,7 +7026,95 @@
     },
     "unresolvedRef": {
       "catalog": {
-        "catalogRevision": "sha256:37834f94b845409cd7d9839958fd1af188c8cc525a34b5dfe9079e0749368910",
+        "catalogRevision": "sha256:fed3cf6ba7a0154f60d8a4f7aa99c7e9a9edf8ad971c5c087a839f28378720ad",
+        "keyHelp": {
+          "consoleURL": "https://platform.openai.com/api-keys",
+          "keyPrefix": "sk-",
+          "planURL": "https://platform.openai.com/api-keys",
+          "steps": {
+            "ar": [
+              "افتح لوحة التحكم.",
+              "أنشئ مفتاح API.",
+              "ألصق المفتاح هنا."
+            ],
+            "de": [
+              "Konsole öffnen.",
+              "API-Schlüssel erstellen.",
+              "Schlüssel hier einfügen."
+            ],
+            "en": [
+              "Open the console.",
+              "Create an API key.",
+              "Paste the key here."
+            ],
+            "es": [
+              "Abre la consola.",
+              "Crea una clave de API.",
+              "Pega la clave aquí."
+            ],
+            "fr": [
+              "Ouvrir la console.",
+              "Créer une clé API.",
+              "Coller la clé ici."
+            ],
+            "hi": [
+              "कंसोल खोलें।",
+              "API कुंजी बनाएँ।",
+              "कुंजी यहाँ चिपकाएँ।"
+            ],
+            "id": [
+              "Buka konsol.",
+              "Buat kunci API.",
+              "Tempel kunci di sini."
+            ],
+            "ja": [
+              "コンソールを開く。",
+              "API キーを作成する。",
+              "キーをここに貼り付ける。"
+            ],
+            "ko": [
+              "콘솔을 연다.",
+              "API 키를 만든다.",
+              "키를 여기에 붙여 넣는다."
+            ],
+            "pt-BR": [
+              "Abra o console.",
+              "Crie uma chave de API.",
+              "Cole a chave aqui."
+            ],
+            "ru": [
+              "Откройте консоль.",
+              "Создайте ключ API.",
+              "Вставьте ключ сюда."
+            ],
+            "th": [
+              "เปิดคอนโซล",
+              "สร้างคีย์ API",
+              "วางคีย์ที่นี่"
+            ],
+            "tr": [
+              "Konsolu açın.",
+              "Bir API anahtarı oluşturun.",
+              "Anahtarı buraya yapıştırın."
+            ],
+            "vi": [
+              "Mở bảng điều khiển.",
+              "Tạo khóa API.",
+              "Dán khóa vào đây."
+            ],
+            "zh-Hans": [
+              "打开控制台。",
+              "创建一个 API Key。",
+              "把 Key 粘贴到这里。"
+            ],
+            "zh-Hant": [
+              "打開控制台。",
+              "建立一組 API Key。",
+              "把 Key 貼到這裡。"
+            ]
+          },
+          "usageURL": "https://platform.openai.com/api-keys"
+        },
         "models": {
           "chat-latest": {
             "billingSku": "chat-latest/payg",
@@ -6968,6 +7268,24 @@
               "webSearch": null
             }
           }
+        },
+        "tagline": {
+          "ar": "واجهة OpenAI الرسمية",
+          "de": "Offizielle OpenAI-API",
+          "en": "OpenAI's official API",
+          "es": "API oficial de OpenAI",
+          "fr": "API officielle OpenAI",
+          "hi": "OpenAI का आधिकारिक API",
+          "id": "API resmi OpenAI",
+          "ja": "OpenAI 公式 API",
+          "ko": "OpenAI 공식 API",
+          "pt-BR": "API oficial da OpenAI",
+          "ru": "Официальный API OpenAI",
+          "th": "API ทางการของ OpenAI",
+          "tr": "Resmi OpenAI API",
+          "vi": "API chính thức của OpenAI",
+          "zh-Hans": "OpenAI 官方接口",
+          "zh-Hant": "OpenAI 官方介面"
         },
         "view": "catalog"
       },
