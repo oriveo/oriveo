@@ -18,6 +18,9 @@ internal enum class NativeToolProtocol {
 internal class NativeToolCallParser(private val protocol: NativeToolProtocol) {
     private var lastOpenAIChatIndex: Int? = null
 
+    /** Indexes of the Anthropic blocks this stream has opened with `tool_use`. */
+    private val anthropicToolUseIndexes = mutableSetOf<Int>()
+
     fun parse(eventType: String?, root: JsonObject): List<ToolCallDelta> = when (protocol) {
         NativeToolProtocol.OpenAIChat -> parseOpenAIChat(root)
         NativeToolProtocol.OpenAIResponses -> parseResponses(eventType, root)
@@ -74,6 +77,7 @@ internal class NativeToolCallParser(private val protocol: NativeToolProtocol) {
             "content_block_start" -> {
                 val block = root["content_block"] as? JsonObject ?: return emptyList()
                 if (primitive(block, "type") != "tool_use") return emptyList()
+                anthropicToolUseIndexes += index
                 val input = block["input"] as? JsonObject
                 listOf(ToolCallDelta(
                     index = index,
@@ -86,6 +90,11 @@ internal class NativeToolCallParser(private val protocol: NativeToolProtocol) {
             "content_block_delta" -> {
                 val delta = root["delta"] as? JsonObject ?: return emptyList()
                 if (primitive(delta, "type") != "input_json_delta") return emptyList()
+                // A server_tool_use block (the built-in web_search, for one) streams its input as
+                // input_json_delta too. The provider runs it itself, so it is not a tool call
+                // handed to the client; without filtering by the owning block the stream would
+                // end with a nameless tool card that nothing can execute.
+                if (index !in anthropicToolUseIndexes) return emptyList()
                 primitive(delta, "partial_json")?.let {
                     listOf(ToolCallDelta(index = index, arguments = it))
                 }.orEmpty()

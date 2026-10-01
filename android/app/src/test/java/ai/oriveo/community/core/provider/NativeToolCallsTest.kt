@@ -54,6 +54,24 @@ class NativeToolCallsTest {
         assertEquals("{\"city\":\"Paris\"}", call.arguments)
     }
 
+    // The frames are copied from a recording of a real Anthropic web-search stream.
+    @Test
+    fun `anthropic server tool input is not a client tool call`() {
+        val parser = NativeToolCallParser(NativeToolProtocol.AnthropicMessages)
+        val target = mutableMapOf<Int, ai.oriveo.community.core.model.ToolCallDelta>()
+        listOf(
+            """{"type":"content_block_start","index":1,"content_block":{"type":"server_tool_use","id":"srvtoolu_01bug3W20DWB0LwoUvGoH0nW","name":"web_search","input":{}}}""",
+            """{"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":"{"}}""",
+            """{"type":"content_block_delta","index":1,"delta":{"type":"input_json_delta","partial_json":"\"query"}}""",
+        ).forEach { raw -> NativeToolCallAccumulator.merge(target, parser.parse(null, root(raw))) }
+
+        assertEquals(
+            "the input of the built-in web search was read as a client tool call; the reply would end with a nameless tool card that nothing can execute",
+            emptyList<Any>(),
+            NativeToolCallAccumulator.finalize(target, "test"),
+        )
+    }
+
     @Test
     fun `gemini reads structured function call`() {
         val parser = NativeToolCallParser(NativeToolProtocol.GeminiGenerate)
