@@ -65,7 +65,7 @@
     <string name="model_switcher">Modelo</string>
     <string name="select_model">Seleccionar modelo</string>
     <string name="temperature">Temperatura</string>
-    <string name="max_tokens">Tokens máximos</string>
+    <string name="max_tokens">Máximo de tokens</string>
 
     <!-- Home -->
     <string name="conversations">Conversaciones</string>
@@ -278,7 +278,6 @@
 <string name="tagline_night_7">Noche en calma, ideas claras.</string>
 <string name="tagline_night_8">Esta noche no hay prisa.</string>
     <string name="aurora_placeholder_what_can_i_help">¿En qué puedo ayudarte?</string>
-    <string name="skills_more">Más</string>
     <string name="search_results">Resultados de la búsqueda</string>
     <string name="select_all">Seleccionar todo</string>
     <string name="select_action">Seleccionar</string>
@@ -291,7 +290,6 @@
     <string name="home_no_provider_description">Agrega un proveedor primero para empezar a chatear y cambiar de modelo.</string>
     <string name="home_start_chatting">Inicia tu primera conversación de IA</string>
     <string name="ready_to_start_conversation">Listo para iniciar una nueva conversación</string>
-    <string name="switch_label">Cambiar</string>
     <string name="no_providers_title">Aún no se han agregado proveedores</string>
     <string name="no_providers_description">Primero conecta un proveedor. El cambio de modelo, el chat y la transparencia de costos comienzan aquí.</string>
     <string name="provider_detail_add_model_manually">+ Agregar ID de modelo manualmente</string>
@@ -811,9 +809,9 @@
     <string name="relay_profile_unset">No seleccionado</string>
     <string name="relay_kind_picker_title">Elegir tipo de protocolo</string>
     <string name="relay_kind_openai_compatible">Compatible con OpenAI</string>
-    <string name="relay_kind_openai_compatible_subtitle">Para LLM personalizados compatibles con OpenAI y gateways autohospedados.</string>
+    <string name="relay_kind_openai_compatible_subtitle">Para LLM personalizados compatibles con OpenAI y gateways autoalojados.</string>
     <string name="relay_kind_codex_style">Compatible con OpenAI Responses</string>
-    <string name="relay_kind_codex_style_subtitle">Para LLM personalizados que requieren la Responses API.</string>
+    <string name="relay_kind_codex_style_subtitle">Para LLM personalizados que requieren la API Responses.</string>
     <string name="relay_kind_anthropic_compatible">Compatible con Anthropic</string>
     <string name="relay_kind_anthropic_compatible_subtitle">Para URL de solicitud de LLM personalizado compatibles con Claude.</string>
     <string name="relay_kind_gemini_compatible">Compatible con Gemini</string>
@@ -979,7 +977,7 @@
     <string name="capability_video">Video</string>
     <string name="message_failed_body">La solicitud no se completó correctamente. Reintenta ahora o edita el último mensaje del usuario antes de enviarlo de nuevo.</string>
     <string name="citations_section_title">Fuentes</string>
-    <string name="citations_view_all">Ver las %1$d citas</string>
+    <string name="citations_view_all">Ver las %1$d fuentes</string>
     <string name="citations_collapse">Mostrar menos</string>
     <string name="delete_conversation_title">¿Eliminar esta conversación?</string>
     <string name="provider_detail_removed_model">%s quitado</string>
@@ -988,18 +986,17 @@
     <string name="api_endpoint">Endpoint de API</string>
     <string name="api_endpoint_not_configured">Sin configurar</string>
     <string name="error_relay_upstream_title">Error de LLM personalizado (%1$d)</string>
-    <string name="relay_guidance_codex_identity_switch_type">Este LLM personalizado requiere la identidad de cliente de Codex. Abre Proveedores → esta conexión → Configuración de conexión → Tipo de protocolo, cambia a «Codex (Responses)» y vuelve a intentarlo.</string>
-    <string name="relay_guidance_codex_identity_enable_compat">Este LLM personalizado requiere la identidad de cliente de Codex. Abre Proveedores → esta conexión → Configuración de conexión → Compatibilidad, activa «Identidad compatible con Codex» y vuelve a intentarlo.</string>
+    <string name="relay_guidance_codex_identity_switch_type">Este LLM personalizado requiere la identidad de cliente de Codex. Abre Proveedores → esta conexión → Configuración de conexión → Tipo de protocolo, cambia a «Compatible con OpenAI Responses» y vuelve a intentarlo.</string>
     <string name="relay_guidance_codex_identity_still_rejected">Este LLM personalizado sigue rechazando la identidad de cliente de Codex de Oriveo. Abre Proveedores → esta conexión → Configuración de conexión → HTTP avanzado, define un User-Agent o Header personalizado, o cambia de LLM personalizado.</string>
-    <string name="relay_guidance_responses_only_endpoint">Este LLM personalizado solo expone /v1/responses y rechaza /chat/completions. Abre Proveedores → esta conexión → Configuración de conexión → Tipo de protocolo, cambia a «Codex (Responses)» y vuelve a intentarlo.</string>
+    <string name="relay_guidance_responses_only_endpoint">Este LLM personalizado solo expone /v1/responses y rechaza /chat/completions. Abre Proveedores → esta conexión → Configuración de conexión → Tipo de protocolo, cambia a «Compatible con OpenAI Responses» y vuelve a intentarlo.</string>
     <string name="relay_guidance_upstream_unreachable">Este LLM personalizado no pudo conectarse con su proveedor upstream. No es un problema de tu configuración. Cambia a otro LLM personalizado o contacta con su proveedor de servicios.</string>
     <string name="relay_guidance_model_not_offered">Este LLM personalizado no ofrece este modelo. Abre Proveedores → esta conexión → Configuración de conexión → Modelo y elige un ID de modelo compatible.</string>
-    <string name="relay_guidance_responses_protocol_required">Este LLM personalizado requiere el protocolo OpenAI Responses. Abre Proveedores → esta conexión → Configuración de conexión → Tipo de protocolo, cambia a «Codex (Responses)» y vuelve a intentarlo.</string>
-    <string name="relay_guidance_store_param_rejected">Este LLM personalizado rechaza el campo store/disable_response_storage. Abre Proveedores → esta conexión → Configuración de conexión → Compatibilidad, desactiva «No guardar respuestas en la nube» y vuelve a intentarlo.</string>
-    <string name="relay_guidance_service_tier_invalid">Este LLM personalizado no acepta el valor actual de OpenAI service tier. Abre Proveedores → esta conexión → Configuración de conexión → Compatibilidad, borra «OpenAI service tier» y vuelve a intentarlo.</string>
+    <string name="relay_guidance_responses_protocol_required">Este LLM personalizado requiere el protocolo OpenAI Responses. Abre Proveedores → esta conexión → Configuración de conexión → Tipo de protocolo, cambia a «Compatible con OpenAI Responses» y vuelve a intentarlo.</string>
+    <string name="relay_guidance_store_param_rejected">Este LLM personalizado rechaza el campo store/disable_response_storage. Abre Proveedores → esta conexión → Configuración de conexión → Compatibilidad, desactiva «No conservar las respuestas en la nube» y vuelve a intentarlo.</string>
+    <string name="relay_guidance_service_tier_invalid">Este LLM personalizado no acepta el nivel de servicio actual. Abre Proveedores → esta conexión → Configuración de conexión → Compatibilidad, borra «Nivel de servicio» y vuelve a intentarlo.</string>
     <string name="relay_guidance_max_tokens_required">Este LLM personalizado requiere el parámetro max_tokens. Abre Configuración avanzada, establece un valor de max_tokens y vuelve a intentarlo.</string>
-    <string name="relay_guidance_anthropic_auth_header">Este LLM personalizado requiere un Header x-api-key al estilo de Anthropic. Abre Proveedores → esta conexión → Configuración de conexión → Autenticación, cambia a «x-api-key» y vuelve a intentarlo.</string>
-    <string name="relay_guidance_image_schema_mismatch">El formato de los archivos de imagen no coincide con el protocolo de este LLM personalizado. Abre Proveedores → esta conexión → Configuración de conexión → Tipo de protocolo, elige un protocolo adecuado para tu modelo y vuelve a intentarlo.</string>
+    <string name="relay_guidance_anthropic_auth_header">Este LLM personalizado espera un encabezado x-api-key al estilo de Anthropic. Abre Proveedores → esta conexión → Configuración de conexión → Autenticación, cambia a «x-api-key» y vuelve a intentarlo.</string>
+    <string name="relay_guidance_image_schema_mismatch">El formato de las imágenes adjuntas no coincide con el protocolo de este LLM personalizado. Abre Proveedores → esta conexión → Configuración de conexión → Tipo de protocolo, elige un protocolo adecuado para tu modelo y vuelve a intentarlo.</string>
     <string name="relay_guidance_rate_limited">Este LLM personalizado alcanzó un límite de solicitudes. Espera un momento, reduce el volumen de solicitudes o cambia a otra clave u otro LLM personalizado.</string>
     <string name="catalog_state_offline_title">No se pudieron cargar los modelos oficiales</string>
     <string name="catalog_state_offline_subtitle">Conéctate a Oriveo para cargar el catálogo oficial.</string>
@@ -1225,7 +1222,7 @@
     <string name="generation_group_sampling">Muestreo</string>
     <string name="generation_group_repetition">Control de repetición</string>
     <string name="generation_group_reproducibility">Reproducibilidad</string>
-    <string name="generation_group_output_contract">Contrato de salida</string>
+    <string name="generation_group_output_contract">Formato de salida</string>
     <string name="generation_group_engine_runtime">Motor de ejecución</string>
     <string name="generation_parameter_clear_learned_capabilities">Borrar capacidades aprendidas</string>
     <string name="generation_parameter_json_schema_label">JSON Schema</string>
@@ -1317,7 +1314,7 @@
     <string name="generation_parameter_name_response_format">Formato de respuesta</string>
     <string name="generation_parameter_name_verbosity">Nivel de detalle</string>
     <string name="generation_parameter_name_log_probabilities">Probabilidades logarítmicas</string>
-    <string name="generation_parameter_name_top_log_probabilities">Mayores probabilidades logarítmicas</string>
+    <string name="generation_parameter_name_top_log_probabilities">Probabilidades logarítmicas principales</string>
     <string name="generation_parameter_name_reasoning_effort">Esfuerzo de razonamiento</string>
     <string name="generation_parameter_name_reasoning_budget">Presupuesto de razonamiento</string>
     <string name="generation_parameter_name_reasoning_mode">Modo de razonamiento</string>
@@ -1326,33 +1323,33 @@
     <string name="model_control_context_unavailable">La conexión o el modelo no está listo, así que estos ajustes son de solo lectura. Elige una conexión y un modelo para continuar.</string>
     <string name="model_control_choose_connection">Elegir conexión</string>
     <string name="model_control_choose_other_model">Elegir otro modelo</string>
-    <string name="generation_parameter_name_top_p">Top P（parámetro）</string>
-    <string name="generation_parameter_name_top_k">Top K（parámetro）</string>
-    <string name="generation_parameter_name_min_p">Min P（parámetro）</string>
-    <string name="generation_parameter_name_typical_p">Typical P（parámetro）</string>
-    <string name="generation_parameter_name_dry_allowed_length">DRY allowed length（parámetro）</string>
-    <string name="generation_parameter_name_dry_base">DRY base（parámetro）</string>
-    <string name="generation_parameter_name_dry_multiplier">DRY multiplier（parámetro）</string>
-    <string name="generation_parameter_name_dry_penalty_last_n">DRY penalty window（parámetro）</string>
-    <string name="generation_parameter_name_dry_sequence_breakers">DRY sequence breakers（parámetro）</string>
-    <string name="generation_parameter_name_dynatemp_exponent">Dynamic temperature exponent（parámetro）</string>
-    <string name="generation_parameter_name_dynatemp_range">Dynamic temperature range（parámetro）</string>
-    <string name="generation_parameter_name_ignore_eos">Ignore EOS（parámetro）</string>
-    <string name="generation_parameter_name_llamacpp_native">llama.cpp native mode（parámetro）</string>
-    <string name="generation_parameter_name_min_keep">Minimum tokens to keep（parámetro）</string>
-    <string name="generation_parameter_name_mirostat">Mirostat（parámetro）</string>
-    <string name="generation_parameter_name_mirostat_eta">Mirostat eta（parámetro）</string>
-    <string name="generation_parameter_name_mirostat_tau">Mirostat tau（parámetro）</string>
-    <string name="generation_parameter_name_n_indent">Indentation tokens（parámetro）</string>
-    <string name="generation_parameter_name_n_keep">Tokens to keep（parámetro）</string>
-    <string name="generation_parameter_name_n_probabilities">Token probabilities（parámetro）</string>
-    <string name="generation_parameter_name_post_sampling_probabilities">Post-sampling probabilities（parámetro）</string>
-    <string name="generation_parameter_name_repeat_last_n">Repeat penalty window（parámetro）</string>
-    <string name="generation_parameter_name_samplers">Samplers（parámetro）</string>
-    <string name="generation_parameter_name_max_predict_time">Maximum prediction time（parámetro）</string>
-    <string name="generation_parameter_name_top_n_sigma">Top-N Sigma（parámetro）</string>
-    <string name="generation_parameter_name_xtc_probability">XTC probability（parámetro）</string>
-    <string name="generation_parameter_name_xtc_threshold">XTC threshold（parámetro）</string>
+    <string name="generation_parameter_name_top_p">Top P</string>
+    <string name="generation_parameter_name_top_k">Top K</string>
+    <string name="generation_parameter_name_min_p">Min P</string>
+    <string name="generation_parameter_name_typical_p">Typical P</string>
+    <string name="generation_parameter_name_dry_allowed_length">Longitud tolerada de DRY</string>
+    <string name="generation_parameter_name_dry_base">Base de DRY</string>
+    <string name="generation_parameter_name_dry_multiplier">Multiplicador de DRY</string>
+    <string name="generation_parameter_name_dry_penalty_last_n">Ventana de penalización de DRY</string>
+    <string name="generation_parameter_name_dry_sequence_breakers">Separadores de secuencia de DRY</string>
+    <string name="generation_parameter_name_dynatemp_exponent">Exponente de temperatura dinámica</string>
+    <string name="generation_parameter_name_dynatemp_range">Rango de temperatura dinámica</string>
+    <string name="generation_parameter_name_ignore_eos">Ignorar EOS</string>
+    <string name="generation_parameter_name_llamacpp_native">Modo nativo de llama.cpp</string>
+    <string name="generation_parameter_name_min_keep">Mínimo de tokens a conservar</string>
+    <string name="generation_parameter_name_mirostat">Mirostat</string>
+    <string name="generation_parameter_name_mirostat_eta">Mirostat eta</string>
+    <string name="generation_parameter_name_mirostat_tau">Mirostat tau</string>
+    <string name="generation_parameter_name_n_indent">Sangría mínima</string>
+    <string name="generation_parameter_name_n_keep">Tokens a conservar</string>
+    <string name="generation_parameter_name_n_probabilities">Probabilidades de tokens</string>
+    <string name="generation_parameter_name_post_sampling_probabilities">Probabilidades tras el muestreo</string>
+    <string name="generation_parameter_name_repeat_last_n">Ventana de penalización de repetición</string>
+    <string name="generation_parameter_name_samplers">Métodos de muestreo</string>
+    <string name="generation_parameter_name_max_predict_time">Tiempo máximo de generación</string>
+    <string name="generation_parameter_name_top_n_sigma">Top-N Sigma</string>
+    <string name="generation_parameter_name_xtc_probability">Probabilidad de XTC</string>
+    <string name="generation_parameter_name_xtc_threshold">Umbral de XTC</string>
     <!-- Model controls UX redefinition (2026-08-16 owner ruling): panel wording,
          status rows, thinking level notes, managed banner, scope upgrade, developer group. -->
     <string name="model_control_web_search">Búsqueda web</string>
@@ -1377,7 +1374,7 @@
     <string name="model_control_go_to_advanced_settings">Ir a ajustes avanzados</string>
     <string name="model_control_custom_field_not_allowed">Este campo no está permitido. Campos que acepta este modelo: %1$s</string>
     <string name="model_control_custom_fields_footer">Los campos se agregan a la solicitud tal como se escriben. Solo se admiten campos declarados oficialmente por el proveedor; los errores pueden hacer fallar la solicitud. Los borradores permanecen en este dispositivo.</string>
-    <string name="model_control_custom_scope_conversation">Solo se aplica a esta conversación, conexión, modelo y transporte en este dispositivo. No se sincroniza, registra, envía a telemetría ni se incluye en diagnósticos de soporte. Puede cambiar el costo y el tratamiento de datos del proveedor.</string>
+    <string name="model_control_custom_scope_conversation">Ámbito: esta conversación, conexión, modelo y transporte.</string>
     <string name="model_control_custom_scope_connection_model">Ámbito: este modelo en esta conexión, como valor predeterminado de sus conversaciones.</string>
     <string name="model_control_custom_delete_conversation">Esto elimina los campos personalizados de %1$s en esta conversación, conexión, modelo y transporte. No se puede deshacer.</string>
     <string name="model_control_custom_delete_connection">Esto elimina los campos personalizados de %1$s en esta conexión, modelo y transporte. No se puede deshacer.</string>
@@ -1385,7 +1382,7 @@
     <string name="model_control_custom_only_reason">La configuración automática no está disponible para esta conexión.</string>
     <string name="model_control_state_not_ready">Aún no disponible</string>
     <string name="model_control_state_unavailable">No disponible</string>
-    <string name="model_control_advanced_settings_subtitle">Tokens máximos, temperatura y otros parámetros de solicitud</string>
+    <string name="model_control_advanced_settings_subtitle">Máximo de tokens, temperatura y otros parámetros de solicitud</string>
     <string name="generation_parameter_developer">Desarrollador</string>
     <string name="generation_parameter_custom_fields_not_in_use">Sin usar</string>
     <string name="generation_parameter_custom_fields_in_use">En uso</string>
@@ -1449,7 +1446,7 @@
     </plurals>
     <string name="secure_field_show">Mostrar caracteres</string>
     <string name="secure_field_hide">Ocultar caracteres</string>
-    <string name="generation_parameter_name_stop">Textos de corte</string>
+    <string name="generation_parameter_name_stop">Secuencias de parada</string>
     <string name="generation_diagnostics_section">Diagnósticos de los ajustes de generación</string>
     <string name="generation_diagnostics_empty">Aún no tienes registros de diagnóstico</string>
 </resources>

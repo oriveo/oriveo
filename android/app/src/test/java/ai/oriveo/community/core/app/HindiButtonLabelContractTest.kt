@@ -20,6 +20,7 @@ class HindiButtonLabelContractTest {
         "सालाना" to "yearly (adjective)",
         "नमूना" to "sample (noun)",
         "संरचना" to "composition (noun)",
+        "संभावना" to "probability (noun, as in parameter names like XTC संभावना)",
     )
     private val devanagariWord = Regex("[\\u0900-\\u097F]+")
 

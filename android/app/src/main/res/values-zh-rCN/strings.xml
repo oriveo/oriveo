@@ -5,7 +5,7 @@
 
     <!-- Tabs -->
     <string name="tab_home">首页</string>
-    <string name="tab_providers">服务商</string>
+    <string name="tab_providers">供应商</string>
     <string name="tab_settings">设置</string>
 
     <!-- Placeholders -->
@@ -33,7 +33,7 @@
     <string name="api_key">API 密钥</string>
     <string name="validating">验证中…</string>
     <string name="auto_fill_note">服务请求地址已为你自动填写。</string>
-    <string name="add_provider">添加服务商</string>
+    <string name="add_provider">添加供应商</string>
     <string name="provider_setup_direct_title">AI直连供应商</string>
     <string name="provider_setup_relay_title">自定义中转站</string>
     <string name="provider_setup_relay_subtitle">接入你自己的模型服务</string>
@@ -44,7 +44,7 @@
     <string name="aggregator_groq_subtitle">超快 LPU 推理</string>
     <string name="aggregator_together_subtitle">200+ 开源模型</string>
     <string name="aggregator_fireworks_subtitle">高性能推理</string>
-    <string name="provider_setup_continue_hint_select">请先选择一个服务商。</string>
+    <string name="provider_setup_continue_hint_select">请先选择一个供应商。</string>
     <string name="provider_setup_syncing_status">正在验证连接并同步模型…</string>
     <string name="provider_setup_failed_title">设置失败</string>
     <string name="add_model">添加模型</string>
@@ -104,9 +104,9 @@
     <string name="chat_export_json_ready">已打开 JSON 导出分享页面。</string>
     <string name="chat_conversation_deleted">对话已删除。</string>
     <string name="chat_read_only_placeholder">当前对话为只读状态。</string>
-    <string name="chat_issue_no_provider_title">没有可用的服务商</string>
-    <string name="chat_issue_no_provider_message">在添加或重新连接服务商之前，此对话为只读状态。</string>
-    <string name="chat_issue_provider_missing_title">服务商已移除</string>
+    <string name="chat_issue_no_provider_title">没有可用的供应商</string>
+    <string name="chat_issue_no_provider_message">在添加或重新连接供应商之前，此对话为只读状态。</string>
+    <string name="chat_issue_provider_missing_title">供应商已移除</string>
     <string name="chat_issue_provider_missing_message">%1$s 已不再可用于此对话。请选择其他模型以继续。</string>
     <string name="chat_issue_model_missing_title">模型不可用</string>
     <string name="chat_issue_model_missing_message">此对话使用的模型已不再启用。请选择其他模型以继续。</string>
@@ -172,7 +172,6 @@
 <string name="tagline_night_7">这个点，思路往往更清楚</string>
 <string name="tagline_night_8">今晚不赶时间</string>
     <string name="aurora_placeholder_what_can_i_help">想聊点什么？</string>
-    <string name="skills_more">更多</string>
     <string name="search_results">搜索结果</string>
     <string name="no_search_results">没有匹配的对话</string>
     <string name="try_adjusting_search_query">换个关键词试试，或返回完整对话列表查看。</string>
@@ -195,14 +194,13 @@
     <string name="deselect">取消选择</string>
     <string name="deselect_all">取消全选</string>
     <string name="selected_count">已选 %d 条</string>
-    <string name="home_no_provider_title">还没有可用的服务商</string>
-    <string name="home_no_provider_description">先添加一个服务商，之后可以随时切换模型。</string>
+    <string name="home_no_provider_title">还没有可用的供应商</string>
+    <string name="home_no_provider_description">先添加一个供应商即可开始聊天，之后可随时切换模型。</string>
     <string name="home_start_chatting">开始你的第一次 AI 对话</string>
     <string name="ready_to_start_conversation">准备开始新对话</string>
-    <string name="switch_label">切换</string>
-    <string name="providers_title">服务商</string>
-    <string name="no_providers_title">还没有添加服务商</string>
-    <string name="no_providers_description">先连接一个服务商。模型切换、聊天和费用透明都从这里开始。</string>
+    <string name="providers_title">供应商</string>
+    <string name="no_providers_title">还没有添加供应商</string>
+    <string name="no_providers_description">先连接一个供应商。模型切换、聊天和费用透明都从这里开始。</string>
     <string name="models_count">%d 个模型</string>
     <string name="models_added_count">%d 个已添加模型</string>
     <string name="never">从未</string>
@@ -211,8 +209,8 @@
     <string name="provider_list_usage_label">消耗：</string>
     <string name="expensive_model_hint">%1$s 的费用约是 %3$s 的 ~%2$d 倍</string>
     <string name="change_api_key">更换 API 密钥</string>
-    <string name="delete_provider">删除服务商</string>
-    <string name="delete_provider_confirm">确定要删除此服务商吗？相关对话仍可查看，但无法再使用此服务商发送新消息。</string>
+    <string name="delete_provider">删除供应商</string>
+    <string name="delete_provider_confirm">确定要删除此供应商吗？相关对话仍可查看，但无法再使用此供应商发送新消息。</string>
     <string name="relay_delete_provider_title">删除“%1$s”？</string>
     <string name="relay_delete_provider_confirm">这会删除连接、API 密钥、已启用模型、模型库和模型行为参数；不会删除对话，历史消息会保留，其中使用过的模型会标为不可用。此操作无法撤销。</string>
     <string name="added_models">已添加模型</string>
@@ -281,7 +279,7 @@
 
     <!-- Backup - Import -->
     <string name="import_section_title">导入与恢复</string>
-    <string name="import_description">从备份文件恢复对话、服务商和设置。</string>
+    <string name="import_description">从备份文件恢复对话、供应商和设置。</string>
     <string name="import_failed">导入失败</string>
     <string name="choose_another_backup">选择其他备份</string>
     <string name="import_preview_title">导入预览</string>
@@ -300,7 +298,7 @@
     <string name="attachment_checksum_warning">此备份中的部分图片文件可能不完整或已损坏。能恢复的消息仍会继续导入。</string>
     <string name="import_mode">导入模式</string>
     <string name="import_mode_new_only">仅导入新数据</string>
-    <string name="import_mode_new_only_desc">跳过已有的对话和服务商，仅添加新的。</string>
+    <string name="import_mode_new_only_desc">跳过已有的对话和供应商，仅添加新的。</string>
     <string name="import_mode_merge">合并</string>
     <string name="import_mode_merge_desc">将消息合并到已有对话中，并添加新对话。</string>
     <string name="import_mode_replace_all">替换全部</string>
@@ -321,8 +319,8 @@
     <string name="result_new_conversations">新增 %d 个对话</string>
     <string name="result_merged_conversations">合并 %d 个对话</string>
     <string name="result_skipped_conversations">跳过 %d 个对话</string>
-    <string name="result_new_providers">新增 %d 个服务商</string>
-    <string name="result_skipped_providers">跳过 %d 个服务商</string>
+    <string name="result_new_providers">新增 %d 个供应商</string>
+    <string name="result_skipped_providers">跳过 %d 个供应商</string>
     <string name="result_new_skills">新增 %d 个技能</string>
     <string name="result_merged_skills">合并 %d 个技能</string>
     <string name="result_skipped_skills">跳过 %d 个技能</string>
@@ -360,17 +358,17 @@
     <string name="error_invalid_api_key_message">API 密钥验证失败。请检查密钥或生成新密钥。</string>
     <string name="provider_health_banner_message">连接异常，请检查 API Key 是否有效。</string>
     <string name="error_api_key_required">需要 API 密钥</string>
-    <string name="error_rate_limited">服务商请求频率受限</string>
-    <string name="error_rate_limited_message">服务商正在临时限制此请求的频率。请稍候再试。</string>
+    <string name="error_rate_limited">供应商请求频率受限</string>
+    <string name="error_rate_limited_message">供应商暂时限制了此请求的频率，请稍候再试。</string>
     <string name="error_no_models">未找到模型</string>
-    <string name="error_no_models_message">服务商返回了空的模型目录，无法完成设置。</string>
-    <string name="error_empty_response">服务商返回了空响应</string>
-    <string name="error_empty_response_message">服务商未返回此消息的助手内容。</string>
-    <string name="error_config">服务商配置错误</string>
-    <string name="error_config_message">所选服务商的配置不完整，无法发送请求。</string>
-    <string name="error_request_failed">服务商请求失败</string>
+    <string name="error_no_models_message">供应商返回了空的模型目录，无法完成设置。</string>
+    <string name="error_empty_response">供应商返回了空响应</string>
+    <string name="error_empty_response_message">供应商未返回这条消息的回复内容。</string>
+    <string name="error_config">供应商配置错误</string>
+    <string name="error_config_message">所选供应商的配置不完整，无法发送请求。</string>
+    <string name="error_request_failed">供应商请求失败</string>
     <string name="error_network_message">请求未成功完成。请检查网络后重试。</string>
-    <string name="error_upstream_message">服务商对此请求返回了错误。请重试或切换模型。</string>
+    <string name="error_upstream_message">供应商对此请求返回了错误。请重试或切换模型。</string>
     <string name="grok_connect_mode_title">如何连接 Grok？</string>
     <string name="grok_connect_mode_api_key">API 密钥</string>
     <string name="grok_connect_mode_api_key_desc">使用 console.x.ai 的密钥，按用量计费。</string>
@@ -422,10 +420,10 @@
     <string name="openai_subscription_error_denied">授权被拒绝。</string>
     <string name="openai_subscription_error_waiting_browser">等待你在浏览器中完成授权…</string>
     <string name="openai_subscription_error_unreachable">无法连接 Codex，请检查网络后重试。</string>
-    <string name="error_provider_quota_exceeded">服务商额度已用完</string>
-    <string name="error_provider_quota_exceeded_message">服务商反馈此 API Key 的额度或余额已用完。请到服务商后台检查账单，或切换模型。</string>
+    <string name="error_provider_quota_exceeded">供应商额度已用完</string>
+    <string name="error_provider_quota_exceeded_message">供应商反馈此 API Key 的额度或余额已用完。请到供应商后台检查账单，或切换模型。</string>
     <string name="error_model_unavailable">模型不可用</string>
-    <string name="error_model_unavailable_message">服务商当前无法提供该模型。请切换模型或稍后再试。</string>
+    <string name="error_model_unavailable_message">供应商当前无法提供该模型。请切换模型或稍后再试。</string>
     <string name="technical_details">技术详情</string>
     <string name="error_generic_title">出错了</string>
     <string name="error_generic_message">发生了意外错误。</string>
@@ -456,7 +454,7 @@
     <string name="saving">保存中…</string>
     <string name="manual_model_save_failed_title">保存失败</string>
     <string name="manual_model_sync_not_supported_title">不支持同步</string>
-    <string name="manual_model_sync_not_supported_message">该服务商不支持自动模型同步，请手动输入模型 ID。</string>
+    <string name="manual_model_sync_not_supported_message">该供应商不支持自动模型同步，请手动输入模型 ID。</string>
     <string name="manual_model_sync_failed_title">同步失败</string>
 
     <!-- Relay Setup -->
@@ -484,7 +482,7 @@
     <string name="cost_summary_more">还有 %1$d 个</string>
 
     <!-- Usage Insights -->
-    <string name="by_provider">按服务商</string>
+    <string name="by_provider">按供应商</string>
     <string name="no_tracked_usage_in_period">当前周期还没有记录到使用</string>
 
     <!-- Usage Insights demo card -->
@@ -521,17 +519,17 @@
     <string name="memory_hero_chip_memory">记忆</string>
     <string name="memory_hero_chip_ready">可用</string>
     <string name="memory_error_no_model_title">无可用模型</string>
-    <string name="memory_error_no_model_message">当前服务商未配置模型，请先添加至少一个模型。</string>
-    <string name="memory_error_no_provider_title">未配置服务商</string>
-    <string name="memory_error_no_provider_message">请先添加并配置带 API Key 的服务商，再回来生成草稿。</string>
+    <string name="memory_error_no_model_message">当前供应商未配置模型，请先添加至少一个模型。</string>
+    <string name="memory_error_no_provider_title">未配置供应商</string>
+    <string name="memory_error_no_provider_message">请先添加供应商并填入 API Key，再回来生成草稿。</string>
     <string name="memory_error_not_enough_title">对话内容不足</string>
     <string name="memory_error_not_enough_message">先聊几句对话，再回来从对话中生成草稿。</string>
     <string name="memory_error_hydrate_title">无法加载近期对话</string>
     <string name="memory_error_hydrate_message">请稍后重试，或手动编写。</string>
     <string name="memory_error_generic_title">生成失败，请手动编写</string>
     <string name="memory_error_generic_message">请稍后重试，或手动编写。</string>
-    <string name="memory_error_aggregated">已尝试 %1$d 个服务商，均失败。</string>
-    <string name="memory_error_aggregated_with_detail">已尝试 %1$d 个服务商，均失败。最后错误：%2$s</string>
+    <string name="memory_error_aggregated">已尝试 %1$d 个供应商，均失败。</string>
+    <string name="memory_error_aggregated_with_detail">已尝试 %1$d 个供应商，均失败。最后错误：%2$s</string>
     <string name="discard">放弃</string>
     <string name="result_restored_memory">已恢复记忆</string>
 
@@ -792,7 +790,7 @@
     <string name="provider_endpoint_siliconflow_intl">国际（api.siliconflow.com）</string>
     <string name="provider_detail_endpoint_required">请先选择 endpoint。</string>
     <string name="official_endpoint">官方 Endpoint</string>
-    <string name="provider_label">服务商</string>
+    <string name="provider_label">供应商</string>
     <string name="request_url_label">请求地址</string>
     <string name="endpoint_auto_filled">已自动填写</string>
     <string name="endpoint_manual">手动</string>
@@ -805,7 +803,7 @@
     <string name="relay_advanced_auth_mode">认证方式</string>
     <string name="relay_advanced_headers">自定义 Headers</string>
     <string name="relay_advanced_query_params">自定义 Query 参数</string>
-    <string name="relay_advanced_reasoning_effort">推理等级</string>
+    <string name="relay_advanced_reasoning_effort">推理强度</string>
     <string name="relay_advanced_service_tier">服务等级</string>
     <string name="relay_advanced_stream">流式传输</string>
     <string name="relay_advanced_disable_response_storage">禁用响应存储</string>
@@ -846,9 +844,9 @@
     <string name="relay_profile_unset">未选择</string>
     <string name="relay_kind_picker_title">选择协议类型</string>
     <string name="relay_kind_openai_compatible">OpenAI 兼容</string>
-    <string name="relay_kind_openai_compatible_subtitle">适用于 OpenAI 兼容服务和自建网关。</string>
+    <string name="relay_kind_openai_compatible_subtitle">适用于 OpenAI 兼容的自定义 LLM 和自建网关。</string>
     <string name="relay_kind_codex_style">OpenAI Responses 兼容</string>
-    <string name="relay_kind_codex_style_subtitle">适用于要求使用 Responses API 的服务。</string>
+    <string name="relay_kind_codex_style_subtitle">适用于要求使用 Responses API 的自定义 LLM。</string>
     <string name="relay_kind_anthropic_compatible">Anthropic 兼容</string>
     <string name="relay_kind_anthropic_compatible_subtitle">适用于 Claude 兼容服务。</string>
     <string name="relay_kind_gemini_compatible">Gemini 兼容</string>
@@ -925,13 +923,13 @@
 
     <string name="streaming_pulse_a11y">生成中</string>
     <string name="providers_active_this_month">本月活跃</string>
-    <string name="providers_all_providers">全部服务商</string>
+    <string name="providers_all_providers">全部供应商</string>
     <string name="providers_today">今天</string>
     <string name="providers_all_synced">全部已同步</string>
     <string name="providers_summary_count">%d 个供应商</string>
-    <string name="providers_connect_first_title">连接你的第一个服务商</string>
-    <string name="providers_delete_this_question">删除此服务商？</string>
-    <string name="providers_delete_this_message">删除此服务商同时会移除相关的对话和默认模型配置。</string>
+    <string name="providers_connect_first_title">连接你的第一个供应商</string>
+    <string name="providers_delete_this_question">删除此供应商？</string>
+    <string name="providers_delete_this_message">删除此供应商会同时移除相关对话和默认模型配置。</string>
     <string name="add_a_model">添加模型</string>
     <string name="enter_a_model_id_relay_supports">输入此自定义 LLM 支持的模型 ID。</string>
     <string name="use_exact_model_id">请使用此自定义 LLM 实际提供的模型 ID。</string>
@@ -999,13 +997,13 @@
     <string name="provider_tagline_zhipu">GLM 系列模型</string>
     <string name="provider_tagline_qwen">阿里通义千问</string>
     <string name="provider_tagline_moonshot">长上下文</string>
-    <string name="provider_tagline_siliconflow">多服务商聚合</string>
+    <string name="provider_tagline_siliconflow">多供应商聚合</string>
     <string name="provider_tagline_openrouter">200+ 模型</string>
     <string name="provider_tagline_groq">超快推理</string>
     <string name="provider_tagline_together">开源模型</string>
     <string name="provider_tagline_fireworks">快速实惠</string>
-    <string name="provider_setup_hero_title">连接服务商</string>
-    <string name="provider_setup_hero_subtitle">选择 AI 服务商，再填入 API 密钥</string>
+    <string name="provider_setup_hero_title">连接供应商</string>
+    <string name="provider_setup_hero_subtitle">选择 AI 供应商，再填入 API Key</string>
     <string name="provider_category_all">全部</string>
     <string name="provider_category_direct">直连</string>
     <string name="provider_category_aggregators">聚合平台</string>
@@ -1026,15 +1024,14 @@
     <string name="api_endpoint">API Endpoint</string>
     <string name="api_endpoint_not_configured">未配置</string>
     <string name="error_relay_upstream_title">自定义 LLM 错误 (%1$d)</string>
-    <string name="relay_guidance_codex_identity_switch_type">这个自定义 LLM 要求 Codex 客户端身份。打开供应商 → 该连接 → 连接设置 → 协议类型，切换为“Codex（Responses）”后重试。</string>
-    <string name="relay_guidance_codex_identity_enable_compat">这个自定义 LLM 要求 Codex 客户端身份。打开供应商 → 该连接 → 连接设置 → 兼容性，开启“Codex 兼容身份”后重试。</string>
+    <string name="relay_guidance_codex_identity_switch_type">这个自定义 LLM 要求 Codex 客户端身份。打开供应商 → 该连接 → 连接设置 → 协议类型，切换为“OpenAI Responses 兼容”后重试。</string>
     <string name="relay_guidance_codex_identity_still_rejected">这个自定义 LLM 仍拒绝 Oriveo 的 Codex 客户端身份。打开供应商 → 该连接 → 连接设置 → 高级 HTTP，设置自定义 User-Agent 或 Header，或换一个自定义 LLM。</string>
-    <string name="relay_guidance_responses_only_endpoint">这个自定义 LLM 只开放 /v1/responses，拒绝 /chat/completions。打开供应商 → 该连接 → 连接设置 → 协议类型，切换为“Codex（Responses）”后重试。</string>
+    <string name="relay_guidance_responses_only_endpoint">这个自定义 LLM 只开放 /v1/responses，拒绝 /chat/completions。打开供应商 → 该连接 → 连接设置 → 协议类型，切换为“OpenAI Responses 兼容”后重试。</string>
     <string name="relay_guidance_upstream_unreachable">这个自定义 LLM 无法连接上游服务。这通常不是你的配置问题，请换一个自定义 LLM 或联系它的服务提供方。</string>
     <string name="relay_guidance_model_not_offered">这个自定义 LLM 不提供这个模型。打开供应商 → 该连接 → 连接设置 → 模型，选择受支持的模型 ID。</string>
-    <string name="relay_guidance_responses_protocol_required">这个自定义 LLM 要求 OpenAI Responses 协议。打开供应商 → 该连接 → 连接设置 → 协议类型，切换为“Codex（Responses）”后重试。</string>
+    <string name="relay_guidance_responses_protocol_required">这个自定义 LLM 要求 OpenAI Responses 协议。打开供应商 → 该连接 → 连接设置 → 协议类型，切换为“OpenAI Responses 兼容”后重试。</string>
     <string name="relay_guidance_store_param_rejected">这个自定义 LLM 不接受 store/disable_response_storage 字段。打开供应商 → 该连接 → 连接设置 → 兼容性，关闭“不在云端保留响应”后重试。</string>
-    <string name="relay_guidance_service_tier_invalid">这个自定义 LLM 不接受当前 OpenAI service tier。打开供应商 → 该连接 → 连接设置 → 兼容性，清空“OpenAI service tier”后重试。</string>
+    <string name="relay_guidance_service_tier_invalid">这个自定义 LLM 不接受当前的服务等级值。打开供应商 → 该连接 → 连接设置 → 兼容性，清空“服务等级”后重试。</string>
     <string name="relay_guidance_max_tokens_required">这个自定义 LLM 要求 max_tokens 参数。打开高级设置并设置 max_tokens 后重试。</string>
     <string name="relay_guidance_anthropic_auth_header">这个自定义 LLM 需要 Anthropic 风格的 x-api-key 认证头。打开供应商 → 该连接 → 连接设置 → 认证方式，切换为“x-api-key”后重试。</string>
     <string name="relay_guidance_image_schema_mismatch">图片附件使用的格式与这个自定义 LLM 的协议不匹配。打开供应商 → 该连接 → 连接设置 → 协议类型，选择适合模型的协议后重试。</string>
@@ -1239,7 +1236,7 @@
     <string name="generation_group_sampling">采样策略</string>
     <string name="generation_group_repetition">重复控制</string>
     <string name="generation_group_reproducibility">可复现性</string>
-    <string name="generation_group_output_contract">输出契约</string>
+    <string name="generation_group_output_contract">输出格式</string>
     <string name="generation_group_engine_runtime">引擎实验项</string>
     <string name="generation_parameter_clear_learned_capabilities">清除已学习的能力</string>
     <string name="generation_parameter_json_schema_label">JSON Schema</string>
@@ -1330,7 +1327,7 @@
     <string name="generation_parameter_name_response_format">响应格式</string>
     <string name="generation_parameter_name_verbosity">详细程度</string>
     <string name="generation_parameter_name_log_probabilities">对数概率</string>
-    <string name="generation_parameter_name_top_log_probabilities">最高对数概率</string>
+    <string name="generation_parameter_name_top_log_probabilities">Top 对数概率</string>
     <string name="generation_parameter_name_reasoning_effort">推理强度</string>
     <string name="generation_parameter_name_reasoning_budget">推理预算</string>
     <string name="generation_parameter_name_reasoning_mode">推理模式</string>
@@ -1339,33 +1336,33 @@
     <string name="model_control_context_unavailable">连接或模型尚未就绪，因此这些设置为只读。请选择连接和模型后继续。</string>
     <string name="model_control_choose_connection">选择连接</string>
     <string name="model_control_choose_other_model">选择其他模型</string>
-    <string name="generation_parameter_name_top_p">Top P（参数）</string>
-    <string name="generation_parameter_name_top_k">Top K（参数）</string>
-    <string name="generation_parameter_name_min_p">Min P（参数）</string>
-    <string name="generation_parameter_name_typical_p">Typical P（参数）</string>
-    <string name="generation_parameter_name_dry_allowed_length">DRY allowed length（参数）</string>
-    <string name="generation_parameter_name_dry_base">DRY base（参数）</string>
-    <string name="generation_parameter_name_dry_multiplier">DRY multiplier（参数）</string>
-    <string name="generation_parameter_name_dry_penalty_last_n">DRY penalty window（参数）</string>
-    <string name="generation_parameter_name_dry_sequence_breakers">DRY sequence breakers（参数）</string>
-    <string name="generation_parameter_name_dynatemp_exponent">Dynamic temperature exponent（参数）</string>
-    <string name="generation_parameter_name_dynatemp_range">Dynamic temperature range（参数）</string>
-    <string name="generation_parameter_name_ignore_eos">Ignore EOS（参数）</string>
-    <string name="generation_parameter_name_llamacpp_native">llama.cpp native mode（参数）</string>
-    <string name="generation_parameter_name_min_keep">Minimum tokens to keep（参数）</string>
-    <string name="generation_parameter_name_mirostat">Mirostat（参数）</string>
-    <string name="generation_parameter_name_mirostat_eta">Mirostat eta（参数）</string>
-    <string name="generation_parameter_name_mirostat_tau">Mirostat tau（参数）</string>
-    <string name="generation_parameter_name_n_indent">Indentation tokens（参数）</string>
-    <string name="generation_parameter_name_n_keep">Tokens to keep（参数）</string>
-    <string name="generation_parameter_name_n_probabilities">Token probabilities（参数）</string>
-    <string name="generation_parameter_name_post_sampling_probabilities">Post-sampling probabilities（参数）</string>
-    <string name="generation_parameter_name_repeat_last_n">Repeat penalty window（参数）</string>
-    <string name="generation_parameter_name_samplers">Samplers（参数）</string>
-    <string name="generation_parameter_name_max_predict_time">Maximum prediction time（参数）</string>
-    <string name="generation_parameter_name_top_n_sigma">Top-N Sigma（参数）</string>
-    <string name="generation_parameter_name_xtc_probability">XTC probability（参数）</string>
-    <string name="generation_parameter_name_xtc_threshold">XTC threshold（参数）</string>
+    <string name="generation_parameter_name_top_p">Top P</string>
+    <string name="generation_parameter_name_top_k">Top K</string>
+    <string name="generation_parameter_name_min_p">Min P</string>
+    <string name="generation_parameter_name_typical_p">Typical P</string>
+    <string name="generation_parameter_name_dry_allowed_length">DRY 允许长度</string>
+    <string name="generation_parameter_name_dry_base">DRY 底数</string>
+    <string name="generation_parameter_name_dry_multiplier">DRY 乘数</string>
+    <string name="generation_parameter_name_dry_penalty_last_n">DRY 惩罚窗口</string>
+    <string name="generation_parameter_name_dry_sequence_breakers">DRY 序列分隔符</string>
+    <string name="generation_parameter_name_dynatemp_exponent">动态温度指数</string>
+    <string name="generation_parameter_name_dynatemp_range">动态温度范围</string>
+    <string name="generation_parameter_name_ignore_eos">忽略 EOS</string>
+    <string name="generation_parameter_name_llamacpp_native">llama.cpp 原生模式</string>
+    <string name="generation_parameter_name_min_keep">最少保留 Token 数</string>
+    <string name="generation_parameter_name_mirostat">Mirostat</string>
+    <string name="generation_parameter_name_mirostat_eta">Mirostat eta</string>
+    <string name="generation_parameter_name_mirostat_tau">Mirostat tau</string>
+    <string name="generation_parameter_name_n_indent">最小缩进</string>
+    <string name="generation_parameter_name_n_keep">保留 Token 数</string>
+    <string name="generation_parameter_name_n_probabilities">Token 概率</string>
+    <string name="generation_parameter_name_post_sampling_probabilities">采样后概率</string>
+    <string name="generation_parameter_name_repeat_last_n">重复惩罚窗口</string>
+    <string name="generation_parameter_name_samplers">采样器</string>
+    <string name="generation_parameter_name_max_predict_time">最长生成时间</string>
+    <string name="generation_parameter_name_top_n_sigma">Top-N Sigma</string>
+    <string name="generation_parameter_name_xtc_probability">XTC 概率</string>
+    <string name="generation_parameter_name_xtc_threshold">XTC 阈值</string>
     <!-- Model controls UX redefinition (2026-08-16 owner ruling): panel wording,
          status rows, thinking level notes, managed banner, scope upgrade, developer group. -->
     <string name="model_control_web_search">联网搜索</string>
@@ -1381,7 +1378,7 @@
     <string name="model_control_reasoning_note_balanced">速度和深度兼顾。</string>
     <string name="model_control_reasoning_note_deep">复杂问题，多想一会儿。</string>
     <string name="model_control_reasoning_note_max">最难的问题，不惜时间。</string>
-    <string name="model_control_reasoning_fixed_level">此模型的思考深度是固定的，无法调节。</string>
+    <string name="model_control_reasoning_fixed_level">此模型的思考档位是固定的，无法调节。</string>
     <string name="model_control_cannot_adjust_yet">暂不支持调节</string>
     <string name="model_control_reasoning_no_official_config">这个模型还没有官方的思考配置，Oriveo 不做猜测。</string>
     <string name="model_control_applied_to_conversation">已应用于本对话</string>

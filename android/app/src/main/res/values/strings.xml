@@ -143,7 +143,6 @@
     <string name="home_no_provider_description">Add a provider first to start chatting and switch models later.</string>
     <string name="home_start_chatting">Start your first AI conversation</string>
     <string name="ready_to_start_conversation">Ready to start a new conversation</string>
-    <string name="switch_label">Switch</string>
     <string name="providers_title">Providers</string>
     <string name="no_providers_title">No providers added yet</string>
     <string name="no_providers_description">Connect a provider first. Model switching, chat, and cost transparency all start here.</string>
@@ -278,15 +277,14 @@
     <string name="error_model_unavailable">Model Unavailable</string>
     <string name="error_model_unavailable_message">This model is currently unavailable from the provider. Switch models or try again later.</string>
     <string name="error_relay_upstream_title">Custom LLM Error (%1$d)</string>
-    <string name="relay_guidance_codex_identity_switch_type">This custom LLM requires Codex client identity. Open Providers → this connection → Connection settings → Protocol type and switch to “Codex (Responses)”, then retry.</string>
-    <string name="relay_guidance_codex_identity_enable_compat">This custom LLM requires Codex client identity. Open Providers → this connection → Connection settings → Compatibility and turn on “Codex compatible identity”, then retry.</string>
+    <string name="relay_guidance_codex_identity_switch_type">This custom LLM requires a Codex client identity. Open Providers → this connection → Connection settings → Protocol type and switch to “OpenAI Responses compatible”, then retry.</string>
     <string name="relay_guidance_codex_identity_still_rejected">This custom LLM still rejects Oriveo\'s Codex client identity. Open Providers → this connection → Connection settings → Advanced HTTP and set a custom User-Agent or header, or switch to another custom LLM.</string>
-    <string name="relay_guidance_responses_only_endpoint">This custom LLM only exposes /v1/responses and rejects /chat/completions. Open Providers → this connection → Connection settings → Protocol type and switch to “Codex (Responses)”, then retry.</string>
+    <string name="relay_guidance_responses_only_endpoint">This custom LLM only exposes /v1/responses and rejects /chat/completions. Open Providers → this connection → Connection settings → Protocol type and switch to “OpenAI Responses compatible”, then retry.</string>
     <string name="relay_guidance_upstream_unreachable">This custom LLM could not reach its upstream provider. This is not your configuration. Switch to another custom LLM or contact its service provider.</string>
     <string name="relay_guidance_model_not_offered">This custom LLM does not offer this model. Open Providers → this connection → Connection settings → Model and choose a supported model ID.</string>
-    <string name="relay_guidance_responses_protocol_required">This custom LLM requires the OpenAI Responses protocol. Open Providers → this connection → Connection settings → Protocol type and switch to “Codex (Responses)”, then retry.</string>
+    <string name="relay_guidance_responses_protocol_required">This custom LLM requires the OpenAI Responses protocol. Open Providers → this connection → Connection settings → Protocol type and switch to “OpenAI Responses compatible”, then retry.</string>
     <string name="relay_guidance_store_param_rejected">This custom LLM rejects the store/disable_response_storage field. Open Providers → this connection → Connection settings → Compatibility and turn off “Don\'t keep responses in the cloud”, then retry.</string>
-    <string name="relay_guidance_service_tier_invalid">This custom LLM does not accept the current OpenAI service tier value. Open Providers → this connection → Connection settings → Compatibility and clear “OpenAI service tier”, then retry.</string>
+    <string name="relay_guidance_service_tier_invalid">This custom LLM does not accept the current service tier value. Open Providers → this connection → Connection settings → Compatibility and clear “Service Tier”, then retry.</string>
     <string name="relay_guidance_max_tokens_required">This custom LLM requires the max_tokens parameter. Open Advanced Settings and set a max_tokens value, then retry.</string>
     <string name="relay_guidance_anthropic_auth_header">This custom LLM expects an Anthropic-style x-api-key header. Open Providers → this connection → Connection settings → Authentication and switch to “x-api-key”, then retry.</string>
     <string name="relay_guidance_image_schema_mismatch">Image attachments use a schema that does not match this custom LLM\'s protocol. Open Providers → this connection → Connection settings → Protocol type and choose a protocol that fits your model, then retry.</string>
@@ -356,9 +354,9 @@
     <string name="relay_kind_default_badge">Default</string>
     <string name="relay_kind_advanced_badge">Advanced</string>
     <string name="relay_kind_openai_compatible">OpenAI compatible</string>
-    <string name="relay_kind_openai_compatible_subtitle">For OpenAI-compatible services and self-hosted gateways.</string>
+    <string name="relay_kind_openai_compatible_subtitle">For OpenAI-compatible custom LLMs and self-hosted gateways.</string>
     <string name="relay_kind_codex_style">OpenAI Responses compatible</string>
-    <string name="relay_kind_codex_style_subtitle">For services that require the Responses API.</string>
+    <string name="relay_kind_codex_style_subtitle">For custom LLMs that require the Responses API.</string>
     <string name="relay_kind_anthropic_compatible">Anthropic compatible</string>
     <string name="relay_kind_anthropic_compatible_subtitle">For Claude-compatible services.</string>
     <string name="relay_kind_gemini_compatible">Gemini compatible</string>
@@ -917,7 +915,6 @@
 <string name="tagline_night_7">Quiet hours, clear thoughts.</string>
 <string name="tagline_night_8">No rush tonight.</string>
     <string name="aurora_placeholder_what_can_i_help">What can I help with?</string>
-    <string name="skills_more">More</string>
 
     <string name="provider_endpoint_minimax_description">Choose the official endpoint that matches your MiniMax account region.</string>
     <string name="provider_endpoint_qwen_description">Qwen API keys are region-locked. Choose the endpoint that matches your key.</string>
@@ -1265,7 +1262,7 @@
     <string name="generation_parameter_name_mirostat">Mirostat</string>
     <string name="generation_parameter_name_mirostat_eta">Mirostat eta</string>
     <string name="generation_parameter_name_mirostat_tau">Mirostat tau</string>
-    <string name="generation_parameter_name_n_indent">Indentation tokens</string>
+    <string name="generation_parameter_name_n_indent">Minimum indentation</string>
     <string name="generation_parameter_name_n_keep">Tokens to keep</string>
     <string name="generation_parameter_name_n_probabilities">Token probabilities</string>
     <string name="generation_parameter_name_post_sampling_probabilities">Post-sampling probabilities</string>

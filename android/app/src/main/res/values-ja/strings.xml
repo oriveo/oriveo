@@ -5,7 +5,7 @@
 
     <!-- Tabs -->
     <string name="tab_home">ホーム</string>
-    <string name="tab_providers">プロバイダ</string>
+    <string name="tab_providers">プロバイダー</string>
     <string name="tab_settings">設定</string>
 
     <!-- Placeholders -->
@@ -79,7 +79,7 @@
     <string name="rename_conversation">会話名を変更</string>
     <string name="delete_conversation">会話を削除</string>
     <string name="delete_conversation_confirm">この会話を削除してもよろしいですか？この操作は取り消せません。</string>
-    <string name="providers_title">プロバイダ</string>
+    <string name="providers_title">プロバイダー</string>
     <string name="models_count">%d 個のモデル</string>
     <string name="change_api_key">API キーを変更</string>
     <string name="delete_provider">プロバイダーの削除</string>
@@ -278,7 +278,6 @@
 <string name="tagline_night_7">夜は考えがまとまりやすい</string>
 <string name="tagline_night_8">今夜はのんびりいこう</string>
     <string name="aurora_placeholder_what_can_i_help">何から話そうか？</string>
-    <string name="skills_more">その他</string>
     <string name="search_results">検索結果</string>
     <string name="select_all">すべて選択</string>
     <string name="select_action">選択</string>
@@ -291,7 +290,6 @@
     <string name="home_no_provider_description">まずプロバイダーを追加して、チャットやモデルの切り替えを始めましょう。</string>
     <string name="home_start_chatting">最初のAI会話を始めましょう</string>
     <string name="ready_to_start_conversation">新しい会話を始める準備ができています</string>
-    <string name="switch_label">切替</string>
     <string name="no_providers_title">まだプロバイダーが追加されていません</string>
     <string name="no_providers_description">まずプロバイダーに接続します。モデルの切り替え、チャット、コストの透明性はすべてここから始まります。</string>
     <string name="provider_detail_add_model_manually">+ モデルIDを手動で追加</string>
@@ -452,7 +450,7 @@
     <string name="cost_summary_more">ほか %1$d 件</string>
 
     <!-- Usage Insights -->
-    <string name="by_provider">プロバイダ別</string>
+    <string name="by_provider">プロバイダー別</string>
     <string name="no_tracked_usage_in_period">この期間にはまだ記録された使用量がありません</string>
 
     <!-- Budget -->
@@ -756,7 +754,7 @@
     <string name="provider_endpoint_siliconflow_intl">国際 (api.siliconflow.com)</string>
     <string name="provider_detail_endpoint_required">まず endpoint を選択してください。</string>
     <string name="official_endpoint">公式 endpoint</string>
-    <string name="provider_label">プロバイダ</string>
+    <string name="provider_label">プロバイダー</string>
     <string name="request_url_label">リクエスト URL</string>
     <string name="endpoint_auto_filled">自動入力済み</string>
     <string name="endpoint_manual">手動</string>
@@ -773,7 +771,7 @@
     <string name="relay_advanced_headers">カスタムヘッダー</string>
     <string name="relay_advanced_query_params">カスタム Query パラメータ</string>
     <string name="relay_advanced_reasoning_effort">推論の度合い</string>
-    <string name="relay_advanced_service_tier">サービス層</string>
+    <string name="relay_advanced_service_tier">サービスティア</string>
     <string name="relay_advanced_stream">ストリーミング</string>
     <string name="relay_advanced_disable_response_storage">応答ストレージを無効にする</string>
     <string name="relay_reasoning_automatic">自動</string>
@@ -799,7 +797,7 @@
     <string name="relay_auth_query_key">Query パラメータキー</string>
     <string name="provider_disclosure_title">%1$s を使用しようとしています</string>
     <string name="provider_disclosure_body_default">メッセージは %1$s に送信され、応答が生成されます。 Oriveo は、メッセージや API キーをサーバーに保存しません。</string>
-    <string name="provider_disclosure_body_relay">メッセージは、構成したカスタム リクエスト URLに送信されます。 Oriveo は、サードパーティのリクエスト URLのプライバシー慣行を検証できません。</string>
+    <string name="provider_disclosure_body_relay">メッセージは、設定したモデルサービスに送信されます。Oriveo はそのサービスのプライバシー対応を確認できません。</string>
     <string name="provider_disclosure_view_policy">%1$s プライバシー ポリシーを見る</string>
     <string name="provider_disclosure_continue">続く</string>
     <string name="provider_disclosure_cancel">キャンセル</string>
@@ -813,9 +811,9 @@
     <string name="relay_profile_unset">未選択</string>
     <string name="relay_kind_picker_title">プロトコルの種類を選択</string>
     <string name="relay_kind_openai_compatible">OpenAI 互換</string>
-    <string name="relay_kind_openai_compatible_subtitle">OpenAI 互換 カスタム LLM とセルフホストのゲートウェイ向けです。</string>
+    <string name="relay_kind_openai_compatible_subtitle">OpenAI 互換のカスタム LLM とセルフホストのゲートウェイ向けです。</string>
     <string name="relay_kind_codex_style">OpenAI Responses 互換</string>
-    <string name="relay_kind_codex_style_subtitle">Responses API が必要な カスタム LLM 向けです。</string>
+    <string name="relay_kind_codex_style_subtitle">Responses API が必要なカスタム LLM 向けです。</string>
     <string name="relay_kind_anthropic_compatible">Anthropic 互換</string>
     <string name="relay_kind_anthropic_compatible_subtitle">Claude 互換の カスタム LLM リクエスト URL向けです。</string>
     <string name="relay_kind_gemini_compatible">Gemini 互換</string>
@@ -981,7 +979,7 @@
     <string name="capability_video">動画</string>
     <string name="message_failed_body">リクエストが正常に完了しませんでした。今すぐ再試行するか、最後のユーザーメッセージを編集してから再送信してください。</string>
     <string name="citations_section_title">出典</string>
-    <string name="citations_view_all">%1$d 件の引用をすべて表示</string>
+    <string name="citations_view_all">%1$d件の出典をすべて表示</string>
     <string name="citations_collapse">折りたたむ</string>
     <string name="delete_conversation_title">この会話を削除しますか？</string>
     <string name="provider_detail_removed_model">%s を削除しました</string>
@@ -990,18 +988,17 @@
     <string name="api_endpoint">API エンドポイント</string>
     <string name="api_endpoint_not_configured">未設定</string>
     <string name="error_relay_upstream_title">カスタム LLM エラー (%1$d)</string>
-    <string name="relay_guidance_codex_identity_switch_type">このカスタム LLM には Codex クライアント ID が必要です。プロバイダー → この接続 → 接続設定 → プロトコルタイプを開き、「Codex（Responses）」に切り替えてから再試行してください。</string>
-    <string name="relay_guidance_codex_identity_enable_compat">このカスタム LLM には Codex クライアント ID が必要です。プロバイダー → この接続 → 接続設定 → 互換性を開き、「Codex 互換 ID」をオンにしてから再試行してください。</string>
-    <string name="relay_guidance_codex_identity_still_rejected">このカスタム LLM は Oriveo の Codex クライアント ID を引き続き拒否しています。プロバイダー → この接続 → 接続設定 → 高度な HTTP を開き、カスタム User-Agent または Header を設定するか、別のカスタム LLM に切り替えてください。</string>
-    <string name="relay_guidance_responses_only_endpoint">このカスタム LLM は /v1/responses のみを公開し、/chat/completions を拒否します。プロバイダー → この接続 → 接続設定 → プロトコルタイプを開き、「Codex（Responses）」に切り替えてから再試行してください。</string>
+    <string name="relay_guidance_codex_identity_switch_type">このカスタム LLM には Codex クライアントとしての識別情報が必要です。プロバイダー → この接続 → 接続設定 → プロトコルの種類を開き、「OpenAI Responses 互換」に切り替えてから再試行してください。</string>
+    <string name="relay_guidance_codex_identity_still_rejected">このカスタム LLM は Oriveo の Codex クライアント識別を引き続き拒否しています。プロバイダー → この接続 → 接続設定 → 高度な HTTP 設定を開き、カスタム User-Agent または Header を設定するか、別のカスタム LLM に切り替えてください。</string>
+    <string name="relay_guidance_responses_only_endpoint">このカスタム LLM は /v1/responses のみを公開し、/chat/completions を拒否します。プロバイダー → この接続 → 接続設定 → プロトコルの種類を開き、「OpenAI Responses 互換」に切り替えてから再試行してください。</string>
     <string name="relay_guidance_upstream_unreachable">このカスタム LLM は上流プロバイダーに接続できませんでした。設定の問題ではありません。別のカスタム LLM に切り替えるか、そのサービスプロバイダーにお問い合わせください。</string>
     <string name="relay_guidance_model_not_offered">このカスタム LLM ではこのモデルを利用できません。プロバイダー → この接続 → 接続設定 → モデルを開き、対応しているモデル ID を選択してください。</string>
-    <string name="relay_guidance_responses_protocol_required">このカスタム LLM には OpenAI Responses プロトコルが必要です。プロバイダー → この接続 → 接続設定 → プロトコルタイプを開き、「Codex（Responses）」に切り替えてから再試行してください。</string>
-    <string name="relay_guidance_store_param_rejected">このカスタム LLM は store/disable_response_storage フィールドを受け付けません。プロバイダー → この接続 → 接続設定 → 互換性を開き、「クラウドに応答を保存しない」をオフにしてから再試行してください。</string>
-    <string name="relay_guidance_service_tier_invalid">このカスタム LLM は現在の OpenAI service tier 値を受け付けません。プロバイダー → この接続 → 接続設定 → 互換性を開き、「OpenAI service tier」を空にしてから再試行してください。</string>
+    <string name="relay_guidance_responses_protocol_required">このカスタム LLM には OpenAI Responses プロトコルが必要です。プロバイダー → この接続 → 接続設定 → プロトコルの種類を開き、「OpenAI Responses 互換」に切り替えてから再試行してください。</string>
+    <string name="relay_guidance_store_param_rejected">このカスタム LLM は store/disable_response_storage フィールドを受け付けません。プロバイダー → この接続 → 接続設定 → 互換性を開き、「クラウドにレスポンスを保存しない」をオフにしてから再試行してください。</string>
+    <string name="relay_guidance_service_tier_invalid">このカスタム LLM は現在のサービスティアの値を受け付けません。プロバイダー → この接続 → 接続設定 → 互換性を開き、「サービスティア」を空にしてから再試行してください。</string>
     <string name="relay_guidance_max_tokens_required">このカスタム LLM には max_tokens パラメーターが必要です。「詳細設定」を開いて max_tokens の値を設定し、再試行してください。</string>
     <string name="relay_guidance_anthropic_auth_header">このカスタム LLM には Anthropic 形式の x-api-key ヘッダーが必要です。プロバイダー → この接続 → 接続設定 → 認証を開き、「x-api-key」に切り替えてから再試行してください。</string>
-    <string name="relay_guidance_image_schema_mismatch">画像添付の形式がこのカスタム LLM のプロトコルと一致しません。プロバイダー → この接続 → 接続設定 → プロトコルタイプを開き、モデルに合うプロトコルを選択してから再試行してください。</string>
+    <string name="relay_guidance_image_schema_mismatch">画像添付の形式がこのカスタム LLM のプロトコルと一致しません。プロバイダー → この接続 → 接続設定 → プロトコルの種類を開き、モデルに合うプロトコルを選択してから再試行してください。</string>
     <string name="relay_guidance_rate_limited">このカスタム LLM はレート制限中です。しばらく待つか、リクエスト数を減らすか、別のキーまたはカスタム LLM に切り替えてください。</string>
     <string name="catalog_state_offline_title">公式モデルを読み込めません</string>
     <string name="catalog_state_offline_subtitle">公式カタログを読み込むには Oriveo に接続してください。</string>
@@ -1223,9 +1220,9 @@
     <string name="generation_group_budget">出力上限</string>
     <string name="generation_group_reasoning">推論</string>
     <string name="generation_group_sampling">サンプリング</string>
-    <string name="generation_group_repetition">反復制御</string>
+    <string name="generation_group_repetition">繰り返しの制御</string>
     <string name="generation_group_reproducibility">再現性</string>
-    <string name="generation_group_output_contract">出力契約</string>
+    <string name="generation_group_output_contract">出力形式</string>
     <string name="generation_group_engine_runtime">エンジン実行環境</string>
     <string name="generation_parameter_clear_learned_capabilities">学習済みの機能をクリア</string>
     <string name="generation_parameter_json_schema_label">JSON Schema</string>
@@ -1295,7 +1292,7 @@
     <string name="generation_parameter_supported_models_empty">この接続には、このパラメータを受け付けるモデルがありません。</string>
     <string name="generation_parameter_detail_accepted_unverified">この値はそのままプロバイダーに送信されますが、実際に効くかは検証していません。</string>
     <string name="generation_parameter_detail_fixed">モデル側で固定されており、変更しても反映されません。</string>
-    <string name="generation_parameter_detail_unsupported">このモデルはこのパラメーターを受け付けず、送信すると拒否されます。</string>
+    <string name="generation_parameter_detail_unsupported">このモデルはこのパラメータを受け付けず、送信すると拒否されます。</string>
     <string name="generation_parameter_detail_mode_dependent">現在の思考段階に依存し、段階を切り替えると変わることがあります。</string>
     <string name="generation_parameter_detail_unknown">このパラメーターに関する公式資料はまだありません。</string>
     <string name="generation_parameter_detail_future_supported">プロバイダーが公表していますが、まだ利用できません。</string>
@@ -1326,33 +1323,33 @@
     <string name="model_control_context_unavailable">接続またはモデルの準備ができていないため、これらの設定は読み取り専用です。接続とモデルを選択してください。</string>
     <string name="model_control_choose_connection">接続を選択</string>
     <string name="model_control_choose_other_model">別のモデルを選択</string>
-    <string name="generation_parameter_name_top_p">Top P（パラメータ）</string>
-    <string name="generation_parameter_name_top_k">Top K（パラメータ）</string>
-    <string name="generation_parameter_name_min_p">Min P（パラメータ）</string>
-    <string name="generation_parameter_name_typical_p">Typical P（パラメータ）</string>
-    <string name="generation_parameter_name_dry_allowed_length">DRY allowed length（パラメータ）</string>
-    <string name="generation_parameter_name_dry_base">DRY base（パラメータ）</string>
-    <string name="generation_parameter_name_dry_multiplier">DRY multiplier（パラメータ）</string>
-    <string name="generation_parameter_name_dry_penalty_last_n">DRY penalty window（パラメータ）</string>
-    <string name="generation_parameter_name_dry_sequence_breakers">DRY sequence breakers（パラメータ）</string>
-    <string name="generation_parameter_name_dynatemp_exponent">Dynamic temperature exponent（パラメータ）</string>
-    <string name="generation_parameter_name_dynatemp_range">Dynamic temperature range（パラメータ）</string>
-    <string name="generation_parameter_name_ignore_eos">Ignore EOS（パラメータ）</string>
-    <string name="generation_parameter_name_llamacpp_native">llama.cpp native mode（パラメータ）</string>
-    <string name="generation_parameter_name_min_keep">Minimum tokens to keep（パラメータ）</string>
-    <string name="generation_parameter_name_mirostat">Mirostat（パラメータ）</string>
-    <string name="generation_parameter_name_mirostat_eta">Mirostat eta（パラメータ）</string>
-    <string name="generation_parameter_name_mirostat_tau">Mirostat tau（パラメータ）</string>
-    <string name="generation_parameter_name_n_indent">Indentation tokens（パラメータ）</string>
-    <string name="generation_parameter_name_n_keep">Tokens to keep（パラメータ）</string>
-    <string name="generation_parameter_name_n_probabilities">Token probabilities（パラメータ）</string>
-    <string name="generation_parameter_name_post_sampling_probabilities">Post-sampling probabilities（パラメータ）</string>
-    <string name="generation_parameter_name_repeat_last_n">Repeat penalty window（パラメータ）</string>
-    <string name="generation_parameter_name_samplers">Samplers（パラメータ）</string>
-    <string name="generation_parameter_name_max_predict_time">Maximum prediction time（パラメータ）</string>
-    <string name="generation_parameter_name_top_n_sigma">Top-N Sigma（パラメータ）</string>
-    <string name="generation_parameter_name_xtc_probability">XTC probability（パラメータ）</string>
-    <string name="generation_parameter_name_xtc_threshold">XTC threshold（パラメータ）</string>
+    <string name="generation_parameter_name_top_p">Top P</string>
+    <string name="generation_parameter_name_top_k">Top K</string>
+    <string name="generation_parameter_name_min_p">Min P</string>
+    <string name="generation_parameter_name_typical_p">Typical P</string>
+    <string name="generation_parameter_name_dry_allowed_length">DRY 許容長</string>
+    <string name="generation_parameter_name_dry_base">DRY 基数</string>
+    <string name="generation_parameter_name_dry_multiplier">DRY 乗数</string>
+    <string name="generation_parameter_name_dry_penalty_last_n">DRY ペナルティ範囲</string>
+    <string name="generation_parameter_name_dry_sequence_breakers">DRY シーケンス区切り</string>
+    <string name="generation_parameter_name_dynatemp_exponent">動的温度の指数</string>
+    <string name="generation_parameter_name_dynatemp_range">動的温度の範囲</string>
+    <string name="generation_parameter_name_ignore_eos">EOS を無視</string>
+    <string name="generation_parameter_name_llamacpp_native">llama.cpp ネイティブモード</string>
+    <string name="generation_parameter_name_min_keep">最小保持トークン数</string>
+    <string name="generation_parameter_name_mirostat">Mirostat</string>
+    <string name="generation_parameter_name_mirostat_eta">Mirostat eta</string>
+    <string name="generation_parameter_name_mirostat_tau">Mirostat tau</string>
+    <string name="generation_parameter_name_n_indent">最小インデント</string>
+    <string name="generation_parameter_name_n_keep">保持トークン数</string>
+    <string name="generation_parameter_name_n_probabilities">トークン確率</string>
+    <string name="generation_parameter_name_post_sampling_probabilities">サンプリング後の確率</string>
+    <string name="generation_parameter_name_repeat_last_n">繰り返しペナルティ範囲</string>
+    <string name="generation_parameter_name_samplers">サンプラー</string>
+    <string name="generation_parameter_name_max_predict_time">最大生成時間</string>
+    <string name="generation_parameter_name_top_n_sigma">Top-N Sigma</string>
+    <string name="generation_parameter_name_xtc_probability">XTC 確率</string>
+    <string name="generation_parameter_name_xtc_threshold">XTC しきい値</string>
     <!-- Model controls UX redefinition (2026-08-16 owner ruling): panel wording,
          status rows, thinking level notes, managed banner, scope upgrade, developer group. -->
     <string name="model_control_web_search">ウェブ検索</string>
@@ -1376,8 +1373,8 @@
     <string name="model_control_model_default_saved">このモデルの新しい会話にはこれらの設定が使われます。</string>
     <string name="model_control_go_to_advanced_settings">詳細設定へ</string>
     <string name="model_control_custom_field_not_allowed">このフィールドは使用できません。このモデルで使用可能：%1$s</string>
-    <string name="model_control_custom_fields_footer">フィールドは書いたとおりリクエストに追加されます。プロバイダが公式に宣言したフィールドのみ対応し、誤りはリクエスト失敗の原因になります。下書きはこの端末にのみ保存されます。</string>
-    <string name="model_control_custom_scope_conversation">この端末の、この会話、接続、モデル、転送方式にだけ適用されます。同期、ログ、テレメトリー、サポート診断には送られません。プロバイダーの料金やデータ処理に影響することがあります。</string>
+    <string name="model_control_custom_fields_footer">フィールドは書いたとおりリクエストに追加されます。プロバイダーが公式に宣言したフィールドのみ対応し、誤りはリクエスト失敗の原因になります。下書きはこの端末にのみ保存されます。</string>
+    <string name="model_control_custom_scope_conversation">適用範囲：この会話、接続、モデル、転送方式。</string>
     <string name="model_control_custom_scope_connection_model">適用範囲：この接続のこのモデル。その会話の既定として使われます。</string>
     <string name="model_control_custom_delete_conversation">この会話・接続・モデル・トランスポートにおける %1$s のカスタムフィールドを削除します。取り消せません。</string>
     <string name="model_control_custom_delete_connection">この接続・モデル・トランスポートにおける %1$s のカスタムフィールドを削除します。取り消せません。</string>
@@ -1389,10 +1386,10 @@
     <string name="generation_parameter_developer">開発者</string>
     <string name="generation_parameter_custom_fields_not_in_use">未使用</string>
     <string name="generation_parameter_custom_fields_in_use">使用中</string>
-    <string name="generation_parameter_custom_fields_requires_schema">カスタムリクエストフィールドは、プロバイダが公式にフィールド構造を宣言したモデルでのみ利用できます。</string>
+    <string name="generation_parameter_custom_fields_requires_schema">カスタムリクエストフィールドは、プロバイダーが公式にフィールド構造を宣言したモデルでのみ利用できます。</string>
     <string name="generation_parameter_temperature_note">高いほど独創的に、低いほど安定します。</string>
     <string name="generation_parameter_max_tokens_note">1 回の返信の長さの上限です。</string>
-    <string name="generation_parameter_unset_note">未設定のパラメータはリクエストに含まれず、プロバイダがモデルの既定値で処理します。</string>
+    <string name="generation_parameter_unset_note">未設定のパラメータはリクエストに含まれず、プロバイダーがモデルの既定値で処理します。</string>
     <!-- A1 model controls panel rebuild (2026-08-16): ported verbatim from the iOS golden standard. -->
     <string name="model_control_capability_unavailable_here">この接続ではこの機能を利用できません。</string>
     <string name="model_control_upstream_rejected">プロバイダーがこのモデルの設定を拒否しました。この設定を外して再送信するか、別のモデルを選んでください。</string>
@@ -1447,7 +1444,7 @@
     </plurals>
     <string name="secure_field_show">入力内容を表示</string>
     <string name="secure_field_hide">入力内容を非表示</string>
-    <string name="generation_parameter_name_stop">停止文字列</string>
+    <string name="generation_parameter_name_stop">停止シーケンス</string>
     <string name="generation_diagnostics_section">生成設定の診断</string>
     <string name="generation_diagnostics_empty">診断記録はまだありません</string>
 </resources>
