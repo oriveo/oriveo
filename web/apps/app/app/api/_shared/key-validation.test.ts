@@ -105,6 +105,21 @@ describe("buildProbeURL", () => {
     ).toBe("https://generativelanguage.googleapis.com/v1beta/models?key=secret");
   });
 
+  it("Gemini chatAuthMode: the probe keeps the key out of the query and sends x-goog-api-key", () => {
+    expect(
+      buildProbeURL(
+        "https://generativelanguage.googleapis.com/v1beta",
+        "/v1beta/models",
+        "query_key",
+        "secret",
+        "x_goog_api_key",
+      ),
+    ).toBe("https://generativelanguage.googleapis.com/v1beta/models");
+    const headers = buildAuthHeaders("query_key", "none", "secret", "x_goog_api_key");
+    expect(headers["x-goog-api-key"]).toBe("secret");
+    expect(headers.Authorization).toBeUndefined();
+  });
+
   it("a bare host base plus a versioned probePath: nothing to deduplicate (empty basePath)", () => {
     expect(buildProbeURL("https://api.anthropic.com", "/v1/models", "x_api_key", "sk")).toBe(
       "https://api.anthropic.com/v1/models",

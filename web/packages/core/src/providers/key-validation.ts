@@ -22,8 +22,13 @@ export interface ProviderValidationContract {
   probe?: string;
   /** Probe path, relative to the resolved baseURL (for example `/models` or `/key`). */
   probePath?: string;
-  /** Auth mode: `bearer` / `x_api_key` / `query_key`. */
+  /** Auth mode: `bearer` / `x_api_key` / `query_key`. The probe still reads this field. */
   authMode?: "bearer" | "x_api_key" | "query_key";
+  /**
+   * Auth used for chat requests. Gemini sends `x_goog_api_key`.
+   * When present, the probe sends the key in that header instead of the URL; otherwise authMode applies.
+   */
+  chatAuthMode?: "x_goog_api_key";
   /** Header profile: `none` / `anthropic_v2023_06_01` / `openrouter`. */
   headerProfile?: "none" | "anthropic_v2023_06_01" | "openrouter";
   /** Signals that prove a key is invalid; matching any one of them yields invalid. */
@@ -105,12 +110,13 @@ export async function probeProviderKey(input: {
   const probePath = sanitizePath(input.validation?.probePath) ?? DEFAULT_PROBE_PATH;
   const authMode = input.validation?.authMode ?? DEFAULT_AUTH_MODE;
   const headerProfile = input.validation?.headerProfile ?? "none";
+  const chatAuthMode = input.validation?.chatAuthMode;
   const signals = input.validation?.invalidKeySignals?.length
     ? input.validation.invalidKeySignals
     : DEFAULT_SIGNALS;
 
-  const url = buildProbeURL(input.baseURL, probePath, authMode, input.apiKey);
-  const headers = buildAuthHeaders(authMode, headerProfile, input.apiKey);
+  const url = buildProbeURL(input.baseURL, probePath, authMode, input.apiKey, chatAuthMode);
+  const headers = buildAuthHeaders(authMode, headerProfile, input.apiKey, chatAuthMode);
   const timeoutMs =
     typeof input.timeoutMs === "number" && Number.isFinite(input.timeoutMs) && input.timeoutMs > 0
       ? input.timeoutMs
@@ -148,12 +154,14 @@ export function buildProbeURL(
   probePath: string,
   authMode: NonNullable<ProviderValidationContract["authMode"]>,
   apiKey: string,
+  chatAuthMode?: ProviderValidationContract["chatAuthMode"],
 ): string {
   const normalizedBase = baseURL.replace(/\/+$/, "");
   const normalizedPath = probePath.startsWith("/") ? probePath : `/${probePath}`;
   const effectivePath = dedupeVersionPrefix(normalizedBase, normalizedPath);
   const joined = `${normalizedBase}${effectivePath}`;
-  if (authMode !== "query_key") return joined;
+  // chatAuthMode wins: Gemini chat already sends the key in a header, so the probe keeps it out of the query.
+  if (authMode !== "query_key" || chatAuthMode === "x_goog_api_key") return joined;
 
   const url = new URL(joined);
   url.searchParams.append("key", apiKey);
@@ -194,22 +202,27 @@ export function buildAuthHeaders(
   authMode: NonNullable<ProviderValidationContract["authMode"]>,
   headerProfile: NonNullable<ProviderValidationContract["headerProfile"]>,
   apiKey: string,
+  chatAuthMode?: ProviderValidationContract["chatAuthMode"],
 ): Record<string, string> {
   const headers: Record<string, string> = {
     Accept: "application/json",
     "User-Agent": USER_AGENT,
   };
 
-  switch (authMode) {
-    case "bearer":
-      headers.Authorization = `Bearer ${apiKey}`;
-      break;
-    case "x_api_key":
-      headers["x-api-key"] = apiKey;
-      break;
-    case "query_key":
-      // The key already rides on the URL query (see buildProbeURL), so no auth header is added.
-      break;
+  if (chatAuthMode === "x_goog_api_key") {
+    headers["x-goog-api-key"] = apiKey;
+  } else {
+    switch (authMode) {
+      case "bearer":
+        headers.Authorization = `Bearer ${apiKey}`;
+        break;
+      case "x_api_key":
+        headers["x-api-key"] = apiKey;
+        break;
+      case "query_key":
+        // The key already rides on the URL query (see buildProbeURL), so no auth header is added.
+        break;
+    }
   }
 
   switch (headerProfile) {
