@@ -1322,7 +1322,10 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
                 request, effectiveTransport: .llamacppNative
             )
         } catch let error as RelayHTTPStatusError {
-            throw mapHTTPError(statusCode: error.statusCode, data: error.data, isRelay: true)
+            throw mapHTTPError(
+                statusCode: error.statusCode, data: error.data, isRelay: true,
+                relayTransport: error.effectiveTransport
+            )
         }
         let text = try llamaCppContent(from: data).trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { throw ProviderServiceError.emptyResponse }
@@ -1367,7 +1370,10 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
                     )))
                     continuation.finish()
                 } catch let error as RelayHTTPStatusError {
-                    continuation.finish(throwing: self.mapHTTPError(statusCode: error.statusCode, data: error.data, isRelay: true))
+                    continuation.finish(throwing: self.mapHTTPError(
+                        statusCode: error.statusCode, data: error.data, isRelay: true,
+                        relayTransport: error.effectiveTransport
+                    ))
                 } catch {
                     continuation.finish(throwing: error)
                 }
@@ -1828,7 +1834,9 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
         )
 
         let (data, response) = try await session.relayData(for: request)
-        try requireSuccessfulRelayPing(data: data, response: response, request: request)
+        try requireSuccessfulRelayPing(
+            data: data, response: response, request: request, transport: .openaiChatCompletions
+        )
         return "POST /chat/completions"
     }
 
@@ -1852,7 +1860,9 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
             nPredictOverride: 1
         )
         let (data, response) = try await session.relayData(for: request)
-        try requireSuccessfulRelayPing(data: data, response: response, request: request)
+        try requireSuccessfulRelayPing(
+            data: data, response: response, request: request, transport: .llamacppNative
+        )
         return "POST /completion"
     }
 
@@ -1903,7 +1913,9 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
         request.httpBody = try JSONEncoder().encode(payload)
 
         let (data, response) = try await session.relayData(for: request)
-        try requireSuccessfulRelayPing(data: data, response: response, request: request)
+        try requireSuccessfulRelayPing(
+            data: data, response: response, request: request, transport: .openaiResponses
+        )
         return "POST /responses"
     }
 
@@ -1951,7 +1963,9 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
         let (data, response) = try await session.relayData(for: request)
-        try requireSuccessfulRelayPing(data: data, response: response, request: request)
+        try requireSuccessfulRelayPing(
+            data: data, response: response, request: request, transport: .anthropicMessages
+        )
         return "POST /v1/messages"
     }
 
@@ -1997,20 +2011,26 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
 
         let (data, response) = try await session.relayData(for: request)
-        try requireSuccessfulRelayPing(data: data, response: response, request: request)
+        try requireSuccessfulRelayPing(
+            data: data, response: response, request: request, transport: .geminiGenerateContent
+        )
         return "POST :generateContent"
     }
 
     private func requireSuccessfulRelayPing(
         data: Data,
         response: URLResponse,
-        request: URLRequest
+        request: URLRequest,
+        transport: RelayTransport
     ) throws {
         guard let http = response as? HTTPURLResponse else {
             throw ProviderServiceError.network(detail: "No HTTP response")
         }
         guard (200..<300).contains(http.statusCode) else {
-            throw mapHTTPError(statusCode: http.statusCode, data: data, url: request.url, request: request, isRelay: true)
+            throw mapHTTPError(
+                statusCode: http.statusCode, data: data, url: request.url, request: request,
+                isRelay: true, relayTransport: transport
+            )
         }
         guard RelaySuccessResponsePolicy.acceptsGenerationResponse(data: data, response: http) else {
             throw ProviderServiceError.upstream(
@@ -2470,7 +2490,10 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
                 requestBuilder(nil), effectiveTransport: .openaiChatCompletions
             )
         } catch let error as RelayHTTPStatusError {
-            throw mapHTTPError(statusCode: error.statusCode, data: error.data, isRelay: true)
+            throw mapHTTPError(
+                statusCode: error.statusCode, data: error.data, isRelay: true,
+                relayTransport: error.effectiveTransport
+            )
         }
     }
 
@@ -2485,7 +2508,10 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
                 try requestBuilder(firstHints), effectiveTransport: .openaiResponses
             )
         } catch let error as RelayHTTPStatusError {
-            throw mapHTTPError(statusCode: error.statusCode, data: error.data, isRelay: true)
+            throw mapHTTPError(
+                statusCode: error.statusCode, data: error.data, isRelay: true,
+                relayTransport: error.effectiveTransport
+            )
         }
     }
 
@@ -2499,7 +2525,10 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
                 requestBuilder(nil), effectiveTransport: .openaiChatCompletions
             )
         } catch let error as RelayHTTPStatusError {
-            throw mapHTTPError(statusCode: error.statusCode, data: error.data, isRelay: true)
+            throw mapHTTPError(
+                statusCode: error.statusCode, data: error.data, isRelay: true,
+                relayTransport: error.effectiveTransport
+            )
         }
     }
 
@@ -2514,13 +2543,18 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
                 try requestBuilder(firstHints), effectiveTransport: .openaiResponses
             )
         } catch let error as RelayHTTPStatusError {
-            throw mapHTTPError(statusCode: error.statusCode, data: error.data, isRelay: true)
+            throw mapHTTPError(
+                statusCode: error.statusCode, data: error.data, isRelay: true,
+                relayTransport: error.effectiveTransport
+            )
         }
     }
 
     private struct RelayHTTPStatusError: Error {
         let statusCode: Int
         let data: Data
+        /// The protocol this request actually used, so error mapping can tell the two Codex identity 403 causes apart.
+        let effectiveTransport: RelayTransport
     }
 
     private func performRelayRawRequest(
@@ -2583,7 +2617,8 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
                     for try await byte in bytes { errorData.append(byte) }
                     let mapped = mapHTTPError(
                         statusCode: http.statusCode, data: errorData,
-                        url: originalRequest.url, request: originalRequest, isRelay: true
+                        url: originalRequest.url, request: originalRequest, isRelay: true,
+                        relayTransport: effectiveTransport
                     )
                     recordCapabilityUpstreamRejection(
                         mappedError: mapped, errorData: errorData,
@@ -2591,7 +2626,9 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
                         request: originalRequest, effectiveTransport: effectiveTransport.rawValue,
                         relayEngineProfile: nil, relayDeclaredProfile: nil
                     )
-                    throw RelayHTTPStatusError(statusCode: http.statusCode, data: errorData)
+                    throw RelayHTTPStatusError(
+                        statusCode: http.statusCode, data: errorData, effectiveTransport: effectiveTransport
+                    )
                 }
                 return RelaySelfHealResult(bytes: bytes, response: http)
             } catch let error as ProviderServiceError {
@@ -2611,7 +2648,8 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
             guard (200 ..< 300).contains(http.statusCode) else {
                 let mapped = mapHTTPError(
                     statusCode: http.statusCode, data: data,
-                    url: originalRequest.url, request: originalRequest, isRelay: true
+                    url: originalRequest.url, request: originalRequest, isRelay: true,
+                    relayTransport: effectiveTransport
                 )
                 recordCapabilityUpstreamRejection(
                     mappedError: mapped, errorData: data,
@@ -2619,7 +2657,9 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
                     request: originalRequest, effectiveTransport: effectiveTransport.rawValue,
                     relayEngineProfile: nil, relayDeclaredProfile: nil
                 )
-                throw RelayHTTPStatusError(statusCode: http.statusCode, data: data)
+                throw RelayHTTPStatusError(
+                    statusCode: http.statusCode, data: data, effectiveTransport: effectiveTransport
+                )
             }
             return RelaySelfHealResult(data: data, response: http)
         } catch let error as ProviderServiceError {

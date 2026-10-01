@@ -754,14 +754,18 @@ final class GeminiService: BaseAPIService, ProviderServiceProtocol {
         url: URL? = nil,
         request: URLRequest? = nil,
         subscriptionLane: SubscriptionLane? = nil,
-        isRelay: Bool = false
+        isRelay: Bool = false,
+        relayTransport: RelayTransport? = nil
     ) -> ProviderServiceError {
         let detail = decodeErrorMessage(from: data, request: request)
             ?? HTTPURLResponse.localizedString(forStatusCode: statusCode)
         if statusCode == 400, detail.lowercased().contains("api key") {
             return .invalidAPIKey(detail: detail)
         }
-        return super.mapHTTPError(statusCode: statusCode, data: data, url: url, request: request, isRelay: isRelay)
+        return super.mapHTTPError(
+            statusCode: statusCode, data: data, url: url, request: request,
+            isRelay: isRelay, relayTransport: relayTransport
+        )
     }
 
 

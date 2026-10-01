@@ -492,7 +492,11 @@ class BaseAPIService {
         url: URL? = nil,
         request: URLRequest? = nil,
         subscriptionLane: SubscriptionLane? = nil,
-        isRelay: Bool = false
+        isRelay: Bool = false,
+        /// The protocol this relay request actually used; `nil` when the call site does not know
+        /// (catalog sync, image endpoints). Only used to tell a Codex identity 403 that was never
+        /// sent apart from one that was sent and still rejected.
+        relayTransport: RelayTransport? = nil
     ) -> ProviderServiceError {
         let upstreamSnippet = decodeErrorMessage(from: data, request: request)
         let detail = upstreamSnippet
@@ -507,7 +511,8 @@ class BaseAPIService {
         // `{"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key"}}`
         if isRelay,
            let relayGuidance = Self.relayGuidanceFailure(
-               statusCode: statusCode, data: data, url: url, upstreamSnippet: upstreamSnippet
+               statusCode: statusCode, data: data, url: url, upstreamSnippet: upstreamSnippet,
+               relayTransport: relayTransport
            ) {
             return relayGuidance
         }
@@ -607,13 +612,28 @@ class BaseAPIService {
         statusCode: Int,
         data: Data,
         url: URL?,
-        upstreamSnippet: String?
+        upstreamSnippet: String?,
+        relayTransport: RelayTransport?
     ) -> ProviderServiceError? {
         let urlPath = url?.path ?? ""
 
+        // Codex client identity 403 has two causes:
+        // - the request did not use the Responses protocol: Oriveo only sends the Codex identity on
+        //   Responses, so it was never sent -> point to the protocol type;
+        // - it did use Responses (or the call site does not know): the identity was sent and still
+        //   rejected -> point to a custom User-Agent / header under Advanced HTTP.
         if statusCode == 403,
            let body = String(data: data, encoding: .utf8),
            Self.isCodexClientIdentityRejection(body) {
+            if let relayTransport, relayTransport != .openaiResponses {
+                return .upstream(
+                    statusCode: 403,
+                    detail: Self.relayGuidanceDetail(
+                        L10n.tr("This relay requires Codex client identity. Open Providers → this Relay → Edit → Relay type and switch to “Codex style (Responses)”, then retry.", table: .providers),
+                        upstreamSnippet: upstreamSnippet
+                    )
+                )
+            }
             return .upstream(
                 statusCode: 403,
                 detail: Self.relayGuidanceDetail(

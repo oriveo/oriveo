@@ -28,8 +28,38 @@ struct BaseAPIServiceTests {
             return
         }
         #expect(statusCode == 400)
-        #expect(detail.localizedCaseInsensitiveContains("Responses"))
-        #expect(detail.localizedCaseInsensitiveContains("Codex"))
+        // The quoted option must be the real name on the protocol type page.
+        #expect(detail.contains(L10n.tr("OpenAI Responses compatible", table: .providers)))
+    }
+
+    // Codex identity 403: a non-Responses protocol points to the protocol type; Responses, or a call
+    // site that does not know the protocol, points to Advanced HTTP.
+    @Test(
+        "mapHTTPError: a Codex identity 403 splits by relayTransport",
+        arguments: [
+            (RelayTransport?.some(.openaiChatCompletions), true),
+            (RelayTransport?.some(.anthropicMessages), true),
+            (RelayTransport?.some(.openaiResponses), false),
+            (RelayTransport?.none, false),
+        ]
+    )
+    func mapHTTPErrorSplitsCodexIdentity403ByTransport(transport: RelayTransport?, expectsSwitchType: Bool) {
+        let service = BaseAPIService()
+        let body = #"{"error":{"message":"Only Codex official clients are allowed"}}"#
+
+        let error = service.mapHTTPError(
+            statusCode: 403, data: Data(body.utf8), isRelay: true, relayTransport: transport
+        )
+
+        guard case let .upstream(statusCode, detail) = error else {
+            Issue.record("expected .upstream, got \(error)")
+            return
+        }
+        #expect(statusCode == 403)
+        let switchLabel = L10n.tr("OpenAI Responses compatible", table: .providers)
+        let advancedHTTP = L10n.tr("Advanced HTTP", table: .providers)
+        #expect(detail.contains(switchLabel) == expectsSwitchType, "actual: \(detail)")
+        #expect(detail.contains(advancedHTTP) == !expectsSwitchType, "actual: \(detail)")
     }
 
     @Test("mapStreamError: production Nvidia overloaded → rateLimited")

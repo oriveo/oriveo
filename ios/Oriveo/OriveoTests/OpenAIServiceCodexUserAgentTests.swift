@@ -789,6 +789,115 @@ struct OpenAIServiceCodexUserAgentTests {
         }
     }
 
+    // MARK: - Codex identity 403 split by the protocol the request actually used
+
+    private static let codexIdentity403Body =
+        #"{"error":{"message":"This account only allows Codex official clients","type":"forbidden_error"}}"#
+
+    /// Runs the production stream and returns the ProviderServiceError it throws.
+    private func streamFailure(_ stream: AsyncThrowingStream<StreamEvent, Error>) async -> ProviderServiceError? {
+        do {
+            for try await _ in stream {}
+            return nil
+        } catch {
+            return error as? ProviderServiceError
+        }
+    }
+
+    private func expectCodexSwitchTypeGuidance(_ error: ProviderServiceError?) {
+        guard case let .upstream(code, detail)? = error else {
+            Issue.record("expected .upstream 403, got \(String(describing: error))")
+            return
+        }
+        #expect(code == 403)
+        // Off the Responses protocol the Codex identity is never sent: point to the protocol type.
+        #expect(detail.contains(L10n.tr("Relay type", table: .providers)), "actual: \(detail)")
+        #expect(detail.contains(L10n.tr("OpenAI Responses compatible", table: .providers)), "actual: \(detail)")
+        #expect(!detail.contains(L10n.tr("Advanced HTTP", table: .providers)), "actual: \(detail)")
+    }
+
+    private func expectCodexStillRejectedGuidance(_ error: ProviderServiceError?) {
+        guard case let .upstream(code, detail)? = error else {
+            Issue.record("expected .upstream 403, got \(String(describing: error))")
+            return
+        }
+        #expect(code == 403)
+        #expect(detail.contains(L10n.tr("Connection settings", table: .providers)), "actual: \(detail)")
+        #expect(detail.contains(L10n.tr("Advanced HTTP", table: .providers)), "actual: \(detail)")
+        #expect(!detail.contains(L10n.tr("OpenAI Responses compatible", table: .providers)), "actual: \(detail)")
+    }
+
+    @Test("Production stream: a Codex identity 403 on Chat Completions points to the protocol type")
+    func chatCompletionsCodexIdentity403GuidesToProtocolType() async {
+        CapturingProtocol.reset()
+        CapturingProtocol.setResponse(
+            statusCode: 403, contentType: "application/json", body: Data(Self.codexIdentity403Body.utf8)
+        )
+        defer { CapturingProtocol.reset() }
+        let service = OpenAIService(session: makeMockSession())
+        let relay = RelayRequestedConfig(transport: .openaiChatCompletions, authMode: .bearer)
+
+        let error = await streamFailure(service.sendMessageStream(
+            apiKey: "test-key",
+            modelID: "gpt-5.4",
+            messages: [makeMessage("hi")],
+            baseURL: "https://gateway.example.com/v1",
+            reasoningMode: .automatic,
+            requestOptions: ChatRequestOptions(),
+            relayRequested: relay
+        ))
+
+        #expect(CapturingProtocol.snapshot().requests.first?.url?.path.hasSuffix("/chat/completions") == true)
+        expectCodexSwitchTypeGuidance(error)
+    }
+
+    @Test("Production ping: a Codex identity 403 on Chat Completions points to the protocol type")
+    func chatCompletionsPingCodexIdentity403GuidesToProtocolType() async {
+        CapturingProtocol.reset()
+        CapturingProtocol.setResponse(
+            statusCode: 403, contentType: "application/json", body: Data(Self.codexIdentity403Body.utf8)
+        )
+        defer { CapturingProtocol.reset() }
+        let service = OpenAIService(session: makeMockSession())
+        let relay = RelayRequestedConfig(transport: .openaiChatCompletions, authMode: .bearer)
+
+        do {
+            _ = try await service.pingRelay(
+                apiKey: "test-key",
+                baseURL: "https://gateway.example.com/v1",
+                modelID: "gpt-5.4",
+                relayRequested: relay
+            )
+            Issue.record("expected the 403 to fail the ping")
+        } catch {
+            expectCodexSwitchTypeGuidance(error as? ProviderServiceError)
+        }
+    }
+
+    @Test("Production stream: a Responses request that sent the Codex identity and still got a 403 points to Advanced HTTP")
+    func responsesCodexIdentity403GuidesToAdvancedHTTP() async {
+        CapturingProtocol.reset()
+        CapturingProtocol.setResponse(
+            statusCode: 403, contentType: "application/json", body: Data(Self.codexIdentity403Body.utf8)
+        )
+        defer { CapturingProtocol.reset() }
+        let service = OpenAIService(session: makeMockSession())
+        let relay = RelayRequestedConfig(transport: .openaiResponses, authMode: .bearer)
+
+        let error = await streamFailure(service.sendMessageStream(
+            apiKey: "test-key",
+            modelID: "gpt-5.4",
+            messages: [makeMessage("hi")],
+            baseURL: "https://code.example.com/codex",
+            reasoningMode: .automatic,
+            requestOptions: ChatRequestOptions(),
+            relayRequested: relay
+        ))
+
+        #expect(CapturingProtocol.snapshot().requests.first?.url?.path.hasSuffix("/responses") == true)
+        expectCodexStillRejectedGuidance(error)
+    }
+
     @Test(
         "mapHTTPError: 502 upstream_error is recognized → point at switching relays rather than making the user decode technical detail",
         arguments: [
