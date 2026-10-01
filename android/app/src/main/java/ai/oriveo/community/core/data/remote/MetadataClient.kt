@@ -733,6 +733,9 @@ class MetadataClient internal constructor(
 
         val authMode: String? = null,
 
+        /** Auth used for chat requests. Gemini sends `x_goog_api_key`; when present the probe uses that header. */
+        val chatAuthMode: String? = null,
+
         val headerProfile: String? = null,
 
         val invalidKeySignals: List<InvalidKeySignal> = emptyList(),

@@ -133,6 +133,7 @@ object ProviderKeyValidator {
         val probePath = sanitizedPath(validation?.probePath) ?: "/models"
         val authMode = AuthMode.fromRaw(validation?.authMode) ?: AuthMode.Bearer
         val headerProfile = HeaderProfile.fromRaw(validation?.headerProfile) ?: HeaderProfile.None
+        val chatAuthMode = validation?.chatAuthMode
         val signals = validation?.invalidKeySignals?.takeIf { it.isNotEmpty() }
             ?: listOf(MetadataClient.InvalidKeySignal(status = 401))
 
@@ -142,6 +143,7 @@ object ProviderKeyValidator {
             probePath = probePath,
             authMode = authMode,
             apiKey = apiKey,
+            chatAuthMode = chatAuthMode,
         ) ?: return Result.Unverified(UnverifiedReason.InvalidEndpoint)
 
         return try {
@@ -152,7 +154,7 @@ object ProviderKeyValidator {
             withContext(Dispatchers.IO) {
                 withTimeout(TIMEOUT_MS) {
                     val response = client.get(url) {
-                        applyAuthHeaders(authMode, headerProfile, apiKey)
+                        applyAuthHeaders(authMode, headerProfile, apiKey, chatAuthMode)
                     }
                     val body = response.bodyAsText()
                     judge(statusCode = response.status.value, body = body, signals = signals)
@@ -238,6 +240,7 @@ object ProviderKeyValidator {
         probePath: String,
         authMode: AuthMode,
         apiKey: String,
+        chatAuthMode: String? = null,
     ): String? {
         val trimmedBase = baseUrl.trim().takeIf { it.isNotEmpty() } ?: return null
         val normalizedBase = if (trimmedBase.startsWith("http://") || trimmedBase.startsWith("https://")) {
@@ -254,7 +257,8 @@ object ProviderKeyValidator {
         } catch (_: Exception) {
             return null
         }
-        if (authMode == AuthMode.QueryKey) {
+        // chatAuthMode wins: Gemini chat sends the key in a header, so the probe keeps it out of the query.
+        if (authMode == AuthMode.QueryKey && chatAuthMode != "x_goog_api_key") {
             builder.parameters.append("key", apiKey)
         }
         return builder.buildString()
@@ -303,14 +307,19 @@ object ProviderKeyValidator {
         authMode: AuthMode,
         headerProfile: HeaderProfile,
         apiKey: String,
+        chatAuthMode: String? = null,
     ): List<Pair<String, String>> {
         val headers = mutableListOf("Accept" to "application/json")
 
-        when (authMode) {
-            AuthMode.Bearer -> headers += "Authorization" to "Bearer $apiKey"
-            AuthMode.XApiKey -> headers += "x-api-key" to apiKey
-            // The key is already on the URL query (see buildProbeUrl), so no auth header is added.
-            AuthMode.QueryKey -> Unit
+        if (chatAuthMode == "x_goog_api_key") {
+            headers += "x-goog-api-key" to apiKey
+        } else {
+            when (authMode) {
+                AuthMode.Bearer -> headers += "Authorization" to "Bearer $apiKey"
+                AuthMode.XApiKey -> headers += "x-api-key" to apiKey
+                // The key is already on the URL query (see buildProbeUrl), so no auth header is added.
+                AuthMode.QueryKey -> Unit
+            }
         }
 
         when (headerProfile) {
@@ -328,8 +337,9 @@ object ProviderKeyValidator {
         authMode: AuthMode,
         headerProfile: HeaderProfile,
         apiKey: String,
+        chatAuthMode: String? = null,
     ) {
-        authHeaders(authMode, headerProfile, apiKey).forEach { (name, value) ->
+        authHeaders(authMode, headerProfile, apiKey, chatAuthMode).forEach { (name, value) ->
             header(name, value)
         }
     }

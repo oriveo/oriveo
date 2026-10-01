@@ -185,6 +185,25 @@ class ProviderKeyValidatorTest {
     }
 
     @Test
+    fun `chatAuthMode x_goog_api_key keeps the key out of the probe query`() {
+        val url = ProviderKeyValidator.buildProbeUrl(
+            baseUrl = "https://generativelanguage.googleapis.com/v1beta",
+            probePath = "/models",
+            authMode = ProviderKeyValidator.AuthMode.QueryKey,
+            apiKey = "AIza-secret",
+            chatAuthMode = "x_goog_api_key",
+        )
+        assertEquals("https://generativelanguage.googleapis.com/v1beta/models", url)
+        val headers = ProviderKeyValidator.authHeaders(
+            authMode = ProviderKeyValidator.AuthMode.QueryKey,
+            headerProfile = ProviderKeyValidator.HeaderProfile.None,
+            apiKey = "AIza-secret",
+            chatAuthMode = "x_goog_api_key",
+        )
+        assertTrue(headers.contains("x-goog-api-key" to "AIza-secret"))
+    }
+
+    @Test
     fun `bearer and x_api_key leave query alone, openrouter key path joins`() {
         val bearer = ProviderKeyValidator.buildProbeUrl(
             baseUrl = "https://openrouter.ai/api/v1",
