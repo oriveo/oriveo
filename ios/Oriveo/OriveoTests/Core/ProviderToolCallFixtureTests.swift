@@ -116,7 +116,7 @@ private struct CollectedStream {
         case let .delta(chunk): text += chunk
         case let .toolCallDeltas(calls): toolCallEvents.append(calls)
         case let .done(result): done = result
-        case .reasoning, .citations, .imagePart: break
+        case .reasoning, .citations, .imagePart, .activity: break
         }
     }
 }

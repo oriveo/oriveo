@@ -200,6 +200,13 @@ struct ChatMessageList: View, Equatable {
         return appState.streamingReasoningDidChange(in: convID)
     }
 
+    private var streamingActivityPublisher: AnyPublisher<StreamActivityState, Never> {
+        guard let convID = projection.activeConversationID else {
+            return Empty<StreamActivityState, Never>().eraseToAnyPublisher()
+        }
+        return appState.streamingActivityDidChange(in: convID)
+    }
+
     private var messageRows: [ChatCollectionProjectionBuilder.MessageRow] {
         if cachedRowsKey == rowsCacheKey {
             return cachedRows
@@ -285,6 +292,11 @@ struct ChatMessageList: View, Equatable {
                     streamingReasoningSnapshotProvider: { [appState, conversationID = projection.activeConversationID] in
                         guard let id = conversationID else { return nil }
                         return appState.streamingReasoningSnapshot(in: id)
+                    },
+                    streamingActivityPublisher: streamingActivityPublisher,
+                    streamingActivityProvider: { [appState, conversationID = projection.activeConversationID] in
+                        guard let id = conversationID else { return nil }
+                        return appState.streamingActivity(in: id)
                     },
                     hasMoreAbove: windowLoader.hasMoreAbove,
                     hasMoreBelow: windowLoader.hasMoreBelow,

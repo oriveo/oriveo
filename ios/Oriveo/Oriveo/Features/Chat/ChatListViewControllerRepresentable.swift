@@ -11,6 +11,8 @@ struct ChatListViewControllerRepresentable: UIViewControllerRepresentable {
     let streamingReasoningPublisher: AnyPublisher<ReasoningStreamDelta, Never>
     let streamingTextProvider: () -> String
     let streamingReasoningSnapshotProvider: () -> ReasoningStreamSnapshot?
+    let streamingActivityPublisher: AnyPublisher<StreamActivityState, Never>
+    let streamingActivityProvider: () -> StreamActivityState?
     let hasMoreAbove: Bool
     let hasMoreBelow: Bool
     let onRequestExtendUpward: () -> Void
@@ -57,6 +59,8 @@ struct ChatListViewControllerRepresentable: UIViewControllerRepresentable {
             streamingReasoningPublisher: streamingReasoningPublisher,
             streamingTextProvider: streamingTextProvider,
             streamingReasoningSnapshotProvider: streamingReasoningSnapshotProvider,
+            streamingActivityPublisher: streamingActivityPublisher,
+            streamingActivityProvider: streamingActivityProvider,
             onRetry: onRetryMessage,
             onContinue: onContinueMessage,
             onSaveNote: onSaveNoteMessage,

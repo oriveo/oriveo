@@ -68,7 +68,7 @@ private func driveGeminiStream(
                 result.deltas += text
             case .done:
                 result.sawDone = true
-            case .reasoning, .imagePart, .citations, .toolCallDeltas:
+            case .reasoning, .imagePart, .citations, .toolCallDeltas, .activity:
                 break
             }
         }

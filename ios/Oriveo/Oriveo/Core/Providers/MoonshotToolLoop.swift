@@ -30,6 +30,13 @@ nonisolated struct MoonshotWebSearchTool: ToolRegistryEntry {
         return ToolExecutionOutcome(content: content)
     }
 
+    /// A web search starts when the tool calls accepted for this leg include `$web_search`.
+    /// Only that builtin name counts: tool names registered dynamically by Formula are outside the
+    /// closed set and must not be guessed to be a web search.
+    static func streamActivity(forAcceptedCalls calls: [ToolLoopToolCall]) -> StreamActivity? {
+        calls.contains { $0.function.name == builtinToolName } ? .webSearch : nil
+    }
+
     static func builtinResultContent(for call: ToolLoopToolCall) -> String {
         call.function.arguments.isEmpty ? "{}" : call.function.arguments
     }

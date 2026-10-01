@@ -249,7 +249,7 @@ final class AnthropicService: BaseAPIService, ProviderServiceProtocol {
 
                         for ev in antStrategy.parseStreamLine(payload, ctx: &antCtx, shape: antShape) {
                             switch ev {
-                            case .reasoning, .toolCallDeltas: continuation.yield(ev)
+                            case .reasoning, .toolCallDeltas, .activity: continuation.yield(ev)
                             default: break
                             }
                         }
@@ -412,7 +412,7 @@ final class AnthropicService: BaseAPIService, ProviderServiceProtocol {
 
                         for ev in relayStrategy.parseStreamLine(payload, ctx: &relayCtx, shape: relayShape) {
                             switch ev {
-                            case .reasoning, .toolCallDeltas: continuation.yield(ev)
+                            case .reasoning, .toolCallDeltas, .activity: continuation.yield(ev)
                             default: break
                             }
                         }

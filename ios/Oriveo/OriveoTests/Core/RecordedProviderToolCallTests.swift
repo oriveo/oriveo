@@ -112,7 +112,7 @@ private func collect(_ stream: AsyncThrowingStream<StreamEvent, Error>) async th
         case let .delta(chunk): out.text += chunk
         case let .toolCallDeltas(calls): out.toolCallEvents.append(calls)
         case let .done(result): out.done = result
-        case .reasoning, .citations, .imagePart: break
+        case .reasoning, .citations, .imagePart, .activity: break
         }
     }
     return out

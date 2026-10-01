@@ -47,6 +47,11 @@ final class ChatManager {
         var reasoningRevision: UInt64 = 0
         var reasoningStartedAt: Date?
         var reasoningEndedAt: Date?
+        /// The activity currently observed on this stream. Transient: it lives only in the
+        /// session and is never persisted or copied onto a `ChatMessage`. `recordStreamActivity`
+        /// is the only place that sets it; it is cleared by the next body delta, the next
+        /// non-empty reasoning delta, and when the session is removed (finished, failed, stopped).
+        var activity: StreamActivity?
 
         /// Appends a reasoning chunk in place and returns the new revision.
         ///
@@ -75,6 +80,9 @@ final class ChatManager {
     /// `discardStreamingResources(for:)`.
     private var streamingSubjects: [UUID: PassthroughSubject<Void, Never>] = [:]
     private var reasoningSubjects: [UUID: PassthroughSubject<ReasoningStreamDelta, Never>] = [:]
+    /// Activity channel. It fires only at the moment an activity is set or cleared, never per
+    /// token. Same lifetime as the two subjects above.
+    private var activitySubjects: [UUID: PassthroughSubject<StreamActivityState, Never>] = [:]
 
     private(set) var streamingConversationIDs: Set<UUID> = []
 
@@ -104,6 +112,9 @@ final class ChatManager {
 
     /// Registers a streaming session and publishes the active conversation set.
     private func addSession(_ session: StreamingSession, for conversationID: UUID) {
+        // A new send replacing an existing session ends the old stream here, exactly as
+        // `removeSession` would.
+        publishStreamEnded(for: sessions[conversationID], in: conversationID)
         sessions[conversationID] = session
         streamingConversationIDs = Set(sessions.keys)
     }
@@ -113,6 +124,9 @@ final class ChatManager {
     private func removeSession(for conversationID: UUID) -> StreamingSession? {
         let removed = sessions.removeValue(forKey: conversationID)
         streamingConversationIDs = Set(sessions.keys)
+        // Finishing, failing and stopping all remove the session here. The activity goes with it
+        // and subscribed cells hide the status line right away.
+        publishStreamEnded(for: removed, in: conversationID)
         if sessions.isEmpty {
             endSessionBoundary()
         }
@@ -137,12 +151,22 @@ final class ChatManager {
         return new
     }
 
+    private func activitySubject(for conversationID: UUID) -> PassthroughSubject<StreamActivityState, Never> {
+        if let existing = activitySubjects[conversationID] {
+            return existing
+        }
+        let new = PassthroughSubject<StreamActivityState, Never>()
+        activitySubjects[conversationID] = new
+        return new
+    }
+
     func discardStreamingResources(for conversationID: UUID) {
         if sessions[conversationID] != nil {
             cancelGeneration(in: conversationID) // this also removes the session
         }
         streamingSubjects.removeValue(forKey: conversationID)
         reasoningSubjects.removeValue(forKey: conversationID)
+        activitySubjects.removeValue(forKey: conversationID)
     }
 
     // MARK: - Streaming queries, by conversation
@@ -176,6 +200,17 @@ final class ChatManager {
 
     func streamingReasoningDidChange(in conversationID: UUID) -> AnyPublisher<ReasoningStreamDelta, Never> {
         reasoningSubject(for: conversationID).eraseToAnyPublisher()
+    }
+
+    /// The activity snapshot of the message currently streaming, or `nil` when there is no
+    /// session. A cell reads it once when it binds or is rebound, then follows the channel.
+    func streamingActivity(in conversationID: UUID) -> StreamActivityState? {
+        guard let session = sessions[conversationID] else { return nil }
+        return StreamActivityState(messageID: session.messageID, activity: session.activity)
+    }
+
+    func streamingActivityDidChange(in conversationID: UUID) -> AnyPublisher<StreamActivityState, Never> {
+        activitySubject(for: conversationID).eraseToAnyPublisher()
     }
 
     func isBusyStreaming(in conversationID: UUID) -> Bool {
@@ -234,9 +269,32 @@ final class ChatManager {
                 calls, in: conversationID, messageID: messageID, sendTaskID: sendTaskID,
                 provider: provider, model: model
             )
-        case .delta, .reasoning, .imagePart, .citations, .done:
+        case .delta, .reasoning, .imagePart, .citations, .activity, .done:
             break
         }
+    }
+
+    /// Test seam: hands a `StreamEvent` produced by the parsing layer to the activity handler
+    /// through the same dispatch the production switch uses. Only `.activity` is handled, and the
+    /// handler is the production `recordStreamActivity`.
+    func _testingDispatchActivityStreamEvent(
+        _ event: StreamEvent,
+        in conversationID: UUID,
+        messageID: UUID,
+        sendTaskID: UUID
+    ) {
+        switch event {
+        case let .activity(activity):
+            recordStreamActivity(activity, in: conversationID, messageID: messageID, sendTaskID: sendTaskID)
+        case .delta, .reasoning, .imagePart, .citations, .toolCallDeltas, .done:
+            break
+        }
+    }
+
+    /// Test seam: drives the production point where a body delta enters the session, the step
+    /// `flushBufferedDelta` performs.
+    func _testingCommitStreamingBodyDelta(_ delta: String, in conversationID: UUID) {
+        commitStreamingBodyDelta(delta, in: conversationID)
     }
 
     /// Test seam: completes a streaming message through the production completion path.
@@ -1326,8 +1384,7 @@ final class ChatManager {
                         delta,
                         accumulatedIsEmpty: self.sessions[conversationID]?.text.isEmpty != false
                     ) else { return }
-                    self.sessions[conversationID]?.text.append(sanitized)
-                    self.streamingSubjects[conversationID]?.send()
+                    self.commitStreamingBodyDelta(sanitized, in: conversationID)
                 }
             }
 
@@ -1455,6 +1512,12 @@ final class ChatManager {
                                 await self.handleStreamingImagePart(attachment, in: conversationID)
                             case let .toolCallDeltas(calls):
                                 self.recordUnhandledToolCalls(calls, in: conversationID, messageID: assistantMessageID, sendTaskID: sendTaskID, provider: provider, model: model)
+                            case let .activity(activity):
+                                // Flush the tail of the preamble into the session first. Otherwise it waits for the
+                                // next event, the screen is half a sentence short while the search runs, and the late
+                                // flush would clear the activity just set as if it were the next piece of body text.
+                                await flushBufferedDelta(force: true)
+                                self.recordStreamActivity(activity, in: conversationID, messageID: assistantMessageID, sendTaskID: sendTaskID)
                             case let .done(result):
                                 await flushBufferedDelta(force: true)
                                 let deliveredCost = self.resolvedDeliveredCost(from: result, model: model, providerKind: providerKind)
@@ -1518,6 +1581,12 @@ final class ChatManager {
                                 await self.handleStreamingImagePart(attachment, in: conversationID)
                             case let .toolCallDeltas(calls):
                                 self.recordUnhandledToolCalls(calls, in: conversationID, messageID: assistantMessageID, sendTaskID: sendTaskID, provider: provider, model: model)
+                            case let .activity(activity):
+                                // Flush the tail of the preamble into the session first. Otherwise it waits for the
+                                // next event, the screen is half a sentence short while the search runs, and the late
+                                // flush would clear the activity just set as if it were the next piece of body text.
+                                await flushBufferedDelta(force: true)
+                                self.recordStreamActivity(activity, in: conversationID, messageID: assistantMessageID, sendTaskID: sendTaskID)
                             case let .done(result):
                                 await flushBufferedDelta(force: true)
                                 await MainActor.run {
@@ -1577,6 +1646,12 @@ final class ChatManager {
                             break
                         case let .toolCallDeltas(calls):
                             self.recordUnhandledToolCalls(calls, in: conversationID, messageID: assistantMessageID, sendTaskID: sendTaskID, provider: provider, model: model)
+                        case let .activity(activity):
+                            // Flush the tail of the preamble into the session first. Otherwise it waits for the
+                            // next event, the screen is half a sentence short while the search runs, and the late
+                            // flush would clear the activity just set as if it were the next piece of body text.
+                            await flushBufferedDelta(force: true)
+                            self.recordStreamActivity(activity, in: conversationID, messageID: assistantMessageID, sendTaskID: sendTaskID)
                         case let .done(result):
                             await flushBufferedDelta(force: true)
                             await MainActor.run {
@@ -1636,6 +1711,12 @@ final class ChatManager {
                             break
                         case let .toolCallDeltas(calls):
                             self.recordUnhandledToolCalls(calls, in: conversationID, messageID: assistantMessageID, sendTaskID: sendTaskID, provider: provider, model: model)
+                        case let .activity(activity):
+                            // Flush the tail of the preamble into the session first. Otherwise it waits for the
+                            // next event, the screen is half a sentence short while the search runs, and the late
+                            // flush would clear the activity just set as if it were the next piece of body text.
+                            await flushBufferedDelta(force: true)
+                            self.recordStreamActivity(activity, in: conversationID, messageID: assistantMessageID, sendTaskID: sendTaskID)
                         case let .done(result):
                             await flushBufferedDelta(force: true)
                             await MainActor.run {
@@ -1696,6 +1777,12 @@ final class ChatManager {
                                 break
                             case let .toolCallDeltas(calls):
                                 self.recordUnhandledToolCalls(calls, in: conversationID, messageID: assistantMessageID, sendTaskID: sendTaskID, provider: provider, model: model)
+                            case let .activity(activity):
+                                // Flush the tail of the preamble into the session first. Otherwise it waits for the
+                                // next event, the screen is half a sentence short while the search runs, and the late
+                                // flush would clear the activity just set as if it were the next piece of body text.
+                                await flushBufferedDelta(force: true)
+                                self.recordStreamActivity(activity, in: conversationID, messageID: assistantMessageID, sendTaskID: sendTaskID)
                             case let .done(result):
                                 await flushBufferedDelta(force: true)
                                 await MainActor.run {
@@ -1784,6 +1871,12 @@ final class ChatManager {
                                 await self.handleStreamingImagePart(attachment, in: conversationID)
                             case let .toolCallDeltas(calls):
                                 self.recordUnhandledToolCalls(calls, in: conversationID, messageID: assistantMessageID, sendTaskID: sendTaskID, provider: provider, model: model)
+                            case let .activity(activity):
+                                // Flush the tail of the preamble into the session first. Otherwise it waits for the
+                                // next event, the screen is half a sentence short while the search runs, and the late
+                                // flush would clear the activity just set as if it were the next piece of body text.
+                                await flushBufferedDelta(force: true)
+                                self.recordStreamActivity(activity, in: conversationID, messageID: assistantMessageID, sendTaskID: sendTaskID)
                             case let .done(result):
                                 await flushBufferedDelta(force: true)
                                 await MainActor.run {
@@ -1847,6 +1940,12 @@ final class ChatManager {
                             await self.handleStreamingImagePart(attachment, in: conversationID)
                         case let .toolCallDeltas(calls):
                             self.recordUnhandledToolCalls(calls, in: conversationID, messageID: assistantMessageID, sendTaskID: sendTaskID, provider: provider, model: model)
+                        case let .activity(activity):
+                            // Flush the tail of the preamble into the session first. Otherwise it waits for the
+                            // next event, the screen is half a sentence short while the search runs, and the late
+                            // flush would clear the activity just set as if it were the next piece of body text.
+                            await flushBufferedDelta(force: true)
+                            self.recordStreamActivity(activity, in: conversationID, messageID: assistantMessageID, sendTaskID: sendTaskID)
                         case let .done(result):
                             await flushBufferedDelta(force: true)
                             let deliveredCost = self.resolvedDeliveredCost(from: result, model: model, providerKind: providerKind)
@@ -1907,6 +2006,12 @@ final class ChatManager {
                             break
                         case let .toolCallDeltas(calls):
                             self.recordUnhandledToolCalls(calls, in: conversationID, messageID: assistantMessageID, sendTaskID: sendTaskID, provider: provider, model: model)
+                        case let .activity(activity):
+                            // Flush the tail of the preamble into the session first. Otherwise it waits for the
+                            // next event, the screen is half a sentence short while the search runs, and the late
+                            // flush would clear the activity just set as if it were the next piece of body text.
+                            await flushBufferedDelta(force: true)
+                            self.recordStreamActivity(activity, in: conversationID, messageID: assistantMessageID, sendTaskID: sendTaskID)
                         case let .done(result):
                             await flushBufferedDelta(force: true)
                             await MainActor.run {
@@ -1966,6 +2071,12 @@ final class ChatManager {
                                 break
                             case let .toolCallDeltas(calls):
                                 self.recordUnhandledToolCalls(calls, in: conversationID, messageID: assistantMessageID, sendTaskID: sendTaskID, provider: provider, model: model)
+                            case let .activity(activity):
+                                // Flush the tail of the preamble into the session first. Otherwise it waits for the
+                                // next event, the screen is half a sentence short while the search runs, and the late
+                                // flush would clear the activity just set as if it were the next piece of body text.
+                                await flushBufferedDelta(force: true)
+                                self.recordStreamActivity(activity, in: conversationID, messageID: assistantMessageID, sendTaskID: sendTaskID)
                             case let .done(result):
                                 await flushBufferedDelta(force: true)
                                 await MainActor.run {
@@ -2025,6 +2136,12 @@ final class ChatManager {
                             break
                         case let .toolCallDeltas(calls):
                             self.recordUnhandledToolCalls(calls, in: conversationID, messageID: assistantMessageID, sendTaskID: sendTaskID, provider: provider, model: model)
+                        case let .activity(activity):
+                            // Flush the tail of the preamble into the session first. Otherwise it waits for the
+                            // next event, the screen is half a sentence short while the search runs, and the late
+                            // flush would clear the activity just set as if it were the next piece of body text.
+                            await flushBufferedDelta(force: true)
+                            self.recordStreamActivity(activity, in: conversationID, messageID: assistantMessageID, sendTaskID: sendTaskID)
                         case let .done(result):
                             await flushBufferedDelta(force: true)
                             await MainActor.run {
@@ -2105,6 +2222,12 @@ final class ChatManager {
                                 break
                             case let .toolCallDeltas(calls):
                                 self.recordUnhandledToolCalls(calls, in: conversationID, messageID: assistantMessageID, sendTaskID: sendTaskID, provider: provider, model: model)
+                            case let .activity(activity):
+                                // Flush the tail of the preamble into the session first. Otherwise it waits for the
+                                // next event, the screen is half a sentence short while the search runs, and the late
+                                // flush would clear the activity just set as if it were the next piece of body text.
+                                await flushBufferedDelta(force: true)
+                                self.recordStreamActivity(activity, in: conversationID, messageID: assistantMessageID, sendTaskID: sendTaskID)
                             case let .done(result):
                                 await flushBufferedDelta(force: true)
                                 await MainActor.run {
@@ -2166,6 +2289,12 @@ final class ChatManager {
                                 break
                             case let .toolCallDeltas(calls):
                                 self.recordUnhandledToolCalls(calls, in: conversationID, messageID: assistantMessageID, sendTaskID: sendTaskID, provider: provider, model: model)
+                            case let .activity(activity):
+                                // Flush the tail of the preamble into the session first. Otherwise it waits for the
+                                // next event, the screen is half a sentence short while the search runs, and the late
+                                // flush would clear the activity just set as if it were the next piece of body text.
+                                await flushBufferedDelta(force: true)
+                                self.recordStreamActivity(activity, in: conversationID, messageID: assistantMessageID, sendTaskID: sendTaskID)
                             case let .done(result):
                                 await flushBufferedDelta(force: true)
                                 await MainActor.run {
@@ -2247,6 +2376,12 @@ final class ChatManager {
                                 break
                             case let .toolCallDeltas(calls):
                                 self.recordUnhandledToolCalls(calls, in: conversationID, messageID: assistantMessageID, sendTaskID: sendTaskID, provider: provider, model: model)
+                            case let .activity(activity):
+                                // Flush the tail of the preamble into the session first. Otherwise it waits for the
+                                // next event, the screen is half a sentence short while the search runs, and the late
+                                // flush would clear the activity just set as if it were the next piece of body text.
+                                await flushBufferedDelta(force: true)
+                                self.recordStreamActivity(activity, in: conversationID, messageID: assistantMessageID, sendTaskID: sendTaskID)
                             case let .done(result):
                                 await flushBufferedDelta(force: true)
                                 await MainActor.run {
@@ -2309,6 +2444,12 @@ final class ChatManager {
                             break
                         case let .toolCallDeltas(calls):
                             self.recordUnhandledToolCalls(calls, in: conversationID, messageID: assistantMessageID, sendTaskID: sendTaskID, provider: provider, model: model)
+                        case let .activity(activity):
+                            // Flush the tail of the preamble into the session first. Otherwise it waits for the
+                            // next event, the screen is half a sentence short while the search runs, and the late
+                            // flush would clear the activity just set as if it were the next piece of body text.
+                            await flushBufferedDelta(force: true)
+                            self.recordStreamActivity(activity, in: conversationID, messageID: assistantMessageID, sendTaskID: sendTaskID)
                         case let .done(result):
                             await flushBufferedDelta(force: true)
                             await MainActor.run {
@@ -2371,6 +2512,12 @@ final class ChatManager {
                                 break
                             case let .toolCallDeltas(calls):
                                 self.recordUnhandledToolCalls(calls, in: conversationID, messageID: assistantMessageID, sendTaskID: sendTaskID, provider: provider, model: model)
+                            case let .activity(activity):
+                                // Flush the tail of the preamble into the session first. Otherwise it waits for the
+                                // next event, the screen is half a sentence short while the search runs, and the late
+                                // flush would clear the activity just set as if it were the next piece of body text.
+                                await flushBufferedDelta(force: true)
+                                self.recordStreamActivity(activity, in: conversationID, messageID: assistantMessageID, sendTaskID: sendTaskID)
                             case let .done(result):
                                 await flushBufferedDelta(force: true)
                                 await MainActor.run {
@@ -2507,6 +2654,12 @@ final class ChatManager {
                                     await self.handleStreamingImagePart(attachment, in: conversationID)
                                 case let .toolCallDeltas(calls):
                                     self.recordUnhandledToolCalls(calls, in: conversationID, messageID: assistantMessageID, sendTaskID: sendTaskID, provider: provider, model: model)
+                                case let .activity(activity):
+                                    // Flush the tail of the preamble into the session first. Otherwise it waits for the
+                                    // next event, the screen is half a sentence short while the search runs, and the late
+                                    // flush would clear the activity just set as if it were the next piece of body text.
+                                    await flushBufferedDelta(force: true)
+                                    self.recordStreamActivity(activity, in: conversationID, messageID: assistantMessageID, sendTaskID: sendTaskID)
                                 case let .done(result):
                                     await flushBufferedDelta(force: true)
                                     let deliveredCost = self.resolvedDeliveredCost(from: result, model: model, providerKind: providerKind)
@@ -2665,6 +2818,12 @@ final class ChatManager {
                                 await self.handleStreamingImagePart(attachment, in: conversationID)
                             case let .toolCallDeltas(calls):
                                 self.recordUnhandledToolCalls(calls, in: conversationID, messageID: assistantMessageID, sendTaskID: sendTaskID, provider: provider, model: model)
+                            case let .activity(activity):
+                                // Flush the tail of the preamble into the session first. Otherwise it waits for the
+                                // next event, the screen is half a sentence short while the search runs, and the late
+                                // flush would clear the activity just set as if it were the next piece of body text.
+                                await flushBufferedDelta(force: true)
+                                self.recordStreamActivity(activity, in: conversationID, messageID: assistantMessageID, sendTaskID: sendTaskID)
                             case let .done(result):
                                 await flushBufferedDelta(force: true)
                                 let deliveredCost = self.resolvedDeliveredCost(from: result, model: model, providerKind: providerKind)
@@ -3458,12 +3617,63 @@ final class ChatManager {
         // exact catalog binding for this owner/protocol/parser.  A display-only heartbeat remains
         // useful UI feedback but is never execution evidence.
         CapabilityExecutionRuntime.recordParserEvent(.reasoning, nonEmpty: !chunk.isEmpty)
+        // A non-empty reasoning delta means the model is talking again, so the activity is over.
+        // An empty heartbeat does not clear it: the reasoning block keeps itself alive during a
+        // search.
+        if !chunk.isEmpty {
+            clearStreamActivity(in: conversationID)
+        }
         reasoningSubjects[conversationID]?.send(ReasoningStreamDelta(
             messageID: messageID,
             sendTaskID: sendTaskID,
             revision: revision,
             delta: chunk
         ))
+    }
+
+    // MARK: - Stream activity
+
+    /// The only place an activity is set. Guarded on message and send task id for the same reason
+    /// `appendReasoning` is: a cancelled task still emitting events at an await point must not
+    /// attach an activity to the session of the send that replaced it.
+    private func recordStreamActivity(
+        _ activity: StreamActivity,
+        in conversationID: UUID,
+        messageID: UUID,
+        sendTaskID: UUID
+    ) {
+        guard sessions[conversationID]?.messageID == messageID,
+              sessions[conversationID]?.sendTaskID == sendTaskID,
+              sessions[conversationID]?.activity != activity else { return }
+        sessions[conversationID]?.activity = activity
+        activitySubjects[conversationID]?.send(StreamActivityState(messageID: messageID, activity: activity))
+    }
+
+    private func clearStreamActivity(in conversationID: UUID) {
+        guard let messageID = sessions[conversationID]?.messageID,
+              sessions[conversationID]?.activity != nil else { return }
+        sessions[conversationID]?.activity = nil
+        activitySubjects[conversationID]?.send(StreamActivityState(messageID: messageID, activity: nil))
+    }
+
+    /// The session was removed or replaced: tells subscribers that this message's stream is over,
+    /// which clears the activity and hides all waiting feedback. Sent once per session, never per
+    /// token.
+    private func publishStreamEnded(for session: StreamingSession?, in conversationID: UUID) {
+        guard let session else { return }
+        activitySubjects[conversationID]?.send(
+            StreamActivityState(messageID: session.messageID, activity: nil, isStreaming: false)
+        )
+    }
+
+    /// Where a live body delta enters `session.text`, called by `flushBufferedDelta` after
+    /// throttling. The activity is cleared before the body signal is sent, so by the time the cell
+    /// receives the text the status line has already made way and never shares the screen with
+    /// newly arrived words.
+    private func commitStreamingBodyDelta(_ sanitized: String, in conversationID: UUID) {
+        sessions[conversationID]?.text.append(sanitized)
+        clearStreamActivity(in: conversationID)
+        streamingSubjects[conversationID]?.send()
     }
 
     /// Stamps the moment reasoning gave way to body text. Guarded on message and send task id for

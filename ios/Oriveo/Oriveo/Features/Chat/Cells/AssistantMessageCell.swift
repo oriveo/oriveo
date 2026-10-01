@@ -31,6 +31,28 @@ final class AssistantMessageCell: UICollectionViewCell {
     var citationsBlock: CitationsBlock?
     let citationsHost = UIView()
 
+    // Stream activity status line: directly below the body text, above the tool-call card,
+    // citations and metadata.
+    let streamActivityLine = UIKitStreamActivityLine()
+    /// A **permanent** slot for the status line, collapsed with `isHidden`, for the same reason as
+    /// `recoveryCardHost`: nothing gets inserted into a stack that has already been laid out.
+    let streamActivityLineHost = UIView()
+    /// The activity observed for the bound message. Transient: it comes from ChatManager's
+    /// activity channel, not from the `ChatMessage`.
+    var streamActivity: StreamActivity?
+    /// Pause detection: nothing visible has changed for 1500 ms. One cancellable timer, cancelled
+    /// on reuse and when the stream ends.
+    let streamQuietTimer = StreamQuietTimer()
+    /// Covers the few frames after the activity channel reported the session gone and before the
+    /// message state is reconfigured: no waiting feedback is shown. Reset when a new subscription
+    /// is set up.
+    var streamSessionEnded = false
+    /// The presentation last applied to the views; `refreshStreamActivityPresentation` uses it to
+    /// skip redundant updates.
+    var streamActivityPresentation: StreamActivityPresentation = .hidden
+    /// Gap between the body text and the status line.
+    static let streamActivityLineTopSpacing: CGFloat = 8
+
     let unhandledToolCallView = UIKitUnhandledToolCallView()
 
     var recoveryCard: UIKitRecoveryCard?
@@ -135,6 +157,9 @@ final class AssistantMessageCell: UICollectionViewCell {
         chunkFader.textStorageProvider = { [weak self] in self?.textView.textStorage }
         blockWriter.textViewProvider = { [weak self] in self?.textView }
         blockWriter.chunkFader = chunkFader
+        streamQuietTimer.onQuietChanged = { [weak self] in
+            self?.refreshStreamActivityPresentation()
+        }
         latexRenderObserver = NotificationCenter.default.addObserver(
             forName: LatexImageCache.didRenderNotification,
             object: nil,
@@ -200,6 +225,13 @@ final class AssistantMessageCell: UICollectionViewCell {
         if !isStreamingReconfigure {
             cancelPendingStreamingHeightFlush(resetTimestamp: true)
             streamingController.cancel()
+            // With the subscription gone, the activity and the pause timer have no source left.
+            // Stream end, a different message and retry all start from an empty state; a new
+            // subscription reads the current activity once and restarts the timer. The views are
+            // settled at the end of configure.
+            streamActivity = nil
+            streamSessionEnded = false
+            streamQuietTimer.cancel()
             if shouldDeferFinalBody {
                 prepareFinalStreamingRender(
                     text: effectiveText,
@@ -322,5 +354,6 @@ final class AssistantMessageCell: UICollectionViewCell {
         if isGenerating || ((wasStreaming || didExitGenerating) && !shouldDeferFinalBody) {
             notifyContentDidChange()
         }
+        refreshStreamActivityPresentation()
     }
 }

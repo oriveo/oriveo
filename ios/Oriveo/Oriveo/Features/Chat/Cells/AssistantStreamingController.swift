@@ -6,6 +6,7 @@ import QuartzCore
 final class AssistantStreamingController {
     private var bodyCancellable: AnyCancellable?
     private var reasoningCancellable: AnyCancellable?
+    private var activityCancellable: AnyCancellable?
 
     private var activeMessageID: UUID?
     private var activeSendTaskID: UUID?
@@ -45,7 +46,11 @@ final class AssistantStreamingController {
         applyInitialText: @escaping (String) -> Void,
         applyInitialReasoning: @escaping (ReasoningStreamSnapshot?) -> Void,
         hideTypingIfNeeded: @escaping () -> Void,
-        applyReasoning: @escaping (ReasoningStreamDelta) -> Void
+        applyReasoning: @escaping (ReasoningStreamDelta) -> Void,
+        activityPublisher: AnyPublisher<StreamActivityState, Never> =
+            Empty<StreamActivityState, Never>().eraseToAnyPublisher(),
+        activityProvider: @escaping () -> StreamActivityState? = { nil },
+        applyActivity: @escaping (StreamActivityState?) -> Void = { _ in }
     ) {
         if isSubscribed, isBound() {
             return
@@ -61,7 +66,16 @@ final class AssistantStreamingController {
         applyInitialText(textProvider())
         adopt(snapshot: initialSnapshot)
         applyInitialReasoning(initialSnapshot)
+        // An activity is transient and is published only at the moment it is set or cleared, so a
+        // new subscription (cell reuse or rebinding) has to read the current value once. Without
+        // that, a cell scrolled on screen halfway through a search would wait forever for a "set"
+        // event that has already been sent.
+        applyActivity(activityProvider())
 
+        activityCancellable = activityPublisher.sink { [weak self] state in
+            guard self != nil, isBound() else { return }
+            applyActivity(state)
+        }
         bodyCancellable = publisher.sink { [weak self] in
             guard self != nil, isBound() else { return }
             enqueueText(textProvider())
@@ -75,8 +89,10 @@ final class AssistantStreamingController {
     func cancel() {
         bodyCancellable?.cancel()
         reasoningCancellable?.cancel()
+        activityCancellable?.cancel()
         bodyCancellable = nil
         reasoningCancellable = nil
+        activityCancellable = nil
         generation &+= 1
         resetReasoning()
         reasoningSnapshotProvider = nil

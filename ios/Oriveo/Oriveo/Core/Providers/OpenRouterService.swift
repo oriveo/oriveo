@@ -161,6 +161,14 @@ enum StreamEvent {
     case imagePart(Attachment)
     case citations([Citation])
     case toolCallDeltas([ProviderToolCall])
+    /// An "activity started" signal was observed upstream. The set is closed and currently holds
+    /// only server-side web search. It is a display hint: ChatManager records it on
+    /// `StreamingSession.activity` and clears it on the next body delta, the next non-empty
+    /// reasoning delta, or when the stream ends. It is never persisted, never billed and takes no
+    /// part in any capability decision.
+    /// `tool_use` / `function_call` proposals go through `.toolCallDeltas` and must not produce
+    /// this event.
+    case activity(StreamActivity)
     case done(ProviderChatResult)
 }
 

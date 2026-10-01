@@ -39,6 +39,13 @@ struct AnthropicMessagesStrategy: TransportStrategy {
 
         if type == "content_block_start",
            let block = json["content_block"] as? [String: Any] {
+            // A server-side web search starts: `server_tool_use` with `name == "web_search"`.
+            // A client `tool_use` block and any other server tool name do not count. The first is
+            // a proposal nobody is executing, the second is outside the closed set.
+            if (block["type"] as? String) == "server_tool_use",
+               (block["name"] as? String) == "web_search" {
+                events.append(.activity(.webSearch))
+            }
             let expectedBlockType = shape?.citationsBlockType ?? "web_search_tool_result"
             if (block["type"] as? String) == expectedBlockType {
                 if let items = block["content"] as? [[String: Any]] {

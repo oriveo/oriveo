@@ -145,7 +145,7 @@ struct LocalEngineReleaseRuntimeTests {
             switch event {
             case .delta(let text): streamedText += text
             case .done: break
-            case .reasoning, .imagePart, .citations, .toolCallDeltas: break
+            case .reasoning, .imagePart, .citations, .toolCallDeltas, .activity: break
             }
         }
         #expect(!streamedText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)

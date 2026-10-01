@@ -47,6 +47,17 @@ final class UIKitTypingIndicator: UIView {
         CATransaction.commit()
     }
 
+    /// Overrides the label: while an activity is observed and the indicator is visible it shows
+    /// the activity label; `nil` restores the default `Generating`. Only the text changes, the
+    /// dots and the layout stay as they are.
+    func setCaption(_ caption: String?) {
+        let next = caption ?? L10n.tr("Generating")
+        guard label.text != next else { return }
+        label.text = next
+    }
+
+    var caption: String { label.text ?? "" }
+
     func stopAnimating() {
         guard isAnimating else { return }
         isAnimating = false

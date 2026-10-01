@@ -604,7 +604,7 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
                                 shape: responsesShape
                             ) {
                                 switch ev {
-                                case .reasoning, .toolCallDeltas: continuation.yield(ev)
+                                case .reasoning, .toolCallDeltas, .activity: continuation.yield(ev)
                                 default: break
                                 }
                             }
@@ -2285,7 +2285,7 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
                 let injected = self.injectResponsesEventType(payload: payload, type: currentEvent)
                 for ev in respStrategy.parseStreamLine(injected, ctx: &respCtx, shape: webSearchShape) {
                     switch ev {
-                    case .reasoning, .toolCallDeltas: continuation.yield(ev)
+                    case .reasoning, .toolCallDeltas, .activity: continuation.yield(ev)
                     default: break
                     }
                 }

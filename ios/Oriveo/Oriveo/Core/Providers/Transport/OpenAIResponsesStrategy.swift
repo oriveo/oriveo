@@ -31,6 +31,15 @@ struct OpenAIResponsesStrategy: TransportStrategy {
             events.append(.reasoning(delta))
         }
 
+        // A server-side web search starts: `output_item.added` with `item.type == "web_search_call"`.
+        // `output_item.done` means the search has already finished, so it cannot be the start
+        // signal, and a `function_call` item is a proposal, not a search.
+        if type == "response.output_item.added",
+           let item = json["item"] as? [String: Any],
+           (item["type"] as? String) == "web_search_call" {
+            events.append(.activity(.webSearch))
+        }
+
         if type == "response.output_text.annotation.added",
            let annotation = json["annotation"] as? [String: Any],
            let citation = parseUrlCitation(annotation) {

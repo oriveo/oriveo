@@ -310,6 +310,9 @@ final class ChatListViewController: UIViewController {
         streamingReasoningPublisher: AnyPublisher<ReasoningStreamDelta, Never>,
         streamingTextProvider: @escaping () -> String,
         streamingReasoningSnapshotProvider: @escaping () -> ReasoningStreamSnapshot?,
+        streamingActivityPublisher: AnyPublisher<StreamActivityState, Never> =
+            Empty<StreamActivityState, Never>().eraseToAnyPublisher(),
+        streamingActivityProvider: @escaping () -> StreamActivityState? = { nil },
         onRetry: @escaping (ChatMessage) -> Void,
         onContinue: @escaping (ChatMessage) -> Void,
         onSaveNote: @escaping (ChatMessage) -> Void = { _ in },
@@ -368,7 +371,9 @@ final class ChatListViewController: UIViewController {
             publisher: streamingPublisher,
             reasoningPublisher: streamingReasoningPublisher,
             textProvider: streamingTextProvider,
-            reasoningSnapshotProvider: streamingReasoningSnapshotProvider
+            reasoningSnapshotProvider: streamingReasoningSnapshotProvider,
+            activityPublisher: streamingActivityPublisher,
+            activityProvider: streamingActivityProvider
         )
         let nowStreaming = viewModel.streamingMessageID != nil
         if stickController.isStreamingMode != nowStreaming {

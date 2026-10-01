@@ -10127,7 +10127,7 @@
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "جارٍ الإنشاء"
+            "value" : "جارٍ التوليد"
           }
         },
         "de" : {
@@ -10157,7 +10157,7 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "उत्पादक"
+            "value" : "उत्पन्न हो रहा है"
           }
         },
         "id" : {
@@ -10187,7 +10187,7 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Создание"
+            "value" : "Генерация"
           }
         },
         "th" : {
@@ -10199,7 +10199,7 @@
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Üretiliyor"
+            "value" : "Oluşturuluyor"
           }
         },
         "vi" : {

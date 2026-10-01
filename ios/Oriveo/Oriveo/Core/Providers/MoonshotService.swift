@@ -248,8 +248,14 @@ final class MoonshotService: BaseAPIService, ProviderServiceProtocol, CustomBase
                                 continuation.yield(.reasoning("\n\n"))
                             }
                             continuation.yield(.reasoning(reasoning))
-                        case .usage, .toolCallsAccepted:
+                        case .usage:
                             break
+                        case let .toolCallsAccepted(calls):
+                            // An accepted `$web_search` call means Kimi is about to run the search
+                            // in the next leg.
+                            if let activity = MoonshotWebSearchTool.streamActivity(forAcceptedCalls: calls) {
+                                continuation.yield(.activity(activity))
+                            }
                         }
                     }
                     var usageSources = [legRunner]

@@ -459,8 +459,14 @@ final class GrokService: BaseAPIService, ProviderServiceProtocol {
             let eventType = Self.responsesEventType(payload: payload, fallback: currentEvent)
             frameLog.record(eventType: eventType, payloadLength: payload.utf8.count)
             let strategyPayload = Self.injectResponsesEventType(payload: payload, type: eventType)
+            // Body and reasoning deltas are decoded by event name below. The strategy contributes
+            // citations, function-call proposals and the web-search start signal
+            // (`web_search_call`).
             for ev in strategy.parseStreamLine(strategyPayload, ctx: &ctx, shape: shape) {
-                if case .toolCallDeltas = ev { continuation.yield(ev) }
+                switch ev {
+                case .toolCallDeltas, .activity: continuation.yield(ev)
+                case .delta, .reasoning, .imagePart, .citations, .done: break
+                }
             }
             let citations = ctx.citationsAccumulator.citations
             if citations.count > lastCitationsCount {

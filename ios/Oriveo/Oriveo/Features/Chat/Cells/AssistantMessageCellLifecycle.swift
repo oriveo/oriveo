@@ -90,6 +90,7 @@ extension AssistantMessageCell {
         typingIndicator.stopAnimating()
         typingContainer.isHidden = true
         typingContainer.alpha = 1
+        resetStreamActivityForReuse()
         statusPillContainer.isHidden = true
         metadataView.isHidden = true
         unhandledToolCallView.resetForReuse()

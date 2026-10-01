@@ -587,7 +587,7 @@ final class MiniMaxService: BaseAPIService, ProviderServiceProtocol, CustomBaseU
                               let type = object["type"] as? String else { continue }
                         for event in strategy.parseStreamLine(payload, ctx: &context, shape: shape) {
                             switch event {
-                            case .delta, .reasoning, .toolCallDeltas: continuation.yield(event)
+                            case .delta, .reasoning, .toolCallDeltas, .activity: continuation.yield(event)
                             default: break
                             }
                         }

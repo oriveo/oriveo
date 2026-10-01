@@ -287,6 +287,13 @@ struct ChatRowHeightParityTests {
                 Comment(rawValue: "bodyStack=\(cell.bodyStack.arrangedSubviews.count) \(hint)"))
     }
 
-    private static let expectedContentSlots = 7
+    /// The stream activity status line is one of these slots but is not part of
+    /// `estimatedRowHeight` and has no case in the matrix. It is only lit while a reply is waiting,
+    /// by transient state inside the cell (an observed activity or the pause timer) that does not
+    /// come from the `ChatMessage`, so the projection cannot produce a row that has it; once the
+    /// message is complete it is always collapsed to zero height. While shown, streaming
+    /// self-sizing adds its height, and when it hides the streaming height floor absorbs the drop
+    /// (covered by `StreamActivityPipelineTests`).
+    private static let expectedContentSlots = 8
     private static let expectedBodySlots = 4
 }

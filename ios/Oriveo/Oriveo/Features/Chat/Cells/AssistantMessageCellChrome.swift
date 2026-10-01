@@ -219,6 +219,25 @@ extension AssistantMessageCell {
         ])
         bodyStack.addArrangedSubview(typingContainer)
 
+        // Permanent slot for the stream activity status line: right after bodyStack, so directly
+        // below the body text and above the tool-call card, citations and metadata, aligned with
+        // the leading edge of the body. It stays in the stack and collapses with `isHidden`
+        // instead of being inserted on demand, because inserting into a laid-out stack can place
+        // the new view at a negative y for a frame.
+        streamActivityLineHost.isHidden = true
+        streamActivityLine.translatesAutoresizingMaskIntoConstraints = false
+        streamActivityLineHost.addSubview(streamActivityLine)
+        NSLayoutConstraint.activate([
+            streamActivityLine.leadingAnchor.constraint(
+                equalTo: streamActivityLineHost.leadingAnchor,
+                constant: Self.assistantBodyLeadingInset
+            ),
+            streamActivityLine.trailingAnchor.constraint(lessThanOrEqualTo: streamActivityLineHost.trailingAnchor),
+            streamActivityLine.topAnchor.constraint(equalTo: streamActivityLineHost.topAnchor),
+            streamActivityLine.bottomAnchor.constraint(equalTo: streamActivityLineHost.bottomAnchor),
+        ])
+        contentStack.addArrangedSubview(streamActivityLineHost)
+
         unhandledToolCallView.isHidden = true
         unhandledToolCallView.onLayoutChange = { [weak self] in
             self?.streamingHeightFloor = 0

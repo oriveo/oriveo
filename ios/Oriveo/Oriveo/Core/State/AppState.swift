@@ -236,6 +236,14 @@ final class AppState {
         chatManager.streamingReasoningDidChange(in: conversationID)
     }
 
+    func streamingActivity(in conversationID: UUID) -> StreamActivityState? {
+        chatManager.streamingActivity(in: conversationID)
+    }
+
+    func streamingActivityDidChange(in conversationID: UUID) -> AnyPublisher<StreamActivityState, Never> {
+        chatManager.streamingActivityDidChange(in: conversationID)
+    }
+
     func isBusyStreaming(in conversationID: UUID) -> Bool {
         chatManager.isBusyStreaming(in: conversationID)
     }
