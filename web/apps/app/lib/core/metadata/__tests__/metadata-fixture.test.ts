@@ -30,7 +30,7 @@ describe('metadata-fixture (shared with iOS / Android)', () => {
     vi.resetModules();
     vi.restoreAllMocks();
     localStorage.clear();
-    await pruneBlobs('oriveo:metadata:c', []);
+    await pruneBlobs('oriveo:metadata:', []);
     vi.spyOn(globalThis, 'fetch').mockResolvedValue({
       status: 304,
       ok: false,
