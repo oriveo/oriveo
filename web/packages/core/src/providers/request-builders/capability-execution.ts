@@ -522,6 +522,18 @@ function mergeByIntentPriority(operations: readonly RecipeOperation[]): RecipeOp
   return operations.filter((operation) => operation.intent !== undefined || !specificPointers.has(operation.pointer));
 }
 
+/**
+ * A legacy generation profile may inject only when the runtime recipe names exactly the same
+ * template. A missing recipe or an empty profile template never counts as a match.
+ */
+export function legacyGenerationGateAllowsInjection(
+  recipe: RuntimeRecipe | undefined,
+  profileTemplate: string | undefined,
+): boolean {
+  if (!recipe || !profileTemplate) return false;
+  return legacyGenerationTemplateForRecipe(recipe) === profileTemplate;
+}
+
 /** Exact v1 bridge, intentionally not a model-id or provider-name inference. */
 export function legacyGenerationTemplateForRecipe(recipe: RuntimeRecipe): string | null {
   if (recipe.capability !== 'generation' || recipe.requestOps.length !== 1) return null;

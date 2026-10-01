@@ -25,7 +25,7 @@ import { buildQwenRequest } from "./qwen";
 import { buildSiliconFlowRequest } from "./siliconflow";
 import { buildZhipuRequest } from "./zhipu";
 import { buildRelayReasoningParams } from "./utils";
-import { applyCapabilityRecipes, attachCapabilityExecution, isMiniMaxAnthropicMessagesRoute, legacyGenerationTemplateForRecipe, resolveCapabilityExecutionPlan, type RuntimeRecipe } from './capability-execution';
+import { applyCapabilityRecipes, attachCapabilityExecution, isMiniMaxAnthropicMessagesRoute, legacyGenerationGateAllowsInjection, resolveCapabilityExecutionPlan, type RuntimeRecipe } from './capability-execution';
 import { compileSafeCustomFragment, type SafeCustomFragmentResult } from './safe-custom-fragment';
 import { mapContinuationForRecipe } from './continuation-replay';
 import { safeCustomDeclaredOwners, safeCustomOwners, wireRejectionReason } from './generation-parameters';
@@ -129,7 +129,7 @@ export async function buildProviderRequest(
   const generationProfile = customGenerationSelected
     ? null
     : capabilityPlan.overridesLegacy.has('generation')
-    ? generationRecipe && legacyGenerationTemplateForRecipe(generationRecipe) === resolvedGenerationProfile?.template
+    ? legacyGenerationGateAllowsInjection(generationRecipe, resolvedGenerationProfile?.template)
       ? resolvedGenerationProfile
       : null
     : resolvedGenerationProfile;

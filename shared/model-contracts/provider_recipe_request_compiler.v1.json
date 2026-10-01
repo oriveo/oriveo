@@ -424,5 +424,55 @@
       "capability": "web",
       "expectReason": "recipe_not_found"
     }
+  ],
+  "legacyGenerationGateCases": [
+    {
+      "caseId": "legacy_generation.openai_responses.equal",
+      "template": "openai_responses",
+      "profileTemplate": "openai_responses",
+      "expectInject": true
+    },
+    {
+      "caseId": "legacy_generation.openai_responses.unequal",
+      "template": "openai_responses",
+      "profileTemplate": "openai_chat_completions",
+      "expectInject": false
+    },
+    {
+      "caseId": "legacy_generation.openai_chat_completions.equal",
+      "template": "openai_chat_completions",
+      "profileTemplate": "openai_chat_completions",
+      "expectInject": true
+    },
+    {
+      "caseId": "legacy_generation.openai_chat_completions.unequal",
+      "template": "openai_chat_completions",
+      "profileTemplate": "anthropic_messages",
+      "expectInject": false
+    },
+    {
+      "caseId": "legacy_generation.anthropic_messages.equal",
+      "template": "anthropic_messages",
+      "profileTemplate": "anthropic_messages",
+      "expectInject": true
+    },
+    {
+      "caseId": "legacy_generation.anthropic_messages.unequal",
+      "template": "anthropic_messages",
+      "profileTemplate": "gemini_generate_content",
+      "expectInject": false
+    },
+    {
+      "caseId": "legacy_generation.gemini_generate_content.equal",
+      "template": "gemini_generate_content",
+      "profileTemplate": "gemini_generate_content",
+      "expectInject": true
+    },
+    {
+      "caseId": "legacy_generation.gemini_generate_content.unequal",
+      "template": "gemini_generate_content",
+      "profileTemplate": "openai_responses",
+      "expectInject": false
+    }
   ]
 }
