@@ -130,11 +130,12 @@ describe('request_shape_contract.v1', () => {
       );
 
       if (hasLegacyModelControlIntent(contractCase)) {
-        // v1 has no capabilityRuntime exact recipe. It is still the regression source for
-        // endpoint/header/query/image shapes, but a legacy profile must not be used to prove that
-        // model controls configure themselves. The production builder has to treat intents with no
-        // exact runtime as dormant: identical in shape to the same model requested with automatic,
-        // web=false and no generation override.
+        // v1 has no capabilityRuntime exact recipe. Endpoint, headers and query (including the key
+        // never riding in the query) are still checked against the fixture, as the iOS and Android
+        // transport-envelope checks do. The body must not use a legacy profile to prove that model
+        // controls configure themselves: an intent with no exact runtime has to be identical in shape
+        // to the neutral baseline for the same model.
+        assertTransportEnvelope(request, contractCase.expect);
         const baseline = await buildProviderRequest(
           makeNoAutomaticModelControlRequestParams(contractCase),
           async () => contract.metadata,
@@ -145,6 +146,28 @@ describe('request_shape_contract.v1', () => {
       }
     });
   }
+
+  // Negative check: if the `queryExcludes` assertion itself broke, every case above would pass a
+  // key leaking into the query. Take the real request the production builder makes for each Gemini
+  // case, add only `key=<apiKey>` to its URL, and feed it to the same assertTransportEnvelope the
+  // positive cases use; it must report `query key`.
+  it('rejects a Gemini outbound request that carries the key in the URL query', async () => {
+    const geminiCases = contract.cases.filter((item) => item.intent.providerKind === 'gemini');
+    expect(geminiCases.length).toBeGreaterThan(0);
+    for (const contractCase of geminiCases) {
+      expect(contractCase.expect.queryExcludes, `${contractCase.caseId} queryExcludes`).toContain('key');
+      const params = makeRequestParams(contractCase);
+      const request = await buildProviderRequest(params, async () => contract.metadata);
+      assertTransportEnvelope(request, contractCase.expect);
+
+      const leaked = new URL(request.url);
+      leaked.searchParams.set('key', params.apiKey);
+      expect(
+        () => assertTransportEnvelope({ ...request, url: leaked.toString() }, contractCase.expect),
+        `${contractCase.caseId} must reject a query that carries the key`,
+      ).toThrow(/query key/);
+    }
+  });
 
   // Completeness guard: every imageGen profile needs its own dispatch case. One provider can have
   // several request shapes, so coverage cannot be judged per provider.
@@ -307,7 +330,7 @@ function requestWireShape(request: ProviderRequest): unknown {
   };
 }
 
-function assertProviderRequestMatches(
+function assertTransportEnvelope(
   request: ProviderRequest,
   expectation: RequestShapeExpectation,
 ): void {
@@ -329,6 +352,13 @@ function assertProviderRequestMatches(
   for (const key of expectation.queryExcludes ?? []) {
     expect(url.searchParams.has(key), `query ${key}`).toBe(false);
   }
+}
+
+function assertProviderRequestMatches(
+  request: ProviderRequest,
+  expectation: RequestShapeExpectation,
+): void {
+  assertTransportEnvelope(request, expectation);
 
   for (const [pathKey, expected] of Object.entries(expectation.bodyIncludes ?? {})) {
     const actual = valueAtPath(request.body, pathKey);
