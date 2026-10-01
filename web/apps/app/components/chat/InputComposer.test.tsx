@@ -557,13 +557,13 @@ describe('InputComposer', () => {
     expect(modelOptionsPanel().queryByText('1 adjusted')).toBeNull();
 
     const advanced = openAdvancedPane();
-    fireEvent.change(advanced.getByLabelText('Sampling temperature'), { target: { value: '0.7' } });
+    fireEvent.change(advanced.getByLabelText('Temperature'), { target: { value: '0.7' } });
     fireEvent.click(advanced.getByRole('button', { name: 'Back' }));
     expect(modelOptionsPanel().getByText('1 adjusted')).toBeTruthy();
 
     // The reverse holds too: after resetting to defaults the row must disappear rather than stick at 1.
     const again = openAdvancedPane();
-    fireEvent.change(again.getByLabelText('Sampling temperature'), { target: { value: '' } });
+    fireEvent.change(again.getByLabelText('Temperature'), { target: { value: '' } });
     fireEvent.click(again.getByRole('button', { name: 'Back' }));
     expect(modelOptionsPanel().queryByText('1 adjusted')).toBeNull();
   });

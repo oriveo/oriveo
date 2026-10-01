@@ -157,7 +157,9 @@ describe('follow-up copy', () => {
       'pages.relayDetail.keepCurrentKind',
       'pages.relayDetail.undoKindChange',
     ];
-    const leftover = /\b(Headers|Header|Query|Params|capabilities|Reasoning|effort|Stream|Custom|Save|Edit|Apply|Undo|Keep|identity|responses|cloud|settings|suggestion)\b|\{count, (?!plural)/;
+    // "cloud" is a common loanword in de / fr / id and others (in der Cloud / dans le cloud / di cloud), so it is not a
+    // leftover; flagging it once pushed translations toward in der Wolke / dans le nuage / di awan.
+    const leftover = /\b(Headers|Header|Query|Params|capabilities|Reasoning|effort|Stream|Custom|Save|Edit|Apply|Undo|Keep|identity|responses|settings|suggestion)\b|\{count, (?!plural)/;
     const problems: string[] = [];
     for (const locale of locales) {
       const localized = messages(locale);
