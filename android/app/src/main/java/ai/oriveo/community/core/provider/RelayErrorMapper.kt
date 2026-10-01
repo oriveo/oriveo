@@ -15,7 +15,6 @@ data class RelayErrorContext(
     val transport: RelayTransport? = null,
     val authMode: RelayAuthMode? = null,
     val modelID: String? = null,
-    val codexCompatIdentity: Boolean? = null,
 )
 
 /**
@@ -48,18 +47,14 @@ object RelayErrorMapper {
     ): ProviderServiceError? {
         val detail = extractDetail(body, credentials)
 
+        // The mobile apps have no "Codex compatible identity" switch, so a rejected identity can only
+        // point at Advanced HTTP, which exists. Two branches, the same as on iOS.
         if (status == 403 && isCodexClientIdentityRejection(detail)) {
             return when {
                 !isCodexStyleContext(context) -> relayError(
                     status,
                     RelayGuidanceCode.CodexIdentitySwitchType,
-                    "This custom LLM requires Codex client identity. Open Providers → this connection → Connection settings → Protocol type and switch to “Codex (Responses)”, then retry.",
-                    detail,
-                )
-                context.codexCompatIdentity == false -> relayError(
-                    status,
-                    RelayGuidanceCode.CodexIdentityEnableCompat,
-                    "This custom LLM requires Codex client identity. Open Providers → this connection → Connection settings → Compatibility and turn on “Codex compatible identity”, then retry.",
+                    "This custom LLM requires a Codex client identity. Open Providers → this connection → Connection settings → Protocol type and switch to “OpenAI Responses compatible”, then retry.",
                     detail,
                 )
                 else -> relayError(
@@ -75,7 +70,7 @@ object RelayErrorMapper {
             return relayError(
                 status,
                 RelayGuidanceCode.ResponsesOnlyEndpoint,
-                "This custom LLM only exposes /v1/responses and rejects /chat/completions. Open Providers → this connection → Connection settings → Protocol type and switch to “Codex (Responses)”, then retry.",
+                "This custom LLM only exposes /v1/responses and rejects /chat/completions. Open Providers → this connection → Connection settings → Protocol type and switch to “OpenAI Responses compatible”, then retry.",
                 detail,
             )
         }
@@ -102,7 +97,7 @@ object RelayErrorMapper {
             return relayError(
                 status,
                 RelayGuidanceCode.ResponsesProtocolRequired,
-                "This custom LLM requires the OpenAI Responses protocol. Open Providers → this connection → Connection settings → Protocol type and switch to “Codex (Responses)”, then retry.",
+                "This custom LLM requires the OpenAI Responses protocol. Open Providers → this connection → Connection settings → Protocol type and switch to “OpenAI Responses compatible”, then retry.",
                 detail,
             )
         }

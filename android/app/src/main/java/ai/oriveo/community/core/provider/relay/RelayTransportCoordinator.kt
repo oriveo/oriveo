@@ -1253,7 +1253,6 @@ internal class RelayTransportCoordinator(
                 transport = transport,
                 authMode = resolveAuthMode(requestOptions, transport),
                 modelID = modelID,
-                codexCompatIdentity = requestOptions.relayRequested?.codexCompatIdentity,
             ),
             credentials = credentials,
         )
@@ -1880,7 +1879,6 @@ internal class RelayTransportCoordinator(
                 transport = transport,
                 authMode = resolveAuthMode(requestOptions, transport),
                 modelID = modelID,
-                codexCompatIdentity = requestOptions.relayRequested?.codexCompatIdentity,
             ),
             credentials = relayCredentialMaterial(response),
         )

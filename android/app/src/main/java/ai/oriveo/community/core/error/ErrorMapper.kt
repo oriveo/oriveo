@@ -111,7 +111,6 @@ object ErrorMapper {
 
     private fun relayGuidanceResource(code: RelayGuidanceCode): Int = when (code) {
         RelayGuidanceCode.CodexIdentitySwitchType -> R.string.relay_guidance_codex_identity_switch_type
-        RelayGuidanceCode.CodexIdentityEnableCompat -> R.string.relay_guidance_codex_identity_enable_compat
         RelayGuidanceCode.CodexIdentityStillRejected -> R.string.relay_guidance_codex_identity_still_rejected
         RelayGuidanceCode.ResponsesOnlyEndpoint -> R.string.relay_guidance_responses_only_endpoint
         RelayGuidanceCode.UpstreamUnreachable -> R.string.relay_guidance_upstream_unreachable

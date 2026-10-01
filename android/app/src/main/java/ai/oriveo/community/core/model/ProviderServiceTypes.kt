@@ -176,7 +176,6 @@ enum class OpenAISubscriptionFailureReason(val userMessage: String) {
 /** Stable keys for the relay guidance texts, so a stored hint survives a translation change. */
 enum class RelayGuidanceCode(val stableKey: String) {
     CodexIdentitySwitchType("codex_identity_switch_type"),
-    CodexIdentityEnableCompat("codex_identity_enable_compat"),
     CodexIdentityStillRejected("codex_identity_still_rejected"),
     ResponsesOnlyEndpoint("responses_only_endpoint"),
     UpstreamUnreachable("upstream_unreachable"),
@@ -194,11 +193,15 @@ enum class RelayGuidanceCode(val stableKey: String) {
     companion object {
         private const val PERSISTENCE_PREFIX = "relay_guidance:"
 
+        // Retired key stored by older versions. The mobile apps have no matching switch, so it renders
+        // as the current guidance instead of exposing the raw key.
+        private val LEGACY_KEYS = mapOf("codex_identity_enable_compat" to CodexIdentityStillRejected)
+
         fun fromPersistenceKey(raw: String?): RelayGuidanceCode? {
             val key = raw?.takeIf { it.startsWith(PERSISTENCE_PREFIX) }
                 ?.removePrefix(PERSISTENCE_PREFIX)
                 ?: return null
-            return entries.firstOrNull { it.stableKey == key }
+            return entries.firstOrNull { it.stableKey == key } ?: LEGACY_KEYS[key]
         }
     }
 }

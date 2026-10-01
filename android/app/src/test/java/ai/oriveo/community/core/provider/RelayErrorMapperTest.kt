@@ -2,6 +2,7 @@ package ai.oriveo.community.core.provider
 
 import ai.oriveo.community.core.model.ProviderServiceError
 import ai.oriveo.community.core.model.RelayAuthMode
+import ai.oriveo.community.core.model.RelayGuidanceCode
 import ai.oriveo.community.core.model.RelayKind
 import ai.oriveo.community.core.model.RelayTransport
 import org.junit.Assert.assertEquals
@@ -22,7 +23,7 @@ class RelayErrorMapperTest {
         )
 
         assertGuidance(error, "Responses")
-        assertGuidance(error, "Codex (Responses)")
+        assertGuidance(error, "OpenAI Responses compatible")
     }
 
     @Test
@@ -51,34 +52,33 @@ class RelayErrorMapperTest {
     }
 
     @Test
-    fun `rule 4 distinguishes missing codex identity from rejected codex identity`() {
+    fun `rule 4 splits codex identity 403 by whether the request was codex style`() {
+        val body = """{"error":{"message":"Only Codex official clients are allowed"}}"""
         val missingIdentity = classify(
             status = 403,
-            body = """{"error":{"message":"Only Codex official clients are allowed"}}""",
+            body = body,
             context = context(transport = RelayTransport.OpenAIChatCompletions),
         )
-        val disabledIdentity = classify(
+        val codexStyleByKind = classify(
             status = 403,
-            body = """{"error":{"message":"Only Codex official clients are allowed"}}""",
-            context = context(
-                relayKind = RelayKind.CodexStyle,
-                transport = RelayTransport.OpenAIResponses,
-                codexCompatIdentity = false,
-            ),
+            body = body,
+            context = context(relayKind = RelayKind.CodexStyle, transport = RelayTransport.OpenAIResponses),
         )
-        val rejectedIdentity = classify(
+        val codexStyleByTransport = classify(
             status = 403,
-            body = """{"error":{"message":"Only Codex official clients are allowed"}}""",
-            context = context(
-                relayKind = RelayKind.CodexStyle,
-                transport = RelayTransport.OpenAIResponses,
-                codexCompatIdentity = true,
-            ),
+            body = body,
+            context = context(transport = RelayTransport.OpenAIResponses),
         )
 
-        assertGuidance(missingIdentity, "Codex (Responses)")
-        assertGuidance(disabledIdentity, "Codex compatible identity")
-        assertGuidance(rejectedIdentity, "custom User-Agent")
+        assertGuidance(missingIdentity, "OpenAI Responses compatible")
+        // The mobile apps have no "Codex compatible identity" switch, so a codex-style context always
+        // points at Advanced HTTP, which exists.
+        for (rejected in listOf(codexStyleByKind, codexStyleByTransport)) {
+            assertGuidance(rejected, "custom User-Agent")
+            val relayError = rejected as ProviderServiceError.RelayUpstream
+            assertFalse(relayError.guidance.contains("Codex compatible identity", ignoreCase = true))
+            assertEquals(RelayGuidanceCode.CodexIdentityStillRejected, relayError.guidanceCode)
+        }
     }
 
     @Test
@@ -91,7 +91,7 @@ class RelayErrorMapperTest {
         )
 
         assertGuidance(error, "/chat/completions")
-        assertGuidance(error, "Codex (Responses)")
+        assertGuidance(error, "OpenAI Responses compatible")
     }
 
     @Test
@@ -181,13 +181,11 @@ class RelayErrorMapperTest {
         transport: RelayTransport? = null,
         authMode: RelayAuthMode? = null,
         modelID: String? = null,
-        codexCompatIdentity: Boolean? = null,
     ) = RelayErrorContext(
         relayKind = relayKind,
         transport = transport,
         authMode = authMode,
         modelID = modelID,
-        codexCompatIdentity = codexCompatIdentity,
     )
 
     private fun assertGuidance(error: ProviderServiceError?, expected: String) {

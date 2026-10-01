@@ -120,7 +120,7 @@ class ErrorMapperTest {
         }
     }
 
-    // Drives all 13 branches of the production classify function, then hands the real error object to ErrorMapper.
+    // Drives all 12 branches of the production classify function, then hands the real error object to ErrorMapper.
     // This pins the stable semantic code -> Android resource mapping, instead of self-verifying by matching the English guidance string.
     @Test
     fun `map localizes every relay guidance produced by RelayErrorMapper classify`() {
@@ -134,9 +134,7 @@ class ErrorMapperTest {
         val classified = listOf(
             RelayErrorMapper.classify(403, codexBody, null, RelayErrorContext()) to
                 R.string.relay_guidance_codex_identity_switch_type,
-            RelayErrorMapper.classify(403, codexBody, null, codexContext.copy(codexCompatIdentity = false)) to
-                R.string.relay_guidance_codex_identity_enable_compat,
-            RelayErrorMapper.classify(403, codexBody, null, codexContext.copy(codexCompatIdentity = true)) to
+            RelayErrorMapper.classify(403, codexBody, null, codexContext) to
                 R.string.relay_guidance_codex_identity_still_rejected,
             RelayErrorMapper.classify(
                 404,
@@ -195,8 +193,22 @@ class ErrorMapperTest {
             )
             relayError.guidanceCode
         }
-        // All 13 branches must each be hit (guards against two cases colliding on the same branch and faking coverage).
-        assertEquals(13, guidanceCodes.filterNotNull().distinct().size)
+        // All 12 branches must each be hit (guards against two cases colliding on the same branch and faking coverage).
+        assertEquals(12, guidanceCodes.filterNotNull().distinct().size)
+    }
+
+    // A key stored by older versions for a switch the mobile apps do not have must render as the
+    // current Advanced HTTP guidance, never as the raw key.
+    @Test
+    fun `legacy enable compat persistence key localizes to still rejected guidance`() {
+        every { context.getString(any()) } answers { "mapped-resource-${firstArg<Int>()}" }
+        val legacyKey = "relay_guidance:codex_identity_enable_compat"
+
+        assertTrue(ErrorMapper.hasLocalizedProviderMessage(legacyKey))
+        assertEquals(
+            "mapped-resource-${R.string.relay_guidance_codex_identity_still_rejected}",
+            ErrorMapper.localizeProviderErrorMessage(legacyKey, context),
+        )
     }
 
     @Test
