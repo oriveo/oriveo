@@ -51,8 +51,17 @@ export interface StreamToolCallDelta {
 
 export type ToolConfirmationReason = 'sensitive' | 'high_cost' | 'broad_read';
 
+/**
+ * A stretch of work the provider has just started that produces no text. The set is closed and
+ * only ever comes from a frame observed on the wire, never from the user's settings or the model
+ * name.
+ */
+export type StreamActivity = 'web_search';
+
 export type StreamEvent =
   | { type: 'delta'; content: string; managedSequence?: number }
+  /** Transient waiting hint: never persisted or synced, void once body text or non-empty reasoning arrives. */
+  | { type: 'activity'; activity: StreamActivity }
   | { type: 'reasoning'; content: string; managedSequence?: number }
   | { type: 'image'; url: string }
   | { type: 'model'; modelID: string }

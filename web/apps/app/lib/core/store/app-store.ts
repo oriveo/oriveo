@@ -1,5 +1,6 @@
 import { createStore } from 'zustand/vanilla';
 import type { StorageHealth } from '../storage-health';
+import type { StreamActivity } from '@oriveo/core/providers/types';
 import type {
   Provider,
   Conversation,
@@ -77,6 +78,12 @@ export interface AppState {
    * by stream-runner on the first reasoning event regardless of its content.
    */
   streamingReasoningActive: Record<string, boolean>;
+  /**
+   * What the provider was last observed doing on the wire. It shares the lifetime of
+   * streamingTexts: transient, never persisted. Only stream-runner writes it, setting it on an
+   * activity event and clearing it when the next body text or non-empty reasoning arrives.
+   */
+  streamingActivities: Record<string, StreamActivity | null>;
   streamingMessageIds: Record<string, string>;
   streamingConversationIds: string[];
 
@@ -189,6 +196,8 @@ export interface AppActions {
   appendStreamingReasoningText: (convId: string, chunk: string) => void;
   /** Mark reasoning as started for the conversation; called on the first reasoning event regardless of whether the text is empty. Idempotent. */
   markStreamingReasoningStarted: (convId: string) => void;
+  /** Set or clear the activity currently observed for the conversation. Idempotent; a conversation that is not streaming is left untouched. */
+  setStreamingActivity: (convId: string, activity: StreamActivity | null) => void;
   /** Register a stream: writes streamingMessageIds[convId] + streamingTexts[convId]='' + streamingReasoningTexts[convId]='' and pushes convId into streamingConversationIds. */
   beginStreamingForConversation: (convId: string, msgId: string) => void;
   /** Clear a stream: removes convId from every dictionary and array together. */
@@ -288,6 +297,7 @@ export const defaultState: AppState = {
   streamingTexts: {},
   streamingReasoningTexts: {},
   streamingReasoningActive: {},
+  streamingActivities: {},
   streamingMessageIds: {},
   streamingConversationIds: [],
   searchQuery: '',

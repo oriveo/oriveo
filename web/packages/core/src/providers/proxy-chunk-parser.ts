@@ -270,7 +270,7 @@ export function createProxyChunkParser(providerKind?: ProviderKind, continuation
         events.push({ type: 'delta', content: delta.text });
       }
     }
-    events.push(...nativeToolCallEvents('anthropic_messages', _eventType, chunk));
+    events.push(...nativeToolCallEvents('anthropic_messages', _eventType, chunk, nativeToolCallState));
     if ((providerKind === 'anthropic' || miniMaxAnthropicWeb)
       && chunk.type === 'content_block_start' && isRecord(chunk.content_block)) {
       const block = chunk.content_block;

@@ -149,7 +149,7 @@ export const anthropicMessagesStrategy: TransportStrategy = {
     }
     const type = eventType ?? (typeof event.type === 'string' ? event.type : '');
     const events: StreamEvent[] = [];
-    events.push(...nativeToolCallEvents('anthropic_messages', eventType, event));
+    events.push(...nativeToolCallEvents('anthropic_messages', eventType, event, ctx.state));
 
     switch (type) {
       case 'message_start': {

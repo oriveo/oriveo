@@ -1,0 +1,57 @@
+.line {
+  margin-top: var(--o-space-sm);
+  font-size: var(--o-text-sm);
+  line-height: 20px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  animation: lineIn 200ms ease-out both;
+}
+
+@keyframes lineIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/*
+ * A highlight band sweeps across the text in reading direction: tertiary as the base colour, text
+ * as the highlight. The gradient is three times as wide as the text and the highlight takes its
+ * middle 30%, which shows as a core about 30% of the text wide, while the position runs from 100%
+ * to 0%.
+ */
+.shimmer {
+  color: transparent;
+  background-image: linear-gradient(
+    90deg,
+    var(--o-text-tertiary) 0%,
+    var(--o-text-tertiary) 35%,
+    var(--o-text) 50%,
+    var(--o-text-tertiary) 65%,
+    var(--o-text-tertiary) 100%
+  );
+  background-size: 300% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  animation: sweep 1800ms linear infinite;
+}
+
+:global([dir='rtl']) .shimmer {
+  animation-direction: reverse;
+}
+
+@keyframes sweep {
+  from { background-position: 100% 0; }
+  to { background-position: 0% 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .line {
+    animation: none;
+  }
+
+  .shimmer {
+    animation: none;
+    background-image: none;
+    color: var(--o-text-secondary);
+  }
+}

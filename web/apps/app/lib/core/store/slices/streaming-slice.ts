@@ -8,14 +8,16 @@ type StreamingActions = Pick<
   | 'setStreamingReasoningText'
   | 'appendStreamingReasoningText'
   | 'markStreamingReasoningStarted'
+  | 'setStreamingActivity'
   | 'beginStreamingForConversation'
   | 'clearStreamingForConversation'
 >;
 
 /**
  * Streaming slice: per-conversation partials held in dictionaries.
- * Consistency rule across the five maps: the keys of streamingConversationIds must stay in sync with
- * streamingTexts, streamingMessageIds, streamingReasoningTexts and streamingReasoningActive.
+ * Consistency rule across the six maps: the keys of streamingConversationIds must stay in sync with
+ * streamingTexts, streamingMessageIds, streamingReasoningTexts, streamingReasoningActive and
+ * streamingActivities.
  * The only mutation entry points are beginStreamingForConversation and
  * clearStreamingForConversation, each a single set() that maintains the invariant atomically.
  */
@@ -54,6 +56,15 @@ export function createStreamingSlice(set: AppStoreSet): StreamingActions {
           streamingReasoningActive: { ...s.streamingReasoningActive, [convId]: true },
         };
       }),
+    // Idempotent: the same value keeps the same reference, since several upstream frames can
+    // report one search. Only a registered stream is written, so an event that arrives after the
+    // clear cannot bring the key back.
+    setStreamingActivity: (convId, activity) =>
+      set((s) => {
+        if (!(convId in s.streamingTexts)) return s;
+        if ((s.streamingActivities[convId] ?? null) === activity) return s;
+        return { streamingActivities: { ...s.streamingActivities, [convId]: activity } };
+      }),
     beginStreamingForConversation: (convId, msgId) =>
       set((s) => {
         const idsHasConv = s.streamingConversationIds.includes(convId);
@@ -61,6 +72,7 @@ export function createStreamingSlice(set: AppStoreSet): StreamingActions {
           streamingTexts: { ...s.streamingTexts, [convId]: '' },
           streamingReasoningTexts: { ...s.streamingReasoningTexts, [convId]: '' },
           streamingReasoningActive: { ...s.streamingReasoningActive, [convId]: false },
+          streamingActivities: { ...s.streamingActivities, [convId]: null },
           streamingMessageIds: { ...s.streamingMessageIds, [convId]: msgId },
           // Only touch the ids reference the first time convId appears, to avoid a pointless re-render
           streamingConversationIds: idsHasConv
@@ -81,15 +93,18 @@ export function createStreamingSlice(set: AppStoreSet): StreamingActions {
         const nextTexts = { ...s.streamingTexts };
         const nextReasoning = { ...s.streamingReasoningTexts };
         const nextReasoningActive = { ...s.streamingReasoningActive };
+        const nextActivities = { ...s.streamingActivities };
         const nextMsgIds = { ...s.streamingMessageIds };
         delete nextTexts[convId];
         delete nextReasoning[convId];
         delete nextReasoningActive[convId];
+        delete nextActivities[convId];
         delete nextMsgIds[convId];
         return {
           streamingTexts: nextTexts,
           streamingReasoningTexts: nextReasoning,
           streamingReasoningActive: nextReasoningActive,
+          streamingActivities: nextActivities,
           streamingMessageIds: nextMsgIds,
           streamingConversationIds: s.streamingConversationIds.filter((id) => id !== convId),
         };

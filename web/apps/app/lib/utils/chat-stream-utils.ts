@@ -329,6 +329,8 @@ export async function readStream(
       case 'tool_calls':
         mergeToolCallDeltas(toolCalls, event.toolCalls);
         break;
+      case 'activity':
+        // Display-only signal: it feeds no accumulator, and the caller picks it up through onEvent.
       case 'tool_call':
       case 'tool_result':
       case 'confirm_required':

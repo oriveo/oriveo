@@ -8,6 +8,7 @@ import { Maximize2 } from "lucide-react";
 import { MarkdownRenderer } from "./MarkdownRenderer";
 import { MessageActions } from "./MessageActions";
 import { TypingIndicator } from "./TypingIndicator";
+import { StreamActivityLine } from "./StreamActivityLine";
 import { MessageRecoveryCard } from "./MessageRecoveryCard";
 import {
   ContextMenu,
@@ -19,6 +20,8 @@ import { loadFilePreviewUtils } from "../../lib/utils/file-preview-utils-lazy";
 import { stripMarkdownForClipboard } from "../../lib/utils/markdown-preview";
 import { copyToClipboard } from "../../lib/utils/clipboard";
 import { useMessageEdit } from "../../lib/hooks/useMessageEdit";
+import { useStreamQuiet } from "../../lib/hooks/useStreamQuiet";
+import { resolveStreamActivityPresentation } from "../../lib/core/chat/stream-activity-presentation";
 import { UserAvatar } from "../common/UserAvatar";
 import { useAppStore } from "../../providers/StoreProvider";
 import { CitationsBlock } from "./CitationsBlock";
@@ -34,6 +37,7 @@ import {
 import {
   makeSelectStreamingReasoningText,
   makeSelectStreamingReasoningActive,
+  makeSelectStreamingActivity,
   makeSelectStreamingConvIdForMessage,
 } from "../../lib/core/store/selectors";
 import { createModelDisplayLookup } from "../../lib/core/providers/model-display-lookup";
@@ -170,6 +174,20 @@ export const MessageBubble = memo(function MessageBubble({
         .filter(Boolean)
         .join("\n\n")
     : (message.reasoningText ?? "");
+
+  // Waiting feedback. A pause is judged only from the body and reasoning text visible on screen.
+  const streamingActivity = useAppStore(makeSelectStreamingActivity(streamingConvId));
+  const streamQuiet = useStreamQuiet(
+    isStreaming && message.role === "assistant",
+    `${displayText.length}:${effectiveReasoningText.length}`,
+  );
+  const activityPresentation = resolveStreamActivityPresentation({
+    isGenerating: isStreaming && message.role === "assistant",
+    hasBodyText: Boolean(displayText),
+    typingIndicatorVisible: isWaitingForResponse,
+    activity: streamingActivity,
+    quiet: streamQuiet,
+  });
 
   const account = useAppStore((s) => s.account);
   const hasSeenNoteCaptureHint = useAppStore(
@@ -524,7 +542,13 @@ export const MessageBubble = memo(function MessageBubble({
                 />
               )}
               {isWaitingForResponse ? (
-                <TypingIndicator />
+                <TypingIndicator
+                  activity={
+                    activityPresentation.kind === "typingLabel"
+                      ? activityPresentation.activity
+                      : null
+                  }
+                />
               ) : message.role === "assistant" && displayText ? (
                 <MarkdownRenderer
                   content={displayText}
@@ -554,6 +578,9 @@ export const MessageBubble = memo(function MessageBubble({
               ) : (
                 <span data-quote-block="prose">{displayText}</span>
               )}
+              {activityPresentation.kind === "line" ? (
+                <StreamActivityLine label={activityPresentation.label} />
+              ) : null}
               {message.role === "assistant" && (message.unhandledToolCalls?.length || message.toolFallbackNotice) ? (
                 <UnhandledToolCallCard
                   calls={message.unhandledToolCalls}

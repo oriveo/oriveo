@@ -1,19 +1,21 @@
 'use client';
 
-import { useTranslations } from 'next-intl';
+import type { StreamActivity } from '@oriveo/core/providers/types';
+import { useStreamActivityLabel } from './StreamActivityLine';
 import styles from './TypingIndicator.module.css';
 
-export function TypingIndicator() {
-  const t = useTranslations('pages.chat');
+/** `activity`: an activity observed on the wire. When present it replaces the label; the dots stay. */
+export function TypingIndicator({ activity }: { activity?: StreamActivity | null }) {
+  const label = useStreamActivityLabel(activity ?? 'neutral');
 
   return (
-    <span className={styles.wrap} aria-label={t('generating')}>
+    <span className={styles.wrap} aria-label={label}>
       <span className={styles.dots} aria-hidden="true">
         <span className={styles.dot} />
         <span className={styles.dot} />
         <span className={styles.dot} />
       </span>
-      <span className={styles.label}>{t('generating')}</span>
+      <span className={styles.label}>{label}</span>
     </span>
   );
 }

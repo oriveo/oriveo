@@ -1,5 +1,6 @@
 import type { Provider } from '@oriveo/shared';
 import type { AppStore } from './app-store';
+import type { StreamActivity } from '@oriveo/core/providers/types';
 import {
   isVisibleConversation,
   sortConversationsByActivity,
@@ -105,6 +106,15 @@ export const makeSelectStreamingReasoningActive =
   (convId: string | undefined) =>
   (s: AppStore): boolean =>
     convId ? s.streamingReasoningActive?.[convId] === true : false;
+
+/**
+ * The provider activity currently observed for this conversation; null when it is not streaming
+ * or nothing has been observed. Tolerates a missing streamingActivities, as in a mocked test store.
+ */
+export const makeSelectStreamingActivity =
+  (convId: string | undefined) =>
+  (s: AppStore): StreamActivity | null =>
+    convId ? s.streamingActivities?.[convId] ?? null : null;
 
 /** Resolve a conversation id from a streaming message.id (streamingMessageIds maps convId to msgId).
  *  Returns a string primitive with a stable identity, friendly to React.memo. */

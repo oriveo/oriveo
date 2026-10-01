@@ -283,6 +283,8 @@ export async function runStreamPipeline(
 
   const flushScheduler = createPartialFlushScheduler(store, conversationId, messageId);
   const onChunk = (chunk: string) => {
+    // The model is talking again, so whatever activity was observed (a web search, say) is over.
+    store.getState().setStreamingActivity(conversationId, null);
     appendChunk(chunk);
     flushScheduler.onChunk(chunk);
   };
@@ -303,6 +305,7 @@ export async function runStreamPipeline(
     }
     // Empty strings never enter the text pipeline: appending one is still empty and only burns a rAF frame and a store set.
     if (!chunk) return;
+    store.getState().setStreamingActivity(conversationId, null);
     // Reasoning shares the rAF batcher with the body text: an expanded reasoning block is rendered
     // as markdown, so writing straight to the store would tie parse frequency to the provider's
     // chunk rate, which can exceed 100/s. The flush and discard exits are shared, and the stop and
@@ -352,6 +355,12 @@ export async function runStreamPipeline(
       undefined,
       onContinuation,
       (event) => {
+        if (event.type === 'activity') {
+          // Transient display signal: it is not capability evidence, which still comes only from
+          // citations and tool results.
+          store.getState().setStreamingActivity(conversationId, event.activity);
+          return;
+        }
         normalizedEvents.push(event);
         writeRequested();
       },
