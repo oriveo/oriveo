@@ -55,6 +55,7 @@ enum ProviderKeyValidator {
         let probePath = sanitizedPath(validation?.probePath) ?? "/models"
         let authMode = AuthMode(rawValue: validation?.authMode) ?? .bearer
         let headerProfile = HeaderProfile(rawValue: validation?.headerProfile) ?? .none
+        let chatAuthMode = validation?.chatAuthMode
         let signals = validation?.invalidKeySignals ?? [.init(status: 401, bodyIncludes: nil)]
 
         let metadataTransport = MetadataClient.shared.syncProviderTransport(providerKind: kind)
@@ -67,7 +68,8 @@ enum ProviderKeyValidator {
             baseURL: baseURL,
             probePath: probePath,
             authMode: authMode,
-            apiKey: apiKey
+            apiKey: apiKey,
+            chatAuthMode: chatAuthMode
         ) else {
             return .unverified(reason: .invalidEndpoint)
         }
@@ -79,7 +81,8 @@ enum ProviderKeyValidator {
             to: &request,
             authMode: authMode,
             headerProfile: headerProfile,
-            apiKey: apiKey
+            apiKey: apiKey,
+            chatAuthMode: chatAuthMode
         )
 
         do {
@@ -135,14 +138,16 @@ enum ProviderKeyValidator {
         baseURL: String,
         probePath: String,
         authMode: AuthMode,
-        apiKey: String
+        apiKey: String,
+        chatAuthMode: String? = nil
     ) -> URL? {
         let normalizedBase = baseURL.hasPrefix("http") ? baseURL : "https://\(baseURL)"
         let effectiveProbePath = deduplicateVersionPrefix(base: normalizedBase, probePath: probePath)
         guard let base = EndpointResolver.joinURL(base: normalizedBase, path: effectiveProbePath) else {
             return nil
         }
-        guard authMode == .queryKey else { return base }
+        // chatAuthMode wins: Gemini chat sends the key in a header, so the probe keeps it out of the query.
+        guard authMode == .queryKey, chatAuthMode != "x_goog_api_key" else { return base }
 
         guard var components = URLComponents(url: base, resolvingAgainstBaseURL: false) else {
             return base
@@ -157,18 +162,23 @@ enum ProviderKeyValidator {
         to request: inout URLRequest,
         authMode: AuthMode,
         headerProfile: HeaderProfile,
-        apiKey: String
+        apiKey: String,
+        chatAuthMode: String? = nil
     ) {
         request.setValue("application/json", forHTTPHeaderField: "Accept")
         request.setValue(UserAgentProvider.nativeUserAgent, forHTTPHeaderField: "User-Agent")
 
-        switch authMode {
-        case .bearer:
-            request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
-        case .xApiKey:
-            request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
-        case .queryKey:
-            break
+        if chatAuthMode == "x_goog_api_key" {
+            request.setValue(apiKey, forHTTPHeaderField: "x-goog-api-key")
+        } else {
+            switch authMode {
+            case .bearer:
+                request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+            case .xApiKey:
+                request.setValue(apiKey, forHTTPHeaderField: "x-api-key")
+            case .queryKey:
+                break
+            }
         }
 
         switch headerProfile {

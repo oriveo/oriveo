@@ -616,6 +616,9 @@ actor MetadataClient {
         let probe: String?
         let probePath: String?
         let authMode: String?
+        /// Auth used for chat requests; Gemini sends `x_goog_api_key`. When present the probe uses that header.
+        /// No default value: a `let` with an initial value is skipped by synthesized Decodable and would never be read.
+        let chatAuthMode: String?
         let headerProfile: String?
         let invalidKeySignals: [InvalidKeySignal]?
 

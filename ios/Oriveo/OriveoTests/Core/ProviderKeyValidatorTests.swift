@@ -118,6 +118,49 @@ struct ProviderKeyValidatorTests {
         #expect(url?.absoluteString == "https://generativelanguage.googleapis.com/v1beta/models?key=AIza-secret")
     }
 
+    @Test("chatAuthMode x_goog_api_key keeps the key out of the probe query and sends it as a header")
+    func chatAuthModeUsesHeader() {
+        let url = ProviderKeyValidator.buildProbeURL(
+            baseURL: "https://generativelanguage.googleapis.com/v1beta",
+            probePath: "/v1beta/models",
+            authMode: .queryKey,
+            apiKey: "AIza-secret",
+            chatAuthMode: "x_goog_api_key"
+        )
+        #expect(url?.absoluteString == "https://generativelanguage.googleapis.com/v1beta/models")
+        var request = URLRequest(url: url!)
+        ProviderKeyValidator.applyAuthHeaders(
+            to: &request,
+            authMode: .queryKey,
+            headerProfile: .none,
+            apiKey: "AIza-secret",
+            chatAuthMode: "x_goog_api_key"
+        )
+        #expect(request.value(forHTTPHeaderField: "x-goog-api-key") == "AIza-secret")
+        #expect(request.url?.query == nil)
+    }
+
+    @Test("chatAuthMode decodes from the catalog validation JSON, so the probe really uses the header")
+    func chatAuthModeDecodesFromMetadataPayload() throws {
+        // Same shape the catalog publishes for gemini.
+        let payload = #"{"probe":"list_models","probePath":"/v1beta/models","authMode":"query_key","chatAuthMode":"x_goog_api_key","headerProfile":"none","invalidKeySignals":[{"status":403}]}"#
+        let validation = try JSONDecoder().decode(MetadataClient.ProviderValidation.self, from: Data(payload.utf8))
+        #expect(validation.chatAuthMode == "x_goog_api_key")
+        let url = ProviderKeyValidator.buildProbeURL(
+            baseURL: "https://generativelanguage.googleapis.com/v1beta",
+            probePath: validation.probePath ?? "",
+            authMode: ProviderKeyValidator.AuthMode(rawValue: validation.authMode) ?? .bearer,
+            apiKey: "AIza-secret",
+            chatAuthMode: validation.chatAuthMode
+        )
+        #expect(url?.query == nil)
+
+        // A catalog without the field still decodes and keeps the query_key probe.
+        let legacy = #"{"probe":"list_models","probePath":"/v1beta/models","authMode":"query_key","headerProfile":"none"}"#
+        let legacyValidation = try JSONDecoder().decode(MetadataClient.ProviderValidation.self, from: Data(legacy.utf8))
+        #expect(legacyValidation.chatAuthMode == nil)
+    }
+
     @Test("Anthropic Version Dedup")
     func anthropicVersionDedup() {
         let url = ProviderKeyValidator.buildProbeURL(
