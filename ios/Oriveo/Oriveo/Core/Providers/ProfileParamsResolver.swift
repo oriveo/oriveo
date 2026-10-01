@@ -102,7 +102,10 @@ enum ProfileParamsResolver {
             // Runtime delivery suppresses legacy profile authority. A valid exact recipe delegates
             // only to the already typed profile bearing the recipe's declared template.
             if authorization.runtimeDelivered,
-               authorization.template != finalProfile?.template {
+               !CapabilityRecipeRequestCompiler.legacyGenerationTemplatesMatch(
+                   runtimeTemplate: authorization.template,
+                   profileTemplate: finalProfile?.template
+               ) {
                 return true
             }
             runtimeGenerationAuthorized = authorization.runtimeDelivered

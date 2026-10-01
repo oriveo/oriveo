@@ -40,6 +40,16 @@ enum CapabilityRecipeRequestCompiler {
         }
     }
 
+    /// User generation parameters are injected only when the runtime's legacy template equals profile.template.
+    /// An empty template on either side never counts as equal.
+    static func legacyGenerationTemplatesMatch(runtimeTemplate: String?, profileTemplate: String?) -> Bool {
+        guard let runtimeTemplate, let profileTemplate,
+              !runtimeTemplate.isEmpty, !profileTemplate.isEmpty else {
+            return false
+        }
+        return runtimeTemplate == profileTemplate
+    }
+
     /// Generation remains a typed parameter projection, but runtime is its authorization source.
     /// A delivered runtime with a missing/mismatched generation control is an intentional zero-delta
     /// kill switch; callers must not revive the legacy profile in that state.

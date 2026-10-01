@@ -42,6 +42,150 @@ struct CapabilityRecipeRequestCompilerTests {
         }
     }
 
+    @Test("legacy generation template authorizes only an equal profile")
+    func legacyGenerationGate() async throws {
+        let url = Self.findFile(components: ["shared", "model-contracts", "provider_recipe_request_compiler.v1.json"])
+        // Report each failure on its own: an unreadable file must not pass for a renamed field being caught.
+        let data: Data
+        do {
+            data = try Data(contentsOf: url)
+        } catch {
+            throw LegacyGateFixtureError.unreadable(path: url.path, reason: String(describing: error))
+        }
+        let fixture: LegacyGateFixture
+        do {
+            fixture = try JSONDecoder().decode(LegacyGateFixture.self, from: data)
+        } catch DecodingError.keyNotFound(let key, let context) where key.stringValue == "expectInject" {
+            throw LegacyGateFixtureError.missingExpectInject(
+                context.codingPath.map(\.stringValue).joined(separator: ".")
+            )
+        } catch {
+            throw LegacyGateFixtureError.undecodable(String(describing: error))
+        }
+        #expect(fixture.legacyGenerationGateCases.count == 8)
+        for item in fixture.legacyGenerationGateCases {
+            let allowed = CapabilityRecipeRequestCompiler.legacyGenerationTemplatesMatch(
+                runtimeTemplate: item.template,
+                profileTemplate: item.profileTemplate
+            )
+            #expect(allowed == item.expectInject, "\(item.caseId) expectInject")
+        }
+
+        // The loop above only proves the comparison itself. What decides whether the outgoing body
+        // carries user generation parameters is ProfileParamsResolver.applyGenerationParameters, so the
+        // same cases run again through the production path: catalog -> decoder -> resolver -> body.
+        let executionData = try Data(contentsOf: Self.findFile(
+            components: ["shared", "model-contracts", "provider_recipe_execution.v1.json"]
+        ))
+        let execution = try #require(JSONSerialization.jsonObject(with: executionData) as? [String: Any])
+        let coverage = try #require(execution["providerCoverage"] as? [[String: Any]])
+        let envelope = try CapabilityRuntimeFixtures.runtimeEnvelope()
+        let recipes = try #require(envelope["recipes"] as? [String: Any])
+        func recipeTemplate(_ coverageItem: [String: Any]) -> String? {
+            guard let ref = coverageItem["recipeRef"] as? String,
+                  let recipe = recipes[ref] as? [String: Any],
+                  let ops = recipe["requestOps"] as? [[String: Any]] else { return nil }
+            return ops.first { ($0["op"] as? String) == "legacy_generation_template" }?["template"] as? String
+        }
+        let options = ChatRequestOptions(generationParameters: .init(values: [
+            "temperature": .init(state: .value, value: .number(0.31))
+        ]))
+        let request = URLRequest(url: try #require(URL(string: "https://legacy-gate.invalid/v1/generate")))
+
+        for item in fixture.legacyGenerationGateCases {
+            // The runtime template comes from a real generation recipe in the registry, not a hand-made one.
+            let coverageItem = try #require(
+                coverage.first { recipeTemplate($0) == item.template },
+                "\(item.caseId): registry has no generation recipe for template \(item.template)"
+            )
+            let rawKind = try #require(coverageItem["providerKind"] as? String)
+            let providerKind = try #require(ProviderKind(rawValue: rawKind))
+            let recipeRef = try #require(coverageItem["recipeRef"] as? String)
+            let runtimeTransport = try #require(coverageItem["transport"] as? String)
+            let selector = (coverageItem["selectorTransport"] as? String) ?? runtimeTransport
+            let modelID = item.caseId
+            let etag = "legacy-gate-\(item.caseId)"
+
+            let templateDefinition: [String: Any] = ["transport": selector, "wire": ["temperature": "temperature"]]
+            let generationDefinitions: [String: Any] = [
+                "version": 1,
+                "parameters": ["temperature": ["valueSchema": "number"]],
+                "templates": [item.profileTemplate: templateDefinition],
+            ]
+            let modelProfile: [String: Any] = [
+                "template": item.profileTemplate,
+                "revision": "legacy-gate-generation-v1",
+                "parameters": [["id": "temperature", "support": "supported", "source": "authoritative_metadata"]],
+            ]
+            let modelEntry: [String: Any] = [
+                "canonicalModelId": modelID,
+                "transport": selector,
+                "capabilityControls": CapabilityRuntimeFixtures.controls([
+                    CapabilityRuntimeFixtures.ControlSpec(capability: "generation", recipeRef: recipeRef)
+                ]),
+                "profiles": ["generation": modelProfile],
+            ]
+            let providerEntry: [String: Any] = [
+                "resolveMap": [modelID: modelID],
+                "models": [modelID: modelEntry],
+            ]
+            let document: [String: Any] = [
+                "version": 1,
+                "capabilityRuntime": envelope,
+                "profiles": ["generation": generationDefinitions],
+                "providers": [rawKind: providerEntry],
+            ]
+            await MetadataClient.shared.resetForTesting()
+            try await MetadataClient.shared.loadForTesting(
+                json: String(decoding: try JSONSerialization.data(withJSONObject: document), as: UTF8.self),
+                metadataETag: etag
+            )
+
+            let resolved = try #require(
+                MetadataClient.shared.syncResolveCatalogModel(modelID: modelID, providerKind: providerKind),
+                "\(item.caseId): model did not resolve"
+            )
+            let profile = try #require(resolved.generationProfile, "\(item.caseId): no generation profile")
+            // Pin the preconditions so the template comparison is the only variable left: the runtime is
+            // delivered with the fixture's template, and the profile resolves a writable wire. Otherwise a
+            // zero delta in an unequal case could come from something else.
+            let authorization = CapabilityRecipeRequestCompiler.generationTemplate(
+                providerKind: providerKind, modelID: modelID, transport: runtimeTransport
+            )
+            #expect(authorization.runtimeDelivered, "\(item.caseId) runtime delivered")
+            #expect(authorization.template == item.template, "\(item.caseId) runtime template")
+            #expect(profile.template == item.profileTemplate, "\(item.caseId) profile template")
+            #expect(profile.wire?["temperature"] == "temperature", "\(item.caseId) profile wire")
+
+            var model = TestFactories.makeModel(id: modelID)
+            model.canonicalModelId = resolved.canonicalModelId
+            let identity = CapabilityEvidenceRequestIdentity.make(
+                provider: TestFactories.makeProvider(id: UUID(), kind: providerKind),
+                model: model,
+                partitionID: "legacy-gate-user",
+                hasExplicitValue: true,
+                metadataETag: etag
+            )
+            var body: [String: Any] = [:]
+            let applied = CapabilityEvidenceRequestContext.$current.withValue(identity) {
+                ProfileParamsResolver.applyGenerationParameters(
+                    to: &body, options: options, profile: profile,
+                    finalRequest: request, effectiveTransport: runtimeTransport
+                )
+            }
+            #expect(applied, "\(item.caseId) resolver reported a conflict")
+            if item.expectInject {
+                #expect(
+                    body["temperature"] as? Double == 0.31,
+                    "\(item.caseId) resolver body \(Self.canonicalJSON(body))"
+                )
+            } else {
+                #expect(body.isEmpty, "\(item.caseId) resolver body must stay untouched: \(Self.canonicalJSON(body))")
+            }
+        }
+        await MetadataClient.shared.resetForTesting()
+    }
+
     @Test("selected intent must also be present in the model control allowlist")
     func selectedIntentRequiresAvailableIntent() throws {
         let fixture = try Self.loadFixture()
@@ -381,5 +525,29 @@ struct CapabilityRecipeRequestCompilerTests {
         let capability: String
         let selectedIntent: String?
         let expectReason: String
+    }
+
+    private struct LegacyGateFixture: Decodable {
+        let legacyGenerationGateCases: [LegacyGateCase]
+    }
+
+    private struct LegacyGateCase: Decodable {
+        let caseId: String
+        let template: String
+        let profileTemplate: String
+        let expectInject: Bool
+    }
+
+    private enum LegacyGateFixtureError: Error, CustomStringConvertible {
+        case unreadable(path: String, reason: String)
+        case missingExpectInject(String)
+        case undecodable(String)
+        var description: String {
+            switch self {
+            case .unreadable(let path, let reason): "legacy generation gate fixture unreadable at \(path): \(reason)"
+            case .missingExpectInject(let codingPath): "missing expectInject: \(codingPath)"
+            case .undecodable(let reason): "legacy generation gate fixture undecodable: \(reason)"
+            }
+        }
     }
 }
