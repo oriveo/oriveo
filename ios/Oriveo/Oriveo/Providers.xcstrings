@@ -1189,7 +1189,7 @@
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "إضافة معلمة استعلام"
+            "value" : "إضافة معامل استعلام"
           }
         },
         "de" : {
@@ -2520,13 +2520,13 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "API की"
+            "value" : "API key"
           }
         },
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Kunci API"
+            "value" : "API key"
           }
         },
         "ja" : {
@@ -2621,13 +2621,13 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "API Key कुंजी"
+            "value" : "API key"
           }
         },
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Kunci API Key"
+            "value" : "API key"
           }
         },
         "ja" : {
@@ -2716,13 +2716,13 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "API कुंजी में असमर्थित वर्ण हैं। कृपया इसे फिर से पेस्ट करें — संभवतः इसमें फुल-विड्थ स्पेस, ज़ीरो-विड्थ स्पेस या नॉन-ASCII वर्ण घुस गए हैं।"
+            "value" : "API key में असमर्थित वर्ण हैं। कृपया इसे फिर से पेस्ट करें — संभवतः इसमें फुल-विड्थ स्पेस, ज़ीरो-विड्थ स्पेस या नॉन-ASCII वर्ण घुस गए हैं।"
           }
         },
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "API Key mengandung karakter yang tidak didukung. Tempelkan ulang — kemungkinan terselip spasi lebar penuh, spasi lebar nol, atau karakter non-ASCII."
+            "value" : "API key mengandung karakter yang tidak didukung. Tempelkan ulang — kemungkinan terselip spasi lebar penuh, spasi lebar nol, atau karakter non-ASCII."
           }
         },
         "ja" : {
@@ -2776,7 +2776,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "API Key 含不支援的字元，請重新貼上。常見原因：混入了中文、全形空格或零寬空白等不可見字元。"
+            "value" : "API 金鑰含不支援的字元，請重新貼上。常見原因：混入了中文、全形空格或零寬空白等不可見字元。"
           }
         }
       }
@@ -2811,13 +2811,13 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "API कुंजी अमान्य"
+            "value" : "API key अमान्य"
           }
         },
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Kunci API tidak valid"
+            "value" : "API key tidak valid"
           }
         },
         "ja" : {
@@ -2871,7 +2871,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Key 已失效"
+            "value" : "金鑰已失效"
           }
         }
       }
@@ -2906,13 +2906,13 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "इस डिवाइस पर API कुंजी सहेजी नहीं गई। जोड़ने के लिए टैप करें।"
+            "value" : "इस डिवाइस पर API key सहेजी नहीं गई। जोड़ने के लिए टैप करें।"
           }
         },
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Kunci API tidak tersimpan di perangkat ini. Ketuk untuk menambahkan."
+            "value" : "API key tidak tersimpan di perangkat ini. Ketuk untuk menambahkan."
           }
         },
         "ja" : {
@@ -3007,13 +3007,13 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "API कुंजी आवश्यक है"
+            "value" : "API key आवश्यक है"
           }
         },
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "API Key diperlukan"
+            "value" : "API key diperlukan"
           }
         },
         "ja" : {
@@ -3067,7 +3067,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "需要填寫 API Key"
+            "value" : "需要填寫 API 金鑰"
           }
         }
       }
@@ -4896,7 +4896,7 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "प्रदाता द्वारा"
+            "value" : "प्रोवाइडर के अनुसार"
           }
         },
         "id" : {
@@ -4908,7 +4908,7 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "プロバイダ別"
+            "value" : "プロバイダー別"
           }
         },
         "ko" : {
@@ -4926,7 +4926,7 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "По поставщику"
+            "value" : "По провайдерам"
           }
         },
         "th" : {
@@ -4950,13 +4950,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "按服务商"
+            "value" : "按供应商"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "按服務商"
+            "value" : "按供應商"
           }
         }
       }
@@ -5276,7 +5276,7 @@
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "La détection du catalogue ne suffit pas. Les tests automatiques envoient au maximum 1 jeton via le chemin de discussion réel et sélectionnent un protocole fonctionnel pour vous."
+            "value" : "La détection du catalogue ne suffit pas. Le test automatique envoie au plus 1 token par le même chemin qu’une vraie conversation et choisit pour vous un protocole qui fonctionne."
           }
         },
         "hi" : {
@@ -5330,7 +5330,7 @@
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Phát hiện danh mục là không đủ. Kiểm tra tự động sẽ gửi tối đa 1 mã thông báo qua đường dẫn trò chuyện thực và chọn giao thức hoạt động cho bạn."
+            "value" : "Chỉ phát hiện danh mục là chưa đủ. Kiểm tra tự động sẽ gửi tối đa 1 token qua luồng trò chuyện thực tế và chọn giúp bạn một giao thức hoạt động được."
           }
         },
         "zh-Hans" : {
@@ -5514,7 +5514,7 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Изменять"
+            "value" : "Изменить"
           }
         },
         "th" : {
@@ -5526,7 +5526,7 @@
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Değiştirmek"
+            "value" : "Değiştir"
           }
         },
         "vi" : {
@@ -5692,7 +5692,7 @@
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Masuk dengan langganan ChatGPT sementara tidak tersedia karena sedang kami perbarui. Anda bisa terhubung dengan kunci API."
+            "value" : "Masuk dengan langganan ChatGPT sementara tidak tersedia karena sedang kami perbarui. Anda bisa terhubung dengan API key."
           }
         },
         "ja" : {
@@ -5781,13 +5781,13 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "अपनी API कुंजी जांचें"
+            "value" : "अपनी API key जांचें"
           }
         },
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Periksa API Key Anda"
+            "value" : "Periksa API key Anda"
           }
         },
         "ja" : {
@@ -5841,7 +5841,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "請檢查 API Key"
+            "value" : "請檢查 API 金鑰"
           }
         }
       }
@@ -5936,7 +5936,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "檢查 Key"
+            "value" : "檢查金鑰"
           }
         }
       }
@@ -6571,13 +6571,13 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "अपना AI प्रदाता चुनें, फिर अपनी API कुंजी दर्ज करें"
+            "value" : "अपना AI प्रोवाइडर चुनें, फिर अपनी API key दर्ज करें"
           }
         },
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Pilih penyedia AI Anda, lalu masukkan kunci API Anda"
+            "value" : "Pilih penyedia AI Anda, lalu masukkan API key Anda"
           }
         },
         "ja" : {
@@ -6625,13 +6625,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "选择 AI 服务商，再填入 API 密钥"
+            "value" : "选择 AI 供应商，再填入 API Key"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "選擇 AI 服務商，再填入 API 金鑰"
+            "value" : "選擇 AI 供應商，再填入 API 金鑰"
           }
         }
       }
@@ -7242,7 +7242,7 @@
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "تم تأكيد بروتوكول %@، لكن هذا النموذج اللغوي الكبير المخصص لا ينشر كتالوج نماذج. أدخل معرّف نموذج بالأعلى للمتابعة."
+            "value" : "تم تأكيد بروتوكول %@، لكن هذا النموذج اللغوي المخصص لا ينشر فهرسًا للنماذج. أدخل معرّف نموذج في الحقل أعلاه للمتابعة."
           }
         },
         "de" : {
@@ -7302,7 +7302,7 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Протокол %@ подтверждён, но эта пользовательская LLM не публикует каталог моделей. Введи ID модели выше, чтобы продолжить."
+            "value" : "Протокол %@ подтверждён, но эта пользовательская LLM не публикует каталог моделей. Введите ID модели выше, чтобы продолжить."
           }
         },
         "th" : {
@@ -7314,7 +7314,7 @@
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ protokolü doğrulandı, ancak bu aktarıcı bir model kataloğu yayınlamıyor. Devam etmek için yukarıya bir model kimliği girin."
+            "value" : "%@ protokolü doğrulandı, ancak bu özel LLM bir model kataloğu yayınlamıyor. Devam etmek için yukarıya bir model kimliği girin."
           }
         },
         "vi" : {
@@ -7462,7 +7462,7 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "प्रदाता कनेक्ट करें"
+            "value" : "प्रोवाइडर कनेक्ट करें"
           }
         },
         "id" : {
@@ -7516,13 +7516,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "连接服务商"
+            "value" : "连接供应商"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "連接服務商"
+            "value" : "連接供應商"
           }
         }
       }
@@ -7557,7 +7557,7 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "पहले एक प्रदाता कनेक्ट करें. मॉडल स्विचिंग, चैट और लागत पारदर्शिता सभी यहीं से शुरू होते हैं।"
+            "value" : "पहले एक प्रोवाइडर कनेक्ट करें। मॉडल स्विचिंग, चैट और लागत पारदर्शिता सभी यहीं से शुरू होते हैं।"
           }
         },
         "id" : {
@@ -7611,13 +7611,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "先连接一个服务商。模型切换、聊天和费用透明都从这里开始。"
+            "value" : "先连接一个供应商。模型切换、聊天和费用透明都从这里开始。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "首先連接服務商。模型切換、聊天和成本透明度都從這裡開始。"
+            "value" : "先連接一個供應商。模型切換、聊天和費用透明都從這裡開始。"
           }
         }
       }
@@ -7789,7 +7789,7 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Подключи свой сервис моделей или локальные и LAN-вычисления"
+            "value" : "Подключите свой сервис моделей или вычислительные ресурсы на этом устройстве и в локальной сети"
           }
         },
         "th" : {
@@ -8264,7 +8264,7 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "अपना पहला प्रदाता कनेक्ट करें"
+            "value" : "अपना पहला प्रोवाइडर कनेक्ट करें"
           }
         },
         "id" : {
@@ -8294,7 +8294,7 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Подключите первого поставщика"
+            "value" : "Подключите первого провайдера"
           }
         },
         "th" : {
@@ -8318,13 +8318,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "连接你的第一个服务商"
+            "value" : "连接你的第一个供应商"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "連接你的第一個服務商"
+            "value" : "連接你的第一個供應商"
           }
         }
       }
@@ -9215,7 +9215,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "連線異常，請檢查 API Key 是否有效。"
+            "value" : "連線異常，請檢查 API 金鑰是否有效。"
           }
         }
       }
@@ -9927,7 +9927,7 @@
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "تعذّر حذف الموفّر. يُرجى المحاولة مرة أخرى."
+            "value" : "تعذّر حذف المزوّد. يُرجى المحاولة مرة أخرى."
           }
         },
         "de" : {
@@ -9951,7 +9951,7 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "प्रदाता हटाया नहीं जा सका। कृपया पुनः प्रयास करें।"
+            "value" : "प्रोवाइडर हटाया नहीं जा सका। कृपया पुनः प्रयास करें।"
           }
         },
         "id" : {
@@ -9969,7 +9969,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "공급자를 삭제할 수 없습니다. 다시 시도해 주세요."
+            "value" : "제공업체를 삭제할 수 없습니다. 다시 시도해 주세요."
           }
         },
         "pt-BR" : {
@@ -10622,7 +10622,7 @@
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "معلمات استعلام مخصّصة"
+            "value" : "معاملات استعلام مخصّصة"
           }
         },
         "de" : {
@@ -10854,7 +10854,7 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "कस्टम अनुरोध फ़ील्ड केवल उन मॉडलों पर उपलब्ध हैं जिनके प्रदाता ने फ़ील्ड संरचना आधिकारिक रूप से घोषित की है।"
+            "value" : "कस्टम अनुरोध फ़ील्ड केवल उन मॉडलों पर उपलब्ध हैं जिनके प्रोवाइडर ने फ़ील्ड संरचना आधिकारिक रूप से घोषित की है।"
           }
         },
         "id" : {
@@ -10866,7 +10866,7 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "カスタムリクエストフィールドは、プロバイダが公式にフィールド構造を宣言したモデルでのみ利用できます。"
+            "value" : "カスタムリクエストフィールドは、プロバイダーが公式にフィールド構造を宣言したモデルでのみ利用できます。"
           }
         },
         "ko" : {
@@ -11228,7 +11228,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "web_search passt standardmäßig zu OpenAI und den wichtigsten Codex-benutzerdefinierte LLMs. Für ältere benutzerdefinierte LLMs auf web_search_preview umstellen."
+            "value" : "Standardmäßig passt web_search zu OpenAI und den gängigen Codex-Verbindungen. Für ältere Verbindungen auf web_search_preview umstellen."
           }
         },
         "en" : {
@@ -11240,79 +11240,79 @@
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "El web_search predeterminado coincide con OpenAI y con los principales LLM personalizados de Codex. Cambia a web_search_preview para servicios antiguos."
+            "value" : "El web_search predeterminado funciona con OpenAI y con las principales conexiones de Codex. Para conexiones antiguas, cambia a web_search_preview."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "web_search par défaut correspond à OpenAI et aux principaux LLM personnalisé Codex. Passez à web_search_preview pour les anciens LLM personnalisé."
+            "value" : "Le web_search par défaut convient à OpenAI et aux principales connexions Codex. Passez à web_search_preview pour les connexions plus anciennes."
           }
         },
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "डिफ़ॉल्ट web_search OpenAI और मुख्य Codex कस्टम LLM से मेल खाता है। पुराने कस्टम LLM के लिए web_search_preview पर स्विच करें।"
+            "value" : "डिफ़ॉल्ट web_search OpenAI और मुख्य Codex कनेक्शन के साथ काम करता है। पुराने कनेक्शन के लिए web_search_preview पर स्विच करें।"
           }
         },
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "web_search default cocok dengan OpenAI dan LLM kustom Codex utama. Ganti ke web_search_preview untuk LLM kustom lama."
+            "value" : "web_search default cocok untuk OpenAI dan koneksi Codex utama. Untuk koneksi lama, ganti ke web_search_preview."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "デフォルトの web_search は OpenAI と主要 Codex カスタム LLM に対応します。旧来のカスタム LLM は web_search_preview に切替。"
+            "value" : "デフォルトの web_search は OpenAI と主要な Codex 接続に対応しています。古い接続では web_search_preview に切り替えてください。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "기본 web_search는 OpenAI 및 주요 Codex 사용자 지정 LLM과 호환됩니다. 레거시 사용자 지정 LLM는 web_search_preview로 전환하세요."
+            "value" : "기본 web_search는 OpenAI 및 주요 Codex 연결과 호환됩니다. 구형 연결에서는 web_search_preview로 전환하세요."
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "O padrão web_search corresponde à OpenAI e aos principais LLM personalizados Codex. Use web_search_preview para LLM personalizados antigos."
+            "value" : "O web_search padrão funciona com a OpenAI e com as principais conexões Codex. Para conexões antigas, use web_search_preview."
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "По умолчанию web_search подходит для OpenAI и основных пользовательских LLM на базе Codex. Для устаревших пользовательских LLM переключись на web_search_preview."
+            "value" : "По умолчанию web_search подходит для OpenAI и основных подключений Codex. Для устаревших подключений переключитесь на web_search_preview."
           }
         },
         "th" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "web_search ค่าเริ่มต้นเข้ากันได้กับ OpenAI และLLM แบบกำหนดเอง Codex หลัก เปลี่ยนเป็น web_search_preview สำหรับ LLM แบบกำหนดเองรุ่นเก่า"
+            "value" : "web_search ค่าเริ่มต้นใช้ได้กับ OpenAI และการเชื่อมต่อ Codex หลัก ๆ ส่วนการเชื่อมต่อรุ่นเก่าให้เปลี่ยนเป็น web_search_preview"
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Varsayılan web_search, OpenAI ve ana Codex aktarımlarıyla uyumludur. Eski aktarımlar için web_search_preview'a geçin."
+            "value" : "Varsayılan web_search, OpenAI ve başlıca Codex bağlantılarıyla uyumludur. Eski bağlantılarda web_search_preview seçeneğine geçin."
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "web_search mặc định phù hợp với OpenAI và các LLM tùy chỉnh Codex chính. Chuyển sang web_search_preview cho LLM tùy chỉnh cũ."
+            "value" : "web_search mặc định phù hợp với OpenAI và các kết nối Codex chính. Với kết nối cũ, hãy chuyển sang web_search_preview."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "默认 web_search 适配 OpenAI 和主线 Codex 连接；旧版连接请切换为 web_search_preview。"
+            "value" : "默认 web_search 适配 OpenAI 和主流 Codex 连接；旧版连接请切换为 web_search_preview。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "預設 web_search 適配 OpenAI 與主線 Codex 自訂 LLM；舊版自訂 LLM 請切換為 web_search_preview。"
+            "value" : "預設 web_search 適用於 OpenAI 與主流 Codex 連線；舊版連線請切換為 web_search_preview。"
           }
         }
       }
@@ -11454,7 +11454,7 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "प्रदाता हटाएँ"
+            "value" : "प्रोवाइडर हटाएँ"
           }
         },
         "id" : {
@@ -11484,7 +11484,7 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Удалить поставщика"
+            "value" : "Удалить провайдера"
           }
         },
         "th" : {
@@ -11508,13 +11508,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "删除服务商"
+            "value" : "删除供应商"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "刪除服務商"
+            "value" : "刪除供應商"
           }
         }
       }
@@ -12220,7 +12220,7 @@
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "موفرو الذكاء الاصطناعي المباشرون"
+            "value" : "مزوّدو الذكاء الاصطناعي المباشرون"
           }
         },
         "de" : {
@@ -12244,7 +12244,7 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "प्रत्यक्ष एआई प्रदाता"
+            "value" : "डायरेक्ट AI प्रोवाइडर"
           }
         },
         "id" : {
@@ -12262,7 +12262,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "AI 직접 연결 공급자"
+            "value" : "직접 연결 AI 제공업체"
           }
         },
         "pt-BR" : {
@@ -12274,7 +12274,7 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Прямые поставщики ИИ"
+            "value" : "Прямые провайдеры ИИ"
           }
         },
         "th" : {
@@ -12416,7 +12416,7 @@
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "اكتشف من كتالوج التتابع"
+            "value" : "مُكتشَف من فهرس النماذج"
           }
         },
         "de" : {
@@ -12648,7 +12648,7 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "क्लाउड में प्रतिक्रियाएं संग्रहीत न करें"
+            "value" : "जवाब क्लाउड में सेव न करें"
           }
         },
         "id" : {
@@ -12690,7 +12690,7 @@
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Yanıtları bulutta saklama"
+            "value" : "Yanıtları bulutta saklamayın"
           }
         },
         "vi" : {
@@ -12945,13 +12945,13 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "API Key कुंजी संपादित करें"
+            "value" : "API key संपादित करें"
           }
         },
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Edit Kunci API Key"
+            "value" : "Edit API key"
           }
         },
         "ja" : {
@@ -13616,7 +13616,7 @@
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "أدخل معرف النموذج الذي يدعمه ريلي الخاص بك."
+            "value" : "أدخل معرّف نموذج يدعمه نموذجك اللغوي المخصص."
           }
         },
         "de" : {
@@ -13676,7 +13676,7 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Введи ID модели, которую поддерживает твоя пользовательская LLM."
+            "value" : "Введите ID модели, поддерживаемой вашей пользовательской LLM."
           }
         },
         "th" : {
@@ -13688,7 +13688,7 @@
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "özel LLM'inizin desteklediği bir model kimliği girin."
+            "value" : "Özel LLM'inizin desteklediği bir model kimliği girin."
           }
         },
         "vi" : {
@@ -13777,7 +13777,7 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Введи URL запроса."
+            "value" : "Введите URL запроса."
           }
         },
         "th" : {
@@ -13878,7 +13878,7 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Введи действительный HTTPS-URL запроса."
+            "value" : "Введите действительный HTTPS-URL запроса."
           }
         },
         "th" : {
@@ -13979,7 +13979,7 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Введи действительный HTTPS-URL запроса."
+            "value" : "Введите действительный HTTPS-URL запроса."
           }
         },
         "th" : {
@@ -14216,13 +14216,13 @@
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "أدخل عنوان API الذي يوفره جهاز الترحيل."
+            "value" : "أدخل عنوان URL للطلب الخاص بهذا النموذج اللغوي المخصص."
           }
         },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Gib die von deinem Relay bereitgestellte API-Adresse ein."
+            "value" : "Gib die Anfrage-URL ein, die du für dieses benutzerdefinierte LLM erhalten hast."
           }
         },
         "en" : {
@@ -14240,61 +14240,61 @@
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Saisissez l'adresse API fournie par votre relais."
+            "value" : "Saisissez l’URL de requête fournie pour ce LLM personnalisé."
           }
         },
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "अपने रिले द्वारा दिया गया API पता दर्ज करें।"
+            "value" : "इस कस्टम LLM के लिए मिला अनुरोध URL दर्ज करें।"
           }
         },
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Masukkan alamat API yang diberikan oleh relai Anda."
+            "value" : "Masukkan URL Permintaan yang diberikan untuk LLM kustom ini."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "リレーから提供された API アドレスを入力してください。"
+            "value" : "このカスタム LLM のリクエスト URL を入力してください。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "중계 서비스에서 제공한 API 주소를 입력하세요."
+            "value" : "이 사용자 지정 LLM용으로 제공받은 요청 URL을 입력하세요."
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Insira o endereço da API fornecido pela sua retransmissão."
+            "value" : "Insira a URL da solicitação fornecida para este LLM personalizado."
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Введи адрес API, который выдала твоя пользовательская LLM."
+            "value" : "Введите URL запроса, указанный для вашей пользовательской LLM."
           }
         },
         "th" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ป้อนที่อยู่ API ที่รีเลย์ของคุณให้มา"
+            "value" : "ป้อน URL คำขอที่ได้รับสำหรับ LLM แบบกำหนดเองนี้"
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Aktarıcınızın sağladığı API adresini girin."
+            "value" : "Bu özel LLM için size verilen İstek URL'sini girin."
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Nhập địa chỉ API do trạm trung chuyển cung cấp."
+            "value" : "Nhập URL yêu cầu được cung cấp cho LLM tùy chỉnh này."
           }
         },
         "zh-Hans" : {
@@ -14306,7 +14306,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "填寫中轉站提供的 API 網址。"
+            "value" : "填寫此自訂 LLM 提供的請求地址。"
           }
         }
       }
@@ -14353,7 +14353,7 @@
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Masukkan URL permintaan dan kunci API. Oriveo akan mendeteksi pengaturan koneksi untuk Anda."
+            "value" : "Masukkan URL permintaan dan API key. Oriveo akan mendeteksi pengaturan koneksi untuk Anda."
           }
         },
         "ja" : {
@@ -14377,7 +14377,7 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Введи URL запроса и API-ключ. Oriveo сам определит настройки подключения."
+            "value" : "Введите URL запроса и API-ключ. Oriveo сам определит настройки подключения."
           }
         },
         "th" : {
@@ -14418,7 +14418,7 @@
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "أدخل ما قدمه لك التتابع الخاص بك. سيكتشف Oriveo جذر واجهة برمجة التطبيقات (API) ونمط المصادقة والبروتوكول المتوافق."
+            "value" : "أدخل بيانات هذا النموذج اللغوي المخصص، وسيكتشف Oriveo عنوان URL للطلب ونمط المصادقة والبروتوكول المتوافق."
           }
         },
         "de" : {
@@ -14478,7 +14478,7 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Введи данные своей пользовательской LLM. Oriveo определит URL запроса, способ аутентификации и совместимый протокол."
+            "value" : "Введите данные своей пользовательской LLM. Oriveo определит URL запроса, способ аутентификации и совместимый протокол."
           }
         },
         "th" : {
@@ -14490,7 +14490,7 @@
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Rölenizin size ne verdiğini girin. Oriveo, API kökünü, kimlik doğrulama stilini ve uyumlu protokolü algılayacaktır."
+            "value" : "Bu özel LLM'in bilgilerini girin. Oriveo istek URL'sini, kimlik doğrulama biçimini ve uyumlu protokolü algılar."
           }
         },
         "vi" : {
@@ -14508,7 +14508,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "填寫這條連線提供的資訊；Oriveo 會探測請求 URL、驗證方式和相容協議。"
+            "value" : "填寫此自訂 LLM 的連線資訊；Oriveo 會探測請求地址、驗證方式和相容協議。"
           }
         }
       }
@@ -14543,13 +14543,13 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "शुरू करने के लिए अपनी API कुंजी दर्ज करें"
+            "value" : "शुरू करने के लिए अपनी API key दर्ज करें"
           }
         },
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Masukkan kunci API Anda untuk memulai"
+            "value" : "Masukkan API key Anda untuk memulai"
           }
         },
         "ja" : {
@@ -14900,13 +14900,13 @@
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "مثبَّت من قِبل النموذج؛ تغييره لا يُحدث أثرًا."
+            "value" : "يحدّده النموذج؛ تغييره لن يؤثر."
           }
         },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Vom Modell festgelegt; Änderungen haben keine Wirkung."
+            "value" : "Vom Modell festgelegt; Änderungen haben keine Auswirkung."
           }
         },
         "es" : {
@@ -14918,13 +14918,13 @@
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Fixé par le modèle ; le modifier n'a aucun effet."
+            "value" : "Fixé par le modèle ; le modifier n’a aucun effet."
           }
         },
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "मॉडल द्वारा तय; बदलने का कोई असर नहीं होगा।"
+            "value" : "मॉडल द्वारा तय; बदलने से कोई असर नहीं होगा।"
           }
         },
         "id" : {
@@ -14942,7 +14942,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "모델에서 고정되어 있어 변경해도 반영되지 않습니다."
+            "value" : "모델이 고정한 값이라 바꿔도 적용되지 않습니다."
           }
         },
         "pt-BR" : {
@@ -14954,25 +14954,25 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Задано моделью; изменение не даст эффекта."
+            "value" : "Задано моделью; изменение ничего не даст."
           }
         },
         "th" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ถูกกำหนดตายตัวโดยโมเดล เปลี่ยนแล้วไม่มีผล"
+            "value" : "โมเดลกำหนดไว้ตายตัว แก้แล้วไม่มีผล"
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Model tarafından sabitlenmiştir; değiştirmek etkisizdir."
+            "value" : "Model tarafından sabitlenmiştir; değiştirmenin etkisi olmaz."
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Được mô hình cố định; thay đổi sẽ không có tác dụng."
+            "value" : "Do mô hình cố định; thay đổi sẽ không có tác dụng."
           }
         },
         "zh-Hans" : {
@@ -15096,7 +15096,7 @@
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "لـ custom LLM request URLs المتوافقة مع Claude."
+            "value" : "للنماذج اللغوية المخصصة المتوافقة مع Claude."
           }
         },
         "de" : {
@@ -15144,7 +15144,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Claude 호환 사용자 지정 LLM request URL에 사용합니다."
+            "value" : "Claude 호환 사용자 지정 LLM에 사용합니다."
           }
         },
         "pt-BR" : {
@@ -15168,7 +15168,7 @@
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Claude uyumlu özel LLM request URL’leri için."
+            "value" : "Claude uyumlu özel LLM'ler için."
           }
         },
         "vi" : {
@@ -15387,7 +15387,7 @@
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "لـ custom LLM request URLs المتوافقة مع Gemini."
+            "value" : "للنماذج اللغوية المخصصة المتوافقة مع Gemini."
           }
         },
         "de" : {
@@ -15435,7 +15435,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Gemini 호환 사용자 지정 LLM request URL에 사용합니다."
+            "value" : "Gemini 호환 사용자 지정 LLM에 사용합니다."
           }
         },
         "pt-BR" : {
@@ -15459,7 +15459,7 @@
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Gemini uyumlu özel LLM request URL’leri için."
+            "value" : "Gemini uyumlu özel LLM'ler için."
           }
         },
         "vi" : {
@@ -15488,7 +15488,7 @@
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "لخدمات custom LLM المتوافقة مع OpenAI والبوابات المستضافة ذاتيًا."
+            "value" : "للنماذج اللغوية المخصصة المتوافقة مع OpenAI، وللبوابات المستضافة ذاتيًا."
           }
         },
         "de" : {
@@ -15506,19 +15506,19 @@
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Para LLM personalizados compatibles con OpenAI y gateways autohospedados."
+            "value" : "Para LLM personalizados compatibles con OpenAI y gateways autoalojados."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Pour les LLM personnalisé compatibles OpenAI et les passerelles auto-hébergées."
+            "value" : "Pour les LLM personnalisés compatibles OpenAI et les passerelles auto-hébergées."
           }
         },
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "OpenAI-compatible कस्टम LLMs और self-hosted gateways के लिए।"
+            "value" : "OpenAI-संगत कस्टम LLM और सेल्फ-होस्टेड गेटवे के लिए।"
           }
         },
         "id" : {
@@ -15530,19 +15530,19 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "OpenAI 互換 カスタム LLM とセルフホストのゲートウェイ向けです。"
+            "value" : "OpenAI 互換のカスタム LLM とセルフホストのゲートウェイ向けです。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "OpenAI 호환 사용자 지정 LLM 및 자체 호스팅 게이트웨이에 사용합니다."
+            "value" : "OpenAI 호환 사용자 지정 LLM과 자체 호스팅 게이트웨이에 사용합니다."
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Para LLM personalizados compatíveis com OpenAI e gateways auto-hospedados."
+            "value" : "Para LLMs personalizados compatíveis com OpenAI e gateways auto-hospedados."
           }
         },
         "ru" : {
@@ -15554,7 +15554,7 @@
         "th" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "สำหรับ LLM แบบกำหนดเอง ที่เข้ากันได้กับ OpenAI และเกตเวย์ที่โฮสต์เอง"
+            "value" : "สำหรับ LLM แบบกำหนดเองที่เข้ากันได้กับ OpenAI และเกตเวย์ที่โฮสต์เอง"
           }
         },
         "tr" : {
@@ -15578,7 +15578,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "適用於 OpenAI 相容自訂 LLM 和自架閘道。"
+            "value" : "適用於 OpenAI 相容的自訂 LLM 和自架閘道。"
           }
         }
       }
@@ -15589,13 +15589,13 @@
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "لخدمات custom LLM التي تتطلب Responses API."
+            "value" : "للنماذج اللغوية المخصصة التي تتطلب Responses API."
           }
         },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Für benutzerdefinierte LLMs, die die Responses API erfordern."
+            "value" : "Für benutzerdefinierte LLMs, die die Responses-API erfordern."
           }
         },
         "en" : {
@@ -15607,19 +15607,19 @@
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Para LLM personalizados que requieren la Responses API."
+            "value" : "Para LLM personalizados que requieren la API Responses."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Pour les LLM personnalisé qui nécessitent l’API Responses."
+            "value" : "Pour les LLM personnalisés qui nécessitent l’API Responses."
           }
         },
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "उन कस्टम LLMs के लिए जिन्हें Responses API चाहिए।"
+            "value" : "उन कस्टम LLM के लिए जिन्हें Responses API चाहिए।"
           }
         },
         "id" : {
@@ -15631,7 +15631,7 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Responses API が必要な カスタム LLM 向けです。"
+            "value" : "Responses API が必要なカスタム LLM 向けです。"
           }
         },
         "ko" : {
@@ -15643,7 +15643,7 @@
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Para LLM personalizados que exigem a Responses API."
+            "value" : "Para LLMs personalizados que exigem a API Responses."
           }
         },
         "ru" : {
@@ -15655,7 +15655,7 @@
         "th" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "สำหรับ LLM แบบกำหนดเอง ที่ต้องใช้ Responses API"
+            "value" : "สำหรับ LLM แบบกำหนดเองที่ต้องใช้ Responses API"
           }
         },
         "tr" : {
@@ -16421,7 +16421,7 @@
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Masuk dengan langganan Grok sementara tidak tersedia karena sedang kami perbarui. Anda bisa terhubung dengan kunci API."
+            "value" : "Masuk dengan langganan Grok sementara tidak tersedia karena sedang kami perbarui. Anda bisa terhubung dengan API key."
           }
         },
         "ja" : {
@@ -16522,7 +16522,7 @@
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Sembunyikan kunci API"
+            "value" : "Sembunyikan API key"
           }
         },
         "ja" : {
@@ -17181,97 +17181,97 @@
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "تستخدم مرفقات الصور مخططًا لا يطابق بروتوكول هذا النموذج اللغوي الكبير المخصص. قد لا يتطابق النموذج والبروتوكول — افتح المزوّدون ← هذه الاتصالات ← إعدادات الاتصال ← نوع البروتوكول، ثم اختر نوعًا يناسب نموذجك وأعد المحاولة."
+            "value" : "تستخدم مرفقات الصور مخططًا لا يطابق بروتوكول هذا النموذج اللغوي المخصص. انتقل إلى: مزودو الخدمة ← هذا الاتصال ← إعدادات الاتصال ← نوع البروتوكول، واختر بروتوكولًا يناسب نموذجك، ثم أعد المحاولة."
           }
         },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Bildanhänge verwenden das falsche Schema für das Protokoll dieses benutzerdefinierte LLMs. Modell und Protokoll passen möglicherweise nicht zusammen — öffne Anbieter → dieses benutzerdefinierte LLM → Verbindungseinstellungen → Protokolltyp und wechsle zu einem Typ, der zu deinem Modell passt, dann versuche es erneut."
+            "value" : "Das Format der Bildanhänge passt nicht zum Protokoll dieses benutzerdefinierten LLMs. Öffne Anbieter → diese Verbindung → Verbindungseinstellungen → Protokolltyp, wähle ein Protokoll, das zu deinem Modell passt, und versuche es erneut."
           }
         },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Image attachments use the wrong schema for this custom LLM's protocol. The model and protocol may not match — open Providers → this connection → Connection settings → protocol type and switch to a type that fits your model, then retry."
+            "value" : "Image attachments use a schema that does not match this custom LLM's protocol. Open Providers → this connection → Connection settings → Protocol type and choose a protocol that fits your model, then retry."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Los archivos adjuntos de imagen usan un esquema incorrecto para el protocolo de este LLM personalizado. Es posible que el modelo y el protocolo no coincidan: abre Proveedores → este LLM personalizado → Configuración de conexión → tipo de protocolo y cambia a un tipo que se ajuste a tu modelo, luego reintenta."
+            "value" : "El formato de las imágenes adjuntas no coincide con el protocolo de este LLM personalizado. Abre Proveedores → esta conexión → Configuración de conexión → Tipo de protocolo, elige un protocolo adecuado para tu modelo y vuelve a intentarlo."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Les pièces jointes image utilisent un schéma incorrect pour le protocole de ce LLM personnalisé. Le modèle et le protocole pourraient ne pas correspondre — ouvre Fournisseurs → ce LLM personnalisé → Paramètres de connexion → type de protocole et bascule vers un type adapté à ton modèle, puis réessaie."
+            "value" : "Le format des images jointes ne correspond pas au protocole de ce LLM personnalisé. Ouvrez Fournisseurs → cette connexion → Paramètres de connexion → Type de protocole, choisissez un protocole adapté à votre modèle, puis réessayez."
           }
         },
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "इस कस्टम LLM के प्रोटोकॉल के लिए छवि अनुलग्नक गलत स्कीमा का उपयोग कर रहे हैं। मॉडल और प्रोटोकॉल मेल नहीं खा सकते — प्रदाता → यह कस्टम LLM → कनेक्शन सेटिंग्स → प्रोटोकॉल प्रकार खोलें और अपने मॉडल के लिए उपयुक्त प्रकार चुनें, फिर पुनः प्रयास करें।"
+            "value" : "इमेज अटैचमेंट ऐसी स्कीमा इस्तेमाल कर रहे हैं जो इस कस्टम LLM के प्रोटोकॉल से मेल नहीं खाती। प्रोवाइडर → यह कनेक्शन → कनेक्शन सेटिंग्स → प्रोटोकॉल प्रकार खोलें, अपने मॉडल के लिए सही प्रोटोकॉल चुनें और फिर से कोशिश करें।"
           }
         },
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Lampiran gambar memakai skema yang salah untuk protokol LLM kustom ini. Model dan protokol mungkin tidak cocok — buka Penyedia → LLM kustom ini → Pengaturan koneksi → jenis protokol lalu ganti ke tipe yang cocok dengan model Anda, kemudian coba lagi."
+            "value" : "Lampiran gambar memakai skema yang tidak cocok dengan protokol LLM kustom ini. Buka Penyedia → koneksi ini → Pengaturan koneksi → Jenis protokol, pilih protokol yang sesuai dengan model Anda, lalu coba lagi."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "画像添付のスキーマがこのカスタム LLM のプロトコルに合っていません。モデルとプロトコルが一致しない可能性があります。プロバイダー → この接続 → 接続設定 → プロトコルの種類を開き、モデルに合う種類へ切り替えてから再試行してください。"
+            "value" : "画像添付の形式がこのカスタム LLM のプロトコルと一致しません。プロバイダー → この接続 → 接続設定 → プロトコルの種類を開き、モデルに合うプロトコルを選択してから再試行してください。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "이미지 첨부가 이 사용자 지정 LLM의 프로토콜에 맞지 않는 스키마를 사용합니다. 모델과 프로토콜이 일치하지 않을 수 있습니다 — 제공업체 → 이 사용자 지정 LLM → 연결 설정 → 프로토콜 유형을 열어 모델에 맞는 유형으로 변경한 뒤 다시 시도하세요."
+            "value" : "이미지 첨부 형식이 이 사용자 지정 LLM의 프로토콜과 맞지 않습니다. 제공업체 → 이 연결 → 연결 설정 → 프로토콜 유형에서 모델에 맞는 프로토콜을 선택한 뒤 다시 시도하세요."
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Os anexos de imagem usam o esquema errado para o protocolo deste LLM personalizado. O modelo e o protocolo podem não combinar — abra Provedores → este LLM personalizado → Configurações de conexão → tipo de protocolo e mude para um tipo que combine com seu modelo, depois tente novamente."
+            "value" : "O formato dos anexos de imagem não corresponde ao protocolo deste LLM personalizado. Abra Provedores → esta conexão → Configurações de conexão → Tipo de protocolo, escolha um protocolo adequado ao seu modelo e tente novamente."
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Вложенные изображения используют схему, не подходящую для протокола этой пользовательской LLM. Возможно, модель и протокол не совпадают: открой Провайдеры → это подключение → Настройки подключения → Тип протокола, выбери тип, подходящий для модели, и попробуй ещё раз."
+            "value" : "Формат вложенных изображений не соответствует протоколу этой пользовательской LLM. Откройте Провайдеры → это подключение → Настройки подключения → Тип протокола, выберите протокол, подходящий для вашей модели, и повторите попытку."
           }
         },
         "th" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ไฟล์แนบรูปภาพใช้สคีมาที่ไม่ตรงกับโปรโตคอลของ LLM แบบกำหนดเองนี้ โมเดลและโปรโตคอลอาจไม่เข้ากัน — เปิดผู้ให้บริการ → LLM แบบกำหนดเองนี้ → การตั้งค่าการเชื่อมต่อ → ประเภทโปรโตคอล แล้วสลับเป็นประเภทที่เหมาะกับโมเดลของคุณ จากนั้นลองใหม่"
+            "value" : "ไฟล์แนบรูปภาพใช้ schema ที่ไม่ตรงกับโปรโตคอลของ LLM แบบกำหนดเองนี้ เปิดผู้ให้บริการ → การเชื่อมต่อนี้ → การตั้งค่าการเชื่อมต่อ → ประเภทโปรโตคอล แล้วเลือกโปรโตคอลที่เหมาะกับโมเดลของคุณ จากนั้นลองอีกครั้ง"
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Görsel ekler bu özel LLM'in protokolüne yanlış şemada gönderiliyor. Model ve protokol eşleşmiyor olabilir — Sağlayıcılar → bu özel LLM → Bağlantı ayarları → protokol türü bölümünü açın ve modeline uygun bir türe geçip tekrar deneyin."
+            "value" : "Görsel ekleri, bu özel LLM'in protokolüyle eşleşmeyen bir şema kullanıyor. Sağlayıcılar → bu bağlantı → Bağlantı ayarları → Protokol türü bölümünü açın, modelinize uygun bir protokol seçin ve tekrar deneyin."
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Tệp đính kèm ảnh dùng sai schema cho giao thức của LLM tùy chỉnh này. Mô hình và giao thức có thể không khớp — mở Nhà cung cấp → LLM tùy chỉnh này → Cài đặt kết nối → loại giao thức rồi chuyển sang loại phù hợp với mô hình, sau đó thử lại."
+            "value" : "Tệp đính kèm hình ảnh dùng schema không khớp với giao thức của LLM tùy chỉnh này. Mở Nhà cung cấp → kết nối này → Cài đặt kết nối → Loại giao thức, chọn giao thức phù hợp với mô hình của bạn rồi thử lại."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "图片附件的 schema 不符合此自定义 LLM 的协议，模型与协议可能不匹配。打开 供应商 → 该连接 → 连接设置 → 协议类型，切换到匹配模型的类型后重试。"
+            "value" : "图片附件使用的格式与这个自定义 LLM 的协议不匹配。打开供应商 → 该连接 → 连接设置 → 协议类型，选择适合模型的协议后重试。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "圖片附件的 schema 不符合此自訂 LLM 的協定，模型與協定可能不相符。開啟 供應商 → 該連線 → 連線設定 → 協議類型，切換到符合模型的類型後重試。"
+            "value" : "圖片附件使用的格式與這個自訂 LLM 的協議不相符。開啟供應商 → 該連線 → 連線設定 → 協議類型，選擇適合模型的協議後重試。"
           }
         }
       }
@@ -17383,7 +17383,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Bildgenerierung ist über dieses Protokoll nicht verfügbar. Öffne Providers → diese Verbindung → Verbindungseinstellungen → Protokoll und wechsle zu OpenAI Responses oder Chat Completions."
+            "value" : "Bildgenerierung ist über dieses Protokoll nicht verfügbar. Öffne Anbieter → diese Verbindung → Verbindungseinstellungen → Protokoll und wechsle zu OpenAI Responses oder Chat Completions."
           }
         },
         "en" : {
@@ -17413,7 +17413,7 @@
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Pembuatan gambar tidak tersedia pada protokol ini. Buka Providers → koneksi ini → Pengaturan koneksi → Protokol, lalu ubah ke OpenAI Responses atau Chat Completions."
+            "value" : "Pembuatan gambar tidak tersedia pada protokol ini. Buka Penyedia → koneksi ini → Pengaturan koneksi → Protokol, lalu ubah ke OpenAI Responses atau Chat Completions."
           }
         },
         "ja" : {
@@ -17425,7 +17425,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "현재 프로토콜에서는 이미지 생성을 사용할 수 없습니다. 공급자 → 이 연결 → 연결 설정 → 프로토콜에서 OpenAI Responses 또는 Chat Completions로 변경하세요."
+            "value" : "현재 프로토콜에서는 이미지 생성을 사용할 수 없습니다. 제공업체 → 이 연결 → 연결 설정 → 프로토콜에서 OpenAI Responses 또는 Chat Completions로 변경하세요."
           }
         },
         "pt-BR" : {
@@ -17437,7 +17437,7 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Генерация изображений недоступна в этом протоколе. Открой Провайдеры → это подключение → Настройки подключения → Протокол и переключись на OpenAI Responses или Chat Completions."
+            "value" : "Генерация изображений недоступна в этом протоколе. Откройте Провайдеры → это подключение → Настройки подключения → Протокол и переключитесь на OpenAI Responses или Chat Completions."
           }
         },
         "th" : {
@@ -17973,101 +17973,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "國際（api.siliconflow.com）"
-          }
-        }
-      }
-    },
-    "Invalid endpoint" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Invalid endpoint"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Invalid endpoint"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Invalid endpoint"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Invalid endpoint"
-          }
-        },
-        "hi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Invalid endpoint"
-          }
-        },
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Invalid endpoint"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Invalid endpoint"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Invalid endpoint"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Invalid endpoint"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Неверный URL запроса"
-          }
-        },
-        "th" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Invalid endpoint"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Invalid endpoint"
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Invalid endpoint"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "端点无效"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "端點無效"
           }
         }
       }
@@ -18702,13 +18607,13 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Kimi API कुंजियां खाते के क्षेत्र से जुड़ी होती हैं। अपने Kimi खाते से मेल खाता अनुरोध URL चुनें।"
+            "value" : "Kimi API keys खाते के क्षेत्र से जुड़ी होती हैं। अपने Kimi खाते से मेल खाता अनुरोध URL चुनें।"
           }
         },
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Kunci API Kimi terikat pada wilayah akun. Pilih URL permintaan yang sesuai dengan akun Kimi Anda."
+            "value" : "API key Kimi terikat pada wilayah akun. Pilih URL permintaan yang sesuai dengan akun Kimi Anda."
           }
         },
         "ja" : {
@@ -18762,7 +18667,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Kimi API Key 依帳號區域區分，請選擇與你的 Kimi 帳號一致的請求 URL。"
+            "value" : "Kimi API 金鑰依帳號區域區分，請選擇與你的 Kimi 帳號一致的請求地址。"
           }
         }
       }
@@ -18773,7 +18678,7 @@
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "اسم بروتوكول قديم. استخدمه فقط عندما يرفض هذا النموذج اللغوي الكبير المخصص web_search."
+            "value" : "اسم بروتوكول قديم. لا تستخدمه إلا إذا رفض هذا النموذج اللغوي المخصص web_search."
           }
         },
         "de" : {
@@ -18821,7 +18726,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "레거시 프로토콜 이름. 사용자 지정 LLM이 web_search를 거부할 때만 사용하세요."
+            "value" : "이전 프로토콜 이름입니다. 이 사용자 지정 LLM이 web_search를 거부할 때만 사용하세요."
           }
         },
         "pt-BR" : {
@@ -18833,7 +18738,7 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Имя устаревшего протокола. Используй его, только если пользовательская LLM отклоняет web_search."
+            "value" : "Устаревшее название. Используйте его, только если пользовательская LLM отклоняет web_search."
           }
         },
         "th" : {
@@ -19605,7 +19510,7 @@
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Gérer tes comptes"
+            "value" : "Gérer les connexions existantes"
           }
         },
         "hi" : {
@@ -21198,13 +21103,13 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "API कुंजी चाहिए"
+            "value" : "API key चाहिए"
           }
         },
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Perlu kunci API"
+            "value" : "Perlu API key"
           }
         },
         "ja" : {
@@ -21329,7 +21234,7 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "По этому адресу не ответил ни каталог моделей, ни известный URL генерации. Проверь адрес или выбери протокол вручную."
+            "value" : "По этому адресу не ответил ни каталог моделей, ни известный URL генерации. Проверьте адрес или выберите протокол вручную."
           }
         },
         "th" : {
@@ -21394,13 +21299,13 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "नई API Key कुंजी"
+            "value" : "नई API key"
           }
         },
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Kunci API Key baru"
+            "value" : "API key baru"
           }
         },
         "ja" : {
@@ -22267,7 +22172,7 @@
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "لا يقبل أي نموذج في هذا الاتصال هذه المَعلمة."
+            "value" : "لا يقبل أي نموذج في هذا الاتصال هذا المعامل."
           }
         },
         "de" : {
@@ -22558,13 +22463,13 @@
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "لم يتم اكتشاف إعداد مدعوم لنموذج لغوي كبير مخصص."
+            "value" : "لم يُكتشف أي إعداد مدعوم لنموذج لغوي مخصص."
           }
         },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Es wurde keine unterstützte Relaiskonfiguration erkannt."
+            "value" : "Es wurde keine unterstützte Konfiguration für ein benutzerdefiniertes LLM erkannt."
           }
         },
         "en" : {
@@ -23592,7 +23497,7 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "OpenAI प्रतिक्रियाएँ संगत"
+            "value" : "OpenAI Responses संगत"
           }
         },
         "id" : {
@@ -24293,7 +24198,7 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "जो पैरामीटर सेट नहीं किए गए, वे भेजे नहीं जाते; प्रदाता मॉडल के डिफ़ॉल्ट का उपयोग करता है।"
+            "value" : "जो पैरामीटर सेट नहीं किए गए, वे भेजे नहीं जाते; प्रोवाइडर मॉडल के डिफ़ॉल्ट का उपयोग करता है।"
           }
         },
         "id" : {
@@ -24305,7 +24210,7 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "未設定のパラメータはリクエストに含まれず、プロバイダがモデルの既定値で処理します。"
+            "value" : "未設定のパラメータはリクエストに含まれず、プロバイダーがモデルの既定値で処理します。"
           }
         },
         "ko" : {
@@ -24560,7 +24465,7 @@
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "يرجى إضافة نموذج محادثة إلى هذا النموذج اللغوي الكبير المخصص قبل استخدام إنشاء الصور."
+            "value" : "يُرجى إضافة نموذج محادثة إلى هذا النموذج اللغوي المخصص قبل استخدام إنشاء الصور."
           }
         },
         "de" : {
@@ -24620,7 +24525,7 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Прежде чем использовать генерацию изображений, добавь в эту пользовательскую LLM модель для чата."
+            "value" : "Прежде чем использовать генерацию изображений, добавьте в эту пользовательскую LLM модель для чата."
           }
         },
         "th" : {
@@ -25178,7 +25083,7 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "प्रदाता"
+            "value" : "प्रोवाइडर"
           }
         },
         "id" : {
@@ -25190,7 +25095,7 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "プロバイダ"
+            "value" : "プロバイダー"
           }
         },
         "ko" : {
@@ -25208,7 +25113,7 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Поставщик"
+            "value" : "Провайдер"
           }
         },
         "th" : {
@@ -25232,13 +25137,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "服务商"
+            "value" : "供应商"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "服務商"
+            "value" : "供應商"
           }
         }
       }
@@ -25849,7 +25754,7 @@
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "موصى به. يُستخدم عندما لا يُرجع هذا النموذج اللغوي الكبير المخصص قائمة نماذج."
+            "value" : "موصى به. يُستخدم عندما لا يُرجع هذا النموذج اللغوي المخصص قائمة نماذج."
           }
         },
         "de" : {
@@ -26443,7 +26348,7 @@
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "قم بإزالة معلمات الاستعلام من عنوان URL للطلب. لا يحاول Oriveo مطلقًا استخدام مفاتيح API من معلمات الاستعلام تلقائيًا."
+            "value" : "أزِل معاملات الاستعلام من عنوان URL للطلب. لا يحاول Oriveo أبدًا استخدام مفاتيح API من معاملات الاستعلام تلقائيًا."
           }
         },
         "de" : {
@@ -26479,7 +26384,7 @@
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Hapus parameter kueri dari URL permintaan. Oriveo tidak pernah mencoba kunci API dari parameter kueri secara otomatis."
+            "value" : "Hapus parameter kueri dari URL permintaan. Oriveo tidak pernah mencoba API key dari parameter kueri secara otomatis."
           }
         },
         "ja" : {
@@ -26503,7 +26408,7 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Убери параметры запроса из URL запроса. Oriveo никогда не пробует автоматически API-ключи из параметров запроса."
+            "value" : "Уберите параметры запроса из URL запроса. Oriveo никогда не пробует автоматически API-ключи из параметров запроса."
           }
         },
         "th" : {
@@ -27049,13 +26954,13 @@
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "هل تريد إعادة تعيين إعدادات هذا النموذج اللغوي الكبير المخصص؟"
+            "value" : "هل تريد استعادة الإعدادات الافتراضية لهذا النموذج اللغوي المخصص؟"
           }
         },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "benutzerdefiniertes LLM-Standardwerte zurücksetzen?"
+            "value" : "Standardwerte des benutzerdefinierten LLM zurücksetzen?"
           }
         },
         "en" : {
@@ -27121,7 +27026,7 @@
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "özel LLM varsayılanları sıfırlansın mı?"
+            "value" : "Özel LLM varsayılanları sıfırlansın mı?"
           }
         },
         "vi" : {
@@ -27964,7 +27869,7 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "सहेजा गया, लेकिन कुंजी अमान्य लगती है। आप इसे बाद में प्रदाता सेटिंग्स में सत्यापित कर सकते हैं।"
+            "value" : "सहेजा गया, लेकिन कुंजी अमान्य लगती है। आप इसे बाद में प्रोवाइडर सेटिंग्स में सत्यापित कर सकते हैं।"
           }
         },
         "id" : {
@@ -27982,7 +27887,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "저장했지만 키가 유효하지 않은 것 같습니다. 나중에 공급자 설정에서 확인할 수 있습니다."
+            "value" : "저장했지만 키가 유효하지 않은 것 같습니다. 나중에 제공업체 설정에서 확인할 수 있습니다."
           }
         },
         "pt-BR" : {
@@ -27994,7 +27899,7 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Сохранено, но ключ выглядит недействительным. Вы можете проверить его позже в настройках поставщика."
+            "value" : "Сохранено, но ключ выглядит недействительным. Вы можете проверить его позже в настройках провайдера."
           }
         },
         "th" : {
@@ -28285,7 +28190,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "공급자 검색"
+            "value" : "제공업체 검색"
           }
         },
         "pt-BR" : {
@@ -28635,13 +28540,13 @@
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "طبقة الخدمة"
+            "value" : "مستوى الخدمة"
           }
         },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Serviceebene"
+            "value" : "Servicestufe"
           }
         },
         "en" : {
@@ -28677,13 +28582,13 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "サービス層"
+            "value" : "サービスティア"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "서비스 계층"
+            "value" : "서비스 등급"
           }
         },
         "pt-BR" : {
@@ -28707,7 +28612,7 @@
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Hizmet Katmanı"
+            "value" : "Hizmet Kademesi"
           }
         },
         "vi" : {
@@ -28873,7 +28778,7 @@
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Tampilkan kunci API"
+            "value" : "Tampilkan API key"
           }
         },
         "ja" : {
@@ -29574,13 +29479,13 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "SiliconFlow API कुंजियां खाते के क्षेत्र से जुड़ी होती हैं। अपने खाते से मेल खाता अनुरोध URL चुनें।"
+            "value" : "SiliconFlow API keys खाते के क्षेत्र से जुड़ी होती हैं। अपने खाते से मेल खाता अनुरोध URL चुनें।"
           }
         },
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Kunci API SiliconFlow terikat pada wilayah akun. Pilih URL permintaan yang sesuai dengan akun Anda."
+            "value" : "API key SiliconFlow terikat pada wilayah akun. Pilih URL permintaan yang sesuai dengan akun Anda."
           }
         },
         "ja" : {
@@ -29634,7 +29539,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "SiliconFlow API Key 與帳號區域綁定，請選擇對應的請求 URL。"
+            "value" : "SiliconFlow API 金鑰與帳號區域綁定，請選擇對應的請求地址。"
           }
         }
       }
@@ -29740,7 +29645,7 @@
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ابدأ بالإعدادات الافتراضية الآمنة، ثم عدّل البروتوكول والمصادقة والرؤوس ومعلمات الاستعلام."
+            "value" : "ابدأ بإعدادات افتراضية آمنة، ثم عدّل البروتوكول والمصادقة والرؤوس ومعاملات الاستعلام."
           }
         },
         "de" : {
@@ -29800,7 +29705,7 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Начни с безопасных значений по умолчанию, затем настрой протокол, аутентификацию, заголовки и параметры запроса."
+            "value" : "Начните с безопасных значений по умолчанию, затем настройте протокол, аутентификацию, заголовки и параметры запроса."
           }
         },
         "th" : {
@@ -30750,7 +30655,7 @@
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "يؤدي التبديل إلى اتصال غير مشفر أيضًا إلى حذف: مفتاح هذا الاتصال، والرؤوس المخصصة، ومعلمات الاستعلام المخصصة."
+            "value" : "يؤدي التبديل إلى اتصال غير مشفّر أيضًا إلى حذف: مفتاح هذا الاتصال، والرؤوس المخصصة، ومعاملات الاستعلام المخصصة."
           }
         },
         "de" : {
@@ -31815,107 +31720,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "文字"
-          }
-        }
-      }
-    },
-    "The actual chat path is verified. You can save this relay now." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "تم التحقق من مسار الدردشة الفعلي. يمكنك حفظ هذا التتابع الآن."
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Der tatsächliche Chatpfad wird überprüft. Sie können dieses Relais jetzt speichern."
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "The actual chat path is verified. You can save this relay now."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Se verificó la ruta de chat real. Ya puedes guardar este LLM personalizado."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Le chemin de discussion réel est vérifié. Vous pouvez sauvegarder ce relais maintenant."
-          }
-        },
-        "hi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "वास्तविक चैट पथ सत्यापित है. अब आप इस रिले को सहेज सकते हैं."
-          }
-        },
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Jalur obrolan sebenarnya telah diverifikasi. Anda dapat menyimpan relai ini sekarang."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "実際のチャット パスが検証されます。このリレーを保存できるようになりました。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "실제 채팅 경로가 확인됩니다. 이제 이 릴레이를 저장할 수 있습니다."
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "O caminho real do chat é verificado. Você pode salvar este relé agora."
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Реальный путь чата проверен. Теперь эту пользовательскую LLM можно сохранить."
-          }
-        },
-        "th" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "เส้นทางการแชทจริงได้รับการตรวจสอบแล้ว คุณสามารถบันทึกรีเลย์นี้ได้ทันที"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Gerçek sohbet yolu doğrulandı. Bu röleyi şimdi kaydedebilirsiniz."
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Đường dẫn trò chuyện thực tế đã được xác minh. Bạn có thể lưu rơle này ngay bây giờ."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "已验证真实聊天路径，现在可以保存。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "已驗證真實聊天路徑，現在可以儲存。"
           }
         }
       }
@@ -33061,7 +32865,7 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "प्रदाता ने इस अनुरोध के लिए एक त्रुटि लौटा दी। कृपया पुनः प्रयास करें या मॉडल बदलें।"
+            "value" : "प्रोवाइडर ने इस अनुरोध के लिए एक त्रुटि लौटा दी। कृपया पुनः प्रयास करें या मॉडल बदलें।"
           }
         },
         "id" : {
@@ -33091,7 +32895,7 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Поставщик вернул ошибку для этого запроса. Пожалуйста, повторите попытку или смените модель."
+            "value" : "Провайдер вернул ошибку на этот запрос. Пожалуйста, повторите попытку или смените модель."
           }
         },
         "th" : {
@@ -33115,13 +32919,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "服务商对此请求返回了错误。请重试或切换模型。"
+            "value" : "供应商对此请求返回了错误。请重试或切换模型。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "服務商對此請求返回了錯誤。請重試或切換模型。"
+            "value" : "供應商對此請求傳回了錯誤。請重試或切換模型。"
           }
         }
       }
@@ -33132,7 +32936,7 @@
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "استجاب هذا النموذج اللغوي الكبير المخصص، لكن تعذر التعرّف على تنسيق كتالوج النماذج."
+            "value" : "استجاب هذا النموذج اللغوي المخصص، لكن تعذّر التعرّف على تنسيق فهرس النماذج."
           }
         },
         "de" : {
@@ -33233,7 +33037,7 @@
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "لا يمكن الوصول إلى التتابع بشكل موثوق. تحقق من العنوان وحاول مرة أخرى."
+            "value" : "تعذّر الوصول إلى هذا النموذج اللغوي المخصص بشكل موثوق. تحقّق من عنوان URL للطلب وحاول مرة أخرى."
           }
         },
         "de" : {
@@ -33281,7 +33085,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "이 사용자 지정 LLM에 안정적으로 연결할 수 없습니다. 주소를 확인한 후 다시 시도하세요."
+            "value" : "이 사용자 지정 LLM에 안정적으로 연결할 수 없습니다. 요청 URL을 확인한 후 다시 시도하세요."
           }
         },
         "pt-BR" : {
@@ -33293,7 +33097,7 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Не удалось стабильно подключиться к пользовательской LLM. Проверь адрес и попробуй ещё раз."
+            "value" : "Не удалось стабильно подключиться к пользовательской LLM. Проверьте адрес и попробуйте ещё раз."
           }
         },
         "th" : {
@@ -33305,7 +33109,7 @@
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Röleye güvenilir bir şekilde ulaşılamadı. Adresi kontrol edip tekrar deneyin."
+            "value" : "Bu özel LLM'e güvenilir şekilde ulaşılamadı. İstek URL'sini kontrol edip tekrar deneyin."
           }
         },
         "vi" : {
@@ -33323,7 +33127,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "無法穩定連接這條連線。請檢查請求 URL 後重試。"
+            "value" : "無法穩定連線到此自訂 LLM。請檢查請求地址後重試。"
           }
         }
       }
@@ -33334,7 +33138,7 @@
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "تعذّر على الوصل الوصول إلى مزوّده العلوي. هذه ليست مشكلة في إعداداتك — قد يكون حساب المسؤول للمنبع غير صالح أو بلا رصيد أو محدود المعدل. بدّل إلى وصل آخر أو اتصل بمديره."
+            "value" : "تعذّر على هذا النموذج اللغوي المخصص الوصول إلى مزوّده الأصلي. المشكلة ليست في إعداداتك — فقد يكون الحساب الأصلي لدى الجهة المشغّلة غير صالح أو نفد رصيده أو بلغ حد المعدل. بدّل إلى نموذج لغوي مخصص آخر أو تواصل مع مزوّده."
           }
         },
         "de" : {
@@ -33364,7 +33168,7 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "कस्टम LLM अपने अपस्ट्रीम प्रदाता तक नहीं पहुँच सका। यह आपकी कॉन्फ़िगरेशन समस्या नहीं है — कस्टम LLM व्यवस्थापक का अपस्ट्रीम खाता अमान्य, बिना क्रेडिट, या दर-सीमित हो सकता है। कोई अन्य कस्टम LLM चुनें या व्यवस्थापक से संपर्क करें।"
+            "value" : "कस्टम LLM अपने अपस्ट्रीम प्रोवाइडर तक नहीं पहुँच सका। यह आपकी कॉन्फ़िगरेशन समस्या नहीं है — कस्टम LLM व्यवस्थापक का अपस्ट्रीम खाता अमान्य, बिना क्रेडिट, या दर-सीमित हो सकता है। कोई अन्य कस्टम LLM चुनें या व्यवस्थापक से संपर्क करें।"
           }
         },
         "id" : {
@@ -33376,13 +33180,13 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "カスタム LLM が上流プロバイダに到達できませんでした。これはあなたの設定の問題ではありません — カスタム LLM 管理者の上流アカウントが無効、残高不足、または Rate-limit の可能性があります。別の カスタム LLM に切り替えるか、管理者に連絡してください。"
+            "value" : "このカスタム LLM が上流のプロバイダーに接続できませんでした。お使いの設定の問題ではありません。管理者の上流アカウントが無効、残高不足、またはレート制限中の可能性があります。別のカスタム LLM に切り替えるか、このカスタム LLM の管理者にお問い合わせください。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "사용자 지정 LLM이 상류 공급자에 도달하지 못했습니다. 이는 당신 설정 문제가 아닙니다 — 사용자 지정 LLM 관리자의 상류 계정이 무효이거나 크레딧 부족, 속도 제한 상태일 수 있습니다. 다른 사용자 지정 LLM로 전환하거나 관리자에게 문의하세요."
+            "value" : "이 사용자 지정 LLM이 업스트림 제공업체에 연결하지 못했습니다. 설정 문제가 아니며, 관리자의 업스트림 계정이 유효하지 않거나 크레딧이 부족하거나 속도 제한에 걸렸을 수 있습니다. 다른 사용자 지정 LLM으로 전환하거나 이 사용자 지정 LLM의 관리자에게 문의하세요."
           }
         },
         "pt-BR" : {
@@ -33394,7 +33198,7 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Пользовательской LLM не удалось связаться со своим upstream-провайдером. Дело не в твоей настройке: upstream-аккаунт администратора сервиса может быть недействителен, без средств или упираться в лимит частоты. Переключись на другую пользовательскую LLM или свяжись с администратором."
+            "value" : "Пользовательской LLM не удалось связаться со своим upstream-провайдером. Дело не в вашей настройке: upstream-аккаунт администратора сервиса может быть недействителен, остаться без средств или упереться в лимит запросов. Переключитесь на другую пользовательскую LLM или свяжитесь с администратором."
           }
         },
         "th" : {
@@ -33406,7 +33210,7 @@
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "özel LLM, upstream sağlayıcısına ulaşamadı. Bu sizin yapılandırma sorununuz değil — özel LLM yöneticisinin upstream hesabı geçersiz, kredisiz veya hız sınırlı olabilir. Başka bir özel LLM'e geçin veya yöneticiyle iletişime geçin."
+            "value" : "Özel LLM, upstream sağlayıcısına ulaşamadı. Bu sizin yapılandırma sorununuz değil — özel LLM yöneticisinin upstream hesabı geçersiz, bakiyesi tükenmiş veya hız sınırına takılmış olabilir. Başka bir özel LLM'e geçin veya yöneticisiyle iletişime geçin."
           }
         },
         "vi" : {
@@ -33418,13 +33222,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "此自定义 LLM 无法连接其上游服务商。这不是你的配置问题：其管理员的上游账号可能无效、欠费或被限流。请更换其他自定义 LLM 或联系其服务商。"
+            "value" : "此自定义 LLM 无法连接其上游供应商。这不是你的配置问题：其管理员的上游账号可能无效、欠费或被限流。请更换其他自定义 LLM 或联系其管理员。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "自訂 LLM無法連接其上游服務商。這不是你的配置問題 — 自訂 LLM 管理員的上游帳號可能無效、欠費或被限流。請更換自訂 LLM 或聯繫其管理員。"
+            "value" : "此自訂 LLM 無法連線到其上游供應商。這不是你的設定問題：其管理員的上游帳號可能無效、欠費或被限流。請改用其他自訂 LLM，或聯絡其管理員。"
           }
         }
       }
@@ -33435,7 +33239,7 @@
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "معدل التتابع محدود. انتظر وحاول مرة أخرى؛ لم يقوم Oriveo بتدوير بيانات الاعتماد أو البروتوكولات."
+            "value" : "بلغ هذا النموذج اللغوي المخصص حد المعدل. انتظر ثم حاول مرة أخرى؛ لم يبدّل Oriveo بيانات الاعتماد أو البروتوكولات."
           }
         },
         "de" : {
@@ -33495,7 +33299,7 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Пользовательская LLM ограничила частоту запросов. Подожди и попробуй ещё раз; Oriveo не меняла учётные данные и протоколы."
+            "value" : "Пользовательская LLM ограничила частоту запросов. Подождите и попробуйте ещё раз; Oriveo не менял учётные данные и протоколы."
           }
         },
         "th" : {
@@ -33536,7 +33340,7 @@
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "لا يوفر مصدر الوصل هذا النموذج. افتح المزوّدون ← هذا custom LLM ← تعديل ← النموذج وغيّره إلى نموذج يدعمه الوصل فعلاً (مثل gpt-5.4). يمكنك طلب قائمة المعرّفات المتاحة من مدير الوصل."
+            "value" : "لا يوفّر المزوّد الأصلي لهذا النموذج اللغوي المخصص النموذجَ المطلوب. انتقل إلى: مزودو الخدمة ← هذا الاتصال ← إعدادات الاتصال ← النموذج، وغيّره إلى نموذج يدعمه هذا النموذج اللغوي المخصص فعلًا (مثل gpt-5.4). يمكنك أن تطلب من مزوّده القائمة الدقيقة لمعرّفات النماذج المتاحة."
           }
         },
         "de" : {
@@ -33566,7 +33370,7 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "इस कस्टम LLM का अपस्ट्रीम यह मॉडल प्रदान नहीं करता। प्रदाता → यह कस्टम LLM → कनेक्शन सेटिंग्स → मॉडल खोलें और इसे एक ऐसे मॉडल में बदलें जिसे आपका कस्टम LLM वास्तव में समर्थन करता है (उदा. gpt-5.4)। सटीक मॉडल ID सूची के लिए कस्टम LLM व्यवस्थापक से पूछें।"
+            "value" : "इस कस्टम LLM का अपस्ट्रीम यह मॉडल प्रदान नहीं करता। प्रोवाइडर → यह कस्टम LLM → कनेक्शन सेटिंग्स → मॉडल खोलें और इसे एक ऐसे मॉडल में बदलें जिसे आपका कस्टम LLM वास्तव में समर्थन करता है (उदा. gpt-5.4)। सटीक मॉडल ID सूची के लिए कस्टम LLM व्यवस्थापक से पूछें।"
           }
         },
         "id" : {
@@ -33584,7 +33388,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "이 사용자 지정 LLM의 상류는 이 모델을 제공하지 않습니다. 제공업체 → 해당 사용자 지정 LLM → 연결 설정 → 모델을 열어 사용자 지정 LLM이 실제로 지원하는 모델(예: gpt-5.4)로 바꾸세요. 사용 가능한 모델 ID 목록은 사용자 지정 LLM 관리자에게 문의하세요."
+            "value" : "이 사용자 지정 LLM의 업스트림은 이 모델을 제공하지 않습니다. 제공업체 → 이 연결 → 연결 설정 → 모델을 열어 이 사용자 지정 LLM이 실제로 지원하는 모델(예: gpt-5.4)로 바꾸세요. 사용 가능한 정확한 모델 ID 목록은 이 사용자 지정 LLM의 관리자에게 문의하세요."
           }
         },
         "pt-BR" : {
@@ -33596,7 +33400,7 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Upstream этой пользовательской LLM не предоставляет эту модель. Открой Провайдеры → это подключение → Настройки подключения → Модель и выбери модель, которую эта пользовательская LLM действительно поддерживает (например, gpt-5.4). Точный список доступных идентификаторов можно уточнить у администратора сервиса."
+            "value" : "Upstream этой пользовательской LLM не предоставляет эту модель. Откройте Провайдеры → это подключение → Настройки подключения → Модель и выберите модель, которую эта пользовательская LLM действительно поддерживает (например, gpt-5.4). Точный список доступных идентификаторов можно уточнить у администратора сервиса."
           }
         },
         "th" : {
@@ -33608,7 +33412,7 @@
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "özel LLM'in upstream'i bu modeli sunmuyor. Sağlayıcılar → bu özel LLM → Bağlantı ayarları → Model bölümünden, özel LLM'inizin gerçekten desteklediği bir modele değiştirin (ör. gpt-5.4). Mevcut model ID listesini özel LLM yöneticisinden öğrenebilirsiniz."
+            "value" : "Özel LLM'in upstream'i bu modeli sunmuyor. Sağlayıcılar → bu bağlantı → Bağlantı ayarları → Model bölümünden, bu özel LLM'in gerçekten desteklediği bir model seçin (ör. gpt-5.4). Kullanılabilir model ID listesini özel LLM yöneticisinden öğrenebilirsiniz."
           }
         },
         "vi" : {
@@ -33620,13 +33424,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "此自定义 LLM 的上游没有提供此模型。打开 供应商 → 该连接 → 连接设置 → 模型，改为此自定义 LLM 实际支持的模型（例如 gpt-5.4）。可以向其服务商询问可用模型 ID 列表。"
+            "value" : "此自定义 LLM 的上游没有提供此模型。打开 供应商 → 该连接 → 连接设置 → 模型，改为此自定义 LLM 实际支持的模型（例如 gpt-5.4）。可以向其管理员询问可用模型 ID 列表。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "此自訂 LLM 的上游沒有提供此模型。開啟 供應商 → 該連線 → 連線設定 → 模型，改為此自訂 LLM 實際支援的模型（例如 gpt-5.4）。可向其服務商詢問可用模型 ID 清單。"
+            "value" : "此自訂 LLM 的上游沒有提供此模型。開啟 供應商 → 該連線 → 連線設定 → 模型，改為此自訂 LLM 實際支援的模型（例如 gpt-5.4）。可向其管理員詢問可用模型 ID 清單。"
           }
         }
       }
@@ -33774,7 +33578,7 @@
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Server menolak kunci API. Periksa kuncinya atau pilih protokol yang terdokumentasi secara manual."
+            "value" : "Server menolak API key. Periksa kuncinya atau pilih protokol yang terdokumentasi secara manual."
           }
         },
         "ja" : {
@@ -33828,7 +33632,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "伺服器拒絕了 API Key。請檢查金鑰，或手動選擇文件指定的協議。"
+            "value" : "伺服器拒絕了 API 金鑰。請檢查金鑰，或手動選擇文件指定的協議。"
           }
         }
       }
@@ -34041,7 +33845,7 @@
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "تقبل النماذج التالية في هذا الاتصال هذه المَعلمة."
+            "value" : "تقبل النماذج التالية في هذا الاتصال هذا المعامل."
           }
         },
         "de" : {
@@ -34160,7 +33964,7 @@
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ces paramètres sont déduits du protocole que tu as choisi. Oriveo n'a pas vérifié qu'ils agissent sur cette connexion."
+            "value" : "Ces paramètres sont déduits du protocole que vous avez choisi. Oriveo n'a pas vérifié qu'ils prennent effet sur cette connexion."
           }
         },
         "hi" : {
@@ -34267,7 +34071,7 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ये सेटिंग्स प्रत्येक प्रदाता के लिए स्वचालित रूप से कॉन्फ़िगर होती हैं। कस्टम अनुरोध URL का समर्थन भविष्य के अपडेट में उपलब्ध होगा।"
+            "value" : "ये सेटिंग्स प्रत्येक प्रोवाइडर के लिए स्वचालित रूप से कॉन्फ़िगर होती हैं। कस्टम अनुरोध URL का समर्थन भविष्य के अपडेट में उपलब्ध होगा।"
           }
         },
         "id" : {
@@ -34321,13 +34125,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "这些设置会为每个服务商自动配置。自定义请求 URL 支持将在后续更新中提供。"
+            "value" : "这些设置会为每个供应商自动配置。自定义请求 URL 支持将在后续更新中提供。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "這些設定會為每個服務商自動配置。自訂請求 URL 支援將在後續更新中提供。"
+            "value" : "這些設定會依各供應商自動套用。自訂請求 URL 將在後續更新中支援。"
           }
         }
       }
@@ -34760,13 +34564,13 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "यह कनेक्शन, API कुंजी, सक्षम मॉडल, मॉडल लाइब्रेरी और मॉडल व्यवहार सेटिंग हटाता है। यह वार्तालाप नहीं हटाता; संदेश इतिहास रहता है और उसमें उपयोग किए गए मॉडल अनुपलब्ध के रूप में चिह्नित होते हैं। इसे पूर्ववत नहीं किया जा सकता।"
+            "value" : "यह कनेक्शन, API key, सक्षम मॉडल, मॉडल लाइब्रेरी और मॉडल व्यवहार सेटिंग हटाता है। यह वार्तालाप नहीं हटाता; संदेश इतिहास रहता है और उसमें उपयोग किए गए मॉडल अनुपलब्ध के रूप में चिह्नित होते हैं। इसे पूर्ववत नहीं किया जा सकता।"
           }
         },
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ini menghapus koneksi, kunci API, model yang diaktifkan, pustaka model, dan pengaturan perilaku model. Percakapan tidak dihapus; riwayat pesan tetap ada dan model yang digunakan di sana ditandai tidak tersedia. Tindakan ini tidak dapat dibatalkan."
+            "value" : "Ini menghapus koneksi, API key, model yang diaktifkan, pustaka model, dan pengaturan perilaku model. Percakapan tidak dihapus; riwayat pesan tetap ada dan model yang digunakan di sana ditandai tidak tersedia. Tindakan ini tidak dapat dibatalkan."
           }
         },
         "ja" : {
@@ -35330,13 +35134,13 @@
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "لا يقبل هذا النموذج هذه المَعلمة؛ سيُرفض إرسالها."
+            "value" : "هذا النموذج لا يقبل هذا المعامل، وسيُرفض الطلب عند إرساله."
           }
         },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Dieses Modell akzeptiert diesen Parameter nicht; das Senden wird abgelehnt."
+            "value" : "Dieses Modell akzeptiert den Parameter nicht; das Senden wird abgelehnt."
           }
         },
         "es" : {
@@ -35348,13 +35152,13 @@
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ce modèle n'accepte pas ce paramètre ; l'envoyer sera rejeté."
+            "value" : "Ce modèle n’accepte pas ce paramètre ; l’envoi sera rejeté."
           }
         },
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "यह मॉडल इस पैरामीटर को स्वीकार नहीं करता; भेजने पर अस्वीकार हो जाएगा।"
+            "value" : "यह मॉडल इस पैरामीटर को स्वीकार नहीं करता; भेजने पर अस्वीकार होगा।"
           }
         },
         "id" : {
@@ -35366,7 +35170,7 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "このモデルはこのパラメータを受け付けません。送信すると拒否されます。"
+            "value" : "このモデルはこのパラメータを受け付けず、送信すると拒否されます。"
           }
         },
         "ko" : {
@@ -35384,7 +35188,7 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Эта модель не принимает данный параметр; отправка будет отклонена."
+            "value" : "Модель не принимает этот параметр; отправка будет отклонена."
           }
         },
         "th" : {
@@ -35396,13 +35200,13 @@
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Bu model bu parametreyi kabul etmez; göndermek reddedilir."
+            "value" : "Bu model bu parametreyi kabul etmez; gönderirseniz reddedilir."
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Mô hình này không chấp nhận tham số này; gửi đi sẽ bị từ chối."
+            "value" : "Mô hình này không nhận tham số này; gửi đi sẽ bị từ chối."
           }
         },
         "zh-Hans" : {
@@ -35752,7 +35556,7 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "यह प्रदाता वर्तमान में स्थिर स्वचालित मॉडल सिंक की गारंटी नहीं देता है। कृपया मैन्युअल मॉडल आईडी के साथ जारी रखें।"
+            "value" : "यह प्रोवाइडर वर्तमान में स्थिर स्वचालित मॉडल सिंक की गारंटी नहीं देता है। कृपया मैन्युअल मॉडल आईडी के साथ जारी रखें।"
           }
         },
         "id" : {
@@ -35782,7 +35586,7 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "В настоящее время этот поставщик не гарантирует стабильную автоматическую синхронизацию моделей. Пожалуйста, продолжайте вводить идентификатор модели вручную."
+            "value" : "Сейчас этот провайдер не гарантирует стабильную автоматическую синхронизацию моделей. Пожалуйста, введите идентификатор модели вручную."
           }
         },
         "th" : {
@@ -35806,13 +35610,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "此服务商暂不保证稳定的自动模型同步。请使用手动模型 ID 继续。"
+            "value" : "此供应商暂不保证稳定的自动模型同步。请使用手动模型 ID 继续。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "該服務商目前不保證穩定的自動模型同步。請使用手動模型 ID 繼續。"
+            "value" : "該供應商目前不保證穩定的自動模型同步。請使用手動模型 ID 繼續。"
           }
         }
       }
@@ -35841,13 +35645,13 @@
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ce fournisseur ne prend pas en charge la synchronisation automatique des modèles. Tu peux saisir un ID de modèle manuellement à la place."
+            "value" : "Ce fournisseur ne prend pas en charge la synchronisation automatique des modèles. Vous pouvez saisir un ID de modèle manuellement à la place."
           }
         },
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "यह प्रदाता स्वचालित मॉडल सिंक का समर्थन नहीं करता। आप इसके बजाय मैन्युअल रूप से मॉडल ID दर्ज कर सकते हैं।"
+            "value" : "यह प्रोवाइडर स्वचालित मॉडल सिंक का समर्थन नहीं करता। आप इसके बजाय मैन्युअल रूप से मॉडल ID दर्ज कर सकते हैं।"
           }
         },
         "id" : {
@@ -35865,7 +35669,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "이 공급자는 자동 모델 동기화를 지원하지 않습니다. 대신 모델 ID를 수동으로 입력할 수 있습니다."
+            "value" : "이 제공업체는 자동 모델 동기화를 지원하지 않습니다. 대신 모델 ID를 수동으로 입력할 수 있습니다."
           }
         },
         "pt-BR" : {
@@ -35918,97 +35722,97 @@
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "لا يقبل هذا النموذج اللغوي الكبير المخصص قيمة OpenAI service tier الحالية. افتح المزوّدون ← هذه الاتصالات ← إعدادات الاتصال ← التوافق، ثم امسح «OpenAI service tier» وأعد المحاولة."
+            "value" : "لا يقبل هذا النموذج اللغوي المخصص قيمة مستوى الخدمة الحالية. انتقل إلى: مزودو الخدمة ← هذا الاتصال ← إعدادات الاتصال ← التوافق، وامسح «مستوى الخدمة»، ثم أعد المحاولة."
           }
         },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Dieses benutzerdefinierte LLM akzeptiert den aktuellen OpenAI-Service-Tier-Wert nicht. Öffne Anbieter → dieses benutzerdefinierte LLM → Verbindungseinstellungen → Kompatibilität und leere „OpenAI service tier“, dann versuche es erneut."
+            "value" : "Dieses benutzerdefinierte LLM akzeptiert die aktuelle Servicestufe nicht. Öffne Anbieter → diese Verbindung → Verbindungseinstellungen → Kompatibilität, leere „Servicestufe“ und versuche es erneut."
           }
         },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "This custom LLM does not accept the current OpenAI service tier value. Open Providers → this connection → Connection settings → Compatibility and clear “OpenAI service tier”, then retry."
+            "value" : "This custom LLM does not accept the current service tier value. Open Providers → this connection → Connection settings → Compatibility and clear “Service Tier”, then retry."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Este LLM personalizado no acepta el valor actual de OpenAI service tier. Abre Proveedores → este LLM personalizado → Configuración de conexión → Compatibilidad y borra «OpenAI service tier», luego reintenta."
+            "value" : "Este LLM personalizado no acepta el nivel de servicio actual. Abre Proveedores → esta conexión → Configuración de conexión → Compatibilidad, borra «Nivel de servicio» y vuelve a intentarlo."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ce LLM personnalisé n'accepte pas la valeur actuelle d'OpenAI service tier. Ouvre Fournisseurs → ce LLM personnalisé → Paramètres de connexion → Compatibilité et vide « OpenAI service tier », puis réessaie."
+            "value" : "Ce LLM personnalisé n’accepte pas le niveau de service actuel. Ouvrez Fournisseurs → cette connexion → Paramètres de connexion → Compatibilité, videz « Niveau de service », puis réessayez."
           }
         },
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "यह कस्टम LLM मौजूदा OpenAI service tier मान स्वीकार नहीं करता। प्रदाता → यह कस्टम LLM → कनेक्शन सेटिंग्स → संगतता खोलें और “OpenAI service tier” खाली करें, फिर पुनः प्रयास करें।"
+            "value" : "यह कस्टम LLM मौजूदा सेवा स्तर स्वीकार नहीं करता। प्रोवाइडर → यह कनेक्शन → कनेक्शन सेटिंग्स → संगतता खोलें, “सेवा स्तर” खाली करें और फिर से कोशिश करें।"
           }
         },
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "LLM kustom ini tidak menerima nilai OpenAI service tier saat ini. Buka Penyedia → LLM kustom ini → Pengaturan koneksi → Kompatibilitas lalu kosongkan “OpenAI service tier”, kemudian coba lagi."
+            "value" : "LLM kustom ini tidak menerima nilai Tingkat Layanan saat ini. Buka Penyedia → koneksi ini → Pengaturan koneksi → Kompatibilitas, kosongkan “Tingkat Layanan”, lalu coba lagi."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "このカスタム LLM は現在の OpenAI service tier 値を受け付けません。プロバイダー → この接続 → 接続設定 → 互換性を開き、「OpenAI service tier」をクリアしてから再試行してください。"
+            "value" : "このカスタム LLM は現在のサービスティアの値を受け付けません。プロバイダー → この接続 → 接続設定 → 互換性を開き、「サービスティア」を空にしてから再試行してください。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "이 사용자 지정 LLM는 현재 OpenAI service tier 값을 받아들이지 않습니다. 제공업체 → 이 사용자 지정 LLM → 연결 설정 → 호환성를 열어 “OpenAI service tier”를 비우고 다시 시도하세요."
+            "value" : "이 사용자 지정 LLM은 현재 서비스 등급 값을 받아들이지 않습니다. 제공업체 → 이 연결 → 연결 설정 → 호환성에서 “서비스 등급”을 비운 뒤 다시 시도하세요."
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Este LLM personalizado não aceita o valor atual de OpenAI service tier. Abra Provedores → este LLM personalizado → Configurações de conexão → Compatibilidade e limpe “OpenAI service tier”, depois tente novamente."
+            "value" : "Este LLM personalizado não aceita o nível de serviço atual. Abra Provedores → esta conexão → Configurações de conexão → Compatibilidade, limpe “Nível de serviço” e tente novamente."
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Эта пользовательская LLM не принимает текущее значение OpenAI service tier. Открой Провайдеры → это подключение → Настройки подключения → Совместимость, очисти «OpenAI service tier» и попробуй ещё раз."
+            "value" : "Эта пользовательская LLM не принимает текущий уровень обслуживания. Откройте Провайдеры → это подключение → Настройки подключения → Совместимость, очистите поле «Уровень обслуживания» и повторите попытку."
           }
         },
         "th" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "LLM แบบกำหนดเองนี้ไม่รับค่า OpenAI service tier ที่ตั้งไว้ เปิดผู้ให้บริการ → LLM แบบกำหนดเองนี้ → การตั้งค่าการเชื่อมต่อ → ความเข้ากันได้ แล้วล้างค่า “OpenAI service tier” จากนั้นลองใหม่"
+            "value" : "LLM แบบกำหนดเองนี้ไม่รับค่าระดับการบริการที่ตั้งไว้ เปิดผู้ให้บริการ → การเชื่อมต่อนี้ → การตั้งค่าการเชื่อมต่อ → ความเข้ากันได้ แล้วล้างค่า “ระดับการบริการ” จากนั้นลองอีกครั้ง"
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Bu özel LLM mevcut OpenAI service tier değerini kabul etmiyor. Sağlayıcılar → bu özel LLM → Bağlantı ayarları → Uyumluluk bölümünü açın ve “OpenAI service tier” alanını boşaltıp tekrar deneyin."
+            "value" : "Bu özel LLM, geçerli Hizmet Kademesi değerini kabul etmiyor. Sağlayıcılar → bu bağlantı → Bağlantı ayarları → Uyumluluk bölümünü açın, “Hizmet Kademesi” alanını boşaltın ve tekrar deneyin."
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "LLM tùy chỉnh này không chấp nhận giá trị OpenAI service tier hiện tại. Mở Nhà cung cấp → LLM tùy chỉnh này → Cài đặt kết nối → Tương thích rồi xóa “OpenAI service tier”, sau đó thử lại."
+            "value" : "LLM tùy chỉnh này không chấp nhận giá trị Cấp dịch vụ hiện tại. Mở Nhà cung cấp → kết nối này → Cài đặt kết nối → Khả năng tương thích, xóa “Cấp dịch vụ” rồi thử lại."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "此自定义 LLM 不接受当前的 OpenAI service tier 值。打开 供应商 → 该连接 → 连接设置 → 兼容性，清空“OpenAI service tier”后重试。"
+            "value" : "这个自定义 LLM 不接受当前的服务等级值。打开供应商 → 该连接 → 连接设置 → 兼容性，清空“服务等级”后重试。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "此自訂 LLM 不接受目前的 OpenAI service tier 值。開啟 供應商 → 該連線 → 連線設定 → 相容性，清除「OpenAI service tier」後重試。"
+            "value" : "這個自訂 LLM 不接受目前的服務等級值。開啟供應商 → 該連線 → 連線設定 → 相容性，清空「服務等級」後重試。"
           }
         }
       }
@@ -36019,7 +35823,7 @@
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "لا يوفّر هذا النموذج اللغوي الكبير المخصص عنوان طلب مخصصًا للصور. افتح المزوّدون ← هذا الاتصال ← إعدادات الاتصال ← البروتوكول، ثم اختر OpenAI Responses. سيستخدم Oriveo بعدها مسار أداة الصور المضمنة."
+            "value" : "لا يوفّر هذا النموذج اللغوي المخصص عنوان URL مستقلًا لطلبات الصور. انتقل إلى: مزودو الخدمة ← هذا الاتصال ← إعدادات الاتصال ← البروتوكول، واختر OpenAI Responses. عندها سيستخدم Oriveo مسار أداة الصور المضمّنة بدلًا من ذلك."
           }
         },
         "de" : {
@@ -36049,7 +35853,7 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "इस कस्टम LLM में छवियों के लिए अलग अनुरोध URL नहीं है। प्रदाता → यह कनेक्शन → कनेक्शन सेटिंग्स → प्रोटोकॉल खोलें और OpenAI Responses पर स्विच करें। फिर Oriveo इनलाइन इमेज टूल पथ का उपयोग करेगा।"
+            "value" : "इस कस्टम LLM में छवियों के लिए अलग अनुरोध URL नहीं है। प्रोवाइडर → यह कनेक्शन → कनेक्शन सेटिंग्स → प्रोटोकॉल खोलें और OpenAI Responses पर स्विच करें। फिर Oriveo इनलाइन इमेज टूल पथ का उपयोग करेगा।"
           }
         },
         "id" : {
@@ -36079,7 +35883,7 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "У этой пользовательской LLM нет отдельного URL запроса для изображений. Открой Провайдеры → это подключение → Настройки подключения → Протокол и выбери OpenAI Responses. Тогда Oriveo будет использовать встроенный инструмент изображений."
+            "value" : "У этой пользовательской LLM нет отдельного URL запроса для изображений. Откройте Провайдеры → это подключение → Настройки подключения → Протокол и выберите OpenAI Responses. Тогда Oriveo будет использовать встроенный инструмент изображений."
           }
         },
         "th" : {
@@ -36120,43 +35924,43 @@
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "يتوقع هذا النموذج اللغوي الكبير المخصص ترويسة x-api-key بأسلوب Anthropic. افتح المزوّدون ← هذه الاتصالات ← إعدادات الاتصال ← المصادقة، ثم اختر «x-api-key» وأعد المحاولة."
+            "value" : "يتوقع هذا النموذج اللغوي المخصص ترويسة x-api-key بأسلوب Anthropic. انتقل إلى: مزودو الخدمة ← هذا الاتصال ← إعدادات الاتصال ← المصادقة، واختر «x-api-key»، ثم أعد المحاولة."
           }
         },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Dieses benutzerdefinierte LLM erwartet einen x-api-key-Header im Anthropic-Stil. Öffne Anbieter → dieses benutzerdefinierte LLM → Verbindungseinstellungen → Authentifizierung und wechsle zu „x-api-key“, dann versuche es erneut."
+            "value" : "Dieses benutzerdefinierte LLM erwartet einen x-api-key-Header im Anthropic-Stil. Öffne Anbieter → diese Verbindung → Verbindungseinstellungen → Authentifizierung, wechsle zu „x-api-key“ und versuche es erneut."
           }
         },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "This custom LLM expects an Anthropic-style x-api-key header. Open Providers → this connection → Connection settings → Auth and switch to “x-api-key”, then retry."
+            "value" : "This custom LLM expects an Anthropic-style x-api-key header. Open Providers → this connection → Connection settings → Authentication and switch to “x-api-key”, then retry."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Este LLM personalizado espera una cabecera x-api-key estilo Anthropic. Abre Proveedores → este LLM personalizado → Configuración de conexión → Autenticación y cambia a «x-api-key», luego reintenta."
+            "value" : "Este LLM personalizado espera un encabezado x-api-key al estilo de Anthropic. Abre Proveedores → esta conexión → Configuración de conexión → Autenticación, cambia a «x-api-key» y vuelve a intentarlo."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ce LLM personnalisé attend un en-tête x-api-key style Anthropic. Ouvre Fournisseurs → ce LLM personnalisé → Paramètres de connexion → Authentification et passe à « x-api-key », puis réessaie."
+            "value" : "Ce LLM personnalisé attend un en-tête x-api-key de style Anthropic. Ouvrez Fournisseurs → cette connexion → Paramètres de connexion → Authentification, passez à « x-api-key », puis réessayez."
           }
         },
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "इस कस्टम LLM को Anthropic-शैली का x-api-key हेडर चाहिए। प्रदाता → यह कस्टम LLM → कनेक्शन सेटिंग्स → प्रमाणीकरण खोलें और “x-api-key” पर स्विच करें, फिर पुनः प्रयास करें।"
+            "value" : "इस कस्टम LLM को Anthropic-शैली का x-api-key हेडर चाहिए। प्रोवाइडर → यह कनेक्शन → कनेक्शन सेटिंग्स → प्रमाणीकरण खोलें, “x-api-key” चुनें और फिर से कोशिश करें।"
           }
         },
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "LLM kustom ini mengharapkan header x-api-key gaya Anthropic. Buka Penyedia → LLM kustom ini → Pengaturan koneksi → Autentikasi lalu ganti ke “x-api-key”, kemudian coba lagi."
+            "value" : "LLM kustom ini memerlukan header x-api-key gaya Anthropic. Buka Penyedia → koneksi ini → Pengaturan koneksi → Autentikasi, pilih “x-api-key”, lalu coba lagi."
           }
         },
         "ja" : {
@@ -36168,49 +35972,49 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "이 사용자 지정 LLM는 Anthropic 스타일의 x-api-key 헤더를 요구합니다. 제공업체 → 이 사용자 지정 LLM → 연결 설정 → 인증을 열어 “x-api-key”로 전환한 뒤 다시 시도하세요."
+            "value" : "이 사용자 지정 LLM에는 Anthropic 방식의 x-api-key 헤더가 필요합니다. 제공업체 → 이 연결 → 연결 설정 → 인증에서 “x-api-key”로 바꾼 뒤 다시 시도하세요."
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Este LLM personalizado espera um cabeçalho x-api-key no estilo Anthropic. Abra Provedores → este LLM personalizado → Configurações de conexão → Autenticação e mude para “x-api-key”, depois tente novamente."
+            "value" : "Este LLM personalizado espera um cabeçalho x-api-key no estilo da Anthropic. Abra Provedores → esta conexão → Configurações de conexão → Autenticação, mude para “x-api-key” e tente novamente."
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Этой пользовательской LLM нужен заголовок x-api-key в стиле Anthropic. Открой Провайдеры → это подключение → Настройки подключения → Аутентификация, выбери «x-api-key» и попробуй ещё раз."
+            "value" : "Эта пользовательская LLM ожидает заголовок x-api-key в стиле Anthropic. Откройте Провайдеры → это подключение → Настройки подключения → Аутентификация, выберите «x-api-key» и повторите попытку."
           }
         },
         "th" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "LLM แบบกำหนดเองนี้คาดหวังส่วนหัว x-api-key สไตล์ Anthropic เปิดผู้ให้บริการ → LLM แบบกำหนดเองนี้ → การตั้งค่าการเชื่อมต่อ → การยืนยันตัวตน แล้วสลับเป็น “x-api-key” จากนั้นลองใหม่"
+            "value" : "LLM แบบกำหนดเองนี้ต้องใช้เฮดเดอร์ x-api-key แบบ Anthropic เปิดผู้ให้บริการ → การเชื่อมต่อนี้ → การตั้งค่าการเชื่อมต่อ → การยืนยันตัวตน แล้วเลือก “x-api-key” จากนั้นลองอีกครั้ง"
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Bu özel LLM Anthropic tarzı x-api-key başlığını bekliyor. Sağlayıcılar → bu özel LLM → Bağlantı ayarları → Kimlik doğrulama bölümünü açın ve “x-api-key”e geçip tekrar deneyin."
+            "value" : "Bu özel LLM, Anthropic tarzı bir x-api-key başlığı bekliyor. Sağlayıcılar → bu bağlantı → Bağlantı ayarları → Kimlik doğrulama bölümünü açın, “x-api-key” seçeneğine geçin ve tekrar deneyin."
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "LLM tùy chỉnh này cần header x-api-key kiểu Anthropic. Mở Nhà cung cấp → LLM tùy chỉnh này → Cài đặt kết nối → Xác thực rồi đổi sang “x-api-key”, sau đó thử lại."
+            "value" : "LLM tùy chỉnh này yêu cầu header x-api-key kiểu Anthropic. Mở Nhà cung cấp → kết nối này → Cài đặt kết nối → Xác thực, chọn “x-api-key” rồi thử lại."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "此自定义 LLM 要求 Anthropic 风格的 x-api-key 认证头。打开 供应商 → 该连接 → 连接设置 → 鉴权方式，切换到“x-api-key”后重试。"
+            "value" : "这个自定义 LLM 需要 Anthropic 风格的 x-api-key 认证头。打开供应商 → 该连接 → 连接设置 → 认证方式，切换为“x-api-key”后重试。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "此自訂 LLM 要求 Anthropic 風格的 x-api-key 認證標頭。開啟 供應商 → 該連線 → 連線設定 → 驗證方式，切換到「x-api-key」後重試。"
+            "value" : "這個自訂 LLM 需要 Anthropic 風格的 x-api-key 認證標頭。開啟供應商 → 該連線 → 連線設定 → 驗證方式，切換為「x-api-key」後重試。"
           }
         }
       }
@@ -36221,97 +36025,97 @@
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "لا يوفّر هذا النموذج اللغوي الكبير المخصص سوى ‎/v1/responses ويرفض ‎/chat/completions. افتح المزوّدون ← هذه الاتصالات ← إعدادات الاتصال ← نوع البروتوكول، ثم اختر «Codex style (Responses)» وأعد المحاولة."
+            "value" : "لا يوفّر هذا النموذج اللغوي المخصص سوى ‎/v1/responses ويرفض ‎/chat/completions. انتقل إلى: مزودو الخدمة ← هذا الاتصال ← إعدادات الاتصال ← نوع البروتوكول، واختر «متوافق مع OpenAI Responses»، ثم أعد المحاولة."
           }
         },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Dieses benutzerdefinierte LLM bietet nur /v1/responses an und lehnt /chat/completions ab. Öffne Anbieter → dieses benutzerdefinierte LLM → Verbindungseinstellungen → Protokolltyp und wechsle zu „Codex style (Responses)“, dann versuche es erneut."
+            "value" : "Dieses benutzerdefinierte LLM stellt nur /v1/responses bereit und lehnt /chat/completions ab. Öffne Anbieter → diese Verbindung → Verbindungseinstellungen → Protokolltyp, wechsle zu „OpenAI-Responses-kompatibel“ und versuche es erneut."
           }
         },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "This custom LLM only exposes /v1/responses and rejects /chat/completions. Open Providers → this connection → Connection settings → protocol type and switch to “Codex style (Responses)”, then retry."
+            "value" : "This custom LLM only exposes /v1/responses and rejects /chat/completions. Open Providers → this connection → Connection settings → Protocol type and switch to “OpenAI Responses compatible”, then retry."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Este LLM personalizado solo expone /v1/responses y rechaza /chat/completions. Abre Proveedores → este LLM personalizado → Configuración de conexión → tipo de protocolo y cambia a «Codex style (Responses)», luego reintenta."
+            "value" : "Este LLM personalizado solo expone /v1/responses y rechaza /chat/completions. Abre Proveedores → esta conexión → Configuración de conexión → Tipo de protocolo, cambia a «Compatible con OpenAI Responses» y vuelve a intentarlo."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ce LLM personnalisé n'expose que /v1/responses et rejette /chat/completions. Ouvre Fournisseurs → ce LLM personnalisé → Paramètres de connexion → type de protocole et passe à « Codex style (Responses) », puis réessaie."
+            "value" : "Ce LLM personnalisé n'expose que /v1/responses et refuse /chat/completions. Ouvrez Fournisseurs → cette connexion → Paramètres de connexion → Type de protocole, passez à « Compatible OpenAI Responses », puis réessayez."
           }
         },
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "यह कस्टम LLM केवल /v1/responses प्रदान करता है और /chat/completions को अस्वीकार करता है। प्रदाता → यह कस्टम LLM → कनेक्शन सेटिंग्स → प्रोटोकॉल प्रकार खोलें और “Codex style (Responses)” पर स्विच करें, फिर पुनः प्रयास करें।"
+            "value" : "यह कस्टम LLM सिर्फ़ /v1/responses देता है और /chat/completions को अस्वीकार करता है। प्रोवाइडर → यह कनेक्शन → कनेक्शन सेटिंग्स → प्रोटोकॉल प्रकार खोलें, “OpenAI Responses संगत” चुनें और फिर से कोशिश करें।"
           }
         },
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "LLM kustom ini hanya mengekspos /v1/responses dan menolak /chat/completions. Buka Penyedia → LLM kustom ini → Pengaturan koneksi → jenis protokol lalu ganti ke “Codex style (Responses)”, kemudian coba lagi."
+            "value" : "LLM kustom ini hanya menyediakan /v1/responses dan menolak /chat/completions. Buka Penyedia → koneksi ini → Pengaturan koneksi → Jenis protokol, pilih “Kompatibel OpenAI Responses”, lalu coba lagi."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "このカスタム LLM は /v1/responses のみを提供し、/chat/completions を拒否します。プロバイダー → この接続 → 接続設定 → プロトコルの種類を開き、「Codex style (Responses)」に切り替えてから再試行してください。"
+            "value" : "このカスタム LLM は /v1/responses のみを公開し、/chat/completions を拒否します。プロバイダー → この接続 → 接続設定 → プロトコルの種類を開き、「OpenAI Responses 互換」に切り替えてから再試行してください。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "이 사용자 지정 LLM는 /v1/responses만 노출하며 /chat/completions를 거부합니다. 제공업체 → 이 사용자 지정 LLM → 연결 설정 → 프로토콜 유형을 열어 “Codex style (Responses)”으로 변경한 뒤 다시 시도하세요."
+            "value" : "이 사용자 지정 LLM은 /v1/responses만 제공하고 /chat/completions는 거부합니다. 제공업체 → 이 연결 → 연결 설정 → 프로토콜 유형에서 “OpenAI Responses 호환”으로 바꾼 뒤 다시 시도하세요."
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Este LLM personalizado só expõe /v1/responses e rejeita /chat/completions. Abra Provedores → este LLM personalizado → Configurações de conexão → tipo de protocolo e mude para “Codex style (Responses)”, depois tente novamente."
+            "value" : "Este LLM personalizado só expõe /v1/responses e rejeita /chat/completions. Abra Provedores → esta conexão → Configurações de conexão → Tipo de protocolo, mude para “Compatível com OpenAI Responses” e tente novamente."
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Эта пользовательская LLM принимает только /v1/responses и отклоняет /chat/completions. Открой Провайдеры → это подключение → Настройки подключения → Тип протокола, выбери «Codex (Responses)» и попробуй ещё раз."
+            "value" : "Эта пользовательская LLM принимает только /v1/responses и отклоняет /chat/completions. Откройте Провайдеры → это подключение → Настройки подключения → Тип протокола, выберите «Совместимо с OpenAI Responses» и повторите попытку."
           }
         },
         "th" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "LLM แบบกำหนดเองนี้เปิดเฉพาะ /v1/responses และปฏิเสธ /chat/completions เปิดผู้ให้บริการ → LLM แบบกำหนดเองนี้ → การตั้งค่าการเชื่อมต่อ → ประเภทโปรโตคอล แล้วเปลี่ยนเป็น “Codex style (Responses)” จากนั้นลองใหม่"
+            "value" : "LLM แบบกำหนดเองนี้เปิดให้ใช้เฉพาะ /v1/responses และปฏิเสธ /chat/completions เปิดผู้ให้บริการ → การเชื่อมต่อนี้ → การตั้งค่าการเชื่อมต่อ → ประเภทโปรโตคอล แล้วเลือก “เข้ากันได้กับ OpenAI Responses” จากนั้นลองอีกครั้ง"
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Bu özel LLM yalnızca /v1/responses'i sunar ve /chat/completions'ı reddeder. Sağlayıcılar → bu özel LLM → Bağlantı ayarları → protokol türü bölümünü açın ve “Codex style (Responses)”e geçip tekrar deneyin."
+            "value" : "Bu özel LLM yalnızca /v1/responses sunuyor ve /chat/completions isteklerini reddediyor. Sağlayıcılar → bu bağlantı → Bağlantı ayarları → Protokol türü bölümünü açın, “OpenAI Responses uyumlu” seçeneğine geçin ve tekrar deneyin."
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "LLM tùy chỉnh này chỉ mở /v1/responses và từ chối /chat/completions. Mở Nhà cung cấp → LLM tùy chỉnh này → Cài đặt kết nối → loại giao thức rồi chuyển sang “Codex style (Responses)”, sau đó thử lại."
+            "value" : "LLM tùy chỉnh này chỉ cung cấp /v1/responses và từ chối /chat/completions. Mở Nhà cung cấp → kết nối này → Cài đặt kết nối → Loại giao thức, chọn “Tương thích OpenAI Responses” rồi thử lại."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "此自定义 LLM 只暴露 /v1/responses，拒绝 /chat/completions。打开 供应商 → 该连接 → 连接设置 → 协议类型，切换为“Codex（Responses）”后重试。"
+            "value" : "这个自定义 LLM 只开放 /v1/responses，拒绝 /chat/completions。打开供应商 → 该连接 → 连接设置 → 协议类型，切换为“OpenAI Responses 兼容”后重试。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "此自訂 LLM 只暴露 /v1/responses，拒絕 /chat/completions。開啟 供應商 → 該連線 → 連線設定 → 協議類型，切換為「Codex（Responses）」後重試。"
+            "value" : "這個自訂 LLM 只開放 /v1/responses，拒絕 /chat/completions。開啟供應商 → 該連線 → 連線設定 → 協議類型，切換為「OpenAI Responses 相容」後重試。"
           }
         }
       }
@@ -36322,97 +36126,198 @@
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "يرفض هذا النموذج اللغوي الكبير المخصص الحقل «store/disable_response_storage». افتح المزوّدون ← هذه الاتصالات ← إعدادات الاتصال ← التوافق، ثم أوقف «Don’t keep responses in the cloud» وأعد المحاولة."
+            "value" : "يرفض هذا النموذج اللغوي المخصص الحقل store/disable_response_storage. انتقل إلى: مزودو الخدمة ← هذا الاتصال ← إعدادات الاتصال ← التوافق، وأوقف «عدم الاحتفاظ بالاستجابات في السحابة»، ثم أعد المحاولة."
           }
         },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Dieses benutzerdefinierte LLM lehnt das Feld „store/disable_response_storage“ ab. Öffne Anbieter → dieses benutzerdefinierte LLM → Verbindungseinstellungen → Kompatibilität und deaktiviere „Don't keep responses in the cloud“, dann versuche es erneut."
+            "value" : "Dieses benutzerdefinierte LLM lehnt das Feld store/disable_response_storage ab. Öffne Anbieter → diese Verbindung → Verbindungseinstellungen → Kompatibilität, schalte „Antworten nicht in der Cloud speichern“ aus und versuche es erneut."
           }
         },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "This custom LLM rejects the “store/disable_response_storage” field. Open Providers → this connection → Connection settings → Compatibility and turn off “Don't keep responses in the cloud”, then retry."
+            "value" : "This custom LLM rejects the store/disable_response_storage field. Open Providers → this connection → Connection settings → Compatibility and turn off “Don't keep responses in the cloud”, then retry."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Este LLM personalizado rechaza el campo «store/disable_response_storage». Abre Proveedores → este LLM personalizado → Configuración de conexión → Compatibilidad y desactiva «Don't keep responses in the cloud», luego reintenta."
+            "value" : "Este LLM personalizado rechaza el campo store/disable_response_storage. Abre Proveedores → esta conexión → Configuración de conexión → Compatibilidad, desactiva «No conservar las respuestas en la nube» y vuelve a intentarlo."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ce LLM personnalisé rejette le champ « store/disable_response_storage ». Ouvre Fournisseurs → ce LLM personnalisé → Paramètres de connexion → Compatibilité et désactive « Don't keep responses in the cloud », puis réessaie."
+            "value" : "Ce LLM personnalisé refuse le champ store/disable_response_storage. Ouvrez Fournisseurs → cette connexion → Paramètres de connexion → Compatibilité, désactivez « Ne pas conserver les réponses dans le cloud », puis réessayez."
           }
         },
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "यह कस्टम LLM “store/disable_response_storage” फ़ील्ड को अस्वीकार करता है। प्रदाता → यह कस्टम LLM → कनेक्शन सेटिंग्स → संगतता खोलें और “Don't keep responses in the cloud” बंद करें, फिर पुनः प्रयास करें।"
+            "value" : "यह कस्टम LLM store/disable_response_storage फ़ील्ड को अस्वीकार करता है। प्रोवाइडर → यह कनेक्शन → कनेक्शन सेटिंग्स → संगतता खोलें, “जवाब क्लाउड में सेव न करें” बंद करें और फिर से कोशिश करें।"
           }
         },
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "LLM kustom ini menolak kolom “store/disable_response_storage”. Buka Penyedia → LLM kustom ini → Pengaturan koneksi → Kompatibilitas lalu matikan “Don't keep responses in the cloud”, kemudian coba lagi."
+            "value" : "LLM kustom ini menolak kolom store/disable_response_storage. Buka Penyedia → koneksi ini → Pengaturan koneksi → Kompatibilitas, nonaktifkan “Jangan simpan respons di cloud”, lalu coba lagi."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "このカスタム LLM は「store/disable_response_storage」フィールドを受け付けません。プロバイダー → この接続 → 接続設定 → 互換性を開き、「Don’t keep responses in the cloud」をオフにしてから再試行してください。"
+            "value" : "このカスタム LLM は store/disable_response_storage フィールドを受け付けません。プロバイダー → この接続 → 接続設定 → 互換性を開き、「クラウドにレスポンスを保存しない」をオフにしてから再試行してください。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "이 사용자 지정 LLM는 “store/disable_response_storage” 필드를 거부합니다. 제공업체 → 이 사용자 지정 LLM → 연결 설정 → 호환성를 열어 “Don't keep responses in the cloud”를 끈 뒤 다시 시도하세요."
+            "value" : "이 사용자 지정 LLM은 store/disable_response_storage 필드를 거부합니다. 제공업체 → 이 연결 → 연결 설정 → 호환성에서 “응답을 클라우드에 저장하지 않음”을 끈 뒤 다시 시도하세요."
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Este LLM personalizado rejeita o campo “store/disable_response_storage”. Abra Provedores → este LLM personalizado → Configurações de conexão → Compatibilidade e desligue “Don't keep responses in the cloud”, depois tente novamente."
+            "value" : "Este LLM personalizado rejeita o campo store/disable_response_storage. Abra Provedores → esta conexão → Configurações de conexão → Compatibilidade, desative “Não manter respostas na nuvem” e tente novamente."
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Эта пользовательская LLM отклоняет поле «store/disable_response_storage». Открой Провайдеры → это подключение → Настройки подключения → Совместимость, выключи «Не хранить ответы в облаке» и попробуй ещё раз."
+            "value" : "Эта пользовательская LLM отклоняет поле store/disable_response_storage. Откройте Провайдеры → это подключение → Настройки подключения → Совместимость, выключите «Не хранить ответы в облаке» и повторите попытку."
           }
         },
         "th" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "LLM แบบกำหนดเองนี้ปฏิเสธฟิลด์ “store/disable_response_storage” เปิดผู้ให้บริการ → LLM แบบกำหนดเองนี้ → การตั้งค่าการเชื่อมต่อ → ความเข้ากันได้ แล้วปิด “Don't keep responses in the cloud” จากนั้นลองใหม่"
+            "value" : "LLM แบบกำหนดเองนี้ปฏิเสธฟิลด์ store/disable_response_storage เปิดผู้ให้บริการ → การเชื่อมต่อนี้ → การตั้งค่าการเชื่อมต่อ → ความเข้ากันได้ แล้วปิด “ไม่เก็บการตอบกลับไว้บนคลาวด์” จากนั้นลองอีกครั้ง"
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Bu özel LLM “store/disable_response_storage” alanını reddediyor. Sağlayıcılar → bu özel LLM → Bağlantı ayarları → Uyumluluk bölümünü açın ve “Don't keep responses in the cloud”u kapatıp tekrar deneyin."
+            "value" : "Bu özel LLM, store/disable_response_storage alanını reddediyor. Sağlayıcılar → bu bağlantı → Bağlantı ayarları → Uyumluluk bölümünü açın, “Yanıtları bulutta saklamayın” seçeneğini kapatın ve tekrar deneyin."
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "LLM tùy chỉnh này từ chối trường “store/disable_response_storage”. Mở Nhà cung cấp → LLM tùy chỉnh này → Cài đặt kết nối → Tương thích rồi tắt “Don't keep responses in the cloud”, sau đó thử lại."
+            "value" : "LLM tùy chỉnh này từ chối trường store/disable_response_storage. Mở Nhà cung cấp → kết nối này → Cài đặt kết nối → Khả năng tương thích, tắt “Không lưu phản hồi trên đám mây” rồi thử lại."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "此自定义 LLM 不接受“store/disable_response_storage”字段。打开 供应商 → 该连接 → 连接设置 → 兼容性，关闭“不在云端保留响应”后重试。"
+            "value" : "这个自定义 LLM 不接受 store/disable_response_storage 字段。打开供应商 → 该连接 → 连接设置 → 兼容性，关闭“不在云端保留响应”后重试。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "此自訂 LLM 不接受「store/disable_response_storage」欄位。開啟 供應商 → 該連線 → 連線設定 → 相容性，關閉「不在雲端保留回應」後重試。"
+            "value" : "這個自訂 LLM 不接受 store/disable_response_storage 欄位。開啟供應商 → 該連線 → 連線設定 → 相容性，關閉「不在雲端保留回應」後重試。"
+          }
+        }
+      }
+    },
+    "This relay requires Codex client identity. Open Providers → this Relay → Edit → Relay type and switch to “Codex style (Responses)”, then retry." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "يتطلب هذا النموذج اللغوي المخصص هوية عميل Codex. انتقل إلى: مزودو الخدمة ← هذا الاتصال ← إعدادات الاتصال ← نوع البروتوكول، واختر «متوافق مع OpenAI Responses»، ثم أعد المحاولة."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dieses benutzerdefinierte LLM erfordert eine Codex-Client-Identität. Öffne Anbieter → diese Verbindung → Verbindungseinstellungen → Protokolltyp, wechsle zu „OpenAI-Responses-kompatibel“ und versuche es erneut."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This custom LLM requires a Codex client identity. Open Providers → this connection → Connection settings → Protocol type and switch to “OpenAI Responses compatible”, then retry."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Este LLM personalizado requiere la identidad de cliente de Codex. Abre Proveedores → esta conexión → Configuración de conexión → Tipo de protocolo, cambia a «Compatible con OpenAI Responses» y vuelve a intentarlo."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ce LLM personnalisé exige une identité client Codex. Ouvrez Fournisseurs → cette connexion → Paramètres de connexion → Type de protocole, passez à « Compatible OpenAI Responses », puis réessayez."
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "इस कस्टम LLM को Codex क्लाइंट पहचान चाहिए। प्रोवाइडर → यह कनेक्शन → कनेक्शन सेटिंग्स → प्रोटोकॉल प्रकार खोलें, “OpenAI Responses संगत” चुनें और फिर से कोशिश करें।"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "LLM kustom ini memerlukan identitas klien Codex. Buka Penyedia → koneksi ini → Pengaturan koneksi → Jenis protokol, pilih “Kompatibel OpenAI Responses”, lalu coba lagi."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このカスタム LLM には Codex クライアントとしての識別情報が必要です。プロバイダー → この接続 → 接続設定 → プロトコルの種類を開き、「OpenAI Responses 互換」に切り替えてから再試行してください。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 사용자 지정 LLM은 Codex 클라이언트로 식별되어야 합니다. 제공업체 → 이 연결 → 연결 설정 → 프로토콜 유형에서 “OpenAI Responses 호환”으로 바꾼 뒤 다시 시도하세요."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Este LLM personalizado exige a identidade de cliente do Codex. Abra Provedores → esta conexão → Configurações de conexão → Tipo de protocolo, mude para “Compatível com OpenAI Responses” e tente novamente."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Этой пользовательской LLM нужна идентификация клиента Codex. Откройте Провайдеры → это подключение → Настройки подключения → Тип протокола, выберите «Совместимо с OpenAI Responses» и повторите попытку."
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "LLM แบบกำหนดเองนี้ต้องใช้ข้อมูลระบุตัวตนไคลเอ็นต์ Codex เปิดผู้ให้บริการ → การเชื่อมต่อนี้ → การตั้งค่าการเชื่อมต่อ → ประเภทโปรโตคอล แล้วเลือก “เข้ากันได้กับ OpenAI Responses” จากนั้นลองอีกครั้ง"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bu özel LLM, Codex istemci kimliği gerektiriyor. Sağlayıcılar → bu bağlantı → Bağlantı ayarları → Protokol türü bölümünü açın, “OpenAI Responses uyumlu” seçeneğine geçin ve tekrar deneyin."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "LLM tùy chỉnh này yêu cầu danh tính ứng dụng khách Codex. Mở Nhà cung cấp → kết nối này → Cài đặt kết nối → Loại giao thức, chọn “Tương thích OpenAI Responses” rồi thử lại."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这个自定义 LLM 要求 Codex 客户端身份。打开供应商 → 该连接 → 连接设置 → 协议类型，切换为“OpenAI Responses 兼容”后重试。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這個自訂 LLM 要求 Codex 用戶端身分。開啟供應商 → 該連線 → 連線設定 → 協議類型，切換為「OpenAI Responses 相容」後重試。"
           }
         }
       }
@@ -36423,7 +36328,7 @@
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "يتطلب هذا النموذج اللغوي الكبير المخصص المعلمة «max_tokens». افتح إعدادات النموذج لهذا النموذج اللغوي الكبير المخصص واضبط قيمة max_tokens (مثل 4096)، ثم أعد المحاولة."
+            "value" : "يتطلب هذا النموذج اللغوي المخصص المعامل «max_tokens». افتح إعدادات النموذج الخاصة به واضبط قيمة max_tokens (مثل 4096)، ثم أعد المحاولة."
           }
         },
         "de" : {
@@ -36447,7 +36352,7 @@
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ce LLM personnalisé nécessite le paramètre « max_tokens ». Ouvre les paramètres du modèle de ce LLM personnalisé et définis une valeur pour max_tokens (par ex. 4096), puis réessaie."
+            "value" : "Ce LLM personnalisé nécessite le paramètre « max_tokens ». Ouvrez les paramètres du modèle de ce LLM personnalisé et définissez une valeur pour max_tokens (par ex. 4096), puis réessayez."
           }
         },
         "hi" : {
@@ -36471,7 +36376,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "이 사용자 지정 LLM는 “max_tokens” 매개변수가 필요합니다. 이 사용자 지정 LLM의 모델 설정을 열어 max_tokens 값(예: 4096)을 설정한 뒤 다시 시도하세요."
+            "value" : "이 사용자 지정 LLM은 “max_tokens” 매개변수가 필요합니다. 이 사용자 지정 LLM의 모델 설정을 열어 max_tokens 값(예: 4096)을 설정한 뒤 다시 시도하세요."
           }
         },
         "pt-BR" : {
@@ -36483,7 +36388,7 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Этой пользовательской LLM нужен параметр «max_tokens». Открой настройки модели этой пользовательской LLM, задай значение max_tokens (например, 4096) и попробуй ещё раз."
+            "value" : "Этой пользовательской LLM нужен параметр «max_tokens». Откройте настройки модели этой пользовательской LLM, задайте значение max_tokens (например, 4096) и попробуйте ещё раз."
           }
         },
         "th" : {
@@ -36524,97 +36429,97 @@
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "يتطلب هذا النموذج اللغوي الكبير المخصص بروتوكول OpenAI Responses. افتح المزوّدون ← هذه الاتصالات ← إعدادات الاتصال ← نوع البروتوكول، ثم اختر «Codex style (Responses)» وأعد المحاولة."
+            "value" : "يتطلب هذا النموذج اللغوي المخصص بروتوكول OpenAI Responses. انتقل إلى: مزودو الخدمة ← هذا الاتصال ← إعدادات الاتصال ← نوع البروتوكول، واختر «متوافق مع OpenAI Responses»، ثم أعد المحاولة."
           }
         },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Dieses benutzerdefinierte LLM erfordert das OpenAI Responses-Protokoll. Öffne Anbieter → dieses benutzerdefinierte LLM → Verbindungseinstellungen → Protokolltyp und wechsle zu „Codex style (Responses)“, dann versuche es erneut."
+            "value" : "Dieses benutzerdefinierte LLM erfordert das OpenAI-Responses-Protokoll. Öffne Anbieter → diese Verbindung → Verbindungseinstellungen → Protokolltyp, wechsle zu „OpenAI-Responses-kompatibel“ und versuche es erneut."
           }
         },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "This custom LLM requires the OpenAI Responses protocol. Open Providers → this connection → Connection settings → protocol type and switch to “Codex style (Responses)”, then retry."
+            "value" : "This custom LLM requires the OpenAI Responses protocol. Open Providers → this connection → Connection settings → Protocol type and switch to “OpenAI Responses compatible”, then retry."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Este LLM personalizado requiere el protocolo OpenAI Responses. Abre Proveedores → este LLM personalizado → Configuración de conexión → tipo de protocolo y cambia a «Codex style (Responses)», luego reintenta."
+            "value" : "Este LLM personalizado requiere el protocolo OpenAI Responses. Abre Proveedores → esta conexión → Configuración de conexión → Tipo de protocolo, cambia a «Compatible con OpenAI Responses» y vuelve a intentarlo."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ce LLM personnalisé nécessite le protocole OpenAI Responses. Ouvre Fournisseurs → ce LLM personnalisé → Paramètres de connexion → type de protocole et passe à « Codex style (Responses) », puis réessaie."
+            "value" : "Ce LLM personnalisé exige le protocole OpenAI Responses. Ouvrez Fournisseurs → cette connexion → Paramètres de connexion → Type de protocole, passez à « Compatible OpenAI Responses », puis réessayez."
           }
         },
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "इस कस्टम LLM को OpenAI Responses प्रोटोकॉल चाहिए। प्रदाता → यह कस्टम LLM → कनेक्शन सेटिंग्स → प्रोटोकॉल प्रकार खोलें और “Codex style (Responses)” पर स्विच करें, फिर पुनः प्रयास करें।"
+            "value" : "इस कस्टम LLM को OpenAI Responses प्रोटोकॉल चाहिए। प्रोवाइडर → यह कनेक्शन → कनेक्शन सेटिंग्स → प्रोटोकॉल प्रकार खोलें, “OpenAI Responses संगत” चुनें और फिर से कोशिश करें।"
           }
         },
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "LLM kustom ini memerlukan protokol OpenAI Responses. Buka Penyedia → LLM kustom ini → Pengaturan koneksi → jenis protokol lalu ganti ke “Codex style (Responses)”, kemudian coba lagi."
+            "value" : "LLM kustom ini memerlukan protokol OpenAI Responses. Buka Penyedia → koneksi ini → Pengaturan koneksi → Jenis protokol, pilih “Kompatibel OpenAI Responses”, lalu coba lagi."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "このカスタム LLM には OpenAI Responses プロトコルが必要です。プロバイダー → この接続 → 接続設定 → プロトコルの種類を開き、「Codex style (Responses)」に切り替えてから再試行してください。"
+            "value" : "このカスタム LLM には OpenAI Responses プロトコルが必要です。プロバイダー → この接続 → 接続設定 → プロトコルの種類を開き、「OpenAI Responses 互換」に切り替えてから再試行してください。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "이 사용자 지정 LLM는 OpenAI Responses 프로토콜이 필요합니다. 제공업체 → 이 사용자 지정 LLM → 연결 설정 → 프로토콜 유형을 열어 “Codex style (Responses)”으로 변경한 뒤 다시 시도하세요."
+            "value" : "이 사용자 지정 LLM에는 OpenAI Responses 프로토콜이 필요합니다. 제공업체 → 이 연결 → 연결 설정 → 프로토콜 유형에서 “OpenAI Responses 호환”으로 바꾼 뒤 다시 시도하세요."
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Este LLM personalizado requer o protocolo OpenAI Responses. Abra Provedores → este LLM personalizado → Configurações de conexão → tipo de protocolo e mude para “Codex style (Responses)”, depois tente novamente."
+            "value" : "Este LLM personalizado exige o protocolo OpenAI Responses. Abra Provedores → esta conexão → Configurações de conexão → Tipo de protocolo, mude para “Compatível com OpenAI Responses” e tente novamente."
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Этой пользовательской LLM нужен протокол OpenAI Responses. Открой Провайдеры → это подключение → Настройки подключения → Тип протокола, выбери «Codex (Responses)» и попробуй ещё раз."
+            "value" : "Этой пользовательской LLM нужен протокол OpenAI Responses. Откройте Провайдеры → это подключение → Настройки подключения → Тип протокола, выберите «Совместимо с OpenAI Responses» и повторите попытку."
           }
         },
         "th" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "LLM แบบกำหนดเองนี้ต้องใช้โปรโตคอล OpenAI Responses เปิดผู้ให้บริการ → LLM แบบกำหนดเองนี้ → การตั้งค่าการเชื่อมต่อ → ประเภทโปรโตคอล แล้วเปลี่ยนเป็น “Codex style (Responses)” จากนั้นลองใหม่"
+            "value" : "LLM แบบกำหนดเองนี้ต้องใช้โปรโตคอล OpenAI Responses เปิดผู้ให้บริการ → การเชื่อมต่อนี้ → การตั้งค่าการเชื่อมต่อ → ประเภทโปรโตคอล แล้วเลือก “เข้ากันได้กับ OpenAI Responses” จากนั้นลองอีกครั้ง"
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Bu özel LLM OpenAI Responses protokolünü gerektirir. Sağlayıcılar → bu özel LLM → Bağlantı ayarları → protokol türü bölümünü açın ve “Codex style (Responses)”e geçip tekrar deneyin."
+            "value" : "Bu özel LLM, OpenAI Responses protokolünü gerektiriyor. Sağlayıcılar → bu bağlantı → Bağlantı ayarları → Protokol türü bölümünü açın, “OpenAI Responses uyumlu” seçeneğine geçin ve tekrar deneyin."
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "LLM tùy chỉnh này cần giao thức OpenAI Responses. Mở Nhà cung cấp → LLM tùy chỉnh này → Cài đặt kết nối → loại giao thức rồi chuyển sang “Codex style (Responses)”, sau đó thử lại."
+            "value" : "LLM tùy chỉnh này yêu cầu giao thức OpenAI Responses. Mở Nhà cung cấp → kết nối này → Cài đặt kết nối → Loại giao thức, chọn “Tương thích OpenAI Responses” rồi thử lại."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "此自定义 LLM 需要 OpenAI Responses 协议。打开 供应商 → 该连接 → 连接设置 → 协议类型，切换为“Codex（Responses）”后重试。"
+            "value" : "这个自定义 LLM 要求 OpenAI Responses 协议。打开供应商 → 该连接 → 连接设置 → 协议类型，切换为“OpenAI Responses 兼容”后重试。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "此自訂 LLM 需要 OpenAI Responses 協議。開啟 供應商 → 該連線 → 連線設定 → 協議類型，切換為「Codex（Responses）」後重試。"
+            "value" : "這個自訂 LLM 要求 OpenAI Responses 協議。開啟供應商 → 該連線 → 連線設定 → 協議類型，切換為「OpenAI Responses 相容」後重試。"
           }
         }
       }
@@ -36625,97 +36530,97 @@
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "لا يزال هذا النموذج اللغوي الكبير المخصص يرفض هوية عميل Codex من Oriveo. جرّب ضبط User-Agent مخصص ضمن إعدادات الاتصال ← HTTP متقدم، أو انتقل إلى نموذج لغوي كبير مخصص آخر / اتصل بمسؤول الخدمة (قد يكون الحساب غير مخوّل أو محدود المعدل)."
+            "value" : "لا يزال هذا النموذج اللغوي المخصص يرفض هوية عميل Codex من Oriveo. انتقل إلى: مزودو الخدمة ← هذا الاتصال ← إعدادات الاتصال ← HTTP متقدم، واضبط User-Agent أو ترويسة مخصصة، أو بدّل إلى نموذج لغوي مخصص آخر."
           }
         },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Dieses benutzerdefinierte LLM lehnt Oriveos Codex-Client-Identität weiterhin ab. Setze unter Verbindungseinstellungen → Erweitertes HTTP einen benutzerdefinierten User-Agent oder wechsle zu einem anderen benutzerdefinierten LLM / kontaktiere den Administrator (das Upstream-Konto ist evtl. nicht autorisiert oder gedrosselt)."
+            "value" : "Dieses benutzerdefinierte LLM lehnt Oriveos Codex-Client-Identität weiterhin ab. Öffne Anbieter → diese Verbindung → Verbindungseinstellungen → Erweitertes HTTP, lege einen benutzerdefinierten User-Agent oder Header fest oder wechsle zu einem anderen benutzerdefinierten LLM."
           }
         },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "This custom LLM still rejects Oriveo's Codex client identity. Try setting a custom User-Agent under Connection settings → Advanced HTTP, or switch to another custom LLM / contact its administrator (the upstream account may be unauthorized or rate-limited)."
+            "value" : "This custom LLM still rejects Oriveo's Codex client identity. Open Providers → this connection → Connection settings → Advanced HTTP and set a custom User-Agent or header, or switch to another custom LLM."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Este LLM personalizado sigue rechazando la identidad de cliente Codex de Oriveo. Prueba configurar un User-Agent personalizado en Configuración de conexión → HTTP avanzado, o cambia de LLM personalizado / contacta al administrador (la cuenta upstream puede no estar autorizada o estar limitada)."
+            "value" : "Este LLM personalizado sigue rechazando la identidad de cliente de Codex de Oriveo. Abre Proveedores → esta conexión → Configuración de conexión → HTTP avanzado, define un User-Agent o Header personalizado, o cambia de LLM personalizado."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ce LLM personnalisé rejette toujours l'identité client Codex d'Oriveo. Essaie de définir un User-Agent personnalisé sous Paramètres de connexion → HTTP avancé, ou change de LLM personnalisé / contacte l'administrateur (le compte upstream peut être non autorisé ou limité)."
+            "value" : "Ce LLM personnalisé rejette toujours l'identité client Codex d'Oriveo. Ouvrez Fournisseurs → cette connexion → Paramètres de connexion → HTTP avancé, définissez un User-Agent ou un Header personnalisé, ou changez de LLM personnalisé."
           }
         },
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "यह कस्टम LLM अभी भी Oriveo की Codex क्लाइंट पहचान को अस्वीकार कर रहा है। कनेक्शन सेटिंग्स → उन्नत HTTP में कस्टम User-Agent सेट करने का प्रयास करें, या दूसरा कस्टम LLM चुनें / व्यवस्थापक से संपर्क करें (upstream खाता अनधिकृत या सीमित हो सकता है)।"
+            "value" : "यह कस्टम LLM अभी भी Oriveo की Codex क्लाइंट पहचान अस्वीकार करता है। प्रोवाइडर → यह कनेक्शन → कनेक्शन सेटिंग्स → उन्नत HTTP खोलें, कस्टम User-Agent या Header सेट करें, या दूसरा कस्टम LLM चुनें।"
           }
         },
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "LLM kustom ini tetap menolak identitas klien Codex dari Oriveo. Coba atur User-Agent kustom di Pengaturan koneksi → HTTP Lanjutan, atau ganti LLM kustom / hubungi administrator (akun upstream mungkin tidak diotorisasi atau dibatasi)."
+            "value" : "LLM kustom ini masih menolak identitas klien Codex milik Oriveo. Buka Penyedia → koneksi ini → Pengaturan koneksi → HTTP Lanjutan, atur User-Agent atau Header kustom, atau ganti ke LLM kustom lain."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "このカスタム LLM は Oriveo の Codex クライアント識別を依然として拒否しています。接続設定 → 高度な HTTP 設定でカスタム User-Agent を指定するか、別のカスタム LLM に切り替えるか、サービス管理者に連絡してください（上流アカウントが未認可またはレート制限中の可能性があります）。"
+            "value" : "このカスタム LLM は Oriveo の Codex クライアント識別を引き続き拒否しています。プロバイダー → この接続 → 接続設定 → 高度な HTTP 設定を開き、カスタム User-Agent または Header を設定するか、別のカスタム LLM に切り替えてください。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "이 사용자 지정 LLM는 여전히 Oriveo의 Codex 클라이언트 식별 정보를 거부합니다. 연결 설정 → 고급 HTTP에서 사용자 지정 User-Agent를 설정해 보거나, 다른 사용자 지정 LLM로 전환하거나 관리자에게 문의하세요(업스트림 계정이 비인가/제한되었을 수 있습니다)."
+            "value" : "이 사용자 지정 LLM은 여전히 Oriveo의 Codex 클라이언트 식별 정보를 거부합니다. 제공업체 → 이 연결 → 연결 설정 → 고급 HTTP를 열고 사용자 지정 User-Agent 또는 헤더를 설정하거나 다른 사용자 지정 LLM으로 전환하세요."
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Este LLM personalizado ainda rejeita a identidade do cliente Codex enviada pelo Oriveo. Tente definir um User-Agent personalizado em Configurações de conexão → HTTP avançado, ou mude de LLM personalizado / contate o administrador (a conta upstream pode estar não autorizada ou limitada)."
+            "value" : "Este LLM personalizado continua rejeitando a identidade de cliente Codex do Oriveo. Abra Provedores → esta conexão → Configurações de conexão → HTTP avançado, defina um User-Agent ou Header personalizado, ou troque de LLM personalizado."
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Эта пользовательская LLM всё ещё отклоняет идентификацию клиента Codex от Oriveo. Попробуй задать свой User-Agent в разделе Настройки подключения → Расширенный HTTP или переключись на другую пользовательскую LLM либо свяжись с администратором (upstream-аккаунт может быть не авторизован или упираться в лимит)."
+            "value" : "Эта пользовательская LLM всё ещё отклоняет идентификацию клиента Codex от Oriveo. Откройте Провайдеры → это подключение → Настройки подключения → Расширенный HTTP, задайте свой User-Agent или заголовок либо выберите другую пользовательскую LLM."
           }
         },
         "th" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "LLM แบบกำหนดเองนี้ยังปฏิเสธข้อมูลระบุไคลเอนต์ Codex ที่ Oriveo ส่งไป ลองตั้งค่า User-Agent ที่กำหนดเองใน การตั้งค่าการเชื่อมต่อ → HTTP ขั้นสูง หรือเปลี่ยน LLM แบบกำหนดเอง / ติดต่อผู้ดูแล (บัญชี upstream อาจไม่ได้รับอนุญาตหรือถูกจำกัดอัตรา)"
+            "value" : "LLM แบบกำหนดเองนี้ยังคงปฏิเสธข้อมูลระบุตัวตนไคลเอ็นต์ Codex ของ Oriveo เปิดผู้ให้บริการ → การเชื่อมต่อนี้ → การตั้งค่าการเชื่อมต่อ → HTTP ขั้นสูง ตั้งค่า User-Agent หรือ Header แบบกำหนดเอง หรือเปลี่ยนไปใช้ LLM แบบกำหนดเองอื่น"
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Bu özel LLM Oriveo'nun gönderdiği Codex istemci kimliğini hâlâ reddediyor. Bağlantı ayarları → Gelişmiş HTTP altında özel bir User-Agent ayarlamayı deneyin veya başka bir özel LLM'e geçin / yöneticiyle iletişime geçin (upstream hesap yetkilendirilmemiş veya sınırlanmış olabilir)."
+            "value" : "Bu özel LLM, Oriveo'nun Codex istemci kimliğini hâlâ reddediyor. Sağlayıcılar → bu bağlantı → Bağlantı ayarları → Gelişmiş HTTP yolunu açın, özel bir User-Agent veya Header ayarlayın ya da başka bir özel LLM seçin."
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "LLM tùy chỉnh này vẫn từ chối danh tính client Codex mà Oriveo gửi. Thử đặt User-Agent tùy chỉnh trong Cài đặt kết nối → HTTP nâng cao, hoặc đổi LLM tùy chỉnh / liên hệ quản trị viên (tài khoản upstream có thể bị từ chối hoặc giới hạn)."
+            "value" : "LLM tùy chỉnh này vẫn từ chối danh tính ứng dụng Codex của Oriveo. Mở Nhà cung cấp → kết nối này → Cài đặt kết nối → HTTP nâng cao, đặt User-Agent hoặc Header tùy chỉnh, hoặc đổi sang LLM tùy chỉnh khác."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "此自定义 LLM 仍然拒绝 Oriveo 发出的 Codex 客户端身份。可在连接设置 → 高级 HTTP 中设置自定义 User-Agent，或更换其他自定义 LLM / 联系其服务商（上游账号可能未授权或被限速）。"
+            "value" : "这个自定义 LLM 仍拒绝 Oriveo 的 Codex 客户端身份。打开供应商 → 该连接 → 连接设置 → 高级 HTTP，设置自定义 User-Agent 或 Header，或换一个自定义 LLM。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "此自訂 LLM 仍然拒絕 Oriveo 送出的 Codex 客戶端身分。可在連線設定 → 進階 HTTP 中設定自訂 User-Agent，或更換其他自訂 LLM / 聯絡其服務商（上游帳號可能未授權或被限速）。"
+            "value" : "這個自訂 LLM 仍拒絕 Oriveo 的 Codex 用戶端身分。開啟供應商 → 該連線 → 連線設定 → 進階 HTTP，設定自訂 User-Agent 或 Header，或換一個自訂 LLM。"
           }
         }
       }
@@ -36732,73 +36637,73 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Dieser Wert wird unverändert an den Anbieter gesendet, aber wir haben nicht geprüft, ob er wirkt."
+            "value" : "Der Wert wird unverändert an den Anbieter gesendet, aber wir haben nicht geprüft, ob er wirkt."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Este valor se envía al proveedor tal cual, pero no hemos verificado que surta efecto."
+            "value" : "Este valor se envía tal cual al proveedor, pero no hemos verificado que surta efecto."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Cette valeur est envoyée telle quelle au fournisseur, mais nous n'avons pas vérifié qu'elle prend effet."
+            "value" : "Cette valeur est envoyée telle quelle au fournisseur, mais nous n’avons pas vérifié qu’elle prend effet."
           }
         },
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "यह मान प्रदाता को ज्यों-का-त्यों भेजा जाता है, पर हमने सत्यापित नहीं किया कि यह प्रभावी होता है।"
+            "value" : "यह मान ज्यों का त्यों प्रोवाइडर को भेजा जाता है, पर हमने सत्यापित नहीं किया कि यह प्रभावी होता है।"
           }
         },
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Nilai ini dikirim apa adanya ke penyedia, tetapi kami belum memverifikasi bahwa nilai ini berpengaruh."
+            "value" : "Nilai ini dikirim apa adanya ke penyedia, tetapi kami belum memverifikasi apakah nilai ini benar-benar berlaku."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "この値はそのままプロバイダに送信されますが、実際に効くかは未検証です。"
+            "value" : "この値はそのままプロバイダーに送信されますが、実際に効くかは検証していません。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "이 값은 공급자에게 그대로 전송되지만, 실제로 적용되는지는 확인하지 않았습니다."
+            "value" : "이 값은 그대로 제공업체에 전송되지만, 실제로 적용되는지는 검증하지 않았습니다."
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Este valor é enviado ao provedor como está, mas não verificamos se ele tem efeito."
+            "value" : "Este valor é enviado ao provedor como está, mas não verificamos se surte efeito."
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Значение отправляется провайдеру как есть, но мы не проверяли, срабатывает ли оно."
+            "value" : "Значение отправляется провайдеру как есть, но мы не проверяли, действует ли оно."
           }
         },
         "th" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ค่านี้จะถูกส่งให้ผู้ให้บริการตามเดิม แต่เรายังไม่ได้ตรวจสอบว่ามีผลจริงหรือไม่"
+            "value" : "ค่านี้จะถูกส่งไปยังผู้ให้บริการตามเดิม แต่เรายังไม่ได้ตรวจสอบว่ามีผลจริงหรือไม่"
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Bu değer sağlayıcıya olduğu gibi gönderilir, ancak etkili olduğunu doğrulamadık."
+            "value" : "Bu değer sağlayıcıya olduğu gibi gönderilir, ancak etkili olup olmadığını doğrulamadık."
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Giá trị này được gửi nguyên vẹn đến nhà cung cấp, nhưng chúng tôi chưa xác minh nó có hiệu lực."
+            "value" : "Giá trị này được gửi nguyên vẹn tới nhà cung cấp, nhưng chúng tôi chưa kiểm chứng nó có hiệu lực hay không."
           }
         },
         "zh-Hans" : {
@@ -36851,7 +36756,7 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "इससे प्रदाता और उसकी मॉडल सेटिंग्स हट जाएंगी।"
+            "value" : "इससे प्रोवाइडर और उसकी मॉडल सेटिंग्स हट जाएंगी।"
           }
         },
         "id" : {
@@ -36905,13 +36810,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "这将移除此服务商及其模型设置。"
+            "value" : "这将移除此供应商及其模型设置。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "這將移除此服務商及其模型設定。"
+            "value" : "這將移除此供應商及其模型設定。"
           }
         }
       }
@@ -37273,7 +37178,7 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Протокол, аутентификация и поведение задаются предустановкой. Чтобы переопределить их, перейди в режим «Полная настройка»."
+            "value" : "Протокол, аутентификация и поведение задаются предустановкой. Чтобы переопределить их, перейдите в режим «Полная настройка»."
           }
         },
         "th" : {
@@ -38360,7 +38265,7 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Используй локальный адрес, адрес LAN, link-local или поддерживаемый адрес частного VPN."
+            "value" : "Используйте локальный адрес, адрес LAN, link-local или поддерживаемый адрес частного VPN."
           }
         },
         "th" : {
@@ -38461,7 +38366,7 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Используй HTTPS-URL запроса. Адреса локальной сети и VPN поддерживаются при действующем TLS-сертификате."
+            "value" : "Используйте HTTPS-URL запроса. Адреса локальной сети и VPN поддерживаются при действующем TLS-сертификате."
           }
         },
         "th" : {
@@ -38562,7 +38467,7 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Используй, только если автоматическое определение не сработало."
+            "value" : "Используйте, только если автоматическое определение не сработало."
           }
         },
         "th" : {
@@ -38704,7 +38609,7 @@
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "استخدم معرّف النموذج الدقيق الذي يكشفه custom LLM الخاص بك."
+            "value" : "استخدم معرّف النموذج الدقيق الذي يعرضه نموذجك اللغوي المخصص."
           }
         },
         "de" : {
@@ -38728,7 +38633,7 @@
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Utilise l'identifiant de modèle exact exposé par ton LLM personnalisé."
+            "value" : "Utilisez l'ID exact du modèle fourni par votre LLM personnalisé."
           }
         },
         "hi" : {
@@ -38764,7 +38669,7 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Используй точный ID модели, который отдаёт твоя пользовательская LLM."
+            "value" : "Используйте точный ID модели, предоставляемый вашей пользовательской LLM."
           }
         },
         "th" : {
@@ -38776,7 +38681,7 @@
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "özel LLM'inizin sunduğu tam model ID'sini kullanın."
+            "value" : "Özel LLM'inizin sunduğu tam model ID'sini kullanın."
           }
         },
         "vi" : {
@@ -38805,7 +38710,7 @@
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "استخدم الخيار الذي يطابق الاسم لدى مزود الـ custom LLM. سيملأ Oriveo إعدادات الاتصال الافتراضية."
+            "value" : "اختر الخيار الذي يحدّده لك مزوّد نموذجك اللغوي المخصص. سيملأ Oriveo إعدادات الاتصال الافتراضية."
           }
         },
         "de" : {
@@ -38835,7 +38740,7 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "अपने कस्टम LLM प्रदाता के नाम वाले विकल्प का उपयोग करें। Oriveo डिफ़ॉल्ट कनेक्शन सेटिंग भर देगा।"
+            "value" : "अपने कस्टम LLM प्रोवाइडर द्वारा बताए गए विकल्प का उपयोग करें। Oriveo डिफ़ॉल्ट कनेक्शन सेटिंग भर देगा।"
           }
         },
         "id" : {
@@ -38853,7 +38758,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "사용자 지정 LLM 제공자가 안내한 이름의 옵션을 선택하세요. Oriveo가 기본 연결 설정을 채웁니다."
+            "value" : "사용자 지정 LLM 제공업체가 안내한 이름의 옵션을 선택하세요. Oriveo가 기본 연결 설정을 채웁니다."
           }
         },
         "pt-BR" : {
@@ -38865,7 +38770,7 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Выбери вариант, который указал провайдер твоей пользовательской LLM. Oriveo заполнит настройки подключения по умолчанию."
+            "value" : "Выберите вариант, который указал провайдер вашей пользовательской LLM. Oriveo заполнит настройки подключения по умолчанию."
           }
         },
         "th" : {
@@ -38877,7 +38782,7 @@
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "özel LLM sağlayıcınızın adlandırdığı seçeneği kullanın. Oriveo varsayılan bağlantı ayarlarını doldurur."
+            "value" : "Özel LLM sağlayıcınızın adlandırdığı seçeneği kullanın. Oriveo varsayılan bağlantı ayarlarını doldurur."
           }
         },
         "vi" : {
@@ -39067,7 +38972,7 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Подключи свой сервис моделей"
+            "value" : "Подключите свой сервис моделей"
           }
         },
         "th" : {
@@ -39138,13 +39043,13 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "अपना अनुरोध URL और API कुंजी इस्तेमाल करें"
+            "value" : "अपना अनुरोध URL और API key इस्तेमाल करें"
           }
         },
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Gunakan URL permintaan dan kunci API Anda sendiri"
+            "value" : "Gunakan URL permintaan dan API key Anda sendiri"
           }
         },
         "ja" : {
@@ -39168,7 +39073,7 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Используй свой URL запроса и API-ключ"
+            "value" : "Используйте свой URL запроса и API-ключ"
           }
         },
         "th" : {
@@ -39233,7 +39138,7 @@
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Utilise votre quota SuperGrok ou X Premium. Aucun crédit API n'est consommé."
+            "value" : "Utilisez votre quota SuperGrok ou X Premium. Aucun crédit API n'est consommé."
           }
         },
         "hi" : {
@@ -40409,7 +40314,7 @@
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "عرض النماذج التي تدعم هذه المَعلمة"
+            "value" : "عرض النماذج التي تدعم هذا المعامل"
           }
         },
         "de" : {
@@ -40997,7 +40902,7 @@
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "لا تتوفّر لدينا بعد وثائق رسمية لهذه المَعلمة."
+            "value" : "لا تتوفّر لدينا بعد وثائق رسمية لهذا المعامل."
           }
         },
         "de" : {
@@ -42090,7 +41995,7 @@
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "يتم تخزين مفتاح API الخاص بك بشكل آمن على هذا الجهاز ويتم إرساله فقط إلى جهاز النموذج اللغوي المخصص الخاص بك."
+            "value" : "يُخزَّن مفتاح API بأمان على هذا الجهاز، ولا يُرسَل إلا إلى نموذجك اللغوي المخصص."
           }
         },
         "de" : {
@@ -42126,7 +42031,7 @@
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Kunci API Anda disimpan dengan aman di perangkat ini dan hanya dikirim ke LLM kustom Anda."
+            "value" : "API key Anda disimpan dengan aman di perangkat ini dan hanya dikirim ke LLM kustom Anda."
           }
         },
         "ja" : {
@@ -42144,13 +42049,13 @@
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Sua chave de API é armazenada com segurança neste dispositivo e é enviada somente para sua retransmissão."
+            "value" : "Sua chave de API fica armazenada com segurança neste dispositivo e só é enviada para o seu LLM personalizado."
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Твой API-ключ надёжно хранится на этом устройстве и отправляется только в твою пользовательскую LLM."
+            "value" : "Ваш API-ключ надёжно хранится на этом устройстве и отправляется только в вашу пользовательскую LLM."
           }
         },
         "th" : {
@@ -42162,7 +42067,7 @@
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "API anahtarınız bu cihazda güvenli bir şekilde saklanır ve yalnızca aktarıcınıza gönderilir."
+            "value" : "API anahtarınız bu cihazda güvenli şekilde saklanır ve yalnızca bu özel LLM'e gönderilir."
           }
         },
         "vi" : {
@@ -42744,7 +42649,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "업스트림 안전 시스템이 프롬프트를 차단했습니다（저작권 캐릭터, 실제 인물, 민감한 내용이 흔한 트리거입니다）.원본 표현으로 다시 작성한 뒤 재시도하세요."
+            "value" : "업스트림 안전 시스템이 프롬프트를 차단했습니다(저작권이 있는 캐릭터, 실존 인물, 민감한 콘텐츠가 흔한 원인입니다). 직접 만든 묘사로 바꿔 쓴 뒤 다시 시도하세요."
           }
         },
         "pt-BR" : {

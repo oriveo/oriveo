@@ -126,13 +126,13 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "पहले API कुंजी वाला प्रदाता जोड़ें, फिर ड्राफ़्ट जनरेट करें।"
+            "value" : "पहले API key वाला प्रोवाइडर जोड़ें, फिर ड्राफ़्ट जनरेट करें।"
           }
         },
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Tambahkan dulu penyedia dengan kunci API, lalu kembali untuk menghasilkan draf."
+            "value" : "Tambahkan dulu penyedia dengan API key, lalu kembali untuk menghasilkan draf."
           }
         },
         "ja" : {
@@ -180,108 +180,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "请先添加并配置带 API Key 的服务商，再回来生成草稿。"
+            "value" : "请先添加供应商并填入 API Key，再回来生成草稿。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "請先新增並配置帶 API Key 的服務商，再回來產生草稿。"
-          }
-        }
-      }
-    },
-    "Advanced" : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "متقدّم"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Erweitert"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Avanzado"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Avancé"
-          }
-        },
-        "hi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "उन्नत"
-          }
-        },
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Lanjutan"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "詳細"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "고급"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Avançado"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Дополнительно"
-          }
-        },
-        "th" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ขั้นสูง"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Gelişmiş"
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Nâng cao"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "高级"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "進階"
+            "value" : "請先新增供應商並填入 API 金鑰，再回來產生草稿。"
           }
         }
       }
@@ -2383,7 +2288,7 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "प्रत्येक एआई अनुरोध के साथ मेमोरी सामग्री आपके चुने हुए प्रदाता को भेजी जाती है। पासवर्ड या अन्य संवेदनशील जानकारी दर्ज न करें."
+            "value" : "प्रत्येक AI अनुरोध के साथ मेमोरी सामग्री आपके चुने हुए प्रोवाइडर को भेजी जाती है। पासवर्ड या अन्य संवेदनशील जानकारी दर्ज न करें।"
           }
         },
         "id" : {
@@ -2401,7 +2306,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "메모리 내용은 모든 AI 요청과 함께 선택한 공급자에게 전송됩니다. 비밀번호 또는 기타 민감한 정보를 입력하지 마세요."
+            "value" : "메모리 내용은 모든 AI 요청과 함께 선택한 제공업체에 전송됩니다. 비밀번호 등 민감한 정보는 입력하지 마세요."
           }
         },
         "pt-BR" : {
@@ -2674,7 +2579,7 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "कोई प्रदाता कॉन्फ़िगर नहीं किया गया"
+            "value" : "कोई प्रोवाइडर कॉन्फ़िगर नहीं किया गया"
           }
         },
         "id" : {
@@ -2704,7 +2609,7 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Поставщик не настроен"
+            "value" : "Провайдер не настроен"
           }
         },
         "th" : {
@@ -2728,13 +2633,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "未配置服务商"
+            "value" : "未配置供应商"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "未配置服務商"
+            "value" : "尚未設定供應商"
           }
         }
       }
@@ -3551,7 +3456,7 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "इस प्रदाता पर कोई मॉडल कॉन्फ़िगर नहीं है। पहले कम से कम एक मॉडल जोड़ें।"
+            "value" : "इस प्रोवाइडर पर कोई मॉडल कॉन्फ़िगर नहीं है। पहले कम से कम एक मॉडल जोड़ें।"
           }
         },
         "id" : {
@@ -3605,13 +3510,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "当前服务商未配置模型，请先添加至少一个模型。"
+            "value" : "当前供应商未配置模型，请先添加至少一个模型。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "目前服務商未配置模型，請先新增至少一個模型。"
+            "value" : "此供應商尚未設定模型，請先新增至少一個模型。"
           }
         }
       }
@@ -3646,7 +3551,7 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%d प्रदाताओं को आजमाया, सभी विफल रहे।"
+            "value" : "%d प्रोवाइडरों को आजमाया, सभी विफल रहे।"
           }
         },
         "id" : {
@@ -3700,13 +3605,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "已尝试 %d 个服务商，均失败。"
+            "value" : "已尝试 %d 个供应商，均失败。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "已嘗試 %d 個服務商，皆失敗。"
+            "value" : "已嘗試 %d 個供應商，皆失敗。"
           }
         }
       }
@@ -3741,7 +3646,7 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%d प्रदाताओं को आजमाया, सभी विफल रहे। अंतिम त्रुटि: %@"
+            "value" : "%d प्रोवाइडरों को आजमाया, सभी विफल रहे। अंतिम त्रुटि: %@"
           }
         },
         "id" : {
@@ -3795,13 +3700,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "已尝试 %d 个服务商，均失败。最后错误：%@"
+            "value" : "已尝试 %d 个供应商，均失败。最后错误：%@"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "已嘗試 %d 個服務商，皆失敗。最後錯誤：%@"
+            "value" : "已嘗試 %d 個供應商，皆失敗。最後錯誤：%@"
           }
         }
       }

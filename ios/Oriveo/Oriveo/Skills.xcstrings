@@ -138,7 +138,7 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "नई Skill चैट में इस Skill की सहेजी गई वेब और रीज़निंग प्राथमिकताएँ लागू करें।"
+            "value" : "नई कौशल चैट में इस कौशल की सहेजी गई वेब और रीज़निंग प्राथमिकताएँ लागू करें।"
           }
         },
         "id" : {
@@ -1106,7 +1106,7 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Knowledge Base उपयोग करने के लिए अपने OpenAI प्रदाता में %@ सक्षम करें।"
+            "value" : "Knowledge Base उपयोग करने के लिए अपने OpenAI प्रोवाइडर में %@ सक्षम करें।"
           }
         },
         "id" : {
@@ -1118,7 +1118,7 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Knowledge Base を使うには、OpenAI プロバイダで %@ を有効にしてください。"
+            "value" : "Knowledge Base を使うには、OpenAI プロバイダーで %@ を有効にしてください。"
           }
         },
         "ko" : {
@@ -2187,7 +2187,7 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "पहले एक OpenAI प्रदाता जोड़ें और कॉन्फ़िगर करें।"
+            "value" : "पहले एक OpenAI प्रोवाइडर जोड़ें और कॉन्फ़िगर करें।"
           }
         },
         "id" : {
@@ -2247,7 +2247,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Skill 知識庫需要官方 OpenAI API Key。"
+            "value" : "Skill 知識庫需要官方 OpenAI API 金鑰。"
           }
         }
       }
@@ -2680,7 +2680,7 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "सहेजना आवश्यक है। अपुष्ट पुरानी Skill प्राथमिकताएँ इसके बजाय चैट डिफ़ॉल्ट अपनाती हैं।"
+            "value" : "सहेजना ज़रूरी है। पुराने कौशल की जिन प्राथमिकताओं की पुष्टि नहीं हुई है, वे चैट की डिफ़ॉल्ट सेटिंग अपनाती हैं।"
           }
         },
         "id" : {

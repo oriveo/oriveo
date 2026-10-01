@@ -31,13 +31,13 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%d API कुंजियाँ बहाल की गईं"
+            "value" : "%d API keys पुनर्स्थापित की गईं"
           }
         },
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%d kunci API dipulihkan"
+            "value" : "%d API key dipulihkan"
           }
         },
         "ja" : {
@@ -577,7 +577,7 @@
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "تمت إضافة %d من الموفرين الجدد"
+            "value" : "تمت إضافة %d من المزوّدين الجدد"
           }
         },
         "de" : {
@@ -601,7 +601,7 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%d नए प्रदाता जोड़े गए"
+            "value" : "%d नए प्रोवाइडर जोड़े गए"
           }
         },
         "id" : {
@@ -619,7 +619,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%d개의 새 공급자가 추가되었습니다."
+            "value" : "새 제공업체 %d개가 추가되었습니다."
           }
         },
         "pt-BR" : {
@@ -655,13 +655,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "新增 %d 个服务商"
+            "value" : "新增 %d 个供应商"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "新增了 %d 個新提供者"
+            "value" : "已新增 %d 個供應商"
           }
         }
       }
@@ -696,7 +696,7 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%d नई skills जोड़ी गईं"
+            "value" : "%d नए कौशल जोड़े गए"
           }
         },
         "id" : {
@@ -767,7 +767,7 @@
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "تم تخطي %d من الموفرين"
+            "value" : "تم تخطي %d من المزوّدين"
           }
         },
         "de" : {
@@ -791,7 +791,7 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%d प्रदाता छोड़ दिए गए"
+            "value" : "%d प्रोवाइडर छोड़ दिए गए"
           }
         },
         "id" : {
@@ -809,7 +809,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%d개의 공급자를 건너뛰었습니다."
+            "value" : "제공업체 %d개를 건너뛰었습니다."
           }
         },
         "pt-BR" : {
@@ -821,7 +821,7 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Поставщики %d пропущены"
+            "value" : "Пропущено провайдеров: %d"
           }
         },
         "th" : {
@@ -845,13 +845,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "跳过 %d 个服务商"
+            "value" : "跳过 %d 个供应商"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "已跳過 %d 個提供者"
+            "value" : "已略過 %d 個供應商"
           }
         }
       }
@@ -886,7 +886,7 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%d skills मर्ज की गईं"
+            "value" : "%d कौशल मर्ज किए गए"
           }
         },
         "id" : {
@@ -981,7 +981,7 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%d skills छोड़ी गईं"
+            "value" : "%d कौशल छोड़े गए"
           }
         },
         "id" : {
@@ -2026,13 +2026,13 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "इसमें API कुंजी शामिल हैं"
+            "value" : "इसमें API keys शामिल हैं"
           }
         },
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Berisi Kunci API"
+            "value" : "Berisi API key"
           }
         },
         "ja" : {
@@ -4401,13 +4401,13 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "API कुंजियाँ शामिल करें"
+            "value" : "API keys शामिल करें"
           }
         },
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Sertakan Kunci API"
+            "value" : "Sertakan API key"
           }
         },
         "ja" : {
@@ -5808,7 +5808,7 @@
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "استعادة المحادثات والموفرين والإعدادات من ملف النسخ الاحتياطي."
+            "value" : "استعادة المحادثات والمزوّدين والإعدادات من ملف نسخ احتياطي."
           }
         },
         "de" : {
@@ -5832,7 +5832,7 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "बैकअप फ़ाइल से वार्तालाप, प्रदाता और सेटिंग्स पुनर्स्थापित करें।"
+            "value" : "बैकअप फ़ाइल से वार्तालाप, प्रोवाइडर और सेटिंग्स पुनर्स्थापित करें।"
           }
         },
         "id" : {
@@ -5850,7 +5850,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "백업 파일에서 대화, 공급자 및 설정을 복원합니다."
+            "value" : "백업 파일에서 대화, 제공업체 및 설정을 복원합니다."
           }
         },
         "pt-BR" : {
@@ -5886,13 +5886,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "从备份文件恢复对话、服务商和设置。"
+            "value" : "从备份文件恢复对话、供应商和设置。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "從備份檔案中還原對話、提供者和設定。"
+            "value" : "從備份檔案還原對話、供應商和設定。"
           }
         }
       }
@@ -5927,13 +5927,13 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "API कुंजियाँ छोड़ें"
+            "value" : "API keys छोड़ें"
           }
         },
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Lewati Tombol API"
+            "value" : "Lewati API key"
           }
         },
         "ja" : {
@@ -5998,7 +5998,7 @@
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "تخطي المحادثات ومقدمي الخدمات الحاليين؛ إضافة جديدة فقط."
+            "value" : "تخطي المحادثات والمزوّدين الموجودين، وإضافة الجديد منها فقط."
           }
         },
         "de" : {
@@ -6022,7 +6022,7 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "मौजूदा बातचीत और प्रदाताओं को छोड़ें; केवल नए जोड़ें."
+            "value" : "मौजूदा बातचीत और प्रोवाइडरों को छोड़ें; केवल नए जोड़ें।"
           }
         },
         "id" : {
@@ -6040,7 +6040,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "기존 대화 및 공급자를 건너뜁니다. 새로운 것만 추가하세요."
+            "value" : "기존 대화와 제공업체는 건너뛰고 새 항목만 추가합니다."
           }
         },
         "pt-BR" : {
@@ -6052,7 +6052,7 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Пропустить существующие разговоры и поставщиков; только добавляйте новые."
+            "value" : "Пропускать существующие разговоры и провайдеров, добавлять только новые."
           }
         },
         "th" : {
@@ -6076,13 +6076,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "跳过已有的对话和服务商，仅添加新的。"
+            "value" : "跳过已有的对话和供应商，仅添加新的。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "跳過現有的對話和提供者；只添加新的。"
+            "value" : "略過已有的對話和供應商，只匯入新的項目。"
           }
         }
       }

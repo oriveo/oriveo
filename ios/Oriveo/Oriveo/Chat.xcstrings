@@ -405,7 +405,7 @@
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "معلمة متقدمة"
+            "value" : "معامل متقدم"
           }
         },
         "de" : {
@@ -4421,7 +4421,7 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "फ़ील्ड अनुरोध में वैसे ही जोड़े जाते हैं जैसे लिखे गए हों। केवल प्रदाता द्वारा आधिकारिक घोषित फ़ील्ड समर्थित हैं; गलती से अनुरोध विफल हो सकता है। ड्राफ़्ट इसी डिवाइस पर रहते हैं।"
+            "value" : "फ़ील्ड अनुरोध में वैसे ही जोड़े जाते हैं जैसे लिखे गए हों। केवल प्रोवाइडर द्वारा आधिकारिक घोषित फ़ील्ड समर्थित हैं; गलती से अनुरोध विफल हो सकता है। ड्राफ़्ट इसी डिवाइस पर रहते हैं।"
           }
         },
         "id" : {
@@ -4433,7 +4433,7 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "フィールドは書いたとおりリクエストに追加されます。プロバイダが公式に宣言したフィールドのみ対応し、誤りはリクエスト失敗の原因になります。下書きはこの端末にのみ保存されます。"
+            "value" : "フィールドは書いたとおりリクエストに追加されます。プロバイダーが公式に宣言したフィールドのみ対応し、誤りはリクエスト失敗の原因になります。下書きはこの端末にのみ保存されます。"
           }
         },
         "ko" : {
@@ -4926,7 +4926,7 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "बड़ी फ़ाइल काट दी गई। पूर्ण खोज के लिए Skill Knowledge में जोड़ें →"
+            "value" : "बड़ी फ़ाइल काट दी गई। पूरी खोज के लिए इसे कौशल नॉलेज बेस में जोड़ें →"
           }
         },
         "id" : {
@@ -5092,103 +5092,103 @@
         }
       }
     },
-    "For a Relay, use the documentation supplied by its administrator." : {
+    "For this connection, use the documentation supplied by its administrator." : {
       "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "استخدم الوثائق التي يوفرها مسؤول Relay."
+            "value" : "لهذا الاتصال، استخدم الوثائق التي يوفّرها مسؤوله."
           }
         },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Verwenden Sie für einen Relay die Dokumentation des Administrators."
+            "value" : "Verwende für diese Verbindung die Dokumentation ihres Administrators."
           }
         },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "For a Relay, use the documentation supplied by its administrator."
+            "value" : "For this connection, use the documentation supplied by its administrator."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Para un LLM personalizado, usa la documentación proporcionada por su administrador."
+            "value" : "Para esta conexión, usa la documentación proporcionada por su administrador."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Pour un Relay, utilisez la documentation fournie par son administrateur."
+            "value" : "Pour cette connexion, utilisez la documentation fournie par son administrateur."
           }
         },
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Relay के लिए उसके व्यवस्थापक द्वारा दिया गया दस्तावेज़ उपयोग करें।"
+            "value" : "इस कनेक्शन के लिए इसके व्यवस्थापक द्वारा दिए गए दस्तावेज़ देखें।"
           }
         },
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Untuk Relay, gunakan dokumentasi dari administratornya."
+            "value" : "Untuk koneksi ini, gunakan dokumentasi dari administratornya."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Relay では、管理者が提供するドキュメントを使用してください。"
+            "value" : "この接続では、管理者が提供するドキュメントを参照してください。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Relay는 관리자가 제공한 문서를 사용하세요."
+            "value" : "이 연결에서는 관리자가 제공한 문서를 참고하세요."
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Para um Relay, use a documentação fornecida pelo administrador."
+            "value" : "Para esta conexão, use a documentação fornecida pelo administrador."
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Для Relay используйте документацию от его администратора."
+            "value" : "Для этого подключения используйте документацию от его администратора."
           }
         },
         "th" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "สำหรับ Relay ให้ใช้เอกสารจากผู้ดูแลระบบ"
+            "value" : "สำหรับการเชื่อมต่อนี้ ให้ใช้เอกสารจากผู้ดูแลระบบ"
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Relay için yöneticisinin sağladığı belgeleri kullanın."
+            "value" : "Bu bağlantı için yöneticisinin sağladığı belgeleri kullanın."
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Với Relay, hãy dùng tài liệu do quản trị viên cung cấp."
+            "value" : "Với kết nối này, hãy dùng tài liệu do quản trị viên cung cấp."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Relay 请使用管理员提供的文档。"
+            "value" : "此连接请参考管理员提供的文档。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Relay 請使用管理員提供的文件。"
+            "value" : "此連線請參考管理員提供的文件。"
           }
         }
       }
@@ -5265,7 +5265,7 @@
         "th" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ค่าปรับความถี่"
+            "value" : "บทลงโทษความถี่"
           }
         },
         "tr" : {
@@ -5277,7 +5277,7 @@
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Phạt tần suất"
+            "value" : "Mức phạt tần suất"
           }
         },
         "zh-Hans" : {
@@ -5728,7 +5728,7 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "उच्च स्तर आमतौर पर धीमे होते हैं और लागत बढ़ा सकते हैं। वास्तव में क्या चलेगा, यह प्रदाता और मॉडल तय करते हैं।"
+            "value" : "उच्च स्तर आमतौर पर धीमे होते हैं और लागत बढ़ा सकते हैं। वास्तव में क्या चलेगा, यह प्रोवाइडर और मॉडल तय करते हैं।"
           }
         },
         "id" : {
@@ -5746,7 +5746,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "높은 단계일수록 대체로 느리고 비용이 늘 수 있습니다. 실제 실행 여부는 공급자와 모델이 정합니다."
+            "value" : "높은 단계일수록 대체로 느리고 비용이 늘 수 있습니다. 실제 실행 여부는 제공업체와 모델이 정합니다."
           }
         },
         "pt-BR" : {
@@ -6304,7 +6304,7 @@
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "احتمالات السجل"
+            "value" : "الاحتمالات اللوغاريتمية"
           }
         },
         "de" : {
@@ -6334,7 +6334,7 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "लॉग प्रायिकताएँ"
+            "value" : "लॉग संभावनाएँ"
           }
         },
         "id" : {
@@ -6518,13 +6518,13 @@
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Tokens máximos"
+            "value" : "Máximo de tokens"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Tokens maximum"
+            "value" : "Nombre maximal de tokens"
           }
         },
         "hi" : {
@@ -6536,7 +6536,7 @@
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Token Maks"
+            "value" : "Token maksimum"
           }
         },
         "ja" : {
@@ -6560,25 +6560,25 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Макс. жетонов"
+            "value" : "Максимум токенов"
           }
         },
         "th" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "โทเค็นสูงสุด"
+            "value" : "จำนวนโทเค็นสูงสุด"
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Maksimum Jeton"
+            "value" : "Maksimum token"
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Mã thông báo tối đa"
+            "value" : "Số token tối đa"
           }
         },
         "zh-Hans" : {
@@ -6607,7 +6607,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Max. Tokens, Temperatur und weitere Anfrageparameter"
+            "value" : "Max. Token, Temperatur und weitere Anfrageparameter"
           }
         },
         "en" : {
@@ -6619,13 +6619,13 @@
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Tokens máximos, temperatura y otros parámetros de solicitud"
+            "value" : "Máximo de tokens, temperatura y otros parámetros de solicitud"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Tokens max, température et autres paramètres de requête"
+            "value" : "Nombre max. de tokens, température et autres paramètres de requête"
           }
         },
         "hi" : {
@@ -6655,13 +6655,13 @@
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Máx. de tokens, temperatura e outros parâmetros de solicitação"
+            "value" : "Máximo de tokens, temperatura e outros parâmetros de solicitação"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Макс. токены, температура и другие параметры запроса"
+            "value" : "Максимум токенов, температура и другие параметры запроса"
           }
         },
         "th" : {
@@ -6673,7 +6673,7 @@
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Maks. token, sıcaklık ve diğer istek parametreleri"
+            "value" : "Maksimum token, sıcaklık ve diğer istek parametreleri"
           }
         },
         "vi" : {
@@ -6803,13 +6803,13 @@
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Min P（معلمة）"
+            "value" : "Min P"
           }
         },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Min P（Parameter）"
+            "value" : "Min P"
           }
         },
         "en" : {
@@ -6821,79 +6821,180 @@
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Min P（parámetro）"
+            "value" : "Min P"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Min P（paramètre）"
+            "value" : "Min P"
           }
         },
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Min P（पैरामीटर）"
+            "value" : "Min P"
           }
         },
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Min P（parameter）"
+            "value" : "Min P"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Min P（パラメータ）"
+            "value" : "Min P"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Min P（매개변수）"
+            "value" : "Min P"
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Min P（parâmetro）"
+            "value" : "Min P"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Min P（параметр）"
+            "value" : "Min P"
           }
         },
         "th" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Min P（พารามิเตอร์）"
+            "value" : "Min P"
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Min P（parametre）"
+            "value" : "Min P"
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Min P（tham số）"
+            "value" : "Min P"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Min P（参数）"
+            "value" : "Min P"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Min P（參數）"
+            "value" : "Min P"
+          }
+        }
+      }
+    },
+    "Minimum tokens to keep" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "الحد الأدنى من الرموز المحتفَظ بها"
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mindestanzahl beizubehaltender Token"
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Minimum tokens to keep"
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mínimo de tokens a conservar"
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Nombre minimal de tokens conservés"
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "कम से कम रखे जाने वाले टोकन"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Minimum token yang dipertahankan"
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最小保持トークン数"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "최소 유지 토큰 수"
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mínimo de tokens mantidos"
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Минимум сохраняемых токенов"
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "จำนวนโทเค็นขั้นต่ำที่เก็บไว้"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Korunacak en az token sayısı"
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Số token giữ lại tối thiểu"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最少保留 Token 数"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最少保留 Token 數"
           }
         }
       }
@@ -8033,7 +8134,7 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "आधिकारिक प्रदाता दस्तावेज़ खोलें"
+            "value" : "आधिकारिक प्रोवाइडर दस्तावेज़ खोलें"
           }
         },
         "id" : {
@@ -8051,7 +8152,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "공급자 공식 문서 열기"
+            "value" : "제공업체 공식 문서 열기"
           }
         },
         "pt-BR" : {
@@ -8508,13 +8609,13 @@
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "عقوبة الحضور"
+            "value" : "عقوبة الظهور"
           }
         },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Anwesenheitsstrafe"
+            "value" : "Präsenzstrafe"
           }
         },
         "en" : {
@@ -8544,7 +8645,7 @@
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Penalti kehadiran"
+            "value" : "Penalti keberadaan"
           }
         },
         "ja" : {
@@ -8574,7 +8675,7 @@
         "th" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ค่าปรับการปรากฏ"
+            "value" : "บทลงโทษการปรากฏ"
           }
         },
         "tr" : {
@@ -8586,7 +8687,7 @@
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Phạt hiện diện"
+            "value" : "Mức phạt hiện diện"
           }
         },
         "zh-Hans" : {
@@ -8669,13 +8770,13 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Случайное начальное число"
+            "value" : "Seed (начальное значение)"
           }
         },
         "th" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ค่าเริ่มต้นแบบสุ่ม"
+            "value" : "ค่า seed สุ่ม"
           }
         },
         "tr" : {
@@ -8687,7 +8788,7 @@
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Hạt giống ngẫu nhiên"
+            "value" : "Seed ngẫu nhiên"
           }
         },
         "zh-Hans" : {
@@ -9340,7 +9441,7 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "प्रदाता ने अस्वीकार किया"
+            "value" : "प्रोवाइडर ने अस्वीकार किया"
           }
         },
         "id" : {
@@ -9358,7 +9459,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "공급자가 거부함"
+            "value" : "제공업체가 거부함"
           }
         },
         "pt-BR" : {
@@ -9780,7 +9881,7 @@
         "th" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ค่าปรับการซ้ำ"
+            "value" : "บทลงโทษการซ้ำ"
           }
         },
         "tr" : {
@@ -9792,7 +9893,7 @@
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Phạt lặp lại"
+            "value" : "Mức phạt lặp lại"
           }
         },
         "zh-Hans" : {
@@ -9815,13 +9916,13 @@
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Repeat penalty window（معلمة）"
+            "value" : "نافذة عقوبة التكرار"
           }
         },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Repeat penalty window（Parameter）"
+            "value" : "Bereich der Wiederholungsstrafe"
           }
         },
         "en" : {
@@ -9833,79 +9934,79 @@
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Repeat penalty window（parámetro）"
+            "value" : "Ventana de penalización de repetición"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Repeat penalty window（paramètre）"
+            "value" : "Fenêtre de pénalité de répétition"
           }
         },
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Repeat penalty window（पैरामीटर）"
+            "value" : "दोहराव पेनल्टी विंडो"
           }
         },
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Repeat penalty window（parameter）"
+            "value" : "Jendela penalti pengulangan"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Repeat penalty window（パラメータ）"
+            "value" : "繰り返しペナルティ範囲"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Repeat penalty window（매개변수）"
+            "value" : "반복 페널티 범위"
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Repeat penalty window（parâmetro）"
+            "value" : "Janela da penalidade de repetição"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Repeat penalty window（параметр）"
+            "value" : "Окно штрафа за повторы"
           }
         },
         "th" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Repeat penalty window（พารามิเตอร์）"
+            "value" : "ช่วงบทลงโทษการซ้ำ"
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Repeat penalty window（parametre）"
+            "value" : "Tekrar cezası penceresi"
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Repeat penalty window（tham số）"
+            "value" : "Cửa sổ phạt lặp lại"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Repeat penalty window（参数）"
+            "value" : "重复惩罚窗口"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Repeat penalty window（參數）"
+            "value" : "重複懲罰視窗"
           }
         }
       }
@@ -10017,7 +10118,7 @@
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "اشتراط المعلمات في المسار"
+            "value" : "اشتراط المعاملات في المسار"
           }
         },
         "de" : {
@@ -10617,13 +10718,13 @@
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ينطبق فقط على هذه المحادثة والاتصال والطراز والنقل على هذا الجهاز. لا تتم مزامنته أو تسجيله أو إرساله للقياس أو تضمينه في تشخيصات الدعم. قد يغيّر تكلفة المزود ومعالجة البيانات."
+            "value" : "النطاق: هذه المحادثة والاتصال والنموذج وطريقة النقل."
           }
         },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Gilt nur auf diesem Gerät für diese Unterhaltung, Verbindung, dieses Modell und diesen Transport. Es wird nicht synchronisiert, protokolliert, an Telemetrie gesendet oder in Supportdiagnosen aufgenommen. Es kann Kosten und Datenverarbeitung des Anbieters ändern."
+            "value" : "Geltungsbereich: diese Unterhaltung, diese Verbindung, dieses Modell und dieser Transport."
           }
         },
         "en" : {
@@ -10635,67 +10736,67 @@
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Solo se aplica a esta conversación, conexión, modelo y transporte en este dispositivo. No se sincroniza, registra, envía a telemetría ni se incluye en diagnósticos de soporte. Puede cambiar el costo y el tratamiento de datos del proveedor."
+            "value" : "Ámbito: esta conversación, conexión, modelo y transporte."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "S’applique uniquement à cette conversation, connexion, ce modèle et ce transport sur cet appareil. Il n’est ni synchronisé, ni journalisé, ni envoyé à la télémétrie, ni inclus dans les diagnostics d’assistance. Il peut modifier le coût et le traitement des données du fournisseur."
+            "value" : "Portée : cette conversation, cette connexion, ce modèle et ce transport."
           }
         },
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "यह केवल इस डिवाइस पर इस बातचीत, कनेक्शन, मॉडल और ट्रांसपोर्ट पर लागू होता है। इसे सिंक, लॉग, टेलीमेट्री या सहायता निदान में शामिल नहीं किया जाता। इससे प्रदाता की लागत और डेटा प्रबंधन बदल सकता है।"
+            "value" : "दायरा: यह बातचीत, कनेक्शन, मॉडल और ट्रांसपोर्ट।"
           }
         },
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Hanya berlaku untuk percakapan, koneksi, model, dan transport ini di perangkat ini. Tidak disinkronkan, dicatat, dikirim ke telemetri, atau disertakan dalam diagnostik dukungan. Ini dapat mengubah biaya dan penanganan data penyedia."
+            "value" : "Cakupan: percakapan, koneksi, model, dan transport ini."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "この端末の、この会話、接続、モデル、転送方式にだけ適用されます。同期、ログ、テレメトリー、サポート診断には送られません。プロバイダーの料金やデータ処理に影響することがあります。"
+            "value" : "適用範囲：この会話、接続、モデル、転送方式。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "이 기기의 이 대화, 연결, 모델, 전송 방식에만 적용됩니다. 동기화, 로그, 텔레메트리 또는 지원 진단으로 전송되지 않습니다. 공급자 비용과 데이터 처리에 영향을 줄 수 있습니다."
+            "value" : "적용 범위: 이 대화, 연결, 모델, 전송 방식"
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Aplica-se somente a esta conversa, conexão, modelo e transporte neste dispositivo. Não é sincronizado, registrado, enviado à telemetria nem incluído em diagnósticos de suporte. Pode alterar o custo e o tratamento de dados do provedor."
+            "value" : "Escopo: esta conversa, conexão, modelo e transporte."
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Действует только для этого диалога, подключения, модели и транспорта на этом устройстве. Данные не синхронизируются, не записываются в журнал, не отправляются в телеметрию и не входят в диагностику поддержки. Это может изменить стоимость и обработку данных у провайдера."
+            "value" : "Область: этот диалог, подключение, модель и транспорт."
           }
         },
         "th" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ใช้กับการสนทนา การเชื่อมต่อ รุ่น และการรับส่งนี้บนอุปกรณ์นี้เท่านั้น จะไม่ซิงก์ บันทึก ส่งไปยัง telemetry หรือรวมในข้อมูลวินิจฉัยการสนับสนุน อาจเปลี่ยนค่าใช้จ่ายและการจัดการข้อมูลของผู้ให้บริการ"
+            "value" : "ขอบเขต: การสนทนา การเชื่อมต่อ โมเดล และการรับส่งนี้"
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Yalnızca bu cihazdaki bu konuşma, bağlantı, model ve aktarım için geçerlidir. Senkronize edilmez, günlüğe yazılmaz, telemetriye gönderilmez veya destek tanılarına eklenmez. Sağlayıcının maliyetini ve veri işlemesini değiştirebilir."
+            "value" : "Kapsam: bu sohbet, bağlantı, model ve aktarım."
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Chỉ áp dụng cho cuộc trò chuyện, kết nối, mô hình và phương thức truyền này trên thiết bị này. Dữ liệu không được đồng bộ, ghi nhật ký, gửi tới telemetry hoặc đưa vào chẩn đoán hỗ trợ. Điều này có thể thay đổi chi phí và cách nhà cung cấp xử lý dữ liệu."
+            "value" : "Phạm vi: cuộc trò chuyện, kết nối, mô hình và phương thức truyền này."
           }
         },
         "zh-Hans" : {
@@ -12014,37 +12115,37 @@
         }
       }
     },
-    "Stop" : {
+    "Stop sequences" : {
       "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "إيقاف"
+            "value" : "تسلسلات الإيقاف"
           }
         },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Stopp"
+            "value" : "Stoppsequenzen"
           }
         },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Stop"
+            "value" : "Stop sequences"
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Detener"
+            "value" : "Secuencias de parada"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Arrêter"
+            "value" : "Séquences d’arrêt"
           }
         },
         "hi" : {
@@ -12056,61 +12157,61 @@
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Berhenti"
+            "value" : "Teks penghenti"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "停止"
+            "value" : "停止シーケンス"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "중지"
+            "value" : "중지 시퀀스"
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Parar"
+            "value" : "Sequências de parada"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Останавливаться"
+            "value" : "Стоп-последовательности"
           }
         },
         "th" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "หยุด"
+            "value" : "ข้อความสำหรับหยุดการสร้าง"
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Durmak"
+            "value" : "Durdurma dizileri"
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Dừng lại"
+            "value" : "Chuỗi dừng"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "停止"
+            "value" : "停止序列"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "停止"
+            "value" : "停止序列"
           }
         }
       }
@@ -13250,7 +13351,7 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "प्रदाता ने इस मॉडल के लिए यह सेटिंग अस्वीकार कर दी। इसके बिना फिर से भेजें या कोई दूसरा मॉडल चुनें।"
+            "value" : "प्रोवाइडर ने इस मॉडल के लिए यह सेटिंग अस्वीकार कर दी। इसके बिना फिर से भेजें या कोई दूसरा मॉडल चुनें।"
           }
         },
         "id" : {
@@ -14337,7 +14438,7 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "यह फ़ील्ड प्रदाता के शुल्क को बढ़ा सकता है।"
+            "value" : "यह फ़ील्ड प्रोवाइडर के शुल्क को बढ़ा सकता है।"
           }
         },
         "id" : {
@@ -14367,7 +14468,7 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Это поле может увеличить плату поставщика."
+            "value" : "Это поле может увеличить плату, которую берёт провайдер."
           }
         },
         "th" : {
@@ -15288,13 +15389,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "此模型的思考深度是固定的，无法调节。"
+            "value" : "此模型的思考档位是固定的，无法调节。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "此模型的思考深度是固定的，無法調節。"
+            "value" : "此模型的思考檔位是固定的，無法調節。"
           }
         }
       }
@@ -15709,7 +15810,7 @@
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "استخدام التوكن"
+            "value" : "استخدام الرموز"
           }
         },
         "de" : {
@@ -15775,7 +15876,7 @@
         "th" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "การใช้โทเคน"
+            "value" : "การใช้โทเค็น"
           }
         },
         "tr" : {
@@ -15911,13 +16012,13 @@
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Top K（معلمة）"
+            "value" : "Top K"
           }
         },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Top K（Parameter）"
+            "value" : "Top K"
           }
         },
         "en" : {
@@ -15929,79 +16030,79 @@
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Top K（parámetro）"
+            "value" : "Top K"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Top K（paramètre）"
+            "value" : "Top K"
           }
         },
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Top K（पैरामीटर）"
+            "value" : "Top K"
           }
         },
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Top K（parameter）"
+            "value" : "Top K"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Top K（パラメータ）"
+            "value" : "Top K"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Top K（매개변수）"
+            "value" : "Top K"
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Top K（parâmetro）"
+            "value" : "Top K"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Top K（параметр）"
+            "value" : "Top K"
           }
         },
         "th" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Top K（พารามิเตอร์）"
+            "value" : "Top K"
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Top K（parametre）"
+            "value" : "Top K"
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Top K（tham số）"
+            "value" : "Top K"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Top K（参数）"
+            "value" : "Top K"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Top K（參數）"
+            "value" : "Top K"
           }
         }
       }
@@ -16012,13 +16113,13 @@
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "أعلى احتمالات السجل"
+            "value" : "أعلى الاحتمالات اللوغاريتمية"
           }
         },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Höchste Log-Wahrscheinlichkeiten"
+            "value" : "Top-Log-Wahrscheinlichkeiten"
           }
         },
         "en" : {
@@ -16030,7 +16131,7 @@
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Mayores probabilidades logarítmicas"
+            "value" : "Probabilidades logarítmicas principales"
           }
         },
         "fr" : {
@@ -16042,7 +16143,7 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "शीर्ष लॉग प्रायिकताएँ"
+            "value" : "टॉप लॉग संभावनाएँ"
           }
         },
         "id" : {
@@ -16066,19 +16167,19 @@
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Maiores probabilidades logarítmicas"
+            "value" : "Probabilidades logarítmicas dos principais tokens"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Наибольшие логарифмические вероятности"
+            "value" : "Логарифмические вероятности топ-токенов"
           }
         },
         "th" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ความน่าจะเป็นแบบลอการิทึมสูงสุด"
+            "value" : "ความน่าจะเป็นแบบลอการิทึมของโทเค็นอันดับต้น"
           }
         },
         "tr" : {
@@ -16096,13 +16197,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "最高对数概率"
+            "value" : "Top 对数概率"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "最高對數機率"
+            "value" : "Top 對數機率"
           }
         }
       }
@@ -16113,13 +16214,13 @@
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Top P（معلمة）"
+            "value" : "Top P"
           }
         },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Top P（Parameter）"
+            "value" : "Top P"
           }
         },
         "en" : {
@@ -16131,79 +16232,79 @@
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Top P（parámetro）"
+            "value" : "Top P"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Top P（paramètre）"
+            "value" : "Top P"
           }
         },
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Top P（पैरामीटर）"
+            "value" : "Top P"
           }
         },
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Top P（parameter）"
+            "value" : "Top P"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Top P（パラメータ）"
+            "value" : "Top P"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Top P（매개변수）"
+            "value" : "Top P"
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Top P（parâmetro）"
+            "value" : "Top P"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Top P（параметр）"
+            "value" : "Top P"
           }
         },
         "th" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Top P（พารามิเตอร์）"
+            "value" : "Top P"
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Top P（parametre）"
+            "value" : "Top P"
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Top P（tham số）"
+            "value" : "Top P"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Top P（参数）"
+            "value" : "Top P"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Top P（參數）"
+            "value" : "Top P"
           }
         }
       }
@@ -16214,13 +16315,13 @@
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Top-N Sigma（معلمة）"
+            "value" : "Top-N Sigma"
           }
         },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Top-N Sigma（Parameter）"
+            "value" : "Top-N Sigma"
           }
         },
         "en" : {
@@ -16232,79 +16333,79 @@
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Top-N Sigma（parámetro）"
+            "value" : "Top-N Sigma"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Top-N Sigma（paramètre）"
+            "value" : "Top-N Sigma"
           }
         },
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Top-N Sigma（पैरामीटर）"
+            "value" : "Top-N Sigma"
           }
         },
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Top-N Sigma（parameter）"
+            "value" : "Top-N Sigma"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Top-N Sigma（パラメータ）"
+            "value" : "Top-N Sigma"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Top-N Sigma（매개변수）"
+            "value" : "Top-N Sigma"
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Top-N Sigma（parâmetro）"
+            "value" : "Top-N Sigma"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Top-N Sigma（параметр）"
+            "value" : "Top-N Sigma"
           }
         },
         "th" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Top-N Sigma（พารามิเตอร์）"
+            "value" : "Top-N Sigma"
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Top-N Sigma（parametre）"
+            "value" : "Top-N Sigma"
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Top-N Sigma（tham số）"
+            "value" : "Top-N Sigma"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Top-N Sigma（参数）"
+            "value" : "Top-N Sigma"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Top-N Sigma（參數）"
+            "value" : "Top-N Sigma"
           }
         }
       }
@@ -16612,13 +16713,13 @@
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Typical P（معلمة）"
+            "value" : "Typical P"
           }
         },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Typical P（Parameter）"
+            "value" : "Typical P"
           }
         },
         "en" : {
@@ -16630,79 +16731,79 @@
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Typical P（parámetro）"
+            "value" : "Typical P"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Typical P（paramètre）"
+            "value" : "Typical P"
           }
         },
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Typical P（पैरामीटर）"
+            "value" : "Typical P"
           }
         },
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Typical P（parameter）"
+            "value" : "Typical P"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Typical P（パラメータ）"
+            "value" : "Typical P"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Typical P（매개변수）"
+            "value" : "Typical P"
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Typical P（parâmetro）"
+            "value" : "Typical P"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Typical P（параметр）"
+            "value" : "Typical P"
           }
         },
         "th" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Typical P（พารามิเตอร์）"
+            "value" : "Typical P"
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Typical P（parametre）"
+            "value" : "Typical P"
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Typical P（tham số）"
+            "value" : "Typical P"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Typical P（参数）"
+            "value" : "Typical P"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Typical P（參數）"
+            "value" : "Typical P"
           }
         }
       }
@@ -18264,7 +18365,7 @@
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Pesan Anda akan dikirim ke %@ untuk menghasilkan respons. Oriveo tidak menyimpan pesan atau kunci API Anda di server kami."
+            "value" : "Pesan Anda akan dikirim ke %@ untuk menghasilkan respons. Oriveo tidak menyimpan pesan atau API key Anda di server kami."
           }
         },
         "ja" : {

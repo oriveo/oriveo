@@ -55,7 +55,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "15개 공식 제공사와 맞춤형 LLM을 하나의 대화에서."
+            "value" : "15개 공식 제공업체와 사용자 지정 LLM을 하나의 대화에서."
           }
         },
         "pt-BR" : {
@@ -1448,7 +1448,7 @@
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Kunci API Anda tidak pernah meninggalkan perangkat ini, dan biaya setiap panggilan terlihat secara real-time."
+            "value" : "API key Anda tidak pernah meninggalkan perangkat ini, dan biaya setiap panggilan terlihat secara real-time."
           }
         },
         "ja" : {
@@ -1502,7 +1502,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "API Key 只存在你的裝置裡；每一次呼叫花了多少，即時看得見"
+            "value" : "API 金鑰只存在你的裝置裡；每一次呼叫花了多少，即時看得見"
           }
         }
       }
@@ -1603,7 +1603,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Key 在本機，{帳單歸你}"
+            "value" : "金鑰在本機，{帳單歸你}"
           }
         }
       }

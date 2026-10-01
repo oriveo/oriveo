@@ -779,7 +779,7 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%lld प्रदाता"
+            "value" : "%lld प्रोवाइडर"
           }
         },
         "id" : {
@@ -809,7 +809,7 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Поставщики %lld"
+            "value" : "Провайдеров: %lld"
           }
         },
         "th" : {
@@ -1682,7 +1682,7 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Добавлять"
+            "value" : "Добавить"
           }
         },
         "th" : {
@@ -1694,7 +1694,7 @@
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Eklemek"
+            "value" : "Ekle"
           }
         },
         "vi" : {
@@ -2042,7 +2042,7 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "प्रदाता जोड़ें"
+            "value" : "प्रोवाइडर जोड़ें"
           }
         },
         "id" : {
@@ -2072,7 +2072,7 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Добавить поставщика"
+            "value" : "Добавить провайдера"
           }
         },
         "th" : {
@@ -2096,13 +2096,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "添加服务商"
+            "value" : "添加供应商"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "新增服務商"
+            "value" : "新增供應商"
           }
         }
       }
@@ -2143,7 +2143,7 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "इस कौशल का उपयोग करने के लिए प्रदाता जोड़ें"
+            "value" : "इस कौशल का उपयोग करने के लिए प्रोवाइडर जोड़ें"
           }
         },
         "id" : {
@@ -2161,7 +2161,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "이 스킬을 사용하려면 공급자가 필요합니다"
+            "value" : "이 스킬을 사용하려면 제공업체를 추가하세요"
           }
         },
         "pt-BR" : {
@@ -2820,7 +2820,7 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "सभी प्रदाता"
+            "value" : "सभी प्रोवाइडर"
           }
         },
         "id" : {
@@ -2850,7 +2850,7 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Все поставщики"
+            "value" : "Все провайдеры"
           }
         },
         "th" : {
@@ -2874,13 +2874,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "全部服务商"
+            "value" : "全部供应商"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "全部服務商"
+            "value" : "全部供應商"
           }
         }
       }
@@ -2921,13 +2921,13 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "API कुंजी"
+            "value" : "API key"
           }
         },
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Kunci API"
+            "value" : "API key"
           }
         },
         "ja" : {
@@ -6891,7 +6891,7 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Продолжать"
+            "value" : "Продолжить"
           }
         },
         "th" : {
@@ -6903,7 +6903,7 @@
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Devam etmek"
+            "value" : "Devam"
           }
         },
         "vi" : {
@@ -8441,7 +8441,7 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Увольнять"
+            "value" : "Закрыть"
           }
         },
         "th" : {
@@ -8453,7 +8453,7 @@
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Azletmek"
+            "value" : "Kapat"
           }
         },
         "vi" : {
@@ -8845,7 +8845,7 @@
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Düzenlemek"
+            "value" : "Düzenle"
           }
         },
         "vi" : {
@@ -8898,7 +8898,7 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "खाली प्रदाता प्रतिक्रिया"
+            "value" : "प्रोवाइडर से खाली जवाब"
           }
         },
         "id" : {
@@ -8928,7 +8928,7 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Пустой ответ поставщика"
+            "value" : "Пустой ответ провайдера"
           }
         },
         "th" : {
@@ -8952,13 +8952,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "服务商返回了空响应"
+            "value" : "供应商返回了空响应"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "服務商返回了空回應"
+            "value" : "供應商傳回了空回應"
           }
         }
       }
@@ -8981,13 +8981,13 @@
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Entorno del motor"
+            "value" : "Motor de ejecución"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Runtime du moteur"
+            "value" : "Moteur d’exécution"
           }
         },
         "hi" : {
@@ -8999,7 +8999,7 @@
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Runtime mesin"
+            "value" : "Runtime Mesin"
           }
         },
         "ja" : {
@@ -9035,7 +9035,7 @@
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Motor çalışma zamanı"
+            "value" : "Motor Çalışma Zamanı"
           }
         },
         "vi" : {
@@ -11886,101 +11886,6 @@
         }
       }
     },
-    "How can I help?" : {
-      "extractionState" : "stale",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "كيف يمكنني المساعدة؟"
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Wie kann ich helfen?"
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "¿Cómo puedo ayudar?"
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Comment puis-je aider ?"
-          }
-        },
-        "hi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "मैं आपकी कैसे मदद कर सकता हूँ?"
-          }
-        },
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Apa yang bisa saya bantu?"
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "何かお手伝いできますか？"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "어떻게 도와드릴까요?"
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Como posso ajudar?"
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Как я могу помочь?"
-          }
-        },
-        "th" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ฉันจะช่วยได้อย่างไร?"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Nasıl yardımcı olabilirim?"
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Tôi có thể giúp gì?"
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "有什么可以帮你的？"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "我能提供什麼幫助嗎？"
-          }
-        }
-      }
-    },
     "I'm here if you need me." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -12409,13 +12314,13 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "अमान्य API Key कुंजी"
+            "value" : "अमान्य API key"
           }
         },
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Kunci API Key tidak valid"
+            "value" : "API key tidak valid"
           }
         },
         "ja" : {
@@ -15427,13 +15332,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "多服务商聚合"
+            "value" : "多供应商聚合"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "多服務商聚合"
+            "value" : "多供應商聚合"
           }
         }
       }
@@ -18177,79 +18082,79 @@
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ميزانية الإخراج"
+            "value" : "حد الإخراج"
           }
         },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ausgabebudget"
+            "value" : "Ausgabelimit"
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Presupuesto de salida"
+            "value" : "Límite de salida"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Budget de sortie"
+            "value" : "Limite de sortie"
           }
         },
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "आउटपुट बजट"
+            "value" : "आउटपुट सीमा"
           }
         },
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Anggaran keluaran"
+            "value" : "Batas Output"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "出力の上限"
+            "value" : "出力上限"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "출력 예산"
+            "value" : "출력 한도"
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Orçamento de saída"
+            "value" : "Limite de saída"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Бюджет вывода"
+            "value" : "Лимит вывода"
           }
         },
         "th" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "งบเอาต์พุต"
+            "value" : "ขีดจำกัดผลลัพธ์"
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Çıktı bütçesi"
+            "value" : "Çıktı Sınırı"
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ngân sách đầu ra"
+            "value" : "Giới hạn đầu ra"
           }
         },
         "zh-Hans" : {
@@ -18272,91 +18177,91 @@
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "عقد الإخراج"
+            "value" : "تنسيق الإخراج"
           }
         },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ausgabevertrag"
+            "value" : "Ausgabeformat"
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Contrato de salida"
+            "value" : "Formato de salida"
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Contrat de sortie"
+            "value" : "Format de sortie"
           }
         },
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "आउटपुट कॉन्ट्रैक्ट"
+            "value" : "आउटपुट फ़ॉर्मेट"
           }
         },
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Kontrak keluaran"
+            "value" : "Format Output"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "出力フォーマット"
+            "value" : "出力形式"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "출력 계약"
+            "value" : "출력 형식"
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Contrato de saída"
+            "value" : "Formato de saída"
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Контракт вывода"
+            "value" : "Формат вывода"
           }
         },
         "th" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "สัญญาเอาต์พุต"
+            "value" : "รูปแบบผลลัพธ์"
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Çıktı sözleşmesi"
+            "value" : "Çıktı Biçimi"
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Hợp đồng đầu ra"
+            "value" : "Định dạng đầu ra"
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "输出契约"
+            "value" : "输出格式"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "輸出契約"
+            "value" : "輸出格式"
           }
         }
       }
@@ -18367,7 +18272,7 @@
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "سلوك المعلمة"
+            "value" : "سلوك المعامل"
           }
         },
         "de" : {
@@ -19086,7 +18991,7 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "प्रदाता कॉन्फ़िगरेशन त्रुटि"
+            "value" : "प्रोवाइडर कॉन्फ़िगरेशन त्रुटि"
           }
         },
         "id" : {
@@ -19116,7 +19021,7 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ошибка конфигурации поставщика"
+            "value" : "Ошибка настройки провайдера"
           }
         },
         "th" : {
@@ -19140,13 +19045,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "服务商配置错误"
+            "value" : "供应商配置错误"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "服務商設定錯誤"
+            "value" : "供應商設定錯誤"
           }
         }
       }
@@ -19181,7 +19086,7 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "प्रदाता कोटा समाप्त"
+            "value" : "प्रोवाइडर कोटा समाप्त"
           }
         },
         "id" : {
@@ -19211,7 +19116,7 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Квота поставщика исчерпана"
+            "value" : "Квота провайдера исчерпана"
           }
         },
         "th" : {
@@ -19235,13 +19140,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "服务商额度已用完"
+            "value" : "供应商额度已用完"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "服務商額度已用完"
+            "value" : "供應商額度已用完"
           }
         }
       }
@@ -19276,7 +19181,7 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "प्रदाता दर लिमिटेड"
+            "value" : "प्रोवाइडर रेट लिमिट"
           }
         },
         "id" : {
@@ -19306,7 +19211,7 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Ограниченная ставка поставщика"
+            "value" : "Провайдер ограничил частоту запросов"
           }
         },
         "th" : {
@@ -19330,13 +19235,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "服务商请求频率受限"
+            "value" : "供应商请求频率受限"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "服務商請求頻率受限"
+            "value" : "供應商請求頻率受限"
           }
         }
       }
@@ -19371,7 +19276,7 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "प्रदाता अनुरोध विफल रहा"
+            "value" : "प्रोवाइडर अनुरोध विफल रहा"
           }
         },
         "id" : {
@@ -19401,7 +19306,7 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Запрос поставщика не выполнен"
+            "value" : "Запрос к провайдеру не выполнен"
           }
         },
         "th" : {
@@ -19425,13 +19330,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "服务商请求失败"
+            "value" : "供应商请求失败"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "服務商請求失敗"
+            "value" : "供應商請求失敗"
           }
         }
       }
@@ -19466,7 +19371,7 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "प्रदाताओं"
+            "value" : "प्रोवाइडर"
           }
         },
         "id" : {
@@ -19478,7 +19383,7 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "プロバイダ"
+            "value" : "プロバイダー"
           }
         },
         "ko" : {
@@ -19520,13 +19425,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "服务商"
+            "value" : "供应商"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "服務商"
+            "value" : "供應商"
           }
         }
       }
@@ -19935,7 +19840,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Reasoning"
+            "value" : "Denkprozess"
           }
         },
         "es" : {
@@ -19989,13 +19894,13 @@
         "th" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "การให้เหตุผล"
+            "value" : "การใช้เหตุผล"
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Akıl yürütme"
+            "value" : "Akıl Yürütme"
           }
         },
         "vi" : {
@@ -20642,7 +20547,7 @@
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Kontrol pengulangan"
+            "value" : "Kontrol Pengulangan"
           }
         },
         "ja" : {
@@ -20678,7 +20583,7 @@
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Tekrar denetimi"
+            "value" : "Tekrar Kontrolü"
           }
         },
         "vi" : {
@@ -20808,7 +20713,7 @@
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "قابلية إعادة الإنتاج"
+            "value" : "قابلية تكرار النتائج"
           }
         },
         "de" : {
@@ -20832,13 +20737,13 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "पुनरुत्पादकता"
+            "value" : "रीप्रोड्यूसिबिलिटी"
           }
         },
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Reproduksibilitas"
+            "value" : "Reprodusibilitas"
           }
         },
         "ja" : {
@@ -20868,13 +20773,13 @@
         "th" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "ความสามารถในการทำซ้ำ"
+            "value" : "ผลลัพธ์ที่ทำซ้ำได้"
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Yeniden üretilebilirlik"
+            "value" : "Yeniden Üretilebilirlik"
           }
         },
         "vi" : {
@@ -21099,7 +21004,7 @@
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "قم بإضافة وتمكين {model} في موفر OpenAI الخاص بك أولاً."
+            "value" : "أضِف {model} وفعّله في مزوّد OpenAI الخاص بك أولاً."
           }
         },
         "de" : {
@@ -21147,7 +21052,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "먼저 OpenAI 공급자에 {model}을 추가하고 활성화하세요."
+            "value" : "먼저 OpenAI 제공업체에서 {model} 모델을 추가하고 활성화하세요."
           }
         },
         "pt-BR" : {
@@ -21361,7 +21266,7 @@
         "th" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "การสุ่ม"
+            "value" : "การสุ่มตัวอย่าง"
           }
         },
         "tr" : {
@@ -21385,7 +21290,7 @@
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "採樣策略"
+            "value" : "取樣策略"
           }
         }
       }
@@ -21919,7 +21824,7 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "प्रदाता खोजें"
+            "value" : "प्रोवाइडर खोजें"
           }
         },
         "id" : {
@@ -21937,7 +21842,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "검색 공급자"
+            "value" : "제공업체 검색"
           }
         },
         "pt-BR" : {
@@ -21949,7 +21854,7 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Поиск поставщиков"
+            "value" : "Поиск провайдеров"
           }
         },
         "th" : {
@@ -40414,7 +40319,7 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "इस बातचीत का प्रदाता हटा दिया गया है।"
+            "value" : "इस बातचीत का प्रोवाइडर हटा दिया गया है।"
           }
         },
         "id" : {
@@ -40426,7 +40331,7 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "この会話のプロバイダは削除されました。"
+            "value" : "この会話のプロバイダーは削除されました。"
           }
         },
         "ko" : {
@@ -40509,7 +40414,7 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "प्रदाता इस अनुरोध को अस्थायी रूप से सीमित कर रहा है। कृपया एक क्षण प्रतीक्षा करें और पुनः प्रयास करें।"
+            "value" : "प्रोवाइडर इस अनुरोध को अस्थायी रूप से सीमित कर रहा है। कृपया एक क्षण प्रतीक्षा करें और पुनः प्रयास करें।"
           }
         },
         "id" : {
@@ -40563,13 +40468,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "服务商正在临时限制此请求的频率。请稍候再试。"
+            "value" : "供应商暂时限制了此请求的频率，请稍候再试。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "服務商正在臨時限制此請求的頻率。請稍候再試。"
+            "value" : "供應商暫時限制了此請求的頻率，請稍候再試。"
           }
         }
       }
@@ -40604,13 +40509,13 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "प्रदाता के अनुसार इस API कुंजी का कोटा या क्रेडिट समाप्त हो गया है। प्रदाता के पास अपनी बिलिंग जाँचें या मॉडल बदलें।"
+            "value" : "प्रोवाइडर के अनुसार इस API key का कोटा या क्रेडिट समाप्त हो गया है। प्रोवाइडर के खाते में अपनी बिलिंग जाँचें या मॉडल बदलें।"
           }
         },
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Penyedia melaporkan kuota atau kredit kunci API ini sudah habis. Periksa tagihan Anda di penyedia, atau ganti model."
+            "value" : "Penyedia melaporkan kuota atau kredit API key ini sudah habis. Periksa tagihan Anda di penyedia, atau ganti model."
           }
         },
         "ja" : {
@@ -40634,7 +40539,7 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Поставщик сообщает, что квота или кредит этого API-ключа исчерпаны. Проверьте оплату у поставщика или смените модель."
+            "value" : "Провайдер сообщает, что квота или баланс этого API-ключа исчерпаны. Проверьте оплату у провайдера или смените модель."
           }
         },
         "th" : {
@@ -40658,13 +40563,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "服务商反馈此 API Key 的额度或余额已用完。请到服务商后台检查账单，或切换模型。"
+            "value" : "供应商反馈此 API Key 的额度或余额已用完。请到供应商后台检查账单，或切换模型。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "服務商回報此 API Key 的額度或餘額已用完。請到服務商後台檢查帳單，或切換模型。"
+            "value" : "供應商回報此 API 金鑰的額度或餘額已用完。請到供應商後台檢查帳單，或切換模型。"
           }
         }
       }
@@ -40699,7 +40604,7 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "प्रदाता ने एक खाली मॉडल कैटलॉग लौटाया, इसलिए हम सेटअप पूरा नहीं कर सके।"
+            "value" : "प्रोवाइडर ने एक खाली मॉडल कैटलॉग लौटाया, इसलिए हम सेटअप पूरा नहीं कर सके।"
           }
         },
         "id" : {
@@ -40753,13 +40658,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "服务商返回了空的模型目录，无法完成设置。"
+            "value" : "供应商返回了空的模型目录，无法完成设置。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "服務商返回了空的模型目錄，無法完成設定。"
+            "value" : "供應商傳回了空的模型目錄，無法完成設定。"
           }
         }
       }
@@ -40794,7 +40699,7 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "प्रदाता ने इस अनुरोध के लिए एक त्रुटि लौटा दी। कृपया पुनः प्रयास करें या मॉडल बदलें।"
+            "value" : "प्रोवाइडर ने इस अनुरोध के लिए एक त्रुटि लौटा दी। कृपया पुनः प्रयास करें या मॉडल बदलें।"
           }
         },
         "id" : {
@@ -40824,7 +40729,7 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Поставщик вернул ошибку для этого запроса. Пожалуйста, повторите попытку или смените модель."
+            "value" : "Провайдер вернул ошибку на этот запрос. Пожалуйста, повторите попытку или смените модель."
           }
         },
         "th" : {
@@ -40848,13 +40753,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "服务商对此请求返回了错误。请重试或切换模型。"
+            "value" : "供应商对此请求返回了错误。请重试或切换模型。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "服務商對此請求返回了錯誤。請重試或切換模型。"
+            "value" : "供應商對此請求傳回了錯誤。請重試或切換模型。"
           }
         }
       }
@@ -40889,7 +40794,7 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "प्रदाता ने इस संदेश के लिए कोई सहायक सामग्री नहीं लौटाई।"
+            "value" : "प्रोवाइडर ने इस संदेश का कोई जवाब नहीं लौटाया।"
           }
         },
         "id" : {
@@ -40919,7 +40824,7 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Поставщик не возвратил содержимого помощника для этого сообщения."
+            "value" : "Провайдер не вернул ответ ассистента на это сообщение."
           }
         },
         "th" : {
@@ -40943,13 +40848,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "服务商未返回此消息的助手内容。"
+            "value" : "供应商未返回这条消息的回复内容。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "服務商未返回此訊息的助手內容。"
+            "value" : "供應商未傳回這則訊息的回覆內容。"
           }
         }
       }
@@ -41180,7 +41085,7 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "चयनित प्रदाता कॉन्फ़िगरेशन अधूरा है, इसलिए अनुरोध नहीं भेजा जा सका."
+            "value" : "चयनित प्रोवाइडर कॉन्फ़िगरेशन अधूरा है, इसलिए अनुरोध नहीं भेजा जा सका।"
           }
         },
         "id" : {
@@ -41234,13 +41139,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "所选服务商的配置不完整，无法发送请求。"
+            "value" : "所选供应商的配置不完整，无法发送请求。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "所選服務商的設定不完整，無法傳送請求。"
+            "value" : "所選供應商的設定不完整，無法傳送請求。"
           }
         }
       }
@@ -41281,7 +41186,7 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "चयनित प्रदाता अब उपलब्ध नहीं है।"
+            "value" : "चयनित प्रोवाइडर अब उपलब्ध नहीं है।"
           }
         },
         "id" : {
@@ -41293,7 +41198,7 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "選択したプロバイダは利用できなくなりました。"
+            "value" : "選択したプロバイダーは利用できなくなりました。"
           }
         },
         "ko" : {
@@ -41774,7 +41679,7 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "यह मॉडल इस समय प्रदाता के पास उपलब्ध नहीं है। मॉडल बदलें या बाद में पुनः प्रयास करें।"
+            "value" : "यह मॉडल इस समय प्रोवाइडर के पास उपलब्ध नहीं है। मॉडल बदलें या बाद में पुनः प्रयास करें।"
           }
         },
         "id" : {
@@ -41804,7 +41709,7 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Эта модель сейчас недоступна у поставщика. Смените модель или повторите попытку позже."
+            "value" : "Эта модель сейчас недоступна у провайдера. Смените модель или повторите попытку позже."
           }
         },
         "th" : {
@@ -41828,13 +41733,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "服务商当前无法提供该模型。请切换模型或稍后再试。"
+            "value" : "供应商当前无法提供该模型。请切换模型或稍后再试。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "服務商目前無法提供該模型。請切換模型或稍後再試。"
+            "value" : "供應商目前無法提供該模型。請切換模型或稍後再試。"
           }
         }
       }
@@ -41975,7 +41880,7 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "बातचीत शुरू करने से पहले इस कौशल के लिए उपलब्ध AI प्रदाता चाहिए।"
+            "value" : "बातचीत शुरू करने से पहले इस कौशल के लिए उपलब्ध AI प्रोवाइडर चाहिए।"
           }
         },
         "id" : {
@@ -41993,7 +41898,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "대화를 시작하려면 먼저 사용 가능한 AI 공급자를 추가하세요."
+            "value" : "이 스킬로 대화를 시작하려면 사용 가능한 AI 제공업체가 필요합니다."
           }
         },
         "pt-BR" : {
@@ -43454,7 +43359,7 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "हम कनेक्शन सत्यापित नहीं कर सके। आप प्रदाता विवरण से पुनः प्रयास कर सकते हैं।"
+            "value" : "हम कनेक्शन सत्यापित नहीं कर सके। आप प्रोवाइडर विवरण से पुनः प्रयास कर सकते हैं।"
           }
         },
         "id" : {
@@ -43472,7 +43377,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "연결을 확인할 수 없습니다. 공급자 세부 정보에서 다시 시도할 수 있습니다."
+            "value" : "연결을 확인할 수 없습니다. 제공업체 세부 정보에서 다시 시도할 수 있습니다."
           }
         },
         "pt-BR" : {
@@ -43484,7 +43389,7 @@
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Не удалось проверить подключение. Вы можете повторить попытку в сведениях о поставщике."
+            "value" : "Не удалось проверить подключение. Вы можете повторить попытку в сведениях о провайдере."
           }
         },
         "th" : {
@@ -44244,7 +44149,7 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "बातचीत शुरू करने के लिए कम से कम एक AI प्रदाता आवश्यक है।"
+            "value" : "बातचीत शुरू करने के लिए आपको कम से कम एक AI प्रोवाइडर की आवश्यकता है।"
           }
         },
         "id" : {
@@ -44256,7 +44161,7 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "会話を始めるには AI プロバイダが少なくとも 1 つ必要です。"
+            "value" : "会話を始めるには AI プロバイダーが少なくとも 1 つ必要です。"
           }
         },
         "ko" : {

@@ -468,7 +468,7 @@ struct CapabilityRecipeExecutionTests {
             "Scope: this conversation, connection, model, and transport.",
             "Fields are added to the request exactly as written. Only fields this provider officially declares are supported; mistakes can make requests fail. Drafts stay on this device.",
             "Open official provider documentation",
-            "For a Relay, use the documentation supplied by its administrator.",
+            "For this connection, use the documentation supplied by its administrator.",
             "Enter a JSON object to preview its allowed field paths.",
             "Redacted request delta preview", "Enter valid JSON with no duplicate keys.",
             "This field conflicts with the managed request schema or is not allowed for this connection.",

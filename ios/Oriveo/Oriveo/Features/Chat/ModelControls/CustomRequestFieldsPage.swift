@@ -194,7 +194,7 @@ struct CustomRequestFieldsPage: View {
                 }
             } else if provider.kind == .relay {
                 ModelControlNote(
-                    text: L10n.tr("For a Relay, use the documentation supplied by its administrator.", table: .chat),
+                    text: L10n.tr("For this connection, use the documentation supplied by its administrator.", table: .chat),
                     systemImage: "book"
                 )
             }

@@ -65,7 +65,6 @@ struct RelaySetupLocalizationTests {
         "Show API key",
         "Test protocols automatically",
         "Testing protocols...",
-        "The actual chat path is verified. You can save this relay now.",
         "The local network is unavailable.",
         "This engine requires an encrypted connection for its access token.",
         "The catalog cannot distinguish these OpenAI-compatible protocols. You do not need to guess—use automatic testing below and Oriveo will select one that completes a real request.",

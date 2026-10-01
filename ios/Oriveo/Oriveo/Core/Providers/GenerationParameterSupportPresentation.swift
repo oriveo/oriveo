@@ -6,7 +6,7 @@ enum GenerationParameterVocabulary {
     static func title(_ id: String) -> String {
         switch id {
         case "max_output_tokens", "max_tokens": return L10n.tr("Max Tokens", table: .chat)
-        case "stop", "stop_sequences": return L10n.tr("Stop", table: .chat)
+        case "stop", "stop_sequences": return L10n.tr("Stop sequences", table: .chat)
         case "temperature": return L10n.tr("Temperature", table: .chat)
         case "top_p": return L10n.tr("Top P", table: .chat)
         case "top_k": return L10n.tr("Top K", table: .chat)
@@ -16,7 +16,8 @@ enum GenerationParameterVocabulary {
         case "frequency_penalty": return L10n.tr("Frequency penalty", table: .chat)
         case "presence_penalty": return L10n.tr("Presence penalty", table: .chat)
         case "repeat_penalty": return L10n.tr("Repeat penalty", table: .chat)
-        case "repeat_last_n", "min_keep": return L10n.tr("Repeat penalty window", table: .chat)
+        case "repeat_last_n": return L10n.tr("Repeat penalty window", table: .chat)
+        case "min_keep": return L10n.tr("Minimum tokens to keep", table: .chat)
         case "seed": return L10n.tr("Random seed", table: .chat)
         case "response_format": return L10n.tr("Response format", table: .chat)
         case "json_schema", "json": return L10n.tr("JSON Schema", table: .chat)

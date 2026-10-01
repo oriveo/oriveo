@@ -6,6 +6,9 @@ import UIKit
 @Suite("OriveoBackButton", .serialized)
 @MainActor
 struct OriveoBackButtonTests {
+    init() throws {
+        try #require(ApplicationAccessibility.enable(), "application accessibility could not be turned on")
+    }
 
     @Test("chevron scales the design's 24-grid path into the 22pt icon box")
     func chevronMatchesDesignPath() {
