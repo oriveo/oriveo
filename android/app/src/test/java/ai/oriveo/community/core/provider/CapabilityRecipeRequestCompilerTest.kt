@@ -1,6 +1,9 @@
 package ai.oriveo.community.core.provider
 
 import ai.oriveo.community.core.model.ChatRequestOptions
+import ai.oriveo.community.core.model.GenerationOverrideState
+import ai.oriveo.community.core.model.GenerationParameterOverride
+import ai.oriveo.community.core.model.GenerationParameterOverrides
 import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.core.model.ReasoningMode
 import ai.oriveo.community.core.data.remote.MetadataClient
@@ -24,6 +27,7 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.add
 import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.boolean
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -1336,6 +1340,94 @@ class CapabilityRecipeRequestCompilerTest {
         val foreign = compileAppend("/messages/-")
         assertFalse(foreign.accepted)
         assertEquals("invalid_request_ops", foreign.reason)
+    }
+
+    @Test
+    fun legacyGenerationTemplateGate() {
+        val text = load("shared/model-contracts/provider_recipe_request_compiler.v1.json")
+        val cases = json.parseToJsonElement(text).jsonObject["legacyGenerationGateCases"]!!.jsonArray
+        assertEquals(8, cases.size)
+        cases.forEach { element ->
+            val case = element.jsonObject
+            val allowed = legacyGenerationTemplatesMatch(case.string("template"), case.string("profileTemplate"))
+            val expected = case["expectInject"]?.jsonPrimitive?.boolean
+                ?: error("missing expectInject for ${case.string("caseId")}")
+            assertEquals(case.string("caseId"), expected, allowed)
+        }
+
+        // The loop above only covers the comparison function. What decides whether the user's generation
+        // parameters reach the outbound body is GenerationParameterResolver.apply, so the same cases run
+        // again through the production path: metadata -> production projection -> production resolver -> body.
+        val execution = json.parseToJsonElement(load("shared/model-contracts/provider_recipe_execution.v1.json")).jsonObject
+        val registry = json.parseToJsonElement(load(execution.string("registryPath")!!)).jsonObject
+        val runtime = JsonObject(registry + mapOf(
+            "revision" to JsonPrimitive("sha256:legacy-generation-gate"),
+            "generatedAt" to JsonPrimitive("2026-08-11T00:00:00Z"),
+        ))
+        val recipes = registry["recipes"]!!.jsonObject
+        fun recipeTemplate(item: JsonObject): String? = recipes[item.string("recipeRef")!!]!!.jsonObject["requestOps"]!!
+            .jsonArray.mapNotNull { it as? JsonObject }
+            .firstOrNull { it.string("op") == "legacy_generation_template" }?.string("template")
+        val coverage = execution["providerCoverage"]!!.jsonArray.map { it.jsonObject }
+        val options = ChatRequestOptions(
+            generationParameters = GenerationParameterOverrides(mapOf(
+                "temperature" to GenerationParameterOverride(GenerationOverrideState.Value, JsonPrimitive(0.31)),
+            )),
+        )
+        cases.forEach { element ->
+            val case = element.jsonObject
+            val caseId = case.string("caseId")!!
+            val template = case.string("template")!!
+            val profileTemplate = case.string("profileTemplate")!!
+            val expected = case["expectInject"]!!.jsonPrimitive.boolean
+            // The runtime template comes from a real generation recipe in the registry, not a recipe made up here.
+            val item = coverage.firstOrNull { recipeTemplate(it) == template }
+                ?: error("$caseId: registry has no generation recipe for template $template")
+            val kind = providerKind(item.string("providerKind")!!)
+            val runtimeTransport = item.string("transport")!!
+            val selector = item.string("selectorTransport") ?: runtimeTransport
+            val modelID = caseId
+            MetadataTestFixtures.applyRaw(buildJsonObject {
+                put("version", 1)
+                put("capabilityRuntime", runtime)
+                put("profiles", buildJsonObject { put("generation", buildJsonObject {
+                    put("version", 1)
+                    put("parameters", buildJsonObject { put("temperature", buildJsonObject {
+                        put("valueSchema", "number")
+                    }) })
+                    put("templates", buildJsonObject { put(profileTemplate, buildJsonObject {
+                        put("transport", selector)
+                        put("wire", buildJsonObject { put("temperature", "temperature") })
+                    }) })
+                }) })
+                put("providers", buildJsonObject {
+                    put(item.string("providerKind")!!, provider(modelID to model(
+                        selector, generationRecipe = item.string("recipeRef"), generationTemplate = profileTemplate,
+                    )))
+                })
+            }.toString())
+
+            val projection = officialRequestCapabilityProjection(
+                kind, modelID, options, finalTransport = selector, runtimeTransport = runtimeTransport,
+            )
+            val resolved = MetadataClient.resolveCatalogModel(modelID, kind)
+            // Pin the preconditions so the template comparison is the only variable: the runtime is authorized
+            // and carries the fixture's template, and the profile really resolves a writable wire. Otherwise an
+            // untouched body on an unequal case could pass for some other reason.
+            assertEquals("$caseId runtime authorized", true, projection.generationRuntimeAuthorized)
+            assertEquals("$caseId runtime template", template, projection.generationRuntimeTemplate)
+            assertEquals("$caseId profile template", profileTemplate, resolved?.profiles?.generation?.template)
+            assertEquals("$caseId profile wire", "temperature", resolved?.profiles?.generation?.wire?.get("temperature"))
+
+            val body = json.parseToJsonElement(
+                GenerationParameterResolver.apply("{}", options, resolved, projection),
+            ).jsonObject
+            if (expected) {
+                assertEquals("$caseId resolver body", 0.31, body["temperature"]?.jsonPrimitive?.content?.toDoubleOrNull() ?: Double.NaN, 0.0001)
+            } else {
+                assertEquals("$caseId resolver body must stay untouched", JsonObject(emptyMap()), body)
+            }
+        }
     }
 
     private fun compileAppend(pointer: String): ProviderRecipeRequestCompiler.Result {

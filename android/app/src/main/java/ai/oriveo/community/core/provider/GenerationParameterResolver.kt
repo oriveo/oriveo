@@ -16,6 +16,10 @@ import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
 
+/** The runtime's legacy template must equal profile.template before anything is injected; a blank template never matches. */
+internal fun legacyGenerationTemplatesMatch(runtimeTemplate: String?, profileTemplate: String?): Boolean =
+    !runtimeTemplate.isNullOrBlank() && !profileTemplate.isNullOrBlank() && runtimeTemplate == profileTemplate
+
 /** The single outbound resolver for generation parameters. With no profile or wire path to go on it never injects an optional parameter. */
 internal object GenerationParameterResolver {
     private val json = Json { ignoreUnknownKeys = true }
@@ -89,7 +93,7 @@ internal object GenerationParameterResolver {
         // must match the profile that owns schema/wire; runtime miss/invalid is a hard zero delta.
         when (capabilityProjection?.generationRuntimeAuthorized) {
             false -> return body
-            true -> if (capabilityProjection.generationRuntimeTemplate != profile.template) return body
+            true -> if (!legacyGenerationTemplatesMatch(capabilityProjection.generationRuntimeTemplate, profile.template)) return body
             null -> Unit // runtime genuinely absent: retain the legacy evidence compatibility path.
         }
         if (profile.wire.isEmpty()) return body
@@ -123,7 +127,7 @@ internal object GenerationParameterResolver {
             // older carrier or an allowUnknown escape hatch, and tests have to supply the
             // projection explicitly.
             val allowed = when (capabilityProjection?.generationRuntimeAuthorized) {
-                true -> capabilityProjection.generationRuntimeTemplate == profile.template
+                true -> legacyGenerationTemplatesMatch(capabilityProjection.generationRuntimeTemplate, profile.template)
                 false -> false
                 null -> capabilityProjection?.permitsOutbound("generation_parameter/$key") == true
             }
