@@ -25,6 +25,12 @@ enum AppRoute: Hashable {
     case backup
     case folderDetail(folderID: UUID)
     case memory
+    /// MCP server management ("MCP servers" in Settings, "Manage MCP servers" in the chat tool panel).
+    case mcpServers
+    /// Add an MCP server ("Add" on the list page, "Add MCP server" in the empty tool panel).
+    case mcpAddServer
+    /// Details of one MCP server. `intent` tells "show the details" from "start re-authorizing on entry".
+    case mcpServerDetail(serverID: UUID, intent: McpServerDetailIntent)
     case skillsList
     case skillEdit(UUID?)
     case notesList

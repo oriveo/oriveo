@@ -35,6 +35,9 @@ struct SettingsView: View {
     @State private var showsDeveloperSession = false
     @State private var developerSessionPage: SettingsDeveloperMenuPolicy.SessionPage = .menu
     @State private var showsLanguageSettingsMigration: Bool = false
+    /// Whether the catalog leaves remote MCP switched on, and the data for the row's subtitle.
+    @State private var mcpEntryEnabled = MetadataClient.shared.syncMcpRuntimeConfig().enabled
+    @State private var mcpEntrySummary: McpSettingsEntrySummary?
     private let aiColor = Color.dynamic(light: 0x8C5FF8, dark: 0xA78BFA)
     private let dataColor = Color.dynamic(light: 0x3B82F6, dark: 0x60A5FA)
     private let appearanceColor = OriveoTheme.Palette.warning
@@ -76,6 +79,15 @@ struct SettingsView: View {
                             )
                         }
                     }
+                }
+
+                // With the feature switched off in the catalog the entry is hidden; existing configuration is kept.
+                if mcpEntryEnabled {
+                    McpSettingsSection(
+                        iconColor: aiColor,
+                        mcpSummary: mcpEntrySummary,
+                        onOpenMcpServers: { appState.navigation.attemptNavigate(to: .mcpServers) }
+                    )
                 }
 
                 VStack(alignment: .leading, spacing: OriveoTheme.Spacing.sm) {
@@ -218,8 +230,11 @@ struct SettingsView: View {
         }
         .oriveoScreenBackground()
         .id(appState.preferences.language)
+        // Also when coming back from MCP management: the count in the subtitle has to follow.
+        .onAppear(perform: syncMcpEntry)
         .task {
             await MetadataClient.shared.ensureInitialized()
+            syncMcpEntry()
         }
         .sheet(item: $presentedWebDestination) { destination in
             OriveoSafariSheet(url: destination.url)
@@ -293,6 +308,14 @@ struct SettingsView: View {
         } else {
             showsLanguageSettingsMigration = true
         }
+    }
+
+    /// Re-reads the MCP switch and the server overview (local storage only, no request).
+    private func syncMcpEntry() {
+        mcpEntryEnabled = MetadataClient.shared.syncMcpRuntimeConfig().enabled
+        guard mcpEntryEnabled else { return }
+        mcpEntrySummary = (try? appState.mcpServerDirectory.overview(uid: appState.sessionPartitionUID))
+            .map { McpSettingsEntrySummary($0) }
     }
 
     private func migrateToSystemLanguageAndOpenSettings() {

@@ -141,6 +141,15 @@ struct AppRootView: View {
         case .memory:
             MemoryView()
                 .oriveoNavigationChrome()
+        case .mcpServers:
+            McpServersView()
+                .oriveoNavigationChrome()
+        case .mcpAddServer:
+            McpAddServerView()
+                .oriveoNavigationChrome()
+        case let .mcpServerDetail(serverID, intent):
+            McpServerDetailView(serverID: serverID, intent: intent)
+                .oriveoNavigationChrome()
         case .skillsList:
             SkillsListView()
                 .oriveoNavigationChrome()

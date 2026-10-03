@@ -4,6 +4,8 @@ struct SettingsRow: View {
     let icon: String?
     let title: String
     var value: String? = nil
+    /// One line under the title (a count, a status summary).
+    var subtitle: String? = nil
     var tint: Color = OriveoTheme.Palette.textPrimary
     var iconColor: Color? = nil
     var showsChevron: Bool = true
@@ -27,9 +29,17 @@ struct SettingsRow: View {
                 }
             }
 
-            Text(title)
-                .font(OriveoTheme.Typography.body)
-                .foregroundStyle(tint)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(OriveoTheme.Typography.body)
+                    .foregroundStyle(tint)
+                if let subtitle {
+                    Text(subtitle)
+                        .font(.system(size: 13))
+                        .foregroundStyle(OriveoTheme.Palette.textSecondary)
+                        .lineLimit(1)
+                }
+            }
 
             Spacer()
 

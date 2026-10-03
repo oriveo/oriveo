@@ -92,8 +92,16 @@ final class AppState {
     var providerManager: ProviderManager
     var relayCatalogRefreshingProviderIDs = Set<UUID>()
     var chatManager: ChatManager
+    /// The confirmation gate for remote MCP tools: the tool loop suspends here and the confirmation sheet
+    /// sends the user's choice back.
+    let mcpConfirmationCoordinator = McpConfirmationCoordinator()
+    /// The gate for a sign-in that expired mid-answer: the loop stops at that step and waits for
+    /// "Re-authorize" or "Skip". Server management calls `serverReauthorized(_:)` after a successful sign-in.
+    let mcpReauthorizationCoordinator = McpReauthorizationCoordinator()
     let skillManager = SkillManager()
     let conversationRuntimeBridge = ConversationRuntimeBridge()
+    /// Entry point for remote MCP server records (opens the store of a partition, updates and removes).
+    let mcpServerDirectory: McpServerDirectory
     private let persistsSession: Bool
     private var pendingChatAnchorUserMessageIDs: [UUID: UUID] = [:]
 
@@ -310,9 +318,11 @@ final class AppState {
         seedDemoData: Bool = false,
         sessionUID: String? = nil,
         providerSession: URLSession = .shared,
-        toolCallMemory: ToolCallMemoryStore = .shared
+        toolCallMemory: ToolCallMemoryStore = .shared,
+        mcpServerDirectory: McpServerDirectory? = nil
     ) {
         let isRunningTests = AppRuntime.isRunningTests
+        self.mcpServerDirectory = mcpServerDirectory ?? McpServerDirectory()
         let requestedSessionUID = sessionUID
         providerManager = ProviderManager(session: providerSession)
         chatManager = ChatManager(providerSession: providerSession, toolCallMemory: toolCallMemory)
@@ -1388,6 +1398,16 @@ final class AppState {
 
         guard let targetConversation = conversation(for: targetConversationID) else {
             return nil
+        }
+
+        if isNewConversation, let generationParameterDraftSessionID {
+            // Before the first message of a new conversation, the tool panel's switches are kept under the
+            // draft id. They move to the real id when the conversation is created, and that has to happen
+            // before sending: assembling the usable tools reads by conversation id. If the move fails, this
+            // one send simply carries no tools.
+            try? mcpServerDirectory.store(for: sessionPartitionUID).moveConversationSwitches(
+                from: generationParameterDraftSessionID, to: targetConversationID
+            )
         }
 
         if isNewConversation,
