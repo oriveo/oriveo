@@ -129,6 +129,10 @@ struct MessageRecord {
     let costSource: String?
     let capabilityExecution: String?
     let unhandledToolCalls: String?
+    /// JSON array of remote MCP tool step summaries.
+    let toolSteps: String?
+    /// Code of a device-local notice shown with the tool steps (`ToolFallbackNotice`).
+    let toolFallbackNotice: String?
 
     nonisolated init(row: Row) {
         id = row["id"]
@@ -160,6 +164,8 @@ struct MessageRecord {
         costSource = row["costSource"]
         capabilityExecution = row["capabilityExecution"]
         unhandledToolCalls = row["unhandledToolCalls"]
+        toolSteps = row["toolSteps"]
+        toolFallbackNotice = row["toolFallbackNotice"]
     }
 }
 

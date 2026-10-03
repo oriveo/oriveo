@@ -36,6 +36,13 @@ struct OriveoApp: App {
                 .onChange(of: appState.preferences.theme) { _, newTheme in
                     currentColorScheme = newTheme.preferredColorScheme
                 }
+                .onOpenURL { url in
+                    // An MCP sign-in callback goes only to the authorization that started it (claimed by
+                    // `state`); one from the wrong place or with an unknown `state` is rejected by the router.
+                    if McpOAuthCallbackRouter.claims(url) {
+                        McpOAuthCallbackRouter.shared.deliver(url)
+                    }
+                }
                 .onReceive(NotificationCenter.default.publisher(for: .oriveoWillTerminate)) { _ in
                     appState.chatManager.flushStreamingTextToMessage()
                     appState.persistLifecycleCriticalData(checkpoint: true)

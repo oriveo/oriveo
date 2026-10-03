@@ -403,6 +403,7 @@ enum L10n {
         case settings = "Settings"
         case skills = "Skills"
         case notes = "Notes"
+        case mcp = "MCP"
     }
 
     private static let lock = NSLock()

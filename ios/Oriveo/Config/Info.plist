@@ -33,6 +33,19 @@
 	<string>$(PRODUCT_BUNDLE_PACKAGE_TYPE)</string>
 	<key>CFBundleShortVersionString</key>
 	<string>$(MARKETING_VERSION)</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>oriveo</string>
+			</array>
+		</dict>
+	</array>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
@@ -60,6 +73,8 @@
 	</dict>
 	<key>NSPhotoLibraryAddUsageDescription</key>
 	<string>Save AI-generated images to your photo library</string>
+	<key>ORIVEO_MCP_CLIENT_METADATA_URL</key>
+	<string></string>
 	<key>ORIVEO_METADATA_BASE_URL</key>
 	<string></string>
 	<key>UIAppFonts</key>

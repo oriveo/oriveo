@@ -197,7 +197,147 @@ enum DatabaseSchema {
             // split commit, which clears it.
             try createMetadataSplitCacheTable(in: db)
         }
+        migrator.registerMigration("v29_add_mcp") { db in
+            // Remote MCP servers. Six tables hold the server records and what the device keeps for them;
+            // credentials go to the Keychain, not into this database. Messages gain the tool step summaries
+            // and a notice code. Only tables and columns are added.
+            try createMcpServerTable(in: db)
+            try createMcpConnectionStateTable(in: db)
+            try createMcpToolSnapshotTable(in: db)
+            try createMcpToolPermissionTable(in: db)
+            try createMcpConversationSwitchTable(in: db)
+            try createMcpStepPayloadTable(in: db)
+            try db.execute(sql: "ALTER TABLE message ADD COLUMN toolSteps TEXT")
+            try db.execute(sql: "ALTER TABLE message ADD COLUMN toolFallbackNotice TEXT")
+            try createMcpCleanupTriggers(in: db)
+        }
         return migrator
+    }
+
+    // MARK: - Remote MCP tables (v29_add_mcp)
+
+    /// Server records. A record never holds a credential; for an address that looks like it carries a secret
+    /// (`localOnly`) the `url` column holds only the display address.
+    nonisolated private static func createMcpServerTable(in db: Database) throws {
+        try db.execute(sql: """
+            CREATE TABLE mcp_server (
+                id TEXT PRIMARY KEY NOT NULL,
+                name TEXT NOT NULL,
+                slug TEXT NOT NULL,
+                url TEXT NOT NULL,
+                authKind TEXT NOT NULL,
+                localOnly INTEGER NOT NULL DEFAULT 0,
+                iconURL TEXT,
+                createdAt REAL NOT NULL,
+                updatedAt REAL NOT NULL,
+                schemaVersion INTEGER NOT NULL DEFAULT 1
+            )
+            """)
+        try db.execute(sql: "CREATE INDEX idx_mcp_server_updatedAt ON mcp_server(updatedAt DESC)")
+        try db.execute(sql: "CREATE UNIQUE INDEX idx_mcp_server_slug ON mcp_server(slug)")
+    }
+
+    /// Connection state: status, last success, the negotiated protocol version and generation, and the
+    /// legacy protocol's session id (kept on the device, never logged).
+    nonisolated private static func createMcpConnectionStateTable(in db: Database) throws {
+        try db.execute(sql: """
+            CREATE TABLE mcp_connection_state (
+                serverId TEXT PRIMARY KEY NOT NULL,
+                status TEXT NOT NULL,
+                lastSuccessAt REAL,
+                negotiatedVersion TEXT,
+                generation TEXT,
+                sessionId TEXT
+            )
+            """)
+    }
+
+    /// Tool snapshots: server id + original tool name -> title, description, parameter definition,
+    /// read-only declaration, content hash, quarantine flag and "too large to use" flag.
+    nonisolated private static func createMcpToolSnapshotTable(in db: Database) throws {
+        try db.execute(sql: """
+            CREATE TABLE mcp_tool_snapshot (
+                serverId TEXT NOT NULL,
+                toolName TEXT NOT NULL,
+                title TEXT NOT NULL,
+                description TEXT,
+                inputSchema TEXT NOT NULL,
+                annotations TEXT NOT NULL,
+                contentHash TEXT NOT NULL,
+                readOnly INTEGER NOT NULL DEFAULT 0,
+                pendingReview INTEGER NOT NULL DEFAULT 0,
+                oversized INTEGER NOT NULL DEFAULT 0,
+                updatedAt REAL NOT NULL,
+                PRIMARY KEY (serverId, toolName)
+            )
+            """)
+    }
+
+    /// Tool permissions: server id + original tool name -> auto / ask / off.
+    nonisolated private static func createMcpToolPermissionTable(in db: Database) throws {
+        try db.execute(sql: """
+            CREATE TABLE mcp_tool_permission (
+                serverId TEXT NOT NULL,
+                toolName TEXT NOT NULL,
+                permission TEXT NOT NULL,
+                PRIMARY KEY (serverId, toolName)
+            )
+            """)
+    }
+
+    /// Conversation switches: conversation id -> the servers turned on for it.
+    nonisolated private static func createMcpConversationSwitchTable(in db: Database) throws {
+        try db.execute(sql: """
+            CREATE TABLE mcp_conversation_switch (
+                conversationId TEXT NOT NULL,
+                serverId TEXT NOT NULL,
+                enabledAt REAL NOT NULL,
+                PRIMARY KEY (conversationId, serverId)
+            )
+            """)
+    }
+
+    /// Step payloads: message id + step id -> the raw arguments (up to 16 KB) and the first 2 KB of the
+    /// result, plus the server that ran the step so that removing the server can delete its payloads.
+    nonisolated private static func createMcpStepPayloadTable(in db: Database) throws {
+        try db.execute(sql: """
+            CREATE TABLE mcp_step_payload (
+                messageID TEXT NOT NULL,
+                stepID TEXT NOT NULL,
+                serverId TEXT,
+                arguments TEXT,
+                resultPrefix TEXT,
+                createdAt REAL NOT NULL,
+                PRIMARY KEY (messageID, stepID)
+            )
+            """)
+    }
+
+    /// Conversation switches and step payloads follow their conversation and message: deleting either one
+    /// (including a foreign-key cascade or clearing the whole table) cleans them up too.
+    ///
+    /// Triggers rather than a statement on every delete path: `ConversationStore` deletes conversations and
+    /// messages from several places, and one missed path would leave tool arguments and results on the
+    /// device for good. Both tables store ids as `uuidString`, like `conversation.id` and `message.id`.
+    /// The conversation trigger runs BEFORE the delete: its message rows still exist then, so the payloads
+    /// can be cleared by message id without depending on the cascade firing the second trigger.
+    nonisolated private static func createMcpCleanupTriggers(in db: Database) throws {
+        try db.execute(sql: """
+            CREATE TRIGGER mcp_cleanup_before_conversation_delete
+            BEFORE DELETE ON conversation
+            BEGIN
+                DELETE FROM mcp_step_payload
+                WHERE messageID IN (SELECT id FROM message WHERE conversationID = OLD.id);
+                DELETE FROM mcp_conversation_switch WHERE conversationId = OLD.id;
+            END
+            """)
+        try db.execute(sql: """
+            CREATE TRIGGER mcp_cleanup_after_message_delete
+            AFTER DELETE ON message
+            BEGIN
+                DELETE FROM mcp_step_payload WHERE messageID = OLD.id;
+            END
+            """)
     }
 
 

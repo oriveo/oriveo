@@ -842,6 +842,9 @@ actor MetadataClient {
         let providerConfigs: [PublicProviderConfig]?
         let relayRuntimeConfig: RawRelayRuntimeConfig?
         let runtimeConfig: RawRuntimeConfig?
+        /// Runtime limits for remote MCP. Kept as raw JSON so that any shape decodes: a malformed section
+        /// must not fail the whole catalog. Reading and clamping the values is `McpRuntimeConfig(json:)`.
+        let mcpRuntimeConfig: JSONValue?
         let capabilityRuntime: CapabilityRuntimeEnvelope?
         let modelFacts: [String: ModelFacts]?
         let modelFactsRevision: String?
@@ -874,6 +877,7 @@ actor MetadataClient {
         let providerConfigs: [PublicProviderConfig]?
         let relayRuntimeConfig: RawRelayRuntimeConfig?
         let runtimeConfig: RawRuntimeConfig?
+        let mcpRuntimeConfig: JSONValue?
         let capabilityRuntime: CapabilityRuntimeEnvelope?
     }
 
@@ -1840,6 +1844,13 @@ actor MetadataClient {
 
     nonisolated static func syncSelfHealPatternsToClassifier() {
         UnsupportedParamClassifier.setRuntimePatterns(withSharedSnapshot { $0?.runtimeConfig?.selfHealPatterns } ?? [])
+    }
+
+    /// Runtime limits for remote MCP. When the snapshot has no such section (a catalog that does not serve
+    /// one, or a cold start before the first fetch) these are the built-in fallback values and the feature
+    /// stays on; with `enabled == false` the entry points are hidden and requests carry no MCP tools.
+    nonisolated func syncMcpRuntimeConfig() -> McpRuntimeConfig {
+        McpRuntimeConfig(json: Self.withSharedSnapshot { $0?.mcpRuntimeConfig }?.mcpJSONValue)
     }
 
     nonisolated func syncRelayRuntimeConfig() -> RelayRuntimeConfig {
@@ -2997,6 +3008,7 @@ actor MetadataClient {
             providerConfigs: index.providerConfigs,
             relayRuntimeConfig: index.relayRuntimeConfig,
             runtimeConfig: index.runtimeConfig,
+            mcpRuntimeConfig: index.mcpRuntimeConfig,
             capabilityRuntime: index.capabilityRuntime,
             modelFacts: state.modelFacts,
             modelFactsRevision: state.modelFactsRevision
@@ -3240,6 +3252,7 @@ actor MetadataClient {
             providerConfigs: response.providerConfigs,
             relayRuntimeConfig: response.relayRuntimeConfig,
             runtimeConfig: response.runtimeConfig,
+            mcpRuntimeConfig: response.mcpRuntimeConfig,
             capabilityRuntime: response.capabilityRuntime,
             modelFacts: response.modelFacts,
             modelFactsRevision: response.modelFactsRevision
@@ -3273,6 +3286,7 @@ actor MetadataClient {
             providerConfigs: response.providerConfigs,
             relayRuntimeConfig: response.relayRuntimeConfig,
             runtimeConfig: response.runtimeConfig,
+            mcpRuntimeConfig: response.mcpRuntimeConfig,
             capabilityRuntime: response.capabilityRuntime,
             modelFacts: facts,
             modelFactsRevision: revision
@@ -3294,6 +3308,7 @@ actor MetadataClient {
             providerConfigs: response.providerConfigs,
             relayRuntimeConfig: response.relayRuntimeConfig,
             runtimeConfig: response.runtimeConfig,
+            mcpRuntimeConfig: response.mcpRuntimeConfig,
             capabilityRuntime: response.capabilityRuntime,
             modelFacts: nil,
             modelFactsRevision: nil
@@ -3679,6 +3694,22 @@ actor MetadataClient {
             return true
         } catch {
             return false
+        }
+    }
+}
+
+extension MetadataClient.JSONValue {
+    /// The MCP module's `JSONValue` for the same data (the runtime limits are read by key, so key order
+    /// does not matter).
+    nonisolated var mcpJSONValue: JSONValue {
+        switch self {
+        case .string(let value): return .string(value)
+        case .number(let value): return .number(value)
+        case .bool(let value): return .bool(value)
+        case .null: return .null
+        case .array(let values): return .array(values.map(\.mcpJSONValue))
+        case .object(let dict):
+            return .object(JSONObject(dict.keys.sorted().map { ($0, dict[$0]!.mcpJSONValue) }))
         }
     }
 }

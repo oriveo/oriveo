@@ -131,6 +131,7 @@ enum RecordMappers {
         let quoteContext = decodeQuoteContext(record.quoteContext)
         let capabilityExecution = decodeCapabilityExecution(record.capabilityExecution)
         let unhandledToolCalls = decodeUnhandledToolCalls(record.unhandledToolCalls)
+        let toolSteps = decodeToolSteps(record.toolSteps, messageState: state)
 
         return ChatMessage(
             id: id,
@@ -151,6 +152,7 @@ enum RecordMappers {
             attachments: attachments.isEmpty ? nil : attachments,
             quoteContext: quoteContext,
             citations: citations,
+            toolSteps: toolSteps,
             createdAt: record.createdAt.map(Date.init(timeIntervalSince1970:)),
             inputTokens: record.inputTokens,
             outputTokens: record.outputTokens,
@@ -161,7 +163,26 @@ enum RecordMappers {
             costSource: record.costSource.flatMap(CostSource.init(rawValue:)),
             capabilityExecution: capabilityExecution,
             unhandledToolCalls: unhandledToolCalls,
+            toolFallbackNotice: record.toolFallbackNotice
         )
+    }
+
+    /// A step still marked `running` on a message that is no longer generating (the process was killed
+    /// mid-loop) is read back as `interrupted`. A generating message is returned untouched: a projection
+    /// refresh inside the same process must not rewrite a step that is really running. After a kill the
+    /// message itself leaves the generating state at launch, and the next read takes the first branch.
+    nonisolated static func decodeToolSteps(_ raw: String?, messageState: ChatMessageState) -> [McpToolStep]? {
+        guard let raw, let data = raw.data(using: .utf8),
+              let decoded = try? JSONDecoder().decode([McpToolStep].self, from: data),
+              !decoded.isEmpty else { return nil }
+        return messageState == .generating ? decoded : McpToolStep.interruptingRunning(decoded)
+    }
+
+    nonisolated static func encodeToolSteps(_ steps: [McpToolStep]?) -> String? {
+        guard let steps, !steps.isEmpty,
+              let data = try? JSONEncoder().encode(steps),
+              let json = String(data: data, encoding: .utf8) else { return nil }
+        return json
     }
 
     nonisolated static func encodeCitations(_ citations: [Citation]?) -> String? {

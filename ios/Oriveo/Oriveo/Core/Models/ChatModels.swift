@@ -559,6 +559,9 @@ nonisolated struct ChatMessage: Identifiable, Hashable, Codable, Sendable {
     var attachments: [Attachment]? = nil
     var quoteContext: QuoteContext? = nil
     var citations: [Citation]? = nil
+    /// Summaries of the remote MCP tool steps this answer ran. The raw arguments and results are not here:
+    /// they stay in the local `mcp_step_payload` table.
+    var toolSteps: [McpToolStep]? = nil
     var createdAt: Date? = Date()
     var inputTokens: Int? = nil
     var outputTokens: Int? = nil
@@ -572,6 +575,9 @@ nonisolated struct ChatMessage: Identifiable, Hashable, Codable, Sendable {
     var capabilityExecution: CapabilityExecutionResult? = nil
 
     var unhandledToolCalls: [UnhandledToolCall]? = nil
+    /// Code of a device-local notice shown with the tool steps (`ToolFallbackNotice`). Stored as a code, not
+    /// as text, and never part of the Codable envelope.
+    var toolFallbackNotice: String? = nil
 
     var estimatedCostText: String {
         CostFormatter.format(estimatedCost)
@@ -697,6 +703,7 @@ nonisolated struct ChatMessage: Identifiable, Hashable, Codable, Sendable {
         attachments: [Attachment]? = nil,
         quoteContext: QuoteContext? = nil,
         citations: [Citation]? = nil,
+        toolSteps: [McpToolStep]? = nil,
         createdAt: Date? = Date(),
         inputTokens: Int? = nil,
         outputTokens: Int? = nil,
@@ -707,6 +714,7 @@ nonisolated struct ChatMessage: Identifiable, Hashable, Codable, Sendable {
         costSource: CostSource? = nil,
         capabilityExecution: CapabilityExecutionResult? = nil,
         unhandledToolCalls: [UnhandledToolCall]? = nil,
+        toolFallbackNotice: String? = nil
     ) {
         self.id = id
         self.role = role
@@ -726,6 +734,7 @@ nonisolated struct ChatMessage: Identifiable, Hashable, Codable, Sendable {
         self.attachments = attachments
         self.quoteContext = quoteContext
         self.citations = citations
+        self.toolSteps = toolSteps
         self.createdAt = createdAt
         self.inputTokens = inputTokens
         self.outputTokens = outputTokens
@@ -738,13 +747,14 @@ nonisolated struct ChatMessage: Identifiable, Hashable, Codable, Sendable {
         // message envelope (nor carry provider response data).
         self.capabilityExecution = capabilityExecution
         self.unhandledToolCalls = unhandledToolCalls
+        self.toolFallbackNotice = toolFallbackNotice
     }
 
     private enum CodingKeys: String, CodingKey {
         case id, role, text, reasoningText, reasoningDurationMs, providerID, providerKind, providerName
         case modelID, modelName, servedModelID
         case estimatedCost, state, errorTitle, errorDetail
-        case estimatedCostText, attachments, quoteContext, citations, createdAt
+        case estimatedCostText, attachments, quoteContext, citations, toolSteps, createdAt
         case inputTokens, outputTokens, cachedInputTokens, cacheCreationInputTokens
         case cacheCreation5mTokens, cacheCreation1hTokens, costSource
     }
@@ -769,6 +779,10 @@ nonisolated struct ChatMessage: Identifiable, Hashable, Codable, Sendable {
         let decodedQuote = try? c.decode(QuoteContext.self, forKey: .quoteContext)
         quoteContext = decodedQuote?.isValid == true ? decodedQuote : nil
         citations = try c.decodeIfPresent([Citation].self, forKey: .citations)
+        // An additive field: malformed data only degrades to "no steps". A `running` step read back from a
+        // backup will never be advanced by anyone, so it becomes `interrupted`.
+        toolSteps = (try? c.decodeIfPresent([McpToolStep].self, forKey: .toolSteps))
+            .flatMap { $0 }.map(McpToolStep.interruptingRunning)
         createdAt = try c.decodeIfPresent(Date.self, forKey: .createdAt)
 
         if let cost = try c.decodeIfPresent(Double.self, forKey: .estimatedCost) {
@@ -788,6 +802,7 @@ nonisolated struct ChatMessage: Identifiable, Hashable, Codable, Sendable {
         costSource = try c.decodeIfPresent(CostSource.self, forKey: .costSource)
         capabilityExecution = nil
         unhandledToolCalls = nil
+        toolFallbackNotice = nil
     }
 
     func encode(to encoder: Encoder) throws {
@@ -812,6 +827,7 @@ nonisolated struct ChatMessage: Identifiable, Hashable, Codable, Sendable {
             try c.encode(quoteContext, forKey: .quoteContext)
         }
         try c.encodeIfPresent(citations, forKey: .citations)
+        try c.encodeIfPresent(toolSteps, forKey: .toolSteps)
         try c.encodeIfPresent(createdAt, forKey: .createdAt)
         try c.encodeIfPresent(inputTokens, forKey: .inputTokens)
         try c.encodeIfPresent(outputTokens, forKey: .outputTokens)
@@ -1144,4 +1160,10 @@ nonisolated struct UnhandledToolCall: Codable, Hashable, Sendable {
     var id: String?
     var name: String
     var arguments: String
+}
+
+/// Device-local notices attached to an assistant message (`ChatMessage.toolFallbackNotice`).
+nonisolated enum ToolFallbackNotice: String, Sendable {
+    /// The remote MCP tool loop hit its step limit; the tool step block says so in its last row.
+    case mcpToolLimitReached = "mcp_tool_limit_reached"
 }

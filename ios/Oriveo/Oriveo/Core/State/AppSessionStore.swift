@@ -414,6 +414,9 @@ nonisolated enum AppSessionStore {
         let dir = userDir(for: uid)
         try? FileManager.default.removeItem(at: dir)
         ProviderAPIKeyStore.deleteAll(for: uid)
+        // The partition's MCP server records went with its database file; their tokens and client
+        // registrations live in the Keychain, outside the partition directory, and have to go too.
+        try? McpCredentialStore.shared.deleteAll(for: uid)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         try? FileManager.default.createDirectory(
             at: dir.appendingPathComponent("Images", isDirectory: true),
@@ -471,6 +474,7 @@ nonisolated enum AppSessionStore {
         try? FileManager.default.removeItem(at: filesDir)
         try? FileManager.default.removeItem(at: recoverySnapshotPath(for: activeUID))
         ProviderAPIKeyStore.deleteAll(for: activeUID)
+        try? McpCredentialStore.shared.deleteAll(for: activeUID)
     }
 
 
