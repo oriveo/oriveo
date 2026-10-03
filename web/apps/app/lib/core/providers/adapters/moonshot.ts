@@ -240,6 +240,12 @@ const DEFAULT_MOONSHOT_MAX_TOOL_LOOPS = 4;
  * events reach the stream live. If a leg ends with accumulated tool_calls, the echo plus arguments
  * are fed back into the next leg, otherwise the loop finishes. usage is captured per leg and summed
  * across legs (each leg is billed separately) and emitted once at the end.
+ *
+ * This loop deliberately does not use the generic tool loop in packages/core/src/tools. The Kimi
+ * contract requires the assistant tool-call message that is fed back to carry reasoning_content
+ * while thinking is on, and the generic loop's ToolProtocolAdapter only receives text and
+ * toolCalls, not reasoning. The generic loop would also drop the model events this adapter
+ * forwards, and it emits usage per leg instead of one total at the end.
  */
 function sendWebSearchToolLoopStream(
   apiKey: string,

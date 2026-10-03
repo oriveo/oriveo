@@ -4,6 +4,20 @@
 // $web_search arguments are fed back locally and the next streamed leg starts, up to
 // maxLoops rounds. usage is intercepted per leg and summed across legs, since each leg is
 // billed separately, and one total is emitted at the end.
+//
+// This loop deliberately does not use the generic tool loop in packages/core/src/tools:
+// 1. It runs somewhere else. This loop lives in the Next server route (Response in, Response
+//    out), while the generic loop drives every leg from the browser. Moving the upstream legs to
+//    the browser would change who holds the credential and who forwards the request.
+// 2. The wire protocol differs. Upstream SSE chunks pass through verbatim here (only usage is
+//    intercepted and a reasoning separator added), while the generic loop only understands typed
+//    StreamEvents; re-encoding per event would drop fields such as model and finish_reason and
+//    change the contract with the browser.
+// 3. There is no local execution to hand over. $web_search is a built-in upstream tool and only
+//    its raw arguments are fed back, whereas a registry entry in the generic loop means "run a
+//    tool locally".
+// 4. Continuation events, usage summed and stripped across legs, and the 1..5 cap cannot be
+//    expressed through the generic loop's public surface.
 import type { ProviderRequest } from "../request-builders/types";
 import type { UpstreamTransport } from "../../ports";
 import type { UnsupportedParamDroppedReporter, UnsupportedParamScope } from "../unsupported-param";
