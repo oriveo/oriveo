@@ -51,6 +51,8 @@ Sentry.init({
     if (isIgnorableBrowserNoiseError(event)) return null;
     return redactSentryEvent(liftProviderErrorDetail(event, hint));
   },
+  // Page-load and navigation transaction events carry the page address (the OAuth callback URL contains the authorization code), so they are redacted as well.
+  beforeSendTransaction: (event) => redactSentryEvent(event),
   beforeBreadcrumb: redactSentryBreadcrumb,
   // Browser tracing records outgoing fetch URLs on spans, so the same redaction applies here.
   beforeSendSpan: redactSentrySpan,

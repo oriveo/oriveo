@@ -32,6 +32,7 @@ import {
   type OpenAISubscriptionAuthConfig,
   type OpenAISubscriptionAvailability,
 } from "@oriveo/core/providers/openai-subscription";
+import { parseMcpRuntimeConfig, type McpRuntimeConfig } from "@oriveo/core/mcp/mcp-types";
 import { PUBLIC_METADATA_BASE_URL } from "@oriveo/shared";
 import { APP_VERSION } from "../../version";
 import { readBlob, writeBlob, pruneBlobs, deleteBlob } from "../../infra/storage/blob-cache";
@@ -501,6 +502,8 @@ interface MetadataResponse {
   providerConfigs?: PublicProviderConfig[];
   relayRuntimeConfig?: RelayRuntimeConfig;
   libraryRuntimeConfig?: Partial<LibraryRuntimeConfig>;
+  /** Remote MCP runtime limits. Kept as received; `getMcpRuntimeConfig` parses and clamps it on read. */
+  mcpRuntimeConfig?: unknown;
   runtimeConfig?: ClientRuntimeConfig;
   /** Authoritative recipe envelope, retained for the product UI. */
   capabilityRuntime?: CapabilityRuntimeEnvelope;
@@ -1917,6 +1920,15 @@ export function getRelayRuntimeConfig(): RelayRuntimeConfig {
         DEFAULT_RELAY_RUNTIME_CONFIG.featureGatingPolicy.showSoftFailHint,
     },
   };
+}
+
+/**
+ * Remote MCP runtime limits. When no snapshot was fetched, or the catalog carries no such section
+ * (a self-hosted catalog, for example), the built-in fallback values apply and the feature stays
+ * on; out-of-range numbers are clamped to the bounds.
+ */
+export function getMcpRuntimeConfig(): McpRuntimeConfig {
+  return parseMcpRuntimeConfig(cached?.mcpRuntimeConfig);
 }
 
 /** Returns the library agent loop policy, merging in the built-in defaults field by field when the catalog is partial. */

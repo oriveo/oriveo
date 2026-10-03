@@ -29,6 +29,7 @@ vi.mock('@sentry/nextjs', () => {
     init: vi.fn(),
     replayIntegration: vi.fn(() => ({})),
     setUser: vi.fn(),
+    suppressTracing: <T,>(callback: () => T): T => callback(),
     withScope: vi.fn((callback: (value: typeof scope) => void) => callback(scope)),
     withSentryConfig: vi.fn((config: unknown) => config),
   };

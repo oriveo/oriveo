@@ -31,6 +31,32 @@ export function isIgnorableRelayProtectiveAbort(event: Event): boolean {
 }
 
 /**
+ * The same protective cuts on `/api/mcp/forward` (idle timeout, total duration cap, response size
+ * limit), plus the error produced when the route aborts its own upstream request on one of those
+ * cuts or on a client disconnect. All of them are things the route does by design, not bugs.
+ *
+ * The second reason not to report them matters more than the noise: the inbound request headers
+ * of this route carry the user's MCP token, and every pointless event that is not sent is one
+ * fewer trip of a credential through the reporting pipeline. The headers themselves are removed
+ * unconditionally by redactSentryEvent; the two safeguards do not depend on each other.
+ */
+const MCP_PROTECTIVE_PATTERNS = [
+  /^MCP stream idle timeout/,
+  /^MCP stream exceeded maximum duration/,
+  /^MCP response exceeded the .* limit/,
+  /^MCP upstream request aborted/,
+] as const;
+
+export function isIgnorableMcpProtectiveAbort(event: Event): boolean {
+  const errorEvent = event as ErrorEvent;
+  const values = errorEvent.exception?.values ?? [];
+  return values.some((entry) => {
+    const value = entry.value;
+    return !!value && MCP_PROTECTIVE_PATTERNS.some((pattern) => pattern.test(value));
+  });
+}
+
+/**
  * When an upstream provider or relay resets the TLS connection mid-stream, or a mobile user
  * switches away or loses signal, the server gets a bare `ECONNRESET`; the undici fetch to the
  * upstream is aborted (`TypeError: terminated`) and the Next.js piping layer then throws
@@ -46,11 +72,19 @@ export function isIgnorableRelayProtectiveAbort(event: Event): boolean {
 const STREAM_ROUTE_TRANSACTIONS = new Set<string>([
   "POST /api/chat/stream",
   "POST /api/relay/forward",
+  // All three methods of the MCP forward route can return a streamed response (SSE on POST, the notification stream on a legacy-protocol GET).
+  "POST /api/mcp/forward",
+  "GET /api/mcp/forward",
+  "DELETE /api/mcp/forward",
 ]);
 
 const STREAM_DISCONNECT_PATTERNS = [
   /ECONNRESET/,
   /^terminated$/, // the undici fetch was aborted (client disconnect, or an upstream reset)
+  // node:http when the peer closes the connection midway through the response body: the error
+  // IncomingMessage throws has the message `aborted` (the code is ECONNRESET, but the message is
+  // what reaches the event). Both the relay and the MCP forward route reach upstream with node:http.
+  /^aborted$/,
 ] as const;
 
 function matchesDisconnectPattern(value: string | undefined): boolean {

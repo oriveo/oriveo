@@ -87,6 +87,11 @@ export function getImageDBName(uid: string): string {
   return `oriveo-images--${uid}`;
 }
 
+/** Name of the remote MCP IDB database (server records, device-local state and MCP credentials; see core/mcp/mcp-idb.ts). */
+export function getMcpDBName(uid: string): string {
+  return `oriveo-mcp--${uid}`;
+}
+
 /** Reports whether a user partition holds any data, without creating a database that does not exist. */
 export async function hasPartitionData(uid: string): Promise<boolean> {
   const dbName = getDBName(uid);
@@ -112,9 +117,13 @@ export async function hasPartitionData(uid: string): Promise<boolean> {
   }
 }
 
-/** Deletes one profile partition's data along with its image database. */
+/**
+ * Deletes one profile partition's data along with its image and MCP databases. The MCP database
+ * holds that profile's MCP credentials, so deleting the partition removes them too; a connection
+ * that is still open receives `versionchange` and closes itself to make way (`blocking` in mcp-idb).
+ */
 export async function deletePartitionData(uid: string): Promise<void> {
-  const dbNames = [getDBName(uid), getImageDBName(uid)];
+  const dbNames = [getDBName(uid), getImageDBName(uid), getMcpDBName(uid)];
 
   await Promise.all(dbNames.map((dbName) => new Promise<void>((resolve) => {
     const request = indexedDB.deleteDatabase(dbName);

@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { Event } from "@sentry/nextjs";
-import { isIgnorableRelayProtectiveAbort, isIgnorableStreamDisconnect } from "../ignore-relay-noise";
+import {
+  isIgnorableMcpProtectiveAbort,
+  isIgnorableRelayProtectiveAbort,
+  isIgnorableStreamDisconnect,
+} from "../ignore-relay-noise";
 
 function buildEvent(values: Array<{ type?: string; value?: string }>): Event {
   return { exception: { values } } as unknown as Event;
@@ -95,6 +99,59 @@ describe("isIgnorableStreamDisconnect", () => {
   it("returns false when transaction is missing", () => {
     const event = buildEventWithTransaction(undefined, [
       { type: "Error", value: "read ECONNRESET" },
+    ]);
+    expect(isIgnorableStreamDisconnect(event)).toBe(false);
+  });
+});
+
+describe("isIgnorableMcpProtectiveAbort", () => {
+  it("drops the event when an MCP protective abort appears in the cause chain", () => {
+    for (const message of [
+      "MCP stream idle timeout (no data for 90 seconds)",
+      "MCP stream exceeded maximum duration of 600 seconds",
+      "MCP response exceeded the 8MB limit",
+      "MCP upstream request aborted",
+    ]) {
+      const event = buildEvent([
+        { type: "Error", value: "failed to pipe response" },
+        { type: "Error", value: message },
+      ]);
+      expect(isIgnorableMcpProtectiveAbort(event), message).toBe(true);
+    }
+  });
+
+  it("keeps other errors on the MCP route and does not treat Relay messages as its own", () => {
+    expect(isIgnorableMcpProtectiveAbort(buildEvent([{ type: "TypeError", value: "x is not a function" }]))).toBe(false);
+    expect(
+      isIgnorableMcpProtectiveAbort(buildEvent([{ type: "Error", value: "Relay stream idle timeout (no data for 90 seconds)" }])),
+    ).toBe(false);
+    expect(isIgnorableMcpProtectiveAbort(buildEvent([{ type: "Error", value: "Upstream said: MCP stream idle timeout" }]))).toBe(false);
+    expect(isIgnorableMcpProtectiveAbort({} as Event)).toBe(false);
+  });
+});
+
+describe("isIgnorableStreamDisconnect on the MCP forward route", () => {
+  it("drops mid-stream disconnects for all three methods", () => {
+    for (const transaction of ["POST /api/mcp/forward", "GET /api/mcp/forward", "DELETE /api/mcp/forward"]) {
+      for (const value of ["read ECONNRESET", "terminated", "aborted"]) {
+        expect(
+          isIgnorableStreamDisconnect(buildEventWithTransaction(transaction, [{ type: "Error", value }])),
+          `${transaction} ${value}`,
+        ).toBe(true);
+      }
+    }
+  });
+
+  it("still reports a real 500 on the MCP route", () => {
+    const event = buildEventWithTransaction("POST /api/mcp/forward", [
+      { type: "TypeError", value: "Cannot read properties of undefined (reading 'foo')" },
+    ]);
+    expect(isIgnorableStreamDisconnect(event)).toBe(false);
+  });
+
+  it("matches aborted only as the whole string and keeps other messages containing the word", () => {
+    const event = buildEventWithTransaction("POST /api/mcp/forward", [
+      { type: "Error", value: "Transaction aborted by user code" },
     ]);
     expect(isIgnorableStreamDisconnect(event)).toBe(false);
   });

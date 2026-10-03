@@ -1,0 +1,43 @@
+/* MCP OAuth callback page: shared by the "done" and "please return to the app" end states; kept minimal, centered and free of distraction. */
+
+.page {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--o-space-sm);
+  min-height: 100vh;
+  min-height: 100dvh;
+  max-width: 420px;
+  margin: 0 auto;
+  padding: var(--o-space-lg);
+  text-align: center;
+}
+
+.title {
+  margin: 0;
+  font-size: 1.0625rem;
+  font-weight: var(--o-weight-semibold);
+  color: var(--o-text);
+}
+
+.description {
+  margin: 0;
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--o-text-secondary);
+}
+
+/* Fallback entry on the "please return to the app" page: a text link that does not compete with the explanatory text. */
+.action {
+  margin-top: var(--o-space-sm);
+  font-size: 0.875rem;
+  font-weight: var(--o-weight-semibold);
+  color: var(--o-primary-text-safe);
+  text-decoration: none;
+}
+
+.action:hover,
+.action:focus-visible {
+  text-decoration: underline;
+}

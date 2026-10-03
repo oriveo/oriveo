@@ -9,6 +9,7 @@ import type { StoreApi } from 'zustand';
 import type { Provider } from '@oriveo/shared';
 import type { AppStore } from './store/app-store';
 import { hydrateStore } from './store/persistence';
+import { hydrateMcpStore } from './mcp/mcp-store';
 import {
   getActiveUID,
   getActiveUIDSync,
@@ -91,6 +92,7 @@ export async function bootstrapApp(
       activeConversationId: null,
     });
     await hydrateStore(store);
+    await hydrateMcpStore('guest');
     if (signal.cancelled) return { initialUser: null, authResolution: 'cancelled' };
 
     store.setState({ hydrationPhase: 'metadata-pending' });

@@ -1136,6 +1136,42 @@ describe("metadata-client", () => {
     });
   });
 
+  it("parses mcpRuntimeConfig: fallback values when absent, out-of-range numbers clamped to the bounds", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValue({
+      status: 304,
+      ok: false,
+      json: vi.fn(),
+    } as unknown as Response);
+    const empty = await import("../metadata-client");
+    // With no snapshot at all: fallback values, and the feature stays enabled
+    expect(empty.getMcpRuntimeConfig()).toEqual({
+      version: 1, enabled: true, maxServers: 20, maxToolsPerRequest: 40,
+      maxToolDefinitionBytes: 16_384, maxResultChars: 24_000, callTimeoutSeconds: 60, maxSteps: 6,
+    });
+
+    await seedMetadataCache({
+      timestamp: Date.now(),
+      data: {
+        version: 1,
+        contractVersion: 1,
+        updatedAt: "2026-10-03T10:00:00Z",
+        profiles: {},
+        providers: {},
+        mcpRuntimeConfig: {
+          version: 2, enabled: false, maxServers: 0, maxToolsPerRequest: 12,
+          maxToolDefinitionBytes: 999_999, maxResultChars: "x", callTimeoutSeconds: 30, maxSteps: 20,
+        },
+      },
+    });
+    vi.resetModules();
+    const metadata = await import("../metadata-client");
+    await metadata.initMetadata();
+    expect(metadata.getMcpRuntimeConfig()).toEqual({
+      version: 2, enabled: false, maxServers: 1, maxToolsPerRequest: 12,
+      maxToolDefinitionBytes: 262_144, maxResultChars: 24_000, callTimeoutSeconds: 30, maxSteps: 8,
+    });
+  });
+
   it("v2 decoding preserves true / false / null and exposes the root-level capability contract version", async () => {
     await seedMetadataCache({
         timestamp: Date.now(),
