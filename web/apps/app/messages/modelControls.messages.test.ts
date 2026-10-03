@@ -58,6 +58,9 @@ function leafPaths(value: unknown, prefix = ''): string[] {
 }
 
 describe('model-control message keys', () => {
+  // This test lists and tokenizes every production source file under apps/app. It takes about
+  // 1.5s on its own but well over the default 5s timeout on a loaded machine, hence the
+  // explicit timeout.
   it('has no watched key that production code never references', () => {
     const english = JSON.parse(readFileSync(join(APP_ROOT, 'messages/en.json'), 'utf8')) as unknown;
     const watched = leafPaths(english)
@@ -76,5 +79,5 @@ describe('model-control message keys', () => {
       'These keys are translated in all sixteen locales but referenced nowhere in production code. '
       + 'Delete them from every locale file, or reconnect the surface that was meant to render them.',
     ).toEqual([]);
-  });
+  }, 30000);
 });
