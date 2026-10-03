@@ -56,7 +56,7 @@ export type ToolConfirmationReason = 'sensitive' | 'high_cost' | 'broad_read';
  * only ever comes from a frame observed on the wire, never from the user's settings or the model
  * name.
  */
-export type StreamActivity = 'web_search';
+export type StreamActivity = 'web_search' | 'mcp_tool';
 
 export type StreamEvent =
   | { type: 'delta'; content: string; managedSequence?: number }

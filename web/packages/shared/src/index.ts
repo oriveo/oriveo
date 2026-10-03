@@ -19,6 +19,8 @@ export type {
   ChatMessage,
   QuoteContentKind,
   QuoteContext,
+  McpToolStep,
+  McpToolStepStatus,
   Citation,
   Conversation,
   Attachment,

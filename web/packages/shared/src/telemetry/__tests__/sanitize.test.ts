@@ -121,6 +121,31 @@ describe('sanitizeProperties', () => {
     })).toEqual({ auth_mode: 'subscription' });
   });
 
+  it('keeps the MCP closed-set fields errorCode and authKind, and still drops look-alike credentials', () => {
+    // These camelCase fields carry the same names on every client. `errorCode` contains "code" and
+    // `authKind` contains "auth", so without an exact-name allowance mcp_tool_call and
+    // mcp_server_add_result would each lose a field without any error.
+    expect(sanitizeProperties({
+      status: 'failed',
+      errorCode: 'timeout',
+      authKind: 'token',
+      permission: 'ask',
+      readOnly: false,
+      durationBucket: '1_5s',
+      // Look-alike credential fields are still dropped: the allowance is by exact name, not by substring.
+      authCode: 'oauth-code',
+      inviteCode: 'secret',
+      authToken: 'sk-secret',
+    })).toEqual({
+      status: 'failed',
+      errorCode: 'timeout',
+      authKind: 'token',
+      permission: 'ask',
+      readOnly: false,
+      durationBucket: '1_5s',
+    });
+  });
+
   it('redacts sensitive query params from telemetry paths', () => {
     expect(
       sanitizeTelemetryPath('/auth/email-link?oobCode=secret&mode=signIn&continueUrl=/settings'),

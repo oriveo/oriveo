@@ -42,6 +42,12 @@ const SAFE_KEY_ALLOWLIST = new Set([
   // subscription links become invisible on the dashboard. The value is a fixed slug and carries no
   // credential.
   'auth_mode',
+  // Two closed-set properties of the remote MCP events, named the same (camelCase) on every client.
+  // `errorCode` contains "code" and `authKind` contains "auth", so without an exact allowance the
+  // substring scrubber would silently delete them. Their values are the closed set of MCP error
+  // codes and `auto` / `token`; neither carries a credential or raw server text.
+  'errorcode',
+  'authkind',
 ]);
 
 function normalizeKey(key: string): string {

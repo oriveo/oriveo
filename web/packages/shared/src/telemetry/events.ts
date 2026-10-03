@@ -51,6 +51,14 @@ export type TelemetryEventName =
   | 'unknown_transport_kind'
   | 'tool_call_unhandled'
   | 'tool_call_capability_mismatch'
+  // Remote MCP. Every property is a closed enum or a number: no server address or host name, no
+  // server name, tool name, arguments, results or raw error text.
+  | 'mcp_server_add_result'
+  | 'mcp_auth_result'
+  | 'mcp_tool_call'
+  | 'mcp_confirm_choice'
+  | 'mcp_tools_changed'
+  | 'mcp_server_removed'
   // Local content
   | 'skill_used'
   | 'skill_created'
@@ -98,6 +106,12 @@ export const TELEMETRY_EVENTS: readonly TelemetryEventName[] = [
   'unknown_transport_kind',
   'tool_call_unhandled',
   'tool_call_capability_mismatch',
+  'mcp_server_add_result',
+  'mcp_auth_result',
+  'mcp_tool_call',
+  'mcp_confirm_choice',
+  'mcp_tools_changed',
+  'mcp_server_removed',
   'skill_used',
   'skill_created',
   'skill_forked',

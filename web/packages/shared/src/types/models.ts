@@ -422,6 +422,32 @@ export interface ResearchStep {
   step?: number;
 }
 
+export type McpToolStepStatus = 'running' | 'done' | 'failed' | 'denied' | 'needsAuth' | 'interrupted';
+
+/**
+ * One MCP tool step on a message. It is a summary only: server name, tool, argument summary and
+ * status. The raw arguments and the result are stored separately as the step's payload, not here.
+ * Kept apart from the library's `researchSteps` so that shape stays untouched.
+ */
+export interface McpToolStep {
+  id: string;
+  /** Always `mcp`; leaves room for other sources later. */
+  scope: string;
+  /** Lowercase UUID, the same spelling as the server record's id. */
+  serverId: string;
+  /** Stored redundantly so the record stays readable after the server is removed. */
+  serverName: string;
+  toolName: string;
+  title: string;
+  /** At most 80 characters. */
+  argsSummary: string;
+  status: McpToolStepStatus;
+  /** A code from the closed error set; the raw error text returned by the server is never stored. */
+  errorCode?: string;
+  step: number;
+  durationMs?: number;
+}
+
 export type QuoteContentKind = 'prose' | 'code' | 'table';
 
 /**
@@ -517,6 +543,10 @@ export interface ChatMessage {
   libraryResearchEnabled?: boolean;
   /** Persisted progress rows of the library agent loop. */
   researchSteps?: ResearchStep[];
+  /** Summaries of remote MCP tool steps. A step that is still `running` when the message is loaded is presented as `interrupted`. */
+  toolSteps?: McpToolStep[];
+  /** This reply's MCP tool loop hit the step limit; the last row of the steps block says so. */
+  toolStepLimitReached?: boolean;
   /** ISO 8601 UTC set at creation. Optional so older backups still import. */
   createdAt?: string;
   imageUrl?: string;
