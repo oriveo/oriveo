@@ -18,7 +18,7 @@ import type { McpAuthorizationLauncher, McpAuthorizer } from './mcp-auth';
 import { McpAuthorizerError } from './mcp-auth';
 import { buildToolSnapshots, defaultToolPermissions } from './mcp-catalog';
 import { McpClient, McpClientError, type McpSession } from './mcp-client';
-import type { McpCredentialStore } from './mcp-credentials';
+import type { McpCredentialStore, McpCredentials } from './mcp-credentials';
 import type { McpTransport } from './mcp-transport';
 import {
   MCP_RUNTIME_CONFIG_FALLBACK,
@@ -74,6 +74,12 @@ export interface McpAddReview {
   tools: McpToolSnapshot[];
   /** Tools declared read-only default to `auto`, everything else to `ask`. */
   defaultPermissions: Record<string, McpToolPermission>;
+  /**
+   * Credentials obtained by the browser sign-in that are **not yet written to the credential store**.
+   * `McpAddCoordinator` stores them once the record is saved, and strips them from the terminal state
+   * handed to the UI.
+   */
+  pendingCredentials?: McpCredentials;
 }
 
 /** Probe states: four progress states followed by the terminal ones. */
@@ -117,7 +123,7 @@ export type McpAuthorizationGate = (prompt: McpAuthPrompt) => Promise<boolean>;
 export interface McpAddProbeOptions {
   runtimeConfig?: McpRuntimeConfig;
   authorizer: McpAuthorizer;
-  /** Must be the same one `authorizer` uses: on failure the token stored by this sign-in is deleted from it. */
+  /** Must be the same one `authorizer` uses: on failure the credentials under this id are deleted from it. */
   credentialStore: McpCredentialStore;
   /** Production passes a transport; tests may pass `makeClient` instead. */
   transport?: McpTransport;
@@ -164,8 +170,9 @@ export class McpAddProbe {
   /**
    * Runs the probe once and returns the terminal state. Progress states are reported through `progress`
    * in order; **the terminal state is not** - the caller emits it once after saving, so the UI never
-   * sees "success" followed by "failure". Before any failed terminal state is returned, the credentials
-   * stored by this sign-in have already been deleted.
+   * sees "success" followed by "failure". The token obtained by a browser sign-in is not written to
+   * storage here: on success it travels on `review.pendingCredentials` to the coordinator, and on
+   * failure it is dropped with the return value.
    */
   async run(request: McpProbeRequest): Promise<McpAddState> {
     const checked = checkMcpEndpoint(request.url);
@@ -233,10 +240,11 @@ export class McpAddProbe {
     if (!approved) return { kind: 'authCancelled' };
 
     await request.progress?.({ kind: 'browser' });
-    let token: string | null;
+    let credentials: McpCredentials;
     try {
-      const credentials = await this.authorizer.authorize(plan, request.serverId, request.uid, { signal, launcher: request.launcher });
-      token = credentials.accessToken ?? credentials.pastedToken ?? null;
+      // The token stays in memory for now and is stored only after the record is saved (see
+      // `McpAddCoordinator`). Stored first, a tab closed in between would leave a token without a server.
+      credentials = await this.authorizer.authorize(plan, request.serverId, request.uid, { signal, launcher: request.launcher, persist: false });
     } catch (error) {
       if (signal?.aborted) return { kind: 'cancelled' };
       if (error instanceof McpAuthorizerError && error.isTransient) return { kind: 'unreachable' };
@@ -244,8 +252,11 @@ export class McpAddProbe {
       return { kind: 'authCancelled' };
     }
     if (signal?.aborted) return { kind: 'cancelled' };
+    const token = credentials.accessToken ?? credentials.pastedToken ?? null;
     if (!token) return { kind: 'authCancelled' };
-    return this.retryWithToken(client, token, { ...request, authKind: 'auto' });
+    const state = await this.retryWithToken(client, token, { ...request, authKind: 'auto' });
+    if (state.kind !== 'review') return state;
+    return { kind: 'review', review: { ...state.review, pendingCredentials: credentials } };
   }
 
   /** Reconnects with a token. If sign-in is still required: pasted token -> token field error; browser sign-in -> sign-in not completed. */
@@ -393,9 +404,11 @@ export class McpAddCoordinator {
       return { kind: 'saveFailed' };
     }
 
-    const state = await this.probe.run({ ...request, url: endpoint });
-    if (state.kind !== 'review') return state;
-    const review = state.review;
+    const probed = await this.probe.run({ ...request, url: endpoint });
+    if (probed.kind !== 'review') return probed;
+    // Credentials that are not stored yet do not go to the UI with the terminal state.
+    const { pendingCredentials, ...review } = probed.review;
+    const state: McpAddState = { kind: 'review', review };
 
     // One last cancellation check before saving: the user has left the add page, so no server may quietly appear.
     if (request.signal?.aborted) {
@@ -433,13 +446,14 @@ export class McpAddCoordinator {
       return { kind: 'saveFailed' };
     }
 
-    // A pasted access token has only lived in memory so far, and it is stored after the save: storing the
-    // token first and being killed midway would leave a token without a server that nothing ever cleans up,
-    // whereas the reverse is merely a server missing its token, which the user can see and delete.
-    if (request.authKind === 'token' && request.token) {
+    // The token from a browser sign-in and a pasted access token have only lived in memory so far, and
+    // they are stored after the save: storing the token first and being killed midway would leave a token
+    // without a server, whereas the reverse is merely a server missing its token, which the user can see
+    // and delete.
+    const pastedToken = request.authKind === 'token' && request.token ? request.token : null;
+    if (pendingCredentials || pastedToken) {
       try {
-        const current = await this.credentialStore.load(request.serverId, request.uid);
-        await this.credentialStore.save({ ...(current ?? {}), pastedToken: request.token }, request.serverId, request.uid);
+        await this.credentialStore.save({ ...(pendingCredentials ?? {}), ...(pastedToken ? { pastedToken } : {}) }, request.serverId, request.uid);
       } catch {
         // Token not stored = this server is unusable: treat it as a failed add and remove the record just written (it is certainly the one this add inserted).
         try {

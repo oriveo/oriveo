@@ -81,6 +81,7 @@ export function getMcpCredentialStore(uid: string): McpCredentialStore {
     const storage = createIdbMcpCredentialStorage(uid);
     store = new McpCredentialStore({
       read: (key) => storage.read(key),
+      keys: () => storage.keys(),
       // Credentials were written to the database: the half other tabs cache in memory is now stale, so tell them to drop it.
       async write(key, value) {
         await storage.write(key, value);
@@ -280,6 +281,20 @@ async function discardAbandonedMcpAdds(uid: string, now: number = Date.now()): P
   }
 }
 
+/**
+ * Removes credentials that have no server record. The add flow saves the record first and the token
+ * after, so normally there are none; this catches what an interrupted cleanup left behind. Additions
+ * in progress (held by this page, or parked on the permission review step in another tab) already
+ * have a record carrying `pendingAdd` and count as known servers.
+ */
+async function discardOrphanMcpCredentials(uid: string): Promise<void> {
+  await getMcpCredentialStore(uid).deleteOrphans(uid, async () => {
+    const ids = (await loadMcpLocalState(uid)).servers.map((server) => server.id);
+    for (const key of addHolds.keys()) if (key.startsWith(`${uid}:`)) ids.push(key.slice(uid.length + 1));
+    return ids;
+  });
+}
+
 // ── store ────────────────────────────────────────────────────────────────
 
 export interface McpAddServerInput {
@@ -388,6 +403,7 @@ export const useMcpStore = create<McpStoreState>((set, get) => {
       mcpStoreChannel();
       // A failed cleanup does not block hydration: half-finished additions are left for next time.
       await discardAbandonedMcpAdds(uid).catch(() => {});
+      await discardOrphanMcpCredentials(uid).catch(() => {});
       await project(uid);
     },
 

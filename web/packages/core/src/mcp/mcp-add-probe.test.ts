@@ -246,6 +246,74 @@ describe('add flow', () => {
     expect(await env.credentialStore.load(SERVER_ID, UID)).toMatchObject({ accessToken: 'at_1', hasRefreshToken: true });
   });
 
+  it('keeps the token from a browser sign-in in memory: the credential medium does not have it when the record is saved, only afterwards', async () => {
+    const env = setup(fakeServer({ oauth: 'cimd' }));
+    const writes: string[] = [];
+    const write = env.storage.write.bind(env.storage);
+    env.storage.write = async (key, value) => {
+      writes.push(key);
+      await write(key, value);
+    };
+    const addServer = env.repository.addServer.bind(env.repository);
+    let keysAtCommit: string[] | null = null;
+    env.repository.addServer = async (addition, max) => {
+      keysAtCommit = [...env.storage.snapshot().keys()];
+      const record = await addServer(addition, max);
+      // The record is saved and the token is not stored yet: a tab closed here leaves a server missing its token, not an orphaned token.
+      expect(writes).toEqual([]);
+      return record;
+    };
+    const state = await env.coordinator.add({ url: ENDPOINT, authKind: 'auto', uid: UID, serverId: SERVER_ID, confirmAuthorization: async () => true });
+    expect(state.kind).toBe('review');
+    expect(keysAtCommit).toEqual([]);
+    expect(writes).toEqual([McpCredentialStore.refreshKey(SERVER_ID, UID), McpCredentialStore.accessKey(SERVER_ID, UID)]);
+    expect(await env.credentialStore.loadRefreshToken(SERVER_ID, UID)).toBe('rt_1');
+    // The terminal state handed to the UI carries no token.
+    expect(JSON.stringify(state)).not.toContain('at_1');
+    expect(state.kind === 'review' && 'pendingCredentials' in state.review).toBe(false);
+  });
+
+  it('never writes to the credential medium for an add that fails after the browser sign-in (reading tools fails / saving fails)', async () => {
+    const listFails = setup(fakeServer({ oauth: 'cimd', listStatus: 500 }));
+    const saveFails = setup(fakeServer({ oauth: 'cimd' }));
+    saveFails.repository.addServer = async () => {
+      throw new Error('disk full');
+    };
+    for (const [env, expected] of [[listFails, 'unreachable'], [saveFails, 'saveFailed']] as const) {
+      const writes: string[] = [];
+      env.storage.write = async (key) => void writes.push(key);
+      const state = await env.coordinator.add({ url: ENDPOINT, authKind: 'auto', uid: UID, serverId: SERVER_ID, confirmAuthorization: async () => true });
+      expect(state.kind).toBe(expected);
+      expect(writes).toEqual([]);
+      expectNoTrace(env);
+    }
+  });
+
+  it('token from a browser sign-in cannot be stored -> saveFailed, and the record just written is removed', async () => {
+    const env = setup(fakeServer({ oauth: 'cimd' }));
+    env.storage.write = async () => {
+      throw new Error('quota');
+    };
+    expect((await env.coordinator.add({ url: ENDPOINT, authKind: 'auto', uid: UID, serverId: SERVER_ID, confirmAuthorization: async () => true })).kind).toBe('saveFailed');
+    expectNoTrace(env);
+  });
+
+  it('signing in again for an existing record is unaffected: by default the authorizer stores the token as soon as it has it', async () => {
+    const server = fakeServer({ oauth: 'cimd' });
+    const env = setup(server);
+    const authorizer = new McpAuthorizer({
+      transport: server,
+      launcher: { open: async (request) => ({ params: { code: 'c', state: request.state } }) },
+      credentialStore: env.credentialStore,
+      random: { randomBytes: (n) => new Uint8Array(n).fill(7) },
+      identity: MCP_FIXTURE_CLIENT_IDENTITY,
+    });
+    const discovery = await authorizer.discover(null, ENDPOINT);
+    if (discovery.kind !== 'ready') throw new Error(`discovery: ${discovery.kind}`);
+    await authorizer.authorize(discovery.plan, SERVER_ID, UID);
+    expect(await env.credentialStore.load(SERVER_ID, UID)).toMatchObject({ accessToken: 'at_1', hasRefreshToken: true });
+  });
+
   it('user closes the authorization page -> sign-in not completed, no trace', async () => {
     const env = setup(fakeServer({ oauth: 'cimd' }), { open: async () => Promise.reject(new Error('closed')) });
     expect((await env.coordinator.add({ url: ENDPOINT, authKind: 'auto', uid: UID, serverId: SERVER_ID, confirmAuthorization: async () => true })).kind).toBe('authCancelled');
@@ -277,5 +345,42 @@ describe('add flow', () => {
     };
     expect(await env.coordinator.add({ url: ENDPOINT, authKind: 'auto', uid: UID, serverId: SERVER_ID, confirmAuthorization: async () => true })).toEqual({ kind: 'limitReached', max: 20 });
     expectNoTrace(env);
+  });
+});
+
+describe('orphaned credential sweep', () => {
+  it('clears credentials without a server (the refresh token record too) and leaves known servers, DCR registrations and other partitions alone', async () => {
+    const storage = createMemoryMcpCredentialStorage();
+    const store = new McpCredentialStore(storage);
+    await store.save({ accessToken: 'orphan', refreshToken: 'orphan-rt' }, 'orphan-server', UID);
+    await store.save({ accessToken: 'kept', refreshToken: 'kept-rt' }, 'known-server', UID);
+    await store.save({ accessToken: 'other' }, 'orphan-server', 'u2');
+    await store.saveClientRegistration({ clientId: 'dcr_1', issuer: 'https://auth.example.com', redirectUris: [] }, UID);
+    // Read once before the sweep: the cache has to be cleared along with storage.
+    expect((await store.load('orphan-server', UID))?.accessToken).toBe('orphan');
+
+    expect(await store.deleteOrphans(UID, async () => ['known-server'])).toEqual(['orphan-server']);
+
+    expect([...storage.snapshot().keys()].sort()).toEqual(
+      [
+        McpCredentialStore.accessKey('known-server', UID),
+        McpCredentialStore.refreshKey('known-server', UID),
+        McpCredentialStore.accessKey('orphan-server', 'u2'),
+        McpCredentialStore.registrationKey('https://auth.example.com', UID),
+      ].sort(),
+    );
+    expect(await store.load('orphan-server', UID)).toBeNull();
+  });
+
+  it('reads the credential keys first and asks for the server list second, so a server added between the two reads is not deleted by mistake', async () => {
+    const storage = createMemoryMcpCredentialStorage();
+    const store = new McpCredentialStore(storage);
+    const order: string[] = [];
+    const keys = storage.keys.bind(storage);
+    storage.keys = async () => (order.push('keys'), keys());
+    await store.save({ accessToken: 'a' }, 'server', UID);
+    await store.deleteOrphans(UID, async () => (order.push('servers'), ['server']));
+    expect(order).toEqual(['keys', 'servers']);
+    expect((await store.load('server', UID))?.accessToken).toBe('a');
   });
 });

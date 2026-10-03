@@ -438,5 +438,8 @@ export function createIdbMcpCredentialStorage(uid: string): McpCredentialStorage
     async delete(key) {
       await (await openMcpDB(uid)).delete('credentials', key);
     },
+    async keys() {
+      return (await (await openMcpDB(uid)).getAllKeys('credentials')).map(String);
+    },
   };
 }

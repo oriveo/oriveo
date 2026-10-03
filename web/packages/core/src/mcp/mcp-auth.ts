@@ -635,12 +635,16 @@ export class McpAuthorizer {
    * The full browser sign-in: register -> open the authorization page -> validate the callback -> exchange
    * the token -> persist. When the authorization server rejects the cached DCR registration, clear it,
    * register again and run the flow once more (only once).
+   *
+   * With `persist: false` the credentials are only returned, not written to storage: the add flow stores
+   * them after the server record is saved (`McpAddCoordinator`). Signing in again for an existing record
+   * uses the default and stores them right away.
    */
   async authorize(
     plan: McpAuthorizationPlan,
     serverId: string,
     uid: string,
-    options: { signal?: AbortSignal; launcher?: McpAuthorizationLauncher } = {},
+    options: { signal?: AbortSignal; launcher?: McpAuthorizationLauncher; persist?: boolean } = {},
   ): Promise<McpCredentials> {
     const launcher = options.launcher ?? this.launcher;
     // No authorization page to open = the user has no way to sign in.
@@ -655,7 +659,7 @@ export class McpAuthorizer {
         throw new McpAuthorizerError('cancelled');
       }
       try {
-        return await this.completeAuthorization(attempt, callback.params, serverId, uid, callback.callbackUrl ?? null);
+        return await this.completeAuthorization(attempt, callback.params, serverId, uid, callback.callbackUrl ?? null, options.persist ?? true);
       } catch (error) {
         if (error instanceof McpAuthorizerError && error.kind === 'client_rejected' && retriesLeft > 0) {
           retriesLeft -= 1;
@@ -714,6 +718,7 @@ export class McpAuthorizer {
     serverId: string,
     uid: string,
     callbackUrl: string | null = null,
+    persist = true,
   ): Promise<McpCredentials> {
     const validation = validateAuthorizationCallback({
       params,
@@ -763,7 +768,7 @@ export class McpAuthorizer {
       resource: attempt.resource,
       pastedToken: previous?.pastedToken ?? null,
     };
-    await this.persist(credentials, serverId, uid);
+    if (persist) await this.persist(credentials, serverId, uid);
     return credentials;
   }
 

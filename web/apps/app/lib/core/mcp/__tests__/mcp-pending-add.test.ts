@@ -161,3 +161,100 @@ describe('half-finished adds', () => {
     expect(await rows(uid, later)).toEqual({ servers: [], snapshots: [], connections: [], credentials: [] });
   });
 });
+
+/** An MCP server that requires a browser sign-in; the second authorized tools/list (the step that reads the tool list) can hang without answering. */
+function oauthBackend() {
+  const AUTH = 'https://auth.example.com';
+  const json = (status: number, body: unknown, headers: Record<string, string> = {}) => ({
+    status,
+    headers: new Headers({ 'content-type': 'application/json', ...headers }),
+    body: new Response(JSON.stringify(body)).body,
+  });
+  let authorizedLists = 0;
+  let reachedHang!: () => void;
+  const hanging = new Promise<void>((resolve) => (reachedHang = resolve));
+  const backend: McpTransport = {
+    async send(request: McpHttpRequest) {
+      const url = new URL(request.url);
+      if (request.url === ENDPOINT) {
+        if (request.credential !== 'at_1') return json(401, {}, { 'www-authenticate': 'Bearer' });
+        const body = JSON.parse(request.body ?? '{}') as { id?: unknown; method?: string };
+        if (body.method !== 'tools/list') return json(202, {});
+        authorizedLists += 1;
+        if (authorizedLists === 2) {
+          reachedHang();
+          await new Promise(() => {});
+        }
+        return json(200, { jsonrpc: '2.0', id: body.id ?? null, result: { resultType: 'complete', tools: [] } });
+      }
+      if (url.pathname.startsWith('/.well-known/oauth-protected-resource')) return json(200, { resource: ENDPOINT, authorization_servers: [AUTH] });
+      if (url.pathname === '/.well-known/oauth-authorization-server') {
+        return json(200, {
+          issuer: AUTH,
+          authorization_endpoint: `${AUTH}/authorize`,
+          token_endpoint: `${AUTH}/token`,
+          registration_endpoint: `${AUTH}/register`,
+          code_challenge_methods_supported: ['S256'],
+        });
+      }
+      if (url.pathname === '/register') return json(201, { client_id: 'dcr_1' });
+      if (url.pathname === '/token') return json(200, { access_token: 'at_1', token_type: 'Bearer', refresh_token: 'rt_1', expires_in: 3600 });
+      return json(404, {});
+    },
+  };
+  return { backend, hanging };
+}
+
+describe('orphaned tokens from a browser sign-in', () => {
+  it('leaves no token from this sign-in in the credential store when the tab closes after the token was obtained but before the record was saved', async () => {
+    const uid = freshUid();
+    installWebLocks();
+    const tab = await openTab(uid);
+    const { backend, hanging } = oauthBackend();
+    tab.store.__setMcpTransportForTests(backend);
+
+    const states: string[] = [];
+    void tab.store.useMcpStore.getState().addServer({
+      url: ENDPOINT,
+      authKind: 'auto',
+      confirmAuthorization: async () => true,
+      launcher: { open: async (request) => ({ params: { code: 'c', state: request.state } }) },
+      progress: (state) => void states.push(state.kind),
+    });
+    // Reaches "reading the tool list" and hangs there: the token has been obtained, the record is not written yet.
+    await hanging;
+    expect(states).toEqual(['connecting', 'authPrompt', 'browser', 'finishing']);
+
+    // The tab is closed at this point: storage holds only the DCR registration kept per issuer, and no server's token.
+    const dcrOnly = [McpCredentialStore.registrationKey('https://auth.example.com', uid)];
+    expect((await rows(uid, tab)).servers).toEqual([]);
+    expect((await rows(uid, tab)).credentials).toEqual(dcrOnly);
+  });
+
+  it('sweeps credentials without a server record on load, and leaves saved servers, an add parked on the permission review and DCR registrations alone', async () => {
+    const uid = freshUid();
+    installWebLocks();
+    const first = await openTab(uid);
+    const saved = await addToReview(first);
+    await first.actions.acceptMcpAddedTools(saved, { search: 'auto' });
+    const reviewing = await addToReview(first);
+
+    // A leftover: the credentials exist, the server record was never saved.
+    const orphan = '00000000-0000-4000-8000-00000000dead';
+    const seeded = new McpCredentialStore(first.idb.createIdbMcpCredentialStorage(uid));
+    await seeded.save({ accessToken: 'orphan-at', refreshToken: 'orphan-rt', issuer: 'https://auth.example.com', clientId: 'c', resource: ENDPOINT }, orphan, uid);
+    await seeded.saveClientRegistration({ clientId: 'dcr_1', issuer: 'https://auth.example.com', redirectUris: [] }, uid);
+    expect((await rows(uid, first)).credentials).toContain(McpCredentialStore.refreshKey(orphan, uid));
+
+    // The first tab is still open (holding the lock of the server awaiting confirmation) while another tab loads.
+    const second = await openTab(uid);
+    expect((await rows(uid, second)).credentials.sort()).toEqual(
+      [
+        McpCredentialStore.accessKey(saved, uid),
+        McpCredentialStore.accessKey(reviewing, uid),
+        McpCredentialStore.registrationKey('https://auth.example.com', uid),
+      ].sort(),
+    );
+    expect((await rows(uid, second)).servers.sort()).toEqual([saved, reviewing].sort());
+  });
+});

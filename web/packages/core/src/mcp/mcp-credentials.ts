@@ -13,7 +13,8 @@
  *
  * Mitigations:
  * 1. Access and refresh tokens are **stored separately** (two records); only the access record stays in page memory.
- * 2. They are cleared when the server is removed (`delete`).
+ * 2. They are cleared when the server is removed (`delete`); entries left without a server record are
+ *    swept on load (`deleteOrphans`).
  * 3. The refresh token is read only when a refresh is needed (`loadRefreshToken`); the value is not cached and
  *    the reference is dropped right after use.
  */
@@ -24,6 +25,7 @@ export interface McpCredentialStorage {
   write(key: string, value: string): Promise<void>;
   /** An entry that is already absent counts as success. */
   delete(key: string): Promise<void>;
+  keys(): Promise<string[]>;
 }
 
 /** All MCP credentials of one server. `expiresAt` is a millisecond timestamp. */
@@ -193,6 +195,41 @@ export class McpCredentialStore {
     }
   }
 
+  /**
+   * Sweeps orphaned credentials: entries in storage whose server record no longer exists. The add flow
+   * saves the record first and the credentials after, so credentials without a record can only be
+   * leftovers (from a cleanup that did not finish, for example). DCR registrations are stored per issuer
+   * and belong to no server, so they are left alone.
+   *
+   * **The credential keys are read first, the known servers second**: the other way round, a server that
+   * another tab finishes adding between the two reads would have its fresh token deleted as an orphan.
+   * An entry that cannot be deleted is left for next time rather than thrown. Returns the ids of the
+   * servers that were cleared.
+   */
+  async deleteOrphans(uid: string, knownServerIds: () => Promise<Iterable<string>>): Promise<string[]> {
+    const prefix = `${uid}:`;
+    const candidates = new Set<string>();
+    for (const key of await this.storage.keys()) {
+      if (!key.startsWith(prefix)) continue;
+      const rest = key.slice(prefix.length);
+      if (rest.startsWith('dcr:')) continue;
+      candidates.add(rest.endsWith(':refresh') ? rest.slice(0, -':refresh'.length) : rest);
+    }
+    if (candidates.size === 0) return [];
+    const known = new Set(await knownServerIds());
+    const removed: string[] = [];
+    for (const serverId of candidates) {
+      if (known.has(serverId)) continue;
+      try {
+        await this.delete(serverId, uid);
+        removed.push(serverId);
+      } catch {
+        // Cleared on the next load.
+      }
+    }
+    return removed;
+  }
+
   /** Drops the memory cache (called when another tab has written to the same storage). */
   clearMemoryCache(): void {
     this.accessCache.clear();
@@ -229,6 +266,9 @@ export function createMemoryMcpCredentialStorage(): McpCredentialStorage & { sna
     },
     async delete(key) {
       map.delete(key);
+    },
+    async keys() {
+      return [...map.keys()];
     },
     snapshot() {
       return new Map(map);

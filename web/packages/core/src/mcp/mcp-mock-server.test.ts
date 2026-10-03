@@ -321,6 +321,27 @@ describe('browser sign-in (real connection, oauth-cimd)', () => {
     }
   });
 
+  it('keeps the token out of the credential medium until the record is saved: at that moment the authorization server has issued it and the medium is still empty', async () => {
+    const mock = await startMock('--mode=oauth-cimd');
+    try {
+      const env = environment(mock);
+      const addServer = env.repository.addServer.bind(env.repository);
+      let atCommit: { keys: string[]; tokensIssued: unknown } | null = null;
+      env.repository.addServer = async (addition, max) => {
+        atCommit = { keys: [...env.storage.snapshot().keys()], tokensIssued: (await mock.state()).tokensIssued };
+        return addServer(addition, max);
+      };
+      const result = await add(env, mock);
+      expect(result.state.kind).toBe('review');
+      expect(atCommit).toEqual({ keys: [], tokensIssued: 1 });
+      expect([...env.storage.snapshot().keys()].sort()).toEqual(
+        [McpCredentialStore.accessKey(result.serverId, UID), McpCredentialStore.refreshKey(result.serverId, UID)].sort(),
+      );
+    } finally {
+      mock.stop();
+    }
+  });
+
   it('declining the pre-sign-in prompt → sign-in not completed and nothing happened on the authorization server', async () => {
     const mock = await startMock('--mode=oauth-cimd');
     try {
