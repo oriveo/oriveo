@@ -1462,9 +1462,9 @@
     <string name="generation_diagnostics_section">生成设置诊断</string>
     <string name="generation_diagnostics_empty">你还没有诊断记录</string>
     <string name="mcp_tools_chip">工具</string>
-    <string name="mcp_tools_chip_state_on">已开启 %d 个</string>
+    <string name="mcp_tools_chip_state_on">已开启 %d 个服务器</string>
     <string name="mcp_tools_chip_state_off">未开启</string>
-    <string name="mcp_tools_chip_state_unavailable">当前模型不可用</string>
+    <string name="mcp_tools_chip_state_unavailable">这个模型不能使用工具</string>
     <string name="stream_activity_mcp_tool">正在使用 %1$s · %2$s</string>
     <string name="mcp_panel_title">本次对话的工具</string>
     <string name="mcp_panel_subtitle">开启后，模型可以在回答时调用这些服务的工具。</string>
@@ -1484,7 +1484,7 @@
     <string name="mcp_panel_empty_title">还没有可用的工具</string>
     <string name="mcp_panel_empty_body">连接一个 MCP 服务器，模型就能在聊天里查 Linear、写 Notion，或者使用你自己搭建的工具。</string>
     <string name="mcp_panel_add_server">添加 MCP 服务器</string>
-    <string name="mcp_panel_unavailable_title">当前模型不能使用工具</string>
+    <string name="mcp_panel_unavailable_title">这个模型不能使用工具</string>
     <string name="mcp_panel_unavailable_model">这个模型不支持调用工具。换一个模型后就可以使用。</string>
     <string name="mcp_panel_switch_model">切换模型</string>
     <string name="mcp_steps_running">正在使用工具</string>
@@ -1622,7 +1622,7 @@
     <string name="mcp_servers_needs_address">需要重新填写地址</string>
     <string name="mcp_servers_trust_note">工具由第三方提供，它返回的内容会交给模型。只连接你信任的服务器。</string>
     <string name="mcp_status_tools_changed">工具有更新</string>
-    <string name="mcp_status_needs_address">需要地址</string>
+    <string name="mcp_status_needs_address">需要填写地址</string>
     <string name="mcp_detail_address">地址</string>
     <string name="mcp_detail_sign_in">登录方式</string>
     <string name="mcp_detail_sign_in_browser">浏览器登录</string>

@@ -1462,7 +1462,7 @@
     <string name="generation_diagnostics_section">Diagnostic records</string>
     <string name="generation_diagnostics_empty">No diagnostic records yet</string>
     <string name="mcp_tools_chip">Tools</string>
-    <string name="mcp_tools_chip_state_on">%d on</string>
+    <string name="mcp_tools_chip_state_on">Servers on: %d</string>
     <string name="mcp_tools_chip_state_off">Off</string>
     <string name="mcp_tools_chip_state_unavailable">Not available for this model</string>
     <string name="stream_activity_mcp_tool">Using %1$s · %2$s</string>
