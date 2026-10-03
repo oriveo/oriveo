@@ -55,4 +55,25 @@ struct ToolFunctionNameCodecTests {
         #expect(ToolFunctionNameCodec.decode("trailing_") == "trailing_")
         #expect(ToolFunctionNameCodec.decode("_zz") == "_zz")
     }
+
+    @Test("a caller that sends names verbatim gets the same names back from the accumulator")
+    func accumulatorCanKeepWireNames() throws {
+        // `_de`, `_ad` and `_fe` happen to be valid escape sequences and `__` is the short form of
+        // `.`, so decoding would rewrite every one of these names.
+        let names = ["mcp_notes_delete_page", "mcp_canva_add_comment", "mcp_web_fetch", "mcp_a__b"]
+        for name in names {
+            let delta = try JSONDecoder().decode(
+                [OpenAICompatibleChunk.Choice.ToolCallDelta].self,
+                from: Data(#"[{"index":0,"id":"call_1","type":"function","function":{"name":"\#(name)","arguments":"{}"}}]"#.utf8)
+            )
+            var raw = OpenAICompatibleToolCallAccumulator(decodesFunctionNames: false)
+            raw.accumulate(delta)
+            #expect(raw.flush().map(\.name) == [name])
+
+            var decoded = OpenAICompatibleToolCallAccumulator()
+            decoded.accumulate(delta)
+            #expect(decoded.flush().map(\.name) == [ToolFunctionNameCodec.decode(name)], "the default still decodes")
+            #expect(ToolFunctionNameCodec.decode(name) != name, "decoding really does change these names")
+        }
+    }
 }

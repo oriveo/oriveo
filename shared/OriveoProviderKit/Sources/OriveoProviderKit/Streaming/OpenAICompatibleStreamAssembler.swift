@@ -460,8 +460,17 @@ public struct OpenAICompatibleToolCallAccumulator: Sendable {
     private var partials: [Int: PartialToolCall] = [:]
     private var lastIndex = 0
     private var didFlush = false
+    private let decodesFunctionNames: Bool
 
-    public init() {}
+    /// - Parameter decodesFunctionNames: whether `flush()` runs names through
+    ///   `ToolFunctionNameCodec.decode`. That is only correct when the request encoded its function
+    ///   names with the same codec (`ProviderTextWireRequest`). A caller that sends names verbatim
+    ///   must pass `false`: decoding is not idempotent, so the `_de` in `mcp_notes_delete_page`
+    ///   would be read as an escaped byte, and the mangled name neither resolves to its executor
+    ///   nor matches the call when the result is fed back.
+    public init(decodesFunctionNames: Bool = true) {
+        self.decodesFunctionNames = decodesFunctionNames
+    }
 
     /// Whether any fragment has been seen, so a caller can tell a tool-calling turn from a
     /// plain answer before the stream ends.
@@ -498,7 +507,7 @@ public struct OpenAICompatibleToolCallAccumulator: Sendable {
             guard let partial = partials[index] else { return nil }
             return ProviderToolCall(
                 providerCallID: partial.id,
-                name: ToolFunctionNameCodec.decode(partial.name),
+                name: decodesFunctionNames ? ToolFunctionNameCodec.decode(partial.name) : partial.name,
                 rawArguments: partial.arguments
             )
         }
