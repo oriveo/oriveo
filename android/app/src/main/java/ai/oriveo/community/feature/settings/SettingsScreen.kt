@@ -109,6 +109,7 @@ import org.koin.androidx.compose.koinViewModel
 @Composable
 fun SettingsScreen(
     onNavigateToMemory: () -> Unit = {},
+    onNavigateToMcpServers: () -> Unit = {},
     onNavigateToBackup: () -> Unit = {},
     onNavigateToSkills: () -> Unit = {},
     viewModel: SettingsViewModel = koinViewModel(),
@@ -201,6 +202,11 @@ fun SettingsScreen(
                         }
                     }
                 }
+
+                ai.oriveo.community.feature.mcp.SettingsToolsSection(
+                    iconColor = aiColor,
+                    onNavigateToMcpServers = onNavigateToMcpServers,
+                )
 
                 Column(verticalArrangement = Arrangement.spacedBy(OriveoTheme.spacing.sm)) {
                     FlatSectionHeader(title = stringResource(R.string.data_section))

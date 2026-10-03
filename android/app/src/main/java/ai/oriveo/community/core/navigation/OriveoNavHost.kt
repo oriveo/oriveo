@@ -134,6 +134,9 @@ private val fullScreenRoutes = setOf(
     AppRoute.RelaySetup::class,
     AppRoute.LocalComputeSetup::class,
     AppRoute.Memory::class,
+    AppRoute.McpServers::class,
+    AppRoute.McpAddServer::class,
+    AppRoute.McpServerDetail::class,
     AppRoute.Backup::class,
     AppRoute.Skills::class,
     AppRoute.SkillEdit::class,
@@ -367,6 +370,9 @@ fun OriveoNavHost(
                         PageTrace.begin("Memory")
                         navController.navigate(AppRoute.Memory)
                     },
+                    onNavigateToMcpServers = {
+                        navController.navigate(AppRoute.McpServers) { launchSingleTop = true }
+                    },
                     onNavigateToBackup = {
                         PageTrace.begin("Backup")
                         navController.navigate(AppRoute.Backup)
@@ -388,6 +394,12 @@ fun OriveoNavHost(
                     onNavigateToMemory = {
                         PageTrace.begin("Memory")
                         navController.navigate(AppRoute.Memory)
+                    },
+                    onNavigateToMcpServers = {
+                        navController.navigate(AppRoute.McpServers) { launchSingleTop = true }
+                    },
+                    onNavigateToMcpAddServer = {
+                        navController.navigate(AppRoute.McpAddServer) { launchSingleTop = true }
                     },
                     onNavigateToProviderSetup = {
                         PageTrace.begin("ProviderSetup")
@@ -647,6 +659,32 @@ fun OriveoNavHost(
                     onNavigateBack = { navController.popBackStack() },
                 )
             }
+            composable<AppRoute.McpServers> {
+                ai.oriveo.community.feature.mcp.McpServersScreen(
+                    onBack = { navController.popBackStack() },
+                    onAddServer = { navController.navigate(AppRoute.McpAddServer) { launchSingleTop = true } },
+                    onOpenServer = { serverId ->
+                        navController.navigate(AppRoute.McpServerDetail(serverId)) { launchSingleTop = true }
+                    },
+                )
+            }
+            composable<AppRoute.McpServerDetail> { backStackEntry ->
+                val route = backStackEntry.toRoute<AppRoute.McpServerDetail>()
+                ai.oriveo.community.feature.mcp.McpServerDetailScreen(
+                    onBack = { navController.popBackStack() },
+                    viewModel = org.koin.androidx.compose.koinViewModel(
+                        parameters = { org.koin.core.parameter.parametersOf(route.serverId) },
+                    ),
+                )
+            }
+            composable<AppRoute.McpAddServer> {
+                ai.oriveo.community.feature.mcp.McpAddServerScreen(
+                    onBack = { navController.popBackStack() },
+                    // Back to where the user came from: the server list when opened from settings, the
+                    // chat screen when opened from there (its tool panel then reloads).
+                    onDone = { navController.popBackStack() },
+                )
+            }
             composable<AppRoute.Backup> {
                 LaunchedEffect(Unit) { PageTrace.end("Backup") }
                 BackupScreen(
@@ -749,6 +787,15 @@ fun OriveoNavHost(
                     },
                 )
             }
+
+            // The re-authorization dialog for remote MCP: both the chat screen and the management
+            // screens can start one, so it is presented at the root.
+            ai.oriveo.community.feature.mcp.McpReauthorizationHost()
+
+            // The confirmation before an MCP tool runs: the answer may be generating in the
+            // background while the user is on another screen or in another conversation, so the
+            // confirmation follows the user.
+            ai.oriveo.community.feature.chat.mcp.McpConfirmationHost()
 
             GlobalToastHost(
                 isRoot = true,

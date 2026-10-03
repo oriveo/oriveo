@@ -63,6 +63,29 @@ val viewModelModule = module {
         )
     }
     viewModel {
+        ai.oriveo.community.feature.mcp.McpAddServerViewModel(
+            coordinator = get(),
+            store = get(),
+            applicationScope = get(named("applicationScope")),
+        )
+    }
+    viewModel {
+        ai.oriveo.community.feature.mcp.McpServersViewModel(
+            store = get(),
+            credentialStore = get(),
+            actions = get(),
+        )
+    }
+    viewModel { (serverId: String) ->
+        ai.oriveo.community.feature.mcp.McpServerDetailViewModel(
+            serverId = serverId,
+            store = get(),
+            credentialStore = get(),
+            actions = get(),
+            reauthorizer = get<ai.oriveo.community.core.mcp.McpReauthorizationCoordinator>(),
+        )
+    }
+    viewModel {
         HomeViewModel(
             appPreferencesRepository = get(),
             providerRepository = get(),

@@ -37,6 +37,10 @@ sealed interface AppRoute {
     @Serializable data object Notes : AppRoute
     @Serializable data class NoteDetail(val noteID: String) : AppRoute
     @Serializable data object Memory : AppRoute
+    /** Remote MCP: the server list, adding a server, and a server's details. */
+    @Serializable data object McpServers : AppRoute
+    @Serializable data object McpAddServer : AppRoute
+    @Serializable data class McpServerDetail(val serverId: String) : AppRoute
     @Serializable data object Onboarding : AppRoute
 
     @Serializable

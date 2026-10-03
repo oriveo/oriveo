@@ -1,0 +1,159 @@
+package ai.oriveo.community.core.mcp
+
+import ai.oriveo.community.core.data.EntityMapper.toEntity
+import ai.oriveo.community.core.data.repository.ConversationRepository
+import ai.oriveo.community.core.model.ChatMessage
+import ai.oriveo.community.core.model.ChatMessageState
+import ai.oriveo.community.core.model.ChatRole
+import ai.oriveo.community.core.model.Conversation
+import ai.oriveo.community.core.model.ProviderKind
+import ai.oriveo.community.feature.mcp.McpManagementHarness
+import ai.oriveo.community.feature.mcp.McpManagementHarness.Companion.UID
+import io.ktor.client.HttpClient
+import io.ktor.client.engine.mock.MockEngine
+import io.ktor.client.engine.mock.respondOk
+import kotlinx.coroutines.runBlocking
+import kotlinx.serialization.json.Json
+import org.junit.After
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
+import org.junit.Before
+import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+
+/**
+ * Cascading deletion of per-step payloads: deleting a message, deleting a conversation or removing a server must take
+ * the raw arguments and results along. They must never be write-only.
+ *
+ * Everything goes through production paths: payloads are written to a real Room database via
+ * `McpChatToolRunner.saveStepPayload` (where the chat send path lands); deletion goes through `ConversationRepository`
+ * (delete a conversation / drop later messages on edit-and-resend) and `McpServerActions.remove` (remove a server).
+ */
+@RunWith(RobolectricTestRunner::class)
+class McpStepPayloadCascadeTest {
+
+    private lateinit var harness: McpManagementHarness
+    private lateinit var runner: McpChatToolRunner
+    private lateinit var conversations: ConversationRepository
+
+    @Before
+    fun setUp() {
+        harness = McpManagementHarness()
+        runner = McpChatToolRunner(
+            httpClient = HttpClient(MockEngine { respondOk() }),
+            json = Json { ignoreUnknownKeys = true },
+            store = harness.store,
+            credentialStore = harness.credentials,
+        )
+        conversations = ConversationRepository(
+            conversationDao = harness.db.conversationDao(),
+            messageDao = harness.db.messageDao(),
+            mcpServerDao = harness.db.mcpServerDao(),
+        )
+    }
+
+    @After
+    fun tearDown() {
+        harness.close()
+    }
+
+    private suspend fun seedConversation(conversationId: String, messageIds: List<String>) {
+        harness.db.conversationDao().upsert(
+            Conversation(id = conversationId, title = "MCP", providerID = "p", providerKind = ProviderKind.Relay, modelID = "m").toEntity(UID),
+        )
+        messageIds.forEachIndexed { index, id ->
+            harness.db.messageDao().upsert(
+                ChatMessage(
+                    id = id, role = if (index % 2 == 0) ChatRole.User else ChatRole.Assistant, text = "t$index",
+                    providerKind = ProviderKind.Relay, providerName = "Relay", modelName = "m", state = ChatMessageState.Delivered,
+                ).toEntity(UID, conversationId, index),
+            )
+        }
+    }
+
+    /** The two callbacks of a step on the production path: arguments arrive with the first, the result with the terminal state. */
+    private suspend fun recordStep(messageId: String, serverId: String, stepId: String = "1:c1") {
+        val running = McpToolStepUpdate(
+            id = stepId, serverId = serverId, serverName = "Linear", toolName = "get_weather", title = "Get weather",
+            argsSummary = "", status = McpToolStepUpdate.Status.Running, step = 1,
+            payload = McpToolStepPayload(arguments = "{\"city\":\"RAW-ARGUMENT\"}"),
+        )
+        runner.saveStepPayload(messageId, running)
+        runner.saveStepPayload(
+            messageId,
+            running.copy(status = McpToolStepUpdate.Status.Done, payload = McpToolStepPayload(resultPrefix = "RAW-RESULT")),
+        )
+        assertNotNull("precondition: the payload was written", harness.store.fetchStepPayload(messageId, stepId))
+    }
+
+    private fun payloadRows(): Int =
+        harness.db.openHelper.readableDatabase.query("SELECT COUNT(*) FROM mcp_step_payload").use { cursor ->
+            cursor.moveToFirst()
+            cursor.getInt(0)
+        }
+
+    @Test
+    fun `deleting a conversation deletes the step payloads of its messages and leaves other conversations alone`() = runBlocking {
+        val serverId = harness.addServer()
+        seedConversation(CONV_A, listOf(MSG_A1, MSG_A2))
+        seedConversation(CONV_B, listOf(MSG_B1, MSG_B2))
+        recordStep(MSG_A2, serverId)
+        recordStep(MSG_B2, serverId)
+
+        conversations.delete(CONV_A)
+
+        assertNull(harness.store.fetchStepPayload(MSG_A2, "1:c1"))
+        assertNotNull("payloads of other conversations are untouched", harness.store.fetchStepPayload(MSG_B2, "1:c1"))
+
+        conversations.deleteMultiple(listOf(CONV_B))
+
+        assertEquals(0, payloadRows())
+    }
+
+    @Test
+    fun `deleting messages deletes their step payloads and keeps the ones before the cut`() = runBlocking {
+        val serverId = harness.addServer()
+        seedConversation(CONV_A, listOf(MSG_A1, MSG_A2, MSG_A3, MSG_A4))
+        recordStep(MSG_A2, serverId)
+        recordStep(MSG_A4, serverId)
+
+        // Edit the third message and resend: everything from the third message on is deleted.
+        conversations.deleteMessagesStartingAt(CONV_A, MSG_A3)
+
+        assertNotNull("the message before the cut is still there, and so is its payload", harness.store.fetchStepPayload(MSG_A2, "1:c1"))
+        assertNull(harness.store.fetchStepPayload(MSG_A4, "1:c1"))
+
+        // Regenerate: everything after the first message is deleted.
+        conversations.deleteMessagesAfter(CONV_A, MSG_A1)
+
+        assertEquals(0, payloadRows())
+    }
+
+    @Test
+    fun `removing a server deletes its step payloads and keeps the ones of other servers`() = runBlocking {
+        val removed = harness.addServer(name = "Linear")
+        val kept = harness.addServer(name = "Notion", url = "https://notion.example.com/mcp")
+        seedConversation(CONV_A, listOf(MSG_A1, MSG_A2))
+        recordStep(MSG_A2, removed, stepId = "1:c1")
+        recordStep(MSG_A2, kept, stepId = "2:c2")
+
+        assertEquals(true, harness.actions().remove(removed))
+
+        assertNull("raw arguments and results are deleted together with the server", harness.store.fetchStepPayload(MSG_A2, "1:c1"))
+        assertNotNull(harness.store.fetchStepPayload(MSG_A2, "2:c2"))
+        assertEquals("the message itself is untouched (the step summary lives on the message)", 2, harness.db.messageDao().getByConversation(UID, CONV_A).size)
+    }
+
+    private companion object {
+        const val CONV_A = "c0000000-0000-4000-8000-00000000000a"
+        const val CONV_B = "c0000000-0000-4000-8000-00000000000b"
+        const val MSG_A1 = "a0000000-0000-4000-8000-000000000001"
+        const val MSG_A2 = "a0000000-0000-4000-8000-000000000002"
+        const val MSG_A3 = "a0000000-0000-4000-8000-000000000003"
+        const val MSG_A4 = "a0000000-0000-4000-8000-000000000004"
+        const val MSG_B1 = "b0000000-0000-4000-8000-000000000001"
+        const val MSG_B2 = "b0000000-0000-4000-8000-000000000002"
+    }
+}
