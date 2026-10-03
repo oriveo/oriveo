@@ -628,6 +628,100 @@ describe("runLibraryAgentLoop", () => {
     ]);
   });
 
+  it("empty-result limit: the stop system text and the research_stopped text for skipped proposals are independent", async () => {
+    const requests: LibraryAgentLegRequest[] = [];
+    const executeTool = vi.fn(async () => ({ result: { hits: [] } }));
+    await runLibraryAgentLoop(
+      options({
+        config: {
+          ...DEFAULT_LIBRARY_RUNTIME_CONFIG,
+          maxEmptyHits: 1,
+          maxSteps: 5,
+        },
+        runLeg: vi.fn((request) => {
+          requests.push(request);
+          return requests.length === 1
+            ? streamLeg([
+                callsEvent(
+                  call("s1", "library_search", { query: "missing-1" }),
+                  call("s2", "library_search", { query: "missing-2" }),
+                ),
+              ])
+            : streamLeg([{ type: "delta", content: "Nothing found." }]);
+        }),
+        executeTool,
+      }),
+    );
+
+    // Only the first call runs; the second is skipped once the limit is hit and is fed back as research_stopped.
+    expect(executeTool).toHaveBeenCalledTimes(1);
+    const messages = requests[1].messages;
+    expect(messages).toContainEqual(
+      expect.objectContaining({
+        role: "tool",
+        tool_call_id: "s2",
+        content: expect.stringContaining("The empty-result limit was reached."),
+      }),
+    );
+    expect(messages).toContainEqual(
+      expect.objectContaining({
+        role: "system",
+        content:
+          "No relevant Library evidence was found. Answer honestly that nothing was found and do not invent facts.",
+      }),
+    );
+  });
+
+  // This pins the order, not the content: the test above uses toContainEqual, which only proves
+  // that all four messages are present and would stay green if they were reordered. The system
+  // message goes after all tool results, which also satisfies the protocol requirement that
+  // tool results directly follow the assistant's tool_calls.
+  it("when the empty-result limit is hit, the feedback order is assistant → tool (executed) → tool (skipped) → system", async () => {
+    const requests: LibraryAgentLegRequest[] = [];
+    await runLibraryAgentLoop(
+      options({
+        config: {
+          ...DEFAULT_LIBRARY_RUNTIME_CONFIG,
+          maxEmptyHits: 1,
+          maxSteps: 5,
+        },
+        runLeg: vi.fn((request) => {
+          requests.push(request);
+          return requests.length === 1
+            ? streamLeg([
+                callsEvent(
+                  call("s1", "library_search", { query: "missing-1" }),
+                  call("s2", "library_search", { query: "missing-2" }),
+                ),
+              ])
+            : streamLeg([{ type: "delta", content: "Nothing found." }]);
+        }),
+        executeTool: vi.fn(async () => ({ result: { hits: [] } })),
+      }),
+    );
+
+    const messages = requests[1].messages;
+    expect(
+      messages.map((message) => [message.role, message.tool_call_id ?? null]),
+    ).toEqual([
+      ["user", null],
+      ["assistant", null],
+      ["tool", "s1"],
+      ["tool", "s2"],
+      ["system", null],
+    ]);
+    // The appended system message must come after both tool results: placing it between them violates the protocol.
+    const systemIndex = messages.findIndex((message) => message.role === "system");
+    const lastToolIndex = messages.reduce(
+      (last, message, index) => (message.role === "tool" ? index : last),
+      -1,
+    );
+    expect(lastToolIndex).toBeGreaterThan(0);
+    expect(systemIndex).toBe(lastToolIndex + 1);
+    expect(messages[2].content).toContain('"ok":true');
+    expect(messages[3].content).toContain("research_stopped");
+  });
+
   it("requires library_list after an empty search and self-corrects an invalid next tool", async () => {
     const tools: string[] = [];
     let leg = 0;
@@ -817,6 +911,85 @@ describe("runLibraryAgentLoop", () => {
 
     expect(executeTool).toHaveBeenCalledTimes(5);
     expect(result.text).toBe("Completed despite intermittent failures.");
+  });
+
+  // A missing document is only fed back and does not count towards consecutive failures.
+  // Otherwise a model reading 3 deleted documents in a row would turn the whole turn into an error card.
+  it("3 consecutive library_not_found results do not trip the breaker: each is fed back and the model answers as usual", async () => {
+    const requests: LibraryAgentLegRequest[] = [];
+    const executeTool = vi.fn(async () => {
+      throw new LibraryAPIError("not found", 404, "library_not_found");
+    });
+    const result = await runLibraryAgentLoop(
+      options({
+        config: { ...DEFAULT_LIBRARY_RUNTIME_CONFIG, maxSteps: 10 },
+        runLeg: vi.fn((request) => {
+          requests.push(request);
+          return requests.length === 1
+            ? streamLeg([
+                callsEvent(
+                  call("read-1", "library_read", { source: "notion", docId: "gone-1" }),
+                  call("read-2", "library_read", { source: "notion", docId: "gone-2" }),
+                  call("read-3", "library_read", { source: "notion", docId: "gone-3" }),
+                ),
+              ])
+            : streamLeg([
+                { type: "delta", content: "Those documents no longer exist." },
+              ]);
+        }),
+        executeTool,
+      }),
+    );
+
+    expect(executeTool).toHaveBeenCalledTimes(3);
+    expect(result.text).toBe("Those documents no longer exist.");
+    const toolResults = requests[1].messages.filter((message) => message.role === "tool");
+    expect(toolResults.map((message) => message.tool_call_id)).toEqual([
+      "read-1",
+      "read-2",
+      "read-3",
+    ]);
+    for (const message of toolResults) {
+      expect(JSON.parse(String(message.content))).toEqual({
+        ok: false,
+        error: {
+          code: "library_not_found",
+          message:
+            "The requested Library document was not found. Do not invent its contents; use other evidence or say it was not found.",
+        },
+      });
+    }
+    expect(result.steps.map((step) => step.status)).toEqual(["failed", "failed", "failed"]);
+  });
+
+  it("failure, failure, not-found, failure → breaker trips: not-found does not reset the earlier real failures", async () => {
+    let attempt = 0;
+    const executeTool = vi.fn(async () => {
+      attempt += 1;
+      if (attempt === 3) throw new LibraryAPIError("not found", 404, "library_not_found");
+      throw new LibraryAPIError("source flaky", 502, "library_source_error");
+    });
+    const runLeg = vi.fn(() =>
+      streamLeg([
+        callsEvent(
+          call("read-1", "library_read", { source: "notion", docId: "a" }),
+          call("read-2", "library_read", { source: "notion", docId: "b" }),
+          call("read-3", "library_read", { source: "notion", docId: "gone" }),
+          call("read-4", "library_read", { source: "notion", docId: "d" }),
+        ),
+      ]),
+    );
+    await expect(
+      runLibraryAgentLoop(
+        options({
+          config: { ...DEFAULT_LIBRARY_RUNTIME_CONFIG, maxSteps: 10 },
+          runLeg,
+          executeTool,
+        }),
+      ),
+    ).rejects.toMatchObject({ code: "library_source_error" });
+    expect(executeTool).toHaveBeenCalledTimes(4);
+    expect(runLeg).toHaveBeenCalledOnce();
   });
 
   it("does not retry monthly quota exhaustion as a transient rate limit", async () => {

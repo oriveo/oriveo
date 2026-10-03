@@ -200,6 +200,37 @@ describe('persistence.ts', () => {
       expect(conv.remoteMessageCount).toBe(2);
     });
 
+    it('turns MCP tool steps still running after a reload into interrupted and writes them back to the local database', async () => {
+      const step = (id: string, status: 'running' | 'done') => ({
+        id, scope: 'mcp', serverId: 's1', serverName: 'Weather', toolName: 'get_weather', title: 'Get weather',
+        argsSummary: 'Berlin', status, step: 1,
+      });
+      await seedPartition('guest', {
+        conversations: [makeConversation({
+          id: 'c-mcp',
+          messages: [
+            // The page was closed in the middle of a tool call: the message is still generating and the step still running
+            makeMessage({ id: 'm-generating', state: 'generating', toolSteps: [step('1:a', 'done'), step('2:b', 'running')] }),
+            // The message is in a final state, but one step never reached one
+            makeMessage({ id: 'm-delivered', state: 'delivered', toolSteps: [step('1:c', 'running')] }),
+            makeMessage({ id: 'm-clean', state: 'delivered', toolSteps: [step('1:d', 'done')] }),
+          ],
+        })],
+      });
+
+      await hydrateStore(createAppStore());
+
+      const db = await openDB(getDBName('guest'));
+      const stored = await db.get('conversations', 'c-mcp') as Conversation;
+      db.close();
+      const byId = Object.fromEntries(stored.messages.map((message) => [message.id, message]));
+      expect(byId['m-generating'].state).toBe('interrupted');
+      expect(byId['m-generating'].toolSteps?.map((item) => [item.status, item.errorCode])).toEqual([['done', undefined], ['interrupted', 'interrupted']]);
+      expect(byId['m-delivered'].state).toBe('delivered');
+      expect(byId['m-delivered'].toolSteps?.[0]).toMatchObject({ status: 'interrupted', errorCode: 'interrupted' });
+      expect(byId['m-clean'].toolSteps?.[0].status).toBe('done');
+    });
+
     it('backfills conversation.providerKind from the last assistant message for older data', async () => {
       // Older data: the conversation has no providerKind field, but the messages do.
       const legacyConv: Conversation = {

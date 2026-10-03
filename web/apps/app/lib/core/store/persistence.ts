@@ -18,6 +18,7 @@ import { deduplicateByCanonical, enrichStoredModel } from '../providers/catalog-
 import { initMetadata } from '../metadata/metadata-client';
 import { assignFolderColors } from '../folder-ops';
 import { readStreamPartialBackup, clearStreamPartialBackup } from './stream-partial-backup';
+import { interruptRunningMcpToolSteps } from '../mcp/mcp-tool-steps';
 import {
   subscribeProviders,
   subscribeConversations,
@@ -99,10 +100,15 @@ export async function hydrateStore(store: StoreApi<AppStore>, expectedUID?: stri
     const hasAnyBackup = Object.keys(backupMap).length > 0;
     const conversationsToWriteBack: Conversation[] = [];
     const sanitizedConversations = rawConversations.map((conv) => {
-      const hasStuckMsg = conv.messages.some((m) => m.state === 'generating');
+      // The same goes for MCP tool steps: a step left `running` will never be advanced by anyone, so after a reload it is presented as interrupted.
+      const hasStuckMsg = conv.messages.some(
+        (m) => m.state === 'generating' || m.toolSteps?.some((step) => step.status === 'running'),
+      );
       const backup = backupMap[conv.id];
       if (!hasStuckMsg && !backup) return conv;
-      const updatedMessages = conv.messages.map((m) => {
+      const updatedMessages = conv.messages.map((original) => {
+        const settledToolSteps = interruptRunningMcpToolSteps(original.toolSteps);
+        const m = settledToolSteps === original.toolSteps ? original : { ...original, toolSteps: settledToolSteps };
         let text = m.text;
         if (backup && m.id === backup.msgId && backup.partial.length > (m.text?.length ?? 0)) {
           text = backup.partial;

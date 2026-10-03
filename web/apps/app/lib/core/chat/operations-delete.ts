@@ -13,6 +13,7 @@ import { deriveConversationMetadata, computeConversationActivityAt } from '../co
 import { cleanupCloudAttachments } from './cleanup-attachments';
 import { recalculateConversationCost } from './usage-tracking';
 import { deleteLocalMessageContinuation } from './continuation-lifecycle';
+import { forgetMcpMessage } from '../mcp/mcp-store';
 
 export function deleteMessage(
   store: StoreApi<AppStore>,
@@ -53,6 +54,9 @@ export function deleteMessage(
   if (msg.state === 'delivered') {
     getSyncAdapter()?.didDeleteMessages([msgId], convId, remainingLastDelivered);
   }
+
+  // The MCP step details of this message (raw arguments and results, kept on this device) go with it.
+  if (msg.toolSteps?.length) forgetMcpMessage(msgId);
 
   // Clean up this message's attachments
   if (msg.attachments?.length) {

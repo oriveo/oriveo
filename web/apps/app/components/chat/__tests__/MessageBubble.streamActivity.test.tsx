@@ -24,7 +24,7 @@ const storeState = {
   streamingTexts: {} as Record<string, string>,
   streamingReasoningTexts: {} as Record<string, string>,
   streamingReasoningActive: {} as Record<string, boolean>,
-  streamingActivities: {} as Record<string, 'web_search' | null>,
+  streamingActivities: {} as Record<string, 'web_search' | 'mcp_tool' | null>,
   streamingMessageIds: {} as Record<string, string>,
   streamingConversationIds: [] as string[],
   account: null,
@@ -88,7 +88,7 @@ function message(state: ChatMessage['state'], text = ''): ChatMessage {
   } as unknown as ChatMessage;
 }
 
-function beginStreaming(activity: 'web_search' | null) {
+function beginStreaming(activity: 'web_search' | 'mcp_tool' | null) {
   storeState.streamingTexts = { [CONV_ID]: '' };
   storeState.streamingReasoningTexts = { [CONV_ID]: '' };
   storeState.streamingReasoningActive = { [CONV_ID]: false };
@@ -171,5 +171,34 @@ describe('MessageBubble waiting feedback (stream activity line)', () => {
     });
 
     expect(screen.queryByRole('status')).toBeNull();
+  });
+});
+
+// MCP tools: the signal comes from the local tool loop, and the display context is read from the
+// running step in the message's toolSteps.
+describe('MessageBubble waiting feedback: mcp_tool activity', () => {
+  function toolMessage(status: 'running' | 'done'): ChatMessage {
+    return {
+      ...message('generating'),
+      toolSteps: [{
+        id: '1:c1', scope: 'mcp', serverId: 's1', serverName: 'Notion', toolName: 'find_page', title: 'Find page',
+        argsSummary: 'Weekly report', status, step: 1,
+      }],
+    } as unknown as ChatMessage;
+  }
+
+  it('with a step running, the waiting text becomes the MCP tool line (carried by the dot indicator when it is shown)', () => {
+    beginStreaming('mcp_tool');
+    render(<MessageBubble message={toolMessage('running')} streamingText="" conversationId={CONV_ID} />);
+    expect(screen.queryByLabelText('activityMcpTool')).not.toBeNull();
+    // The steps block is shown too: the running step is where the server name and tool title in the text come from
+    expect(document.querySelector('[data-mcp-steps]')?.textContent).toContain('Notion · Find page');
+  });
+
+  it('with the activity set but no running step in the message, falls back to the neutral text instead of half a sentence', () => {
+    beginStreaming('mcp_tool');
+    render(<MessageBubble message={toolMessage('done')} streamingText="" conversationId={CONV_ID} />);
+    expect(screen.queryByLabelText('activityMcpTool')).toBeNull();
+    expect(screen.queryByLabelText('generating')).not.toBeNull();
   });
 });

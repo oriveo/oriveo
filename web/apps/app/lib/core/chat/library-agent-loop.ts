@@ -1,6 +1,5 @@
-import type { ProviderErrorSource, ProviderKind } from "@oriveo/shared";
+import type { ProviderErrorSource } from "@oriveo/shared";
 import type {
-  StreamEvent,
   StreamHandle,
   StreamUsage,
 } from "@oriveo/core/providers/types";
@@ -9,12 +8,6 @@ import type {
   ProxyToolCall,
   ProxyToolDefinition,
 } from "@oriveo/core/providers/request-builders/runtime";
-import type { ContinuationIntent } from '@oriveo/core/providers/request-preference/continuation';
-import {
-  finalizeToolCalls as finalizeAccumulatedToolCalls,
-  mergeToolCallDeltas as mergeAccumulatedToolCallDeltas,
-  type ToolCallAccumulator,
-} from '@oriveo/core/providers/tool-call-accumulator';
 import {
   LibraryAPIError,
   isLibraryNotFoundError,
@@ -37,6 +30,19 @@ import type {
   LibraryToolName,
   LibraryToolResult,
 } from "../library/types";
+import { ToolCallLoop, type ToolCallLoopOptions } from "@oriveo/core/tools/tool-call-loop";
+import {
+  ToolCallRejection,
+  ToolLoopError,
+  type ToolExecutionContext,
+  type ToolExecutionOutcome,
+  type ToolFailureDisposition,
+  type ToolLoopProgressEvent,
+  type ToolLoopPrompts,
+  type ToolLoopResult,
+  type ToolRegistryEntry,
+} from "@oriveo/core/tools/tool-loop-contracts";
+import { ToolRegistry } from "@oriveo/core/tools/tool-registry";
 import { isDeterministicToolCallUnsupported } from './capability-recovery-runtime';
 
 export interface LibraryAgentLegRequest {
@@ -100,6 +106,13 @@ export interface LibraryAgentLoopOptions {
   onQuota?: (quota: LibraryQuota) => void;
   onUsage?: (usage: StreamUsage) => void;
   onText?: (text: string) => void;
+  /**
+   * Entries from other sources that are on for the same reply (the library and remote MCP share one
+   * loop and one step limit), registered after the three library tools. When non-empty, the
+   * consecutive-failure breaker is off: MCP failures always degrade, and an error from one
+   * third-party server must not take down the whole reply.
+   */
+  additionalEntries?: readonly ToolRegistryEntry[];
 }
 
 export class LibraryResearchCancelledError extends Error {
@@ -132,6 +145,19 @@ const DEFAULT_LIBRARY_TOKEN_BUDGET = 8_000;
  * case per failure is one watchdog period of waiting (toolTimeoutMs, 15s by default).
  */
 const MAX_CONSECUTIVE_TOOL_FAILURES = 3;
+
+/** The fixed library wording the generic loop feeds back to the model. */
+const LIBRARY_LOOP_PROMPTS: ToolLoopPrompts = {
+  stepLimitReached:
+    "The Library research step limit was reached. Synthesize the answer now from existing tool results. Do not call another tool and cite sources as [n].",
+  tokenBudgetReached:
+    "The Library research token budget was reached. Synthesize the answer now from existing tool results, do not call another tool, and cite sources as [n]. If there is not enough evidence, say so clearly.",
+  stoppedByStepLimit: "The Library research step limit was reached.",
+  stoppedByTokenBudget: "The Library research token budget was reached.",
+};
+
+/** Error code fed back for a proposal that was skipped (the generic loop's default is a different, neutral code). */
+const LIBRARY_LOOP_STOPPED_ERROR_CODE = "research_stopped";
 
 export function buildLibraryTools(
   config: LibraryRuntimeConfig,
@@ -197,6 +223,25 @@ export function buildLibraryTools(
   ];
 }
 
+/**
+ * Session state of one agentic library research run. It lives for a single run only: the loop
+ * executes tools serially, so these fields are never written concurrently.
+ */
+interface LibraryLoopState {
+  citations: LibraryCitation[];
+  steps: LibraryResearchStep[];
+  emptyHits: number;
+  requireListAfterEmptySearch: boolean;
+  /** The sensitive-content choice for this run: several hits ask only once, and the choice is scoped to this one run. */
+  sensitiveChoice?: LibraryConfirmationChoice;
+}
+
+/**
+ * Entry point of agentic library research: it assembles the registry and the generic loop. Every
+ * library-specific policy (argument validation, forcing a list after an empty search, the sensitive
+ * gate, the citation ledger, the injection budget, the watchdog and rate-limit retry, the fatal or
+ * degrade verdict) lives in the registry entries and in the callbacks of this wrapper.
+ */
 export async function runLibraryAgentLoop(
   options: LibraryAgentLoopOptions,
 ): Promise<LibraryAgentLoopResult> {
@@ -209,433 +254,385 @@ export async function runLibraryAgentLoop(
       "library_needs_reauth",
     );
   }
-  const tools = buildLibraryTools(options.config, activeSources);
   const toolsEnabled = options.toolsEnabled !== false;
-  const history = [...options.messages];
-  const citations: LibraryCitation[] = [];
-  const steps: LibraryResearchStep[] = [];
-  let accumulatedUsage: StreamUsage | undefined;
-  let selfCorrections = 0;
-  let consecutiveToolFailures = 0;
-  let emptyHits = 0;
-  let requireListAfterEmptySearch = false;
-  let forceSynthesis = false;
-  let executedToolSteps = 0;
-  // Sensitive-content confirmation for this retrieval: asked once even when several documents match, scoped to this run call.
-  let sensitiveChoice: LibraryConfirmationChoice | undefined;
-  const tokenBudget = resolveTokenBudget(
-    options.config.tokenBudget,
-    options.modelContextLength,
-  );
-
-  const emitSteps = () => options.onSteps?.(steps.map((step) => ({ ...step })));
-
-  for (let legIndex = 0; legIndex < options.config.maxSteps; legIndex += 1) {
-    throwIfAborted(options.signal);
-    let toolFallbackApplied = false;
-    let leg;
-    try {
-      leg = await consumeLeg(
-        options.runLeg({
-          messages: history,
-          tools: toolsEnabled ? tools : [],
-          toolChoice: toolsEnabled ? "auto" : "none",
-        }),
-        options.signal,
-        options.onText,
-        legIndex + 1,
-      );
-    } catch (error) {
-      const eligible = legIndex === 0
-        && toolsEnabled
-        && error instanceof LibraryAgentError
-        && error.source === 'provider'
-        && !error.streamStarted
-        && isDeterministicToolCallUnsupported(error.toolCallRejectionContext);
-      if (!eligible) throw error;
-      // D5 is deliberately depth=1. A failed resend surfaces as-is and never
-      // records a negative capability observation.
-      options.onText?.("");
-      leg = await consumeLeg(
-        options.runLeg({ messages: history, tools: [], toolChoice: "none" }),
-        options.signal,
-        options.onText,
-        options.config.maxSteps + 1,
-      );
-      if (leg.toolCalls.length > 0) {
-        throw new LibraryAgentError(
-          'The no-tools fallback returned an unexpected tool call.',
-          'library_invalid_tool_call',
-          'provider',
-        );
-      }
-      toolFallbackApplied = true;
-    }
-    accumulatedUsage = mergeUsage(accumulatedUsage, leg.usage);
-    if (accumulatedUsage) options.onUsage?.(accumulatedUsage);
-
-    if (leg.toolCalls.length === 0) {
-      if (legIndex === 0 && toolsEnabled && !toolFallbackApplied && options.onFirstLegWithoutToolCalls) {
-        // Wipe the first-leg text from the stream before fetching evidence: that text was made up
-        // without any retrieval, and leaving it on screen while waiting presents a hallucination as the answer.
-        options.onText?.("");
-        const fallback = await options.onFirstLegWithoutToolCalls(leg.text);
-        throwIfAborted(options.signal);
-        if (fallback) {
-          // The instruction goes into the leading system prompt and the evidence is appended to the
-          // last user message, the same injection points the named-document path uses
-          mergeLibrarySystemInstruction(history, fallback.systemInstruction);
-          appendLibraryContextToLatestUser(history, fallback.userContext);
-          const rerun = await consumeLeg(
-            options.runLeg({ messages: history, tools, toolChoice: "none" }),
-            options.signal,
-            options.onText,
-            options.config.maxSteps + 1,
-          );
-          accumulatedUsage = mergeUsage(accumulatedUsage, rerun.usage);
-          if (accumulatedUsage) options.onUsage?.(accumulatedUsage);
-          return {
-            text: rerun.text,
-            citations: fallback.citations,
-            steps: fallback.steps,
-            usage: accumulatedUsage,
-          };
-        }
-        // No fallback available: hand the first-leg text back and keep the current behaviour
-        options.onText?.(leg.text);
-      }
-      return {
-        text: leg.text,
-        citations: selectReferencedCitations(leg.text, citations),
-        steps,
-        usage: accumulatedUsage,
-        ...(toolFallbackApplied ? { toolFallbackApplied: true } : {}),
-      };
-    }
-    options.onText?.("");
-
-    history.push({
-      role: "assistant",
-      content: leg.text,
-      tool_calls: leg.toolCalls,
-      ...(leg.providerContinuation ? { providerContinuation: leg.providerContinuation } : {}),
-    });
-
-    if (usageTotalTokens(accumulatedUsage) >= tokenBudget) {
-      for (const call of leg.toolCalls) {
-        history.push(
-          toolResultMessage(call.id, {
-            ok: false,
-            error: {
-              code: "research_stopped",
-              message: "The Library research token budget was reached.",
-            },
-          }),
-        );
-      }
-      history.push({
-        role: "system",
-        content:
-          "The Library research token budget was reached. Synthesize the answer now from existing tool results, do not call another tool, and cite sources as [n]. If there is not enough evidence, say so clearly.",
-      });
-      forceSynthesis = true;
-      break;
-    }
-
-    for (const [callIndex, call] of leg.toolCalls.entries()) {
-      const validation = validateToolCall(
-        call,
-        requireListAfterEmptySearch,
+  const state: LibraryLoopState = {
+    citations: [],
+    steps: [],
+    emptyHits: 0,
+    requireListAfterEmptySearch: false,
+  };
+  const emitSteps = () => options.onSteps?.(state.steps.map((step) => ({ ...step })));
+  const additionalEntries = options.additionalEntries ?? [];
+  const registry = new ToolRegistry([
+    ...buildLibraryTools(options.config, activeSources).map((definition) =>
+      createLibraryEntry(
+        definition.function.name as LibraryToolName,
+        definition,
         activeSources,
-      );
-      if (!validation.ok) {
-        selfCorrections += 1;
-        history.push(
-          toolResultMessage(call.id, {
-            ok: false,
-            error: { code: validation.code, message: validation.message },
-          }),
-        );
-        if (selfCorrections > options.config.maxSelfCorrections) {
-          throw new LibraryAgentError(
-            validation.message,
-            "library_invalid_tool_call",
-          );
-        }
-        continue;
-      }
+        options,
+        state,
+        emitSteps,
+      ),
+    ),
+    ...additionalEntries,
+  ]);
 
-      const { tool, args } = validation;
-      const stepNumber = executedToolSteps + 1;
-      executedToolSteps = stepNumber;
-      const step: LibraryResearchStep = {
-        id: `${stepNumber}:${call.id}`,
-        tool,
-        label: buildStepLabel(tool, args),
-        status: "running",
-        step: stepNumber,
-      };
-      steps.push(step);
-      emitSteps();
-
-      try {
-        const response = await executeWithRetry(options, tool, args, call.id);
-        consecutiveToolFailures = 0;
-        if (response.quota) options.onQuota?.(response.quota);
-        let result = response.result;
-        let reachedEmptyLimit = false;
-
-        if (tool === "library_search") {
-          const count = Array.isArray((result as LibrarySearchResult).hits)
-            ? (result as LibrarySearchResult).hits.length
-            : 0;
-          if (count === 0) {
-            emptyHits += 1;
-            requireListAfterEmptySearch = true;
-            reachedEmptyLimit = emptyHits >= options.config.maxEmptyHits;
-          } else {
-            emptyHits = 0;
-            requireListAfterEmptySearch = false;
-          }
-        } else if (tool === "library_list") {
-          requireListAfterEmptySearch = false;
-        }
-
-        if (tool === "library_read") {
-          let read = result as LibraryReadResult;
-          const sensitiveRead = read.sensitive?.hit === true;
-          if (sensitiveRead && !hasServerRedactedRead(read)) {
-            throw new LibraryAgentError(
-              "The Library response did not include a server-redacted payload.",
-              "library_redaction_unavailable",
-            );
-          }
-          const citationRead = sensitiveRead
-            ? applyServerRedactedLibraryRead(read)
-            : read;
-          const confirmation = buildLibraryReadConfirmation(
-            read,
-            args as LibraryReadArgs,
-            options.config,
-          );
-          if (confirmation) {
-            // One retrieval may read three to five documents, and prompting per document would
-            // stack dialogs on the send path while the user clearly has a single opinion about the
-            // whole batch. The choice is reused only inside this loop (a local variable that dies
-            // with the run) and never across messages.
-            if (!sensitiveChoice) {
-              sensitiveChoice = await options.requestConfirmation(confirmation);
-              throwIfAborted(options.signal);
-            }
-            if (sensitiveChoice === "cancel") {
-              step.status = "failed";
-              emitSteps();
-              throw new LibraryResearchCancelledError();
-            }
-            if (sensitiveChoice === "redact") {
-              read = applyServerRedactedLibraryRead(read);
-            }
-          }
-          const citationIndex = addCitation(
-            citations,
-            citationRead,
-            args as LibraryReadArgs,
-          );
-          result = citationIndex == null ? read : { ...read, citationIndex };
-        }
-
-        history.push(
-          toolResultMessage(call.id, {
-            ok: true,
-            result,
-            ...(tool === "library_search" && requireListAfterEmptySearch
-              ? {
-                  requiredNextTool: "library_list",
-                  instruction:
-                    "Search returned no results. Call library_list next.",
-                }
-              : {}),
-          }),
-        );
-        step.status = "completed";
-        emitSteps();
-
-        if (reachedEmptyLimit) {
-          forceSynthesis = true;
-          history.push({
-            role: "system",
-            content:
-              "No relevant Library evidence was found. Answer honestly that nothing was found and do not invent facts.",
-          });
-          for (const skipped of leg.toolCalls.slice(callIndex + 1)) {
-            history.push(
-              toolResultMessage(skipped.id, {
-                ok: false,
-                error: {
-                  code: "research_stopped",
-                  message: "The empty-result limit was reached.",
-                },
-              }),
-            );
-          }
-          break;
-        }
-      } catch (error) {
-        if (error instanceof LibraryResearchCancelledError) throw error;
-        if (isLibraryNotFoundError(error)) {
-          history.push(
-            toolResultMessage(call.id, {
-              ok: false,
-              error: {
-                code: "library_not_found",
-                message:
-                  "The requested Library document was not found. Do not invent its contents; use other evidence or say it was not found.",
-              },
-            }),
-          );
-          // This step genuinely failed to read any evidence, so it is marked failed rather than
-          // completed.
-          step.status = "failed";
-          emitSteps();
-        } else if (isFatalLibraryToolError(error)) {
-          // Account-level failures: the connection needs re-authorisation, the monthly quota is
-          // exhausted, the retrieval step ceiling was hit, or the redacted payload is missing.
-          // Calling the tool again only burns requests and buries the card the user actually needs
-          // to see inside a tool result, which the model paraphrases as "I cannot reach the library".
-          step.status = "failed";
-          emitSteps();
-          throw error;
-        } else {
-          // A single tool failure, watchdog timeouts included, drops only that call instead of
-          // aborting the turn: the model moves on to other evidence and can still produce a cited
-          // answer. Aborting turns the whole message into an error card and throws away every piece
-          // of evidence already gathered because one document could not be read.
-          consecutiveToolFailures += 1;
-          history.push(
-            toolResultMessage(call.id, {
-              ok: false,
-              error: {
-                code: toolFailureCode(error),
-                message:
-                  "The Library tool call failed. Do not invent its contents; use other evidence or say the source was unavailable.",
-              },
-            }),
-          );
-          step.status = "failed";
-          emitSteps();
-          // Reaching the consecutive-failure threshold means this is not a transient blip (the
-          // source site is down, or the network is), and feeding more calls only costs watchdog periods.
-          if (consecutiveToolFailures >= MAX_CONSECUTIVE_TOOL_FAILURES) {
-            throw error;
-          }
-        }
-      }
-
-      if (executedToolSteps >= options.config.maxSteps) {
-        for (const skipped of leg.toolCalls.slice(callIndex + 1)) {
-          history.push(
-            toolResultMessage(skipped.id, {
-              ok: false,
-              error: {
-                code: "research_stopped",
-                message: "The Library research step limit was reached.",
-              },
-            }),
-          );
-        }
-        history.push({
-          role: "system",
-          content:
-            "The Library research step limit was reached. Synthesize the answer now from existing tool results. Do not call another tool and cite sources as [n].",
-        });
-        forceSynthesis = true;
+  // Cumulative snapshot of this leg's text: progress events carry deltas, while the callback wants the running total.
+  let legText = "";
+  // The no-tools resend needs to know which leg failed: only the first leg (0) may be resent.
+  let activeLegIndex = 0;
+  const onProgress = (event: ToolLoopProgressEvent): void => {
+    switch (event.type) {
+      case "legStarted":
+        activeLegIndex = event.legIndex;
+        legText = "";
         break;
-      }
+      case "textDelta":
+        legText += event.text;
+        options.onText?.(legText);
+        break;
+      case "usage":
+        options.onUsage?.(event.usage);
+        break;
+      case "toolCallsAccepted":
+        // Once a leg with tool calls has passed, the text is cleared and the next leg renders from the start.
+        options.onText?.("");
+        break;
+      default:
+        break;
     }
-    if (forceSynthesis) break;
+  };
+
+  const fallbackRef: { value: LibraryNoToolCallFallback | null } = { value: null };
+  const firstLegHook = options.onFirstLegWithoutToolCalls;
+  let toolFallbackApplied = false;
+
+  const limits: ToolCallLoopOptions["limits"] = {
+    maxSteps: options.config.maxSteps,
+    maxSelfCorrections: options.config.maxSelfCorrections,
+    maxConsecutiveToolFailures: additionalEntries.length > 0
+      ? Number.POSITIVE_INFINITY
+      : MAX_CONSECUTIVE_TOOL_FAILURES,
+    tokenBudget: resolveTokenBudget(
+      options.config.tokenBudget,
+      options.modelContextLength,
+    ),
+  };
+  const loopOptions: ToolCallLoopOptions = {
+    registry,
+    runLeg: options.runLeg,
+    signal: options.signal,
+    limits,
+    prompts: LIBRARY_LOOP_PROMPTS,
+    stoppedErrorCode: LIBRARY_LOOP_STOPPED_ERROR_CODE,
+    // Fallback namespace for proposals with an empty ID, numbered across legs as library_call_<leg>_<index>.
+    callIdFallbackPrefix: "library_call",
+    // A tool name outside the registry counts as a self-correction, like a wrong argument, and research goes on rather than ending silently.
+    unhandledToolCalls: "selfCorrect",
+    // With MCP on as well, the registry holds more than library tools, so the wording is not limited to "Library".
+    unknownToolMessage: (name) => additionalEntries.length > 0
+      ? `Unsupported tool: ${name}`
+      : `Unsupported Library tool: ${name}`,
+    ...(toolsEnabled ? {} : { toolsMode: "disabled" as const }),
+    ...(toolsEnabled && firstLegHook
+      ? {
+          onFirstLegWithoutToolCalls: async (text: string) => {
+            // Remove the first leg's text from the stream before fetching evidence: the model made
+            // it up without searching, and leaving it on screen while waiting would present a
+            // hallucination as the answer.
+            options.onText?.("");
+            const resolved = await firstLegHook(text);
+            throwIfAborted(options.signal);
+            if (resolved) {
+              fallbackRef.value = resolved;
+              // The instruction is merged into the leading system prompt and the evidence is
+              // appended to the last user message, the same positions the named-documents path uses.
+              const injected = [...options.messages];
+              mergeLibrarySystemInstruction(injected, resolved.systemInstruction);
+              appendLibraryContextToLatestUser(injected, resolved.userContext);
+              return injected;
+            }
+            // The fallback is unavailable: put the first leg's text back and leave things as they are.
+            options.onText?.(text);
+            return null;
+          },
+        }
+      : {}),
+  };
+
+  let result: ToolLoopResult;
+  try {
+    result = await new ToolCallLoop(loopOptions).run(options.messages, onProgress);
+  } catch (error) {
+    const toolError = error instanceof ToolLoopError ? error : null;
+    const eligible = toolsEnabled
+      && activeLegIndex === 0
+      && toolError !== null
+      && toolError.source === "provider"
+      && !toolError.streamStarted
+      && isDeterministicToolCallUnsupported(toolError.toolCallRejectionContext);
+    if (!eligible) throw toLibraryAgentError(error);
+    // The resend is deliberately depth 1: a resend that fails is rethrown as is, with no recursion and no negative capability observation.
+    options.onText?.("");
+    result = await resendWithoutTools(options, limits, onProgress);
+    toolFallbackApplied = true;
   }
 
-  if (!forceSynthesis) {
-    history.push({
-      role: "system",
-      content:
-        "The Library research step limit was reached. Synthesize the answer now from existing tool results. Do not call another tool and cite sources as [n].",
-    });
+  if (fallbackRef.value) {
+    const fallback = fallbackRef.value;
+    return {
+      text: result.text,
+      citations: fallback.citations,
+      steps: fallback.steps,
+      usage: result.usage,
+    };
   }
-  const finalLeg = await consumeLeg(
-    options.runLeg({ messages: history, tools, toolChoice: "none" }),
-    options.signal,
-    options.onText,
-    options.config.maxSteps + 1,
-  );
-  accumulatedUsage = mergeUsage(accumulatedUsage, finalLeg.usage);
-  if (accumulatedUsage) options.onUsage?.(accumulatedUsage);
   return {
-    text: finalLeg.text,
-    citations: selectReferencedCitations(finalLeg.text, citations),
-    steps,
-    usage: accumulatedUsage,
+    text: result.text,
+    citations: selectReferencedCitations(result.text, state.citations),
+    steps: state.steps,
+    usage: result.usage,
+    ...(toolFallbackApplied ? { toolFallbackApplied: true } : {}),
   };
 }
 
-async function consumeLeg(
-  handle: StreamHandle,
-  signal: AbortSignal,
-  onText?: (text: string) => void,
-  fallbackNamespace = 1,
-): Promise<{
-  text: string;
-  toolCalls: ProxyToolCall[];
-  usage?: StreamUsage;
-  providerContinuation?: ContinuationIntent;
-}> {
-  const onAbort = () => handle.abort();
-  signal.addEventListener("abort", onAbort, { once: true });
-  const reader = handle.stream.getReader();
-  let text = "";
-  let usage: StreamUsage | undefined;
-  const accumulated: ToolCallAccumulator = new Map();
-  let providerContinuation: ContinuationIntent | undefined;
-  let streamStarted = false;
+/**
+ * The one-off resend without tools: an empty registry plus `toolsMode: disabled` (tools=[] and
+ * tool_choice=none on every leg). If the model still proposes a call, `library_invalid_tool_call`
+ * is thrown as is, without another resend.
+ */
+async function resendWithoutTools(
+  options: LibraryAgentLoopOptions,
+  limits: ToolCallLoopOptions["limits"],
+  onProgress: (event: ToolLoopProgressEvent) => void,
+): Promise<ToolLoopResult> {
   try {
-    while (true) {
-      throwIfAborted(signal);
-      const next = await reader.read();
-      throwIfAborted(signal);
-      if (next.done) break;
-      const event: StreamEvent = next.value;
-      if (event.type !== 'error') streamStarted = true;
-      if (event.type === "delta") {
-        text += event.content;
-        onText?.(text);
-      } else if (event.type === "tool_calls")
-        mergeAccumulatedToolCallDeltas(accumulated, event.toolCalls);
-      else if (event.type === "usage") usage = event.usage;
-      else if (event.type === 'continuation') providerContinuation = event.continuation;
-      else if (event.type === "error")
+    return await new ToolCallLoop({
+      registry: ToolRegistry.empty,
+      runLeg: options.runLeg,
+      signal: options.signal,
+      limits,
+      prompts: LIBRARY_LOOP_PROMPTS,
+      stoppedErrorCode: LIBRARY_LOOP_STOPPED_ERROR_CODE,
+      callIdFallbackPrefix: "library_call",
+      toolsMode: "disabled",
+      onUnhandledToolCalls: () => {
         throw new LibraryAgentError(
-          event.error,
-          event.errorKind,
-          event.source,
-          handle.getToolCallRejectionContext?.(),
-          streamStarted,
+          "The no-tools fallback returned an unexpected tool call.",
+          "library_invalid_tool_call",
+          "provider",
         );
+      },
+    }).run(options.messages, onProgress);
+  } catch (error) {
+    throw toLibraryAgentError(error);
+  }
+}
+
+/** One library tool is one registry entry; execution is delegated entirely to this run's session state. */
+function createLibraryEntry(
+  tool: LibraryToolName,
+  definition: ProxyToolDefinition,
+  activeSources: LibraryProvider[],
+  options: LibraryAgentLoopOptions,
+  state: LibraryLoopState,
+  emitSteps: () => void,
+): ToolRegistryEntry {
+  return {
+    name: tool,
+    scope: "library",
+    definition,
+    execute: (call, context) =>
+      executeLibraryToolCall(
+        tool,
+        call,
+        context,
+        activeSources,
+        options,
+        state,
+        emitSteps,
+      ),
+    failureDisposition: libraryFailureDisposition,
+  };
+}
+
+async function executeLibraryToolCall(
+  tool: LibraryToolName,
+  call: ProxyToolCall,
+  context: ToolExecutionContext,
+  activeSources: LibraryProvider[],
+  options: LibraryAgentLoopOptions,
+  state: LibraryLoopState,
+  emitSteps: () => void,
+): Promise<ToolExecutionOutcome> {
+  const validation = validateToolCall(
+    call,
+    state.requireListAfterEmptySearch,
+    activeSources,
+  );
+  if (!validation.ok) {
+    // A wrong argument, source or tool name all count as a model self-correction: no step is created and nothing is executed.
+    throw new ToolCallRejection(validation.code, validation.message);
+  }
+  const args = validation.args;
+  const stepNumber = context.stepNumber;
+  const step: LibraryResearchStep = {
+    id: `${stepNumber}:${call.id}`,
+    tool,
+    label: buildStepLabel(tool, args),
+    status: "running",
+    step: stepNumber,
+  };
+  state.steps.push(step);
+  emitSteps();
+
+  try {
+    const response = await executeWithRetry(options, tool, args, call.id);
+    if (response.quota) options.onQuota?.(response.quota);
+    let result = response.result;
+    let stopReason: string | undefined;
+
+    if (tool === "library_search") {
+      const count = Array.isArray((result as LibrarySearchResult).hits)
+        ? (result as LibrarySearchResult).hits.length
+        : 0;
+      if (count === 0) {
+        state.emptyHits += 1;
+        state.requireListAfterEmptySearch = true;
+        if (state.emptyHits >= options.config.maxEmptyHits) {
+          stopReason =
+            "No relevant Library evidence was found. Answer honestly that nothing was found and do not invent facts.";
+        }
+      } else {
+        state.emptyHits = 0;
+        state.requireListAfterEmptySearch = false;
+      }
+    } else if (tool === "library_list") {
+      state.requireListAfterEmptySearch = false;
     }
-  } finally {
-    signal.removeEventListener("abort", onAbort);
-    reader.releaseLock();
+
+    if (tool === "library_read") {
+      let read = result as LibraryReadResult;
+      const sensitiveRead = read.sensitive?.hit === true;
+      if (sensitiveRead && !hasServerRedactedRead(read)) {
+        throw new LibraryAgentError(
+          "The Library response did not include a server-redacted payload.",
+          "library_redaction_unavailable",
+        );
+      }
+      const citationRead = sensitiveRead
+        ? applyServerRedactedLibraryRead(read)
+        : read;
+      const confirmation = buildLibraryReadConfirmation(
+        read,
+        args as LibraryReadArgs,
+        options.config,
+      );
+      if (confirmation) {
+        // The model may read three to five documents in one run. Asking per document would pile
+        // dialogs onto the send path, while the user's stance on this batch of evidence is clearly
+        // one and the same. The choice is reused within this loop only (the session state goes away
+        // when the run ends) and never across messages.
+        if (!state.sensitiveChoice) {
+          state.sensitiveChoice = await options.requestConfirmation(confirmation);
+          throwIfAborted(options.signal);
+        }
+        if (state.sensitiveChoice === "cancel") {
+          step.status = "failed";
+          emitSteps();
+          throw new LibraryResearchCancelledError();
+        }
+        if (state.sensitiveChoice === "redact") {
+          read = applyServerRedactedLibraryRead(read);
+        }
+      }
+      const citationIndex = addCitation(
+        state.citations,
+        citationRead,
+        args as LibraryReadArgs,
+      );
+      result = citationIndex == null ? read : { ...read, citationIndex };
+    }
+
+    const payload: Record<string, unknown> = { ok: true, result };
+    if (tool === "library_search" && state.requireListAfterEmptySearch) {
+      payload.requiredNextTool = "library_list";
+      payload.instruction = "Search returned no results. Call library_list next.";
+    }
+    step.status = "completed";
+    emitSteps();
+    return {
+      content: JSON.stringify(payload),
+      ...(stopReason !== undefined
+        ? {
+            stopReason,
+            stoppedMessage: "The empty-result limit was reached.",
+          }
+        : {}),
+    };
+  } catch (error) {
+    // This step is ok:false, the same nature as the generic failure branch: marking it completed
+    // would draw "this document was not read" as a green tick on the steps bar, and the user would
+    // think the evidence is complete.
+    step.status = "failed";
+    emitSteps();
+    throw error;
+  }
+}
+
+/**
+ * Whether this tool failure should abort the whole turn.
+ *
+ * Only account-level failures, plus a missing redacted payload for privacy reasons, are fatal: they
+ * hold for every subsequent call, so continuing to feed ok:false wastes requests and hides cards the
+ * user must see, such as re-authorise or monthly quota exhausted, inside a tool result. Everything
+ * else (source-site 5xx, exhausted rate limits, watchdog timeouts) is a single-call or
+ * single-document incident and degrades gracefully.
+ */
+function libraryFailureDisposition(error: unknown): ToolFailureDisposition {
+  if (error instanceof LibraryResearchCancelledError) return { kind: "fatal" };
+  if (isFatalLibraryToolError(error)) return { kind: "fatal" };
+  if (isLibraryNotFoundError(error)) {
+    // A missing document is not a source or network fault: it is only fed back and does not
+    // count towards consecutive failures. Treating it as a degrade would turn the whole reply into
+    // an error card once the model reads three deleted documents in a row.
+    return {
+      kind: "neutral",
+      code: "library_not_found",
+      message:
+        "The requested Library document was not found. Do not invent its contents; use other evidence or say it was not found.",
+    };
   }
   return {
-    text,
-    toolCalls: finalizeAccumulatedToolCalls(accumulated, `library_call_${fallbackNamespace}`)
-      .map((call) => ({
-        id: call.id,
-        type: 'function' as const,
-        function: { name: call.name, arguments: call.arguments },
-      })),
-    usage,
-    providerContinuation,
+    kind: "degrade",
+    code: toolFailureCode(error),
+    message:
+      "The Library tool call failed. Do not invent its contents; use other evidence or say the source was unavailable.",
   };
+}
+
+/**
+ * Maps errors thrown by the generic loop or a model leg to the library's own error type. A
+ * `ToolLoopError` from a model leg keeps its provider attribution, and a `ToolCallRejection` for
+ * exceeding the self-correction limit becomes `library_invalid_tool_call`.
+ */
+function toLibraryAgentError(error: unknown): unknown {
+  if (error instanceof LibraryResearchCancelledError) return error;
+  if (error instanceof LibraryAgentError) return error;
+  if (isAbortError(error)) return error;
+  if (error instanceof ToolCallRejection) {
+    return new LibraryAgentError(error.message, "library_invalid_tool_call");
+  }
+  if (error instanceof ToolLoopError) {
+    return new LibraryAgentError(
+      error.message,
+      error.code,
+      error.source,
+      error.toolCallRejectionContext,
+      error.streamStarted,
+    );
+  }
+  return error;
 }
 
 function validateToolCall(
@@ -778,15 +775,6 @@ async function executeWithRetry(
   );
 }
 
-/**
- * Whether this tool failure should abort the whole turn.
- *
- * Only account-level failures, plus a missing redacted payload for privacy reasons, are fatal: they
- * hold for every subsequent call, so continuing to feed ok:false wastes requests and hides cards the
- * user must see, such as re-authorise or monthly quota exhausted, inside a tool result. Everything
- * else (source-site 5xx, exhausted rate limits, watchdog timeouts) is a single-call or
- * single-document incident and degrades gracefully.
- */
 function isFatalLibraryToolError(error: unknown): boolean {
   const code = toolFailureCode(error);
   return (
@@ -904,66 +892,6 @@ function addCitation(
   return index;
 }
 
-function mergeUsage(
-  current: StreamUsage | undefined,
-  next: StreamUsage | undefined,
-): StreamUsage | undefined {
-  if (!next) return current;
-  if (!current) return next;
-  const sumOptional = (left: number | undefined, right: number | undefined) =>
-    left == null && right == null ? undefined : (left ?? 0) + (right ?? 0);
-  const leftBreakdown = current.breakdown;
-  const rightBreakdown = next.breakdown;
-  return {
-    prompt_tokens: sumOptional(current.prompt_tokens, next.prompt_tokens),
-    completion_tokens: sumOptional(
-      current.completion_tokens,
-      next.completion_tokens,
-    ),
-    total_tokens: sumOptional(current.total_tokens, next.total_tokens),
-    breakdown:
-      leftBreakdown || rightBreakdown
-        ? {
-            promptTokens:
-              (leftBreakdown?.promptTokens ?? 0) +
-              (rightBreakdown?.promptTokens ?? 0),
-            cachedInputTokens:
-              (leftBreakdown?.cachedInputTokens ?? 0) +
-              (rightBreakdown?.cachedInputTokens ?? 0),
-            cacheCreation5mTokens:
-              (leftBreakdown?.cacheCreation5mTokens ?? 0) +
-              (rightBreakdown?.cacheCreation5mTokens ?? 0),
-            cacheCreation1hTokens:
-              (leftBreakdown?.cacheCreation1hTokens ?? 0) +
-              (rightBreakdown?.cacheCreation1hTokens ?? 0),
-            completionTokens:
-              (leftBreakdown?.completionTokens ?? 0) +
-              (rightBreakdown?.completionTokens ?? 0),
-            reasoningTokens:
-              (leftBreakdown?.reasoningTokens ?? 0) +
-              (rightBreakdown?.reasoningTokens ?? 0),
-            upstreamCost: sumOptional(
-              leftBreakdown?.upstreamCost,
-              rightBreakdown?.upstreamCost,
-            ),
-            // The observation flags must follow the leg: if any leg's upstream explicitly reported
-            // cache figures, a 0 in the accumulated result is the real fact "no cache hit this
-            // time", not "upstream reported nothing". Dropping these two keys makes
-            // cacheReadObserved undefined after a multi-leg retrieval where every leg dutifully
-            // returned cached_tokens: 0, both branches of deriveCostFields then read false and the
-            // cache row is not rendered at all, whereas a present raw usage path must be persisted
-            // and displayed even when the value is 0.
-            cacheReadObserved: Boolean(
-              leftBreakdown?.cacheReadObserved || rightBreakdown?.cacheReadObserved,
-            ),
-            cacheWriteObserved: Boolean(
-              leftBreakdown?.cacheWriteObserved || rightBreakdown?.cacheWriteObserved,
-            ),
-          }
-        : undefined,
-  };
-}
-
 function resolveTokenBudget(
   configuredBudget: number,
   modelContextLength: number | undefined,
@@ -978,19 +906,6 @@ function resolveTokenBudget(
     return Math.floor(modelContextLength);
   }
   return DEFAULT_LIBRARY_TOKEN_BUDGET;
-}
-
-function usageTotalTokens(usage: StreamUsage | undefined): number {
-  if (!usage) return 0;
-  const componentTotal =
-    (usage.prompt_tokens ?? 0) + (usage.completion_tokens ?? 0);
-  if (
-    typeof usage.total_tokens === "number" &&
-    Number.isFinite(usage.total_tokens)
-  ) {
-    return Math.max(usage.total_tokens, componentTotal);
-  }
-  return componentTotal;
 }
 
 function selectReferencedCitations(
@@ -1046,14 +961,6 @@ function appendLibraryContextToLatestUser(
     };
     return;
   }
-}
-
-function toolResultMessage(toolCallID: string, payload: unknown): ProxyMessage {
-  return {
-    role: "tool",
-    tool_call_id: toolCallID,
-    content: JSON.stringify(payload),
-  };
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -1121,6 +1028,10 @@ export function isTrustedLibraryURL(
 
 function throwIfAborted(signal: AbortSignal): void {
   if (signal.aborted) throw new DOMException("Aborted", "AbortError");
+}
+
+function isAbortError(error: unknown): boolean {
+  return error instanceof Error && error.name === "AbortError";
 }
 
 function abortableDelay(ms: number, signal: AbortSignal): Promise<void> {

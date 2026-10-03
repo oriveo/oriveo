@@ -115,6 +115,12 @@ interface InputComposerProps {
   quoteContext?: QuoteContext;
   onRemoveQuote?: () => void;
   quoteFocusSignal?: number;
+  /**
+   * An extra control at the end of the toolbar (the remote MCP "Tools" chip and its popover). The
+   * control owns its state and popover; it sits here because the popover is positioned relative to
+   * the composer.
+   */
+  toolsExtra?: React.ReactNode;
 }
 
 function formatPreviewDate(iso?: string): string | undefined {
@@ -303,6 +309,7 @@ export function InputComposer({
   quoteContext,
   onRemoveQuote,
   quoteFocusSignal,
+  toolsExtra,
 }: InputComposerProps) {
   const t = useTranslations('pages.chat');
   // These session-scope labels live in the shared `common` contract. Keeping this namespace
@@ -719,6 +726,7 @@ export function InputComposer({
                   onClick={() => onAddLibraryContext?.()}
                 />
               )}
+              {toolsExtra}
           </div>
 
           {isStreaming ? (

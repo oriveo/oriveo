@@ -27,9 +27,37 @@ const MAX_MODEL_ID_LEN = 512;
 const MAX_BASE_URL_LEN = 2048;
 /** Whole request body cap of 50MB, which covers the longest reasonable BYOK request; anything larger already exceeds the model context. */
 const MAX_TOTAL_BYTES = 50 * 1024 * 1024;
-const MAX_TOOLS_COUNT = 16;
+const LIBRARY_TOOL_COUNT = 3;
+/**
+ * The three MCP numbers are hard server-side ceilings, not defaults, and they do not follow the
+ * runtime configuration.
+ *
+ * The adjustable values live in the model catalog's `mcpRuntimeConfig` (`maxToolsPerRequest` /
+ * `maxToolDefinitionBytes`) and are honoured by the client when it assembles a request. This is the
+ * last gate on a public endpoint: a client may not play by the rules, so the ceiling has to be
+ * fixed in server code. The ceilings currently equal the runtime configuration defaults, which
+ * means the runtime configuration can only lower them; raising a limit requires changing this file
+ * first, or this route rejects the larger requests.
+ */
+/** Hard ceiling on the number of MCP tools in one request. */
+const HARD_MAX_MCP_TOOLS_COUNT = 40;
+/** Hard ceiling on the UTF-8 byte size of one MCP tool's description plus parameter definition. */
+const HARD_MAX_MCP_TOOL_DEFINITION_BYTES = 16 * 1024;
+/** Hard ceiling on the length of the tools array: the 3 library tools plus the MCP ceiling. */
+const MAX_TOOLS_COUNT = LIBRARY_TOOL_COUNT + HARD_MAX_MCP_TOOLS_COUNT;
+/** Ceiling on the total length of an outgoing tool name: upstreams only accept [a-zA-Z0-9_-]{1,64}. */
+const MAX_MCP_TOOL_NAME_LEN = 64;
 const MAX_TOOL_TEXT_LEN = 16 * 1024;
 const LIBRARY_TOOL_NAMES = new Set(['library_search', 'library_list', 'library_read']);
+/**
+ * MCP tool name: `mcp_<slug>_<sanitized>`, where the slug is 1..16 lowercase letters or digits (a
+ * slug never contains `-`; see the `identifiers.json` fixture) and the total length is at most 64.
+ * The last segment has no limit of its own: the truncation rule produces names by "total length
+ * at most 64", so a short slug naturally leaves a longer last segment, and a fixed inner limit
+ * would contradict the vectors in `shared/test-fixtures/mcp/naming.json` (every expected output
+ * in that fixture has to pass this pattern; see __tests__/validate.test.ts).
+ */
+const MCP_TOOL_NAME_PATTERN = /^mcp_[a-z0-9]{1,16}_[A-Za-z0-9_-]+$/;
 const LIBRARY_TOOL_PARAMETERS: Record<string, { properties: string[]; required: string[] }> = {
   library_search: { properties: ['limit', 'query', 'sources'], required: ['query'] },
   library_list: { properties: ['containerId', 'cursor', 'source'], required: ['source'] },
@@ -57,6 +85,26 @@ function isRecord(v: unknown): v is Record<string, unknown> {
 function approximateByteLength(s: string): number {
   // Blob is too heavy for this. UTF-8 estimate: 1 byte for ASCII, 3 for CJK, 4 for emoji, so length * 4 is a conservative upper bound.
   return s.length * 4;
+}
+
+/**
+ * The real UTF-8 byte size of a tool definition. The MCP size ceiling
+ * (HARD_MAX_MCP_TOOL_DEFINITION_BYTES) is an enforced gate and cannot be checked against a
+ * conservative char×4 bound, which would also reject ordinary parameter schemas over 4KB. This
+ * file only runs in a route on the Node runtime, so Buffer is always available.
+ */
+function utf8ByteLength(s: string): number {
+  return Buffer.byteLength(s, 'utf8');
+}
+
+/** MCP tool name: mcp_<slug>_<last segment>, with a total length of at most 64. */
+export function isMcpToolName(name: string): boolean {
+  return name.length <= MAX_MCP_TOOL_NAME_LEN && MCP_TOOL_NAME_PATTERN.test(name);
+}
+
+/** Tool calls in the history and outgoing tools share the same name rules. */
+function isAllowedToolCallName(name: string): boolean {
+  return LIBRARY_TOOL_NAMES.has(name) || isMcpToolName(name);
 }
 
 function validateMessageContentSize(content: unknown): boolean {
@@ -195,7 +243,7 @@ export function validateChatStreamRequest(body: unknown): ValidationResult {
         if (typeof call.function.name !== 'string' || typeof call.function.arguments !== 'string') {
           return { ok: false, status: 400, error: `messages[${i}].tool_calls invalid` };
         }
-        if (!LIBRARY_TOOL_NAMES.has(call.function.name)) {
+        if (!isAllowedToolCallName(call.function.name)) {
           return { ok: false, status: 400, error: `messages[${i}].tool_calls invalid` };
         }
       }
@@ -210,10 +258,16 @@ export function validateChatStreamRequest(body: unknown): ValidationResult {
 
   const tools = body.tools;
   if (tools !== undefined) {
-    if (!Array.isArray(tools) || tools.length !== 3 || tools.length > MAX_TOOLS_COUNT) {
+    // An empty array is accepted and means the same as no tools: the request builders and the
+    // tool wire adapters all go by `tools?.length`, so an empty array never appears in the body
+    // sent upstream (some upstreams answer 400 to an empty tools array). This is the shape a
+    // caller produces when the MCP servers switched on for a conversation have no usable tool.
+    if (!Array.isArray(tools) || tools.length > MAX_TOOLS_COUNT) {
       return { ok: false, status: 400, error: 'tools invalid' };
     }
     const seenToolNames = new Set<string>();
+    let libraryToolCount = 0;
+    let mcpToolCount = 0;
     for (const tool of tools) {
       if (!isRecord(tool) || tool.type !== 'function' || !isRecord(tool.function)) {
         return { ok: false, status: 400, error: 'tools invalid' };
@@ -221,24 +275,50 @@ export function validateChatStreamRequest(body: unknown): ValidationResult {
       const fn = tool.function;
       if (
         typeof fn.name !== 'string'
-        || !LIBRARY_TOOL_NAMES.has(fn.name)
         || seenToolNames.has(fn.name)
         || typeof fn.description !== 'string'
+        // The parameter definition has to be an object: anything else is not a JSON Schema, the
+        // upstream would reject it as a tool declaration, and it could be used to slip past the
+        // size check below, which works on objects.
         || !isRecord(fn.parameters)
-        || !matchesLibraryToolParameters(fn.name, fn.parameters)
-        || fn.name.length > MAX_TOOL_TEXT_LEN
-        || fn.description.length > MAX_TOOL_TEXT_LEN
       ) {
         return { ok: false, status: 400, error: 'tools invalid' };
       }
+      if (LIBRARY_TOOL_NAMES.has(fn.name)) {
+        if (
+          !matchesLibraryToolParameters(fn.name, fn.parameters)
+          || fn.name.length > MAX_TOOL_TEXT_LEN
+          || fn.description.length > MAX_TOOL_TEXT_LEN
+        ) {
+          return { ok: false, status: 400, error: 'tools invalid' };
+        }
+        libraryToolCount += 1;
+      } else if (isMcpToolName(fn.name)) {
+        mcpToolCount += 1;
+        if (mcpToolCount > HARD_MAX_MCP_TOOLS_COUNT) {
+          return { ok: false, status: 400, error: 'tools invalid' };
+        }
+        const definitionBytes = utf8ByteLength(fn.description)
+          + utf8ByteLength(JSON.stringify(fn.parameters) ?? '');
+        if (definitionBytes > HARD_MAX_MCP_TOOL_DEFINITION_BYTES) {
+          return { ok: false, status: 400, error: 'tools invalid' };
+        }
+      } else {
+        return { ok: false, status: 400, error: 'tools invalid' };
+      }
       seenToolNames.add(fn.name);
+    }
+    // Library tools are either absent or exactly those 3; any number of MCP tools may sit beside them.
+    if (libraryToolCount !== 0 && libraryToolCount !== LIBRARY_TOOL_COUNT) {
+      return { ok: false, status: 400, error: 'tools invalid' };
     }
   }
   const toolChoice = body.toolChoice;
   if (toolChoice !== undefined && toolChoice !== 'auto' && toolChoice !== 'none' && toolChoice !== 'required') {
     return { ok: false, status: 400, error: 'toolChoice invalid' };
   }
-  if (toolChoice !== undefined && tools === undefined) {
+  // With no tool to choose from, toolChoice means nothing and is not sent upstream; saying so beats dropping it silently.
+  if (toolChoice !== undefined && (!Array.isArray(tools) || tools.length === 0)) {
     return { ok: false, status: 400, error: 'toolChoice requires tools' };
   }
   const stream = body.stream;
@@ -324,4 +404,8 @@ export const VALIDATION_LIMITS = {
   MAX_BASE_URL_LEN,
   MAX_TOTAL_BYTES,
   MAX_TOOLS_COUNT,
+  HARD_MAX_MCP_TOOLS_COUNT,
+  HARD_MAX_MCP_TOOL_DEFINITION_BYTES,
+  MAX_MCP_TOOL_NAME_LEN,
+  MCP_TOOL_NAME_PATTERN,
 } as const;

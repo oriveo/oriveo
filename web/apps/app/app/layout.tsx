@@ -9,6 +9,7 @@ import { SRLiveRegion } from '../components/SRLiveRegion';
 import { RouteTitleSync } from '../components/RouteTitleSync';
 import { ThemeInitScript } from '../components/ThemeInitScript';
 import { PersistentShellLayout } from '../components/PersistentShellLayout';
+import { McpGlobalPrompts } from '../components/mcp/McpGlobalPrompts';
 import { ClientIntlProvider } from '../components/i18n/ClientIntlProvider';
 import { LocalePreferenceSync } from '../components/i18n/LocalePreferenceSync';
 import { isRTL } from '../lib/i18n/locale-utils';
@@ -102,6 +103,8 @@ export default async function RootLayout({ children }: RootLayoutProps) {
               <RouteTitleSync />
               <LocalePreferenceSync />
               <PersistentShellLayout>{children}</PersistentShellLayout>
+              {/* MCP write confirmations and the "authorization expired" prompt: a reply can be running in the background while the user is on any page. */}
+              <McpGlobalPrompts />
             </StoreProvider>
           </SRLiveRegion>
         </NextIntlClientProvider>

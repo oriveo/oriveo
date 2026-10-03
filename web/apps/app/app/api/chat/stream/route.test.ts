@@ -2138,6 +2138,39 @@ describe("/api/chat/stream", () => {
     expect(messagesBody?.messages).toEqual([{ role: "user", content: "hello" }]);
   });
 
+  it("tools: [] means the same as no tools: the body sent upstream has neither tools nor tool_choice", async () => {
+    const bodies: Record<string, Record<string, unknown>> = {};
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {
+      const url = String(input);
+      if (url === METADATA_URL) {
+        return jsonResponse(buildMetadata({ profiles: { reasoning: {}, webSearch: {}, imageGen: {} }, providers: {} }));
+      }
+      if (url === "https://api.anthropic.com/v1/messages" || url === "https://api.openai.com/v1/chat/completions") {
+        bodies[url] = JSON.parse(String(init?.body));
+        return sseResponse("data: [DONE]\n\n");
+      }
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+
+    const { POST } = await loadRoute();
+    for (const [providerKind, apiKey, modelID] of [
+      ["anthropic", "sk-ant-test", "claude-sonnet-4"],
+      ["openAI", "sk-test", "gpt-4o"],
+    ]) {
+      const response = await POST(
+        buildRequest({ providerKind, apiKey, modelID, messages: [{ role: "user", content: "hello" }], tools: [] }) as never,
+      );
+      expect(response.status, providerKind).toBe(200);
+    }
+
+    const sent = Object.values(bodies);
+    expect(sent).toHaveLength(2);
+    for (const body of sent) {
+      expect(body.tools).toBeUndefined();
+      expect(body.tool_choice).toBeUndefined();
+    }
+  });
+
   it("injects no tools for Anthropic when web search is off", async () => {
     let messagesBody: Record<string, unknown> | undefined;
     vi.spyOn(globalThis, "fetch").mockImplementation(async (input, init) => {

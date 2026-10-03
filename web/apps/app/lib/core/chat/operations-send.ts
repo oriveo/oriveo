@@ -44,6 +44,8 @@ import { reportSendCompletion } from './send-completion';
 import { continuationCaptured, continuationSendCompleted, continuationSendInterrupted, continuationSendStarted } from './continuation-lifecycle';
 import { getSyncAdapter } from '../sync-port';
 import type { ChatOpCtx, SendHandle } from './operations';
+import { prepareMcpSend } from '../mcp/mcp-chat';
+import { sendMcpToolMessage, type SendMcpToolMessageParams } from './operations-mcp-send';
 import type {
   LibraryConfirmationRequest,
   LibraryDocumentRef,
@@ -58,6 +60,7 @@ import {
 } from '../metadata/metadata-client';
 import { LibraryResearchCancelledError } from './library-agent-loop';
 import { libraryFailurePatch, type LibraryFailurePresentation } from './library-failure';
+import { telemetryToolName } from '../mcp/mcp-telemetry';
 import {
   dedupeLibraryDocumentRefs,
   libraryDocumentRefsFromCitations,
@@ -68,6 +71,53 @@ import {
   runLibraryServerResearch,
   type LibraryServerResearchResult,
 } from './library-server-research';
+
+/**
+ * Decides whether this send is handed to the MCP tool loop, and returns its arguments if so. It only reads the local MCP store and sends no request.
+ */
+function resolveMcpDelegation(params: Parameters<typeof sendMessage>[1]): SendMcpToolMessageParams | null {
+  if (params.libraryServerResearch) return null;
+  if (params.libraryContextDocuments?.length) return null;
+  const override = params.assistantMessageOverride;
+  // When a message that named documents is resumed, its citations are inherited as named documents (see inheritedContextDocuments below).
+  if (!params.libraryContextDocuments && override && !override.libraryResearchEnabled
+    && libraryDocumentRefsFromCitations(override.citations).length > 0) return null;
+  if (params.excludeCustomFragments
+    || params.excludeCustomFragmentOwners?.length
+    || params.capabilityRecipeOmissions?.length
+    || params.capabilityRecipeResendOwners?.length
+    || params.excludeCapabilityOwners?.length) return null;
+  const plan = prepareMcpSend({
+    conversationId: params.conversation?.id,
+    draftSessionId: params.generationParameterDraftSessionId,
+    provider: params.provider,
+    model: params.model,
+  });
+  if (plan.tools.length === 0) return null;
+  return {
+    text: params.text,
+    prevMessages: params.prevMessages,
+    conversation: params.conversation,
+    provider: params.provider,
+    model: params.model,
+    reasoningMode: params.reasoningMode,
+    plan,
+    ...(params.attachments ? { attachments: params.attachments } : {}),
+    ...(params.quoteContext ? { quoteContext: params.quoteContext } : {}),
+    ...(params.skillId ? { skillId: params.skillId } : {}),
+    ...(params.pinnedNoteIds ? { pinnedNoteIds: params.pinnedNoteIds } : {}),
+    ...(params.userMessageOverride ? { userMessageOverride: params.userMessageOverride } : {}),
+    ...(override ? { assistantMessageOverride: override } : {}),
+    ...(params.persistUserMessage != null ? { persistUserMessage: params.persistUserMessage } : {}),
+    ...(params.userMessageAlreadyInHistory != null ? { userMessageAlreadyInHistory: params.userMessageAlreadyInHistory } : {}),
+    ...(params.historyMessages ? { historyMessages: params.historyMessages } : {}),
+    ...(params.appendToAssistant ? { appendToAssistant: params.appendToAssistant } : {}),
+    ...(params.onNewConversation ? { onNewConversation: params.onNewConversation } : {}),
+    ...(params.onFailed ? { onFailed: params.onFailed } : {}),
+    ...(params.generationParameterDraftSessionId ? { generationParameterDraftSessionId: params.generationParameterDraftSessionId } : {}),
+    ...(params.transientGenerationParameters ? { transientGenerationParameters: params.transientGenerationParameters } : {}),
+  };
+}
 
 export function sendMessage(
   ctx: ChatOpCtx,
@@ -163,6 +213,16 @@ export function sendMessage(
     capabilityRecipeResendOwners = [],
     excludeCapabilityOwners = [],
   } = params;
+
+  // Remote MCP: when this conversation has servers switched on and the connection can carry tools,
+  // the send goes through the tool loop instead. The decision is made here rather than in the UI
+  // because retry and edit-and-resend re-enter through this function; deciding at each entry point
+  // would inevitably miss one. Not delegated: named documents and server-side research (they need
+  // the injection pipeline, and the library takes precedence), and targeted resends the user
+  // confirmed (those switches only take effect on the plain send path). With no usable tool the
+  // plan is empty and the original path is unchanged.
+  const mcpDelegation = resolveMcpDelegation(params);
+  if (mcpDelegation) return sendMcpToolMessage(ctx, mcpDelegation);
 
   const userMsg = userMessageOverride ?? createUserMessage({ text, provider, model, attachments, quoteContext });
   // On a libraryResearchEnabled message the citations are evidence the research mode found on
@@ -504,7 +564,7 @@ export function sendMessage(
         trackEvent('tool_call_unhandled', {
           providerKind: telemetryProviderKind(provider.kind),
           transport: resolveCatalogModel(model.id, provider.kind)?.transport ?? model.transport ?? 'unknown',
-          toolName: call.name,
+          toolName: telemetryToolName(call.name),
         });
       }
       const toolCallSupport = resolveModelCapabilityEvidence({

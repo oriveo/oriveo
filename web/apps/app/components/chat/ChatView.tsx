@@ -54,6 +54,9 @@ import { ExportMenuButton } from './ExportMenuButton';
 import { ChatAmbientAurora } from './ChatAmbientAurora';
 import { ThemeToggleButton } from './ThemeToggleButton';
 import { LibraryConfirmationDialog } from './LibraryConfirmationDialog';
+import { McpChatPresence } from '../mcp/McpGlobalPrompts';
+import { McpToolsControl } from '../mcp/McpToolsControl';
+import { mcpDraftScope } from '../../lib/core/mcp/mcp-store';
 import { extractLibrarySourceMentions } from '../../lib/core/library/source-mentions';
 import { isLibraryFeatureEnabled } from '../../lib/core/library/feature-flag';
 import { resolveLibraryResearchRoute, resolveLibraryResearchUnavailableReason } from '../../lib/core/library/routing';
@@ -1259,9 +1262,20 @@ export function ChatView({ conversationId, searchQuery }: ChatViewProps) {
         quoteContext={pendingQuoteContext}
         onRemoveQuote={handleRemoveQuote}
         quoteFocusSignal={quoteFocusSignal}
+        toolsExtra={(
+          <McpToolsControl
+            // A new conversation has no id yet: the switches are kept under the draft scope and move to the real id once the first message is sent.
+            scope={effectiveId ?? mcpDraftScope(generationParameterDraftSessionId)}
+            provider={provider}
+            model={currentModel}
+            isStreaming={isStreaming}
+            onOpenModelSwitcher={() => setShowModelSwitcher(true)}
+          />
+        )}
       />
 
       {libraryFeatureEnabled ? <LibraryConfirmationDialog /> : null}
+      <McpChatPresence conversationId={effectiveId ?? undefined} />
 
     </div>
   );

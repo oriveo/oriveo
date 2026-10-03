@@ -26,6 +26,8 @@ import { UserAvatar } from "../common/UserAvatar";
 import { useAppStore } from "../../providers/StoreProvider";
 import { CitationsBlock } from "./CitationsBlock";
 import { ResearchProgressBlock } from "./ResearchProgressBlock";
+import { McpToolStepsBlock } from "../mcp/McpToolStepsBlock";
+import { mcpToolStepDisplayTitle } from "../../lib/core/mcp/mcp-tool-steps";
 import { ReasoningBlock } from "./ReasoningBlock";
 import { MessageMeta } from "./MessageMeta";
 import { CrosscheckSheet } from "./CrosscheckSheet";
@@ -188,6 +190,14 @@ export const MessageBubble = memo(function MessageBubble({
     activity: streamingActivity,
     quiet: streamQuiet,
   });
+
+  // The server name and tool title for the `mcp_tool` activity are read from the step that is currently running.
+  const runningMcpStep = isStreaming
+    ? [...(message.toolSteps ?? [])].reverse().find((step) => step.status === "running")
+    : undefined;
+  const mcpActivityContext = runningMcpStep
+    ? { server: runningMcpStep.serverName, tool: mcpToolStepDisplayTitle(runningMcpStep) }
+    : null;
 
   const account = useAppStore((s) => s.account);
   const hasSeenNoteCaptureHint = useAppStore(
@@ -530,6 +540,15 @@ export const MessageBubble = memo(function MessageBubble({
                   isStreaming={isStreaming}
                 />
               )}
+            {message.role === "assistant" && message.toolSteps && message.toolSteps.length > 0 && (
+              <McpToolStepsBlock
+                steps={message.toolSteps}
+                isStreaming={isStreaming}
+                messageId={message.id}
+                conversationId={conversationId}
+                limitReached={message.toolStepLimitReached === true}
+              />
+            )}
             <div className={styles.bubble}>
               {message.role === "user" && message.quoteContext ? (
                 <QuoteContextChip quoteContext={message.quoteContext} presentation="sent" />
@@ -548,6 +567,7 @@ export const MessageBubble = memo(function MessageBubble({
                       ? activityPresentation.activity
                       : null
                   }
+                  mcp={mcpActivityContext}
                 />
               ) : message.role === "assistant" && displayText ? (
                 <MarkdownRenderer
@@ -579,7 +599,7 @@ export const MessageBubble = memo(function MessageBubble({
                 <span data-quote-block="prose">{displayText}</span>
               )}
               {activityPresentation.kind === "line" ? (
-                <StreamActivityLine label={activityPresentation.label} />
+                <StreamActivityLine label={activityPresentation.label} mcp={mcpActivityContext} />
               ) : null}
               {message.role === "assistant" && (message.unhandledToolCalls?.length || message.toolFallbackNotice) ? (
                 <UnhandledToolCallCard
