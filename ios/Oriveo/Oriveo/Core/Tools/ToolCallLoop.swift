@@ -34,6 +34,8 @@ nonisolated struct ToolCallLoop: Sendable {
         var tokenBudgetReached = "The research token budget was reached. Synthesize the answer now from existing tool results, do not call another tool, and cite sources as [n]. If there is not enough evidence, say so clearly."
         var stoppedByStepLimit = "The tool call step limit was reached."
         var stoppedByTokenBudget = "The research token budget was reached."
+        /// Error code fed back for calls that were skipped once the loop stopped.
+        var stoppedErrorCode = "research_stopped"
 
         init() {}
     }
@@ -184,7 +186,7 @@ nonisolated struct ToolCallLoop: Sendable {
                 for call in accepted {
                     feed(adapter.encodeToolResult(
                         callID: call.id, toolName: call.function.name,
-                        content: Self.errorContent(code: "research_stopped", message: prompts.stoppedByTokenBudget)
+                        content: Self.errorContent(code: prompts.stoppedErrorCode, message: prompts.stoppedByTokenBudget)
                     ))
                 }
                 appendSystem(prompts.tokenBudgetReached)
@@ -195,6 +197,9 @@ nonisolated struct ToolCallLoop: Sendable {
 
             toolCallsLoop: for (callIndex, call) in accepted.enumerated() {
                 guard let entry = registry.entry(named: call.function.name) else { continue }
+                // Checked before every tool, not only between legs: once the user pressed stop, the
+                // remaining calls of the same leg (which may write) must not run.
+                try Task.checkCancellation()
                 let stepNumber = executedToolSteps + 1
                 let context = ToolExecutionContext(callID: call.id, stepNumber: stepNumber, legIndex: legIndex)
                 do {
@@ -207,7 +212,7 @@ nonisolated struct ToolCallLoop: Sendable {
                         for skipped in accepted.dropFirst(callIndex + 1) {
                             feed(adapter.encodeToolResult(
                                 callID: skipped.id, toolName: skipped.function.name,
-                                content: Self.errorContent(code: "research_stopped", message: stopReason)
+                                content: Self.errorContent(code: prompts.stoppedErrorCode, message: stopReason)
                             ))
                         }
                         forceSynthesis = true
@@ -235,6 +240,13 @@ nonisolated struct ToolCallLoop: Sendable {
                             content: Self.errorContent(code: code, message: message)
                         ))
                         if consecutiveToolFailures >= limits.maxConsecutiveToolFailures { throw error }
+                    case let .neutral(code, message):
+                        // Leaves the failure streak untouched: neither evidence of a fault nor of a success.
+                        executedToolSteps = stepNumber
+                        feed(adapter.encodeToolResult(
+                            callID: call.id, toolName: call.function.name,
+                            content: Self.errorContent(code: code, message: message)
+                        ))
                     }
                 }
 
@@ -242,7 +254,7 @@ nonisolated struct ToolCallLoop: Sendable {
                     for skipped in accepted.dropFirst(callIndex + 1) {
                         feed(adapter.encodeToolResult(
                             callID: skipped.id, toolName: skipped.function.name,
-                            content: Self.errorContent(code: "research_stopped", message: prompts.stoppedByStepLimit)
+                            content: Self.errorContent(code: prompts.stoppedErrorCode, message: prompts.stoppedByStepLimit)
                         ))
                     }
                     appendSystem(prompts.stepLimitReached)

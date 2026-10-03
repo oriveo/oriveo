@@ -86,7 +86,7 @@ nonisolated struct OpenAIChatToolAdapter: ToolProtocolAdapter {
     }
 
     func makeStreamDecoder() -> any ToolCallStreamDecoding {
-        OpenAIChatToolCallStreamDecoder()
+        OpenAIChatToolCallStreamDecoder(decodesFunctionNames: false)
     }
 
     func encodeToolResult(callID: String, toolName: String, content: String) -> ToolLoopMessage {
@@ -134,9 +134,14 @@ nonisolated struct OpenAIChatToolAdapter: ToolProtocolAdapter {
 }
 
 nonisolated struct OpenAIChatToolCallStreamDecoder: ToolCallStreamDecoding {
-    private var accumulator = OpenAICompatibleToolCallAccumulator()
+    private var accumulator: OpenAICompatibleToolCallAccumulator
 
-    init() {}
+    /// `decodesFunctionNames`: see `OpenAICompatibleToolCallAccumulator.init`. The tool loop sends
+    /// function names verbatim (`mcp_<server>_<tool>`), so its side must pass `false` to get back
+    /// exactly the names it sent.
+    init(decodesFunctionNames: Bool = true) {
+        accumulator = OpenAICompatibleToolCallAccumulator(decodesFunctionNames: decodesFunctionNames)
+    }
 
     mutating func ingest(frame: [String: Any]) -> [ProviderToolCall] {
         let choice = (frame["choices"] as? [[String: Any]])?.first

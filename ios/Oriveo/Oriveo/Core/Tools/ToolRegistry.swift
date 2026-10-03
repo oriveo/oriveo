@@ -12,8 +12,16 @@ nonisolated struct ToolCallRejection: Error, Equatable, Sendable {
 }
 
 nonisolated enum ToolFailureDisposition: Equatable, Sendable {
+    /// A failure that would hold for every later call too: the whole turn throws.
     case fatal
+    /// A one-off failure: fed back as a structured `ok:false` result and the loop continues. It
+    /// counts towards the consecutive-failure limit.
     case degrade(code: String, message: String)
+    /// A neutral result: also fed back as `ok:false`, but it neither adds to the consecutive-failure
+    /// count nor resets it (it still uses up one tool step). For calls that worked and whose answer
+    /// is simply "no": that is not evidence of a broken link, and not a success that should wipe
+    /// out earlier real failures either.
+    case neutral(code: String, message: String)
 }
 
 nonisolated struct ToolExecutionOutcome: Sendable {
@@ -48,7 +56,7 @@ extension ToolRegistryEntry {
 
 /// (`ToolCallLoop.onUnhandledToolCalls` → ChatManager `recordUnhandledToolCalls`).
 nonisolated struct ToolRegistry: Sendable {
-    private var entries: [String: any ToolRegistryEntry]
+    private var table: [String: any ToolRegistryEntry]
     private var orderedNames: [String]
 
     init(entries: [any ToolRegistryEntry]) {
@@ -58,21 +66,26 @@ nonisolated struct ToolRegistry: Sendable {
             table[entry.name] = entry
             order.append(entry.name)
         }
-        self.entries = table
+        self.table = table
         self.orderedNames = order
     }
 
     static let empty = ToolRegistry(entries: [])
 
     func entry(named name: String) -> (any ToolRegistryEntry)? {
-        entries[name]
+        table[name]
     }
 
-    var isEmpty: Bool { entries.isEmpty }
+    var isEmpty: Bool { table.isEmpty }
 
     var names: [String] { orderedNames }
 
+    /// Every entry, in registration order. Used to merge registries from two sources.
+    var entries: [any ToolRegistryEntry] {
+        orderedNames.compactMap { table[$0] }
+    }
+
     var definitions: [ToolLoopToolDefinition] {
-        orderedNames.compactMap { entries[$0]?.definition }
+        orderedNames.compactMap { table[$0]?.definition }
     }
 }
