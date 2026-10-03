@@ -2200,7 +2200,7 @@
         "emptyTitle": "还没有可用的工具",
         "emptyBody": "连接一个 MCP 服务器，模型就能在聊天里查 Linear、写 Notion，或者使用你自己搭建的工具。",
         "addServer": "添加 MCP 服务器",
-        "unsupportedTitle": "当前模型不能使用工具",
+        "unsupportedTitle": "这个模型不能使用工具",
         "unsupportedModel": "这个模型不支持调用工具。换一个模型后就可以使用。",
         "switchModel": "切换模型",
         "toggleAria": "在本次对话里使用 {server}"
