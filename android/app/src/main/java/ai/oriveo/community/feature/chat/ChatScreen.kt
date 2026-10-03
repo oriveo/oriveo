@@ -13,6 +13,12 @@ fun ChatScreen(
     onNavigateToProviderDetail: (providerId: String) -> Unit = {},
     onNavigateToSkillEdit: () -> Unit = {},
     onNavigateToNoteDetail: (String) -> Unit = {},
+    /**
+     * Remote MCP: where the server management screen and the add-server flow live. Re-authorization
+     * does not navigate; the chat side calls the entry point installed on `McpChatToolRunner.reauthorizer`.
+     */
+    onNavigateToMcpServers: () -> Unit = {},
+    onNavigateToMcpAddServer: () -> Unit = {},
     viewModel: ChatViewModel = koinViewModel(),
 ) {
     ChatScreenContent(
@@ -24,6 +30,8 @@ fun ChatScreen(
         onNavigateToProviderDetail = onNavigateToProviderDetail,
         onNavigateToSkillEdit = onNavigateToSkillEdit,
         onNavigateToNoteDetail = onNavigateToNoteDetail,
+        onNavigateToMcpServers = onNavigateToMcpServers,
+        onNavigateToMcpAddServer = onNavigateToMcpAddServer,
         viewModel = viewModel,
     )
 }

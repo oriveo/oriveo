@@ -53,6 +53,8 @@ internal fun ComposerControlChip(
     accessory: ComposerControlChipAccessory,
     capabilityIcons: List<ImageVector> = emptyList(),
     accessibilityState: String? = null,
+    /** Dimmed but still tappable: the entry is unavailable right now and opens a sheet explaining why (MCP tools on a model that cannot use them). */
+    dimmed: Boolean = false,
     onClick: () -> Unit,
 ) {
     val colors = OriveoTheme.colors
@@ -82,7 +84,7 @@ internal fun ComposerControlChip(
             .graphicsLayer {
                 scaleX = chipScale
                 scaleY = chipScale
-                alpha = if (disabled) 0.52f else if (pressed) 0.94f else 1f
+                alpha = if (disabled || dimmed) 0.52f else if (pressed) 0.94f else 1f
             }
             .shadow(
                 elevation = if (emphasized) 7.dp else 0.dp,

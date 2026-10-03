@@ -58,6 +58,8 @@ val viewModelModule = module {
             attachmentProcessor = get(),
             globalSnackbarManager = get(),
             applicationScope = get(named("applicationScope")),
+            mcpChatToolRunner = get(),
+            mcpConfirmationCoordinator = get(),
         )
     }
     viewModel {

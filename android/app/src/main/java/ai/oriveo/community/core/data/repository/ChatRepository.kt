@@ -40,6 +40,7 @@ import ai.oriveo.community.core.provider.DeliveredCostResolver
 import ai.oriveo.community.core.provider.CostSource
 import ai.oriveo.community.core.provider.MessageBuilder
 import ai.oriveo.community.core.provider.ModelSelectionUtils
+import ai.oriveo.community.core.model.UnhandledToolCall
 import ai.oriveo.community.core.provider.NativeToolCallAccumulator
 import ai.oriveo.community.core.provider.ToolCallMemoryStore
 import ai.oriveo.community.core.provider.ProviderSelectionSnapshot
@@ -106,6 +107,8 @@ class ChatRepository(
     private val continuationStore: ai.oriveo.community.core.provider.MessageContinuationStore? = null,
     private val continuationAccountId: () -> String? = { null },
     private val toolCallMemoryStore: ToolCallMemoryStore? = null,
+    /** Entry point that brings remote MCP into the send path; when null (focused tests) a request carries no MCP tools. */
+    private val mcpChatToolRunner: ai.oriveo.community.core.mcp.McpChatToolRunner? = null,
 ) {
     /**
      * Sends [text] to [provider] and streams the answer back into [outputs].
@@ -218,6 +221,29 @@ class ChatRepository(
         // Structured provider tool calls must survive even when this connection has no executor.
         // Accumulate the native stream fields and surface them as a local-only message card.
         val nativeToolCallDeltas = mutableMapOf<Int, ToolCallDelta>()
+        // Proposals from the tool loop that matched no registered tool. Collected apart from
+        // nativeToolCallDeltas: that table is keyed by the index inside one stream, and every leg
+        // of the loop numbers from 0 again, so mixing them would concatenate arguments.
+        val loopUnhandledToolCalls = mutableListOf<UnhandledToolCall>()
+        // The remote MCP tool steps. A continued answer keeps the steps already on the message;
+        // a retry cleared them on entry.
+        var mcpToolSteps: List<ai.oriveo.community.core.mcp.McpToolStep> = assistantPlaceholder.toolSteps.orEmpty()
+        // One status callback from the executor becomes the summary on the message plus the
+        // per-step payload stored next to it. The loop runs the tools of a leg serially, so the
+        // callbacks never overlap.
+        val recordMcpToolStep: suspend (ai.oriveo.community.core.mcp.McpToolStepUpdate) -> Unit = { update ->
+            mcpToolSteps = ai.oriveo.community.core.mcp.McpToolStep.merging(update, mcpToolSteps)
+            conversationRepository.updateMcpToolStepsProgress(assistantMessageId, mcpToolSteps)
+            // The activity status line: set as soon as a step is running and cleared when it leaves
+            // that state. A step waiting for the user's confirmation is still running, so it stays
+            // set. The UI reads what to display (server name and tool title) from toolSteps.
+            outputs.streamingActivity.value = if (update.status == ai.oriveo.community.core.mcp.McpToolStepUpdate.Status.Running) {
+                ai.oriveo.community.core.model.StreamActivity.McpTool
+            } else {
+                null
+            }
+            mcpChatToolRunner?.saveStepPayload(assistantMessageId, update)
+        }
 
         val outboundUserMessage = antiForgetText
             ?.takeIf { it.isNotBlank() }
@@ -259,7 +285,12 @@ class ChatRepository(
                 // later replace it with observed or unconfirmed.
                 conversationRepository.updateMessage(
                     conversation.id,
-                    assistantPlaceholder.copy(capabilityExecutionResults = requested),
+                    // A whole-row write: carry the MCP steps recorded so far, or every outgoing leg
+                    // of the tool loop would reset the steps column to the placeholder's value.
+                    assistantPlaceholder.copy(
+                        capabilityExecutionResults = requested,
+                        toolSteps = mcpToolSteps.takeIf { it.isNotEmpty() } ?: assistantPlaceholder.toolSteps,
+                    ),
                 )
             },
             onWebSearchDispatched = {},
@@ -413,7 +444,140 @@ class ChatRepository(
                         incoming = incoming,
                     )
 
-                if (relayUseImagesEndpoint) {
+                // Remote MCP: tools are assembled only when this conversation has a server switched
+                // on and this connection can carry tools; otherwise the plan is empty and the request
+                // takes the usual path. Image generation never goes through the tool loop.
+                val mcpPlan = if (relayUseImagesEndpoint || supportsImageGen) {
+                    ai.oriveo.community.core.mcp.McpToolPlan.Empty
+                } else {
+                    mcpChatToolRunner?.plan(
+                        conversationId = conversation.id,
+                        provider = provider,
+                        model = model,
+                        memoryVerdict = model?.let { providerRepository.toolCallMemoryVerdict(provider, it) },
+                        // A relay's tool-call verdict is scoped by the connection identity; this is
+                        // the same one the leg runner sends with.
+                        localIdentity = requestOptions.capabilityEvidenceIdentity,
+                    ) ?: ai.oriveo.community.core.mcp.McpToolPlan.Empty
+                }
+                var toolLoopAnswered = false
+                if (!mcpPlan.isEmpty) {
+                    // The tool loop produces the final answer itself, leg by leg, over whichever of
+                    // the four wire protocols this connection speaks.
+                    val runner = checkNotNull(mcpChatToolRunner)
+                    runner.clearStepLimitReached(assistantMessageId)
+                    val activeModel = checkNotNull(model)
+                    var legText = ""
+                    val mcpResult = try {
+                        runner.run(
+                            conversationId = conversation.id,
+                            provider = provider,
+                            model = activeModel,
+                            modelId = runtimeModelId,
+                            messages = providerMessages,
+                            systemPrompt = effectiveRequestOptions.systemPrompt,
+                            reasoningMode = effectiveReasoning,
+                            requestOptions = effectiveRequestOptions,
+                            plan = mcpPlan,
+                            onStep = recordMcpToolStep,
+                            onUnhandledToolCalls = { calls ->
+                                // A name outside the lookup table is never executed. It takes the same
+                                // route as a tool call nothing can run in an ordinary chat: collected
+                                // here and shown as a notice card when the answer is finalized.
+                                loopUnhandledToolCalls += calls.map { call ->
+                                    UnhandledToolCall(
+                                        id = call.id,
+                                        name = call.function.name.takeIf { it.isNotBlank() } ?: "?",
+                                        arguments = call.function.arguments,
+                                    )
+                                }
+                            },
+                        ) { event ->
+                            when (event) {
+                                is ai.oriveo.community.core.tools.ToolCallLoop.ProgressEvent.LegStarted -> legText = ""
+                                is ai.oriveo.community.core.tools.ToolCallLoop.ProgressEvent.TextDelta -> {
+                                    if (event.text.isNotEmpty()) {
+                                        outputs.streamingActivity.value = null
+                                        if (outputs.reasoningStartedAtMs.value != null) {
+                                            outputs.reasoningEndedAtMs.compareAndSet(
+                                                ConversationStreamingOutputs.NOT_SET,
+                                                System.currentTimeMillis(),
+                                            )
+                                        }
+                                    }
+                                    legText += event.text
+                                    outputs.streamingText.value = initialText + legText
+                                }
+                                is ai.oriveo.community.core.tools.ToolCallLoop.ProgressEvent.ToolCallsAccepted -> {
+                                    // The text of a leg that ends in tool calls is only a lead-in: it
+                                    // does not stay on screen while the tools run and wait for confirmation.
+                                    legText = ""
+                                    outputs.streamingText.value = initialText
+                                }
+                                is ai.oriveo.community.core.tools.ToolCallLoop.ProgressEvent.ReasoningDelta -> {
+                                    // The same route as reasoning in an ordinary stream: the legs'
+                                    // reasoning accumulates into one block with the same throttling.
+                                    // The first reasoning event lights up "thinking"; an empty
+                                    // heartbeat does not clear the activity.
+                                    val now = System.currentTimeMillis()
+                                    outputs.reasoningStartedAtMs.compareAndSet(null, now)
+                                    if (event.text.isNotEmpty()) outputs.streamingActivity.value = null
+                                    if (tokenBuffer.appendReasoning(event.text, now)) {
+                                        outputs.streamingReasoning.value = tokenBuffer.accumulatedReasoningText
+                                        tokenBuffer.markReasoningFlushed(now)
+                                    }
+                                }
+                                is ai.oriveo.community.core.tools.ToolCallLoop.ProgressEvent.Usage -> Unit
+                            }
+                        }
+                    } catch (error: ai.oriveo.community.core.tools.ToolsUnsupportedError) {
+                        // Only a deterministic 4xx on the first leg, before any structured tool call
+                        // was seen, is remembered as "this connection does not support tools"; the
+                        // next send then leaves the MCP tools out. This send fails with the usual
+                        // error card.
+                        if (error.legIndex == 0 && !error.receivedStructuredToolCalls) {
+                            toolCallMemoryStore?.record(
+                                partitionId = providerRepository.currentCapabilityPartitionId(),
+                                provider = provider,
+                                model = activeModel,
+                                toolCall = false,
+                                reason = "tools_rejected_4xx",
+                            )
+                        }
+                        throw error.upstream
+                    }
+                    // At the step limit the steps block ends with a line saying that the answer below
+                    // is based on the results gathered so far.
+                    if (mcpResult.stepLimitReached) runner.markStepLimitReached(assistantMessageId)
+                    if (mcpResult.receivedStructuredToolCalls) {
+                        toolCallMemoryStore?.record(
+                            partitionId = providerRepository.currentCapabilityPartitionId(),
+                            provider = provider,
+                            model = activeModel,
+                            toolCall = true,
+                            reason = "structured_tool_calls_observed",
+                        )
+                    }
+                    outputs.streamingText.value = initialText + mcpResult.text
+                    if (tokenBuffer.hasPendingReasoning()) {
+                        outputs.streamingReasoning.value = tokenBuffer.accumulatedReasoningText
+                        tokenBuffer.markReasoningFlushed(System.currentTimeMillis())
+                    }
+                    val hasKnownPrice = (activeModel.promptPrice ?: 0.0) > 0.0 ||
+                        (activeModel.completionPrice ?: 0.0) > 0.0
+                    finalResult = ProviderChatResult(
+                        text = mcpResult.text,
+                        promptTokens = mcpResult.usage?.promptTokens ?: 0,
+                        completionTokens = mcpResult.usage?.completionTokens ?: 0,
+                        citations = accumulatedCitations.takeIf { it.isNotEmpty() },
+                        costSource = if (hasKnownPrice) CostSource.LOCAL_ESTIMATE.name else CostSource.UNKNOWN.name,
+                    )
+                    toolLoopAnswered = true
+                }
+
+                if (toolLoopAnswered) {
+                    // The tool loop already produced the final answer; no second provider request.
+                } else if (relayUseImagesEndpoint) {
                     val done = (service as RelayService).generateImageViaImagesEndpoint(
                         apiKey = effectiveApiKey,
                         modelID = relayUpstreamModelId,
@@ -619,10 +783,12 @@ class ChatRepository(
                 streamingAttachments.addAll(persistedAttachments)
 
                 val displayText = if (inlineImageAttachments.isNotEmpty()) cleanedText else finalText
-                val unhandledToolCalls = NativeToolCallAccumulator.finalize(
-                    target = nativeToolCallDeltas,
-                    namespace = "provider_tool_call",
-                )
+                val unhandledToolCalls = (
+                    loopUnhandledToolCalls + NativeToolCallAccumulator.finalize(
+                        target = nativeToolCallDeltas,
+                        namespace = "provider_tool_call",
+                    )
+                    ).distinctBy { it.id }
                 if (unhandledToolCalls.isNotEmpty()) {
                     model?.let { activeModel ->
                         toolCallMemoryStore?.record(
@@ -698,6 +864,7 @@ class ChatRepository(
                         assistantPlaceholder.unhandledToolCalls + unhandledToolCalls
                     ).distinctBy { it.id },
                     toolFallbackNotice = localToolFallbackNotice ?: assistantPlaceholder.toolFallbackNotice,
+                    toolSteps = mcpToolSteps.takeIf { it.isNotEmpty() },
                     capabilityExecutionResults = capabilityExecutionCollector.successfulTerminalResults() +
                         localCapabilityExecutionResults,
                     inputTokens = addUsage(assistantPlaceholder.inputTokens, roundInputTokens),
@@ -741,6 +908,7 @@ class ChatRepository(
                 citations = accumulatedCitations.takeIf { it.isNotEmpty() }
                     ?: assistantPlaceholder.citations,
                 capabilityExecutionResults = capabilityExecutionCollector.requestedResults(),
+                toolSteps = mcpToolSteps.takeIf { it.isNotEmpty() },
             )
             // NonCancellable: the surrounding scope is already cancelled, so an ordinary write
             // here would be skipped and the partial answer lost.
@@ -838,6 +1006,7 @@ class ChatRepository(
                 reasoningText = tokenBuffer.accumulatedReasoningText.trim().takeIf { it.isNotEmpty() },
                 attachments = streamingAttachments.ifEmpty { assistantPlaceholder.attachments },
                 citations = accumulatedCitations.takeIf { it.isNotEmpty() } ?: assistantPlaceholder.citations,
+                toolSteps = mcpToolSteps.takeIf { it.isNotEmpty() },
             )
             conversationRepository.updateMessage(conversation.id, failedMessage)
         } finally {

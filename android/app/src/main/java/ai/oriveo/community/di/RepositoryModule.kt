@@ -106,6 +106,7 @@ val repositoryModule = module {
             continuationStore = get(),
             continuationAccountId = { ai.oriveo.community.core.data.database.LOCAL_PARTITION_ID },
             toolCallMemoryStore = get(),
+            mcpChatToolRunner = get(),
         )
     }
 

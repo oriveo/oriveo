@@ -89,6 +89,9 @@ class ChatViewModel(
     private val attachmentProcessor: AttachmentProcessor,
     private val globalSnackbarManager: GlobalSnackbarManager,
     private val applicationScope: CoroutineScope,
+    /** Chat-side entry point and confirmation gate of remote MCP; when null (unit tests) the Tools entry is hidden. */
+    private val mcpChatToolRunner: ai.oriveo.community.core.mcp.McpChatToolRunner? = null,
+    private val mcpConfirmationCoordinator: ai.oriveo.community.core.mcp.McpConfirmationCoordinator? = null,
 ) : ViewModel() {
     val generationParameterDraftSessionId: String = generateUuidString()
     private val generationParameterSettingsStore = GenerationParameterSettingsStore.from(context)
@@ -127,6 +130,17 @@ class ChatViewModel(
         capabilityEvidenceIdentity = { provider, modelId, partitionId ->
             providerRepository.capabilityEvidenceIdentity(provider, modelId, partitionId)
         },
+    )
+    val mcpCoordinator = ChatMcpCoordinator(
+        scope = viewModelScope,
+        runner = mcpChatToolRunner,
+        confirmationCoordinator = mcpConfirmationCoordinator,
+        draftConversationId = generationParameterDraftSessionId,
+        currentConversationId = { activeConversationId.value },
+        activeProvider = ::activeProvider,
+        activeModel = { conversationState.model },
+        toolCallMemoryVerdict = providerRepository::toolCallMemoryVerdict,
+        capabilityEvidenceIdentity = { provider, modelId -> providerRepository.capabilityEvidenceIdentity(provider, modelId) },
     )
     private val attachmentCoordinator = ChatAttachmentCoordinator(
         attachmentProcessor = attachmentProcessor,
@@ -223,6 +237,7 @@ class ChatViewModel(
         capabilityPreferenceStore = capabilityPreferenceStore,
         localCustomFragmentStore = localCustomFragmentStore,
         generationParameterDraftSessionId = { generationParameterDraftSessionId },
+        adoptMcpDraft = { conversationId -> mcpCoordinator.adoptDraft(conversationId) },
         onQuoteConsumed = quoteCoordinator::consume,
         onComposerConsumed = { conversationId ->
             draftCoordinator.pushText("")
@@ -543,6 +558,7 @@ class ChatViewModel(
         savedStateHandle = savedStateHandle,
     )
     init {
+        mcpCoordinator.observeLoopState()
         if (initialConversationId != null) {
             viewModelScope.launch {
 
@@ -745,6 +761,7 @@ class ChatViewModel(
 
     fun stopGeneration() {
         val convId = activeConversationId.value ?: return
+        mcpCoordinator.cancelPending(convId)
         chatStreamingManager.stopStream(convId)
     }
 
@@ -891,6 +908,7 @@ class ChatViewModel(
         pendingAttachments = emptyList()
         pendingPinUserMessageId = null
         pinRequested = false
+        mcpCoordinator.resetDraft()
 
         activeProviderId = currentProvider
         activeModelId = currentModel

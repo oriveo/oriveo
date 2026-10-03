@@ -36,6 +36,11 @@ internal class ChatSendCommandCoordinator(
     private val capabilityPreferenceStore: CapabilityPreferenceStore? = null,
     private val localCustomFragmentStore: LocalCapabilityCustomFragmentStore? = null,
     private val generationParameterDraftSessionId: () -> String = { "" },
+    /**
+     * When a new conversation becomes a real one, moves the MCP server switches flipped while it
+     * was a draft over to it. Must complete before the send.
+     */
+    private val adoptMcpDraft: suspend (conversationId: String) -> Unit = {},
     private val onComposerConsumed: suspend (String) -> Unit,
     private val onQuoteConsumed: (QuoteContext?) -> Unit = {},
     private val requestPin: () -> Unit,
@@ -176,6 +181,7 @@ internal class ChatSendCommandCoordinator(
         )
 
         if (isNewConversation) {
+            adoptMcpDraft(conv.id)
             val modelControlIdentity = ModelControlRuntimeIdentityResolver.resolve(provider, selectedModel)
             generationParameterSettingsStore?.migrateSession(
                 providerID = provider.id,

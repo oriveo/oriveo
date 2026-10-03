@@ -234,6 +234,12 @@ internal fun ChatScreenContent(
     onNavigateToProviderDetail: (providerId: String) -> Unit = {},
     onNavigateToSkillEdit: () -> Unit = {},
     onNavigateToNoteDetail: (String) -> Unit = {},
+    /**
+     * Remote MCP: where the server management screen and the add-server flow live. Re-authorization
+     * does not navigate; the chat side calls the entry point installed on `McpChatToolRunner.reauthorizer`.
+     */
+    onNavigateToMcpServers: () -> Unit = {},
+    onNavigateToMcpAddServer: () -> Unit = {},
     viewModel: ChatViewModel,
 ) {
     val conversationRenderState by viewModel.conversation.collectAsStateWithLifecycle()
@@ -334,6 +340,7 @@ internal fun ChatScreenContent(
     val onRetryMessage = remember(viewModel) { viewModel::retryMessage }
     val onRetryWithoutLocalCustomFields = remember(viewModel) { viewModel::retryWithoutLocalCustomFields }
     val onSwitchModel = remember(viewModel) { { viewModel.showModelSwitcher = true } }
+    val mcpToolStepsHost = ai.oriveo.community.feature.chat.mcp.rememberMcpToolStepsHost(viewModel.mcpCoordinator)
     val onShareMessage = remember(viewModel, context) { { message: ChatMessage -> viewModel.shareMessage(message, context) } }
     val onSaveMessageAsNote = remember(viewModel) { { message: ChatMessage -> viewModel.noteCoordinator.saveMessageAsNote(message.id) } }
     val onSaveSelectionAsNote = remember(viewModel) {
@@ -665,6 +672,11 @@ internal fun ChatScreenContent(
                             .padding(bottom = composerOverlayHeightDp),
                     )
                 } else {
+                    // The step block's callbacks reach the message cells through a CompositionLocal, which
+                    // keeps them out of the list and bubble signatures.
+                    androidx.compose.runtime.CompositionLocalProvider(
+                        ai.oriveo.community.feature.chat.mcp.LocalMcpToolStepsHost provides mcpToolStepsHost,
+                    ) {
                     ChatMessagesList(
                         messages = messages,
                         streamingMessageId = streamingMessageId,
@@ -709,6 +721,7 @@ internal fun ChatScreenContent(
                         coroutineScope = coroutineScope,
                         latestMessageCount = latestMessageCount,
                     )
+                    }
                 }
 
             }
@@ -737,6 +750,13 @@ internal fun ChatScreenContent(
         )
         }
     }
+
+    ai.oriveo.community.feature.chat.mcp.ChatMcpSheets(
+        coordinator = viewModel.mcpCoordinator,
+        onSwitchModel = onSwitchModel,
+        onNavigateToMcpServers = onNavigateToMcpServers,
+        onNavigateToMcpAddServer = onNavigateToMcpAddServer,
+    )
 
     viewModel.noteCoordinator.notePreview?.let { note ->
         NotePreviewSheet(note = note, onDismiss = viewModel.noteCoordinator::clearNotePreview)

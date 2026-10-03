@@ -49,6 +49,7 @@ import androidx.compose.material.icons.outlined.Image
 import androidx.compose.material.icons.outlined.Language
 import androidx.compose.material.icons.outlined.MenuBook
 import androidx.compose.material.icons.outlined.Psychology
+import androidx.compose.material.icons.outlined.Build
 import androidx.compose.material.icons.outlined.Tune
 import androidx.compose.material.icons.outlined.Videocam
 import androidx.compose.material3.AlertDialog
@@ -191,6 +192,13 @@ internal fun EnhancedComposer(
 
     onSelectModel: (providerId: String, modelId: String) -> Unit,
     onOpenModelSwitcher: () -> Unit,
+    /** The "Tools" chip of remote MCP. Visible while the `mcpRuntimeConfig.enabled` master switch is on. */
+    mcpEntryVisible: Boolean = false,
+    /** Whether this connection and model can use MCP tools; when not, the chip is dimmed and opens a panel explaining why. */
+    mcpToolsAvailable: Boolean = true,
+    /** Servers switched on and usable in this conversation; at 0 there is no number and no highlight. */
+    mcpEnabledServerCount: Int = 0,
+    onOpenMcpTools: () -> Unit = {},
     showAttachmentSizeLimitDialog: Boolean,
     onDismissAttachmentSizeLimitDialog: () -> Unit,
     onProcessImageUri: (android.net.Uri) -> Unit,
@@ -789,6 +797,31 @@ internal fun EnhancedComposer(
                             },
                         )
 
+                        // The entry to remote MCP tools. Shown even without any server: tapping it then
+                        // leads to "add an MCP server". It can be opened while an answer is running,
+                        // because the switches only affect the next send, not the run in progress.
+                        if (mcpEntryVisible) {
+                            val mcpOn = mcpToolsAvailable && mcpEnabledServerCount > 0
+                            ComposerControlChip(
+                                title = stringResource(R.string.mcp_tools_chip),
+                                icon = Icons.Outlined.Build,
+                                accent = composerModelBehaviorAccent(),
+                                emphasized = mcpOn,
+                                disabled = isReadOnly,
+                                badgeText = mcpEnabledServerCount.takeIf { mcpOn }?.toString(),
+                                accessory = ComposerControlChipAccessory.None,
+                                accessibilityState = when {
+                                    !mcpToolsAvailable -> stringResource(R.string.mcp_tools_chip_state_unavailable)
+                                    mcpOn -> stringResource(R.string.mcp_tools_chip_state_on, mcpEnabledServerCount)
+                                    else -> stringResource(R.string.mcp_tools_chip_state_off)
+                                },
+                                dimmed = !mcpToolsAvailable,
+                                onClick = {
+                                    hapticFeedback.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                                    onOpenMcpTools()
+                                },
+                            )
+                        }
                     }
                 }
             }

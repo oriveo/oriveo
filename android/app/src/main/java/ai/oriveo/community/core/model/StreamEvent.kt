@@ -47,7 +47,16 @@ sealed class StreamEvent {
 }
 
 /** The activities the waiting line can name. The set is closed. */
-enum class StreamActivity { WebSearch }
+enum class StreamActivity {
+    WebSearch,
+
+    /**
+     * The local tool loop marked an MCP tool step as running. What to display (server name and
+     * tool title) is read from the step currently running in the message's `toolSteps`; it
+     * does not travel with the activity.
+     */
+    McpTool,
+}
 
 @kotlinx.serialization.Serializable
 data class ToolCallDelta(

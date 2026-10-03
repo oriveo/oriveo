@@ -51,10 +51,43 @@ private const val APPEAR_FADE_MS = 200
 internal enum class StreamActivityLabel(@param:StringRes val stringRes: Int) {
     Generating(R.string.generating),
     WebSearch(R.string.stream_activity_web_search),
+
+    /**
+     * Fallback when there is no display context ("Using a tool"). When the message has a running
+     * step, the caller replaces it with "Using <server name> - <tool title>"
+     * ([streamActivityLabelText]).
+     */
+    McpTool(R.string.mcp_steps_running),
 }
 
 internal fun StreamActivity.label(): StreamActivityLabel = when (this) {
     StreamActivity.WebSearch -> StreamActivityLabel.WebSearch
+    StreamActivity.McpTool -> StreamActivityLabel.McpTool
+}
+
+/**
+ * The final text of the waiting label. An MCP tool's display context (server name and tool title,
+ * third-party text shown untranslated) does not travel with the activity event; it is read from
+ * the step currently running in the message's `toolSteps`.
+ */
+@Composable
+internal fun streamActivityLabelText(
+    label: StreamActivityLabel,
+    toolSteps: List<ai.oriveo.community.core.mcp.McpToolStep>?,
+): String {
+    if (label == StreamActivityLabel.McpTool) {
+        val running = toolSteps?.lastOrNull {
+            it.status == ai.oriveo.community.core.mcp.McpToolStepUpdate.Status.Running.wireValue
+        }
+        if (running != null) {
+            return androidx.compose.ui.res.stringResource(
+                R.string.stream_activity_mcp_tool,
+                running.serverName,
+                running.displayTitle,
+            )
+        }
+    }
+    return androidx.compose.ui.res.stringResource(label.stringRes)
 }
 
 /** What to show while waiting. At most one waiting label is on screen at a time. */

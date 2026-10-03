@@ -783,6 +783,28 @@ private fun AssistantMessage(
                     )
                 }
 
+                // The MCP tool-steps block: above the answer text, expanded while running and folded
+                // into one line once done.
+                if (!message.toolSteps.isNullOrEmpty()) {
+                    val mcpHost = ai.oriveo.community.feature.chat.mcp.LocalMcpToolStepsHost.current
+                    // Only a message still generating can be parked waiting for re-authorization;
+                    // finished messages do not read that state.
+                    val pausedStepId = if (isStreaming) {
+                        mcpHost?.pausedStepIds()?.let { paused -> message.toolSteps.lastOrNull { it.id in paused }?.id }
+                    } else {
+                        null
+                    }
+                    ai.oriveo.community.feature.chat.mcp.McpToolStepsBlock(
+                        steps = message.toolSteps,
+                        isGenerating = isStreaming,
+                        limitReached = mcpHost?.limitReached(message.id) == true,
+                        pausedStepId = pausedStepId,
+                        onSelectStep = mcpHost?.let { host -> { step -> host.onSelectStep(message.id, step) } },
+                        onReauthorize = { step -> mcpHost?.onReauthorize(step) },
+                        onSkipStep = { step -> mcpHost?.onSkipStep(step) },
+                    )
+                }
+
                 // The body and the activity line share a small column with 8dp spacing, so the
                 // line sits right under the body instead of taking the outer 12dp block spacing.
                 // When none of the three is present the column is not emitted at all: an empty
@@ -793,10 +815,10 @@ private fun AssistantMessage(
                             showTypingIndicator -> {
 
                                 TypingIndicator(
-                                    label = stringResource(
-                                        (activityPresentation as? StreamActivityPresentation.IndicatorLabel)
-                                            ?.label?.stringRes
-                                            ?: R.string.generating,
+                                    label = streamActivityLabelText(
+                                        (activityPresentation as? StreamActivityPresentation.IndicatorLabel)?.label
+                                            ?: StreamActivityLabel.Generating,
+                                        message.toolSteps,
                                     ),
                                 )
                             }
@@ -831,7 +853,7 @@ private fun AssistantMessage(
                             }
                         }
                         if (activityLineLabel != null) {
-                            StreamActivityLine(text = stringResource(activityLineLabel.stringRes))
+                            StreamActivityLine(text = streamActivityLabelText(activityLineLabel, message.toolSteps))
                         }
                     }
                 }

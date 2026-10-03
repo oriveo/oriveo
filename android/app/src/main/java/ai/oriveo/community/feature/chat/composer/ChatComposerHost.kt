@@ -86,6 +86,14 @@ internal fun ChatComposerHost(
     // before the stream is marked active. Without its own subscription the stop button never
     // appears. The value flips once when a stream starts or ends, never per token.
     val streamingMessageId by viewModel.streamingMessageId.collectAsStateWithLifecycle()
+    // The number on the "Tools" chip and its dimmed state come from local storage: they are read again
+    // whenever the conversation, the connection or the model changes, and once more after an answer
+    // ends (the loop may just have found that a server needs re-authorization).
+    val mcpPanelState = viewModel.mcpCoordinator.panelState
+    val mcpModelId = viewModel.conversationState.model?.id
+    LaunchedEffect(conversationId, activeProvider?.id, mcpModelId, streamingMessageId == null) {
+        viewModel.mcpCoordinator.refresh()
+    }
 
     Column(
         modifier = modifier
@@ -122,6 +130,10 @@ internal fun ChatComposerHost(
             onSelectReasoningMode = viewModel::selectReasoningMode,
             onSelectModel = viewModel::selectModel,
             onOpenModelSwitcher = { viewModel.showModelSwitcher = true },
+            mcpEntryVisible = viewModel.mcpCoordinator.isEntryVisible,
+            mcpToolsAvailable = mcpPanelState.availability.isAvailable,
+            mcpEnabledServerCount = mcpPanelState.enabledServerCount,
+            onOpenMcpTools = viewModel.mcpCoordinator::openToolPanel,
             showAttachmentSizeLimitDialog = viewModel.showAttachmentSizeLimitDialog,
             onDismissAttachmentSizeLimitDialog = viewModel::dismissAttachmentSizeLimitDialog,
             onProcessImageUri = { uri -> viewModel.processImageUri(context, uri) },
