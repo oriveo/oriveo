@@ -129,6 +129,10 @@ struct ChatView: View {
     /// new-conversation default. Legacy persisted ON/OFF values are migrated by the
     /// model-control store when an existing conversation opens; a new draft starts closed.
     @State private var webEnabled = false
+    /// Remote MCP: the tool panel data of this conversation (the number on the chip comes from it too) and
+    /// whether the panel is open.
+    @State private var mcpPanelState: McpToolPanelState = .empty
+    @State private var showsMcpToolPanel = false
     @State private var isAtBottom = true
     @State private var autoScrollEnabled = true
     @State private var pendingAttachments: [Attachment] = []
@@ -419,6 +423,73 @@ struct ChatView: View {
         )
     }
 
+    // MARK: - Remote MCP tool panel
+
+    /// Switches are stored per conversation. A new conversation has no id until its first message is sent,
+    /// so they are kept under the draft id and moved over on send.
+    private var mcpConversationScopeID: UUID {
+        projection.activeConversationID ?? generationParameterDraftSessionID
+    }
+
+    /// The panel data is re-read whenever one of these changes: the conversation, the connection or model,
+    /// or an answer finishing (the connection state may have changed).
+    private var mcpPanelReloadKey: String {
+        [
+            mcpConversationScopeID.uuidString,
+            resolvedChatContext?.provider.id.uuidString ?? "",
+            resolvedChatContext?.model?.id ?? "",
+            projection.isSendingMessage ? "1" : "0",
+        ].joined(separator: "|")
+    }
+
+    private func reloadMcpPanelState() {
+        let uid = appState.sessionPartitionUID
+        let availability: McpToolAvailability
+        if let context = resolvedChatContext, let model = context.model {
+            availability = appState.chatManager.mcpToolAvailability(provider: context.provider, model: model)
+        } else {
+            availability = .available
+        }
+        // When local storage cannot be read the panel is drawn as "no servers"; chat is not blocked.
+        let loaded = try? McpToolPanelModel.load(
+            conversationId: mcpConversationScopeID,
+            store: appState.mcpServerDirectory.store(for: uid),
+            credentialStore: appState.mcpServerDirectory.credentialStore,
+            uid: uid,
+            runtimeConfig: MetadataClient.shared.syncMcpRuntimeConfig(),
+            availability: availability
+        )
+        var fallback = McpToolPanelState.empty
+        fallback.availability = availability
+        mcpPanelState = loaded ?? fallback
+    }
+
+    private func setMcpServer(_ serverId: UUID, enabled: Bool) {
+        let uid = appState.sessionPartitionUID
+        try? appState.mcpServerDirectory.store(for: uid).setServerEnabled(
+            enabled, conversationId: mcpConversationScopeID, serverId: serverId
+        )
+        reloadMcpPanelState()
+    }
+
+    private func openMcpServers() {
+        showsMcpToolPanel = false
+        appState.navigation.path.append(.mcpServers)
+    }
+
+    /// "Add MCP server" in the empty tool panel: goes straight to the add page and comes back to this
+    /// conversation afterwards.
+    private func openMcpAddServer() {
+        showsMcpToolPanel = false
+        appState.navigation.path.append(.mcpAddServer)
+    }
+
+    /// "Re-authorize" on a row of the tool panel: opens that server's details and starts re-authorizing.
+    private func openMcpReauthorization(_ serverId: UUID) {
+        showsMcpToolPanel = false
+        appState.navigation.path.append(.mcpServerDetail(serverID: serverId, intent: .reauthorize))
+    }
+
     private func presentModelPicker() {
         guard modelPickerPresentation == nil else { return }
         let pickerConversationID = projection.activeConversationID ?? conversationID
@@ -579,6 +650,21 @@ struct ChatView: View {
             .presentationDetents([.medium])
             .presentationDragIndicator(.hidden)
         }
+        .sheet(isPresented: $showsMcpToolPanel) {
+            McpToolPanelSheet(
+                state: mcpPanelState,
+                onToggle: { serverId, enabled in setMcpServer(serverId, enabled: enabled) },
+                onReauthorize: { openMcpReauthorization($0) },
+                onManage: openMcpServers,
+                onAddServer: openMcpAddServer,
+                onSwitchModel: {
+                    showsMcpToolPanel = false
+                    presentModelPicker()
+                }
+            )
+        }
+        .task(id: mcpPanelReloadKey) { reloadMcpPanelState() }
+        .mcpReauthorizationInlineHost(conversationID: projection.activeConversationID ?? conversationID)
         .alert(
             L10n.tr("Add an API Key"),
             isPresented: $showsMissingProviderKeyPrompt
@@ -1016,6 +1102,18 @@ struct ChatView: View {
                     )
                 },
                 onChooseModel: presentModelPicker,
+                // With the feature switched off in the catalog the entry is hidden; existing configuration
+                // is kept.
+                toolsChip: MetadataClient.shared.syncMcpRuntimeConfig().enabled
+                    ? ComposerToolsChipState(
+                        enabledServerCount: mcpPanelState.enabledServerCount,
+                        isAvailable: mcpPanelState.availability.isAvailable
+                    )
+                    : nil,
+                onOpenTools: {
+                    reloadMcpPanelState()
+                    showsMcpToolPanel = true
+                },
                 onCancel: {
                     guard let conversationID = projection.activeConversationID else { return }
                     appState.cancelGeneration(in: conversationID)

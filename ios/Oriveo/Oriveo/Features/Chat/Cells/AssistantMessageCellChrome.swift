@@ -170,6 +170,25 @@ extension AssistantMessageCell {
         )
         bodyStackMinHeightConstraint?.priority = .defaultHigh
         bodyStackMinHeightConstraint?.isActive = false
+
+        // The MCP step block has a permanent slot after the header and before the body. It stays in the
+        // stack and collapses through `isHidden` instead of being inserted on demand.
+        toolStepsView.isHidden = true
+        toolStepsView.onLayoutChange = { [weak self] in
+            self?.streamingHeightFloor = 0
+            self?.notifyContentDidChange()
+        }
+        toolStepsView.onSelectStep = { [weak self] step in
+            self?.presentToolStepDetail(step)
+        }
+        toolStepsView.onReauthorize = { [weak self] step in
+            self?.onToolStepAction?(.reauthorize(step))
+        }
+        toolStepsView.onSkipStep = { [weak self] step in
+            self?.onToolStepAction?(.skip(step))
+        }
+        contentStack.addArrangedSubview(toolStepsView)
+
         contentStack.addArrangedSubview(bodyStack)
 
         reasoningBlock.translatesAutoresizingMaskIntoConstraints = false

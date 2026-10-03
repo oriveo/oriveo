@@ -88,6 +88,7 @@ final class ChatListViewController: UIViewController {
     private var onSaveNote: (ChatMessage) -> Void = { _ in }
     private var onOpenNoteReferences: ([NoteSummary]) -> Void = { _ in }
     private var onCrosscheck: (ChatMessage) -> Void = { _ in }
+    private var onMcpStepAction: (ChatMessage, McpToolStepAction) -> Void = { _, _ in }
     private var onSaveSelection: (ChatMessage, String) -> Void = { _, _ in }
     private var onAskSelection: (ChatMessage, QuoteSelectionContent) -> Void = { _, _ in }
     private var canReplaceCurrentNoteSelection = false
@@ -318,6 +319,7 @@ final class ChatListViewController: UIViewController {
         onSaveNote: @escaping (ChatMessage) -> Void = { _ in },
         onOpenNoteReferences: @escaping ([NoteSummary]) -> Void = { _ in },
         onCrosscheck: @escaping (ChatMessage) -> Void = { _ in },
+        onMcpStepAction: @escaping (ChatMessage, McpToolStepAction) -> Void = { _, _ in },
         onSaveSelection: @escaping (ChatMessage, String) -> Void = { _, _ in },
         onAskSelection: @escaping (ChatMessage, QuoteSelectionContent) -> Void = { _, _ in },
         canReplaceCurrentNoteSelection: Bool = false,
@@ -349,6 +351,7 @@ final class ChatListViewController: UIViewController {
         self.onSaveNote = onSaveNote
         self.onOpenNoteReferences = onOpenNoteReferences
         self.onCrosscheck = onCrosscheck
+        self.onMcpStepAction = onMcpStepAction
         self.onSaveSelection = onSaveSelection
         self.onAskSelection = onAskSelection
         self.canReplaceCurrentNoteSelection = canReplaceCurrentNoteSelection
@@ -718,6 +721,7 @@ final class ChatListViewController: UIViewController {
             onSaveNote: onSaveNote,
             onOpenNoteReferences: onOpenNoteReferences,
             onCrosscheck: onCrosscheck,
+            onMcpStepAction: onMcpStepAction,
             onSaveSelection: onSaveSelection,
             onAskSelection: onAskSelection,
             canReplaceCurrentNoteSelection: canReplaceCurrentNoteSelection,
@@ -1389,6 +1393,12 @@ extension ChatListViewController: ChatLayoutDelegate {
             height += estimatedImagesHeight(imageWidth: imageWidth, ratios: ratios)
         }
 
+        // Before the body: the MCP step block. Only its collapsed height counts (it collapses once the
+        // answer is complete).
+        if !isUser, let steps = message.toolSteps, !steps.isEmpty {
+            height += toolStepsCollapsedHeight
+        }
+
         if !isUser, let citations = message.citations, !citations.isEmpty {
             height += estimatedCitationsHeight(count: citations.count)
         }
@@ -1464,6 +1474,10 @@ extension ChatListViewController: ChatLayoutDelegate {
     nonisolated static let userFullTextButtonRowHeight: CGFloat = 36
 
     nonisolated static let reasoningCollapsedHeight: CGFloat = 58
+
+    /// Collapsed height of the MCP step block (`UIKitToolStepsView`: a 46pt header plus the 8pt stack spacing
+    /// to the body), whatever the number of steps.
+    nonisolated static let toolStepsCollapsedHeight: CGFloat = 54
 
     nonisolated static let citationsHeaderHeight: CGFloat = 25
     nonisolated static let citationsRowHeight: CGFloat = 53

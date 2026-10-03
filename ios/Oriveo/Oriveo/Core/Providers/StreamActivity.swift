@@ -8,6 +8,9 @@ import Foundation
 /// downgraded to some known activity.
 nonisolated enum StreamActivity: String, Equatable, Sendable {
     case webSearch = "web_search"
+    /// The local tool loop set one MCP tool step to running. What to display (server name and tool title)
+    /// is read from the running step in the message's `toolSteps`; it does not travel with the activity.
+    case mcpTool = "mcp_tool"
 }
 
 /// The current activity of one streaming message. Transient: it lives only in

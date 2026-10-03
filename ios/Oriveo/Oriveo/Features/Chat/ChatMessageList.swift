@@ -310,6 +310,7 @@ struct ChatMessageList: View, Equatable {
                     onSaveNoteMessage: handleSaveNote,
                     onOpenNoteReferences: openNoteReferences,
                     onCrosscheckMessage: handleCrosscheck,
+                    onMcpStepAction: handleMcpStepAction,
                     onSaveSelectionMessage: handleSaveSelection,
                     onAskSelectionMessage: handleAskSelection,
                     canReplaceCurrentNoteSelection: canReplaceCurrentNote,
@@ -533,6 +534,24 @@ struct ChatMessageList: View, Equatable {
         guard let conversationID else { return }
         let prompt = NoteSourceResolver.previousUserPrompt(before: message.id, in: projection.messages)
         crosscheckTarget = ChatCrosscheckTarget(conversationID: conversationID, message: message, prompt: prompt)
+    }
+
+    /// The two buttons of an MCP step block stopped at "sign in again".
+    /// Skip: that step is fed back as `auth_skipped` and the answer goes on. Re-authorize: opens that
+    /// server's detail page to sign in; after a successful sign-in the page calls
+    /// `mcpReauthorizationCoordinator.serverReauthorized` and the loop resumes from this step.
+    private func handleMcpStepAction(_ message: ChatMessage, _ action: McpToolStepAction) {
+        switch action {
+        case let .skip(step):
+            guard let conversationID else { return }
+            appState.mcpReauthorizationCoordinator.skip(conversationID: conversationID, stepID: step.id)
+        case let .reauthorize(step):
+            guard let serverID = UUID(uuidString: step.serverId) else {
+                appState.navigation.path.append(.mcpServers)
+                return
+            }
+            appState.navigation.path.append(.mcpServerDetail(serverID: serverID, intent: .reauthorize))
+        }
     }
 
     private func openNoteReferences(_ notes: [NoteSummary]) {

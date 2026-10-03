@@ -122,13 +122,21 @@ struct ChatRowHeightParityTests {
         reasoning: String? = nil,
         citations: [Citation]? = nil,
         attachments: [Oriveo.Attachment]? = nil,
+        toolSteps: [McpToolStep]? = nil,
         state: ChatMessageState = .delivered
     ) -> ChatMessage {
         ChatMessage(
             id: UUID(), role: .assistant, text: text, reasoningText: reasoning,
             providerKind: .openAI, providerName: "OpenAI", modelName: "GPT-4o",
             estimatedCost: 0.01, state: state,
-            attachments: attachments, citations: citations
+            attachments: attachments, citations: citations, toolSteps: toolSteps
+        )
+    }
+
+    private static func toolStep(_ i: Int) -> McpToolStep {
+        McpToolStep(
+            id: "\(i):c\(i)", serverId: "aaaaaaaa-0000-0000-0000-000000000001", serverName: "Linear",
+            toolName: "search", title: "かだいをさがす", argsSummary: "open · bug", status: .done, step: i, durationMs: 800
         )
     }
 
@@ -216,6 +224,8 @@ struct ChatRowHeightParityTests {
             ("citations/5", Self.assistant(text: "はい。", citations: (1...5).map(Self.citation))),
             ("citations/10", Self.assistant(text: "はい。", citations: (1...10).map(Self.citation))),
             ("image/1", Self.assistant(text: "えです。", attachments: [Self.imageAttachment()])),
+            ("MCP steps/1 step", Self.assistant(text: "はい。", toolSteps: (1...1).map(Self.toolStep))),
+            ("MCP steps/8 steps", Self.assistant(text: "はい。", toolSteps: (1...8).map(Self.toolStep))),
             ("mixed/text + code + citations", Self.assistant(
                 text: String(repeating: cjkPara, count: 3) + "```swift\n" + String(repeating: codeLine, count: 8) + "```\n" + cjkPara,
                 citations: (1...3).map(Self.citation)
@@ -287,6 +297,13 @@ struct ChatRowHeightParityTests {
                 Comment(rawValue: "bodyStack=\(cell.bodyStack.arrangedSubviews.count) \(hint)"))
     }
 
+    /// contentStack: header | MCP step block | bodyStack | stream activity status line | unhandled tool
+    /// calls | citations | recovery card | attachments | metadata.
+    ///
+    /// The MCP step block counts toward `estimatedRowHeight` with its collapsed height
+    /// (`toolStepsCollapsedHeight`, one header row whatever the number of steps) and has two cases in
+    /// the matrix ("MCP steps").
+    ///
     /// The stream activity status line is one of these slots but is not part of
     /// `estimatedRowHeight` and has no case in the matrix. It is only lit while a reply is waiting,
     /// by transient state inside the cell (an observed activity or the pause timer) that does not
@@ -294,6 +311,6 @@ struct ChatRowHeightParityTests {
     /// message is complete it is always collapsed to zero height. While shown, streaming
     /// self-sizing adds its height, and when it hides the streaming height floor absorbs the drop
     /// (covered by `StreamActivityPipelineTests`).
-    private static let expectedContentSlots = 8
+    private static let expectedContentSlots = 9
     private static let expectedBodySlots = 4
 }

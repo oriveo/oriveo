@@ -84,6 +84,14 @@ struct AppRootView: View {
         } message: {
             Text(L10n.tr("This Skill needs an available AI provider before it can start a conversation."))
         }
+        // The confirmation before a remote MCP tool changes data is presented from the app root: the answer
+        // keeps running in the background, so the user has to see it on whatever page they are. This only
+        // presents; nobody seeing the sheet is not a refusal. The gate has no timeout and never feeds back
+        // "the user declined" because a page changed.
+        .mcpConfirmationPresenter(appState: appState)
+        // The "sign-in expired" pause is presented from the root for the same reason. It is not shown again
+        // while that conversation's chat page is on screen (both buttons are already under the step block).
+        .mcpReauthorizationPresenter(appState: appState)
         .onChange(of: horizontalSizeClass, initial: true) { _, sizeClass in
             // Moves the conversation to the carrier that matches the new width (folding and
             // unfolding). The render branch reads `navigation.isRegularWidth` too, so which

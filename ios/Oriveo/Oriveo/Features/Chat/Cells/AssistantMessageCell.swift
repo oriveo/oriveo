@@ -53,6 +53,15 @@ final class AssistantMessageCell: UICollectionViewCell {
     /// Gap between the body text and the status line.
     static let streamActivityLineTopSpacing: CGFloat = 8
 
+    /// The remote MCP step block (after the header, before the body).
+    let toolStepsView = UIKitToolStepsView()
+    /// Activity caption of the step that is running now ("Using <server> · <tool title>"). The `mcp_tool`
+    /// activity reads its display context from here: the activity event itself is a plain enum case and
+    /// carries neither the server nor the tool.
+    var runningToolStepCaption: String?
+    /// The activity text last put on screen; when the caption changes under the same activity (another
+    /// step started) the view still has to refresh.
+    var presentedStreamActivityText: String?
     let unhandledToolCallView = UIKitUnhandledToolCallView()
 
     var recoveryCard: UIKitRecoveryCard?
@@ -69,6 +78,8 @@ final class AssistantMessageCell: UICollectionViewCell {
     var pendingRenderGeneration: UInt = 0
     var onContentHeightDidChange: ((CGFloat) -> Void)?
     var onRetry: (() -> Void)?
+    /// Actions on the MCP step block (re-authorize / skip this step).
+    var onToolStepAction: ((McpToolStepAction) -> Void)?
     var onContinue: (() -> Void)?
 
     #if DEBUG
@@ -191,11 +202,13 @@ final class AssistantMessageCell: UICollectionViewCell {
         onSaveNote: (() -> Void)? = nil,
         onOpenNoteReferences: (() -> Void)? = nil,
         onCrosscheck: (() -> Void)? = nil,
+        onToolStepAction: ((McpToolStepAction) -> Void)? = nil,
         onSaveSelection: ((String) -> Void)? = nil,
         onAskSelection: ((QuoteSelectionContent) -> Void)? = nil,
         onReplaceSelection: ((String) -> Void)? = nil,
         onSaveCodeBlock: ((String, String?) -> Void)? = nil
     ) {
+        self.onToolStepAction = onToolStepAction
         let previousMessageID = boundMessageID
         let previousMessageState = currentMessageState
         let effectiveText = model.displayText ?? model.message.text
@@ -317,6 +330,7 @@ final class AssistantMessageCell: UICollectionViewCell {
             )
         }
 
+        configureToolSteps(message: model.message, isGenerating: isGenerating)
         unhandledToolCallView.configure(calls: model.message.unhandledToolCalls ?? [])
 
         let attachments = model.message.attachments ?? []

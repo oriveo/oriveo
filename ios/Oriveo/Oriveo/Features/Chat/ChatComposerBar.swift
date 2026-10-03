@@ -289,6 +289,10 @@ struct ChatComposerBar: View {
 
     let onSend: (_ text: String, _ attachments: [Attachment]) -> Void
     let onChooseModel: () -> Void
+    /// The "Tools" chip (remote MCP). Nil hides the entry.
+    var toolsChip: ComposerToolsChipState?
+    /// Opens the tool panel.
+    var onOpenTools: () -> Void = {}
     let onCancel: () -> Void
     let onShowPhotoPicker: () -> Void
     let onShowCamera: () -> Void
@@ -810,6 +814,30 @@ struct ChatComposerBar: View {
                 .presentationDragIndicator(.visible)
             }
 
+            // The "Tools" chip. Its number is the count of servers turned on and usable in this
+            // conversation; at 0 there is no number and no highlight. When the current connection cannot
+            // carry tools the chip is dimmed but still tappable: the panel it opens explains why. It can be
+            // opened while an answer is generating too (changes apply to the next send).
+            if let toolsChip {
+                Button {
+                    onOpenTools()
+                } label: {
+                    composerControlChip(
+                        title: L10n.tr("Tools", table: .mcp),
+                        systemImage: "wrench.adjustable",
+                        accent: modelBehaviorAccent,
+                        emphasized: toolsChip.enabledServerCount > 0,
+                        disabled: isReadOnly || !toolsChip.isAvailable,
+                        badgeText: toolsChip.enabledServerCount > 0 ? String(toolsChip.enabledServerCount) : nil
+                    )
+                }
+                .buttonStyle(ComposerInteractiveButtonStyle())
+                .disabled(isReadOnly)
+                .accessibilityLabel(Text(L10n.tr("Tools", table: .mcp)))
+                .accessibilityValue(Text(
+                    toolsChip.enabledServerCount > 0 ? String(toolsChip.enabledServerCount) : L10n.tr("Disabled")
+                ))
+            }
         }
     }
 
@@ -1384,4 +1412,12 @@ private struct ComposerInteractiveButtonStyle: ButtonStyle {
             .opacity(configuration.isPressed ? 0.94 : 1)
             .animation(.easeOut(duration: 0.14), value: configuration.isPressed)
     }
+}
+
+/// The two values the composer's "Tools" chip draws.
+struct ComposerToolsChipState: Equatable {
+    /// Servers turned on and usable in this conversation.
+    var enabledServerCount: Int
+    /// Whether the current connection and model can use MCP tools; the chip is dimmed when they cannot.
+    var isAvailable: Bool
 }

@@ -16,6 +16,10 @@ extension StreamActivityCaption {
             return L10n.tr("Generating")
         case .activity(.webSearch):
             return L10n.tr("Searching the web", table: .chat)
+        case .activity(.mcpTool):
+            // Fallback without display context; with a running step the cell shows
+            // "Using <server> · <tool title>" instead.
+            return L10n.tr("Using tools", table: .mcp)
         }
     }
 }

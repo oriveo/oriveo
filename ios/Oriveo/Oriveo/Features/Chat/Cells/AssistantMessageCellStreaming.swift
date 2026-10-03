@@ -286,19 +286,66 @@ extension AssistantMessageCell {
             activity: streamActivity,
             quiet: streamQuietTimer.isQuiet
         )
-        guard presentation != streamActivityPresentation else { return }
+        let text = streamActivityText(for: presentation)
+        guard presentation != streamActivityPresentation || text != presentedStreamActivityText else { return }
         streamActivityPresentation = presentation
+        presentedStreamActivityText = text
         switch presentation {
         case .hidden:
             typingIndicator.setCaption(nil)
             setStreamActivityLineText(nil)
-        case let .typingCaption(activity):
-            typingIndicator.setCaption(StreamActivityCaption.activity(activity).localizedText)
+        case .typingCaption:
+            typingIndicator.setCaption(text)
             setStreamActivityLineText(nil)
-        case let .statusLine(caption):
+        case .statusLine:
             typingIndicator.setCaption(nil)
-            setStreamActivityLineText(caption.localizedText)
+            setStreamActivityLineText(text)
         }
+    }
+
+    /// The presentation as text. For `mcp_tool` the server name and tool title come from the step that is
+    /// running in the message.
+    private func streamActivityText(for presentation: StreamActivityPresentation) -> String? {
+        let caption: StreamActivityCaption
+        switch presentation {
+        case .hidden: return nil
+        case let .typingCaption(activity): caption = .activity(activity)
+        case let .statusLine(value): caption = value
+        }
+        if caption == .activity(.mcpTool), let runningToolStepCaption { return runningToolStepCaption }
+        return caption.localizedText
+    }
+
+    // MARK: - Remote MCP step block
+
+    func configureToolSteps(message: ChatMessage, isGenerating: Bool) {
+        let steps = message.toolSteps ?? []
+        toolStepsView.configure(
+            steps: steps,
+            isGenerating: isGenerating,
+            limitReached: message.toolFallbackNotice == ToolFallbackNotice.mcpToolLimitReached.rawValue
+        )
+        let running = isGenerating ? steps.last { $0.status == .running } : nil
+        let caption = running.map {
+            // The server name and the tool title are third-party text and are not translated.
+            String(format: L10n.tr("Using %1$@ · %2$@", table: .mcp), $0.serverName, $0.displayTitle)
+        }
+        guard caption != runningToolStepCaption else { return }
+        runningToolStepCaption = caption
+        refreshStreamActivityPresentation()
+    }
+
+    func presentToolStepDetail(_ step: McpToolStep) {
+        guard let messageID = boundMessageID,
+              let host = parentViewController ?? nearestViewControllerForToolSteps() else { return }
+        let status: McpToolStep.Status = (step.status == .running && currentMessageState != .generating)
+            ? .interrupted
+            : step.status
+        McpStepDetailPresenter.present(step: step, status: status, messageID: messageID, from: host)
+    }
+
+    private func nearestViewControllerForToolSteps() -> UIViewController? {
+        sequence(first: next, next: { $0?.next }).compactMap { $0 as? UIViewController }.first
     }
 
     private func setStreamActivityLineText(_ text: String?) {

@@ -13,6 +13,8 @@ final class ChatListDataSource: NSObject, UICollectionViewDataSource {
         var onSaveNote: (ChatMessage) -> Void = { _ in }
         var onOpenNoteReferences: ([NoteSummary]) -> Void = { _ in }
         var onCrosscheck: (ChatMessage) -> Void = { _ in }
+        /// Actions on the MCP step block (re-authorize / skip this step).
+        var onMcpStepAction: (ChatMessage, McpToolStepAction) -> Void = { _, _ in }
         var onSaveSelection: (ChatMessage, String) -> Void = { _, _ in }
         var onAskSelection: (ChatMessage, QuoteSelectionContent) -> Void = { _, _ in }
         var canReplaceCurrentNoteSelection = false
@@ -142,6 +144,7 @@ final class ChatListDataSource: NSObject, UICollectionViewDataSource {
                 ? nil
                 : { context.onOpenNoteReferences(model.noteReferences) },
             onCrosscheck: { context.onCrosscheck(message) },
+            onToolStepAction: { action in context.onMcpStepAction(message, action) },
             onSaveSelection: { text in context.onSaveSelection(message, text) },
             onAskSelection: message.state == .generating
                 || message.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty

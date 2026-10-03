@@ -26,6 +26,20 @@ final class ChatManager {
     private let providerSession: URLSession
     let toolCallMemory: ToolCallMemoryStore
 
+    /// The confirmation gate for remote MCP tools. Nil in production, where `AppState.mcpConfirmationCoordinator`
+    /// (the confirmation sheet) is used; tests put a scripted gate here.
+    var mcpConfirmationGate: (any McpConfirmationGate)?
+    /// The gate for a sign-in that expired mid-answer. Nil in production, where
+    /// `AppState.mcpReauthorizationCoordinator` is used.
+    var mcpReauthorizationGate: (any McpReauthorizationGate)?
+    /// Runtime limits for remote MCP: the catalog's `mcpRuntimeConfig`, or the built-in fallback values when
+    /// the snapshot has none.
+    private var mcpRuntimeConfigProvider: () -> McpRuntimeConfig = {
+        MetadataClient.shared.syncMcpRuntimeConfig()
+    }
+    /// Test seam: how the MCP protocol client is built (nil in production, which uses a real network session).
+    private var mcpClientFactory: (@Sendable (URL) -> McpClient)?
+
     init(providerSession: URLSession = .shared, toolCallMemory: ToolCallMemoryStore = .shared) {
         self.providerSession = providerSession
         self.toolCallMemory = toolCallMemory
@@ -122,6 +136,8 @@ final class ChatManager {
     /// Drops the streaming session. Ends the background task once no sessions remain.
     @discardableResult
     private func removeSession(for conversationID: UUID) -> StreamingSession? {
+        appState.mcpConfirmationCoordinator.cancel(conversationID: conversationID)
+        appState.mcpReauthorizationCoordinator.cancel(conversationID: conversationID)
         let removed = sessions.removeValue(forKey: conversationID)
         streamingConversationIDs = Set(sessions.keys)
         // Finishing, failing and stopping all remove the session here. The activity goes with it
@@ -811,6 +827,8 @@ final class ChatManager {
     }
 
     func forceStopStreaming() {
+        appState.mcpConfirmationCoordinator.cancelAll()
+        appState.mcpReauthorizationCoordinator.cancelAll()
         guard isAnyStreaming else { return }
         let convIDs = Array(sessions.keys)
         for convID in convIDs {
@@ -1095,6 +1113,9 @@ final class ChatManager {
         updatedForRetry.messages[msgIndex].errorDetail = nil
         updatedForRetry.messages[msgIndex].capabilityExecution = nil
         updatedForRetry.messages[msgIndex].unhandledToolCalls = nil
+        // The step limit notice goes with the steps it describes.
+        updatedForRetry.messages[msgIndex].toolSteps = nil
+        updatedForRetry.messages[msgIndex].toolFallbackNotice = nil
         updatedForRetry.messages[msgIndex].inputTokens = nil
         updatedForRetry.messages[msgIndex].outputTokens = nil
         updatedForRetry.messages[msgIndex].cachedInputTokens = nil
@@ -1397,6 +1418,29 @@ final class ChatManager {
             #endif
 
             do {
+                // Remote MCP: tools are assembled only when this conversation has servers turned on and the
+                // connection can carry tools. Otherwise the plan is empty and the send takes the plain path
+                // below, with no MCP tool in the request.
+                let mcpPlan = self.prepareMcpToolPlan(conversationID: conversationID, provider: provider, model: model)
+                if !mcpPlan.isEmpty {
+                    try await self.runMcpToolLoop(
+                        conversationID: conversationID,
+                        assistantMessageID: assistantMessageID,
+                        sendTaskID: sendTaskID,
+                        initialText: initialText,
+                        provider: provider,
+                        model: model,
+                        accessToken: effectiveAPIKey,
+                        resolvedModelID: resolvedModelID,
+                        requestMessages: requestMessages,
+                        requestOptions: requestOptions,
+                        reasoningMode: capabilitySelection.reasoningMode,
+                        plan: mcpPlan
+                    )
+                    self.appState.conversationManager.refreshConversationCost(for: conversationID)
+                    return
+                }
+
                 // One tracker is scoped to exactly this send task.  It cannot leak to a later
                 // retry, continuation or another conversation.
                 let capabilityExecutionTracker = CapabilityExecutionTracker { [weak self] execution in
@@ -2961,6 +3005,303 @@ final class ChatManager {
         }
 
         sessions[conversationID]?.sendTask = sendTask
+    }
+
+    // MARK: - Remote MCP
+
+    /// Whether this connection and model can use MCP tools (for the tool panel and the composer chip; the
+    /// same verdict the send path uses).
+    func mcpToolAvailability(provider: Provider, model: AIModel) -> McpToolAvailability {
+        McpToolAvailability.resolve(provider: provider, model: model, memory: toolCallMemory)
+    }
+
+    /// Test seam: swaps the MCP protocol client for a replayed session, so a test can run the whole
+    /// production path starting at `sendMessage`.
+    func debugUseMcpClientFactoryForTesting(_ factory: @escaping @Sendable (URL) -> McpClient) {
+        mcpClientFactory = factory
+    }
+
+    /// The MCP tools usable for this send. Empty when the connection cannot carry tools, the conversation has
+    /// no server turned on, or local storage cannot be read: each of those falls back to a plain send without
+    /// tools, so an unreadable MCP configuration never fails the whole message.
+    private func prepareMcpToolPlan(conversationID: UUID, provider: Provider, model: AIModel) -> McpToolPlan {
+        guard mcpToolAvailability(provider: provider, model: model).isAvailable else {
+            return .empty
+        }
+        let uid = appState.sessionPartitionUID
+        do {
+            return try McpToolBridge.plan(
+                conversationId: conversationID,
+                store: try appState.mcpServerDirectory.store(for: uid),
+                credentialStore: appState.mcpServerDirectory.credentialStore,
+                uid: uid,
+                runtimeConfig: mcpRuntimeConfigProvider()
+            )
+        } catch {
+            return .empty
+        }
+    }
+
+    private func makeMcpExecutor(
+        conversationID: UUID,
+        assistantMessageID: UUID,
+        sendTaskID: UUID
+    ) -> McpToolExecutor {
+        let uid = appState.sessionPartitionUID
+        // The loop only refreshes tokens; it never signs in again (that opens the browser and belongs to the
+        // UI). The authorizer is the one shared with the add flow and the management page, which is what
+        // serializes concurrent refreshes.
+        let directory = appState.mcpServerDirectory
+        let authorizer = directory.authorizer(for: uid)
+        let credentialStore = directory.credentialStore
+        let runtimeConfig = mcpRuntimeConfigProvider()
+        let store = try? directory.store(for: uid)
+        return McpToolExecutor(
+            conversationId: conversationID,
+            runtimeConfig: runtimeConfig,
+            gate: mcpConfirmationGate ?? appState.mcpConfirmationCoordinator,
+            reauthGate: mcpReauthorizationGate ?? appState.mcpReauthorizationCoordinator,
+            tokenProvider: { serverId in
+                try await authorizer.validAccessToken(serverId: serverId, uid: uid)
+            },
+            liveState: { tool in
+                // Without the database there is nothing to re-check against: treat the tool as unavailable
+                // rather than sending a request based on the state seen when the plan was assembled.
+                guard let store else { return .unavailable }
+                return McpToolBridge.liveState(
+                    of: tool, store: store, credentialStore: credentialStore, uid: uid, runtimeConfig: runtimeConfig
+                )
+            },
+            makeClient: mcpClientFactory,
+            onStep: { [weak self] update in
+                await self?.recordMcpToolStep(
+                    update, conversationID: conversationID, messageID: assistantMessageID,
+                    sendTaskID: sendTaskID, uid: uid
+                )
+            }
+        )
+    }
+
+    /// One status callback from the executor: updates the message's `toolSteps` (summaries only, persisted
+    /// with the message) and saves the step payload (raw arguments and result, which never enter the message
+    /// model).
+    func recordMcpToolStep(
+        _ update: McpToolStepUpdate,
+        conversationID: UUID,
+        messageID: UUID,
+        sendTaskID: UUID,
+        uid: String
+    ) async {
+        if let payload = update.payload, let store = try? appState.mcpServerDirectory.store(for: uid) {
+            // A failed save only affects the step detail sheet (it shows that the details are not on this
+            // device); the step itself and the answer are unaffected.
+            await Task.detached(priority: .userInitiated) {
+                try? store.saveStepPayload(
+                    messageID: messageID, stepID: update.id, serverId: update.serverId,
+                    arguments: payload.arguments, resultPrefix: payload.resultPrefix
+                )
+            }.value
+        }
+        guard let conversationIndex = conversations.firstIndex(where: { $0.id == conversationID }),
+              let messageIndex = conversations[conversationIndex].messages.firstIndex(where: { $0.id == messageID })
+        else { return }
+        let existing = conversations[conversationIndex].messages[messageIndex].toolSteps ?? []
+        let ownsSession = sessions[conversationID]?.messageID == messageID
+            && sessions[conversationID]?.sendTaskID == sendTaskID
+        if !ownsSession {
+            // This send is already over (the user pressed stop). Only a callback that moves its own step
+            // from running to a terminal state is accepted; no step is added. A retry of the same message is
+            // a different send, and a late callback from the old task must not write into it.
+            guard update.status != .running,
+                  existing.contains(where: { $0.id == update.id && $0.status == .running }) else { return }
+        }
+        if update.status == .needsAuth {
+            markMcpServerNeedsAuth(update.serverId, uid: uid)
+        }
+        let merged = McpToolStep.merging(update, into: existing)
+        if merged != existing {
+            var updated = conversations[conversationIndex]
+            updated.messages[messageIndex].toolSteps = merged
+            appState.upsertConversationProjection(updated)
+        }
+        // The activity line is set while any step is running and cleared once none is. The message is
+        // written before the activity is published, because the cell reads its caption from the running step.
+        guard ownsSession else { return }
+        if merged.contains(where: { $0.status == .running }) {
+            recordStreamActivity(.mcpTool, in: conversationID, messageID: messageID, sendTaskID: sendTaskID)
+        } else if sessions[conversationID]?.activity == .mcpTool {
+            clearStreamActivity(in: conversationID)
+        }
+    }
+
+    private func recordMcpToolLimitReached(conversationID: UUID, messageID: UUID) {
+        guard let conversationIndex = conversations.firstIndex(where: { $0.id == conversationID }),
+              let messageIndex = conversations[conversationIndex].messages.firstIndex(where: { $0.id == messageID })
+        else { return }
+        var updated = conversations[conversationIndex]
+        updated.messages[messageIndex].toolFallbackNotice = ToolFallbackNotice.mcpToolLimitReached.rawValue
+        appState.upsertConversationProjection(updated)
+    }
+
+    /// The loop found that this server needs a new sign-in: record `needsAuth` as its connection state. The
+    /// tool panel offers "Re-authorize" from that, and later sends leave its tools out until a sign-in succeeds.
+    private func markMcpServerNeedsAuth(_ serverId: UUID, uid: String) {
+        guard let store = try? appState.mcpServerDirectory.store(for: uid) else { return }
+        var state = (try? store.fetchConnectionState(serverId: serverId)) ?? McpConnectionState(serverId: serverId)
+        guard state.status != .needsAuth else { return }
+        state.status = .needsAuth
+        try? store.saveConnectionState(state)
+    }
+
+    /// Shows the text a tool loop leg has produced so far.
+    private func applyToolLoopText(
+        _ generatedText: String,
+        initialText: String,
+        conversationID: UUID,
+        assistantMessageID: UUID,
+        sendTaskID: UUID
+    ) {
+        guard sessions[conversationID]?.messageID == assistantMessageID,
+              sessions[conversationID]?.sendTaskID == sendTaskID else { return }
+        sessions[conversationID]?.text = initialText + generatedText
+        streamingSubjects[conversationID]?.send()
+    }
+
+    /// The text of the leg currently streaming; reset when the next leg starts.
+    private actor ToolLoopLegText {
+        private var text = ""
+        func reset() { text = "" }
+        func append(_ delta: String) -> String {
+            text += delta
+            return text
+        }
+    }
+
+    /// The tool loop of a send that carries MCP tools. The leg runner and the adapter that feeds results
+    /// back are chosen as a pair from the connection's outbound protocol.
+    private func runMcpToolLoop(
+        conversationID: UUID,
+        assistantMessageID: UUID,
+        sendTaskID: UUID,
+        initialText: String,
+        provider: Provider,
+        model: AIModel,
+        accessToken: String,
+        resolvedModelID: String,
+        requestMessages: [ChatMessage],
+        requestOptions: ChatRequestOptions,
+        reasoningMode: ReasoningMode,
+        plan: McpToolPlan
+    ) async throws {
+        let legPair = try ToolLoopLegRunnerFactory.make(
+            provider: provider,
+            model: model,
+            modelID: resolvedModelID,
+            reasoningMode: reasoningMode,
+            requestOptions: requestOptions,
+            accessToken: provider.authMode == .subscription ? accessToken : nil,
+            toolCallMemory: toolCallMemory,
+            session: providerSession
+        )
+        let messages = McpToolBridge.initialMessages(
+            history: OpenAIChatToolLoopLegRunner.messages(
+                from: requestMessages,
+                providerKind: provider.kind,
+                model: model
+            ),
+            systemPrompt: requestOptions.systemPrompt
+        )
+        let manager = self
+        let loop = McpToolBridge.makeLoop(
+            plan: plan,
+            executor: makeMcpExecutor(
+                conversationID: conversationID, assistantMessageID: assistantMessageID, sendTaskID: sendTaskID
+            ),
+            legRunner: legPair.runner,
+            adapter: legPair.adapter,
+            runtimeConfig: mcpRuntimeConfigProvider(),
+            onUnhandledToolCalls: { calls in
+                // A name outside the plan's table is never executed; it gets the existing notice card.
+                await manager.recordUnhandledToolCalls(
+                    calls, in: conversationID, messageID: assistantMessageID, sendTaskID: sendTaskID,
+                    provider: provider, model: model
+                )
+            }
+        )
+        let legText = ToolLoopLegText()
+        let result: ToolCallLoop.Result
+        do {
+            result = try await loop.run(messages: messages) { event in
+                switch event {
+                case let .legStarted(index):
+                    await legText.reset()
+                    // The text of a leg that ended in tool calls is cleared, and the next leg renders from
+                    // the start.
+                    if index > 0 {
+                        await manager.applyToolLoopText(
+                            "", initialText: initialText, conversationID: conversationID,
+                            assistantMessageID: assistantMessageID, sendTaskID: sendTaskID
+                        )
+                    }
+                case let .textDelta(delta):
+                    let text = await legText.append(delta)
+                    await manager.applyToolLoopText(
+                        text, initialText: initialText, conversationID: conversationID,
+                        assistantMessageID: assistantMessageID, sendTaskID: sendTaskID
+                    )
+                case let .reasoningDelta(delta):
+                    await manager.appendReasoning(
+                        delta, in: conversationID, messageID: assistantMessageID, sendTaskID: sendTaskID
+                    )
+                case .usage, .toolCallsAccepted:
+                    break
+                }
+            }
+        } catch let rejected as ToolsRejectedByUpstreamError {
+            // Only a deterministic 4xx on the first leg, before any structured tool call was seen, is
+            // remembered as "this connection does not support tools". The next send then leaves the MCP
+            // tools out; this one fails like any other request.
+            if rejected.qualifiesAsConnectionUnsupported {
+                rememberToolCallCapability(provider: provider, model: model, toolCall: false, reason: .toolsRejected4xx)
+            }
+            throw rejected.underlying
+        }
+        try Task.checkCancellation()
+        guard sessions[conversationID]?.messageID == assistantMessageID,
+              sessions[conversationID]?.sendTaskID == sendTaskID else { throw CancellationError() }
+        if result.receivedStructuredToolCalls {
+            rememberToolCallCapability(provider: provider, model: model, toolCall: true, reason: .structuredToolCalls)
+        }
+        if result.stepLimitReached {
+            // The loop already ran its final synthesis leg without tools; the step block says so in its
+            // last row.
+            recordMcpToolLimitReached(conversationID: conversationID, messageID: assistantMessageID)
+        }
+
+        applyToolLoopText(
+            result.text,
+            initialText: initialText,
+            conversationID: conversationID,
+            assistantMessageID: assistantMessageID,
+            sendTaskID: sendTaskID
+        )
+        let promptTokens = result.usage?.promptTokens ?? 0
+        let completionTokens = result.usage?.completionTokens ?? 0
+        let providerResult = ProviderChatResult(
+            text: result.text,
+            promptTokens: promptTokens,
+            completionTokens: completionTokens,
+            estimatedCost: 0,
+            usageBreakdown: UsageBreakdown(promptTokens: promptTokens, completionTokens: completionTokens)
+        )
+        completeStreamingMessage(
+            conversationID: conversationID,
+            messageID: assistantMessageID,
+            expectedSendTaskID: sendTaskID,
+            estimatedCost: resolvedDeliveredCost(from: providerResult, model: model, providerKind: provider.kind),
+            state: .delivered,
+            usageMetrics: ChatDeliveredUsageMetrics(promptTokens: promptTokens, completionTokens: completionTokens)
+        )
     }
 
     private func recordUnhandledToolCalls(
