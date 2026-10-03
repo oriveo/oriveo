@@ -8,9 +8,13 @@ import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.core.model.ProviderServiceError
 import ai.oriveo.community.core.model.ProviderSyncResult
 import ai.oriveo.community.core.model.ReasoningMode
-import ai.oriveo.community.core.model.StreamActivity
 import ai.oriveo.community.core.model.StreamEvent
+import ai.oriveo.community.core.model.ToolCallDelta
 import ai.oriveo.community.core.provider.transport.TransportKind
+import ai.oriveo.community.core.tools.OpenAIChatToolAdapter
+import ai.oriveo.community.core.tools.ToolCallLoop
+import ai.oriveo.community.core.tools.ToolLoopToolCall
+import ai.oriveo.community.core.tools.ToolRegistry
 import io.ktor.client.HttpClient
 import io.ktor.client.request.get
 import io.ktor.client.request.preparePost
@@ -36,6 +40,7 @@ import kotlinx.serialization.json.intOrNull
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.put
 
 /**
  * Moonshot / Kimi Service - OpenAI-compatible, api.moonshot.ai.
@@ -43,9 +48,9 @@ import kotlinx.serialization.json.jsonPrimitive
  * Citations are parsed by the base class [OpenAICompatibleService] through
  * [ai.oriveo.community.core.provider.transport.TransportRegistry]: the openai_chat strategy
  * plus the kimi_web_search profile (the builtin `${'$'}web_search` tool).
- * With web search on, sendMessageStream runs a streaming tool loop - each leg streams and
- * emits in real time, and accumulated tool_calls are fed back to start the next leg. With it
- * off, the request goes straight to the parent's standard streaming parser.
+ * With web search on, sendMessageStream runs the generic `ToolCallLoop` (the leg runner and the
+ * registry entries live in `MoonshotToolLoop.kt`). With it off, the request goes straight to the
+ * parent's standard streaming parser.
  */
 class MoonshotService(
     client: HttpClient,
@@ -189,7 +194,7 @@ class MoonshotService(
             }
             val toolLoopVariant = webRecipe?.continuationVariant ?: "default"
             val formula = webRecipe?.formula
-            val initialBody = applyCapabilityRuntimeCustomFragment(buildChatRequest(
+            var bodyTemplate = json.parseToJsonElement(applyCapabilityRuntimeCustomFragment(buildChatRequest(
                 modelID = modelID,
                 messages = messages,
                 stream = true,
@@ -197,26 +202,27 @@ class MoonshotService(
                 webSearchEnabled = true,
                 supportsImageGen = supportsImageGen,
                 requestOptions = requestOptions,
-            ), ProviderKind.Moonshot, modelID, TransportKind.OpenAIChat.wireValue, requestOptions)
+            ), ProviderKind.Moonshot, modelID, TransportKind.OpenAIChat.wireValue, requestOptions)).jsonObject
 
-            // Streaming tool loop: every leg is a streaming request, so reasoning and delta
-            // are emitted live. If a leg ends having accumulated tool_calls ($web_search is
-            // executed by Kimi's own service and the client only feeds the arguments back),
-            // another leg follows; otherwise this wraps up.
-            var bodyTemplate = json.parseToJsonElement(initialBody).jsonObject
+            // A Formula extends web search dynamically: the function names and wire types that
+            // /tools declares go into the request body and into the registry allowlist.
+            var formulaRegistrations: List<MoonshotFormulaToolRegistration> = emptyList()
             if (formula != null) {
                 val tools = fetchFormulaTools(url, formula, apiKey)
                 val existing = (bodyTemplate["tools"] as? JsonArray).orEmpty()
-                bodyTemplate = JsonObject(bodyTemplate.toMutableMap().apply { put("tools", JsonArray(mergeFormulaTools(existing, tools))) })
+                bodyTemplate = JsonObject(bodyTemplate.toMutableMap().apply {
+                    put("tools", JsonArray(mergeFormulaTools(existing, tools)))
+                })
+                formulaRegistrations = moonshotFormulaRegistrations(tools)
             }
+
             val resolved = MetadataClient.resolveCatalogModel(modelID, ProviderKind.Moonshot)
-            val maxToolLoops = runtime?.selections
-                ?.firstOrNull { it.capability == "web" && it.executionKind == "client_tool_loop" }
-                ?.maxToolLoops
-                ?.coerceIn(1, 5)
-                ?: webSearchMaxToolLoops(resolved?.profiles?.webSearch)?.coerceIn(1, 5)
-                ?: 4
-            val requestMessages = bodyTemplate["messages"]?.jsonArray?.toMutableList() ?: mutableListOf()
+            // Effective ceiling = min(value from the catalog, 8), 6 when absent.
+            val serverLoops = webRecipe?.maxToolLoops
+                ?: webSearchMaxToolLoops(resolved?.profiles?.webSearch)
+            val maxSteps = ToolCallLoop.Limits.effectiveMaxSteps(serverLoops)
+
+            val baseMessages = bodyTemplate["messages"]?.jsonArray?.toMutableList() ?: mutableListOf()
             val completedMessages = mutableListOf<JsonElement>()
             // A sidecar can only be supplied by ChatRepository's explicit continue/retry path.
             // It is protocol-gated again here so another provider's opaque state can never leak
@@ -234,164 +240,144 @@ class MoonshotService(
                     ),
                 )
                 if (mapped is ProviderRecipeExecution.ContinuationWire.Messages && webRecipe != null) {
-                    val newUserIndex = requestMessages.indexOfLast {
+                    val newUserIndex = baseMessages.indexOfLast {
                         ((it as? JsonObject)?.get("role") as? JsonPrimitive)?.contentOrNull == "user"
-                    }.takeIf { it >= 0 } ?: requestMessages.size
-                    requestMessages.addAll(newUserIndex, mapped.append)
+                    }.takeIf { it >= 0 } ?: baseMessages.size
+                    baseMessages.addAll(newUserIndex, mapped.append)
                     completedMessages.addAll(mapped.append)
                 }
                 // Missing/corrupt/recipe-mismatch state intentionally falls through to plain chat.
             }
-            val accumulatedText = StringBuilder()
-            val accumulatedReasoning = StringBuilder()
-            var totalPrompt = 0
-            var totalCompletion = 0
-            var totalCached = 0
-            var hasUsage = false
-            var pendingToolCalls = false
 
-            // One first leg plus the tool loop ceiling the profile specifies; when an older
-            // catalog snapshot lacks the field, default to 4.
-            for (leg in 0..maxToolLoops) {
-                val body = JsonObject(
-                    bodyTemplate.toMutableMap().apply { put("messages", JsonArray(requestMessages)) },
-                )
-                val legText = StringBuilder()
-                val legReasoning = StringBuilder()
-                var legUsage: JsonObject? = null
-                val toolAccumulator = MoonshotToolCallAccumulator()
+            // A tool only has an executor while web search is on: the builtin one is always
+            // `$web_search`, and a Formula registers whatever `/tools` declares.
+            val registry = if (formula != null) {
+                ToolRegistry(formulaRegistrations.map { registration ->
+                    MoonshotWebSearchTool(
+                        name = registration.name,
+                        wireType = registration.wireType,
+                    ) { call -> formulaFiberContent(url, formula, apiKey, call) }
+                })
+            } else {
+                ToolRegistry(listOf(MoonshotWebSearchTool { call ->
+                    MoonshotWebSearchTool.builtinResultContent(call)
+                }))
+            }
 
-                UnsupportedParamRetry.run(
-                    ProviderKind.Moonshot,
-                    modelID,
-                    body.toString(),
-                    requestOptions = requestOptions,
-                    identity = officialSelfHealIdentity(
-                        providerKind = ProviderKind.Moonshot,
-                        modelID = modelID,
-                        options = requestOptions,
-                        finalTransport = TransportKind.OpenAIChat.wireValue,
-                        finalUrl = "$url/chat/completions",
-                    ),
-                ) { requestBodyAttempt ->
-                    val statement = client.preparePost("$url/chat/completions") {
-                        applyHeaders(apiKey)
-                        contentType(ContentType.Application.Json)
-                        setBody(requestBodyAttempt)
-                    }
-                    requestOptions.capabilityExecutionCollector?.confirmDispatched()
-                    statement.execute { response ->
-                        if (!response.status.isSuccess()) throw SseParser.mapHttpError(response)
-                        SseParser.parseOpenAICompatibleMulti(
-                            response = response,
-                            json = json,
-                            onChunk = { payload ->
-                                val events = mutableListOf<StreamEvent>()
-                                val root = runCatching { json.parseToJsonElement(payload).jsonObject }.getOrNull()
-                                if (root != null) {
-                                    (root["usage"] as? JsonObject)?.let { legUsage = it }
-                                    val delta = ((root["choices"] as? JsonArray)?.firstOrNull() as? JsonObject)
-                                        ?.get("delta") as? JsonObject
-                                    (delta?.get("tool_calls") as? JsonArray)?.let { toolAccumulator.ingest(it) }
-                                    val reasoning = (delta?.get("reasoning_content") as? JsonPrimitive)?.contentOrNull
-                                    if (!reasoning.isNullOrEmpty()) {
-                                        // Insert a paragraph break across legs so the
-                                        // streaming accumulation matches the finalized text
-                                        // character for character.
-                                        if (legReasoning.isEmpty() && accumulatedReasoning.isNotEmpty()) {
-                                            accumulatedReasoning.append("\n\n")
-                                            events += StreamEvent.Reasoning("\n\n")
-                                        }
-                                        legReasoning.append(reasoning)
-                                        accumulatedReasoning.append(reasoning)
-                                        events += StreamEvent.Reasoning(reasoning)
-                                    }
-                                    val content = (delta?.get("content") as? JsonPrimitive)?.contentOrNull
-                                    if (!content.isNullOrEmpty()) {
-                                        legText.append(content)
-                                        accumulatedText.append(content)
-                                        events += StreamEvent.Delta(content)
-                                    }
-                                }
-                                events
-                            },
-                            // Placeholder Done at the end of a leg: the outer layer does the
-                            // real finish, so this is filtered out during collect.
-                            onDone = { StreamEvent.Done(ProviderChatResult(text = "")) },
-                        ).collect { event ->
-                            if (event !is StreamEvent.Done) emit(event)
-                        }
-                    }
-                }
+            val legRunner = MoonshotToolLoopLegRunner(
+                client = client,
+                json = json,
+                providerKind = ProviderKind.Moonshot,
+                modelID = modelID,
+                endpoint = "$url/chat/completions",
+                baseBody = bodyTemplate,
+                baseMessages = baseMessages,
+                requestOptions = requestOptions,
+                identity = officialSelfHealIdentity(
+                    providerKind = ProviderKind.Moonshot,
+                    modelID = modelID,
+                    options = requestOptions,
+                    finalTransport = TransportKind.OpenAIChat.wireValue,
+                    finalUrl = "$url/chat/completions",
+                ),
+                applyAuth = { applyHeaders(apiKey) },
+            )
 
-                legUsage?.let { usage ->
-                    hasUsage = true
-                    totalPrompt += usage["prompt_tokens"]?.jsonPrimitive?.intOrNull ?: 0
-                    totalCompletion += usage["completion_tokens"]?.jsonPrimitive?.intOrNull ?: 0
-                    totalCached += usage["cached_tokens"]?.jsonPrimitive?.intOrNull ?: 0
-                }
-
-                val toolCalls = toolAccumulator.finalized()
-                pendingToolCalls = toolCalls.isNotEmpty()
-                if (!pendingToolCalls) break
-                // `0..maxToolLoops` allows the configured number of completed tool rounds
-                // plus one final answer request. A further tool call is never a partial
-                // success: persisting/returning it would leave an orphan continuation.
-                if (leg >= maxToolLoops) {
-                    throw ProviderServiceError.InvalidConfiguration("Moonshot tool-loop limit exceeded.")
-                }
-                // Emitted before the feed-back: the search really happens inside the next leg's
-                // request, and the screen needs a label during that wait.
-                if (toolCalls.any { StreamActivitySignals.moonshotToolCall(it.function?.name) != null }) {
-                    emit(StreamEvent.Activity(StreamActivity.WebSearch))
-                }
-
-                // Feed back: echo the assistant tool-call message plus the tool result, with
-                // arguments returned verbatim.
+            var unhandledToolCallIndex = 0
+            val loop = ToolCallLoop(
+                registry = registry,
+                legRunner = legRunner,
+                adapter = OpenAIChatToolAdapter(includesToolNameInResult = true),
+                limits = ToolCallLoop.Limits(maxSteps = maxSteps),
                 // Kimi's contract: when thinking is in effect (enabled by default on k2.5 and
                 // k2.6), an assistant tool-call message without reasoning_content is rejected
                 // with a 400. An empty string passes, which matters because the model may go
                 // straight to searching without thinking at all.
-                val assistantToolMessage = buildJsonObject {
-                        put("role", JsonPrimitive("assistant"))
-                        put("content", JsonPrimitive(legText.toString()))
-                        put("reasoning_content", JsonPrimitive(legReasoning.toString()))
-                        put("tool_calls", JsonArray(toolCalls.map { it.asJsonObject() }))
+                includesReasoningInAssistantMessage = true,
+                // Web search has no `[n]` citation scheme: the sentences appended for Kimi when
+                // the ceiling is hit use web search's own wording.
+                prompts = MOONSHOT_WEB_SEARCH_PROMPTS,
+                onUnhandledToolCalls = { calls ->
+                    // This callback can fire several times in one run (once per leg that carries
+                    // an unregistered tool, plus the final leg). Downstream,
+                    // `NativeToolCallAccumulator.merge` joins the fragments of one call by index:
+                    // numbering from 0 every time would make the second leg's call look like a
+                    // later fragment of the first leg's, concatenating their arguments. So the
+                    // index increases monotonically across the whole run.
+                    emit(StreamEvent.ToolCallDeltas(calls.map { call ->
+                        ToolCallDelta(
+                            index = unhandledToolCallIndex++,
+                            id = call.id,
+                            type = call.type,
+                            name = call.function.name,
+                            arguments = call.function.arguments,
+                        )
+                    }))
+                },
+                onLegCompleted = { record ->
+                    if (webRecipe != null) {
+                        completedMessages += moonshotMessageJson(record.assistantMessage)
+                        record.toolResultMessages.forEach { message ->
+                            completedMessages += moonshotMessageJson(message)
+                        }
+                        val state = buildJsonObject {
+                            put("completedMessages", JsonArray(completedMessages.toList()))
+                        }
+                        val valid = ProviderRecipeExecution.continuation(
+                            kind = "tool_loop",
+                            variant = toolLoopVariant,
+                            protocol = TransportKind.OpenAIChat.wireValue,
+                            intent = ai.oriveo.community.core.model.RequestPreferenceResolver.ContinuationIntent(
+                                kind = "tool_loop", variant = toolLoopVariant, step = 1, state = state,
+                            ),
+                        ) is ProviderRecipeExecution.ContinuationWire.Messages
+                        if (!valid) throw ProviderServiceError.InvalidConfiguration("Invalid Moonshot tool-loop continuation state.")
+                        emit(StreamEvent.RecipeContinuation("tool_loop", toolLoopVariant, state))
                     }
-                requestMessages.add(assistantToolMessage)
-                completedMessages += assistantToolMessage
-                for (toolCall in toolCalls) {
-                    val toolResult = if (formula == null) toolCall.asToolResultMessage() else formulaToolResult(url, formula, apiKey, toolCall)
-                    requestMessages.add(toolResult)
-                    completedMessages += toolResult
-                }
-                if (webRecipe != null && completedMessages.isNotEmpty()) {
-                    val state = JsonObject(mapOf("completedMessages" to JsonArray(completedMessages.toList())))
-                    val valid = ProviderRecipeExecution.continuation(
-                        kind = "tool_loop",
-                        variant = webRecipe.continuationVariant,
-                        protocol = TransportKind.OpenAIChat.wireValue,
-                        intent = ai.oriveo.community.core.model.RequestPreferenceResolver.ContinuationIntent(
-                        kind = "tool_loop", variant = toolLoopVariant, step = 1, state = state,
-                        ),
-                    ) is ProviderRecipeExecution.ContinuationWire.Messages
-                    if (!valid) throw ProviderServiceError.InvalidConfiguration("Invalid Moonshot tool-loop continuation state.")
-                    emit(StreamEvent.RecipeContinuation("tool_loop", toolLoopVariant, state))
+                },
+            )
+
+            val accumulatedText = StringBuilder()
+            val accumulatedReasoning = StringBuilder()
+            var legSawReasoning = false
+            loop.run(initialMessages = emptyList()) { event ->
+                when (event) {
+                    is ToolCallLoop.ProgressEvent.LegStarted -> legSawReasoning = false
+                    is ToolCallLoop.ProgressEvent.TextDelta -> {
+                        accumulatedText.append(event.text)
+                        emit(StreamEvent.Delta(event.text))
+                    }
+                    is ToolCallLoop.ProgressEvent.ReasoningDelta -> {
+                        // Insert a paragraph break across legs so the streaming accumulation
+                        // matches the finalized text character for character.
+                        if (!legSawReasoning && accumulatedReasoning.isNotEmpty()) {
+                            accumulatedReasoning.append("\n\n")
+                            emit(StreamEvent.Reasoning("\n\n"))
+                        }
+                        legSawReasoning = true
+                        accumulatedReasoning.append(event.text)
+                        emit(StreamEvent.Reasoning(event.text))
+                    }
+                    is ToolCallLoop.ProgressEvent.Usage -> Unit
+                    is ToolCallLoop.ProgressEvent.ToolCallsAccepted -> {
+                        // Emitted before the feed-back: the search really happens inside the next
+                        // leg's request, and the screen needs a label during that wait.
+                        MoonshotWebSearchTool.streamActivity(event.toolCalls)?.let {
+                            emit(StreamEvent.Activity(it))
+                        }
+                    }
                 }
             }
 
             val text = accumulatedText.toString().trim()
-            // Defensive invariant: the guard in the loop must already have rejected this.
-            // Keep it here so a future loop refactor cannot emit Done after dangling calls.
-            if (pendingToolCalls) throw ProviderServiceError.InvalidConfiguration("Moonshot tool-loop ended with pending calls.")
-
             // Each leg is billed separately, so usage is summed across legs and then goes
             // through the same parseUsage channel (cached_tokens is at the top level).
-            val usageJson = if (hasUsage) {
+            val usages = legRunner.collectedUsages
+            val usageJson = if (usages.isNotEmpty()) {
                 buildJsonObject {
-                    put("prompt_tokens", JsonPrimitive(totalPrompt))
-                    put("completion_tokens", JsonPrimitive(totalCompletion))
-                    put("cached_tokens", JsonPrimitive(totalCached))
+                    put("prompt_tokens", JsonPrimitive(usages.sumOf { it.promptTokens }))
+                    put("completion_tokens", JsonPrimitive(usages.sumOf { it.completionTokens }))
+                    put("cached_tokens", JsonPrimitive(usages.sumOf { it.cachedTokens }))
                 }
             } else {
                 null
@@ -424,31 +410,24 @@ class MoonshotService(
         return mergeFormulaTools(emptyList(), tools)
     }
 
-    private suspend fun formulaToolResult(baseUrl: String, formula: JsonObject, apiKey: String, call: MoonshotToolCall): JsonObject {
-        val function = call.function ?: throw ProviderServiceError.Upstream(200, "Formula call has no function.")
-        val callId = call.id?.takeIf { it.isNotBlank() }
-            ?: throw ProviderServiceError.Upstream(200, "Formula call is missing an id.")
-        val functionName = function.name?.takeIf { it.isNotBlank() }
-        val rawArguments = function.arguments
-        if (functionName == null || rawArguments == null) {
-            throw ProviderServiceError.Upstream(200, "Formula call is malformed.")
-        }
+    /** Formula Fiber: hands one call of a dynamic tool to `/fibers` and returns the raw output to feed back to the model. */
+    private suspend fun formulaFiberContent(
+        baseUrl: String,
+        formula: JsonObject,
+        apiKey: String,
+        call: ToolLoopToolCall,
+    ): String {
+        if (call.function.name.isBlank()) throw ProviderServiceError.Upstream(200, "Formula call is malformed.")
         val path = formula.string("fibersPath") ?: throw ProviderServiceError.InvalidConfiguration("Formula fibers route missing.")
         val response = client.preparePost(formulaUrl(baseUrl, path)) {
             applyHeaders(apiKey); contentType(ContentType.Application.Json)
             // arguments is intentionally a JSON string; no parse/re-serialization of opaque Kimi payload.
-            setBody(buildJsonObject {
-                put("name", JsonPrimitive(functionName))
-                put("arguments", JsonPrimitive(rawArguments))
-            }.toString())
+            setBody(moonshotFormulaFiberBody(call))
         }.execute()
         if (!response.status.isSuccess()) throw SseParser.mapHttpError(response)
         val context = runCatching { json.parseToJsonElement(response.bodyAsText()).jsonObject["context"] as? JsonObject }.getOrNull()
-        val output = context?.string("output") ?: context?.string("encrypted_output")
+        return context?.string("output") ?: context?.string("encrypted_output")
             ?: throw ProviderServiceError.Upstream(200, "Formula Fiber result missing output.")
-        return buildJsonObject {
-            put("role", JsonPrimitive("tool")); put("tool_call_id", JsonPrimitive(callId)); put("name", JsonPrimitive(functionName)); put("content", JsonPrimitive(output))
-        }
     }
 
     private fun formulaUrl(baseUrl: String, path: String): String {
@@ -484,85 +463,5 @@ class MoonshotService(
     }
 
     private fun JsonObject.string(key: String): String? = (this[key] as? JsonPrimitive)?.contentOrNull
-
-    /**
-     * Merges streaming tool_calls deltas by index: id/type/name take the first non-empty
-     * value, arguments are concatenated piece by piece.
-     */
-    private class MoonshotToolCallAccumulator {
-        private class Builder {
-            var id: String? = null
-            var type: String? = null
-            var name: String? = null
-            val arguments = StringBuilder()
-        }
-
-        private val builders = sortedMapOf<Int, Builder>()
-
-        fun ingest(deltas: JsonArray) {
-            for (element in deltas) {
-                val obj = element as? JsonObject ?: continue
-                val index = (obj["index"] as? JsonPrimitive)?.intOrNull ?: 0
-                val builder = builders.getOrPut(index) { Builder() }
-                (obj["id"] as? JsonPrimitive)?.contentOrNull?.let { builder.id = it }
-                (obj["type"] as? JsonPrimitive)?.contentOrNull?.let { builder.type = it }
-                val function = obj["function"] as? JsonObject
-                (function?.get("name") as? JsonPrimitive)?.contentOrNull?.let { builder.name = it }
-                (function?.get("arguments") as? JsonPrimitive)?.contentOrNull?.let { builder.arguments.append(it) }
-            }
-        }
-
-        fun finalized(): List<MoonshotToolCall> = builders.map { (_, builder) ->
-            MoonshotToolCall(
-                id = builder.id,
-                type = builder.type,
-                function = MoonshotToolFunction(name = builder.name, arguments = builder.arguments.toString()),
-            )
-        }
-    }
-
-    @Serializable
-    private data class MoonshotToolCall(
-        val id: String? = null,
-        val type: String? = null,
-        val function: MoonshotToolFunction? = null,
-    ) {
-        fun asJsonObject(): JsonObject {
-            val fields = mutableMapOf<String, JsonElement>()
-            id?.let { fields["id"] = JsonPrimitive(it) }
-            type?.let { fields["type"] = JsonPrimitive(it) }
-            function?.let { fields["function"] = it.asJsonObject() }
-            return JsonObject(fields)
-        }
-
-        fun asToolResultMessage(): JsonObject {
-            return JsonObject(
-                mapOf(
-                    "role" to JsonPrimitive("tool"),
-                    "tool_call_id" to JsonPrimitive(id ?: ""),
-                    "name" to JsonPrimitive(function?.name ?: "${'$'}web_search"),
-                    "content" to JsonPrimitive(toolResultContent()),
-                ),
-            )
-        }
-
-        private fun toolResultContent(): String {
-            if (function?.name != "${'$'}web_search") return """{"error":"Unsupported tool"}"""
-            return function.arguments ?: "{}"
-        }
-    }
-
-    @Serializable
-    private data class MoonshotToolFunction(
-        val name: String? = null,
-        val arguments: String? = null,
-    ) {
-        fun asJsonObject(): JsonObject {
-            val fields = mutableMapOf<String, JsonElement>()
-            name?.let { fields["name"] = JsonPrimitive(it) }
-            arguments?.let { fields["arguments"] = JsonPrimitive(it) }
-            return JsonObject(fields)
-        }
-    }
 
 }
