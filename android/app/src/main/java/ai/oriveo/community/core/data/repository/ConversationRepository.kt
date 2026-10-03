@@ -46,6 +46,8 @@ class ConversationRepository(
     private val onAssistantDelivered: suspend (String) -> Unit = {},
     private val continuationDao: MessageContinuationDao? = null,
     private val searchIndexer: ai.oriveo.community.core.data.search.ConversationSearchIndexer? = null,
+    /** Holds the per-step payloads of MCP tool calls: deleting messages or a conversation deletes them too. */
+    private val mcpServerDao: ai.oriveo.community.core.data.dao.McpServerDao? = null,
 ) {
     private val searchService = ConversationSearchService(conversationDao, searchIndexer)
     private val usageAnalytics = ConversationUsageAnalytics(messageDao)
@@ -89,6 +91,16 @@ class ConversationRepository(
             android.util.Log.e("ConversationRepository", "corrupt row read at $where: ${e.localizedMessage}", e)
             null
         }
+
+    /** Progress of the MCP tool steps: writes only the summary column (payloads live in `mcp_step_payload`). */
+    suspend fun updateMcpToolStepsProgress(
+        messageId: String,
+        steps: List<ai.oriveo.community.core.mcp.McpToolStep>,
+    ): Int = messageDao.updateMcpToolStepsProgress(
+        accountId = accountId,
+        id = normalizeUuid(messageId),
+        stepsJson = ai.oriveo.community.core.data.mapper.MessageMapper.encodeToolStepsJson(steps),
+    )
 
     /**
      * Marks messages left in Generating as Interrupted, so a stream killed by process death or a
@@ -474,6 +486,7 @@ class ConversationRepository(
         else deletedIDs.chunked(CONTINUATION_DELETE_CHUNK_SIZE).forEach { ids ->
             continuationDao?.deleteMessages(scopedAccountId, ids)
         }
+        mcpServerDao?.deleteStepPayloadsAfterOrder(scopedAccountId, normalizedConversationId, msg.sortOrder)
         messageDao.deleteAfterOrder(scopedAccountId, normalizedConversationId, msg.sortOrder)
         refreshConversationMetadata(normalizedConversationId, scopedAccountId = scopedAccountId)
         refreshCost(normalizedConversationId, scopedAccountId)
@@ -502,6 +515,7 @@ class ConversationRepository(
         else deletedIDs.chunked(CONTINUATION_DELETE_CHUNK_SIZE).forEach { ids ->
             continuationDao?.deleteMessages(scopedAccountId, ids)
         }
+        mcpServerDao?.deleteStepPayloadsAfterOrder(scopedAccountId, normalizedConversationId, msg.sortOrder - 1)
         messageDao.deleteAfterOrder(scopedAccountId, normalizedConversationId, msg.sortOrder - 1)
         refreshConversationMetadata(normalizedConversationId, scopedAccountId = scopedAccountId)
         refreshCost(normalizedConversationId, scopedAccountId)
@@ -524,6 +538,9 @@ class ConversationRepository(
         } ?: 0
 
         continuationDao?.deleteForConversation(scopedAccountId, normalizedId)
+        // Must come before the conversation is deleted: once the message rows are gone through the
+        // foreign-key cascade, nothing can tell which messages belonged to it.
+        mcpServerDao?.deleteStepPayloadsOfConversation(scopedAccountId, normalizedId)
         conversationDao.deleteById(scopedAccountId, normalizedId)
     }
 
@@ -672,6 +689,7 @@ class ConversationRepository(
                 .orEmpty()
         }
         normalizedIds.forEach { continuationDao?.deleteForConversation(scopedAccountId, it) }
+        normalizedIds.forEach { mcpServerDao?.deleteStepPayloadsOfConversation(scopedAccountId, it) }
         conversationDao.deleteByIds(scopedAccountId, normalizedIds)
     }
 

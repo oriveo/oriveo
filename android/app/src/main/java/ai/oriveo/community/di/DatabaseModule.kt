@@ -28,7 +28,11 @@ val databaseModule = module {
             .setTransactionExecutor(Executors.newSingleThreadExecutor())
             // v1 to v2: FTS4 conversation search (CJK bigrams) plus the message count moved into
             // its own trigger-maintained table.
-            .addMigrations(OriveoDatabase.MIGRATION_1_2)
+            .addMigrations(
+                OriveoDatabase.MIGRATION_1_2,
+                // v2 to v3: the tables behind remote MCP servers, plus messages.toolStepsJson.
+                OriveoDatabase.MIGRATION_2_3,
+            )
             .addCallback(
                 object : RoomDatabase.Callback() {
                     override fun onOpen(db: SupportSQLiteDatabase) {
@@ -78,5 +82,6 @@ val databaseModule = module {
     single { get<OriveoDatabase>().metadataCacheDao() }
     single { get<OriveoDatabase>().noteDao() }
     single { get<OriveoDatabase>().noteFolderDao() }
+    single { get<OriveoDatabase>().mcpServerDao() }
     single { get<MessageContinuationDatabase>().dao() }
 }

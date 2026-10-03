@@ -764,6 +764,11 @@ class MetadataClient internal constructor(
         val providerConfigs: List<PublicProviderConfig>? = null,
         val relayRuntimeConfig: RawRelayRuntimeConfig? = null,
         val runtimeConfig: RuntimeConfig? = null,
+        /**
+         * Runtime limits for remote MCP. Kept as is; `McpRuntimeConfig.fromJson` clamps each
+         * field to its bounds when it is read.
+         */
+        val mcpRuntimeConfig: JsonObject? = null,
 
         val capabilityRuntime: JsonObject? = null,
         /** Facts published alongside the catalog; artifactHash is deliberately not decoded. */
@@ -1930,6 +1935,15 @@ class MetadataClient internal constructor(
         }
         return null
     }
+
+    /**
+     * Runtime limits for remote MCP. A catalog without this block (an older cached copy, a
+     * self-hosted catalog, or no catalog at all) yields the built-in defaults; the feature is
+     * not disabled because of that. With `enabled = false` the entry points are hidden and
+     * requests carry no MCP tools, while stored servers are kept.
+     */
+    fun mcpRuntimeConfig(): ai.oriveo.community.core.mcp.McpRuntimeConfig =
+        ai.oriveo.community.core.mcp.McpRuntimeConfig.fromJson(table?.mcpRuntimeConfig)
 
     fun relayRuntimeConfig(): RelayRuntimeConfig {
         val remote = table?.relayRuntimeConfig ?: return FALLBACK_RELAY_RUNTIME_CONFIG
@@ -3742,6 +3756,7 @@ class MetadataClient internal constructor(
             instance.resolveCatalogModelAcrossProvidersWithProvider(modelID, transportPriority)
 
         fun relayRuntimeConfig(): RelayRuntimeConfig = instance.relayRuntimeConfig()
+        fun mcpRuntimeConfig(): ai.oriveo.community.core.mcp.McpRuntimeConfig = instance.mcpRuntimeConfig()
 
         /** See [MetadataClient.snapshotConfirmedThisSession]. */
         val snapshotConfirmedThisSession: Boolean get() = instance.snapshotConfirmedThisSession

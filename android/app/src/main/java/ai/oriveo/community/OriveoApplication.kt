@@ -98,6 +98,16 @@ class OriveoApplication : Application() {
             if (!databaseHealthProbe.awaitHealthy()) return@launch
             koinApp.koin.get<ai.oriveo.community.core.data.repair.MessageAttachmentRepairTask>().runIfNeeded()
         }
+        // Remote MCP: an addition the previous process never finished (it died before the user
+        // tapped "Done") left a pending record behind; remove it together with its credentials.
+        // Only records stored before this process started are swept, never an addition that is in
+        // progress now.
+        val processStartedAt = System.currentTimeMillis()
+        appScope.launch {
+            if (!databaseHealthProbe.awaitHealthy()) return@launch
+            koinApp.koin.get<ai.oriveo.community.core.mcp.McpServerStore>()
+                .sweepUnconfirmedAdditions(createdBefore = processStartedAt)
+        }
         // Builds the conversation full-text index for a database upgraded from v1: the migration
         // only enqueued the message rowids without reading any bodies, and the CJK bigram
         // tokenising happens here in batches. Fire and forget, so it never blocks onCreate or the

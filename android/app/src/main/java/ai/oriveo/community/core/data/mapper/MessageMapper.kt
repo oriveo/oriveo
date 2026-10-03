@@ -9,6 +9,7 @@ import ai.oriveo.community.core.model.ChatRole
 import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.core.model.QuoteContext
 import ai.oriveo.community.core.model.UnhandledToolCall
+import ai.oriveo.community.core.mcp.McpToolStep
 import ai.oriveo.community.core.util.normalizeAttachmentIds
 import ai.oriveo.community.core.util.normalizeMessageIds
 import ai.oriveo.community.core.util.normalizeUuid
@@ -57,6 +58,14 @@ object MessageMapper {
         toolFallbackNotice = toolFallbackNotice,
         customRetryWithoutFieldsAvailable = customRetryWithoutFieldsAvailable,
         customRetryWithoutFieldsCode = customRetryWithoutFieldsCode,
+        // The message is no longer generating but a step is still `running` (the process was
+        // killed, and the startup cleanup only fixed the message state): read it as interrupted.
+        // Doing it on the read path gives the UI and exports the same answer.
+        toolSteps = toolStepsJson?.let { raw ->
+            runCatching { json.decodeFromString<List<McpToolStep>>(raw) }.getOrNull()
+        }?.let { steps ->
+            if (state == ChatMessageState.Generating.name) steps else McpToolStep.interruptingRunning(steps)
+        },
         inputTokens = inputTokens,
         outputTokens = outputTokens,
         cachedInputTokens = cachedInputTokens,
@@ -73,6 +82,10 @@ object MessageMapper {
      */
     fun encodeAttachmentsJson(attachments: List<Attachment>?): String? =
         attachments?.map(::normalizeAttachmentIds)?.let { json.encodeToString(it) }
+
+    /** The single-column progress write and the whole-row write share one encoding. */
+    fun encodeToolStepsJson(steps: List<McpToolStep>?): String? =
+        steps?.takeIf { it.isNotEmpty() }?.let { json.encodeToString(it) }
 
     fun ChatMessage.toEntity(accountId: String, conversationId: String, sortOrder: Int): MessageEntity =
         MessageEntity(
@@ -105,6 +118,7 @@ object MessageMapper {
             toolFallbackNotice = toolFallbackNotice?.takeIf { it.isNotBlank() },
             customRetryWithoutFieldsAvailable = customRetryWithoutFieldsAvailable,
             customRetryWithoutFieldsCode = customRetryWithoutFieldsCode,
+            toolStepsJson = encodeToolStepsJson(toolSteps),
             reasoningText = reasoningText?.takeIf { it.isNotBlank() },
             reasoningDurationMs = reasoningDurationMs,
             inputTokens = inputTokens,

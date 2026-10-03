@@ -8,6 +8,8 @@
     <exclude domain="sharedpref" path="oriveo_secure_keys.xml" />
     <exclude domain="sharedpref" path="oriveo_provider_subscription_tokens.xml" />
     <exclude domain="sharedpref" path="oriveo_auto_backup_keys.xml" />
+    <!-- Access and refresh tokens of remote MCP servers: each device signs in on its own. -->
+    <exclude domain="sharedpref" path="oriveo_mcp_credentials.xml" />
     <exclude domain="database" path="message_continuations.db" />
     <exclude domain="database" path="message_continuations.db-wal" />
     <exclude domain="database" path="message_continuations.db-shm" />

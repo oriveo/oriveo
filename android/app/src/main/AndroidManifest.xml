@@ -66,6 +66,33 @@
             </intent-filter>
         </activity>
 
+        <!--
+            OAuth redirect for remote MCP servers (`oriveo://mcp/oauth/callback`).
+
+            A trampoline activity with no UI of its own rather than a filter on MainActivity: the
+            sign-in page opens in Custom Tabs on top of MainActivity, and delivering the redirect
+            straight to the singleTop MainActivity would stack a second instance above the sign-in
+            page. The trampoline takes the URL, brings the original MainActivity back with
+            CLEAR_TOP, and the sign-in page leaves the stack with it.
+
+            A redirect nobody is waiting for (its `state` does not match, or the process that
+            started it is gone) just finishes the trampoline without bringing the app forward.
+            The path is matched literally, not as a prefix.
+        -->
+        <activity
+            android:name=".core.mcp.McpOAuthRedirectActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:theme="@android:style/Theme.NoDisplay">
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="oriveo" android:host="mcp" android:path="/oauth/callback" />
+            </intent-filter>
+        </activity>
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"

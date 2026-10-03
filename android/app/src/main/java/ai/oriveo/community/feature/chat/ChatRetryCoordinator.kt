@@ -93,6 +93,7 @@ internal class ChatRetryCoordinator(
         reasoningText = null,
         reasoningDurationMs = null,
         citations = null,
+        toolSteps = null,
         attachments = null,
         estimatedCost = 0.0,
         errorTitle = null,

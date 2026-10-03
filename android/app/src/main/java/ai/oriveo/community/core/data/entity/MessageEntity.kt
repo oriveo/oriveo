@@ -71,6 +71,8 @@ data class MessageEntity(
      */
     val customRetryWithoutFieldsAvailable: Boolean = false,
     val customRetryWithoutFieldsCode: String? = null,
+    /** Summaries of the MCP tool steps as JSON. Raw arguments and results are not in this column. */
+    val toolStepsJson: String? = null,
     /** Reasoning text, for the models that return it separately from the answer. */
     val reasoningText: String? = null,
     /**

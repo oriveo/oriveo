@@ -67,6 +67,7 @@ val repositoryModule = module {
             runInTransaction = { block -> db.withTransaction { block() } },
             continuationDao = get(),
             searchIndexer = get(),
+            mcpServerDao = get(),
         )
     }
 
@@ -105,6 +106,102 @@ val repositoryModule = module {
             continuationStore = get(),
             continuationAccountId = { ai.oriveo.community.core.data.database.LOCAL_PARTITION_ID },
             toolCallMemoryStore = get(),
+        )
+    }
+
+    // ── Remote MCP servers ──────────────────────────────────
+
+    single {
+        ai.oriveo.community.core.mcp.McpServerStore(
+            dao = get(),
+            credentials = get(),
+            grants = get(),
+        )
+    }
+    // "Allow for the rest of this conversation". The chat send path reads it, and the storage
+    // layer revokes from it when a permission, a tool or a server changes, so the whole app must
+    // share this one instance.
+    single { ai.oriveo.community.core.mcp.McpConversationGrants() }
+    single { ai.oriveo.community.core.mcp.McpConfirmationCoordinator() }
+    // Wires remote MCP into the chat send path. The confirmation gate is the chat screen's
+    // confirmation dialog: without the user's consent no `tools/call` is sent.
+    single {
+        ai.oriveo.community.core.mcp.McpChatToolRunner(
+            httpClient = get(),
+            json = get(),
+            store = get(),
+            credentialStore = get(),
+            grants = get(),
+            // Read on every send, so limits from a refreshed catalog apply without a restart.
+            runtimeConfig = { ai.oriveo.community.core.data.remote.MetadataClient.mcpRuntimeConfig() },
+            // Shared with the add flow and the management screens: token refreshes are serialized
+            // per authorizer instance, and two instances refreshing on their own would spend a
+            // rotating refresh token twice.
+            authorizer = get(),
+            mcpTransport = { get<ai.oriveo.community.core.mcp.McpRawTransport>() },
+            writeScope = get(named("applicationScope")),
+        ).also { runner ->
+            runner.confirmationGate = get<ai.oriveo.community.core.mcp.McpConfirmationCoordinator>()
+            // "Re-authorize" in the chat screen (tool panel, step blocks) goes through the same
+            // entry point as the management screens. Resolved lazily: it is only needed once the
+            // user taps it, not while the chat loop is being assembled.
+            runner.reauthorizer = ai.oriveo.community.core.mcp.McpReauthorizer { serverId ->
+                get<ai.oriveo.community.core.mcp.McpReauthorizationCoordinator>().reauthorize(serverId)
+            }
+        }
+    }
+
+    // Operations on a stored server (re-read tools, confirm changes, re-authorize, remove) and
+    // the coordination of the re-authorization dialog.
+    single {
+        val transport = get<ai.oriveo.community.core.mcp.McpRawTransport>()
+        ai.oriveo.community.core.mcp.McpServerActions(
+            store = get(),
+            credentialStore = get(),
+            runtimeConfig = { ai.oriveo.community.core.data.remote.MetadataClient.mcpRuntimeConfig() },
+            authorizer = get(),
+            makeClient = { endpoint, config -> ai.oriveo.community.core.mcp.McpClient(endpoint, config, transport) },
+        )
+    }
+    single {
+        ai.oriveo.community.core.mcp.McpReauthorizationCoordinator(
+            actions = get(),
+            store = get(),
+        )
+    }
+
+    // Browser sign-in: Custom Tabs opens the authorization page, and the redirect comes back
+    // through a trampoline activity into the router.
+    single { ai.oriveo.community.core.mcp.McpOAuthCallbackRouter() }
+    single { ai.oriveo.community.core.mcp.McpAuthorizationPageLauncher(androidContext()) }
+    single<ai.oriveo.community.core.mcp.McpBrowserSession> {
+        ai.oriveo.community.core.mcp.McpAppBrowserSession(
+            router = get(),
+            openPage = get<ai.oriveo.community.core.mcp.McpAuthorizationPageLauncher>()::open,
+        )
+    }
+    single<ai.oriveo.community.core.mcp.McpRawTransport> { ai.oriveo.community.core.mcp.KtorMcpRawTransport() }
+    single {
+        ai.oriveo.community.core.mcp.McpAuthorizer(
+            transport = ai.oriveo.community.core.mcp.McpHttpAuthTransport(get<ai.oriveo.community.core.mcp.McpRawTransport>()),
+            browser = get(),
+            credentialStore = get(),
+        )
+    }
+    // The add flow reads the limits afresh for every addition.
+    factory {
+        val config = ai.oriveo.community.core.data.remote.MetadataClient.mcpRuntimeConfig()
+        val transport = get<ai.oriveo.community.core.mcp.McpRawTransport>()
+        ai.oriveo.community.core.mcp.McpAddCoordinator(
+            probe = ai.oriveo.community.core.mcp.McpAddProbe(
+                authorizer = get(),
+                credentialStore = get(),
+                makeClient = { endpoint -> ai.oriveo.community.core.mcp.McpClient(endpoint, config, transport) },
+                runtimeConfig = config,
+            ),
+            store = get(),
+            credentialStore = get(),
+            runtimeConfig = config,
         )
     }
 

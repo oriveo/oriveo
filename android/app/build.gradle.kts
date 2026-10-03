@@ -22,6 +22,17 @@ val metadataBaseUrl = providers.gradleProperty("ORIVEO_METADATA_BASE_URL").orNul
     ?: "https://api.oriveoai.com"
 
 /**
+ * URL of the OAuth client metadata document that identifies this build to the authorization servers
+ * of remote MCP servers.
+ *
+ * Empty by default: an app you build yourself has no such document hosted anywhere, so it registers
+ * with each authorization server dynamically instead. If you host one, pass
+ * `-PORIVEO_MCP_CLIENT_METADATA_URL=https://your.host/oauth/mcp-client.json`; the document must list
+ * `oriveo://mcp/oauth/callback` as a redirect URI.
+ */
+val mcpClientMetadataUrl = providers.gradleProperty("ORIVEO_MCP_CLIENT_METADATA_URL").orNull ?: ""
+
+/**
  * Release signing comes from Gradle properties so that no keystore path or password is ever
  * committed. Set the four below in `~/.gradle/gradle.properties`; see SIGNING.md.
  */
@@ -74,6 +85,7 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "METADATA_BASE_URL", quoted(metadataBaseUrl))
+        buildConfigField("String", "MCP_CLIENT_METADATA_URL", quoted(mcpClientMetadataUrl))
     }
 
     bundle {

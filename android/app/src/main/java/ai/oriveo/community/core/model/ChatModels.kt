@@ -115,6 +115,11 @@ data class ChatMessage(
     val reasoningDurationMs: Long? = null,
     /** Sources the model cited. Only ever set on an assistant message. */
     val citations: List<Citation>? = null,
+    /**
+     * Summaries of the remote MCP tool steps, stored with the message. Raw arguments and results
+     * are not here; they live in `mcp_step_payload`.
+     */
+    val toolSteps: List<ai.oriveo.community.core.mcp.McpToolStep>? = null,
     /** Structured native calls which this connection could not execute. Local-only diagnostics. */
     @kotlinx.serialization.Transient
     val unhandledToolCalls: List<UnhandledToolCall> = emptyList(),

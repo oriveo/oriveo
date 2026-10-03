@@ -191,6 +191,9 @@ class SecureKeyStore private constructor(
             createEncryptedPrefs(SUBSCRIPTION_PREFS_FILE_NAME)
         }.getOrThrow()
 
+    @Volatile
+    private var mcpPrefsRef: SharedPreferences? = null
+
     /**
      * Opens one AES-256-GCM preferences file, keyed by a master key held in the Android Keystore.
      *
@@ -286,10 +289,71 @@ class SecureKeyStore private constructor(
         }
     }
 
+    // ── Remote MCP credentials ───────────────────────────────
+
+    /**
+     * The dedicated prefs file for MCP credentials.
+     *
+     * It is a namespace of its own rather than an API key slot: what is stored is the whole of
+     * "access token + refresh token + expiry + client_id + resource", and it is written on a
+     * different occasion. A routine token refresh is not the user changing a credential, so it
+     * must not advance credentialEpoch and void the capability evidence gathered on this device
+     * (the same reasoning as for the subscription tokens).
+     *
+     * Kept on this device only, and never written to logs.
+     */
+    fun mcpCredentialPrefs(): SharedPreferences =
+        mcpPrefsRef ?: synchronized(this) {
+            mcpPrefsRef ?: createMcpPrefsWithRecovery().also { mcpPrefsRef = it }
+        }
+
+    private fun createMcpPrefsWithRecovery(): SharedPreferences =
+        runCatching {
+            createEncryptedPrefs(MCP_PREFS_FILE_NAME)
+        }.recoverCatching { error ->
+            if (!error.isRecoverableSecurePrefsFailure()) {
+                throw error
+            }
+            mcpPrefsRef = null
+            runCatching { appContext.deleteSharedPreferences(MCP_PREFS_FILE_NAME) }
+            runCatching {
+                File(appContext.applicationInfo.dataDir, "shared_prefs/$MCP_PREFS_FILE_NAME.xml").delete()
+            }
+            createEncryptedPrefs(MCP_PREFS_FILE_NAME)
+        }.getOrThrow()
+
     companion object {
         private const val PREFS_FILE_NAME = "oriveo_secure_keys"
         private const val ARCHIVE_PREFS_FILE_NAME = "oriveo_auto_backup_keys"
         private const val SUBSCRIPTION_PREFS_FILE_NAME = "oriveo_provider_subscription_tokens"
+        internal const val MCP_PREFS_FILE_NAME = "oriveo_mcp_credentials"
+
+        /**
+         * Common prefix of every MCP credential key in the partition `uid`. The length of `uid`
+         * is part of it so the prefix delimits itself: without it, the prefix for `uid = "a"`
+         * would also match the entries of `uid = "a:b"`.
+         */
+        fun mcpCredentialKeyPrefix(uid: String): String = "mcp_credential_v1_${uid.length}:$uid:"
+
+        /**
+         * MCP credential key: `uid:serverId`.
+         *
+         * `serverId` is lowercased: server ids compare NOCASE in the database, so a key built
+         * from the id as given would be missed when the server is removed under another casing,
+         * and the credential would stay on the device for good.
+         */
+        fun mcpCredentialKey(uid: String, serverId: String): String =
+            mcpCredentialKeyPrefix(uid) + serverId.lowercase()
+
+        /**
+         * Key of the full address of an MCP server whose address looks like it carries a secret
+         * (`localOnly`): `uid:endpoint:serverId`. Stored apart from the tokens, because the
+         * authorizer rebuilds the whole credential when it refreshes a token and would wipe the
+         * address along the way. The `endpoint:` in the middle is not a valid UUID, so the key
+         * cannot collide with a `uid:serverId` one.
+         */
+        fun mcpEndpointKey(uid: String, serverId: String): String =
+            mcpCredentialKeyPrefix(uid) + "endpoint:" + serverId.lowercase()
 
         private fun keyFor(accountId: String, providerID: String) =
             "api_key_v2_${accountId.length}:$accountId:$providerID"

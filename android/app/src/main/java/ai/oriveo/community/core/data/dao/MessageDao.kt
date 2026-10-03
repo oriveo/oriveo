@@ -405,6 +405,16 @@ interface MessageDao {
         windowEndMillis: Long,
     ): List<MonthlyCostRow>
 
+    /**
+     * Progress of the MCP tool steps. Only matches while Generating: a callback arriving after
+     * the send has wound up must not change a finalized message.
+     */
+    @Query(
+        "UPDATE messages SET toolStepsJson = :stepsJson " +
+            "WHERE accountId = :accountId AND id = :id AND state = 'Generating'",
+    )
+    suspend fun updateMcpToolStepsProgress(accountId: String, id: String, stepsJson: String?): Int
+
     @Query(
         """
         SELECT COALESCE(m.providerID, c.providerID) AS providerId, SUM(m.estimatedCost) AS totalCost

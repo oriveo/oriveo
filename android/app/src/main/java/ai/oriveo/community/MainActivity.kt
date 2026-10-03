@@ -39,6 +39,13 @@ class MainActivity : AppCompatActivity() {
     private val databaseHealthProbe: DatabaseHealthProbe by inject()
     private val globalSnackbarManager: GlobalSnackbarManager by inject()
 
+    /**
+     * Browser sign-in for remote MCP: the authorization page opens on top of this activity, and
+     * coming back to the foreground tells the sign-in waiting for a redirect that the user returned.
+     */
+    private val mcpOAuthCallbackRouter: ai.oriveo.community.core.mcp.McpOAuthCallbackRouter by inject()
+    private val mcpAuthorizationPageLauncher: ai.oriveo.community.core.mcp.McpAuthorizationPageLauncher by inject()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         enableEdgeToEdge()
         super.onCreate(savedInstanceState)
@@ -99,11 +106,18 @@ class MainActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         appJankStats?.onResume()
+        mcpAuthorizationPageLauncher.attach(this)
+        mcpOAuthCallbackRouter.notifyHostResumed()
     }
 
     override fun onPause() {
         appJankStats?.onPause()
         super.onPause()
+    }
+
+    override fun onDestroy() {
+        mcpAuthorizationPageLauncher.detach(this)
+        super.onDestroy()
     }
 }
 
