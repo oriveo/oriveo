@@ -1,6 +1,6 @@
 'use client';
 
-import { Palette, Globe, Keyboard, Brain, Lightbulb, CloudUpload, Bug, BookOpen, ChevronRight } from 'lucide-react';
+import { Palette, Globe, Keyboard, Brain, Lightbulb, CloudUpload, Bug, BookOpen, ChevronRight, Wrench } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
 import { brand } from '@oriveo/config';
@@ -10,6 +10,8 @@ import {
   takeGraphemes,
 } from '../../lib/utils/grapheme-utils';
 import { useAppStore } from '../../providers/StoreProvider';
+import { useMcpStore } from '../../lib/core/mcp/mcp-store';
+import { useMcpRuntimeConfig } from '../../lib/core/mcp/use-mcp-runtime-config';
 import { getVanillaStore } from '../../providers/StoreProvider';
 import * as preferenceOps from '../../lib/core/preference-ops';
 import type { ThemeOption, LanguageOption, SendShortcut } from '@oriveo/shared';
@@ -52,6 +54,20 @@ const SHORTCUT_OPTIONS: { value: SendShortcut; labelKey: string }[] = [
 export function Settings() {
   const t = useTranslations('pages.settings');
   const tMemory = useTranslations('pages.memory');
+  const tMcp = useTranslations('mcp.settings');
+  // MCP entry: the master switch comes from the model catalog and the row is hidden while it is off.
+  // The subtitle shows how many servers there are and how many need attention.
+  const mcpRuntimeConfig = useMcpRuntimeConfig();
+  const mcpServerCount = useMcpStore((s) => s.servers.length);
+  const mcpAttentionCount = useMcpStore((s) => s.servers.filter((server) => {
+    const status = s.connections[server.id]?.status;
+    return status === 'needsAuth' || status === 'unreachable' || (s.snapshots[server.id] ?? []).some((tool) => tool.pendingReview);
+  }).length);
+  const mcpEntrySubtitle = mcpServerCount === 0
+    ? tMcp('entryHint')
+    : mcpAttentionCount > 0
+      ? tMcp('entryCountAttention', { count: mcpServerCount, attention: mcpAttentionCount })
+      : tMcp('entryCount', { count: mcpServerCount });
   const router = useRouter();
 
   const preferences = useAppStore((s) => s.preferences);
@@ -106,6 +122,28 @@ export function Settings() {
           <ChevronRight size={14} className={styles.navRowChevron} />
         </div>
 
+
+        {mcpRuntimeConfig.enabled ? (
+          <>
+            <div className={styles.divider} />
+
+            <button
+              type="button"
+              className={`${styles.navRow} ${styles.navRowButton}`}
+              data-settings-entry="mcp"
+              onClick={() => router.push('/settings/mcp')}
+            >
+              <span className={`${styles.semanticIcon} ${styles.purple}`}>
+                <Wrench size={16} />
+              </span>
+              <div className={styles.navRowInfo}>
+                <div className={styles.navRowTitle}>{tMcp('entryTitle')}</div>
+                <div className={styles.navRowSubtitle}>{mcpEntrySubtitle}</div>
+              </div>
+              <ChevronRight size={14} className={styles.navRowChevron} />
+            </button>
+          </>
+        ) : null}
 
         <div className={styles.divider} />
 

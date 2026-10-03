@@ -1,6 +1,7 @@
-import { render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Settings } from './Settings';
+import { useMcpStore } from '../../lib/core/mcp/mcp-store';
 import styles from './Settings.module.css';
 
 const mocks = vi.hoisted(() => ({
@@ -75,6 +76,7 @@ vi.mock('../../components/common/UserAvatar', () => ({
 const metadataMock = vi.hoisted(() => {
   const state = {
     enabled: true,
+    mcpEnabled: true,
     version: 0,
     listeners: new Set<() => void>(),
   };
@@ -92,7 +94,19 @@ vi.mock('../../lib/core/metadata/metadata-client', () => ({
     };
   },
   getCachedMetadataVersion: () => metadataMock.state.version,
+  // The MCP runtime config from the model catalog; only the master switch matters here.
+  getMcpRuntimeConfig: () => ({
+    version: 1, enabled: metadataMock.state.mcpEnabled, maxServers: 20, maxToolsPerRequest: 40,
+    maxToolDefinitionBytes: 16_384, maxResultChars: 24_000, callTimeoutSeconds: 60, maxSteps: 6,
+  }),
 }));
+
+function emitMetadataVersionChange() {
+  act(() => {
+    metadataMock.state.version += 1;
+    metadataMock.state.listeners.forEach((listener) => listener());
+  });
+}
 
 describe('Settings', () => {
   beforeEach(() => {
@@ -172,5 +186,47 @@ describe('Settings', () => {
     expect(screen.queryAllByRole('switch')).toHaveLength(0);
     expect(screen.queryByText('customRequestFieldsCustom')).toBeNull();
     expect(screen.queryByText('customRequestFieldsEnableScope')).toBeNull();
+  });
+
+  describe('MCP servers entry', () => {
+    const entry = () => document.querySelector('[data-settings-entry="mcp"]');
+    const record = (id: string) => ({
+      id, name: id, slug: id, url: `https://${id}.example.com/mcp`, authKind: 'auto' as const,
+      iconURL: null, createdAt: 1, updatedAt: 1, schemaVersion: 1,
+    });
+
+    beforeEach(() => {
+      metadataMock.state.mcpEnabled = true;
+      useMcpStore.getState().reset();
+    });
+
+    it('with no servers yet, the subtitle explains what the feature is for; clicking opens the management page', () => {
+      render(<Settings />);
+      expect(entry()?.textContent).toBe('entryTitleentryHint');
+      fireEvent.click(entry()!);
+      expect(mocks.routerPush).toHaveBeenCalledWith('/settings/mcp');
+    });
+
+    it('with servers, the subtitle shows the count; expired sign-ins, unreachable servers or tools awaiting review switch it to the line with the pending count', () => {
+      useMcpStore.setState({ hydrated: true, uid: 'u', servers: [record('a'), record('b')] });
+      const view = render(<Settings />);
+      expect(entry()?.textContent).toBe('entryTitleentryCount');
+      view.unmount();
+
+      useMcpStore.setState({
+        connections: { a: { serverId: 'a', status: 'needsAuth', lastSuccessAt: null, negotiatedVersion: null, generation: null, sessionId: null } },
+      });
+      render(<Settings />);
+      expect(entry()?.textContent).toBe('entryTitleentryCountAttention');
+    });
+
+    it('with the master switch off (enabled = false from the model catalog), the row is hidden; it follows a config update', () => {
+      metadataMock.state.mcpEnabled = false;
+      render(<Settings />);
+      expect(entry()).toBeNull();
+      metadataMock.state.mcpEnabled = true;
+      emitMetadataVersionChange();
+      expect(entry()).not.toBeNull();
+    });
   });
 });
