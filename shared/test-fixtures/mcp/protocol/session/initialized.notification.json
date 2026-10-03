@@ -1,0 +1,14 @@
+{
+  "$comment": "The notification a client MUST send after a successful initialize (specification: lifecycle). JSON-RPC notifications have no id.",
+  "protocolVersion": "2025-11-25",
+  "generation": "session",
+  "method": "POST",
+  "path": "/mcp",
+  "headers": {
+    "Accept": "application/json, text/event-stream",
+    "Content-Type": "application/json",
+    "MCP-Protocol-Version": "2025-11-25",
+    "MCP-Session-Id": "c1f2a3b4d5e60718293a4b5c6d7e8f90"
+  },
+  "body": { "jsonrpc": "2.0", "method": "notifications/initialized" }
+}

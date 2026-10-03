@@ -1,0 +1,13 @@
+{
+  "$comment": "A 401 that signals sign-in is required (specification: basic/authorization). resource_metadata points at the RFC 9728 protected resource metadata; scope is optional, and when present the client MUST treat it as the authoritative scope for this operation. Discovery order: use resource_metadata first, and construct the well-known URI only when it is absent.",
+  "status": 401,
+  "headers": {
+    "WWW-Authenticate": "Bearer resource_metadata=\"https://mcp.example.com/.well-known/oauth-protected-resource\", scope=\"files:read files:write\""
+  },
+  "body": "",
+  "expect": {
+    "resourceMetadataURL": "https://mcp.example.com/.well-known/oauth-protected-resource",
+    "scope": "files:read files:write",
+    "discoveryOrder": ["header_resource_metadata", "well_known_at_path", "well_known_at_root"]
+  }
+}

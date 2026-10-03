@@ -1,0 +1,20 @@
+{
+  "$comment": "Legacy tools/call success response: there is no resultType field (it was only added in 2026-07-28), and a client must not treat its absence as a failure.",
+  "protocolVersion": "2025-11-25",
+  "generation": "session",
+  "status": 200,
+  "headers": { "Content-Type": "application/json" },
+  "body": {
+    "jsonrpc": "2.0",
+    "id": 3,
+    "result": {
+      "content": [
+        {
+          "type": "text",
+          "text": "Current weather in New York:\nTemperature: 72°F\nConditions: Partly cloudy"
+        }
+      ],
+      "isError": false
+    }
+  }
+}

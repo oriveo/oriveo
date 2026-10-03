@@ -1,0 +1,14 @@
+{
+  "$comment": "A missing required _meta field makes the request malformed: the specification requires -32602 and the HTTP status MUST be 400.",
+  "status": 400,
+  "headers": { "Content-Type": "application/json" },
+  "body": {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "error": {
+      "code": -32602,
+      "message": "Invalid params: missing io.modelcontextprotocol/protocolVersion"
+    }
+  },
+  "expect": { "serverEra": "modern", "fallbackToInitialize": false }
+}

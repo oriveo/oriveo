@@ -1,0 +1,13 @@
+{
+  "$comment": "Unknown tool: a protocol error, delivered as a standard JSON-RPC error (the specification's example uses -32602). A client MAY hand it to the model, but recovery is unlikely; this client treats it as tool_error.",
+  "protocolVersion": "2025-11-25",
+  "generation": "session",
+  "status": 200,
+  "headers": { "Content-Type": "application/json" },
+  "body": {
+    "jsonrpc": "2.0",
+    "id": 3,
+    "error": { "code": -32602, "message": "Unknown tool: invalid_tool_name" }
+  },
+  "expect": { "errorCode": "tool_error" }
+}

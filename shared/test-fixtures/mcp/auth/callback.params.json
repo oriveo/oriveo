@@ -1,0 +1,66 @@
+{
+  "$comment": "The four cases for callback parameters (the 2×2 decision table of RFC 9207 §2.4; specification: basic/authorization). Before comparing, the client MUST NOT apply case folding, default-port elision, trailing-slash or percent-encoding normalisation. When iss does not match, the client MUST NOT act on or display error / error_description / error_uri, and no token is stored.",
+  "expectedIssuer": "https://auth.example.com",
+  "expectedState": "st_7f3a9c1e",
+  "cases": [
+    {
+      "caseId": "valid_iss_matching",
+      "metadata": { "authorization_response_iss_parameter_supported": true },
+      "params": { "code": "ac_123", "state": "st_7f3a9c1e", "iss": "https://auth.example.com" },
+      "expect": { "accepted": true }
+    },
+    {
+      "caseId": "iss_missing_but_declared_supported",
+      "metadata": { "authorization_response_iss_parameter_supported": true },
+      "params": { "code": "ac_123", "state": "st_7f3a9c1e" },
+      "expect": { "accepted": false, "reason": "iss_missing_while_declared_supported" }
+    },
+    {
+      "caseId": "iss_mismatch",
+      "metadata": { "authorization_response_iss_parameter_supported": true },
+      "params": { "code": "ac_123", "state": "st_7f3a9c1e", "iss": "https://evil.example" },
+      "expect": { "accepted": false, "reason": "iss_mismatch" }
+    },
+    {
+      "caseId": "iss_mismatch_no_normalization",
+      "metadata": { "authorization_response_iss_parameter_supported": true },
+      "params": { "code": "ac_123", "state": "st_7f3a9c1e", "iss": "https://auth.example.com/" },
+      "expect": { "accepted": false, "reason": "iss_mismatch_trailing_slash_not_normalized" }
+    },
+    {
+      "caseId": "not_declared_and_absent_proceeds",
+      "metadata": {},
+      "params": { "code": "ac_123", "state": "st_7f3a9c1e" },
+      "expect": { "accepted": true }
+    },
+    {
+      "caseId": "not_declared_but_iss_present_compared",
+      "metadata": {},
+      "params": { "code": "ac_123", "state": "st_7f3a9c1e", "iss": "https://auth.example.com" },
+      "expect": { "accepted": true }
+    },
+    {
+      "caseId": "not_declared_but_iss_mismatch_rejected",
+      "metadata": {},
+      "params": { "code": "ac_123", "state": "st_7f3a9c1e", "iss": "https://evil.example" },
+      "expect": { "accepted": false, "reason": "iss_mismatch" }
+    },
+    {
+      "caseId": "state_mismatch",
+      "metadata": { "authorization_response_iss_parameter_supported": true },
+      "params": { "code": "ac_123", "state": "st_other", "iss": "https://auth.example.com" },
+      "expect": { "accepted": false, "reason": "state_mismatch" }
+    },
+    {
+      "caseId": "error_response_iss_mismatch_not_surfaced",
+      "metadata": { "authorization_response_iss_parameter_supported": true },
+      "params": {
+        "error": "access_denied",
+        "error_description": "user said no",
+        "state": "st_7f3a9c1e",
+        "iss": "https://evil.example"
+      },
+      "expect": { "accepted": false, "reason": "iss_mismatch", "surfaceErrorText": false }
+    }
+  ]
+}

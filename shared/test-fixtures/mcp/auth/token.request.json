@@ -1,0 +1,14 @@
+{
+  "$comment": "Token request (specification: basic/authorization): resource MUST be sent, and code_verifier corresponds to S256. Tokens MUST go in the Authorization header / request body and MUST NOT appear in the URI query string.",
+  "method": "POST",
+  "url": "https://auth.example.com/token",
+  "headers": { "Content-Type": "application/x-www-form-urlencoded" },
+  "form": {
+    "grant_type": "authorization_code",
+    "code": "ac_123",
+    "redirect_uri": "https://app.example.com/mcp/oauth/callback",
+    "client_id": "https://app.example.com/oauth/mcp-client.json",
+    "code_verifier": "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk",
+    "resource": "https://mcp.example.com/mcp"
+  }
+}

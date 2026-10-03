@@ -1,0 +1,14 @@
+{
+  "$comment": "The generic error a legacy server returns when it receives tools/list before initialize (the 2025-* reference implementations use -32602). It has a JSON-RPC shape but **no modern protocol marker at all** (no io.modelcontextprotocol/, _meta, MCP-Protocol-Version, Mcp- header name or resultType, and no data.supported), so it counts as unrecognisable and the client must fall back to initialize. Counter-example: a client that treats any JSON-RPC body as modern would never fall back and could not connect to existing legacy servers.",
+  "status": 400,
+  "headers": { "Content-Type": "application/json" },
+  "body": {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "error": {
+      "code": -32602,
+      "message": "Received request before initialization was complete"
+    }
+  },
+  "expect": { "serverEra": "legacy", "fallbackToInitialize": true }
+}

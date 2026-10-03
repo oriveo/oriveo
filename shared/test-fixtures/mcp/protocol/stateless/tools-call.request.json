@@ -1,0 +1,29 @@
+{
+  "$comment": "2026-07-28 tools/call. Mcp-Name is a MUST for tools/call and equals params.name (header values are case-sensitive).",
+  "protocolVersion": "2026-07-28",
+  "generation": "stateless",
+  "method": "POST",
+  "path": "/mcp",
+  "headers": {
+    "Accept": "application/json, text/event-stream",
+    "Content-Type": "application/json",
+    "MCP-Protocol-Version": "2026-07-28",
+    "Mcp-Method": "tools/call",
+    "Mcp-Name": "get_weather",
+    "Authorization": "Bearer mcp_at_example"
+  },
+  "body": {
+    "jsonrpc": "2.0",
+    "id": 3,
+    "method": "tools/call",
+    "params": {
+      "name": "get_weather",
+      "arguments": { "location": "New York" },
+      "_meta": {
+        "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+        "io.modelcontextprotocol/clientInfo": { "name": "Oriveo", "version": "1.0.0" },
+        "io.modelcontextprotocol/clientCapabilities": { "tools": {} }
+      }
+    }
+  }
+}

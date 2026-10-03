@@ -1,0 +1,13 @@
+{
+  "$comment": "Session terminated by the server: a request carrying the old session id gets 404 (specification: transports). The client MUST initialize again without the session header. This client renegotiates once and reports unreachable only if that fails too.",
+  "protocolVersion": "2025-11-25",
+  "generation": "session",
+  "status": 404,
+  "headers": { "Content-Type": "application/json" },
+  "body": {
+    "jsonrpc": "2.0",
+    "id": 2,
+    "error": { "code": -32000, "message": "Session not found" }
+  },
+  "expect": { "reinitialize": true, "dropSessionId": true }
+}

@@ -1,0 +1,29 @@
+{
+  "$comment": "MRTR retry request (specification: server/tools). Three points: the JSON-RPC id must change, inputResponses is included (its keys match those of inputRequests, each with action and content), and requestState is sent back unchanged. Not implemented yet; kept for future alignment.",
+  "method": "POST",
+  "path": "/mcp",
+  "headers": {
+    "Accept": "application/json, text/event-stream",
+    "Content-Type": "application/json",
+    "MCP-Protocol-Version": "2026-07-28",
+    "Mcp-Method": "tools/call",
+    "Mcp-Name": "get_weather"
+  },
+  "body": {
+    "jsonrpc": "2.0",
+    "id": 3,
+    "method": "tools/call",
+    "params": {
+      "name": "get_weather",
+      "arguments": { "location": "New York" },
+      "inputResponses": {
+        "github_login": { "action": "accept", "content": { "name": "octocat" } }
+      },
+      "requestState": "eyJsb2NhdGlvbiI6Ik5ldyBZb3JrIn0",
+      "_meta": {
+        "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+        "io.modelcontextprotocol/clientCapabilities": { "tools": {} }
+      }
+    }
+  }
+}

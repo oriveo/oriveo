@@ -1,0 +1,13 @@
+{
+  "$comment": "Successful token exchange. Neither expires_in nor refresh_token is guaranteed (the specification says a client MUST NOT assume it will receive a refresh token).",
+  "status": 200,
+  "headers": { "Content-Type": "application/json" },
+  "body": {
+    "access_token": "mcp_at_example",
+    "token_type": "Bearer",
+    "expires_in": 3600,
+    "refresh_token": "mcp_rt_example",
+    "scope": "files:read files:write offline_access"
+  },
+  "expect": { "hasRefreshToken": true }
+}

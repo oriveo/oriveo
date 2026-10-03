@@ -1,0 +1,21 @@
+{
+  "$comment": "2026-07-28 tools/call success response, single JSON form. resultType is complete and isError is explicitly false.",
+  "protocolVersion": "2026-07-28",
+  "generation": "stateless",
+  "status": 200,
+  "headers": { "Content-Type": "application/json" },
+  "body": {
+    "jsonrpc": "2.0",
+    "id": 3,
+    "result": {
+      "resultType": "complete",
+      "content": [
+        {
+          "type": "text",
+          "text": "Current weather in New York:\nTemperature: 72°F\nConditions: Partly cloudy"
+        }
+      ],
+      "isError": false
+    }
+  }
+}

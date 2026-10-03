@@ -1,0 +1,35 @@
+{
+  "$comment": "Dynamic client registration (RFC 7591; marked deprecated in the specification and used as the fallback when CIMD is unavailable). The client MUST specify application_type; under OIDC, omitting it defaults to web and the native redirect URI may be rejected. A client_id obtained by registration MUST be bound to its issuer, and the client MUST register again when the authorization server changes.",
+  "request": {
+    "method": "POST",
+    "url": "https://auth.example.com/register",
+    "headers": { "Content-Type": "application/json" },
+    "body": {
+      "client_name": "Oriveo",
+      "redirect_uris": [
+        "oriveo://mcp/oauth/callback",
+        "https://app.example.com/mcp/oauth/callback/app"
+      ],
+      "grant_types": ["authorization_code", "refresh_token"],
+      "response_types": ["code"],
+      "token_endpoint_auth_method": "none",
+      "application_type": "native",
+      "scope": "files:read files:write offline_access"
+    }
+  },
+  "status": 201,
+  "headers": { "Content-Type": "application/json" },
+  "body": {
+    "client_id": "oriveo_mcp_2f9c41",
+    "client_name": "Oriveo",
+    "redirect_uris": [
+      "oriveo://mcp/oauth/callback",
+      "https://app.example.com/mcp/oauth/callback/app"
+    ],
+    "grant_types": ["authorization_code", "refresh_token"],
+    "response_types": ["code"],
+    "token_endpoint_auth_method": "none",
+    "application_type": "native"
+  },
+  "expect": { "bindTo": "https://auth.example.com", "reusableAcrossIssuers": false }
+}

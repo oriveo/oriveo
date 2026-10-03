@@ -1,0 +1,23 @@
+{
+  "$comment": "tools/call response with structuredContent (specification: server/tools). Client rule: the concatenated text items of content take precedence; when that text is empty and structuredContent is present, its JSON text is used.",
+  "status": 200,
+  "headers": { "Content-Type": "application/json" },
+  "body": {
+    "jsonrpc": "2.0",
+    "id": 5,
+    "result": {
+      "resultType": "complete",
+      "content": [
+        {
+          "type": "text",
+          "text": "{\"temperature\": 22.5, \"conditions\": \"Partly cloudy\", \"humidity\": 65}"
+        }
+      ],
+      "structuredContent": {
+        "temperature": 22.5,
+        "conditions": "Partly cloudy",
+        "humidity": 65
+      }
+    }
+  }
+}

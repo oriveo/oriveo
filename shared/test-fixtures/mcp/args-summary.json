@@ -1,0 +1,80 @@
+{
+  "$comment": "Argument summary. Walk inputSchema.properties in **property order**, take only the values in arguments whose type is string / number / boolean, and stop after 3 (null, missing, objects and arrays are skipped and the walk continues); join with \" · \" (space + U+00B7 + space); when the result is longer than 80 characters (not bytes), truncate to 79 characters + \"…\" for a total length of 80. With no scalar arguments the summary is the empty string.",
+  "version": 1,
+  "cases": [
+    {
+      "caseId": "three_scalars_joined",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "city": { "type": "string" },
+          "unit": { "type": "string" },
+          "days": { "type": "number" },
+          "verbose": { "type": "boolean" }
+        }
+      },
+      "arguments": { "city": "New York", "unit": "metric", "days": 3, "verbose": true },
+      "expect": { "summary": "New York · metric · 3" }
+    },
+    {
+      "caseId": "non_scalars_skipped_continue_to_third",
+      "inputSchema": {
+        "type": "object",
+        "properties": {
+          "a": { "type": "string" },
+          "obj": { "type": "object" },
+          "arr": { "type": "array" },
+          "b": { "type": "string" },
+          "c": { "type": "boolean" }
+        }
+      },
+      "arguments": { "a": "one", "obj": { "k": 1 }, "arr": [1, 2], "b": "two", "c": true },
+      "expect": { "summary": "one · two · true" }
+    },
+    {
+      "caseId": "null_and_missing_skipped",
+      "inputSchema": {
+        "type": "object",
+        "properties": { "a": { "type": "string" }, "b": { "type": "string" }, "c": { "type": "string" } }
+      },
+      "arguments": { "a": null, "b": "bee", "c": "see" },
+      "expect": { "summary": "bee · see" }
+    },
+    {
+      "caseId": "truncated_to_80_chars_with_ellipsis",
+      "inputSchema": { "type": "object", "properties": { "q": { "type": "string" } } },
+      "arguments": { "q": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" },
+      "expect": {
+        "summary": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa…",
+        "length": 80
+      }
+    },
+    {
+      "caseId": "truncation_counts_the_separator",
+      "inputSchema": {
+        "type": "object",
+        "properties": { "x": { "type": "string" }, "y": { "type": "string" } }
+      },
+      "arguments": {
+        "x": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "y": "yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy"
+      },
+      "expect": {
+        "summary": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx · yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy…",
+        "length": 80
+      }
+    },
+    {
+      "caseId": "no_scalar_parameters_is_empty",
+      "inputSchema": { "type": "object", "properties": { "obj": { "type": "object" } } },
+      "arguments": { "obj": { "k": 1 } },
+      "expect": { "summary": "" }
+    },
+    {
+      "caseId": "no_properties_is_empty",
+      "inputSchema": { "type": "object", "properties": {} },
+      "arguments": {},
+      "expect": { "summary": "" }
+    }
+  ]
+}

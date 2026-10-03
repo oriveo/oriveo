@@ -1,0 +1,20 @@
+{
+  "$comment": "Legacy tools/call: the Mcp-Method / Mcp-Name headers are not needed (they are only required from 2026-07-28), but the session header is. For either generation the client sends only the headers that generation requires.",
+  "protocolVersion": "2025-11-25",
+  "generation": "session",
+  "method": "POST",
+  "path": "/mcp",
+  "headers": {
+    "Accept": "application/json, text/event-stream",
+    "Content-Type": "application/json",
+    "MCP-Protocol-Version": "2025-11-25",
+    "MCP-Session-Id": "c1f2a3b4d5e60718293a4b5c6d7e8f90",
+    "Authorization": "Bearer mcp_at_example"
+  },
+  "body": {
+    "jsonrpc": "2.0",
+    "id": 3,
+    "method": "tools/call",
+    "params": { "name": "get_weather", "arguments": { "location": "New York" } }
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "$comment": "Legacy (2025-11-25) probe request: the first step of the initialize handshake. Specification, lifecycle: the client MUST send the latest version it supports, and a server that does not support it answers with another version it does support. initialize itself carries no MCP-Protocol-Version (the specification requires it on \"subsequent requests\").",
+  "protocolVersion": "2025-11-25",
+  "generation": "session",
+  "method": "POST",
+  "path": "/mcp",
+  "headers": {
+    "Accept": "application/json, text/event-stream",
+    "Content-Type": "application/json"
+  },
+  "body": {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "method": "initialize",
+    "params": {
+      "protocolVersion": "2025-11-25",
+      "capabilities": { "tools": {} },
+      "clientInfo": { "name": "Oriveo", "version": "1.0.0" }
+    }
+  }
+}

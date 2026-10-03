@@ -1,0 +1,28 @@
+{
+  "$comment": "The server asks for additional input (MRTR; specification: server/tools). This is a **normal result**, not an error: resultType = input_required, with inputRequests and requestState. 2026-07-28 no longer has separate elicitation / sampling JSON-RPC requests, so only resultType decides. Not supported yet; handled as needs_input_unsupported.",
+  "status": 200,
+  "headers": { "Content-Type": "application/json" },
+  "body": {
+    "jsonrpc": "2.0",
+    "id": 2,
+    "result": {
+      "resultType": "input_required",
+      "inputRequests": {
+        "github_login": {
+          "method": "elicitation/create",
+          "params": {
+            "mode": "form",
+            "message": "Please provide your GitHub username",
+            "requestedSchema": {
+              "type": "object",
+              "properties": { "name": { "type": "string" } },
+              "required": ["name"]
+            }
+          }
+        }
+      },
+      "requestState": "eyJsb2NhdGlvbiI6Ik5ldyBZb3JrIn0"
+    }
+  },
+  "expect": { "errorCode": "needs_input_unsupported", "stepStatus": "failed" }
+}

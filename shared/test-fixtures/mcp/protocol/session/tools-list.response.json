@@ -1,0 +1,42 @@
+{
+  "$comment": "Legacy tools/list response, same shape as the modern one (a tools array). Legacy tool objects may carry annotations too; treat them as untrusted hints.",
+  "protocolVersion": "2025-11-25",
+  "generation": "session",
+  "status": 200,
+  "headers": { "Content-Type": "application/json" },
+  "body": {
+    "jsonrpc": "2.0",
+    "id": 2,
+    "result": {
+      "tools": [
+        {
+          "name": "get_weather",
+          "title": "Weather Information Provider",
+          "description": "Get current weather information for a location",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "location": { "type": "string", "description": "City name or zip code" }
+            },
+            "required": ["location"]
+          },
+          "annotations": { "readOnlyHint": true }
+        },
+        {
+          "name": "create_issue",
+          "title": "Create Issue",
+          "description": "Create a new issue in a repository",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "repo": { "type": "string" },
+              "title": { "type": "string" },
+              "body": { "type": "string" }
+            },
+            "required": ["repo", "title"]
+          }
+        }
+      ]
+    }
+  }
+}

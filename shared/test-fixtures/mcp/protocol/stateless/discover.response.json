@@ -1,0 +1,22 @@
+{
+  "$comment": "Successful server/discover response (specification: server/discover). supportedVersions is what the client picks a version from; serverInfo is self-reported and must not be used for security decisions.",
+  "protocolVersion": "2026-07-28",
+  "generation": "stateless",
+  "status": 200,
+  "headers": { "Content-Type": "application/json" },
+  "body": {
+    "jsonrpc": "2.0",
+    "id": "discover-1",
+    "result": {
+      "resultType": "complete",
+      "supportedVersions": ["2026-07-28"],
+      "capabilities": { "tools": {}, "resources": {} },
+      "_meta": {
+        "io.modelcontextprotocol/serverInfo": { "name": "ExampleServer", "version": "1.0.0" }
+      },
+      "instructions": "This server provides weather utilities.",
+      "ttlMs": 3600000,
+      "cacheScope": "public"
+    }
+  }
+}

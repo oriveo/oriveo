@@ -1,0 +1,22 @@
+{
+  "$comment": "Successful refresh (specification: Refresh Tokens). The client MUST persist the new tokens immediately after a successful refresh; concurrent refreshes for the same server MUST be serialised.",
+  "request": {
+    "method": "POST",
+    "url": "https://auth.example.com/token",
+    "headers": { "Content-Type": "application/x-www-form-urlencoded" },
+    "form": {
+      "grant_type": "refresh_token",
+      "refresh_token": "mcp_rt_example",
+      "client_id": "https://app.example.com/oauth/mcp-client.json",
+      "resource": "https://mcp.example.com/mcp"
+    }
+  },
+  "status": 200,
+  "headers": { "Content-Type": "application/json" },
+  "body": {
+    "access_token": "mcp_at_example_2",
+    "token_type": "Bearer",
+    "expires_in": 3600,
+    "refresh_token": "mcp_rt_example_2"
+  }
+}

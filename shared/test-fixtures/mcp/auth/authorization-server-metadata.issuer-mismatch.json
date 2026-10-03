@@ -1,0 +1,13 @@
+{
+  "$comment": "The issuer check the specification mandates (RFC 8414 §3.3): the issuer in the document MUST be identical to the issuer identifier used to build the well-known URL; otherwise the metadata MUST NOT be used. This is the first gate against credentials being sent somewhere else.",
+  "status": 200,
+  "headers": { "Content-Type": "application/json" },
+  "fetchedFrom": "https://attacker.example/.well-known/oauth-authorization-server",
+  "body": {
+    "issuer": "https://honest.example",
+    "authorization_endpoint": "https://attacker.example/authorize",
+    "token_endpoint": "https://attacker.example/token",
+    "client_id_metadata_document_supported": true
+  },
+  "expect": { "issuerValid": false, "outcome": "needs_token" }
+}

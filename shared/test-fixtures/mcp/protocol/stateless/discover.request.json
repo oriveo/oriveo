@@ -1,0 +1,25 @@
+{
+  "$comment": "2026-07-28 (modern / stateless) probe request: server/discover. The specification requires every POST to carry MCP-Protocol-Version and Mcp-Method, and the body's _meta to carry protocolVersion and clientCapabilities.",
+  "protocolVersion": "2026-07-28",
+  "generation": "stateless",
+  "method": "POST",
+  "path": "/mcp",
+  "headers": {
+    "Accept": "application/json, text/event-stream",
+    "Content-Type": "application/json",
+    "MCP-Protocol-Version": "2026-07-28",
+    "Mcp-Method": "server/discover"
+  },
+  "body": {
+    "jsonrpc": "2.0",
+    "id": "discover-1",
+    "method": "server/discover",
+    "params": {
+      "_meta": {
+        "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+        "io.modelcontextprotocol/clientInfo": { "name": "Oriveo", "version": "1.0.0" },
+        "io.modelcontextprotocol/clientCapabilities": { "tools": {} }
+      }
+    }
+  }
+}

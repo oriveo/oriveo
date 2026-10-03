@@ -1,0 +1,20 @@
+{
+  "$comment": "Tool execution error: not a JSON-RPC error but result.isError = true with the error text in content (specification: server/tools). A client SHOULD hand it to the model so it can correct itself; this client records tool_error and the step status is failed.",
+  "status": 200,
+  "headers": { "Content-Type": "application/json" },
+  "body": {
+    "jsonrpc": "2.0",
+    "id": 4,
+    "result": {
+      "resultType": "complete",
+      "content": [
+        {
+          "type": "text",
+          "text": "Invalid departure date: must be in the future. Current date is 08/08/2025."
+        }
+      ],
+      "isError": true
+    }
+  },
+  "expect": { "errorCode": "tool_error", "stepStatus": "failed" }
+}

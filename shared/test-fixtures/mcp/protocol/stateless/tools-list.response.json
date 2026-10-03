@@ -1,0 +1,44 @@
+{
+  "$comment": "2026-07-28 tools/list response (specification: server/tools). annotations are untrusted hints (readOnlyHint is only a claim). When nextCursor is set the client must keep paging.",
+  "protocolVersion": "2026-07-28",
+  "generation": "stateless",
+  "status": 200,
+  "headers": { "Content-Type": "application/json" },
+  "body": {
+    "jsonrpc": "2.0",
+    "id": 2,
+    "result": {
+      "resultType": "complete",
+      "tools": [
+        {
+          "name": "get_weather",
+          "title": "Weather Information Provider",
+          "description": "Get current weather information for a location",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "location": { "type": "string", "description": "City name or zip code" }
+            },
+            "required": ["location"]
+          },
+          "annotations": { "readOnlyHint": true }
+        },
+        {
+          "name": "create_issue",
+          "title": "Create Issue",
+          "description": "Create a new issue in a repository",
+          "inputSchema": {
+            "type": "object",
+            "properties": {
+              "repo": { "type": "string" },
+              "title": { "type": "string" },
+              "body": { "type": "string" }
+            },
+            "required": ["repo", "title"]
+          },
+          "annotations": { "readOnlyHint": false, "destructiveHint": false }
+        }
+      ]
+    }
+  }
+}

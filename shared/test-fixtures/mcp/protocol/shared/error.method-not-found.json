@@ -1,0 +1,11 @@
+{
+  "$comment": "The server does not implement the RPC method: the specification requires HTTP 404 + JSON-RPC -32601. A modern server puts a JSON-RPC error in the body, which tells it apart from the bare 404 of a legacy HTTP+SSE server that does not host this endpoint; the latter is classified as \"not an MCP server\".",
+  "status": 404,
+  "headers": { "Content-Type": "application/json" },
+  "body": {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "error": { "code": -32601, "message": "Method not found" }
+  },
+  "expect": { "serverEra": "modern", "fallbackToInitialize": false }
+}

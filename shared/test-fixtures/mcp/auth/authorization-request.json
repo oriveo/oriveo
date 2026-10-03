@@ -1,0 +1,24 @@
+{
+  "$comment": "Authorization request (specification: basic/authorization). resource MUST be sent (RFC 8707) whether or not the authorization server supports it; PKCE uses S256 (OAuth 2.1 §7.5.2); the specification says state is \"if used\", and this client always uses it. Before redirecting, the client MUST record the issuer and keep it in the same per-request record as the PKCE verifier and state.",
+  "method": "GET",
+  "url": "https://auth.example.com/authorize",
+  "query": {
+    "response_type": "code",
+    "client_id": "https://app.example.com/oauth/mcp-client.json",
+    "redirect_uri": "https://app.example.com/mcp/oauth/callback",
+    "state": "st_7f3a9c1e",
+    "code_challenge": "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM",
+    "code_challenge_method": "S256",
+    "resource": "https://mcp.example.com/mcp",
+    "scope": "files:read files:write offline_access"
+  },
+  "perRequestRecord": {
+    "issuer": "https://auth.example.com",
+    "codeVerifier": "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk",
+    "state": "st_7f3a9c1e"
+  },
+  "expect": {
+    "codeChallengeIsS256": true,
+    "resourceRequired": true
+  }
+}

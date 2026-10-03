@@ -1,0 +1,58 @@
+{
+  "$comment": "The tool name sent to the model. Rules: sanitized = the original tool name with every character outside [A-Za-z0-9_-] replaced by _; base = \"mcp_\" + slug + \"_\" + sanitized; when base is at most 64 characters long and does not collide it is used as is; otherwise it is truncated and \"_\" + the first 6 characters of sha256(serverId + \":\" + original tool name) is appended. Every request keeps a lookup table from the outgoing name to serverId + original tool name.",
+  "version": 1,
+  "cases": [
+    {
+      "caseId": "plain_name_unchanged",
+      "slug": "linear",
+      "serverId": "srv_linear_001",
+      "toolName": "get_weather",
+      "collidesWith": [],
+      "expect": { "outboundName": "mcp_linear_get_weather", "length": 22, "hashSuffixed": false }
+    },
+    {
+      "caseId": "illegal_chars_replaced_with_underscore",
+      "slug": "linear",
+      "serverId": "srv_linear_001",
+      "toolName": "get weather.v2",
+      "collidesWith": [],
+      "expect": { "outboundName": "mcp_linear_get_weather_v2", "length": 25, "hashSuffixed": false }
+    },
+    {
+      "caseId": "non_ascii_all_replaced",
+      "slug": "linear",
+      "serverId": "srv_linear_001",
+      "toolName": "查询·天气",
+      "collidesWith": [],
+      "expect": { "outboundName": "mcp_linear______", "length": 16, "hashSuffixed": false }
+    },
+    {
+      "caseId": "too_long_truncated_with_hash",
+      "slug": "notion",
+      "serverId": "srv_notion_002",
+      "toolName": "search_pages_and_databases_with_a_very_long_internal_tool_identifier_v3",
+      "collidesWith": [],
+      "expect": {
+        "outboundName": "mcp_notion_search_pages_and_databases_with_a_very_long_in_67419a",
+        "length": 64,
+        "hashSuffixed": true
+      }
+    },
+    {
+      "caseId": "collision_first_of_two",
+      "slug": "jira",
+      "serverId": "srv_jira_a",
+      "toolName": "create.issue",
+      "collidesWith": ["create_issue"],
+      "expect": { "outboundName": "mcp_jira_create_issue_814c00", "length": 28, "hashSuffixed": true }
+    },
+    {
+      "caseId": "collision_second_of_two",
+      "slug": "jira",
+      "serverId": "srv_jira_b",
+      "toolName": "create_issue",
+      "collidesWith": ["create.issue"],
+      "expect": { "outboundName": "mcp_jira_create_issue_957851", "length": 28, "hashSuffixed": true }
+    }
+  ]
+}

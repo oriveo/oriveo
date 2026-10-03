@@ -1,0 +1,21 @@
+{
+  "$comment": "initialize response: the server answers with the version it supports (here the same as the request). The session id is in the **response header** MCP-Session-Id (the specification spells it MCP-Session-Id; header names are case-insensitive, and all clients send and read it as MCP-Session-Id). The session id lives only in memory and local connection state; it is never synced or logged.",
+  "protocolVersion": "2025-11-25",
+  "generation": "session",
+  "status": 200,
+  "headers": {
+    "Content-Type": "application/json",
+    "MCP-Session-Id": "c1f2a3b4d5e60718293a4b5c6d7e8f90"
+  },
+  "body": {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "result": {
+      "protocolVersion": "2025-11-25",
+      "capabilities": { "tools": { "listChanged": true } },
+      "serverInfo": { "name": "ExampleServer", "version": "1.0.0" },
+      "instructions": "Optional instructions for the client"
+    }
+  },
+  "expect": { "sessionId": "c1f2a3b4d5e60718293a4b5c6d7e8f90", "negotiatedVersion": "2025-11-25" }
+}

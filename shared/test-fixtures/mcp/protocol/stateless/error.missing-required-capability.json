@@ -1,0 +1,17 @@
+{
+  "$comment": "Handling the request needs a capability the client did not declare (specification: basic/index). -32021 + data.requiredCapabilities, HTTP 400. A recognisable modern JSON-RPC error.",
+  "protocolVersion": "2026-07-28",
+  "generation": "stateless",
+  "status": 400,
+  "headers": { "Content-Type": "application/json" },
+  "body": {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "error": {
+      "code": -32021,
+      "message": "Missing required client capability",
+      "data": { "requiredCapabilities": ["roots"] }
+    }
+  },
+  "expect": { "serverEra": "modern", "fallbackToInitialize": false }
+}

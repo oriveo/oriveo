@@ -1,0 +1,133 @@
+{
+  "$comment": "Tool content hash. canonicalJSON = objects recursively re-ordered by ascending key (arrays keep their order); payload = JSON.stringify({name, description ?? null, inputSchema: canonical(inputSchema), annotations: canonical(annotations ?? {})}); hash = sha256(utf8(payload)). Escaping: only \" \\ and control characters are escaped (< 0x20 as \\u00XX); all other Unicode is emitted as is. If the clients disagree on any of this, their hashes diverge.",
+  "version": 1,
+  "cases": [
+    {
+      "caseId": "key_order_irrelevant_equivalent",
+      "expectEqual": true,
+      "before": {
+        "name": "get_weather",
+        "description": "Get current weather for a location",
+        "inputSchema": {
+          "type": "object",
+          "properties": { "location": { "type": "string", "description": "City name" } },
+          "required": ["location"]
+        },
+        "annotations": { "readOnlyHint": true }
+      },
+      "after": {
+        "annotations": { "readOnlyHint": true },
+        "inputSchema": {
+          "required": ["location"],
+          "type": "object",
+          "properties": { "location": { "description": "City name", "type": "string" } }
+        },
+        "name": "get_weather",
+        "description": "Get current weather for a location"
+      },
+      "expect": { "hash": "1ed4540882223b2f4105fcf683f79606ff8e2c67b778c60b584a937bd420f6db" }
+    },
+    {
+      "caseId": "description_changed_one_word",
+      "expectEqual": false,
+      "before": {
+        "name": "get_weather",
+        "description": "Get current weather for a location",
+        "inputSchema": {
+          "type": "object",
+          "properties": { "location": { "type": "string", "description": "City name" } },
+          "required": ["location"]
+        },
+        "annotations": { "readOnlyHint": true }
+      },
+      "after": {
+        "name": "get_weather",
+        "description": "Get current weather for a location.",
+        "inputSchema": {
+          "type": "object",
+          "properties": { "location": { "type": "string", "description": "City name" } },
+          "required": ["location"]
+        },
+        "annotations": { "readOnlyHint": true }
+      },
+      "expect": {
+        "beforeHash": "1ed4540882223b2f4105fcf683f79606ff8e2c67b778c60b584a937bd420f6db",
+        "afterHash": "320d3fdb951b0c259f376c5270b3751f7021f57a4ad8a54de6f0b9610245d3a1"
+      }
+    },
+    {
+      "caseId": "input_schema_changed_new_property",
+      "expectEqual": false,
+      "before": {
+        "name": "get_weather",
+        "description": "Get current weather for a location",
+        "inputSchema": {
+          "type": "object",
+          "properties": { "location": { "type": "string", "description": "City name" } },
+          "required": ["location"]
+        },
+        "annotations": { "readOnlyHint": true }
+      },
+      "after": {
+        "name": "get_weather",
+        "description": "Get current weather for a location",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "location": { "type": "string", "description": "City name" },
+            "unit": { "type": "string" }
+          },
+          "required": ["location"]
+        },
+        "annotations": { "readOnlyHint": true }
+      },
+      "expect": {
+        "beforeHash": "1ed4540882223b2f4105fcf683f79606ff8e2c67b778c60b584a937bd420f6db",
+        "afterHash": "61c8933330fb360bf069ccde5211e9445c4d3b3cc596eeec33814abaa46e057e"
+      }
+    },
+    {
+      "caseId": "annotations_changed_is_also_a_change",
+      "expectEqual": false,
+      "before": {
+        "name": "get_weather",
+        "description": "Get current weather for a location",
+        "inputSchema": {
+          "type": "object",
+          "properties": { "location": { "type": "string", "description": "City name" } },
+          "required": ["location"]
+        },
+        "annotations": { "readOnlyHint": true }
+      },
+      "after": {
+        "name": "get_weather",
+        "description": "Get current weather for a location",
+        "inputSchema": {
+          "type": "object",
+          "properties": { "location": { "type": "string", "description": "City name" } },
+          "required": ["location"]
+        },
+        "annotations": { "readOnlyHint": false }
+      },
+      "expect": {
+        "beforeHash": "1ed4540882223b2f4105fcf683f79606ff8e2c67b778c60b584a937bd420f6db",
+        "afterHash": "4575ea236449e06b41cc64c9a8dbfe542571fab47324badb37a373b40f7a0d3c"
+      }
+    },
+    {
+      "caseId": "missing_annotations_and_description_normalize_to_empty",
+      "expectEqual": true,
+      "before": {
+        "name": "ping",
+        "inputSchema": { "type": "object" }
+      },
+      "after": {
+        "name": "ping",
+        "description": null,
+        "inputSchema": { "type": "object" },
+        "annotations": {}
+      },
+      "expect": { "hash": "c9f8c9c1a8e47098921608fb8b0c0971c1f749b217585fd6ca6c6cbddf3d62ec" }
+    }
+  ]
+}

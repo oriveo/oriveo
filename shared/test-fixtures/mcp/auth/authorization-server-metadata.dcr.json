@@ -1,0 +1,15 @@
+{
+  "$comment": "Authorization server metadata of the DCR-only kind (RFC 7591; marked deprecated in the specification and kept only for servers without CIMD support). With a registration_endpoint and no client_id_metadata_document_supported the client uses DCR and MUST specify application_type (native clients SHOULD use native).",
+  "status": 200,
+  "headers": { "Content-Type": "application/json" },
+  "body": {
+    "issuer": "https://auth.example.com",
+    "authorization_endpoint": "https://auth.example.com/authorize",
+    "token_endpoint": "https://auth.example.com/token",
+    "registration_endpoint": "https://auth.example.com/register",
+    "response_types_supported": ["code"],
+    "grant_types_supported": ["authorization_code", "refresh_token"],
+    "code_challenge_methods_supported": ["S256"]
+  },
+  "expect": { "registration": "dcr", "issuerValid": true }
+}

@@ -1,0 +1,24 @@
+{
+  "$comment": "A modern server does not support the version the client asked for (specification: basic/versioning). -32022 + data.supported. This is the key case for \"read the response body before deciding to fall back\": seeing it means the server is modern, so the client must retry with a version from supported and must not fall back to initialize.",
+  "protocolVersion": "2026-07-28",
+  "generation": "stateless",
+  "status": 400,
+  "headers": { "Content-Type": "application/json" },
+  "body": {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "error": {
+      "code": -32022,
+      "message": "Unsupported protocol version",
+      "data": {
+        "supported": ["2026-07-28", "2025-11-25"],
+        "requested": "2024-11-05"
+      }
+    }
+  },
+  "expect": {
+    "serverEra": "modern",
+    "fallbackToInitialize": false,
+    "retryWith": "2026-07-28"
+  }
+}

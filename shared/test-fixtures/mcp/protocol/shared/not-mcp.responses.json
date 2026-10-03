@@ -1,0 +1,33 @@
+{
+  "$comment": "Four typical \"reachable, but the answer is not MCP\" cases: HTML, JSON that is not JSON-RPC, a bare 404 (a legacy HTTP+SSE server that does not host the modern endpoint), and 405 (the server does not accept the method on that path). All are classified not_mcp and nothing is persisted.",
+  "cases": [
+    {
+      "caseId": "html_page",
+      "status": 200,
+      "headers": { "Content-Type": "text/html" },
+      "raw": "<!doctype html><title>Example</title><p>hello</p>",
+      "expect": { "outcome": "not_mcp" }
+    },
+    {
+      "caseId": "json_but_not_jsonrpc",
+      "status": 200,
+      "headers": { "Content-Type": "application/json" },
+      "body": { "ok": true, "data": [] },
+      "expect": { "outcome": "not_mcp" }
+    },
+    {
+      "caseId": "bare_404_legacy_http_sse",
+      "status": 404,
+      "headers": { "Content-Type": "text/plain" },
+      "raw": "Not Found",
+      "expect": { "outcome": "not_mcp" }
+    },
+    {
+      "caseId": "405_method_not_allowed",
+      "status": 405,
+      "headers": { "Content-Type": "text/plain" },
+      "raw": "Method Not Allowed",
+      "expect": { "outcome": "not_mcp" }
+    }
+  ]
+}

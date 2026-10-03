@@ -1,0 +1,26 @@
+{
+  "$comment": "Three common failure responses when exchanging for a token (specification: basic/authorization, Error Handling). invalid_grant means the refresh token is no longer valid → the connection state becomes needsAuth and a full sign-in is required again; invalid_client mostly shows up when DCR credentials do not match the authorization server (credentials MUST be bound to their issuer).",
+  "cases": [
+    {
+      "caseId": "invalid_grant",
+      "status": 400,
+      "headers": { "Content-Type": "application/json" },
+      "body": { "error": "invalid_grant", "error_description": "Refresh token expired" },
+      "expect": { "connectionStatus": "needsAuth", "discardCredentials": false, "discardTokens": true }
+    },
+    {
+      "caseId": "invalid_client",
+      "status": 400,
+      "headers": { "Content-Type": "application/json" },
+      "body": { "error": "invalid_client", "error_description": "Client not registered" },
+      "expect": { "connectionStatus": "needsAuth", "outcome": "auth_failed" }
+    },
+    {
+      "caseId": "invalid_request_unsupported_grant",
+      "status": 400,
+      "headers": { "Content-Type": "application/json" },
+      "body": { "error": "invalid_request", "error_description": "Unsupported grant type" },
+      "expect": { "connectionStatus": "needsAuth", "outcome": "auth_failed" }
+    }
+  ]
+}

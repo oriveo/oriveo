@@ -1,0 +1,6 @@
+event: message
+data: {"jsonrpc":"2.0","method":"notifications/message","params":{"level":"info","data":"fetching forecast"}}
+
+event: message
+data: {"jsonrpc":"2.0","id":3,"result":{"content":[{"type":"text","text":"Current weather in New York:\nTemperature: 72°F\nConditions: Partly cloudy"}],"isError":false}}
+

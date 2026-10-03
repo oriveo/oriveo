@@ -1,0 +1,9 @@
+{
+  "$comment": "Insufficient scope at run time (specification: basic/authorization): the server SHOULD return 403 + WWW-Authenticate error=insufficient_scope. Step-up (re-authorising for a larger scope) is not implemented; it is handled as needs_auth and the user signs in again.",
+  "status": 403,
+  "headers": {
+    "WWW-Authenticate": "Bearer error=\"insufficient_scope\", scope=\"files:write\", resource_metadata=\"https://mcp.example.com/.well-known/oauth-protected-resource\", error_description=\"File write permission required for this operation\""
+  },
+  "body": "",
+  "expect": { "errorCode": "needs_auth", "stepUpImplemented": false }
+}

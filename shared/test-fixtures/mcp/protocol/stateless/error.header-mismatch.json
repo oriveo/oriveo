@@ -1,0 +1,16 @@
+{
+  "$comment": "Missing header / header and body disagree / illegal characters (specification: streamable-http, Server Validation). -32020 + HTTP 400; this is also a recognisable modern JSON-RPC error, so it must not trigger a fallback to initialize.",
+  "protocolVersion": "2026-07-28",
+  "generation": "stateless",
+  "status": 400,
+  "headers": { "Content-Type": "application/json" },
+  "body": {
+    "jsonrpc": "2.0",
+    "id": 1,
+    "error": {
+      "code": -32020,
+      "message": "Header mismatch: Mcp-Name header value 'foo' does not match body value 'bar'"
+    }
+  },
+  "expect": { "serverEra": "modern", "fallbackToInitialize": false }
+}

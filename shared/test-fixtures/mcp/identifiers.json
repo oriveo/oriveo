@@ -1,0 +1,49 @@
+{
+  "$comment": "Boundary vectors for server slug generation and tool-name sanitisation. A slug contains only [a-z0-9] and never '-'; sanitisation replaces UTF-16 code units one by one, not grapheme clusters. All clients run the same vectors.",
+  "version": 1,
+  "slugMake": {
+    "$comment": "make(name): walk the Unicode scalars one by one; A-Z become the matching lowercase letter, a-z and 0-9 are kept as is, everything else is dropped (no replacement, no Unicode case folding or normalisation of any kind); truncate to 16 characters; an empty result becomes \"server\".",
+    "cases": [
+      { "caseId": "plain_lowercased", "name": "Linear", "expect": "linear" },
+      { "caseId": "spaces_dropped_not_dashed", "name": "My MCP 2", "expect": "mymcp2" },
+      { "caseId": "hostname_dots_dropped", "name": "mcp.example.com", "expect": "mcpexamplecom" },
+      { "caseId": "punctuation_and_cjk_dropped", "name": "Notion (Work) — 团队", "expect": "notionwork" },
+      { "caseId": "all_non_ascii_falls_back", "name": "查询天气", "expect": "server" },
+      { "caseId": "empty_falls_back", "name": "", "expect": "server" },
+      { "caseId": "only_separators_falls_back", "name": " - _ . ", "expect": "server" },
+      { "caseId": "truncated_to_16", "name": "A-Very-Long-Server-Name-123", "expect": "averylongservern" },
+      { "caseId": "dotted_capital_i_dropped_not_folded", "name": "İstanbul", "expect": "stanbul" },
+      { "caseId": "kelvin_sign_dropped_not_folded", "name": "Kelvin", "expect": "elvin" },
+      { "caseId": "fullwidth_letters_dropped", "name": "ＡＢＣ", "expect": "server" },
+      { "caseId": "combining_mark_dropped_base_kept", "name": "Café", "expect": "cafe" }
+    ]
+  },
+  "slugUnique": {
+    "$comment": "unique(name, existing): candidate = make(name); use it if it is not in existing; otherwise count n up from 2 and take the first (16 - number of decimal digits of n) characters of candidate + n; the first result not in existing wins. The suffix is digits only, with no separator.",
+    "cases": [
+      { "caseId": "no_collision", "name": "Notion", "existing": [], "expect": "notion" },
+      { "caseId": "first_collision", "name": "Notion", "existing": ["notion"], "expect": "notion2" },
+      { "caseId": "second_collision", "name": "Notion", "existing": ["notion", "notion2"], "expect": "notion3" },
+      {
+        "caseId": "two_digit_suffix",
+        "name": "Notion",
+        "existing": ["notion", "notion2", "notion3", "notion4", "notion5", "notion6", "notion7", "notion8", "notion9"],
+        "expect": "notion10"
+      },
+      { "caseId": "collision_at_max_length_trims_head", "name": "averylongservername", "existing": ["averylongservern"], "expect": "averylongserver2" },
+      { "caseId": "fallback_collision", "name": "查询", "existing": ["server"], "expect": "server2" }
+    ]
+  },
+  "sanitize": {
+    "$comment": "sanitized = toolName.replace(/[^A-Za-z0-9_-]/g, \"_\"), by UTF-16 code unit: one non-BMP character (a surrogate pair) becomes two '_', a combining mark becomes one '_' on its own, and its base character is kept when it is an ASCII letter or digit.",
+    "cases": [
+      { "caseId": "allowed_set_unchanged", "toolName": "Zz09_-", "expect": "Zz09_-" },
+      { "caseId": "combining_mark_replaced_separately", "toolName": "q́", "expect": "q_" },
+      { "caseId": "precomposed_letter_replaced", "toolName": "é", "expect": "_" },
+      { "caseId": "astral_char_is_two_units", "toolName": "😀x", "expect": "__x" },
+      { "caseId": "keycap_sequence", "toolName": "1️⃣", "expect": "1__" },
+      { "caseId": "zero_width_joiner", "toolName": "a‍b", "expect": "a_b" },
+      { "caseId": "empty", "toolName": "", "expect": "" }
+    ]
+  }
+}

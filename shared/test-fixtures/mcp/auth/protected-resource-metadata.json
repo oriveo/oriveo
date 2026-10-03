@@ -1,0 +1,12 @@
+{
+  "$comment": "RFC 9728 protected resource metadata (specification: authorization-server-discovery). It MUST contain authorization_servers with at least one entry. With several, the client picks one per RFC 9728 §7.6, and **credentials must not be reused across authorization servers**. scopes_supported is the source of scope when the 401 gave none.",
+  "status": 200,
+  "headers": { "Content-Type": "application/json" },
+  "body": {
+    "resource": "https://mcp.example.com/mcp",
+    "authorization_servers": ["https://auth.example.com"],
+    "scopes_supported": ["files:read", "files:write"],
+    "bearer_methods_supported": ["header"]
+  },
+  "expect": { "issuer": "https://auth.example.com" }
+}

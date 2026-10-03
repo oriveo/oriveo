@@ -1,0 +1,13 @@
+{
+  "$comment": "401 without resource_metadata (the specification allows a server to publish its metadata only at the well-known location). The client MUST fall back to constructing the well-known URIs: first the one under the MCP endpoint path, then the one at the root.",
+  "status": 401,
+  "headers": { "WWW-Authenticate": "Bearer" },
+  "body": "",
+  "expect": {
+    "resourceMetadataURL": null,
+    "constructedURIs": [
+      "https://mcp.example.com/.well-known/oauth-protected-resource/mcp",
+      "https://mcp.example.com/.well-known/oauth-protected-resource"
+    ]
+  }
+}
