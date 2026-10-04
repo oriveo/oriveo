@@ -1667,7 +1667,7 @@
     <string name="mcp_changes_still_pending">确认期间有工具又变了，请再看一遍。</string>
     <string name="mcp_changes_failed_auth">这个服务器的授权已过期。重新授权后再确认。</string>
     <string name="mcp_remove_title">移除 %s？</string>
-    <string name="mcp_remove_body">会删除这台设备上保存的登录凭据，并从服务器列表里移除。已有对话里的工具记录会保留。</string>
+    <string name="mcp_remove_body">会删除这台设备上保存的登录凭据，并把这台服务器从列表里移除。已有对话里的工具记录会保留。</string>
     <string name="mcp_remove_failed">没能移除这个服务器，请再试一次。</string>
     <string name="mcp_reauth_checking">正在检查登录方式…</string>
     <string name="mcp_reauth_failed_title">登录没有完成</string>

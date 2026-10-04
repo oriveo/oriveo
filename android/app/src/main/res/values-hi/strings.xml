@@ -1617,7 +1617,7 @@
     <string name="mcp_changes_still_pending">आपकी पुष्टि के दौरान कुछ टूल फिर बदल गए। एक बार और देख लें।</string>
     <string name="mcp_changes_failed_auth">इस सर्वर के साइन इन की अवधि समाप्त हो गई है। फिर से साइन इन करें, उसके बाद पुष्टि करें।</string>
     <string name="mcp_remove_title">%s हटाएँ?</string>
-    <string name="mcp_remove_body">इससे इस डिवाइस पर सेव की गई साइन इन की जानकारी मिट जाएगी और सर्वर सूची से हट जाएगा। मौजूदा चैट में टूल के रिकॉर्ड बने रहेंगे।</string>
+    <string name="mcp_remove_body">इससे इस डिवाइस पर सेव की गई साइन इन की जानकारी मिट जाएगी और यह सर्वर सूची से हट जाएगा। मौजूदा चैट में टूल के रिकॉर्ड बने रहेंगे।</string>
     <string name="mcp_remove_failed">यह सर्वर हटाया नहीं जा सका। फिर कोशिश करें।</string>
     <string name="mcp_reauth_checking">साइन इन का तरीका जाँचा जा रहा है…</string>
     <string name="mcp_reauth_failed_title">साइन इन पूरा नहीं हुआ</string>
