@@ -1,0 +1,833 @@
+{
+  "schema": "oriveo.fixture.sse-framing/v1",
+  "description": "Server-sent event framing for provider streams. Each case is the raw bytes of a response body, the ways to cut it into chunks, and the events a decoder must hand out whatever the cut. Rules follow the WHATWG EventSource parsing algorithm, with two deliberate differences that existing clients rely on: a stream that ends without a final line end or blank line still yields its last line and its pending event, and a lone value that is the text [DONE] is an ordinary event at this level (the protocol layer above gives it meaning).",
+  "bytes": {
+    "bytes_base64": "the raw bytes of the response body",
+    "escaped": "the same bytes as text with JSON string escapes, for reading only; a decoder is fed bytes_base64"
+  },
+  "chunking": {
+    "whole": "the bytes arrive in one chunk",
+    "every-byte": "the bytes arrive one at a time",
+    "offsets": "the bytes are cut before each listed offset"
+  },
+  "frame": {
+    "event": "the event name, null when the event carries none",
+    "data": "the data lines joined with LF; never trimmed",
+    "id": "the last id seen so far, null before the first",
+    "retry": "the retry value of this event as an integer, null when it carries none"
+  },
+  "openai_chat": "For cases that carry chat completion chunks: the text an openai_chat assembler builds from choices[0].delta.content, the finish_reason it saw, and whether it saw the end sentinel.",
+  "cases": [
+    {
+      "id": "lf",
+      "rule": "terminator",
+      "title": "LF ends a line; a blank line dispatches the event",
+      "bytes_base64": "ZGF0YTogeyJjaG9pY2VzIjpbeyJpbmRleCI6MCwiZGVsdGEiOnsiY29udGVudCI6IkhlbGxvIn19XX0KCmRhdGE6IFtET05FXQoK",
+      "escaped": "data: {\\\"choices\\\":[{\\\"index\\\":0,\\\"delta\\\":{\\\"content\\\":\\\"Hello\\\"}}]}\\n\\ndata: [DONE]\\n\\n",
+      "chunkings": [
+        {
+          "name": "whole",
+          "offsets": []
+        },
+        {
+          "name": "every-byte",
+          "every": 1
+        }
+      ],
+      "expect": {
+        "frames": [
+          {
+            "event": null,
+            "data": "{\"choices\":[{\"index\":0,\"delta\":{\"content\":\"Hello\"}}]}",
+            "id": null,
+            "retry": null
+          },
+          {
+            "event": null,
+            "data": "[DONE]",
+            "id": null,
+            "retry": null
+          }
+        ],
+        "comments": 0
+      },
+      "openai_chat": {
+        "text": "Hello",
+        "finish_reason": null,
+        "done": true
+      }
+    },
+    {
+      "id": "crlf",
+      "rule": "terminator",
+      "title": "CRLF ends a line",
+      "bytes_base64": "ZGF0YTogeyJjaG9pY2VzIjpbeyJpbmRleCI6MCwiZGVsdGEiOnsiY29udGVudCI6IkhlbGxvIn19XX0NCg0KZGF0YTogW0RPTkVdDQoNCg==",
+      "escaped": "data: {\\\"choices\\\":[{\\\"index\\\":0,\\\"delta\\\":{\\\"content\\\":\\\"Hello\\\"}}]}\\r\\n\\r\\ndata: [DONE]\\r\\n\\r\\n",
+      "chunkings": [
+        {
+          "name": "whole",
+          "offsets": []
+        },
+        {
+          "name": "every-byte",
+          "every": 1
+        },
+        {
+          "name": "between-cr-and-lf",
+          "offsets": [
+            60,
+            62
+          ]
+        }
+      ],
+      "expect": {
+        "frames": [
+          {
+            "event": null,
+            "data": "{\"choices\":[{\"index\":0,\"delta\":{\"content\":\"Hello\"}}]}",
+            "id": null,
+            "retry": null
+          },
+          {
+            "event": null,
+            "data": "[DONE]",
+            "id": null,
+            "retry": null
+          }
+        ],
+        "comments": 0
+      },
+      "openai_chat": {
+        "text": "Hello",
+        "finish_reason": null,
+        "done": true
+      }
+    },
+    {
+      "id": "cr",
+      "rule": "terminator",
+      "title": "A lone CR ends a line",
+      "bytes_base64": "ZGF0YTogeyJjaG9pY2VzIjpbeyJpbmRleCI6MCwiZGVsdGEiOnsiY29udGVudCI6IkhlbGxvIn19XX0NDWRhdGE6IFtET05FXQ0N",
+      "escaped": "data: {\\\"choices\\\":[{\\\"index\\\":0,\\\"delta\\\":{\\\"content\\\":\\\"Hello\\\"}}]}\\r\\rdata: [DONE]\\r\\r",
+      "chunkings": [
+        {
+          "name": "whole",
+          "offsets": []
+        },
+        {
+          "name": "every-byte",
+          "every": 1
+        }
+      ],
+      "expect": {
+        "frames": [
+          {
+            "event": null,
+            "data": "{\"choices\":[{\"index\":0,\"delta\":{\"content\":\"Hello\"}}]}",
+            "id": null,
+            "retry": null
+          },
+          {
+            "event": null,
+            "data": "[DONE]",
+            "id": null,
+            "retry": null
+          }
+        ],
+        "comments": 0
+      },
+      "openai_chat": {
+        "text": "Hello",
+        "finish_reason": null,
+        "done": true
+      }
+    },
+    {
+      "id": "mixed-terminators",
+      "rule": "terminator",
+      "title": "CRLF, LF and CR in one stream",
+      "bytes_base64": "ZGF0YTogYQ0KDQpkYXRhOiBiCgpkYXRhOiBjDQ0=",
+      "escaped": "data: a\\r\\n\\r\\ndata: b\\n\\ndata: c\\r\\r",
+      "chunkings": [
+        {
+          "name": "whole",
+          "offsets": []
+        },
+        {
+          "name": "every-byte",
+          "every": 1
+        },
+        {
+          "name": "after-first-cr",
+          "offsets": [
+            8
+          ]
+        }
+      ],
+      "expect": {
+        "frames": [
+          {
+            "event": null,
+            "data": "a",
+            "id": null,
+            "retry": null
+          },
+          {
+            "event": null,
+            "data": "b",
+            "id": null,
+            "retry": null
+          },
+          {
+            "event": null,
+            "data": "c",
+            "id": null,
+            "retry": null
+          }
+        ],
+        "comments": 0
+      }
+    },
+    {
+      "id": "crlf-is-one-terminator",
+      "rule": "terminator",
+      "title": "CRLF split across two chunks is still one line end, not a line end and a blank line",
+      "bytes_base64": "ZGF0YTogYQ0KZGF0YTogYg0KDQo=",
+      "escaped": "data: a\\r\\ndata: b\\r\\n\\r\\n",
+      "chunkings": [
+        {
+          "name": "whole",
+          "offsets": []
+        },
+        {
+          "name": "every-byte",
+          "every": 1
+        },
+        {
+          "name": "between-cr-and-lf",
+          "offsets": [
+            8
+          ]
+        }
+      ],
+      "expect": {
+        "frames": [
+          {
+            "event": null,
+            "data": "a\nb",
+            "id": null,
+            "retry": null
+          }
+        ],
+        "comments": 0
+      }
+    },
+    {
+      "id": "bom-at-start",
+      "rule": "bom",
+      "title": "A UTF-8 byte order mark at the start of the stream is dropped once",
+      "bytes_base64": "77u/ZGF0YTogeAoK",
+      "escaped": "﻿data: x\\n\\n",
+      "chunkings": [
+        {
+          "name": "whole",
+          "offsets": []
+        },
+        {
+          "name": "every-byte",
+          "every": 1
+        },
+        {
+          "name": "inside-bom",
+          "offsets": [
+            1,
+            2
+          ]
+        }
+      ],
+      "expect": {
+        "frames": [
+          {
+            "event": null,
+            "data": "x",
+            "id": null,
+            "retry": null
+          }
+        ],
+        "comments": 0
+      }
+    },
+    {
+      "id": "bom-later-is-data",
+      "rule": "bom",
+      "title": "The same three bytes later in the stream are data",
+      "bytes_base64": "ZGF0YTogeAoKZGF0YTog77u/eQoK",
+      "escaped": "data: x\\n\\ndata: ﻿y\\n\\n",
+      "chunkings": [
+        {
+          "name": "whole",
+          "offsets": []
+        },
+        {
+          "name": "every-byte",
+          "every": 1
+        }
+      ],
+      "expect": {
+        "frames": [
+          {
+            "event": null,
+            "data": "x",
+            "id": null,
+            "retry": null
+          },
+          {
+            "event": null,
+            "data": "﻿y",
+            "id": null,
+            "retry": null
+          }
+        ],
+        "comments": 0
+      }
+    },
+    {
+      "id": "data-no-space",
+      "rule": "field-value",
+      "title": "No space after the colon (DashScope native form)",
+      "bytes_base64": "ZGF0YTp7ImsiOjF9Cgo=",
+      "escaped": "data:{\\\"k\\\":1}\\n\\n",
+      "chunkings": [
+        {
+          "name": "whole",
+          "offsets": []
+        },
+        {
+          "name": "every-byte",
+          "every": 1
+        }
+      ],
+      "expect": {
+        "frames": [
+          {
+            "event": null,
+            "data": "{\"k\":1}",
+            "id": null,
+            "retry": null
+          }
+        ],
+        "comments": 0
+      }
+    },
+    {
+      "id": "data-one-space-removed",
+      "rule": "field-value",
+      "title": "Only one leading space of the value is removed",
+      "bytes_base64": "ZGF0YTogIHR3byBzcGFjZXMKCg==",
+      "escaped": "data:  two spaces\\n\\n",
+      "chunkings": [
+        {
+          "name": "whole",
+          "offsets": []
+        },
+        {
+          "name": "every-byte",
+          "every": 1
+        }
+      ],
+      "expect": {
+        "frames": [
+          {
+            "event": null,
+            "data": " two spaces",
+            "id": null,
+            "retry": null
+          }
+        ],
+        "comments": 0
+      }
+    },
+    {
+      "id": "data-trailing-whitespace-kept",
+      "rule": "no-trim",
+      "title": "Trailing spaces and tabs of the value are kept",
+      "bytes_base64": "ZGF0YTogeCAJIAoK",
+      "escaped": "data: x \\t \\n\\n",
+      "chunkings": [
+        {
+          "name": "whole",
+          "offsets": []
+        },
+        {
+          "name": "every-byte",
+          "every": 1
+        }
+      ],
+      "expect": {
+        "frames": [
+          {
+            "event": null,
+            "data": "x \t ",
+            "id": null,
+            "retry": null
+          }
+        ],
+        "comments": 0
+      }
+    },
+    {
+      "id": "colon-in-value",
+      "rule": "field-value",
+      "title": "Only the first colon splits name and value",
+      "bytes_base64": "ZGF0YTogYTogYjpjCgo=",
+      "escaped": "data: a: b:c\\n\\n",
+      "chunkings": [
+        {
+          "name": "whole",
+          "offsets": []
+        },
+        {
+          "name": "every-byte",
+          "every": 1
+        }
+      ],
+      "expect": {
+        "frames": [
+          {
+            "event": null,
+            "data": "a: b:c",
+            "id": null,
+            "retry": null
+          }
+        ],
+        "comments": 0
+      }
+    },
+    {
+      "id": "multi-line-data",
+      "rule": "multi-line",
+      "title": "Several data lines of one event are joined with LF",
+      "bytes_base64": "ZGF0YTogbGluZTEKZGF0YTogbGluZTIKZGF0YTpsaW5lMwoK",
+      "escaped": "data: line1\\ndata: line2\\ndata:line3\\n\\n",
+      "chunkings": [
+        {
+          "name": "whole",
+          "offsets": []
+        },
+        {
+          "name": "every-byte",
+          "every": 1
+        }
+      ],
+      "expect": {
+        "frames": [
+          {
+            "event": null,
+            "data": "line1\nline2\nline3",
+            "id": null,
+            "retry": null
+          }
+        ],
+        "comments": 0
+      }
+    },
+    {
+      "id": "empty-data-line",
+      "rule": "multi-line",
+      "title": "A data line with an empty value dispatches an event with empty data; blank lines alone dispatch nothing",
+      "bytes_base64": "ZGF0YToKCgoKZGF0YTogeAoK",
+      "escaped": "data:\\n\\n\\n\\ndata: x\\n\\n",
+      "chunkings": [
+        {
+          "name": "whole",
+          "offsets": []
+        },
+        {
+          "name": "every-byte",
+          "every": 1
+        }
+      ],
+      "expect": {
+        "frames": [
+          {
+            "event": null,
+            "data": "",
+            "id": null,
+            "retry": null
+          },
+          {
+            "event": null,
+            "data": "x",
+            "id": null,
+            "retry": null
+          }
+        ],
+        "comments": 0
+      }
+    },
+    {
+      "id": "comments",
+      "rule": "comment",
+      "title": "Lines that start with a colon are comments: counted, never dispatched",
+      "bytes_base64": "OiBrZWVwLWFsaXZlCgo6SFRUUF9TVEFUVVMvMjAwCmRhdGE6IHgKCjogdGFpbAo=",
+      "escaped": ": keep-alive\\n\\n:HTTP_STATUS/200\\ndata: x\\n\\n: tail\\n",
+      "chunkings": [
+        {
+          "name": "whole",
+          "offsets": []
+        },
+        {
+          "name": "every-byte",
+          "every": 1
+        }
+      ],
+      "expect": {
+        "frames": [
+          {
+            "event": null,
+            "data": "x",
+            "id": null,
+            "retry": null
+          }
+        ],
+        "comments": 3
+      }
+    },
+    {
+      "id": "event-id-retry",
+      "rule": "fields",
+      "title": "event sets the name of this event only; id and retry are recorded",
+      "bytes_base64": "ZXZlbnQ6IHJlc3VsdAppZDogNwpyZXRyeTogMzAwMApkYXRhOiB4CgpkYXRhOiB5Cgo=",
+      "escaped": "event: result\\nid: 7\\nretry: 3000\\ndata: x\\n\\ndata: y\\n\\n",
+      "chunkings": [
+        {
+          "name": "whole",
+          "offsets": []
+        },
+        {
+          "name": "every-byte",
+          "every": 1
+        }
+      ],
+      "expect": {
+        "frames": [
+          {
+            "event": "result",
+            "data": "x",
+            "id": "7",
+            "retry": 3000
+          },
+          {
+            "event": null,
+            "data": "y",
+            "id": "7",
+            "retry": null
+          }
+        ],
+        "comments": 0
+      }
+    },
+    {
+      "id": "dashscope-native",
+      "rule": "fields",
+      "title": "DashScope native multi-line structure",
+      "bytes_base64": "aWQ6MQpldmVudDpyZXN1bHQKOkhUVFBfU1RBVFVTLzIwMApkYXRhOnsib3V0cHV0Ijp7InRleHQiOiJoaSJ9fQoK",
+      "escaped": "id:1\\nevent:result\\n:HTTP_STATUS/200\\ndata:{\\\"output\\\":{\\\"text\\\":\\\"hi\\\"}}\\n\\n",
+      "chunkings": [
+        {
+          "name": "whole",
+          "offsets": []
+        },
+        {
+          "name": "every-byte",
+          "every": 1
+        }
+      ],
+      "expect": {
+        "frames": [
+          {
+            "event": "result",
+            "data": "{\"output\":{\"text\":\"hi\"}}",
+            "id": "1",
+            "retry": null
+          }
+        ],
+        "comments": 1
+      }
+    },
+    {
+      "id": "unknown-field-ignored",
+      "rule": "fields",
+      "title": "A field this parser does not know is ignored",
+      "bytes_base64": "Zm9vOiBiYXIKZGF0YTogeAoK",
+      "escaped": "foo: bar\\ndata: x\\n\\n",
+      "chunkings": [
+        {
+          "name": "whole",
+          "offsets": []
+        },
+        {
+          "name": "every-byte",
+          "every": 1
+        }
+      ],
+      "expect": {
+        "frames": [
+          {
+            "event": null,
+            "data": "x",
+            "id": null,
+            "retry": null
+          }
+        ],
+        "comments": 0
+      }
+    },
+    {
+      "id": "no-trailing-newline",
+      "rule": "eof",
+      "title": "The stream ends without a line end: the last line still counts and a pending event is dispatched",
+      "bytes_base64": "ZGF0YTogeyJjaG9pY2VzIjpbeyJpbmRleCI6MCwiZGVsdGEiOnsiY29udGVudCI6IkhlbGxvIn19XX0KCmRhdGE6IFtET05FXQ==",
+      "escaped": "data: {\\\"choices\\\":[{\\\"index\\\":0,\\\"delta\\\":{\\\"content\\\":\\\"Hello\\\"}}]}\\n\\ndata: [DONE]",
+      "chunkings": [
+        {
+          "name": "whole",
+          "offsets": []
+        },
+        {
+          "name": "every-byte",
+          "every": 1
+        }
+      ],
+      "expect": {
+        "frames": [
+          {
+            "event": null,
+            "data": "{\"choices\":[{\"index\":0,\"delta\":{\"content\":\"Hello\"}}]}",
+            "id": null,
+            "retry": null
+          },
+          {
+            "event": null,
+            "data": "[DONE]",
+            "id": null,
+            "retry": null
+          }
+        ],
+        "comments": 0
+      },
+      "openai_chat": {
+        "text": "Hello",
+        "finish_reason": null,
+        "done": true
+      }
+    },
+    {
+      "id": "no-final-blank-line",
+      "rule": "eof",
+      "title": "The stream ends after a data line without the blank line",
+      "bytes_base64": "ZGF0YTogeAoKZGF0YTogdGFpbAo=",
+      "escaped": "data: x\\n\\ndata: tail\\n",
+      "chunkings": [
+        {
+          "name": "whole",
+          "offsets": []
+        },
+        {
+          "name": "every-byte",
+          "every": 1
+        }
+      ],
+      "expect": {
+        "frames": [
+          {
+            "event": null,
+            "data": "x",
+            "id": null,
+            "retry": null
+          },
+          {
+            "event": null,
+            "data": "tail",
+            "id": null,
+            "retry": null
+          }
+        ],
+        "comments": 0
+      }
+    },
+    {
+      "id": "delta-newlines-kept",
+      "rule": "no-trim",
+      "title": "A delta of two newlines and a delta with outer spaces reach the text unchanged",
+      "bytes_base64": "ZGF0YTogeyJjaG9pY2VzIjpbeyJpbmRleCI6MCwiZGVsdGEiOnsiY29udGVudCI6IkEifX1dfQoKZGF0YTogeyJjaG9pY2VzIjpbeyJpbmRleCI6MCwiZGVsdGEiOnsiY29udGVudCI6IlxuXG4ifX1dfQoKZGF0YTogeyJjaG9pY2VzIjpbeyJpbmRleCI6MCwiZGVsdGEiOnsiY29udGVudCI6IiAgQiAgIn19XX0KCmRhdGE6IHsiY2hvaWNlcyI6W3siaW5kZXgiOjAsImRlbHRhIjp7fSwiZmluaXNoX3JlYXNvbiI6InN0b3AifV19CgpkYXRhOiBbRE9ORV0KCg==",
+      "escaped": "data: {\\\"choices\\\":[{\\\"index\\\":0,\\\"delta\\\":{\\\"content\\\":\\\"A\\\"}}]}\\n\\ndata: {\\\"choices\\\":[{\\\"index\\\":0,\\\"delta\\\":{\\\"content\\\":\\\"\\\\n\\\\n\\\"}}]}\\n\\ndata: {\\\"choices\\\":[{\\\"index\\\":0,\\\"delta\\\":{\\\"content\\\":\\\"  B  \\\"}}]}\\n\\ndata: {\\\"choices\\\":[{\\\"index\\\":0,\\\"delta\\\":{},\\\"finish_reason\\\":\\\"stop\\\"}]}\\n\\ndata: [DONE]\\n\\n",
+      "chunkings": [
+        {
+          "name": "whole",
+          "offsets": []
+        },
+        {
+          "name": "every-byte",
+          "every": 1
+        }
+      ],
+      "expect": {
+        "frames": [
+          {
+            "event": null,
+            "data": "{\"choices\":[{\"index\":0,\"delta\":{\"content\":\"A\"}}]}",
+            "id": null,
+            "retry": null
+          },
+          {
+            "event": null,
+            "data": "{\"choices\":[{\"index\":0,\"delta\":{\"content\":\"\\n\\n\"}}]}",
+            "id": null,
+            "retry": null
+          },
+          {
+            "event": null,
+            "data": "{\"choices\":[{\"index\":0,\"delta\":{\"content\":\"  B  \"}}]}",
+            "id": null,
+            "retry": null
+          },
+          {
+            "event": null,
+            "data": "{\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}]}",
+            "id": null,
+            "retry": null
+          },
+          {
+            "event": null,
+            "data": "[DONE]",
+            "id": null,
+            "retry": null
+          }
+        ],
+        "comments": 0
+      },
+      "openai_chat": {
+        "text": "A\n\n  B  ",
+        "finish_reason": "stop",
+        "done": true
+      }
+    },
+    {
+      "id": "utf8-split",
+      "rule": "utf8",
+      "title": "A chunk boundary inside a multi-byte character",
+      "bytes_base64": "ZGF0YTogeyJjaG9pY2VzIjpbeyJpbmRleCI6MCwiZGVsdGEiOnsiY29udGVudCI6IuS9oOWlvfCfmYIgY2Fmw6kifX1dfQoKZGF0YTogeyJjaG9pY2VzIjpbeyJpbmRleCI6MCwiZGVsdGEiOnt9LCJmaW5pc2hfcmVhc29uIjoic3RvcCJ9XX0KCmRhdGE6IFtET05FXQoK",
+      "escaped": "data: {\\\"choices\\\":[{\\\"index\\\":0,\\\"delta\\\":{\\\"content\\\":\\\"你好🙂 café\\\"}}]}\\n\\ndata: {\\\"choices\\\":[{\\\"index\\\":0,\\\"delta\\\":{},\\\"finish_reason\\\":\\\"stop\\\"}]}\\n\\ndata: [DONE]\\n\\n",
+      "chunkings": [
+        {
+          "name": "whole",
+          "offsets": []
+        },
+        {
+          "name": "every-byte",
+          "every": 1
+        },
+        {
+          "name": "inside-3-byte-char",
+          "offsets": [
+            50
+          ]
+        },
+        {
+          "name": "inside-4-byte-char",
+          "offsets": [
+            57
+          ]
+        },
+        {
+          "name": "both",
+          "offsets": [
+            51,
+            56,
+            58
+          ]
+        }
+      ],
+      "expect": {
+        "frames": [
+          {
+            "event": null,
+            "data": "{\"choices\":[{\"index\":0,\"delta\":{\"content\":\"你好🙂 café\"}}]}",
+            "id": null,
+            "retry": null
+          },
+          {
+            "event": null,
+            "data": "{\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}]}",
+            "id": null,
+            "retry": null
+          },
+          {
+            "event": null,
+            "data": "[DONE]",
+            "id": null,
+            "retry": null
+          }
+        ],
+        "comments": 0
+      },
+      "openai_chat": {
+        "text": "你好🙂 café",
+        "finish_reason": "stop",
+        "done": true
+      }
+    },
+    {
+      "id": "empty-event-before-done",
+      "rule": "multi-line",
+      "title": "An event with empty data right before the end sentinel does not disturb the text",
+      "bytes_base64": "ZGF0YTogeyJjaG9pY2VzIjpbeyJpbmRleCI6MCwiZGVsdGEiOnsiY29udGVudCI6IkhlbGxvIn19XX0KCmRhdGE6IHsiY2hvaWNlcyI6W3siaW5kZXgiOjAsImRlbHRhIjp7fSwiZmluaXNoX3JlYXNvbiI6InN0b3AifV19CgpkYXRhOgoKZGF0YTogW0RPTkVdCgo=",
+      "escaped": "data: {\\\"choices\\\":[{\\\"index\\\":0,\\\"delta\\\":{\\\"content\\\":\\\"Hello\\\"}}]}\\n\\ndata: {\\\"choices\\\":[{\\\"index\\\":0,\\\"delta\\\":{},\\\"finish_reason\\\":\\\"stop\\\"}]}\\n\\ndata:\\n\\ndata: [DONE]\\n\\n",
+      "chunkings": [
+        {
+          "name": "whole",
+          "offsets": []
+        },
+        {
+          "name": "every-byte",
+          "every": 1
+        }
+      ],
+      "expect": {
+        "frames": [
+          {
+            "event": null,
+            "data": "{\"choices\":[{\"index\":0,\"delta\":{\"content\":\"Hello\"}}]}",
+            "id": null,
+            "retry": null
+          },
+          {
+            "event": null,
+            "data": "{\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\"}]}",
+            "id": null,
+            "retry": null
+          },
+          {
+            "event": null,
+            "data": "",
+            "id": null,
+            "retry": null
+          },
+          {
+            "event": null,
+            "data": "[DONE]",
+            "id": null,
+            "retry": null
+          }
+        ],
+        "comments": 0
+      },
+      "openai_chat": {
+        "text": "Hello",
+        "finish_reason": "stop",
+        "done": true
+      }
+    }
+  ]
+}

@@ -1,0 +1,149 @@
+{
+  "recorded/groq.leg1.sse": {
+    "entries": 19,
+    "entriesSha256": "6ab8bee3d07458edd6b1862f6ddf4c643d4fd90ed435fb9d776f331fa743a5f2",
+    "streamEvents": 38,
+    "streamEventsSha256": "38ba65a2a71bf98d6431394e7d690100960f4cdb0913cbf5816fdfa7e35ce6d8",
+    "textSha256": "12ae32cb1ec02d01eda3581b127c1fee3b0dc53572ed6baf239721a03d82e126"
+  },
+  "recorded/together.leg1.sse": {
+    "entries": 4,
+    "entriesSha256": "e3518e5528026ad70efd7a404b29de08a9f6459e2cd70eef9bdafde4841d04f9",
+    "streamEvents": 8,
+    "streamEventsSha256": "aff253d1060389e81920a6c17ea55946dc23c69f4be4f67a7e952491a830aed3",
+    "textSha256": "12ae32cb1ec02d01eda3581b127c1fee3b0dc53572ed6baf239721a03d82e126"
+  },
+  "recorded/fireworks.leg1.sse": {
+    "entries": 37,
+    "entriesSha256": "c2245f4db54ea14c3cb71c302ca31e0a8188b07c9864340a99cb16dac1c0f47d",
+    "streamEvents": 73,
+    "streamEventsSha256": "a14a8c08ebe174ce2bc0bc65701c045c0bd0e227723451ddd1c6a7c831e78892",
+    "textSha256": "12ae32cb1ec02d01eda3581b127c1fee3b0dc53572ed6baf239721a03d82e126"
+  },
+  "recorded/qwen.leg1.sse": {
+    "entries": 5,
+    "entriesSha256": "e1f8b12a1c30c249f5e7218965c5794e498dc117dea90f71dca8ba868b9ead07",
+    "streamEvents": 10,
+    "streamEventsSha256": "03b7086af54036ca35f538f62f57b4b523de0148a2f72bdc9917b0244673614c",
+    "textSha256": "12ae32cb1ec02d01eda3581b127c1fee3b0dc53572ed6baf239721a03d82e126"
+  },
+  "recorded/zhipu.leg1.sse": {
+    "entries": 61,
+    "entriesSha256": "ed1049bbca3654ca46b83e7ad39f6e131c2789ac4bf491bb8f254388de9acf31",
+    "streamEvents": 123,
+    "streamEventsSha256": "72f59feb6fbb3d3e270e1c5daac5064cff11093bcd95f9621ed51c927a4808d3",
+    "textSha256": "d7a5e915306d21dc1937ad5616f1dc9682e759e75ef51dd05fd9ddc98a078ea1"
+  },
+  "recorded/siliconflow.leg1.sse": {
+    "entries": 345,
+    "entriesSha256": "a966a062d2d2c2305343dd9152e724711d315dbdf4de4694f05b740fb096eab0",
+    "streamEvents": 1034,
+    "streamEventsSha256": "8b46d5b9282e953c5491070f74aa1bc9e6fa1d343156be12b3ea65bd431e421d",
+    "textSha256": "98be486a01834c7bb83b3c7353edc3e046ca30fe710141f939aaec11f15c6407"
+  },
+  "recorded/deepseek.leg1.sse": {
+    "entries": 13,
+    "entriesSha256": "9b6e7dfd660c91cfb873b73bd36a1ca67cd95e9394cf1b490ba3ed47894c44c4",
+    "streamEvents": 26,
+    "streamEventsSha256": "16cecad052b89af7ac911cdae0942d419eee70475577ae4575c91d64a7b3691c",
+    "textSha256": "12ae32cb1ec02d01eda3581b127c1fee3b0dc53572ed6baf239721a03d82e126"
+  },
+  "recorded/moonshot.leg1.sse": {
+    "entries": 79,
+    "entriesSha256": "5c21bc9f40be83d4eb347f6033d3e7e87943450429e410af8604a7ba2fed8d45",
+    "streamEvents": 157,
+    "streamEventsSha256": "d7f71782e062ebd8feae76dc6618da9b52558a503ff7f665505b41abae2f57df",
+    "textSha256": "55eadc92f488ef1cae5b613996c9ea4bf69d92000b267216c3d5610c93e757e5"
+  },
+  "recorded/moonshot_web_search.leg1.sse": {
+    "entries": 4,
+    "entriesSha256": "7e295c83d889316ae2b9b423ec08bf1d5d3d3278576dcc251e4ac3bb3b4c0eda",
+    "streamEvents": 8,
+    "streamEventsSha256": "b0fe0c3b4287262f63fcd81098a39a554dd107e3c7b5fd3f7604cf93158928fe",
+    "textSha256": "12ae32cb1ec02d01eda3581b127c1fee3b0dc53572ed6baf239721a03d82e126"
+  },
+  "recorded/anthropic.leg1.sse": {
+    "entries": 10,
+    "entriesSha256": "2629e2f716f592f8fa85c54fa9b44a5903086c3ec28170181d16dd2828cb6a1d",
+    "streamEvents": 7,
+    "streamEventsSha256": "6a1d6e16756748329a13addb1010c02c42334cde1c97dd482978544f4caa6dee",
+    "textSha256": "12ae32cb1ec02d01eda3581b127c1fee3b0dc53572ed6baf239721a03d82e126"
+  },
+  "recorded/gemini.leg1.sse": {
+    "entries": 1,
+    "entriesSha256": "2e8510b92eefdf1060cbd3785e20eb616b1823f7830abd73fe57b459bb378554",
+    "streamEvents": 3,
+    "streamEventsSha256": "3aaf4749f20cf4122da3e699d86c8181cf73ab047f099d4a257d56261d27c10d",
+    "textSha256": "12ae32cb1ec02d01eda3581b127c1fee3b0dc53572ed6baf239721a03d82e126"
+  },
+  "recorded/grok.leg1.sse": {
+    "entries": 7,
+    "entriesSha256": "bf28f020c8e27d08c2fcf6a8ae00e14edf3106bee2b119ff68f67d70f4a8f317",
+    "streamEvents": 4,
+    "streamEventsSha256": "a8b9a8ce13c784a164aeb10c9265d01be8c850e35db41fb3ca3be4dcef55b717",
+    "textSha256": "12ae32cb1ec02d01eda3581b127c1fee3b0dc53572ed6baf239721a03d82e126"
+  },
+  "recorded/openai.leg1.sse": {
+    "entries": 7,
+    "entriesSha256": "fb312a9d536e64f419aae0cd1bff1c3acaff53b30ef5de9ff4be4288665c7b04",
+    "streamEvents": 4,
+    "streamEventsSha256": "0bff0c52bedd37d45109b37e18494a144449310bf4a52831d5b74b11f7da25a9",
+    "textSha256": "12ae32cb1ec02d01eda3581b127c1fee3b0dc53572ed6baf239721a03d82e126"
+  },
+  "openai_chat.tool_calls.sse": {
+    "entries": 11,
+    "entriesSha256": "5d1eae7d1668ba07f5d3c3b00c64dd75ca238272163461c9b3c4ad59d64d62ae",
+    "streamEvents": 22,
+    "streamEventsSha256": "e663f9b39e346abb72462fb344eb4b4a2e5bd9a1f5a16f2c83cd946674b14353",
+    "textSha256": "12ae32cb1ec02d01eda3581b127c1fee3b0dc53572ed6baf239721a03d82e126"
+  },
+  "openai_responses.function_call.sse": {
+    "entries": 15,
+    "entriesSha256": "42590556202e76a235f2edf7de10d598114e205d6fb9cb6f9263fa14d5b56cb7",
+    "streamEvents": 7,
+    "streamEventsSha256": "7f39f68b1ae499fbbbce8f9c9ce2b63add47064b1b6cae22d921e7b62be7c1f4",
+    "textSha256": "be0cb9d3e952809919329637234ced1c7446c92e6c3e823d1ba827bfe9516f04"
+  },
+  "anthropic.tool_use.sse": {
+    "entries": 14,
+    "entriesSha256": "63e561393372a7d48cb0d5e077d10fd714774ccd62f70f47bdcb5b416932b122",
+    "streamEvents": 9,
+    "streamEventsSha256": "2f2f297cabd2c379c9217c8a381ba8e24d788268112c4bf82bd5242f8ac1908f",
+    "textSha256": "be0cb9d3e952809919329637234ced1c7446c92e6c3e823d1ba827bfe9516f04"
+  },
+  "gemini.functionCall.sse": {
+    "entries": 2,
+    "entriesSha256": "7a7135db72724ae0169c327dcf8c5726a76b6915cc865d4da476800a42c64f7d",
+    "streamEvents": 5,
+    "streamEventsSha256": "480030b65ad7272c453f7fdc70a947325be5a3cd62a247f49a7d5b920bb01815",
+    "textSha256": "be0cb9d3e952809919329637234ced1c7446c92e6c3e823d1ba827bfe9516f04"
+  },
+  "grok_proxy.text_json_fence.sse": {
+    "entries": 4,
+    "entriesSha256": "fbd71bc54b8c3fd9c3e172f95c1bdaaf7811b84ef91d2211417c56afd575a105",
+    "streamEvents": 9,
+    "streamEventsSha256": "bb86c11817c2803b264e1c5d8c3ce35d2c285d16367c109406c0c970f42b546b",
+    "textSha256": "4ea9ff80f0213670dccb9d298b1e16757f2faac1bc3259b34438579c4c7db7db"
+  },
+  "grok_proxy.text_tool_call_tag.sse": {
+    "entries": 4,
+    "entriesSha256": "42f5e1d20ccafe43cea35e4b9f8260dc45f4d8304088b727c9f441e9bab9de13",
+    "streamEvents": 9,
+    "streamEventsSha256": "4a2b6127b3a52acf6075977c1fe14ef2e7fce7fc6fcede73c227f4ea9e12cf3e",
+    "textSha256": "d20a00b6bb09f5e193100a0f649a6c95c457515f8b60bf16cd4b18279a257eaf"
+  },
+  "grok_proxy.text_html_fence.sse": {
+    "entries": 4,
+    "entriesSha256": "d869d3bd370d2517ec4d59a40760bb9b883ad97c339e665bc857977a4606dffd",
+    "streamEvents": 9,
+    "streamEventsSha256": "7f51211c8d5b37b2a8ffccae9b4c795489848be0ef7e551c351267ee87da1ab8",
+    "textSha256": "ad6d7489fb25411d378664f1e757f21be59f32fdbe96b18e6d6e63c0d248bb4f"
+  },
+  "grok_proxy.responses.web_search.sse": {
+    "entries": 78,
+    "entriesSha256": "56c644d259a213929efadde076fd6f00f264b281f5e76126dfe36090cf6f1f40",
+    "streamEvents": 51,
+    "streamEventsSha256": "7d55f3b80d6b95d0a04eb86731aa02c005a370743836006a356a7e25ae9a309d",
+    "textSha256": "af117fbdad2e73f26dcdbf4cbc905ea5bf2df401768010faaac96a63ff85514a"
+  }
+}
