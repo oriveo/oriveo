@@ -834,9 +834,7 @@ struct ChatComposerBar: View {
                 .buttonStyle(ComposerInteractiveButtonStyle())
                 .disabled(isReadOnly)
                 .accessibilityLabel(Text(L10n.tr("Tools", table: .mcp)))
-                .accessibilityValue(Text(
-                    toolsChip.enabledServerCount > 0 ? String(toolsChip.enabledServerCount) : L10n.tr("Disabled")
-                ))
+                .accessibilityValue(Text(toolsChip.accessibilityValue))
             }
         }
     }
@@ -1420,4 +1418,12 @@ struct ComposerToolsChipState: Equatable {
     var enabledServerCount: Int
     /// Whether the current connection and model can use MCP tools; the chip is dimmed when they cannot.
     var isAvailable: Bool
+
+    /// What VoiceOver reads as the value. When the model cannot use tools it gives the reason, the same
+    /// sentence as the title of the panel the chip opens, instead of the "Disabled" it reads when no
+    /// server is turned on.
+    var accessibilityValue: String {
+        guard isAvailable else { return L10n.tr("This model can't use tools", table: .mcp) }
+        return enabledServerCount > 0 ? String(enabledServerCount) : L10n.tr("Disabled")
+    }
 }
