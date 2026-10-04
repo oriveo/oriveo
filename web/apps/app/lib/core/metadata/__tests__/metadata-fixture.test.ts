@@ -7,11 +7,14 @@ import 'fake-indexeddb/auto';
  * Seeds the cache (IndexedDB) from `shared/test-fixtures/relay/metadata-fixture.json` and checks
  * that metadata-client parses the fixture's matched samples and relayRuntimeConfig correctly.
  */
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { pruneBlobs } from '../../../infra/storage/blob-cache';
-import { __seedMetadataCacheForTest as seedMetadataCache } from '../metadata-client';
+import {
+  __readMetadataCacheForTest as readMetadataCache,
+  __seedMetadataCacheForTest as seedMetadataCache,
+} from '../metadata-client';
 
 // vitest runs with cwd = apps/app, so walk up three levels to the repository root.
 const FIXTURE_PATH = resolve(
@@ -36,6 +39,29 @@ describe('metadata-fixture (shared with iOS / Android)', () => {
       ok: false,
       json: vi.fn(),
     } as unknown as Response);
+  });
+
+  // The seeded snapshot carries no allowlist marker, so initMetadata queues an idle rewrite of the
+  // cache. vi.resetModules does not replace the module instance of the previous test, and unless
+  // that rewrite is awaited it lands after the next test has seeded and replaces the seed with the
+  // previous test's data.
+  afterEach(async () => {
+    const metadata = await import('../metadata-client');
+    await metadata.__settleMetadataBackgroundWorkForTest();
+  });
+
+  it('ends a test only once background writes have settled: the cache holds the rewritten snapshot with its allowlist marker', async () => {
+    await seedMetadataCache({ timestamp: Date.now(), data: loadFixture() });
+    expect((await readMetadataCache())?.allowlistVersion).toBeUndefined();
+
+    const metadata = await import('../metadata-client');
+    await metadata.initMetadata();
+    await metadata.__settleMetadataBackgroundWorkForTest();
+
+    // The assertion is on the blob the production persistCache wrote to the cache. If either part
+    // went untracked (the idle callback, or the write inside it), settle would return early and
+    // this would still read the seeded snapshot.
+    expect((await readMetadataCache())?.allowlistVersion).toBeTypeOf('number');
   });
 
   it('resolves gpt-5.4 / gpt-5.4-2026-04-01 / gpt-image-2 / claude-sonnet-4.5 / gemini-2.5-pro', async () => {

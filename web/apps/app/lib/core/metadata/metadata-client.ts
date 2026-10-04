@@ -891,6 +891,21 @@ let metadataSessionEpoch = 0;
 /** Set by __seedMetadataCacheForTest; cleared by __resetMetadataClientForTest. */
 let suppressMetadataNetworkRefresh = false;
 let refreshPromise: Promise<void> | null = null;
+/**
+ * Background writes that were started and have not settled yet: idle callbacks and the IndexedDB
+ * writes inside them. Nothing in the app waits for them, since the cache is best effort; they are
+ * tracked only so that {@link __settleMetadataBackgroundWorkForTest} can wait for them to finish.
+ */
+const pendingBackgroundWork = new Set<Promise<unknown>>();
+
+function trackBackgroundWork<T>(work: Promise<T>): void {
+  const settled = work.then(
+    () => undefined,
+    () => undefined,
+  );
+  pendingBackgroundWork.add(settled);
+  void settled.then(() => pendingBackgroundWork.delete(settled));
+}
 
 /**
  * The (version, contractVersion) pair last emitted to subscribers, used to dedupe 304s.
@@ -1048,6 +1063,23 @@ export function __resetMetadataClientForTest(): void {
   transientCatalogKinds.clear();
   splitManifest = { catalogCheckedAt: {} };
   catalogDemandSource = null;
+}
+
+/**
+ * Test-only: waits until every background refresh and deferred write started by this module
+ * instance has settled.
+ *
+ * `vi.resetModules()` only replaces the module registry. The instance the previous test imported,
+ * and the write it queued in an idle callback, are still alive, and fake-indexeddb is shared by the
+ * whole process. Unless that write is awaited it can land after the next test has seeded the cache
+ * and overwrite the seed, which happens whenever a test finishes within the 1ms granularity of
+ * `setTimeout(0)`. A test that makes this module write should call this in `afterEach`, on the
+ * instance the test actually imported.
+ */
+export async function __settleMetadataBackgroundWorkForTest(): Promise<void> {
+  while (initPromise || refreshPromise || pendingBackgroundWork.size > 0) {
+    await Promise.allSettled([initPromise, refreshPromise, ...pendingBackgroundWork]);
+  }
 }
 
 /**
@@ -3582,7 +3614,7 @@ function adoptLegacyModelFacts(data: MetadataResponse): void {
   });
   if (!legacy) return;
   modelFactsCache = legacy;
-  void writeBlob<ModelFactsBlob>(MODEL_FACTS_BLOB_KEY, legacy).catch(() => {});
+  trackBackgroundWork(writeBlob<ModelFactsBlob>(MODEL_FACTS_BLOB_KEY, legacy));
 }
 
 /**
@@ -3922,7 +3954,7 @@ async function fetchIndexOnce(): Promise<IndexFetchOutcome> {
   const data = json?.data ?? json;
   if (isMetadataIndexPayload(data)) {
     const contractVersion = (data as { contractVersion?: number }).contractVersion ?? 1;
-    void pruneStaleBuckets(contractVersion);
+    trackBackgroundWork(pruneStaleBuckets(contractVersion));
     splitIndex = data;
     splitIndexETag = res.headers.get("ETag");
     splitManifest = { ...splitManifest, indexCheckedAt: Date.now() };
@@ -3999,7 +4031,7 @@ function adoptLeanSnapshot(
       .contractVersion ?? 1;
 
   // A contract change drops every cache bucket other than the current one.
-  void pruneStaleBuckets(contractVersion);
+  trackBackgroundWork(pruneStaleBuckets(contractVersion));
 
   // A full snapshot has every provider loaded, so the in-memory split state is dropped (the persisted
   // split cache is left for the next startup to compare by timestamp).
@@ -4272,7 +4304,7 @@ function publishSplitSnapshot(): void {
 
 /** Once the split cache is written, the older single-blob lean cache is no longer needed. */
 function retireLeanCache(): void {
-  void deleteBlob(cacheKeyFor(SUPPORTED_CONTRACT_VERSION));
+  trackBackgroundWork(deleteBlob(cacheKeyFor(SUPPORTED_CONTRACT_VERSION)));
 }
 
 /**
@@ -4285,7 +4317,7 @@ function requestCatalogLoad(kind: string): void {
   if (splitCatalogs.has(kind) || catalogFetches.has(kind)) return;
   const failedAt = catalogFailureAt.get(kind);
   if (failedAt !== undefined && Date.now() - failedAt < CATALOG_RETRY_COOLDOWN_MS) return;
-  void ensureProviderCatalogs([kind]).catch(() => {});
+  trackBackgroundWork(ensureProviderCatalogs([kind]));
 }
 
 function reportCatalogDiagnostic(
@@ -4302,7 +4334,7 @@ function refreshInBackground(): void {
   // then loses capability_availability). Tests that need network refresh simply
   // do not seed, or call refreshMetadata() explicitly.
   if (suppressMetadataNetworkRefresh) return;
-  fetchMetadata().catch(() => {});
+  trackBackgroundWork(fetchMetadata());
 }
 
 function scheduleIdle(callback: () => void): void {
@@ -4311,7 +4343,19 @@ function scheduleIdle(callback: () => void): void {
     typeof requestIdleCallback === "function"
       ? requestIdleCallback
       : (cb: () => void) => setTimeout(cb, 0);
-  schedule(callback);
+  // A write started inside the callback is tracked before the callback returns, so the set never
+  // goes empty between "callback queued" and "write settled".
+  trackBackgroundWork(
+    new Promise<void>((resolve) => {
+      schedule(() => {
+        try {
+          callback();
+        } finally {
+          resolve();
+        }
+      });
+    }),
+  );
 }
 
 function persistCache(data: MetadataResponse, contractVersion: number): void {
@@ -4327,22 +4371,22 @@ function persistCache(data: MetadataResponse, contractVersion: number): void {
       ...(cachedETagView ? { etagView: cachedETagView } : {}),
     };
     // writeBlob swallows its own failures: a cache write that does not land just means one more fetch next time, not an error
-    void writeBlob(cacheKeyFor(contractVersion), blob);
+    trackBackgroundWork(writeBlob(cacheKeyFor(contractVersion), blob));
   });
 }
 
 function persistSplitIndex(data: MetadataIndexPayload, etag: string | null): void {
   scheduleIdle(() => {
     if (splitIndex !== data) return;
-    void writeBlob<SplitIndexBlob>(splitIndexKey(), { data, etag });
-    void writeBlob<SplitManifestBlob>(splitManifestKey(), splitManifest);
+    trackBackgroundWork(writeBlob<SplitIndexBlob>(splitIndexKey(), { data, etag }));
+    trackBackgroundWork(writeBlob<SplitManifestBlob>(splitManifestKey(), splitManifest));
   });
 }
 
 function persistSplitCatalog(kind: string, entry: StoredCatalog): void {
   scheduleIdle(() => {
     if (splitCatalogs.get(kind) !== entry || entry.revision === null) return;
-    void writeBlob<SplitCatalogBlob>(splitCatalogKey(kind), {
+    trackBackgroundWork(writeBlob<SplitCatalogBlob>(splitCatalogKey(kind), {
       provider: kind,
       revision: entry.revision,
       etag: entry.etag,
@@ -4350,8 +4394,8 @@ function persistSplitCatalog(kind: string, entry: StoredCatalog): void {
       models: entry.models,
       generationParameters: entry.generationParameters,
       allowlistVersion: METADATA_ALLOWLIST_VERSION,
-    });
-    void writeBlob<SplitManifestBlob>(splitManifestKey(), splitManifest);
+    }));
+    trackBackgroundWork(writeBlob<SplitManifestBlob>(splitManifestKey(), splitManifest));
   });
 }
 
@@ -4360,7 +4404,7 @@ function persistSplitManifest(): void {
   const snapshot = splitManifest;
   scheduleIdle(() => {
     if (splitManifest !== snapshot) return;
-    void writeBlob<SplitManifestBlob>(splitManifestKey(), snapshot);
+    trackBackgroundWork(writeBlob<SplitManifestBlob>(splitManifestKey(), snapshot));
   });
 }
 
