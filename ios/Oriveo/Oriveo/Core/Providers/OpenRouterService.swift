@@ -1588,28 +1588,31 @@ private final class OpenRouterPricingCache: @unchecked Sendable {
     }
 }
 
+// MARK: - SSE line reader
+// `bytes.lines` can cut a line inside a multi-byte UTF-8 character (an emoji, say) on some iOS
+// versions, turning a 4-byte character into U+FFFD. This extension feeds the bytes to
+// SSEFrameDecoder, which splits lines on bytes and decodes each line whole, and hands out the
+// canonical lines. The framing rules (CR / LF / CRLF, the optional space after `data:`, joining
+// multi-line data, the byte order mark at the start) live in the decoder alone, so the line loops
+// of the providers do not each implement them.
 
 extension URLSession.AsyncBytes {
     var utf8Lines: AsyncThrowingStream<String, Error> {
         let source = self
         return AsyncThrowingStream { continuation in
             let task = Task {
-                var buffer = Data()
+                var decoder = SSEFrameDecoder()
                 do {
                     for try await byte in source {
-                        if byte == UInt8(ascii: "\n") {
-                            if !buffer.isEmpty,
-                               let line = String(data: buffer, encoding: .utf8) {
-                                continuation.yield(line)
-                            }
-                            buffer.removeAll(keepingCapacity: true)
-                        } else if byte != UInt8(ascii: "\r") {
-                            buffer.append(byte)
+                        guard let item = decoder.consume(byte) else { continue }
+                        for line in SSECanonicalLines.lines(for: item) {
+                            continuation.yield(line)
                         }
                     }
-                    if !buffer.isEmpty,
-                       let line = String(data: buffer, encoding: .utf8) {
-                        continuation.yield(line)
+                    for item in decoder.finish() {
+                        for line in SSECanonicalLines.lines(for: item) {
+                            continuation.yield(line)
+                        }
                     }
                     continuation.finish()
                 } catch {

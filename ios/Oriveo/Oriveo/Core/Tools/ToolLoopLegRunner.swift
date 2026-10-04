@@ -274,7 +274,7 @@ nonisolated final class OpenAIChatToolLoopLegRunner: ToolLoopLegRunning, @unchec
                     var replayAccumulator = self.configuration.reasoningReplayParserKind
                         .flatMap(OpenAIChatReasoningReplayAccumulator.init(parserKind:))
                     var visibleText = ""
-                    for try await line in bytes.lines {
+                    for try await line in bytes.utf8Lines {
                         try Task.checkCancellation()
                         guard let payload = Self.ssePayload(from: line) else { continue }
                         if payload == "[DONE]" { break }
@@ -857,7 +857,7 @@ nonisolated final class ProtocolToolLoopLegRunner: ToolLoopLegRunning, @unchecke
                     var usage: ToolLoopUsage?
                     var currentEvent = ""
                     var proposals: [ProviderToolCall] = []
-                    for try await line in bytes.lines {
+                    for try await line in bytes.utf8Lines {
                         try Task.checkCancellation()
                         if line.hasPrefix("event:") {
                             currentEvent = String(line.dropFirst(6)).trimmingCharacters(in: .whitespaces)

@@ -1354,7 +1354,7 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
                         request, effectiveTransport: .llamacppNative
                     )
                     var accumulated = ""
-                    for try await line in bytes.lines {
+                    for try await line in bytes.utf8Lines {
                         if Task.isCancelled { break }
                         let payload = line.hasPrefix("data: ") ? String(line.dropFirst(6)) : line
                         guard !payload.isEmpty, payload != "[DONE]" else { continue }
