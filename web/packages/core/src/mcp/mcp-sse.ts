@@ -25,6 +25,15 @@ export class McpSseParser {
   /** This event's payload was already emitted early when its `data:` line ended; the blank line must not emit it again. */
   private emittedEarly = false;
 
+  /**
+   * @param parsePayload Parses the data of one event into a message, or returns `undefined` when it
+   *   cannot. Defaults to depth-limited JSON parsing; the framing tests pass the identity function to
+   *   observe line splitting and field parsing directly.
+   */
+  constructor(
+    private readonly parsePayload: (text: string) => JsonValue | undefined = parseJsonLimited,
+  ) {}
+
   /** Feeds a chunk of decoded text and returns the completed event payloads (in order of appearance). */
   push(chunk: string): JsonValue[] {
     const out: JsonValue[] = [];
@@ -85,7 +94,7 @@ export class McpSseParser {
     // Only for the first line: reparsing on every line of a multi-line data block is quadratic, and a peer
     // could use that to stall us.
     if (this.dataLines.length === 1) {
-      const parsed = parseJsonLimited(value);
+      const parsed = this.parsePayload(value);
       if (parsed !== undefined) {
         this.emittedEarly = true;
         return parsed;
@@ -101,7 +110,7 @@ export class McpSseParser {
     this.emittedEarly = false;
     if (lines.length === 0) return undefined;
     if (early && lines.length === 1) return undefined;
-    return parseJsonLimited(lines.join('\n'));
+    return this.parsePayload(lines.join('\n'));
   }
 }
 
