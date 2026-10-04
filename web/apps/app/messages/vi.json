@@ -2112,8 +2112,8 @@
     "oauthCallback": {
       "completed": "Đã xong",
       "completedDescription": "Bạn có thể đóng trang này.",
-      "returnToApp": "Vui lòng quay lại ứng dụng",
-      "returnToAppDescription": "Hãy tiếp tục đăng nhập trong ứng dụng Oriveo trên thiết bị của bạn."
+      "returnToApp": "Hãy quay lại Oriveo",
+      "returnToAppDescription": "Không thể chuyển kết quả đăng nhập về thẻ nơi bạn bắt đầu. Hãy quay lại Oriveo và đăng nhập lại. Bạn có thể đóng trang này."
     },
     "addServer": {
       "invalidUrl": "Hãy nhập địa chỉ đầy đủ, bắt đầu bằng https://",

@@ -2112,8 +2112,8 @@
     "oauthCallback": {
       "completed": "已完成",
       "completedDescription": "可以关闭此页面了。",
-      "returnToApp": "请回到 App",
-      "returnToAppDescription": "请在你的设备上打开 Oriveo App 继续登录。"
+      "returnToApp": "请回到 Oriveo",
+      "returnToAppDescription": "登录结果没能交回发起登录的那个标签页。请回到 Oriveo 重新登录，这个页面可以关掉了。"
     },
     "addServer": {
       "invalidUrl": "请输入以 https:// 开头的完整地址",
@@ -2347,7 +2347,7 @@
     },
     "remove": {
       "title": "移除 {name}？",
-      "body": "会删除这个浏览器里保存的登录凭据，并从服务器列表里移除。已有对话里的工具记录会保留。",
+      "body": "会删除这个浏览器里保存的登录凭据，并把这台服务器从列表里移除。已有对话里的工具记录会保留。",
       "confirm": "移除",
       "cancel": "取消",
       "failed": "没能移除这个服务器，请再试一次。"

@@ -2112,8 +2112,8 @@
     "oauthCallback": {
       "completed": "تم",
       "completedDescription": "يمكن إغلاق هذه الصفحة الآن.",
-      "returnToApp": "يُرجى العودة إلى التطبيق",
-      "returnToAppDescription": "تابِع تسجيل الدخول من تطبيق Oriveo على جهازك."
+      "returnToApp": "عُد إلى Oriveo",
+      "returnToAppDescription": "تعذّر إرسال نتيجة تسجيل الدخول إلى علامة التبويب التي بدأتَه منها. عُد إلى Oriveo وسجّل الدخول من جديد. يمكن إغلاق هذه الصفحة الآن."
     },
     "addServer": {
       "invalidUrl": "يُرجى إدخال عنوان كامل يبدأ بـ ⁦https://⁩",

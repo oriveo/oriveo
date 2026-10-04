@@ -2112,8 +2112,8 @@
     "oauthCallback": {
       "completed": "Selesai",
       "completedDescription": "Halaman ini sudah boleh ditutup.",
-      "returnToApp": "Silakan kembali ke aplikasi",
-      "returnToAppDescription": "Lanjutkan proses masuk dari aplikasi Oriveo di perangkat Anda."
+      "returnToApp": "Kembali ke Oriveo",
+      "returnToAppDescription": "Hasil proses masuk tidak dapat diteruskan ke tab tempat Anda memulainya. Kembali ke Oriveo dan masuk lagi. Halaman ini sudah boleh ditutup."
     },
     "addServer": {
       "invalidUrl": "Masukkan alamat lengkap yang diawali https://",

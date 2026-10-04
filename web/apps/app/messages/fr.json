@@ -2112,8 +2112,8 @@
     "oauthCallback": {
       "completed": "C’est fait",
       "completedDescription": "Vous pouvez fermer cette page.",
-      "returnToApp": "Retournez dans l’application",
-      "returnToAppDescription": "Poursuivez l’identification depuis l’application Oriveo sur votre appareil."
+      "returnToApp": "Retournez dans Oriveo",
+      "returnToAppDescription": "L’identification n’a pas pu être transmise à l’onglet où vous l’aviez lancée. Retournez dans Oriveo et recommencez. Vous pouvez fermer cette page."
     },
     "addServer": {
       "invalidUrl": "Saisissez une adresse complète commençant par https://",

@@ -2112,8 +2112,8 @@
     "oauthCallback": {
       "completed": "Listo",
       "completedDescription": "Ya puedes cerrar esta página.",
-      "returnToApp": "Vuelve a la app",
-      "returnToAppDescription": "Continúa el inicio de sesión desde la app de Oriveo en tu dispositivo."
+      "returnToApp": "Vuelve a Oriveo",
+      "returnToAppDescription": "No se pudo devolver el inicio de sesión a la pestaña donde lo empezaste. Vuelve a Oriveo e inicia sesión de nuevo. Ya puedes cerrar esta página."
     },
     "addServer": {
       "invalidUrl": "Escribe una dirección completa que empiece por https://",

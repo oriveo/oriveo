@@ -2112,8 +2112,8 @@
     "oauthCallback": {
       "completed": "Done",
       "completedDescription": "You can close this page.",
-      "returnToApp": "Please return to the app",
-      "returnToAppDescription": "Continue signing in from the Oriveo app on your device."
+      "returnToApp": "Return to Oriveo",
+      "returnToAppDescription": "This sign-in couldn't be handed back to the tab that started it. Go back to Oriveo and sign in again. You can close this page."
     },
     "addServer": {
       "invalidUrl": "Enter a full address that starts with https://",

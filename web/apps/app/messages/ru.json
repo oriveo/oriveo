@@ -2112,8 +2112,8 @@
     "oauthCallback": {
       "completed": "Готово",
       "completedDescription": "Эту страницу можно закрыть.",
-      "returnToApp": "Вернитесь в приложение",
-      "returnToAppDescription": "Продолжите вход в приложении Oriveo на своём устройстве."
+      "returnToApp": "Вернитесь в Oriveo",
+      "returnToAppDescription": "Не удалось передать результат входа во вкладку, где вы его начали. Вернитесь в Oriveo и войдите ещё раз. Эту страницу можно закрыть."
     },
     "addServer": {
       "invalidUrl": "Введите полный адрес, который начинается с https://",

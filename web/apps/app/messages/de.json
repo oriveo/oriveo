@@ -2112,8 +2112,8 @@
     "oauthCallback": {
       "completed": "Fertig",
       "completedDescription": "Du kannst diese Seite jetzt schließen.",
-      "returnToApp": "Kehre bitte zur App zurück",
-      "returnToAppDescription": "Öffne die Oriveo-App auf deinem Gerät, um die Anmeldung dort fortzusetzen."
+      "returnToApp": "Zurück zu Oriveo",
+      "returnToAppDescription": "Die Anmeldung konnte nicht an den Tab übergeben werden, in dem du sie gestartet hast. Geh zurück zu Oriveo und melde dich noch einmal an. Diese Seite kannst du schließen."
     },
     "addServer": {
       "invalidUrl": "Gib eine vollständige Adresse ein, die mit https:// beginnt",

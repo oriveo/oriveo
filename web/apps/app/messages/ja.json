@@ -2112,8 +2112,8 @@
     "oauthCallback": {
       "completed": "完了しました",
       "completedDescription": "このページは閉じてかまいません。",
-      "returnToApp": "アプリに戻ってください",
-      "returnToAppDescription": "お使いのデバイスで Oriveo アプリを開いて、ログインを続けてください。"
+      "returnToApp": "Oriveo に戻ってください",
+      "returnToAppDescription": "ログインを開始したタブに結果を渡せませんでした。Oriveo に戻って、もう一度ログインしてください。このページは閉じてかまいません。"
     },
     "addServer": {
       "invalidUrl": "https:// で始まる完全なアドレスを入力してください",

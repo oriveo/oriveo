@@ -2112,8 +2112,8 @@
     "oauthCallback": {
       "completed": "เสร็จแล้ว",
       "completedDescription": "ปิดหน้านี้ได้เลย",
-      "returnToApp": "โปรดกลับไปที่แอป",
-      "returnToAppDescription": "ลงชื่อเข้าใช้ต่อในแอป Oriveo บนอุปกรณ์ของคุณ"
+      "returnToApp": "โปรดกลับไปที่ Oriveo",
+      "returnToAppDescription": "ส่งผลการลงชื่อเข้าใช้กลับไปยังแท็บที่คุณเริ่มไว้ไม่สำเร็จ โปรดกลับไปที่ Oriveo แล้วลงชื่อเข้าใช้อีกครั้ง ปิดหน้านี้ได้เลย"
     },
     "addServer": {
       "invalidUrl": "ป้อนที่อยู่แบบเต็มที่ขึ้นต้นด้วย https://",

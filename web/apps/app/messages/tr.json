@@ -2112,8 +2112,8 @@
     "oauthCallback": {
       "completed": "Tamamlandı",
       "completedDescription": "Bu sayfayı kapatabilirsiniz.",
-      "returnToApp": "Lütfen uygulamaya dönün",
-      "returnToAppDescription": "Oturum açmaya cihazınızdaki Oriveo uygulamasından devam edin."
+      "returnToApp": "Oriveo’ya dönün",
+      "returnToAppDescription": "Oturum açma sonucu, işlemi başlattığınız sekmeye iletilemedi. Oriveo’ya dönüp yeniden oturum açın. Bu sayfayı kapatabilirsiniz."
     },
     "addServer": {
       "invalidUrl": "https:// ile başlayan tam bir adres girin",

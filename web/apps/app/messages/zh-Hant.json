@@ -2112,8 +2112,8 @@
     "oauthCallback": {
       "completed": "已完成",
       "completedDescription": "可以關閉此頁面了。",
-      "returnToApp": "請回到 App",
-      "returnToAppDescription": "請在你的裝置上開啟 Oriveo App 繼續登入。"
+      "returnToApp": "請回到 Oriveo",
+      "returnToAppDescription": "登入結果沒能交回發起登入的那個分頁。請回到 Oriveo 重新登入，這個頁面可以關閉了。"
     },
     "addServer": {
       "invalidUrl": "請輸入以 https:// 開頭的完整位址",
@@ -2347,7 +2347,7 @@
     },
     "remove": {
       "title": "移除 {name}？",
-      "body": "這會刪除這個瀏覽器裡儲存的登入憑證，並從伺服器清單中移除。既有對話裡的工具紀錄會保留。",
+      "body": "這會刪除這個瀏覽器裡儲存的登入憑證，並將這台伺服器從清單中移除。既有對話裡的工具紀錄會保留。",
       "confirm": "移除",
       "cancel": "取消",
       "failed": "無法移除這個伺服器，請再試一次。"
