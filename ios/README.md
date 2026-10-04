@@ -152,6 +152,9 @@ Application Support/Oriveo/
   change. Full-text search over messages and notes uses FTS5 with a trigram tokenizer.
 - **API keys live in the Keychain**, keyed by provider and partition, and are blanked out of the
   session snapshot before it is written. Skills are stored separately as JSON in `UserDefaults`.
+- **MCP sign-in tokens live in the Keychain too**, under a service of their own, kept on this device
+  and out of iCloud Keychain. A server address that carries a key is stored with them, and the
+  database keeps only a display form of it.
 - **Attachment blobs are files on disk**, not rows, so a large PDF never bloats the database.
 
 A backup is a `.oriveo` ZIP holding `data.json` plus the image files. The optional password does not
@@ -200,6 +203,7 @@ ios/Oriveo/
       Models/          domain types
       Attachments/     import limits, budgets, per-format text extraction
       Tools/           tool-call loop and per-protocol adapters
+      MCP/             remote MCP client: protocol, sign-in, tool bridge
       Cache/ Localization/ Observability/ Reachability/ Routing/ Usage/
     Features/
       App/             root view and tab shell
@@ -209,7 +213,7 @@ ios/Oriveo/
     Shared/Components/ shared views
     DesignSystem/      theme, colour, haptics
     Preview/           sample data for SwiftUI previews
-    *.xcstrings        ten string catalogs
+    *.xcstrings        eleven string catalogs
     Assets.xcassets · PrivacyInfo.xcprivacy · Oriveo.entitlements
   OriveoTests/
 ```
@@ -218,7 +222,8 @@ ios/Oriveo/
 
 You need **Xcode 26**, and to run on hardware a device on **iOS 18 or later**. A free Apple
 Developer account is enough: the entitlements file is empty and the app uses no paid capability —
-no push, no iCloud, no app groups, no associated domains.
+no push, no iCloud, no app groups, no associated domains. The one thing it registers with the system
+is the `oriveo://` URL scheme, which the browser sign-in for a remote MCP server redirects back to.
 
 Xcode 16.3 is the floor the project format and Swift tools version actually impose, but the target
 sets `SWIFT_APPROACHABLE_CONCURRENCY` and `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor`, which older
@@ -292,8 +297,8 @@ cd shared/OriveoProviderKit && swift test
 
 ## Localization
 
-Sixteen languages, stored as Xcode String Catalogs (`.xcstrings`) — ten catalogs, about 1,340 keys,
-English as the source. Every key is translated into all sixteen, apart from the few marked
+Sixteen languages, stored as Xcode String Catalogs (`.xcstrings`) — eleven catalogs, about 1,560
+keys, English as the source. Every key is translated into all sixteen, apart from the few marked
 `shouldTranslate: false`: the product name, punctuation, format skeletons and protocol values that
 would be wrong to localize. Strings are resolved through `L10n.tr(_:table:)` against an `.lproj`
 bundle chosen from the user's in-app language setting, so switching language takes effect without

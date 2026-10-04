@@ -92,8 +92,8 @@ qua các Next.js route handler chạy trong runtime Node. Khi bạn chạy `npm 
 đó nằm trên chính máy bạn. Khi bạn triển khai ứng dụng ở đâu đó, chúng nằm trên máy bạn đã triển
 khai tới.
 
-Không phải chỉ có một handler: stream chat, bộ chuyển tiếp của dịch vụ chuyển tiếp (Relay), tạo ảnh, danh sách mô hình, kiểm
-chứng khóa, và hai lượt trao đổi đăng nhập theo thiết bị của Grok và ChatGPT cộng lại thành mười hai
+Không phải chỉ có một handler: stream chat, bộ chuyển tiếp của dịch vụ chuyển tiếp (Relay), bộ chuyển tiếp MCP, tạo ảnh, danh sách mô hình, kiểm
+chứng khóa, và hai lượt trao đổi đăng nhập theo thiết bị của Grok và ChatGPT cộng lại thành mười ba
 tệp route. Kiểm chứng khóa mới là chỗ đáng lưu ý — nó gửi khóa lên chính máy chủ của bạn, rồi máy
 chủ đó dùng khóa để thăm dò nhà cung cấp.
 
@@ -189,6 +189,7 @@ Mọi thứ đều theo từng phân vùng, đánh chỉ mục bằng một id �
 | Snapshot danh mục mô hình (~3 MB) và model facts | blob store trong IndexedDB, cố ý không dùng localStorage |
 | Tùy chọn và các bảng điều khiển mô hình | `localStorage`, với `safeLocalStorage` bọc những đường đã từng thấy ném lỗi |
 | Ảnh được tạo ra và ảnh đính kèm | một cơ sở dữ liệu IndexedDB riêng |
+| Máy chủ MCP, công cụ của chúng và token đăng nhập | IndexedDB `oriveo-mcp--{id}` |
 
 Có hai chi tiết đến từ hỏng hóc thật chứ không phải từ sở thích. Snapshot danh mục nằm trong
 IndexedDB vì với ~3 MB, nó ngốn gần hết hạn mức localStorage 5 MB của một origin trình duyệt. Và mọi
@@ -317,7 +318,7 @@ các route handler.
 
 ## Bản địa hóa
 
-Mười sáu locale trong `apps/app/messages`, mỗi locale khoảng 1.800 khóa, tiếng Anh là nguồn. Một bài
+Mười sáu locale trong `apps/app/messages`, mỗi locale khoảng 1.950 khóa, tiếng Anh là nguồn. Một bài
 test duyệt qua thư mục và báo lỗi nếu tập khóa của bất kỳ locale nào khác với tiếng Anh, nên chỉ cần
 thêm một tệp locale là nó tự động được ghi danh. Tiếng Ả Rập có bố cục phải-sang-trái đầy đủ. Việc
 chọn locale ưu tiên tham số `?locale=` được chỉ định rõ, rồi tới cookie, rồi tới `Accept-Language`.

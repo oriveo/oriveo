@@ -92,10 +92,10 @@ meneruskannya lewat route handler Next.js yang berjalan di runtime Node. Saat An
 `npm run dev:app`, handler-handler itu ada di mesin Anda sendiri. Saat Anda men-deploy aplikasinya
 ke suatu tempat, mereka ada di mesin tujuan deploy Anda.
 
-Handler-nya bukan cuma satu: streaming chat, penerus relay, pembuatan gambar, daftar model, validasi
-key, serta pertukaran device-login Grok dan ChatGPT seluruhnya berjumlah dua belas berkas route.
-Validasi key penting di sini — ia mengirimkan key ke server Anda sendiri, yang lalu melakukan
-probing ke provider dengan key itu.
+Handler-nya bukan cuma satu: streaming chat, penerus relay, penerus MCP, pembuatan gambar, daftar
+model, validasi key, serta pertukaran device-login Grok dan ChatGPT seluruhnya berjumlah tiga belas
+berkas route. Validasi key penting di sini — ia mengirimkan key ke server Anda sendiri, yang lalu
+melakukan probing ke provider dengan key itu.
 
 Segelintir endpoint memang *mengizinkan* browser, dan yang seperti itu dipanggil langsung tanpa
 server di tengahnya: endpoint Tiongkok milik Kimi (`api.moonshot.cn`) untuk chat, dan endpoint saldo
@@ -189,6 +189,7 @@ Semuanya per partisi, di-key oleh sebuah id aktif yang bernilai bawaan `guest`.
 | Snapshot katalog model (~3 MB) dan model facts | Blob store IndexedDB, sengaja bukan localStorage |
 | Preferensi dan tabel model control | `localStorage`, dengan `safeLocalStorage` membungkus jalur-jalur yang pernah kedapatan melempar error |
 | Gambar yang dihasilkan dan yang dilampirkan | Basis data IndexedDB terpisah |
+| Server MCP, alat-alatnya, dan token masuknya | IndexedDB `oriveo-mcp--{id}` |
 
 Dua detail yang lahir dari kerusakan nyata, bukan dari selera. Snapshot katalog tinggal di IndexedDB
 karena pada ~3 MB ia menghabiskan sebagian besar kuota localStorage 5 MB milik sebuah origin
@@ -318,7 +319,7 @@ IndexedDB, partisi penyimpanan, round-trip cadangan, dan route handler itu sendi
 
 ## Pelokalan
 
-Enam belas locale di `apps/app/messages`, masing-masing sekitar 1.800 key, dengan bahasa Inggris
+Enam belas locale di `apps/app/messages`, masing-masing sekitar 1.950 key, dengan bahasa Inggris
 sebagai sumber. Sebuah pengujian menelusuri direktori itu dan gagal jika himpunan key suatu locale
 berbeda dari bahasa Inggris, jadi menambahkan berkas locale otomatis mendaftarkannya. Bahasa Arab
 mendapat tata letak right-to-left penuh. Pemilihan locale mengikuti parameter `?locale=` yang

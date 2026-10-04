@@ -90,6 +90,8 @@ Each client's tests load these directly, so a change here is a change to all thr
 Golden test data: recorded upstream tool-call traffic, relay routing, form validation,
 local-address classification, catalog and portable-config scenarios, model-facts and
 capability-evidence snapshots, and local-engine scenarios.
+`mcp/` holds the MCP protocol and sign-in exchanges, and a mock MCP server the client suites run
+against.
 
 The `.sse` files under `provider-toolcall/recorded/` are **real captured upstream traffic**, kept
 byte for byte as it arrived — only the response headers were dropped, and the bodies never carried a

@@ -123,15 +123,16 @@ HTTP 200 和工具声明都明确不算数。每条消息的结果都会持久�
 | 供应商 API Key | `EncryptedSharedPreferences`，AES-256-GCM，主密钥存在 Keystore 里 |
 | 订阅 OAuth token | 第二个独立的加密偏好文件 |
 | 备份归档密钥 | 第三个 |
+| MCP 登录 token，以及带 Key 的服务器地址 | 第四个 |
 | 附件二进制 | 磁盘上的文件，按 id 引用 |
 
-这三个加密偏好文件是按生命周期和爆炸半径拆开的，而不是为了图省事合成一个。每一个都有恢复路径：
+这四个加密偏好文件是按生命周期和爆炸半径拆开的，而不是为了图省事合成一个。每一个都有恢复路径：
 文件损坏（`AEADBadTagException`、`VERIFICATION_FAILED`）会被检测出来、删掉并重建，而不是让 App 每次
 启动都崩。
 
-这三个文件，以及那个续传数据库，都被排除在 Android 云备份和设备迁移之外。这是把它们绑到 Keystore 的
+这四个文件，以及那个续传数据库，都被排除在 Android 云备份和设备迁移之外。这是把它们绑到 Keystore 的
 必然结果，不是疏漏 —— 密文换到新设备上本来也解不开。**换新手机之后，你需要重新填一遍 API Key、重新
-登录各家供应商的订阅**；对话和笔记会正常迁过去。
+登录各家供应商的订阅和每一个 MCP 服务器**；对话和笔记会正常迁过去。
 
 你自己导出的归档是一个 zip，里面装着 `data.json` 加上附件文件。你设定的密码**只保护里面的供应商
 API Key**：它们用 PBKDF2-HMAC-SHA256 迭代 600,000 次加 AES-GCM 加密，并作为 `data.json` 的一个字段
@@ -196,6 +197,7 @@ android/
       model/       domain models and the capability/preference resolvers
       attachments/ routing, budgets, per-format text extraction
       security/    SecureKeyStore, BackupCrypto, external-URL policy
+      mcp/         remote MCP client: protocol, sign-in, tool bridge
       streaming/   ChatStreamingManager
       navigation/  AppRoute, OriveoNavHost
     feature/       one package per screen
@@ -272,7 +274,7 @@ Android Studio 生成，不会提交。发布签名见 [SIGNING.md](../../androi
 ## 本地化
 
 十六种语言：`values/`（英语，源语言）加上十五个 locale 目录 —— 另有一个不带字符串的 `values-night`
-—— 每个约 1,340 条字符串，每个 locale 都持有完全相同的键集。App 内切换语言走 `AppLanguageManager` 和 `android:localeConfig`。bundle 里
+—— 每个约 1,570 条字符串，每个 locale 都持有完全相同的键集。App 内切换语言走 `AppLanguageManager` 和 `android:localeConfig`。bundle 里
 禁用了按语言拆分，所以单个产物就带着全部翻译。
 
 ## 参与贡献

@@ -130,18 +130,19 @@ Overrides resolve last-write-wins across seven scopes, in priority order: `singl
 | Provider API keys | `EncryptedSharedPreferences`, AES-256-GCM, Keystore-held master key |
 | Subscription OAuth tokens | a second, separate encrypted preferences file |
 | Backup archive keys | a third |
+| MCP sign-in tokens, and server addresses that carry a key | a fourth |
 | Attachment blobs | files on disk, referenced by id |
 
-The three encrypted preference files are separated by lifetime and blast radius rather than merged
+The four encrypted preference files are separated by lifetime and blast radius rather than merged
 for convenience. Each has a recovery path: a corrupted file (`AEADBadTagException`,
 `VERIFICATION_FAILED`) is detected, deleted, and recreated instead of crashing the app on every
 launch.
 
-All three, and the continuation database, are excluded from Android cloud backup and device
+All four, and the continuation database, are excluded from Android cloud backup and device
 transfer. That is a consequence of binding them to the Keystore rather than an oversight — the
 ciphertext would be undecryptable on the new device anyway. **After moving to a new phone you
-re-enter your API keys and sign in to any provider subscription again**; conversations and notes
-come across normally.
+re-enter your API keys and sign in again to any provider subscription and any MCP server**;
+conversations and notes come across normally.
 
 An archive you export yourself is a zip holding `data.json` plus the attachment files. The password
 you choose protects **only the provider API keys** inside it: they are encrypted with
@@ -212,6 +213,7 @@ android/
       model/       domain models and the capability/preference resolvers
       attachments/ routing, budgets, per-format text extraction
       security/    SecureKeyStore, BackupCrypto, external-URL policy
+      mcp/         remote MCP client: protocol, sign-in, tool bridge
       streaming/   ChatStreamingManager
       navigation/  AppRoute, OriveoNavHost
     feature/       one package per screen
@@ -295,7 +297,7 @@ and committed, which is where the first migration's `2.json` will land.
 ## Localization
 
 Sixteen languages: `values/` (English, the source) plus fifteen locale directories — alongside
-`values-night`, which carries no strings — about 1,340 strings each, with every locale holding an
+`values-night`, which carries no strings — about 1,570 strings each, with every locale holding an
 identical key set. In-app language switching goes through `AppLanguageManager` and
 `android:localeConfig`. Language splits are disabled in the bundle so a single artifact carries
 every translation.

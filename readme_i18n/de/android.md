@@ -134,18 +134,19 @@ Overrides werden nach Last-Write-Wins über sieben Geltungsbereiche aufgelöst, 
 | Anbieter-API-Keys | `EncryptedSharedPreferences`, AES-256-GCM, Master-Key im Keystore |
 | OAuth-Tokens von Abos | eine zweite, separate verschlüsselte Preferences-Datei |
 | Schlüssel für Backup-Archive | eine dritte |
+| MCP-Anmelde-Tokens und Serveradressen, die einen Key enthalten | eine vierte |
 | Anhang-Blobs | Dateien auf der Platte, über die id referenziert |
 
-Die drei verschlüsselten Preferences-Dateien sind nach Lebensdauer und Schadensradius getrennt und
+Die vier verschlüsselten Preferences-Dateien sind nach Lebensdauer und Schadensradius getrennt und
 nicht der Bequemlichkeit halber zusammengelegt. Jede hat einen Wiederherstellungspfad: eine
 beschädigte Datei (`AEADBadTagException`, `VERIFICATION_FAILED`) wird erkannt, gelöscht und neu
 angelegt, statt die App bei jedem Start abstürzen zu lassen.
 
-Alle drei und die Continuation-Datenbank sind vom Android-Cloud-Backup und von der Geräteübernahme
+Alle vier und die Continuation-Datenbank sind vom Android-Cloud-Backup und von der Geräteübernahme
 ausgeschlossen. Das ist eine Folge daraus, sie an den Keystore zu binden, kein Versehen – der
 Ciphertext wäre auf dem neuen Gerät ohnehin nicht entschlüsselbar. **Nach dem Umzug auf ein neues
-Telefon trägst du deine API-Keys erneut ein und meldest dich bei Anbieter-Abos neu an**;
-Unterhaltungen und Notizen kommen normal mit.
+Telefon trägst du deine API-Keys erneut ein und meldest dich bei Anbieter-Abos und MCP-Servern neu
+an**; Unterhaltungen und Notizen kommen normal mit.
 
 Ein Archiv, das du selbst exportierst, ist ein Zip mit `data.json` und den Anhangdateien. Das
 Passwort, das du wählst, schützt darin **allein die Anbieter-API-Keys**: sie werden mit
@@ -223,6 +224,7 @@ android/
       model/       domain models and the capability/preference resolvers
       attachments/ routing, budgets, per-format text extraction
       security/    SecureKeyStore, BackupCrypto, external-URL policy
+      mcp/         remote MCP client: protocol, sign-in, tool bridge
       streaming/   ChatStreamingManager
       navigation/  AppRoute, OriveoNavHost
     feature/       one package per screen
@@ -310,7 +312,7 @@ Beide Datenbanken stehen auf `version = 1` und haben noch keine Migrationen; die
 ## Lokalisierung
 
 Sechzehn Sprachen: `values/` (Englisch, die Quelle) plus fünfzehn Locale-Verzeichnisse – daneben
-`values-night`, das keine Strings trägt –, je rund 1.340 Strings, wobei jede Locale denselben
+`values-night`, das keine Strings trägt –, je rund 1.570 Strings, wobei jede Locale denselben
 Schlüsselsatz hält. Der Sprachwechsel in der App läuft
 über `AppLanguageManager` und `android:localeConfig`. Language-Splits sind im Bundle deaktiviert,
 sodass ein einziges Artefakt alle Übersetzungen trägt.

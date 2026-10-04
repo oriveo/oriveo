@@ -147,6 +147,9 @@ Application Support/Oriveo/
   المخطط. ويستخدم البحث في النص الكامل عبر الرسائل والملاحظات FTS5 مع مقسّم ثلاثيات.
 - **مفاتيح API تعيش في Keychain**، مفهرسة بالمزود والقسم، وتُمحى من لقطة الجلسة قبل كتابتها.
   وتُخزَّن المهارات على حدة كـ JSON في `UserDefaults`.
+- **رموز تسجيل الدخول إلى MCP تعيش في Keychain أيضا**، تحت خدمة خاصة بها، وتبقى على هذا الجهاز
+  خارج iCloud Keychain. وعنوان الخادم الذي يحمل مفتاحا يُخزَّن معها، ولا تحتفظ قاعدة البيانات إلا
+  بصيغة عرض له.
 - **كتل المرفقات ملفات على القرص**، لا صفوف، فلا يضخّم ملف PDF كبير قاعدة البيانات.
 
 والنسخة الاحتياطية ملف ZIP بامتداد `.oriveo` يحمل `data.json` مع ملفات الصور. وكلمة المرور
@@ -194,6 +197,7 @@ ios/Oriveo/
       Models/          domain types
       Attachments/     import limits, budgets, per-format text extraction
       Tools/           tool-call loop and per-protocol adapters
+      MCP/             remote MCP client: protocol, sign-in, tool bridge
       Cache/ Localization/ Observability/ Reachability/ Routing/ Usage/
     Features/
       App/             root view and tab shell
@@ -203,7 +207,7 @@ ios/Oriveo/
     Shared/Components/ shared views
     DesignSystem/      theme, colour, haptics
     Preview/           sample data for SwiftUI previews
-    *.xcstrings        ten string catalogs
+    *.xcstrings        eleven string catalogs
     Assets.xcassets · PrivacyInfo.xcprivacy · Oriveo.entitlements
   OriveoTests/
 ```
@@ -212,7 +216,8 @@ ios/Oriveo/
 
 تحتاج **Xcode 26**، وللتشغيل على عتاد حقيقي جهازا يعمل بنظام **iOS 18 أو أحدث**. ويكفي حساب
 Apple Developer مجاني: فملف الاستحقاقات فارغ والتطبيق لا يستخدم أي قدرة مدفوعة — لا إشعارات دفع،
-ولا iCloud، ولا مجموعات تطبيقات، ولا نطاقات مرتبطة.
+ولا iCloud، ولا مجموعات تطبيقات، ولا نطاقات مرتبطة. والشيء الوحيد الذي يسجّله لدى النظام هو مخطط
+الروابط `oriveo://`، وإليه يعيد المتصفح التوجيه بعد تسجيل الدخول إلى خادم MCP بعيد.
 
 وXcode 16.3 هو الحد الأدنى الذي تفرضه صيغة المشروع وإصدار أدوات Swift فعلا، لكن الهدف يضبط
 `SWIFT_APPROACHABLE_CONCURRENCY` و`SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor`، وهما ما تتجاهله
@@ -286,7 +291,7 @@ cd shared/OriveoProviderKit && swift test
 
 ## الترجمة والتوطين
 
-ست عشرة لغة، مخزّنة كفهارس نصوص Xcode (`.xcstrings`) — عشرة فهارس، ونحو 1,340 مفتاحا، والإنجليزية
+ست عشرة لغة، مخزّنة كفهارس نصوص Xcode (`.xcstrings`) — أحد عشر فهرسا، ونحو 1,560 مفتاحا، والإنجليزية
 هي المصدر. وكل مفتاح مترجَم إلى اللغات الست عشرة كلها، إلا القليل الموسوم بـ
 `shouldTranslate: false`: اسم المنتج، وعلامات الترقيم، وهياكل التنسيق، وقيم البروتوكول التي يكون
 توطينها خطأ. وتُحلّ النصوص عبر `L10n.tr(_:table:)` مقابل حزمة `.lproj` تُختار من إعداد اللغة داخل

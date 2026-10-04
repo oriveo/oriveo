@@ -94,6 +94,8 @@ Des données de test de référence : trafic amont d'appels d'outils enregistr�
 validation de formulaires, classification des adresses locales, scénarios de catalogue et de
 configuration portable, instantanés de model facts et de preuves de capacités, et scénarios de
 moteurs locaux.
+`mcp/` contient les échanges du protocole MCP et de la connexion, ainsi qu'un serveur MCP
+factice sur lequel tournent les suites des clients.
 
 Les fichiers `.sse` situés sous `provider-toolcall/recorded/` sont du **vrai trafic amont capturé**,
 gardé octet pour octet tel qu'il est arrivé — seuls les en-têtes de réponse ont été retirés, et les

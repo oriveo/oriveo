@@ -95,6 +95,8 @@ perubahan pada ketiga klien sekaligus.
 Data pengujian golden: trafik tool-call upstream yang terekam, routing relay, validasi formulir,
 klasifikasi alamat lokal, skenario katalog dan portable config, snapshot model-facts dan
 capability-evidence, serta skenario local engine.
+`mcp/` berisi pertukaran protokol MCP dan proses masuknya, beserta server MCP tiruan yang menjadi
+sasaran suite tiap klien.
 
 Berkas `.sse` di bawah `provider-toolcall/recorded/` adalah **trafik upstream sungguhan yang
 direkam**, disimpan byte demi byte sebagaimana ia tiba — hanya header response yang dibuang, dan

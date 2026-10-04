@@ -135,18 +135,19 @@ Les redéfinitions sont résolues en dernier-écrit-gagne sur sept portées, par
 | Clés API des fournisseurs | `EncryptedSharedPreferences`, AES-256-GCM, clé maîtresse détenue par le Keystore |
 | Jetons OAuth d'abonnement | un deuxième fichier de préférences chiffré, distinct |
 | Clés des archives de sauvegarde | un troisième |
+| Jetons de connexion MCP, et adresses de serveur contenant une clé | un quatrième |
 | Blobs de pièces jointes | des fichiers sur disque, référencés par id |
 
-Les trois fichiers de préférences chiffrés sont séparés selon leur durée de vie et leur rayon
+Les quatre fichiers de préférences chiffrés sont séparés selon leur durée de vie et leur rayon
 d'impact plutôt que fusionnés par commodité. Chacun a un chemin de récupération : un fichier corrompu
 (`AEADBadTagException`, `VERIFICATION_FAILED`) est détecté, supprimé et recréé au lieu de faire
 planter l'app à chaque lancement.
 
-Tous les trois, ainsi que la base de continuation, sont exclus de la sauvegarde cloud Android et du
+Tous les quatre, ainsi que la base de continuation, sont exclus de la sauvegarde cloud Android et du
 transfert d'appareil. C'est une conséquence de leur liaison au Keystore, pas un oubli — le texte
 chiffré serait de toute façon indéchiffrable sur le nouvel appareil. **Après un changement de
-téléphone, vous ressaisissez vos clés API et vous vous reconnectez à tout abonnement fournisseur** ;
-les conversations et les notes suivent normalement.
+téléphone, vous ressaisissez vos clés API et vous vous reconnectez à tout abonnement fournisseur et à
+tout serveur MCP** ; les conversations et les notes suivent normalement.
 
 Une archive que vous exportez vous-même est un zip contenant `data.json` et les fichiers des pièces
 jointes. Le mot de passe que vous choisissez protège **les seules clés API des fournisseurs** qui s'y
@@ -227,6 +228,7 @@ android/
       model/       domain models and the capability/preference resolvers
       attachments/ routing, budgets, per-format text extraction
       security/    SecureKeyStore, BackupCrypto, external-URL policy
+      mcp/         remote MCP client: protocol, sign-in, tool bridge
       streaming/   ChatStreamingManager
       navigation/  AppRoute, OriveoNavHost
     feature/       one package per screen
@@ -314,7 +316,7 @@ vers `app/schemas/` et versionnés, et c'est là qu'atterrira le `2.json` de la 
 ## Localisation
 
 Seize langues : `values/` (l'anglais, la source) plus quinze répertoires de locale — à côté de
-`values-night`, qui ne porte aucune chaîne —, environ 1 340 chaînes chacun, chaque locale détenant un
+`values-night`, qui ne porte aucune chaîne —, environ 1 570 chaînes chacun, chaque locale détenant un
 jeu de clés identique. Le changement de langue dans l'app
 passe par `AppLanguageManager` et `android:localeConfig`. Les splits par langue sont désactivés dans
 le bundle, si bien qu'un seul artefact porte toutes les traductions.

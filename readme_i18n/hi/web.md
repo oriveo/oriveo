@@ -90,9 +90,10 @@ flowchart LR
 चलते Next.js route handlers से आगे भेजता है। जब आप `npm run dev:app` चलाते हैं, वे handler आपकी अपनी
 मशीन पर होते हैं। जब आप ऐप कहीं deploy करते हैं, वे उसी मशीन पर होते हैं जहाँ आपने deploy किया।
 
-handler एक नहीं है: चैट streaming, रिले सेवा (Relay) का forwarder, इमेज जनरेशन, मॉडल सूची, key वैलिडेशन, और Grok
-तथा ChatGPT के device-login exchange — ये सब मिलकर कुल बारह route फ़ाइलें बनती हैं। key वैलिडेशन यहाँ
-मायने रखता है — वह key आपके अपने सर्वर पर पोस्ट करता है, और वही सर्वर उससे प्रोवाइडर को जाँचता है।
+handler एक नहीं है: चैट streaming, रिले सेवा (Relay) का forwarder, MCP का forwarder, इमेज जनरेशन, मॉडल
+सूची, key वैलिडेशन, और Grok तथा ChatGPT के device-login exchange — ये सब मिलकर कुल तेरह route फ़ाइलें
+बनती हैं। key वैलिडेशन यहाँ मायने रखता है — वह key आपके अपने सर्वर पर पोस्ट करता है, और वही सर्वर उससे
+प्रोवाइडर को जाँचता है।
 
 कुछ endpoint ब्राउज़र को *इजाज़त देते ही हैं*, और उन्हें बीच में किसी सर्वर के बिना सीधे कॉल किया जाता
 है: चैट के लिए Kimi का चीन वाला endpoint (`api.moonshot.cn`), और OpenRouter, SiliconFlow, DeepSeek
@@ -184,6 +185,7 @@ backend लगाया नहीं गया है, इसलिए `getSyncA
 | मॉडल कैटलॉग snapshot (~3 MB) और model facts | IndexedDB blob store, जानबूझकर localStorage नहीं |
 | प्राथमिकताएँ और model-control टेबल | `localStorage`, जिन रास्तों पर throw होते देखा गया उन्हें `safeLocalStorage` लपेटता है |
 | जनरेट की गई और अटैच की गई इमेज | एक अलग IndexedDB डेटाबेस |
+| MCP सर्वर, उनके टूल और साइन-इन token | IndexedDB `oriveo-mcp--{id}` |
 
 दो बातें पसंद से नहीं, असली टूट-फूट से आई हैं। कैटलॉग snapshot IndexedDB में इसलिए रहता है कि ~3 MB
 पर वह किसी ब्राउज़र origin के 5 MB localStorage कोटे का ज़्यादातर हिस्सा खा जाता था। और localStorage
@@ -310,7 +312,7 @@ storage partitioning, बैकअप के round-trip, और ख़ुद rou
 
 ## स्थानीयकरण
 
-`apps/app/messages` में सोलह locale, हर एक में क़रीब 1,800 key, और अंग्रेज़ी स्रोत भाषा। एक टेस्ट
+`apps/app/messages` में सोलह locale, हर एक में क़रीब 1,950 key, और अंग्रेज़ी स्रोत भाषा। एक टेस्ट
 डायरेक्टरी पर चलता है और फ़ेल हो जाता है अगर किसी locale का key सेट अंग्रेज़ी से अलग हो, इसलिए locale
 फ़ाइल जोड़ते ही वह अपने आप शामिल हो जाती है। अरबी को पूरा right-to-left लेआउट मिलता है। Locale का चुनाव
 पहले स्पष्ट `?locale=` पैरामीटर, फिर cookie, फिर `Accept-Language` के हिसाब से होता है।

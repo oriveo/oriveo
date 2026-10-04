@@ -134,18 +134,19 @@ As sobrescritas são resolvidas por last-write-wins em sete escopos, em ordem de
 | Chaves de API dos provedores | `EncryptedSharedPreferences`, AES-256-GCM, chave mestra guardada no Keystore |
 | Tokens OAuth de assinatura | um segundo arquivo de preferências criptografado, separado |
 | Chaves dos arquivos de backup | um terceiro |
+| Tokens de login do MCP e endereços de servidor que trazem uma chave embutida | um quarto |
 | Blobs de anexo | arquivos em disco, referenciados por id |
 
-Os três arquivos de preferências criptografados são separados por tempo de vida e raio de impacto,
+Os quatro arquivos de preferências criptografados são separados por tempo de vida e raio de impacto,
 em vez de fundidos por conveniência. Cada um tem um caminho de recuperação: um arquivo corrompido
 (`AEADBadTagException`, `VERIFICATION_FAILED`) é detectado, apagado e recriado, em vez de derrubar o
 app a cada inicialização.
 
-Os três, mais o banco de continuações, ficam de fora do backup na nuvem e da transferência entre
+Os quatro, mais o banco de continuações, ficam de fora do backup na nuvem e da transferência entre
 dispositivos do Android. Isso é consequência de estarem atrelados ao Keystore, não um descuido — o
 texto cifrado seria indecifrável no aparelho novo de qualquer forma. **Depois de trocar de celular,
-você digita as suas chaves de API de novo e faz login outra vez em qualquer assinatura de
-provedor**; conversas e notas passam normalmente.
+você digita as suas chaves de API de novo e faz login outra vez em qualquer assinatura de provedor
+e em qualquer servidor MCP**; conversas e notas passam normalmente.
 
 Um arquivo que você mesmo exporta é um zip com o `data.json` mais os arquivos de anexo. A senha que
 você escolhe protege **apenas as chaves de API de provedor** que estão dentro dele: elas são
@@ -222,6 +223,7 @@ android/
       model/       domain models and the capability/preference resolvers
       attachments/ routing, budgets, per-format text extraction
       security/    SecureKeyStore, BackupCrypto, external-URL policy
+      mcp/         remote MCP client: protocol, sign-in, tool bridge
       streaming/   ChatStreamingManager
       navigation/  AppRoute, OriveoNavHost
     feature/       one package per screen
@@ -309,7 +311,7 @@ Os dois bancos de dados estão em `version = 1`, ainda sem migrações; os schem
 ## Localização
 
 Dezesseis idiomas: `values/` (inglês, a origem) mais quinze diretórios de locale — ao lado de
-`values-night`, que não carrega strings —, com cerca de 1.340 strings cada, e todos os locales
+`values-night`, que não carrega strings —, com cerca de 1.570 strings cada, e todos os locales
 mantendo um conjunto de chaves idêntico. A troca de idioma
 dentro do app passa por `AppLanguageManager` e `android:localeConfig`. Os splits por idioma estão
 desativados no bundle, para que um único artefato carregue todas as traduções.

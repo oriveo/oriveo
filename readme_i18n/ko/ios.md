@@ -150,6 +150,9 @@ Application Support/Oriveo/
   다룹니다. 메시지와 노트에 대한 전문 검색은 trigram 토크나이저를 쓰는 FTS5를 사용합니다.
 - **API 키는 Keychain에 있으며**, 공급자와 파티션으로 키를 구분하고, 세션 스냅샷을 쓰기 전에
   거기서 지워집니다. 스킬은 따로 `UserDefaults`의 JSON으로 저장됩니다.
+- **MCP 로그인 토큰도 Keychain에 있으며**, 전용 서비스 아래에 따로 저장되어 이 기기에만 남고
+  iCloud Keychain에는 동기화되지 않습니다. 키가 들어 있는 서버 주소도 토큰과 함께 저장되고,
+  데이터베이스에는 표시용 형태만 남습니다.
 - **첨부 파일 blob은 행이 아니라 디스크의 파일**이라, 큰 PDF 하나가 데이터베이스를 부풀리지
   않습니다.
 
@@ -198,6 +201,7 @@ ios/Oriveo/
       Models/          domain types
       Attachments/     import limits, budgets, per-format text extraction
       Tools/           tool-call loop and per-protocol adapters
+      MCP/             remote MCP client: protocol, sign-in, tool bridge
       Cache/ Localization/ Observability/ Reachability/ Routing/ Usage/
     Features/
       App/             root view and tab shell
@@ -207,7 +211,7 @@ ios/Oriveo/
     Shared/Components/ shared views
     DesignSystem/      theme, colour, haptics
     Preview/           sample data for SwiftUI previews
-    *.xcstrings        ten string catalogs
+    *.xcstrings        eleven string catalogs
     Assets.xcassets · PrivacyInfo.xcprivacy · Oriveo.entitlements
   OriveoTests/
 ```
@@ -216,7 +220,9 @@ ios/Oriveo/
 
 **Xcode 26**이 필요하고, 실제 기기에서 돌리려면 **iOS 18 이상**의 기기가 필요합니다. 무료 Apple
 Developer 계정이면 충분합니다. entitlements 파일은 비어 있고 앱은 유료 capability를 쓰지 않습니다 —
-푸시도, iCloud도, 앱 그룹도, associated domains도 없습니다.
+푸시도, iCloud도, 앱 그룹도, associated domains도 없습니다. 시스템에 등록하는 것은 `oriveo://` URL
+스킴 하나뿐이며, 원격 MCP 서버에 브라우저로 로그인하고 나면 이 스킴으로 리디렉션되어 앱으로
+돌아옵니다.
 
 프로젝트 포맷과 Swift tools 버전이 실제로 강제하는 하한은 Xcode 16.3이지만, 타깃이
 `SWIFT_APPROACHABLE_CONCURRENCY`와 `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor`를 설정하고 있고
@@ -289,7 +295,7 @@ cd shared/OriveoProviderKit && swift test
 
 ## 현지화
 
-16개 언어이며 Xcode String Catalog(`.xcstrings`)로 저장됩니다 — 카탈로그 10개, 키 약 1,340개,
+16개 언어이며 Xcode String Catalog(`.xcstrings`)로 저장됩니다 — 카탈로그 11개, 키 약 1,560개,
 소스는 영어입니다. `shouldTranslate: false`로 표시된 몇 개를 빼면 모든 키가 16개 언어로 번역되어
 있습니다. 제외되는 것은 제품명, 문장 부호, 포맷 스켈레톤, 그리고 현지화하면 틀리게 되는 프로토콜
 값입니다. 문자열은 사용자의 앱 내 언어 설정으로 고른 `.lproj` 번들에 대해 `L10n.tr(_:table:)`로

@@ -91,10 +91,10 @@ Browser-BYOK-Client muss das irgendwie lösen; dieser leitet über Next.js Route
 Node-Runtime weiter. Wenn du `npm run dev:app` startest, laufen diese Handler auf deinem eigenen
 Rechner. Wenn du die App irgendwo deployst, laufen sie auf der Maschine, auf die du deployt hast.
 
-Es ist nicht nur ein Handler: Chat-Streaming, der Relay-Forwarder, Bildgenerierung, die Modellliste,
-die Key-Prüfung sowie die Device-Login-Austausche für Grok und ChatGPT kommen zusammen auf zwölf
-Route-Dateien. Die Key-Prüfung ist hier wichtig – sie schickt den Key an deinen eigenen Server, der
-damit beim Anbieter anklopft.
+Es ist nicht nur ein Handler: Chat-Streaming, der Relay-Forwarder, der MCP-Forwarder,
+Bildgenerierung, die Modellliste, die Key-Prüfung sowie die Device-Login-Austausche für Grok und
+ChatGPT kommen zusammen auf dreizehn Route-Dateien. Die Key-Prüfung ist hier wichtig – sie schickt
+den Key an deinen eigenen Server, der damit beim Anbieter anklopft.
 
 Ein paar Endpunkte *erlauben* einen Browser, und die werden ohne Server dazwischen direkt aufgerufen:
 Kimis China-Endpunkt (`api.moonshot.cn`) für Chat und die Guthaben-Endpunkte von OpenRouter,
@@ -189,6 +189,7 @@ Alles ist pro Partition, geschlüsselt über eine aktive id, die standardmäßig
 | Snapshot des Modellkatalogs (~3 MB) und Model Facts | IndexedDB-Blob-Store, bewusst nicht localStorage |
 | Einstellungen und Modellsteuerungs-Tabellen | `localStorage`, wobei `safeLocalStorage` die Pfade umhüllt, die nachweislich geworfen haben |
 | Generierte und angehängte Bilder | eine separate IndexedDB-Datenbank |
+| MCP-Server, ihre Tools und Anmelde-Tokens | IndexedDB `oriveo-mcp--{id}` |
 
 Zwei Details, die aus echten Ausfällen stammen und nicht aus Geschmack. Der Katalog-Snapshot liegt in
 IndexedDB, weil er mit rund 3 MB den größten Teil der 5 MB localStorage-Quote einer Browser-Origin
@@ -320,7 +321,7 @@ Backup-Rundläufe und die Route Handler selbst.
 
 ## Lokalisierung
 
-Sechzehn Locales in `apps/app/messages`, je rund 1.800 Keys, Englisch als Quelle. Ein Test läuft das
+Sechzehn Locales in `apps/app/messages`, je rund 1.950 Keys, Englisch als Quelle. Ein Test läuft das
 Verzeichnis ab und schlägt fehl, wenn der Schlüsselsatz einer Locale von dem englischen abweicht;
 eine Locale-Datei hinzuzufügen nimmt sie damit automatisch auf. Arabisch bekommt ein vollständiges
 Rechts-nach-links-Layout. Die Locale-Wahl folgt einem expliziten `?locale=`-Parameter, dann einem

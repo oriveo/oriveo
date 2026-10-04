@@ -93,6 +93,8 @@ Clients auf einmal.
 Golden-Testdaten: aufgezeichneter Upstream-Verkehr von Tool-Calls, Relay-Routing,
 Formularvalidierung, Klassifikation lokaler Adressen, Szenarien für den Katalog und für portable
 Konfiguration, Snapshots von Model Facts und Capability-Belegen sowie Szenarien für lokale Engines.
+`mcp/` enthält die Protokoll- und Anmeldeabläufe von MCP sowie einen Mock-MCP-Server, gegen den
+die Client-Suiten laufen.
 
 Die `.sse`-Dateien unter `provider-toolcall/recorded/` sind **echt mitgeschnittener
 Upstream-Verkehr**, Byte für Byte so gehalten, wie er angekommen ist – nur die Response-Header wurden

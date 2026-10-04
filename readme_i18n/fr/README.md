@@ -121,6 +121,9 @@ Personne ne devrait pouvoir comptabiliser, journaliser ni majorer le modèle que
   d'une clé API, via le flux d'autorisation par appareil propre à chaque fournisseur
 - **Compétences** — des prompts système réutilisables avec leur propre modèle, leur réglage de
   raisonnement et leurs documents de référence
+- **Outils MCP** — ajoutez un serveur MCP distant par son adresse, connectez-vous depuis le navigateur
+  ou avec un jeton d'accès, et laissez le modèle appeler ses outils dans le chat, chaque outil pouvant
+  s'exécuter tout seul, demander d'abord ou rester désactivé, selon votre réglage
 - **Notes et dossiers** — capturer une réponse en note, organiser les conversations, chercher dans les
   deux
 - **Vérifier avec un autre modèle** — confier une réponse à un second modèle pour qu'il l'examine et

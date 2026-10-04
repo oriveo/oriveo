@@ -120,6 +120,9 @@ yang Anda bayar.
   key, lewat alur device authorization milik masing-masing provider
 - **Keterampilan** — system prompt yang bisa dipakai ulang, dengan model, setelan reasoning, dan
   dokumen referensinya sendiri
+- **Alat MCP** — tambahkan server MCP jarak jauh lewat alamatnya, masuk lewat browser atau dengan
+  access token, lalu biarkan model memanggil alat-alatnya di dalam percakapan; tiap alat bisa
+  langsung berjalan, minta izin dulu, atau tetap dimatikan, sesuai setelan Anda
 - **Catatan dan folder** — simpan sebuah balasan sebagai catatan, rapikan percakapan, cari di keduanya
 - **Periksa dengan model lain** — serahkan sebuah jawaban ke model kedua untuk ditinjau dan simpan
   keduanya bersama

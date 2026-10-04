@@ -91,9 +91,10 @@ her BYOK istemcisinin bunu bir biçimde çözmesi gerekir; bu istemci, Node çal
 Next.js route handler'ları üzerinden iletir. `npm run dev:app` çalıştırdığınızda o handler'lar sizin
 makinenizdedir. Uygulamayı bir yere dağıttığınızda ise dağıttığınız makinededir.
 
-Tek bir handler yok: sohbet akışı, relay iletici, görsel üretimi, model listesi, anahtar doğrulama
-ve Grok ile ChatGPT cihaz girişi takasları toplamda on iki route dosyası eder. Anahtar doğrulama
-burada önemlidir — anahtarı kendi sunucunuza gönderir, o da onunla sağlayıcıyı yoklar.
+Tek bir handler yok: sohbet akışı, relay iletici, MCP iletici, görsel üretimi, model listesi,
+anahtar doğrulama ve Grok ile ChatGPT cihaz girişi takasları toplamda on üç route dosyası eder.
+Anahtar doğrulama burada önemlidir — anahtarı kendi sunucunuza gönderir, o da onunla sağlayıcıyı
+yoklar.
 
 Birkaç endpoint tarayıcıya *izin verir* ve bunlar arada hiçbir sunucu olmadan doğrudan çağrılır:
 sohbet için Kimi'nin Çin endpoint'i (`api.moonshot.cn`) ve OpenRouter, SiliconFlow, DeepSeek ile
@@ -184,6 +185,7 @@ Her şey bölümlere ayrılmıştır ve varsayılanı `guest` olan etkin bir id 
 | Model kataloğu anlık görüntüsü (~3 MB) ve model facts | IndexedDB blob deposu, bilinçli olarak localStorage değil |
 | Tercihler ve model denetim tabloları | `localStorage`, hata fırlattığı görülen yolları `safeLocalStorage` sarmalar |
 | Üretilen ve eklenen görseller | ayrı bir IndexedDB veritabanı |
+| MCP sunucuları, araçları ve giriş token'ları | IndexedDB `oriveo-mcp--{id}` |
 
 Zevkten değil, gerçek arızalardan gelen iki ayrıntı. Katalog anlık görüntüsü IndexedDB'de yaşıyor,
 çünkü ~3 MB boyutuyla bir tarayıcı origin'inin 5 MB'lık localStorage kotasının büyük kısmını
@@ -315,7 +317,7 @@ handler'ların kendisi.
 
 ## Yerelleştirme
 
-`apps/app/messages` içinde on altı dil, her birinde yaklaşık 1.800 anahtar, kaynak dil İngilizce.
+`apps/app/messages` içinde on altı dil, her birinde yaklaşık 1.950 anahtar, kaynak dil İngilizce.
 Bir test dizini tarar ve herhangi bir dilin anahtar kümesi İngilizceden farklıysa başarısız olur;
 böylece bir dil dosyası eklemek onu kendiliğinden kaydeder. Arapça tam sağdan sola yerleşim alır.
 Dil seçimi önce açık bir `?locale=` parametresini, sonra bir çerezi, sonra `Accept-Language`

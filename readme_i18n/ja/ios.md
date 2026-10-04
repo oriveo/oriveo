@@ -154,6 +154,9 @@ Application Support/Oriveo/
 - **API キーは Keychain に置かれ**、プロバイダーとパーティションをキーとして管理されます。セッション
   スナップショットに書き出す前に、そこからは消去されます。スキル はこれとは別に、`UserDefaults` の
   JSON として保存されます。
+- **MCP のサインイントークンも Keychain に置かれます**。専用のサービス名で保存され、この端末だけに
+  とどまり、iCloud Keychain には同期されません。キーを含むサーバーアドレスも同じ場所に保存され、
+  データベースに残るのは表示用の形だけです。
 - **添付ファイルの実体はディスク上のファイル**であり、レコードではありません。大きな PDF が
   データベースを膨らませることはありません。
 
@@ -204,6 +207,7 @@ ios/Oriveo/
       Models/          domain types
       Attachments/     import limits, budgets, per-format text extraction
       Tools/           tool-call loop and per-protocol adapters
+      MCP/             remote MCP client: protocol, sign-in, tool bridge
       Cache/ Localization/ Observability/ Reachability/ Routing/ Usage/
     Features/
       App/             root view and tab shell
@@ -213,7 +217,7 @@ ios/Oriveo/
     Shared/Components/ shared views
     DesignSystem/      theme, colour, haptics
     Preview/           sample data for SwiftUI previews
-    *.xcstrings        ten string catalogs
+    *.xcstrings        eleven string catalogs
     Assets.xcassets · PrivacyInfo.xcprivacy · Oriveo.entitlements
   OriveoTests/
 ```
@@ -222,7 +226,9 @@ ios/Oriveo/
 
 **Xcode 26** が必要で、実機で動かすなら **iOS 18 以降**の端末が必要です。無料の Apple Developer
 アカウントで十分です。entitlements ファイルは空で、このアプリは有料の capability を一切使いません。
-プッシュも iCloud も App Group も Associated Domains もありません。
+プッシュも iCloud も App Group も Associated Domains もありません。システムに登録しているのは
+`oriveo://` という URL スキームだけで、リモートの MCP サーバーへブラウザでサインインしたあと、
+ここへリダイレクトされて戻ってきます。
 
 プロジェクトのフォーマットと Swift tools のバージョンが実際に課している下限は Xcode 16.3 ですが、
 ターゲットは `SWIFT_APPROACHABLE_CONCURRENCY` と `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor` を
@@ -299,8 +305,8 @@ cd shared/OriveoProviderKit && swift test
 
 ## ローカライズ
 
-16 言語を Xcode の String Catalog（`.xcstrings`）として保持しています。カタログは 10 個、キーはおよそ
-1,340、英語がソースです。`shouldTranslate: false` が付いたごく一部を除き、すべてのキーが 16 言語に
+16 言語を Xcode の String Catalog（`.xcstrings`）として保持しています。カタログは 11 個、キーはおよそ
+1,560、英語がソースです。`shouldTranslate: false` が付いたごく一部を除き、すべてのキーが 16 言語に
 翻訳されています。除外されるのは、製品名、句読点、フォーマットのスケルトン、そしてローカライズしたら
 間違いになるプロトコル値です。文字列は、アプリ内の言語設定から選ばれた `.lproj` バンドルに対して
 `L10n.tr(_:table:)` 経由で解決されるため、言語の切り替えは再起動なしで反映されます。アラビア語の

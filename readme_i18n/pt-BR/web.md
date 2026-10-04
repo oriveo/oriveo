@@ -91,10 +91,10 @@ Next.js rodando no runtime Node. Quando você roda `npm run dev:app`, esses hand
 própria máquina. Quando você faz deploy do app em algum lugar, eles estão na máquina para a qual você
 fez o deploy.
 
-Não é um handler só: o streaming de chat, o encaminhador de relay, a geração de imagens, a lista de
-modelos, a validação de chave e as trocas de device login do Grok e do ChatGPT dão doze arquivos de
-rota no total. A validação de chave importa aqui — ela manda a chave para o seu próprio servidor,
-que sonda o provedor com ela.
+Não é um handler só: o streaming de chat, o encaminhador de relay, o encaminhador de MCP, a geração
+de imagens, a lista de modelos, a validação de chave e as trocas de device login do Grok e do
+ChatGPT dão treze arquivos de rota no total. A validação de chave importa aqui — ela manda a chave
+para o seu próprio servidor, que sonda o provedor com ela.
 
 Alguns poucos endpoints *aceitam* um navegador, e esses são chamados diretamente, sem servidor no
 meio: o endpoint chinês do Kimi (`api.moonshot.cn`) para chat, e os endpoints de saldo de
@@ -187,6 +187,7 @@ Tudo é por partição, indexado por um id ativo cujo padrão é `guest`.
 | Snapshot do catálogo de modelos (~3 MB) e model facts | store de blobs no IndexedDB, deliberadamente não no localStorage |
 | Preferências e tabelas de controle de modelo | `localStorage`, com o `safeLocalStorage` envolvendo os caminhos em que se viu exceção |
 | Imagens geradas e anexadas | um banco IndexedDB separado |
+| Servidores MCP, suas ferramentas e tokens de login | IndexedDB `oriveo-mcp--{id}` |
 
 Dois detalhes que vieram de quebra real, não de gosto. O snapshot do catálogo vive no IndexedDB
 porque, com ~3 MB, ele consumia a maior parte da cota de 5 MB de localStorage de uma origem no
@@ -317,7 +318,7 @@ armazenamento, ciclos completos de backup e os próprios route handlers.
 
 ## Localização
 
-Dezesseis locales em `apps/app/messages`, cerca de 1.800 chaves cada, com o inglês como origem. Um
+Dezesseis locales em `apps/app/messages`, cerca de 1.950 chaves cada, com o inglês como origem. Um
 teste percorre o diretório e falha se o conjunto de chaves de algum locale diferir do inglês, então
 adicionar um arquivo de locale já o inscreve automaticamente. O árabe recebe layout completo da
 direita para a esquerda. A seleção de locale segue um parâmetro `?locale=` explícito, depois um

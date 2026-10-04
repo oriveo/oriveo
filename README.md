@@ -115,6 +115,9 @@ Nobody should be able to meter, log, or mark up the model you are paying for.
   key, over each provider's own device-authorization flow
 - **Skills** — reusable system prompts with their own model, reasoning setting, and reference
   documents
+- **MCP tools** — add a remote MCP server by its address, sign in through the browser or with an
+  access token, and let the model call its tools in chat; each tool runs on its own, asks first, or
+  stays off, as you set it
 - **Notes and folders** — capture a reply as a note, organise conversations, search across both
 - **Cross-check** — hand an answer to a second model for review and keep the two together
 - **Memory** — a few facts about yourself, written once and carried into every new conversation

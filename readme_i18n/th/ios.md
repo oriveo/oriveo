@@ -152,6 +152,10 @@ Application Support/Oriveo/
 - **API key อยู่ใน Keychain** แยกตามผู้ให้บริการและพาร์ทิชัน
   และถูกลบออกจาก session snapshot ก่อนที่ snapshot นั้นจะถูกเขียนลงดิสก์
   ส่วนทักษะถูกเก็บแยกเป็น JSON ใน `UserDefaults`
+- **โทเคนเข้าสู่ระบบของ MCP ก็อยู่ใน Keychain เช่นกัน** ภายใต้ service ของตัวเอง
+  เก็บไว้บนอุปกรณ์เครื่องนี้เท่านั้นและไม่เข้าไปอยู่ใน iCloud Keychain
+  ที่อยู่เซิร์ฟเวอร์ที่มีคีย์ฝังอยู่ก็ถูกเก็บไว้ที่เดียวกับโทเคน
+  ส่วนฐานข้อมูลเก็บไว้แค่รูปแบบสำหรับแสดงผลของที่อยู่นั้น
 - **ไฟล์แนบเป็นไฟล์บนดิสก์** ไม่ใช่แถวในตาราง ไฟล์ PDF ขนาดใหญ่จึงไม่ทำให้ฐานข้อมูลบวม
 
 ไฟล์สำรองข้อมูลคือ ZIP นามสกุล `.oriveo` ที่บรรจุ `data.json` พร้อมไฟล์รูปภาพ
@@ -201,6 +205,7 @@ ios/Oriveo/
       Models/          domain types
       Attachments/     import limits, budgets, per-format text extraction
       Tools/           tool-call loop and per-protocol adapters
+      MCP/             remote MCP client: protocol, sign-in, tool bridge
       Cache/ Localization/ Observability/ Reachability/ Routing/ Usage/
     Features/
       App/             root view and tab shell
@@ -210,7 +215,7 @@ ios/Oriveo/
     Shared/Components/ shared views
     DesignSystem/      theme, colour, haptics
     Preview/           sample data for SwiftUI previews
-    *.xcstrings        ten string catalogs
+    *.xcstrings        eleven string catalogs
     Assets.xcassets · PrivacyInfo.xcprivacy · Oriveo.entitlements
   OriveoTests/
 ```
@@ -220,6 +225,8 @@ ios/Oriveo/
 คุณต้องมี **Xcode 26** และถ้าจะรันบนเครื่องจริงก็ต้องมีอุปกรณ์ที่รัน **iOS 18 ขึ้นไป** บัญชี Apple
 Developer แบบฟรีก็เพียงพอ ไฟล์ entitlements เป็นไฟล์เปล่า และแอปไม่ได้ใช้ capability ที่ต้องเสียเงิน
 — ไม่มี push ไม่มี iCloud ไม่มี app group ไม่มี associated domain
+สิ่งเดียวที่แอปลงทะเบียนไว้กับระบบคือ URL scheme `oriveo://`
+ซึ่งการเข้าสู่ระบบเซิร์ฟเวอร์ MCP ระยะไกลผ่านเบราว์เซอร์ใช้ redirect กลับมาที่แอป
 
 ขั้นต่ำที่รูปแบบไฟล์โปรเจกต์และเวอร์ชันของ Swift tools บังคับจริง ๆ คือ Xcode 16.3 แต่ target นี้ตั้ง
 `SWIFT_APPROACHABLE_CONCURRENCY` และ `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor` ไว้
@@ -295,7 +302,7 @@ cd shared/OriveoProviderKit && swift test
 
 ## การแปลภาษา
 
-สิบหกภาษา เก็บเป็น Xcode String Catalog (`.xcstrings`) — สิบแคตตาล็อก คีย์ราว 1,340 รายการ
+สิบหกภาษา เก็บเป็น Xcode String Catalog (`.xcstrings`) — สิบเอ็ดแคตตาล็อก คีย์ราว 1,560 รายการ
 โดยใช้ภาษาอังกฤษเป็นต้นทาง ทุกคีย์ถูกแปลครบทั้งสิบหกภาษา
 ยกเว้นไม่กี่รายการที่ทำเครื่องหมาย `shouldTranslate: false` ไว้ ได้แก่ ชื่อผลิตภัณฑ์ เครื่องหมายวรรคตอน
 โครงรูปแบบ และค่าของโปรโตคอลที่แปลไปแล้วจะผิด สตริงถูก resolve ผ่าน `L10n.tr(_:table:)` จาก bundle

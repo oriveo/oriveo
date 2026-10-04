@@ -155,6 +155,9 @@ Application Support/Oriveo/
 - **As chaves de API ficam no Keychain**, indexadas por provedor e partição, e são apagadas do
   snapshot de sessão antes de ele ser escrito. As habilidades são guardadas em separado, como JSON no
   `UserDefaults`.
+- **Os tokens de login do MCP também ficam no Keychain**, em um serviço próprio, só neste
+  dispositivo e fora do iCloud Keychain. Um endereço de servidor que traz uma chave embutida é
+  guardado junto com eles, e o banco de dados fica apenas com uma forma de exibição desse endereço.
 - **Os blobs de anexo são arquivos em disco**, não linhas, então um PDF grande nunca incha o banco de
   dados.
 
@@ -205,6 +208,7 @@ ios/Oriveo/
       Models/          domain types
       Attachments/     import limits, budgets, per-format text extraction
       Tools/           tool-call loop and per-protocol adapters
+      MCP/             remote MCP client: protocol, sign-in, tool bridge
       Cache/ Localization/ Observability/ Reachability/ Routing/ Usage/
     Features/
       App/             root view and tab shell
@@ -214,7 +218,7 @@ ios/Oriveo/
     Shared/Components/ shared views
     DesignSystem/      theme, colour, haptics
     Preview/           sample data for SwiftUI previews
-    *.xcstrings        ten string catalogs
+    *.xcstrings        eleven string catalogs
     Assets.xcassets · PrivacyInfo.xcprivacy · Oriveo.entitlements
   OriveoTests/
 ```
@@ -223,7 +227,9 @@ ios/Oriveo/
 
 Você precisa do **Xcode 26** e, para rodar em hardware, de um dispositivo com **iOS 18 ou superior**.
 Uma conta gratuita de Apple Developer é suficiente: o arquivo de entitlements é vazio e o app não usa
-nenhuma capability paga — sem push, sem iCloud, sem app groups, sem associated domains.
+nenhuma capability paga — sem push, sem iCloud, sem app groups, sem associated domains. A única
+coisa que ele registra no sistema é o esquema de URL `oriveo://`, para onde o login pelo navegador
+em um servidor MCP remoto redireciona de volta.
 
 O Xcode 16.3 é o piso que o formato do projeto e a versão do Swift tools realmente impõem, mas o
 target define `SWIFT_APPROACHABLE_CONCURRENCY` e `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor`, que
@@ -301,8 +307,8 @@ cd shared/OriveoProviderKit && swift test
 
 ## Localização
 
-Dezesseis idiomas, guardados como String Catalogs do Xcode (`.xcstrings`) — dez catálogos, cerca de
-1.340 chaves, com o inglês como origem. Toda chave é traduzida para os dezesseis idiomas, com exceção
+Dezesseis idiomas, guardados como String Catalogs do Xcode (`.xcstrings`) — onze catálogos, cerca de
+1.560 chaves, com o inglês como origem. Toda chave é traduzida para os dezesseis idiomas, com exceção
 das poucas marcadas com `shouldTranslate: false`: o nome do produto, pontuação, esqueletos de formato
 e valores de protocolo que seria errado localizar. As strings são resolvidas por `L10n.tr(_:table:)`
 contra um bundle `.lproj` escolhido pela configuração de idioma dentro do app, então trocar de idioma

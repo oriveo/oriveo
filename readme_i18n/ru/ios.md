@@ -152,6 +152,9 @@ Application Support/Oriveo/
   токенизатором.
 - **API-ключи живут в Keychain**, с ключом по провайдеру и партиции, и вычищаются из снимка сессии
   до того, как он будет записан. Навыки хранятся отдельно, как JSON в `UserDefaults`.
+- **Токены входа MCP тоже живут в Keychain**, под собственным именем сервиса: они остаются только на
+  этом устройстве и в iCloud Keychain не попадают. Адрес сервера, в который вшит ключ, хранится
+  вместе с ними, а в базе данных остаётся лишь его отображаемая форма.
 - **Блобы вложений — это файлы на диске**, а не строки, поэтому большой PDF никогда не раздувает
   базу данных.
 
@@ -202,6 +205,7 @@ ios/Oriveo/
       Models/          domain types
       Attachments/     import limits, budgets, per-format text extraction
       Tools/           tool-call loop and per-protocol adapters
+      MCP/             remote MCP client: protocol, sign-in, tool bridge
       Cache/ Localization/ Observability/ Reachability/ Routing/ Usage/
     Features/
       App/             root view and tab shell
@@ -211,7 +215,7 @@ ios/Oriveo/
     Shared/Components/ shared views
     DesignSystem/      theme, colour, haptics
     Preview/           sample data for SwiftUI previews
-    *.xcstrings        ten string catalogs
+    *.xcstrings        eleven string catalogs
     Assets.xcassets · PrivacyInfo.xcprivacy · Oriveo.entitlements
   OriveoTests/
 ```
@@ -220,7 +224,9 @@ ios/Oriveo/
 
 Вам понадобится **Xcode 26**, а чтобы запускать на железе — устройство на **iOS 18 или новее**.
 Хватит бесплатного аккаунта Apple Developer: файл entitlements пуст, и приложение не использует ни
-одной платной capability — ни push, ни iCloud, ни app groups, ни associated domains.
+одной платной capability — ни push, ни iCloud, ни app groups, ни associated domains. Единственное,
+что оно регистрирует в системе, — URL-схема `oriveo://`: на неё браузер возвращает вас после входа
+на удалённый MCP-сервер.
 
 Нижняя граница, которую на самом деле задают формат проекта и версия Swift tools, — Xcode 16.3, но
 таргет выставляет `SWIFT_APPROACHABLE_CONCURRENCY` и `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor`, а
@@ -298,8 +304,8 @@ cd shared/OriveoProviderKit && swift test
 
 ## Локализация
 
-Шестнадцать языков, хранящихся как Xcode String Catalogs (`.xcstrings`) — десять каталогов, около
-1 340 ключей, английский как исходный. Каждый ключ переведён на все шестнадцать, кроме нескольких
+Шестнадцать языков, хранящихся как Xcode String Catalogs (`.xcstrings`) — одиннадцать каталогов, около
+1 560 ключей, английский как исходный. Каждый ключ переведён на все шестнадцать, кроме нескольких
 помеченных `shouldTranslate: false`: названия продукта, пунктуации, форматных скелетов и протокольных
 значений, которые локализовать было бы неверно. Строки резолвятся через `L10n.tr(_:table:)` из бандла
 `.lproj`, выбранного по настройке языка внутри приложения, поэтому смена языка вступает в силу без

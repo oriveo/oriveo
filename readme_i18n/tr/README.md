@@ -120,6 +120,9 @@ Parasını ödediğiniz modele kimse sayaç takamamalı, onun kaydını tutamama
   aboneliğini, her sağlayıcının kendi cihaz yetkilendirme akışı üzerinden kullanın
 - **Yetenekler** — kendi modeli, akıl yürütme ayarı ve referans belgeleri olan, yeniden
   kullanılabilir sistem prompt'ları
+- **MCP araçları** — uzak bir MCP sunucusunu adresiyle ekleyin, tarayıcı üzerinden ya da bir erişim
+  token'ıyla giriş yapın ve modelin sohbette o sunucunun araçlarını çağırmasına izin verin; her araç,
+  nasıl ayarladıysanız öyle davranır: kendiliğinden çalışır, önce sorar ya da kapalı kalır
 - **Notlar ve klasörler** — bir yanıtı not olarak kaydedin, sohbetleri düzenleyin, ikisinde birlikte
   arama yapın
 - **Başka modelle kontrol et** — bir yanıtı incelemesi için ikinci bir modele verin ve ikisini bir

@@ -154,6 +154,9 @@ Application Support/Oriveo/
 - **Khóa API nằm trong Keychain**, đánh chỉ mục theo nhà cung cấp và phân vùng, và bị xóa trắng khỏi
   session snapshot trước khi snapshot được ghi xuống. Kỹ năng được lưu riêng dưới dạng JSON trong
   `UserDefaults`.
+- **Token đăng nhập MCP cũng nằm trong Keychain**, dưới một service riêng, chỉ giữ trên thiết bị này
+  và không đưa vào iCloud Keychain. Địa chỉ máy chủ nào có kèm khóa thì được lưu chung với chúng, còn
+  cơ sở dữ liệu chỉ giữ dạng hiển thị của địa chỉ đó.
 - **Tệp đính kèm là các tệp trên đĩa**, không phải hàng trong bảng, nên một file PDF lớn không bao
   giờ làm phình cơ sở dữ liệu.
 
@@ -204,6 +207,7 @@ ios/Oriveo/
       Models/          domain types
       Attachments/     import limits, budgets, per-format text extraction
       Tools/           tool-call loop and per-protocol adapters
+      MCP/             remote MCP client: protocol, sign-in, tool bridge
       Cache/ Localization/ Observability/ Reachability/ Routing/ Usage/
     Features/
       App/             root view and tab shell
@@ -213,7 +217,7 @@ ios/Oriveo/
     Shared/Components/ shared views
     DesignSystem/      theme, colour, haptics
     Preview/           sample data for SwiftUI previews
-    *.xcstrings        ten string catalogs
+    *.xcstrings        eleven string catalogs
     Assets.xcassets · PrivacyInfo.xcprivacy · Oriveo.entitlements
   OriveoTests/
 ```
@@ -222,7 +226,9 @@ ios/Oriveo/
 
 Bạn cần **Xcode 26**, và để chạy trên thiết bị thật thì cần một máy chạy **iOS 18 trở lên**. Tài
 khoản Apple Developer miễn phí là đủ: tệp entitlements để rỗng và ứng dụng không dùng capability trả
-phí nào — không push, không iCloud, không app group, không associated domain.
+phí nào — không push, không iCloud, không app group, không associated domain. Thứ duy nhất nó đăng
+ký với hệ thống là URL scheme `oriveo://`, để lượt đăng nhập qua trình duyệt vào một máy chủ MCP từ
+xa chuyển hướng trở về ứng dụng.
 
 Xcode 16.3 là mức sàn mà định dạng dự án và phiên bản Swift tools thực sự đòi hỏi, nhưng target có
 đặt `SWIFT_APPROACHABLE_CONCURRENCY` và `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor`, những thứ mà các
@@ -298,7 +304,7 @@ cd shared/OriveoProviderKit && swift test
 
 ## Bản địa hóa
 
-Mười sáu ngôn ngữ, lưu dưới dạng Xcode String Catalog (`.xcstrings`) — mười catalog, khoảng 1.340
+Mười sáu ngôn ngữ, lưu dưới dạng Xcode String Catalog (`.xcstrings`) — mười một catalog, khoảng 1.560
 khóa, tiếng Anh là nguồn. Mọi khóa đều được dịch sang cả mười sáu ngôn ngữ, trừ một số ít được đánh
 dấu `shouldTranslate: false`: tên sản phẩm, dấu câu, khung định dạng và những giá trị giao thức mà
 dịch đi là sai. Chuỗi được phân giải qua `L10n.tr(_:table:)` dựa trên một bundle `.lproj` chọn theo

@@ -134,18 +134,20 @@ de prioridad: `single_send` > `conversation_connection_model` > `skill_agent` > 
 | Claves de API de los proveedores | `EncryptedSharedPreferences`, AES-256-GCM, clave maestra en el Keystore |
 | Tokens OAuth de suscripción | un segundo archivo de preferencias cifrado, aparte |
 | Claves de los archivos de copia de seguridad | un tercero |
+| Tokens de inicio de sesión de MCP y direcciones de servidor que llevan una clave | un cuarto |
 | Blobs de los adjuntos | archivos en disco, referenciados por id |
 
-Los tres archivos de preferencias cifrados están separados por vida útil y radio de daño, no
+Los cuatro archivos de preferencias cifrados están separados por vida útil y radio de daño, no
 fusionados por comodidad. Cada uno tiene una ruta de recuperación: un archivo corrupto
 (`AEADBadTagException`, `VERIFICATION_FAILED`) se detecta, se borra y se vuelve a crear en vez de
 hacer que la app falle en cada arranque.
 
-Los tres, junto con la base de datos de continuaciones, quedan excluidos de la copia de seguridad en
+Los cuatro, junto con la base de datos de continuaciones, quedan excluidos de la copia de seguridad en
 la nube de Android y de la transferencia entre dispositivos. Eso es consecuencia de atarlos al
 Keystore, no un descuido: el texto cifrado sería indescifrable en el dispositivo nuevo de todos
 modos. **Después de cambiar de teléfono vuelves a introducir tus claves de API y a iniciar sesión en
-cualquier suscripción de proveedor**; las conversaciones y las notas pasan con normalidad.
+cualquier suscripción de proveedor y en cualquier servidor MCP**; las conversaciones y las notas
+pasan con normalidad.
 
 Un archivo que exportas tú es un zip que contiene `data.json` más los archivos de los adjuntos. La
 contraseña que eliges protege **solo las claves de API de proveedor** que hay dentro: se cifran con
@@ -223,6 +225,7 @@ android/
       model/       domain models and the capability/preference resolvers
       attachments/ routing, budgets, per-format text extraction
       security/    SecureKeyStore, BackupCrypto, external-URL policy
+      mcp/         remote MCP client: protocol, sign-in, tool bridge
       streaming/   ChatStreamingManager
       navigation/  AppRoute, OriveoNavHost
     feature/       one package per screen
@@ -310,7 +313,7 @@ a `app/schemas/` y se versionan, que es donde aterrizará el `2.json` de la prim
 ## Localización
 
 Dieciséis idiomas: `values/` (inglés, la fuente) más quince directorios de configuración regional
-—junto a `values-night`, que no lleva cadenas—, con unas 1.340 cadenas cada uno y un conjunto de
+—junto a `values-night`, que no lleva cadenas—, con unas 1.570 cadenas cada uno y un conjunto de
 claves idéntico en todas las configuraciones regionales. El cambio
 de idioma dentro de la app pasa por `AppLanguageManager` y `android:localeConfig`. Los splits por
 idioma están desactivados en el bundle, así que un solo artefacto lleva todas las traducciones.

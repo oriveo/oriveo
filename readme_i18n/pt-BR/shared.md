@@ -92,6 +92,8 @@ nos três clientes de uma vez.
 Dados de teste de referência: tráfego de tool call upstream gravado, roteamento de relay, validação
 de formulário, classificação de endereços locais, cenários de catálogo e de configuração portátil,
 snapshots de model facts e de evidências de capacidade, e cenários de engines locais.
+`mcp/` traz as trocas do protocolo MCP e do login, além de um servidor MCP simulado contra o qual
+as suítes dos clientes rodam.
 
 Os arquivos `.sse` que ficam sob `provider-toolcall/recorded/` são **tráfego upstream real
 capturado**, mantidos byte a byte como chegaram — só os cabeçalhos de resposta foram descartados, e os

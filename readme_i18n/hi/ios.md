@@ -151,6 +151,9 @@ Application Support/Oriveo/
   `DatabaseMigrator`। मैसेज और नोट्स पर फ़ुल-टेक्स्ट सर्च FTS5 और trigram tokenizer से होती है।
 - **API key Keychain में रहती हैं**, प्रोवाइडर और partition से keyed, और session snapshot लिखे जाने से
   पहले उसमें से मिटा दी जाती हैं। कौशल अलग से `UserDefaults` में JSON के रूप में रखे जाते हैं।
+- **MCP साइन-इन token भी Keychain में रहते हैं**, अपनी एक अलग service के तहत, सिर्फ़ इसी डिवाइस पर
+  और iCloud Keychain से बाहर। जिस सर्वर पते में key शामिल हो, वह भी इन्हीं के साथ रखा जाता है, और
+  डेटाबेस में उसका सिर्फ़ दिखाने लायक़ रूप रहता है।
 - **अटैचमेंट blob डिस्क पर फ़ाइलें हैं**, rows नहीं, इसलिए कोई बड़ी PDF डेटाबेस को कभी फुलाती नहीं।
 
 बैकअप एक `.oriveo` ZIP है जिसमें `data.json` और इमेज फ़ाइलें होती हैं। वैकल्पिक पासवर्ड आर्काइव को
@@ -200,6 +203,7 @@ ios/Oriveo/
       Models/          domain types
       Attachments/     import limits, budgets, per-format text extraction
       Tools/           tool-call loop and per-protocol adapters
+      MCP/             remote MCP client: protocol, sign-in, tool bridge
       Cache/ Localization/ Observability/ Reachability/ Routing/ Usage/
     Features/
       App/             root view and tab shell
@@ -209,7 +213,7 @@ ios/Oriveo/
     Shared/Components/ shared views
     DesignSystem/      theme, colour, haptics
     Preview/           sample data for SwiftUI previews
-    *.xcstrings        ten string catalogs
+    *.xcstrings        eleven string catalogs
     Assets.xcassets · PrivacyInfo.xcprivacy · Oriveo.entitlements
   OriveoTests/
 ```
@@ -218,7 +222,8 @@ ios/Oriveo/
 
 आपको **Xcode 26** चाहिए, और हार्डवेयर पर चलाने के लिए **iOS 18 या उससे नया** डिवाइस। मुफ़्त
 Apple Developer अकाउंट काफ़ी है: entitlements फ़ाइल ख़ाली है और ऐप कोई पेड capability इस्तेमाल नहीं
-करता — न push, न iCloud, न app group, न associated domain।
+करता — न push, न iCloud, न app group, न associated domain। सिस्टम के पास यह बस एक चीज़ रजिस्टर
+करता है: `oriveo://` URL scheme, जिस पर रिमोट MCP सर्वर का ब्राउज़र साइन-इन पूरा होकर वापस लौटता है।
 
 प्रोजेक्ट फ़ॉर्मैट और Swift tools version असल में जो न्यूनतम थोपते हैं वह Xcode 16.3 है, लेकिन target
 `SWIFT_APPROACHABLE_CONCURRENCY` और `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor` सेट करता है, जिन्हें
@@ -295,7 +300,7 @@ cd shared/OriveoProviderKit && swift test
 
 ## स्थानीयकरण
 
-सोलह भाषाएँ, Xcode String Catalogs (`.xcstrings`) के रूप में रखी गई हैं — दस catalog, क़रीब 1,340 key,
+सोलह भाषाएँ, Xcode String Catalogs (`.xcstrings`) के रूप में रखी गई हैं — ग्यारह catalog, क़रीब 1,560 key,
 और अंग्रेज़ी स्रोत भाषा। हर key सभी सोलह भाषाओं में अनूदित है, सिवाय उन थोड़ी-सी के जिन पर
 `shouldTranslate: false` लगा है: प्रोडक्ट का नाम, विराम-चिह्न, format skeleton और protocol मान, जिनका
 स्थानीयकरण करना ग़लत होगा। Strings, उपयोगकर्ता की in-app भाषा सेटिंग से चुने गए `.lproj` bundle के

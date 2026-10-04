@@ -92,6 +92,8 @@ JSON fixtures जो क्लाइंट-दर-क्लाइंट व्�
 Golden टेस्ट डेटा: रिकॉर्ड किया गया upstream tool-call ट्रैफ़िक, relay routing, फ़ॉर्म validation,
 लोकल-पते का वर्गीकरण, कैटलॉग और portable-config के परिदृश्य, model-facts और capability-evidence के
 snapshot, और local-engine परिदृश्य।
+`mcp/` में MCP protocol और साइन-इन के आदान-प्रदान हैं, साथ ही एक mock MCP सर्वर जिस पर क्लाइंट के
+टेस्ट चलते हैं।
 
 `provider-toolcall/recorded/` के नीचे की `.sse` फ़ाइलें **असली, कैप्चर किया गया upstream ट्रैफ़िक**
 हैं, जैसी आईं वैसी ही बाइट-दर-बाइट रखी गईं — सिर्फ़ response हेडर हटाए गए, और उनके body में कभी कोई

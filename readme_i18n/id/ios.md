@@ -155,6 +155,9 @@ Application Support/Oriveo/
 - **API key tinggal di Keychain**, di-key berdasarkan provider dan partisi, dan dikosongkan dari
   session snapshot sebelum snapshot itu ditulis. Keterampilan disimpan terpisah sebagai JSON di
   `UserDefaults`.
+- **Token masuk MCP juga tinggal di Keychain**, di bawah service tersendiri, hanya di perangkat ini
+  dan tidak ikut ke iCloud Keychain. Alamat server yang memuat key disimpan bersama token itu, dan
+  basis data hanya menyimpan bentuk tampilannya.
 - **Blob lampiran adalah berkas di disk**, bukan baris tabel, jadi PDF besar tidak pernah
   menggelembungkan basis data.
 
@@ -205,6 +208,7 @@ ios/Oriveo/
       Models/          domain types
       Attachments/     import limits, budgets, per-format text extraction
       Tools/           tool-call loop and per-protocol adapters
+      MCP/             remote MCP client: protocol, sign-in, tool bridge
       Cache/ Localization/ Observability/ Reachability/ Routing/ Usage/
     Features/
       App/             root view and tab shell
@@ -214,7 +218,7 @@ ios/Oriveo/
     Shared/Components/ shared views
     DesignSystem/      theme, colour, haptics
     Preview/           sample data for SwiftUI previews
-    *.xcstrings        ten string catalogs
+    *.xcstrings        eleven string catalogs
     Assets.xcassets · PrivacyInfo.xcprivacy · Oriveo.entitlements
   OriveoTests/
 ```
@@ -224,7 +228,8 @@ ios/Oriveo/
 Anda butuh **Xcode 26**, dan untuk menjalankannya di perangkat keras, sebuah perangkat dengan
 **iOS 18 atau lebih baru**. Akun Apple Developer gratis sudah cukup: berkas entitlements-nya kosong
 dan aplikasi ini tidak memakai capability berbayar apa pun — tanpa push, tanpa iCloud, tanpa app
-group, tanpa associated domain.
+group, tanpa associated domain. Satu-satunya yang didaftarkannya ke sistem adalah skema URL
+`oriveo://`, tujuan pengalihan kembali setelah Anda masuk ke server MCP jarak jauh lewat browser.
 
 Xcode 16.3 adalah batas bawah yang sebenarnya dipaksakan oleh format proyek dan versi Swift tools,
 tapi target-nya menyetel `SWIFT_APPROACHABLE_CONCURRENCY` dan
@@ -301,8 +306,8 @@ cd shared/OriveoProviderKit && swift test
 
 ## Pelokalan
 
-Enam belas bahasa, disimpan sebagai Xcode String Catalog (`.xcstrings`) — sepuluh katalog, sekitar
-1.340 key, dengan bahasa Inggris sebagai sumber. Setiap key diterjemahkan ke keenam belas bahasa,
+Enam belas bahasa, disimpan sebagai Xcode String Catalog (`.xcstrings`) — sebelas katalog, sekitar
+1.560 key, dengan bahasa Inggris sebagai sumber. Setiap key diterjemahkan ke keenam belas bahasa,
 kecuali beberapa yang ditandai `shouldTranslate: false`: nama produk, tanda baca, kerangka format,
 dan nilai protokol yang akan salah kalau dilokalkan. String di-resolve lewat `L10n.tr(_:table:)`
 terhadap bundle `.lproj` yang dipilih dari pengaturan bahasa di dalam aplikasi, jadi pergantian

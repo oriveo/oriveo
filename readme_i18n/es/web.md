@@ -92,10 +92,10 @@ handlers de Next.js que corren en el runtime de Node. Cuando ejecutas `npm run d
 handlers están en tu propia máquina. Cuando despliegas la app en algún lado, están en la máquina
 donde la desplegaste.
 
-No es uno solo: el streaming de chat, el reenviador de relay, la generación de imágenes, la lista de
-modelos, la validación de claves y los intercambios de device login de Grok y ChatGPT suman doce
-archivos de ruta en total. La validación de claves importa aquí: le manda la clave a tu propio
-servidor, que sondea al proveedor con ella.
+No es uno solo: el streaming de chat, el reenviador de relay, el reenviador de MCP, la generación de
+imágenes, la lista de modelos, la validación de claves y los intercambios de device login de Grok y
+ChatGPT suman trece archivos de ruta en total. La validación de claves importa aquí: le manda la
+clave a tu propio servidor, que sondea al proveedor con ella.
 
 Unos pocos endpoints *sí* admiten un navegador, y esos se llaman directamente, sin ningún servidor en
 medio: el endpoint chino de Kimi (`api.moonshot.cn`) para chat, y los endpoints de saldo de
@@ -189,6 +189,7 @@ Todo es por partición, indexado por un id activo que por defecto es `guest`.
 | Snapshot del catálogo de modelos (~3 MB) y model facts | store de blobs de IndexedDB, deliberadamente no localStorage |
 | Preferencias y tablas de controles de modelo | `localStorage`, con `safeLocalStorage` envolviendo las rutas en las que se vio que lanzaba |
 | Imágenes generadas y adjuntas | una base de datos IndexedDB aparte |
+| Servidores MCP, sus herramientas y sus tokens de inicio de sesión | IndexedDB `oriveo-mcp--{id}` |
 
 Dos detalles que salieron de fallas reales y no del gusto. El snapshot del catálogo vive en IndexedDB
 porque con sus ~3 MB se comía casi toda la cuota de 5 MB de localStorage de un origen del navegador.
@@ -320,7 +321,7 @@ almacenamiento, ciclos completos de copia de seguridad y los propios route handl
 
 ## Localización
 
-Dieciséis configuraciones regionales en `apps/app/messages`, con unas 1.800 claves cada una y el
+Dieciséis configuraciones regionales en `apps/app/messages`, con unas 1.950 claves cada una y el
 inglés como fuente. Una prueba recorre el directorio y falla si el conjunto de claves de alguna
 difiere del inglés, así que agregar un archivo de idioma lo inscribe automáticamente. El árabe tiene
 un diseño completo de derecha a izquierda. La selección de idioma sigue un parámetro `?locale=`

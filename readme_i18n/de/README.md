@@ -119,6 +119,9 @@ belegen können.
   über den Device-Authorization-Flow des jeweiligen Anbieters
 - **Fähigkeiten** – wiederverwendbare System-Prompts mit eigenem Modell, eigener
   Reasoning-Einstellung und eigenen Referenzdokumenten
+- **MCP-Tools** – füge einen Remote-MCP-Server über seine Adresse hinzu, melde dich im Browser oder
+  mit einem Access-Token an und lass das Modell dessen Tools im Chat aufrufen; jedes Tool läuft von
+  selbst, fragt erst nach oder bleibt aus – so, wie du es einstellst
 - **Notizen und Ordner** – eine Antwort als Notiz sichern, Unterhaltungen ordnen, in beidem suchen
 - **Mit anderem Modell prüfen** – eine Antwort einem zweiten Modell zur Prüfung geben und beide
   zusammen behalten

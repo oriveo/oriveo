@@ -94,6 +94,8 @@ Datos de prueba de referencia: tráfico upstream grabado de llamadas a herramien
 relay, validación de formularios, clasificación de direcciones locales, escenarios de catálogo y de
 configuración portable, snapshots de model facts y de evidencia de capacidades, y escenarios de
 motores locales.
+`mcp/` contiene los intercambios del protocolo MCP y del inicio de sesión, además de un servidor MCP
+simulado contra el que se ejecutan las suites de los clientes.
 
 Los archivos `.sse` que están bajo `provider-toolcall/recorded/` son **tráfico upstream real
 capturado**, conservado byte a byte tal como llegó: solo se quitaron las cabeceras de la respuesta, y

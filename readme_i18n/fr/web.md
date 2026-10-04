@@ -92,10 +92,10 @@ par des route handlers Next.js tournant dans le runtime Node. Quand vous lancez 
 ces handlers sont sur votre propre machine. Quand vous déployez l'app quelque part, ils sont sur la
 machine où vous avez déployé.
 
-Il y a plus d'un handler : le streaming de chat, le forwarder de relais, la génération d'images, la
-liste de modèles, la validation de clé, et les échanges de device login de Grok et de ChatGPT font
-douze fichiers de route au total. La validation de clé compte ici — elle envoie la clé à votre
-propre serveur, qui s'en sert pour sonder le fournisseur.
+Il y a plus d'un handler : le streaming de chat, le forwarder de relais, le forwarder MCP, la
+génération d'images, la liste de modèles, la validation de clé, et les échanges de device login de
+Grok et de ChatGPT font treize fichiers de route au total. La validation de clé compte ici — elle
+envoie la clé à votre propre serveur, qui s'en sert pour sonder le fournisseur.
 
 Quelques endpoints *autorisent* bel et bien un navigateur, et ceux-là sont appelés directement, sans
 serveur au milieu : l'endpoint chinois de Kimi (`api.moonshot.cn`) pour le chat, et les endpoints
@@ -188,6 +188,7 @@ Tout est par partition, indexé par un id actif qui vaut `guest` par défaut.
 | Instantané du catalogue de modèles (~3 Mo) et model facts | store de blobs IndexedDB, délibérément pas localStorage |
 | Préférences et tables de contrôles de modèle | `localStorage`, avec `safeLocalStorage` autour des chemins qu'on a vus lever |
 | Images générées et jointes | une base IndexedDB distincte |
+| Serveurs MCP, leurs outils et leurs jetons de connexion | IndexedDB `oriveo-mcp--{id}` |
 
 Deux détails qui viennent de vraies pannes plutôt que du goût. L'instantané du catalogue vit dans
 IndexedDB parce qu'à ~3 Mo il consommait l'essentiel du quota localStorage de 5 Mo d'une origine de
@@ -324,7 +325,7 @@ partitionnement du stockage, allers-retours de sauvegarde, et les route handlers
 
 ## Localisation
 
-Seize locales dans `apps/app/messages`, environ 1 800 clés chacune, l'anglais comme source. Un test
+Seize locales dans `apps/app/messages`, environ 1 950 clés chacune, l'anglais comme source. Un test
 parcourt le répertoire et échoue si le jeu de clés d'une locale diffère de l'anglais ; ajouter un
 fichier de locale l'inscrit donc automatiquement. L'arabe bénéficie d'une mise en page entièrement
 droite-à-gauche. Le choix de la locale suit un paramètre `?locale=` explicite, puis un cookie, puis

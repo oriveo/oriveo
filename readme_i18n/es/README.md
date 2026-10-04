@@ -120,6 +120,9 @@ Nadie debería poder medir, registrar ni encarecer el modelo que estás pagando.
   de una clave de API, mediante el flujo de autorización por dispositivo de cada proveedor
 - **Habilidades** — prompts de sistema reutilizables con su propio modelo, su ajuste de razonamiento
   y sus documentos de referencia
+- **Herramientas MCP** — añade un servidor MCP remoto por su dirección, inicia sesión desde el
+  navegador o con un token de acceso y deja que el modelo llame a sus herramientas en el chat; cada
+  herramienta se ejecuta sola, pregunta antes o se queda desactivada, según la configures
 - **Notas y carpetas** — guarda una respuesta como nota, organiza conversaciones, busca en ambas
 - **Verificar con otro modelo** — pásale una respuesta a un segundo modelo para que la revise y
   conserva las dos juntas

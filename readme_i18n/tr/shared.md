@@ -93,6 +93,8 @@ istemcinin birden değişmesidir.
 Altın test verisi: kaydedilmiş upstream tool call trafiği, relay yönlendirme, form doğrulama, yerel
 adres sınıflandırma, katalog ve taşınabilir yapılandırma senaryoları, model facts ve yetenek kanıtı
 anlık görüntüleri ve yerel motor senaryoları.
+`mcp/` ise MCP protokolü ve oturum açma alışverişlerini, ayrıca istemci test paketlerinin
+karşısında çalıştığı sahte bir MCP sunucusunu içerir.
 
 `provider-toolcall/recorded/` altındaki `.sse` dosyaları **gerçekten yakalanmış upstream
 trafiğidir** ve geldiği hâliyle bayt bayt tutulur — yalnızca yanıt başlıkları atılmıştır ve gövdeler

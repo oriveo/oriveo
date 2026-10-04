@@ -130,18 +130,19 @@ Geçersiz kılmalar, yedi kapsam boyunca son yazan kazanır kuralıyla, şu önc
 | Sağlayıcı API anahtarları | `EncryptedSharedPreferences`, AES-256-GCM, ana anahtar Keystore'da |
 | Abonelik OAuth token'ları | ikinci, ayrı bir şifreli tercihler dosyası |
 | Yedek arşivi anahtarları | üçüncüsü |
+| MCP giriş token'ları ve içinde anahtar taşıyan sunucu adresleri | dördüncüsü |
 | Ek blob'ları | diskteki dosyalar, id ile referanslanır |
 
-Üç şifreli tercihler dosyası, kolaylık olsun diye birleştirilmek yerine ömürlerine ve etki
+Dört şifreli tercihler dosyası, kolaylık olsun diye birleştirilmek yerine ömürlerine ve etki
 yarıçaplarına göre ayrılmıştır. Her birinin bir kurtarma yolu vardır: bozuk bir dosya
 (`AEADBadTagException`, `VERIFICATION_FAILED`) tespit edilir, silinir ve yeniden oluşturulur; her
 açılışta uygulamayı çökertmek yerine.
 
-Üçü de, devam veritabanıyla birlikte, Android bulut yedeğinin ve cihaz aktarımının dışında
+Dördü de, devam veritabanıyla birlikte, Android bulut yedeğinin ve cihaz aktarımının dışında
 tutulur. Bu bir gözden kaçırma değil, onları Keystore'a bağlamanın doğal sonucudur — şifreli metin
 yeni cihazda zaten çözülemezdi. **Yeni bir telefona geçtikten sonra API anahtarlarınızı yeniden
-girer ve varsa sağlayıcı aboneliklerinize yeniden giriş yaparsınız**; sohbetler ve notlar normal
-şekilde gelir.
+girer, varsa sağlayıcı aboneliklerinize ve MCP sunucularınıza da yeniden giriş yaparsınız**;
+sohbetler ve notlar normal şekilde gelir.
 
 Kendiniz dışa aktardığınız bir arşiv, `data.json` ile birlikte ek dosyalarını taşıyan bir zip'tir.
 Seçtiğiniz parola içindeki **yalnızca sağlayıcı API anahtarlarını** korur: bunlar 600.000 yinelemeli
@@ -216,6 +217,7 @@ android/
       model/       domain models and the capability/preference resolvers
       attachments/ routing, budgets, per-format text extraction
       security/    SecureKeyStore, BackupCrypto, external-URL policy
+      mcp/         remote MCP client: protocol, sign-in, tool bridge
       streaming/   ChatStreamingManager
       navigation/  AppRoute, OriveoNavHost
     feature/       one package per screen
@@ -303,7 +305,7 @@ düşecektir.
 ## Yerelleştirme
 
 On altı dil: `values/` (kaynak dil İngilizce) artı on beş yerel ayar dizini — hiç metin taşımayan
-`values-night` de onların yanında — her birinde yaklaşık 1.340 metin ve her dilde birebir aynı
+`values-night` de onların yanında — her birinde yaklaşık 1.570 metin ve her dilde birebir aynı
 anahtar kümesi. Uygulama içi dil değiştirme `AppLanguageManager` ve `android:localeConfig` üzerinden
 yürür. Bundle'da dil bölmeleri kapalıdır; böylece tek bir artefakt bütün çevirileri taşır.
 

@@ -134,18 +134,19 @@ Override diselesaikan dengan aturan last-write-wins lintas tujuh cakupan, menuru
 | API key provider | `EncryptedSharedPreferences`, AES-256-GCM, master key di Keystore |
 | Token OAuth langganan | berkas preferensi terenkripsi kedua yang terpisah |
 | Kunci arsip cadangan | berkas ketiga |
+| Token masuk MCP, dan alamat server yang memuat key | berkas keempat |
 | Blob lampiran | berkas di disk, dirujuk lewat id |
 
-Ketiga berkas preferensi terenkripsi dipisahkan berdasarkan masa hidup dan luas dampaknya, bukan
+Keempat berkas preferensi terenkripsi dipisahkan berdasarkan masa hidup dan luas dampaknya, bukan
 digabung demi kepraktisan. Masing-masing punya jalur pemulihan: berkas yang rusak
 (`AEADBadTagException`, `VERIFICATION_FAILED`) dideteksi, dihapus, dan dibuat ulang alih-alih
 membuat aplikasi crash setiap kali dijalankan.
 
-Ketiganya, dan basis data kelanjutan, dikecualikan dari cadangan cloud Android dan transfer
+Keempatnya, dan basis data kelanjutan, dikecualikan dari cadangan cloud Android dan transfer
 perangkat. Itu konsekuensi dari mengikatnya ke Keystore, bukan kelalaian — ciphertext-nya toh tidak
 akan bisa didekripsi di perangkat baru. **Setelah pindah ke ponsel baru Anda memasukkan lagi API key
-Anda dan masuk lagi ke langganan provider mana pun**; percakapan dan catatan ikut berpindah seperti
-biasa.
+Anda dan masuk lagi ke langganan provider mana pun dan server MCP mana pun**; percakapan dan catatan
+ikut berpindah seperti biasa.
 
 Arsip yang Anda ekspor sendiri adalah zip yang memuat `data.json` plus berkas-berkas lampiran. Kata
 sandi yang Anda pilih melindungi **hanya API key provider** di dalamnya: key itu dienkripsi dengan
@@ -220,6 +221,7 @@ android/
       model/       domain models and the capability/preference resolvers
       attachments/ routing, budgets, per-format text extraction
       security/    SecureKeyStore, BackupCrypto, external-URL policy
+      mcp/         remote MCP client: protocol, sign-in, tool bridge
       streaming/   ChatStreamingManager
       navigation/  AppRoute, OriveoNavHost
     feature/       one package per screen
@@ -305,7 +307,7 @@ dan di-commit, dan di sanalah `2.json` dari migrasi pertama nanti akan mendarat.
 ## Pelokalan
 
 Enam belas bahasa: `values/` (bahasa Inggris, sumbernya) plus lima belas direktori locale —
-berdampingan dengan `values-night`, yang tidak membawa string apa pun — masing-masing sekitar 1.340
+berdampingan dengan `values-night`, yang tidak membawa string apa pun — masing-masing sekitar 1.570
 string, dengan setiap locale memuat himpunan key yang identik. Pergantian bahasa di dalam aplikasi
 melewati `AppLanguageManager` dan `android:localeConfig`. Language split dimatikan pada bundle
 sehingga satu artefak membawa semua terjemahan.

@@ -154,6 +154,9 @@ Application Support/Oriveo/
 - **API anahtarları Keychain'de yaşar**, sağlayıcı ve bölüm anahtarlarıyla saklanır ve oturum
   anlık görüntüsü yazılmadan önce oradan temizlenir. Yetenekler ayrı olarak, `UserDefaults` içinde
   JSON olarak saklanır.
+- **MCP giriş token'ları da Keychain'de yaşar**; kendilerine ait ayrı bir servis altında, yalnızca bu
+  cihazda tutulur ve iCloud Keychain'e girmez. İçinde anahtar taşıyan bir sunucu adresi de onlarla
+  birlikte saklanır; veritabanında adresin yalnızca gösterime uygun biçimi durur.
 - **Ek blob'ları satır değil, diskteki dosyalardır**; böylece büyük bir PDF veritabanını asla
   şişirmez.
 
@@ -204,6 +207,7 @@ ios/Oriveo/
       Models/          domain types
       Attachments/     import limits, budgets, per-format text extraction
       Tools/           tool-call loop and per-protocol adapters
+      MCP/             remote MCP client: protocol, sign-in, tool bridge
       Cache/ Localization/ Observability/ Reachability/ Routing/ Usage/
     Features/
       App/             root view and tab shell
@@ -213,7 +217,7 @@ ios/Oriveo/
     Shared/Components/ shared views
     DesignSystem/      theme, colour, haptics
     Preview/           sample data for SwiftUI previews
-    *.xcstrings        ten string catalogs
+    *.xcstrings        eleven string catalogs
     Assets.xcassets · PrivacyInfo.xcprivacy · Oriveo.entitlements
   OriveoTests/
 ```
@@ -223,7 +227,8 @@ ios/Oriveo/
 **Xcode 26**'ya, donanımda çalıştırmak için de **iOS 18 veya sonrasını** çalıştıran bir cihaza
 ihtiyacınız var. Ücretsiz bir Apple Developer hesabı yeterlidir: entitlements dosyası boştur ve
 uygulama ücretli hiçbir capability kullanmaz — push yok, iCloud yok, app group yok, associated
-domain yok.
+domain yok. Sisteme kaydettiği tek şey `oriveo://` URL şemasıdır; uzak bir MCP sunucusuna tarayıcıdan
+yapılan giriş, uygulamaya bu şema üzerinden geri döner.
 
 Proje biçiminin ve Swift tools sürümünün fiilen dayattığı alt sınır Xcode 16.3'tür, ama target
 `SWIFT_APPROACHABLE_CONCURRENCY` ve `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor` ayarlarını yapar ve
@@ -299,7 +304,7 @@ cd shared/OriveoProviderKit && swift test
 
 ## Yerelleştirme
 
-On altı dil, Xcode String Catalog (`.xcstrings`) olarak saklanıyor — on katalog, yaklaşık 1.340
+On altı dil, Xcode String Catalog (`.xcstrings`) olarak saklanıyor — on bir katalog, yaklaşık 1.560
 anahtar, kaynak dil İngilizce. `shouldTranslate: false` işaretli birkaçı dışında her anahtar on altı
 dile de çevrilmiştir: ürün adı, noktalama, biçim iskeletleri ve yerelleştirilmesi yanlış olacak
 protokol değerleri. Metinler, kullanıcının uygulama içi dil ayarına göre seçilen bir `.lproj`

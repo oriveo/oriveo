@@ -130,17 +130,18 @@ Override सात scope में last-write-wins के हिसाब से
 | प्रोवाइडर API key | `EncryptedSharedPreferences`, AES-256-GCM, Keystore में रखी master key |
 | सब्सक्रिप्शन OAuth token | एक दूसरी, अलग encrypted preferences फ़ाइल |
 | बैकअप आर्काइव key | एक तीसरी |
+| MCP साइन-इन token, और वे सर्वर पते जिनमें key शामिल है | एक चौथी |
 | अटैचमेंट blob | डिस्क पर फ़ाइलें, id से संदर्भित |
 
-तीनों encrypted preference फ़ाइलें सुविधा के लिए मिलाई नहीं गईं, बल्कि जीवनकाल और blast radius के
+चारों encrypted preference फ़ाइलें सुविधा के लिए मिलाई नहीं गईं, बल्कि जीवनकाल और blast radius के
 हिसाब से अलग रखी गई हैं। हर एक का एक recovery रास्ता है: ख़राब फ़ाइल (`AEADBadTagException`,
 `VERIFICATION_FAILED`) पहचानी जाती है, मिटाई जाती है और दोबारा बनाई जाती है, बजाय इसके कि हर बार ऐप
 शुरू होते ही crash हो।
 
-ये तीनों, और continuation डेटाबेस, Android के क्लाउड बैकअप और डिवाइस ट्रांसफ़र से बाहर हैं। यह इन्हें
+ये चारों, और continuation डेटाबेस, Android के क्लाउड बैकअप और डिवाइस ट्रांसफ़र से बाहर हैं। यह इन्हें
 Keystore से बाँधने का नतीजा है, कोई चूक नहीं — ciphertext वैसे भी नए डिवाइस पर decrypt नहीं हो पाता।
-**नए फ़ोन पर जाने के बाद आप अपनी API key दोबारा डालते हैं और किसी भी प्रोवाइडर सब्सक्रिप्शन में फिर से
-साइन इन करते हैं**; बातचीत और नोट्स सामान्य रूप से साथ चले आते हैं।
+**नए फ़ोन पर जाने के बाद आप अपनी API key दोबारा डालते हैं और किसी भी प्रोवाइडर सब्सक्रिप्शन और किसी भी
+MCP सर्वर में फिर से साइन इन करते हैं**; बातचीत और नोट्स सामान्य रूप से साथ चले आते हैं।
 
 आप ख़ुद जो आर्काइव एक्सपोर्ट करते हैं वह एक zip है जिसमें `data.json` और अटैचमेंट फ़ाइलें होती हैं।
 आपका चुना पासवर्ड उसके भीतर **सिर्फ़ प्रोवाइडर API key** की रक्षा करता है: वे 600,000 iterations पर
@@ -212,6 +213,7 @@ android/
       model/       domain models and the capability/preference resolvers
       attachments/ routing, budgets, per-format text extraction
       security/    SecureKeyStore, BackupCrypto, external-URL policy
+      mcp/         remote MCP client: protocol, sign-in, tool bridge
       streaming/   ChatStreamingManager
       navigation/  AppRoute, OriveoNavHost
     feature/       one package per screen
@@ -295,7 +297,7 @@ self-instrumentation इस्तेमाल करने वाला एक �
 ## स्थानीयकरण
 
 सोलह भाषाएँ: `values/` (अंग्रेज़ी, स्रोत) और पंद्रह locale डायरेक्टरी — इनके साथ `values-night` भी,
-जिसमें कोई string नहीं है — हर एक में क़रीब 1,340 strings, और हर locale में बिल्कुल एक जैसा key सेट। ऐप के भीतर भाषा बदलना `AppLanguageManager` और
+जिसमें कोई string नहीं है — हर एक में क़रीब 1,570 strings, और हर locale में बिल्कुल एक जैसा key सेट। ऐप के भीतर भाषा बदलना `AppLanguageManager` और
 `android:localeConfig` से होकर जाता है। बंडल में language splits बंद हैं, ताकि एक ही artifact हर
 अनुवाद अपने साथ ले जाए।
 

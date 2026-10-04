@@ -131,17 +131,18 @@ Các mức ghi đè được giải quyết theo nguyên tắc ghi sau thắng, 
 | Khóa API của nhà cung cấp | `EncryptedSharedPreferences`, AES-256-GCM, master key giữ trong Keystore |
 | Token OAuth của gói thuê bao | một tệp preferences mã hóa thứ hai, tách riêng |
 | Khóa của kho lưu trữ sao lưu | một tệp thứ ba |
+| Token đăng nhập MCP, và địa chỉ máy chủ có kèm khóa | một tệp thứ tư |
 | Tệp đính kèm | các tệp trên đĩa, tham chiếu bằng id |
 
-Ba tệp preferences được mã hóa này tách theo vòng đời và bán kính thiệt hại chứ không gộp lại cho
+Bốn tệp preferences được mã hóa này tách theo vòng đời và bán kính thiệt hại chứ không gộp lại cho
 tiện. Mỗi tệp có một đường phục hồi riêng: một tệp hỏng (`AEADBadTagException`,
 `VERIFICATION_FAILED`) sẽ được phát hiện, xóa đi và tạo lại, thay vì làm ứng dụng sập mỗi lần mở.
 
-Cả ba tệp đó, cùng với cơ sở dữ liệu continuation, đều bị loại khỏi sao lưu đám mây và chuyển máy
+Cả bốn tệp đó, cùng với cơ sở dữ liệu continuation, đều bị loại khỏi sao lưu đám mây và chuyển máy
 của Android. Đó là hệ quả của việc gắn chúng với Keystore chứ không phải một sơ suất — dù sao thì
 bản mã cũng không giải được trên máy mới. **Sau khi chuyển sang điện thoại mới, bạn nhập lại khóa
-API và đăng nhập lại vào mọi gói thuê bao của nhà cung cấp**; cuộc trò chuyện và ghi chú thì chuyển
-sang bình thường.
+API và đăng nhập lại vào mọi gói thuê bao của nhà cung cấp cũng như mọi máy chủ MCP**; cuộc trò
+chuyện và ghi chú thì chuyển sang bình thường.
 
 Một bản sao lưu do bạn tự xuất ra là một tệp zip chứa `data.json` cùng các tệp đính kèm. Mật khẩu
 bạn chọn chỉ bảo vệ **các khóa API của nhà cung cấp** nằm bên trong: chúng được mã hóa bằng
@@ -216,6 +217,7 @@ android/
       model/       domain models and the capability/preference resolvers
       attachments/ routing, budgets, per-format text extraction
       security/    SecureKeyStore, BackupCrypto, external-URL policy
+      mcp/         remote MCP client: protocol, sign-in, tool bridge
       streaming/   ChatStreamingManager
       navigation/  AppRoute, OriveoNavHost
     feature/       one package per screen
@@ -300,7 +302,7 @@ và đã commit, đó cũng là nơi tệp `2.json` của migration đầu tiên
 ## Bản địa hóa
 
 Mười sáu ngôn ngữ: `values/` (tiếng Anh, nguồn) cộng mười lăm thư mục locale — bên cạnh đó là
-`values-night`, thư mục không chứa chuỗi nào — mỗi thư mục khoảng 1.340 chuỗi, và mọi locale đều giữ
+`values-night`, thư mục không chứa chuỗi nào — mỗi thư mục khoảng 1.570 chuỗi, và mọi locale đều giữ
 đúng cùng một tập khóa. Việc đổi ngôn ngữ trong ứng dụng đi qua
 `AppLanguageManager` và `android:localeConfig`. Cơ chế tách gói theo ngôn ngữ bị tắt trong bundle,
 nên một artifact duy nhất mang theo mọi bản dịch.

@@ -131,16 +131,17 @@ JSON ポインタに何を書き込むかを記述したレシピです。`Provi
 | プロバイダーの API キー | `EncryptedSharedPreferences`、AES-256-GCM、マスター鍵は Keystore が保持 |
 | サブスクリプションの OAuth トークン | 2 つ目の、別の暗号化 preferences ファイル |
 | バックアップアーカイブの鍵 | 3 つ目 |
+| MCP のサインイントークンと、キーを含むサーバーアドレス | 4 つ目 |
 | 添付ファイルの実体 | ディスク上のファイル。ID で参照 |
 
-3 つの暗号化 preferences ファイルは、便宜のためにまとめるのではなく、寿命と影響範囲で分けています。
+4 つの暗号化 preferences ファイルは、便宜のためにまとめるのではなく、寿命と影響範囲で分けています。
 それぞれに復旧経路があり、壊れたファイル（`AEADBadTagException`、`VERIFICATION_FAILED`）は検出して
 削除し、作り直します。起動のたびにアプリがクラッシュすることはありません。
 
-この 3 つと継続用データベースは、Android のクラウドバックアップと端末間の転送から除外されています。
+この 4 つと継続用データベースは、Android のクラウドバックアップと端末間の転送から除外されています。
 これは見落としではなく、Keystore に紐づけたことの帰結です。どのみち暗号文は新しい端末では復号でき
-ません。**新しい端末に移ったら、API キーを入れ直し、プロバイダーのサブスクリプションにもサインイン
-し直すことになります**。会話とノートは通常どおり引き継がれます。
+ません。**新しい端末に移ったら、API キーを入れ直し、プロバイダーのサブスクリプションと MCP サーバー
+にもサインインし直すことになります**。会話とノートは通常どおり引き継がれます。
 
 自分で書き出すアーカイブは、`data.json` と添付ファイルを収めた zip です。あなたが決めたパスワードが
 守るのは、その中の**プロバイダーの API キーだけ**です。キーは PBKDF2-HMAC-SHA256 の 600,000 回反復と
@@ -212,6 +213,7 @@ android/
       model/       domain models and the capability/preference resolvers
       attachments/ routing, budgets, per-format text extraction
       security/    SecureKeyStore, BackupCrypto, external-URL policy
+      mcp/         remote MCP client: protocol, sign-in, tool bridge
       streaming/   ChatStreamingManager
       navigation/  AppRoute, OriveoNavHost
     feature/       one package per screen
@@ -297,7 +299,7 @@ SDK だけで足ります。
 ## ローカライズ
 
 16 言語です。`values/`（英語、ソース）に加えて 15 個のロケールディレクトリがあり、さらに文字列を
-持たない `values-night` があります。それぞれおよそ 1,340 の文字列を持ち、すべてのロケールが同一の
+持たない `values-night` があります。それぞれおよそ 1,570 の文字列を持ち、すべてのロケールが同一の
 キー集合を保持しています。アプリ内での言語切り替えは
 `AppLanguageManager` と `android:localeConfig` を通ります。バンドルでは言語別の分割を無効にしている
 ため、単一の成果物がすべての翻訳を含みます。

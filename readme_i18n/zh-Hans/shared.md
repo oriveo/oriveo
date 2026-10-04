@@ -83,6 +83,7 @@ flowchart LR
 
 黄金测试数据：录制的上游工具调用流量、中转站（Relay）路由、表单校验、本地地址分类、目录与可移植配置场景、
 model-facts 和能力证据快照，以及本地引擎场景。
+`mcp/` 里是 MCP 协议与登录流程的请求响应，以及供各端测试对接的模拟 MCP 服务器。
 
 `provider-toolcall/recorded/` 下面的 `.sse` 文件是**真实捕获的上游流量**，按它到达时的样子逐字节
 保留 —— 只丢掉了响应头，而响应体里从来没有带过 Key。直接放在 `provider-toolcall/` 下的 `.sse`

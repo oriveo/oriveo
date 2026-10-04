@@ -90,10 +90,10 @@ this somehow; this one forwards through Next.js route handlers running in the No
 you run `npm run dev:app`, those handlers are on your own machine. When you deploy the app
 somewhere, they are on the machine you deployed to.
 
-There is more than one handler: chat streaming, the relay forwarder, image generation, the model
-list, key validation, and the Grok and ChatGPT device-login exchanges come to twelve route files in
-all. Key validation matters here — it posts the key to your own server, which probes the provider
-with it.
+There is more than one handler: chat streaming, the relay forwarder, the MCP forwarder, image
+generation, the model list, key validation, and the Grok and ChatGPT device-login exchanges come to
+thirteen route files in all. Key validation matters here — it posts the key to your own server,
+which probes the provider with it.
 
 A few endpoints *do* allow a browser, and those are called directly with no server in between:
 Kimi's China endpoint (`api.moonshot.cn`) for chat, and the balance endpoints of OpenRouter,
@@ -184,6 +184,7 @@ Everything is per-partition, keyed by an active id that defaults to `guest`.
 | Model catalog snapshot (~3 MB) and model facts | IndexedDB blob store, deliberately not localStorage |
 | Preferences and model-control tables | `localStorage`, with `safeLocalStorage` wrapping the paths that were seen to throw |
 | Generated and attached images | a separate IndexedDB database |
+| MCP servers, their tools and sign-in tokens | IndexedDB `oriveo-mcp--{id}` |
 
 Two details that came from real breakage rather than taste. The catalog snapshot lives in IndexedDB
 because at ~3 MB it was consuming most of a browser origin's 5 MB localStorage quota. And every
@@ -309,7 +310,7 @@ persistence, storage partitioning, backup round-trips, and the route handlers th
 
 ## Localization
 
-Sixteen locales in `apps/app/messages`, about 1,800 keys each, English as the source. A test walks
+Sixteen locales in `apps/app/messages`, about 1,950 keys each, English as the source. A test walks
 the directory and fails if any locale's key set differs from English, so adding a locale file
 enrolls it automatically. Arabic gets a full right-to-left layout. Locale selection follows an
 explicit `?locale=` parameter, then a cookie, then `Accept-Language`.

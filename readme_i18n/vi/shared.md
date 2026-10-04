@@ -93,6 +93,8 @@ Dữ liệu test chuẩn: lưu lượng gọi công cụ từ upstream đã ghi 
 (Relay), kiểm tra tính
 hợp lệ của biểu mẫu, phân loại địa chỉ cục bộ, các kịch bản danh mục và cấu hình di động, các
 snapshot model-facts và bằng chứng khả năng, cùng các kịch bản engine cục bộ.
+`mcp/` chứa các trao đổi của giao thức MCP và của bước đăng nhập, cùng một máy chủ MCP giả lập để
+bộ test của các client chạy với nó.
 
 Những tệp `.sse` nằm dưới `provider-toolcall/recorded/` là **lưu lượng upstream thật đã bắt được**,
 giữ nguyên từng byte đúng như lúc nó tới — chỉ có phần header phản hồi bị bỏ đi, và phần thân thì

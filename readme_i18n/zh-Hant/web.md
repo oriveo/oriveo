@@ -86,8 +86,8 @@ flowchart LR
 幾個跑在 Node runtime 裡的 Next.js route handler。當你執行 `npm run dev:app` 時，這些 handler 就在
 你自己的機器上。當你把應用部署到某處時，它們就在你部署到的那台機器上。
 
-handler 不只一個：聊天串流、中轉站（Relay）轉送器、圖片生成、模型清單、Key 驗證，以及 Grok 與 ChatGPT 的裝置
-登入交換，加起來一共十二個 route 檔案。Key 驗證在這裡特別值得留意 —— 它會把 Key 送到你自己的
+handler 不只一個：聊天串流、中轉站（Relay）轉送器、MCP 轉送器、圖片生成、模型清單、Key 驗證，以及 Grok 與 ChatGPT 的裝置
+登入交換，加起來一共十三個 route 檔案。Key 驗證在這裡特別值得留意 —— 它會把 Key 送到你自己的
 伺服器，由它拿去探測供應商。
 
 少數端點*確實*允許瀏覽器直連，這些就直接呼叫、中間不經過任何伺服器：Kimi 用於聊天的中國區端點
@@ -172,6 +172,7 @@ IndexedDB 始終是你資料的唯一一份副本 —— 這正是「沒有帳�
 | 模型目錄快照（約 3 MB）與 model facts | IndexedDB blob store，刻意不放 localStorage |
 | 偏好設定與模型控制項表 | `localStorage`，實測會拋例外的那些路徑由 `safeLocalStorage` 包住 |
 | 產生的與附加的圖片 | 一個獨立的 IndexedDB 資料庫 |
+| MCP 伺服器、它們的工具與登入 token | IndexedDB `oriveo-mcp--{id}` |
 
 有兩個細節來自真實的災情，而不是品味。目錄快照放在 IndexedDB，是因為它約 3 MB，會吃掉一個瀏覽器
 origin 那 5 MB localStorage 配額的大半。而每一次 localStorage 存取都要走 `safeLocalStorage`，是因為
@@ -287,7 +288,7 @@ npm start --workspace @oriveo/app     # 127.0.0.1:3001
 
 ## 在地化
 
-`apps/app/messages` 裡有十六個 locale，每個約 1,800 個鍵，英文是來源語言。有一個測試會走訪這個目錄，
+`apps/app/messages` 裡有十六個 locale，每個約 1,950 個鍵，英文是來源語言。有一個測試會走訪這個目錄，
 只要任何 locale 的鍵集與英文不同就失敗，所以新增一個 locale 檔案就會自動把它納入。阿拉伯文有完整的
 由右至左版面。locale 的選取順序是：明確的 `?locale=` 參數，接著 cookie，最後 `Accept-Language`。
 

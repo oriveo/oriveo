@@ -119,6 +119,9 @@ Không ai được phép đo đếm, ghi log hay cộng giá vào mô hình mà 
   chính luồng xác thực thiết bị của từng nhà cung cấp
 - **Kỹ năng** — các system prompt dùng lại được, kèm mô hình, thiết lập suy luận và tài liệu tham
   chiếu riêng
+- **Công cụ MCP** — thêm một máy chủ MCP từ xa bằng địa chỉ của nó, đăng nhập qua trình duyệt hoặc
+  bằng token truy cập, rồi để mô hình gọi các công cụ của máy chủ đó ngay trong chat; mỗi công cụ tự
+  chạy, hỏi bạn trước hay tắt hẳn là tùy bạn thiết lập
 - **Ghi chú và thư mục** — lưu một câu trả lời thành ghi chú, sắp xếp cuộc trò chuyện, tìm kiếm
   trên cả hai
 - **Kiểm tra bằng mô hình khác** — giao một câu trả lời cho một mô hình thứ hai xem lại và giữ cả

@@ -143,6 +143,8 @@ Application Support/Oriveo/
   對訊息與筆記的全文搜尋使用 FTS5 搭配 trigram 斷詞器。
 - **API Key 存在 Keychain 裡**，以供應商與分區作為鍵，並且在 session 快照寫入之前就被清空。技能
   則單獨以 JSON 存在 `UserDefaults` 裡。
+- **MCP 的登入 token 同樣存在 Keychain 裡**，放在專屬的 service 底下，只留在這台裝置上，不會進到
+  iCloud Keychain。夾帶 Key 的伺服器位址也跟它們放在一起，資料庫只保留一份供顯示用的版本。
 - **附件是磁碟上的檔案**，不是資料列，所以一份大 PDF 永遠不會撐爆資料庫。
 
 一份備份是一個 `.oriveo` ZIP，裡面裝著 `data.json` 加上圖片檔案。那個選用的密碼並不加密整個封存檔：
@@ -187,6 +189,7 @@ ios/Oriveo/
       Models/          domain types
       Attachments/     import limits, budgets, per-format text extraction
       Tools/           tool-call loop and per-protocol adapters
+      MCP/             remote MCP client: protocol, sign-in, tool bridge
       Cache/ Localization/ Observability/ Reachability/ Routing/ Usage/
     Features/
       App/             root view and tab shell
@@ -196,7 +199,7 @@ ios/Oriveo/
     Shared/Components/ shared views
     DesignSystem/      theme, colour, haptics
     Preview/           sample data for SwiftUI previews
-    *.xcstrings        ten string catalogs
+    *.xcstrings        eleven string catalogs
     Assets.xcassets · PrivacyInfo.xcprivacy · Oriveo.entitlements
   OriveoTests/
 ```
@@ -205,7 +208,8 @@ ios/Oriveo/
 
 你需要 **Xcode 26**，而要跑在實機上還需要一台 **iOS 18 以上**的裝置。免費的 Apple Developer 帳號就
 夠了：entitlements 檔案是空的，而且這個應用程式沒有用到任何付費功能 —— 沒有推播、沒有 iCloud、沒有
-app group、沒有 associated domain。
+app group、沒有 associated domain。它唯一向系統註冊的，是 `oriveo://` 這個 URL scheme：遠端 MCP
+伺服器的瀏覽器登入完成後，就是經由它導回應用程式。
 
 專案格式與 Swift tools 版本實際要求的下限是 Xcode 16.3，但這個 target 設了
 `SWIFT_APPROACHABLE_CONCURRENCY` 與 `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor`，較舊的 Xcode 會
@@ -277,7 +281,7 @@ cd shared/OriveoProviderKit && swift test
 
 ## 在地化
 
-十六種語言，以 Xcode String Catalog（`.xcstrings`）保存 —— 十個 catalog、約 1,340 個鍵，英文是來源
+十六種語言，以 Xcode String Catalog（`.xcstrings`）保存 —— 十一個 catalog、約 1,560 個鍵，英文是來源
 語言。除了少數標了 `shouldTranslate: false` 的（產品名稱、標點、格式骨架，以及那些本來就不該被在地化
 的協定取值），每一個鍵都翻成了全部十六種語言。字串透過 `L10n.tr(_:table:)` 從一個依使用者應用內語言
 設定選出的 `.lproj` bundle 解析，所以切換語言不必重新啟動就會生效。阿拉伯文的由右至左版面是明確處理

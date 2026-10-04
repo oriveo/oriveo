@@ -119,6 +119,9 @@ Ninguém deveria conseguir tarifar, registrar ou remarcar o modelo que você est
   chave de API, pelo fluxo de autorização de dispositivo de cada provedor
 - **Habilidades** — prompts de sistema reutilizáveis com modelo, configuração de raciocínio e
   documentos de referência próprios
+- **Ferramentas MCP** — adicione um servidor MCP remoto pelo endereço, faça login pelo navegador ou
+  com um token de acesso e deixe o modelo chamar as ferramentas dele na conversa; cada ferramenta
+  roda direto, pede confirmação antes ou fica desligada, como você definir
 - **Notas e pastas** — salve uma resposta como nota, organize conversas, busque nas duas coisas
 - **Verificar com outro modelo** — entregue uma resposta a um segundo modelo para revisão e mantenha
   as duas juntas

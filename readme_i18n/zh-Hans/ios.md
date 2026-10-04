@@ -142,6 +142,8 @@ Application Support/Oriveo/
   对消息和笔记的全文搜索用的是 FTS5 加 trigram 分词器。
 - **API Key 存在 Keychain 里**，按供应商和分区做键，写入 session 快照之前会被抹掉。技能 单独以
   JSON 存在 `UserDefaults` 里。
+- **MCP 的登录 token 也存在 Keychain 里**，用的是单独的 service，只留在这台设备上，不进 iCloud
+  Keychain。带 Key 的服务器地址和它们存在一起，数据库里只留一份用于显示的形式。
 - **附件是磁盘上的文件**，不是数据行，所以一个大 PDF 永远不会撑爆数据库。
 
 备份是一个 `.oriveo` ZIP，里面装着 `data.json` 加上图片文件。那个可选的密码并不加密整个归档：它只
@@ -186,6 +188,7 @@ ios/Oriveo/
       Models/          domain types
       Attachments/     import limits, budgets, per-format text extraction
       Tools/           tool-call loop and per-protocol adapters
+      MCP/             remote MCP client: protocol, sign-in, tool bridge
       Cache/ Localization/ Observability/ Reachability/ Routing/ Usage/
     Features/
       App/             root view and tab shell
@@ -195,7 +198,7 @@ ios/Oriveo/
     Shared/Components/ shared views
     DesignSystem/      theme, colour, haptics
     Preview/           sample data for SwiftUI previews
-    *.xcstrings        ten string catalogs
+    *.xcstrings        eleven string catalogs
     Assets.xcassets · PrivacyInfo.xcprivacy · Oriveo.entitlements
   OriveoTests/
 ```
@@ -204,7 +207,8 @@ ios/Oriveo/
 
 你需要 **Xcode 26**，而要跑在真机上还需要一台 **iOS 18 或更高版本**的设备。免费的 Apple Developer
 账号就够了：entitlements 文件是空的，这个 App 不用任何付费能力 —— 没有推送、没有 iCloud、没有
-app group、没有 associated domain。
+app group、没有 associated domain。它向系统注册的只有一样东西：`oriveo://` 这个 URL scheme，远程
+MCP 服务器的浏览器登录完成后，就靠它跳回 App。
 
 工程格式和 Swift tools 版本实际要求的下限是 Xcode 16.3，但这个 target 设了
 `SWIFT_APPROACHABLE_CONCURRENCY` 和 `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor`，更旧的 Xcode 会
@@ -275,7 +279,7 @@ cd shared/OriveoProviderKit && swift test
 
 ## 本地化
 
-十六种语言，以 Xcode String Catalog（`.xcstrings`）保存 —— 十个 catalog，约 1,340 个键，英语是源
+十六种语言，以 Xcode String Catalog（`.xcstrings`）保存 —— 十一个 catalog，约 1,560 个键，英语是源
 语言。除了少数标了 `shouldTranslate: false` 的（产品名、标点、格式骨架，以及那些本不该被本地化的
 协议取值），每一个键都翻译到了全部十六种语言。字符串通过 `L10n.tr(_:table:)` 从一个按用户 App 内
 语言设置选出的 `.lproj` bundle 里解析，所以切换语言无需重启就能生效。阿拉伯语的从右到左布局是显式

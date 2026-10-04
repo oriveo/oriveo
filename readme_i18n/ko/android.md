@@ -129,16 +129,17 @@ enum이라면 카탈로그 파싱 전체가 실패하면서 다른 모든 모델
 | 공급자 API 키 | `EncryptedSharedPreferences`, AES-256-GCM, Keystore가 보관하는 마스터 키 |
 | 구독 OAuth 토큰 | 두 번째 별도 암호화 preferences 파일 |
 | 백업 아카이브 키 | 세 번째 |
+| MCP 로그인 토큰, 그리고 키가 들어 있는 서버 주소 | 네 번째 |
 | 첨부 파일 blob | 디스크의 파일, id로 참조 |
 
-암호화된 preferences 파일 세 개는 편의를 위해 합치는 대신 수명과 피해 반경에 따라 나뉘어 있습니다.
+암호화된 preferences 파일 네 개는 편의를 위해 합치는 대신 수명과 피해 반경에 따라 나뉘어 있습니다.
 각각에는 복구 경로가 있습니다. 손상된 파일(`AEADBadTagException`, `VERIFICATION_FAILED`)은 감지해
 삭제하고 다시 만들며, 매번 실행할 때마다 앱이 죽게 두지 않습니다.
 
-이 셋과 continuation 데이터베이스는 Android 클라우드 백업과 기기 이전에서 제외됩니다. 이는 실수가
+이 넷과 continuation 데이터베이스는 Android 클라우드 백업과 기기 이전에서 제외됩니다. 이는 실수가
 아니라 이들을 Keystore에 묶은 결과입니다. 어차피 새 기기에서는 암호문을 복호화할 수 없습니다.
-**새 휴대폰으로 옮긴 뒤에는 API 키를 다시 입력하고 공급자 구독에 다시 로그인해야 합니다.** 대화와
-노트는 정상적으로 넘어옵니다.
+**새 휴대폰으로 옮긴 뒤에는 API 키를 다시 입력하고 공급자 구독과 MCP 서버에 다시 로그인해야
+합니다.** 대화와 노트는 정상적으로 넘어옵니다.
 
 직접 내보내는 아카이브는 `data.json`과 첨부 파일들을 담은 zip입니다. 사용자가 정한 비밀번호가 지키는
 것은 그 안의 **공급자 API 키뿐**입니다. 키는 반복 600,000회의 PBKDF2-HMAC-SHA256과 AES-GCM으로
@@ -209,6 +210,7 @@ android/
       model/       domain models and the capability/preference resolvers
       attachments/ routing, budgets, per-format text extraction
       security/    SecureKeyStore, BackupCrypto, external-URL policy
+      mcp/         remote MCP client: protocol, sign-in, tool bridge
       streaming/   ChatStreamingManager
       navigation/  AppRoute, OriveoNavHost
     feature/       one package per screen
@@ -290,7 +292,7 @@ Gradle 모듈로 self-instrumentation과 함께 `com.android.test`를 쓰고, `:
 ## 현지화
 
 16개 언어입니다. `values/`(영어, 소스)와 열다섯 개의 로케일 디렉터리로 이루어지며, 문자열이 없는
-`values-night`도 함께 있습니다. 각각 약 1,340개 문자열을 담고 모든 로케일이 동일한 키 집합을
+`values-night`도 함께 있습니다. 각각 약 1,570개 문자열을 담고 모든 로케일이 동일한 키 집합을
 가집니다. 앱 내 언어 전환은
 `AppLanguageManager`와 `android:localeConfig`를 거칩니다. 번들에서 언어 split을 껐기 때문에 하나의
 아티팩트가 모든 번역을 담습니다.
