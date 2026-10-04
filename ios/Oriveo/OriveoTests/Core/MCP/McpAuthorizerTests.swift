@@ -128,24 +128,80 @@ final class FakeMcpAuthTransport: McpAuthTransport, @unchecked Sendable {
     }
 }
 
+/// A one-shot gate: `wait()` suspends until `open()` has been called, whichever of the two comes first.
+nonisolated final class McpTestGate: @unchecked Sendable {
+    private let lock = NSLock()
+    private var isOpen = false
+    private var waiters: [CheckedContinuation<Void, Never>] = []
+
+    func wait() async {
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            lock.lock()
+            let alreadyOpen = isOpen
+            if !alreadyOpen { waiters.append(continuation) }
+            lock.unlock()
+            if alreadyOpen { continuation.resume() }
+        }
+    }
+
+    func open() {
+        lock.lock()
+        isOpen = true
+        let waiting = waiters
+        waiters = []
+        lock.unlock()
+        waiting.forEach { $0.resume() }
+    }
+}
+
 final class FakeMcpBrowserSession: McpBrowserSession, @unchecked Sendable {
     private let lock = NSLock()
     private var opened: [URL] = []
+    private var released = 0
+    private let pageOpened = McpTestGate()
     /// The test decides the callback URL; throws when there is none (simulates the user cancelling).
     var callbackBuilder: (@Sendable (URL) -> URL)?
+    /// The sign-in page stays open until the task that opened it is cancelled: a sign-in the user never finishes.
+    var holdsUntilCancelled = false
 
     var openedURLs: [URL] {
         lock.lock(); defer { lock.unlock() }
         return opened
     }
 
+    /// Held sign-ins that have returned to their caller after being cancelled. Counted on the main actor, so a
+    /// test that has not suspended since cancelling cannot have seen the count move yet.
+    var releasedSignIns: Int {
+        lock.lock(); defer { lock.unlock() }
+        return released
+    }
+
+    /// Suspends until the sign-in page has been opened.
+    func waitUntilOpened() async { await pageOpened.wait() }
+
     func authorize(url: URL, callbackURLScheme: String) async throws -> URL {
         lock.lock()
         opened.append(url)
         let builder = callbackBuilder
+        let holds = holdsUntilCancelled
         lock.unlock()
+        pageOpened.open()
+        if holds {
+            let cancelled = McpTestGate()
+            await withTaskCancellationHandler {
+                await cancelled.wait()
+            } onCancel: {
+                cancelled.open()
+            }
+            await MainActor.run { self.noteReleased() }
+            throw McpAuthorizerError.cancelled
+        }
         guard let builder else { throw McpAuthorizerError.cancelled }
         return builder(url)
+    }
+
+    private func noteReleased() {
+        lock.lock(); released += 1; lock.unlock()
     }
 }
 

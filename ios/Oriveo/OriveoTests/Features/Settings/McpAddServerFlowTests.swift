@@ -185,10 +185,44 @@ struct McpAddServerFlowTests {
 
         model.cancel()
         #expect(model.state.screen == .form && model.state.url == McpUiFixture.endpoint && model.state.name == "Linear")
-        // Give the cancelled attempt time to unwind before checking that it left nothing behind.
-        try await Task.sleep(nanoseconds: 150_000_000)
+        // The abandoned attempt has to finish unwinding before "it left nothing behind" means anything.
+        await model.waitUntilSettled()
+        #expect(model.state.screen == .form)
         #expect(transport.jsonRequests.isEmpty && browser.openedURLs.isEmpty)
         try rig.expectNothingLeft("cancelled on the pre-sign-in notice")
+    }
+
+    @Test(
+        "Cancel while the sign-in page is open: back to the form at once; the abandoned sign-in is torn down, and waiting for the page to settle covers that teardown",
+        .timeLimit(.minutes(1))
+    )
+    func cancellingDuringBrowserSignIn() async throws {
+        McpScriptedURLProtocol.reset()
+        try McpScriptedURLProtocol.enqueue([McpUiFixture.unauthorized()])
+        let transport = FakeMcpAuthTransport()
+        try McpUiFixture.stubDCRAuthorization(transport)
+        let browser = FakeMcpBrowserSession()
+        browser.holdsUntilCancelled = true
+        let rig = try McpUiRig(transport: transport, browser: browser); defer { rig.cleanUp() }
+        let model = rig.addModel()
+        model.setURL(McpUiFixture.endpoint)
+        model.setName("Linear")
+        model.connect()
+        #expect(await McpUiWait.until {
+            if case .progress(.authPrompt, _, _) = model.state.screen { return true }
+            return false
+        })
+        model.approveSignIn()
+        await browser.waitUntilOpened()
+
+        model.cancel()
+        #expect(model.state.screen == .form && model.state.url == McpUiFixture.endpoint && model.state.name == "Linear")
+        #expect(browser.releasedSignIns == 0, "the page moves on before the sign-in has been torn down")
+        await model.waitUntilSettled()
+        #expect(browser.releasedSignIns == 1, "settled means the abandoned sign-in has returned")
+        #expect(model.state.screen == .form, "the abandoned attempt's result does not change the page")
+        #expect(browser.openedURLs.count == 1 && transport.formRequests.isEmpty, "no token exchange after a cancel")
+        try rig.expectNothingLeft("cancelled while the sign-in page was open")
     }
 
     @Test("The three-step checklist only marks what has already happened as done; \"Signed in\" appears only after a sign-in")

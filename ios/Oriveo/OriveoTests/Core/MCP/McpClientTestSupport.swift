@@ -54,6 +54,7 @@ final class McpScriptedURLProtocol: URLProtocol, @unchecked Sendable {
     nonisolated(unsafe) private static var fallback: Stub?
     nonisolated(unsafe) private static var captured: [Captured] = []
     nonisolated(unsafe) private static var aborted: [Captured] = []
+    nonisolated(unsafe) private static var arrivalWaiters: [(count: Int, continuation: CheckedContinuation<Void, Never>)] = []
 
     private let stateLock = NSLock()
     private var completed = false
@@ -61,7 +62,23 @@ final class McpScriptedURLProtocol: URLProtocol, @unchecked Sendable {
     private var current: Captured?
 
     static func reset() {
-        lock.lock(); queue = []; fallback = nil; captured = []; aborted = []; lock.unlock()
+        lock.lock()
+        queue = []; fallback = nil; captured = []; aborted = []
+        let waiting = arrivalWaiters
+        arrivalWaiters = []
+        lock.unlock()
+        waiting.forEach { $0.continuation.resume() }
+    }
+
+    /// Suspends until at least `count` requests have reached the protocol since the last `reset()`.
+    static func waitForRequests(_ count: Int = 1) async {
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            lock.lock()
+            let arrived = captured.count >= count
+            if !arrived { arrivalWaiters.append((count, continuation)) }
+            lock.unlock()
+            if arrived { continuation.resume() }
+        }
     }
 
     static func enqueue(_ stub: Stub) {
@@ -107,12 +124,16 @@ final class McpScriptedURLProtocol: URLProtocol, @unchecked Sendable {
 
         Self.lock.lock()
         Self.captured.append(capture)
+        let arrivedCount = Self.captured.count
+        let arrived = Self.arrivalWaiters.filter { $0.count <= arrivedCount }
+        Self.arrivalWaiters.removeAll { $0.count <= arrivedCount }
         let isNotification = Self.isNotification(body)
         var stub: Stub?
         if !isNotification {
             if !Self.queue.isEmpty { stub = Self.queue.removeFirst() } else { stub = Self.fallback }
         }
         Self.lock.unlock()
+        arrived.forEach { $0.continuation.resume() }
 
         if isNotification {
             respond(status: 202, headers: [:], chunks: [], interval: 0, keepOpen: false)

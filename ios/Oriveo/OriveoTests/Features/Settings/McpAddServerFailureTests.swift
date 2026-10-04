@@ -264,19 +264,24 @@ struct McpAddServerFailureTests {
         }
     }
 
-    @Test("Cancelled: going back or tapping Cancel while connecting returns to the form, leaves no record and no credential, and a late result no longer changes the page")
+    @Test(
+        "Cancelled: going back or tapping Cancel while connecting returns to the form, leaves no record and no credential, and a late result no longer changes the page",
+        .timeLimit(.minutes(1))
+    )
     func cancelledWhileConnecting() async throws {
         let slow = McpScriptedURLProtocol.Stub(status: 200, body: Data(), delay: 2)
         try await run(stubs: [slow]) { model in
             model.setURL(McpUiFixture.endpoint)
             model.connect()
-            try? await Task.sleep(nanoseconds: 100_000_000)
+            // Cancel with the first request in flight, not before it was sent.
+            await McpScriptedURLProtocol.waitForRequests(1)
+            #expect(model.state.screen == .progress(stage: .connecting, authorizationHost: nil, signedIn: false))
             model.close()
-        } verify: { model, rig in
-            #expect(model.state.screen == .form && model.state.url == McpUiFixture.endpoint)
-            // Let the cancelled attempt unwind: its result must not change the page.
-            try await Task.sleep(nanoseconds: 300_000_000)
             #expect(model.state.screen == .form)
+        } verify: { model, rig in
+            // `run` has waited for the abandoned attempt to unwind, so its result has been delivered and dropped.
+            #expect(model.state.screen == .form && model.state.url == McpUiFixture.endpoint)
+            #expect(McpScriptedURLProtocol.requests().count == 1, "nothing more is sent after a cancel")
             try rig.expectNothingLeft("cancelled while connecting")
         }
     }

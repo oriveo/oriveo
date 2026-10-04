@@ -137,6 +137,9 @@ final class McpAddServerModel {
 
     @ObservationIgnored private let dependencies: Dependencies
     @ObservationIgnored private var task: Task<Void, Never>?
+    /// The attempt most recently abandoned by `cancel()`. It is still unwinding when `cancel()` returns: the page
+    /// has moved on, but its browser session and requests are only now being torn down.
+    @ObservationIgnored private var abandonedTask: Task<Void, Never>?
     /// Connection attempt counter. After a cancel or restart, progress callbacks still in flight from the previous
     /// attempt no longer change the page.
     @ObservationIgnored private var runID = 0
@@ -191,8 +194,10 @@ final class McpAddServerModel {
 
     var isRunning: Bool { task != nil }
 
-    /// Waits until this connection reaches a terminal state (for tests).
+    /// Waits until this connection reaches a terminal state, and until an attempt abandoned by `cancel()` has
+    /// finished unwinding (for tests).
     func waitUntilSettled() async {
+        await abandonedTask?.value
         await task?.value
     }
 
@@ -327,6 +332,7 @@ final class McpAddServerModel {
         guard let running = task else { return }
         runID += 1
         task = nil
+        abandonedTask = running
         running.cancel()
         approval.resolve(false)
         if case .progress = state.screen { state.screen = .form }
