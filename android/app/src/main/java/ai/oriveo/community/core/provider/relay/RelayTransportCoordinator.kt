@@ -45,6 +45,7 @@ import ai.oriveo.community.core.provider.escapeJsonString
 import ai.oriveo.community.core.provider.isRelayGenerationSuccessResponse
 import ai.oriveo.community.core.provider.relay.RelayHeaderBuilder.applyRelayHeaders
 import ai.oriveo.community.core.provider.relay.RelayHeaderBuilder.resolveAuthMode
+import ai.oriveo.community.core.provider.sseLineReader
 import ai.oriveo.community.core.provider.transport.StreamShape
 import ai.oriveo.community.core.provider.transport.TransportKind
 import ai.oriveo.community.core.provider.transport.TransportRegistry
@@ -814,7 +815,7 @@ internal class RelayTransportCoordinator(
                     throw mapRelayHttpError(response, upstreamUrl, request.requestOptions, null)
                 }
                 var accumulated = ""
-                response.bodyAsChannel().toInputStream().bufferedReader(StandardCharsets.UTF_8).use { reader ->
+                response.bodyAsChannel().toInputStream().sseLineReader().use { reader ->
                     while (true) {
                         val line = reader.readLine() ?: break
                         val payload = line.removePrefix("data: ").trim()
@@ -1088,7 +1089,7 @@ internal class RelayTransportCoordinator(
 
                             response.bodyAsChannel()
                                 .toInputStream()
-                                .bufferedReader(StandardCharsets.UTF_8)
+                                .sseLineReader()
                                 .use { reader ->
                                     while (true) {
                                         val line = reader.readLine() ?: break

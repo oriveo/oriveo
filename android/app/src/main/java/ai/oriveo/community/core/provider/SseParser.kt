@@ -158,7 +158,7 @@ object SseParser {
     ): Flow<StreamEvent> = flow {
         val reader = response.bodyAsChannel()
             .toInputStream()
-            .bufferedReader(StandardCharsets.UTF_8)
+            .sseLineReader()
         val ctx = currentCoroutineContext()
 
         reader.use { bufferedReader ->
@@ -197,7 +197,7 @@ object SseParser {
     ): Flow<StreamEvent> = flow {
         val reader = response.bodyAsChannel()
             .toInputStream()
-            .bufferedReader(StandardCharsets.UTF_8)
+            .sseLineReader()
         val ctx = currentCoroutineContext()
         var currentEvent = ""
 
@@ -243,7 +243,7 @@ object SseParser {
     ): Flow<String> = flow {
         val reader = response.bodyAsChannel()
             .toInputStream()
-            .bufferedReader(StandardCharsets.UTF_8)
+            .sseLineReader()
         val ctx = currentCoroutineContext()
 
         reader.use { bufferedReader ->
@@ -280,7 +280,7 @@ object SseParser {
     ): Flow<StreamEvent> = flow {
         val reader = response.bodyAsChannel()
             .toInputStream()
-            .bufferedReader(StandardCharsets.UTF_8)
+            .sseLineReader()
         val ctx = currentCoroutineContext()
         var currentEvent = ""
 
@@ -322,7 +322,7 @@ object SseParser {
     ): Flow<StreamEvent> = flow {
         val reader = response.bodyAsChannel()
             .toInputStream()
-            .bufferedReader(StandardCharsets.UTF_8)
+            .sseLineReader()
         val ctx = currentCoroutineContext()
         var currentEvent = ""
 
@@ -362,7 +362,7 @@ object SseParser {
     ): Flow<StreamEvent> = flow {
         val reader = response.bodyAsChannel()
             .toInputStream()
-            .bufferedReader(StandardCharsets.UTF_8)
+            .sseLineReader()
         val ctx = currentCoroutineContext()
 
         reader.use { bufferedReader ->
@@ -393,7 +393,7 @@ object SseParser {
     ): Flow<StreamEvent> = flow {
         val reader = response.bodyAsChannel()
             .toInputStream()
-            .bufferedReader(StandardCharsets.UTF_8)
+            .sseLineReader()
         val ctx = currentCoroutineContext()
 
         reader.use { bufferedReader ->

@@ -39,7 +39,6 @@ import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
-import java.nio.charset.StandardCharsets
 
 /**
  * The OpenAI provider service.
@@ -432,7 +431,7 @@ class OpenAIService(
                 val nativeToolParser = NativeToolCallParser(NativeToolProtocol.OpenAIResponses)
                 response.bodyAsChannel()
                     .toInputStream()
-                    .bufferedReader(StandardCharsets.UTF_8)
+                    .sseLineReader()
                     .use { reader ->
                         while (true) {
                             val line = reader.readLine() ?: break

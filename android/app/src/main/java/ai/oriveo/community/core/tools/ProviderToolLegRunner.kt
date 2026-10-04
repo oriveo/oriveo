@@ -25,6 +25,7 @@ import ai.oriveo.community.core.provider.SseParser
 import ai.oriveo.community.core.provider.allowsTemperature
 import ai.oriveo.community.core.provider.capabilityRuntimeContinuationSelection
 import ai.oriveo.community.core.provider.reasoningMergeParams
+import ai.oriveo.community.core.provider.sseLineReader
 import ai.oriveo.community.core.provider.relay.effectiveRelayReasoningMode
 import ai.oriveo.community.core.provider.transport.EndpointResolver
 import ai.oriveo.community.core.provider.transport.ProviderTransportDefinition
@@ -363,7 +364,7 @@ class ProviderToolLegRunner(
                 }
                 ToolWireProtocol.AnthropicMessages -> {
                     var currentEvent: String? = null
-                    response.bodyAsChannel().toInputStream().bufferedReader(StandardCharsets.UTF_8).use { reader ->
+                    response.bodyAsChannel().toInputStream().sseLineReader().use { reader ->
                         while (true) {
                             val line = reader.readLine() ?: break
                             when {
@@ -378,7 +379,7 @@ class ProviderToolLegRunner(
                     }
                 }
                 ToolWireProtocol.GeminiGenerate -> {
-                    response.bodyAsChannel().toInputStream().bufferedReader(StandardCharsets.UTF_8).use { reader ->
+                    response.bodyAsChannel().toInputStream().sseLineReader().use { reader ->
                         while (true) {
                             val line = reader.readLine() ?: break
                             if (!line.startsWith("data:")) continue
@@ -389,7 +390,7 @@ class ProviderToolLegRunner(
                 }
                 ToolWireProtocol.OpenAIResponses -> {
                     var currentEvent: String? = null
-                    response.bodyAsChannel().toInputStream().bufferedReader(StandardCharsets.UTF_8).use { reader ->
+                    response.bodyAsChannel().toInputStream().sseLineReader().use { reader ->
                         while (true) {
                             val line = reader.readLine() ?: break
                             when {
