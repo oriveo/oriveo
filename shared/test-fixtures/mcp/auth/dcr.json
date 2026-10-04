@@ -6,10 +6,7 @@
     "headers": { "Content-Type": "application/json" },
     "body": {
       "client_name": "Oriveo",
-      "redirect_uris": [
-        "oriveo://mcp/oauth/callback",
-        "https://app.example.com/mcp/oauth/callback/app"
-      ],
+      "redirect_uris": ["oriveo://mcp/oauth/callback"],
       "grant_types": ["authorization_code", "refresh_token"],
       "response_types": ["code"],
       "token_endpoint_auth_method": "none",
@@ -22,10 +19,7 @@
   "body": {
     "client_id": "oriveo_mcp_2f9c41",
     "client_name": "Oriveo",
-    "redirect_uris": [
-      "oriveo://mcp/oauth/callback",
-      "https://app.example.com/mcp/oauth/callback/app"
-    ],
+    "redirect_uris": ["oriveo://mcp/oauth/callback"],
     "grant_types": ["authorization_code", "refresh_token"],
     "response_types": ["code"],
     "token_endpoint_auth_method": "none",

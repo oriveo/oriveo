@@ -215,11 +215,6 @@ private func readyPlan(
     return plan
 }
 
-/// The custom-scheme entries of a fixture's `redirect_uris`.
-private func customSchemeRedirectURIs(_ json: JSONValue?) -> JSONValue {
-    .array((json?.arrayValue ?? []).filter { $0.stringValue?.hasPrefix("oriveo://") == true })
-}
-
 /// Replaces one key of an object with another value (other keys and their order are kept); a nil value removes the key.
 private func replacing(_ json: JSONValue, key: String, with value: JSONValue?) -> JSONValue {
     guard let object = json.objectValue else { return json }
@@ -374,8 +369,7 @@ struct McpAuthorizerTests {
         #expect(request.body["application_type"]?.stringValue == "native")
         #expect(request.body["token_endpoint_auth_method"]?.stringValue == "none")
         #expect(request.body["client_name"]?.stringValue == "Oriveo")
-        // This client registers only its custom-scheme redirect.
-        #expect(request.body["redirect_uris"] == customSchemeRedirectURIs(dcr["request"]?["body"]?["redirect_uris"]))
+        #expect(request.body["redirect_uris"] == dcr["request"]?["body"]?["redirect_uris"])
     }
 
     @Test("A DCR registration is stored locally by uid + issuer and reused: the same flow, a later sign-in and a new authorizer instance never register again")
@@ -703,10 +697,8 @@ struct McpAuthorizerTests {
         let expected = try #require(fixture["request"]?["body"])
         let body = McpClientMetadata.registrationBody(scope: expected["scope"]?.stringValue)
         #expect(body["client_name"] == expected["client_name"])
-        // This client registers only its custom-scheme redirect.
-        #expect(body["redirect_uris"] == customSchemeRedirectURIs(expected["redirect_uris"]))
+        #expect(body["redirect_uris"] == expected["redirect_uris"])
         #expect(body["redirect_uris"] == .array(McpClientMetadata.redirectURIs.map { .string($0) }))
-        #expect(McpClientMetadata.redirectURIs == ["oriveo://mcp/oauth/callback"])
         #expect(body["grant_types"] == expected["grant_types"])
         #expect(body["response_types"] == expected["response_types"])
         #expect(body["token_endpoint_auth_method"] == expected["token_endpoint_auth_method"])

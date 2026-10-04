@@ -1,5 +1,5 @@
 {
-  "$comment": "Decides whether an address carries a secret. Three criteria, any one of which is enough: (1) it has query parameters; (2) it has a userinfo component; (3) any path segment is at least 20 characters long and contains both letters and digits. When true, the whole server record stays on the device and is never uploaded.",
+  "$comment": "Decides whether an address carries a secret. Three criteria, any one of which is enough: (1) it has query parameters; (2) it has a userinfo component; (3) any path segment is at least 20 characters long and contains both letters and digits. When true, the address is handled as a credential: a client whose server records sit in a database that device backups copy keeps the complete address in its credential store and only a display address in that database, and every client masks the secret-looking parts wherever it shows the address.",
   "version": 1,
   "cases": [
     { "caseId": "clean_https_endpoint", "url": "https://mcp.example.com/mcp", "expect": { "localOnly": false, "reason": "clean" } },

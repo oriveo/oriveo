@@ -10,7 +10,7 @@ export const MCP_FIXTURE_REDIRECT_URI = 'https://app.example.com/mcp/oauth/callb
 
 export const MCP_FIXTURE_CLIENT_IDENTITY: McpClientIdentity = {
   redirectUri: MCP_FIXTURE_REDIRECT_URI,
-  redirectUris: ['oriveo://mcp/oauth/callback', 'https://app.example.com/mcp/oauth/callback/app'],
+  redirectUris: ['oriveo://mcp/oauth/callback'],
   clientMetadataDocumentUrl: MCP_FIXTURE_CLIENT_ID,
   applicationType: 'native',
 };

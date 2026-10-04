@@ -245,7 +245,11 @@ class McpAuthorizerTest {
         assertEquals("native", body["application_type"].stringOrNull)
         assertEquals("none", body["token_endpoint_auth_method"].stringOrNull)
         assertEquals("Oriveo", body["client_name"].stringOrNull)
-        assertEquals("exactly the redirect URI this app receives is registered", DCR_REDIRECT_URIS, body["redirect_uris"])
+        assertEquals(
+            "exactly the redirect URIs of the fixture are registered",
+            authFixture("dcr.json")["request"]["body"]["redirect_uris"],
+            body["redirect_uris"],
+        )
         assertEquals(REDIRECT_URI, attempt.redirectUri)
         assertEquals(REDIRECT_URI, attempt.request.queryItems["redirect_uri"])
     }
@@ -422,10 +426,9 @@ class McpAuthorizerTest {
         val dcr = authFixture("dcr.json")
         val expected = dcr["request"]["body"]!!
         val body = McpClientMetadata.registrationBody(expected["scope"].stringOrNull)
-        for (key in listOf("client_name", "grant_types", "response_types", "token_endpoint_auth_method", "application_type", "scope")) {
+        for (key in listOf("client_name", "redirect_uris", "grant_types", "response_types", "token_endpoint_auth_method", "application_type", "scope")) {
             assertEquals(key, expected[key], body[key])
         }
-        assertEquals(DCR_REDIRECT_URIS, body["redirect_uris"])
         assertNull("no scope member when there is nothing to request", McpClientMetadata.registrationBody(null)["scope"])
         assertEquals(false, dcr["expect"]["reusableAcrossIssuers"].booleanOrNull)
 
@@ -1076,9 +1079,6 @@ class McpAuthorizerTest {
 
         /** The client metadata document the shared fixtures were recorded with. */
         const val CLIENT_METADATA_URL = "https://app.example.com/oauth/mcp-client.json"
-
-        /** The redirect URIs sent in a dynamic registration: the custom scheme and nothing else. */
-        val DCR_REDIRECT_URIS: JsonElement = JsonArray(listOf(JsonPrimitive("oriveo://mcp/oauth/callback")))
         const val PROTECTED_RESOURCE_URL = "https://mcp.example.com/.well-known/oauth-protected-resource"
         const val AUTHORIZATION_SERVER_URL = "https://auth.example.com/.well-known/oauth-authorization-server"
         const val REGISTRATION_URL = "https://auth.example.com/register"
