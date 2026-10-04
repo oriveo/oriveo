@@ -93,6 +93,7 @@ vi.mock('../../infra/storage/partition', async (importOriginal) => ({
 
 import { validateChatStreamRequest } from '../../../app/api/chat/stream/validate';
 import { createAppStore } from '../store/app-store';
+import { subscribeConversations } from '../store/persistence-subscribers';
 import {
   enableMcpConfirmationUi,
   mcpConversationGrants,
@@ -287,6 +288,16 @@ function start(options: {
   return { store, handle, assistant };
 }
 
+/**
+ * Attaches the production subscriber that writes the store to IndexedDB. Data kept on this device
+ * only (conversation switches, step payloads) is deleted at that layer, which every way a
+ * conversation or a message can leave the store passes through.
+ */
+function persistDeletions(store: ReturnType<typeof createAppStore>): () => void {
+  store.setState({ hydrationPhase: 'ready' });
+  return subscribeConversations(store);
+}
+
 function expectValid(bodies: ChatStreamBody[]): void {
   expect(bodies.length).toBeGreaterThan(0);
   for (const body of bodies) {
@@ -401,8 +412,11 @@ describe('cascading deletion of step payloads (local-only data must not accumula
     await seedServer({ enabledIn: ['conv-1', 'conv-2'] });
     const first = await answered();
     const other = await answered(conversation('conv-2'));
+    const unsubscribe = persistDeletions(first.store);
     deleteMessage(first.store, first.handle.convId, first.message.id);
-    await vi.waitFor(async () => expect(await first.payload()).toBeNull());
+    // The payloads go when the conversation is written, and the subscriber debounces that by 500ms.
+    await vi.waitFor(async () => expect(await first.payload()).toBeNull(), { timeout: 3000 });
+    unsubscribe();
     expect(await other.payload()).not.toBeNull();
   });
 
@@ -410,8 +424,10 @@ describe('cascading deletion of step payloads (local-only data must not accumula
     await seedServer({ enabledIn: ['conv-1', 'conv-2'] });
     const first = await answered();
     const other = await answered(conversation('conv-2'));
+    const unsubscribe = persistDeletions(first.store);
     deleteConversation(first.store, first.handle.convId);
     await vi.waitFor(async () => expect(await first.payload()).toBeNull());
+    unsubscribe();
     expect(await other.payload()).not.toBeNull();
   });
 
@@ -678,7 +694,9 @@ describe('per-conversation switches are stored locally only', () => {
   it('clears the switches of a deleted conversation (memory and local database) without affecting other conversations', async () => {
     await seedServer({ enabledIn: ['conv-1', 'conv-keep'] });
     const store = createAppStore({ conversations: [conversation('conv-1'), conversation('conv-keep')] });
+    const unsubscribe = persistDeletions(store);
     deleteConversation(store, 'conv-1');
+    unsubscribe();
     expect(useMcpStore.getState().conversationServers).toEqual({ 'conv-keep': [SERVER_ID] });
     await vi.waitFor(async () => {
       expect((await loadMcpLocalState(mocks.activeUid.value)).switches).toEqual({ 'conv-keep': [SERVER_ID] });

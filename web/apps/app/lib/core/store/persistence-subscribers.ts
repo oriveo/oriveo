@@ -20,6 +20,7 @@ import { getActiveUIDSync } from '../../infra/storage/partition';
 import { normalizeUUID } from '../../utils/id-utils';
 import { getSyncAdapter } from '../sync-port';
 import { withErrorReporting } from '../../sentry/report-silent';
+import { forgetMcpConversation, forgetMcpMessage } from '../mcp/mcp-store';
 
 /* ── Tuning constants ─────────────────────────────────────────── */
 
@@ -77,6 +78,10 @@ export function subscribeConversations(store: StoreApi<AppStore>): () => void {
       for (const c of deleted) {
         deleteConversation(c.id);
         cleanupConversationImages(c);
+        // A conversation's MCP switches and step payloads are kept on this device only, so they go
+        // with its local copy. This layer, not the delete entry points, is the one place every way
+        // a conversation can leave the store passes through.
+        forgetMcpConversation(c.id);
       }
       prev = prev.filter((c) => current.has(c.id));
     }
@@ -94,6 +99,7 @@ export function subscribeConversations(store: StoreApi<AppStore>): () => void {
       const prevMap = new Map(prev.map((c) => [c.id, c]));
       for (const c of state.conversations) {
         const old = prevMap.get(c.id);
+        if (old && old !== c) forgetMcpStepPayloadsOfRemovedMessages(old, c);
         if (!old || old !== c) {
           void putConversationPreservingHydratedMessages(c)
             .catch(withErrorReporting('storage.conversation.persist'));
@@ -107,6 +113,24 @@ export function subscribeConversations(store: StoreApi<AppStore>): () => void {
     unsub();
     if (timer) clearTimeout(timer);
   };
+}
+
+/**
+ * Deletes the MCP step payloads (kept on this device only) of messages that left the persisted copy
+ * of a conversation. Deleting a message, truncating after an edit and a removal applied by a sync
+ * backend all look the same here: at the next write the message is gone.
+ * A summary whose messages are not loaded is not a deletion; the test is the one
+ * putConversationPreservingHydratedMessages uses to keep the stored messages.
+ */
+function forgetMcpStepPayloadsOfRemovedMessages(previous: Conversation, current: Conversation): void {
+  if (previous.messages === current.messages) return;
+  if (current.messages.length === 0 && (current.remoteMessageCount ?? 0) > 0) return;
+  let remaining: Set<string> | null = null;
+  for (const message of previous.messages) {
+    if (!message.toolSteps?.length) continue;
+    remaining ??= new Set(current.messages.map((m) => normalizeUUID(m.id)));
+    if (!remaining.has(normalizeUUID(message.id))) forgetMcpMessage(message.id);
+  }
 }
 
 export function subscribePreferences(store: StoreApi<AppStore>): () => void {

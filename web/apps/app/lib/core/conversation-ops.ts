@@ -16,7 +16,6 @@ import { countNotesReferencingConversation } from './notes/source-link';
 
 import { removeGenerationParameterScopes } from './chat/generation-parameter-settings';
 import { deleteLocalConversationContinuation } from './chat/continuation-lifecycle';
-import { forgetMcpConversation } from './mcp/mcp-store';
 
 function computeConversationAgeHours(conv: Conversation | undefined): number {
   if (!conv?.createdAt) return 0;
@@ -38,7 +37,6 @@ export function deleteConversation(store: StoreApi<AppStore>, convId: string) {
   store.getState().removeConversation(convId);
   removeGenerationParameterScopes({ conversationId: convId });
   deleteLocalConversationContinuation(convId);
-  forgetMcpConversation(convId);
   // The delete intent is queued in IDB and replayed, and only cleared once acknowledged. Calling
   // didDeleteConversations directly silently dropped the delete whenever the adapter was null,
   // which is the case until bootstrap has hydrated the store.
@@ -63,7 +61,6 @@ export function deleteConversations(store: StoreApi<AppStore>, ids: string[]) {
     store.getState().removeConversation(id);
     removeGenerationParameterScopes({ conversationId: id });
     deleteLocalConversationContinuation(id);
-    forgetMcpConversation(id);
   }
   // Same as above: queue and replay, so a delete is not silently lost while the adapter is not ready (batch delete hit exactly this)
   void flushPendingConversationDeletions(ids);
