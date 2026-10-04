@@ -560,6 +560,89 @@ struct McpServerStoreTests {
         #expect(try database.nonEmptyTables() == [:])
     }
 
+    // The store has two more ways of removing rows besides `deleteConversation`: writing the whole list of
+    // conversations back with one missing, and writing a thread back with messages missing. Neither knows
+    // about MCP, so the cleanup rests entirely on the triggers.
+
+    @Test("writing the conversation list back without a conversation clears its switches and step payloads and leaves other conversations alone")
+    func replacingConversationsWithoutOneClearsMcpState() throws {
+        let database = try McpTestDatabase.make()
+        defer { database.cleanUp() }
+        let store = database.store
+
+        let (doomed, doomedMessages) = try database.insertConversation(messageCount: 2)
+        let (kept, keptMessages) = try database.insertConversation(messageCount: 1)
+        let server = UUID()
+        try store.setServerEnabled(true, conversationId: doomed, serverId: server)
+        try store.setServerEnabled(true, conversationId: kept, serverId: server)
+        for message in doomedMessages + keptMessages {
+            try store.saveStepPayload(messageID: message, stepID: "s1", arguments: "{}", resultPrefix: "r")
+        }
+
+        let conversations = ConversationStore(
+            dbPool: database.pool,
+            attachmentFileStore: AttachmentFileStore(rootDirectory: database.directory.appendingPathComponent("Files", isDirectory: true))
+        )
+        try Self.makeRowsReadableAsModels(database)
+        let projection = try conversations.fetchAllConversations(hydrateFilePayloads: false)
+        #expect(Set(projection.map(\.id)) == [doomed, kept])
+        try conversations.replaceAllConversations(projection.filter { $0.id != doomed })
+
+        #expect(try store.fetchEnabledServerIds(conversationId: doomed).isEmpty)
+        #expect(try store.fetchEnabledServerIds(conversationId: kept) == [server])
+        for message in doomedMessages {
+            #expect(try store.fetchStepPayload(messageID: message, stepID: "s1") == nil)
+        }
+        #expect(try store.fetchStepPayload(messageID: keptMessages[0], stepID: "s1")?.resultPrefix == "r")
+    }
+
+    @Test("writing a thread back without a message, by explicit id or by difference, clears its step payloads and leaves other messages alone")
+    func writingThreadBackWithoutMessageClearsStepPayloads() throws {
+        let database = try McpTestDatabase.make()
+        defer { database.cleanUp() }
+        let store = database.store
+
+        let (conversationID, messages) = try database.insertConversation(messageCount: 3)
+        for message in messages {
+            try store.saveStepPayload(messageID: message, stepID: "s1", arguments: "{}", resultPrefix: "r")
+        }
+        let conversations = ConversationStore(
+            dbPool: database.pool,
+            attachmentFileStore: AttachmentFileStore(rootDirectory: database.directory.appendingPathComponent("Files", isDirectory: true))
+        )
+        try Self.makeRowsReadableAsModels(database)
+        func thread() throws -> Conversation {
+            try #require(try conversations.fetchAllConversations(hydrateFilePayloads: false).first { $0.id == conversationID })
+        }
+
+        // The message is taken out of the thread in memory and its id is handed to the store explicitly.
+        var updated = try thread()
+        #expect(Set(updated.messages.map(\.id)) == Set(messages))
+        updated.messages.removeAll { $0.id == messages[0] }
+        try conversations.upsertConversation(updated, deletingMessageIDs: [messages[0]])
+
+        #expect(try store.fetchStepPayload(messageID: messages[0], stepID: "s1") == nil)
+        #expect(try store.fetchStepPayload(messageID: messages[1], stepID: "s1")?.resultPrefix == "r")
+        #expect(try store.fetchStepPayload(messageID: messages[2], stepID: "s1")?.resultPrefix == "r")
+
+        // Writing a complete thread back deletes the messages the database has and the thread does not,
+        // which is the path deleting a message and edit-and-resend take.
+        updated = try thread()
+        updated.messages.removeAll { $0.id == messages[1] }
+        try conversations.upsertConversation(updated)
+
+        #expect(try store.fetchStepPayload(messageID: messages[1], stepID: "s1") == nil)
+        #expect(try store.fetchStepPayload(messageID: messages[2], stepID: "s1")?.resultPrefix == "r")
+    }
+
+    /// `insertConversation` fills the required columns only, and its `providerID` is not a UUID, so the
+    /// row would be dropped when read as a model; this gives it a valid value.
+    private static func makeRowsReadableAsModels(_ database: McpTestDatabase) throws {
+        try database.pool.write { db in
+            try db.execute(sql: "UPDATE conversation SET providerID = ?", arguments: [UUID().uuidString])
+        }
+    }
+
     @Test("a message upsert (ON CONFLICT DO UPDATE) does not trigger the cleanup: editing a message keeps its step payloads")
     func upsertingMessageKeepsStepPayloads() throws {
         let database = try McpTestDatabase.make()
