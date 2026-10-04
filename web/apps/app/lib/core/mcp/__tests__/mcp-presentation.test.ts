@@ -1,6 +1,8 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import type { McpToolStep } from '@oriveo/shared';
-import { MCP_RUNTIME_CONFIG_FALLBACK, planMcpTools, type McpConnectionState, type McpServerRecord, type McpToolSnapshot } from '@oriveo/core/mcp/index';
+import { MCP_RUNTIME_CONFIG_FALLBACK, isLocalOnlyUrl, planMcpTools, type McpConnectionState, type McpServerRecord, type McpToolSnapshot } from '@oriveo/core/mcp/index';
 import {
   buildMcpPanelModel,
   estimateMcpToolTokens,
@@ -144,5 +146,22 @@ describe('helpers', () => {
     expect(mcpDisplayAddress('https://example.com/')).toBe('example.com');
     expect(mcpServerInitial('  linear')).toBe('L');
     expect(mcpServerInitial('')).toBe('?');
+  });
+
+  it('never shows the part of an address that may be a key: query, userinfo and secret-looking path segments', () => {
+    expect(mcpDisplayAddress('https://mcp.example.com/api/abcdefghij0123456789/mcp')).toBe('mcp.example.com/api/…/mcp');
+    expect(mcpDisplayAddress('https://user:pw@mcp.example.com/mcp')).toBe('mcp.example.com/mcp');
+    // An ordinary path is shown in full.
+    expect(mcpDisplayAddress('https://mcp.example.com/v1/workspaces/mcp')).toBe('mcp.example.com/v1/workspaces/mcp');
+
+    const fixture: { cases: Array<{ caseId: string; url: string; expect: { localOnly: boolean } }> } = JSON.parse(
+      readFileSync(resolve(__dirname, '../../../../../../../shared/test-fixtures/mcp/local-only.json'), 'utf8'),
+    );
+    expect(fixture.cases.some((testCase) => testCase.expect.localOnly)).toBe(true);
+    for (const testCase of fixture.cases) {
+      const shown = mcpDisplayAddress(testCase.url);
+      expect(isLocalOnlyUrl(`https://${shown}`), testCase.caseId).toBe(false);
+      if (!testCase.expect.localOnly) expect(`https://${shown}`, testCase.caseId).toBe(testCase.url.split('#', 1)[0]);
+    }
   });
 });

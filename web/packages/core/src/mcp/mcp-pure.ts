@@ -274,6 +274,61 @@ export function uniqueSlug(name: string, existing: Iterable<string>): string {
   }
 }
 
+// ── Addresses that carry a secret (fixture local-only.json) ─────────────
+
+export type McpLocalOnlyReason = 'clean' | 'has_query' | 'has_userinfo' | 'long_mixed_path_segment';
+
+const SECRET_SEGMENT_MIN_LENGTH = 20;
+
+/** Stands in for a secret-looking path segment wherever an address is shown. */
+export const MCP_MASKED_PATH_SEGMENT = '…';
+
+/** A path segment of at least 20 characters that mixes letters with digits, counted after percent-decoding. */
+function isSecretLikePathSegment(raw: string): boolean {
+  let segment = raw;
+  try {
+    segment = decodeURIComponent(raw);
+  } catch {
+    // Malformed percent-encoding is counted as written.
+  }
+  return Array.from(segment).length >= SECRET_SEGMENT_MIN_LENGTH && /\p{L}/u.test(segment) && /\p{N}/u.test(segment);
+}
+
+/**
+ * Decides whether an address carries a secret. Any one of three criteria is enough: (1) it has a
+ * query string, an empty `?` included; (2) it has a userinfo component; (3) a path segment looks
+ * like a secret.
+ */
+export function localOnlyVerdict(urlString: string): { localOnly: boolean; reason: McpLocalOnlyReason } {
+  let url: URL;
+  try {
+    url = new URL(urlString);
+  } catch {
+    return { localOnly: false, reason: 'clean' };
+  }
+  const beforeFragment = urlString.split('#', 1)[0] ?? '';
+  if (beforeFragment.includes('?')) return { localOnly: true, reason: 'has_query' };
+  if (url.username || url.password) return { localOnly: true, reason: 'has_userinfo' };
+  if (url.pathname.split('/').some(isSecretLikePathSegment)) return { localOnly: true, reason: 'long_mixed_path_segment' };
+  return { localOnly: false, reason: 'clean' };
+}
+
+export function isLocalOnlyUrl(urlString: string): boolean {
+  return localOnlyVerdict(urlString).localOnly;
+}
+
+/**
+ * A URL path with every secret-looking segment replaced by `…`, for showing on screen. A service
+ * that issues one address per user puts the key in the path, where dropping the query string
+ * does not hide it.
+ */
+export function maskSecretPathSegments(pathname: string): string {
+  return pathname
+    .split('/')
+    .map((segment) => (isSecretLikePathSegment(segment) ? MCP_MASKED_PATH_SEGMENT : segment))
+    .join('/');
+}
+
 // ── Fixed safety prompt text (fixture safety-prompt.txt) ─────────────────
 
 /** Identical, character for character, to `shared/test-fixtures/mcp/safety-prompt.txt` (minus the trailing newline; pinned by a fixture replay test). */

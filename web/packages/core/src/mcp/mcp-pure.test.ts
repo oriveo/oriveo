@@ -6,7 +6,10 @@ import {
   MCP_SAFETY_PROMPT,
   argsSummary,
   canonicalJsonString,
+  isLocalOnlyUrl,
+  localOnlyVerdict,
   makeSlug,
+  maskSecretPathSegments,
   outboundToolName,
   sanitizeToolName,
   sha256Hex,
@@ -95,6 +98,22 @@ describe('args-summary.json', () => {
       if (testCase.expect.length !== undefined) expect(Array.from(summary).length).toBe(testCase.expect.length);
     });
   }
+});
+
+describe('local-only.json', () => {
+  for (const testCase of load('local-only.json').cases) {
+    it(testCase.caseId, () => {
+      expect(localOnlyVerdict(testCase.url)).toEqual(testCase.expect);
+      expect(isLocalOnlyUrl(testCase.url)).toBe(testCase.expect.localOnly);
+    });
+  }
+
+  it('masks exactly the path segments the third criterion flags, in either spelling', () => {
+    expect(maskSecretPathSegments('/api/abcdefghij0123456789/mcp')).toBe('/api/…/mcp');
+    expect(maskSecretPathSegments('/abcdefghij%30123456789')).toBe('/…');
+    expect(maskSecretPathSegments('/abcdefghij012345678/mcp')).toBe('/abcdefghij012345678/mcp');
+    expect(maskSecretPathSegments('/')).toBe('/');
+  });
 });
 
 describe('safety-prompt.txt', () => {

@@ -6,6 +6,7 @@
 
 import {
   isJsonObject,
+  maskSecretPathSegments,
   outboundToolSnapshots,
   planMcpTools,
   type JsonObject,
@@ -159,11 +160,15 @@ export function mcpDurationParts(durationMs: number): { unit: 'ms' | 's'; value:
   return { unit: 's', value: Math.round(durationMs / 100) / 10 };
 }
 
-/** Display form of a server address: scheme removed, host and path kept. The query string is not shown. */
+/**
+ * Display form of a server address: scheme removed, host and path kept. Whatever may carry a
+ * secret is not shown: the query string and userinfo are dropped, and a path segment that looks
+ * like a key is replaced by `…`.
+ */
 export function mcpDisplayAddress(url: string): string {
   try {
     const parsed = new URL(url);
-    const path = parsed.pathname === '/' ? '' : parsed.pathname;
+    const path = parsed.pathname === '/' ? '' : maskSecretPathSegments(parsed.pathname);
     return `${parsed.host}${path}`;
   } catch {
     return url;
