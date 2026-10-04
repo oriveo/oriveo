@@ -304,24 +304,6 @@ interface McpServerDao {
     @Query("DELETE FROM mcp_step_payload WHERE accountId = :accountId AND serverId = :serverId COLLATE NOCASE")
     suspend fun deleteStepPayloadsOfServer(accountId: String, serverId: String)
 
-    /**
-     * Deleting a conversation: the payloads of every message in it. Must be called **before** the message rows are
-     * deleted (it relies on `messages` to find the conversation's messages).
-     */
-    @Query(
-        "DELETE FROM mcp_step_payload WHERE accountId = :accountId AND messageId IN (" +
-            "SELECT id FROM messages WHERE accountId = :accountId AND conversationId = :conversationId COLLATE NOCASE)",
-    )
-    suspend fun deleteStepPayloadsOfConversation(accountId: String, conversationId: String)
-
-    /**
-     * Deleting every message after a given one (edit-and-resend / regenerate): likewise must be called before the
-     * message rows are deleted.
-     */
-    @Query(
-        "DELETE FROM mcp_step_payload WHERE accountId = :accountId AND messageId IN (" +
-            "SELECT id FROM messages WHERE accountId = :accountId AND conversationId = :conversationId COLLATE NOCASE " +
-            "AND sortOrder > :afterOrder)",
-    )
-    suspend fun deleteStepPayloadsAfterOrder(accountId: String, conversationId: String, afterOrder: Int)
+    // Cleaning up when a message or a conversation is deleted is not done here: it is part of the delete methods of
+    // `MessageDao` / `ConversationDao`, in the same transaction as deleting the rows.
 }

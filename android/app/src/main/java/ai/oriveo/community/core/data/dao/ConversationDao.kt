@@ -2,6 +2,7 @@ package ai.oriveo.community.core.data.dao
 
 import androidx.room.Dao
 import androidx.room.Query
+import androidx.room.Transaction
 import androidx.room.Update
 import androidx.room.Upsert
 import ai.oriveo.community.core.data.entity.ConversationEntity
@@ -231,11 +232,48 @@ interface ConversationDao {
     @Update
     suspend fun updateAll(entities: List<ConversationEntity>)
 
+    /**
+     * Deletes a conversation. The MCP step payloads of its messages (`mcp_step_payload`: the raw arguments and
+     * results of tool steps, kept on this device only) are deleted first, in the same transaction.
+     *
+     * The cascade lives in the DAO and not in the callers, so that no way of deleting a conversation can leave
+     * payloads behind. A delete trigger on `messages` would not do: Room turns `recursive_triggers` on, so the
+     * `INSERT OR REPLACE` of `MessageDao.upsert` replacing a row would fire it too, and every write of a streaming
+     * message would wipe that message's payloads.
+     *
+     * The payloads must go first: once the message rows are gone through the foreign-key cascade, nothing can tell
+     * which messages belonged to the conversation.
+     */
+    @Transaction
+    suspend fun deleteById(accountId: String, id: String) {
+        deleteStepPayloadsOfConversation(accountId, id)
+        deleteRowById(accountId, id)
+    }
+
     @Query("DELETE FROM conversations WHERE accountId = :accountId AND id = :id")
-    suspend fun deleteById(accountId: String, id: String)
+    suspend fun deleteRowById(accountId: String, id: String)
+
+    @Query(
+        "DELETE FROM mcp_step_payload WHERE accountId = :accountId AND messageId IN (" +
+            "SELECT id FROM messages WHERE accountId = :accountId AND conversationId = :conversationId COLLATE NOCASE)",
+    )
+    suspend fun deleteStepPayloadsOfConversation(accountId: String, conversationId: String)
+
+    @Transaction
+    suspend fun deleteByIds(accountId: String, ids: Collection<String>) {
+        // As in [deleteById]: step payloads first, then the conversation rows.
+        deleteStepPayloadsOfConversations(accountId, ids)
+        deleteRowsByIds(accountId, ids)
+    }
 
     @Query("DELETE FROM conversations WHERE accountId = :accountId AND id IN (:ids) COLLATE NOCASE")
-    suspend fun deleteByIds(accountId: String, ids: Collection<String>)
+    suspend fun deleteRowsByIds(accountId: String, ids: Collection<String>)
+
+    @Query(
+        "DELETE FROM mcp_step_payload WHERE accountId = :accountId AND messageId IN (" +
+            "SELECT id FROM messages WHERE accountId = :accountId AND conversationId COLLATE NOCASE IN (:conversationIds))",
+    )
+    suspend fun deleteStepPayloadsOfConversations(accountId: String, conversationIds: Collection<String>)
 
     @Query("DELETE FROM conversations WHERE accountId = :accountId")
     suspend fun deleteByAccount(accountId: String)

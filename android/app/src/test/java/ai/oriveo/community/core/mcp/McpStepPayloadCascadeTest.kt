@@ -30,6 +30,8 @@ import org.robolectric.RobolectricTestRunner
  * Everything goes through production paths: payloads are written to a real Room database via
  * `McpChatToolRunner.saveStepPayload` (where the chat send path lands); deletion goes through `ConversationRepository`
  * (delete a conversation / drop later messages on edit-and-resend) and `McpServerActions.remove` (remove a server).
+ * Cleaning up after a deleted message or conversation is part of the delete methods of `MessageDao` /
+ * `ConversationDao`, so no caller has to remember the payloads.
  */
 @RunWith(RobolectricTestRunner::class)
 class McpStepPayloadCascadeTest {
@@ -50,7 +52,6 @@ class McpStepPayloadCascadeTest {
         conversations = ConversationRepository(
             conversationDao = harness.db.conversationDao(),
             messageDao = harness.db.messageDao(),
-            mcpServerDao = harness.db.mcpServerDao(),
         )
     }
 
@@ -129,6 +130,43 @@ class McpStepPayloadCascadeTest {
         conversations.deleteMessagesAfter(CONV_A, MSG_A1)
 
         assertEquals(0, payloadRows())
+    }
+
+    @Test
+    fun `deleting a message row through the dao deletes its step payloads and keeps the other messages`() = runBlocking {
+        val serverId = harness.addServer()
+        seedConversation(CONV_A, listOf(MSG_A1, MSG_A2, MSG_A3, MSG_A4))
+        recordStep(MSG_A2, serverId)
+        recordStep(MSG_A4, serverId)
+
+        harness.db.messageDao().deleteById(UID, MSG_A4)
+
+        assertNull(harness.store.fetchStepPayload(MSG_A4, "1:c1"))
+        assertNotNull("a message that was not deleted keeps its payload", harness.store.fetchStepPayload(MSG_A2, "1:c1"))
+    }
+
+    @Test
+    fun `rewriting a message row keeps its step payloads and rows of another account are left alone`() = runBlocking {
+        val serverId = harness.addServer()
+        seedConversation(CONV_A, listOf(MSG_A1, MSG_A2))
+        recordStep(MSG_A2, serverId)
+        // A payload under the same message id and a different account id in the same database.
+        harness.db.mcpServerDao().upsertStepPayload(
+            ai.oriveo.community.core.data.entity.McpStepPayloadEntity(
+                messageId = MSG_A2, stepId = "1:c1", accountId = "other-account", arguments = "{}", resultPrefix = null, createdAt = 1,
+            ),
+        )
+
+        // Saving a streaming message overwrites the existing row with INSERT OR REPLACE: the row is replaced and
+        // written again, not deleted. Room turns recursive_triggers on, so REPLACE would fire a delete trigger on
+        // messages, which is why the cascade is not a trigger.
+        val row = harness.db.messageDao().getById(UID, MSG_A2)!!
+        harness.db.messageDao().upsertAll(listOf(row.copy(text = "rewritten")))
+        assertNotNull("an overwrite is not a deletion, so the payload stays", harness.store.fetchStepPayload(MSG_A2, "1:c1"))
+
+        conversations.delete(CONV_A)
+        assertNull(harness.store.fetchStepPayload(MSG_A2, "1:c1"))
+        assertNotNull("only the payloads in the account of the deleted message go", harness.db.mcpServerDao().getStepPayload("other-account", MSG_A2, "1:c1"))
     }
 
     @Test

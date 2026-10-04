@@ -1740,7 +1740,7 @@ class BackupServiceTest {
         coEvery { skillDao.getBySource(LOCAL_PARTITION_ID, SkillSource.USER.value) } returns emptyList()
         coEvery { conversationDao.getById(any(), "conversation-1") } answers { localConversation }
         coEvery { messageDao.getByConversation(any(), "conversation-1") } answers { localMessages.toList() }
-        coEvery { messageDao.deleteByConversation(any(), "conversation-1") } answers { localMessages.clear() }
+        coEvery { messageDao.deleteRowsByConversation(any(), "conversation-1") } answers { localMessages.clear() }
         coEvery { messageDao.upsert(any()) } throws IllegalStateException("message insert failed")
         val transactionalService = createBackupService(
             runInTransaction = { block ->
@@ -1830,7 +1830,7 @@ class BackupServiceTest {
         coEvery { skillDao.getBySource(LOCAL_PARTITION_ID, SkillSource.USER.value) } returns emptyList()
         coEvery { conversationDao.getById(any(), "conversation-1") } answers { localConversation }
         coEvery { messageDao.getByConversation(any(), "conversation-1") } answers { localMessages.toList() }
-        coEvery { messageDao.deleteByConversation(any(), "conversation-1") } answers { localMessages.clear() }
+        coEvery { messageDao.deleteRowsByConversation(any(), "conversation-1") } answers { localMessages.clear() }
         coEvery { messageDao.upsert(any()) } answers {
             localMessages += firstArg<MessageEntity>()
             Unit
@@ -1956,7 +1956,7 @@ class BackupServiceTest {
         coEvery { skillDao.getBySource(LOCAL_PARTITION_ID, SkillSource.USER.value) } returns emptyList()
         coEvery { conversationDao.getById(any(), "conversation-1") } answers { localConversation }
         coEvery { messageDao.getByConversation(any(), "conversation-1") } answers { localMessages.toList() }
-        coEvery { messageDao.deleteByConversation(any(), "conversation-1") } answers { localMessages.clear() }
+        coEvery { messageDao.deleteRowsByConversation(any(), "conversation-1") } answers { localMessages.clear() }
         coEvery { messageDao.upsert(any()) } throws IllegalStateException("message insert failed")
         every { attachmentStore.loadImageBytes("local-image-1") } answers { storedImage }
         every { attachmentStore.loadThumbnailBytes("local-image-1") } answers { storedThumbnail }
@@ -2583,7 +2583,7 @@ class BackupServiceTest {
         assertTrue(note.provenanceJson!!.contains(collidingId))
         assertTrue(note.provenanceJson!!.contains(originalMessageId))
 
-        coVerify(exactly = 0) { messageDao.deleteByConversation("other-user", collidingId) }
+        coVerify(exactly = 0) { messageDao.deleteRowsByConversation("other-user", collidingId) }
     }
 
     private fun existingConversationEntity(

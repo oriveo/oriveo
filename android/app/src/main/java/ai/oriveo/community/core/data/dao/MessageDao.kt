@@ -4,6 +4,7 @@ import androidx.room.Dao
 import androidx.room.Insert
 import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Transaction
 import androidx.room.Update
 import ai.oriveo.community.core.data.entity.MessageEntity
 import ai.oriveo.community.core.data.entity.MonthlyCostRow
@@ -250,8 +251,22 @@ interface MessageDao {
     @Update
     suspend fun update(entity: MessageEntity)
 
+    /**
+     * Deletes a message together with its MCP step payloads, which are kept on this device only. Why the cascade
+     * lives in the DAO is explained at [ConversationDao.deleteById].
+     */
+    @Transaction
+    suspend fun deleteById(accountId: String, id: String) {
+        deleteStepPayloadsOfMessage(accountId, id)
+        deleteRowById(accountId, id)
+    }
+
     @Query("DELETE FROM messages WHERE accountId = :accountId AND id = :id")
-    suspend fun deleteById(accountId: String, id: String)
+    suspend fun deleteRowById(accountId: String, id: String)
+
+    /** The `mcp_step_payload.messageId` column is NOCASE. */
+    @Query("DELETE FROM mcp_step_payload WHERE accountId = :accountId AND messageId = :messageId")
+    suspend fun deleteStepPayloadsOfMessage(accountId: String, messageId: String)
 
     /**
      * Marks every message still in Generating as Interrupted, on startup.
@@ -301,11 +316,40 @@ interface MessageDao {
         cacheWriteTokens: Int?,
     ): Int
 
+    /** Deletes every message of a conversation together with their MCP step payloads (as in [deleteById]). */
+    @Transaction
+    suspend fun deleteByConversation(accountId: String, conversationId: String) {
+        deleteStepPayloadsAfterOrder(accountId, conversationId, Int.MIN_VALUE)
+        deleteRowsByConversation(accountId, conversationId)
+    }
+
+    /**
+     * Deletes the message rows only and leaves the step payloads alone. This is for a rebuild that deletes the rows
+     * and writes them back under the same ids (a backup import merging into an existing conversation). A real
+     * deletion goes through [deleteByConversation].
+     */
     @Query("DELETE FROM messages WHERE accountId = :accountId AND conversationId = :conversationId")
-    suspend fun deleteByConversation(accountId: String, conversationId: String)
+    suspend fun deleteRowsByConversation(accountId: String, conversationId: String)
+
+    /**
+     * Deletes every message after a given one (edit-and-resend / regenerate) together with their MCP step payloads
+     * (as in [deleteById]).
+     */
+    @Transaction
+    suspend fun deleteAfterOrder(accountId: String, conversationId: String, afterOrder: Int) {
+        deleteStepPayloadsAfterOrder(accountId, conversationId, afterOrder)
+        deleteRowsAfterOrder(accountId, conversationId, afterOrder)
+    }
 
     @Query("DELETE FROM messages WHERE accountId = :accountId AND conversationId = :conversationId AND sortOrder > :afterOrder")
-    suspend fun deleteAfterOrder(accountId: String, conversationId: String, afterOrder: Int)
+    suspend fun deleteRowsAfterOrder(accountId: String, conversationId: String, afterOrder: Int)
+
+    @Query(
+        "DELETE FROM mcp_step_payload WHERE accountId = :accountId AND messageId IN (" +
+            "SELECT id FROM messages WHERE accountId = :accountId AND conversationId = :conversationId " +
+            "AND sortOrder > :afterOrder)",
+    )
+    suspend fun deleteStepPayloadsAfterOrder(accountId: String, conversationId: String, afterOrder: Int)
 
     @Query("SELECT MAX(sortOrder) FROM messages WHERE accountId = :accountId AND conversationId = :conversationId")
     suspend fun maxSortOrder(accountId: String, conversationId: String): Int?

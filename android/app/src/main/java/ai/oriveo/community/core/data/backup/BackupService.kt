@@ -887,7 +887,9 @@ class BackupService(
 
                 try {
                     runAtomically {
-                        messageDao.deleteByConversation(targetAccountId, bc.id)
+                        // A rebuild: the messages are written straight back under the same ids, so this is not a
+                        // deletion and their step payloads stay.
+                        messageDao.deleteRowsByConversation(targetAccountId, bc.id)
                         slimmedMerged.forEachIndexed { index, msg ->
                             messageDao.upsert(msg.toMessageEntity(targetAccountId, bc.id, index))
                         }

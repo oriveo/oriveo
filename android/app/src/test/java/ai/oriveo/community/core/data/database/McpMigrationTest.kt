@@ -274,7 +274,7 @@ class McpMigrationTest {
             assertEquals(payload, dao.getStepPayload(account, "m1", "1:call"))
 
             // Removing the conversation's payloads relies on a join with the pre-existing `messages` table.
-            dao.deleteStepPayloadsOfConversation(account, "c1")
+            db.conversationDao().deleteStepPayloadsOfConversation(account, "c1")
             assertNull(dao.getStepPayload(account, "m1", "1:call"))
 
             assertEquals(server.copy(pendingAdd = false), dao.deleteServerCascade(account, "s1"))

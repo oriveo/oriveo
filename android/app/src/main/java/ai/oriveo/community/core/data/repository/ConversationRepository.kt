@@ -46,8 +46,6 @@ class ConversationRepository(
     private val onAssistantDelivered: suspend (String) -> Unit = {},
     private val continuationDao: MessageContinuationDao? = null,
     private val searchIndexer: ai.oriveo.community.core.data.search.ConversationSearchIndexer? = null,
-    /** Holds the per-step payloads of MCP tool calls: deleting messages or a conversation deletes them too. */
-    private val mcpServerDao: ai.oriveo.community.core.data.dao.McpServerDao? = null,
 ) {
     private val searchService = ConversationSearchService(conversationDao, searchIndexer)
     private val usageAnalytics = ConversationUsageAnalytics(messageDao)
@@ -486,7 +484,6 @@ class ConversationRepository(
         else deletedIDs.chunked(CONTINUATION_DELETE_CHUNK_SIZE).forEach { ids ->
             continuationDao?.deleteMessages(scopedAccountId, ids)
         }
-        mcpServerDao?.deleteStepPayloadsAfterOrder(scopedAccountId, normalizedConversationId, msg.sortOrder)
         messageDao.deleteAfterOrder(scopedAccountId, normalizedConversationId, msg.sortOrder)
         refreshConversationMetadata(normalizedConversationId, scopedAccountId = scopedAccountId)
         refreshCost(normalizedConversationId, scopedAccountId)
@@ -515,7 +512,6 @@ class ConversationRepository(
         else deletedIDs.chunked(CONTINUATION_DELETE_CHUNK_SIZE).forEach { ids ->
             continuationDao?.deleteMessages(scopedAccountId, ids)
         }
-        mcpServerDao?.deleteStepPayloadsAfterOrder(scopedAccountId, normalizedConversationId, msg.sortOrder - 1)
         messageDao.deleteAfterOrder(scopedAccountId, normalizedConversationId, msg.sortOrder - 1)
         refreshConversationMetadata(normalizedConversationId, scopedAccountId = scopedAccountId)
         refreshCost(normalizedConversationId, scopedAccountId)
@@ -538,9 +534,6 @@ class ConversationRepository(
         } ?: 0
 
         continuationDao?.deleteForConversation(scopedAccountId, normalizedId)
-        // Must come before the conversation is deleted: once the message rows are gone through the
-        // foreign-key cascade, nothing can tell which messages belonged to it.
-        mcpServerDao?.deleteStepPayloadsOfConversation(scopedAccountId, normalizedId)
         conversationDao.deleteById(scopedAccountId, normalizedId)
     }
 
@@ -689,7 +682,6 @@ class ConversationRepository(
                 .orEmpty()
         }
         normalizedIds.forEach { continuationDao?.deleteForConversation(scopedAccountId, it) }
-        normalizedIds.forEach { mcpServerDao?.deleteStepPayloadsOfConversation(scopedAccountId, it) }
         conversationDao.deleteByIds(scopedAccountId, normalizedIds)
     }
 
