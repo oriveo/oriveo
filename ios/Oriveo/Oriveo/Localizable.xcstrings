@@ -1,18 +1,6 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
-    " " : {
-      "shouldTranslate" : false
-    },
-    "  •  " : {
-      "shouldTranslate" : false
-    },
-    "--" : {
-      "shouldTranslate" : false
-    },
-    "—" : {
-      "shouldTranslate" : false
-    },
     "?" : {
       "localizations" : {
         "hi" : {
@@ -358,7 +346,7 @@
       }
     },
     "%lld hr ago" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -453,7 +441,7 @@
       }
     },
     "%lld lines" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -548,7 +536,7 @@
       }
     },
     "%lld min ago" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -643,7 +631,7 @@
       }
     },
     "%lld models" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -744,7 +732,7 @@
       }
     },
     "%lld providers" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -886,7 +874,7 @@
       "shouldTranslate" : false
     },
     "✨" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "hi" : {
           "stringUnit" : {
@@ -928,7 +916,7 @@
       "shouldTranslate" : false
     },
     "📌" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "hi" : {
           "stringUnit" : {
@@ -1008,12 +996,6 @@
           }
         }
       },
-      "shouldTranslate" : false
-    },
-    "$" : {
-      "shouldTranslate" : false
-    },
-    "50" : {
       "shouldTranslate" : false
     },
     "200+ models" : {
@@ -1617,7 +1599,7 @@
       }
     },
     "Add" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -1918,7 +1900,7 @@
       }
     },
     "Add Models" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -2013,7 +1995,7 @@
       }
     },
     "Add Provider" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -2304,7 +2286,7 @@
       }
     },
     "Advanced Settings" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -2500,7 +2482,7 @@
       }
     },
     "Aggregated" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -2987,7 +2969,7 @@
       }
     },
     "API keys stay on your device" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -3284,7 +3266,7 @@
       }
     },
     "Auto" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -3581,7 +3563,7 @@
       }
     },
     "Available" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -3676,7 +3658,7 @@
       }
     },
     "Back" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -3771,7 +3753,7 @@
       }
     },
     "Backup & Import/Export" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -3866,7 +3848,7 @@
       }
     },
     "Balanced" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -4271,7 +4253,7 @@
       }
     },
     "Can you help me analyze this dataset for my quarterly report? I need to identify the top three growth drivers from the last six months." : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -4563,7 +4545,7 @@
       }
     },
     "Cancel" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -4664,7 +4646,7 @@
       }
     },
     "Chat" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -4759,7 +4741,7 @@
       }
     },
     "Chat data is not uploaded to Oriveo servers" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -5145,7 +5127,7 @@
       }
     },
     "Choose Model" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -5240,7 +5222,7 @@
       }
     },
     "Claude" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -5531,7 +5513,7 @@
       }
     },
     "Close" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -5632,7 +5614,7 @@
       }
     },
     "Code" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -6832,7 +6814,7 @@
       }
     },
     "Continue" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -7028,7 +7010,7 @@
       }
     },
     "Copied" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -7123,7 +7105,7 @@
       }
     },
     "Copy" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -7218,7 +7200,7 @@
       }
     },
     "Copy Image" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -7515,7 +7497,7 @@
       }
     },
     "Current" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -7705,7 +7687,7 @@
       }
     },
     "Dark" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -7800,7 +7782,7 @@
       }
     },
     "Default" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -7990,7 +7972,7 @@
       }
     },
     "Delete" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -8091,7 +8073,7 @@
       }
     },
     "Delete this conversation?" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -8382,7 +8364,7 @@
       }
     },
     "Dismiss" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -8578,7 +8560,7 @@
       }
     },
     "Done" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -8679,7 +8661,7 @@
       }
     },
     "Draft" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -8774,7 +8756,7 @@
       }
     },
     "Edit" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -9160,7 +9142,7 @@
       }
     },
     "Expand" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -9255,7 +9237,7 @@
       }
     },
     "Export Failed" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -9350,7 +9332,7 @@
       }
     },
     "Exported backups can be encrypted" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -9641,7 +9623,7 @@
       }
     },
     "File" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -9831,7 +9813,7 @@
       }
     },
     "Follow System" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -10027,7 +10009,7 @@
       }
     },
     "Free" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -10621,7 +10603,7 @@
       }
     },
     "Got It" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -11019,7 +11001,7 @@
       }
     },
     "Here are the key insights from the last six months:\n\n- **Product referrals** continue to grow, indicating word-of-mouth is gaining traction.\n- **Direct sales** maintain steady growth as the most stable conversion source.\n- **Organic search** improved significantly — the new content strategy is paying off." : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -11406,7 +11388,7 @@
       }
     },
     "Hide technical details" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -11596,7 +11578,7 @@
       }
     },
     "Home" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -11792,7 +11774,7 @@
       }
     },
     "How can I help you with your productivity today? I can analyze data, write code, or help organize your schedule." : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -11988,7 +11970,7 @@
       }
     },
     "I've drafted a response based on %@'s current context that you can keep iterating on:\n\n- Break the problem into the three most important decisions first.\n- Start with an actionable first step so you can keep moving.\n- If you want, I can turn it into a more detailed checklist, copy, or code next.\n\nYour latest message was: %@" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -12683,7 +12665,7 @@
       }
     },
     "Just now" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -12778,7 +12760,7 @@
       }
     },
     "knowledge_cleanup_failed" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -12879,7 +12861,7 @@
       }
     },
     "knowledge_extract_failed" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -12980,7 +12962,7 @@
       }
     },
     "knowledge_file_too_large" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -13081,7 +13063,7 @@
       }
     },
     "knowledge_index_failed" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -13182,7 +13164,7 @@
       }
     },
     "knowledge_retrieve_failed" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -13283,7 +13265,7 @@
       }
     },
     "knowledge_service_unavailable" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -13384,7 +13366,7 @@
       }
     },
     "knowledge_total_size_exceeded" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -13485,7 +13467,7 @@
       }
     },
     "knowledge_upload_failed" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -13788,7 +13770,7 @@
       }
     },
     "Light" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -14180,7 +14162,7 @@
       }
     },
     "Manual fallback model" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -14376,7 +14358,7 @@
       }
     },
     "Manually added fallback model" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -14762,7 +14744,7 @@
       }
     },
     "Model default" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -15439,7 +15421,7 @@
       }
     },
     "Need to identify the top three drivers of revenue growth." : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -15534,7 +15516,7 @@
       }
     },
     "Needs setup" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -15730,7 +15712,7 @@
       }
     },
     "New" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -15831,7 +15813,7 @@
       }
     },
     "New Chat" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -16122,7 +16104,7 @@
       }
     },
     "No matching models found" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -16716,7 +16698,7 @@
       }
     },
     "Not set" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -17013,7 +16995,7 @@
       }
     },
     "Omit" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -17595,7 +17577,7 @@
       }
     },
     "openai_endpoint_not_official" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -17886,7 +17868,7 @@
       }
     },
     "Other" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -18267,7 +18249,7 @@
       }
     },
     "Parameter behavior" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -18463,7 +18445,7 @@
       }
     },
     "Photo" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -19342,7 +19324,7 @@
       }
     },
     "Providers" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -19437,7 +19419,7 @@
       }
     },
     "Quarterly Growth Report" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -19633,7 +19615,7 @@
       }
     },
     "Ready" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -19734,7 +19716,7 @@
       }
     },
     "Ready to start a new conversation" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -20019,7 +20001,7 @@
       }
     },
     "Recent" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -20120,7 +20102,7 @@
       }
     },
     "Recommended" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -20221,7 +20203,7 @@
       }
     },
     "reference_file_char_limit_exceeded" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -20316,7 +20298,7 @@
       }
     },
     "reference_file_too_large" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -20417,7 +20399,7 @@
       }
     },
     "Rename" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -20607,7 +20589,7 @@
       }
     },
     "Replace" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -20904,7 +20886,7 @@
       }
     },
     "Restore Defaults" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -20999,7 +20981,7 @@
       }
     },
     "retrieval_model_not_enabled" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -21100,7 +21082,7 @@
       }
     },
     "Retry" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -21296,7 +21278,7 @@
       }
     },
     "Save" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -21391,7 +21373,7 @@
       }
     },
     "Save to Photos" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -21694,7 +21676,7 @@
       }
     },
     "Search models..." : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -21985,7 +21967,7 @@
       }
     },
     "Settings" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -22080,7 +22062,7 @@
       }
     },
     "Share" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -38526,7 +38508,7 @@
       }
     },
     "Source" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -38823,7 +38805,7 @@
       }
     },
     "Summarize the most common complaints from user research..." : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -39013,7 +38995,7 @@
       }
     },
     "Switch" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -39108,7 +39090,7 @@
       }
     },
     "Switch Model" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -39702,7 +39684,7 @@
       }
     },
     "Technical details" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -41555,7 +41537,7 @@
       }
     },
     "This conversation and all its messages will be permanently deleted." : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -42148,7 +42130,7 @@
       }
     },
     "Today" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -42249,7 +42231,7 @@
       }
     },
     "Try Again" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -42540,7 +42522,7 @@
       }
     },
     "Unavailable" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -42641,7 +42623,7 @@
       }
     },
     "Unknown" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -42736,7 +42718,7 @@
       }
     },
     "Unsupported file format" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -42831,7 +42813,7 @@
       }
     },
     "unsupported_file_type" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -43134,7 +43116,7 @@
       }
     },
     "Version" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -43524,12 +43506,6 @@
           }
         }
       }
-    },
-    "web_search" : {
-      "shouldTranslate" : false
-    },
-    "web_search_preview" : {
-      "shouldTranslate" : false
     },
     "What can I help with?" : {
       "extractionState" : "manual",
@@ -43924,7 +43900,7 @@
       }
     },
     "Yesterday" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -44019,7 +43995,7 @@
       }
     },
     "You" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {

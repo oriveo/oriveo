@@ -97,7 +97,7 @@
       }
     },
     "Add a provider first to start chatting and switch models later." : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -192,7 +192,7 @@
       }
     },
     "All models are already enabled" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -388,7 +388,7 @@
       }
     },
     "Change the model for the next turn while preserving this conversation." : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -483,7 +483,7 @@
       }
     },
     "Conversation title" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -679,7 +679,7 @@
       }
     },
     "Copy Last Message" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -875,7 +875,7 @@
       }
     },
     "Current: %@ • %@" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -1457,7 +1457,7 @@
       }
     },
     "Earlier" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -2455,7 +2455,7 @@
       }
     },
     "No conversations yet" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -2556,7 +2556,7 @@
       }
     },
     "No provider available yet" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -2651,7 +2651,7 @@
       }
     },
     "Past 7 Days" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -3239,7 +3239,7 @@
       }
     },
     "Rename Conversation" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -3637,7 +3637,7 @@
       }
     },
     "Search Results" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -4118,7 +4118,7 @@
       }
     },
     "Start your first AI conversation" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -4308,7 +4308,7 @@
       }
     },
     "View All" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {

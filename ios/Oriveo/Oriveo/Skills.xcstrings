@@ -1071,7 +1071,7 @@
       }
     },
     "Enable %@ in your OpenAI provider to use Knowledge Base." : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -1172,7 +1172,7 @@
       }
     },
     "Failed" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -1273,7 +1273,7 @@
       }
     },
     "File is empty" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -2152,7 +2152,7 @@
       }
     },
     "openai_not_configured" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {

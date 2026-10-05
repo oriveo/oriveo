@@ -505,7 +505,7 @@
       }
     },
     "Get Started" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {

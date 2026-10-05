@@ -501,7 +501,7 @@
       }
     },
     "AI is answering..." : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -1707,7 +1707,7 @@
       }
     },
     "Collapsed" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -2111,7 +2111,7 @@
       }
     },
     "Conversation exported as Markdown." : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -3103,7 +3103,7 @@
       }
     },
     "Delete Conversation" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -3400,7 +3400,7 @@
       }
     },
     "Edit Message" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -3798,7 +3798,7 @@
       }
     },
     "Expanded" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -4101,7 +4101,7 @@
       }
     },
     "Export Conversation" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -4487,7 +4487,7 @@
       }
     },
     "File too large" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -9311,7 +9311,7 @@
       }
     },
     "Regenerate" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -10315,7 +10315,7 @@
       }
     },
     "Response Interrupted" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -13322,7 +13322,7 @@
       }
     },
     "The partial reply has been kept. Regenerate to request a fresh full answer." : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -13518,7 +13518,7 @@
       }
     },
     "The request did not finish cleanly. Retry it now or edit the last user message before sending again." : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -16714,7 +16714,7 @@
       }
     },
     "Type a message..." : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {

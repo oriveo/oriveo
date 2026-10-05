@@ -2,7 +2,7 @@
   "sourceLanguage" : "en",
   "strings" : {
     "%d API keys restored" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -97,7 +97,7 @@
       }
     },
     "%d conversations merged" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -192,7 +192,7 @@
       }
     },
     "%d conversations skipped" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -287,7 +287,7 @@
       }
     },
     "%d images missing (thumbnails preserved)" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -382,7 +382,7 @@
       }
     },
     "%d images restored" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -477,7 +477,7 @@
       }
     },
     "%d new conversations added" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -572,7 +572,7 @@
       }
     },
     "%d new providers added" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -667,7 +667,7 @@
       }
     },
     "%d new skills added" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -762,7 +762,7 @@
       }
     },
     "%d providers skipped" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -857,7 +857,7 @@
       }
     },
     "%d skills merged" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -952,7 +952,7 @@
       }
     },
     "%d skills skipped" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -1047,7 +1047,7 @@
       }
     },
     "already exist" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -1142,7 +1142,7 @@
       }
     },
     "API keys will be encrypted with this password. Keep it safe — you'll need it to restore keys." : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -1237,7 +1237,7 @@
       }
     },
     "App Version" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -1332,7 +1332,7 @@
       }
     },
     "At least 8 characters" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -1427,7 +1427,7 @@
       }
     },
     "Attachment '%@' may be corrupted." : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -1522,7 +1522,7 @@
       }
     },
     "Backup exported successfully." : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -1617,7 +1617,7 @@
       }
     },
     "Backup Info" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -1712,7 +1712,7 @@
       }
     },
     "Choose Another Backup" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -1807,7 +1807,7 @@
       }
     },
     "Clear all local data and replace with backup contents." : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -1902,7 +1902,7 @@
       }
     },
     "Confirm Password" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -1997,7 +1997,7 @@
       }
     },
     "Contains API Keys" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -2092,7 +2092,7 @@
       }
     },
     "Contents" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -2187,7 +2187,7 @@
       }
     },
     "Conversations" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -2282,7 +2282,7 @@
       }
     },
     "Created" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -2377,7 +2377,7 @@
       }
     },
     "Encrypted Backup" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -2472,7 +2472,7 @@
       }
     },
     "Encryption Password" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -2567,7 +2567,7 @@
       }
     },
     "Enter backup password" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -2662,7 +2662,7 @@
       }
     },
     "Enter Backup Password" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -2757,7 +2757,7 @@
       }
     },
     "Enter password again" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -2852,7 +2852,7 @@
       }
     },
     "Export Backup" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -3042,7 +3042,7 @@
       }
     },
     "Failed to create backup archive." : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -3137,7 +3137,7 @@
       }
     },
     "Failed to derive encryption key." : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -3232,7 +3232,7 @@
       }
     },
     "Failed to encrypt API keys." : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -3327,7 +3327,7 @@
       }
     },
     "Failed to extract backup archive." : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -3422,7 +3422,7 @@
       }
     },
     "Failed to save backup file." : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -3517,7 +3517,7 @@
       }
     },
     "Images" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -3612,7 +3612,7 @@
       }
     },
     "Import" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -3707,7 +3707,7 @@
       }
     },
     "Import & Restore" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -3802,7 +3802,7 @@
       }
     },
     "Import Backup" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -3897,7 +3897,7 @@
       }
     },
     "Import Complete" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -3992,7 +3992,7 @@
       }
     },
     "Import Failed" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -4087,7 +4087,7 @@
       }
     },
     "Import Mode" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -4182,7 +4182,7 @@
       }
     },
     "Import New Only" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -4277,7 +4277,7 @@
       }
     },
     "Import Preview" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -4372,7 +4372,7 @@
       }
     },
     "Include API Keys" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -4467,7 +4467,7 @@
       }
     },
     "Incorrect password or corrupted encrypted data." : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -4562,7 +4562,7 @@
       }
     },
     "Knowledge base files need to be re-uploaded before they can be used again." : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -4657,7 +4657,7 @@
       }
     },
     "Merge" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -4752,7 +4752,7 @@
       }
     },
     "Merge messages into existing conversations and add new ones." : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -4847,7 +4847,7 @@
       }
     },
     "Messages" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -4948,7 +4948,7 @@
       }
     },
     "No" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -5043,7 +5043,7 @@
       }
     },
     "No data to export." : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -5138,7 +5138,7 @@
       }
     },
     "Password" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -5233,7 +5233,7 @@
       }
     },
     "Password must be at least 8 characters." : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -5328,7 +5328,7 @@
       }
     },
     "Passwords do not match." : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -5423,7 +5423,7 @@
       }
     },
     "Platform" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -5518,7 +5518,7 @@
       }
     },
     "Preparing..." : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -5613,7 +5613,7 @@
       }
     },
     "Replace All" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -5708,7 +5708,7 @@
       }
     },
     "Replace All Data" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -5803,7 +5803,7 @@
       }
     },
     "Restore conversations, providers, and settings from a backup file." : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -5898,7 +5898,7 @@
       }
     },
     "Skip API Keys" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -5993,7 +5993,7 @@
       }
     },
     "Skip existing conversations and providers; only add new ones." : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -6088,7 +6088,7 @@
       }
     },
     "The backup file format is not recognized." : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -6183,7 +6183,7 @@
       }
     },
     "The backup file is corrupted or in an unsupported format." : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -6278,7 +6278,7 @@
       }
     },
     "The backup file may have been modified or corrupted." : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -6373,7 +6373,7 @@
       }
     },
     "The backup file may have been modified or corrupted. Proceed with caution." : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -6468,7 +6468,7 @@
       }
     },
     "The encrypted data is invalid." : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -6563,7 +6563,7 @@
       }
     },
     "This backup contains encrypted API keys. Enter the password to restore them, or skip to import without keys." : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -6658,7 +6658,7 @@
       }
     },
     "This backup requires a newer version of Oriveo (format version %d)." : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -6943,7 +6943,7 @@
       }
     },
     "This will clear all local data and replace it with the backup contents. A temporary backup will be created automatically." : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -7038,7 +7038,7 @@
       }
     },
     "Unlock & Import" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -7133,7 +7133,7 @@
       }
     },
     "Yes" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -7228,7 +7228,7 @@
       }
     },
     "Your Data" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {

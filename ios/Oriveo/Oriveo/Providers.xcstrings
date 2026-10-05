@@ -204,7 +204,7 @@
       }
     },
     "%lld available models" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -299,7 +299,7 @@
       }
     },
     "+ Add model ID manually" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -394,7 +394,7 @@
       }
     },
     "A display name for this relay provider" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -1487,7 +1487,7 @@
       }
     },
     "Added models appear in the model picker on the Home screen." : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -2586,7 +2586,7 @@
       }
     },
     "API Key" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -2877,7 +2877,7 @@
       }
     },
     "API key not saved on this device. Tap to add it." : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -3275,7 +3275,7 @@
       }
     },
     "Attach PDFs / documents" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -3774,7 +3774,7 @@
       }
     },
     "auto / default / flex / …" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -3976,7 +3976,7 @@
       }
     },
     "Auto-filled" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -4469,7 +4469,7 @@
       }
     },
     "Base URL" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -4766,7 +4766,7 @@
       }
     },
     "Built-in web search" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -5449,7 +5449,7 @@
       }
     },
     "Change" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -6732,7 +6732,7 @@
       }
     },
     "Clear learned capabilities" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -6934,7 +6934,7 @@
       }
     },
     "Compatibility" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -7528,7 +7528,7 @@
       }
     },
     "Connect a provider first. Model switching, chat, and cost transparency all start here." : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -7926,7 +7926,7 @@
       }
     },
     "Connect directly to an engine on this device or your private network." : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -8027,7 +8027,7 @@
       }
     },
     "Connect Ollama, LM Studio, llama.cpp, or vLLM" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -8330,7 +8330,7 @@
       }
     },
     "Connected" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -8627,7 +8627,7 @@
       }
     },
     "Connecting..." : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -8728,7 +8728,7 @@
       }
     },
     "Connection" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -9524,7 +9524,7 @@
       }
     },
     "Context" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -10320,7 +10320,7 @@
       }
     },
     "Current: %@" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -10920,7 +10920,7 @@
       }
     },
     "Deep" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -11015,7 +11015,7 @@
       }
     },
     "Default Model" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -11419,7 +11419,7 @@
       }
     },
     "Delete Provider" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -12310,7 +12310,7 @@
       }
     },
     "Discard unsaved changes?" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -12714,7 +12714,7 @@
       }
     },
     "e.g. My Relay" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -12916,7 +12916,7 @@
       }
     },
     "Edit API Key" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -13011,7 +13011,7 @@
       }
     },
     "Edit Relay Settings" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -13510,7 +13510,7 @@
       }
     },
     "Engine" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -14015,7 +14015,7 @@
       }
     },
     "Enter model ID manually" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -14609,7 +14609,7 @@
       }
     },
     "Fallback Model" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -14704,7 +14704,7 @@
       }
     },
     "Fast" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -15192,7 +15192,7 @@
       }
     },
     "For example: claude-4-sonnet or gpt-4o" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -16089,7 +16089,7 @@
       }
     },
     "Generate images in chat" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -17081,7 +17081,7 @@
       }
     },
     "If auto-sync fails or model listing isn't supported, you can still continue." : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -17277,7 +17277,7 @@
       }
     },
     "Image Gen" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -17978,7 +17978,7 @@
       }
     },
     "Invalid local address" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -18180,7 +18180,7 @@
       }
     },
     "Issue" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -18275,7 +18275,7 @@
       }
     },
     "Just enter one usable model ID. You don't need to understand the protocol details." : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -18370,7 +18370,7 @@
       }
     },
     "Keep editing" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -19077,7 +19077,7 @@
       }
     },
     "Local compute" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -19582,7 +19582,7 @@
       }
     },
     "Manual" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -19778,7 +19778,7 @@
       }
     },
     "Max" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -20277,7 +20277,7 @@
       }
     },
     "Model (optional)" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -20580,7 +20580,7 @@
       }
     },
     "Model Library" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -20681,7 +20681,7 @@
       }
     },
     "Model Sync Failed" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -20878,7 +20878,7 @@
       }
     },
     "Models will be re-synced automatically after replacing the key." : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -20973,7 +20973,7 @@
       }
     },
     "Name" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -21074,7 +21074,7 @@
       }
     },
     "Needs API Key" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -21270,7 +21270,7 @@
       }
     },
     "New API Key" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -21567,7 +21567,7 @@
       }
     },
     "No authentication. No credentials are sent." : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -21864,7 +21864,7 @@
       }
     },
     "No endpoint set" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -21965,7 +21965,7 @@
       }
     },
     "No local models were found." : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -22363,7 +22363,7 @@
       }
     },
     "No models added yet. Use the button below to add model IDs." : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -23765,7 +23765,7 @@
       }
     },
     "optional" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -24365,7 +24365,7 @@
       }
     },
     "Plain text chat" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -24662,7 +24662,7 @@
       }
     },
     "Preset name" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -24757,7 +24757,7 @@
       }
     },
     "Presets" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -24953,7 +24953,7 @@
       }
     },
     "Protocol" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -25054,7 +25054,7 @@
       }
     },
     "Provider" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -25648,7 +25648,7 @@
       }
     },
     "Reasoning" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -26147,7 +26147,7 @@
       }
     },
     "Remove" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -26248,7 +26248,7 @@
       }
     },
     "Remove conflicts" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -26545,7 +26545,7 @@
       }
     },
     "Removed %@" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -26646,7 +26646,7 @@
       }
     },
     "Request Behavior" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -27252,7 +27252,7 @@
       }
     },
     "Retry Sync" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -27347,7 +27347,7 @@
       }
     },
     "Save & Continue" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -27442,7 +27442,7 @@
       }
     },
     "Save & Sync" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -28036,7 +28036,7 @@
       }
     },
     "Saving..." : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -28636,7 +28636,7 @@
       }
     },
     "Set as Default" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -30751,7 +30751,7 @@
       }
     },
     "Syncing" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -30846,7 +30846,7 @@
       }
     },
     "Syncing..." : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -31036,7 +31036,7 @@
       }
     },
     "Tap to set" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -31131,7 +31131,7 @@
       }
     },
     "Tap to view" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -31630,7 +31630,7 @@
       }
     },
     "Text" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -31826,7 +31826,7 @@
       }
     },
     "The base URL of the OpenAI-compatible API" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -32331,7 +32331,7 @@
       }
     },
     "The local model is still loading." : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -33638,7 +33638,7 @@
       }
     },
     "The service at this address is not the selected engine." : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -33739,7 +33739,7 @@
       }
     },
     "The service endpoint is auto-filled for you." : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -34036,7 +34036,7 @@
       }
     },
     "These settings are automatically configured for each provider. Custom endpoint support will be available in a future update." : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -34137,7 +34137,7 @@
       }
     },
     "Thinking / reasoning mode" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -34927,7 +34927,7 @@
       }
     },
     "This image model is missing a valid image generation route in its server profile. Please update the app or contact support." : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -35527,7 +35527,7 @@
       }
     },
     "This provider does not currently guarantee stable automatic model sync. Please continue with a manual model ID." : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -37410,7 +37410,7 @@
       }
     },
     "Unavailable" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -37505,7 +37505,7 @@
       }
     },
     "Undo" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -37808,7 +37808,7 @@
       }
     },
     "Upload images to chat" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -39507,7 +39507,7 @@
       }
     },
     "Validating connection and syncing models..." : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -39911,7 +39911,7 @@
       }
     },
     "Verify Connection" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -41093,7 +41093,7 @@
       }
     },
     "Web" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -41390,7 +41390,7 @@
       }
     },
     "Working..." : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -42091,7 +42091,7 @@
       }
     },
     "Your changes to this relay have not been saved." : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {

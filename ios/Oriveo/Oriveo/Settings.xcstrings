@@ -2,7 +2,7 @@
   "sourceLanguage" : "en",
   "strings" : {
     "About" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -293,7 +293,7 @@
       }
     },
     "All your models. One app." : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -489,7 +489,7 @@
       }
     },
     "API Endpoint" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -976,7 +976,7 @@
       }
     },
     "Choose Oriveo's language in iOS Settings so system menus use the same language." : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -1861,7 +1861,7 @@
       }
     },
     "Help & Feedback" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -1956,7 +1956,7 @@
       }
     },
     "Language" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -2550,7 +2550,7 @@
       }
     },
     "No provider configured" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -2740,7 +2740,7 @@
       }
     },
     "Open iOS Settings" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -3332,7 +3332,7 @@
       }
     },
     "Theme" : {
-      "extractionState" : "stale",
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
