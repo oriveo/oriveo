@@ -127,7 +127,7 @@ private fun Waiting(session: McpReauthSession, text: String) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        McpServerIcon(name = serverName, iconUrl = session.iconUrl, size = 44.dp)
+        McpServerIcon(name = serverName, iconUrl = session.iconUrl, size = 44.dp, serverUrl = session.serverUrl)
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
             Text(text = serverName, style = OriveoTheme.typography.title3, color = colors.textPrimary, maxLines = 1)
             Text(text = text, style = OriveoTheme.typography.caption, color = colors.textSecondary)

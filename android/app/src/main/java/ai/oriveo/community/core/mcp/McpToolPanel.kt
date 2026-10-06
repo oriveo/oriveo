@@ -31,6 +31,7 @@ data class McpToolPanelServerRow(
     val toolCount: Int,
     val status: Status,
     val isEnabled: Boolean,
+    val serverUrl: String? = null,
 ) {
     sealed interface Status {
         /** Tools can be attached (connected, or not probed yet). */
@@ -149,6 +150,7 @@ object McpToolPanelModel {
                 id = record.id,
                 name = record.name,
                 iconURL = McpServerIconPolicy.loadable(record.iconURL, record.url),
+                serverUrl = record.url,
                 toolCount = McpToolCatalog.outboundSnapshots(snapshots, permissions).size,
                 status = status(endpoint, connection),
                 isEnabled = record.id.lowercase() in enabledSet,

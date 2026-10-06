@@ -4,12 +4,15 @@ import android.graphics.Bitmap
 import android.util.LruCache
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.painterResource
+import androidx.compose.runtime.key
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -19,6 +22,7 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import ai.oriveo.community.core.mcp.McpOrigin
+import ai.oriveo.community.core.mcp.McpBrandIcons
 import ai.oriveo.community.core.mcp.mcpSha256Hex
 import ai.oriveo.community.core.util.readBytesLimited
 import ai.oriveo.community.ui.component.decodeSampledBitmap
@@ -138,19 +142,31 @@ private fun iconStore(cacheDir: File): McpServerIconStore =
  * The server's icon slot. Shows the initial tile when [iconUrl] is null or the icon cannot be fetched / decoded.
  */
 @Composable
-internal fun McpServerIcon(name: String, iconUrl: String?, size: Dp = 40.dp, modifier: Modifier = Modifier) {
-    if (iconUrl.isNullOrEmpty()) {
+internal fun McpServerIcon(name: String, iconUrl: String?, size: Dp = 40.dp, modifier: Modifier = Modifier, serverUrl: String? = null) {
+    val drawable = McpBrandIcons.drawable(name, serverUrl, isSystemInDarkTheme())
+    val shape = RoundedCornerShape(size * 0.3f)
+    if (drawable != null) {
+        Image(painter = painterResource(drawable), contentDescription = null, contentScale = ContentScale.Fit,
+            modifier = modifier.size(size).clip(shape).testTag(MCP_SERVER_ICON_IMAGE_TAG).clearAndSetSemantics { })
+        return
+    }
+    key(iconUrl) { McpRemoteServerIcon(name, iconUrl, size, modifier, shape) }
+}
+
+@Composable
+private fun McpRemoteServerIcon(name: String, resolvedIconUrl: String?, size: Dp, modifier: Modifier, shape: RoundedCornerShape) {
+    if (resolvedIconUrl.isNullOrEmpty()) {
         McpServerTile(name = name, size = size, modifier = modifier.testTag(MCP_SERVER_ICON_FALLBACK_TAG))
         return
     }
     val context = LocalContext.current.applicationContext
     val edgePx = with(LocalDensity.current) { (size.toPx() * 2f).toInt().coerceAtLeast(64) }
-    val bitmap by produceState(initialValue = McpServerIconMemoryCache.get(iconUrl), iconUrl) {
+    val bitmap by produceState(initialValue = McpServerIconMemoryCache.get(resolvedIconUrl), resolvedIconUrl) {
         if (value != null) return@produceState
         value = withContext(Dispatchers.IO) {
-            val bytes = iconStore(context.cacheDir).bytes(iconUrl) ?: return@withContext null
+            val bytes = iconStore(context.cacheDir).bytes(resolvedIconUrl) ?: return@withContext null
             // Icons often have a transparent background: keep alpha.
-            decodeSampledBitmap(bytes, edgePx, preferRgb565 = false)?.also { McpServerIconMemoryCache.put(iconUrl, it) }
+            decodeSampledBitmap(bytes, edgePx, preferRgb565 = false)?.also { McpServerIconMemoryCache.put(resolvedIconUrl, it) }
         }
     }
     val loaded = bitmap
@@ -163,7 +179,7 @@ internal fun McpServerIcon(name: String, iconUrl: String?, size: Dp = 40.dp, mod
             contentScale = ContentScale.Fit,
             modifier = modifier
                 .size(size)
-                .clip(RoundedCornerShape(size * 0.22f))
+                .clip(shape)
                 .testTag(MCP_SERVER_ICON_IMAGE_TAG)
                 .clearAndSetSemantics { },
         )

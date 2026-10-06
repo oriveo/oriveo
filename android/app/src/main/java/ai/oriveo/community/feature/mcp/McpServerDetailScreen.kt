@@ -143,6 +143,7 @@ fun McpServerDetailScreen(
                 onConfirm = controller::confirmChanges,
                 onPause = controller::pause,
                 serverIconUrl = state.summary?.iconUrl,
+                serverUrl = state.summary?.record?.url,
             )
         }
     }
@@ -186,6 +187,7 @@ internal fun McpServerDetailContent(state: McpServerDetailUiState, actions: McpD
         McpHeroCard(
             name = record.name,
             iconUrl = summary.iconUrl,
+            serverUrl = record.url,
             status = { McpHealthPill(summary.health) },
             caption = when (summary.health) {
                 McpServerHealth.NeedsAuth -> stringResource(R.string.mcp_detail_tools_unavailable)
@@ -548,10 +550,11 @@ internal fun ColumnScope.McpToolsChangedContent(
     onConfirm: () -> Unit,
     onPause: () -> Unit,
     serverIconUrl: String? = null,
+    serverUrl: String? = null,
 ) {
     val colors = OriveoTheme.colors
     Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.padding(horizontal = 4.dp)) {
-        McpServerIcon(name = serverName, iconUrl = serverIconUrl, size = 44.dp)
+        McpServerIcon(name = serverName, iconUrl = serverIconUrl, size = 44.dp, serverUrl = serverUrl)
         Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
             Text(
                 text = stringResource(R.string.mcp_changes_title, serverName),

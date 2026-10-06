@@ -258,7 +258,7 @@ private fun ProgressPage(state: McpAddUiState, screen: McpAddScreen.Progress, ac
             McpQuietButton(text = stringResource(R.string.cancel), onClick = actions.onCancel)
         },
     ) {
-        McpHeroCard(name = name, nameKnown = state.name.isNotBlank(), caption = caption)
+        McpHeroCard(name = name, serverUrl = state.url, nameKnown = state.name.isNotBlank(), caption = caption)
         McpChecklistCard(
             rows = listOf(
                 McpChecklistRow(stringResource(R.string.mcp_add_step_found), McpChecklistState.Done),
@@ -304,7 +304,7 @@ internal fun ColumnScope.McpAuthPromptContent(
 ) {
     val colors = OriveoTheme.colors
     Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.padding(horizontal = 4.dp)) {
-        McpHeroIcon(name = name, nameKnown = nameKnown, size = 44.dp, iconUrl = iconUrl)
+        McpHeroIcon(name = name, nameKnown = nameKnown, size = 44.dp, iconUrl = iconUrl, serverUrl = "https://" + serverHost)
         Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
             Text(
                 text = stringResource(R.string.mcp_auth_prompt_title, name),
@@ -378,6 +378,7 @@ private fun ReviewPage(state: McpAddUiState, screen: McpAddScreen.Review, action
         McpHeroCard(
             name = state.displayName,
             iconUrl = state.serverIconUrl,
+            serverUrl = state.url,
             status = { McpStatusPill(stringResource(R.string.mcp_status_connected), McpPillTone.Success) },
             caption = pluralStringResource(R.plurals.mcp_panel_tool_count, screen.tools.size, screen.tools.size),
         )
@@ -485,7 +486,7 @@ private fun FailurePage(state: McpAddUiState, screen: McpAddScreen.Failure, acti
     ) {
         when (screen.kind) {
             McpAddFailure.Unreachable -> {
-                McpHeroCard(name, nameKnown = nameKnown, status = { McpStatusPill(stringResource(R.string.mcp_panel_cant_connect), McpPillTone.Danger) })
+                McpHeroCard(name, serverUrl = state.url, nameKnown = nameKnown, status = { McpStatusPill(stringResource(R.string.mcp_panel_cant_connect), McpPillTone.Danger) })
                 McpNoticeBlock(
                     title = stringResource(R.string.mcp_add_unreachable_title),
                     body = stringResource(R.string.mcp_add_unreachable_body),
@@ -493,7 +494,7 @@ private fun FailurePage(state: McpAddUiState, screen: McpAddScreen.Failure, acti
                 )
             }
             McpAddFailure.NotMcp -> {
-                McpHeroCard(name, nameKnown = nameKnown, status = { McpStatusPill(stringResource(R.string.mcp_add_not_mcp_status), McpPillTone.Warning) })
+                McpHeroCard(name, serverUrl = state.url, nameKnown = nameKnown, status = { McpStatusPill(stringResource(R.string.mcp_add_not_mcp_status), McpPillTone.Warning) })
                 McpNoticeBlock(
                     title = stringResource(R.string.mcp_add_not_mcp_title),
                     body = stringResource(R.string.mcp_add_not_mcp_body),
@@ -501,7 +502,7 @@ private fun FailurePage(state: McpAddUiState, screen: McpAddScreen.Failure, acti
                 )
             }
             McpAddFailure.NeedsToken -> {
-                McpHeroCard(name, nameKnown = nameKnown, status = { McpStatusPill(stringResource(R.string.mcp_add_needs_token_status), McpPillTone.Warning) })
+                McpHeroCard(name, serverUrl = state.url, nameKnown = nameKnown, status = { McpStatusPill(stringResource(R.string.mcp_add_needs_token_status), McpPillTone.Warning) })
                 McpNoticeBlock(
                     title = stringResource(R.string.mcp_add_needs_token_title),
                     body = stringResource(R.string.mcp_add_needs_token_body),
@@ -513,7 +514,7 @@ private fun FailurePage(state: McpAddUiState, screen: McpAddScreen.Failure, acti
                 }
             }
             McpAddFailure.AuthCancelled -> {
-                McpHeroCard(name, nameKnown = nameKnown, status = { McpStatusPill(stringResource(R.string.mcp_add_auth_cancelled_status), McpPillTone.Warning) })
+                McpHeroCard(name, serverUrl = state.url, nameKnown = nameKnown, status = { McpStatusPill(stringResource(R.string.mcp_add_auth_cancelled_status), McpPillTone.Warning) })
                 McpNoticeBlock(
                     title = stringResource(R.string.mcp_add_auth_cancelled_title),
                     body = stringResource(R.string.mcp_add_auth_cancelled_body),
@@ -521,7 +522,7 @@ private fun FailurePage(state: McpAddUiState, screen: McpAddScreen.Failure, acti
                 )
             }
             McpAddFailure.LimitReached -> {
-                McpHeroCard(name, nameKnown = nameKnown, status = { McpStatusPill(stringResource(R.string.mcp_add_limit_status), McpPillTone.Warning) })
+                McpHeroCard(name, serverUrl = state.url, nameKnown = nameKnown, status = { McpStatusPill(stringResource(R.string.mcp_add_limit_status), McpPillTone.Warning) })
                 McpNoticeBlock(
                     title = stringResource(R.string.mcp_add_limit_title),
                     body = pluralStringResource(R.plurals.mcp_add_limit_body, screen.max, screen.max),
@@ -529,7 +530,7 @@ private fun FailurePage(state: McpAddUiState, screen: McpAddScreen.Failure, acti
                 )
             }
             McpAddFailure.SaveFailed -> {
-                McpHeroCard(name, nameKnown = nameKnown, status = { McpStatusPill(stringResource(R.string.mcp_add_save_failed_status), McpPillTone.Danger) })
+                McpHeroCard(name, serverUrl = state.url, nameKnown = nameKnown, status = { McpStatusPill(stringResource(R.string.mcp_add_save_failed_status), McpPillTone.Danger) })
                 McpNoticeBlock(
                     title = stringResource(R.string.mcp_add_save_failed_title),
                     body = stringResource(R.string.mcp_add_save_failed_body),

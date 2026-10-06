@@ -246,7 +246,7 @@ class McpServerIconTest {
 
     private fun render(iconUrl: String?) {
         val activity = Robolectric.buildActivity(ComponentActivity::class.java).setup().get()
-        activity.setContent { OriveoTheme { Column { McpServerIcon(name = "Linear", iconUrl = iconUrl) } } }
+        activity.setContent { OriveoTheme { Column { McpServerIcon(name = "Unknown MCP service", iconUrl = iconUrl) } } }
         composeRule.waitForIdle()
     }
 

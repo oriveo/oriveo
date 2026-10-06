@@ -41,14 +41,14 @@ data class McpStepDetailState(
 
 /** Step detail. Arguments and result come from the local per-step payload; without one, a one-line note is shown instead. */
 @Composable
-internal fun McpStepDetailSheet(detail: McpStepDetailState, onDismiss: () -> Unit, serverIconUrl: String? = null) {
+internal fun McpStepDetailSheet(detail: McpStepDetailState, onDismiss: () -> Unit, serverIconUrl: String? = null, serverUrl: String? = null) {
     McpBottomSheet(onDismiss = onDismiss) {
-        McpStepDetailContent(detail, serverIconUrl)
+        McpStepDetailContent(detail, serverIconUrl, serverUrl)
     }
 }
 
 @Composable
-internal fun ColumnScope.McpStepDetailContent(detail: McpStepDetailState, serverIconUrl: String? = null) {
+internal fun ColumnScope.McpStepDetailContent(detail: McpStepDetailState, serverIconUrl: String? = null, serverUrl: String? = null) {
     val colors = OriveoTheme.colors
     val step = detail.step
     val status = step.statusValue ?: McpToolStepUpdate.Status.Interrupted
@@ -67,7 +67,7 @@ internal fun ColumnScope.McpStepDetailContent(detail: McpStepDetailState, server
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.Top,
     ) {
-        McpServerIcon(name = step.serverName, iconUrl = serverIconUrl, size = 44.dp)
+        McpServerIcon(name = step.serverName, iconUrl = serverIconUrl, size = 44.dp, serverUrl = serverUrl)
         Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
             Text(
                 text = step.displayTitle,

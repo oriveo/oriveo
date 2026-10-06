@@ -167,9 +167,9 @@ internal fun McpBottomActions(content: @Composable ColumnScope.() -> Unit) {
 
 /** Server icon slot: the initial tile when the name is known, a globe while only the host name is. */
 @Composable
-internal fun McpHeroIcon(name: String, nameKnown: Boolean, size: Dp = 52.dp, iconUrl: String? = null) {
-    if (nameKnown || iconUrl != null) {
-        McpServerIcon(name = name, iconUrl = iconUrl, size = size)
+internal fun McpHeroIcon(name: String, nameKnown: Boolean, size: Dp = 52.dp, iconUrl: String? = null, serverUrl: String? = null) {
+    if (nameKnown || iconUrl != null || ai.oriveo.community.core.mcp.McpBrandIcons.key(name, serverUrl) != null) {
+        McpServerIcon(name = name, iconUrl = iconUrl, size = size, serverUrl = serverUrl)
         return
     }
     val colors = OriveoTheme.colors
@@ -193,7 +193,8 @@ internal fun McpHeroCard(
     status: (@Composable () -> Unit)? = null,
     caption: String? = null,
     iconUrl: String? = null,
-    icon: @Composable () -> Unit = { McpHeroIcon(name = name, nameKnown = nameKnown, iconUrl = iconUrl) },
+    serverUrl: String? = null,
+    icon: @Composable () -> Unit = { McpHeroIcon(name = name, nameKnown = nameKnown, iconUrl = iconUrl, serverUrl = serverUrl) },
     extra: (@Composable ColumnScope.() -> Unit)? = null,
 ) {
     val colors = OriveoTheme.colors

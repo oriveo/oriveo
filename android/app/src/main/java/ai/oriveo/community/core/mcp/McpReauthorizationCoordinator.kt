@@ -39,6 +39,7 @@ data class McpReauthSession(
     val phase: McpReauthPhase,
     /** The server's own icon, already vetted by [McpServerIconPolicy]. */
     val iconUrl: String? = null,
+    val serverUrl: String? = null,
 )
 
 class McpReauthorizationCoordinator(
@@ -83,7 +84,7 @@ class McpReauthorizationCoordinator(
         val record = store.fetchServer(serverId) ?: return false
         val iconUrl = McpServerIconPolicy.loadable(record.iconURL, record.url)
         fun show(phase: McpReauthPhase) {
-            _session.value = McpReauthSession(serverId, record.name, phase, iconUrl)
+            _session.value = McpReauthSession(serverId, record.name, phase, iconUrl, record.url)
         }
         // A step that needs the user's answer: swap in a fresh reply channel before publishing the page, so a tap
         // is not lost just because this coroutine has not reached the receive yet.

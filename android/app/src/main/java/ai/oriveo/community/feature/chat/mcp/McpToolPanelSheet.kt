@@ -181,7 +181,7 @@ private fun ServerRow(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        McpServerIcon(name = row.name, iconUrl = row.iconURL)
+        McpServerIcon(name = row.name, iconUrl = row.iconURL, serverUrl = row.serverUrl)
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
             Text(
                 text = row.name,

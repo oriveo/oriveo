@@ -59,6 +59,9 @@ class ChatMcpCoordinator(
     fun serverIconUrl(serverId: String): String? =
         panelState.rows.firstOrNull { it.id.equals(serverId, ignoreCase = true) }?.iconURL
 
+    fun serverUrl(serverId: String): String? =
+        panelState.rows.firstOrNull { it.id.equals(serverId, ignoreCase = true) }?.serverUrl
+
     /** Steps where the loop is parked waiting for re-authorization (all conversations). Compose state: only the step blocks reading it recompose. */
     private var authPauses: List<PendingMcpAuthPause> by mutableStateOf(emptyList())
 

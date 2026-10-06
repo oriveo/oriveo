@@ -95,7 +95,7 @@ private fun ColumnScope.SummaryPage(
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalAlignment = Alignment.Top,
     ) {
-        McpServerIcon(name = request.serverName, iconUrl = serverIconUrl, size = 44.dp)
+        McpServerIcon(name = request.serverName, iconUrl = serverIconUrl, size = 44.dp, serverUrl = "https://" + request.serverHost)
         Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
             Text(
                 text = stringResource(R.string.mcp_confirm_title, request.serverName, title),

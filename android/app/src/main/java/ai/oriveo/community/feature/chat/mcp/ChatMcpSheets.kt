@@ -44,6 +44,7 @@ internal fun ChatMcpSheets(
             detail = detail,
             onDismiss = coordinator::dismissStepDetail,
             serverIconUrl = coordinator.serverIconUrl(detail.step.serverId),
+            serverUrl = coordinator.serverUrl(detail.step.serverId),
         )
     }
 }

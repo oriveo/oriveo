@@ -213,7 +213,7 @@ private fun ServerCard(server: McpServerSummary, onClick: () -> Unit) {
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 16.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
-            McpServerIcon(name = server.record.name, iconUrl = server.iconUrl, size = 44.dp)
+            McpServerIcon(name = server.record.name, iconUrl = server.iconUrl, size = 44.dp, serverUrl = server.record.url)
             Column(modifier = Modifier.weight(1f).heightIn(min = 44.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(
                     text = server.record.name,
