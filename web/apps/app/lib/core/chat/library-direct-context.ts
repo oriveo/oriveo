@@ -217,6 +217,11 @@ export async function readLibraryDirectContext(
       // carrying on. Other errors, including failures after rate-limit retries, still propagate.
       if (!isLibraryNotFoundError(error)) throw error;
       notFound = true;
+      // The server counts a read when it reserves the call and does not refund a failed one, so
+      // the 404 uses up quota too. Leaving it out would send one request too many near the
+      // ceiling, earn a library_research_step_limit, and fail the whole message, undoing the
+      // per-document tolerance above.
+      readCalls += 1;
     }
 
     // A 404 partway through paging: the pages already read are real evidence and stay in (combined

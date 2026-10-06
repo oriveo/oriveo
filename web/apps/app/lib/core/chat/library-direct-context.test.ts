@@ -388,6 +388,51 @@ describe("readLibraryDirectContext", () => {
     ]);
   });
 
+  // The server counts a read when it reserves the call and does not refund a failed one, so a
+  // swallowed 404 uses up quota too. Otherwise a 65th request goes out, the server answers
+  // library_research_step_limit, and the whole message fails.
+  it("counts a swallowed library_not_found read against the read ceiling", async () => {
+    let page = 0;
+    const onSteps = vi.fn();
+    const executeRead = vi.fn(async (args: { docId: string }) => {
+      page += 1;
+      // 63 pages read normally; the one remaining read returns a 404
+      if (page === 64) throw new LibraryAPIError("not found", 404, "library_not_found");
+      return {
+        result: {
+          docId: args.docId,
+          source: "notion",
+          title: args.docId,
+          url: `https://www.notion.so/${args.docId}`,
+          sections: [{ text: `body-${args.docId}` }],
+          nextCursor: `page-${page}`,
+        },
+      };
+    });
+
+    const result = await readLibraryDirectContext({
+      documents: [
+        { docId: "a", source: "notion", title: "A" },
+        { docId: "b", source: "notion", title: "B" },
+      ],
+      config: DEFAULT_LIBRARY_RUNTIME_CONFIG,
+      modelContextLength: 128_000,
+      signal: new AbortController().signal,
+      executeRead: executeRead as never,
+      requestConfirmation: vi.fn(),
+      onSteps,
+    });
+
+    // The second document is never requested: the total stays at the ceiling
+    expect(executeRead).toHaveBeenCalledTimes(64);
+    expect(executeRead.mock.calls.every(([args]) => args.docId === "a")).toBe(true);
+    // Pages read before the 404 are real evidence and stay in; both steps end as failed (one 404, one skipped)
+    expect(result.userContext).toContain("body-a");
+    expect(result.citations.map((citation) => citation.docId)).toEqual(["a"]);
+    const last = onSteps.mock.calls.at(-1)![0] as { status: string }[];
+    expect(last.map((step) => step.status)).toEqual(["failed", "failed"]);
+  });
+
   // Research mode always had a step list, while the specified-documents path only showed a typing indicator:
   // with a few long documents picked, the user had no idea what was being waited on. The id / label / status
   // semantics match the other clients word for word.
