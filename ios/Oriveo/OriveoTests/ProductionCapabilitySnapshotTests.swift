@@ -263,21 +263,30 @@ struct ProductionCapabilitySnapshotTests {
         #expect(verdict.intents.isEmpty)
         #expect(!verdict.viaLegacyProfile)
 
-        #expect(
-            ModelControlReasoningNotes.all(isConfigurable: true, intents: verdict.intents)
-                .map(\.kind) == [.fixedTier],
-            "\(key) panel copy"
-        )
+        // The panel has to make clear that this model's level is fixed, not broken.
+        let fixed = ModelOptionCapabilityShape.resolve(.init(
+            capability: .reasoning, presentation: .automaticAvailable, availableIntents: verdict.intents
+        ))
+        if case let .notice(notice) = fixed {
+            #expect(
+                notice.body == L10n.tr("This model runs at a fixed thinking level and can’t be adjusted.", table: .chat),
+                "\(key) panel copy"
+            )
+        } else {
+            Issue.record("\(key) should be a note when the level is fixed, got \(fixed)")
+        }
 
         let tiered = try Self.subject(for: try #require(snapshot.models["anthropic/claude-fable-5"]))
         let tieredIntents = CapabilityControlResolution.resolve(
             provider: tiered.provider, model: tiered.model, capability: "reasoning"
         ).intents
         #expect(!tieredIntents.isEmpty)
-        #expect(
-            !ModelControlReasoningNotes.all(isConfigurable: true, intents: tieredIntents)
-                .map(\.kind).contains(.fixedTier)
-        )
+        let tieredShape = ModelOptionCapabilityShape.resolve(.init(
+            capability: .reasoning, presentation: .automaticAvailable, availableIntents: tieredIntents
+        ))
+        if case .tiers = tieredShape {} else {
+            Issue.record("a model with real levels should be segments, got \(tieredShape)")
+        }
         await MetadataClient.shared.resetForTesting()
     }
 

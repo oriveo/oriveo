@@ -2,15 +2,27 @@ import Foundation
 import Testing
 @testable import Oriveo
 
-/// Structural discipline for the model controls panel: no greyed-out controls, no second modal
-/// pushed on top of the sheet, and no custom request fields inside a capability card.
+/// **Structural** rules of the model options panel: no grayed-out options, pure functions decide what is drawn, the height follows the content,
+/// second-level pages are pushed instead of opening another modal, and opening the panel stores no value for the user.
 ///
 /// These are source assertions rather than render assertions because each of them is a "this must
 /// not exist" property. A SwiftUI `body` is an opaque type, so the render side cannot answer
-/// questions like "is there a second modal"; and when one of them regresses the user sees a broken
-/// panel while every behavioural test stays green.
+/// If one of these regresses, every logic test stays green. Properties that can be asserted against a function are not here:
+/// shapes are in `ModelOptionCapabilityShapeTests`, the page model in `ModelOptionsPanelModelTests`.
 @Suite("Model Controls Panel Structure Tests")
 struct ModelControlsPanelStructureTests {
+    private static let modelControls = [
+        "ios", "Oriveo", "Oriveo", "Features", "Chat", "ModelControls",
+    ]
+
+    /// The source of the panel view: from `struct ModelOptionsPanel` up to the route enum.
+    private static func panelViewSource() throws -> String {
+        let sheet = try source(modelControls + ["ModelControlsSheet.swift"])
+        let start = try #require(sheet.range(of: "struct ModelOptionsPanel: View {"))
+        let end = try #require(sheet.range(of: "// MARK: - Route", range: start.upperBound..<sheet.endIndex))
+        return String(sheet[start.lowerBound..<end.lowerBound])
+    }
+
     @Test("Composer Entry Remains Reachable Without Runtime Identity")
     func composerEntryRemainsReachableWithoutRuntimeIdentity() throws {
         let composer = try Self.source([
@@ -38,38 +50,70 @@ struct ModelControlsPanelStructureTests {
         #expect(!ModelControlsEditability.runtimeReadOnly.canPersist)
     }
 
-    @Test("Main Panel Order Is Frozen")
+    // MARK: - Pure functions decide what is drawn
+
+    @Test("the capability card is drawn case by case from the shape, and the panel view holds no business criterion")
+    func panelViewOnlyDrawsTheModel() throws {
+        let panel = try Self.panelViewSource()
+        for pattern in [
+            "case let .toggle(toggle):", "case let .tiers(tiers):",
+            "case let .toggleWithTiming(toggle, timing):", "case let .notice(notice):",
+            "case let .disclosure(disclosure):",
+            "case let .protocolUndecided(callout):", "case let .callout(callout):",
+        ] {
+            #expect(panel.contains(pattern), "the panel does not draw this shape: \(pattern)")
+        }
+        // The view reads no storage, looks up no configuration and does not look at who the connection is: once any of that appears, a business decision is back in the view.
+        for forbidden in [
+            "MetadataClient", "GenerationParameterSettingsStore", "CapabilityControlResolution",
+            "CapabilityControlPresentation", "UnsupportedParamCache", "provider.", "editability",
+            "appState",
+        ] {
+            #expect(!panel.contains(forbidden), "the panel view contains \(forbidden)")
+        }
+        // No grayed-out options: the only `.disabled` in the panel is the button while a refetch is running.
+        #expect(panel.components(separatedBy: ".disabled(").count == 2)
+        #expect(panel.contains(".disabled(banner.isBusy)"))
+    }
+
+    @Test("the main panel's order is fixed: header, capabilities, parameters")
     func mainPanelOrderIsFrozen() throws {
-        let sheet = try Self.source([
-            "ios", "Oriveo", "Oriveo", "Features", "Chat", "ModelControls",
-            "ModelControlsSheet.swift",
-        ])
-        let listStart = try #require(sheet.range(of: "private var capabilityList: some View {"))
-        let listBody = String(sheet[listStart.upperBound...].prefix(300))
-        let web = try #require(listBody.range(of: "webCard"))
-        let reasoning = try #require(listBody.range(of: "reasoningCard", range: web.upperBound..<listBody.endIndex))
-        let behavior = try #require(listBody.range(of: "modelBehaviorCard", range: reasoning.upperBound..<listBody.endIndex))
-        #expect(web.lowerBound < reasoning.lowerBound && reasoning.lowerBound < behavior.lowerBound)
+        let panel = try Self.panelViewSource()
+        let body = try #require(panel.range(of: "var body: some View {"))
+        let rest = panel[body.upperBound...]
+        let header = try #require(rest.range(of: "header"))
+        let capability = try #require(rest.range(of: "capabilityCard", range: header.upperBound..<rest.endIndex))
+        let advanced = try #require(rest.range(of: "advancedCard", range: capability.upperBound..<rest.endIndex))
+        #expect(header.lowerBound < capability.lowerBound && capability.lowerBound < advanced.lowerBound)
+        // The header is the model name itself; "Model options" is not written again.
+        #expect(panel.contains("Text(model.title)"))
+        #expect(!panel.contains("L10n.tr(\"Model Options\")"))
     }
 
     @Test("Read Only Summary Offers A Recovery Action")
-    func readOnlySummaryOffersARecoveryAction() throws {
-        let sheet = try Self.source([
-            "ios", "Oriveo", "Oriveo", "Features", "Chat", "ModelControls",
-            "ModelControlsSheet.swift",
-        ])
-        #expect(sheet.contains("if let reason = readOnlyReasonText"))
-        #expect(sheet.contains("readOnlySummary(reason: reason)"))
-        #expect(sheet.contains("Choose another model"))
-        #expect(sheet.contains("Button(action: onChooseConnection)"))
-        #expect(sheet.contains("Set the protocol"))
+    func readOnlyBannerOffersARecoveryAction() throws {
+        let sheet = try Self.source(Self.modelControls + ["ModelControlsSheet.swift"])
+        // This only guarantees that the wiring "every action is connected to the thing that changes the state" has not been removed.
+        // Which reason gets which action is covered by identityGapSeparatesEachCause / identityGapActionsAreDistinct.
+        #expect(sheet.contains("case .banner(.refetch):\n            Task { await refreshRuntime() }"))
         #expect(sheet.contains("await MetadataClient.shared.forceRefresh(providerKinds: [provider.kind])"))
+        #expect(sheet.contains("case .banner(.chooseAnotherModel):\n            onChooseConnection()"))
+        #expect(sheet.contains("Choose another model"))
+        // Still missing after fetching is a real failure and has to be said.
+        #expect(sheet.contains("Still no luck. Check your network and try again."))
 
+        // "Choose protocol" does not push `ProviderDetailView` inside the panel: that page's back button calls `appState.pop()`,
+        // which pops the root stack **behind** the sheet. The panel sets a flag and dismisses, and the composer routes through appState in onDismiss.
         #expect(
             !sheet.contains("ProviderDetailView(providerID: provider.id)"),
             "the panel pushes the provider detail screen inside the sheet again; its back button pops the stack behind the sheet"
         )
-        #expect(sheet.contains("Button(action: onOpenConnectionSettings)"))
+        #expect(sheet.contains("case .openConnectionProtocol:"))
+        #expect(sheet.contains("onOpenConnectionSettings()"))
+        // An undecided protocol is explained by the capability card itself; the top of the page does not repeat it in a banner.
+        #expect(sheet.contains("switch identityGap.recoveryAction {"))
+        #expect(sheet.contains("case .openConnectionSettings:\n                // Undecided protocol: the capability card collapses into \"choose the protocol first\", and that is the way out.\n                return nil"))
+        #expect(sheet.contains("case .writable:\n            return nil"))
 
         let composer = try Self.source([
             "ios", "Oriveo", "Oriveo", "Features", "Chat", "ChatComposerBar.swift",
@@ -80,7 +124,131 @@ struct ModelControlsPanelStructureTests {
         #expect(composer.contains("appState.navigation.openProviderDetail(providerID: provider.id)"))
     }
 
-    @Test("Identity Gap Separates Each Cause")
+    // MARK: - The height follows the content
+
+    /// When a detent is set from measured content height, a lazy container in the content makes that height unusable,
+    /// and the panel is silently clamped to full screen: no error, and every test stays green.
+    @Test("the panel is as tall as its content: one detent at any time, half the screen when it cannot be measured, no lazy containers in the content")
+    func sheetHeightFollowsContent() throws {
+        let sheet = try Self.source(Self.modelControls + ["ModelControlsSheet.swift"])
+        let scaffold = try #require(sheet.range(of: "struct ModelOptionsSheetScaffold"))
+        let scaffoldEnd = try #require(sheet.range(of: "// MARK: - Panel\n", range: scaffold.upperBound..<sheet.endIndex))
+        let shell = String(sheet[scaffold.lowerBound..<scaffoldEnd.lowerBound])
+        #expect(shell.contains(".presentationDetents([detent])"))
+        #expect(shell.contains("ModelOptionsSheetHeight.resolve("))
+        #expect(shell.contains("case .half: return .medium"))
+        #expect(shell.contains("hasPushedPage: !path.isEmpty"))
+        // The height is measured in place inside the hierarchy, not by a separate host outside it (which would not see the user's text size).
+        #expect(shell.contains(".onGeometryChange(for: CGFloat.self) { $0.size.height }"))
+        #expect(!shell.contains("UIHostingController"))
+
+        for name in ["ModelControlsSheet.swift", "ModelControlsComponents.swift"] {
+            let source = try Self.source(Self.modelControls + [name])
+            for lazy in ["LazyVStack", "LazyHStack", "LazyVGrid", "LazyHGrid", "List {", "List("] {
+                #expect(!source.contains(lazy), "\(name) contains the lazy container \(lazy); the panel height could not be measured")
+            }
+        }
+    }
+
+    @Test("a panel without a navigation bar: the close button is in the header and the top spacing is at least 24pt")
+    func headerOwnsCloseAndTopInset() throws {
+        let panel = try Self.panelViewSource()
+        #expect(panel.contains("ModelOptionCloseButton { onAction(.close) }"))
+        let inset = try #require(panel.range(of: ".padding(.top, "))
+        let value = Int(panel[inset.upperBound...].prefix { $0.isNumber }) ?? 0
+        #expect(value >= 24, "the panel's top spacing is only \(value)pt; the title would touch the grabber")
+        let sheet = try Self.source(Self.modelControls + ["ModelControlsSheet.swift"])
+        #expect(sheet.contains(".toolbar(.hidden, for: .navigationBar)"))
+    }
+
+    @Test("only advanced settings and the candidate models are pushed, and no second modal is opened")
+    func onlyTwoRoutesAndNoNestedModal() throws {
+        let sheet = try Self.source(Self.modelControls + ["ModelControlsSheet.swift"])
+        #expect(sheet.contains(
+            "case modelBehavior\n    case additionalRequestBody\n    case supportedModels(capability: String)\n}"
+        ))
+        // "Open additional request body" goes straight to the editor without passing through the advanced settings page.
+        #expect(sheet.contains("case .openAdditionalRequestBody:\n            // Goes straight to the editor without passing through the advanced settings page; back returns to the panel.\n            path.append(.additionalRequestBody)"))
+        #expect(sheet.contains("AdditionalRequestBodyPage("))
+        #expect(sheet.contains("presentation: .embeddedPage"))
+        #expect(!sheet.contains(".fullScreenCover("))
+        // No `.sheet(` anywhere in the file: sub-pages are always pushed.
+        #expect(!sheet.contains(".sheet("), "the panel opens another modal again")
+        #expect(!sheet.contains(".alert("), "the explanation for an unavailable item is back in an alert")
+    }
+
+    // MARK: - Scope and stored values
+
+    @Test("opening the panel only reads: restore writes nothing to disk")
+    func openingThePanelWritesNothing() throws {
+        let sheet = try Self.source(Self.modelControls + ["ModelControlsSheet.swift"])
+        let start = try #require(sheet.range(of: "private func restore() {"))
+        let end = try #require(sheet.range(of: "private func persist() {", range: start.upperBound..<sheet.endIndex))
+        let restore = String(sheet[start.lowerBound..<end.lowerBound])
+        for write in ["setCapabilityPreferences(", "setAdditionalRequestBody(", "ChatTemplateThinkingSwitch.write("] {
+            #expect(!restore.contains(write), "opening the panel calls \(write)")
+        }
+    }
+
+    @Test("scope is raised after the fact, the confirmation is an inline state rather than a toast, and a draft conversation shows it too")
+    func scopeUpgradeIsOfferedAfterAChange() throws {
+        let sheet = try Self.source(Self.modelControls + ["ModelControlsSheet.swift"])
+        #expect(sheet.contains("if conversationID != nil, !showsScopeUpgrade {"))
+        // A new change withdraws the earlier confirmation.
+        #expect(sheet.contains("scopeUpgradeConfirmed = false"))
+        #expect(!sheet.contains("ToastManager.shared"), "a toast raised from inside a sheet is not seen")
+        let panel = try Self.panelViewSource()
+        #expect(panel.contains("ModelControlScopeUpgradeRow(isConfirmed: scopeUpgrade == .confirmed)"))
+        let components = try Self.source(Self.modelControls + ["ModelControlsComponents.swift"])
+        #expect(components.contains("L10n.tr(\"Applied to this conversation\", table: .chat)"))
+        #expect(components.contains("L10n.tr(\"Set as default for this model\", table: .chat)"))
+    }
+
+    // MARK: - Segments and motion
+
+    @Test("the segmented choice's movement respects accessibilityReduceMotion and does not express disabled through opacity")
+    func segmentedControlRespectsReduceMotion() throws {
+        let components = try Self.source(Self.modelControls + ["ModelControlsComponents.swift"])
+        let start = try #require(components.range(of: "struct ModelOptionSegmentedControl: View {"))
+        let end = try #require(components.range(
+            of: "struct ModelOptionSettingChip", range: start.upperBound..<components.endIndex
+        ))
+        let control = String(components[start.lowerBound..<end.lowerBound])
+        #expect(control.contains("@Environment(\\.accessibilityReduceMotion) private var reduceMotion"))
+        #expect(control.contains(".animation(reduceMotion ? nil :"))
+        // Every segment can be tapped: this control has no disabled state at all.
+        #expect(!control.contains(".disabled("))
+        #expect(!control.contains("isEnabled"))
+    }
+
+    // MARK: - Debug samples
+
+    @Test("the sample entry exists in DEBUG builds only")
+    func sampleHostIsDebugOnly() throws {
+        let host = try Self.source(Self.modelControls + ["ModelOptionsSampleHost.swift"])
+        #expect(host.hasPrefix("#if DEBUG\n"))
+        #expect(host.trimmingCharacters(in: .whitespacesAndNewlines).hasSuffix("#endif"))
+        // The whole file has a single conditional compilation block: no early `#endif` lets the second half into Release.
+        #expect(host.components(separatedBy: "#endif").count == 2)
+        #expect(host.components(separatedBy: "#if ").count == 2)
+
+        let app = try Self.source(["ios", "Oriveo", "Oriveo", "OriveoApp.swift"])
+        let reference = try #require(app.range(of: "ModelOptionsSample.requestedName"))
+        let before = app[..<reference.lowerBound]
+        let lastIf = try #require(before.range(of: "#if DEBUG", options: .backwards))
+        #expect(
+            !before[lastIf.upperBound...].contains("#e"),
+            "the app entry references the samples outside an `#if DEBUG` branch"
+        )
+        // Apart from that one place, the app entry does not mention the samples.
+        let branchEnd = try #require(app.range(of: "#else", range: reference.upperBound..<app.endIndex))
+        #expect(!app[..<lastIf.lowerBound].contains("ModelOptionsSample"))
+        #expect(!app[branchEnd.upperBound...].contains("ModelOptionsSample"))
+    }
+
+    // MARK: - Missing identity
+
+    @Test("the three reasons for a missing identity are told apart, in the order of the guards in make()")
     func identityGapSeparatesEachCause() {
         #expect(ModelControlsIdentityGap.resolve(
             providerKind: .relay, relayTransportIsDecided: false, runtimeIsReady: false
@@ -181,7 +349,10 @@ struct ModelControlsPanelStructureTests {
             )
         }
 
-        #expect(sheet.contains("activeOverrideParameterIDs("))
+        // The composer's dot counts conversation overrides ∪ model defaults; the chips on the panel's "Advanced settings" row only show items changed in this conversation,
+        // and they use the same parameter table and row factory as the advanced settings page instead of computing separately.
+        #expect(sheet.contains("AdvancedSettingsCatalog.production("))
+        #expect(sheet.contains("catalog.rows("))
         #expect(composer.contains("activeOverrideParameterIDs("))
         #expect(!composer.contains("hasSessionOverrides("), "the dot only counts the session override layer again")
     }
@@ -196,107 +367,18 @@ struct ModelControlsPanelStructureTests {
         #expect(sheet.contains("L10n.tr(\"Web Search\", table: .chat)"))
         #expect(sheet.contains("L10n.tr(\"Thinking Mode\", table: .chat)"))
         #expect(sheet.contains("L10n.tr(\"Advanced Settings\")"))
+        // The missing-model state keeps its bottom close bar; the main panel's close button is in the header.
         #expect(sheet.contains("ModelControlsCloseBar { dismiss() }"))
     }
 
-    @Test("Unknown Badge Is Not Ready Rather Than Unavailable")
-    func unknownBadgeIsNotReadyRatherThanUnavailable() {
-        #expect(ModelControlBadgeClassification.resolve(.unknown) == .notReady)
-        #expect(ModelControlBadgeClassification.resolve(.pending) == .notReady)
-        #expect(ModelControlBadgeClassification.resolve(.unsupported) == .unavailable)
-    }
-
-    @Test("Capability Cards Drop The Unavailable Badge")
-    func capabilityCardsDropTheUnavailableBadge() {
-        #expect(ModelControlBadgeClassification.capabilityCard(.unsupported) == ModelControlBadgeClassification.none)
-        #expect(
-            ModelControlBadgeClassification.capabilityCard(.externalConnectorOnly)
-                == ModelControlBadgeClassification.none
-        )
-        for status: CapabilityControlPresentation in [
-            .automaticAvailable, .forceUnsupported,
-            .customOnly, .pending, .unknown,
-        ] {
-            #expect(
-                ModelControlBadgeClassification.capabilityCard(status)
-                    == ModelControlBadgeClassification.resolve(status),
-                "the badge for \(status) was suppressed as well; only the unavailable state should lose its badge"
-            )
-        }
-        #expect(ModelControlBadgeClassification.resolve(.unsupported) == .unavailable)
-        #expect(ModelControlBadgeClassification.resolve(.externalConnectorOnly) == .unavailable)
-    }
-
-    @Test("Advanced Settings Card Drops The Not Ready Badge")
-    func advancedSettingsCardDropsTheNotReadyBadge() {
-        #expect(
-            ModelControlBadgeClassification.advancedSettingsCard(.unknown)
-                == ModelControlBadgeClassification.none
-        )
-        #expect(
-            ModelControlBadgeClassification.advancedSettingsCard(.pending)
-                == ModelControlBadgeClassification.none
-        )
-        #expect(ModelControlBadgeClassification.advancedSettingsCard(.unsupported) == .unavailable)
-        #expect(
-            ModelControlBadgeClassification.advancedSettingsCard(.externalConnectorOnly) == .unavailable
-        )
-        for status: CapabilityControlPresentation in [
-            .automaticAvailable, .forceUnsupported,
-            .customOnly, .unsupported, .externalConnectorOnly,
-        ] {
-            #expect(
-                ModelControlBadgeClassification.advancedSettingsCard(status)
-                    == ModelControlBadgeClassification.resolve(status),
-                "the badge for \(status) was suppressed as well; only the not-ready badge should be dropped here"
-            )
-        }
-        #expect(ModelControlBadgeClassification.capabilityCard(.unknown) == .notReady)
-        #expect(ModelControlBadgeClassification.capabilityCard(.pending) == .notReady)
-    }
-
-    @Test("Each Card Consumes Its Own Badge Projection")
-    func eachCardConsumesItsOwnBadgeProjection() throws {
-        let sheet = try Self.source([
-            "ios", "Oriveo", "Oriveo", "Features", "Chat", "ModelControls",
-            "ModelControlsSheet.swift",
-        ])
-        for card in ["private var webCard: some View {", "private var reasoningCard: some View {"] {
-            let start = try #require(sheet.range(of: card))
-            let rest = sheet[start.upperBound...]
-            let body = String(rest[..<(rest.range(of: "// MARK:")?.lowerBound ?? rest.endIndex)])
-            #expect(
-                body.contains("badge: capabilityCardBadge(for: status, overridden: overridden)"),
-                "\(card) is back on the original badge that says unavailable"
-            )
-        }
-        let behavior = try #require(sheet.range(of: "private var modelBehaviorCard: some View {"))
-        let behaviorRest = sheet[behavior.upperBound...]
-        let behaviorBody = String(
-            behaviorRest[..<(behaviorRest.range(of: "// MARK:")?.lowerBound ?? behaviorRest.endIndex)]
-        )
-        #expect(behaviorBody.contains("ModelControlNavigationRow("), "the scope was not narrowed to the advanced settings card, so this assertion has no subject")
-        #expect(
-            behaviorBody.contains("badge: advancedSettingsBadge("),
-            "the advanced settings card is wired back to the unsuppressed projection, so relay connections and models without a recipe show a false not-ready badge again"
-        )
-        #expect(
-            !behaviorBody.contains("badge: capabilityCardBadge("),
-            "the advanced settings card was wired to the capability card suppression, which suppresses unavailable rather than not-ready"
-        )
-        let row = try Self.source([
-            "ios", "Oriveo", "Oriveo", "Features", "Chat", "ModelControls",
-            "ModelControlsComponents.swift",
-        ])
-        let rowStart = try #require(row.range(of: "struct ModelControlNavigationRow: View {"))
-        let rowBody = String(row[rowStart.upperBound...].prefix(1600))
-        #expect(
-            rowBody.contains("if let badge {") && rowBody.contains("} else if let trailingText {"),
-            "the relationship between the trailing text and the badge changed, so the badge projection for the advanced settings card has to be reconsidered"
-        )
-    }
-
-    @Test("Transport Label Covers Catalog And Relay Vocabularies")
+    /// `displayTransport` takes the rawValue of the local `RelayTransport` for a relay and the catalog transport for an official provider.
+    /// **The two vocabularies are not interchangeable**: the same Chat Completions protocol is
+    /// `openai_chat_completions` on one side and `openai_chat` on the other. A label function that only lists the relay set
+    /// drops official models into the default case, and the panel's subtitle shows an uninformative "Protocol".
+    /// Catalog-side values follow what actually occurs in `.providers[].models[].transport` of the metadata
+    /// (openai_chat, openai_responses, gemini_generate,
+    /// anthropic_messages), not the `RelayTransport` enum.
+    @Test("the transport label recognizes both the catalog and the relay vocabulary")
     func transportLabelCoversCatalogAndRelayVocabularies() {
         #expect(CapabilityTransportLabel.display("openai_chat") == "Chat Completions")
         #expect(CapabilityTransportLabel.display("openai_responses") == "Responses")
@@ -332,53 +414,7 @@ struct ModelControlsPanelStructureTests {
         }
     }
 
-    @Test("Close Action Is Pinned To Bottom")
-    func closeActionIsPinnedToBottom() throws {
-        let sheet = try Self.source([
-            "ios", "Oriveo", "Oriveo", "Features", "Chat", "ModelControls",
-            "ModelControlsSheet.swift",
-        ])
-        #expect(sheet.contains(".safeAreaInset(edge: .bottom"))
-        #expect(sheet.contains("ModelControlsCloseBar { dismiss() }"))
-        #expect(sheet.contains("Button(L10n.tr(\"Close\"), action: action)"))
-        #expect(sheet.contains(".frame(maxWidth: .infinity, minHeight: 50)"))
-        #expect(sheet.contains(".foregroundStyle(OriveoTheme.Palette.textPrimary)"))
-        #expect(!sheet.contains(".background(.bar)"), "the close bar is back on the system material, which matches the panel background in neither theme")
-    }
-
-    @Test("Sheet Uses A Single Large Detent")
-    func sheetUsesASingleLargeDetent() throws {
-        let sheet = try Self.source([
-            "ios", "Oriveo", "Oriveo", "Features", "Chat", "ModelControls",
-            "ModelControlsSheet.swift",
-        ])
-        #expect(sheet.contains(".presentationDetents([.large])"))
-        #expect(sheet.contains(".presentationCornerRadius(24)"))
-        #expect(
-            sheet.components(separatedBy: ".presentationDetents([.large])").count == 3,
-            "the two modals no longer share a single detent"
-        )
-        #expect(!sheet.contains(".fraction("), "multiple detents are back, so dragging up is eaten by the resize gesture")
-        #expect(!sheet.contains("PresentationDetent"), "the detent state is back")
-        #expect(!sheet.contains(".onChange(of: path)"), "the detent-raising logic is back")
-    }
-
-    @Test("Dynamic Type Narrow Width And RTL Stay Usable")
-    func dynamicTypeNarrowWidthAndRTLStayUsable() throws {
-        let sheet = try Self.source([
-            "ios", "Oriveo", "Oriveo", "Features", "Chat", "ModelControls",
-            "ModelControlsSheet.swift",
-        ])
-        let components = try Self.source([
-            "ios", "Oriveo", "Oriveo", "Features", "Chat", "ModelControls",
-            "ModelControlsComponents.swift",
-        ])
-        #expect(!sheet.contains(".font(.system(size:"))
-        #expect(components.contains(".frame(minHeight: 44)"))
-        #expect(components.contains("@Environment(\\.layoutDirection) private var layoutDirection"))
-        #expect(components.contains("layoutDirection == .rightToLeft"))
-    }
-
+    // MARK: - No global switch for custom request fields
 
     @Test("Developer Gate Is Gone From The Whole Repository")
     func developerGateIsGoneFromTheWholeRepository() throws {
@@ -425,288 +461,11 @@ struct ModelControlsPanelStructureTests {
         #expect(!chat.contains("developerModeEnabled"))
     }
 
-
-    @Test("Main Panel Is Single Page")
-    func mainPanelIsSinglePage() throws {
-        let sheet = try Self.source([
-            "ios", "Oriveo", "Oriveo", "Features", "Chat", "ModelControls",
-            "ModelControlsSheet.swift",
-        ])
-        #expect(sheet.contains("private var capabilityList: some View"))
-        for card in ["private var webCard", "private var reasoningCard", "private var modelBehaviorCard"] {
-            #expect(sheet.contains(card))
-        }
-        for gone in ["private var webPage", "private var reasoningPage", "private func capabilityPage"] {
-            #expect(!sheet.contains(gone), "\(gone) is still there: web and reasoning were pushed back onto a second page")
-        }
-    }
-
-    @Test("Only Model Behavior Is Pushed")
-    func onlyModelBehaviorIsPushed() throws {
-        let sheet = try Self.source([
-            "ios", "Oriveo", "Oriveo", "Features", "Chat", "ModelControls",
-            "ModelControlsSheet.swift",
-        ])
-        #expect(sheet.contains("NavigationLink(value: ModelControlsRoute.modelBehavior)"))
-        #expect(!sheet.contains("ModelControlsRoute.web"), "web was pushed back onto a second page")
-        #expect(!sheet.contains("ModelControlsRoute.reasoning"), "reasoning was pushed back onto a second page")
-        #expect(!sheet.contains(".sheet("), "a second-level page opened another modal on top of the sheet")
-    }
-
-    @Test("Reasoning Is A Pill Row")
-    func reasoningIsAPillRow() throws {
-        let sheet = try Self.source([
-            "ios", "Oriveo", "Oriveo", "Features", "Chat", "ModelControls",
-            "ModelControlsSheet.swift",
-        ])
-        let components = try Self.source([
-            "ios", "Oriveo", "Oriveo", "Features", "Chat", "ModelControls",
-            "ModelControlsComponents.swift",
-        ])
-        #expect(sheet.contains("case .pillRow:"))
-        #expect(sheet.contains("ModelControlIntentPicker("))
-        #expect(sheet.contains("ModelControlNote(text: layout.selectedAnnotation)"), "the annotation for the selected level is not rendered")
-        #expect(!sheet.contains("ModelControlRadioRow("), "the vertical single-selection list is back")
-        #expect(!components.contains("struct ModelControlRadioRow"), "the radio row component was not fully removed")
-        #expect(
-            !sheet.contains("Deep thinking"),
-            "the deep-thinking switch is back, so one meaning has two controls again"
-        )
-        #expect(!sheet.contains("secondaryTierRow"), "the highest level was demoted back into a secondary small-print entry")
-        #expect(
-            !sheet.contains("ModelControlSegmentedPicker"),
-            "the levels went back to a fixed-width segmented control, which cannot hold many levels or long translations"
-        )
-    }
-
-    @Test("Panel Never Renders Disabled Options")
-    func panelNeverRendersDisabledOptions() throws {
-        let sheet = try Self.source([
-            "ios", "Oriveo", "Oriveo", "Features", "Chat", "ModelControls",
-            "ModelControlsSheet.swift",
-        ])
-        #expect(sheet.contains("ModelControlStatusRow("), "the unavailable state does not degrade to a status row")
-        for disabled in [
-            "isEnabled: configurable", "isEnabled: !layout.tiersDimmed",
-            "isEnabled: false", "isEnabled: layout.isToggleEnabled",
-        ] {
-            #expect(!sheet.contains(disabled), "the panel renders a greyed-out control again: \(disabled)")
-        }
-    }
-
-    @Test("Status Rows Always Explain Themselves")
-    func statusRowsAlwaysExplainThemselves() throws {
-        let sheet = try Self.source([
-            "ios", "Oriveo", "Oriveo", "Features", "Chat", "ModelControls",
-            "ModelControlsSheet.swift",
-        ])
-        #expect(sheet.contains("private func presentExplanation("))
-        #expect(sheet.contains("action: detail.map { message in"), "the status row is not wired to be tappable only when it has an explanation")
-        #expect(sheet.contains("supportedModelCandidates(for: capability).isEmpty"))
-        #expect(sheet.contains("resolved = .none"))
-        #expect(sheet.contains("L10n.tr(\"View supported models\", table: .chat)"))
-        #expect(sheet.contains("L10n.tr(\"Go to Advanced Settings\", table: .chat)"))
-    }
-
-    @Test("Scope Upgrade Is Inline And After The Fact")
-    func scopeUpgradeIsInlineAndAfterTheFact() throws {
-        let sheet = try Self.source([
-            "ios", "Oriveo", "Oriveo", "Features", "Chat", "ModelControls",
-            "ModelControlsSheet.swift",
-        ])
-        #expect(sheet.contains("ModelControlScopeUpgradeRow("))
-        #expect(sheet.contains("private func promoteSelectionToModelDefault()"))
-        #expect(sheet.contains(
-            "modelID: capabilityModelID, conversationID: nil, transportIdentity: transportIdentity"
-        ))
-        #expect(!sheet.contains("ToastManager.shared"), "a toast raised from inside the sheet is invisible, because the toast overlay sits below the modal")
-        #expect(!sheet.contains("These settings apply to this conversation only."))
-        #expect(!sheet.contains("These settings apply to your next conversation with this model."))
-    }
-
-    @Test("Scope Upgrade Is Pinned Above The Close Bar")
-    func scopeUpgradeIsPinnedAboveTheCloseBar() throws {
-        let sheet = try Self.source([
-            "ios", "Oriveo", "Oriveo", "Features", "Chat", "ModelControls",
-            "ModelControlsSheet.swift",
-        ])
-        #expect(sheet.contains(".safeAreaInset(edge: .bottom, spacing: 0) { bottomBar }"))
-        let barStart = try #require(sheet.range(of: "private var bottomBar: some View {"))
-        let bar = String(sheet[barStart.upperBound...].prefix(600))
-        let row = try #require(bar.range(of: "ModelControlScopeUpgradeRow("))
-        let close = try #require(bar.range(of: "ModelControlsCloseBar {", range: row.upperBound..<bar.endIndex))
-        #expect(row.lowerBound < close.lowerBound, "the upgrade row moved below the close bar")
-
-        let listStart = try #require(sheet.range(of: "private var capabilityList: some View {"))
-        let list = String(sheet[listStart.upperBound..<barStart.lowerBound])
-        #expect(
-            !list.contains("ModelControlScopeUpgradeRow("),
-            "the upgrade row is back inside the scrolling content, where the close bar covers it when it appears"
-        )
-
-        let components = try Self.source([
-            "ios", "Oriveo", "Oriveo", "Features", "Chat", "ModelControls",
-            "ModelControlsComponents.swift",
-        ])
-        let rowStart = try #require(components.range(of: "struct ModelControlScopeUpgradeRow: View {"))
-        let rest = components[rowStart.lowerBound...]
-        let scope = String(rest[..<(rest.range(of: "// MARK:")?.lowerBound ?? rest.endIndex)])
-        #expect(scope.contains(".background(OriveoTheme.Palette.surfaceChrome)"))
-        #expect(!scope.contains(".modelControlSurface()"), "the pinned bottom area gained a second floating card layer")
-    }
-
-    @Test("Header Names The Model")
-    func headerNamesTheModel() throws {
-        let sheet = try Self.source([
-            "ios", "Oriveo", "Oriveo", "Features", "Chat", "ModelControls",
-            "ModelControlsSheet.swift",
-        ])
-        #expect(sheet.contains(".navigationTitle(model.name)"), "the title should be the model, not a category name")
-        #expect(!sheet.contains("New conversations will use these settings."))
-        #expect(!sheet.contains("Model Controls"))
-        #expect(!sheet.contains("Model Behavior"))
-    }
-
-    @Test("Scope Upgrade Visibility Follows The Conversation Scope")
-    func scopeUpgradeVisibilityFollowsTheConversationScope() throws {
-        let sheet = try Self.source([
-            "ios", "Oriveo", "Oriveo", "Features", "Chat", "ModelControls",
-            "ModelControlsSheet.swift",
-        ])
-        #expect(sheet.contains("if conversationID != nil, !showsScopeUpgrade {"))
-        #expect(
-            !sheet.contains("if isExistingConversation, conversationID != nil, !showsScopeUpgrade {"),
-            "draft conversations are excluded from the scope upgrade again"
-        )
-        let persist = try #require(sheet.range(of: "private func persist() {"))
-        let confirmed = try #require(sheet.range(of: "scopeUpgradeConfirmed = false", range: persist.upperBound..<sheet.endIndex))
-        let write = try #require(sheet.range(of: "setCapabilityPreferences(", range: persist.upperBound..<sheet.endIndex))
-        #expect(confirmed.lowerBound < write.lowerBound, "the confirmation sentence is not withdrawn before the write")
-        #expect(sheet.contains("if showsScopeUpgrade, path.isEmpty {"), "the upgrade row follows the user onto second-level pages again")
-    }
-
-
-    @MainActor
-    @Test("Footer Is Empty In The Ordinary Case")
-    func footerIsEmptyInTheOrdinaryCase() {
-        let entries = ModelControlCapabilityFooter.entries(.init())
-        #expect(entries.isEmpty)
-        #expect(ModelControlCapabilityFooter.entries(.init(context: .behaviorPageHeader)).isEmpty)
-    }
-
-    @Test("Empty Footer Yields Nil Header")
-    func emptyFooterYieldsNilHeader() throws {
-        let sheet = try Self.source([
-            "ios", "Oriveo", "Oriveo", "Features", "Chat", "ModelControls",
-            "ModelControlsSheet.swift",
-        ])
-        #expect(sheet.contains("private var generationCapabilityHeader: AnyView?"))
-        #expect(sheet.contains("guard !entries.isEmpty else { return nil }"))
-        #expect(
-            !sheet.contains("capabilityHeader: AnyView(generationCapabilityHeader)"),
-            "the header is unconditionally wrapped into a non-empty view again, so every second-level page carries an empty card at the top"
-        )
-    }
-
-    @MainActor
-    @Test("Read Only Reason Is Not Repeated Inside Cards")
-    func readOnlyReasonIsNotRepeatedInsideCards() {
-        let reason = "read-only because reasons"
-        let card = ModelControlCapabilityFooter.entries(
-            .init(context: .panelCard, readOnlyReason: reason, isConfigurable: false, statusText: "status")
-        )
-        #expect(card.isEmpty, "the card repeats the read-only reason already stated at the top of the page")
-
-        let page = ModelControlCapabilityFooter.entries(
-            .init(context: .behaviorPageHeader, readOnlyReason: reason, isConfigurable: false, statusText: "status")
-        )
-        #expect(page == [.note(text: reason, systemImage: "lock.fill", tone: .tertiary)])
-    }
-
-    @MainActor
-    @Test("Status Note Yields To The No Candidates Note")
-    func statusNoteYieldsToTheNoCandidatesNote() {
-        let both = ModelControlCapabilityFooter.entries(.init(
-            context: .behaviorPageHeader,
-            isConfigurable: false,
-            statusText: "This capability is unavailable",
-            showsSupportedModelsAction: true,
-            hasSupportedModelCandidates: false
-        ))
-        #expect(both.count == 1)
-        #expect(!both.contains(.note(text: "This capability is unavailable", systemImage: nil, tone: .tertiary)))
-
-        let withCandidates = ModelControlCapabilityFooter.entries(.init(
-            context: .behaviorPageHeader,
-            isConfigurable: false,
-            statusText: "This capability is unavailable",
-            showsSupportedModelsAction: true,
-            hasSupportedModelCandidates: true
-        ))
-        #expect(withCandidates == [
-            .note(text: "This capability is unavailable", systemImage: nil, tone: .tertiary),
-            .supportedModelsLink,
-        ])
-    }
-
-    @MainActor
-    @Test("Only Lock And Warning Notes Keep Icons")
-    func onlyLockAndWarningNotesKeepIcons() {
-        let status = ModelControlCapabilityFooter.entries(
-            .init(context: .behaviorPageHeader, isConfigurable: false, statusText: "No automatic configuration yet")
-        )
-        #expect(status == [.note(text: "No automatic configuration yet", systemImage: nil, tone: .tertiary)])
-
-        let risky = ModelControlCapabilityFooter.entries(
-            .init(context: .behaviorPageHeader, riskTiers: ["privacy_impacting", "cost_impacting"])
-        )
-        #expect(risky.count == 2)
-        for entry in risky {
-            guard case let .note(_, systemImage, tone) = entry else {
-                #expect(Bool(false), "the risk warning is not a note entry")
-                continue
-            }
-            #expect(systemImage != nil, "the warning note lost its icon")
-            #expect(tone == .warning)
-        }
-    }
-
-    @MainActor
-    @Test("Risk Notes Stay With Custom Fields")
-    func riskNotesStayWithCustomFields() {
-        let tiers = ["privacy_impacting", "cost_impacting"]
-
-        #expect(ModelControlCapabilityFooter.entries(
-            .init(context: .panelCard, overridden: false, riskTiers: tiers)
-        ).isEmpty)
-
-        let overridden = ModelControlCapabilityFooter.entries(
-            .init(context: .panelCard, overridden: true, riskTiers: tiers)
-        )
-        #expect(overridden.count == 3, "when custom fields are in effect: the takeover note plus two risk warnings")
-
-        #expect(ModelControlCapabilityFooter.entries(
-            .init(context: .behaviorPageHeader, overridden: false, riskTiers: tiers)
-        ).count == 2)
-    }
-
-    @MainActor
-    @Test("Overridden State Keeps Its Only Way Back")
-    func overriddenStateKeepsItsOnlyWayBack() {
-        let entries = ModelControlCapabilityFooter.entries(.init(
-            overridden: true,
-            isConfigurable: false,
-            statusText: "This capability is unavailable",
-            showsSupportedModelsAction: true,
-            hasSupportedModelCandidates: true,
-            showsAdvancedSettingsAction: true
-        ))
-        #expect(entries.count == 2)
-        #expect(entries.last == .advancedSettingsLink)
-        #expect(!entries.contains(.supportedModelsLink), "while custom fields are in effect the user should not be told to switch model")
-    }
-
-    @Test("Stale Web Gate Is Wired Everywhere")
+    /// All three consumers of the web search criterion have to pass the same gate (the pure criterion is covered in `ModelOptionsPanelModelTests`).
+    ///
+    /// Missing one is the same as missing all: with only the panel fixed the composer's globe stays lit; with the composer fixed too, ChatView would still put
+    /// `web_search` into explicitKeys and the whole evidence projection would go on as if the user had explicitly asked for web search.
+    @Test("the outbound criterion for a stored web search preference is wired into the panel, the composer and ChatView")
     func staleWebGateIsWiredEverywhere() throws {
         let sheet = try Self.source([
             "ios", "Oriveo", "Oriveo", "Features", "Chat", "ModelControls",
@@ -728,135 +487,12 @@ struct ModelControlsPanelStructureTests {
         )
     }
 
-    @MainActor
-    @Test("Footer Yields To The Status Row Escape")
-    func footerYieldsToTheStatusRowEscape() {
-        let base = ModelControlCapabilityFooter.Input(
-            context: .panelCard,
-            isConfigurable: false,
-            statusText: "This capability is unavailable",
-            showsSupportedModelsAction: true,
-            hasSupportedModelCandidates: true
-        )
-        var covered = base
-        covered.statusRowEscape = .supportedModels
-        #expect(
-            !ModelControlCapabilityFooter.entries(covered).contains(.supportedModelsLink),
-            "the same way out appears twice on one card"
-        )
-
-        var elsewhere = base
-        elsewhere.statusRowEscape = .advancedSettings
-        #expect(ModelControlCapabilityFooter.entries(elsewhere).contains(.supportedModelsLink))
-        var pageHeader = base
-        pageHeader.context = .behaviorPageHeader
-        #expect(ModelControlCapabilityFooter.entries(pageHeader).contains(.supportedModelsLink))
-    }
-
-    @Test("Panel Card Keeps Its Supported Models Link And Says One Thing")
-    func panelCardKeepsItsSupportedModelsLinkAndSaysOneThing() throws {
-        let sheet = try Self.source([
-            "ios", "Oriveo", "Oriveo", "Features", "Chat", "ModelControls",
-            "ModelControlsSheet.swift",
-        ])
-        #expect(sheet.contains("let showsSupportedModels = showsSupportedModelsAction(for: status, capability: capability)"))
-        #expect(
-            !sheet.contains("let showsSupportedModels = context == .behaviorPageHeader"),
-            "the supported-models link is confined to the advanced settings page header again"
-        )
-        #expect(
-            !sheet.contains("if let readOnlyStatus = editability.statusText { return readOnlyStatus }"),
-            "the advanced settings row prints not-ready in its trailing slot again, contradicting the banner at the top of the page"
-        )
-    }
-
-    @Test("Detail Pages Consume The Layout Functions")
-    func detailPagesConsumeTheLayoutFunctions() throws {
-        let sheet = try Self.source([
-            "ios", "Oriveo", "Oriveo", "Features", "Chat", "ModelControls",
-            "ModelControlsSheet.swift",
-        ])
-        #expect(sheet.contains("ModelControlWebLayout.layout("))
-        #expect(sheet.contains("ModelControlReasoningLayout.layout("))
-        #expect(sheet.contains("switch layout.form {"))
-        for inlined in ["$0.kind == .fixedTier", "layout.unavailableReasons", "layout.dimmedNote"] {
-            #expect(!sheet.contains(inlined), "the panel inlined its own copy of the level explanation again: \(inlined)")
-        }
-        #expect(
-            !sheet.contains("“Every time” needs an official recipe"),
-            "explaining a greyed-out level that no longer exists is pure noise"
-        )
-    }
-
-    @Test("Toggle Lives Inside The Title Row")
-    func toggleLivesInsideTheTitleRow() throws {
-        let components = try Self.source([
-            "ios", "Oriveo", "Oriveo", "Features", "Chat", "ModelControls",
-            "ModelControlsComponents.swift",
-        ])
-        let cardStart = try #require(components.range(of: "struct ModelControlCard<Content: View>: View {"))
-        let rest = components[cardStart.lowerBound...]
-        let card = String(rest[..<(rest.range(of: "// MARK:")?.lowerBound ?? rest.endIndex)])
-
-        let header = try #require(card.range(of: "HStack(spacing: 10) {"))
-        let spacer = try #require(card.range(of: "Spacer(minLength: 8)", range: header.upperBound..<card.endIndex))
-        let toggle = try #require(card.range(of: "Toggle(\"\", isOn: toggle)", range: spacer.upperBound..<card.endIndex))
-        let subtitle = try #require(card.range(of: "if !subtitle.isEmpty {", range: header.upperBound..<card.endIndex))
-        let content = try #require(card.range(of: "content()", range: header.upperBound..<card.endIndex))
-        #expect(toggle.lowerBound < subtitle.lowerBound, "the switch moved out of the title row, below the subtitle")
-        #expect(toggle.lowerBound < content.lowerBound, "the switch moved into the body of the card")
-
-        #expect(
-            !card.contains("HStack(alignment: .firstTextBaseline, spacing: 10)"),
-            "the title row aligns on the text baseline again, which pushes the toggle off the title line"
-        )
-        #expect(card.contains(".frame(minHeight: 44)"))
-        #expect(card.contains(".accessibilityLabel(Text(title))"))
-        #expect(card.contains("} else if let badge {"), "a switch and a badge can coexist again")
-    }
-
-    @Test("Disabled State Changes Color Instead Of Opacity")
-    func disabledStateChangesColorInsteadOfOpacity() throws {
-        let components = try Self.source([
-            "ios", "Oriveo", "Oriveo", "Features", "Chat", "ModelControls",
-            "ModelControlsComponents.swift",
-        ])
-        let start = try #require(components.range(of: "struct ModelControlSegmentedPicker"))
-        let rest = components[start.lowerBound...]
-        let segment = String(rest[..<(rest.range(of: "// MARK:")?.lowerBound ?? rest.endIndex)])
-        #expect(segment.contains("private func foreground("), "the scope was not narrowed to the colour function, so this assertion has no subject")
-        #expect(segment.contains("OriveoTheme.Palette.textDisabledOnControl"), "the disabled state does not switch colour")
-        #expect(
-            !segment.contains(".opacity(0.5)") && !segment.contains(".opacity(0.6)"),
-            "disabled is expressed with a whole-layer opacity again, which makes the text unreadable along with it"
-        )
-    }
-
-    @Test("Segmented Respects Reduce Motion")
-    func segmentedRespectsReduceMotion() throws {
-        let components = try Self.source([
-            "ios", "Oriveo", "Oriveo", "Features", "Chat", "ModelControls",
-            "ModelControlsComponents.swift",
-        ])
-        let animated = components
-            .split(separator: "\n", omittingEmptySubsequences: false)
-            .map(String.init)
-            .filter { line in
-                let trimmed = line.trimmingCharacters(in: .whitespaces)
-                return !trimmed.hasPrefix("//")
-                    && trimmed.contains(".animation(")
-                    && trimmed.contains("value: selection")
-            }
-        #expect(animated.count >= 2, "the selection animation of the level picker is gone, so this assertion has no subject")
-        for line in animated {
-            #expect(
-                line.contains("reduceMotion ?"),
-                "the level animation does not honour Reduce Motion: \(line.trimmingCharacters(in: .whitespaces))"
-            )
-        }
-    }
-
-    @Test("Push Transition Respects Reduce Motion")
+    /// Push and pop of second-level pages are dropped as well.
+    ///
+    /// The push animation of `NavigationStack` is driven by a system transaction: `.animation(nil)` does not turn it off,
+    /// `disablesAnimations` has to be set on the transaction. So this asserts that specific form,
+    /// not "the file mentions reduceMotion"; the latter would be green with only the segmented control wired.
+    @Test("the push transition of second-level pages respects accessibilityReduceMotion")
     func pushTransitionRespectsReduceMotion() throws {
         let sheet = try Self.source([
             "ios", "Oriveo", "Oriveo", "Features", "Chat", "ModelControls",

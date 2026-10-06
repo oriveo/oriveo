@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import Oriveo
 
-/// What the reasoning card says beyond the list of levels.
+/// **What the thinking row says** besides the levels.
 ///
 /// The defect: a model reported as automatically available with an empty set of available levels
 /// (real examples exist - some models accept only "high", others only "medium", and the catalog
@@ -11,63 +11,73 @@ import Testing
 /// ladder there is no higher level. The user saw the worst kind of dead end: an entry point that is
 /// present, does nothing, explains nothing and offers no action.
 ///
-/// Empty states come first here: the "no ladder" and "not configurable" cases are pinned, and the
-/// cases that do have a ladder act as a control group so the predicate cannot be hard-coded true.
+/// These sentences come from `ModelOptionCapabilityShape.resolve` together with the shape. The empty state comes first: "no levels" is pinned,
+/// and the cases with levels serve as a control group so the criterion cannot be hard-wired to always true.
 @Suite("Model Controls Reasoning Notes Tests")
 struct ModelControlsReasoningNotesTests {
+    private static func shape(_ intents: [String], selected: String? = nil) -> ModelOptionCapabilityShape {
+        ModelOptionCapabilityShape.resolve(.init(
+            capability: .reasoning, presentation: .automaticAvailable,
+            availableIntents: intents, selectedIntent: selected
+        ))
+    }
+
+    private static let higherLevelsCost = "Higher levels take longer and may cost more."
+
     @Test("Empty Intents Explains Fixed Tier")
     func emptyIntentsExplainsFixedTier() {
-        let notes = ModelControlReasoningNotes.all(isConfigurable: true, intents: [])
-        #expect(notes.map(\.kind) == [.fixedTier])
-        #expect(notes[0].text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false)
-        #expect(!notes.map(\.kind).contains(.higherLevelsCost))
+        guard case let .notice(notice) = Self.shape([]) else {
+            Issue.record("without levels this should be a note, got \(Self.shape([]))")
+            return
+        }
+        #expect(notice.body == L10n.tr(
+            "This model runs at a fixed thinking level and can’t be adjusted.", table: .chat
+        ))
+        // Something that cannot be adjusted gets no link that leads nowhere; with no levels there is no talk of "higher levels" either.
+        #expect(notice.link == nil)
+        #expect(!notice.body.contains(L10n.tr(Self.higherLevelsCost, table: .chat)))
     }
 
-    @Test("Unavailable Says Nothing Here")
-    func unavailableSaysNothingHere() {
-        #expect(ModelControlReasoningNotes.all(isConfigurable: false, intents: []).isEmpty)
-        #expect(ModelControlReasoningNotes.all(isConfigurable: false, intents: ["low"]).isEmpty)
+    @Test("levels that cannot be turned off: the top right says it always thinks first, below it says higher levels are slower and cost more, and there is no Off segment")
+    func tieredWithoutOffSaysSoWithoutADeadSegment() {
+        guard case let .tiers(tiers) = Self.shape(["low", "balanced", "deep", "max"], selected: "low") else {
+            Issue.record("with levels this should be segments")
+            return
+        }
+        #expect(!tiers.includesOff)
+        #expect(!tiers.options.map(\.id).contains("off"))
+        #expect(tiers.headerNote == L10n.tr("Always thinks before answering", table: .chat))
+        #expect(tiers.footnotes.contains(L10n.tr(Self.higherLevelsCost, table: .chat)))
     }
 
-    @Test("Tiered Without Off Keeps Both Notes")
-    func tieredWithoutOffKeepsBothNotes() {
-        let notes = ModelControlReasoningNotes.all(
-            isConfigurable: true, intents: ["low", "balanced", "deep", "max"]
-        )
-        #expect(notes.map(\.kind) == [.cannotTurnOff, .higherLevelsCost])
+    @Test("levels including off: no always-thinks note and no fixed-level explanation")
+    func tieredWithOffDropsTheAlwaysThinksNote() {
+        guard case let .tiers(tiers) = Self.shape(["off", "low", "deep"], selected: "low") else {
+            Issue.record("with levels this should be segments")
+            return
+        }
+        #expect(tiers.includesOff)
+        #expect(tiers.headerNote != L10n.tr("Always thinks before answering", table: .chat))
     }
 
-    @Test("Tiered With Off Drops The Cannot Turn Off Note")
-    func tieredWithOffDropsTheCannotTurnOffNote() {
-        let notes = ModelControlReasoningNotes.all(isConfigurable: true, intents: ["off", "balanced"])
-        #expect(notes.map(\.kind) == [.higherLevelsCost])
-    }
-
-    /// The tests above cover the function; this one pins the rendering side to the same function.
-    ///
-    /// The consumer moved from the panel to `ModelControlReasoningLayout`: the reasoning card no
-    /// longer has a deep-thinking switch, and the "this cannot be turned off" sentence became a
-    /// footnote below the single-selection list, produced by the layout function. The panel must not
-    /// inline a single word of it, or there would be a second source of truth.
-    @Test("Reasoning Copy Has A Single Source")
+    /// Neither the panel nor the components may inline a single word of thinking copy; that would be a second source of truth.
+    /// There is no "this model cannot turn thinking off" footnote: the segments carry no Off, and one note at the top right is enough.
+    @Test("thinking copy has the shape function as its single source, the panel inlines none, and the retired footnote stays gone")
     func reasoningCopyHasASingleSource() throws {
-        let layout = try Self.source([
-            "ios", "Oriveo", "Oriveo", "Features", "Chat", "ModelControls",
-            "ModelControlCapabilityLayout.swift",
-        ])
-        #expect(layout.contains("ModelControlReasoningNotes.all("), "the footnote does not consume the shared explanation copy")
-
-        let sheet = try Self.source([
-            "ios", "Oriveo", "Oriveo", "Features", "Chat", "ModelControls",
-            "ModelControlsSheet.swift",
-        ])
-        for copy in [
-            "This model cannot turn thinking off.",
-            "Higher levels are usually slower",
-            "This model runs at a fixed thinking level",
-        ] {
-            #expect(!sheet.contains(copy), "the panel still inlines reasoning copy: \(copy)")
-            #expect(!layout.contains(copy), "the layout function keeps a second copy of the reasoning text: \(copy)")
+        let directory = ["ios", "Oriveo", "Oriveo", "Features", "Chat", "ModelControls"]
+        for name in ["ModelControlsSheet.swift", "ModelControlsComponents.swift", "ModelControlCapabilityLayout.swift"] {
+            let source = try Self.source(directory + [name])
+            for copy in [
+                "Higher levels take longer",
+                "This model runs at a fixed thinking level",
+                "Always thinks before answering",
+            ] {
+                #expect(!source.contains(copy), "\(name) inlines thinking copy: \(copy)")
+            }
+        }
+        let shape = try Self.source(directory + ["ModelOptionCapabilityShape.swift"])
+        for retired in ["This model cannot turn thinking off.", "Higher levels are usually slower"] {
+            #expect(!shape.contains(retired), "the retired footnote is back: \(retired)")
         }
     }
 

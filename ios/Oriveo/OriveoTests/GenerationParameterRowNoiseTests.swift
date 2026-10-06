@@ -6,9 +6,14 @@ import Testing
 struct GenerationParameterRowNoiseTests {
     @Test("Only The Normal State Is Silent")
     func onlyTheNormalStateIsSilent() throws {
-        let source = try Self.sheetSource()
+        let source = try Self.source(named: "AdvancedParameterRowView.swift")
+        let catalog = try Self.source(named: "AdvancedSettingsCatalog.swift")
 
-        #expect(source.contains("if let status = statusNote(parameter) {"))
+        // Rendering has to go through the optional statusNote and must not spread the full status over every row;
+        // a collapsed editable row carries not even the non-regular note, which waits for the expanded state.
+        #expect(catalog.contains("statusNote: GenerationParameterRowStatus.note("))
+        #expect(source.contains("if let statusNote, !isEditable {"))
+        #expect(source.contains("if let statusNote {"))
         #expect(!source.contains("Text(statusText(parameter))"))
 
         for silent in ["supported", "accepted"] {
@@ -41,10 +46,14 @@ struct GenerationParameterRowNoiseTests {
 
     @Test("Title And Accessibility Label Share One Source")
     func titleAndAccessibilityLabelShareOneSource() throws {
-        let source = try Self.sheetSource()
-        #expect(source.contains("Text(parameterTitle(id))"))
+        // The row model's title has a single source (the vocabulary); the on-screen title and the accessibility label both take it.
+        let model = try Self.source(named: "AdvancedSettingsModel.swift")
+        #expect(model.contains("title: GenerationParameterVocabulary.title(id),"))
+        let source = try Self.source(named: "AdvancedParameterRowView.swift")
+        #expect(source.contains("Text(row.model.title)"))
+        #expect(source.contains(".accessibilityLabel(Text(row.model.title))"))
         #expect(
-            !source.contains("Text(id.replacingOccurrences(of: \"_\", with: \" \"))"),
+            !source.contains("replacingOccurrences(of: \"_\", with: \" \")"),
             "The row title inlined its own formatting and diverged from the accessibility label"
         )
     }
@@ -78,11 +87,11 @@ struct GenerationParameterRowNoiseTests {
         )
     }
 
-    private static func sheetSource() throws -> String {
+    /// Rendering and assembly of parameter rows live in these files, shared by the chat page and the provider detail page.
+    private static func source(named name: String) throws -> String {
         var current = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
         let components = [
-            "ios", "Oriveo", "Oriveo", "Features", "Providers",
-            "GenerationParameterDefaultsSheet.swift",
+            "ios", "Oriveo", "Oriveo", "Features", "Chat", "ModelControls", name,
         ]
         while current.path != current.deletingLastPathComponent().path {
             let candidate = components.reduce(current) { $0.appendingPathComponent($1) }

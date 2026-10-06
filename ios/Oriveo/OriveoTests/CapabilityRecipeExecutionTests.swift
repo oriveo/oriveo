@@ -542,7 +542,12 @@ struct CapabilityRecipeExecutionTests {
         // Same predicate as the outbound gate: outbound treats `mode == .custom` as selected.
         #expect(sheet.contains("customModes[owner, default: .automatic] == .custom"))
         // When overridden, the in-card warning and the path back to the editor are both required.
-        #expect(sheet.contains("showsAdvancedSettingsAction: overridden"))
+        #expect(sheet.contains("takenOverByCustomFields: Set(takenOver)"))
+        let panelModel = try String(contentsOf: Self.findFile([
+            "ios", "Oriveo", "Oriveo", "Features", "Chat", "ModelControls",
+            "ModelControlCapabilityLayout.swift",
+        ]), encoding: .utf8)
+        #expect(panelModel.contains("tone: .warning, opensAdvancedSettings: true"))
         #expect(page.contains("design: .monospaced"))
         #expect(page.contains(".accessibilityLabel"))
         // The editor sizes itself; do not hard-code frame(width:).
@@ -567,11 +572,15 @@ struct CapabilityRecipeExecutionTests {
         for owner in ["\"web\"", "\"reasoning\""] {
             #expect(page.contains(owner), "editor page is missing owner \(owner)")
         }
-        // Generation parameters no longer get a section of officially declared fields; the
-        // additional request body on the same page covers them.
+        // Generation parameters no longer get a section of officially declared fields; the additional
+        // request body page covers them, and this page is its "web search and thinking fields" sub-page.
         #expect(!page.contains("\"generationPatch\""))
-        #expect(page.contains("L10n.tr(\"Additional request body\", table: .chat)"))
-        #expect(page.contains("L10n.tr(\"Send with requests\", table: .chat)"))
+        let bodyPage = try String(contentsOf: Self.findFile([
+            "ios", "Oriveo", "Oriveo", "Features", "Chat", "ModelControls",
+            "AdditionalRequestBodyPage.swift",
+        ]), encoding: .utf8)
+        #expect(bodyPage.contains("L10n.tr(\"Additional request body\", table: .chat)"))
+        #expect(bodyPage.contains("L10n.tr(\"Send with requests\", table: .chat)"))
         // Section titles use user-facing words, not the raw web/reasoning/generation tokens.
         #expect(page.contains("L10n.tr(\"Web Search\", table: .chat)"))
         #expect(page.contains("L10n.tr(\"Thinking Mode\", table: .chat)"))
@@ -585,12 +594,17 @@ struct CapabilityRecipeExecutionTests {
         #expect(page.contains("Fields are added to the request exactly as written."))
         #expect(!page.contains("They are not synced, logged, sent to telemetry"))
 
-        // There is a single entry, on the Advanced Settings page; the capability panel no longer routes to customFields.
-        let advanced = try String(contentsOf: Self.findFile([
-            "ios", "Oriveo", "Oriveo", "Features", "Providers",
-            "GenerationParameterDefaultsSheet.swift",
-        ]), encoding: .utf8)
-        #expect(advanced.contains("CustomRequestFieldsPage("))
+        // There is a single chain to the entry: advanced settings → additional request body → this page; the capability panel has no customFields route.
+        for name in ["AdvancedSettingsPage.swift"] {
+            let advanced = try String(contentsOf: Self.findFile([
+                "ios", "Oriveo", "Oriveo", "Features", "Chat", "ModelControls", name,
+            ]), encoding: .utf8)
+            #expect(advanced.contains("AdditionalRequestBodyPage("))
+        }
+        #expect(bodyPage.contains("CustomRequestFieldsPage("))
+        // The entry row and this page read the same section criterion instead of each keeping a copy.
+        #expect(bodyPage.contains("CustomRequestFieldsPage.resolveSections("))
+        #expect(page.contains("Self.resolveSections("))
         let sheet = try Self.modelControlsSheetSource()
         #expect(!sheet.contains("ModelControlsRoute.customFields"), "panel grew a custom-fields route again")
         #expect(!sheet.contains("CustomRequestFieldsPage("), "panel hosts the editor page directly again")
@@ -599,22 +613,21 @@ struct CapabilityRecipeExecutionTests {
     @Test("Model Controls never offers a dead control, and never strands a subpage")
     func modelControlsKeepsTiersVisibleAndReachable() throws {
         let sheet = try Self.modelControlsSheetSource()
-        // Shape is not assembled inline in the panel; two pure functions decide it.
-        // "Unavailable degrades to a tappable status row / only render tiers the recipe
-        // actually issued / every exit points at the root cause" are asserted directly
-        // against those functions in `ModelControlCapabilityLayoutTests` (stronger than a
-        // source grep). This test only keeps the structural constraint that the panel
-        // actually consumes them.
-        #expect(sheet.contains("ModelControlReasoningLayout.layout("))
-        #expect(sheet.contains("ModelControlWebLayout.layout("))
-        // Writability only affects shape — interactive control vs read-only status row. It
-        // never produces a disabled control, which explains nothing to the reader.
-        #expect(sheet.contains("isEditable: editability.canPersist && !overridden"))
-        #expect(sheet.contains("var isConfigurable: Bool"))
+        // Shape is not assembled inline in the panel: `ModelOptionCapabilityShape` decides one capability and
+        // `ModelOptionsPanelModel.make` the whole page. Properties such as "unavailable comes with a note and a
+        // way forward" and "only levels the recipe really issued are drawn" are asserted directly against those
+        // functions in `ModelOptionCapabilityShapeTests` and `ModelOptionsPanelModelTests` (stronger than a
+        // source grep). This test only keeps the structural constraint that the panel actually consumes them.
+        #expect(sheet.contains("ModelOptionsPanelModel.make(panelFacts)"))
+        #expect(sheet.contains("switch row.shape {"))
+        // The earlier layout helpers are gone and must not come back as a second verdict next to these functions.
+        for retired in ["ModelControlReasoningLayout", "ModelControlWebLayout", "ModelControlCapabilityFooter"] {
+            #expect(!sheet.contains(retired), "the panel references the removed \(retired) again")
+        }
         // The force reason stays visible; it is no longer gated on "a selected-but-unselectable tier", which is unreachable.
         #expect(!sheet.contains("forceRequested"))
         // Subpages always push. Dismissing this sheet to open another loses the reader's place.
-        #expect(sheet.contains("NavigationLink(value: ModelControlsRoute.modelBehavior)"))
+        #expect(sheet.contains("path.append(.modelBehavior)"))
         #expect(!sheet.contains("opensModelBehavior"))
         // Detents belong to the panel. The composer **must not declare another copy**:
         // presentation preferences let the outer sheet override the inner one, and the
@@ -623,10 +636,10 @@ struct CapabilityRecipeExecutionTests {
             "ios", "Oriveo", "Oriveo", "Features", "Chat", "ChatComposerBar.swift",
         ]), encoding: .utf8)
         #expect(!composer.contains(".presentationDetents("))
-        // Keep only the `.large` detent. Extra detents let the sheet's expand recognizer
-        // swallow an upward drag inside the content area and fight the ScrollView, which
-        // clips the bottom of the page and makes it unreachable.
-        #expect(sheet.contains(".presentationDetents([.large])"))
+        // The panel is as tall as its content, but there is **only one detent at any time**. Extra detents let
+        // the sheet's expand recognizer swallow an upward drag inside the content area and fight the
+        // ScrollView, which clips the bottom of the page and makes it unreachable.
+        #expect(sheet.contains(".presentationDetents([detent])"))
         #expect(!sheet.contains(".fraction("), "multi-detent came back; upward drags will be eaten by the expand gesture")
     }
 

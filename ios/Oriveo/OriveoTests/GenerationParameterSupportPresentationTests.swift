@@ -125,10 +125,16 @@ struct GenerationParameterSupportPresentationTests {
 
     @Test("the panel no longer inlines a support switch; it only reads the shared table")
     func panelReadsTheSharedTableOnly() throws {
+        // Rows of both pages are assembled in this one place; the panel file itself no longer touches support.
         let sheet = try Self.source([
+            "ios", "Oriveo", "Oriveo", "Features", "Chat", "ModelControls",
+            "AdvancedSettingsCatalog.swift",
+        ])
+        let panel = try Self.source([
             "ios", "Oriveo", "Oriveo", "Features", "Providers",
             "GenerationParameterDefaultsSheet.swift",
         ])
+        #expect(!panel.contains("parameter.support =="), "the panel decides inline on a support literal again")
         #expect(sheet.contains("GenerationParameterRowStatus.note("))
         #expect(sheet.contains("GenerationParameterSupportPresentation.entry("))
         // The old five-branch switch must be gone — leaving it is a second source of truth,

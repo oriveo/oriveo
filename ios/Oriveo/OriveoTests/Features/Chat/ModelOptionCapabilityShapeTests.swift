@@ -37,7 +37,7 @@ struct ModelOptionCapabilityShapeTests {
         #expect(!toggle.isOn)
         #expect(toggle.target == .capabilityPreference(on: "balanced", off: "off"))
         #expect(toggle.caption == L10n.tr(
-            "Thinks it through first, so answers take a little longer.", table: .chat
+            "Thinks it through first, so answers take a little longer", table: .chat
         ))
         #expect(toggle.link == nil)
 
@@ -184,7 +184,7 @@ struct ModelOptionCapabilityShapeTests {
     func webSearchNeedsManualSetup() {
         let shape = Shape.resolve(.init(capability: .web, presentation: .customOnly))
         #expect(shape == .notice(.init(
-            status: L10n.tr("Set it up yourself", table: .chat),
+            status: L10n.tr("Needs manual setup", table: .chat),
             body: L10n.tr(
                 "This provider has no standard switch for web search. Add its fields in the additional request body.",
                 table: .chat
@@ -326,6 +326,204 @@ struct ModelOptionCapabilityShapeTests {
         #expect(reopenedTiers.options.map(\.id) == ["low", "balanced", "deep"])
     }
 
+    // MARK: - Automatic level, never chosen, read-only
+
+    @Test("the recipe offers Automatic → drawn as the first segment; highlighted when never chosen, without storing a value for the user")
+    func automaticTierIsFirstAndHighlightedWhenNothingIsStored() {
+        let input = Shape.Input(
+            capability: .reasoning, presentation: .automaticAvailable,
+            availableIntents: ["max", "automatic", "low", "deep"]
+        )
+        guard case let .tiers(tiers) = Shape.resolve(input) else {
+            Issue.record("with Automatic and several levels this should be segments, got \(Shape.resolve(input))")
+            return
+        }
+        #expect(tiers.options.map(\.id) == ["automatic", "low", "deep", "max"])
+        #expect(tiers.selection == Shape.automaticIntent)
+        #expect(!tiers.includesOff)
+        #expect(tiers.headerNote == L10n.tr("Always thinks before answering", table: .chat))
+        #expect(tiers.footnotes.first == L10n.tr("The model decides on its own.", table: .chat))
+        // The shape function only decides what to draw: the stored choice in the input is not rewritten.
+        #expect(input.selectedIntent == nil)
+
+        // It does not take the highlight once another level has been chosen.
+        var chosen = input
+        chosen.selectedIntent = "deep"
+        guard case let .tiers(chosenTiers) = Shape.resolve(chosen) else {
+            Issue.record("still segments once a level has been chosen")
+            return
+        }
+        #expect(chosenTiers.selection == "deep")
+
+        // Automatic plus Off are two real choices as well; this does not degrade into "fixed level".
+        guard case let .tiers(two) = Shape.resolve(.init(
+            capability: .reasoning, presentation: .automaticAvailable, availableIntents: ["off", "automatic"]
+        )) else {
+            Issue.record("Automatic together with Off should be segments")
+            return
+        }
+        #expect(two.options.map(\.id) == ["automatic", "off"])
+        #expect(two.selection == Shape.automaticIntent)
+    }
+
+    @Test("no Automatic in the recipe and never chosen → nothing highlighted, and the top right says it uses the model’s default")
+    func nothingStoredAndNoAutomaticTierHighlightsNothing() {
+        let modelDefault = L10n.tr("Uses the model’s default", table: .chat)
+        guard case let .tiers(withOff) = Shape.resolve(.init(
+            capability: .reasoning, presentation: .automaticAvailable, availableIntents: ["off", "low", "deep"]
+        )) else {
+            Issue.record("several levels should be segments")
+            return
+        }
+        #expect(withOff.selection == nil)
+        #expect(withOff.headerNote == modelDefault)
+        #expect(withOff.headerTone == .neutral)
+
+        guard case let .tiers(withoutOff) = Shape.resolve(.init(
+            capability: .reasoning, presentation: .automaticAvailable,
+            availableIntents: ["low", "balanced", "deep", "max"]
+        )) else {
+            Issue.record("several levels should be segments")
+            return
+        }
+        #expect(withoutOff.selection == nil)
+        #expect(withoutOff.headerNote == modelDefault)
+        // With no level selected, the note is not borrowed from Automatic to fill the gap.
+        #expect(withoutOff.footnotes == [L10n.tr("Higher levels take longer and may cost more.", table: .chat)])
+
+        // The stored level is no longer in the configuration: handled like never chosen, with no falsely highlighted segment.
+        guard case let .tiers(stale) = Shape.resolve(.init(
+            capability: .reasoning, presentation: .automaticAvailable,
+            availableIntents: ["off", "low", "deep"], selectedIntent: "max"
+        )) else {
+            Issue.record("several levels should be segments")
+            return
+        }
+        #expect(stale.selection == nil)
+        #expect(stale.headerNote == modelDefault)
+
+        // The read-only row says the same sentence.
+        #expect(Shape.resolve(.init(
+            capability: .reasoning, presentation: .automaticAvailable,
+            availableIntents: ["low", "deep"], isWritable: false
+        )) == .disclosure(.init(status: modelDefault, action: nil)))
+    }
+
+    @Test("web search with only on and off has a caption under the title; with a timing row the caption goes away and the two segments are search when needed / search every message")
+    func webToggleCaptionAndTimingLabels() {
+        guard case let .toggle(plain) = Shape.resolve(.init(
+            capability: .web, presentation: .automaticAvailable, selectedIntent: "off"
+        )) else {
+            Issue.record("web search should be a toggle")
+            return
+        }
+        #expect(plain.caption == L10n.tr("Searches the web first when a question needs it", table: .chat))
+
+        guard case let .toggleWithTiming(toggle, timing) = Shape.resolve(.init(
+            capability: .web, presentation: .automaticAvailable,
+            availableIntents: ["force"], selectedIntent: "force"
+        )) else {
+            Issue.record("with forced search supported and web search on there should be a timing row")
+            return
+        }
+        #expect(toggle.caption == nil)
+        #expect(timing.selection == "force")
+        #expect(timing.options.map(\.label) == [
+            L10n.tr("When needed", table: .chat), L10n.tr("Every message", table: .chat),
+        ])
+    }
+
+    @Test("a stored search-every-message that the configuration no longer has counts as search when needed; without a configuration the stored choice is not rewritten")
+    func staleForceIsClampedOnlyWhenTheConfigurationSaysSo() {
+        #expect(Shape.clampedWebPreference(
+            .force, presentation: .automaticAvailable, availableIntents: []
+        ) == .automatic)
+        #expect(Shape.clampedWebPreference(
+            .force, presentation: .automaticAvailable, availableIntents: ["force"]
+        ) == .force)
+        for presentation: CapabilityControlPresentation in [.pending, .unknown, .unsupported, .customOnly] {
+            #expect(Shape.clampedWebPreference(.force, presentation: presentation, availableIntents: []) == .force)
+        }
+        #expect(Shape.clampedWebPreference(
+            .automatic, presentation: .automaticAvailable, availableIntents: []
+        ) == .automatic)
+        // In the shape: on, but without a timing row.
+        guard case let .toggle(toggle) = Shape.resolve(.init(
+            capability: .web, presentation: .automaticAvailable, selectedIntent: "force"
+        )) else {
+            Issue.record("no timing row when the configuration has no forced search")
+            return
+        }
+        #expect(toggle.isOn)
+    }
+
+    @Test("the chat template toggle on a custom connection becomes a current-value row while the panel is read-only")
+    func templateSwitchIsAStatusLineWhileReadOnly() {
+        let on = Shape.resolve(.init(
+            capability: .reasoning, presentation: .unknown, connection: .custom,
+            isWritable: false, chatTemplateThinkingIsOn: true
+        ))
+        #expect(on == .disclosure(.init(status: L10n.tr("On", table: .chat), action: nil)))
+        let off = Shape.resolve(.init(
+            capability: .reasoning, presentation: .unknown, connection: .custom, isWritable: false
+        ))
+        #expect(off == .disclosure(.init(status: ModelControlIntentLabel.text("off"), action: nil)))
+    }
+
+    @Test("a custom connection whose protocol applies no chat template → no toggle; a note with a link to the additional request body instead")
+    func customConnectionWithoutChatTemplateGetsManualSetup() {
+        let shape = Shape.resolve(.init(
+            capability: .reasoning, presentation: .unknown, connection: .custom,
+            chatTemplateThinkingIsOn: true, supportsChatTemplate: false
+        ))
+        #expect(shape == .notice(.init(
+            status: L10n.tr("Needs manual setup", table: .chat),
+            body: L10n.tr(
+                "This provider has no standard switch for thinking. Add its fields in the additional request body.",
+                table: .chat
+            ),
+            link: .init(
+                title: L10n.tr("Open additional request body", table: .chat), action: .openAdditionalRequestBody
+            )
+        )))
+        // The web search row is unaffected; neither is an official connection.
+        #expect(Shape.resolve(.init(
+            capability: .web, presentation: .unknown, connection: .custom, supportsChatTemplate: false
+        )) == .disclosure(.init(
+            status: L10n.tr("This connection can’t do this", table: .chat), action: .switchConnection
+        )))
+        guard case .tiers = Shape.resolve(.init(
+            capability: .reasoning, presentation: .automaticAvailable,
+            availableIntents: ["low", "deep"], supportsChatTemplate: false
+        )) else {
+            Issue.record("still segments when there is an official configuration")
+            return
+        }
+    }
+
+    /// Pins "unavailable always comes with an explanation and a way forward" as one exhaustive assertion: a new presentation has to take a position here at once.
+    @Test("when a capability is unavailable its row always has an explanation and a way forward, and no interactive control")
+    func everyUnavailableStateHasAnExplanationAndAWayOut() {
+        let unavailable: [CapabilityControlPresentation] = [
+            .unsupported, .externalConnectorOnly, .customOnly, .pending, .unknown,
+        ]
+        for presentation in unavailable {
+            for capability in [Shape.Capability.web, .reasoning] {
+                let shape = Shape.resolve(.init(capability: capability, presentation: presentation))
+                switch shape {
+                case let .notice(notice):
+                    #expect(!notice.body.isEmpty, "\(capability)/\(presentation) has no explanation")
+                    #expect(notice.link != nil, "\(capability)/\(presentation) has no way forward")
+                case let .disclosure(disclosure):
+                    #expect(!disclosure.status.isEmpty)
+                    #expect(disclosure.action != nil, "\(capability)/\(presentation) has no way forward")
+                case .toggle, .tiers, .toggleWithTiming, .protocolUndecided:
+                    Issue.record("\(capability)/\(presentation) must not be \(shape)")
+                }
+            }
+        }
+    }
+
     // MARK: - Production resolution path
 
     private struct Facts {
@@ -461,7 +659,7 @@ struct ModelOptionCapabilityShapeCopyTests {
 
     /// Strings still waiting for the other languages. This list may only shrink.
     private static let pendingFullLocalization: Set<String> = [
-        "Thinks it through first, so answers take a little longer.",
+        "Thinks it through first, so answers take a little longer",
         "Always thinks before answering",
         "Higher levels take longer and may cost more.",
         "Uses the model’s default",
@@ -471,7 +669,7 @@ struct ModelOptionCapabilityShapeCopyTests {
         "See which models can be adjusted",
         "This model has no thinking mode",
         "This model can’t search the web",
-        "Set it up yourself",
+        "Needs manual setup",
         "This provider has no standard switch for web search. Add its fields in the additional request body.",
         "This provider has no standard switch for thinking. Add its fields in the additional request body.",
         "Open additional request body",
@@ -481,6 +679,8 @@ struct ModelOptionCapabilityShapeCopyTests {
         "Turns thinking on or off through the chat template. Whether it works depends on your server.",
         "This connection can’t do this",
         "“%@” was rejected",
+        "Searches the web first when a question needs it",
+        "On",
         "This model isn’t accepting “%1$@” right now, so it’s back on “%2$@”. The level will return on its own once the model supports it again.",
     ]
 

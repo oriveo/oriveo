@@ -133,6 +133,9 @@ nonisolated enum ModelOptionCapabilityShape: Equatable, Sendable {
         var rejectedIntents: [String] = []
         /// Whether the chat template's thinking switch in the additional request body is on. Only meaningful for thinking on a custom connection.
         var chatTemplateThinkingIsOn: Bool = false
+        /// Whether this custom connection's protocol applies a chat template (Chat Completions). Other protocols do not
+        /// know `chat_template_kwargs`; sending it there may get the request rejected outright, so the toggle is not offered.
+        var supportsChatTemplate: Bool = true
     }
 }
 
@@ -141,6 +144,40 @@ nonisolated enum ModelOptionCapabilityShape: Equatable, Sendable {
 extension ModelOptionCapabilityShape {
     /// Rendering order of thinking levels: Off first, then from least to most effort.
     static let tierOrder = ["off", "low", "balanced", "deep", "max"]
+    /// The Automatic level: the model decides how long to think. Drawn only when the recipe declares it, as the first segment; in storage it is "never chosen" (nil).
+    static let automaticIntent = "automatic"
+
+    /// A one-sentence note for each level. It is about what the user gets from it, not the protocol's effort value.
+    @MainActor
+    static func caption(for intent: String) -> String {
+        switch intent {
+        case "off": return L10n.tr("Answer right away, no thinking time.", table: .chat)
+        case automaticIntent: return L10n.tr("The model decides on its own.", table: .chat)
+        case "low": return L10n.tr("Simple questions, fast answers.", table: .chat)
+        case "balanced": return L10n.tr("A balance of speed and depth.", table: .chat)
+        case "deep": return L10n.tr("Hard questions, take more time.", table: .chat)
+        case "max": return L10n.tr("The hardest problems, whatever time it takes.", table: .chat)
+        default: return ""
+        }
+    }
+
+    /// A stored "search every message" that the current configuration no longer has counts as "search when needed".
+    ///
+    /// Whether a level is in the configuration is only asked when there really is an official configuration: without
+    /// one the levels are always empty, and clamping against them would rewrite the user's stored choice just because the snapshot has not arrived.
+    static func clampedWebPreference(
+        _ selection: CapabilityWebPreference,
+        presentation: CapabilityControlPresentation,
+        availableIntents: [String]
+    ) -> CapabilityWebPreference {
+        guard selection == .force else { return selection }
+        switch presentation {
+        case .automaticAvailable, .forceUnsupported:
+            return availableIntents.contains(CapabilityWebPreference.force.rawValue) ? .force : .automatic
+        case .customOnly, .pending, .externalConnectorOnly, .unsupported, .unknown:
+            return selection
+        }
+    }
 
     @MainActor
     static func resolve(_ input: Input) -> Self {
@@ -154,19 +191,7 @@ extension ModelOptionCapabilityShape {
             return input.capability == .web ? webControl(input) : reasoningControl(input)
         case .customOnly:
             if input.protocolUndecided { return .protocolUndecided(protocolCallout()) }
-            return .notice(.init(
-                status: L10n.tr("Set it up yourself", table: .chat),
-                body: input.capability == .web
-                    ? L10n.tr(
-                        "This provider has no standard switch for web search. Add its fields in the additional request body.",
-                        table: .chat
-                    )
-                    : L10n.tr(
-                        "This provider has no standard switch for thinking. Add its fields in the additional request body.",
-                        table: .chat
-                    ),
-                link: additionalRequestBodyLink()
-            ))
+            return manualSetup(input.capability)
         case .unsupported, .externalConnectorOnly:
             if input.protocolUndecided { return .protocolUndecided(protocolCallout()) }
             if input.connection == .custom, input.capability == .web { return connectionCannot() }
@@ -179,7 +204,8 @@ extension ModelOptionCapabilityShape {
         case .pending, .unknown:
             if input.protocolUndecided { return .protocolUndecided(protocolCallout()) }
             if input.connection == .custom {
-                return input.capability == .web ? connectionCannot() : chatTemplateThinkingToggle(input)
+                if input.capability == .web { return connectionCannot() }
+                return input.supportsChatTemplate ? chatTemplateThinkingToggle(input) : manualSetup(.reasoning)
             }
             return noOfficialConfiguration(input.capability)
         }
@@ -193,9 +219,11 @@ extension ModelOptionCapabilityShape {
         let rejected = tierOrder.filter { declared.contains($0) && input.rejectedIntents.contains($0) }
         let levels = tierOrder.filter { $0 != "off" && declared.contains($0) }
         let includesOff = declared.contains("off")
+        let hasAutomatic = declared.contains(automaticIntent)
+        let choiceCount = levels.count + (includesOff ? 1 : 0) + (hasAutomatic ? 1 : 0)
 
         // Nothing to choose: a single fixed level, or nothing delivered at all.
-        guard levels.count > 1 || (includesOff && levels.count == 1) else {
+        guard choiceCount > 1 else {
             return .notice(.init(
                 status: L10n.tr("Always thinks before answering", table: .chat),
                 body: L10n.tr("This model runs at a fixed thinking level and can’t be adjusted.", table: .chat),
@@ -203,20 +231,25 @@ extension ModelOptionCapabilityShape {
             ))
         }
         // On and off only: a plain toggle.
-        if includesOff, levels.count == 1, rejected.isEmpty {
+        if includesOff, levels.count == 1, !hasAutomatic, rejected.isEmpty {
             return .toggle(.init(
                 isOn: input.selectedIntent == levels[0],
-                caption: L10n.tr("Thinks it through first, so answers take a little longer.", table: .chat),
+                caption: L10n.tr("Thinks it through first, so answers take a little longer", table: .chat),
                 target: .capabilityPreference(on: levels[0], off: "off"),
                 link: nil
             ))
         }
 
-        let remaining = tierOrder.filter { declared.contains($0) && !rejected.contains($0) }
+        // Automatic is drawn as the first segment, the rest as before: Off first, then from least to most effort.
+        let remaining = ([automaticIntent] + tierOrder).filter { declared.contains($0) && !rejected.contains($0) }
+        // Never chosen (or the stored level is no longer in the configuration): highlight Automatic when the configuration has it, otherwise highlight nothing.
+        // This only decides what to draw; it does not store a value on the user's behalf.
         let selection = effectiveTier(selected: input.selectedIntent, remaining: remaining, rejected: rejected)
+            ?? (hasAutomatic ? automaticIntent : nil)
         let options = remaining.map { Option(id: $0, label: ModelControlIntentLabel.text($0)) }
-        let caption = selection.map(ModelControlReasoningLayout.caption(for:))
-            ?? ModelControlReasoningLayout.caption(for: ModelControlReasoningLayout.automaticIntent)
+        let caption = selection.map(caption(for:))
+        let modelDefault = L10n.tr("Uses the model’s default", table: .chat)
+        let costNote = L10n.tr("Higher levels take longer and may cost more.", table: .chat)
 
         if !rejected.isEmpty {
             // Names the level the user just picked; when no rejected level was picked, names the highest one.
@@ -241,16 +274,20 @@ extension ModelOptionCapabilityShape {
         if includesOff {
             return .tiers(.init(
                 options: options, selection: selection, includesOff: true,
-                headerNote: caption, headerTone: .neutral, footnotes: [], rejected: []
+                headerNote: caption ?? modelDefault, headerTone: .neutral, footnotes: [], rejected: []
             ))
         }
         // Cannot be turned off: no dead Off segment, just a note at the top right.
+        guard let caption else {
+            return .tiers(.init(
+                options: options, selection: nil, includesOff: false,
+                headerNote: modelDefault, headerTone: .neutral, footnotes: [costNote], rejected: []
+            ))
+        }
         return .tiers(.init(
             options: options, selection: selection, includesOff: false,
             headerNote: L10n.tr("Always thinks before answering", table: .chat),
-            headerTone: .neutral,
-            footnotes: [caption, L10n.tr("Higher levels take longer and may cost more.", table: .chat)],
-            rejected: []
+            headerTone: .neutral, footnotes: [caption, costNote], rejected: []
         ))
     }
 
@@ -260,14 +297,23 @@ extension ModelOptionCapabilityShape {
         guard let selected else { return nil }
         if remaining.contains(selected) { return selected }
         guard rejected.contains(selected), let index = tierOrder.firstIndex(of: selected) else { return nil }
-        let levels = remaining.filter { $0 != "off" }
+        let levels = remaining.filter { $0 != "off" && $0 != automaticIntent }
         let lower = tierOrder[..<index].reversed().first { levels.contains($0) }
         return lower ?? tierOrder[(index + 1)...].first { levels.contains($0) }
     }
 
     @MainActor
     private static func chatTemplateThinkingToggle(_ input: Input) -> Self {
-        .toggle(.init(
+        // While the panel is read-only, show the current value instead of a toggle that cannot be flipped.
+        guard input.isWritable else {
+            return .disclosure(.init(
+                status: input.chatTemplateThinkingIsOn
+                    ? L10n.tr("On", table: .chat)
+                    : ModelControlIntentLabel.text("off"),
+                action: nil
+            ))
+        }
+        return .toggle(.init(
             isOn: input.chatTemplateThinkingIsOn,
             caption: L10n.tr(
                 "Turns thinking on or off through the chat template. Whether it works depends on your server.",
@@ -287,16 +333,19 @@ extension ModelOptionCapabilityShape {
         let supportsForce = input.availableIntents.contains(force)
         // A stored "search every message" that the current configuration no longer has counts as "search when needed".
         let isOn = input.selectedIntent == automatic || input.selectedIntent == force
-        let toggle = Toggle(
-            isOn: isOn, caption: nil,
-            target: .capabilityPreference(on: automatic, off: CapabilityWebPreference.off.rawValue),
-            link: nil
-        )
-        guard isOn, supportsForce else { return .toggle(toggle) }
-        return .toggleWithTiming(toggle, .init(
+        let target = ToggleTarget.capabilityPreference(on: automatic, off: CapabilityWebPreference.off.rawValue)
+        guard isOn, supportsForce else {
+            return .toggle(.init(
+                isOn: isOn,
+                caption: L10n.tr("Searches the web first when a question needs it", table: .chat),
+                target: target, link: nil
+            ))
+        }
+        // When the timing row appears below, no caption sits under the title.
+        return .toggleWithTiming(.init(isOn: true, caption: nil, target: target, link: nil), .init(
             options: [
-                Option(id: automatic, label: L10n.tr("Search when needed", table: .chat)),
-                Option(id: force, label: L10n.tr("Search every message", table: .chat)),
+                Option(id: automatic, label: ModelControlIntentLabel.webText(.automatic)),
+                Option(id: force, label: ModelControlIntentLabel.webText(.force)),
             ],
             selection: input.selectedIntent == force ? force : automatic
         ))
@@ -313,7 +362,8 @@ extension ModelOptionCapabilityShape {
 
     @MainActor
     private static func noOfficialConfiguration(_ capability: Capability) -> Self {
-        let link = Link(
+        // `Link` here is a way forward inside a shape, not SwiftUI's `Link` control; written as `.init` so it is not mistaken for the latter.
+        let link: Link = .init(
             title: L10n.tr("See which models can be adjusted", table: .chat), action: .openSupportedModels
         )
         switch capability {
@@ -338,9 +388,27 @@ extension ModelOptionCapabilityShape {
         }
     }
 
+    /// No standard switch: says the fields go into the additional request body and offers the way there.
+    @MainActor
+    private static func manualSetup(_ capability: Capability) -> Self {
+        .notice(.init(
+            status: L10n.tr("Needs manual setup", table: .chat),
+            body: capability == .web
+                ? L10n.tr(
+                    "This provider has no standard switch for web search. Add its fields in the additional request body.",
+                    table: .chat
+                )
+                : L10n.tr(
+                    "This provider has no standard switch for thinking. Add its fields in the additional request body.",
+                    table: .chat
+                ),
+            link: additionalRequestBodyLink()
+        ))
+    }
+
     @MainActor
     private static func additionalRequestBodyLink() -> Link {
-        Link(title: L10n.tr("Open additional request body", table: .chat), action: .openAdditionalRequestBody)
+        .init(title: L10n.tr("Open additional request body", table: .chat), action: .openAdditionalRequestBody)
     }
 
     @MainActor
@@ -351,7 +419,7 @@ extension ModelOptionCapabilityShape {
                 "The protocol is still set to Auto, so Oriveo can’t tell how to send web search and thinking settings.",
                 table: .chat
             ),
-            link: Link(title: L10n.tr("Choose protocol", table: .chat), action: .openConnectionProtocol)
+            link: .init(title: L10n.tr("Choose protocol", table: .chat), action: .openConnectionProtocol)
         )
     }
 
@@ -363,9 +431,10 @@ extension ModelOptionCapabilityShape {
             let preference = input.selectedIntent.flatMap(CapabilityWebPreference.init(rawValue:)) ?? .off
             return ModelControlIntentLabel.webText(preference)
         case .reasoning:
-            return ModelControlIntentLabel.text(
-                input.selectedIntent ?? ModelControlReasoningLayout.automaticIntent
-            )
+            if let selected = input.selectedIntent { return ModelControlIntentLabel.text(selected) }
+            return input.availableIntents.contains(automaticIntent)
+                ? ModelControlIntentLabel.text(automaticIntent)
+                : L10n.tr("Uses the model’s default", table: .chat)
         }
     }
 }

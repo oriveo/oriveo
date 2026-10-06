@@ -200,66 +200,58 @@ struct ModelControlsCustomFieldsCoverageTests {
 
         // Entry side is the same source: state comes from `mode == .custom`, and the repo no longer has a master gate to read.
         let page = try Self.advancedSettingsSource()
-        #expect(page.contains("if configuration.mode == .custom { inUse = true; reachable = true }"))
+        let entry = try Self.modelControlsSource("AdvancedSettingsPage.swift")
+        #expect(entry.contains(").mode == .custom"))
+        #expect(page.contains("AdditionalRequestBodyEntry.summary("))
         #expect(!page.contains("isLocalCustomDeveloperModeEnabled"))
+        #expect(!entry.contains("isLocalCustomDeveloperModeEnabled"))
     }
 
-    /// The entry row is **always present**: when unsupported it degrades to
-    /// status text + tap-for-reason, rather than vanishing. A feature row that
-    /// disappears with the model reads as "broken", not "this model does not support it".
-    @Test("The custom fields row never disappears and always answers a tap")
+    /// The entry row is **always present**: when it cannot be opened it degrades to status text
+    /// rather than vanishing. A feature row that disappears reads as "broken".
+    ///
+    /// The row is the additional request body, which every connection offers, so there is no
+    /// "this model does not support it, choose another" path.
+    @Test("The additional request body row never disappears")
     func customFieldsRowIsAlwaysPresentAndTappable() throws {
         let page = try Self.advancedSettingsSource()
         #expect(page.contains("L10n.tr(\"Developer\", table: .providers)"))
-        // All three states must exist; missing one means the row cannot name its own state in some case.
-        #expect(page.contains("L10n.tr(\"Not supported by this model\", table: .chat)"))
-        #expect(page.contains("L10n.tr(\"Not in use\", table: .providers)"))
-        #expect(page.contains("L10n.tr(\"In use\", table: .providers)"))
-        // The unsupported state must answer a tap (alert with the reason) and must not draw a chevron that promises navigation.
-        #expect(page.contains("showsCustomFieldsUnsupportedAlert = true"))
-        #expect(page.contains(
-            "Custom request fields are only available on models whose provider officially declares a field schema."
-        ))
-        // Each of the two presentations has an entry: sheet (provider detail) uses a Section, embedded (chat page) uses a card.
-        #expect(page.contains("Section(L10n.tr(\"Developer\", table: .providers))"))
-        #expect(page.contains("private var embeddedDeveloperCard"))
-        #expect(page.contains("CustomRequestFieldsPage("))
+        #expect(page.contains("L10n.tr(\"Additional request body\", table: .chat)"))
+        #expect(!page.contains("L10n.tr(\"Custom request fields\", table: .chat)"), "the entry row still has its old name")
+        // Without a model there is nothing to open: the row stays as a status line instead of pushing an empty page.
+        #expect(page.contains("if isReadOnly || model == nil {\n                        customFieldsRowLabel"))
+        #expect(page.contains("AdditionalRequestBodyPage("))
+
+        // On the chat page: the same name and three summaries (N fields / in use / not used), without a chevron when it cannot be opened.
+        let chat = try Self.modelControlsSource("AdvancedSettingsPage.swift")
+        #expect(chat.contains("L10n.tr(\"Additional request body\", table: .chat)"))
+        #expect(chat.contains("L10n.tr(\"%lld fields\", table: .chat)"))
+        #expect(chat.contains("L10n.tr(\"Not in use\", table: .providers)"))
+        #expect(chat.contains("L10n.tr(\"In use\", table: .providers)"))
+        #expect(chat.contains("additionalBodyRow(showsChevron: false)"))
+        #expect(chat.contains("AdditionalRequestBodyPage("))
     }
 
     /// The developer group **does not vanish in read-only**.
     ///
-    /// Read-only means "cannot change it now", not "this feature does not exist".
-    /// Wrapping the whole group in `if !isReadOnly` makes a managed-connection or
-    /// in-flight user see "custom request fields disappeared" — while its status
-    /// (Not in use / In use) is exactly the fact that should remain visible in
-    /// read-only. Read-only degrades to a status line that cannot push.
+    /// Read-only means "cannot change it now", not "this feature does not exist". Wrapping the whole
+    /// group in `if !isReadOnly` would make a user who is sending see the feature disappear, while its
+    /// status (not used / in use) is exactly the fact that should remain visible when read-only.
+    /// Read-only degrades to a status line that cannot push.
     @Test("The developer group survives read-only and degrades to a status line")
     func developerGroupSurvivesReadOnly() throws {
         let page = try Self.advancedSettingsSource()
+        let chat = try Self.modelControlsSource("AdvancedSettingsPage.swift")
         for gone in [
-            "if !isReadOnly {\n                    Section(L10n.tr(\"Developer\", table: .providers))",
-            "if !isReadOnly {\n                    embeddedDeveloperCard",
+            "if !isReadOnly {\n                Section {\n                    if isReadOnly",
+            "if !isReadOnly {\n                    additionalBodySection",
         ] {
-            #expect(!page.contains(gone), "the developer group vanished wholesale again under read-only")
+            #expect(!page.contains(gone) && !chat.contains(gone), "the additional request body entry disappears with read-only again")
         }
         // Each of the two presentations has a read-only branch, and read-only does not attach navigation or draw a chevron.
-        #expect(page.contains("if isReadOnly {\n                        customFieldsRowLabel"))
-        #expect(page.contains("if isReadOnly {\n                customFieldsRowLabel"))
-    }
-
-    /// F10: the "Not supported by this model" alert must offer a way out, or say there is none.
-    /// Stating the reason without an action leaves the user stuck — the other half of rule 1.
-    @Test("The unsupported alert offers a way out, or says there is none")
-    func unsupportedAlertOffersAWayOut() throws {
-        let page = try Self.advancedSettingsSource()
-        #expect(page.contains("private var customFieldsSupportedModelCandidates: [AIModel]"))
-        #expect(page.contains("if !customFieldsSupportedModelCandidates.isEmpty {"))
-        #expect(page.contains("L10n.tr(\"View supported models\", table: .chat)"))
-        #expect(page.contains("CapabilitySupportedModelsPage("))
-        // When there are no candidates, "switching models will not help" goes in the body; do not send the user into an empty list.
-        #expect(page.contains("L10n.tr(\n            \"No models in this connection support this capability yet.\", table: .chat\n        )"))
-        // This page's title follows the row the user tapped, not "Advanced settings".
-        #expect(page.contains("title: L10n.tr(\"Custom request fields\", table: .chat)"))
+        #expect(page.contains("if isReadOnly || model == nil {\n                        customFieldsRowLabel"))
+        #expect(chat.contains("let canOpen = !isReadOnly && model != nil"))
+        #expect(chat.contains("additionalBodySection\n"))
     }
 
     /// Scope copy and the delete confirmation split into two sentences by `conversationID`.
@@ -388,8 +380,9 @@ struct ModelControlsCustomFieldsCoverageTests {
              "ModelControlsSheet.swift"],
             ["ios", "Oriveo", "Oriveo", "Features", "Chat", "ModelControls",
              "CustomRequestFieldsPage.swift"],
-            ["ios", "Oriveo", "Oriveo", "Features", "Providers",
-             "GenerationParameterDefaultsSheet.swift"],
+            // The entry summaries on the advanced settings page and the provider detail page both read `AdditionalRequestBodyEntry` (in this file).
+            ["ios", "Oriveo", "Oriveo", "Features", "Chat", "ModelControls",
+             "AdvancedSettingsPage.swift"],
             ["ios", "Oriveo", "Oriveo", "Core", "Providers",
              "CapabilityControlResolution.swift"],
             ["ios", "Oriveo", "Oriveo", "Core", "State", "ChatManager.swift"],
@@ -427,6 +420,15 @@ struct ModelControlsCustomFieldsCoverageTests {
         CapabilityPreferenceRuntimeIdentity(
             canonicalModelID: "", finalTransport: transport, runtimeRevision: revision
         ).wireValue
+    }
+
+    private static func modelControlsSource(_ name: String) throws -> String {
+        try String(
+            contentsOf: findFile([
+                "ios", "Oriveo", "Oriveo", "Features", "Chat", "ModelControls", name,
+            ]),
+            encoding: .utf8
+        )
     }
 
     private static func advancedSettingsSource() throws -> String {

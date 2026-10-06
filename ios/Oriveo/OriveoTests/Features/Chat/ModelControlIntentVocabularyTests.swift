@@ -18,7 +18,7 @@ struct ModelControlIntentVocabularyTests {
     /// The frozen mapping from intent to its expected localized name. This table is the freeze
     /// itself; changing it changes the product decision.
     private static let reasoningVocabulary: [(intent: String, english: String)] = [
-        (ModelControlReasoningLayout.automaticIntent, "Automatic"),
+        (ModelOptionCapabilityShape.automaticIntent, "Automatic"),
         ("off", "Off"),
         ("low", "Fast"),
         ("balanced", "Balanced"),
@@ -26,14 +26,13 @@ struct ModelControlIntentVocabularyTests {
         ("max", "Max"),
     ]
 
-    /// Web search has a single vocabulary. The two timing pills read "search when needed" and
-    /// "search every message"; the read-only status row and the VoiceOver summary used to say
-    /// something else for the same value, so one setting had two names and the user read three
-    /// concepts. The older key was removed from the string catalogs.
+    /// Web search has a single vocabulary: the timing row in the panel, the read-only status row and
+    /// the VoiceOver summary all use the same words. They always appear under the "Web search" title
+    /// and need no subject of their own, hence "When needed" and "Every message".
     private static let webVocabulary: [(preference: CapabilityWebPreference, english: String)] = [
         (.off, "Off"),
-        (.automatic, "Search when needed"),
-        (.force, "Search every message"),
+        (.automatic, "When needed"),
+        (.force, "Every message"),
     ]
 
     @Test("Reasoning Vocabulary Is Frozen")
@@ -94,21 +93,30 @@ struct ModelControlIntentVocabularyTests {
 
     @Test("Tier Order Is Frozen")
     func tierOrderIsFrozen() {
-        #expect(ModelControlReasoningLayout.tierOrder == ["off", "low", "balanced", "deep", "max"])
-        #expect(ModelControlReasoningLayout.automaticIntent == "automatic")
+        #expect(ModelOptionCapabilityShape.tierOrder == ["off", "low", "balanced", "deep", "max"])
+        #expect(ModelOptionCapabilityShape.automaticIntent == "automatic")
     }
 
     @Test("Web Timing Vocabulary Is Frozen")
     func webTimingVocabularyIsFrozen() throws {
-        #expect(try #require(Self.english(for: "Search when needed", table: .chat)) == "Search when needed")
-        #expect(try #require(Self.english(for: "Search every message", table: .chat)) == "Search every message")
+        #expect(try #require(Self.english(for: "When needed", table: .chat)) == "When needed")
+        #expect(try #require(Self.english(for: "Every message", table: .chat)) == "Every message")
 
-        let layout = try Self.source([
+        // The two segments of the timing row are really rendered from the vocabulary keys, not from a second copy.
+        let shape = try Self.source([
             "ios", "Oriveo", "Oriveo", "Features", "Chat", "ModelControls",
-            "ModelControlCapabilityLayout.swift",
+            "ModelOptionCapabilityShape.swift",
         ])
-        #expect(layout.contains("L10n.tr(\"Search when needed\", table: .chat)"))
-        #expect(layout.contains("L10n.tr(\"Search every message\", table: .chat)"))
+        #expect(shape.contains("ModelControlIntentLabel.webText(.automatic)"))
+        #expect(shape.contains("ModelControlIntentLabel.webText(.force)"))
+        // The two replaced keys must have no reference left: they are no longer in the catalog, and a leftover would show a raw key to users.
+        for name in ["ModelOptionCapabilityShape.swift", "ModelControlsComponents.swift", "ModelControlsSheet.swift"] {
+            let source = try Self.source([
+                "ios", "Oriveo", "Oriveo", "Features", "Chat", "ModelControls", name,
+            ])
+            #expect(!source.contains("\"Search when needed\""), "\(name) still references a removed key")
+            #expect(!source.contains("\"Search every message\""), "\(name) still references a removed key")
+        }
 
         for components in [
             ["ios", "Oriveo", "Oriveo", "Features", "Chat", "ModelControls",
@@ -122,8 +130,8 @@ struct ModelControlIntentVocabularyTests {
     @Test("Reasoning Captions Are Distinct")
     func reasoningCaptionsAreDistinct() {
         var captions: [String] = []
-        for intent in ["off", ModelControlReasoningLayout.automaticIntent, "low", "balanced", "deep", "max"] {
-            let caption = ModelControlReasoningLayout.caption(for: intent)
+        for intent in ["off", ModelOptionCapabilityShape.automaticIntent, "low", "balanced", "deep", "max"] {
+            let caption = ModelOptionCapabilityShape.caption(for: intent)
             #expect(!caption.isEmpty, "\(intent) has no caption")
             captions.append(caption)
         }

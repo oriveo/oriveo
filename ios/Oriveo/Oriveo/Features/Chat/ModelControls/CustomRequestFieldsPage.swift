@@ -1,5 +1,17 @@
 import SwiftUI
 
+/// The editor for officially declared fields of web search and thinking (Advanced settings → Additional request body → Web search and thinking fields).
+///
+/// Generation parameters have no "officially declared fields"; `AdditionalRequestBodyPage` covers them.
+/// This page holds the two sections that are validated against the field schema delivered by the catalog.
+///
+/// A JSON entry on each capability card would put a **very rarely used escape hatch**
+/// on the same level as controls used all the time. The chain is therefore
+/// panel → advanced settings → developer → this page, with depth following frequency, and this page has to hold
+/// **all** owners of one connection × model × transport at once, one section per owner.
+///
+/// The page works out by itself which owners exist (the caller passes no owner or binding): two copies of that criterion, one at the entry and one in the content,
+/// are how "it opens but cannot be changed" happens.
 struct CustomRequestFieldsPage: View {
     @Environment(AppState.self) private var appState
 
@@ -8,56 +20,69 @@ struct CustomRequestFieldsPage: View {
     let conversationID: UUID?
     let transportIdentity: String
 
+    /// Drafts per owner. **The only editing state**: the mode is not chosen explicitly but derived from the content here
+    /// (non-empty = custom, cleared = automatic), so the page needs no second mode state.
     @State private var drafts: [String: String] = [:]
+    /// Kept for existing data only: "custom with an empty raw value" could be stored once (deliberately fail-closed). The current UI cannot produce it,
+    /// but data stored that way must be shown as it is; otherwise the user sees a blank page and cannot send messages.
     @State private var legacyEmptyCustomOwners: Set<String> = []
     @State private var pendingRemovalOwner: String?
+    /// The sections and the schema snapshot, fixed on entering the page.
+    ///
+    /// Fixing them at that moment has two reasons: clearing the content must not make the section vanish on the spot, since the user is still editing and
+    /// keyboard and focus would go with it; and `hasSafeCustomSchema` resolves metadata each time, which in the body
+    /// would run three times per frame. The schema does not change during one visit, so a snapshot is enough.
     @State private var sections: [String] = []
     @State private var schemaOwners: Set<String> = []
     @State private var didLoad = false
     @FocusState private var focusedOwner: String?
-    /// Draft and "Send with requests" switch of the additional request body. The two are stored
-    /// separately: switching it off keeps the content and just stops sending it.
-    @State private var additionalBodyDraft = ""
-    @State private var additionalBodySends = false
+    @Environment(\.dismiss) private var dismiss
 
-    /// Generation parameters are not listed here: they have no officially declared custom fields
-    /// and are covered by the additional request body below.
+    /// The fixed mapping from owner to local storage namespace. The order is the section order on the page (the same as the cards on the panel).
+    /// Generation parameters are not here: they have no "officially declared fields" and belong to the additional request body page.
     private static let ownerNamespaces: [(owner: String, namespace: String)] = [
         ("web", "webPatch"),
         ("reasoning", "reasoningPatch"),
     ]
-    private static let additionalBodyFocus = "additional_request_body"
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 14) {
-                if !sections.isEmpty {
-                    ForEach(sections, id: \.self) { owner in
-                        ownerCard(owner)
+        VStack(spacing: 0) {
+            AdvancedPageHeader(
+                title: L10n.tr("Web search and thinking fields", table: .chat),
+                subtitle: model.name,
+                onBack: { dismiss() }
+            )
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    if sections.isEmpty {
+                        emptyCard
+                    } else {
+                        ForEach(sections, id: \.self) { owner in
+                            ownerCard(owner)
+                        }
+                        // This sentence is only accurate for the sections above that are validated against the official declaration; the additional request body has its own note.
+                        ModelControlNote(
+                            text: L10n.tr(
+                                "Fields are added to the request exactly as written. Only fields this provider officially declares are supported; mistakes can make requests fail. Drafts stay on this device.",
+                                table: .chat
+                            ),
+                            systemImage: "iphone.and.arrow.forward"
+                        )
+                        .padding(.horizontal, 4)
                     }
-                    // This note is only accurate for the sections above, which are validated
-                    // against officially declared fields. The additional request body has its own.
-                    ModelControlNote(
-                        text: L10n.tr(
-                            "Fields are added to the request exactly as written. Only fields this provider officially declares are supported; mistakes can make requests fail. Drafts stay on this device.",
-                            table: .chat
-                        ),
-                        systemImage: "iphone.and.arrow.forward"
-                    )
-                    .padding(.horizontal, 4)
                 }
-
-                additionalBodyCard
+                .padding(.horizontal, 18)
+                .padding(.top, 6)
+                .padding(.bottom, 32)
             }
-            .padding(.horizontal, 18)
-            .padding(.top, 6)
-            .padding(.bottom, 32)
+            .scrollDismissesKeyboard(.interactively)
         }
-        .scrollDismissesKeyboard(.interactively)
         .background(OriveoTheme.Palette.background)
-        .navigationTitle(L10n.tr("Custom request fields", table: .chat))
-        .navigationBarTitleDisplayMode(.inline)
+        .background(SheetInteractivePopEnabler())
+        .navigationBarBackButtonHidden(true)
+        .toolbar(.hidden, for: .navigationBar)
         .toolbar {
+            // TextEditor has no return key; without this the keyboard could not be dismissed.
             ToolbarItemGroup(placement: .keyboard) {
                 Spacer()
                 Button(L10n.tr("Done")) { focusedOwner = nil }
@@ -81,6 +106,7 @@ struct CustomRequestFieldsPage: View {
                 pendingRemovalOwner = nil
             }
         } message: { owner in
+            // As above: the confirmation must say **what this particular action really deletes**.
             Text(String(
                 format: conversationID != nil
                     ? L10n.tr(
@@ -96,7 +122,10 @@ struct CustomRequestFieldsPage: View {
         }
     }
 
+    // MARK: - Sections
 
+    /// Section titles use the **user's words**, not web/reasoning/generation: this page is read by developers, but they still
+    /// arrive through the concepts "web search / thinking / parameters".
     private func title(for owner: String) -> String {
         switch owner {
         case "web": return L10n.tr("Web Search", table: .chat)
@@ -104,135 +133,22 @@ struct CustomRequestFieldsPage: View {
         }
     }
 
-    // MARK: - Additional request body
+    // MARK: - Sections for officially declared fields
 
-    private var additionalBodyTrimmed: String {
-        additionalBodyDraft.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    private var additionalBodyCard: some View {
-        VStack(alignment: .leading, spacing: 13) {
-            Text(L10n.tr("Additional request body", table: .chat))
-                .font(.body.weight(.semibold))
-                .foregroundStyle(OriveoTheme.Palette.textPrimary)
-
-            HStack(spacing: 8) {
-                Text(L10n.tr("Send with requests", table: .chat))
-                    .font(.subheadline)
-                    .foregroundStyle(OriveoTheme.Palette.textPrimary)
-                Spacer(minLength: 8)
-                Toggle("", isOn: Binding(
-                    get: { additionalBodySends },
-                    set: { next in
-                        additionalBodySends = next
-                        persistAdditionalBody()
-                    }
-                ))
-                    .labelsHidden()
-                    .tint(OriveoTheme.Palette.primaryTextSafe)
-                    .accessibilityLabel(Text(L10n.tr("Send with requests", table: .chat)))
-            }
-
-            TextEditor(text: Binding(
-                get: { additionalBodyDraft },
-                // Saved on every edit, like the sections above: closing the page must not lose
-                // half-written JSON.
-                set: { next in
-                    additionalBodyDraft = next
-                    persistAdditionalBody()
-                }
-            ))
-            .font(.system(size: 13, design: .monospaced))
-            .scrollContentBackground(.hidden)
-            .padding(12)
-            .frame(minHeight: 150)
-            .background {
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(OriveoTheme.Palette.textPrimary.opacity(0.04))
-            }
-            .focused($focusedOwner, equals: Self.additionalBodyFocus)
-            .autocorrectionDisabled()
-            .textInputAutocapitalization(.never)
-            .accessibilityLabel(Text(L10n.tr("Additional request body", table: .chat)))
-
-            additionalBodyValidation
-
+    private var emptyCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
             ModelControlNote(
-                text: conversationID != nil
-                    ? L10n.tr("Scope: this conversation, connection, model, and transport.", table: .chat)
-                    : L10n.tr(
-                        "Scope: this model on this connection, used as the default for its conversations.",
-                        table: .chat
-                    ),
-                systemImage: "scope"
-            )
-            ModelControlNote(
-                text: L10n.tr("Stays on this device. It isn’t synced or included in backups.", table: .chat),
-                systemImage: "iphone"
+                text: L10n.tr(
+                    "Custom fields need an official field schema for this exact model and transport.",
+                    table: .chat
+                ),
+                systemImage: "info.circle"
             )
         }
         .padding(18)
         .frame(maxWidth: .infinity, alignment: .leading)
         .modelControlSurface()
     }
-
-    @ViewBuilder
-    private var additionalBodyValidation: some View {
-        if additionalBodyTrimmed.isEmpty {
-            ModelControlNote(
-                text: L10n.tr(
-                    "Enter a JSON object. Its fields are merged into each request and override parameter settings for the same field.",
-                    table: .chat
-                ),
-                systemImage: "text.cursor"
-            )
-        } else {
-            switch AdditionalRequestBody.parse(additionalBodyDraft) {
-            case .success:
-                ModelControlNote(
-                    text: additionalBodySends
-                        ? L10n.tr("This JSON is merged into each request.", table: .chat)
-                        : L10n.tr("Saved, but not sent. Turn on “Send with requests” to use it.", table: .chat),
-                    systemImage: additionalBodySends ? "checkmark.seal.fill" : "pause.circle",
-                    tone: additionalBodySends ? OriveoTheme.Palette.success : OriveoTheme.Palette.textSecondary
-                )
-            case let .failure(rejection):
-                ModelControlNote(
-                    text: rejection.localizedMessage,
-                    systemImage: "exclamationmark.triangle.fill",
-                    tone: OriveoTheme.Palette.danger
-                )
-            }
-        }
-    }
-
-    private var additionalBodyModelID: String {
-        CapabilityPreferenceRuntimeIdentity.canonicalModelID(provider: provider, model: model)
-    }
-
-    private func loadAdditionalBody() {
-        let configuration = GenerationParameterSettingsStore.shared.effectiveAdditionalRequestBody(
-            providerID: provider.id, modelID: additionalBodyModelID, conversationID: conversationID
-        )
-        additionalBodyDraft = configuration.rawJSON
-        additionalBodySends = configuration.sendsWithRequest
-    }
-
-    /// A conversation scope always keeps a record, even an empty one. Otherwise clearing it would
-    /// fall back to the model default and the content just deleted would be back the next time the
-    /// page opens. The model-default scope drops its record once it is empty and switched off.
-    private func persistAdditionalBody() {
-        let isBlank = additionalBodyTrimmed.isEmpty
-        let configuration: AdditionalRequestBodyConfiguration? = conversationID == nil && isBlank && !additionalBodySends
-            ? nil
-            : .init(rawJSON: additionalBodyDraft, sendsWithRequest: additionalBodySends)
-        GenerationParameterSettingsStore.shared.setAdditionalRequestBody(
-            configuration, providerID: provider.id, modelID: additionalBodyModelID,
-            conversationID: conversationID
-        )
-    }
-
-    // MARK: - Sections for officially declared fields
 
     @ViewBuilder
     private func ownerCard(_ owner: String) -> some View {
@@ -245,6 +161,7 @@ struct CustomRequestFieldsPage: View {
                     .font(.body.weight(.semibold))
                     .foregroundStyle(OriveoTheme.Palette.textPrimary)
                 Spacer(minLength: 8)
+                // "In effect" is this section's only statement of state: the mode is derived from the content and there is no second switch to look at.
                 if !trimmed.isEmpty {
                     Text(L10n.tr("In use", table: .providers))
                         .font(.caption.weight(.medium))
@@ -262,6 +179,8 @@ struct CustomRequestFieldsPage: View {
                 )
             }
 
+            // Existing "custom with empty content": the send path still fails closed, and the page has to say so;
+            // otherwise the user only sees "cannot send" while this page looks unconfigured.
             if trimmed.isEmpty, legacyEmptyCustomOwners.contains(owner) {
                 VStack(alignment: .leading, spacing: 9) {
                     ModelControlNote(
@@ -286,6 +205,7 @@ struct CustomRequestFieldsPage: View {
 
             TextEditor(text: Binding(
                 get: { drafts[owner] ?? "" },
+                // Drafts are saved as they are typed. Writing only on an Apply button would lose thirty lines of JSON when the page is closed.
                 set: { next in
                     drafts[owner] = next
                     persist(owner)
@@ -320,6 +240,9 @@ struct CustomRequestFieldsPage: View {
                 )
             }
 
+            // The scope follows the entry: coming from the chat page this edits the conversation, coming from the provider detail page
+            // (`conversationID == nil`) it edits this model's default. With one sentence shared by both paths,
+            // a detail-page user would believe "this conversation" is being changed, where there is no conversation.
             ModelControlNote(
                 text: conversationID != nil
                     ? L10n.tr("Scope: this conversation, connection, model, and transport.", table: .chat)
@@ -398,6 +321,7 @@ struct CustomRequestFieldsPage: View {
         }
     }
 
+    // MARK: - Criteria
 
     private func transport(_ owner: String) -> String? {
         CapabilityRecipeExecution.finalTransport(owner: owner, provider: provider, model: model)
@@ -430,6 +354,8 @@ struct CustomRequestFieldsPage: View {
         )
     }
 
+    /// A path rejection has to answer "what can I write then". Saying only "this field is not allowed" leaves the user guessing,
+    /// while the allowed set is known on the device (the schema has been delivered) and there is no reason not to list it.
     private func errorMessage(owner: String, reason: SafeCustomFragmentCompiler.Rejection) -> String {
         switch reason {
         case .invalidJSON, .duplicateJSONKey:
@@ -439,6 +365,7 @@ struct CustomRequestFieldsPage: View {
                 owner: owner, providerKind: provider.kind, modelID: model.id,
                 transport: transport(owner) ?? ""
             )
+            // An existing owner whose schema is gone has no allowed set to list; report the conflict as it is rather than an empty list.
             guard !allowed.isEmpty else {
                 return L10n.tr(
                     "This field conflicts with the managed request schema or is not allowed for this connection.",
@@ -447,51 +374,89 @@ struct CustomRequestFieldsPage: View {
             }
             return String(
                 format: L10n.tr("This field isn’t allowed. Fields this model accepts: %@", table: .chat),
-                allowed.joined(separator: " • ")
+                allowed.joined(separator: " · ")
             )
         case .tooLarge, .depthExceeded, .nodeLimitExceeded:
             return L10n.tr("This JSON fragment is too large or complex to apply.", table: .chat)
         }
     }
 
+    // MARK: - Storage
 
     private var canonicalModelID: String {
         CapabilityPreferenceRuntimeIdentity.make(provider: provider, model: model)?.canonicalModelID ?? ""
     }
 
-    private func load() {
-        guard !didLoad else { return }
-        didLoad = true
-        loadAdditionalBody()
+    /// Which sections this page has on entry, and each one's draft. The entry (the row on the additional request body page) and this page read the same function:
+    /// two copies of that criterion are how "it opens but cannot be changed" happens.
+    struct Sections {
         var visible: [String] = []
-        // Without a runtime identity (empty string) these sections can be neither read nor
-        // written, so they are not shown.
-        for entry in Self.ownerNamespaces where !transportIdentity.isEmpty {
+        var schemaOwners: Set<String> = []
+        var drafts: [String: String] = [:]
+        var legacyEmptyCustomOwners: Set<String> = []
+    }
+
+    static func resolveSections(
+        provider: Provider, model: AIModel, conversationID: UUID?, transportIdentity: String
+    ) -> Sections {
+        var result = Sections()
+        // Without a runtime identity (empty string) these two sections can neither be read nor written, so they are not shown.
+        guard !transportIdentity.isEmpty else { return result }
+        let canonicalModelID = CapabilityPreferenceRuntimeIdentity.make(provider: provider, model: model)?
+            .canonicalModelID ?? ""
+        for entry in ownerNamespaces {
+            // Falls back to the model default scope when the conversation layer has no record (the same reading as the send path): fields written on the provider detail page
+            // are in effect in this conversation, and an editor showing a blank would make the user think they were lost and write them again.
             let configuration = GenerationParameterSettingsStore.shared.effectiveLocalCustomConfiguration(
                 providerID: provider.id, modelID: canonicalModelID, conversationID: conversationID,
                 transportIdentity: transportIdentity, namespace: entry.namespace,
+                // Drafts written under an older recipe version are carried forward; otherwise a recipe change in the catalog
+                // would leave this page blank and the user would think their content was lost.
                 forwardPort: .init(providerKind: provider.kind, schemaModelID: model.id)
             )
-            drafts[entry.owner] = configuration.rawJSON
+            result.drafts[entry.owner] = configuration.rawJSON
             let hasContent = !configuration.rawJSON
                 .trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             if configuration.mode == .custom, !hasContent {
-                legacyEmptyCustomOwners.insert(entry.owner)
+                result.legacyEmptyCustomOwners.insert(entry.owner)
             }
             if CapabilityRecipeExecution.hasSafeCustomSchema(
                 owner: entry.owner, providerKind: provider.kind, modelID: model.id,
-                transport: transport(entry.owner) ?? ""
+                transport: CapabilityRecipeExecution.finalTransport(
+                    owner: entry.owner, provider: provider, model: model
+                ) ?? ""
             ) {
-                schemaOwners.insert(entry.owner)
+                result.schemaOwners.insert(entry.owner)
             }
-            if schemaOwners.contains(entry.owner) || hasContent
-                || legacyEmptyCustomOwners.contains(entry.owner) {
-                visible.append(entry.owner)
+            // Owners with a schema ∪ owners with stored content. The second set cannot be dropped: the schema is delivered by the catalog
+            // and may disappear on a metadata refresh, while the user's custom configuration is still in effect (the send path only looks at the mode).
+            // Hiding the section as soon as the schema is gone would take away the only way to turn it off, and the fail-closed
+            // compiler would stop that connection from sending messages.
+            if result.schemaOwners.contains(entry.owner) || hasContent
+                || result.legacyEmptyCustomOwners.contains(entry.owner) {
+                result.visible.append(entry.owner)
             }
         }
-        sections = visible
+        return result
     }
 
+    private func load() {
+        // onAppear fires again each time this page is returned to, and reading again would roll the draft being edited back to the stored value.
+        guard !didLoad else { return }
+        didLoad = true
+        let resolved = Self.resolveSections(
+            provider: provider, model: model, conversationID: conversationID,
+            transportIdentity: transportIdentity
+        )
+        drafts = resolved.drafts
+        legacyEmptyCustomOwners = resolved.legacyEmptyCustomOwners
+        schemaOwners = resolved.schemaOwners
+        sections = resolved.visible
+    }
+
+    /// The mode is derived from the content: non-empty = custom (in effect), cleared = automatic (off).
+    /// This is the only write semantics; there is no separate automatic/custom choice.
+    /// With an editor that has content yet "is not in effect", a user cannot tell a mistake in the content from a switch left off.
     private func persist(_ owner: String) {
         guard let namespace = Self.ownerNamespaces.first(where: { $0.owner == owner })?.namespace else { return }
         let raw = drafts[owner] ?? ""

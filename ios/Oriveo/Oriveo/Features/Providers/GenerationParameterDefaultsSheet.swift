@@ -1,7 +1,12 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
+/// The generation parameter editor. By default it edits the long-lived provider + model values; with a conversationID it edits the current conversation's overrides.
 struct GenerationParameterDefaultsSheet: View {
+    /// Presentation. `embeddedPage` is the pushed sub-page behind "Model options → Advanced settings" on the chat page, hosted by
+    /// `AdvancedSettingsPage` (which draws its own header and has no presets or backup, the **connection-level maintenance** features;
+    /// those belong to the provider detail page and would only distract on the way to adjusting one conversation).
+    /// This type keeps `embeddedPage` only so the chat page's entry does not have to change how it calls in.
     enum Presentation {
         case sheet
         case embeddedPage
@@ -12,26 +17,35 @@ struct GenerationParameterDefaultsSheet: View {
     let provider: Provider
     let conversationID: UUID?
     var presentation: Presentation = .sheet
+    /// "Model options → Advanced settings" hangs the generation owner's capability footer (status note / rejected upstream /
+    /// risk notice / view supported models) at the top of this page.
     var capabilityHeader: AnyView?
+    /// The chat page may still open this to look at the state, but any write is forbidden while the identity is missing.
     var isReadOnly: Bool = false
 
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(AppState.self) private var appState
+    private let initialModelID: String
     @State private var modelID: String
     @State private var values: GenerationParameterOverrides
     @State private var presetName = ""
     @State private var presetRevision = 0
-    @State private var schemaDrafts: [String: String] = [:]
-    @State private var numberDrafts: [String: String] = [:]
-    @State private var invalidSchemaIDs: Set<String> = []
+    /// The current model's parameter table and rows. Rebuilt on entry, on a model change and on a metadata refresh; a value change only recomputes the rows.
+    @State private var catalog: AdvancedSettingsCatalog?
+    @State private var rows: [AdvancedParameterRow] = []
+    @State private var expandedRows: Set<String> = []
+    @State private var expandedClusters: Set<String> = []
+    @State private var supportedModelsParameterID: String?
     @State private var showImporter = false
     @State private var showExporter = false
     @State private var pendingDestruction: DestructiveAction?
     @State private var importFailed = false
     @State private var exportFailed = false
     @State private var pendingPresetDeletion: GenerationParameterPreset?
+    /// Applying a preset overwrites every current value, so it is confirmed before writing.
+    @State private var pendingPresetApplication: GenerationParameterPreset?
 
+    /// Destructive actions are always confirmed first. All three write to disk immediately and cannot be undone.
     enum DestructiveAction: String, Identifiable {
         case restoreDefaults
         case clearDormant
@@ -43,11 +57,12 @@ struct GenerationParameterDefaultsSheet: View {
     @State private var exportDocument: GenerationParameterJSONDocument?
     @State private var exportFilename = "oriveo-generation-parameters.v1"
     @State private var dormantExpanded = false
-    @State private var expandedGroups: Set<String> = []
+    /// The previous frame's dormant ids, stored per modelID. They are **bucketed by model** so that switching models is not reported as a "recovery":
+    /// what changed then is the observed object, not this connection's capability. A missing key means this model has not been seen in this session yet: record, do not report.
     @State private var dormantSnapshots: [String: [String]] = [:]
-    @State private var customFieldsEntry: CustomFieldsEntry = .unsupported
-    @State private var showsCustomFieldsUnsupportedAlert = false
-    @State private var showsCustomFieldsSupportedModels = false
+    /// The current state of the "Developer → Additional request body" entry, refreshed on entry, on a model change and on returning from the sub-page.
+    @State private var additionalBodySummary = ""
+    /// Neither the number pad nor the JSON editor has a return key; without this focus the keyboard could not be dismissed.
     @FocusState private var focusedField: String?
 
     init(
@@ -67,6 +82,7 @@ struct GenerationParameterDefaultsSheet: View {
             ?? provider.models.first(where: \.isDefault)?.id
             ?? provider.models.first?.id
             ?? ""
+        self.initialModelID = initialID
         _modelID = State(initialValue: initialID)
         let initialModel = provider.models.first { $0.id == initialID }
         let fingerprint = initialModel.map { GenerationParameterProfileFingerprint.make(provider: provider, model: $0) }
@@ -86,6 +102,7 @@ struct GenerationParameterDefaultsSheet: View {
     }
 
     private var model: AIModel? { provider.models.first { $0.id == modelID } }
+    /// The same production scope as the chat UI: a relay is visible and editable only when the resolver can determine the final route uniquely.
     private var capabilityEvidenceIdentity: CapabilityEvidenceRequestIdentity? {
         guard let model else { return nil }
         if provider.kind == .relay {
@@ -103,35 +120,15 @@ struct GenerationParameterDefaultsSheet: View {
         )
     }
 
-    private var generationProfile: GenerationProfileRef? {
-        model.flatMap {
-            GenerationParameterAvailability.profile(
-                provider: provider, model: $0, identity: capabilityEvidenceIdentity
-            )
-        }
-    }
-    private var generationEvidenceProjection: GenerationParameterEvidenceProjection? {
-        guard let model else { return nil }
-        return CapabilityEvidenceProductionAdapter.generationProjection(
-            provider: provider,
-            model: model,
-            identity: capabilityEvidenceIdentity
-        )
-    }
     private var scope: GenerationParameterEntryScope {
         conversationID == nil ? .connectionDefaults : .session
     }
 
-    private var parameters: [GenerationParameterRef] {
-        guard let model else { return [] }
-        return GenerationParameterPanelPresentation.visibleParameters(
-            provider: provider,
-            model: model,
-            scope: scope,
-            identity: capabilityEvidenceIdentity
-        )
-    }
+    /// The parameters visible in the current scope; the criterion lives in `AdvancedSettingsCatalog.production` alone.
+    private var parameters: [GenerationParameterRef] { catalog?.parameters ?? [] }
 
+    /// Stored values are split field by field into active and dormant against the current profile.
+    /// Without a model everything is dormant: nothing can be sent, and pretending otherwise would be a false state.
     private var partition: GenerationParameterLifecycle.Partition {
         guard let model else {
             return GenerationParameterLifecycle.partition(activeParameterIDs: [], values: values)
@@ -144,29 +141,32 @@ struct GenerationParameterDefaultsSheet: View {
         )
     }
 
-    private var emptyState: GenerationParameterEmptyState? {
-        guard let model else { return nil }
-        return GenerationParameterPanelPresentation.emptyState(
-            provider: provider,
-            model: model,
-            scope: scope,
-            hasSeenNonEmptyProfile: GenerationParameterProfileHistory.shared.hasSeenNonEmptyProfile(
-                providerID: provider.id,
-                modelID: model.id
-            ),
-            identity: capabilityEvidenceIdentity
-        )
+    private var rowsByID: [String: AdvancedParameterRow] {
+        Dictionary(rows.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
     }
 
+    private var resetScope: AdvancedSettingsResetScope { .init(conversationID: conversationID) }
+
     var body: some View {
-        let _ = CapabilityEvidenceObservationBridge.shared.contentRevision
-        Group {
-            if presentation == .sheet {
-                NavigationStack { editor }
-            } else {
-                editor
-            }
+        if presentation == .embeddedPage {
+            AdvancedSettingsPage(
+                provider: provider,
+                initialModelID: initialModelID,
+                conversationID: conversationID,
+                capabilityHeader: capabilityHeader,
+                isReadOnly: isReadOnly
+            )
+        } else {
+            sheetBody
         }
+    }
+
+    private var sheetBody: some View {
+        // Subscribes only to the global content revision; a metadata refresh or an expired candidate TTL makes the whole sheet
+        // read the facade projection again, and no per-row timer is ever created.
+        let revision = CapabilityEvidenceObservationBridge.shared.contentRevision
+        return NavigationStack { editor }
+        .onChange(of: revision) { _, _ in rebuildCatalog() }
         .fileImporter(
             isPresented: $showImporter,
             allowedContentTypes: [.json],
@@ -176,9 +176,13 @@ struct GenerationParameterDefaultsSheet: View {
             let didAccess = url.startAccessingSecurityScopedResource()
             defer { if didAccess { url.stopAccessingSecurityScopedResource() } }
             guard let data = try? Data(contentsOf: url) else { return }
+            // An import must not fail silently (wrong file, wrong format, and nothing happens), so both outcomes are acknowledged.
+            // The ToastManager overlay sits **below** sheets, so a toast raised here is not seen;
+            // failure therefore uses an alert, and success is visible through the refreshed values.
             if (try? GenerationParameterSyncContract.importJSON(data)) != nil {
                 values = loadValues(modelID: modelID)
                 presetRevision += 1
+                refreshRows()
             } else {
                 importFailed = true
             }
@@ -202,17 +206,15 @@ struct GenerationParameterDefaultsSheet: View {
     }
 
     private var editor: some View {
-        Group {
-            if presentation == .sheet {
-                sheetEditor
-            } else {
-                embeddedEditor
-            }
-        }
+        sheetEditor
+        // Both presentations are titled "Advanced settings": one page with two names on two paths
+        // would be taken for two different things.
         .navigationTitle(L10n.tr("Advanced Settings"))
         .onAppear {
             recordSeenProfile()
+            rebuildCatalog()
             syncDormantSnapshot()
+            // Fires again when returning from the additional request body sub-page, so "in use / not used" never stays stale.
             refreshCustomFieldsEntry()
         }
         .onChange(of: modelID) { _, _ in
@@ -221,11 +223,11 @@ struct GenerationParameterDefaultsSheet: View {
         }
         .onChange(of: partition.dormantIDs.joined(separator: "|")) { _, _ in syncDormantSnapshot() }
         .toolbar {
-            if presentation == .sheet {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button(L10n.tr("Done")) { dismiss() }
-                        .font(.body.weight(.semibold))
-                }
+            // "Done" sits in the standard top-right position. A destructive clear-all without confirmation must never sit there,
+            // where muscle memory taps; restoring defaults is a row at the bottom of the list, with confirmation.
+            ToolbarItem(placement: .confirmationAction) {
+                Button(L10n.tr("Done")) { dismiss() }
+                    .font(.body.weight(.semibold))
             }
             ToolbarItemGroup(placement: .keyboard) {
                 Spacer()
@@ -264,32 +266,52 @@ struct GenerationParameterDefaultsSheet: View {
         } message: { action in
             Text(destructionMessage(action))
         }
+        // Applying a preset overwrites everything: say what will be replaced first, write after confirmation.
         .alert(
-            L10n.tr("Custom request fields", table: .chat),
-            isPresented: $showsCustomFieldsUnsupportedAlert
-        ) {
-            if !customFieldsSupportedModelCandidates.isEmpty {
-                Button(L10n.tr("View supported models", table: .chat)) {
-                    showsCustomFieldsUnsupportedAlert = false
-                    showsCustomFieldsSupportedModels = true
-                }
+            L10n.tr("Apply this preset?", table: .providers),
+            isPresented: Binding(
+                get: { pendingPresetApplication != nil },
+                set: { if !$0 { pendingPresetApplication = nil } }
+            ),
+            presenting: pendingPresetApplication
+        ) { preset in
+            Button(L10n.tr("Cancel"), role: .cancel) {
+                pendingPresetApplication = nil
             }
-            Button(L10n.tr("OK")) { showsCustomFieldsUnsupportedAlert = false }
-        } message: {
-            Text(customFieldsUnsupportedMessage)
+            Button(L10n.tr("Apply preset", table: .providers)) {
+                applyPreset(preset)
+            }
+        } message: { preset in
+            Text(GenerationParameterPresetApplication.confirmationMessage(
+                presetName: preset.name,
+                overwrittenTitles: GenerationParameterPresetApplication.overwrittenParameterIDs(current: values)
+                    .map(parameterTitle)
+            ))
         }
-        .navigationDestination(isPresented: $showsCustomFieldsSupportedModels) {
-            CapabilitySupportedModelsPage(
-                provider: provider,
-                capability: "generation",
-                title: L10n.tr("Custom request fields", table: .chat),
-                candidates: customFieldsSupportedModelCandidates,
-                onSelect: selectCustomFieldsCandidate
-            )
+        .navigationDestination(isPresented: Binding(
+            get: { supportedModelsParameterID != nil },
+            set: { if !$0 { supportedModelsParameterID = nil } }
+        )) {
+            // A disabled row **must** come with an action that can be taken; otherwise the user is stuck on a row that cannot be changed and leads nowhere.
+            // This path is read-only: it answers "which model should I use then"
+            // and does not switch models for the user.
+            if let id = supportedModelsParameterID {
+                GenerationParameterSupportedModelsPage(
+                    provider: provider,
+                    parameterID: id,
+                    parameterTitle: parameterTitle(id),
+                    scope: scope
+                )
+            }
         }
+        // System blue seeps in from menus, pickers and DisclosureGroup chevrons,
+        // while this page is pushed from the purple model options panel. The whole chain uses the brand primary color.
+        // **It must sit at the end of the chain**: `.tint` only affects the subtree it wraps, and placed before `.toolbar` / `.alert`
+        // those buttons take their environment from further out and stay system blue. Destructive is decided by the role and stays red.
         .tint(OriveoTheme.Palette.primary)
     }
 
+    // MARK: - The `.sheet` presentation (opened from the provider detail page, with connection-level maintenance)
 
     private var sheetEditor: some View {
             List {
@@ -304,11 +326,14 @@ struct GenerationParameterDefaultsSheet: View {
                     }
                     .onChange(of: modelID) { _, next in
                         values = loadValues(modelID: next)
-                        numberDrafts.removeAll()
-                        schemaDrafts.removeAll()
+                        // The expanded state is "the row being edited for the previous model" and must be dropped on a model change.
+                        expandedRows.removeAll()
+                        rebuildCatalog()
                     }
                 }
 
+                // The sheet's title does not change with the scope;
+                // the scope difference is expressed by this subtitle alone.
                 if let model {
                     Section {
                         VStack(alignment: .leading, spacing: 4) {
@@ -327,6 +352,8 @@ struct GenerationParameterDefaultsSheet: View {
                         HStack {
                             TextField(L10n.tr("Preset name", table: .providers), text: $presetName)
                             Button(L10n.tr("Save")) {
+                                // Passing all `values` (including those this device considers dormant) is intentional,
+                                // not a missing filter: see the comment on GenerationParameterPresetStore.save.
                                 _ = GenerationParameterPresetStore.shared.save(
                                     name: presetName,
                                     providerID: provider.id,
@@ -342,15 +369,11 @@ struct GenerationParameterDefaultsSheet: View {
                         ForEach(presets(fingerprint: fingerprint)) { preset in
                             HStack {
                                 Button(preset.name) {
-                                    if let applied = GenerationParameterPresetStore.shared.apply(
-                                        preset,
-                                        providerID: provider.id,
-                                        modelID: modelID,
-                                        profileFingerprint: fingerprint,
-                                        semanticMapping: portableSemanticMapping
-                                    ) {
-                                        values = applied
-                                        persist()
+                                    // With no current values there is nothing to overwrite, so apply directly; otherwise confirm first.
+                                    if GenerationParameterPresetApplication.needsConfirmation(current: values) {
+                                        pendingPresetApplication = preset
+                                    } else {
+                                        applyPreset(preset)
                                     }
                                 }
                                 Spacer()
@@ -363,6 +386,7 @@ struct GenerationParameterDefaultsSheet: View {
                                         semanticMapping: portableSemanticMapping
                                     ) {
                                         _ = GenerationParameterPresetStore.shared.save(
+                                            // Copies with the same name cannot be told apart in the list; one could only guess by position which is new.
                                             name: copyName(of: preset.name, fingerprint: fingerprint),
                                             providerID: provider.id,
                                             modelID: modelID,
@@ -376,6 +400,8 @@ struct GenerationParameterDefaultsSheet: View {
                                         .frame(width: 44, height: 44)
                                         .contentShape(Rectangle())
                                 }
+                                // Several Buttons in one List row without a buttonStyle all trigger the same action:
+                                // tapping the trash can might "apply the preset".
                                 .buttonStyle(.borderless)
                                 .accessibilityLabel(L10n.tr("Copy"))
                                 Button(role: .destructive) {
@@ -424,11 +450,14 @@ struct GenerationParameterDefaultsSheet: View {
 
                 if !compatibilityConflicts.isEmpty {
                     Section(L10n.tr("Compatibility", table: .providers)) {
-                        Text(compatibilityConflicts.sorted().map(parameterTitle).joined(separator: " • "))
+                        Text(compatibilityConflicts.sorted().map(parameterTitle).joined(separator: " · "))
                             .font(.caption)
                             .foregroundStyle(.orange)
                         if !isReadOnly {
-                            Button(L10n.tr("Remove conflicts", table: .providers), role: .destructive) {
+                            Button(
+                                L10n.tr("Remove conflicts", table: .providers),
+                                role: .destructive
+                            ) {
                                 pendingDestruction = .removeConflicts
                             }
                         }
@@ -438,7 +467,11 @@ struct GenerationParameterDefaultsSheet: View {
 
                 if presentation.showsConnectionTools, provider.kind == .relay {
                     Section {
-                        Button(L10n.tr("Clear learned capabilities", table: .providers)) {
+                        // A button that stays tappable without a model or identity and silently does nothing is a trap.
+                        // When it cannot run it is disabled, and after running it confirms in place with one line.
+                        Button(
+                            L10n.tr("Clear learned capabilities", table: .providers)
+                        ) {
                             guard let model, let identity = capabilityEvidenceIdentity else { return }
                             UnsupportedParamCache.shared.clear(
                                 providerKind: .relay,
@@ -459,10 +492,12 @@ struct GenerationParameterDefaultsSheet: View {
                 }
 
                 if parameters.isEmpty {
-                    emptyStateSection(emptyState ?? .notVerified)
+                    // The container **never collapses**. There has to be something to say even without a model, hence the fallback to the "not measured yet" state
+                    // (it holds just as well for a connection with no model to choose, and it is the fail-safe side).
+                    emptyStateSection(catalog?.emptyState ?? .notVerified)
                     dormantSummarySection
                 } else {
-                    if let unverifiedGroupNote {
+                    if let unverifiedGroupNote = catalog?.unverifiedGroupNote {
                         Section {
                             Text(unverifiedGroupNote)
                                 .font(.caption)
@@ -470,418 +505,110 @@ struct GenerationParameterDefaultsSheet: View {
                         }
                         .listRowBackground(OriveoTheme.Palette.surface)
                     }
-                    let basic = basicParameters
-                    if !basic.isEmpty {
-                        Section(L10n.tr("Basic Settings", table: .providers)) {
-                            ForEach(basic, id: \.id) { parameter in parameterRow(parameter) }
-                        }
-                        .listRowBackground(OriveoTheme.Palette.surface)
-                    }
-                    ForEach(advancedGroups) { group in
+                    // Rows and groups are the same components as on the chat page: one group per list row (all rows of the group sit in that cell, with their own hairlines).
+                    ForEach(AdvancedSettingsLayout.sections(parameters: parameters)) { section in
                         Section {
-                            DisclosureGroup(group.title) {
-                                ForEach(group.parameters, id: \.id) { parameter in parameterRow(parameter) }
-                            }
+                            AdvancedSettingsSectionBody(
+                                section: section,
+                                rows: rowsByID,
+                                facts: catalog?.facts ?? [:],
+                                expandedRows: $expandedRows,
+                                expandedClusters: $expandedClusters,
+                                inheritedLabel: L10n.tr("Connection Defaults", table: .providers),
+                                useDefaultTitle: conversationID != nil
+                                    ? L10n.tr("Use model default", table: .chat)
+                                    : L10n.tr("Clear"),
+                                focus: $focusedField,
+                                onEdit: { row, edit in apply(edit, to: row) },
+                                onSupportedModels: { supportedModelsParameterID = $0 }
+                            )
+                            .listRowInsets(EdgeInsets())
+                        } header: {
+                            if let title = section.title { Text(title) }
                         }
                         .listRowBackground(OriveoTheme.Palette.surface)
                     }
+                    // After the runtime corrects the transport, only some of the parameters in the old scope's record are still in the new protocol's template:
+                    // the panel is **not empty** then, and the remaining items have no row to render in. The summary must appear here too; covering only
+                    // the empty state would leave dormant values of the non-empty state as silent orphans.
                     dormantSummarySection
                 }
 
                 if !isReadOnly, !values.values.isEmpty {
                     Section {
-                        Button(L10n.tr("Restore Defaults"), role: .destructive) {
+                        Button(resetScope.confirmButtonTitle, role: .destructive) {
                             pendingDestruction = .restoreDefaults
                         }
                     }
                     .listRowBackground(OriveoTheme.Palette.surface)
                 }
 
-                Section(L10n.tr("Developer", table: .providers)) {
-                    if isReadOnly {
+                // The developer group **does not disappear when read-only**: read-only means "cannot be changed right now",
+                // not "this feature does not exist". If the whole group vanished, a user who is sending would see
+                // a missing feature, while its state (not used / in use) is exactly
+                // what a read-only page should still show. When read-only it degrades to a status line that cannot be pushed.
+                Section {
+                    if isReadOnly || model == nil {
                         customFieldsRowLabel
-                    } else if customFieldsEntry == .unsupported {
-                        Button { showsCustomFieldsUnsupportedAlert = true } label: {
-                            customFieldsRowLabel
-                        }
-                        .buttonStyle(.plain)
                     } else {
                         NavigationLink { customFieldsDestination } label: {
                             customFieldsRowLabel
                         }
                     }
+                } header: {
+                    Text(L10n.tr("Developer", table: .providers))
+                } footer: {
+                    // The parameters above sync across devices; the additional request body does not.
+                    Text(L10n.tr("Saved on this device only, not synced", table: .chat))
                 }
                 .listRowBackground(OriveoTheme.Palette.surface)
             }
+            // Pushed from the model options panel, the background has to match: not one light page and one dark.
             .scrollContentBackground(.hidden)
             .background(OriveoTheme.Palette.background)
     }
 
+    // MARK: - Developer group (entry to the additional request body)
 
-    private var embeddedEditor: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                if let capabilityHeader {
-                    capabilityHeader
-                }
-                if let model {
-                    embeddedScopeHeader(model: model)
-                }
-                if conversationID == nil, provider.models.count > 1 {
-                    embeddedModelPickerCard
-                }
-                if !compatibilityConflicts.isEmpty {
-                    embeddedConflictCard
-                }
-                if parameters.isEmpty {
-                    embeddedEmptyStateCard(emptyState ?? .notVerified)
-                } else {
-                    embeddedParameterCard
-                }
-                embeddedDormantCard
-                if !isReadOnly, !values.values.isEmpty {
-                    embeddedRestoreDefaultsCard
-                }
-                embeddedDeveloperCard
-            }
-            .padding(.horizontal, 16)
-            .padding(.top, 2)
-            .padding(.bottom, 32)
-        }
-        .scrollDismissesKeyboard(.interactively)
-        .background(OriveoTheme.Palette.background)
-    }
-
-    private func embeddedScopeHeader(model: AIModel) -> some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(scopeTitle(model: model))
-                .font(.footnote.weight(.semibold))
-                .foregroundStyle(OriveoTheme.Palette.textSecondary)
-            Text(scopeDetail)
-                .font(.caption)
-                .foregroundStyle(OriveoTheme.Palette.textTertiary)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private var embeddedModelPickerCard: some View {
-        HStack(spacing: 8) {
-            Text(L10n.tr("Model", table: .providers))
-                .font(.body.weight(.medium))
-                .foregroundStyle(OriveoTheme.Palette.textPrimary)
-            Spacer(minLength: 8)
-            Picker("", selection: $modelID) {
-                ForEach(provider.models) { model in Text(model.name).tag(model.id) }
-            }
-            .labelsHidden()
-            .accessibilityLabel(Text(L10n.tr("Model", table: .providers)))
-        }
-        .padding(.horizontal, 16)
-        .frame(maxWidth: .infinity, minHeight: 52, alignment: .leading)
-        .modelControlSurface()
-        .onChange(of: modelID) { _, next in
-            values = loadValues(modelID: next)
-            numberDrafts.removeAll()
-            schemaDrafts.removeAll()
-        }
-    }
-
-    private var embeddedConflictCard: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(L10n.tr("Compatibility", table: .providers))
-                .font(.footnote.weight(.semibold))
-                .foregroundStyle(OriveoTheme.Palette.textSecondary)
-            ModelControlNote(
-                text: compatibilityConflicts.sorted().map(parameterTitle).joined(separator: " • "),
-                systemImage: "exclamationmark.triangle",
-                tone: OriveoTheme.Palette.warningText
-            )
-            if !isReadOnly {
-                embeddedDestructiveButton(L10n.tr("Remove conflicts", table: .providers)) {
-                    pendingDestruction = .removeConflicts
-                }
-            }
-        }
-        .padding(18)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .modelControlSurface()
-    }
-
-    private var embeddedParameterCard: some View {
-        let basic = basicParameters
-        let advanced = advancedGroups
-        return VStack(alignment: .leading, spacing: 10) {
-            if let unverifiedGroupNote {
-                ModelControlNote(text: unverifiedGroupNote)
-            }
-            VStack(spacing: 0) {
-                if !basic.isEmpty {
-                    if !advanced.isEmpty {
-                        embeddedGroupTitle(L10n.tr("Basic Settings", table: .providers))
-                    }
-                    embeddedRows(basic)
-                }
-                ForEach(Array(advanced.enumerated()), id: \.element.id) { index, group in
-                    if !basic.isEmpty || index > 0 {
-                        ModelControlHairline(leadingInset: 0)
-                    }
-                    embeddedAdvancedGroup(group)
-                }
-            }
-            .padding(.vertical, 6)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .modelControlSurface()
-
-            ModelControlNote(text: L10n.tr(
-                "Parameters you leave unset aren’t sent; the provider uses the model’s defaults.",
-                table: .providers
-            ))
-        }
-    }
-
-    private func embeddedGroupTitle(_ title: String) -> some View {
-        Text(title)
-            .font(.footnote.weight(.semibold))
-            .foregroundStyle(OriveoTheme.Palette.textSecondary)
-            .padding(.horizontal, 16)
-            .padding(.top, 8)
-            .padding(.bottom, 4)
-            .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    @ViewBuilder
-    private func embeddedRows(_ list: [GenerationParameterRef]) -> some View {
-        ForEach(Array(list.enumerated()), id: \.element.id) { index, parameter in
-            if index > 0 { ModelControlHairline() }
-            parameterRow(parameter)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 6)
-        }
-    }
-
-    @ViewBuilder
-    private func embeddedAdvancedGroup(_ group: ParameterGroup) -> some View {
-        let expanded = expandedGroups.contains(group.id)
-        Button {
-            withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.2)) {
-                if expanded {
-                    expandedGroups.remove(group.id)
-                } else {
-                    expandedGroups.insert(group.id)
-                }
-            }
-        } label: {
-            HStack(spacing: 8) {
-                Text(group.title)
-                    .font(.footnote.weight(.semibold))
-                    .foregroundStyle(OriveoTheme.Palette.textSecondary)
-                Spacer(minLength: 8)
-                Image(systemName: "chevron.right")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(OriveoTheme.Palette.textTertiary)
-                    .rotationEffect(.degrees(expanded ? 90 : 0))
-            }
-            .padding(.horizontal, 16)
-            .frame(minHeight: 44)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityValue(Text(expanded ? L10n.tr("Hide") : L10n.tr("View", table: .providers)))
-
-        if expanded {
-            ModelControlHairline()
-            embeddedRows(group.parameters)
-        }
-    }
-
-    private func embeddedEmptyStateCard(_ state: GenerationParameterEmptyState) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(state.title)
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(OriveoTheme.Palette.textPrimary)
-                .fixedSize(horizontal: false, vertical: true)
-            if let detail = state.detail {
-                ModelControlNote(text: detail)
-            }
-        }
-        .padding(18)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .modelControlSurface()
-    }
-
-    @ViewBuilder
-    private var embeddedDormantCard: some View {
-        let split = partition
-        if !split.dormantIDs.isEmpty {
-            VStack(alignment: .leading, spacing: 8) {
-                ModelControlNote(text: String(
-                    format: L10n.tr("%d parameters you set are kept and won't be sent right now.", table: .providers),
-                    split.dormantIDs.count
-                ))
-
-                Button {
-                    withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.2)) { dormantExpanded.toggle() }
-                } label: {
-                    Text(dormantExpanded ? L10n.tr("Hide") : L10n.tr("View", table: .providers))
-                        .font(.subheadline.weight(.medium))
-                        .foregroundStyle(OriveoTheme.Palette.primary)
-                        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-
-                if dormantExpanded {
-                    VStack(spacing: 6) {
-                        ForEach(split.dormantIDs, id: \.self) { id in
-                            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                                Text(parameterTitle(id))
-                                    .foregroundStyle(OriveoTheme.Palette.textSecondary)
-                                Spacer(minLength: 8)
-                                Text(dormantValueText(split.dormant.values[id]))
-                                    .foregroundStyle(OriveoTheme.Palette.textTertiary)
-                            }
-                            .font(.caption)
-                        }
-                    }
-                }
-
-                if !isReadOnly {
-                    embeddedDestructiveButton(L10n.tr("Clear")) { pendingDestruction = .clearDormant }
-                }
-            }
-            .padding(18)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .modelControlSurface()
-        }
-    }
-
-    private var embeddedRestoreDefaultsCard: some View {
-        Button { pendingDestruction = .restoreDefaults } label: {
-            Text(L10n.tr("Restore Defaults"))
-                .font(.body.weight(.medium))
-                .foregroundStyle(OriveoTheme.Palette.danger)
-                .padding(.horizontal, 16)
-                .frame(maxWidth: .infinity, minHeight: 52, alignment: .leading)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .modelControlSurface()
-    }
-
-    private func embeddedDestructiveButton(_ title: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Text(title)
-                .font(.subheadline.weight(.medium))
-                .foregroundStyle(OriveoTheme.Palette.danger)
-                .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-    }
-
-
-    private enum CustomFieldsEntry {
-        case unsupported
-        case idle
-        case inUse
-    }
-
-    private var customFieldsRuntimeIdentity: CapabilityPreferenceRuntimeIdentity? {
-        model.flatMap { CapabilityPreferenceRuntimeIdentity.make(provider: provider, model: $0) }
-    }
-
+    /// **The entry row is always there and does not disappear with the model**: a developer who switches models and no longer sees it
+    /// first assumes the feature is gone or broken. Without a model, or when read-only, it degrades to a status line.
+    ///
+    /// The summary is read from disk once and kept in `@State`. As a computed property it would decode UserDefaults several times per frame,
+    /// and none of it changes by itself during one visit.
     private func refreshCustomFieldsEntry() {
         guard let model else {
-            customFieldsEntry = .unsupported
+            additionalBodySummary = L10n.tr("Not in use", table: .providers)
             return
         }
-        // The additional request body needs no recipe runtime identity, so this row is always
-        // reachable once a model is known.
-        var inUse = GenerationParameterSettingsStore.shared
-            .effectiveAdditionalRequestBody(
-                providerID: provider.id,
-                modelID: CapabilityPreferenceRuntimeIdentity.canonicalModelID(provider: provider, model: model),
-                conversationID: conversationID
-            ).isActive
-        if let identity = customFieldsRuntimeIdentity {
-            for (_, namespace) in GenerationParameterSettingsStore.localCustomOwnerNamespaces {
-                let configuration = GenerationParameterSettingsStore.shared.effectiveLocalCustomConfiguration(
-                    providerID: provider.id, modelID: identity.canonicalModelID,
-                    conversationID: conversationID, transportIdentity: identity.wireValue,
-                    namespace: namespace,
-                    forwardPort: .init(providerKind: provider.kind, schemaModelID: model.id)
-                )
-                if configuration.mode == .custom { inUse = true }
-            }
-        }
-        customFieldsEntry = inUse ? .inUse : .idle
-    }
-
-    private func hasCustomFieldSchema(owner: String, model: AIModel) -> Bool {
-        CapabilityRecipeExecution.hasSafeCustomSchema(
-            owner: owner, providerKind: provider.kind, modelID: model.id,
-            transport: CapabilityRecipeExecution.finalTransport(
-                owner: owner, provider: provider, model: model
-            ) ?? ""
+        // The additional request body needs no recipe runtime identity, so this row can always be opened.
+        // The officially declared fields for web search and thinking are reached through this page as well; how they are read is in `AdditionalRequestBodyEntry`
+        // (falling back to the model default scope when the conversation layer has no record, with `forwardPort:` carrying records across recipe versions).
+        let summary = AdditionalRequestBodyEntry.summary(
+            provider: provider, model: model, conversationID: conversationID, store: .shared
         )
-    }
-
-    private var customFieldsSupportedModelCandidates: [AIModel] {
-        return provider.models.filter { candidate in
-            ["web", "reasoning", "generation"].contains { hasCustomFieldSchema(owner: $0, model: candidate) }
-        }
-    }
-
-    private var customFieldsUnsupportedMessage: String {
-        let base = L10n.tr(
-            "Custom request fields are only available on models whose provider officially declares a field schema.",
-            table: .providers
-        )
-        guard customFieldsSupportedModelCandidates.isEmpty else { return base }
-        return base + "\n\n" + L10n.tr(
-            "No models in this connection support this capability yet.", table: .chat
-        )
-    }
-
-    private func selectCustomFieldsCandidate(_ candidate: AIModel) {
-        appState.selectModel(modelID: candidate.id, providerID: provider.id, for: conversationID)
-        modelID = candidate.id
-        values = loadValues(modelID: candidate.id)
-        numberDrafts.removeAll()
-        schemaDrafts.removeAll()
-        showsCustomFieldsSupportedModels = false
-        refreshCustomFieldsEntry()
-    }
-
-    private var customFieldsStatusText: String {
-        switch customFieldsEntry {
-        case .unsupported: return L10n.tr("Not supported by this model", table: .chat)
-        case .idle: return L10n.tr("Not in use", table: .providers)
-        case .inUse: return L10n.tr("In use", table: .providers)
-        }
+        additionalBodySummary = summary.text
     }
 
     @ViewBuilder
     private var customFieldsDestination: some View {
-        // Without a runtime identity an empty string is passed: the web search and thinking
-        // sections then stay hidden and the page shows only the additional request body.
+        // An empty string is passed without a runtime identity: the web search and thinking sections then do not appear, and the page is the additional request body alone.
         if let model {
-            CustomRequestFieldsPage(
+            AdditionalRequestBodyPage(
                 provider: provider,
                 model: model,
                 conversationID: conversationID,
-                transportIdentity: customFieldsRuntimeIdentity?.wireValue ?? ""
+                transportIdentity: CapabilityPreferenceRuntimeIdentity.make(provider: provider, model: model)?
+                    .wireValue ?? ""
             )
         }
     }
 
     private var customFieldsRowLabel: some View {
         HStack(spacing: 8) {
-            Text(L10n.tr("Custom request fields", table: .chat))
+            Text(L10n.tr("Additional request body", table: .chat))
                 .foregroundStyle(OriveoTheme.Palette.textPrimary)
             Spacer(minLength: 8)
-            Text(customFieldsStatusText)
+            Text(additionalBodySummary)
                 .font(.caption)
                 .foregroundStyle(OriveoTheme.Palette.textTertiary)
                 .multilineTextAlignment(.trailing)
@@ -890,41 +617,14 @@ struct GenerationParameterDefaultsSheet: View {
         .contentShape(Rectangle())
     }
 
-    private var embeddedDeveloperCard: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(L10n.tr("Developer", table: .providers))
-                .font(.footnote.weight(.semibold))
-                .foregroundStyle(OriveoTheme.Palette.textSecondary)
-            if isReadOnly {
-                customFieldsRowLabel
-            } else if customFieldsEntry == .unsupported {
-                Button { showsCustomFieldsUnsupportedAlert = true } label: {
-                    customFieldsRowLabel
-                }
-                .buttonStyle(.plain)
-            } else {
-                NavigationLink { customFieldsDestination } label: {
-                    HStack(spacing: 8) {
-                        customFieldsRowLabel
-                        Image(systemName: "chevron.right")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(OriveoTheme.Palette.textTertiary)
-                    }
-                }
-                .buttonStyle(.plain)
-            }
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 12)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .modelControlSurface()
-    }
+    // MARK: - Criteria and copy
 
-
+    /// The single copy of the scope title and description. The two sides are laid out differently (a headline inside a card in the sheet, bare text in the header
+    /// when embedded), but they must say the same sentence; two copies would drift apart.
     private func scopeTitle(model: AIModel) -> String {
         conversationID == nil
-            ? "\(L10n.tr("Connection Defaults", table: .providers)) • \(model.name)"
-            : "\(L10n.tr("Current Conversation")) • \(model.name)"
+            ? "\(L10n.tr("Connection Defaults", table: .providers)) · \(model.name)"
+            : "\(L10n.tr("Current Conversation")) · \(model.name)"
     }
 
     private var scopeDetail: String {
@@ -933,36 +633,10 @@ struct GenerationParameterDefaultsSheet: View {
             : L10n.tr("Only applies while this model is used in this conversation. Switching models does not copy values; switching back restores them.")
     }
 
-    private var unverifiedGroupNote: String? {
-        guard let generationEvidenceProjection,
-              GenerationParameterPanelPresentation.showsUnverifiedGroupNote(
-                parameters: parameters, projection: generationEvidenceProjection
-              ) else { return nil }
-        return L10n.tr(
-            "These parameters are inferred from the protocol you chose. Oriveo hasn't verified they take effect on this connection.",
-            table: .providers
-        )
-    }
+    // MARK: - The four empty states
 
-    private struct ParameterGroup: Identifiable {
-        let id: String
-        let title: String
-        let parameters: [GenerationParameterRef]
-    }
-
-    private var advancedGroups: [ParameterGroup] {
-        let basicIDs = Set(basicParameters.compactMap(\.id))
-        let advanced = parameters.filter { !basicIDs.contains($0.id ?? "") }
-        return groupOrder.compactMap { group in
-            let grouped = advanced.filter { ($0.group ?? "sampling") == group }
-            guard !grouped.isEmpty else { return nil }
-            return ParameterGroup(id: group, title: groupTitle(group), parameters: grouped)
-        }
-    }
-
-    private let groupOrder = ["budget", "reasoning", "sampling", "repetition", "reproducibility", "output_contract", "engine_runtime"]
-
-
+    /// Records that this device has seen a non-empty profile for this model on this connection. The criterion is the number of **declared** parameters, not visible ones:
+    /// this state asks whether the profile itself ever had content; being emptied by a support filter is a different state.
     private func recordSeenProfile() {
         guard let model else { return }
         let declared = GenerationParameterAvailability
@@ -987,12 +661,14 @@ struct GenerationParameterDefaultsSheet: View {
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-
         }
         .listRowBackground(OriveoTheme.Palette.surface)
     }
 
+    // MARK: - The "kept · not in effect" summary
 
+    /// A one-line summary with "View" and "Clear", shown only when dormant values exist. Rendered in **both** the empty and the non-empty state: rendering it only when empty
+    /// would leave dormant values of the non-empty state as silent orphans.
     @ViewBuilder
     private var dormantSummarySection: some View {
         let split = partition
@@ -1005,13 +681,17 @@ struct GenerationParameterDefaultsSheet: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
-                Button(dormantExpanded ? L10n.tr("Hide") : L10n.tr("View", table: .providers)) {
+                Button(
+                    dormantExpanded ? L10n.tr("Hide") : L10n.tr("View", table: .providers)
+                ) {
                     withAnimation(.easeInOut(duration: 0.2)) { dormantExpanded.toggle() }
                 }
 
                 if dormantExpanded {
                     ForEach(split.dormantIDs, id: \.self) { id in
                         HStack {
+                            // The same formatting as the parameter rows. Two copies would diverge: one parameter
+                            // with one name in the list and another in the "kept" summary.
                             Text(parameterTitle(id))
                             Spacer()
                             Text(dormantValueText(split.dormant.values[id]))
@@ -1021,6 +701,7 @@ struct GenerationParameterDefaultsSheet: View {
                     }
                 }
 
+                // Only the dormant half is deleted and values in effect stay; clearing a whole record is tombstoned by the storage layer.
                 if !isReadOnly {
                     Button(L10n.tr("Clear"), role: .destructive) {
                         pendingDestruction = .clearDormant
@@ -1031,12 +712,16 @@ struct GenerationParameterDefaultsSheet: View {
         }
     }
 
+    /// The value column of the read-only dormant list. **Echoed as is, never converted or trimmed into another value**:
+    /// the user opens "View" to confirm what exactly was set back then.
     private func dormantValueText(_ override: GenerationParameterOverride?) -> String {
         guard let override, override.state != .inherit else { return "" }
         if override.state == .omit { return L10n.tr("Omit") }
         return displayValue(override.value)
     }
 
+    /// When the profile matches again, compatible values come back by themselves (they were never deleted, only the criterion changed), with a one-time toast.
+    /// A value removed by "Clear" is not reported as recovered: it is no longer in `values`.
     private func syncDormantSnapshot() {
         let current = partition.dormantIDs
         let previous = dormantSnapshots[modelID]
@@ -1063,6 +748,7 @@ struct GenerationParameterDefaultsSheet: View {
         })
     }
 
+    /// A copy needs a different name: reusing the name gives two identical rows, and one could only guess by position which is new.
     private func copyName(of name: String, fingerprint: String) -> String {
         let existing = Set(presets(fingerprint: fingerprint).map(\.name))
         guard existing.contains(name) else { return name }
@@ -1075,13 +761,14 @@ struct GenerationParameterDefaultsSheet: View {
         switch pendingDestruction {
         case .clearDormant: return L10n.tr("Clear")
         case .removeConflicts: return L10n.tr("Remove conflicts", table: .providers)
-        case .restoreDefaults, .none: return L10n.tr("Restore Defaults")
+        // Title, body and button all come from the same scope value: the copy names a layer, and that layer is what gets cleared.
+        case .restoreDefaults, .none: return resetScope.confirmationTitle
         }
     }
 
     private func destructionConfirmTitle(_ action: DestructiveAction) -> String {
         switch action {
-        case .restoreDefaults: return L10n.tr("Restore Defaults")
+        case .restoreDefaults: return resetScope.confirmButtonTitle
         case .clearDormant: return L10n.tr("Clear")
         case .removeConflicts: return L10n.tr("Remove conflicts", table: .providers)
         }
@@ -1090,28 +777,48 @@ struct GenerationParameterDefaultsSheet: View {
     private func destructionMessage(_ action: DestructiveAction) -> String {
         switch action {
         case .restoreDefaults:
-            return L10n.tr("This clears every value you set for this model. This cannot be undone.", table: .providers)
+            return resetScope.confirmationMessage
         case .clearDormant:
+            // Says which half is deleted: values in effect are not touched.
             return L10n.tr("This deletes the stored values that no longer apply to this model. This cannot be undone.", table: .providers)
         case .removeConflicts:
-            return compatibilityConflicts.sorted().map(parameterTitle).joined(separator: " • ")
+            return compatibilityConflicts.sorted().map(parameterTitle).joined(separator: " · ")
         }
     }
 
     private func perform(_ action: DestructiveAction) {
         switch action {
         case .restoreDefaults:
-            values = .init()
+            resetScope.perform(
+                store: .shared, providerID: provider.id, modelID: modelID, profileFingerprint: profileFingerprint
+            )
+            values = loadValues(modelID: modelID)
         case .clearDormant:
             values = partition.active
             dormantExpanded = false
+            persist()
         case .removeConflicts:
             compatibilityConflicts.forEach { values.values.removeValue(forKey: $0) }
+            persist()
         }
-        numberDrafts.removeAll()
-        schemaDrafts.removeAll()
-        persist()
+        expandedRows.removeAll()
+        refreshRows()
         pendingDestruction = nil
+    }
+
+    private func applyPreset(_ preset: GenerationParameterPreset) {
+        defer { pendingPresetApplication = nil }
+        guard let fingerprint = profileFingerprint,
+              let applied = GenerationParameterPresetStore.shared.apply(
+                preset,
+                providerID: provider.id,
+                modelID: modelID,
+                profileFingerprint: fingerprint,
+                semanticMapping: portableSemanticMapping
+              ) else { return }
+        values = applied
+        persist()
+        refreshRows()
     }
 
     private func presets(fingerprint: String) -> [GenerationParameterPreset] {
@@ -1128,27 +835,6 @@ struct GenerationParameterDefaultsSheet: View {
             guard parameter.portability == "portable", let id = parameter.id else { return nil }
             return (id, id)
         })
-    }
-
-    private var basicParameters: [GenerationParameterRef] {
-        var result = parameters.filter { $0.id == "max_output_tokens" }
-        if let sampling = parameters.first(where: { $0.id == "temperature" })
-            ?? parameters.first(where: { $0.id == "top_p" }) {
-            result.append(sampling)
-        }
-        return result
-    }
-
-    private func groupTitle(_ group: String) -> String {
-        switch group {
-        case "budget": return L10n.tr("Output Budget")
-        case "reasoning": return L10n.tr("Reasoning")
-        case "sampling": return L10n.tr("Sampling")
-        case "repetition": return L10n.tr("Repetition Control")
-        case "reproducibility": return L10n.tr("Reproducibility")
-        case "output_contract": return L10n.tr("Output Contract")
-        default: return L10n.tr("Engine Runtime")
-        }
     }
 
     private func loadValues(modelID: String) -> GenerationParameterOverrides {
@@ -1170,293 +856,50 @@ struct GenerationParameterDefaultsSheet: View {
         ) ?? .init()
     }
 
-    @ViewBuilder
-    private func parameterRow(_ parameter: GenerationParameterRef) -> some View {
-        if let id = parameter.id {
-            let current = values.values[id]
-            let supportEntry = GenerationParameterSupportPresentation.entry(for: parameter.support)
-            let editable = !isReadOnly && (model.map {
-                GenerationParameterAvailability.editable(
-                    provider: provider,
-                    model: $0,
-                    parameter: parameter,
-                    scope: scope,
-                    identity: capabilityEvidenceIdentity
-                )
-            } ?? false) && supportEntry.control == .editable
-            let binding = Binding<String>(
-                get: { numberDrafts[id] ?? displayValue(current?.state == .value ? current?.value : nil) },
-                set: { update(id: id, raw: $0, schema: parameter.valueSchema) }
+    // MARK: - Rows
+
+    /// Rebuilds the parameter table (visible set, editability criteria, support notes), then recomputes the rows.
+    private func rebuildCatalog() {
+        catalog = model.map {
+            AdvancedSettingsCatalog.production(
+                provider: provider, model: $0, scope: scope,
+                identity: capabilityEvidenceIdentity, isReadOnly: isReadOnly
             )
-            let showsUnverified = generationEvidenceProjection.map {
-                GenerationParameterPanelPresentation.showsUnverifiedBadge(parameter: parameter, projection: $0)
-            } ?? false
-            VStack(alignment: .leading, spacing: 5) {
-                HStack {
-                    Text(parameterTitle(id))
-                        .font(.body.weight(.medium))
-                    if showsUnverified { unverifiedBadge }
-                    Spacer()
-                    if supportEntry.presentationClass == .notAdjustable, parameter.fixedValue != nil {
-                        Text(displayValue(parameter.fixedValue))
-                            .foregroundStyle(.secondary)
-                    } else if parameter.valueSchema == "enum", let enumValues = parameter.enumValues, !enumValues.isEmpty {
-                        Picker("", selection: binding) {
-                            Text(L10n.tr("Model default")).tag("")
-                            ForEach(enumDisplayValues(enumValues, current: current?.value), id: \.self) { value in
-                                Text(value).tag(value)
-                            }
-                        }
-                        .labelsHidden()
-                        .accessibilityLabel(Text(parameterTitle(id)))
-                        .disabled(!editable || current?.state == .omit)
-                    } else if parameter.valueSchema == "boolean" {
-                        Toggle("", isOn: Binding(
-                            get: { if case .boolean(let value)? = current?.value, current?.state == .value { return value }; return false },
-                            set: { value in updateValue(id: id, value: .boolean(value), parameter: parameter) }
-                        ))
-                        .labelsHidden()
-                        .accessibilityLabel(Text(parameterTitle(id)))
-                        .disabled(!editable || current?.state == .omit)
-                    } else if parameter.valueSchema == "json-schema" {
-                        TextEditor(text: Binding(
-                            get: { schemaDrafts[id] ?? displayValue(current?.state == .value ? current?.value : nil) },
-                            set: { updateSchema(id: id, raw: $0, parameter: parameter) }
-                        ))
-                        .frame(minHeight: 112)
-                        .font(.system(.caption, design: .monospaced))
-                        .scrollContentBackground(.hidden)
-                        .padding(8)
-                        .background {
-                            RoundedRectangle(cornerRadius: 9, style: .continuous)
-                                .fill(invalidSchemaIDs.contains(id)
-                                    ? OriveoTheme.Palette.danger.opacity(0.10)
-                                    : OriveoTheme.Palette.textPrimary.opacity(0.04))
-                        }
-                        .accessibilityLabel(Text(parameterTitle(id)))
-                        .disabled(!editable || current?.state == .omit)
-                    } else {
-                        let placeholder = current?.state == .omit ? L10n.tr("Omit") : L10n.tr("Model default")
-                        TextField(
-                            "",
-                            text: binding,
-                            prompt: Text(placeholder).foregroundStyle(OriveoTheme.Palette.textTertiary)
-                        )
-                        .font(current?.state == .value ? .subheadline.weight(.medium) : .subheadline)
-                        .foregroundStyle(OriveoTheme.Palette.textPrimary)
-                        .multilineTextAlignment(.trailing)
-                        .keyboardType(parameter.valueSchema == "integer" || parameter.valueSchema == "number" ? .numbersAndPunctuation : .default)
-                        .accessibilityLabel(Text(parameterTitle(id)))
-                        .focused($focusedField, equals: id)
-                        .disabled(!editable || current?.state == .omit)
-                    }
-                    if editable {
-                        Menu {
-                            Picker(L10n.tr("Parameter behavior"), selection: behaviorBinding(id: id, current: current)) {
-                                Text(L10n.tr("Model default")).tag(RowBehavior.modelDefault)
-                                Text(L10n.tr("Custom", table: .chat)).tag(RowBehavior.custom)
-                                Text(L10n.tr("Omit")).tag(RowBehavior.omit)
-                            }
-                            .pickerStyle(.inline)
-                        } label: {
-                            Image(systemName: current?.state == .omit ? "minus.circle.fill" : "ellipsis.circle")
-                                .frame(width: 44, height: 44)
-                                .contentShape(Rectangle())
-                        }
-                        .accessibilityLabel(L10n.tr("Parameter behavior"))
-                        .accessibilityValue(Text(parameterTitle(id)))
-                    }
-                }
-                if let annotation = basicParameterAnnotation(id) {
-                    Text(annotation)
-                        .font(.caption)
-                        .foregroundStyle(OriveoTheme.Palette.textTertiary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-
-                if let status = statusNote(parameter) {
-                    Text(status)
-                        .font(.caption)
-                        .foregroundStyle(parameter.support == "unknown" && !showsUnverified ? .orange : .secondary)
-                }
-
-                if supportEntry.control == .disabled, let action = supportEntry.primaryAction {
-                    NavigationLink {
-                        GenerationParameterSupportedModelsPage(
-                            provider: provider,
-                            parameterID: id,
-                            parameterTitle: parameterTitle(id),
-                            scope: scope,
-                        )
-                    } label: {
-                        Text(action)
-                            .font(.caption)
-                            .foregroundStyle(OriveoTheme.Palette.primary)
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-        } else {
-            EmptyView()
         }
+        refreshRows()
     }
 
-    private enum RowBehavior: Hashable {
-        case modelDefault
-        case custom
-        case omit
+    private func refreshRows() {
+        rows = catalog?.rows(
+            store: .shared, providerID: provider.id, modelID: modelID, conversationID: conversationID,
+            layerValues: values, profileFingerprint: profileFingerprint
+        ) ?? []
     }
 
-    private func behaviorBinding(id: String, current: GenerationParameterOverride?) -> Binding<RowBehavior> {
-        Binding(
-            get: {
-                switch current?.state {
-                case .value: return .custom
-                case .omit: return .omit
-                default: return .modelDefault
-                }
-            },
-            set: { next in
-                switch next {
-                case .modelDefault:
-                    clearValue(id: id)
-                case .custom:
-                    if current?.state == .omit { clearValue(id: id) }
-                    focusedField = id
-                case .omit:
-                    omitValue(id: id)
-                }
-            }
-        )
+    private func apply(_ edit: AdvancedParameterEdit, to row: AdvancedParameterRow) {
+        guard !isReadOnly else { return }
+        values = AdvancedSettingsEditing.applying(edit, to: row.parameter, in: values, parameters: parameters)
+        persist()
+        refreshRows()
     }
 
+    /// Row title and accessibility label share one copy, so VoiceOver does not read a name different from the one on screen.
     private func parameterTitle(_ id: String) -> String {
         GenerationParameterVocabulary.title(id)
     }
 
-    private func basicParameterAnnotation(_ id: String) -> String? {
-        switch id {
-        case "temperature":
-            return L10n.tr("Higher is more creative, lower is more consistent.", table: .providers)
-        case "max_output_tokens":
-            return L10n.tr("The longest reply the model may write.", table: .providers)
-        default:
-            return nil
-        }
-    }
-
-    private var unverifiedBadge: some View {
-        Text(L10n.tr("Unverified", table: .providers))
-            .font(.caption2)
-            .foregroundStyle(.secondary)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
-            .background(
-                Capsule().fill(Color.secondary.opacity(0.12))
-            )
-            .accessibilityLabel(L10n.tr("Unverified", table: .providers))
-    }
-
+    /// Folds user input back into a parseable decimal literal. The single implementation is in `GenerationParameterValueText`.
     static func normalizedNumberInput(_ raw: String, locale: Locale = .current) -> String {
-        var text = raw.trimmingCharacters(in: .whitespaces)
-        if let grouping = locale.groupingSeparator, !grouping.isEmpty {
-            text = text.replacingOccurrences(of: grouping, with: "")
-        }
-        if let decimal = locale.decimalSeparator, decimal != "." {
-            text = text.replacingOccurrences(of: decimal, with: ".")
-        }
-        return text
+        GenerationParameterValueText.normalizedNumberInput(raw, locale: locale)
     }
 
+    /// The single implementation of number display, shared by tests and the panel.
     static func numberDisplayText(_ number: Double) -> String {
-        if number == number.rounded(), abs(number) < 1e15 {
-            return String(Int64(number))
-        }
-        return String(number)
+        GenerationParameterValueText.number(number)
     }
 
     private func displayValue(_ value: GenerationParameterValue?) -> String {
-        switch value {
-        case .number(let number):
-            return Self.numberDisplayText(number)
-        case .string(let string): return string
-        case .stringList(let strings): return strings.joined(separator: ", ")
-        case .object(let object):
-            guard JSONSerialization.isValidJSONObject(object.mapValues(\.foundationValue)),
-                  let data = try? JSONSerialization.data(withJSONObject: object.mapValues(\.foundationValue), options: [.prettyPrinted, .sortedKeys]) else { return "" }
-            return String(decoding: data, as: UTF8.self)
-        default: return ""
-        }
-    }
-
-    private func updateSchema(id: String, raw: String, parameter: GenerationParameterRef) {
-        schemaDrafts[id] = raw
-        guard !raw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            invalidSchemaIDs.remove(id)
-            clearValue(id: id)
-            return
-        }
-        guard let data = raw.data(using: .utf8),
-              let value = try? JSONDecoder().decode(GenerationParameterValue.self, from: data),
-              ProfileParamsResolver.isValidGenerationValue(value, for: parameter) else {
-            invalidSchemaIDs.insert(id)
-            return
-        }
-        invalidSchemaIDs.remove(id)
-        updateValue(id: id, value: value, parameter: parameter)
-    }
-
-    private func update(id: String, raw: String, schema: String?) {
-        let isNumeric = schema == "integer" || schema == "number"
-        if isNumeric { numberDrafts[id] = raw }
-        guard !raw.isEmpty else {
-            numberDrafts[id] = nil
-            values.values.removeValue(forKey: id)
-            persist(); return
-        }
-        if isNumeric {
-            if let number = Double(Self.normalizedNumberInput(raw)) {
-                updateValue(id: id, value: .number(number), parameter: parameters.first { $0.id == id })
-            }
-            return
-        }
-        if schema == "string-list" {
-            updateValue(id: id, value: .stringList(raw.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }), parameter: parameters.first { $0.id == id })
-        } else {
-            updateValue(id: id, value: .string(raw), parameter: parameters.first { $0.id == id })
-        }
-    }
-
-    private func updateValue(id: String, value: GenerationParameterValue, parameter: GenerationParameterRef?) {
-        for conflict in parameter?.conflictsWith ?? [] { values.values.removeValue(forKey: conflict) }
-        for candidate in parameters where candidate.conflictsWith?.contains(id) == true {
-            if let candidateID = candidate.id { values.values.removeValue(forKey: candidateID) }
-        }
-        values.values[id] = .init(state: .value, value: value)
-        persist()
-    }
-
-    private func clearValue(id: String) {
-        values.values.removeValue(forKey: id)
-        persist()
-    }
-
-    private func omitValue(id: String) {
-        values.values[id] = .init(state: .omit)
-        persist()
-    }
-
-    private func enumDisplayValues(_ declared: [GenerationParameterValue], current: GenerationParameterValue?) -> [String] {
-        var result = declared.map(displayValue)
-        if let current {
-            let value = displayValue(current)
-            if !result.contains(value) { result.append(value) }
-        }
-        return result
-    }
-
-    private func statusNote(_ parameter: GenerationParameterRef) -> String? {
-        GenerationParameterRowStatus.note(support: parameter.support, source: parameter.source)
+        GenerationParameterValueText.editingText(value)
     }
 
     private func persist() {

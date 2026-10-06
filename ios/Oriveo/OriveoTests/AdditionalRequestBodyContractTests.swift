@@ -369,26 +369,120 @@ struct AdditionalRequestBodyContractTests {
     ]
 
     /// Additional-request-body copy ships with the English source and Simplified Chinese first; the
-    /// other 14 languages follow once each has been written and reviewed by a native speaker. This
-    /// list may only shrink.
+    /// other 14 languages follow once each has been written and reviewed by a native speaker. The
+    /// copy of the advanced settings page and the additional request body editor is on this list as
+    /// well. This list may only shrink.
     private static let pendingFullLocalization: Set<String> = [
+        "%1$@ Remove line %2$lld to send.",
+        "%@ is on, so this setting isn’t used.",
+        "%lld adjusted",
+        "%lld entries",
+        "%lld fields",
+        "Add",
+        "Add fields that aren’t listed above, as JSON",
+        "Included",
         "Additional request body",
+        "Allowed range: %@",
+        "Also covers %@",
+        "Attachments are filled in by Oriveo.",
+        "Can’t be changed",
+        "Can’t be sent together with %@, so this setting is left out.",
+        "Changed in this conversation",
+        "Check the additional request body",
+        "Conflicts with another setting, so this one is left out.",
+        "Crossed-out settings are being handled by %@.",
+        "Depends on another setting that isn’t set, so it isn’t sent.",
+        "Discourages repeating whole passages from earlier text",
+        "Don’t send this setting",
+        "Dynamic temperature",
+        "Enter a number. This setting won’t be sent until it’s fixed; your other settings aren’t affected.",
+        "Enter a whole number. This setting won’t be sent until it’s fixed; your other settings aren’t affected.",
+        "Fields here are added to the request as written; Oriveo doesn’t check whether your server accepts them. If one has the same name as an advanced setting, the one here is used, and your other settings are sent as usual.",
+        "Grey numbers are %@’s own defaults. They aren’t sent unless you change them.",
+        "Keeps the randomness of the output steady around a target, in place of Top K and Top P.",
+        "Learning rate",
+        "Line %lld: %@",
+        "Model defaults",
+        "More sampling",
+        "New stop sequence",
+        "No limit",
+        "Not adjusted",
+        "Not set",
+        "Off",
+        "On",
+        "Only sent when %@ is set as well.",
+        "Oriveo decides how the reply is streamed.",
+        "Paste",
+        "Pasting replaces the current content with what’s on the clipboard.",
+        "Plain text",
+        "Random each time",
+        "Remove %@",
+        "Repetition",
+        "Replace",
+        "Replace what’s here?",
+        "Request with additional request body was rejected",
+        "Reset model defaults",
+        "Reset this conversation’s changes",
+        "Reset this conversation’s settings?",
+        "Reset this model’s defaults?",
+        "Retry without additional request body",
+        "Saved on this device only, not synced",
+        "See which fields %@ supports",
         "Send with requests",
-        "Enter a JSON object. Its fields are merged into each request and override parameter settings for the same field.",
-        "This JSON is merged into each request.",
-        "Saved, but not sent. Turn on “Send with requests” to use it.",
-        "Stays on this device. It isn’t synced or included in backups.",
-        "The additional request body isn’t valid JSON.",
-        "The additional request body must be a JSON object wrapped in { }.",
-        "“%@” is filled in by Oriveo and can’t be set in the additional request body.",
-        "“%@” can’t be used as a field name in the additional request body.",
+        "Set",
+        "Smaller than the reasoning budget, so the default is sent instead.",
+        "Sometimes skips the most likely word for more varied wording",
+        "Temperature shifts with how confident the model is",
         "The additional request body is larger than 64 KB.",
         "The additional request body is nested more than 32 levels deep.",
-        "Line %lld: %@",
+        "The additional request body isn’t valid JSON.",
+        "The additional request body must be a JSON object wrapped in { }.",
+        "The conversation is filled in by Oriveo.",
+        "The highest value this model accepts is %@. This setting won’t be sent until it’s fixed; your other settings aren’t affected.",
+        "The lowest value this model accepts is %@. This setting won’t be sent until it’s fixed; your other settings aren’t affected.",
+        "The model doesn’t accept this while thinking is on, so it isn’t sent.",
+        "The model is the one you chose in Oriveo.",
+        "The model stops as soon as it writes any one of these. A sequence can contain commas, spaces and line breaks.",
+        "The system prompt is filled in by Oriveo.",
+        "This clears only the parameters you changed in this conversation. Your model defaults and the additional request body stay as they are.",
+        "This clears the default parameters you set for this model on this connection. Changes made inside individual conversations stay as they are.",
+        "This conversation only",
+        "This field is filled in by Oriveo.",
+        "This isn’t a valid JSON Schema. This setting won’t be sent until it’s fixed; your other settings aren’t affected.",
+        "This isn’t valid JSON yet, so nothing was changed.",
         "This message wasn’t sent.",
-        "Check the additional request body",
-        "Request with additional request body was rejected",
-        "Retry without additional request body",
+        "This model can write at most %@. This setting won’t be sent until it’s fixed; your other settings aren’t affected.",
+        "This model doesn’t accept this value, so this setting isn’t sent.",
+        "This model doesn’t accept this value. This setting won’t be sent until it’s fixed; your other settings aren’t affected.",
+        "This model requires this field, so the default is still sent.",
+        "This must be greater than %@. This setting won’t be sent until it’s fixed; your other settings aren’t affected.",
+        "This must be less than %@. This setting won’t be sent until it’s fixed; your other settings aren’t affected.",
+        "This name can’t be used as a field name.",
+        "Target entropy",
+        "Tidy up",
+        "Tools are managed by Oriveo.",
+        "Use model default",
+        "Using the model default you set",
+        "Web search and thinking fields",
+        "When off, the content is kept but not sent",
+        "When sending",
+        "Write your own",
+        "Your default",
+        "“%@” can’t be used as a field name in the additional request body.",
+        "“%@” is filled in by Oriveo and can’t be set in the additional request body.",
+    ]
+
+    /// Words used on the same pages that already have all 16 languages; they are not on the pending list.
+    private static let alreadyFullyLocalized: Set<String> = [
+        "More",
+        "Output",
+    ]
+
+    /// New copy on the provider detail page (the Providers table), also English source and Simplified Chinese first.
+    private static let pendingProvidersLocalization: Set<String> = [
+        "Apply preset",
+        "Apply this preset?",
+        "“%1$@” replaces everything you’ve set for this model: %2$@.",
     ]
 
     @Test("Every additional-request-body string has an English source and Simplified Chinese; a key with all 16 languages must leave the pending list")
@@ -401,29 +495,28 @@ struct AdditionalRequestBodyContractTests {
 
         // Every key production code uses must be on the list: a new string that was not registered fails here.
         var used: Set<String> = [AdditionalRequestBody.localRejectionTitleKey, AdditionalRequestBody.upstreamRejectionTitleKey]
+        // The additional request body and advanced settings pages: the editor, the per-field list, rows
+        // and groups, and the entry to them on the provider detail page.
+        let modelControls = ["Oriveo", "Features", "Chat", "ModelControls"]
         for path in [
             ["Oriveo", "Core", "Providers", "AdditionalRequestBody.swift"],
-            ["Oriveo", "Features", "Chat", "ModelControls", "CustomRequestFieldsPage.swift"],
+            modelControls + ["AdditionalRequestBodyPage.swift"],
+            modelControls + ["AdditionalRequestBodyInspector.swift"],
+            modelControls + ["AdvancedSettingsModel.swift"],
+            modelControls + ["AdvancedParameterRowView.swift"],
+            modelControls + ["AdvancedSettingsPage.swift"],
+            ["Oriveo", "Features", "Providers", "GenerationParameterDefaultsSheet.swift"],
         ] {
             let source = try String(contentsOf: path.reduce(root) { $0.appendingPathComponent($1) }, encoding: .utf8)
-            var scoped = source
-            if path.last == "CustomRequestFieldsPage.swift" {
-                // This page also carries copy for the web search and thinking sections; take only
-                // the additional-request-body part.
-                let section = source.components(separatedBy: "// MARK: - Additional request body").dropFirst().first?
-                    .components(separatedBy: "// MARK: - ").first
-                scoped = try #require(section)
-            }
-            let pattern = try NSRegularExpression(pattern: #"L10n\.tr\(\s*"([^"]+)",\s*table: \.chat\s*\)"#)
-            for match in pattern.matches(in: scoped, range: NSRange(scoped.startIndex..., in: scoped)) {
-                if let range = Range(match.range(at: 1), in: scoped) { used.insert(String(scoped[range])) }
+            // The second form covers validation copy that carries a number: `bound("…%@…", value)`.
+            for expression in [#"L10n\.tr\(\s*"([^"]+)",\s*table: \.chat\s*\)"#, #"bound\(\s*"([^"]+)""#] {
+                let pattern = try NSRegularExpression(pattern: expression)
+                for match in pattern.matches(in: source, range: NSRange(source.startIndex..., in: source)) {
+                    if let range = Range(match.range(at: 1), in: source) { used.insert(String(source[range])) }
+                }
             }
         }
-        // These two are the page's existing scope notes. They already have all 16 languages and are not on this list.
-        used.subtract([
-            "Scope: this conversation, connection, model, and transport.",
-            "Scope: this model on this connection, used as the default for its conversations.",
-        ])
+        used.subtract(Self.alreadyFullyLocalized)
         // Two more strings live elsewhere: the recovery card's primary button
         // (AssistantMessageRecoveryBuilder) and the closing sentence of the error message
         // (ProviderServiceError.message).
@@ -447,6 +540,26 @@ struct AdditionalRequestBodyContractTests {
                 problems.append("\(key) has all 16 languages; remove it from pendingFullLocalization")
             }
         }
+        let providers = try #require(JSONSerialization.jsonObject(with: Data(
+            contentsOf: root.appendingPathComponent("Oriveo").appendingPathComponent("Providers.xcstrings")
+        )) as? [String: Any])
+        let providerStrings = try #require(providers["strings"] as? [String: Any])
+        for key in Self.pendingProvidersLocalization.sorted() {
+            let localizations = (providerStrings[key] as? [String: Any])?["localizations"] as? [String: Any] ?? [:]
+            for locale in ["en", "zh-Hans"] {
+                let unit = (localizations[locale] as? [String: Any])?["stringUnit"] as? [String: Any]
+                guard let value = unit?["value"] as? String, !value.isEmpty else {
+                    problems.append("\(key) [Providers.\(locale)] has no translation")
+                    continue
+                }
+                if locale == "en", value != key { problems.append("\(key) English source differs from the key") }
+            }
+            if Self.locales.allSatisfy({ localizations[$0] != nil }) {
+                problems.append("\(key) has all 16 languages; remove it from pendingProvidersLocalization")
+            }
+        }
+        let zhTerm = ((strings["Additional request body"] as? [String: Any])?["localizations"] as? [String: Any])?["zh-Hans"]
+        #expect(((zhTerm as? [String: Any])?["stringUnit"] as? [String: Any])?["value"] as? String == "\u{9644}\u{52A0}\u{8BF7}\u{6C42}\u{4F53}")
         #expect(problems.isEmpty, "\n\(problems.joined(separator: "\n"))")
     }
 

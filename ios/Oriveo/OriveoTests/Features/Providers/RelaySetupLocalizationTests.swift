@@ -106,7 +106,7 @@ struct RelaySetupLocalizationTests {
         }
 
         let sheet = try String(
-            contentsOf: projectRoot.appendingPathComponent("Oriveo/Features/Providers/GenerationParameterDefaultsSheet.swift"),
+            contentsOf: projectRoot.appendingPathComponent("Oriveo/Features/Chat/ModelControls/AdvancedSettingsModel.swift"),
             encoding: .utf8
         )
         #expect(sheet.contains("L10n.tr(\"Basic Settings\", table: .providers)"))

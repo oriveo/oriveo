@@ -417,6 +417,11 @@ enum CapabilityRecipeExecution {
             guard let relayTransport = relayTransport(for: transport),
                   let profile = LocalEngineGenerationProfiles.profile(for: nil, transport: relayTransport)
             else { return nil }
+            // No caller in the app reaches this generation branch any more: custom content for generation
+            // parameters goes through the additional request body only, and local fragments are built for
+            // web and reasoning alone (`GenerationParameterSettingsStore.localCustomOwnerNamespaces`). It stays
+            // because the shared outbound contract cases still drive this compiler with owner=generation
+            // (`ProviderProductionBuilderMatrixTests` customCases); removing it means changing that contract first.
             guard owner == "generation", let owners = safeFragmentOwners(profile: profile) else { return nil }
             return .init(owners: owners, definitions: [:])
         }

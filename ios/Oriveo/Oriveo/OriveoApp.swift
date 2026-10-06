@@ -24,29 +24,17 @@ struct OriveoApp: App {
 
     var body: some Scene {
         WindowGroup {
-            AppRootView(appState: appState)
-                .environment(appState)
-                .environment(\.locale, appState.preferences.language.locale)
-                .preferredColorScheme(currentColorScheme)
-                .task {
-                    #if DEBUG
-                    await runDebugLaunchAutomationIfNeeded()
-                    #endif
-                }
-                .onChange(of: appState.preferences.theme) { _, newTheme in
-                    currentColorScheme = newTheme.preferredColorScheme
-                }
-                .onOpenURL { url in
-                    // An MCP sign-in callback goes only to the authorization that started it (claimed by
-                    // `state`); one from the wrong place or with an unknown `state` is rejected by the router.
-                    if McpOAuthCallbackRouter.claims(url) {
-                        McpOAuthCallbackRouter.shared.deliver(url)
-                    }
-                }
-                .onReceive(NotificationCenter.default.publisher(for: .oriveoWillTerminate)) { _ in
-                    appState.chatManager.flushStreamingTextToMessage()
-                    appState.persistLifecycleCriticalData(checkpoint: true)
-                }
+            #if DEBUG
+            // Debug samples: launched with `-OriveoModelOptionsSample <name>`, the app shows only that sample
+            // instead of the main interface.
+            if let sample = ModelOptionsSample.requestedName {
+                ModelOptionsSampleHost(name: sample)
+            } else {
+                appRoot
+            }
+            #else
+            appRoot
+            #endif
         }
         .onChange(of: scenePhase) { _, newPhase in
             if newPhase == .background {
@@ -57,6 +45,32 @@ struct OriveoApp: App {
                 appState.chatManager.endSessionBoundary()
             }
         }
+    }
+
+    private var appRoot: some View {
+        AppRootView(appState: appState)
+            .environment(appState)
+            .environment(\.locale, appState.preferences.language.locale)
+            .preferredColorScheme(currentColorScheme)
+            .task {
+                #if DEBUG
+                await runDebugLaunchAutomationIfNeeded()
+                #endif
+            }
+            .onChange(of: appState.preferences.theme) { _, newTheme in
+                currentColorScheme = newTheme.preferredColorScheme
+            }
+            .onOpenURL { url in
+                // An MCP sign-in callback goes only to the authorization that started it (claimed by
+                // `state`); one from the wrong place or with an unknown `state` is rejected by the router.
+                if McpOAuthCallbackRouter.claims(url) {
+                    McpOAuthCallbackRouter.shared.deliver(url)
+                }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: .oriveoWillTerminate)) { _ in
+                appState.chatManager.flushStreamingTextToMessage()
+                appState.persistLifecycleCriticalData(checkpoint: true)
+            }
     }
 
     #if DEBUG

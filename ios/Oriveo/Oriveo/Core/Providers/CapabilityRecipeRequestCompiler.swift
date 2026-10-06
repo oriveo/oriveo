@@ -130,14 +130,9 @@ enum CapabilityRecipeRequestCompiler {
                 transport: transport, runtime: runtime, controls: controls
             ))
         }
-        // Presence of a typed value is authoritative even when its reasoning intent is nil:
-        // nil means provider default, not “fall back to the old chip mirror”.
-        let resolvedReasoningIntent: String?
-        if let capabilityPreferences {
-            resolvedReasoningIntent = capabilityPreferences.reasoningIntent
-        } else {
-            resolvedReasoningIntent = reasoningMode == .automatic ? nil : reasoningIntent(reasoningMode)
-        }
+        let resolvedReasoningIntent = resolvedReasoningIntent(
+            reasoningMode: reasoningMode, capabilityPreferences: capabilityPreferences
+        )
         if let resolvedReasoningIntent {
             results.append(applyCapability(
                 to: &body, capability: .reasoning, selectedIntent: resolvedReasoningIntent,
@@ -145,6 +140,44 @@ enum CapabilityRecipeRequestCompiler {
             ))
         }
         return results
+    }
+
+    // Presence of a typed value is authoritative even when its reasoning intent is nil:
+    // nil means provider default, not “fall back to the old chip mirror”.
+    private static func resolvedReasoningIntent(
+        reasoningMode: ReasoningMode, capabilityPreferences: CapabilityPreferenceValues?
+    ) -> String? {
+        if let capabilityPreferences { return capabilityPreferences.reasoningIntent }
+        return reasoningMode == .automatic ? nil : reasoningIntent(reasoningMode)
+    }
+
+    /// For the interface to predict which fields a thinking level writes into the request body. It uses the same
+    /// runtime, control, recipe and level resolution as `apply`, but onto an empty object: no envelope is frozen
+    /// and no compiled delta is recorded, so nothing is left behind as "requested". Fields the upstream has
+    /// rejected (dormant pointers) are only known to a real send and are not subtracted here.
+    static func previewReasoningFields(
+        providerKind: ProviderKind,
+        modelID: String,
+        transport: String,
+        reasoningMode: ReasoningMode,
+        capabilityPreferences: CapabilityPreferenceValues?
+    ) -> [String: Any] {
+        guard case let .active(runtime, controls) = runtimeMode(providerKind: providerKind, modelID: modelID),
+              runtime.schemaVersion == RequestPreferenceResolver.runtimeSchemaVersion,
+              let intent = resolvedReasoningIntent(
+                reasoningMode: reasoningMode, capabilityPreferences: capabilityPreferences
+              ),
+              let control = controls?[RequestPreferenceOwner.reasoning.rawValue],
+              control.state == RequestControlAvailability.autoAvailable.rawValue,
+              let recipeRef = control.recipeRef,
+              let recipe = runtime.recipes[recipeRef] else { return [:] }
+        var body: [String: Any] = [:]
+        _ = compile(
+            recipe: recipe, to: &body, providerKind: runtimeProviderKind(providerKind),
+            transport: transport, capability: RequestPreferenceOwner.reasoning.rawValue,
+            selectedIntent: intent, availableIntents: control.availableIntents, omittingPointers: []
+        )
+        return body
     }
 
     /// Non-mutating overload: compiles onto a copy of `base` and returns the result.
