@@ -54,7 +54,7 @@ struct McpServerDetailView: View {
                 }
             case let .authPrompt(authorizationHost, serverHost):
                 McpAuthPromptSheet(
-                    serverName: detail.record.name, iconURL: detail.record.iconURL,
+                    serverName: detail.record.name, iconURL: detail.record.iconURL, serverURL: detail.record.url,
                     authorizationHost: authorizationHost, serverHost: serverHost,
                     onContinue: actions.approveReauthorization, onCancel: actions.dismissOverlay
                 )
@@ -65,7 +65,7 @@ struct McpServerDetailView: View {
                 )
             case .toolsChanged:
                 McpToolsChangedSheet(
-                    serverName: detail.record.name, iconURL: detail.record.iconURL,
+                    serverName: detail.record.name, iconURL: detail.record.iconURL, serverURL: detail.record.url,
                     changes: model.state.pendingChanges, changedAgain: model.state.changedAgain, busy: model.state.busy,
                     onConfirm: actions.confirmChanges, onPause: actions.pauseServer
                 )
@@ -199,7 +199,7 @@ struct McpServerDetailContent: View {
     private func hero(_ detail: McpServerDetail) -> some View {
         McpCard {
             VStack(alignment: .leading, spacing: 16) {
-                McpHeroHeader(name: detail.record.name, iconURL: detail.record.iconURL) {
+                McpHeroHeader(name: detail.record.name, iconURL: detail.record.iconURL, serverURL: detail.record.url) {
                     HStack(spacing: 8) {
                         McpHealthPill(health: detail.health)
                         if let caption = Self.heroCaption(detail) {
@@ -631,6 +631,7 @@ struct McpTokenEntrySheet: View {
 struct McpToolsChangedSheet: View {
     let serverName: String
     let iconURL: String?
+    var serverURL: String? = nil
     let changes: [McpPendingToolChange]
     let changedAgain: Bool
     let busy: Bool
@@ -643,7 +644,7 @@ struct McpToolsChangedSheet: View {
         McpFittedSheet(fallbackHeight: 520) {
             VStack(alignment: .leading, spacing: McpSheetMetrics.blockSpacing) {
                 HStack(alignment: .top, spacing: 12) {
-                    McpServerIconView(name: serverName, iconURL: iconURL, size: 44)
+                    McpServerIconView(name: serverName, iconURL: iconURL, size: 44, serverURL: serverURL)
                     VStack(alignment: .leading, spacing: 6) {
                         Text(String(format: L10n.tr("%@'s tools have changed", table: .mcp), serverName))
                             .font(.system(size: 20, weight: .bold))

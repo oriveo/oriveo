@@ -189,7 +189,7 @@ struct McpAddServerContent: View {
     @ViewBuilder
     private func progress(stage: McpAddStage, signedIn: Bool) -> some View {
         McpCard {
-            McpHeroHeader(name: state.displayName, iconURL: nil, showsGlobe: state.nameIsUnknown) {
+            McpHeroHeader(name: state.displayName, iconURL: nil, serverURL: state.url, showsGlobe: state.nameIsUnknown) {
                 Text(Self.progressCaption(stage))
                     .font(OriveoTheme.Typography.caption)
                     .foregroundStyle(OriveoTheme.Palette.textSecondary)
@@ -250,7 +250,7 @@ struct McpAddServerContent: View {
     @ViewBuilder
     private func reviewContent(_ review: McpAddReviewScreen) -> some View {
         McpCard {
-            McpHeroHeader(name: state.displayName, iconURL: nil) {
+            McpHeroHeader(name: state.displayName, iconURL: nil, serverURL: state.url) {
                 HStack(spacing: 8) {
                     McpStatusPill(text: L10n.tr("Connected", table: .mcp), tone: .success)
                     Text(String(format: L10n.tr("Tools: %d", table: .mcp), review.tools.count))
@@ -350,7 +350,7 @@ struct McpAddServerContent: View {
     private func failureContent(_ failure: McpAddFailure) -> some View {
         let copy = Self.failureCopy(failure)
         McpCard {
-            McpHeroHeader(name: state.displayName, iconURL: nil, showsGlobe: state.nameIsUnknown) {
+            McpHeroHeader(name: state.displayName, iconURL: nil, serverURL: state.url, showsGlobe: state.nameIsUnknown) {
                 McpStatusPill(text: copy.pill, tone: copy.tone)
             }
         }

@@ -7,6 +7,21 @@ import UIKit
 
 @Suite("MCP server icon loading", .serialized)
 struct McpServerIconTests {
+    @Test("a well-known service is recognised by its HTTPS host first, then by its normalised name; anything else has no brand")
+    func resolvesBundledBrand() {
+        #expect(McpBrandIcons.key(name: "Workspace", serverURL: "https://mcp.notion.so/sse") == "notion")
+        #expect(McpBrandIcons.key(name: "MCP Server Deep-Wiki") == "deepwiki")
+        #expect(McpBrandIcons.key(name: "Google Drive MCP") == "googledrive")
+        #expect(McpBrandIcons.key(name: "Unknown MCP service") == nil)
+    }
+
+    @Test("a recognised service maps to the name of its bundled image asset")
+    func mapsBundledAsset() {
+        #expect(McpBrandIcons.asset(name: "Notion") == "McpBrand_notion")
+        #expect(McpBrandIcons.asset(name: "anything", serverURL: "https://api.github.com/mcp") == "McpBrand_github")
+        #expect(McpBrandIcons.asset(name: "Unknown") == nil)
+    }
+
     private func png() -> Data {
         UIGraphicsImageRenderer(size: CGSize(width: 4, height: 4)).image { context in
             UIColor.systemPurple.setFill()

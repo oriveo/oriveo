@@ -38,7 +38,7 @@ struct McpConfirmationSheet: View {
         McpFittedSheet(fallbackHeight: 520, allowsInteractiveDismiss: false) {
             VStack(alignment: .leading, spacing: McpSheetMetrics.blockSpacing) {
                 HStack(alignment: .top, spacing: 12) {
-                    McpServerIconView(name: request.serverName, iconURL: nil, size: 44)
+                    McpServerIconView(name: request.serverName, iconURL: nil, size: 44, serverURL: "https://" + request.serverHost)
                     VStack(alignment: .leading, spacing: 5) {
                         // The server name and the tool title are third-party text; only the sentence pattern is localized.
                         Text(String(
@@ -283,7 +283,8 @@ struct McpReauthorizationSheet: View {
         McpFittedSheet(fallbackHeight: 360) {
             VStack(alignment: .leading, spacing: McpSheetMetrics.blockSpacing) {
                 HStack(alignment: .top, spacing: 12) {
-                    McpServerIconView(name: request.serverName, iconURL: nil, size: 44)
+                    McpServerIconView(name: request.serverName, iconURL: nil, size: 44,
+                                      serverURL: request.serverHost.isEmpty ? nil : "https://" + request.serverHost)
                     VStack(alignment: .leading, spacing: 5) {
                         Text(String(format: L10n.tr("%@'s sign-in expired", table: .mcp), request.serverName))
                             .font(.system(size: 20, weight: .bold))

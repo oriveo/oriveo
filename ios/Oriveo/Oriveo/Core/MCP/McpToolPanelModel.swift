@@ -43,6 +43,7 @@ nonisolated struct McpToolPanelServerRow: Sendable, Equatable, Identifiable {
     var toolCount: Int
     var status: Status
     var isEnabled: Bool
+    var serverURL: String? = nil
 
     /// Whether the switch can be flipped. An enabled server can always be turned off; a disabled one can only be
     /// turned on while it is usable.
@@ -146,7 +147,8 @@ nonisolated enum McpToolPanelModel {
                     snapshots, permissions: permissions, runtimeConfig: runtimeConfig
                 ).count,
                 status: status(endpoint: endpoint, connection: connection),
-                isEnabled: enabledSet.contains(record.id)
+                isEnabled: enabledSet.contains(record.id),
+                serverURL: record.url
             ))
             inputs[record.id] = McpBridgeServerInput(
                 record: record, endpoint: endpoint, connectionStatus: connection?.status,

@@ -198,28 +198,35 @@ struct McpServerIconView: View {
     let iconURL: String?
     var size: CGFloat = 40
 
+    var serverURL: String? = nil
+
     @State private var loaded: UIImage?
+    @State private var loadedURL: URL?
 
     private var url: URL? { McpServerIconLoader.acceptedURL(iconURL) }
 
     var body: some View {
-        let shape = RoundedRectangle(cornerRadius: size * 0.3, style: .continuous)
         Group {
-            if let image = loaded ?? url.flatMap({ McpServerIconLoader.shared.cachedImage(for: $0) }) {
+            if let asset = McpBrandIcons.asset(name: name, serverURL: serverURL) {
+                Image(asset).resizable().scaledToFit()
+            } else if let image = (loadedURL == url ? loaded : nil) ?? url.flatMap({ McpServerIconLoader.shared.cachedImage(for: $0) }) {
                 Image(uiImage: image).resizable().scaledToFit()
             } else {
                 letterTile
             }
         }
         .frame(width: size, height: size)
-        .clipShape(shape)
+        .clipShape(RoundedRectangle(cornerRadius: size * 0.3, style: .continuous))
         .accessibilityHidden(true)
         .task(id: url) {
-            guard let url else {
+            guard McpBrandIcons.asset(name: name, serverURL: serverURL) == nil, let url else {
                 loaded = nil
                 return
             }
-            loaded = await McpServerIconLoader.shared.image(for: url)
+            let image = await McpServerIconLoader.shared.image(for: url)
+            guard !Task.isCancelled else { return }
+            loadedURL = url
+            loaded = image
         }
     }
 
@@ -230,6 +237,7 @@ struct McpServerIconView: View {
                 .font(.system(size: size * 0.45, weight: .bold))
                 .foregroundStyle(OriveoTheme.Palette.primaryTextSafe)
         }
+        .clipShape(RoundedRectangle(cornerRadius: size * 0.3, style: .continuous))
     }
 }
 

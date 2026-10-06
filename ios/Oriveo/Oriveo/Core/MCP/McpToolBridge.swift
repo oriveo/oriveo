@@ -56,6 +56,8 @@ nonisolated struct McpReauthorizationRequest: Sendable, Equatable {
     var conversationId: UUID
     var serverId: UUID
     var serverName: String
+    /// Host name of the server's address, used to show the bundled icon of a well-known service.
+    var serverHost: String = ""
     /// The step that stopped here (its `toolSteps` id): the UI hangs the two buttons under this row.
     var stepId: String
 }
@@ -507,6 +509,7 @@ actor McpToolExecutor {
                         conversationId: conversationId,
                         serverId: tool.server.id,
                         serverName: tool.server.name,
+                        serverHost: endpoint.host ?? "",
                         stepId: step.id
                     ))
                     try Task.checkCancellation()

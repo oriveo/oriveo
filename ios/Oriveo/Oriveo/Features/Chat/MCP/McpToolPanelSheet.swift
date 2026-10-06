@@ -69,7 +69,7 @@ struct McpToolPanelSheet: View {
     private func serverRow(_ row: McpToolPanelServerRow, interactive: Bool) -> some View {
         let dimmed = !interactive || !row.canToggle && row.status != .needsAuth
         return HStack(spacing: 12) {
-            McpServerIconView(name: row.name, iconURL: row.iconURL)
+            McpServerIconView(name: row.name, iconURL: row.iconURL, serverURL: row.serverURL)
                 .opacity(dimmed ? 0.55 : 1)
             VStack(alignment: .leading, spacing: 2) {
                 // The server name is third-party text and is not translated.

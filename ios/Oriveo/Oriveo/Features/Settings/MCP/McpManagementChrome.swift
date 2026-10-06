@@ -149,6 +149,7 @@ struct McpStatusPill: View {
 struct McpHeroHeader<Accessory: View>: View {
     let name: String
     let iconURL: String?
+    var serverURL: String? = nil
     /// When the name is not known yet (host name only), use a globe icon rather than passing off the host name's
     /// initial as the server icon.
     var showsGlobe = false
@@ -171,7 +172,7 @@ struct McpHeroHeader<Accessory: View>: View {
 
     @ViewBuilder
     private var icon: some View {
-        if showsGlobe {
+        if showsGlobe && McpBrandIcons.asset(name: name, serverURL: serverURL) == nil {
             ZStack {
                 RoundedRectangle(cornerRadius: 16, style: .continuous).fill(OriveoTheme.Palette.primarySoft)
                 Image(systemName: "globe")
@@ -181,7 +182,7 @@ struct McpHeroHeader<Accessory: View>: View {
             .frame(width: 52, height: 52)
             .accessibilityHidden(true)
         } else {
-            McpServerIconView(name: name, iconURL: iconURL, size: 52)
+            McpServerIconView(name: name, iconURL: iconURL, size: 52, serverURL: serverURL)
         }
     }
 }
@@ -465,6 +466,7 @@ enum McpPermissionCopy {
 struct McpAuthPromptSheet: View {
     let serverName: String
     let iconURL: String?
+    var serverURL: String? = nil
     let authorizationHost: String
     let serverHost: String
     let onContinue: @MainActor () -> Void
@@ -474,7 +476,7 @@ struct McpAuthPromptSheet: View {
         McpFittedSheet(fallbackHeight: 440, allowsInteractiveDismiss: false) {
             VStack(alignment: .leading, spacing: McpSheetMetrics.blockSpacing) {
                 HStack(alignment: .top, spacing: 12) {
-                    McpServerIconView(name: serverName, iconURL: iconURL, size: 44)
+                    McpServerIconView(name: serverName, iconURL: iconURL, size: 44, serverURL: serverURL)
                     VStack(alignment: .leading, spacing: 6) {
                         Text(String(format: L10n.tr("Sign in to %@", table: .mcp), serverName))
                             .font(.system(size: 20, weight: .bold))

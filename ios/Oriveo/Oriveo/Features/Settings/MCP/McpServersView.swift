@@ -170,7 +170,7 @@ struct McpServersContent: View {
     private func serverCard(_ server: McpServerSummary) -> some View {
         McpCard(padding: 16) {
             HStack(spacing: 14) {
-                McpServerIconView(name: server.record.name, iconURL: server.record.iconURL, size: 44)
+                McpServerIconView(name: server.record.name, iconURL: server.record.iconURL, size: 44, serverURL: server.record.url)
                 VStack(alignment: .leading, spacing: 6) {
                     // The server name is third-party text and is not translated.
                     Text(server.record.name)
