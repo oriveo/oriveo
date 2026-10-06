@@ -333,6 +333,20 @@ private let weatherPlan = McpToolBridge.plan(servers: [input(snapshots: [snapsho
 @Suite("MCP tool bridge and loop wiring", .serialized)
 struct McpToolBridgeTests {
 
+    @Test("a large catalog does not use up the limit before later servers get a turn, and a server with no usable tools takes no turn")
+    func distributesToolBudgetAcrossServers() {
+        let other = UUID(uuidString: "BBBBBBBB-0000-4000-8000-000000000002")!
+        let large = input(snapshots: (0..<45).map { snapshot("tool_\($0)") })
+        let later = input(weatherRecord(id: other, slug: "notion"), snapshots: [snapshot("search", serverId: other), snapshot("fetch", serverId: other)])
+        let empty = input(snapshots: [snapshot("off")], permissions: ["off": .off])
+        let plan = McpToolBridge.plan(servers: [large, empty, later], runtimeConfig: McpRuntimeConfig(maxToolsPerRequest: 4))
+        #expect(plan.tools.map(\.binding.toolName) == ["tool_0", "search", "tool_1", "fetch"])
+        #expect(plan.truncated)
+        let full = McpToolBridge.plan(servers: [large, later], runtimeConfig: McpRuntimeConfig(maxToolsPerRequest: 47))
+        #expect(full.tools.count == 47)
+        #expect(!full.truncated)
+    }
+
     // MARK: Four wire protocols
 
     @Test(
@@ -510,14 +524,14 @@ struct McpToolBridgeTests {
         #expect(!McpToolBridge.connectionSupportsTools(provider: unsupported, model: unsupportedModel, memory: memory))
     }
 
-    @Test("assembly: a server that needs a new sign-in or lacks its full URL is left out entirely; above the limit the list is cut in enable order")
+    @Test("assembly: a server that needs a new sign-in or lacks its full URL is left out entirely; above the limit the servers take turns")
     func planExcludesUnusableServersAndCaps() {
         let second = UUID()
         let plan = McpToolBridge.plan(servers: [
             input(snapshots: [snapshot("get_weather"), snapshot("get_time")]),
             input(weatherRecord(id: second, slug: "second"), snapshots: [snapshot("ping", serverId: second)]),
         ], runtimeConfig: McpRuntimeConfig(maxToolsPerRequest: 2))
-        #expect(plan.tools.map(\.binding.outboundName) == ["mcp_weather_get_weather", "mcp_weather_get_time"])
+        #expect(plan.tools.map(\.binding.outboundName) == ["mcp_weather_get_weather", "mcp_second_ping"])
         #expect(plan.truncated)
 
         #expect(McpToolBridge.plan(servers: [input(status: .needsAuth, snapshots: [snapshot("get_weather")])], runtimeConfig: .fallback).isEmpty)

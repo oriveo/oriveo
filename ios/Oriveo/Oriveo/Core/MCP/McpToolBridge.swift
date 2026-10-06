@@ -150,7 +150,7 @@ nonisolated struct McpPlannedTool: Sendable {
 /// The MCP tools and lookup table for this request. Empty means the request carries no MCP tools.
 nonisolated struct McpToolPlan: Sendable {
     var tools: [McpPlannedTool]
-    /// More tools were usable than `maxToolsPerRequest`; the tail was cut off in server-enable order.
+    /// More tools were usable than `maxToolsPerRequest`; the servers took turns and the rest were left out.
     var truncated: Bool
 
     static let empty = McpToolPlan(tools: [], truncated: false)
@@ -174,8 +174,9 @@ nonisolated enum McpToolBridge {
     }
 
     /// Assembles the tools usable right now: the enabled servers (in the order they were enabled) that have a
-    /// usable connection, minus tools that are set to "off", quarantined or oversized; truncated past
-    /// `maxToolsPerRequest`.
+    /// usable connection, minus tools that are set to "off", quarantined or oversized. Past
+    /// `maxToolsPerRequest` the servers take turns, one tool each per round, so a server with a large catalog
+    /// cannot use up the whole limit and leave the servers enabled after it with nothing.
     ///
     /// A whole server is excluded in two cases: it needs a new sign-in (`needsAuth`), or the full address of a
     /// localOnly server is not on this device (`needsAddress`). In the latter case a request is never sent to the
@@ -184,13 +185,14 @@ nonisolated enum McpToolBridge {
         guard runtimeConfig.enabled else { return .empty }
         var tools: [McpPlannedTool] = []
         var taken = Set<String>()
-        var truncated = false
-        serverLoop: for server in servers {
+        var groups: [[McpPlannedTool]] = []
+        for server in servers {
             guard case .ready(let endpoint) = server.endpoint, server.connectionStatus != .needsAuth else { continue }
             let outbound = McpToolCatalog.outboundSnapshots(
                 server.snapshots, permissions: server.permissions, runtimeConfig: runtimeConfig
             )
             let names = outbound.map(\.toolName)
+            var group: [McpPlannedTool] = []
             for snapshot in outbound {
                 let others = names.filter { $0 != snapshot.toolName }
                 let name = McpToolNaming.outboundName(
@@ -202,13 +204,9 @@ nonisolated enum McpToolBridge {
                 // Slugs are unique across servers, so this should not collide. If it does, only the first-enabled tool
                 // is kept: one name must never point at two places.
                 guard taken.insert(name).inserted else { continue }
-                if tools.count >= runtimeConfig.maxToolsPerRequest {
-                    truncated = true
-                    break serverLoop
-                }
                 let permission = server.permissions[snapshot.toolName]
                     ?? McpToolPermission.defaultFor(readOnly: snapshot.readOnly)
-                tools.append(McpPlannedTool(
+                group.append(McpPlannedTool(
                     binding: McpToolBinding(outboundName: name, serverId: server.record.id, toolName: snapshot.toolName),
                     server: server.record,
                     endpoint: endpoint,
@@ -222,8 +220,20 @@ nonisolated enum McpToolBridge {
                     ))
                 ))
             }
+            if !group.isEmpty { groups.append(group) }
         }
-        return McpToolPlan(tools: tools, truncated: truncated)
+        // Each round takes one tool from every server that still has one. Name collisions were already settled
+        // above in server-enable order.
+        let eligibleCount = groups.reduce(0) { $0 + $1.count }
+        var round = 0
+        while tools.count < min(eligibleCount, runtimeConfig.maxToolsPerRequest) {
+            for group in groups where round < group.count {
+                guard tools.count < runtimeConfig.maxToolsPerRequest else { break }
+                tools.append(group[round])
+            }
+            round += 1
+        }
+        return McpToolPlan(tools: tools, truncated: eligibleCount > tools.count)
     }
 
     /// Reads the servers enabled for this conversation from local storage and assembles them (switches are per
