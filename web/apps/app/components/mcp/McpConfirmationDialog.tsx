@@ -28,7 +28,7 @@ import styles from './Mcp.module.css';
 export function McpConfirmationDialog() {
   const t = useTranslations('mcp.chat.confirm');
   const pending = useMcpConfirmationStore((state) => state.pending[0] ?? null);
-  const iconURL = useMcpStore((state) => (pending ? state.servers.find((server) => server.id === pending.request.serverId)?.iconURL ?? null : null));
+  const iconServer = useMcpStore((state) => (pending ? state.servers.find((server) => server.id === pending.request.serverId) ?? null : null));
   const [showFull, setShowFull] = useState(false);
 
   const pendingId = pending?.id;
@@ -82,7 +82,7 @@ export function McpConfirmationDialog() {
       ) : (
         <div data-mcp-confirm-view="summary">
           <div className={styles.dialogHead}>
-            <McpServerIcon name={request.serverName} iconURL={iconURL} size={44} />
+            <McpServerIcon name={request.serverName} iconURL={iconServer?.iconURL} serverURL={iconServer?.url} size={44} />
             <div className={styles.dialogHeadText}>
               <h2 id="mcp-confirm-title" className={styles.dialogTitle}>
                 {t('title', { server: request.serverName, tool: request.toolTitle || request.toolName })}

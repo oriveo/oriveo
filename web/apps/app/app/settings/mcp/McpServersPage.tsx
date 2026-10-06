@@ -193,7 +193,7 @@ export function McpServersPage() {
         <BackButton className={styles.detailBack} label={t('settings.backToList')} onClick={() => setSelectedId(null)} />
         <div className={styles.heroCard}>
           <div className={styles.heroRow}>
-            <McpServerIcon name={server.name} iconURL={server.iconURL} size={52} />
+            <McpServerIcon name={server.name} iconURL={server.iconURL} serverURL={server.url} size={52} />
             <div className={styles.heroText}>
               <span className={styles.heroName}>{server.name}</span>
               <span className={styles.heroMeta}>
@@ -374,7 +374,7 @@ export function McpServersPage() {
                           if (status === 'needsReview') setReview({ serverId: server.id });
                         }}
                       >
-                        <McpServerIcon name={server.name} iconURL={server.iconURL} size={44} />
+                        <McpServerIcon name={server.name} iconURL={server.iconURL} serverURL={server.url} size={44} />
                         <span className={styles.serverCardText}>
                           <strong>{server.name}</strong>
                           <span className={styles.serverCardMeta}>

@@ -186,7 +186,7 @@ export function McpToolsControl({
               <ul className={styles.panelRows} data-dimmed={unsupported ? true : undefined}>
                 {panel.rows.map((row) => (
                   <li key={row.server.id} className={styles.panelRow} data-status={row.status}>
-                    <McpServerIcon name={row.server.name} iconURL={row.server.iconURL} size={32} />
+                    <McpServerIcon name={row.server.name} iconURL={row.server.iconURL} serverURL={row.server.url} size={32} />
                     <span className={styles.panelRowText}>
                       <strong>{row.server.name}</strong>
                       <span>{rowStatus(row)}</span>

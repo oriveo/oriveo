@@ -66,7 +66,7 @@ export function McpToolsChangedDialog({
   return (
     <Dialog open onClose={busy ? undefined : onClose} dismissible={!busy} ariaLabelledBy="mcp-changes-title" className={styles.dialog} lockBodyScroll>
       <div className={styles.dialogHead}>
-        <McpServerIcon name={server.name} iconURL={server.iconURL} size={44} />
+        <McpServerIcon name={server.name} iconURL={server.iconURL} serverURL={server.url} size={44} />
         <div className={styles.dialogHeadText}>
           <h2 id="mcp-changes-title" className={styles.dialogTitle}>{t('changes.title', { server: server.name })}</h2>
           <p className={styles.dialogSubtitle}>{t('changes.subtitle')}</p>

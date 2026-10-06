@@ -80,7 +80,7 @@ function McpDetachedReauthPrompt() {
       lockBodyScroll
     >
       <div className={styles.dialogHead} data-mcp-detached-reauth>
-        <McpServerIcon name={active.request.serverName} iconURL={server?.iconURL ?? null} size={44} />
+        <McpServerIcon name={active.request.serverName} iconURL={server?.iconURL ?? null} serverURL={server?.url} size={44} />
         <div className={styles.dialogHeadText}>
           {/* The server name is third-party text and is not translated. */}
           <h2 id="mcp-detached-reauth-title" className={styles.dialogTitle}>{t('stepAuthExpired', { server: active.request.serverName })}</h2>

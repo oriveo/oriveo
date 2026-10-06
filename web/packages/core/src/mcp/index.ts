@@ -13,5 +13,6 @@ export * from './mcp-credentials';
 export * from './mcp-auth';
 export * from './mcp-catalog';
 export * from './mcp-add-probe';
+export * from './mcp-icons';
 export * from './mcp-memory-repository';
 export * from './mcp-tool-bridge';

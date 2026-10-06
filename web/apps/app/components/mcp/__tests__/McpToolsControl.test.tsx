@@ -79,7 +79,9 @@ describe('tools popover', () => {
     renderControl();
     fireEvent.click(pill());
     const rows = within(panel()).getAllByRole('listitem');
-    expect(rows.map((row) => row.textContent)).toEqual(['LLinear7 tools', 'NNotion14 tools', 'GGitHubSign-in expiredSign in again']);
+    // All three are well-known vendors, so each row shows the bundled logo instead of an initial tile.
+    expect(rows.map((row) => row.textContent)).toEqual(['Linear7 tools', 'Notion14 tools', 'GitHubSign-in expiredSign in again']);
+    expect(rows.map((row) => row.querySelector('img')?.getAttribute('src'))).toEqual(['/mcp-icons/light/linear.png', '/mcp-icons/light/notion.png', '/mcp-icons/light/github.png']);
     expect(within(rows[0]).getByRole('switch', { name: 'Use Linear in this chat' }).getAttribute('aria-checked')).toBe('true');
     expect(within(rows[2]).queryByRole('switch')).toBeNull();
     expect((within(rows[2]).getByRole('button', { name: 'Sign in again' }) as HTMLButtonElement).disabled).toBe(false);

@@ -131,10 +131,12 @@ describe('list left, detail right', () => {
     renderWithIntl(<McpServersPage />);
     expect(screen.getByRole('heading', { level: 1, name: 'MCP servers' })).not.toBeNull();
     expect(cards().map((card) => [card.textContent, card.getAttribute('data-status'), card.getAttribute('aria-current')])).toEqual([
-      ['LLinearConnected6 tools', 'connected', 'true'],
-      ['NNotionConnected14 tools', 'connected', null],
-      ['GGitHubSign-in expiredNeeds sign-in again', 'needsAuth', null],
+      ['LinearConnected6 tools', 'connected', 'true'],
+      ['NotionConnected14 tools', 'connected', null],
+      ['GitHubSign-in expiredNeeds sign-in again', 'needsAuth', null],
     ]);
+    // Well-known vendors show the bundled logo; the initial tile is left for servers that have none.
+    expect(cards().map((card) => card.querySelector('img')?.getAttribute('src'))).toEqual(['/mcp-icons/light/linear.png', '/mcp-icons/light/notion.png', '/mcp-icons/light/github.png']);
     expect(screen.getByText('Tools come from third parties, and what they return is passed to the model. Only connect servers you trust.')).not.toBeNull();
     expect(detail().getAttribute('data-mcp-detail')).toBe(LINEAR);
   });

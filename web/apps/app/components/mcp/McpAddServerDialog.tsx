@@ -290,7 +290,7 @@ export function McpAddServerDialog({
 
   const hero = (status: { label: string; tone: 'success' | 'warning' | 'danger' | 'neutral' } | null, meta?: string) => (
     <div className={styles.heroRow}>
-      <McpServerIcon name={displayName} size={52} />
+      <McpServerIcon name={displayName} serverURL={url} size={52} />
       <div className={styles.heroText}>
         <span className={styles.heroName}>{reviewState ? reviewState.session.serverName || displayName : displayName}</span>
         <span className={styles.heroMeta}>

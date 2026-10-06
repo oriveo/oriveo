@@ -48,7 +48,7 @@ export function McpStepDetailDialog({
 }) {
   const t = useTranslations('mcp.chat');
   const uid = useMcpStore((state) => state.uid);
-  const iconURL = useMcpStore((state) => state.servers.find((server) => server.id === step.serverId)?.iconURL ?? null);
+  const iconServer = useMcpStore((state) => state.servers.find((server) => server.id === step.serverId) ?? null);
   const [payload, setPayload] = useState<McpStepPayload | null | undefined>(undefined);
   const [copied, setCopied] = useState(false);
 
@@ -93,7 +93,7 @@ export function McpStepDetailDialog({
   return (
     <Dialog open onClose={onClose} size="lg" ariaLabelledBy="mcp-step-detail-title" className={styles.dialog} lockBodyScroll>
       <div className={styles.dialogHead}>
-        <McpServerIcon name={step.serverName} iconURL={iconURL} size={44} />
+        <McpServerIcon name={step.serverName} iconURL={iconServer?.iconURL} serverURL={iconServer?.url} size={44} />
         <div className={styles.dialogHeadText}>
           <h2 id="mcp-step-detail-title" className={styles.dialogTitle}>{mcpToolStepDisplayTitle(step)}</h2>
           <p className={styles.dialogSubtitle}>{subtitle}</p>

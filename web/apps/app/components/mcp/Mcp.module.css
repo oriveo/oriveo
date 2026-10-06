@@ -21,6 +21,7 @@
 .serverIconImage {
   flex: 0 0 auto;
   object-fit: contain;
+  border-radius: 30%;
 }
 
 .spinner {

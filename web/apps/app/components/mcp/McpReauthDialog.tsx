@@ -140,7 +140,7 @@ export function McpReauthDialog({
   return (
     <Dialog open onClose={cancel} ariaLabelledBy="mcp-reauth-title" className={styles.dialog} lockBodyScroll>
       <div className={styles.dialogHead}>
-        <McpServerIcon name={server.name} iconURL={server.iconURL} size={44} />
+        <McpServerIcon name={server.name} iconURL={server.iconURL} serverURL={server.url} size={44} />
         <div className={styles.dialogHeadText}>
           <h2 id="mcp-reauth-title" className={styles.dialogTitle}>
             {phase.kind === 'token'
