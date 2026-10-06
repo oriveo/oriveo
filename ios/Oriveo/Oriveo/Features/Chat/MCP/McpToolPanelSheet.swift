@@ -137,7 +137,7 @@ struct McpToolPanelSheet: View {
     private var footnote: some View {
         if state.truncated {
             Text(String(
-                format: L10n.tr("More than %1$d tools are on. Only the first %2$d will be sent.", table: .mcp),
+                format: L10n.tr("More than %1$d tools are on. Only %2$d will be sent, taken in turn from each server.", table: .mcp),
                 state.maxToolsPerRequest, state.maxToolsPerRequest
             ))
             .font(.system(size: 13))

@@ -7172,103 +7172,103 @@
         }
       }
     },
-    "More than %1$d tools are on. Only the first %2$d will be sent." : {
+    "More than %1$d tools are on. Only %2$d will be sent, taken in turn from each server." : {
       "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "عدد الأدوات المفعّلة يتجاوز %1$d. لن يُرسل سوى أول %2$d منها."
+            "value" : "عدد الأدوات المفعّلة يتجاوز %1$d. لن يُرسل منها سوى %2$d، تُؤخذ بالتناوب من كل خادم."
           }
         },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Es sind mehr als %1$d Tools aktiv. Gesendet werden nur die ersten %2$d."
+            "value" : "Es sind mehr als %1$d Tools aktiv. Gesendet werden nur %2$d, reihum von jedem Server ausgewählt."
           }
         },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "More than %1$d tools are on. Only the first %2$d will be sent."
+            "value" : "More than %1$d tools are on. Only %2$d will be sent, taken in turn from each server."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Hay más de %1$d herramientas activadas. Solo se enviarán las primeras %2$d."
+            "value" : "Hay más de %1$d herramientas activadas. Solo se enviarán %2$d, tomadas por turnos de cada servidor."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Plus de %1$d outils sont activés. Seuls les %2$d premiers seront envoyés."
+            "value" : "Plus de %1$d outils sont activés. Seuls %2$d seront envoyés, pris à tour de rôle sur chaque serveur."
           }
         },
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%1$d से ज़्यादा टूल चालू हैं। सिर्फ़ पहले %2$d भेजे जाएँगे।"
+            "value" : "%1$d से ज़्यादा टूल चालू हैं। सिर्फ़ %2$d भेजे जाएँगे, जो हर सर्वर से बारी-बारी से लिए जाएँगे।"
           }
         },
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Lebih dari %1$d alat aktif. Hanya %2$d alat pertama yang akan dikirim."
+            "value" : "Lebih dari %1$d alat aktif. Hanya %2$d yang akan dikirim, diambil bergiliran dari setiap server."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "オンのツールが %1$d 個を超えています。送信されるのは最初の %2$d 個だけです。"
+            "value" : "オンのツールが %1$d 個を超えています。送信されるのは %2$d 個だけで、各サーバーから順番に選ばれます。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "켜진 도구가 %1$d개를 넘었습니다. 앞의 %2$d개만 전송됩니다."
+            "value" : "켜진 도구가 %1$d개를 넘었습니다. %2$d개만 전송되며, 각 서버에서 돌아가며 고릅니다."
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Há mais de %1$d ferramentas ativadas. Só as primeiras %2$d serão enviadas."
+            "value" : "Há mais de %1$d ferramentas ativadas. Só %2$d serão enviadas, escolhidas de cada servidor, em rodízio."
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Включено больше %1$d инструментов. Отправлены будут только первые %2$d."
+            "value" : "Инструментов включено больше, чем %1$d. Будет отправлено только %2$d: их берут с каждого сервера по очереди."
           }
         },
         "th" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "เปิดเครื่องมือไว้เกิน %1$d รายการ ระบบจะส่งเฉพาะ %2$d รายการแรก"
+            "value" : "เปิดเครื่องมือไว้เกิน %1$d รายการ ระบบจะส่งเพียง %2$d รายการ โดยเลือกจากแต่ละเซิร์ฟเวอร์สลับกันไป"
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%1$d taneden fazla araç açık. Yalnızca ilk %2$d tanesi gönderilecek."
+            "value" : "%1$d taneden fazla araç açık. Yalnızca %2$d tanesi gönderilecek; bunlar her sunucudan sırayla seçilir."
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Đang bật hơn %1$d công cụ. Chỉ %2$d công cụ đầu tiên được gửi đi."
+            "value" : "Đang bật hơn %1$d công cụ. Chỉ %2$d công cụ được gửi đi, lấy lần lượt từ từng máy chủ."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "已开启的工具超过 %1$d 个，只会带上前 %2$d 个。"
+            "value" : "已开启的工具超过 %1$d 个，只会带上其中 %2$d 个，从各服务器轮流选取。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "已開啟的工具超過 %1$d 個，只會帶上前 %2$d 個。"
+            "value" : "已開啟的工具超過 %1$d 個，只會帶上其中 %2$d 個，從各伺服器輪流選取。"
           }
         }
       }
