@@ -280,8 +280,11 @@ struct ChatComposerDraftLifecycleTests {
         // Starting a new chat replaces the route with a new-chat route: the same ChatView instance gets new arguments.
         model.conversationID = nil
         try await Self.waitUntil { environment.state.conversation(for: conversation.id)?.draftText == "unsaved" }
-        let reused = try await Self.waitForInput(in: host.view)
-        try await Self.waitUntil { reused.text.isEmpty }
+        // The switch rebuilds the composer (the page goes from its content layout to the empty one), and the
+        // write-back above lands inside the SwiftUI update, before UIKit swaps the views. An input captured
+        // right here can still be the outgoing one, which keeps its text until it is deallocated, so look
+        // the on-screen input up again on every poll.
+        try await Self.waitUntil { Self.firstEditableTextView(in: host.view)?.text.isEmpty == true }
         environment.state.flushConversationPersistQueue()
         #expect(try environment.persistedDraft(conversation.id) == "unsaved")
     }
