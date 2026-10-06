@@ -2195,7 +2195,7 @@
         "needsReview": "Tools geändert",
         "review": "Prüfen",
         "footer": "{count, plural, one {# Tool aktiv. Seine Beschreibung wird} other {# Tools aktiv. Ihre Beschreibungen werden}} mit jeder Anfrage gesendet, etwa {tokens} Token, abgerechnet zum Preis deines Modells.",
-        "overLimit": "Es sind mehr als {max} Tools aktiv. Gesendet werden nur die ersten {max}.",
+        "overLimit": "Es sind mehr als {max} Tools aktiv. Gesendet werden nur {max}, reihum von jedem Server ausgewählt.",
         "manage": "MCP-Server verwalten",
         "emptyTitle": "Noch keine Tools",
         "emptyBody": "Verbinde einen MCP-Server, und das Modell kann direkt im Chat in Linear nachschlagen, in Notion schreiben oder Tools nutzen, die du selbst betreibst.",

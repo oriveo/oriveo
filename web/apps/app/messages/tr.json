@@ -2195,7 +2195,7 @@
         "needsReview": "Araçlar değişti",
         "review": "İncele",
         "footer": "{count} araç açık. Araç açıklamaları her istekle birlikte gönderilir; yaklaşık {tokens} token tutar ve modelinizin fiyatı üzerinden ücretlendirilir.",
-        "overLimit": "{max} taneden fazla araç açık. Yalnızca ilk {max} tanesi gönderilecek.",
+        "overLimit": "{max} taneden fazla araç açık. Yalnızca {max} tanesi gönderilecek; bunlar her sunucudan sırayla seçilir.",
         "manage": "MCP sunucularını yönet",
         "emptyTitle": "Henüz araç yok",
         "emptyBody": "Bir MCP sunucusu bağlayın; model sohbetin içinde Linear’da arama yapabilsin, Notion’a yazabilsin veya kendi barındırdığınız araçları kullanabilsin.",

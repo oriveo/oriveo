@@ -2195,7 +2195,7 @@
         "needsReview": "Herramientas modificadas",
         "review": "Revisar",
         "footer": "{count, plural, one {# herramienta activada. Su descripción se envía} other {# herramientas activadas. Sus descripciones se envían}} con cada solicitud: unos {tokens} tokens, que se cobran al precio de tu modelo.",
-        "overLimit": "Hay más de {max} herramientas activadas. Solo se enviarán las primeras {max}.",
+        "overLimit": "Hay más de {max} herramientas activadas. Solo se enviarán {max}, tomadas por turnos de cada servidor.",
         "manage": "Administrar servidores MCP",
         "emptyTitle": "Aún no hay herramientas",
         "emptyBody": "Conecta un servidor MCP y el modelo podrá consultar Linear, escribir en Notion o usar herramientas que alojes tú, sin salir del chat.",

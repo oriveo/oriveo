@@ -2195,7 +2195,7 @@
         "needsReview": "Alat berubah",
         "review": "Tinjau",
         "footer": "{count} alat aktif. Deskripsi alat dikirim bersama setiap permintaan, sekitar {tokens} token, dan ditagih sesuai harga model Anda.",
-        "overLimit": "Lebih dari {max} alat aktif. Hanya {max} alat pertama yang akan dikirim.",
+        "overLimit": "Lebih dari {max} alat aktif. Hanya {max} yang akan dikirim, diambil bergiliran dari setiap server.",
         "manage": "Kelola server MCP",
         "emptyTitle": "Belum ada alat",
         "emptyBody": "Hubungkan server MCP, lalu model bisa mencari di Linear, menulis ke Notion, atau memakai alat yang Anda kelola sendiri, langsung dari chat.",

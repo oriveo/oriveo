@@ -2195,7 +2195,7 @@
         "needsReview": "Tools changed",
         "review": "Review",
         "footer": "{count, plural, one {# tool on. Its description is} other {# tools on. Their descriptions are}} sent with every request, about {tokens} tokens, billed at your model's price.",
-        "overLimit": "More than {max} tools are on. Only the first {max} will be sent.",
+        "overLimit": "More than {max} tools are on. Only {max} will be sent, taken in turn from each server.",
         "manage": "Manage MCP servers",
         "emptyTitle": "No tools yet",
         "emptyBody": "Connect an MCP server and the model can look things up in Linear, write to Notion, or use tools you host yourself, right in the chat.",

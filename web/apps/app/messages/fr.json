@@ -2195,7 +2195,7 @@
         "needsReview": "Outils modifiés",
         "review": "Vérifier",
         "footer": "{count, plural, one {# outil activé. Sa description est envoyée} other {# outils activés. Leurs descriptions sont envoyées}} à chaque requête, soit environ {tokens} tokens facturés au tarif de votre modèle.",
-        "overLimit": "Plus de {max} outils sont activés. Seuls les {max} premiers seront envoyés.",
+        "overLimit": "Plus de {max} outils sont activés. Seuls {max} seront envoyés, pris à tour de rôle sur chaque serveur.",
         "manage": "Gérer les serveurs MCP",
         "emptyTitle": "Aucun outil pour l’instant",
         "emptyBody": "Connectez un serveur MCP, et le modèle pourra chercher dans Linear, écrire dans Notion ou utiliser des outils que vous hébergez vous-même, directement dans la conversation.",

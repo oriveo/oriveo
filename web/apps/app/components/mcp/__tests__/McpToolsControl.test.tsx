@@ -102,7 +102,7 @@ describe('tools popover', () => {
     renderControl();
     fireEvent.click(pill());
     const warning = within(panel()).getByRole('status');
-    expect(warning.textContent).toBe('More than 10 tools are on. Only the first 10 will be sent.');
+    expect(warning.textContent).toBe('More than 10 tools are on. Only 10 will be sent, taken in turn from each server.');
     expect(warning.getAttribute('data-tone')).toBe('warning');
   });
 

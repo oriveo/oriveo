@@ -2195,7 +2195,7 @@
         "needsReview": "工具有更新",
         "review": "查看",
         "footer": "已開啟 {count} 個工具。工具說明會隨每次請求一起送出，約佔 {tokens} tokens，依你所用模型的價格計費。",
-        "overLimit": "已開啟的工具超過 {max} 個，只會帶上前 {max} 個。",
+        "overLimit": "已開啟的工具超過 {max} 個，只會帶上其中 {max} 個，從各伺服器輪流選取。",
         "manage": "管理 MCP 伺服器",
         "emptyTitle": "還沒有可用的工具",
         "emptyBody": "連接一個 MCP 伺服器，模型就能在對話裡查 Linear、寫 Notion，或使用你自己架設的工具。",

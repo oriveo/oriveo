@@ -2195,7 +2195,7 @@
         "needsReview": "Công cụ đã thay đổi",
         "review": "Xem lại",
         "footer": "Đang bật {count} công cụ. Phần mô tả công cụ được gửi kèm mỗi yêu cầu, khoảng {tokens} token, tính phí theo giá của mô hình bạn dùng.",
-        "overLimit": "Đang bật hơn {max} công cụ. Chỉ {max} công cụ đầu tiên được gửi đi.",
+        "overLimit": "Đang bật hơn {max} công cụ. Chỉ {max} công cụ được gửi đi, lấy lần lượt từ từng máy chủ.",
         "manage": "Quản lý máy chủ MCP",
         "emptyTitle": "Chưa có công cụ nào",
         "emptyBody": "Kết nối một máy chủ MCP để mô hình có thể tra cứu trong Linear, ghi vào Notion hoặc dùng công cụ do bạn tự vận hành, ngay trong cuộc trò chuyện.",
