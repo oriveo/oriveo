@@ -35,6 +35,23 @@
         }
       }
     },
+    "“%@” was rejected" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%@” was rejected"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「%@」被拒绝了"
+          }
+        }
+      }
+    },
     "(Attachment)" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -642,6 +659,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "AI 正在回答..."
+          }
+        }
+      }
+    },
+    "Always thinks before answering" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Always thinks before answering"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "总会先想一想再回答"
           }
         }
       }
@@ -1770,6 +1804,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "選擇其他模型"
+          }
+        }
+      }
+    },
+    "Choose protocol" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose protocol"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "去选协议"
+          }
+        }
+      }
+    },
+    "Choose this connection’s protocol first" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose this connection’s protocol first"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "先选这条连接的协议"
           }
         }
       }
@@ -5913,6 +5981,23 @@
         }
       }
     },
+    "Higher levels take longer and may cost more." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Higher levels take longer and may cost more."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "档位越高越慢，也可能更贵。"
+          }
+        }
+      }
+    },
     "Ignore EOS token" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -7838,6 +7923,23 @@
         }
       }
     },
+    "Not available yet" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Not available yet"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "暂时开不了"
+          }
+        }
+      }
+    },
     "Not confirmed" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -8337,6 +8439,23 @@
         }
       }
     },
+    "Open additional request body" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Open additional request body"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "去附加请求体"
+          }
+        }
+      }
+    },
     "Open official provider documentation" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -8535,6 +8654,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "或者直接在左邊的輸入框問點什麼，新對話就會在這裡展開。"
+          }
+        }
+      }
+    },
+    "Oriveo doesn’t have thinking settings for this model yet, so it runs on its own default." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Oriveo doesn’t have thinking settings for this model yet, so it runs on its own default."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这个模型的思考设置还没收录，先按它自己的默认来。"
+          }
+        }
+      }
+    },
+    "Oriveo doesn’t have web search settings for this model yet, so it can’t be turned on here." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Oriveo doesn’t have web search settings for this model yet, so it can’t be turned on here."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这个模型的联网设置还没收录，暂时开不了。"
           }
         }
       }
@@ -11558,6 +11711,23 @@
         }
       }
     },
+    "See which models can be adjusted" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "See which models can be adjusted"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "看看哪些模型可以调"
+          }
+        }
+      }
+    },
     "Selected content" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -11874,6 +12044,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "設為此模型的預設"
+          }
+        }
+      }
+    },
+    "Set it up yourself" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Set it up yourself"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "需要自己配置"
           }
         }
       }
@@ -13893,6 +14080,23 @@
         }
       }
     },
+    "The protocol is still set to Auto, so Oriveo can’t tell how to send web search and thinking settings." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The protocol is still set to Auto, so Oriveo can’t tell how to send web search and thinking settings."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "协议还是「自动」，Oriveo 不知道该怎么发联网和思考的设置。"
+          }
+        }
+      }
+    },
     "The provider rejected this setting for this model. Send again without it, or pick another model." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -14380,6 +14584,23 @@
         }
       }
     },
+    "Thinks it through first, so answers take a little longer." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Thinks it through first, so answers take a little longer."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "先想清楚再回答，会慢一些"
+          }
+        }
+      }
+    },
     "This capability is provided by a separate external service, outside this connection's chat request." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -14578,6 +14799,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "此連線不支援該能力。"
+          }
+        }
+      }
+    },
+    "This connection can’t do this" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This connection can’t do this"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这条连接做不到"
           }
         }
       }
@@ -15519,6 +15757,23 @@
         }
       }
     },
+    "This model can’t search the web" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This model can’t search the web"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这个模型不能联网"
+          }
+        }
+      }
+    },
     "This model cannot turn thinking off." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -15816,6 +16071,40 @@
         }
       }
     },
+    "This model has no thinking mode" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This model has no thinking mode"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这个模型不带思考"
+          }
+        }
+      }
+    },
+    "This model isn’t accepting “%1$@” right now, so it’s back on “%2$@”. The level will return on its own once the model supports it again." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This model isn’t accepting “%1$@” right now, so it’s back on “%2$@”. The level will return on its own once the model supports it again."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这个模型现在不接受「%1$@」，已换回「%2$@」。之后它重新支持时，这一档会自己回来。"
+          }
+        }
+      }
+    },
     "This model isn't in the catalog, so which settings it supports can't be determined." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -16008,6 +16297,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "此模型的思考檔位是固定的，無法調節。"
+          }
+        }
+      }
+    },
+    "This provider has no standard switch for thinking. Add its fields in the additional request body." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This provider has no standard switch for thinking. Add its fields in the additional request body."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这家的思考没有通用开关，要在附加请求体里填它的字段。"
+          }
+        }
+      }
+    },
+    "This provider has no standard switch for web search. Add its fields in the additional request body." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This provider has no standard switch for web search. Add its fields in the additional request body."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这家的联网没有通用开关，要在附加请求体里填它的字段。"
           }
         }
       }
@@ -17241,6 +17564,23 @@
         }
       }
     },
+    "Turns thinking on or off through the chat template. Whether it works depends on your server." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Turns thinking on or off through the chat template. Whether it works depends on your server."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "按对话模板开关，是否生效看你的服务"
+          }
+        }
+      }
+    },
     "Type a message..." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -17635,6 +17975,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "使用記憶"
+          }
+        }
+      }
+    },
+    "Uses the model’s default" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Uses the model’s default"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "按模型默认"
           }
         }
       }
