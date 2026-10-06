@@ -1,5 +1,5 @@
 {
-  "$comment": "Generation-parameter contract v1. Every payload case must be driven through a production request builder; tests must not synthesize request JSON. Missing overrides are omitted, while numeric zero is an explicit value. Unknown enum values are preserved by contract decoders and must not crash a whole profile. The fixture groups that exercise these rules (cases, resolverCases, wireHardeningCases, relayWireRoundTrips, availabilityCases, lifecycleCases, outboundCases, additionalBodyCases, localEngineCases, llamacppMigrationCases) live next to this file in generation_parameter_contract.v1.cases.json; this file carries rules and tables only.",
+  "$comment": "Generation-parameter contract v1. Every payload case must be driven through a production request builder; tests must not synthesize request JSON. Missing overrides are omitted, while numeric zero is an explicit value. Unknown enum values are preserved by contract decoders and must not crash a whole profile. The fixture groups that exercise these rules (cases, resolverCases, wireHardeningCases, relayWireRoundTrips, availabilityCases, lifecycleCases, outboundCases, additionalBodyCases, localEngineCases, llamacppMigrationCases, modelLevelResolveCases, modelLevelOutboundCases) live next to this file in generation_parameter_contract.v1.cases.json; this file carries rules and tables only.",
   "version": 1,
   "canonicalKeys": {
     "budget": [
@@ -1695,6 +1695,95 @@
           }
         ]
       }
+    }
+  },
+  "modelLevelFacts": {
+    "$comment": "Model-level parameter facts delivered by the metadata service. The platform-level schema (profiles.generation.parameters / templates) gives every parameter one default definition; where upstreams differ, optional fields on models[].profiles.generation.parameters[] override it. The values come from tables the metadata service keeps per upstream from each one's official documentation. Clients only read what is delivered and never infer it from a provider name or a model id. iOS reads these fields and passes every case in modelLevelResolveCases / modelLevelOutboundCases; a client that does not read them yet ignores them and behaves as it did before.",
+    "fallback": "A missing field means the platform-level definition applies (the same rule model-level enumValues already follows)",
+    "fields": {
+      "range": "Replaces parameters[id].range as a whole (keys are not merged one by one)",
+      "conflictsWith": "Replaces parameters[id].conflictsWith as a whole. Only non-empty arrays are delivered; temperature and top_p no longer conflict at the platform level, and only an upstream whose documentation requires choosing one of the two (Anthropic) carries the conflict at the model level",
+      "wire": "Replaces templates[template].wire[id] for this one model. It must pass wireHardening; when it does not, the parameter has no write path (it is dropped and a diagnostic is recorded) and the template path is not used as a fallback",
+      "strict": "Appears on json_schema only. true = the writer puts strict:true into the structured-output object; missing = the strict key is not written. The metadata service never delivers false"
+    },
+    "maxTokensWire": {
+      "template": "openai_chat_completions",
+      "default": "max_tokens",
+      "serverCondition": "The upstream's official documentation lists max_completion_tokens (currently OpenAI only: max_tokens is not compatible with the o-series reasoning models) and the model's capabilities include reasoning",
+      "clientReads": "models[].profiles.generation.parameters[id=max_output_tokens].wire",
+      "aliases": [
+        "max_tokens",
+        "max_completion_tokens"
+      ],
+      "aliasRule": "The two names are the same upstream field and a request body may carry only one. When the resolved write path is one of them: a default the builder already wrote under the other name moves to that path (same value, not counted as dropped); a value the user set is written to that path and the other name is removed; on omit both names are removed"
+    },
+    "structuredOutput": {
+      "distinction": "response_format (enum text / json) is JSON mode and only guarantees syntactically valid JSON; json_schema is what constrains the output to a schema. They are two parameter ids, delivered separately according to what the upstream declares, so a model that declares only the former does not get json_schema",
+      "shapes": {
+        "openai_chat_completions": {
+          "json_schema": {
+            "response_format": {
+              "type": "json_schema",
+              "json_schema": {
+                "name": "<name>",
+                "strict": "only when strict=true",
+                "schema": "<schema>"
+              }
+            }
+          },
+          "response_format=json": {
+            "response_format": {
+              "type": "json_object"
+            }
+          }
+        },
+        "openai_responses": {
+          "json_schema": {
+            "text": {
+              "format": {
+                "type": "json_schema",
+                "name": "<name>",
+                "strict": "only when strict=true",
+                "schema": "<schema>"
+              }
+            }
+          },
+          "response_format=json": {
+            "text": {
+              "format": {
+                "type": "json_object"
+              }
+            }
+          }
+        },
+        "anthropic_messages": {
+          "json_schema": {
+            "output_config": {
+              "format": {
+                "type": "json_schema",
+                "schema": "<schema>"
+              }
+            }
+          },
+          "response_format=json": "No write path (Anthropic has no JSON mode); the parameter is not delivered"
+        }
+      },
+      "anthropicNotes": [
+        "Written at output_config.format, which shares the output_config object with the output_config.effort written by the thinking effort control; the two are merged and neither overwrites the other",
+        "The top-level output_format is deprecated and must not appear in the request body",
+        "The format object has exactly two keys, type and schema; there is no name or strict"
+      ],
+      "relayAndLocalEngines": "Profiles synthesized on the device (relays, local engines) do not come from the metadata service; whether they carry strict is declared by the on-device constant tables"
+    },
+    "sources": {
+      "anthropic.temperature": "https://platform.claude.com/docs/en/api/messages/create",
+      "anthropic.samplingExclusive": "https://platform.claude.com/docs/en/models/haiku-4-5/migration-guide",
+      "anthropic.structuredOutput": "https://platform.claude.com/docs/en/build-with-claude/structured-outputs",
+      "openai.chat": "https://developers.openai.com/api/reference/python/resources/chat/subresources/completions/methods/create",
+      "openai.responses": "https://developers.openai.com/api/reference/resources/responses/methods/create",
+      "openrouter.supportedParameters": "https://openrouter.ai/docs/api/api-reference/models/get-models",
+      "openrouter.structuredOutput": "https://openrouter.ai/docs/guides/features/structured-outputs",
+      "vllm.extraParameters": "https://docs.vllm.ai/en/latest/serving/online_serving/openai_compatible_server/"
     }
   }
 }

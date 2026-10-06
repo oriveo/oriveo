@@ -806,6 +806,13 @@ struct GenerationParameterRef: Codable, Equatable, Hashable, Sendable {
     var constraints: [[String: GenerationParameterValue]]?
     var portability: String?
     var risk: String?
+    /// Model-level write path (shared contract #modelLevelFacts.fields.wire). Present only on the
+    /// delivered model reference; resolving replaces the template path with it, and a resolved
+    /// profile keeps every path in `GenerationProfileRef.wire`.
+    var wire: String? = nil
+    /// Appears on `json_schema` only: `true` writes `strict: true` into the structured-output
+    /// object, and a missing value leaves the key out.
+    var strict: Bool? = nil
 }
 
 struct GenerationParameterRange: Codable, Equatable, Hashable, Sendable {

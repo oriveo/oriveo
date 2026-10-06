@@ -210,8 +210,17 @@ enum LocalEngineGenerationProfiles {
             valueSchema: schema,
             range: range,
             portability: portability(id),
-            risk: risk(id)
+            risk: risk(id),
+            strict: declaresStrictSchema(id)
         )
+    }
+
+    /// Profiles synthesized on the device do not come from the metadata service, so this table
+    /// declares whether structured output carries `strict` (shared contract
+    /// #modelLevelFacts.structuredOutput.relayAndLocalEngines). Local engines and Open WebUI accept
+    /// `strict` on their OpenAI-compatible endpoints.
+    private static func declaresStrictSchema(_ id: String) -> Bool? {
+        id == "json_schema" ? true : nil
     }
 
     private static func genericGroup(_ id: String) -> String {
@@ -261,7 +270,8 @@ enum LocalEngineGenerationProfiles {
                     enumValues: row.enumValues,
                     defaultDescription: row.defaultValue,
                     portability: portability(row.id),
-                    risk: risk(row.id)
+                    risk: risk(row.id),
+                    strict: declaresStrictSchema(row.id)
                 )
             },
             wire: Dictionary(uniqueKeysWithValues: rows.map { ($0.id, $0.wire) }),

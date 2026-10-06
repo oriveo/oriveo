@@ -1,6 +1,6 @@
 import Foundation
 
-enum GenerationWireDiagnostics {
+nonisolated enum GenerationWireDiagnostics {
     struct Entry: Equatable, Sendable {
         let parameterID: String
         let wirePath: String
@@ -76,7 +76,7 @@ enum ProfileParamsResolver {
     /// The additional request body uses this same list for names that may not appear at any
     /// depth (`AdditionalRequestBody.blockedSegments`).
     nonisolated static let blockedWireSegments: Set<String> = ["__proto__", "prototype", "constructor"]
-    private static let maxWireSegments = 4
+    nonisolated private static let maxWireSegments = 4
     /// Root fields owned by the request builder. The additional request body reads its protected
     /// fields from here too (`AdditionalRequestBody.protectedRootFields`) instead of keeping a copy.
     nonisolated static let builderOwnedRootFields: Set<String> = [
@@ -93,8 +93,11 @@ enum ProfileParamsResolver {
     static let anthropicThinkingDroppedParameters = ["temperature", "top_k"]
     static let anthropicThinkingTopPMin = 0.95
     static let anthropicThinkingMaxTokensHeadroom = 4096
+    /// Two names for the same upstream field (shared contract #modelLevelFacts.maxTokensWire.aliases);
+    /// a request body may carry only one of them.
+    static let maxTokensWireAliases = ["max_tokens", "max_completion_tokens"]
 
-    static func wireRejectionReason(_ wirePath: String) -> WireRejectionReason? {
+    nonisolated static func wireRejectionReason(_ wirePath: String) -> WireRejectionReason? {
         let segments = wirePath.components(separatedBy: ".")
         for segment in segments {
             if blockedWireSegments.contains(segment) { return .blockedSegment }
@@ -105,12 +108,12 @@ enum ProfileParamsResolver {
         return nil
     }
 
-    private static func isValidWireSegment(_ segment: String) -> Bool {
+    nonisolated private static func isValidWireSegment(_ segment: String) -> Bool {
         guard let first = segment.unicodeScalars.first, isASCIILetterOrUnderscore(first) else { return false }
         return segment.unicodeScalars.allSatisfy { isASCIILetterOrUnderscore($0) || ("0"..."9").contains($0) }
     }
 
-    private static func isASCIILetterOrUnderscore(_ scalar: Unicode.Scalar) -> Bool {
+    nonisolated private static func isASCIILetterOrUnderscore(_ scalar: Unicode.Scalar) -> Bool {
         ("a"..."z").contains(scalar) || ("A"..."Z").contains(scalar) || scalar == "_"
     }
 
@@ -189,6 +192,15 @@ enum ProfileParamsResolver {
               !wire.isEmpty else {
             return application
         }
+        // When the max-token parameter resolves to one of the two aliases, a default the builder
+        // wrote under the other name moves to that path. An upstream accepts only one of them
+        // (OpenAI reasoning models reject max_tokens), so sending both or the wrong one fails.
+        if let resolvedPath = wire["max_output_tokens"], maxTokensWireAliases.contains(resolvedPath) {
+            for alias in maxTokensWireAliases where alias != resolvedPath {
+                guard let builderDefault = body.removeValue(forKey: alias) else { continue }
+                if body[resolvedPath] == nil { body[resolvedPath] = builderDefault }
+            }
+        }
         func permitsOutbound(_ key: String) -> Bool {
             if runtimeGenerationAuthorized {
                 return wire[UnsupportedParamClassifier.normalize(key)]?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
@@ -263,6 +275,7 @@ enum ProfileParamsResolver {
                     parameterID: key,
                     template: profile.template,
                     fallbackPath: wirePath,
+                    strict: profile.parameters?.first(where: { $0.id == key })?.strict == true,
                     body: &body
                 )
                 if let pointer = pointer(for: key) { appliedPointers.insert(pointer) }
@@ -386,24 +399,27 @@ enum ProfileParamsResolver {
         parameterID: String,
         template: String?,
         fallbackPath: String,
+        strict: Bool,
         body: inout [String: Any]
     ) {
         if parameterID == "json_schema", case .object = value {
             let schema = value.foundationValue
+            // `strict` is written only when the parameter declares strict=true; an upstream that
+            // does not know the key rejects the whole request because of it.
+            var named: [String: Any] = ["name": "oriveo_response", "schema": schema]
+            if strict { named["strict"] = true }
             switch template {
             case "openai_chat_completions", "vllm_extra_body":
-                body["response_format"] = [
-                    "type": "json_schema",
-                    "json_schema": ["name": "oriveo_response", "strict": true, "schema": schema],
-                ]
+                body["response_format"] = ["type": "json_schema", "json_schema": named]
             case "openai_responses":
-                setValue(
-                    ["type": "json_schema", "name": "oriveo_response", "strict": true, "schema": schema],
-                    in: &body,
-                    path: ["text", "format"]
-                )
+                named["type"] = "json_schema"
+                setValue(named, in: &body, path: ["text", "format"])
             case "anthropic_messages":
-                body["output_format"] = ["type": "json_schema", "schema": schema]
+                // Shares one object with the output_config.effort written by the thinking effort
+                // control, so only the format key is set. The format object has no name / strict,
+                // and the deprecated top-level output_format must not appear.
+                setValue(["type": "json_schema", "schema": schema], in: &body, path: ["output_config", "format"])
+                body.removeValue(forKey: "output_format")
             case "gemini_generate_content":
                 setValue("application/json", in: &body, path: ["generationConfig", "responseMimeType"])
                 setValue(schema, in: &body, path: ["generationConfig", "responseJsonSchema"])
@@ -420,6 +436,8 @@ enum ProfileParamsResolver {
             switch template {
             case "openai_chat_completions", "vllm_extra_body":
                 body["response_format"] = ["type": format == "json" ? "json_object" : "text"]
+            case "openai_responses":
+                setValue(["type": format == "json" ? "json_object" : "text"], in: &body, path: ["text", "format"])
             case "gemini_generate_content":
                 setValue(
                     format == "json" ? "application/json" : "text/plain",

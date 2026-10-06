@@ -1298,9 +1298,6 @@
             "valueSchema": "integer"
           },
           "temperature": {
-            "conflictsWith": [
-              "top_p"
-            ],
             "defaultDescription": "provider_default",
             "group": "sampling",
             "interactionGroup": "sampling_strategy",
@@ -1349,9 +1346,6 @@
             "valueSchema": "number"
           },
           "top_p": {
-            "conflictsWith": [
-              "temperature"
-            ],
             "defaultDescription": "provider_default",
             "group": "sampling",
             "interactionGroup": "sampling_strategy",
@@ -1412,7 +1406,6 @@
             "wire": {
               "json_schema": "output_config.format",
               "max_output_tokens": "max_tokens",
-              "response_format": "output_config.format",
               "stop": "stop_sequences",
               "temperature": "temperature",
               "top_k": "top_k",
@@ -1508,7 +1501,6 @@
               "reasoning_effort": "reasoning.effort",
               "response_format": "text.format",
               "route_require_parameters": "provider.require_parameters",
-              "seed": "seed",
               "temperature": "temperature",
               "top_p": "top_p",
               "verbosity": "text.verbosity"
@@ -1520,13 +1512,13 @@
               "frequency_penalty": "frequency_penalty",
               "logprobs": "logprobs",
               "max_output_tokens": "max_tokens",
-              "min_p": "extra_body.min_p",
+              "min_p": "min_p",
               "presence_penalty": "presence_penalty",
-              "repeat_penalty": "extra_body.repetition_penalty",
+              "repeat_penalty": "repetition_penalty",
               "seed": "seed",
               "stop": "stop",
               "temperature": "temperature",
-              "top_k": "extra_body.top_k",
+              "top_k": "top_k",
               "top_p": "top_p"
             }
           }
@@ -1705,7 +1697,15 @@
                   {
                     "id": "temperature",
                     "support": "supported",
-                    "source": "provider_metadata"
+                    "source": "provider_metadata",
+                    "range": {
+                      "min": 0,
+                      "max": 1,
+                      "step": 0.01
+                    },
+                    "conflictsWith": [
+                      "top_p"
+                    ]
                   }
                 ]
               }
@@ -2068,7 +2068,12 @@
                   {
                     "id": "temperature",
                     "support": "supported",
-                    "source": "provider_metadata"
+                    "source": "provider_metadata",
+                    "range": {
+                      "min": 0,
+                      "max": 1,
+                      "step": 0.01
+                    }
                   }
                 ]
               }
@@ -2196,7 +2201,12 @@
                   {
                     "id": "temperature",
                     "support": "supported",
-                    "source": "provider_metadata"
+                    "source": "provider_metadata",
+                    "range": {
+                      "min": 0,
+                      "maxExclusive": 2,
+                      "step": 0.01
+                    }
                   }
                 ]
               }
@@ -2283,7 +2293,12 @@
                   {
                     "id": "temperature",
                     "support": "supported",
-                    "source": "provider_metadata"
+                    "source": "provider_metadata",
+                    "range": {
+                      "min": 0,
+                      "max": 1,
+                      "step": 0.01
+                    }
                   }
                 ]
               }
@@ -2660,7 +2675,12 @@
                   {
                     "id": "temperature",
                     "support": "supported",
-                    "source": "provider_metadata"
+                    "source": "provider_metadata",
+                    "range": {
+                      "min": 0,
+                      "max": 1,
+                      "step": 0.01
+                    }
                   }
                 ]
               }

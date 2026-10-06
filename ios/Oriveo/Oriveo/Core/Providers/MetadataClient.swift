@@ -784,7 +784,7 @@ actor MetadataClient {
         var resolved = reference
         resolved.template = template
         resolved.transport = templateDefinition.transport
-        resolved.wire = wire
+        var resolvedWire = wire
         let parameters: [GenerationParameterRef]?
         if reference.parametersRef != nil {
             parameters = trimmedNonEmpty(reference.parametersRef)
@@ -801,18 +801,35 @@ actor MetadataClient {
             expanded.id = id
             expanded.group = definition.group
             expanded.valueSchema = definition.valueSchema
-            expanded.range = definition.range
+            // Facts that differ between upstreams arrive as model-level fields and replace the
+            // platform-level definition as a whole (shared contract #modelLevelFacts). A missing
+            // field falls back to the platform level, the same rule enumValues follows below.
+            expanded.range = parameter.range ?? definition.range
             expanded.enumValues = parameter.enumValues ?? definition.enumValues
             expanded.fixedValue = definition.fixedValue
             expanded.defaultDescription = definition.defaultDescription
             expanded.interactionGroup = definition.interactionGroup
-            expanded.conflictsWith = definition.conflictsWith
+            expanded.conflictsWith = parameter.conflictsWith ?? definition.conflictsWith
             expanded.requires = definition.requires
             expanded.constraints = definition.constraints
             expanded.portability = definition.portability
             expanded.risk = definition.risk
+            // A model-level wire replaces the template path for this one model. A path that fails
+            // the structural checks leaves the parameter without a write path: a local diagnostic
+            // is recorded and the template path is not used instead, since that would be guessing
+            // where the value was meant to go.
+            if let override = trimmedNonEmpty(parameter.wire) {
+                if let reason = ProfileParamsResolver.wireRejectionReason(override) {
+                    GenerationWireDiagnostics.record(parameterID: id, wirePath: override, reason: reason)
+                    resolvedWire.removeValue(forKey: id)
+                } else {
+                    resolvedWire[id] = override
+                }
+            }
+            expanded.wire = nil
             return expanded
         }
+        resolved.wire = resolvedWire
         return resolved
     }
 

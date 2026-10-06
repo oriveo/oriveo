@@ -18,7 +18,104 @@ struct GenerationOutboundPerItemContractTests {
         let contract = try Self.loadContract()
         let cases = try #require(contract["outboundCases"] as? [[String: Any]])
         #expect(cases.count >= 20)
+        try await verifyOutbound(cases)
+    }
 
+    /// Model-level parameter facts (shared contract #modelLevelFacts): the three structured-output
+    /// shapes and `strict`, the two max-token aliases, and the ranges and conflicts recorded per
+    /// upstream.
+    @Test("every model-level outbound case matches byte for byte through production metadata and the writer")
+    func modelLevelOutboundCases() async throws {
+        let contract = try Self.loadContract()
+        let cases = try #require(contract["modelLevelOutboundCases"] as? [[String: Any]])
+        #expect(cases.count >= 15)
+        try await verifyOutbound(cases)
+    }
+
+    @Test("every model-level resolve case: range / conflictsWith / wire / strict override the platform definition and fall back when missing")
+    func modelLevelResolveCases() async throws {
+        let contract = try Self.loadContract()
+        let definitions = try #require(contract["modelLevelResolveDefinitions"] as? [String: Any])
+        let cases = try #require(contract["modelLevelResolveCases"] as? [[String: Any]])
+        #expect(cases.count >= 11)
+
+        for item in cases {
+            let caseID = try #require(item["caseId"] as? String)
+            let model = try #require(item["model"] as? [String: Any])
+            let template = try #require(model["template"] as? String)
+            let route = try #require(Self.routes[template], "\(caseID) uses a template with no test route")
+            let document: [String: Any] = [
+                "version": 1,
+                "contractVersion": 1,
+                "profiles": ["generation": [
+                    "version": 1,
+                    "parameters": try #require(definitions["parameters"]),
+                    "templates": try #require(definitions["templates"]),
+                ]],
+                "providers": [route.providerKey: [
+                    "resolveMap": [Self.modelID: Self.modelID],
+                    "models": [Self.modelID: [
+                        "canonicalModelId": Self.modelID,
+                        "transport": route.modelTransport,
+                        "profiles": ["generation": [
+                            "template": template,
+                            "parameters": try #require(model["parameters"]),
+                        ]],
+                    ]],
+                ]],
+            ]
+            GenerationWireDiagnostics.reset()
+            await MetadataClient.shared.resetForTesting()
+            try await MetadataClient.shared.loadForTesting(
+                json: String(decoding: try JSONSerialization.data(withJSONObject: document), as: UTF8.self),
+                metadataETag: "model-level-resolve-etag"
+            )
+            let resolved = try #require(
+                MetadataClient.shared.syncResolveCatalogModel(modelID: Self.modelID, providerKind: route.providerKind),
+                "\(caseID) did not resolve a model"
+            )
+            let profile = try #require(resolved.generationProfile, "\(caseID) has no generation profile")
+            let expect = try #require(item["expect"] as? [String: Any])
+
+            // The contract's wire lists only the parameters this model declares, while the resolved
+            // profile keeps the whole template table (undeclared parameters are stopped by the
+            // outbound eligibility check), so compare on the declared parameters only.
+            let declaredIDs = Set(profile.parameters?.compactMap(\.id) ?? [])
+            let declaredWire = (profile.wire ?? [:]).filter { declaredIDs.contains($0.key) }
+            #expect(declaredWire == expect["wire"] as? [String: String], "\(caseID) wire mismatch: \(declaredWire)")
+            if let ids = expect["parameterIds"] as? [String] {
+                #expect(profile.parameters?.compactMap(\.id) == ids, "\(caseID) parameter list mismatch")
+            }
+            for (id, fields) in expect["parameters"] as? [String: [String: Any]] ?? [:] {
+                let parameter = try #require(profile.parameters?.first { $0.id == id }, "\(caseID) is missing parameter \(id)")
+                #expect(parameter.wire == nil, "\(caseID) a resolved path belongs in profile.wire only")
+                if let range = fields["range"] as? [String: Any] {
+                    let actual = try #require(
+                        try JSONSerialization.jsonObject(with: JSONEncoder().encode(parameter.range)) as? [String: Any]
+                    )
+                    #expect(NSDictionary(dictionary: actual).isEqual(to: range), "\(caseID) \(id) range mismatch: \(actual)")
+                }
+                if let conflicts = fields["conflictsWith"] as? [String] {
+                    #expect((parameter.conflictsWith ?? []) == conflicts, "\(caseID) \(id) conflictsWith mismatch")
+                }
+                if let strict = fields["strict"] as? Bool {
+                    #expect((parameter.strict == true) == strict, "\(caseID) \(id) strict mismatch")
+                }
+                if let enumValues = fields["enumValues"] as? [String] {
+                    #expect(parameter.enumValues == enumValues.map(GenerationParameterValue.string), "\(caseID) \(id) enum values mismatch")
+                }
+            }
+            let expectedRejections = (expect["wireRejections"] as? [[String: String]] ?? []).map {
+                "\($0["parameterId"] ?? "?"):\($0["reason"] ?? "?")"
+            }
+            let rejections = GenerationWireDiagnostics.read().map { "\($0.parameterID):\($0.reason.rawValue)" }
+            #expect(Set(rejections) == Set(expectedRejections), "\(caseID) wire rejection records mismatch: \(rejections)")
+        }
+        GenerationWireDiagnostics.reset()
+        await MetadataClient.shared.resetForTesting()
+    }
+
+    private func verifyOutbound(_ cases: [[String: Any]]) async throws {
         for item in cases {
             let caseID = try #require(item["caseId"] as? String)
             let profileSpec = try #require(item["profile"] as? [String: Any], "\(caseID) has no profile")
@@ -81,6 +178,9 @@ struct GenerationOutboundPerItemContractTests {
             }
             let dropped = application.dropped.map { "\($0.parameterID):\($0.reason.rawValue)" }
             #expect(dropped == expectedDropped, "\(caseID) dropped list mismatch: \(dropped)")
+            for excluded in expect["bodyExcludes"] as? [String] ?? [] {
+                #expect(body[excluded] == nil, "\(caseID) request body should not contain \(excluded)")
+            }
         }
         await MetadataClient.shared.resetForTesting()
     }
@@ -152,6 +252,10 @@ struct GenerationOutboundPerItemContractTests {
             providerKind: .anthropic, providerKey: "anthropic", modelTransport: "anthropic_messages",
             recipeRef: "anthropic.messages.generation.v1", url: "https://api.anthropic.test/v1/messages"
         ),
+        "openai_responses": .init(
+            providerKind: .openAI, providerKey: "openAI", modelTransport: "openai_responses",
+            recipeRef: "openai.responses.generation.v1", url: "https://api.openai.test/v1/responses"
+        ),
     ]
 
     private static func metadataJSON(profile: [String: Any], route: Route) throws -> String {
@@ -163,8 +267,11 @@ struct GenerationOutboundPerItemContractTests {
             guard let id = parameter["id"] as? String else { continue }
             var definition = parameter
             definition.removeValue(forKey: "id")
+            var reference: [String: Any] = ["id": id, "support": "supported", "source": "authoritative_metadata"]
+            // strict exists on the model-level reference only; the platform-level definition has no such field.
+            if let strict = definition.removeValue(forKey: "strict") { reference["strict"] = strict }
             definitions[id] = definition
-            declared.append(["id": id, "support": "supported", "source": "authoritative_metadata"])
+            declared.append(reference)
         }
         let document: [String: Any] = [
             "version": 1,

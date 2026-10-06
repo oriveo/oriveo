@@ -5446,5 +5446,1371 @@
         "changed": false
       }
     }
+  ],
+  "modelLevelResolveDefinitions": {
+    "parameters": {
+      "max_output_tokens": {
+        "group": "budget",
+        "valueSchema": "integer",
+        "range": {
+          "min": 1,
+          "step": 1
+        }
+      },
+      "temperature": {
+        "group": "sampling",
+        "valueSchema": "number",
+        "range": {
+          "min": 0,
+          "max": 2,
+          "step": 0.01
+        },
+        "interactionGroup": "sampling_strategy"
+      },
+      "top_p": {
+        "group": "sampling",
+        "valueSchema": "number",
+        "range": {
+          "minExclusive": 0,
+          "max": 1,
+          "step": 0.01
+        },
+        "interactionGroup": "sampling_strategy"
+      },
+      "response_format": {
+        "group": "output_contract",
+        "valueSchema": "enum",
+        "enumValues": [
+          "text",
+          "json"
+        ]
+      },
+      "json_schema": {
+        "group": "output_contract",
+        "valueSchema": "json-schema",
+        "conflictsWith": [
+          "tools",
+          "response_format"
+        ]
+      }
+    },
+    "templates": {
+      "openai_chat_completions": {
+        "transport": "openai_chat_completions",
+        "wire": {
+          "max_output_tokens": "max_tokens",
+          "temperature": "temperature",
+          "top_p": "top_p",
+          "response_format": "response_format",
+          "json_schema": "response_format"
+        }
+      },
+      "anthropic_messages": {
+        "transport": "anthropic_messages",
+        "wire": {
+          "max_output_tokens": "max_tokens",
+          "temperature": "temperature",
+          "top_p": "top_p",
+          "json_schema": "output_config.format"
+        }
+      }
+    }
+  },
+  "modelLevelResolveCases": [
+    {
+      "caseId": "range.model_level_replaces_platform_range",
+      "model": {
+        "template": "anthropic_messages",
+        "parameters": [
+          {
+            "id": "temperature",
+            "support": "supported",
+            "source": "provider_metadata",
+            "range": {
+              "min": 0,
+              "max": 1,
+              "step": 0.01
+            }
+          }
+        ]
+      },
+      "expect": {
+        "parameters": {
+          "temperature": {
+            "range": {
+              "min": 0,
+              "max": 1,
+              "step": 0.01
+            }
+          }
+        },
+        "wire": {
+          "temperature": "temperature"
+        }
+      }
+    },
+    {
+      "caseId": "range.absent_falls_back_to_platform_range",
+      "model": {
+        "template": "openai_chat_completions",
+        "parameters": [
+          {
+            "id": "temperature",
+            "support": "supported",
+            "source": "provider_metadata"
+          }
+        ]
+      },
+      "expect": {
+        "parameters": {
+          "temperature": {
+            "range": {
+              "min": 0,
+              "max": 2,
+              "step": 0.01
+            }
+          }
+        },
+        "wire": {
+          "temperature": "temperature"
+        }
+      }
+    },
+    {
+      "caseId": "range.exclusive_upper_bound_is_not_merged_with_platform_max",
+      "model": {
+        "template": "openai_chat_completions",
+        "parameters": [
+          {
+            "id": "temperature",
+            "support": "supported",
+            "source": "provider_metadata",
+            "range": {
+              "min": 0,
+              "maxExclusive": 2,
+              "step": 0.01
+            }
+          }
+        ]
+      },
+      "expect": {
+        "parameters": {
+          "temperature": {
+            "range": {
+              "min": 0,
+              "maxExclusive": 2,
+              "step": 0.01
+            }
+          }
+        },
+        "wire": {
+          "temperature": "temperature"
+        }
+      }
+    },
+    {
+      "caseId": "conflicts.model_level_adds_sampling_exclusivity",
+      "model": {
+        "template": "anthropic_messages",
+        "parameters": [
+          {
+            "id": "temperature",
+            "support": "supported",
+            "source": "provider_metadata",
+            "conflictsWith": [
+              "top_p"
+            ]
+          },
+          {
+            "id": "top_p",
+            "support": "supported",
+            "source": "provider_metadata",
+            "conflictsWith": [
+              "temperature"
+            ]
+          }
+        ]
+      },
+      "expect": {
+        "parameters": {
+          "temperature": {
+            "conflictsWith": [
+              "top_p"
+            ]
+          },
+          "top_p": {
+            "conflictsWith": [
+              "temperature"
+            ]
+          }
+        },
+        "wire": {
+          "temperature": "temperature",
+          "top_p": "top_p"
+        }
+      }
+    },
+    {
+      "caseId": "conflicts.absent_means_platform_default_no_exclusivity",
+      "model": {
+        "template": "openai_chat_completions",
+        "parameters": [
+          {
+            "id": "temperature",
+            "support": "supported",
+            "source": "provider_metadata"
+          },
+          {
+            "id": "top_p",
+            "support": "supported",
+            "source": "provider_metadata"
+          }
+        ]
+      },
+      "expect": {
+        "parameters": {
+          "temperature": {
+            "conflictsWith": []
+          },
+          "top_p": {
+            "conflictsWith": []
+          }
+        },
+        "wire": {
+          "temperature": "temperature",
+          "top_p": "top_p"
+        }
+      }
+    },
+    {
+      "caseId": "wire.model_level_replaces_template_path",
+      "model": {
+        "template": "openai_chat_completions",
+        "parameters": [
+          {
+            "id": "max_output_tokens",
+            "support": "supported",
+            "source": "authoritative_metadata",
+            "wire": "max_completion_tokens"
+          },
+          {
+            "id": "temperature",
+            "support": "supported",
+            "source": "provider_metadata"
+          }
+        ]
+      },
+      "expect": {
+        "parameters": {},
+        "wire": {
+          "max_output_tokens": "max_completion_tokens",
+          "temperature": "temperature"
+        }
+      }
+    },
+    {
+      "caseId": "wire.absent_uses_template_path",
+      "model": {
+        "template": "openai_chat_completions",
+        "parameters": [
+          {
+            "id": "max_output_tokens",
+            "support": "supported",
+            "source": "authoritative_metadata"
+          }
+        ]
+      },
+      "expect": {
+        "parameters": {},
+        "wire": {
+          "max_output_tokens": "max_tokens"
+        }
+      }
+    },
+    {
+      "caseId": "wire.builder_owned_override_is_rejected_without_fallback",
+      "model": {
+        "template": "openai_chat_completions",
+        "parameters": [
+          {
+            "id": "max_output_tokens",
+            "support": "supported",
+            "source": "authoritative_metadata",
+            "wire": "messages"
+          },
+          {
+            "id": "temperature",
+            "support": "supported",
+            "source": "provider_metadata"
+          }
+        ]
+      },
+      "expect": {
+        "parameters": {},
+        "wire": {
+          "temperature": "temperature"
+        },
+        "wireRejections": [
+          {
+            "parameterId": "max_output_tokens",
+            "reason": "owned_root_field"
+          }
+        ]
+      }
+    },
+    {
+      "caseId": "strict.true_is_carried_to_the_resolved_parameter",
+      "model": {
+        "template": "openai_chat_completions",
+        "parameters": [
+          {
+            "id": "json_schema",
+            "support": "supported",
+            "source": "provider_metadata",
+            "strict": true
+          }
+        ]
+      },
+      "expect": {
+        "parameters": {
+          "json_schema": {
+            "strict": true
+          }
+        },
+        "wire": {
+          "json_schema": "response_format"
+        }
+      }
+    },
+    {
+      "caseId": "strict.absent_means_do_not_write_strict",
+      "model": {
+        "template": "openai_chat_completions",
+        "parameters": [
+          {
+            "id": "json_schema",
+            "support": "supported",
+            "source": "provider_metadata"
+          }
+        ]
+      },
+      "expect": {
+        "parameters": {
+          "json_schema": {
+            "strict": false
+          }
+        },
+        "wire": {
+          "json_schema": "response_format"
+        }
+      }
+    },
+    {
+      "caseId": "structured.json_mode_only_model_has_no_json_schema",
+      "model": {
+        "template": "openai_chat_completions",
+        "parameters": [
+          {
+            "id": "response_format",
+            "support": "supported",
+            "source": "provider_metadata"
+          }
+        ]
+      },
+      "expect": {
+        "parameters": {
+          "response_format": {
+            "enumValues": [
+              "text",
+              "json"
+            ]
+          }
+        },
+        "parameterIds": [
+          "response_format"
+        ],
+        "wire": {
+          "response_format": "response_format"
+        }
+      }
+    }
+  ],
+  "modelLevelOutboundCases": [
+    {
+      "caseId": "structured.chat_json_schema_with_strict",
+      "profile": {
+        "template": "openai_chat_completions",
+        "parameters": [
+          {
+            "id": "json_schema",
+            "valueSchema": "json-schema",
+            "conflictsWith": [
+              "tools",
+              "response_format"
+            ],
+            "strict": true
+          }
+        ],
+        "wire": {
+          "json_schema": "response_format"
+        }
+      },
+      "body": {
+        "model": "fixture-chat",
+        "messages": [
+          {
+            "role": "user",
+            "content": "hello"
+          }
+        ]
+      },
+      "overrides": {
+        "json_schema": {
+          "state": "value",
+          "value": {
+            "type": "object",
+            "properties": {
+              "answer": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "answer"
+            ]
+          }
+        }
+      },
+      "expect": {
+        "body": {
+          "model": "fixture-chat",
+          "messages": [
+            {
+              "role": "user",
+              "content": "hello"
+            }
+          ],
+          "response_format": {
+            "type": "json_schema",
+            "json_schema": {
+              "name": "oriveo_response",
+              "strict": true,
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "answer": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "answer"
+                ]
+              }
+            }
+          }
+        },
+        "dropped": []
+      }
+    },
+    {
+      "caseId": "structured.chat_json_schema_without_strict",
+      "profile": {
+        "template": "openai_chat_completions",
+        "parameters": [
+          {
+            "id": "json_schema",
+            "valueSchema": "json-schema",
+            "conflictsWith": [
+              "tools",
+              "response_format"
+            ]
+          }
+        ],
+        "wire": {
+          "json_schema": "response_format"
+        }
+      },
+      "body": {
+        "model": "fixture-chat",
+        "messages": [
+          {
+            "role": "user",
+            "content": "hello"
+          }
+        ]
+      },
+      "overrides": {
+        "json_schema": {
+          "state": "value",
+          "value": {
+            "type": "object",
+            "properties": {
+              "answer": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "answer"
+            ]
+          }
+        }
+      },
+      "expect": {
+        "body": {
+          "model": "fixture-chat",
+          "messages": [
+            {
+              "role": "user",
+              "content": "hello"
+            }
+          ],
+          "response_format": {
+            "type": "json_schema",
+            "json_schema": {
+              "name": "oriveo_response",
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "answer": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "answer"
+                ]
+              }
+            }
+          }
+        },
+        "dropped": []
+      }
+    },
+    {
+      "caseId": "structured.chat_json_mode_is_json_object",
+      "profile": {
+        "template": "openai_chat_completions",
+        "parameters": [
+          {
+            "id": "response_format",
+            "valueSchema": "enum",
+            "enumValues": [
+              "text",
+              "json"
+            ]
+          }
+        ],
+        "wire": {
+          "response_format": "response_format"
+        }
+      },
+      "body": {
+        "model": "fixture-chat",
+        "messages": [
+          {
+            "role": "user",
+            "content": "hello"
+          }
+        ]
+      },
+      "overrides": {
+        "response_format": {
+          "state": "value",
+          "value": "json"
+        }
+      },
+      "expect": {
+        "body": {
+          "model": "fixture-chat",
+          "messages": [
+            {
+              "role": "user",
+              "content": "hello"
+            }
+          ],
+          "response_format": {
+            "type": "json_object"
+          }
+        },
+        "dropped": []
+      }
+    },
+    {
+      "caseId": "structured.responses_json_schema_with_strict",
+      "profile": {
+        "template": "openai_responses",
+        "parameters": [
+          {
+            "id": "json_schema",
+            "valueSchema": "json-schema",
+            "conflictsWith": [
+              "tools",
+              "response_format"
+            ],
+            "strict": true
+          }
+        ],
+        "wire": {
+          "json_schema": "text.format"
+        }
+      },
+      "body": {
+        "model": "fixture-responses",
+        "input": "hello"
+      },
+      "overrides": {
+        "json_schema": {
+          "state": "value",
+          "value": {
+            "type": "object",
+            "properties": {
+              "answer": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "answer"
+            ]
+          }
+        }
+      },
+      "expect": {
+        "body": {
+          "model": "fixture-responses",
+          "input": "hello",
+          "text": {
+            "format": {
+              "type": "json_schema",
+              "name": "oriveo_response",
+              "strict": true,
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "answer": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "answer"
+                ]
+              }
+            }
+          }
+        },
+        "dropped": []
+      }
+    },
+    {
+      "caseId": "structured.responses_json_schema_without_strict",
+      "profile": {
+        "template": "openai_responses",
+        "parameters": [
+          {
+            "id": "json_schema",
+            "valueSchema": "json-schema",
+            "conflictsWith": [
+              "tools",
+              "response_format"
+            ]
+          }
+        ],
+        "wire": {
+          "json_schema": "text.format"
+        }
+      },
+      "body": {
+        "model": "fixture-responses",
+        "input": "hello"
+      },
+      "overrides": {
+        "json_schema": {
+          "state": "value",
+          "value": {
+            "type": "object",
+            "properties": {
+              "answer": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "answer"
+            ]
+          }
+        }
+      },
+      "expect": {
+        "body": {
+          "model": "fixture-responses",
+          "input": "hello",
+          "text": {
+            "format": {
+              "type": "json_schema",
+              "name": "oriveo_response",
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "answer": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "answer"
+                ]
+              }
+            }
+          }
+        },
+        "dropped": []
+      }
+    },
+    {
+      "caseId": "structured.anthropic_json_schema_goes_to_output_config_format",
+      "profile": {
+        "template": "anthropic_messages",
+        "parameters": [
+          {
+            "id": "max_output_tokens",
+            "valueSchema": "integer",
+            "range": {
+              "min": 1
+            }
+          },
+          {
+            "id": "json_schema",
+            "valueSchema": "json-schema",
+            "conflictsWith": [
+              "tools",
+              "response_format"
+            ]
+          }
+        ],
+        "wire": {
+          "max_output_tokens": "max_tokens",
+          "json_schema": "output_config.format"
+        }
+      },
+      "body": {
+        "model": "fixture-chat",
+        "messages": [
+          {
+            "role": "user",
+            "content": "hello"
+          }
+        ],
+        "max_tokens": 8192
+      },
+      "overrides": {
+        "json_schema": {
+          "state": "value",
+          "value": {
+            "type": "object",
+            "properties": {
+              "answer": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "answer"
+            ]
+          }
+        }
+      },
+      "expect": {
+        "body": {
+          "model": "fixture-chat",
+          "messages": [
+            {
+              "role": "user",
+              "content": "hello"
+            }
+          ],
+          "max_tokens": 8192,
+          "output_config": {
+            "format": {
+              "type": "json_schema",
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "answer": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "answer"
+                ]
+              }
+            }
+          }
+        },
+        "bodyExcludes": [
+          "output_format"
+        ],
+        "dropped": []
+      }
+    },
+    {
+      "caseId": "structured.anthropic_format_merges_with_existing_output_config",
+      "profile": {
+        "template": "anthropic_messages",
+        "parameters": [
+          {
+            "id": "max_output_tokens",
+            "valueSchema": "integer",
+            "range": {
+              "min": 1
+            }
+          },
+          {
+            "id": "json_schema",
+            "valueSchema": "json-schema",
+            "conflictsWith": [
+              "tools",
+              "response_format"
+            ]
+          }
+        ],
+        "wire": {
+          "max_output_tokens": "max_tokens",
+          "json_schema": "output_config.format"
+        }
+      },
+      "body": {
+        "model": "fixture-chat",
+        "messages": [
+          {
+            "role": "user",
+            "content": "hello"
+          }
+        ],
+        "max_tokens": 8192,
+        "output_config": {
+          "effort": "high"
+        }
+      },
+      "overrides": {
+        "json_schema": {
+          "state": "value",
+          "value": {
+            "type": "object",
+            "properties": {
+              "answer": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "answer"
+            ]
+          }
+        }
+      },
+      "expect": {
+        "body": {
+          "model": "fixture-chat",
+          "messages": [
+            {
+              "role": "user",
+              "content": "hello"
+            }
+          ],
+          "max_tokens": 8192,
+          "output_config": {
+            "effort": "high",
+            "format": {
+              "type": "json_schema",
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "answer": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "answer"
+                ]
+              }
+            }
+          }
+        },
+        "bodyExcludes": [
+          "output_format"
+        ],
+        "dropped": []
+      }
+    },
+    {
+      "caseId": "max_tokens.value_goes_to_max_completion_tokens",
+      "profile": {
+        "template": "openai_chat_completions",
+        "parameters": [
+          {
+            "id": "max_output_tokens",
+            "valueSchema": "integer",
+            "range": {
+              "min": 1
+            }
+          },
+          {
+            "id": "temperature",
+            "valueSchema": "number",
+            "range": {
+              "min": 0,
+              "max": 2,
+              "step": 0.01
+            }
+          }
+        ],
+        "wire": {
+          "max_output_tokens": "max_completion_tokens",
+          "temperature": "temperature"
+        }
+      },
+      "body": {
+        "model": "fixture-chat",
+        "messages": [
+          {
+            "role": "user",
+            "content": "hello"
+          }
+        ]
+      },
+      "overrides": {
+        "max_output_tokens": {
+          "state": "value",
+          "value": 2048
+        }
+      },
+      "expect": {
+        "body": {
+          "model": "fixture-chat",
+          "messages": [
+            {
+              "role": "user",
+              "content": "hello"
+            }
+          ],
+          "max_completion_tokens": 2048
+        },
+        "bodyExcludes": [
+          "max_tokens"
+        ],
+        "dropped": []
+      }
+    },
+    {
+      "caseId": "max_tokens.value_replaces_builder_default_under_the_other_name",
+      "profile": {
+        "template": "openai_chat_completions",
+        "parameters": [
+          {
+            "id": "max_output_tokens",
+            "valueSchema": "integer",
+            "range": {
+              "min": 1
+            }
+          },
+          {
+            "id": "temperature",
+            "valueSchema": "number",
+            "range": {
+              "min": 0,
+              "max": 2,
+              "step": 0.01
+            }
+          }
+        ],
+        "wire": {
+          "max_output_tokens": "max_completion_tokens",
+          "temperature": "temperature"
+        }
+      },
+      "body": {
+        "model": "fixture-chat",
+        "messages": [
+          {
+            "role": "user",
+            "content": "hello"
+          }
+        ],
+        "max_tokens": 4096
+      },
+      "overrides": {
+        "max_output_tokens": {
+          "state": "value",
+          "value": 2048
+        }
+      },
+      "expect": {
+        "body": {
+          "model": "fixture-chat",
+          "messages": [
+            {
+              "role": "user",
+              "content": "hello"
+            }
+          ],
+          "max_completion_tokens": 2048
+        },
+        "bodyExcludes": [
+          "max_tokens"
+        ],
+        "dropped": []
+      }
+    },
+    {
+      "caseId": "max_tokens.builder_default_moves_to_resolved_path_when_inherited",
+      "profile": {
+        "template": "openai_chat_completions",
+        "parameters": [
+          {
+            "id": "max_output_tokens",
+            "valueSchema": "integer",
+            "range": {
+              "min": 1
+            }
+          },
+          {
+            "id": "temperature",
+            "valueSchema": "number",
+            "range": {
+              "min": 0,
+              "max": 2,
+              "step": 0.01
+            }
+          }
+        ],
+        "wire": {
+          "max_output_tokens": "max_completion_tokens",
+          "temperature": "temperature"
+        }
+      },
+      "body": {
+        "model": "fixture-chat",
+        "messages": [
+          {
+            "role": "user",
+            "content": "hello"
+          }
+        ],
+        "max_tokens": 4096
+      },
+      "overrides": {
+        "temperature": {
+          "state": "value",
+          "value": 0.5
+        }
+      },
+      "expect": {
+        "body": {
+          "model": "fixture-chat",
+          "messages": [
+            {
+              "role": "user",
+              "content": "hello"
+            }
+          ],
+          "max_completion_tokens": 4096,
+          "temperature": 0.5
+        },
+        "bodyExcludes": [
+          "max_tokens"
+        ],
+        "dropped": []
+      }
+    },
+    {
+      "caseId": "max_tokens.omit_removes_both_names",
+      "profile": {
+        "template": "openai_chat_completions",
+        "parameters": [
+          {
+            "id": "max_output_tokens",
+            "valueSchema": "integer",
+            "range": {
+              "min": 1
+            }
+          }
+        ],
+        "wire": {
+          "max_output_tokens": "max_completion_tokens"
+        }
+      },
+      "body": {
+        "model": "fixture-chat",
+        "messages": [
+          {
+            "role": "user",
+            "content": "hello"
+          }
+        ],
+        "max_tokens": 4096
+      },
+      "overrides": {
+        "max_output_tokens": {
+          "state": "omit"
+        }
+      },
+      "expect": {
+        "body": {
+          "model": "fixture-chat",
+          "messages": [
+            {
+              "role": "user",
+              "content": "hello"
+            }
+          ]
+        },
+        "bodyExcludes": [
+          "max_tokens",
+          "max_completion_tokens"
+        ],
+        "dropped": []
+      }
+    },
+    {
+      "caseId": "max_tokens.template_default_path_is_untouched",
+      "profile": {
+        "template": "openai_chat_completions",
+        "parameters": [
+          {
+            "id": "max_output_tokens",
+            "valueSchema": "integer",
+            "range": {
+              "min": 1
+            }
+          }
+        ],
+        "wire": {
+          "max_output_tokens": "max_tokens"
+        }
+      },
+      "body": {
+        "model": "fixture-chat",
+        "messages": [
+          {
+            "role": "user",
+            "content": "hello"
+          }
+        ],
+        "max_tokens": 4096
+      },
+      "overrides": {
+        "max_output_tokens": {
+          "state": "value",
+          "value": 2048
+        }
+      },
+      "expect": {
+        "body": {
+          "model": "fixture-chat",
+          "messages": [
+            {
+              "role": "user",
+              "content": "hello"
+            }
+          ],
+          "max_tokens": 2048
+        },
+        "bodyExcludes": [
+          "max_completion_tokens"
+        ],
+        "dropped": []
+      }
+    },
+    {
+      "caseId": "sampling.temperature_and_top_p_both_sent_without_declared_conflict",
+      "profile": {
+        "template": "openai_chat_completions",
+        "parameters": [
+          {
+            "id": "temperature",
+            "valueSchema": "number",
+            "range": {
+              "min": 0,
+              "max": 2,
+              "step": 0.01
+            }
+          },
+          {
+            "id": "top_p",
+            "valueSchema": "number",
+            "range": {
+              "minExclusive": 0,
+              "max": 1,
+              "step": 0.01
+            }
+          }
+        ],
+        "wire": {
+          "temperature": "temperature",
+          "top_p": "top_p"
+        }
+      },
+      "body": {
+        "model": "fixture-chat",
+        "messages": [
+          {
+            "role": "user",
+            "content": "hello"
+          }
+        ]
+      },
+      "overrides": {
+        "temperature": {
+          "state": "value",
+          "value": 1.5
+        },
+        "top_p": {
+          "state": "value",
+          "value": 0.9
+        }
+      },
+      "expect": {
+        "body": {
+          "model": "fixture-chat",
+          "messages": [
+            {
+              "role": "user",
+              "content": "hello"
+            }
+          ],
+          "temperature": 1.5,
+          "top_p": 0.9
+        },
+        "dropped": []
+      }
+    },
+    {
+      "caseId": "sampling.provider_range_drops_only_the_out_of_range_item",
+      "profile": {
+        "template": "anthropic_messages",
+        "parameters": [
+          {
+            "id": "max_output_tokens",
+            "valueSchema": "integer",
+            "range": {
+              "min": 1
+            }
+          },
+          {
+            "id": "temperature",
+            "valueSchema": "number",
+            "range": {
+              "min": 0,
+              "max": 1,
+              "step": 0.01
+            },
+            "conflictsWith": [
+              "top_p"
+            ]
+          },
+          {
+            "id": "top_p",
+            "valueSchema": "number",
+            "range": {
+              "minExclusive": 0,
+              "max": 1,
+              "step": 0.01
+            },
+            "conflictsWith": [
+              "temperature"
+            ]
+          }
+        ],
+        "wire": {
+          "max_output_tokens": "max_tokens",
+          "temperature": "temperature",
+          "top_p": "top_p"
+        }
+      },
+      "body": {
+        "model": "fixture-chat",
+        "messages": [
+          {
+            "role": "user",
+            "content": "hello"
+          }
+        ],
+        "max_tokens": 8192
+      },
+      "overrides": {
+        "temperature": {
+          "state": "value",
+          "value": 1.5
+        },
+        "top_p": {
+          "state": "value",
+          "value": 0.9
+        }
+      },
+      "expect": {
+        "body": {
+          "model": "fixture-chat",
+          "messages": [
+            {
+              "role": "user",
+              "content": "hello"
+            }
+          ],
+          "max_tokens": 8192,
+          "top_p": 0.9
+        },
+        "dropped": [
+          {
+            "parameterId": "temperature",
+            "reason": "invalid_value"
+          }
+        ]
+      }
+    },
+    {
+      "caseId": "sampling.exclusive_upper_bound_rejects_the_bound_itself",
+      "profile": {
+        "template": "openai_chat_completions",
+        "parameters": [
+          {
+            "id": "temperature",
+            "valueSchema": "number",
+            "range": {
+              "min": 0,
+              "maxExclusive": 2,
+              "step": 0.01
+            }
+          }
+        ],
+        "wire": {
+          "temperature": "temperature"
+        }
+      },
+      "body": {
+        "model": "fixture-chat",
+        "messages": [
+          {
+            "role": "user",
+            "content": "hello"
+          }
+        ]
+      },
+      "overrides": {
+        "temperature": {
+          "state": "value",
+          "value": 2
+        }
+      },
+      "expect": {
+        "body": {
+          "model": "fixture-chat",
+          "messages": [
+            {
+              "role": "user",
+              "content": "hello"
+            }
+          ]
+        },
+        "dropped": [
+          {
+            "parameterId": "temperature",
+            "reason": "invalid_value"
+          }
+        ]
+      }
+    }
   ]
 }
