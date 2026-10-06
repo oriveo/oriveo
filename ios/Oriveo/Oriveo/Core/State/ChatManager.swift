@@ -2936,8 +2936,14 @@ final class ChatManager {
                 // Once a request with custom capability facts has crossed the dispatch
                 // boundary its provider, model, error and body are all privacy-sensitive, so a
                 // failure on that path is not written to the log at all.
-                let hasDispatchedCustomFacts = CapabilityExecutionRuntime.hasDispatchedFact()
+                // This runs outside the tracker's TaskLocal scope, where
+                // `CapabilityExecutionRuntime.current` is nil and reading through it always
+                // answers "nothing was sent, nothing was rejected". Every fact about this send is
+                // read from the reference the send left behind.
+                let hasDispatchedCustomFacts = sendExecutionTracker?.hasDispatchedFact ?? false
                 let canRetryWithoutAdditionalBody = sendExecutionTracker?.canOfferRetryWithoutAdditionalBody ?? false
+                let customSourceRejected = sendExecutionTracker?.hasRejectedSource(.custom) ?? false
+                let terminalExecution = sendExecutionTracker?.terminalResult()
 
                 await MainActor.run {
                     if Task.isCancelled {
@@ -2965,12 +2971,11 @@ final class ChatManager {
                             // production tracker exposes it only after a structured exact locator
                             // matched an actually applied custom pointer before any event/effect.
                             guard localCustomFragmentDisposition != .omitForExplicitRetry,
-                                  CapabilityExecutionRuntime.hasRejectedSource(.custom)
+                                  customSourceRejected
                             else { return false }
                             return true
                         }()
-                        let isLocatedSettingRejection = CapabilityExecutionRuntime.current?
-                            .terminalResult().states.values.contains(.rejected) == true
+                        let isLocatedSettingRejection = terminalExecution?.states.values.contains(.rejected) == true
                         // Neither additional-request-body failure is a connection problem: a local
                         // rejection (nothing was sent) and an upstream 400 for a request that
                         // carried it. The latter offers "retry without the additional request body"
@@ -3002,13 +3007,14 @@ final class ChatManager {
                             // The raw JSON or upstream response must never reach the error card,
                             // persistence or the log. Keep only a stable, safe code.
                             detail: isCustomFieldError
-                                ? (CapabilityExecutionRuntime.hasRejectedSource(.custom)
+                                ? (customSourceRejected
                                     ? "model_control_setting_rejected"
                                     : "custom_request_fields_rejected")
                                 : (isLocatedSettingRejection
                                     ? "model_control_setting_rejected"
                                     : providerError.technicalDetail),
-                            errorCode: providerError.diagnosticCode
+                            errorCode: providerError.diagnosticCode,
+                            terminalExecution: terminalExecution
                         )
 
                         if !hasDispatchedCustomFacts {
@@ -3847,6 +3853,9 @@ final class ChatManager {
         title: String,
         detail: String,
         errorCode: String = "unknown",
+        /// The send task's catch runs outside the tracker's TaskLocal scope and cannot read
+        /// `current`, so the caller passes the terminal result in.
+        terminalExecution: CapabilityExecutionResult? = nil
     ) {
         guard let session = sessions[conversationID],
               session.messageID == messageID,
@@ -3882,7 +3891,7 @@ final class ChatManager {
         updated.messages[mi].estimatedCost = estimatedCost
         // Generic failures preserve the requested snapshot. Only the production tracker which
         // already matched an exact catalog locator may replace it with rejected.
-        if let execution = CapabilityExecutionRuntime.current?.terminalResult(),
+        if let execution = terminalExecution ?? CapabilityExecutionRuntime.current?.terminalResult(),
            execution.states.values.contains(.rejected) {
             updated.messages[mi].capabilityExecution = execution
         }

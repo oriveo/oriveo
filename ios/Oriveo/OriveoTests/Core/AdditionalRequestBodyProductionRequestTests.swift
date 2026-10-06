@@ -11,10 +11,17 @@ final class AdditionalRequestBodyCaptureURLProtocol: URLProtocol, @unchecked Sen
     nonisolated(unsafe) private static var statuses: [Int] = []
     static let rejectionBody = #"{"error":{"message":"probe upstream says: unexpected field zz_unknown","type":"invalid_request_error"}}"#
 
-    static func reset(statuses: [Int] = []) {
+    /// Stream bodies for 200 answers, in order; an empty stream with only [DONE] once they run out.
+    nonisolated(unsafe) private static var streams: [String] = []
+    /// Body of a non-200 answer; nil uses `rejectionBody`.
+    nonisolated(unsafe) private static var failureBody: String?
+
+    static func reset(statuses: [Int] = [], streams: [String] = [], failureBody: String? = nil) {
         lock.lock()
         bodies = []
         self.statuses = statuses
+        self.streams = streams
+        self.failureBody = failureBody
         lock.unlock()
     }
 
@@ -29,10 +36,14 @@ final class AdditionalRequestBodyCaptureURLProtocol: URLProtocol, @unchecked Sen
 
     override func startLoading() {
         var status = 200
+        var stream = "data: [DONE]\n\n"
+        var failure = Self.rejectionBody
         if request.httpMethod == "POST" {
             Self.lock.lock()
             Self.bodies.append(Self.bodyObject(of: request) ?? [:])
             if !Self.statuses.isEmpty { status = Self.statuses.removeFirst() }
+            if status == 200, !Self.streams.isEmpty { stream = Self.streams.removeFirst() }
+            if let body = Self.failureBody { failure = body }
             Self.lock.unlock()
         }
         let failed = status != 200
@@ -41,7 +52,7 @@ final class AdditionalRequestBodyCaptureURLProtocol: URLProtocol, @unchecked Sen
             headerFields: ["Content-Type": failed ? "application/json" : "text/event-stream"]
         )!
         client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
-        client?.urlProtocol(self, didLoad: Data((failed ? Self.rejectionBody : "data: [DONE]\n\n").utf8))
+        client?.urlProtocol(self, didLoad: Data((failed ? failure : stream).utf8))
         client?.urlProtocolDidFinishLoading(self)
     }
 
@@ -208,6 +219,59 @@ struct AdditionalRequestBodyProductionRequestTests {
         let serverError = try await with.send(resetCapture: false)
         #expect(serverError.state == .failed)
         #expect(serverError.errorTitle != AdditionalRequestBody.upstreamRejectionTitleKey)
+    }
+
+    /// What LM Studio 0.3 really answers when a known field has the wrong type (captured from a
+    /// local instance with `temperature: "hot"` and `stream: true`): HTTP 200,
+    /// `Content-Type: text/event-stream`, and this one frame in the stream. Copied byte for byte.
+    static let lmStudioStreamError = #"""
+    event: error
+    data: {"error":{"message":"Field with key llm.prediction.temperature does not satisfy the schema:[\n  {\n    \"code\": \"invalid_type\",\n    \"expected\": \"number\",\n    \"received\": \"nan\",\n    \"path\": [],\n    \"message\": \"Expected number, received nan\"\n  }\n]"},"message":"Field with key llm.prediction.temperature does not satisfy the schema:[\n  {\n    \"code\": \"invalid_type\",\n    \"expected\": \"number\",\n    \"received\": \"nan\",\n    \"path\": [],\n    \"message\": \"Expected number, received nan\"\n  }\n]"}
+
+
+    """#
+
+    @Test("In-stream error event (HTTP 200): the message fails as an upstream error with the upstream text instead of ending as a completed empty answer")
+    func streamErrorEventFailsTheMessageWithUpstreamText() async throws {
+        let fixture = Fixture(connectionDefaults: [:], additionalBody: nil)
+        defer { fixture.cleanUp() }
+        AdditionalRequestBodyCaptureURLProtocol.reset(streams: [Self.lmStudioStreamError])
+        let message = try await fixture.send(resetCapture: false)
+        #expect(message.state == .failed, "the upstream reported an error in the stream but the message is \(message.state.rawValue)")
+        #expect(message.errorDetail?.contains("llm.prediction.temperature does not satisfy the schema") == true, "the upstream text did not reach the error presentation: \(message.errorDetail ?? "nil")")
+        #expect(message.errorTitle != AdditionalRequestBody.upstreamRejectionTitleKey, "no additional request body was sent, so that way out should not be offered")
+        #expect(fixture.state.provider(for: fixture.providerID)?.status == .connected)
+    }
+
+    @Test("In-stream error before any content, with an additional request body: same as an upstream 400, offers retry without it")
+    func streamErrorBeforeContentOffersRetryWithoutAdditionalBody() async throws {
+        let fixture = Fixture(connectionDefaults: [:], additionalBody: #"{"temperature": "hot"}"#)
+        defer { fixture.cleanUp() }
+        AdditionalRequestBodyCaptureURLProtocol.reset(streams: [Self.lmStudioStreamError])
+        let failed = try await fixture.send(resetCapture: false)
+        #expect(AdditionalRequestBodyCaptureURLProtocol.captured.first?["temperature"] as? String == "hot")
+        #expect(failed.state == .failed)
+        #expect(failed.errorTitle == AdditionalRequestBody.upstreamRejectionTitleKey)
+        #expect(failed.errorDetail?.contains("llm.prediction.temperature") == true)
+
+        await fixture.state.retryMessage(
+            messageID: failed.id, in: fixture.conversationID,
+            localCustomFragmentDisposition: .forExplicitRetry(errorTitle: failed.errorTitle, recoveryDescriptorCount: nil)
+        )
+        let retried = try await fixture.waitForRequests(2)
+        #expect(retried[1]["temperature"] == nil, "the retried request still carries the additional request body")
+    }
+
+    @Test("In-stream error after content arrived: reported as usual, without offering retry without the additional request body")
+    func streamErrorAfterContentDoesNotOfferRetry() async throws {
+        let fixture = Fixture(connectionDefaults: [:], additionalBody: #"{"top_k": 40}"#)
+        defer { fixture.cleanUp() }
+        let delta = "data: {\"choices\":[{\"index\":0,\"delta\":{\"content\":\"partial answer\"}}]}\n\n"
+        AdditionalRequestBodyCaptureURLProtocol.reset(streams: [delta + Self.lmStudioStreamError])
+        let message = try await fixture.send(resetCapture: false)
+        #expect(message.state == .failed)
+        #expect(message.text.contains("partial answer"), "content that had already arrived was dropped")
+        #expect(message.errorTitle != AdditionalRequestBody.upstreamRejectionTitleKey)
     }
 
     @Test("Device-local: after a real send, sync envelopes, the parameter export and backups contain no additional request body")

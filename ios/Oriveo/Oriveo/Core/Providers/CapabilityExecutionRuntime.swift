@@ -119,6 +119,7 @@ final class CapabilityExecutionTracker: @unchecked Sendable {
     // no tool side effect happened in between. These two latches record just those transport facts.
     private var additionalBodyApplied = false
     private var preEventUpstreamStatus: Int?
+    private var preEventStreamRejection = false
 
     init(onRequested: @escaping @Sendable (CapabilityExecutionResult) -> Void = { _ in }) {
         self.onRequested = onRequested
@@ -445,13 +446,23 @@ final class CapabilityExecutionTracker: @unchecked Sendable {
         lock.unlock()
     }
 
+    /// Some upstreams (LM Studio) report "this request body is not accepted" inside an HTTP 200
+    /// stream, as a single error event. Received before any content and any side effect, that
+    /// rejection is the same thing as a 400 before events: the request was refused and nothing
+    /// happened.
+    func recordStreamRejectionBeforeEvents() {
+        lock.lock()
+        if !receivedUpstreamResponse, !performedSideEffect { preEventStreamRejection = true }
+        lock.unlock()
+    }
+
     /// Contract `additionalBodyRules.recovery`. This authorizes no retry by itself; it only
     /// answers whether the error card may offer the user-initiated "retry without the additional
     /// request body" action.
     var canOfferRetryWithoutAdditionalBody: Bool {
         lock.lock()
         defer { lock.unlock() }
-        return additionalBodyApplied && preEventUpstreamStatus == 400
+        return additionalBodyApplied && (preEventUpstreamStatus == 400 || preEventStreamRejection)
             && !receivedUpstreamResponse && !performedSideEffect
     }
 
@@ -540,6 +551,10 @@ enum CapabilityExecutionRuntime {
 
     static func recordUpstreamHTTPFailure(statusCode: Int) {
         current?.recordUpstreamHTTPFailure(statusCode: statusCode)
+    }
+
+    static func recordStreamRejectionBeforeEvents() {
+        current?.recordStreamRejectionBeforeEvents()
     }
 }
 

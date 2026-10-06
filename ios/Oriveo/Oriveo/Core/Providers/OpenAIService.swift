@@ -2381,6 +2381,7 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
                     let chatStrategy = TransportRegistry.strategy(for: .openaiChat)
                     var chatCtx = StreamContext()
                     var chatLastCitationsCount = 0
+                    var yieldedAnyEvent = false
                     defer {
                         for ev in OpenAIChatStrategy.flushToolCalls(ctx: &chatCtx) { continuation.yield(ev) }
                     }
@@ -2391,6 +2392,16 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
                         let payload = String(line.dropFirst(6))
                         if payload == "[DONE]" { break }
                         guard let chunkData = payload.data(using: .utf8) else { continue }
+                        // An error frame inside the stream (the HTTP status is already 200). It
+                        // decodes as an ordinary chunk because every field is optional, so unless
+                        // it is recognized first it is skipped as an empty frame and the message
+                        // ends as "completed, no content".
+                        if let streamError = Self.mapOpenAICompatibleStreamError(from: chunkData) {
+                            if !yieldedAnyEvent, case .upstream = streamError {
+                                CapabilityExecutionRuntime.recordStreamRejectionBeforeEvents()
+                            }
+                            throw streamError
+                        }
                         let chunk: OpenAIStreamChunk
                         do {
                             chunk = try self.decoder.decode(OpenAIStreamChunk.self, from: chunkData)
@@ -2401,13 +2412,18 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
                         if let delta = chunk.choices?.first?.delta,
                            let content = delta.content?.text, !content.isEmpty {
                             accumulatedText += content
+                            yieldedAnyEvent = true
                             continuation.yield(.delta(content))
                         }
 
                         for ev in chatStrategy.parseStreamLine(payload, ctx: &chatCtx, shape: webSearchShape) {
                             switch ev {
-                            case let .reasoning(text): continuation.yield(.reasoning(text))
-                            case .toolCallDeltas: continuation.yield(ev)
+                            case let .reasoning(text):
+                                yieldedAnyEvent = true
+                                continuation.yield(.reasoning(text))
+                            case .toolCallDeltas:
+                                yieldedAnyEvent = true
+                                continuation.yield(ev)
                             default: break
                             }
                         }

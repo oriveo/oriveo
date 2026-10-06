@@ -903,6 +903,74 @@ struct CapabilityRuntimeRejectionTests {
         await MetadataClient.shared.resetForTesting()
     }
 
+    /// The send task handles failures outside the tracker's TaskLocal scope, where
+    /// `CapabilityExecutionRuntime.current` is always nil. When the upstream pins a 400 to one
+    /// setting, the failed message must still carry the rejected terminal state and the
+    /// single-setting retry. The assertions are made on the failed message the whole production
+    /// send path leaves behind (AppState → ChatManager → OpenAI Responses builder → URLSession).
+    @Test("whole send path: a setting rejection located by the upstream reaches the failed message as a rejected terminal state with its retry")
+    @MainActor
+    func locatedRejectionReachesTheFailedMessageThroughTheSendChain() async throws {
+        UnsupportedParamCache.shared.resetForTesting()
+        let modelID = "gpt-5.6-terra", runtimeRevision = "runtime-r7"
+        await MetadataClient.shared.resetForTesting()
+        try await MetadataClient.shared.loadForTesting(
+            json: try Self.productionMetadataJSON(modelID: modelID, runtimeRevision: runtimeRevision),
+            metadataETag: runtimeRevision
+        )
+        let providerID = UUID()
+        var model = TestFactories.makeModel(id: modelID, capabilities: [.text], isDefault: true)
+        model.canonicalModelId = modelID
+        let provider = TestFactories.makeProvider(id: providerID, kind: .openAI, models: [model])
+        GenerationParameterSettingsStore.shared.setConnectionDefaults(
+            .init(values: ["temperature": .init(state: .value, value: .number(0.2))]), providerID: providerID
+        )
+        defer {
+            GenerationParameterSettingsStore.shared.setConnectionDefaults(nil, providerID: providerID)
+            AdditionalRequestBodyCaptureURLProtocol.reset()
+            UnsupportedParamCache.shared.resetForTesting()
+        }
+        AdditionalRequestBodyCaptureURLProtocol.reset(
+            statuses: [400], failureBody: #"{"error":{"param":"temperature","message":"unsupported"}}"#
+        )
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [AdditionalRequestBodyCaptureURLProtocol.self]
+        let state = AppState(
+            seedDemoData: false,
+            sessionUID: "located-rejection-\(UUID().uuidString)",
+            providerSession: URLSession(configuration: configuration)
+        )
+        let conversation = TestFactories.makeConversation(
+            providerID: providerID, providerKind: .openAI, modelID: modelID
+        )
+        state.providers = [provider]
+        state.upsertConversationProjection(conversation)
+
+        _ = await state.sendMessage(
+            "hello", in: conversation.id,
+            capabilitySelection: ChatCapabilitySelection(reasoningMode: .automatic, webSearchEnabled: false)
+        )
+        let deadline = ContinuousClock.now + .seconds(8)
+        var failed: ChatMessage?
+        while ContinuousClock.now < deadline {
+            if let last = state.conversation(for: conversation.id)?.messages.last,
+               last.role == .assistant, last.state == .failed {
+                failed = last
+                break
+            }
+            try await Task.sleep(nanoseconds: 20_000_000)
+        }
+        await MetadataClient.shared.resetForTesting()
+        let message = try #require(failed, "the send did not end in a failure")
+        let sent = try #require(AdditionalRequestBodyCaptureURLProtocol.captured.first, "the send path emitted no request")
+        #expect((sent["temperature"] as? NSNumber)?.doubleValue == 0.2, "precondition: the rejected setting really is in the request body")
+
+        #expect(message.capabilityExecution?.states["generation"] == .rejected)
+        #expect(message.capabilityExecution?.recoveryDescriptors?.first?.locatedPointers == ["/temperature"])
+        #expect(message.errorDetail == "model_control_setting_rejected")
+        #expect(message.errorTitle == L10n.tr("Model control setting rejected", table: .chat))
+    }
+
     @Test("Shared Fixture Unknown Runtime Plain Chat Body")
     func sharedFixtureUnknownRuntimePlainChatBody() async throws {
         let fixture = try Self.sharedRuntimeFixture()
