@@ -90,6 +90,17 @@ serta buktinya dikonsumsi.
 Pengujian setiap klien memuat berkas-berkas ini secara langsung, jadi perubahan di sini adalah
 perubahan pada ketiga klien sekaligus.
 
+## mcp-icons
+
+Logo server MCP yang sudah dikenal luas, masing-masing dalam varian terang dan gelap, beserta
+`catalog.json`: nama dan host yang dipakai untuk mengenali tiap server, dari mana gambarnya berasal,
+dan di bawah ketentuan apa.
+
+`node shared/mcp-icons/sync.mjs` menyalin gambar-gambar itu ke setiap klien dan membuat ulang tabel
+pencarian yang dipakai tiap klien untuk mencocokkan; `--check` gagal bila ada klien yang sudah
+menyimpang dari katalog. Untuk menambah server, tambahkan satu entri katalog beserta kedua
+gambarnya, lalu jalankan skripnya.
+
 ## test-fixtures
 
 Data pengujian golden: trafik tool-call upstream yang terekam, routing relay, validasi formulir,

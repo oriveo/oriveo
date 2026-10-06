@@ -85,6 +85,15 @@ capability states a client may present, and how the model catalog and its eviden
 
 Each client's tests load these directly, so a change here is a change to all three clients at once.
 
+## mcp-icons
+
+Logos for well-known MCP servers, in a light and a dark variant, and `catalog.json`: the names and
+hosts each one is matched by, where the image came from and under which terms.
+
+`node shared/mcp-icons/sync.mjs` copies the images into each client and regenerates the lookup table
+each client matches against; `--check` fails when a client has drifted from the catalog. Add a
+server by adding a catalog entry and its two images, then running the script.
+
 ## test-fixtures
 
 Golden test data: recorded upstream tool-call traffic, relay routing, form validation,

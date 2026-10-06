@@ -88,6 +88,17 @@ kanıtlarının nasıl tüketildiği.
 Her istemcinin testleri bunları doğrudan yükler; dolayısıyla buradaki bir değişiklik aynı anda üç
 istemcinin birden değişmesidir.
 
+## mcp-icons
+
+Tanınmış MCP sunucularının açık ve koyu temaya uygun birer logosu ile `catalog.json`: her sunucunun
+hangi adlar ve host'larla eşleştirildiği, görselin nereden alındığı ve hangi koşullarla
+kullanıldığı.
+
+`node shared/mcp-icons/sync.mjs` görselleri her istemciye kopyalar ve istemcilerin eşleştirme
+yaparken başvurduğu arama tablosunu yeniden üretir; `--check` ise bir istemci katalogdan sapmışsa
+başarısız olur. Yeni bir sunucu eklemek için kataloğa bir kayıt ve sunucunun iki görselini ekleyip
+betiği çalıştırmak yeterlidir.
+
 ## test-fixtures
 
 Altın test verisi: kaydedilmiş upstream tool call trafiği, relay yönlendirme, form doğrulama, yerel

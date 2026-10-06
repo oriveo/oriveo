@@ -1,0 +1,912 @@
+{
+  "schemaVersion": 1,
+  "packages": {
+    "lobe": "@lobehub/icons-static-png@1.97.1",
+    "simple": "simple-icons@16.34.0",
+    "simple14": "simple-icons@14.0.0 (Slack only)"
+  },
+  "entries": [
+    {
+      "key": "deepwiki",
+      "names": [
+        "deepwiki",
+        "deep wiki",
+        "cognition",
+        "devin"
+      ],
+      "hosts": [
+        "deepwiki.com",
+        "devin.ai",
+        "cognition.ai"
+      ],
+      "provider": "official",
+      "asset": "cognition",
+      "source": "https://mintcdn.com/cognitionai/Hhrl_8XUBqA4VQ6v/logo/favicon.svg",
+      "license": "Vendor trademark",
+      "note": "DeepWiki uses its vendor Cognition symbol from the official Devin documentation."
+    },
+    {
+      "key": "context7",
+      "names": [
+        "context7",
+        "context 7"
+      ],
+      "hosts": [
+        "context7.com"
+      ],
+      "provider": "official",
+      "asset": "context7",
+      "source": "https://context7.com/_next/static/media/context7-logo-light.99ff21c1.svg",
+      "license": "Vendor trademark"
+    },
+    {
+      "key": "github",
+      "names": [
+        "github",
+        "github copilot"
+      ],
+      "hosts": [
+        "github.com",
+        "githubcopilot.com"
+      ],
+      "provider": "lobe",
+      "asset": "github",
+      "source": "https://github.com/lobehub/lobe-icons",
+      "license": "MIT"
+    },
+    {
+      "key": "notion",
+      "names": [
+        "notion"
+      ],
+      "hosts": [
+        "notion.so",
+        "notion.com"
+      ],
+      "provider": "lobe",
+      "asset": "notion",
+      "source": "https://github.com/lobehub/lobe-icons",
+      "license": "MIT"
+    },
+    {
+      "key": "figma",
+      "names": [
+        "figma"
+      ],
+      "hosts": [
+        "figma.com"
+      ],
+      "provider": "lobe",
+      "asset": "figma-color",
+      "source": "https://github.com/lobehub/lobe-icons",
+      "license": "MIT"
+    },
+    {
+      "key": "brave",
+      "names": [
+        "brave",
+        "brave search"
+      ],
+      "hosts": [
+        "brave.com"
+      ],
+      "provider": "lobe",
+      "asset": "brave-color",
+      "source": "https://github.com/lobehub/lobe-icons",
+      "license": "MIT"
+    },
+    {
+      "key": "tavily",
+      "names": [
+        "tavily"
+      ],
+      "hosts": [
+        "tavily.com"
+      ],
+      "provider": "lobe",
+      "asset": "tavily-color",
+      "source": "https://github.com/lobehub/lobe-icons",
+      "license": "MIT"
+    },
+    {
+      "key": "exa",
+      "names": [
+        "exa"
+      ],
+      "hosts": [
+        "exa.ai"
+      ],
+      "provider": "lobe",
+      "asset": "exa-color",
+      "source": "https://github.com/lobehub/lobe-icons",
+      "license": "MIT"
+    },
+    {
+      "key": "firecrawl",
+      "names": [
+        "firecrawl"
+      ],
+      "hosts": [
+        "firecrawl.dev"
+      ],
+      "provider": "lobe",
+      "asset": "firecrawl-color",
+      "source": "https://github.com/lobehub/lobe-icons",
+      "license": "MIT"
+    },
+    {
+      "key": "jina",
+      "names": [
+        "jina",
+        "jina ai"
+      ],
+      "hosts": [
+        "jina.ai"
+      ],
+      "provider": "lobe",
+      "asset": "jina",
+      "source": "https://github.com/lobehub/lobe-icons",
+      "license": "MIT"
+    },
+    {
+      "key": "perplexity",
+      "names": [
+        "perplexity"
+      ],
+      "hosts": [
+        "perplexity.ai"
+      ],
+      "provider": "lobe",
+      "asset": "perplexity-color",
+      "source": "https://github.com/lobehub/lobe-icons",
+      "license": "MIT"
+    },
+    {
+      "key": "vercel",
+      "names": [
+        "vercel"
+      ],
+      "hosts": [
+        "vercel.com"
+      ],
+      "provider": "lobe",
+      "asset": "vercel",
+      "source": "https://github.com/lobehub/lobe-icons",
+      "license": "MIT"
+    },
+    {
+      "key": "cloudflare",
+      "names": [
+        "cloudflare"
+      ],
+      "hosts": [
+        "cloudflare.com"
+      ],
+      "provider": "lobe",
+      "asset": "cloudflare-color",
+      "source": "https://github.com/lobehub/lobe-icons",
+      "license": "MIT"
+    },
+    {
+      "key": "microsoft",
+      "names": [
+        "microsoft",
+        "azure"
+      ],
+      "hosts": [
+        "microsoft.com",
+        "azure.com"
+      ],
+      "provider": "lobe",
+      "asset": "microsoft-color",
+      "source": "https://github.com/lobehub/lobe-icons",
+      "license": "MIT"
+    },
+    {
+      "key": "googlecloud",
+      "names": [
+        "google cloud",
+        "gcp"
+      ],
+      "hosts": [
+        "cloud.google.com",
+        "googleapis.com"
+      ],
+      "provider": "lobe",
+      "asset": "googlecloud-color",
+      "source": "https://github.com/lobehub/lobe-icons",
+      "license": "MIT"
+    },
+    {
+      "key": "huggingface",
+      "names": [
+        "hugging face",
+        "huggingface"
+      ],
+      "hosts": [
+        "huggingface.co"
+      ],
+      "provider": "lobe",
+      "asset": "huggingface-color",
+      "source": "https://github.com/lobehub/lobe-icons",
+      "license": "MIT"
+    },
+    {
+      "key": "browserless",
+      "names": [
+        "browserless"
+      ],
+      "hosts": [
+        "browserless.io"
+      ],
+      "provider": "lobe",
+      "asset": "browserless",
+      "source": "https://github.com/lobehub/lobe-icons",
+      "license": "MIT"
+    },
+    {
+      "key": "slack",
+      "names": [
+        "slack"
+      ],
+      "hosts": [
+        "slack.com"
+      ],
+      "provider": "simple14",
+      "asset": "slack",
+      "source": "https://github.com/simple-icons/simple-icons/blob/14.0.0/icons/slack.svg",
+      "license": "CC0-1.0"
+    },
+    {
+      "key": "linear",
+      "names": [
+        "linear"
+      ],
+      "hosts": [
+        "linear.app"
+      ],
+      "provider": "simple",
+      "asset": "linear",
+      "source": "https://linear.app",
+      "license": "CC0-1.0",
+      "color": "5E6AD2"
+    },
+    {
+      "key": "googledrive",
+      "names": [
+        "google drive",
+        "gdrive"
+      ],
+      "hosts": [
+        "drive.google.com"
+      ],
+      "provider": "simple",
+      "asset": "googledrive",
+      "source": "https://developers.google.com/drive/web/branding",
+      "license": "CC0-1.0",
+      "color": "4285F4"
+    },
+    {
+      "key": "sentry",
+      "names": [
+        "sentry"
+      ],
+      "hosts": [
+        "sentry.io"
+      ],
+      "provider": "simple",
+      "asset": "sentry",
+      "source": "https://sentry.io/branding/",
+      "license": "CC0-1.0",
+      "color": "362D59"
+    },
+    {
+      "key": "stripe",
+      "names": [
+        "stripe"
+      ],
+      "hosts": [
+        "stripe.com"
+      ],
+      "provider": "simple",
+      "asset": "stripe",
+      "source": "https://stripe.com/newsroom/information",
+      "license": "CC0-1.0",
+      "color": "635BFF"
+    },
+    {
+      "key": "airtable",
+      "names": [
+        "airtable"
+      ],
+      "hosts": [
+        "airtable.com"
+      ],
+      "provider": "simple",
+      "asset": "airtable",
+      "source": "https://airtable.com/newsroom",
+      "license": "CC0-1.0",
+      "color": "18BFFF"
+    },
+    {
+      "key": "supabase",
+      "names": [
+        "supabase"
+      ],
+      "hosts": [
+        "supabase.com",
+        "supabase.co"
+      ],
+      "provider": "simple",
+      "asset": "supabase",
+      "source": "https://github.com/supabase/supabase/blob/4031a7549f5d46da7bc79c01d56be4177dc7c114/packages/common/assets/images/supabase-logo-wordmark--light.svg",
+      "license": "CC0-1.0",
+      "color": "3FCF8E"
+    },
+    {
+      "key": "neon",
+      "names": [
+        "neon",
+        "neon postgres"
+      ],
+      "hosts": [
+        "neon.tech",
+        "neon.com"
+      ],
+      "provider": "simple",
+      "asset": "neon",
+      "source": "https://neon.com/brand",
+      "license": "CC0-1.0",
+      "color": "34D59A"
+    },
+    {
+      "key": "jira",
+      "names": [
+        "jira"
+      ],
+      "hosts": [
+        "jira.com"
+      ],
+      "provider": "simple",
+      "asset": "jira",
+      "source": "https://atlassian.design/resources/logo-library",
+      "license": "CC0-1.0",
+      "color": "0052CC"
+    },
+    {
+      "key": "atlassian",
+      "names": [
+        "atlassian"
+      ],
+      "hosts": [
+        "atlassian.com",
+        "atlassian.net"
+      ],
+      "provider": "simple",
+      "asset": "atlassian",
+      "source": "https://atlassian.design/resources/logo-library",
+      "license": "CC0-1.0",
+      "color": "0052CC"
+    },
+    {
+      "key": "dropbox",
+      "names": [
+        "dropbox"
+      ],
+      "hosts": [
+        "dropbox.com"
+      ],
+      "provider": "simple",
+      "asset": "dropbox",
+      "source": "https://www.dropbox.com/branding",
+      "license": "CC0-1.0",
+      "color": "0061FF"
+    },
+    {
+      "key": "docker",
+      "names": [
+        "docker"
+      ],
+      "hosts": [
+        "docker.com"
+      ],
+      "provider": "simple",
+      "asset": "docker",
+      "source": "https://www.docker.com/company/newsroom/media-resources",
+      "license": "CC0-1.0",
+      "color": "2496ED"
+    },
+    {
+      "key": "postgresql",
+      "names": [
+        "postgres",
+        "postgresql"
+      ],
+      "hosts": [
+        "postgresql.org"
+      ],
+      "provider": "simple",
+      "asset": "postgresql",
+      "source": "https://wiki.postgresql.org/wiki/Logo",
+      "license": "CC0-1.0",
+      "color": "4169E1"
+    },
+    {
+      "key": "redis",
+      "names": [
+        "redis"
+      ],
+      "hosts": [
+        "redis.io",
+        "redis.com"
+      ],
+      "provider": "simple",
+      "asset": "redis",
+      "source": "https://redis.io/brand-guidelines",
+      "license": "CC0-1.0",
+      "color": "FF4438"
+    },
+    {
+      "key": "mongodb",
+      "names": [
+        "mongodb",
+        "mongo db"
+      ],
+      "hosts": [
+        "mongodb.com",
+        "mongodb.net"
+      ],
+      "provider": "simple",
+      "asset": "mongodb",
+      "source": "https://www.mongodb.com/pressroom",
+      "license": "CC0-1.0",
+      "color": "47A248"
+    },
+    {
+      "key": "snowflake",
+      "names": [
+        "snowflake"
+      ],
+      "hosts": [
+        "snowflake.com"
+      ],
+      "provider": "simple",
+      "asset": "snowflake",
+      "source": "https://www.snowflake.com/brand-guidelines/",
+      "license": "CC0-1.0",
+      "color": "29B5E8"
+    },
+    {
+      "key": "elastic",
+      "names": [
+        "elastic",
+        "elasticsearch"
+      ],
+      "hosts": [
+        "elastic.co"
+      ],
+      "provider": "simple",
+      "asset": "elasticsearch",
+      "source": "https://www.elastic.co/brand",
+      "license": "CC0-1.0",
+      "color": "005571"
+    },
+    {
+      "key": "grafana",
+      "names": [
+        "grafana"
+      ],
+      "hosts": [
+        "grafana.com",
+        "grafana.net"
+      ],
+      "provider": "simple",
+      "asset": "grafana",
+      "source": "https://grafana.com",
+      "license": "CC0-1.0",
+      "color": "F46800"
+    },
+    {
+      "key": "gitlab",
+      "names": [
+        "gitlab"
+      ],
+      "hosts": [
+        "gitlab.com"
+      ],
+      "provider": "simple",
+      "asset": "gitlab",
+      "source": "https://about.gitlab.com/press/press-kit/",
+      "license": "CC0-1.0",
+      "color": "FC6D26"
+    },
+    {
+      "key": "asana",
+      "names": [
+        "asana"
+      ],
+      "hosts": [
+        "asana.com"
+      ],
+      "provider": "simple",
+      "asset": "asana",
+      "source": "https://asana.com/brand",
+      "license": "CC0-1.0",
+      "color": "F06A6A"
+    },
+    {
+      "key": "todoist",
+      "names": [
+        "todoist"
+      ],
+      "hosts": [
+        "todoist.com"
+      ],
+      "provider": "simple",
+      "asset": "todoist",
+      "source": "https://doist.com/press",
+      "license": "CC0-1.0",
+      "color": "E44332"
+    },
+    {
+      "key": "zapier",
+      "names": [
+        "zapier"
+      ],
+      "hosts": [
+        "zapier.com"
+      ],
+      "provider": "simple",
+      "asset": "zapier",
+      "source": "https://www.figma.com/file/NQFxTCE5pGR3dHZt0DkOyy/Zapier-Brand-Guidelines-%5BExternal%5D?type=design&node-id=101-9701&mode=design",
+      "license": "CC0-1.0",
+      "color": "FF4F00"
+    },
+    {
+      "key": "n8n",
+      "names": [
+        "n8n"
+      ],
+      "hosts": [
+        "n8n.io",
+        "n8n.cloud"
+      ],
+      "provider": "simple",
+      "asset": "n8n",
+      "source": "https://n8n.io/press",
+      "license": "CC0-1.0",
+      "color": "EA4B71"
+    },
+    {
+      "key": "wikipedia",
+      "names": [
+        "wikipedia",
+        "wiki"
+      ],
+      "hosts": [
+        "wikipedia.org"
+      ],
+      "provider": "simple",
+      "asset": "wikipedia",
+      "source": "https://commons.wikimedia.org/wiki/File:Wikipedia-logo-v2.svg",
+      "license": "CC0-1.0",
+      "color": "000000"
+    },
+    {
+      "key": "gitbook",
+      "names": [
+        "gitbook"
+      ],
+      "hosts": [
+        "gitbook.com",
+        "gitbook.io"
+      ],
+      "provider": "simple",
+      "asset": "gitbook",
+      "source": "https://www.gitbook.com",
+      "license": "CC0-1.0",
+      "color": "BBDDE5"
+    },
+    {
+      "key": "confluence",
+      "names": [
+        "confluence"
+      ],
+      "hosts": [
+        "confluence.com"
+      ],
+      "provider": "simple",
+      "asset": "confluence",
+      "source": "https://www.atlassian.com/company/news/press-kit",
+      "license": "CC0-1.0",
+      "color": "172B4D"
+    },
+    {
+      "key": "clickup",
+      "names": [
+        "clickup",
+        "click up"
+      ],
+      "hosts": [
+        "clickup.com"
+      ],
+      "provider": "simple",
+      "asset": "clickup",
+      "source": "https://clickup.com/brand",
+      "license": "CC0-1.0",
+      "color": "7B68EE"
+    },
+    {
+      "key": "trello",
+      "names": [
+        "trello"
+      ],
+      "hosts": [
+        "trello.com"
+      ],
+      "provider": "simple",
+      "asset": "trello",
+      "source": "https://atlassian.design/resources/logo-library",
+      "license": "CC0-1.0",
+      "color": "0052CC"
+    },
+    {
+      "key": "zendesk",
+      "names": [
+        "zendesk"
+      ],
+      "hosts": [
+        "zendesk.com"
+      ],
+      "provider": "simple",
+      "asset": "zendesk",
+      "source": "https://brandland.zendesk.com",
+      "license": "CC0-1.0",
+      "color": "03363D"
+    },
+    {
+      "key": "intercom",
+      "names": [
+        "intercom"
+      ],
+      "hosts": [
+        "intercom.com",
+        "intercom.io"
+      ],
+      "provider": "simple",
+      "asset": "intercom",
+      "source": "https://www.intercom.com/press",
+      "license": "CC0-1.0",
+      "color": "6AFDEF"
+    },
+    {
+      "key": "shopify",
+      "names": [
+        "shopify"
+      ],
+      "hosts": [
+        "shopify.com",
+        "myshopify.com"
+      ],
+      "provider": "simple",
+      "asset": "shopify",
+      "source": "https://www.shopify.com/brand-assets",
+      "license": "CC0-1.0",
+      "color": "7AB55C"
+    },
+    {
+      "key": "hubspot",
+      "names": [
+        "hubspot"
+      ],
+      "hosts": [
+        "hubspot.com"
+      ],
+      "provider": "simple",
+      "asset": "hubspot",
+      "source": "https://www.hubspot.com/style-guide",
+      "license": "CC0-1.0",
+      "color": "FF7A59"
+    },
+    {
+      "key": "resend",
+      "names": [
+        "resend"
+      ],
+      "hosts": [
+        "resend.com"
+      ],
+      "provider": "simple",
+      "asset": "resend",
+      "source": "https://resend.com/brand",
+      "license": "CC0-1.0",
+      "color": "000000"
+    },
+    {
+      "key": "box",
+      "names": [
+        "box"
+      ],
+      "hosts": [
+        "box.com"
+      ],
+      "provider": "simple",
+      "asset": "box",
+      "source": "https://www.box.com/en-gb/about-us/press",
+      "license": "CC0-1.0",
+      "color": "0061D5"
+    },
+    {
+      "key": "datadog",
+      "names": [
+        "datadog"
+      ],
+      "hosts": [
+        "datadoghq.com",
+        "datadoghq.eu"
+      ],
+      "provider": "simple",
+      "asset": "datadog",
+      "source": "https://www.datadoghq.com/about/resources",
+      "license": "CC0-1.0",
+      "color": "632CA6"
+    },
+    {
+      "key": "digitalocean",
+      "names": [
+        "digitalocean",
+        "digital ocean"
+      ],
+      "hosts": [
+        "digitalocean.com"
+      ],
+      "provider": "simple",
+      "asset": "digitalocean",
+      "source": "https://www.digitalocean.com/press/",
+      "license": "CC0-1.0",
+      "color": "0080FF"
+    },
+    {
+      "key": "bitbucket",
+      "names": [
+        "bitbucket"
+      ],
+      "hosts": [
+        "bitbucket.org"
+      ],
+      "provider": "simple",
+      "asset": "bitbucket",
+      "source": "https://atlassian.design/resources/logo-library",
+      "license": "CC0-1.0",
+      "color": "0052CC"
+    },
+    {
+      "key": "mysql",
+      "names": [
+        "mysql"
+      ],
+      "hosts": [
+        "mysql.com"
+      ],
+      "provider": "simple",
+      "asset": "mysql",
+      "source": "https://www.mysql.com/about/legal/logos.html",
+      "license": "CC0-1.0",
+      "color": "4479A1"
+    },
+    {
+      "key": "sqlite",
+      "names": [
+        "sqlite"
+      ],
+      "hosts": [
+        "sqlite.org"
+      ],
+      "provider": "simple",
+      "asset": "sqlite",
+      "source": "https://github.com/sqlite/sqlite/blob/43e862723ec680542ca6f608f9963c0993dd7324/art/sqlite370.eps",
+      "license": "CC0-1.0",
+      "color": "003B57"
+    },
+    {
+      "key": "duckdb",
+      "names": [
+        "duckdb"
+      ],
+      "hosts": [
+        "duckdb.org"
+      ],
+      "provider": "simple",
+      "asset": "duckdb",
+      "source": "https://duckdb.org",
+      "license": "CC0-1.0",
+      "color": "FFF000"
+    },
+    {
+      "key": "kubernetes",
+      "names": [
+        "kubernetes",
+        "k8s"
+      ],
+      "hosts": [
+        "kubernetes.io"
+      ],
+      "provider": "simple",
+      "asset": "kubernetes",
+      "source": "https://github.com/kubernetes/kubernetes/tree/cac53883f4714452f3084a22e4be20d042a9df33/logo",
+      "license": "CC0-1.0",
+      "color": "326CE5"
+    },
+    {
+      "key": "postman",
+      "names": [
+        "postman"
+      ],
+      "hosts": [
+        "postman.com"
+      ],
+      "provider": "simple",
+      "asset": "postman",
+      "source": "https://www.getpostman.com/resources/media-assets/",
+      "license": "CC0-1.0",
+      "color": "FF6C37"
+    },
+    {
+      "key": "zoom",
+      "names": [
+        "zoom"
+      ],
+      "hosts": [
+        "zoom.us"
+      ],
+      "provider": "simple",
+      "asset": "zoom",
+      "source": "https://brand.zoom.us/media-library/",
+      "license": "CC0-1.0",
+      "color": "0B5CFF"
+    },
+    {
+      "key": "obsidian",
+      "names": [
+        "obsidian"
+      ],
+      "hosts": [
+        "obsidian.md"
+      ],
+      "provider": "simple",
+      "asset": "obsidian",
+      "source": "https://obsidian.md",
+      "license": "CC0-1.0",
+      "color": "7C3AED"
+    },
+    {
+      "key": "algolia",
+      "names": [
+        "algolia"
+      ],
+      "hosts": [
+        "algolia.com",
+        "algolia.net"
+      ],
+      "provider": "simple",
+      "asset": "algolia",
+      "source": "https://algolia.frontify.com/d/1AZwVNcFZiu7/style-guide#/basics/algolia-logo",
+      "license": "CC0-1.0",
+      "color": "003DFF"
+    },
+    {
+      "key": "netlify",
+      "names": [
+        "netlify"
+      ],
+      "hosts": [
+        "netlify.com"
+      ],
+      "provider": "simple",
+      "asset": "netlify",
+      "source": "https://www.netlify.com/press/",
+      "license": "CC0-1.0",
+      "color": "00C7B7"
+    }
+  ]
+}

@@ -88,6 +88,17 @@ catalogue de modèles et ses preuves sont consommés.
 Les tests de chaque client les chargent directement, donc un changement ici est un changement sur
 les trois clients à la fois.
 
+## mcp-icons
+
+Les logos de serveurs MCP connus, en variante claire et en variante sombre, et `catalog.json` : les
+noms et les hôtes auxquels chacun est reconnu, la provenance de l'image et les conditions qui s'y
+appliquent.
+
+`node shared/mcp-icons/sync.mjs` copie les images dans chaque client et régénère la table de
+correspondance sur laquelle chaque client s'appuie ; `--check` échoue lorsqu'un client a dérivé du
+catalogue. Pour ajouter un serveur, il suffit d'ajouter une entrée au catalogue et ses deux images,
+puis de lancer le script.
+
 ## test-fixtures
 
 Des données de test de référence : trafic amont d'appels d'outils enregistré, routage de relais,

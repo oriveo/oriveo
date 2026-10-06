@@ -88,6 +88,17 @@ Modellkatalog samt seiner Belege konsumiert wird.
 Die Tests jedes Clients laden diese direkt, eine Änderung hier ist also eine Änderung an allen drei
 Clients auf einmal.
 
+## mcp-icons
+
+Logos bekannter MCP-Server, jeweils in einer hellen und einer dunklen Variante, dazu `catalog.json`:
+die Namen und Hosts, über die jeder Server erkannt wird, woher das Bild stammt und unter welchen
+Bedingungen es verwendet wird.
+
+`node shared/mcp-icons/sync.mjs` kopiert die Bilder in jeden Client und erzeugt die Lookup-Tabelle
+neu, gegen die der jeweilige Client abgleicht; `--check` schlägt fehl, sobald ein Client vom Katalog
+abgewichen ist. Ein Server kommt hinzu, indem man einen Katalogeintrag und seine beiden Bilder
+anlegt und anschließend das Skript ausführt.
+
 ## test-fixtures
 
 Golden-Testdaten: aufgezeichneter Upstream-Verkehr von Tool-Calls, Relay-Routing,

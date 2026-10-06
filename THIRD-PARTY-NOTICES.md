@@ -51,6 +51,24 @@ the third-party services a user may connect to with their own account, and their
 imply endorsement, sponsorship or affiliation. They are not covered by this repository's license;
 if you redistribute a modified client, check each owner's brand guidelines yourself.
 
+## MCP server names and logos
+
+The clients recognise a set of well-known MCP servers by name or host and show that product's logo
+next to the server. The artwork lives in `shared/mcp-icons/` and is copied by
+`shared/mcp-icons/sync.mjs` into `ios/Oriveo/Oriveo/Assets.xcassets/McpBrand_*.imageset`,
+`android/app/src/main/res/drawable-nodpi/` (`mcp_brand_*`) and `web/apps/app/public/mcp-icons/`.
+`shared/mcp-icons/catalog.json` records where each image came from and under which terms:
+
+- [`@lobehub/icons-static-png`](https://github.com/lobehub/lobe-icons) — MIT License (text below),
+  Copyright (c) 2023 LobeHub.
+- [`simple-icons`](https://github.com/simple-icons/simple-icons) — CC0 1.0 Universal.
+- Two marks taken from the vendor's own site, listed in the catalog as `Vendor trademark`.
+
+Whatever the license on the image file, the names and logos themselves are trademarks of their
+respective owners. They appear only to identify the third-party server a user chose to connect, and
+their presence does not imply endorsement, sponsorship or affiliation. If you redistribute a
+modified client, check each owner's brand guidelines yourself.
+
 ## Oriveo name and logo
 
 "Oriveo" and the Oriveo logo (`docs/assets/logo.png` and the app icons) identify this project and
@@ -141,3 +159,25 @@ HOLDER BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, INCLUDING ANY GENERA
 INDIRECT, INCIDENTAL, OR CONSEQUENTIAL DAMAGES, WHETHER IN AN ACTION OF CONTRACT, TORT OR
 OTHERWISE, ARISING FROM, OUT OF THE USE OR INABILITY TO USE THE FONT SOFTWARE OR FROM OTHER
 DEALINGS IN THE FONT SOFTWARE.
+
+## MIT License (lobe-icons)
+
+Copyright (c) 2023 LobeHub
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.

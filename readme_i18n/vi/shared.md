@@ -87,6 +87,16 @@ của nó được tiêu thụ ra sao.
 Bộ test của từng client nạp trực tiếp các tệp này, nên một thay đổi ở đây là thay đổi cho cả ba
 client cùng lúc.
 
+## mcp-icons
+
+Logo của các máy chủ MCP quen thuộc, mỗi logo có một bản sáng và một bản tối, kèm theo
+`catalog.json`: mỗi máy chủ được nhận diện qua những tên và host nào, ảnh lấy từ đâu và theo điều
+khoản nào.
+
+`node shared/mcp-icons/sync.mjs` sao chép ảnh vào từng client và sinh lại bảng tra cứu mà mỗi client
+dùng để đối chiếu; `--check` báo lỗi khi có client đã lệch khỏi danh mục. Muốn thêm một máy chủ, hãy
+thêm một mục vào danh mục cùng hai ảnh của nó rồi chạy script.
+
 ## test-fixtures
 
 Dữ liệu test chuẩn: lưu lượng gọi công cụ từ upstream đã ghi lại, định tuyến của dịch vụ chuyển tiếp
