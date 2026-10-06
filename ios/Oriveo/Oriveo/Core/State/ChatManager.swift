@@ -1353,7 +1353,7 @@ final class ChatManager {
             // rejects it before networking. Silently omitting it would turn a normal send into an
             // unrequested “retry without custom fields”.
             requestOptions.localCustomFragmentDisposition = localCustomFragmentDisposition
-            if requestOptions.localCustomFragmentDisposition == .include {
+            if requestOptions.localCustomFragmentDisposition != .omitForExplicitRetry {
                 let runtimeIdentity = CapabilityPreferenceRuntimeIdentity.make(provider: provider, model: model)
                 let customFragments = GenerationParameterSettingsStore.shared.activeLocalCustomFragments(
                     providerID: provider.id, modelID: runtimeIdentity?.canonicalModelID ?? "",
@@ -1361,6 +1361,19 @@ final class ChatManager {
                     forwardPort: .init(providerKind: provider.kind, schemaModelID: model.id)
                 )
                 requestOptions.selectLocalCustomBodyFragments(customFragments)
+            }
+            // Additional request body: it coexists with the panel parameters, so only the raw text
+            // is attached here and `generationParameters` is left alone. The one send where the
+            // user chose "retry without the additional request body" skips it; the saved body and
+            // its switch are not changed.
+            requestOptions.localAdditionalRequestBody = nil
+            if requestOptions.localCustomFragmentDisposition != .omitAdditionalBodyForExplicitRetry {
+                requestOptions.localAdditionalRequestBody = GenerationParameterSettingsStore.shared
+                    .activeAdditionalRequestBody(
+                        providerID: provider.id,
+                        modelID: CapabilityPreferenceRuntimeIdentity.canonicalModelID(provider: provider, model: model),
+                        conversationID: conversationID
+                    )
             }
             requestOptions.capabilityEvidenceModel = provider.kind == .relay
                 ? model
@@ -1417,6 +1430,10 @@ final class ChatManager {
             )
             #endif
 
+            // Failures are handled in the catch below, which is already outside the tracker's
+            // task-local scope: `CapabilityExecutionRuntime.current` is nil there. Keep a reference
+            // to this send's tracker.
+            var sendExecutionTracker: CapabilityExecutionTracker?
             do {
                 // Remote MCP: tools are assembled only when this conversation has servers turned on and the
                 // connection can carry tools. Otherwise the plan is empty and the send takes the plain path
@@ -1455,6 +1472,7 @@ final class ChatManager {
                         )
                     }
                 }
+                sendExecutionTracker = capabilityExecutionTracker
                 try await CapabilityRecipeResendContext.$recoveryDescriptor.withValue(
                     capabilityRecoveryDescriptor
                 ) {
@@ -2919,6 +2937,7 @@ final class ChatManager {
                 // boundary its provider, model, error and body are all privacy-sensitive, so a
                 // failure on that path is not written to the log at all.
                 let hasDispatchedCustomFacts = CapabilityExecutionRuntime.hasDispatchedFact()
+                let canRetryWithoutAdditionalBody = sendExecutionTracker?.canOfferRetryWithoutAdditionalBody ?? false
 
                 await MainActor.run {
                     if Task.isCancelled {
@@ -2930,12 +2949,7 @@ final class ChatManager {
                         )
                     } else {
                         let providerError = self.appState.providerManager.providerServiceError(from: error)
-                        let isFatalError: Bool = {
-                            switch providerError {
-                            case .invalidAPIKey, .invalidConfiguration: return true
-                            default: return false
-                            }
-                        }()
+                        let isFatalError = providerError.marksConnectionFailed
                         if isFatalError, var erroredProvider = self.appState.provider(for: providerID) {
                             erroredProvider.status = ProviderConnectionState.issue(providerError.messageKey)
                             erroredProvider.lastError = providerError.messageKey
@@ -2950,13 +2964,25 @@ final class ChatManager {
                             // Upstream custom recovery is never inferred from status/text. The
                             // production tracker exposes it only after a structured exact locator
                             // matched an actually applied custom pointer before any event/effect.
-                            guard localCustomFragmentDisposition == .include,
+                            guard localCustomFragmentDisposition != .omitForExplicitRetry,
                                   CapabilityExecutionRuntime.hasRejectedSource(.custom)
                             else { return false }
                             return true
                         }()
                         let isLocatedSettingRejection = CapabilityExecutionRuntime.current?
                             .terminalResult().states.values.contains(.rejected) == true
+                        // Neither additional-request-body failure is a connection problem: a local
+                        // rejection (nothing was sent) and an upstream 400 for a request that
+                        // carried it. The latter offers "retry without the additional request body"
+                        // only under the contract's recovery conditions; a rejection already
+                        // pinned to one specific setting keeps its existing way out.
+                        let additionalBodyRejection: AdditionalRequestBodyRejection? = {
+                            if case let .additionalRequestBodyRejected(rejection) = providerError { return rejection }
+                            return nil
+                        }()
+                        let offersRetryWithoutAdditionalBody = additionalBodyRejection == nil
+                            && !isCustomFieldError && !isLocatedSettingRejection
+                            && canRetryWithoutAdditionalBody
                         self.failStreamingMessage(
                             conversationID: conversationID,
                             messageID: assistantMessageID,
@@ -2970,7 +2996,9 @@ final class ChatManager {
                                 ? "Custom request fields error"
                                 : (isLocatedSettingRejection
                                     ? L10n.tr("Model control setting rejected", table: .chat)
-                                    : providerError.titleKey),
+                                    : (offersRetryWithoutAdditionalBody
+                                        ? AdditionalRequestBody.upstreamRejectionTitleKey
+                                        : providerError.titleKey)),
                             // The raw JSON or upstream response must never reach the error card,
                             // persistence or the log. Keep only a stable, safe code.
                             detail: isCustomFieldError

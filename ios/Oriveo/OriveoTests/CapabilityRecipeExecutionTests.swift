@@ -94,7 +94,11 @@ struct CapabilityRecipeExecutionTests {
             switch item.owner {
             case "web": typedOwnerOmitted = options.capabilityPreferences?.web == .off
             case "reasoning": typedOwnerOmitted = options.capabilityPreferences?.reasoningIntent == nil
-            case "generation": typedOwnerOmitted = options.generationParameters == nil
+            case "generation":
+                // Contract additionalBodyRules.merge.panelParameters: custom fields no longer
+                // exclude the panel parameters for this owner, so the panel parameters must stay.
+                #expect(options.generationParameters != nil, "\(item.caseId) panel parameters were cleared")
+                continue
             default: typedOwnerOmitted = false
             }
             #expect(typedOwnerOmitted == (item.expectTypedOwnerOmitted ?? false), "\(item.caseId) typed")
@@ -476,7 +480,6 @@ struct CapabilityRecipeExecutionTests {
             "This JSON fragment is too large or complex to apply.",
             "Remove custom request fields?", "Keep custom fields", "Remove custom fields",
             "This removes the custom fields for %@ on this conversation, connection, model and transport. This cannot be undone.",
-            "Custom fields need an official field schema for this exact model and transport.",
             "This connection declares no custom fields for this control.",
             "Custom is selected but empty, so messages using this control will fail to send.",
             "Switch back to automatic",
@@ -561,13 +564,17 @@ struct CapabilityRecipeExecutionTests {
         #expect(!page.contains("let owner: String"))
         #expect(!page.contains("@Binding var mode:"))
         #expect(page.contains("ownerNamespaces"))
-        for owner in ["\"web\"", "\"reasoning\"", "\"generation\""] {
+        for owner in ["\"web\"", "\"reasoning\""] {
             #expect(page.contains(owner), "editor page is missing owner \(owner)")
         }
+        // Generation parameters no longer get a section of officially declared fields; the
+        // additional request body on the same page covers them.
+        #expect(!page.contains("\"generationPatch\""))
+        #expect(page.contains("L10n.tr(\"Additional request body\", table: .chat)"))
+        #expect(page.contains("L10n.tr(\"Send with requests\", table: .chat)"))
         // Section titles use user-facing words, not the raw web/reasoning/generation tokens.
         #expect(page.contains("L10n.tr(\"Web Search\", table: .chat)"))
         #expect(page.contains("L10n.tr(\"Thinking Mode\", table: .chat)"))
-        #expect(page.contains("L10n.tr(\"Parameters\", table: .providers)"))
         // The "configuration method Auto/Custom" two-step picker is gone: mode is derived from content, no second switch.
         #expect(!page.contains("ModelControlIntentPicker"))
         #expect(!page.contains("Configuration method"))

@@ -156,7 +156,10 @@ enum AssistantMessageRecoveryBuilder {
                     ? L10n.tr("Retry without this setting", table: .chat)
                     : (model.message.errorTitle == "Custom request fields error" && actionLayout.primary == .retry
                         ? L10n.tr("Retry without custom fields", table: .chat)
-                        : localizedMessageRecoveryActionTitle(actionLayout.primary)),
+                        : (model.message.errorTitle == AdditionalRequestBody.upstreamRejectionTitleKey
+                            && actionLayout.primary == .retry
+                            ? L10n.tr("Retry without additional request body", table: .chat)
+                            : localizedMessageRecoveryActionTitle(actionLayout.primary))),
             secondaryTitle: actionLayout.secondary.map(localizedMessageRecoveryActionTitle),
             tertiaryTitle: actionLayout.tertiary.map(localizedMessageRecoveryActionTitle),
             tone: state == .interrupted ? .warning : .danger,

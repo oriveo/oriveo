@@ -1,6 +1,40 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "“%@” can’t be used as a field name in the additional request body." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%@” can’t be used as a field name in the additional request body."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「%@」不能用作附加请求体里的字段名。"
+          }
+        }
+      }
+    },
+    "“%@” is filled in by Oriveo and can’t be set in the additional request body." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "“%@” is filled in by Oriveo and can’t be set in the additional request body."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "「%@」由 Oriveo 填写，不能写在附加请求体里。"
+          }
+        }
+      }
+    },
     "(Attachment)" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -395,6 +429,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "速度和深度兼顧。"
+          }
+        }
+      }
+    },
+    "Additional request body" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Additional request body"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "附加请求体"
           }
         }
       }
@@ -1605,6 +1656,23 @@
         }
       }
     },
+    "Check the additional request body" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Check the additional request body"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "请检查附加请求体"
+          }
+        }
+      }
+    },
     "Choose another model" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -2498,107 +2566,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "自訂"
-          }
-        }
-      }
-    },
-    "Custom fields need an official field schema for this exact model and transport." : {
-      "extractionState" : "manual",
-      "localizations" : {
-        "ar" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "تتطلب الحقول المخصصة مخطط حقول رسميًا لهذا النموذج وطريقة النقل تحديدًا."
-          }
-        },
-        "de" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Eigene Felder erfordern ein offizielles Feldschema für genau dieses Modell und diesen Transport."
-          }
-        },
-        "en" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Custom fields need an official field schema for this exact model and transport."
-          }
-        },
-        "es" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Los campos personalizados requieren un esquema oficial para este modelo y transporte exactos."
-          }
-        },
-        "fr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Les champs personnalisés nécessitent un schéma officiel pour ce modèle et ce transport précis."
-          }
-        },
-        "hi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "कस्टम फ़ील्ड के लिए इसी मॉडल और ट्रांसपोर्ट का आधिकारिक फ़ील्ड स्कीमा चाहिए।"
-          }
-        },
-        "id" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Bidang kustom memerlukan skema bidang resmi untuk model dan transport ini."
-          }
-        },
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "カスタムフィールドには、この正確なモデルとトランスポート向けの公式フィールドスキーマが必要です。"
-          }
-        },
-        "ko" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "사용자 지정 필드에는 이 모델과 전송 방식에 대한 공식 필드 스키마가 필요합니다."
-          }
-        },
-        "pt-BR" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Campos personalizados exigem um esquema oficial para este modelo e transporte exatos."
-          }
-        },
-        "ru" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Пользовательские поля требуют официальной схемы для этой модели и транспорта."
-          }
-        },
-        "th" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "ฟิลด์ที่กำหนดเองต้องมีสคีมาฟิลด์อย่างเป็นทางการสำหรับโมเดลและทรานสปอร์ตนี้"
-          }
-        },
-        "tr" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Özel alanlar, tam olarak bu model ve taşıma için resmi bir alan şeması gerektirir."
-          }
-        },
-        "vi" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "Trường tùy chỉnh cần lược đồ trường chính thức cho đúng mô hình và phương thức truyền này."
-          }
-        },
-        "zh-Hans" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "自定义字段需要该模型与传输方式的官方字段 schema。"
-          }
-        },
-        "zh-Hant" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "自訂欄位需要該模型與傳輸方式的官方欄位 schema。"
           }
         }
       }
@@ -3710,6 +3677,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "請輸入 JSON 物件，預覽其中允許的欄位路徑。"
+          }
+        }
+      }
+    },
+    "Enter a JSON object. Its fields are merged into each request and override parameter settings for the same field." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Enter a JSON object. Its fields are merged into each request and override parameter settings for the same field."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "填写一个 JSON 对象。里面的字段会合并进每次请求，与参数设置里的同一字段冲突时，以这里为准。"
           }
         }
       }
@@ -6346,6 +6330,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "保留自訂欄位"
+          }
+        }
+      }
+    },
+    "Line %lld: %@" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Line %lld: %@"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "第 %lld 行：%@"
           }
         }
       }
@@ -10283,6 +10284,23 @@
         }
       }
     },
+    "Request with additional request body was rejected" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Request with additional request body was rejected"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "带附加请求体的请求被拒绝了"
+          }
+        }
+      }
+    },
     "Requested" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -10681,6 +10699,23 @@
         }
       }
     },
+    "Retry without additional request body" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Retry without additional request body"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "不带附加请求体重试"
+          }
+        }
+      }
+    },
     "Retry without custom fields" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -10997,6 +11032,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "采样器及顺序"
+          }
+        }
+      }
+    },
+    "Saved, but not sent. Turn on “Send with requests” to use it." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Saved, but not sent. Turn on “Send with requests” to use it."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "内容已保存，暂不发送。打开「随请求发送」后才会随请求发出。"
           }
         }
       }
@@ -11704,6 +11756,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "選取內容過長，請縮小範圍"
+          }
+        }
+      }
+    },
+    "Send with requests" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Send with requests"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "随请求发送"
           }
         }
       }
@@ -12444,6 +12513,23 @@
         }
       }
     },
+    "Stays on this device. It isn’t synced or included in backups." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Stays on this device. It isn’t synced or included in backups."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "只保存在本机，不会同步，也不会进入备份。"
+          }
+        }
+      }
+    },
     "Still no luck. Check your network and try again." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -13135,6 +13221,74 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "溫度"
+          }
+        }
+      }
+    },
+    "The additional request body is larger than 64 KB." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The additional request body is larger than 64 KB."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "附加请求体超过了 64 KB。"
+          }
+        }
+      }
+    },
+    "The additional request body is nested more than 32 levels deep." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The additional request body is nested more than 32 levels deep."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "附加请求体嵌套超过了 32 层。"
+          }
+        }
+      }
+    },
+    "The additional request body isn’t valid JSON." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The additional request body isn’t valid JSON."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "附加请求体不是有效的 JSON。"
+          }
+        }
+      }
+    },
+    "The additional request body must be a JSON object wrapped in { }." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "The additional request body must be a JSON object wrapped in { }."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "附加请求体要写成一个 JSON 对象，用 { } 包起来。"
           }
         }
       }
@@ -15327,6 +15481,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "此 JSON 片段過大或過於複雜，無法套用。"
+          }
+        }
+      }
+    },
+    "This JSON is merged into each request." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This JSON is merged into each request."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这段 JSON 会合并进每次请求。"
+          }
+        }
+      }
+    },
+    "This message wasn’t sent." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This message wasn’t sent."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这条消息没有发出。"
           }
         }
       }

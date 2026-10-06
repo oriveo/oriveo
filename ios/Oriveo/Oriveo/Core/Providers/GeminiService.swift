@@ -17,7 +17,8 @@ final class GeminiService: BaseAPIService, ProviderServiceProtocol {
         recipe: MetadataClient.CapabilityRecipe,
         previousResponseID: String? = nil,
         systemPrompt: String = "",
-        safeCustomBodyFragments: [SafeCustomBodyFragment] = []
+        safeCustomBodyFragments: [SafeCustomBodyFragment] = [],
+        additionalRequestBody: AdditionalRequestBodyPayload? = nil
     ) throws -> URLRequest {
         try validateAPIKey(apiKey)
         guard recipe.executionKind == "endpoint_route",
@@ -68,6 +69,7 @@ final class GeminiService: BaseAPIService, ProviderServiceProtocol {
             safeCustomBodyFragments, to: &body,
             providerKind: .gemini, modelID: modelID, transport: "gemini_interactions"
         )
+        try AdditionalRequestBody.apply(additionalRequestBody, to: &body)
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
         CapabilityExecutionRuntime.confirmFinalWireEncoded()
         return request
@@ -119,6 +121,7 @@ final class GeminiService: BaseAPIService, ProviderServiceProtocol {
                 apiKey: apiKey, modelID: modelID, messages: messages, stream: false, recipe: recipe,
                 systemPrompt: requestOptions.systemPrompt,
                 safeCustomBodyFragments: requestOptions.localSafeCustomBodyFragments,
+                additionalRequestBody: requestOptions.localAdditionalRequestBody,
                 producerMessageID: requestOptions.localContinuationMessageID,
                 explicitMessageID: requestOptions.localExplicitContinuationMessageID
             )
@@ -286,6 +289,7 @@ final class GeminiService: BaseAPIService, ProviderServiceProtocol {
                             apiKey: apiKey, modelID: modelID, messages: messages, recipe: recipe,
                             systemPrompt: requestOptions.systemPrompt,
                             safeCustomBodyFragments: requestOptions.localSafeCustomBodyFragments,
+                            additionalRequestBody: requestOptions.localAdditionalRequestBody,
                             producerMessageID: requestOptions.localContinuationMessageID,
                             explicitMessageID: requestOptions.localExplicitContinuationMessageID, continuation: continuation
                         )
@@ -567,12 +571,14 @@ final class GeminiService: BaseAPIService, ProviderServiceProtocol {
     private func sendInteractions(
         apiKey: String, modelID: String, messages: [ChatMessage], stream: Bool,
         recipe: MetadataClient.CapabilityRecipe, systemPrompt: String,
-        safeCustomBodyFragments: [SafeCustomBodyFragment], producerMessageID: UUID?, explicitMessageID: UUID?
+        safeCustomBodyFragments: [SafeCustomBodyFragment], additionalRequestBody: AdditionalRequestBodyPayload?,
+        producerMessageID: UUID?, explicitMessageID: UUID?
     ) async throws -> ProviderChatResult {
         let previousID = try Self.loadExplicitInteractionID(explicitMessageID)
         let request = try buildInteractionsRequest(
             modelID: modelID, messages: messages, apiKey: apiKey, stream: stream, recipe: recipe,
-            previousResponseID: previousID, systemPrompt: systemPrompt, safeCustomBodyFragments: safeCustomBodyFragments
+            previousResponseID: previousID, systemPrompt: systemPrompt, safeCustomBodyFragments: safeCustomBodyFragments,
+            additionalRequestBody: additionalRequestBody
         )
         let (data, response) = try await session.data(for: request)
         guard let http = response as? HTTPURLResponse else {
@@ -600,13 +606,15 @@ final class GeminiService: BaseAPIService, ProviderServiceProtocol {
     private func streamInteractions(
         apiKey: String, modelID: String, messages: [ChatMessage], recipe: MetadataClient.CapabilityRecipe,
         systemPrompt: String, safeCustomBodyFragments: [SafeCustomBodyFragment],
+        additionalRequestBody: AdditionalRequestBodyPayload?,
         producerMessageID: UUID?, explicitMessageID: UUID?,
         continuation: AsyncThrowingStream<StreamEvent, Error>.Continuation
     ) async throws {
         let previousID = try Self.loadExplicitInteractionID(explicitMessageID)
         let request = try buildInteractionsRequest(
             modelID: modelID, messages: messages, apiKey: apiKey, stream: true, recipe: recipe,
-            previousResponseID: previousID, systemPrompt: systemPrompt, safeCustomBodyFragments: safeCustomBodyFragments
+            previousResponseID: previousID, systemPrompt: systemPrompt, safeCustomBodyFragments: safeCustomBodyFragments,
+            additionalRequestBody: additionalRequestBody
         )
         let (bytes, response) = try await session.bytes(for: request)
         guard let http = response as? HTTPURLResponse else {
@@ -901,6 +909,7 @@ final class GeminiService: BaseAPIService, ProviderServiceProtocol {
             providerKind: .gemini, modelID: modelID,
             transport: resolved?.transport ?? "gemini_generate_content"
         )
+        try AdditionalRequestBody.apply(requestOptions.localAdditionalRequestBody, to: &body)
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
         CapabilityExecutionRuntime.confirmFinalWireEncoded()
         return request
@@ -999,6 +1008,7 @@ final class GeminiService: BaseAPIService, ProviderServiceProtocol {
             finalRequest: request,
             effectiveTransport: RelayTransport.geminiGenerateContent.rawValue
         )
+        try AdditionalRequestBody.apply(requestOptions.localAdditionalRequestBody, to: &body)
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
         CapabilityExecutionRuntime.confirmFinalWireEncoded()
         return request

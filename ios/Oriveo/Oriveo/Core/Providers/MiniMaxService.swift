@@ -461,6 +461,7 @@ final class MiniMaxService: BaseAPIService, ProviderServiceProtocol, CustomBaseU
             wire.insert(["role": "assistant", "content": replay], at: insertAt)
             body["messages"] = wire
         }
+        try AdditionalRequestBody.apply(requestOptions.localAdditionalRequestBody, to: &body)
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
         CapabilityExecutionRuntime.confirmFinalWireEncoded()
         return request

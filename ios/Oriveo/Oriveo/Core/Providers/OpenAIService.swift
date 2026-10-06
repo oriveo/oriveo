@@ -1023,6 +1023,7 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
             providerKind: .openAI, modelID: modelID,
             transport: resolved?.transport ?? "openai_responses"
         )
+        try AdditionalRequestBody.apply(requestOptions.localAdditionalRequestBody, to: &body)
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
         CapabilityExecutionRuntime.confirmFinalWireEncoded()
         return request
@@ -1240,6 +1241,7 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
             providerKind: .openAI, modelID: modelID,
             transport: resolved?.transport ?? "openai_chat"
         )
+        try AdditionalRequestBody.apply(requestOptions.localAdditionalRequestBody, to: &body)
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
         CapabilityExecutionRuntime.confirmFinalWireEncoded()
         return request
@@ -1285,6 +1287,7 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
             finalRequest: request,
             effectiveTransport: RelayTransport.llamacppNative.rawValue
         )
+        try AdditionalRequestBody.apply(requestOptions.localAdditionalRequestBody, to: &body)
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
         CapabilityExecutionRuntime.confirmFinalWireEncoded()
         return request
@@ -1503,6 +1506,7 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
         )
         var body = try JSONSerialization.jsonObject(with: JSONEncoder().encode(payload)) as? [String: Any] ?? [:]
         body["include"] = ["reasoning.encrypted_content"]
+        try AdditionalRequestBody.apply(requestOptions.localAdditionalRequestBody, to: &body)
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
         return request
     }
@@ -1620,6 +1624,7 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
             finalRequest: request,
             effectiveTransport: RelayTransport.openaiChatCompletions.rawValue
         )
+        try AdditionalRequestBody.apply(requestOptions.localAdditionalRequestBody, to: &body)
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
         CapabilityExecutionRuntime.confirmFinalWireEncoded()
         return request
@@ -1727,6 +1732,7 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
             finalRequest: request,
             effectiveTransport: RelayTransport.openaiResponses.rawValue
         )
+        try AdditionalRequestBody.apply(requestOptions.localAdditionalRequestBody, to: &body)
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
         CapabilityExecutionRuntime.confirmFinalWireEncoded()
         return request

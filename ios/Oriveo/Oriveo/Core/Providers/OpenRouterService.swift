@@ -31,6 +31,12 @@ enum ProviderServiceError: Error {
     case invalidConfiguration(detail: String)
     case network(detail: String)
     case upstream(statusCode: Int, detail: String)
+    /// The additional request body failed local validation, so no request was sent.
+    ///
+    /// Deliberately not `invalidConfiguration`: that case means the connection itself is
+    /// misconfigured and marks it as failing. Here only a hand-written piece of JSON is wrong;
+    /// the connection is fine and sending works again once that JSON is fixed.
+    case additionalRequestBodyRejected(AdditionalRequestBodyRejection)
     /// The user signed in with their own provider subscription (Codex, Grok) and that lane failed.
     case subscriptionFailure(
         lane: SubscriptionLane,
@@ -58,6 +64,15 @@ enum ProviderServiceError: Error {
         case quotaExhausted
     }
 
+    /// Whether a failed chat send should mark the connection as failing. Only an invalid key or a
+    /// misconfigured connection does; network blips, rate limits, upstream errors and a mistake
+    /// in the additional request body (the JSON is wrong, not the connection) leave it alone.
+    var marksConnectionFailed: Bool {
+        switch self {
+        case .invalidAPIKey, .invalidConfiguration: return true
+        default: return false
+        }
+    }
 
     /// Localized headline for the error banner.
     var title: String {
@@ -83,6 +98,8 @@ enum ProviderServiceError: Error {
             return "Provider Configuration Error"
         case .network, .upstream:
             return "Provider Request Failed"
+        case .additionalRequestBodyRejected:
+            return AdditionalRequestBody.localRejectionTitleKey
         case let .subscriptionFailure(lane, _, _, _):
             return lane.titleKey
         }
@@ -90,6 +107,10 @@ enum ProviderServiceError: Error {
 
     var message: String {
         if case .subscriptionFailure = self { return L10n.tr(messageKey, table: .providers) }
+        // This message names the specific field and line, which a fixed key cannot express.
+        if case let .additionalRequestBodyRejected(rejection) = self {
+            return rejection.localizedMessage + " " + L10n.tr("This message wasn’t sent.", table: .chat)
+        }
         return L10n.tr(messageKey)
     }
 
@@ -113,6 +134,8 @@ enum ProviderServiceError: Error {
             return "The request did not complete successfully. Please check your network and try again."
         case .upstream:
             return "The provider returned an error for this request. Please retry or switch models."
+        case .additionalRequestBodyRejected:
+            return "This message wasn’t sent."
         case let .subscriptionFailure(_, _, messageKey, _):
             return messageKey
         }
@@ -130,6 +153,7 @@ enum ProviderServiceError: Error {
         case .invalidConfiguration: return "invalid_configuration"
         case .network: return "network"
         case let .upstream(statusCode, _): return "upstream_\(statusCode)"
+        case .additionalRequestBodyRejected: return "additional_request_body_rejected"
         case let .subscriptionFailure(lane, kind, _, _): return "\(lane.rawValue)_subscription_\(kind.rawValue)"
         }
     }
@@ -149,6 +173,8 @@ enum ProviderServiceError: Error {
             return "The provider chat completion finished without any text content."
         case let .upstream(statusCode, detail):
             return "Upstream HTTP \(statusCode): \(detail)"
+        case let .additionalRequestBodyRejected(rejection):
+            return rejection.safeCode
         case let .subscriptionFailure(lane, kind, _, detail):
             return "\(lane.titleKey) \(kind.rawValue): \(detail)"
         }

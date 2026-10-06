@@ -114,6 +114,11 @@ final class CapabilityExecutionTracker: @unchecked Sendable {
     // custom-field retry safety gate; they are never execution-result evidence.
     private var receivedUpstreamResponse = false
     private var performedSideEffect = false
+    // "Retry without the additional request body" is offered only when three things hold at once:
+    // the final request body really included it, the upstream answered 400 before any event, and
+    // no tool side effect happened in between. These two latches record just those transport facts.
+    private var additionalBodyApplied = false
+    private var preEventUpstreamStatus: Int?
 
     init(onRequested: @escaping @Sendable (CapabilityExecutionResult) -> Void = { _ in }) {
         self.onRequested = onRequested
@@ -422,6 +427,34 @@ final class CapabilityExecutionTracker: @unchecked Sendable {
         }
     }
 
+    /// A non-empty additional request body was merged at the final request-body boundary.
+    func recordAdditionalBodyApplied() {
+        lock.lock()
+        additionalBodyApplied = true
+        lock.unlock()
+    }
+
+    /// The upstream answered with a non-2xx status. Only the one before any event or side effect
+    /// is recorded: a failure after the stream started or a tool ran is no evidence that this
+    /// request body was not accepted.
+    func recordUpstreamHTTPFailure(statusCode: Int) {
+        lock.lock()
+        if !receivedUpstreamResponse, !performedSideEffect, preEventUpstreamStatus == nil {
+            preEventUpstreamStatus = statusCode
+        }
+        lock.unlock()
+    }
+
+    /// Contract `additionalBodyRules.recovery`. This authorizes no retry by itself; it only
+    /// answers whether the error card may offer the user-initiated "retry without the additional
+    /// request body" action.
+    var canOfferRetryWithoutAdditionalBody: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return additionalBodyApplied && preEventUpstreamStatus == 400
+            && !receivedUpstreamResponse && !performedSideEffect
+    }
+
 }
 
 /// The only bridge between actual final-body compilation / protocol parsers and the chat task.
@@ -499,6 +532,14 @@ enum CapabilityExecutionRuntime {
 
     static func hasDispatchedFact() -> Bool {
         current?.hasDispatchedFact ?? false
+    }
+
+    static func recordAdditionalBodyApplied() {
+        current?.recordAdditionalBodyApplied()
+    }
+
+    static func recordUpstreamHTTPFailure(statusCode: Int) {
+        current?.recordUpstreamHTTPFailure(statusCode: statusCode)
     }
 }
 

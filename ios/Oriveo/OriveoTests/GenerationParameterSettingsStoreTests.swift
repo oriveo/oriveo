@@ -1117,6 +1117,8 @@ struct GenerationParameterSettingsStoreTests {
         defer { defaults.removePersistentDomain(forName: suiteName) }
         let store = GenerationParameterSettingsStore(defaults: defaults)
         let provider = UUID(), conversation = UUID()
+        // generationPatch was replaced by the additional request body: the write is ignored, and
+        // the assertion below proves it no longer lands in this storage.
         for namespace in ["webPatch", "reasoningPatch", "generationPatch"] {
             store.setLocalCustomConfiguration(
                 .init(mode: namespace == "reasoningPatch" ? .automatic : .custom, rawJSON: "{\"owner\":\"\(namespace)\"}"),
@@ -1135,7 +1137,7 @@ struct GenerationParameterSettingsStoreTests {
         #expect(store.localCustomConfiguration(
             providerID: provider, modelID: "model", conversationID: conversation,
             transportIdentity: "responses", namespace: "generationPatch"
-        ).mode == .custom)
+        ) == .init(mode: .automatic, rawJSON: ""))
         #expect(CapabilityPreferenceSyncContract.exportPayload(settings: store).records.isEmpty)
     }
 
@@ -1250,7 +1252,7 @@ struct GenerationParameterSettingsStoreTests {
         )
         seed.setLocalCustomConfiguration(
             .init(mode: .custom, rawJSON: ""), providerID: provider, modelID: "model",
-            conversationID: conversation, transportIdentity: "qwen_chat", namespace: "generationPatch"
+            conversationID: conversation, transportIdentity: "qwen_chat", namespace: "reasoningPatch"
         )
         defaults.set(true, forKey: legacyKey)
 
@@ -1260,7 +1262,7 @@ struct GenerationParameterSettingsStoreTests {
             providerID: provider, modelID: "model", conversationID: conversation,
             transportIdentity: "qwen_chat"
         )
-        #expect(fragments.map(\.owner) == ["web", "generation"])
+        #expect(fragments.map(\.owner) == ["web", "reasoning"])
         #expect(fragments.last?.raw.isEmpty == true)
     }
 

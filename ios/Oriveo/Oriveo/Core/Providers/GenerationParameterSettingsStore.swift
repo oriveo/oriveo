@@ -33,6 +33,24 @@ nonisolated struct LocalCustomFragmentConfiguration: Equatable, Sendable {
     var rawJSON: String
 }
 
+/// What the additional request body stores for one scope (connection x model x conversation, or
+/// the model default). Device-local only.
+nonisolated struct AdditionalRequestBodyConfiguration: Equatable, Sendable {
+    var rawJSON: String
+    /// "Send with requests". Switching it off keeps the content and just stops sending it.
+    var sendsWithRequest: Bool
+
+    init(rawJSON: String = "", sendsWithRequest: Bool = false) {
+        self.rawJSON = rawJSON
+        self.sendsWithRequest = sendsWithRequest
+    }
+
+    /// Only a switched-on, non-empty body travels with a request.
+    var isActive: Bool {
+        sendsWithRequest && !rawJSON.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+}
+
 nonisolated struct CapabilityPreferenceValues: Codable, Equatable, Hashable, Sendable {
     var web: CapabilityWebPreference
     /// `nil` means provider default. A string preserves server's sparse `availableIntents` exactly
@@ -66,7 +84,7 @@ nonisolated struct CapabilityPreferenceRuntimeIdentity: Equatable, Sendable {
             for: provider, model: model
         ) {
             return .init(
-                canonicalModelID: trimmed(model.canonicalModelId) ?? model.id,
+                canonicalModelID: canonicalModelID(provider: provider, model: model),
                 finalTransport: subscriptionTransport,
                 runtimeRevision: subscriptionRuntimeRevision
             )
@@ -88,11 +106,23 @@ nonisolated struct CapabilityPreferenceRuntimeIdentity: Equatable, Sendable {
         }
         guard let finalTransport = trimmed(transport) else { return nil }
         return .init(
-            canonicalModelID: trimmed(input.resolved?.canonicalModelId)
-                ?? trimmed(model.canonicalModelId) ?? model.id,
+            canonicalModelID: canonicalModelID(provider: provider, model: model),
             finalTransport: finalTransport,
             runtimeRevision: revision
         )
+    }
+
+    /// Model ID for device-local scopes. It does not depend on the recipe runtime: the additional
+    /// request body is also available on connections with no recipe at all (self-hosted engines,
+    /// relays whose transport is auto), where `make` returns nil.
+    static func canonicalModelID(provider: Provider, model: AIModel) -> String {
+        if CapabilityControlResolution.subscriptionFinalTransport(for: provider, model: model) != nil {
+            return trimmed(model.canonicalModelId) ?? model.id
+        }
+        let input = MetadataClient.shared.syncCapabilityEvidenceModelInput(
+            modelID: model.id, providerKind: provider.kind
+        )
+        return trimmed(input.resolved?.canonicalModelId) ?? trimmed(model.canonicalModelId) ?? model.id
     }
 
     static func relayFinalTransport(
@@ -353,11 +383,25 @@ final class GenerationParameterSettingsStore: @unchecked Sendable {
         let updatedAt: Date
     }
 
+    /// No transport or recipe revision in the key: the additional request body is independent of
+    /// capability recipes, so a recipe revision must not invalidate it, and connections without
+    /// any recipe runtime must be able to store one too.
+    fileprivate struct AdditionalRequestBodyRecord: Codable, Equatable {
+        let providerID: UUID
+        let modelID: String
+        let conversationID: UUID?
+        let rawJSON: String
+        let sendsWithRequest: Bool
+        let updatedAt: Date
+    }
+
     fileprivate let defaults: UserDefaults
     private let lock = NSLock()
     private let storageKey = "generation_parameter_settings.v1"
     private let capabilityStorageKey = "capability_preference_settings.v1"
     private let localCustomStorageKey = "capability_preference_local_custom.v1"
+    /// Device-local only: never part of a sync envelope or a backup export.
+    private let additionalRequestBodyStorageKey = "additional_request_body.v1"
     /// The chat screen reads several settings layers on every body evaluation (every keystroke in the
     /// composer), and each read JSON-decoded the whole table. Decoded results are cached by the stored
     /// bytes: identical bytes reuse them (comparing bytes is far cheaper than decoding), and any rewrite,
@@ -372,6 +416,57 @@ final class GenerationParameterSettingsStore: @unchecked Sendable {
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         migrateRetiredLocalCustomDeveloperGate()
+        migrateLegacyGenerationFragmentsToAdditionalRequestBody()
+    }
+
+    /// Custom request fields for generation parameters became the additional request body. This
+    /// moves what was already stored.
+    ///
+    /// Rules (one-shot and idempotent):
+    /// - Each scope (connection x model x conversation) keeps its most recently edited copy. When
+    ///   one scope has copies under several recipe revisions, they are leftovers of earlier
+    ///   carry-forwards.
+    /// - Content is kept verbatim. A fragment that was being sent and is still valid under the
+    ///   additional-request-body rules keeps being sent. One that was switched off, or is invalid
+    ///   under the new rules (not a JSON object, contains a protected field, ...), is kept as a
+    ///   draft that is not sent: it is neither dropped silently nor allowed to make the next
+    ///   message fail because of old content.
+    /// - Moved records are deleted from the old storage, so constructing the store again finds
+    ///   nothing to do. A target scope that already has content wins.
+    private func migrateLegacyGenerationFragmentsToAdditionalRequestBody() {
+        lock.lock()
+        defer { lock.unlock() }
+        let legacy = localCustomRecordsLocked()
+        let generation = legacy.filter { $0.namespace == Self.retiredGenerationCustomNamespace }
+        guard !generation.isEmpty else { return }
+        var records = additionalRequestBodyRecordsLocked()
+        var newestByScope: [String: LocalCustomFragmentRecord] = [:]
+        for record in generation {
+            let scope = "\(record.providerID.uuidString)|\(record.conversationID?.uuidString ?? "")|\(record.modelID)"
+            if let current = newestByScope[scope], current.updatedAt >= record.updatedAt { continue }
+            newestByScope[scope] = record
+        }
+        for record in newestByScope.values.sorted(by: { $0.updatedAt < $1.updatedAt }) {
+            guard !record.rawJSON.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                  !records.contains(where: {
+                      $0.providerID == record.providerID && $0.modelID == record.modelID
+                          && $0.conversationID == record.conversationID
+                  }) else { continue }
+            let wasSending = (record.mode ?? .custom) == .custom
+            let isStillValid: Bool = {
+                if case .success = AdditionalRequestBody.parse(record.rawJSON) { return true }
+                return false
+            }()
+            records.append(.init(
+                providerID: record.providerID, modelID: record.modelID,
+                conversationID: record.conversationID, rawJSON: record.rawJSON,
+                sendsWithRequest: wasSending && isStillValid, updatedAt: record.updatedAt
+            ))
+        }
+        // Write the new records before deleting the old ones: being killed halfway only repeats
+        // the migration, it never leaves the content in neither place.
+        writeAdditionalRequestBodyRecordsLocked(records)
+        writeLocalCustomRecordsLocked(legacy.filter { $0.namespace != Self.retiredGenerationCustomNamespace })
     }
 
     private func migrateRetiredLocalCustomDeveloperGate() {
@@ -776,8 +871,10 @@ final class GenerationParameterSettingsStore: @unchecked Sendable {
     static let localCustomOwnerNamespaces: [(owner: String, namespace: String)] = [
         ("web", "webPatch"),
         ("reasoning", "reasoningPatch"),
-        ("generation", "generationPatch"),
     ]
+    /// Generation custom fields were replaced by the additional request body; only the migration
+    /// still reads this namespace.
+    static let retiredGenerationCustomNamespace = "generationPatch"
 
     func isSkillAgentCapabilityConfirmed(
         providerID: UUID,
@@ -919,7 +1016,7 @@ final class GenerationParameterSettingsStore: @unchecked Sendable {
         namespace: String
     ) {
         guard !transportIdentity.isEmpty,
-              ["webPatch", "reasoningPatch", "generationPatch"].contains(namespace) else { return }
+              Self.localCustomOwnerNamespaces.contains(where: { $0.namespace == namespace }) else { return }
         lock.lock()
         defer { lock.unlock() }
         var records = localCustomRecordsLocked()
@@ -984,7 +1081,8 @@ final class GenerationParameterSettingsStore: @unchecked Sendable {
         transportIdentity: String,
         namespace: String
     ) {
-        guard !transportIdentity.isEmpty, ["webPatch", "reasoningPatch", "generationPatch"].contains(namespace) else { return }
+        guard !transportIdentity.isEmpty,
+              Self.localCustomOwnerNamespaces.contains(where: { $0.namespace == namespace }) else { return }
         lock.lock()
         defer { lock.unlock() }
         var records = localCustomRecordsLocked()
@@ -1080,6 +1178,101 @@ final class GenerationParameterSettingsStore: @unchecked Sendable {
                 || (modelID != nil && record.modelID != modelID)
                 || (conversationID != nil && record.conversationID != conversationID)
         })
+        writeAdditionalRequestBodyRecordsLocked(additionalRequestBodyRecordsLocked().filter { record in
+            (providerID != nil && record.providerID != providerID)
+                || (modelID != nil && record.modelID != modelID)
+                || (conversationID != nil && record.conversationID != conversationID)
+        })
+    }
+
+    // MARK: - Additional request body (device-local)
+
+    /// The configuration stored for exactly this scope, or nil when there is no record.
+    func additionalRequestBody(
+        providerID: UUID, modelID: String, conversationID: UUID?
+    ) -> AdditionalRequestBodyConfiguration? {
+        lock.lock()
+        defer { lock.unlock() }
+        return additionalRequestBodyRecordsLocked().first {
+            $0.providerID == providerID && $0.modelID == modelID && $0.conversationID == conversationID
+        }.map { .init(rawJSON: $0.rawJSON, sendsWithRequest: $0.sendsWithRequest) }
+    }
+
+    /// The read shared by the send path and the UI: a conversation without its own record falls
+    /// back to the model-default scope (`conversationID == nil`). A conversation that does have a
+    /// record, even an empty or switched-off one, reflects a choice made in that conversation and
+    /// is not overridden by the model default.
+    func effectiveAdditionalRequestBody(
+        providerID: UUID, modelID: String, conversationID: UUID?
+    ) -> AdditionalRequestBodyConfiguration {
+        if let scoped = additionalRequestBody(
+            providerID: providerID, modelID: modelID, conversationID: conversationID
+        ) { return scoped }
+        guard conversationID != nil else { return .init() }
+        return additionalRequestBody(providerID: providerID, modelID: modelID, conversationID: nil) ?? .init()
+    }
+
+    /// What the real send boundary reads: returned only when switched on and non-empty. The
+    /// content is deliberately not pre-validated here. A mistake has to reach the final
+    /// request-body boundary, be rejected locally and be reported; silently sending without it
+    /// would amount to an unrequested "retry without the additional request body".
+    func activeAdditionalRequestBody(
+        providerID: UUID, modelID: String, conversationID: UUID?
+    ) -> AdditionalRequestBodyPayload? {
+        let configuration = effectiveAdditionalRequestBody(
+            providerID: providerID, modelID: modelID, conversationID: conversationID
+        )
+        return configuration.isActive ? .init(raw: configuration.rawJSON) : nil
+    }
+
+    /// Pass nil to delete this scope's record.
+    func setAdditionalRequestBody(
+        _ configuration: AdditionalRequestBodyConfiguration?,
+        providerID: UUID, modelID: String, conversationID: UUID?
+    ) {
+        guard !modelID.isEmpty else { return }
+        lock.lock()
+        defer { lock.unlock() }
+        var records = additionalRequestBodyRecordsLocked()
+        records.removeAll {
+            $0.providerID == providerID && $0.modelID == modelID && $0.conversationID == conversationID
+        }
+        if let configuration {
+            records.append(.init(
+                providerID: providerID, modelID: modelID, conversationID: conversationID,
+                rawJSON: configuration.rawJSON, sendsWithRequest: configuration.sendsWithRequest,
+                updatedAt: Date()
+            ))
+        }
+        writeAdditionalRequestBodyRecordsLocked(records)
+    }
+
+    /// On the first send the conversation ID changes from the draft ID to the real one. A body
+    /// keyed by conversation has to follow, or it neither goes out with the first message nor
+    /// shows up when the page is reopened. If the target scope already has a record, it wins.
+    func migrateAdditionalRequestBody(
+        providerID: UUID, modelID: String, from draftConversationID: UUID, to conversationID: UUID
+    ) {
+        guard draftConversationID != conversationID else { return }
+        lock.lock()
+        defer { lock.unlock() }
+        var records = additionalRequestBodyRecordsLocked()
+        guard let moved = records.first(where: {
+            $0.providerID == providerID && $0.modelID == modelID && $0.conversationID == draftConversationID
+        }) else { return }
+        let occupied = records.contains {
+            $0.providerID == providerID && $0.modelID == modelID && $0.conversationID == conversationID
+        }
+        records.removeAll {
+            $0.providerID == providerID && $0.modelID == modelID && $0.conversationID == draftConversationID
+        }
+        if !occupied {
+            records.append(.init(
+                providerID: moved.providerID, modelID: moved.modelID, conversationID: conversationID,
+                rawJSON: moved.rawJSON, sendsWithRequest: moved.sendsWithRequest, updatedAt: moved.updatedAt
+            ))
+        }
+        writeAdditionalRequestBodyRecordsLocked(records)
     }
 
     func activeOverrideParameterIDs(
@@ -1341,6 +1534,19 @@ final class GenerationParameterSettingsStore: @unchecked Sendable {
         guard let data = try? JSONEncoder().encode(capped) else { return }
         defaults.set(data, forKey: localCustomStorageKey)
         // Deliberately does not mark the store dirty: custom raw JSON must have no export path.
+    }
+
+    private func additionalRequestBodyRecordsLocked() -> [AdditionalRequestBodyRecord] {
+        guard let data = defaults.data(forKey: additionalRequestBodyStorageKey) else { return [] }
+        return (try? JSONDecoder().decode([AdditionalRequestBodyRecord].self, from: data)) ?? []
+    }
+
+    private func writeAdditionalRequestBodyRecordsLocked(_ records: [AdditionalRequestBodyRecord]) {
+        let capped = Array(records.sorted { $0.updatedAt > $1.updatedAt }.prefix(maximumRecordCount))
+        guard let data = try? JSONEncoder().encode(capped) else { return }
+        defaults.set(data, forKey: additionalRequestBodyStorageKey)
+        // Deliberately does not notify any sync publisher: the additional request body has no
+        // sync or export path.
     }
 
     fileprivate func capabilitySyncRecords() -> [CapabilityRecord] {

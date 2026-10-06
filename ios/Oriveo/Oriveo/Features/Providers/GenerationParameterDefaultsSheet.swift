@@ -792,28 +792,30 @@ struct GenerationParameterDefaultsSheet: View {
     }
 
     private func refreshCustomFieldsEntry() {
-        guard let model, let identity = customFieldsRuntimeIdentity else {
+        guard let model else {
             customFieldsEntry = .unsupported
             return
         }
-        var reachable = false
-        var inUse = false
-        for (owner, namespace) in [
-            ("web", "webPatch"), ("reasoning", "reasoningPatch"), ("generation", "generationPatch"),
-        ] {
-            if hasCustomFieldSchema(owner: owner, model: model) { reachable = true }
-            let configuration = GenerationParameterSettingsStore.shared.effectiveLocalCustomConfiguration(
-                providerID: provider.id, modelID: identity.canonicalModelID,
-                conversationID: conversationID, transportIdentity: identity.wireValue,
-                namespace: namespace,
-                forwardPort: .init(providerKind: provider.kind, schemaModelID: model.id)
-            )
-            if configuration.mode == .custom { inUse = true; reachable = true }
-            if !configuration.rawJSON.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                reachable = true
+        // The additional request body needs no recipe runtime identity, so this row is always
+        // reachable once a model is known.
+        var inUse = GenerationParameterSettingsStore.shared
+            .effectiveAdditionalRequestBody(
+                providerID: provider.id,
+                modelID: CapabilityPreferenceRuntimeIdentity.canonicalModelID(provider: provider, model: model),
+                conversationID: conversationID
+            ).isActive
+        if let identity = customFieldsRuntimeIdentity {
+            for (_, namespace) in GenerationParameterSettingsStore.localCustomOwnerNamespaces {
+                let configuration = GenerationParameterSettingsStore.shared.effectiveLocalCustomConfiguration(
+                    providerID: provider.id, modelID: identity.canonicalModelID,
+                    conversationID: conversationID, transportIdentity: identity.wireValue,
+                    namespace: namespace,
+                    forwardPort: .init(providerKind: provider.kind, schemaModelID: model.id)
+                )
+                if configuration.mode == .custom { inUse = true }
             }
         }
-        customFieldsEntry = inUse ? .inUse : (reachable ? .idle : .unsupported)
+        customFieldsEntry = inUse ? .inUse : .idle
     }
 
     private func hasCustomFieldSchema(owner: String, model: AIModel) -> Bool {
@@ -862,12 +864,14 @@ struct GenerationParameterDefaultsSheet: View {
 
     @ViewBuilder
     private var customFieldsDestination: some View {
-        if let model, let identity = customFieldsRuntimeIdentity {
+        // Without a runtime identity an empty string is passed: the web search and thinking
+        // sections then stay hidden and the page shows only the additional request body.
+        if let model {
             CustomRequestFieldsPage(
                 provider: provider,
                 model: model,
                 conversationID: conversationID,
-                transportIdentity: identity.wireValue
+                transportIdentity: customFieldsRuntimeIdentity?.wireValue ?? ""
             )
         }
     }

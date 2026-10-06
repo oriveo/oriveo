@@ -80,6 +80,25 @@ nonisolated struct SafeCustomBodyFragment: Hashable, Sendable {
 nonisolated enum LocalCustomFragmentDisposition: Hashable, Sendable {
     case include
     case omitForExplicitRetry
+    /// "Retry without the additional request body": affects this one request only. Custom fields
+    /// for web search and thinking are still sent, and the saved body and its switch are untouched.
+    case omitAdditionalBodyForExplicitRetry
+
+    /// What a retry tapped on a failed message should carry this time. It reads only the marker
+    /// persisted on the failed message, never the current settings: a retry changes this one
+    /// request, not what is saved.
+    static func forExplicitRetry(errorTitle: String?, recoveryDescriptorCount: Int?) -> Self {
+        if errorTitle == AdditionalRequestBody.upstreamRejectionTitleKey {
+            return .omitAdditionalBodyForExplicitRetry
+        }
+        // A structured upstream rejection is already dormant in the exact-pointer cache;
+        // include the surviving custom fragment so retry omits only that located setting.
+        // Local validation failures have no cache entry and still require omit-all.
+        if errorTitle == "Custom request fields error", recoveryDescriptorCount != 1 {
+            return .omitForExplicitRetry
+        }
+        return .include
+    }
 }
 
 /// The editor may only remove an existing local fragment after an explicit destructive choice.
@@ -187,11 +206,11 @@ nonisolated struct ChatRequestOptions: Hashable, Codable, Sendable {
             typed.reasoningIntent = nil
             capabilityPreferences = typed
         }
-        if owners.contains("generation") {
-            generationParameters = nil
-            generationProfile = nil
-        }
     }
+    /// Raw additional request body. It travels with this one request in memory only: it is not
+    /// a coding key, is never persisted and never syncs. It coexists with the panel parameters
+    /// and is merged by `AdditionalRequestBody.apply` at the final request-body boundary.
+    var localAdditionalRequestBody: AdditionalRequestBodyPayload? = nil
     /// owns the error UI and may opt in to this one-shot disposition. Normal sends always use
     /// `.include`; this declaration alone is not execution evidence and does not retry anything.
     var localCustomFragmentDisposition: LocalCustomFragmentDisposition = .include
@@ -214,6 +233,7 @@ nonisolated struct ChatRequestOptions: Hashable, Codable, Sendable {
         localContinuationMessageID = nil
         localExplicitContinuationMessageID = nil
         localSafeCustomBodyFragments = []
+        localAdditionalRequestBody = nil
         localCustomFragmentDisposition = .include
     }
 
@@ -236,6 +256,7 @@ nonisolated struct ChatRequestOptions: Hashable, Codable, Sendable {
         localContinuationMessageID = nil
         localExplicitContinuationMessageID = nil
         localSafeCustomBodyFragments = []
+        localAdditionalRequestBody = nil
         localCustomFragmentDisposition = .include
     }
 

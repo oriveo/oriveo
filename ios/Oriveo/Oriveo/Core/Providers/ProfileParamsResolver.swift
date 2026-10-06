@@ -73,9 +73,13 @@ enum ProfileParamsResolver {
         case ownedRootField = "owned_root_field"
     }
 
-    private static let blockedWireSegments: Set<String> = ["__proto__", "prototype", "constructor"]
+    /// The additional request body uses this same list for names that may not appear at any
+    /// depth (`AdditionalRequestBody.blockedSegments`).
+    nonisolated static let blockedWireSegments: Set<String> = ["__proto__", "prototype", "constructor"]
     private static let maxWireSegments = 4
-    private static let builderOwnedRootFields: Set<String> = [
+    /// Root fields owned by the request builder. The additional request body reads its protected
+    /// fields from here too (`AdditionalRequestBody.protectedRootFields`) instead of keeping a copy.
+    nonisolated static let builderOwnedRootFields: Set<String> = [
         "model", "messages", "input", "contents", "prompt", "attachments", "instructions", "system", "stream", "stream_options", "tools", "tool_choice", "plugins",
     ]
     private static let jsonSchemaMaxBytes = 64 * 1024

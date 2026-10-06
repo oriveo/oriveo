@@ -15,32 +15,39 @@ struct CustomRequestFieldsPage: View {
     @State private var schemaOwners: Set<String> = []
     @State private var didLoad = false
     @FocusState private var focusedOwner: String?
+    /// Draft and "Send with requests" switch of the additional request body. The two are stored
+    /// separately: switching it off keeps the content and just stops sending it.
+    @State private var additionalBodyDraft = ""
+    @State private var additionalBodySends = false
 
+    /// Generation parameters are not listed here: they have no officially declared custom fields
+    /// and are covered by the additional request body below.
     private static let ownerNamespaces: [(owner: String, namespace: String)] = [
         ("web", "webPatch"),
         ("reasoning", "reasoningPatch"),
-        ("generation", "generationPatch"),
     ]
+    private static let additionalBodyFocus = "additional_request_body"
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 14) {
-                if sections.isEmpty {
-                    emptyCard
-                } else {
+                if !sections.isEmpty {
                     ForEach(sections, id: \.self) { owner in
                         ownerCard(owner)
                     }
+                    // This note is only accurate for the sections above, which are validated
+                    // against officially declared fields. The additional request body has its own.
+                    ModelControlNote(
+                        text: L10n.tr(
+                            "Fields are added to the request exactly as written. Only fields this provider officially declares are supported; mistakes can make requests fail. Drafts stay on this device.",
+                            table: .chat
+                        ),
+                        systemImage: "iphone.and.arrow.forward"
+                    )
+                    .padding(.horizontal, 4)
                 }
 
-                ModelControlNote(
-                    text: L10n.tr(
-                        "Fields are added to the request exactly as written. Only fields this provider officially declares are supported; mistakes can make requests fail. Drafts stay on this device.",
-                        table: .chat
-                    ),
-                    systemImage: "iphone.and.arrow.forward"
-                )
-                .padding(.horizontal, 4)
+                additionalBodyCard
             }
             .padding(.horizontal, 18)
             .padding(.top, 6)
@@ -93,25 +100,139 @@ struct CustomRequestFieldsPage: View {
     private func title(for owner: String) -> String {
         switch owner {
         case "web": return L10n.tr("Web Search", table: .chat)
-        case "reasoning": return L10n.tr("Thinking Mode", table: .chat)
-        default: return L10n.tr("Parameters", table: .providers)
+        default: return L10n.tr("Thinking Mode", table: .chat)
         }
     }
 
-    private var emptyCard: some View {
-        VStack(alignment: .leading, spacing: 10) {
+    // MARK: - Additional request body
+
+    private var additionalBodyTrimmed: String {
+        additionalBodyDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var additionalBodyCard: some View {
+        VStack(alignment: .leading, spacing: 13) {
+            Text(L10n.tr("Additional request body", table: .chat))
+                .font(.body.weight(.semibold))
+                .foregroundStyle(OriveoTheme.Palette.textPrimary)
+
+            HStack(spacing: 8) {
+                Text(L10n.tr("Send with requests", table: .chat))
+                    .font(.subheadline)
+                    .foregroundStyle(OriveoTheme.Palette.textPrimary)
+                Spacer(minLength: 8)
+                Toggle("", isOn: Binding(
+                    get: { additionalBodySends },
+                    set: { next in
+                        additionalBodySends = next
+                        persistAdditionalBody()
+                    }
+                ))
+                    .labelsHidden()
+                    .tint(OriveoTheme.Palette.primaryTextSafe)
+                    .accessibilityLabel(Text(L10n.tr("Send with requests", table: .chat)))
+            }
+
+            TextEditor(text: Binding(
+                get: { additionalBodyDraft },
+                // Saved on every edit, like the sections above: closing the page must not lose
+                // half-written JSON.
+                set: { next in
+                    additionalBodyDraft = next
+                    persistAdditionalBody()
+                }
+            ))
+            .font(.system(size: 13, design: .monospaced))
+            .scrollContentBackground(.hidden)
+            .padding(12)
+            .frame(minHeight: 150)
+            .background {
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(OriveoTheme.Palette.textPrimary.opacity(0.04))
+            }
+            .focused($focusedOwner, equals: Self.additionalBodyFocus)
+            .autocorrectionDisabled()
+            .textInputAutocapitalization(.never)
+            .accessibilityLabel(Text(L10n.tr("Additional request body", table: .chat)))
+
+            additionalBodyValidation
+
             ModelControlNote(
-                text: L10n.tr(
-                    "Custom fields need an official field schema for this exact model and transport.",
-                    table: .chat
-                ),
-                systemImage: "info.circle"
+                text: conversationID != nil
+                    ? L10n.tr("Scope: this conversation, connection, model, and transport.", table: .chat)
+                    : L10n.tr(
+                        "Scope: this model on this connection, used as the default for its conversations.",
+                        table: .chat
+                    ),
+                systemImage: "scope"
+            )
+            ModelControlNote(
+                text: L10n.tr("Stays on this device. It isn’t synced or included in backups.", table: .chat),
+                systemImage: "iphone"
             )
         }
         .padding(18)
         .frame(maxWidth: .infinity, alignment: .leading)
         .modelControlSurface()
     }
+
+    @ViewBuilder
+    private var additionalBodyValidation: some View {
+        if additionalBodyTrimmed.isEmpty {
+            ModelControlNote(
+                text: L10n.tr(
+                    "Enter a JSON object. Its fields are merged into each request and override parameter settings for the same field.",
+                    table: .chat
+                ),
+                systemImage: "text.cursor"
+            )
+        } else {
+            switch AdditionalRequestBody.parse(additionalBodyDraft) {
+            case .success:
+                ModelControlNote(
+                    text: additionalBodySends
+                        ? L10n.tr("This JSON is merged into each request.", table: .chat)
+                        : L10n.tr("Saved, but not sent. Turn on “Send with requests” to use it.", table: .chat),
+                    systemImage: additionalBodySends ? "checkmark.seal.fill" : "pause.circle",
+                    tone: additionalBodySends ? OriveoTheme.Palette.success : OriveoTheme.Palette.textSecondary
+                )
+            case let .failure(rejection):
+                ModelControlNote(
+                    text: rejection.localizedMessage,
+                    systemImage: "exclamationmark.triangle.fill",
+                    tone: OriveoTheme.Palette.danger
+                )
+            }
+        }
+    }
+
+    private var additionalBodyModelID: String {
+        CapabilityPreferenceRuntimeIdentity.canonicalModelID(provider: provider, model: model)
+    }
+
+    private func loadAdditionalBody() {
+        let configuration = GenerationParameterSettingsStore.shared.effectiveAdditionalRequestBody(
+            providerID: provider.id, modelID: additionalBodyModelID, conversationID: conversationID
+        )
+        additionalBodyDraft = configuration.rawJSON
+        additionalBodySends = configuration.sendsWithRequest
+    }
+
+    /// A conversation scope always keeps a record, even an empty one. Otherwise clearing it would
+    /// fall back to the model default and the content just deleted would be back the next time the
+    /// page opens. The model-default scope drops its record once it is empty and switched off.
+    private func persistAdditionalBody() {
+        let isBlank = additionalBodyTrimmed.isEmpty
+        let configuration: AdditionalRequestBodyConfiguration? = conversationID == nil && isBlank && !additionalBodySends
+            ? nil
+            : .init(rawJSON: additionalBodyDraft, sendsWithRequest: additionalBodySends)
+        GenerationParameterSettingsStore.shared.setAdditionalRequestBody(
+            configuration, providerID: provider.id, modelID: additionalBodyModelID,
+            conversationID: conversationID
+        )
+    }
+
+    // MARK: - Sections for officially declared fields
 
     @ViewBuilder
     private func ownerCard(_ owner: String) -> some View {
@@ -341,8 +462,11 @@ struct CustomRequestFieldsPage: View {
     private func load() {
         guard !didLoad else { return }
         didLoad = true
+        loadAdditionalBody()
         var visible: [String] = []
-        for entry in Self.ownerNamespaces {
+        // Without a runtime identity (empty string) these sections can be neither read nor
+        // written, so they are not shown.
+        for entry in Self.ownerNamespaces where !transportIdentity.isEmpty {
             let configuration = GenerationParameterSettingsStore.shared.effectiveLocalCustomConfiguration(
                 providerID: provider.id, modelID: canonicalModelID, conversationID: conversationID,
                 transportIdentity: transportIdentity, namespace: entry.namespace,

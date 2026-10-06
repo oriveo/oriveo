@@ -615,6 +615,7 @@ final class AnthropicService: BaseAPIService, ProviderServiceProtocol {
             providerKind: .anthropic, modelID: modelID,
             transport: resolved?.transport ?? "anthropic_messages"
         )
+        try AdditionalRequestBody.apply(requestOptions.localAdditionalRequestBody, to: &body)
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
         CapabilityExecutionRuntime.confirmFinalWireEncoded()
         return request
@@ -716,6 +717,7 @@ final class AnthropicService: BaseAPIService, ProviderServiceProtocol {
         ProfileParamsResolver.applyAnthropicThinkingGuard(
             to: &body, application: generationApplication, builderDefaultMaxTokens: resolvedMaxTokens
         )
+        try AdditionalRequestBody.apply(requestOptions.localAdditionalRequestBody, to: &body)
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
         CapabilityExecutionRuntime.confirmFinalWireEncoded()
         return request

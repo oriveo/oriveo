@@ -124,6 +124,34 @@ struct MessageRecoveryGatingTests {
         )
     }
 
+    @Test("Upstream rejection of a request carrying the additional request body offers a retry without it and keeps the upstream error in the technical detail")
+    func additionalBodyUpstreamRejectionOffersRetryWithoutIt() throws {
+        var retried = false
+        let config = try #require(Self.makeConfig(
+            for: Self.makeModel(
+                state: .failed,
+                isLast: true,
+                errorTitle: AdditionalRequestBody.upstreamRejectionTitleKey,
+                errorDetail: "Upstream HTTP 400: unknown field"
+            ),
+            onRetry: { retried = true }
+        ))
+        #expect(config.primaryTitle == L10n.tr("Retry without additional request body", table: .chat))
+        #expect(config.title == L10n.tr(AdditionalRequestBody.upstreamRejectionTitleKey, table: .chat))
+        #expect(config.technicalDetail == "Upstream HTTP 400: unknown field")
+        config.primaryAction()
+        #expect(retried)
+
+        // A local rejection has no such way out: resending unchanged content gives the same result.
+        let local = try #require(Self.makeConfig(for: Self.makeModel(
+            state: .failed, isLast: true,
+            errorTitle: AdditionalRequestBody.localRejectionTitleKey,
+            errorDetail: "additional_request_body_rejected:protected_field:model@2"
+        )))
+        #expect(local.primaryTitle != L10n.tr("Retry without additional request body", table: .chat))
+        #expect(local.title == L10n.tr(AdditionalRequestBody.localRejectionTitleKey, table: .chat))
+    }
+
     @Test("Custom field rejection requires an explicit retry without custom fields")
     func customFieldRejectionUsesExplicitRetryTitleAndRedactedDetail() throws {
         var retried = false

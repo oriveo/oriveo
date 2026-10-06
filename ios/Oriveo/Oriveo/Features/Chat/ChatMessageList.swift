@@ -594,13 +594,10 @@ struct ChatMessageList: View, Equatable {
                 messageID: message.id,
                 in: conversationID,
                 capabilitySelection: capabilitySelection,
-                // A structured upstream rejection is already dormant in the exact-pointer cache;
-                // include the surviving custom fragment so retry omits only that located setting.
-                // Local validation failures have no cache entry and still require omit-all.
-                localCustomFragmentDisposition: message.errorTitle == "Custom request fields error"
-                    && message.capabilityExecution?.recoveryDescriptors?.count != 1
-                    ? .omitForExplicitRetry
-                    : .include
+                localCustomFragmentDisposition: .forExplicitRetry(
+                    errorTitle: message.errorTitle,
+                    recoveryDescriptorCount: message.capabilityExecution?.recoveryDescriptors?.count
+                )
             )
         }
     }

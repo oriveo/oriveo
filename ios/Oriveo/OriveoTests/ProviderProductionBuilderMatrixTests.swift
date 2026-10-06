@@ -560,9 +560,12 @@ struct ProviderProductionBuilderMatrixTests {
         generation.values["max_output_tokens"] = .init(state: .value, value: .number(999))
         var openAIOptions = ChatRequestOptions(generationParameters: generation)
         openAIOptions.capabilityPreferences = .init(web: .off, reasoningIntent: "low")
-        openAIOptions.selectLocalCustomBodyFragments([reasoningCase, generationCase].map {
-            .init(raw: $0.raw ?? "", owner: $0.owner, declaredOwners: [:])
-        })
+        openAIOptions.selectLocalCustomBodyFragments([
+            .init(raw: reasoningCase.raw ?? "", owner: reasoningCase.owner, declaredOwners: [:]),
+        ])
+        // Generation parameters go out through the additional request body: it coexists with the
+        // panel's 999, and the additional request body wins for the same field.
+        openAIOptions.localAdditionalRequestBody = .init(raw: generationCase.raw ?? "")
         ProviderMatrixURLProtocol.captured = []
         _ = try await CapabilityEvidenceRequestContext.$current.withValue(
             Self.matrixIdentity(providerKind: .openAI, modelID: "openai-custom", transport: "openai_responses")

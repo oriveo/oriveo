@@ -1439,6 +1439,12 @@ final class AppState {
                 to: targetConversationID,
                 transportIdentity: capabilityIdentity?.wireValue ?? ""
             )
+            GenerationParameterSettingsStore.shared.migrateAdditionalRequestBody(
+                providerID: provider.id,
+                modelID: CapabilityPreferenceRuntimeIdentity.canonicalModelID(provider: provider, model: model),
+                from: generationParameterDraftSessionID,
+                to: targetConversationID
+            )
         }
 
         guard await chatManager.sendMessage(

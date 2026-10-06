@@ -72,6 +72,7 @@ class BaseAPIService {
                 transport: resolved?.transport ?? identity.effectiveTransport
             )
         }
+        try AdditionalRequestBody.apply(options.localAdditionalRequestBody, to: &body)
         let encoded = try JSONSerialization.data(withJSONObject: body)
         // This is the sole final body boundary.  Do not mark requested from HTTP status or from a
         // preflight compilation; only a successfully encoded final wire body earns the fact.
@@ -498,6 +499,10 @@ class BaseAPIService {
         /// sent apart from one that was sent and still rejected.
         relayTransport: RelayTransport? = nil
     ) -> ProviderServiceError {
+        // Every non-2xx upstream response is classified here, so this is where the status code is
+        // recorded. However the error is classified afterwards (relay guidance copy and so on),
+        // the fact "the upstream answered 400 before any event" stays the same.
+        CapabilityExecutionRuntime.recordUpstreamHTTPFailure(statusCode: statusCode)
         let upstreamSnippet = decodeErrorMessage(from: data, request: request)
         let detail = upstreamSnippet
             ?? HTTPURLResponse.localizedString(forStatusCode: statusCode)

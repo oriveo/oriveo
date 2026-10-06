@@ -1512,7 +1512,8 @@ final class ProviderManager {
         case .invalidAPIKey, .invalidConfiguration:
             return false
         case .quotaExceeded, .modelUnavailable,
-             .rateLimited, .emptyModelCatalog, .network, .upstream, .emptyResponse:
+             .rateLimited, .emptyModelCatalog, .network, .upstream, .emptyResponse,
+             .additionalRequestBodyRejected:
             return true
         case let .subscriptionFailure(_, kind, _, _):
             switch kind {
