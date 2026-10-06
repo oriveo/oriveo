@@ -16,8 +16,12 @@ struct LocalComputeContractFixtureTests {
         ])
         #expect(contract.schema.support.count == 8)
         #expect(contract.schema.overrideStates == ["inherit", "value", "omit"])
-        #expect(contract.cases.count == 12)
-        #expect(Set(contract.cases.map(\.intent.transport)).count == 4)
+        let fixtures: GenerationCases = try decodeFixture(
+            ["shared", "model-contracts", "generation_parameter_contract.v1.cases.json"]
+        )
+        #expect(fixtures.version == contract.version)
+        #expect(fixtures.cases.count == 12)
+        #expect(Set(fixtures.cases.map(\.intent.transport)).count == 4)
     }
 
     @Test("local classifier fixture drives the production endpoint policy red proof")
@@ -190,6 +194,10 @@ struct LocalComputeContractFixtureTests {
     private struct GenerationContract: Decodable {
         let version: Int
         let schema: GenerationSchema
+    }
+
+    private struct GenerationCases: Decodable {
+        let version: Int
         let cases: [GenerationCase]
     }
 

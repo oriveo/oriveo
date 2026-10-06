@@ -23,10 +23,17 @@ interface Contract {
   [key: string]: unknown;
 }
 
-const contract = JSON.parse(readFileSync(
-  resolve(process.cwd(), '../../../shared/model-contracts/generation_parameter_contract.v1.json'),
-  'utf8',
-)) as Contract;
+// Rules and cases live in two files; the literal scan below has to cover the cases too, so merge them.
+const contract = {
+  ...JSON.parse(readFileSync(
+    resolve(process.cwd(), '../../../shared/model-contracts/generation_parameter_contract.v1.json'),
+    'utf8',
+  )),
+  ...JSON.parse(readFileSync(
+    resolve(process.cwd(), '../../../shared/model-contracts/generation_parameter_contract.v1.cases.json'),
+    'utf8',
+  )),
+} as Contract;
 
 /** Every `support` literal appearing anywhere in the contract file, fixtures included; trusting the schema alone is not enough. */
 function supportLiterals(node: unknown, found = new Set<string>()): Set<string> {

@@ -2,9 +2,9 @@ import Foundation
 import Testing
 @testable import Oriveo
 
-/// Per-item evaluation in the outbound writer. Source of truth is `outboundRules` /
-/// `outboundCases` in `shared/model-contracts/generation_parameter_contract.v1.json`, the one
-/// table every client consumes.
+/// Per-item evaluation in the outbound writer. Source of truth is `outboundRules` in
+/// `shared/model-contracts/generation_parameter_contract.v1.json`, with `outboundCases` in the
+/// sibling `generation_parameter_contract.v1.cases.json`: the one table every client consumes.
 ///
 /// The profile is parsed by the production `MetadataClient` from catalog-shaped metadata JSON,
 /// and the final body comes from the production `ProfileParamsResolver.applyGenerationParameters`
@@ -200,16 +200,23 @@ struct GenerationOutboundPerItemContractTests {
         return String(decoding: data, as: UTF8.self)
     }
 
+    /// Rules and cases live in two files (cases in `generation_parameter_contract.v1.cases.json`);
+    /// this merges them into one table.
     static func loadContract() throws -> [String: Any] {
         var folder = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
         for _ in 0..<8 {
-            let candidate = folder
+            let directory = folder
                 .appendingPathComponent("shared")
                 .appendingPathComponent("model-contracts")
-                .appendingPathComponent("generation_parameter_contract.v1.json")
+            let candidate = directory.appendingPathComponent("generation_parameter_contract.v1.json")
             if FileManager.default.fileExists(atPath: candidate.path) {
                 let object = try JSONSerialization.jsonObject(with: Data(contentsOf: candidate))
-                return try #require(object as? [String: Any])
+                let rules = try #require(object as? [String: Any])
+                let casesObject = try JSONSerialization.jsonObject(with: Data(
+                    contentsOf: directory.appendingPathComponent("generation_parameter_contract.v1.cases.json")
+                ))
+                let cases = try #require(casesObject as? [String: Any])
+                return rules.merging(cases.filter { $0.key != "$comment" }) { current, _ in current }
             }
             folder.deleteLastPathComponent()
         }

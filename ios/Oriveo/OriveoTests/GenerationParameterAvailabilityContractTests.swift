@@ -252,7 +252,7 @@ struct GenerationParameterAvailabilityContractTests {
             let candidate = folder
                 .appendingPathComponent("shared")
                 .appendingPathComponent("model-contracts")
-                .appendingPathComponent("generation_parameter_contract.v1.json")
+                .appendingPathComponent("generation_parameter_contract.v1.cases.json")
             if FileManager.default.fileExists(atPath: candidate.path) {
                 return try JSONDecoder().decode(AvailabilityContract.self, from: Data(contentsOf: candidate))
             }

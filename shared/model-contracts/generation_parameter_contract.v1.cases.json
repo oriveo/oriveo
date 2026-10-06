@@ -1,0 +1,5450 @@
+{
+  "$comment": "Fixture groups for generation_parameter_contract.v1.json, which holds the rules and tables these cases exercise. The two files form one contract and share one version; tests and gates read both, production code reads neither group of cases. Every payload case must be driven through a production request builder; tests must not synthesize request JSON.",
+  "version": 1,
+  "cases": [
+    {
+      "caseId": "openai_chat.omit",
+      "intent": {
+        "transport": "openai_chat_completions",
+        "authMode": "none",
+        "modelId": "fixture-chat",
+        "override": {
+          "state": "omit"
+        }
+      },
+      "expect": {
+        "headersExclude": [
+          "Authorization",
+          "x-api-key",
+          "x-goog-api-key"
+        ],
+        "bodyExcludes": [
+          "temperature"
+        ],
+        "resolved": {
+          "state": "omit",
+          "source": "explicit_omit",
+          "wirePath": null
+        }
+      }
+    },
+    {
+      "caseId": "openai_chat.zero",
+      "intent": {
+        "transport": "openai_chat_completions",
+        "authMode": "none",
+        "modelId": "fixture-chat",
+        "override": {
+          "state": "value",
+          "value": 0
+        }
+      },
+      "expect": {
+        "headersExclude": [
+          "Authorization",
+          "x-api-key",
+          "x-goog-api-key"
+        ],
+        "bodyIncludes": {
+          "temperature": 0
+        },
+        "resolved": {
+          "state": "value",
+          "value": 0,
+          "source": "single_send",
+          "wirePath": "temperature"
+        }
+      }
+    },
+    {
+      "caseId": "openai_chat.normal",
+      "intent": {
+        "transport": "openai_chat_completions",
+        "authMode": "bearer",
+        "modelId": "fixture-chat",
+        "override": {
+          "state": "value",
+          "value": 0.7
+        }
+      },
+      "expect": {
+        "headersInclude": {
+          "Authorization": "*"
+        },
+        "bodyIncludes": {
+          "temperature": 0.7
+        },
+        "resolved": {
+          "state": "value",
+          "value": 0.7,
+          "source": "single_send",
+          "wirePath": "temperature"
+        }
+      }
+    },
+    {
+      "caseId": "openai_responses.omit",
+      "intent": {
+        "transport": "openai_responses",
+        "authMode": "none",
+        "modelId": "fixture-responses",
+        "override": {
+          "state": "omit"
+        }
+      },
+      "expect": {
+        "headersExclude": [
+          "Authorization",
+          "x-api-key",
+          "x-goog-api-key"
+        ],
+        "bodyExcludes": [
+          "temperature"
+        ],
+        "resolved": {
+          "state": "omit",
+          "source": "explicit_omit",
+          "wirePath": null
+        }
+      }
+    },
+    {
+      "caseId": "openai_responses.zero",
+      "intent": {
+        "transport": "openai_responses",
+        "authMode": "none",
+        "modelId": "fixture-responses",
+        "override": {
+          "state": "value",
+          "value": 0
+        }
+      },
+      "expect": {
+        "headersExclude": [
+          "Authorization",
+          "x-api-key",
+          "x-goog-api-key"
+        ],
+        "bodyIncludes": {
+          "temperature": 0
+        },
+        "resolved": {
+          "state": "value",
+          "value": 0,
+          "source": "single_send",
+          "wirePath": "temperature"
+        }
+      }
+    },
+    {
+      "caseId": "openai_responses.normal",
+      "intent": {
+        "transport": "openai_responses",
+        "authMode": "bearer",
+        "modelId": "fixture-responses",
+        "override": {
+          "state": "value",
+          "value": 0.7
+        }
+      },
+      "expect": {
+        "headersInclude": {
+          "Authorization": "*"
+        },
+        "bodyIncludes": {
+          "temperature": 0.7
+        },
+        "resolved": {
+          "state": "value",
+          "value": 0.7,
+          "source": "single_send",
+          "wirePath": "temperature"
+        }
+      }
+    },
+    {
+      "caseId": "anthropic_messages.omit",
+      "intent": {
+        "transport": "anthropic_messages",
+        "authMode": "none",
+        "modelId": "fixture-anthropic",
+        "override": {
+          "state": "omit"
+        }
+      },
+      "expect": {
+        "headersExclude": [
+          "Authorization",
+          "x-api-key",
+          "x-goog-api-key"
+        ],
+        "bodyExcludes": [
+          "temperature"
+        ],
+        "resolved": {
+          "state": "omit",
+          "source": "explicit_omit",
+          "wirePath": null
+        }
+      }
+    },
+    {
+      "caseId": "anthropic_messages.zero",
+      "intent": {
+        "transport": "anthropic_messages",
+        "authMode": "none",
+        "modelId": "fixture-anthropic",
+        "override": {
+          "state": "value",
+          "value": 0
+        }
+      },
+      "expect": {
+        "headersExclude": [
+          "Authorization",
+          "x-api-key",
+          "x-goog-api-key"
+        ],
+        "bodyIncludes": {
+          "temperature": 0
+        },
+        "resolved": {
+          "state": "value",
+          "value": 0,
+          "source": "single_send",
+          "wirePath": "temperature"
+        }
+      }
+    },
+    {
+      "caseId": "anthropic_messages.normal",
+      "intent": {
+        "transport": "anthropic_messages",
+        "authMode": "x_api_key",
+        "modelId": "fixture-anthropic",
+        "override": {
+          "state": "value",
+          "value": 0.7
+        }
+      },
+      "expect": {
+        "headersInclude": {
+          "x-api-key": "*"
+        },
+        "bodyIncludes": {
+          "temperature": 0.7
+        },
+        "resolved": {
+          "state": "value",
+          "value": 0.7,
+          "source": "single_send",
+          "wirePath": "temperature"
+        }
+      }
+    },
+    {
+      "caseId": "gemini_generate_content.omit",
+      "intent": {
+        "transport": "gemini_generate_content",
+        "authMode": "none",
+        "modelId": "fixture-gemini",
+        "override": {
+          "state": "omit"
+        }
+      },
+      "expect": {
+        "headersExclude": [
+          "Authorization",
+          "x-api-key",
+          "x-goog-api-key"
+        ],
+        "bodyExcludes": [
+          "generationConfig.temperature"
+        ],
+        "resolved": {
+          "state": "omit",
+          "source": "explicit_omit",
+          "wirePath": null
+        }
+      }
+    },
+    {
+      "caseId": "gemini_generate_content.zero",
+      "intent": {
+        "transport": "gemini_generate_content",
+        "authMode": "none",
+        "modelId": "fixture-gemini",
+        "override": {
+          "state": "value",
+          "value": 0
+        }
+      },
+      "expect": {
+        "headersExclude": [
+          "Authorization",
+          "x-api-key",
+          "x-goog-api-key"
+        ],
+        "bodyIncludes": {
+          "generationConfig.temperature": 0
+        },
+        "resolved": {
+          "state": "value",
+          "value": 0,
+          "source": "single_send",
+          "wirePath": "generationConfig.temperature"
+        }
+      }
+    },
+    {
+      "caseId": "gemini_generate_content.normal",
+      "intent": {
+        "transport": "gemini_generate_content",
+        "authMode": "x_goog_api_key",
+        "modelId": "fixture-gemini",
+        "override": {
+          "state": "value",
+          "value": 0.7
+        }
+      },
+      "expect": {
+        "headersInclude": {
+          "x-goog-api-key": "*"
+        },
+        "bodyIncludes": {
+          "generationConfig.temperature": 0.7
+        },
+        "resolved": {
+          "state": "value",
+          "value": 0.7,
+          "source": "single_send",
+          "wirePath": "generationConfig.temperature"
+        }
+      }
+    }
+  ],
+  "resolverCases": [
+    {
+      "caseId": "inherit_then_omit_blocks_lower",
+      "layers": [
+        {
+          "scope": "conversation_connection_model",
+          "override": {
+            "state": "omit"
+          }
+        },
+        {
+          "scope": "connection_model",
+          "override": {
+            "state": "value",
+            "value": 0.5
+          }
+        }
+      ],
+      "expect": {
+        "state": "omit",
+        "source": "conversation_connection_model"
+      }
+    },
+    {
+      "caseId": "zero_is_not_missing",
+      "layers": [
+        {
+          "scope": "single_send",
+          "override": {
+            "state": "value",
+            "value": 0
+          }
+        },
+        {
+          "scope": "connection_model",
+          "override": {
+            "state": "value",
+            "value": 0.5
+          }
+        }
+      ],
+      "expect": {
+        "state": "value",
+        "value": 0,
+        "source": "single_send"
+      }
+    },
+    {
+      "caseId": "unknown_requires_explicit_value",
+      "support": "unknown",
+      "layers": [
+        {
+          "scope": "provider_default",
+          "override": {
+            "state": "inherit"
+          }
+        }
+      ],
+      "expect": {
+        "state": "omit",
+        "reason": "unknown_without_explicit_value"
+      }
+    },
+    {
+      "caseId": "tools_conflict_json_schema",
+      "activeKeys": [
+        "tools",
+        "json_schema"
+      ],
+      "expect": {
+        "support": "unsupported",
+        "reason": "conflict"
+      }
+    },
+    {
+      "caseId": "reasoning_disables_sampling",
+      "activeKeys": [
+        "reasoning_mode",
+        "temperature"
+      ],
+      "expect": {
+        "omitted": [
+          "temperature"
+        ],
+        "reason": "constraint"
+      }
+    },
+    {
+      "caseId": "engine_revision_change_invalidates",
+      "fromFingerprint": [
+        "relay-1",
+        "https://box.local/v1",
+        "openai_chat_completions",
+        "model-a",
+        "r1",
+        "normal"
+      ],
+      "toFingerprint": [
+        "relay-1",
+        "https://box.local/v1",
+        "openai_chat_completions",
+        "model-a",
+        "r2",
+        "normal"
+      ],
+      "expect": {
+        "portable": [
+          "temperature"
+        ],
+        "invalidated": [
+          "mirostat",
+          "llamacpp_native"
+        ]
+      }
+    },
+    {
+      "caseId": "exact_structured_400_before_stream_requires_explicit_resend",
+      "status": 400,
+      "streamStarted": false,
+      "sideEffects": false,
+      "errorClass": "parameter_rejected",
+      "locator": {
+        "source": "provider_recipe",
+        "owner": "generation",
+        "pointers": [
+          "/temperature"
+        ],
+        "errorFields": {
+          "/error/param": "temperature"
+        }
+      },
+      "expect": {
+        "stripOnce": false,
+        "retry": false,
+        "action": "user_confirmed_resend_without_located_setting",
+        "preference": "dormant"
+      }
+    },
+    {
+      "caseId": "unlocated_400_surfaces_without_learning",
+      "status": 400,
+      "streamStarted": false,
+      "sideEffects": false,
+      "errorClass": "parameter_rejected",
+      "expect": {
+        "stripOnce": false,
+        "retry": false,
+        "action": "surface_error",
+        "learnNegative": false
+      }
+    },
+    {
+      "caseId": "status_422_does_not_self_heal",
+      "status": 422,
+      "streamStarted": false,
+      "errorClass": "parameter_rejected",
+      "expect": {
+        "stripOnce": false,
+        "retry": false
+      }
+    },
+    {
+      "caseId": "started_stream_never_retries",
+      "status": 400,
+      "streamStarted": true,
+      "errorClass": "parameter_rejected",
+      "expect": {
+        "stripOnce": false,
+        "retry": false
+      }
+    },
+    {
+      "caseId": "unknown_profile_enum_preserved",
+      "wire": {
+        "support": "future_supported",
+        "reasoningLevel": "ultra"
+      },
+      "expect": {
+        "decoded": "unknown",
+        "rawPreserved": true,
+        "silentFallback": false
+      }
+    }
+  ],
+  "wireHardeningCases": [
+    {
+      "caseId": "wire.proto_root",
+      "wire": "__proto__.polluted",
+      "value": 0.7,
+      "expect": {
+        "applied": false,
+        "reason": "blocked_segment"
+      }
+    },
+    {
+      "caseId": "wire.constructor_prototype",
+      "wire": "constructor.prototype.polluted",
+      "value": 0.7,
+      "expect": {
+        "applied": false,
+        "reason": "blocked_segment"
+      }
+    },
+    {
+      "caseId": "wire.prototype_segment",
+      "wire": "prototype.polluted",
+      "value": 0.7,
+      "expect": {
+        "applied": false,
+        "reason": "blocked_segment"
+      }
+    },
+    {
+      "caseId": "wire.nested_proto",
+      "wire": "generationConfig.__proto__.polluted",
+      "value": 0.7,
+      "expect": {
+        "applied": false,
+        "reason": "blocked_segment"
+      }
+    },
+    {
+      "caseId": "wire.hyphen_segment",
+      "wire": "generationConfig.temp-erature",
+      "value": 0.7,
+      "expect": {
+        "applied": false,
+        "reason": "invalid_segment"
+      }
+    },
+    {
+      "caseId": "wire.leading_digit_segment",
+      "wire": "0temperature",
+      "value": 0.7,
+      "expect": {
+        "applied": false,
+        "reason": "invalid_segment"
+      }
+    },
+    {
+      "caseId": "wire.empty_segment",
+      "wire": "generationConfig..temperature",
+      "value": 0.7,
+      "expect": {
+        "applied": false,
+        "reason": "invalid_segment"
+      }
+    },
+    {
+      "caseId": "wire.bracket_segment",
+      "wire": "extra_body[0].temperature",
+      "value": 0.7,
+      "expect": {
+        "applied": false,
+        "reason": "invalid_segment"
+      }
+    },
+    {
+      "caseId": "wire.depth_five",
+      "wire": "a.b.c.d.e",
+      "value": 0.7,
+      "expect": {
+        "applied": false,
+        "reason": "depth_exceeded"
+      }
+    },
+    {
+      "caseId": "wire.depth_four_allowed",
+      "wire": "a.b.c.d",
+      "value": 0.7,
+      "expect": {
+        "applied": true,
+        "reason": null
+      }
+    },
+    {
+      "caseId": "wire.owned_root_model",
+      "wire": "model",
+      "value": 0.7,
+      "expect": {
+        "applied": false,
+        "reason": "owned_root_field"
+      }
+    },
+    {
+      "caseId": "wire.owned_root_messages",
+      "wire": "messages",
+      "value": 0.7,
+      "expect": {
+        "applied": false,
+        "reason": "owned_root_field"
+      }
+    },
+    {
+      "caseId": "wire.owned_root_tools",
+      "wire": "tools",
+      "value": 0.7,
+      "expect": {
+        "applied": false,
+        "reason": "owned_root_field"
+      }
+    },
+    {
+      "caseId": "wire.owned_root_prompt",
+      "wire": "prompt",
+      "value": 0.7,
+      "expect": {
+        "applied": false,
+        "reason": "owned_root_field"
+      }
+    },
+    {
+      "caseId": "wire.owned_root_attachments",
+      "wire": "attachments",
+      "value": 0.7,
+      "expect": {
+        "applied": false,
+        "reason": "owned_root_field"
+      }
+    },
+    {
+      "caseId": "wire.owned_root_instructions",
+      "wire": "instructions",
+      "value": 0.7,
+      "expect": {
+        "applied": false,
+        "reason": "owned_root_field"
+      }
+    },
+    {
+      "caseId": "wire.owned_root_plugins",
+      "wire": "plugins",
+      "value": 0.7,
+      "expect": {
+        "applied": false,
+        "reason": "owned_root_field"
+      }
+    },
+    {
+      "caseId": "wire.owned_root_nested",
+      "wire": "stream_options.include_usage",
+      "value": 0.7,
+      "expect": {
+        "applied": false,
+        "reason": "owned_root_field"
+      }
+    },
+    {
+      "caseId": "wire.plain_allowed",
+      "wire": "temperature",
+      "value": 0.7,
+      "expect": {
+        "applied": true,
+        "reason": null
+      }
+    }
+  ],
+  "relayWireRoundTrips": [
+    {
+      "transportKind": "openai_chat",
+      "authMode": "none",
+      "expect": {
+        "transportKind": "openai_chat",
+        "authMode": "none"
+      }
+    },
+    {
+      "transportKind": "future_transport",
+      "authMode": "future_auth",
+      "expect": {
+        "decodeDoesNotFail": true,
+        "unknownValuesVisible": true
+      }
+    }
+  ],
+  "availabilityCases": [
+    {
+      "caseId": "official.session.support_supported",
+      "intent": {
+        "providerKind": "official",
+        "scope": "session",
+        "parameter": {
+          "id": "temperature",
+          "group": "sampling",
+          "support": "supported",
+          "wire": "temperature"
+        },
+        "entitlement": {
+          "canManageRuntime": true
+        }
+      },
+      "expect": {
+        "inScope": true,
+        "entryVisible": true,
+        "editable": true
+      }
+    },
+    {
+      "caseId": "official.session.support_accepted",
+      "intent": {
+        "providerKind": "official",
+        "scope": "session",
+        "parameter": {
+          "id": "temperature",
+          "group": "sampling",
+          "support": "accepted",
+          "wire": "temperature"
+        },
+        "entitlement": {
+          "canManageRuntime": true
+        }
+      },
+      "expect": {
+        "inScope": true,
+        "entryVisible": true,
+        "editable": true
+      }
+    },
+    {
+      "caseId": "official.session.support_accepted_unverified",
+      "intent": {
+        "providerKind": "official",
+        "scope": "session",
+        "parameter": {
+          "id": "temperature",
+          "group": "sampling",
+          "support": "accepted_unverified",
+          "wire": "temperature"
+        },
+        "entitlement": {
+          "canManageRuntime": true
+        }
+      },
+      "expect": {
+        "inScope": true,
+        "entryVisible": true,
+        "editable": true
+      }
+    },
+    {
+      "caseId": "official.session.support_unknown",
+      "intent": {
+        "providerKind": "official",
+        "scope": "session",
+        "parameter": {
+          "id": "temperature",
+          "group": "sampling",
+          "support": "unknown",
+          "wire": "temperature"
+        },
+        "entitlement": {
+          "canManageRuntime": true
+        }
+      },
+      "expect": {
+        "inScope": true,
+        "entryVisible": true,
+        "editable": true
+      }
+    },
+    {
+      "caseId": "official.session.support_future_supported",
+      "intent": {
+        "providerKind": "official",
+        "scope": "session",
+        "parameter": {
+          "id": "temperature",
+          "group": "sampling",
+          "support": "future_supported",
+          "wire": "temperature"
+        },
+        "entitlement": {
+          "canManageRuntime": true
+        }
+      },
+      "expect": {
+        "inScope": false,
+        "entryVisible": false,
+        "editable": false
+      }
+    },
+    {
+      "caseId": "official.session.support_unsupported",
+      "intent": {
+        "providerKind": "official",
+        "scope": "session",
+        "parameter": {
+          "id": "temperature",
+          "group": "sampling",
+          "support": "unsupported",
+          "wire": "temperature"
+        },
+        "entitlement": {
+          "canManageRuntime": true
+        }
+      },
+      "expect": {
+        "inScope": false,
+        "entryVisible": false,
+        "editable": false
+      }
+    },
+    {
+      "caseId": "official.session.support_fixed",
+      "intent": {
+        "providerKind": "official",
+        "scope": "session",
+        "parameter": {
+          "id": "temperature",
+          "group": "sampling",
+          "support": "fixed",
+          "wire": "temperature"
+        },
+        "entitlement": {
+          "canManageRuntime": true
+        }
+      },
+      "expect": {
+        "inScope": false,
+        "entryVisible": false,
+        "editable": false
+      }
+    },
+    {
+      "caseId": "official.session.support_mode_dependent",
+      "intent": {
+        "providerKind": "official",
+        "scope": "session",
+        "parameter": {
+          "id": "temperature",
+          "group": "sampling",
+          "support": "mode_dependent",
+          "wire": "temperature"
+        },
+        "entitlement": {
+          "canManageRuntime": true
+        }
+      },
+      "expect": {
+        "inScope": false,
+        "entryVisible": false,
+        "editable": false
+      }
+    },
+    {
+      "caseId": "official.connectionDefaults.support_supported",
+      "intent": {
+        "providerKind": "official",
+        "scope": "connectionDefaults",
+        "parameter": {
+          "id": "temperature",
+          "group": "sampling",
+          "support": "supported",
+          "wire": "temperature"
+        },
+        "entitlement": {
+          "canManageRuntime": true
+        }
+      },
+      "expect": {
+        "inScope": true,
+        "entryVisible": true,
+        "editable": true
+      }
+    },
+    {
+      "caseId": "official.connectionDefaults.support_accepted",
+      "intent": {
+        "providerKind": "official",
+        "scope": "connectionDefaults",
+        "parameter": {
+          "id": "temperature",
+          "group": "sampling",
+          "support": "accepted",
+          "wire": "temperature"
+        },
+        "entitlement": {
+          "canManageRuntime": true
+        }
+      },
+      "expect": {
+        "inScope": true,
+        "entryVisible": true,
+        "editable": true
+      }
+    },
+    {
+      "caseId": "official.connectionDefaults.support_accepted_unverified",
+      "intent": {
+        "providerKind": "official",
+        "scope": "connectionDefaults",
+        "parameter": {
+          "id": "temperature",
+          "group": "sampling",
+          "support": "accepted_unverified",
+          "wire": "temperature"
+        },
+        "entitlement": {
+          "canManageRuntime": true
+        }
+      },
+      "expect": {
+        "inScope": true,
+        "entryVisible": true,
+        "editable": true
+      }
+    },
+    {
+      "caseId": "official.connectionDefaults.support_unknown",
+      "intent": {
+        "providerKind": "official",
+        "scope": "connectionDefaults",
+        "parameter": {
+          "id": "temperature",
+          "group": "sampling",
+          "support": "unknown",
+          "wire": "temperature"
+        },
+        "entitlement": {
+          "canManageRuntime": true
+        }
+      },
+      "expect": {
+        "inScope": true,
+        "entryVisible": true,
+        "editable": true
+      }
+    },
+    {
+      "caseId": "official.connectionDefaults.support_future_supported",
+      "intent": {
+        "providerKind": "official",
+        "scope": "connectionDefaults",
+        "parameter": {
+          "id": "temperature",
+          "group": "sampling",
+          "support": "future_supported",
+          "wire": "temperature"
+        },
+        "entitlement": {
+          "canManageRuntime": true
+        }
+      },
+      "expect": {
+        "inScope": true,
+        "entryVisible": true,
+        "editable": false
+      }
+    },
+    {
+      "caseId": "official.connectionDefaults.support_unsupported",
+      "intent": {
+        "providerKind": "official",
+        "scope": "connectionDefaults",
+        "parameter": {
+          "id": "temperature",
+          "group": "sampling",
+          "support": "unsupported",
+          "wire": "temperature"
+        },
+        "entitlement": {
+          "canManageRuntime": true
+        }
+      },
+      "expect": {
+        "inScope": true,
+        "entryVisible": true,
+        "editable": false
+      },
+      "note": "connectionDefaults is a **rendering surface**, not an interactive one (the fixed / mode_dependent / wire_missing cases in this same section are already \"rendered but editable=false\"). Dropping the unsupported row entirely would make the presentationClasses \"not adjustable\" class **structurally unreachable** on the connection panel — instead of the user seeing \"this model doesn't accept this parameter\" plus \"see models that support it\", the row would simply disappear. An unavailable tier must exist in the view tree and be disabled rather than not rendered at all, and every unavailable state must carry one actionable next step. ⚠️ editable stays false and the outbound value stays dormant (lifecycleCases#official.declared.unsupported is the matching anchor on the other side): this entry only changes **visibility**, never **whether it is sent**."
+    },
+    {
+      "caseId": "official.connectionDefaults.support_fixed",
+      "intent": {
+        "providerKind": "official",
+        "scope": "connectionDefaults",
+        "parameter": {
+          "id": "temperature",
+          "group": "sampling",
+          "support": "fixed",
+          "wire": "temperature"
+        },
+        "entitlement": {
+          "canManageRuntime": true
+        }
+      },
+      "expect": {
+        "inScope": true,
+        "entryVisible": true,
+        "editable": false
+      }
+    },
+    {
+      "caseId": "official.connectionDefaults.support_mode_dependent",
+      "intent": {
+        "providerKind": "official",
+        "scope": "connectionDefaults",
+        "parameter": {
+          "id": "temperature",
+          "group": "sampling",
+          "support": "mode_dependent",
+          "wire": "temperature"
+        },
+        "entitlement": {
+          "canManageRuntime": true
+        }
+      },
+      "expect": {
+        "inScope": true,
+        "entryVisible": true,
+        "editable": false
+      }
+    },
+    {
+      "caseId": "relay.session.support_supported",
+      "intent": {
+        "providerKind": "relay",
+        "scope": "session",
+        "parameter": {
+          "id": "temperature",
+          "group": "sampling",
+          "support": "supported",
+          "wire": "temperature"
+        },
+        "entitlement": {
+          "canManageRuntime": true
+        }
+      },
+      "expect": {
+        "inScope": true,
+        "entryVisible": true,
+        "editable": true
+      }
+    },
+    {
+      "caseId": "relay.session.support_accepted",
+      "intent": {
+        "providerKind": "relay",
+        "scope": "session",
+        "parameter": {
+          "id": "temperature",
+          "group": "sampling",
+          "support": "accepted",
+          "wire": "temperature"
+        },
+        "entitlement": {
+          "canManageRuntime": true
+        }
+      },
+      "expect": {
+        "inScope": true,
+        "entryVisible": true,
+        "editable": true
+      }
+    },
+    {
+      "caseId": "relay.session.support_accepted_unverified",
+      "intent": {
+        "providerKind": "relay",
+        "scope": "session",
+        "parameter": {
+          "id": "temperature",
+          "group": "sampling",
+          "support": "accepted_unverified",
+          "wire": "temperature"
+        },
+        "entitlement": {
+          "canManageRuntime": true
+        }
+      },
+      "expect": {
+        "inScope": true,
+        "entryVisible": true,
+        "editable": true
+      }
+    },
+    {
+      "caseId": "relay.session.support_unknown",
+      "intent": {
+        "providerKind": "relay",
+        "scope": "session",
+        "parameter": {
+          "id": "temperature",
+          "group": "sampling",
+          "support": "unknown",
+          "wire": "temperature"
+        },
+        "entitlement": {
+          "canManageRuntime": true
+        }
+      },
+      "expect": {
+        "inScope": true,
+        "entryVisible": true,
+        "editable": true
+      }
+    },
+    {
+      "caseId": "relay.session.support_future_supported",
+      "intent": {
+        "providerKind": "relay",
+        "scope": "session",
+        "parameter": {
+          "id": "temperature",
+          "group": "sampling",
+          "support": "future_supported",
+          "wire": "temperature"
+        },
+        "entitlement": {
+          "canManageRuntime": true
+        }
+      },
+      "expect": {
+        "inScope": false,
+        "entryVisible": false,
+        "editable": false
+      }
+    },
+    {
+      "caseId": "relay.session.support_unsupported",
+      "intent": {
+        "providerKind": "relay",
+        "scope": "session",
+        "parameter": {
+          "id": "temperature",
+          "group": "sampling",
+          "support": "unsupported",
+          "wire": "temperature"
+        },
+        "entitlement": {
+          "canManageRuntime": true
+        }
+      },
+      "expect": {
+        "inScope": false,
+        "entryVisible": false,
+        "editable": false
+      }
+    },
+    {
+      "caseId": "relay.session.support_fixed",
+      "intent": {
+        "providerKind": "relay",
+        "scope": "session",
+        "parameter": {
+          "id": "temperature",
+          "group": "sampling",
+          "support": "fixed",
+          "wire": "temperature"
+        },
+        "entitlement": {
+          "canManageRuntime": true
+        }
+      },
+      "expect": {
+        "inScope": false,
+        "entryVisible": false,
+        "editable": false
+      }
+    },
+    {
+      "caseId": "relay.session.support_mode_dependent",
+      "intent": {
+        "providerKind": "relay",
+        "scope": "session",
+        "parameter": {
+          "id": "temperature",
+          "group": "sampling",
+          "support": "mode_dependent",
+          "wire": "temperature"
+        },
+        "entitlement": {
+          "canManageRuntime": true
+        }
+      },
+      "expect": {
+        "inScope": false,
+        "entryVisible": false,
+        "editable": false
+      }
+    },
+    {
+      "caseId": "relay.connectionDefaults.support_supported",
+      "intent": {
+        "providerKind": "relay",
+        "scope": "connectionDefaults",
+        "parameter": {
+          "id": "temperature",
+          "group": "sampling",
+          "support": "supported",
+          "wire": "temperature"
+        },
+        "entitlement": {
+          "canManageRuntime": true
+        }
+      },
+      "expect": {
+        "inScope": true,
+        "entryVisible": true,
+        "editable": true
+      }
+    },
+    {
+      "caseId": "relay.connectionDefaults.support_accepted",
+      "intent": {
+        "providerKind": "relay",
+        "scope": "connectionDefaults",
+        "parameter": {
+          "id": "temperature",
+          "group": "sampling",
+          "support": "accepted",
+          "wire": "temperature"
+        },
+        "entitlement": {
+          "canManageRuntime": true
+        }
+      },
+      "expect": {
+        "inScope": true,
+        "entryVisible": true,
+        "editable": true
+      }
+    },
+    {
+      "caseId": "relay.connectionDefaults.support_accepted_unverified",
+      "intent": {
+        "providerKind": "relay",
+        "scope": "connectionDefaults",
+        "parameter": {
+          "id": "temperature",
+          "group": "sampling",
+          "support": "accepted_unverified",
+          "wire": "temperature"
+        },
+        "entitlement": {
+          "canManageRuntime": true
+        }
+      },
+      "expect": {
+        "inScope": true,
+        "entryVisible": true,
+        "editable": true
+      }
+    },
+    {
+      "caseId": "relay.connectionDefaults.support_unknown",
+      "intent": {
+        "providerKind": "relay",
+        "scope": "connectionDefaults",
+        "parameter": {
+          "id": "temperature",
+          "group": "sampling",
+          "support": "unknown",
+          "wire": "temperature"
+        },
+        "entitlement": {
+          "canManageRuntime": true
+        }
+      },
+      "expect": {
+        "inScope": true,
+        "entryVisible": true,
+        "editable": true
+      }
+    },
+    {
+      "caseId": "relay.connectionDefaults.support_future_supported",
+      "intent": {
+        "providerKind": "relay",
+        "scope": "connectionDefaults",
+        "parameter": {
+          "id": "temperature",
+          "group": "sampling",
+          "support": "future_supported",
+          "wire": "temperature"
+        },
+        "entitlement": {
+          "canManageRuntime": true
+        }
+      },
+      "expect": {
+        "inScope": true,
+        "entryVisible": true,
+        "editable": false
+      }
+    },
+    {
+      "caseId": "relay.connectionDefaults.support_unsupported",
+      "intent": {
+        "providerKind": "relay",
+        "scope": "connectionDefaults",
+        "parameter": {
+          "id": "temperature",
+          "group": "sampling",
+          "support": "unsupported",
+          "wire": "temperature"
+        },
+        "entitlement": {
+          "canManageRuntime": true
+        }
+      },
+      "expect": {
+        "inScope": true,
+        "entryVisible": true,
+        "editable": false
+      },
+      "note": "The relay instance of the same rule as official.connectionDefaults.support_unsupported (providerKind plays no part in the decision). Rendered visible + editable=false + dormant on the wire."
+    },
+    {
+      "caseId": "relay.connectionDefaults.support_fixed",
+      "intent": {
+        "providerKind": "relay",
+        "scope": "connectionDefaults",
+        "parameter": {
+          "id": "temperature",
+          "group": "sampling",
+          "support": "fixed",
+          "wire": "temperature"
+        },
+        "entitlement": {
+          "canManageRuntime": true
+        }
+      },
+      "expect": {
+        "inScope": true,
+        "entryVisible": true,
+        "editable": false
+      }
+    },
+    {
+      "caseId": "relay.connectionDefaults.support_mode_dependent",
+      "intent": {
+        "providerKind": "relay",
+        "scope": "connectionDefaults",
+        "parameter": {
+          "id": "temperature",
+          "group": "sampling",
+          "support": "mode_dependent",
+          "wire": "temperature"
+        },
+        "entitlement": {
+          "canManageRuntime": true
+        }
+      },
+      "expect": {
+        "inScope": true,
+        "entryVisible": true,
+        "editable": false
+      }
+    },
+    {
+      "caseId": "official.session.wire_missing",
+      "intent": {
+        "providerKind": "official",
+        "scope": "session",
+        "parameter": {
+          "id": "temperature",
+          "group": "sampling",
+          "support": "supported",
+          "wire": null
+        },
+        "entitlement": {
+          "canManageRuntime": true
+        }
+      },
+      "expect": {
+        "inScope": false,
+        "entryVisible": false,
+        "editable": false
+      },
+      "note": "The catalog declares the parameter but supplies no write path. The session scope requires a non-empty wire path; the connection scope still renders the row, but with editable=false."
+    },
+    {
+      "caseId": "official.connectionDefaults.wire_missing",
+      "intent": {
+        "providerKind": "official",
+        "scope": "connectionDefaults",
+        "parameter": {
+          "id": "temperature",
+          "group": "sampling",
+          "support": "supported",
+          "wire": null
+        },
+        "entitlement": {
+          "canManageRuntime": true
+        }
+      },
+      "expect": {
+        "inScope": true,
+        "entryVisible": true,
+        "editable": false
+      },
+      "note": "The catalog declares the parameter but supplies no write path. The session scope requires a non-empty wire path; the connection scope still renders the row, but with editable=false."
+    },
+    {
+      "caseId": "relay.session.wire_missing",
+      "intent": {
+        "providerKind": "relay",
+        "scope": "session",
+        "parameter": {
+          "id": "temperature",
+          "group": "sampling",
+          "support": "supported",
+          "wire": null
+        },
+        "entitlement": {
+          "canManageRuntime": true
+        }
+      },
+      "expect": {
+        "inScope": false,
+        "entryVisible": false,
+        "editable": false
+      },
+      "note": "The catalog declares the parameter but supplies no write path. The session scope requires a non-empty wire path; the connection scope still renders the row, but with editable=false."
+    },
+    {
+      "caseId": "relay.connectionDefaults.wire_missing",
+      "intent": {
+        "providerKind": "relay",
+        "scope": "connectionDefaults",
+        "parameter": {
+          "id": "temperature",
+          "group": "sampling",
+          "support": "supported",
+          "wire": null
+        },
+        "entitlement": {
+          "canManageRuntime": true
+        }
+      },
+      "expect": {
+        "inScope": true,
+        "entryVisible": true,
+        "editable": false
+      },
+      "note": "The catalog declares the parameter but supplies no write path. The session scope requires a non-empty wire path; the connection scope still renders the row, but with editable=false."
+    },
+    {
+      "caseId": "official.session.engine_runtime.entitlement_on",
+      "intent": {
+        "providerKind": "official",
+        "scope": "session",
+        "parameter": {
+          "id": "top_k",
+          "group": "engine_runtime",
+          "support": "supported",
+          "wire": "extra_body.top_k"
+        },
+        "entitlement": {
+          "canManageRuntime": true
+        }
+      },
+      "expect": {
+        "inScope": true,
+        "entryVisible": true,
+        "editable": true
+      }
+    },
+    {
+      "caseId": "official.session.engine_runtime.entitlement_off",
+      "intent": {
+        "providerKind": "official",
+        "scope": "session",
+        "parameter": {
+          "id": "top_k",
+          "group": "engine_runtime",
+          "support": "supported",
+          "wire": "extra_body.top_k"
+        },
+        "entitlement": {
+          "canManageRuntime": false
+        }
+      },
+      "expect": {
+        "inScope": true,
+        "entryVisible": true,
+        "editable": true
+      },
+      "note": "When a capability group is turned off, the whole group becomes unconfigurable in the connection scope; the session-scope predicate does not take that toggle as an input — filtering for it is applied by each client's own panel — so the session predicate still evaluates to true."
+    },
+    {
+      "caseId": "official.connectionDefaults.engine_runtime.entitlement_on",
+      "intent": {
+        "providerKind": "official",
+        "scope": "connectionDefaults",
+        "parameter": {
+          "id": "top_k",
+          "group": "engine_runtime",
+          "support": "supported",
+          "wire": "extra_body.top_k"
+        },
+        "entitlement": {
+          "canManageRuntime": true
+        }
+      },
+      "expect": {
+        "inScope": true,
+        "entryVisible": true,
+        "editable": true
+      }
+    },
+    {
+      "caseId": "official.connectionDefaults.engine_runtime.entitlement_off",
+      "intent": {
+        "providerKind": "official",
+        "scope": "connectionDefaults",
+        "parameter": {
+          "id": "top_k",
+          "group": "engine_runtime",
+          "support": "supported",
+          "wire": "extra_body.top_k"
+        },
+        "entitlement": {
+          "canManageRuntime": false
+        }
+      },
+      "expect": {
+        "inScope": false,
+        "entryVisible": false,
+        "editable": false
+      },
+      "note": "When a capability group is turned off, the whole group becomes unconfigurable in the connection scope; the session-scope predicate does not take that toggle as an input — filtering for it is applied by each client's own panel — so the session predicate still evaluates to true."
+    },
+    {
+      "caseId": "relay.session.engine_runtime.entitlement_on",
+      "intent": {
+        "providerKind": "relay",
+        "scope": "session",
+        "parameter": {
+          "id": "top_k",
+          "group": "engine_runtime",
+          "support": "supported",
+          "wire": "extra_body.top_k"
+        },
+        "entitlement": {
+          "canManageRuntime": true
+        }
+      },
+      "expect": {
+        "inScope": true,
+        "entryVisible": true,
+        "editable": true
+      }
+    },
+    {
+      "caseId": "relay.session.engine_runtime.entitlement_off",
+      "intent": {
+        "providerKind": "relay",
+        "scope": "session",
+        "parameter": {
+          "id": "top_k",
+          "group": "engine_runtime",
+          "support": "supported",
+          "wire": "extra_body.top_k"
+        },
+        "entitlement": {
+          "canManageRuntime": false
+        }
+      },
+      "expect": {
+        "inScope": true,
+        "entryVisible": true,
+        "editable": true
+      },
+      "note": "When a capability group is turned off, the whole group becomes unconfigurable in the connection scope; the session-scope predicate does not take that toggle as an input — filtering for it is applied by each client's own panel — so the session predicate still evaluates to true."
+    },
+    {
+      "caseId": "relay.connectionDefaults.engine_runtime.entitlement_on",
+      "intent": {
+        "providerKind": "relay",
+        "scope": "connectionDefaults",
+        "parameter": {
+          "id": "top_k",
+          "group": "engine_runtime",
+          "support": "supported",
+          "wire": "extra_body.top_k"
+        },
+        "entitlement": {
+          "canManageRuntime": true
+        }
+      },
+      "expect": {
+        "inScope": true,
+        "entryVisible": true,
+        "editable": true
+      }
+    },
+    {
+      "caseId": "relay.connectionDefaults.engine_runtime.entitlement_off",
+      "intent": {
+        "providerKind": "relay",
+        "scope": "connectionDefaults",
+        "parameter": {
+          "id": "top_k",
+          "group": "engine_runtime",
+          "support": "supported",
+          "wire": "extra_body.top_k"
+        },
+        "entitlement": {
+          "canManageRuntime": false
+        }
+      },
+      "expect": {
+        "inScope": false,
+        "entryVisible": false,
+        "editable": false
+      },
+      "note": "When a capability group is turned off, the whole group becomes unconfigurable in the connection scope; the session-scope predicate does not take that toggle as an input — filtering for it is applied by each client's own panel — so the session predicate still evaluates to true."
+    },
+    {
+      "caseId": "official.session.reasoning_effort",
+      "intent": {
+        "providerKind": "official",
+        "scope": "session",
+        "parameter": {
+          "id": "reasoning_effort",
+          "group": "reasoning",
+          "support": "supported",
+          "wire": "reasoning_effort"
+        },
+        "entitlement": {
+          "canManageRuntime": true
+        }
+      },
+      "expect": {
+        "inScope": false,
+        "entryVisible": false,
+        "editable": false
+      },
+      "note": "The session scope is carried solely by the reasoning chip; the connection scope is kept and actually goes out on the wire."
+    },
+    {
+      "caseId": "official.session.reasoning_budget",
+      "intent": {
+        "providerKind": "official",
+        "scope": "session",
+        "parameter": {
+          "id": "reasoning_budget",
+          "group": "reasoning",
+          "support": "fixed",
+          "wire": "reasoning_budget"
+        },
+        "entitlement": {
+          "canManageRuntime": true
+        }
+      },
+      "expect": {
+        "inScope": false,
+        "entryVisible": false,
+        "editable": false
+      },
+      "note": "The session scope is carried solely by the reasoning chip; the connection scope is kept and actually goes out on the wire."
+    },
+    {
+      "caseId": "official.session.reasoning_mode",
+      "intent": {
+        "providerKind": "official",
+        "scope": "session",
+        "parameter": {
+          "id": "reasoning_mode",
+          "group": "reasoning",
+          "support": "mode_dependent",
+          "wire": "reasoning_mode"
+        },
+        "entitlement": {
+          "canManageRuntime": true
+        }
+      },
+      "expect": {
+        "inScope": false,
+        "entryVisible": false,
+        "editable": false
+      },
+      "note": "The session scope is carried solely by the reasoning chip; the connection scope is kept and actually goes out on the wire."
+    },
+    {
+      "caseId": "official.connectionDefaults.reasoning_effort",
+      "intent": {
+        "providerKind": "official",
+        "scope": "connectionDefaults",
+        "parameter": {
+          "id": "reasoning_effort",
+          "group": "reasoning",
+          "support": "supported",
+          "wire": "reasoning_effort"
+        },
+        "entitlement": {
+          "canManageRuntime": true
+        }
+      },
+      "expect": {
+        "inScope": true,
+        "entryVisible": true,
+        "editable": true
+      },
+      "note": "The session scope is carried solely by the reasoning chip; the connection scope is kept and actually goes out on the wire."
+    },
+    {
+      "caseId": "official.connectionDefaults.reasoning_budget",
+      "intent": {
+        "providerKind": "official",
+        "scope": "connectionDefaults",
+        "parameter": {
+          "id": "reasoning_budget",
+          "group": "reasoning",
+          "support": "fixed",
+          "wire": "reasoning_budget"
+        },
+        "entitlement": {
+          "canManageRuntime": true
+        }
+      },
+      "expect": {
+        "inScope": true,
+        "entryVisible": true,
+        "editable": false
+      },
+      "note": "The session scope is carried solely by the reasoning chip; the connection scope is kept and actually goes out on the wire."
+    },
+    {
+      "caseId": "official.connectionDefaults.reasoning_mode",
+      "intent": {
+        "providerKind": "official",
+        "scope": "connectionDefaults",
+        "parameter": {
+          "id": "reasoning_mode",
+          "group": "reasoning",
+          "support": "mode_dependent",
+          "wire": "reasoning_mode"
+        },
+        "entitlement": {
+          "canManageRuntime": true
+        }
+      },
+      "expect": {
+        "inScope": true,
+        "entryVisible": true,
+        "editable": false
+      },
+      "note": "The session scope is carried solely by the reasoning chip; the connection scope is kept and actually goes out on the wire."
+    },
+    {
+      "caseId": "relay.session.reasoning_effort",
+      "intent": {
+        "providerKind": "relay",
+        "scope": "session",
+        "parameter": {
+          "id": "reasoning_effort",
+          "group": "reasoning",
+          "support": "supported",
+          "wire": "reasoning_effort"
+        },
+        "entitlement": {
+          "canManageRuntime": true
+        }
+      },
+      "expect": {
+        "inScope": false,
+        "entryVisible": false,
+        "editable": false
+      },
+      "note": "The session scope is carried solely by the reasoning chip; the connection scope is kept and actually goes out on the wire."
+    },
+    {
+      "caseId": "relay.session.reasoning_budget",
+      "intent": {
+        "providerKind": "relay",
+        "scope": "session",
+        "parameter": {
+          "id": "reasoning_budget",
+          "group": "reasoning",
+          "support": "fixed",
+          "wire": "reasoning_budget"
+        },
+        "entitlement": {
+          "canManageRuntime": true
+        }
+      },
+      "expect": {
+        "inScope": false,
+        "entryVisible": false,
+        "editable": false
+      },
+      "note": "The session scope is carried solely by the reasoning chip; the connection scope is kept and actually goes out on the wire."
+    },
+    {
+      "caseId": "relay.session.reasoning_mode",
+      "intent": {
+        "providerKind": "relay",
+        "scope": "session",
+        "parameter": {
+          "id": "reasoning_mode",
+          "group": "reasoning",
+          "support": "mode_dependent",
+          "wire": "reasoning_mode"
+        },
+        "entitlement": {
+          "canManageRuntime": true
+        }
+      },
+      "expect": {
+        "inScope": false,
+        "entryVisible": false,
+        "editable": false
+      },
+      "note": "The session scope is carried solely by the reasoning chip; the connection scope is kept and actually goes out on the wire."
+    },
+    {
+      "caseId": "relay.connectionDefaults.reasoning_effort",
+      "intent": {
+        "providerKind": "relay",
+        "scope": "connectionDefaults",
+        "parameter": {
+          "id": "reasoning_effort",
+          "group": "reasoning",
+          "support": "supported",
+          "wire": "reasoning_effort"
+        },
+        "entitlement": {
+          "canManageRuntime": true
+        }
+      },
+      "expect": {
+        "inScope": true,
+        "entryVisible": true,
+        "editable": true
+      },
+      "note": "The session scope is carried solely by the reasoning chip; the connection scope is kept and actually goes out on the wire."
+    },
+    {
+      "caseId": "relay.connectionDefaults.reasoning_budget",
+      "intent": {
+        "providerKind": "relay",
+        "scope": "connectionDefaults",
+        "parameter": {
+          "id": "reasoning_budget",
+          "group": "reasoning",
+          "support": "fixed",
+          "wire": "reasoning_budget"
+        },
+        "entitlement": {
+          "canManageRuntime": true
+        }
+      },
+      "expect": {
+        "inScope": true,
+        "entryVisible": true,
+        "editable": false
+      },
+      "note": "The session scope is carried solely by the reasoning chip; the connection scope is kept and actually goes out on the wire."
+    },
+    {
+      "caseId": "relay.connectionDefaults.reasoning_mode",
+      "intent": {
+        "providerKind": "relay",
+        "scope": "connectionDefaults",
+        "parameter": {
+          "id": "reasoning_mode",
+          "group": "reasoning",
+          "support": "mode_dependent",
+          "wire": "reasoning_mode"
+        },
+        "entitlement": {
+          "canManageRuntime": true
+        }
+      },
+      "expect": {
+        "inScope": true,
+        "entryVisible": true,
+        "editable": false
+      },
+      "note": "The session scope is carried solely by the reasoning chip; the connection scope is kept and actually goes out on the wire."
+    },
+    {
+      "caseId": "relay.session.reasoning_effort_without_group",
+      "intent": {
+        "providerKind": "relay",
+        "scope": "session",
+        "parameter": {
+          "id": "reasoning_effort",
+          "support": "supported",
+          "wire": "reasoning_effort"
+        },
+        "entitlement": {
+          "canManageRuntime": true
+        }
+      },
+      "expect": {
+        "inScope": false,
+        "entryVisible": false,
+        "editable": false
+      },
+      "note": "When an older snapshot does not send a group, the id prefix is used as a fallback to decide reasoning-group membership."
+    },
+    {
+      "caseId": "relay.connectionDefaults.reasoning_effort_without_group",
+      "intent": {
+        "providerKind": "relay",
+        "scope": "connectionDefaults",
+        "parameter": {
+          "id": "reasoning_effort",
+          "support": "supported",
+          "wire": "reasoning_effort"
+        },
+        "entitlement": {
+          "canManageRuntime": true
+        }
+      },
+      "expect": {
+        "inScope": true,
+        "entryVisible": true,
+        "editable": true
+      },
+      "note": "When an older snapshot does not send a group, the id prefix is used as a fallback to decide reasoning-group membership."
+    }
+  ],
+  "lifecycleCases": [
+    {
+      "caseId": "official.declared.supported",
+      "intent": {
+        "providerKind": "official",
+        "parameterId": "temperature",
+        "declared": true,
+        "storedState": "value",
+        "support": "supported",
+        "wire": "temperature"
+      },
+      "expect": {
+        "lifecycle": "active"
+      }
+    },
+    {
+      "caseId": "official.declared.accepted",
+      "intent": {
+        "providerKind": "official",
+        "parameterId": "temperature",
+        "declared": true,
+        "storedState": "value",
+        "support": "accepted",
+        "wire": "temperature"
+      },
+      "expect": {
+        "lifecycle": "active"
+      },
+      "note": "Folding accepted into unknown still only means \"we have no authoritative evidence\", never \"the upstream rejected it\". storedState=\"value\" means the user explicitly set this value, which is the same fact as hasExplicitValue in capability_evidence_contract.v1.json#official.explicit.no_evidence_allows; the two contracts must never give opposite answers for the same fact. The boundary this opens is \"we don't know\", not \"send unconditionally\" — the counter-evidence is guarded by this table's official.declared.unsupported plus the evidence contract's conflict / runtime_rejected cases."
+    },
+    {
+      "caseId": "official.declared.accepted_unverified",
+      "intent": {
+        "providerKind": "official",
+        "parameterId": "temperature",
+        "declared": true,
+        "storedState": "value",
+        "support": "accepted_unverified",
+        "wire": "temperature"
+      },
+      "expect": {
+        "lifecycle": "active"
+      },
+      "note": "providerKind plays no part in the decision. Requiring a relay declaration plus a fully known connection identity before allowing a value would amount to gating behavior on providerKind, which is not allowed, and would directly contradict capability_evidence_contract.v1.json#official.explicit.legacy_unverified_allows, which treats \"official provider + explicit + accepted_unverified/legacy_unverified\" as allow_explicit_unverified. The unified rule is: the user explicitly expressed intent, and the parameter is not one with official evidence of being unsupported."
+    },
+    {
+      "caseId": "official.declared.unknown",
+      "intent": {
+        "providerKind": "official",
+        "parameterId": "temperature",
+        "declared": true,
+        "storedState": "value",
+        "support": "unknown",
+        "wire": "temperature"
+      },
+      "expect": {
+        "lifecycle": "active"
+      },
+      "note": "unknown means \"we have not found official documentation for this yet\", not \"the upstream refuses it\". unknown belongs to the \"no data\" class with control: editable — the panel says it is editable while the outbound value stays dormant and unsent, which is exactly the gap this rule closes between what the UI shows and what actually happens on the wire. The risk of a hard upstream rejection is covered separately by the 400-rejection chain (reject → negative cache → show \"upstream already rejected\" → one tap to resend without that setting), so no second strategy is needed here."
+    },
+    {
+      "caseId": "official.declared.fixed",
+      "intent": {
+        "providerKind": "official",
+        "parameterId": "temperature",
+        "declared": true,
+        "storedState": "value",
+        "support": "fixed",
+        "wire": "temperature"
+      },
+      "expect": {
+        "lifecycle": "dormant"
+      },
+      "note": "This case is unaffected by the unknown-handling rule above: fixed is a **conclusion backed by official evidence** (the value is fixed by the model; changing it has no effect), not \"we don't know\". The relaxed boundary only covers gaps in metadata, not evidence that already exists. fixed belongs to the \"not adjustable\" class with control: disabled, matching dormant — the display and the outbound behavior agree."
+    },
+    {
+      "caseId": "official.declared.mode_dependent",
+      "intent": {
+        "providerKind": "official",
+        "parameterId": "temperature",
+        "declared": true,
+        "storedState": "value",
+        "support": "mode_dependent",
+        "wire": "temperature"
+      },
+      "expect": {
+        "lifecycle": "dormant"
+      },
+      "note": "This case is unaffected by the unknown-handling rule above: mode_dependent is likewise a conclusion backed by official evidence (it depends on the current reasoning tier), not a metadata gap. It belongs to the \"not adjustable\" class with control: disabled, matching dormant."
+    },
+    {
+      "caseId": "official.declared.unsupported",
+      "intent": {
+        "providerKind": "official",
+        "parameterId": "temperature",
+        "declared": true,
+        "storedState": "value",
+        "support": "unsupported",
+        "wire": "temperature"
+      },
+      "expect": {
+        "lifecycle": "dormant"
+      },
+      "note": "**The counter-example that must stay dormant**: an explicit, officially-evidenced unsupported case is never sent even if the user set a value. This keeps the relaxed \"we don't know\" rule above from being implemented as always-true — the same boundary has a matching anchor at capability_evidence_contract.v1.json#official.explicit.official_unsupported_still_omits (omit_unsupported). Changing this case removes that boundary entirely."
+    },
+    {
+      "caseId": "official.declared.future_supported",
+      "intent": {
+        "providerKind": "official",
+        "parameterId": "temperature",
+        "declared": true,
+        "storedState": "value",
+        "support": "future_supported",
+        "wire": "temperature"
+      },
+      "expect": {
+        "lifecycle": "dormant"
+      },
+      "note": "future_supported is an explicit official statement that the capability is not yet available, not a documentation gap. It belongs to the same evidence-backed, not-sent group as unsupported / fixed / mode_dependent: the connection panel keeps a disabled row, the session panel does not expose it, and an explicit value is kept but not currently sent."
+    },
+    {
+      "caseId": "official.declared.supported_without_wire",
+      "intent": {
+        "providerKind": "official",
+        "parameterId": "temperature",
+        "declared": true,
+        "storedState": "value",
+        "support": "supported"
+      },
+      "expect": {
+        "lifecycle": "dormant"
+      },
+      "note": "No wire path means there is nowhere to write the value, so it can never be sent."
+    },
+    {
+      "caseId": "official.undeclared",
+      "intent": {
+        "providerKind": "official",
+        "parameterId": "temperature",
+        "declared": false,
+        "storedState": "value"
+      },
+      "expect": {
+        "lifecycle": "dormant"
+      },
+      "note": "After a profile revision changes and this id is no longer declared, the individual field is judged stale rather than invalidating the whole record."
+    },
+    {
+      "caseId": "relay.declared.unknown",
+      "intent": {
+        "providerKind": "relay",
+        "parameterId": "temperature",
+        "declared": true,
+        "storedState": "value",
+        "support": "unknown",
+        "wire": "temperature"
+      },
+      "expect": {
+        "lifecycle": "active"
+      },
+      "note": "unknown synthesized from a relay's local template: it is only attempted on the wire once the user explicitly sets a value, and still counts as active, with the UI tagging the row \"unverified\". This case and official.declared.unknown are two instances of the same rule and must reach the same conclusion; providerKind plays no part in this decision."
+    },
+    {
+      "caseId": "relay.declared.unknown_without_wire",
+      "intent": {
+        "providerKind": "relay",
+        "parameterId": "custom_unwired",
+        "declared": true,
+        "storedState": "value",
+        "support": "unknown"
+      },
+      "expect": {
+        "lifecycle": "dormant"
+      }
+    },
+    {
+      "caseId": "relay.declared.future_supported",
+      "intent": {
+        "providerKind": "relay",
+        "parameterId": "temperature",
+        "declared": true,
+        "storedState": "value",
+        "support": "future_supported",
+        "wire": "temperature"
+      },
+      "expect": {
+        "lifecycle": "dormant"
+      },
+      "note": "providerKind does not change the official counter-evidence meaning of future_supported; for a relay, only the exact profile facts discovered locally can produce accepted / unknown — a not-yet-available capability must never be guessed as available."
+    },
+    {
+      "caseId": "relay.undeclared_after_transport_correction",
+      "intent": {
+        "providerKind": "relay",
+        "parameterId": "top_k",
+        "declared": false,
+        "storedState": "value"
+      },
+      "expect": {
+        "lifecycle": "dormant"
+      },
+      "note": "When the runtime corrects relayResolvedTransport from one transport to another, the new template no longer declares this id. The stored record must still read back correctly as an orphan rather than being dropped; the value is judged dormant and the UI states this honestly."
+    },
+    {
+      "caseId": "relay.declared.supported_omit",
+      "intent": {
+        "providerKind": "relay",
+        "parameterId": "temperature",
+        "declared": true,
+        "storedState": "omit",
+        "support": "supported",
+        "wire": "temperature"
+      },
+      "expect": {
+        "lifecycle": "active"
+      },
+      "note": "omit is an explicit \"remove this field\" intent; it must go out on the wire itself, and is not judged dormant just because it isn't a value."
+    },
+    {
+      "caseId": "relay.declared.unknown_omit",
+      "intent": {
+        "providerKind": "relay",
+        "parameterId": "temperature",
+        "declared": true,
+        "storedState": "omit",
+        "support": "unknown",
+        "wire": "temperature"
+      },
+      "expect": {
+        "lifecycle": "active"
+      },
+      "note": "Whether a value is allowed out has nothing to do with its value-state: omit is an explicit remove-field intent and must go through the single outbound gate exactly like a value. relay is not a special case — swapping the same combination to official must produce the exact same result, which the generation-parameter lifecycle suites on all three clients lock down tuple by tuple."
+    },
+    {
+      "caseId": "relay.declared.unsupported_omit",
+      "intent": {
+        "providerKind": "relay",
+        "parameterId": "temperature",
+        "declared": true,
+        "storedState": "omit",
+        "support": "unsupported",
+        "wire": "temperature"
+      },
+      "expect": {
+        "lifecycle": "dormant"
+      }
+    }
+  ],
+  "outboundCases": [
+    {
+      "caseId": "per_item.out_of_range_drops_only_that_item",
+      "profile": {
+        "template": "openai_chat_completions",
+        "parameters": [
+          {
+            "id": "max_output_tokens",
+            "valueSchema": "integer",
+            "range": {
+              "min": 1,
+              "max": 4096
+            }
+          },
+          {
+            "id": "temperature",
+            "valueSchema": "number",
+            "range": {
+              "min": 0,
+              "max": 2
+            }
+          },
+          {
+            "id": "top_p",
+            "valueSchema": "number",
+            "range": {
+              "minExclusive": 0,
+              "max": 1
+            }
+          },
+          {
+            "id": "seed",
+            "valueSchema": "integer"
+          },
+          {
+            "id": "stop",
+            "valueSchema": "string-list"
+          },
+          {
+            "id": "logprobs",
+            "valueSchema": "boolean"
+          },
+          {
+            "id": "response_format",
+            "valueSchema": "enum",
+            "enumValues": [
+              "text",
+              "json"
+            ]
+          },
+          {
+            "id": "json_schema",
+            "valueSchema": "json-schema",
+            "conflictsWith": [
+              "tools",
+              "response_format"
+            ]
+          }
+        ],
+        "wire": {
+          "max_output_tokens": "max_tokens",
+          "temperature": "temperature",
+          "top_p": "top_p",
+          "seed": "seed",
+          "stop": "stop",
+          "logprobs": "logprobs",
+          "response_format": "response_format",
+          "json_schema": "response_format"
+        }
+      },
+      "body": {
+        "model": "fixture-chat",
+        "messages": [
+          {
+            "role": "user",
+            "content": "hello"
+          }
+        ]
+      },
+      "overrides": {
+        "temperature": {
+          "state": "value",
+          "value": 5
+        },
+        "top_p": {
+          "state": "value",
+          "value": 0.9
+        },
+        "seed": {
+          "state": "value",
+          "value": 42
+        }
+      },
+      "expect": {
+        "body": {
+          "model": "fixture-chat",
+          "messages": [
+            {
+              "role": "user",
+              "content": "hello"
+            }
+          ],
+          "top_p": 0.9,
+          "seed": 42
+        },
+        "dropped": [
+          {
+            "parameterId": "temperature",
+            "reason": "invalid_value"
+          }
+        ]
+      }
+    },
+    {
+      "caseId": "per_item.non_integer_drops_only_that_item",
+      "profile": {
+        "template": "openai_chat_completions",
+        "parameters": [
+          {
+            "id": "max_output_tokens",
+            "valueSchema": "integer",
+            "range": {
+              "min": 1,
+              "max": 4096
+            }
+          },
+          {
+            "id": "temperature",
+            "valueSchema": "number",
+            "range": {
+              "min": 0,
+              "max": 2
+            }
+          },
+          {
+            "id": "top_p",
+            "valueSchema": "number",
+            "range": {
+              "minExclusive": 0,
+              "max": 1
+            }
+          },
+          {
+            "id": "seed",
+            "valueSchema": "integer"
+          },
+          {
+            "id": "stop",
+            "valueSchema": "string-list"
+          },
+          {
+            "id": "logprobs",
+            "valueSchema": "boolean"
+          },
+          {
+            "id": "response_format",
+            "valueSchema": "enum",
+            "enumValues": [
+              "text",
+              "json"
+            ]
+          },
+          {
+            "id": "json_schema",
+            "valueSchema": "json-schema",
+            "conflictsWith": [
+              "tools",
+              "response_format"
+            ]
+          }
+        ],
+        "wire": {
+          "max_output_tokens": "max_tokens",
+          "temperature": "temperature",
+          "top_p": "top_p",
+          "seed": "seed",
+          "stop": "stop",
+          "logprobs": "logprobs",
+          "response_format": "response_format",
+          "json_schema": "response_format"
+        }
+      },
+      "body": {
+        "model": "fixture-chat",
+        "messages": [
+          {
+            "role": "user",
+            "content": "hello"
+          }
+        ]
+      },
+      "overrides": {
+        "max_output_tokens": {
+          "state": "value",
+          "value": 0.5
+        },
+        "temperature": {
+          "state": "value",
+          "value": 0.3
+        }
+      },
+      "expect": {
+        "body": {
+          "model": "fixture-chat",
+          "messages": [
+            {
+              "role": "user",
+              "content": "hello"
+            }
+          ],
+          "temperature": 0.3
+        },
+        "dropped": [
+          {
+            "parameterId": "max_output_tokens",
+            "reason": "invalid_value"
+          }
+        ]
+      }
+    },
+    {
+      "caseId": "per_item.wrong_type_drops_only_that_item",
+      "profile": {
+        "template": "openai_chat_completions",
+        "parameters": [
+          {
+            "id": "max_output_tokens",
+            "valueSchema": "integer",
+            "range": {
+              "min": 1,
+              "max": 4096
+            }
+          },
+          {
+            "id": "temperature",
+            "valueSchema": "number",
+            "range": {
+              "min": 0,
+              "max": 2
+            }
+          },
+          {
+            "id": "top_p",
+            "valueSchema": "number",
+            "range": {
+              "minExclusive": 0,
+              "max": 1
+            }
+          },
+          {
+            "id": "seed",
+            "valueSchema": "integer"
+          },
+          {
+            "id": "stop",
+            "valueSchema": "string-list"
+          },
+          {
+            "id": "logprobs",
+            "valueSchema": "boolean"
+          },
+          {
+            "id": "response_format",
+            "valueSchema": "enum",
+            "enumValues": [
+              "text",
+              "json"
+            ]
+          },
+          {
+            "id": "json_schema",
+            "valueSchema": "json-schema",
+            "conflictsWith": [
+              "tools",
+              "response_format"
+            ]
+          }
+        ],
+        "wire": {
+          "max_output_tokens": "max_tokens",
+          "temperature": "temperature",
+          "top_p": "top_p",
+          "seed": "seed",
+          "stop": "stop",
+          "logprobs": "logprobs",
+          "response_format": "response_format",
+          "json_schema": "response_format"
+        }
+      },
+      "body": {
+        "model": "fixture-chat",
+        "messages": [
+          {
+            "role": "user",
+            "content": "hello"
+          }
+        ]
+      },
+      "overrides": {
+        "temperature": {
+          "state": "value",
+          "value": "0.7"
+        },
+        "seed": {
+          "state": "value",
+          "value": 7
+        },
+        "logprobs": {
+          "state": "value",
+          "value": "true"
+        },
+        "stop": {
+          "state": "value",
+          "value": [
+            "###"
+          ]
+        }
+      },
+      "expect": {
+        "body": {
+          "model": "fixture-chat",
+          "messages": [
+            {
+              "role": "user",
+              "content": "hello"
+            }
+          ],
+          "seed": 7,
+          "stop": [
+            "###"
+          ]
+        },
+        "dropped": [
+          {
+            "parameterId": "logprobs",
+            "reason": "invalid_value"
+          },
+          {
+            "parameterId": "temperature",
+            "reason": "invalid_value"
+          }
+        ]
+      }
+    },
+    {
+      "caseId": "per_item.enum_outside_drops_only_that_item",
+      "profile": {
+        "template": "openai_chat_completions",
+        "parameters": [
+          {
+            "id": "max_output_tokens",
+            "valueSchema": "integer",
+            "range": {
+              "min": 1,
+              "max": 4096
+            }
+          },
+          {
+            "id": "temperature",
+            "valueSchema": "number",
+            "range": {
+              "min": 0,
+              "max": 2
+            }
+          },
+          {
+            "id": "top_p",
+            "valueSchema": "number",
+            "range": {
+              "minExclusive": 0,
+              "max": 1
+            }
+          },
+          {
+            "id": "seed",
+            "valueSchema": "integer"
+          },
+          {
+            "id": "stop",
+            "valueSchema": "string-list"
+          },
+          {
+            "id": "logprobs",
+            "valueSchema": "boolean"
+          },
+          {
+            "id": "response_format",
+            "valueSchema": "enum",
+            "enumValues": [
+              "text",
+              "json"
+            ]
+          },
+          {
+            "id": "json_schema",
+            "valueSchema": "json-schema",
+            "conflictsWith": [
+              "tools",
+              "response_format"
+            ]
+          }
+        ],
+        "wire": {
+          "max_output_tokens": "max_tokens",
+          "temperature": "temperature",
+          "top_p": "top_p",
+          "seed": "seed",
+          "stop": "stop",
+          "logprobs": "logprobs",
+          "response_format": "response_format",
+          "json_schema": "response_format"
+        }
+      },
+      "body": {
+        "model": "fixture-chat",
+        "messages": [
+          {
+            "role": "user",
+            "content": "hello"
+          }
+        ]
+      },
+      "overrides": {
+        "response_format": {
+          "state": "value",
+          "value": "yaml"
+        },
+        "seed": {
+          "state": "value",
+          "value": 1
+        }
+      },
+      "expect": {
+        "body": {
+          "model": "fixture-chat",
+          "messages": [
+            {
+              "role": "user",
+              "content": "hello"
+            }
+          ],
+          "seed": 1
+        },
+        "dropped": [
+          {
+            "parameterId": "response_format",
+            "reason": "invalid_value"
+          }
+        ]
+      }
+    },
+    {
+      "caseId": "per_item.value_state_without_value",
+      "profile": {
+        "template": "openai_chat_completions",
+        "parameters": [
+          {
+            "id": "max_output_tokens",
+            "valueSchema": "integer",
+            "range": {
+              "min": 1,
+              "max": 4096
+            }
+          },
+          {
+            "id": "temperature",
+            "valueSchema": "number",
+            "range": {
+              "min": 0,
+              "max": 2
+            }
+          },
+          {
+            "id": "top_p",
+            "valueSchema": "number",
+            "range": {
+              "minExclusive": 0,
+              "max": 1
+            }
+          },
+          {
+            "id": "seed",
+            "valueSchema": "integer"
+          },
+          {
+            "id": "stop",
+            "valueSchema": "string-list"
+          },
+          {
+            "id": "logprobs",
+            "valueSchema": "boolean"
+          },
+          {
+            "id": "response_format",
+            "valueSchema": "enum",
+            "enumValues": [
+              "text",
+              "json"
+            ]
+          },
+          {
+            "id": "json_schema",
+            "valueSchema": "json-schema",
+            "conflictsWith": [
+              "tools",
+              "response_format"
+            ]
+          }
+        ],
+        "wire": {
+          "max_output_tokens": "max_tokens",
+          "temperature": "temperature",
+          "top_p": "top_p",
+          "seed": "seed",
+          "stop": "stop",
+          "logprobs": "logprobs",
+          "response_format": "response_format",
+          "json_schema": "response_format"
+        }
+      },
+      "body": {
+        "model": "fixture-chat",
+        "messages": [
+          {
+            "role": "user",
+            "content": "hello"
+          }
+        ]
+      },
+      "overrides": {
+        "temperature": {
+          "state": "value"
+        },
+        "seed": {
+          "state": "value",
+          "value": 3
+        }
+      },
+      "expect": {
+        "body": {
+          "model": "fixture-chat",
+          "messages": [
+            {
+              "role": "user",
+              "content": "hello"
+            }
+          ],
+          "seed": 3
+        },
+        "dropped": [
+          {
+            "parameterId": "temperature",
+            "reason": "invalid_value"
+          }
+        ]
+      }
+    },
+    {
+      "caseId": "per_item.zero_is_a_value",
+      "profile": {
+        "template": "openai_chat_completions",
+        "parameters": [
+          {
+            "id": "max_output_tokens",
+            "valueSchema": "integer",
+            "range": {
+              "min": 1,
+              "max": 4096
+            }
+          },
+          {
+            "id": "temperature",
+            "valueSchema": "number",
+            "range": {
+              "min": 0,
+              "max": 2
+            }
+          },
+          {
+            "id": "top_p",
+            "valueSchema": "number",
+            "range": {
+              "minExclusive": 0,
+              "max": 1
+            }
+          },
+          {
+            "id": "seed",
+            "valueSchema": "integer"
+          },
+          {
+            "id": "stop",
+            "valueSchema": "string-list"
+          },
+          {
+            "id": "logprobs",
+            "valueSchema": "boolean"
+          },
+          {
+            "id": "response_format",
+            "valueSchema": "enum",
+            "enumValues": [
+              "text",
+              "json"
+            ]
+          },
+          {
+            "id": "json_schema",
+            "valueSchema": "json-schema",
+            "conflictsWith": [
+              "tools",
+              "response_format"
+            ]
+          }
+        ],
+        "wire": {
+          "max_output_tokens": "max_tokens",
+          "temperature": "temperature",
+          "top_p": "top_p",
+          "seed": "seed",
+          "stop": "stop",
+          "logprobs": "logprobs",
+          "response_format": "response_format",
+          "json_schema": "response_format"
+        }
+      },
+      "body": {
+        "model": "fixture-chat",
+        "messages": [
+          {
+            "role": "user",
+            "content": "hello"
+          }
+        ]
+      },
+      "overrides": {
+        "temperature": {
+          "state": "value",
+          "value": 0
+        },
+        "seed": {
+          "state": "value",
+          "value": 0
+        }
+      },
+      "expect": {
+        "body": {
+          "model": "fixture-chat",
+          "messages": [
+            {
+              "role": "user",
+              "content": "hello"
+            }
+          ],
+          "temperature": 0,
+          "seed": 0
+        },
+        "dropped": []
+      }
+    },
+    {
+      "caseId": "conflict.first_declared_wins",
+      "profile": {
+        "template": "openai_chat_completions",
+        "parameters": [
+          {
+            "id": "temperature",
+            "valueSchema": "number",
+            "range": {
+              "min": 0,
+              "max": 2
+            },
+            "conflictsWith": [
+              "top_p"
+            ]
+          },
+          {
+            "id": "top_p",
+            "valueSchema": "number",
+            "range": {
+              "minExclusive": 0,
+              "max": 1
+            },
+            "conflictsWith": [
+              "temperature"
+            ]
+          },
+          {
+            "id": "seed",
+            "valueSchema": "integer"
+          }
+        ],
+        "wire": {
+          "temperature": "temperature",
+          "top_p": "top_p",
+          "seed": "seed"
+        }
+      },
+      "body": {
+        "model": "fixture-chat",
+        "messages": [
+          {
+            "role": "user",
+            "content": "hello"
+          }
+        ]
+      },
+      "overrides": {
+        "temperature": {
+          "state": "value",
+          "value": 0.2
+        },
+        "top_p": {
+          "state": "value",
+          "value": 0.8
+        },
+        "seed": {
+          "state": "value",
+          "value": 9
+        }
+      },
+      "expect": {
+        "body": {
+          "model": "fixture-chat",
+          "messages": [
+            {
+              "role": "user",
+              "content": "hello"
+            }
+          ],
+          "temperature": 0.2,
+          "seed": 9
+        },
+        "dropped": [
+          {
+            "parameterId": "top_p",
+            "reason": "conflict"
+          }
+        ]
+      }
+    },
+    {
+      "caseId": "conflict.invalid_item_does_not_evict_peer",
+      "profile": {
+        "template": "openai_chat_completions",
+        "parameters": [
+          {
+            "id": "temperature",
+            "valueSchema": "number",
+            "range": {
+              "min": 0,
+              "max": 2
+            },
+            "conflictsWith": [
+              "top_p"
+            ]
+          },
+          {
+            "id": "top_p",
+            "valueSchema": "number",
+            "range": {
+              "minExclusive": 0,
+              "max": 1
+            },
+            "conflictsWith": [
+              "temperature"
+            ]
+          },
+          {
+            "id": "seed",
+            "valueSchema": "integer"
+          }
+        ],
+        "wire": {
+          "temperature": "temperature",
+          "top_p": "top_p",
+          "seed": "seed"
+        }
+      },
+      "body": {
+        "model": "fixture-chat",
+        "messages": [
+          {
+            "role": "user",
+            "content": "hello"
+          }
+        ]
+      },
+      "overrides": {
+        "temperature": {
+          "state": "value",
+          "value": 9
+        },
+        "top_p": {
+          "state": "value",
+          "value": 0.8
+        }
+      },
+      "expect": {
+        "body": {
+          "model": "fixture-chat",
+          "messages": [
+            {
+              "role": "user",
+              "content": "hello"
+            }
+          ],
+          "top_p": 0.8
+        },
+        "dropped": [
+          {
+            "parameterId": "temperature",
+            "reason": "invalid_value"
+          }
+        ]
+      }
+    },
+    {
+      "caseId": "conflict.builder_tools_drop_json_schema_only",
+      "profile": {
+        "template": "openai_chat_completions",
+        "parameters": [
+          {
+            "id": "max_output_tokens",
+            "valueSchema": "integer",
+            "range": {
+              "min": 1,
+              "max": 4096
+            }
+          },
+          {
+            "id": "temperature",
+            "valueSchema": "number",
+            "range": {
+              "min": 0,
+              "max": 2
+            }
+          },
+          {
+            "id": "top_p",
+            "valueSchema": "number",
+            "range": {
+              "minExclusive": 0,
+              "max": 1
+            }
+          },
+          {
+            "id": "seed",
+            "valueSchema": "integer"
+          },
+          {
+            "id": "stop",
+            "valueSchema": "string-list"
+          },
+          {
+            "id": "logprobs",
+            "valueSchema": "boolean"
+          },
+          {
+            "id": "response_format",
+            "valueSchema": "enum",
+            "enumValues": [
+              "text",
+              "json"
+            ]
+          },
+          {
+            "id": "json_schema",
+            "valueSchema": "json-schema",
+            "conflictsWith": [
+              "tools",
+              "response_format"
+            ]
+          }
+        ],
+        "wire": {
+          "max_output_tokens": "max_tokens",
+          "temperature": "temperature",
+          "top_p": "top_p",
+          "seed": "seed",
+          "stop": "stop",
+          "logprobs": "logprobs",
+          "response_format": "response_format",
+          "json_schema": "response_format"
+        }
+      },
+      "body": {
+        "model": "fixture-chat",
+        "messages": [
+          {
+            "role": "user",
+            "content": "hello"
+          }
+        ],
+        "tools": [
+          {
+            "type": "function",
+            "function": {
+              "name": "search_library"
+            }
+          }
+        ]
+      },
+      "overrides": {
+        "json_schema": {
+          "state": "value",
+          "value": {
+            "type": "object"
+          }
+        },
+        "temperature": {
+          "state": "value",
+          "value": 0.4
+        },
+        "max_output_tokens": {
+          "state": "value",
+          "value": 256
+        }
+      },
+      "expect": {
+        "body": {
+          "model": "fixture-chat",
+          "messages": [
+            {
+              "role": "user",
+              "content": "hello"
+            }
+          ],
+          "tools": [
+            {
+              "type": "function",
+              "function": {
+                "name": "search_library"
+              }
+            }
+          ],
+          "temperature": 0.4,
+          "max_tokens": 256
+        },
+        "dropped": [
+          {
+            "parameterId": "json_schema",
+            "reason": "conflict"
+          }
+        ]
+      }
+    },
+    {
+      "caseId": "conflict.symmetric_one_sided_declaration",
+      "profile": {
+        "template": "openai_chat_completions",
+        "parameters": [
+          {
+            "id": "max_output_tokens",
+            "valueSchema": "integer",
+            "range": {
+              "min": 1,
+              "max": 4096
+            }
+          },
+          {
+            "id": "temperature",
+            "valueSchema": "number",
+            "range": {
+              "min": 0,
+              "max": 2
+            }
+          },
+          {
+            "id": "top_p",
+            "valueSchema": "number",
+            "range": {
+              "minExclusive": 0,
+              "max": 1
+            }
+          },
+          {
+            "id": "seed",
+            "valueSchema": "integer"
+          },
+          {
+            "id": "stop",
+            "valueSchema": "string-list"
+          },
+          {
+            "id": "logprobs",
+            "valueSchema": "boolean"
+          },
+          {
+            "id": "response_format",
+            "valueSchema": "enum",
+            "enumValues": [
+              "text",
+              "json"
+            ]
+          },
+          {
+            "id": "json_schema",
+            "valueSchema": "json-schema",
+            "conflictsWith": [
+              "tools",
+              "response_format"
+            ]
+          }
+        ],
+        "wire": {
+          "max_output_tokens": "max_tokens",
+          "temperature": "temperature",
+          "top_p": "top_p",
+          "seed": "seed",
+          "stop": "stop",
+          "logprobs": "logprobs",
+          "response_format": "response_format",
+          "json_schema": "response_format"
+        }
+      },
+      "body": {
+        "model": "fixture-chat",
+        "messages": [
+          {
+            "role": "user",
+            "content": "hello"
+          }
+        ]
+      },
+      "overrides": {
+        "json_schema": {
+          "state": "value",
+          "value": {
+            "type": "object"
+          }
+        },
+        "response_format": {
+          "state": "value",
+          "value": "json"
+        }
+      },
+      "expect": {
+        "body": {
+          "model": "fixture-chat",
+          "messages": [
+            {
+              "role": "user",
+              "content": "hello"
+            }
+          ],
+          "response_format": {
+            "type": "json_object"
+          }
+        },
+        "dropped": [
+          {
+            "parameterId": "json_schema",
+            "reason": "conflict"
+          }
+        ]
+      }
+    },
+    {
+      "caseId": "required.anthropic_max_tokens_cannot_be_omitted",
+      "profile": {
+        "template": "anthropic_messages",
+        "parameters": [
+          {
+            "id": "max_output_tokens",
+            "valueSchema": "integer",
+            "range": {
+              "min": 1
+            }
+          },
+          {
+            "id": "temperature",
+            "valueSchema": "number",
+            "range": {
+              "min": 0,
+              "max": 1
+            }
+          },
+          {
+            "id": "top_p",
+            "valueSchema": "number",
+            "range": {
+              "min": 0,
+              "max": 1
+            }
+          },
+          {
+            "id": "top_k",
+            "valueSchema": "integer",
+            "range": {
+              "min": 0
+            }
+          },
+          {
+            "id": "stop",
+            "valueSchema": "string-list"
+          }
+        ],
+        "wire": {
+          "max_output_tokens": "max_tokens",
+          "temperature": "temperature",
+          "top_p": "top_p",
+          "top_k": "top_k",
+          "stop": "stop_sequences"
+        }
+      },
+      "body": {
+        "model": "fixture-chat",
+        "messages": [
+          {
+            "role": "user",
+            "content": "hello"
+          }
+        ],
+        "max_tokens": 8192
+      },
+      "overrides": {
+        "max_output_tokens": {
+          "state": "omit"
+        },
+        "temperature": {
+          "state": "value",
+          "value": 0.5
+        }
+      },
+      "expect": {
+        "body": {
+          "model": "fixture-chat",
+          "messages": [
+            {
+              "role": "user",
+              "content": "hello"
+            }
+          ],
+          "max_tokens": 8192,
+          "temperature": 0.5
+        },
+        "dropped": [
+          {
+            "parameterId": "max_output_tokens",
+            "reason": "required_field"
+          }
+        ]
+      }
+    },
+    {
+      "caseId": "required.anthropic_max_tokens_value_still_overrides",
+      "profile": {
+        "template": "anthropic_messages",
+        "parameters": [
+          {
+            "id": "max_output_tokens",
+            "valueSchema": "integer",
+            "range": {
+              "min": 1
+            }
+          },
+          {
+            "id": "temperature",
+            "valueSchema": "number",
+            "range": {
+              "min": 0,
+              "max": 1
+            }
+          },
+          {
+            "id": "top_p",
+            "valueSchema": "number",
+            "range": {
+              "min": 0,
+              "max": 1
+            }
+          },
+          {
+            "id": "top_k",
+            "valueSchema": "integer",
+            "range": {
+              "min": 0
+            }
+          },
+          {
+            "id": "stop",
+            "valueSchema": "string-list"
+          }
+        ],
+        "wire": {
+          "max_output_tokens": "max_tokens",
+          "temperature": "temperature",
+          "top_p": "top_p",
+          "top_k": "top_k",
+          "stop": "stop_sequences"
+        }
+      },
+      "body": {
+        "model": "fixture-chat",
+        "messages": [
+          {
+            "role": "user",
+            "content": "hello"
+          }
+        ],
+        "max_tokens": 8192
+      },
+      "overrides": {
+        "max_output_tokens": {
+          "state": "value",
+          "value": 1024
+        }
+      },
+      "expect": {
+        "body": {
+          "model": "fixture-chat",
+          "messages": [
+            {
+              "role": "user",
+              "content": "hello"
+            }
+          ],
+          "max_tokens": 1024
+        },
+        "dropped": []
+      }
+    },
+    {
+      "caseId": "required.optional_field_omit_still_removes",
+      "profile": {
+        "template": "anthropic_messages",
+        "parameters": [
+          {
+            "id": "max_output_tokens",
+            "valueSchema": "integer",
+            "range": {
+              "min": 1
+            }
+          },
+          {
+            "id": "temperature",
+            "valueSchema": "number",
+            "range": {
+              "min": 0,
+              "max": 1
+            }
+          },
+          {
+            "id": "top_p",
+            "valueSchema": "number",
+            "range": {
+              "min": 0,
+              "max": 1
+            }
+          },
+          {
+            "id": "top_k",
+            "valueSchema": "integer",
+            "range": {
+              "min": 0
+            }
+          },
+          {
+            "id": "stop",
+            "valueSchema": "string-list"
+          }
+        ],
+        "wire": {
+          "max_output_tokens": "max_tokens",
+          "temperature": "temperature",
+          "top_p": "top_p",
+          "top_k": "top_k",
+          "stop": "stop_sequences"
+        }
+      },
+      "body": {
+        "model": "fixture-chat",
+        "messages": [
+          {
+            "role": "user",
+            "content": "hello"
+          }
+        ],
+        "max_tokens": 8192,
+        "temperature": 1
+      },
+      "overrides": {
+        "temperature": {
+          "state": "omit"
+        }
+      },
+      "expect": {
+        "body": {
+          "model": "fixture-chat",
+          "messages": [
+            {
+              "role": "user",
+              "content": "hello"
+            }
+          ],
+          "max_tokens": 8192
+        },
+        "dropped": []
+      }
+    },
+    {
+      "caseId": "required.chat_max_tokens_is_optional",
+      "profile": {
+        "template": "openai_chat_completions",
+        "parameters": [
+          {
+            "id": "max_output_tokens",
+            "valueSchema": "integer",
+            "range": {
+              "min": 1,
+              "max": 4096
+            }
+          },
+          {
+            "id": "temperature",
+            "valueSchema": "number",
+            "range": {
+              "min": 0,
+              "max": 2
+            }
+          },
+          {
+            "id": "top_p",
+            "valueSchema": "number",
+            "range": {
+              "minExclusive": 0,
+              "max": 1
+            }
+          },
+          {
+            "id": "seed",
+            "valueSchema": "integer"
+          },
+          {
+            "id": "stop",
+            "valueSchema": "string-list"
+          },
+          {
+            "id": "logprobs",
+            "valueSchema": "boolean"
+          },
+          {
+            "id": "response_format",
+            "valueSchema": "enum",
+            "enumValues": [
+              "text",
+              "json"
+            ]
+          },
+          {
+            "id": "json_schema",
+            "valueSchema": "json-schema",
+            "conflictsWith": [
+              "tools",
+              "response_format"
+            ]
+          }
+        ],
+        "wire": {
+          "max_output_tokens": "max_tokens",
+          "temperature": "temperature",
+          "top_p": "top_p",
+          "seed": "seed",
+          "stop": "stop",
+          "logprobs": "logprobs",
+          "response_format": "response_format",
+          "json_schema": "response_format"
+        }
+      },
+      "body": {
+        "model": "fixture-chat",
+        "messages": [
+          {
+            "role": "user",
+            "content": "hello"
+          }
+        ],
+        "max_tokens": 512
+      },
+      "overrides": {
+        "max_output_tokens": {
+          "state": "omit"
+        }
+      },
+      "expect": {
+        "body": {
+          "model": "fixture-chat",
+          "messages": [
+            {
+              "role": "user",
+              "content": "hello"
+            }
+          ]
+        },
+        "dropped": []
+      }
+    },
+    {
+      "caseId": "thinking.sampling_dropped_when_enabled",
+      "profile": {
+        "template": "anthropic_messages",
+        "parameters": [
+          {
+            "id": "max_output_tokens",
+            "valueSchema": "integer",
+            "range": {
+              "min": 1
+            }
+          },
+          {
+            "id": "temperature",
+            "valueSchema": "number",
+            "range": {
+              "min": 0,
+              "max": 1
+            }
+          },
+          {
+            "id": "top_p",
+            "valueSchema": "number",
+            "range": {
+              "min": 0,
+              "max": 1
+            }
+          },
+          {
+            "id": "top_k",
+            "valueSchema": "integer",
+            "range": {
+              "min": 0
+            }
+          },
+          {
+            "id": "stop",
+            "valueSchema": "string-list"
+          }
+        ],
+        "wire": {
+          "max_output_tokens": "max_tokens",
+          "temperature": "temperature",
+          "top_p": "top_p",
+          "top_k": "top_k",
+          "stop": "stop_sequences"
+        }
+      },
+      "body": {
+        "model": "fixture-chat",
+        "messages": [
+          {
+            "role": "user",
+            "content": "hello"
+          }
+        ],
+        "max_tokens": 8192
+      },
+      "capabilityWrites": {
+        "thinking": {
+          "type": "enabled",
+          "budget_tokens": 4096
+        }
+      },
+      "overrides": {
+        "temperature": {
+          "state": "value",
+          "value": 0.3
+        },
+        "top_k": {
+          "state": "value",
+          "value": 40
+        },
+        "top_p": {
+          "state": "value",
+          "value": 0.5
+        },
+        "stop": {
+          "state": "value",
+          "value": [
+            "END"
+          ]
+        }
+      },
+      "expect": {
+        "body": {
+          "model": "fixture-chat",
+          "messages": [
+            {
+              "role": "user",
+              "content": "hello"
+            }
+          ],
+          "max_tokens": 8192,
+          "thinking": {
+            "type": "enabled",
+            "budget_tokens": 4096
+          },
+          "stop_sequences": [
+            "END"
+          ]
+        },
+        "dropped": [
+          {
+            "parameterId": "temperature",
+            "reason": "thinking_incompatible"
+          },
+          {
+            "parameterId": "top_k",
+            "reason": "thinking_incompatible"
+          },
+          {
+            "parameterId": "top_p",
+            "reason": "thinking_incompatible"
+          }
+        ]
+      }
+    },
+    {
+      "caseId": "thinking.top_p_at_or_above_floor_survives",
+      "profile": {
+        "template": "anthropic_messages",
+        "parameters": [
+          {
+            "id": "max_output_tokens",
+            "valueSchema": "integer",
+            "range": {
+              "min": 1
+            }
+          },
+          {
+            "id": "temperature",
+            "valueSchema": "number",
+            "range": {
+              "min": 0,
+              "max": 1
+            }
+          },
+          {
+            "id": "top_p",
+            "valueSchema": "number",
+            "range": {
+              "min": 0,
+              "max": 1
+            }
+          },
+          {
+            "id": "top_k",
+            "valueSchema": "integer",
+            "range": {
+              "min": 0
+            }
+          },
+          {
+            "id": "stop",
+            "valueSchema": "string-list"
+          }
+        ],
+        "wire": {
+          "max_output_tokens": "max_tokens",
+          "temperature": "temperature",
+          "top_p": "top_p",
+          "top_k": "top_k",
+          "stop": "stop_sequences"
+        }
+      },
+      "body": {
+        "model": "fixture-chat",
+        "messages": [
+          {
+            "role": "user",
+            "content": "hello"
+          }
+        ],
+        "max_tokens": 8192
+      },
+      "capabilityWrites": {
+        "thinking": {
+          "type": "adaptive"
+        }
+      },
+      "overrides": {
+        "top_p": {
+          "state": "value",
+          "value": 0.95
+        },
+        "temperature": {
+          "state": "value",
+          "value": 1
+        }
+      },
+      "expect": {
+        "body": {
+          "model": "fixture-chat",
+          "messages": [
+            {
+              "role": "user",
+              "content": "hello"
+            }
+          ],
+          "max_tokens": 8192,
+          "thinking": {
+            "type": "adaptive"
+          },
+          "top_p": 0.95
+        },
+        "dropped": [
+          {
+            "parameterId": "temperature",
+            "reason": "thinking_incompatible"
+          }
+        ]
+      }
+    },
+    {
+      "caseId": "thinking.max_tokens_not_above_budget_restores_default",
+      "profile": {
+        "template": "anthropic_messages",
+        "parameters": [
+          {
+            "id": "max_output_tokens",
+            "valueSchema": "integer",
+            "range": {
+              "min": 1
+            }
+          },
+          {
+            "id": "temperature",
+            "valueSchema": "number",
+            "range": {
+              "min": 0,
+              "max": 1
+            }
+          },
+          {
+            "id": "top_p",
+            "valueSchema": "number",
+            "range": {
+              "min": 0,
+              "max": 1
+            }
+          },
+          {
+            "id": "top_k",
+            "valueSchema": "integer",
+            "range": {
+              "min": 0
+            }
+          },
+          {
+            "id": "stop",
+            "valueSchema": "string-list"
+          }
+        ],
+        "wire": {
+          "max_output_tokens": "max_tokens",
+          "temperature": "temperature",
+          "top_p": "top_p",
+          "top_k": "top_k",
+          "stop": "stop_sequences"
+        }
+      },
+      "body": {
+        "model": "fixture-chat",
+        "messages": [
+          {
+            "role": "user",
+            "content": "hello"
+          }
+        ],
+        "max_tokens": 32000
+      },
+      "capabilityWrites": {
+        "thinking": {
+          "type": "enabled",
+          "budget_tokens": 16384
+        }
+      },
+      "overrides": {
+        "max_output_tokens": {
+          "state": "value",
+          "value": 8000
+        }
+      },
+      "expect": {
+        "body": {
+          "model": "fixture-chat",
+          "messages": [
+            {
+              "role": "user",
+              "content": "hello"
+            }
+          ],
+          "max_tokens": 32000,
+          "thinking": {
+            "type": "enabled",
+            "budget_tokens": 16384
+          }
+        },
+        "dropped": [
+          {
+            "parameterId": "max_output_tokens",
+            "reason": "thinking_budget"
+          }
+        ]
+      }
+    },
+    {
+      "caseId": "thinking.default_not_above_budget_uses_headroom",
+      "profile": {
+        "template": "anthropic_messages",
+        "parameters": [
+          {
+            "id": "max_output_tokens",
+            "valueSchema": "integer",
+            "range": {
+              "min": 1
+            }
+          },
+          {
+            "id": "temperature",
+            "valueSchema": "number",
+            "range": {
+              "min": 0,
+              "max": 1
+            }
+          },
+          {
+            "id": "top_p",
+            "valueSchema": "number",
+            "range": {
+              "min": 0,
+              "max": 1
+            }
+          },
+          {
+            "id": "top_k",
+            "valueSchema": "integer",
+            "range": {
+              "min": 0
+            }
+          },
+          {
+            "id": "stop",
+            "valueSchema": "string-list"
+          }
+        ],
+        "wire": {
+          "max_output_tokens": "max_tokens",
+          "temperature": "temperature",
+          "top_p": "top_p",
+          "top_k": "top_k",
+          "stop": "stop_sequences"
+        }
+      },
+      "body": {
+        "model": "fixture-chat",
+        "messages": [
+          {
+            "role": "user",
+            "content": "hello"
+          }
+        ],
+        "max_tokens": 8192
+      },
+      "capabilityWrites": {
+        "thinking": {
+          "type": "enabled",
+          "budget_tokens": 16384
+        }
+      },
+      "overrides": {
+        "max_output_tokens": {
+          "state": "value",
+          "value": 16384
+        }
+      },
+      "expect": {
+        "body": {
+          "model": "fixture-chat",
+          "messages": [
+            {
+              "role": "user",
+              "content": "hello"
+            }
+          ],
+          "max_tokens": 20480,
+          "thinking": {
+            "type": "enabled",
+            "budget_tokens": 16384
+          }
+        },
+        "dropped": [
+          {
+            "parameterId": "max_output_tokens",
+            "reason": "thinking_budget"
+          }
+        ]
+      }
+    },
+    {
+      "caseId": "thinking.max_tokens_above_budget_survives",
+      "profile": {
+        "template": "anthropic_messages",
+        "parameters": [
+          {
+            "id": "max_output_tokens",
+            "valueSchema": "integer",
+            "range": {
+              "min": 1
+            }
+          },
+          {
+            "id": "temperature",
+            "valueSchema": "number",
+            "range": {
+              "min": 0,
+              "max": 1
+            }
+          },
+          {
+            "id": "top_p",
+            "valueSchema": "number",
+            "range": {
+              "min": 0,
+              "max": 1
+            }
+          },
+          {
+            "id": "top_k",
+            "valueSchema": "integer",
+            "range": {
+              "min": 0
+            }
+          },
+          {
+            "id": "stop",
+            "valueSchema": "string-list"
+          }
+        ],
+        "wire": {
+          "max_output_tokens": "max_tokens",
+          "temperature": "temperature",
+          "top_p": "top_p",
+          "top_k": "top_k",
+          "stop": "stop_sequences"
+        }
+      },
+      "body": {
+        "model": "fixture-chat",
+        "messages": [
+          {
+            "role": "user",
+            "content": "hello"
+          }
+        ],
+        "max_tokens": 8192
+      },
+      "capabilityWrites": {
+        "thinking": {
+          "type": "enabled",
+          "budget_tokens": 4096
+        }
+      },
+      "overrides": {
+        "max_output_tokens": {
+          "state": "value",
+          "value": 6000
+        }
+      },
+      "expect": {
+        "body": {
+          "model": "fixture-chat",
+          "messages": [
+            {
+              "role": "user",
+              "content": "hello"
+            }
+          ],
+          "max_tokens": 6000,
+          "thinking": {
+            "type": "enabled",
+            "budget_tokens": 4096
+          }
+        },
+        "dropped": []
+      }
+    },
+    {
+      "caseId": "thinking.off_leaves_sampling_alone",
+      "profile": {
+        "template": "anthropic_messages",
+        "parameters": [
+          {
+            "id": "max_output_tokens",
+            "valueSchema": "integer",
+            "range": {
+              "min": 1
+            }
+          },
+          {
+            "id": "temperature",
+            "valueSchema": "number",
+            "range": {
+              "min": 0,
+              "max": 1
+            }
+          },
+          {
+            "id": "top_p",
+            "valueSchema": "number",
+            "range": {
+              "min": 0,
+              "max": 1
+            }
+          },
+          {
+            "id": "top_k",
+            "valueSchema": "integer",
+            "range": {
+              "min": 0
+            }
+          },
+          {
+            "id": "stop",
+            "valueSchema": "string-list"
+          }
+        ],
+        "wire": {
+          "max_output_tokens": "max_tokens",
+          "temperature": "temperature",
+          "top_p": "top_p",
+          "top_k": "top_k",
+          "stop": "stop_sequences"
+        }
+      },
+      "body": {
+        "model": "fixture-chat",
+        "messages": [
+          {
+            "role": "user",
+            "content": "hello"
+          }
+        ],
+        "max_tokens": 8192
+      },
+      "overrides": {
+        "temperature": {
+          "state": "value",
+          "value": 0.3
+        },
+        "top_k": {
+          "state": "value",
+          "value": 40
+        },
+        "top_p": {
+          "state": "value",
+          "value": 0.5
+        }
+      },
+      "expect": {
+        "body": {
+          "model": "fixture-chat",
+          "messages": [
+            {
+              "role": "user",
+              "content": "hello"
+            }
+          ],
+          "max_tokens": 8192,
+          "temperature": 0.3,
+          "top_k": 40,
+          "top_p": 0.5
+        },
+        "dropped": []
+      }
+    },
+    {
+      "caseId": "thinking.builder_default_not_above_budget_uses_headroom",
+      "profile": {
+        "template": "anthropic_messages",
+        "parameters": [
+          {
+            "id": "max_output_tokens",
+            "valueSchema": "integer",
+            "range": {
+              "min": 1
+            }
+          },
+          {
+            "id": "temperature",
+            "valueSchema": "number",
+            "range": {
+              "min": 0,
+              "max": 1
+            }
+          },
+          {
+            "id": "top_p",
+            "valueSchema": "number",
+            "range": {
+              "min": 0,
+              "max": 1
+            }
+          },
+          {
+            "id": "top_k",
+            "valueSchema": "integer",
+            "range": {
+              "min": 0
+            }
+          },
+          {
+            "id": "stop",
+            "valueSchema": "string-list"
+          }
+        ],
+        "wire": {
+          "max_output_tokens": "max_tokens",
+          "temperature": "temperature",
+          "top_p": "top_p",
+          "top_k": "top_k",
+          "stop": "stop_sequences"
+        }
+      },
+      "body": {
+        "model": "fixture-chat",
+        "messages": [
+          {
+            "role": "user",
+            "content": "hello"
+          }
+        ],
+        "max_tokens": 8192
+      },
+      "capabilityWrites": {
+        "thinking": {
+          "type": "enabled",
+          "budget_tokens": 16384
+        }
+      },
+      "overrides": {
+        "stop": {
+          "state": "value",
+          "value": [
+            "END"
+          ]
+        }
+      },
+      "expect": {
+        "body": {
+          "model": "fixture-chat",
+          "messages": [
+            {
+              "role": "user",
+              "content": "hello"
+            }
+          ],
+          "max_tokens": 20480,
+          "thinking": {
+            "type": "enabled",
+            "budget_tokens": 16384
+          },
+          "stop_sequences": [
+            "END"
+          ]
+        },
+        "dropped": []
+      }
+    }
+  ],
+  "additionalBodyCases": [
+    {
+      "caseId": "merge.coexists_with_panel_parameters",
+      "raw": "{\"top_k\": 40, \"chat_template_kwargs\": {\"enable_thinking\": false}}",
+      "body": {
+        "model": "fixture-chat",
+        "messages": [
+          {
+            "role": "user",
+            "content": "hello"
+          }
+        ],
+        "temperature": 0.7
+      },
+      "expect": {
+        "accepted": true,
+        "body": {
+          "model": "fixture-chat",
+          "messages": [
+            {
+              "role": "user",
+              "content": "hello"
+            }
+          ],
+          "temperature": 0.7,
+          "top_k": 40,
+          "chat_template_kwargs": {
+            "enable_thinking": false
+          }
+        }
+      }
+    },
+    {
+      "caseId": "merge.same_key_additional_body_wins",
+      "raw": "{\"temperature\": 0.2}",
+      "body": {
+        "model": "fixture-chat",
+        "messages": [
+          {
+            "role": "user",
+            "content": "hello"
+          }
+        ],
+        "temperature": 0.7
+      },
+      "expect": {
+        "accepted": true,
+        "body": {
+          "model": "fixture-chat",
+          "messages": [
+            {
+              "role": "user",
+              "content": "hello"
+            }
+          ],
+          "temperature": 0.2
+        }
+      }
+    },
+    {
+      "caseId": "merge.objects_deep_merge",
+      "raw": "{\"generationConfig\": {\"topK\": 3}}",
+      "body": {
+        "contents": [],
+        "generationConfig": {
+          "temperature": 0.5
+        }
+      },
+      "expect": {
+        "accepted": true,
+        "body": {
+          "contents": [],
+          "generationConfig": {
+            "temperature": 0.5,
+            "topK": 3
+          }
+        }
+      }
+    },
+    {
+      "caseId": "merge.arrays_replace",
+      "raw": "{\"stop\": [\"b\"]}",
+      "body": {
+        "model": "fixture-chat",
+        "messages": [
+          {
+            "role": "user",
+            "content": "hello"
+          }
+        ],
+        "stop": [
+          "a"
+        ]
+      },
+      "expect": {
+        "accepted": true,
+        "body": {
+          "model": "fixture-chat",
+          "messages": [
+            {
+              "role": "user",
+              "content": "hello"
+            }
+          ],
+          "stop": [
+            "b"
+          ]
+        }
+      }
+    },
+    {
+      "caseId": "merge.empty_object_is_noop",
+      "raw": "{}",
+      "body": {
+        "model": "fixture-chat",
+        "messages": [
+          {
+            "role": "user",
+            "content": "hello"
+          }
+        ],
+        "temperature": 0.7
+      },
+      "expect": {
+        "accepted": true,
+        "body": {
+          "model": "fixture-chat",
+          "messages": [
+            {
+              "role": "user",
+              "content": "hello"
+            }
+          ],
+          "temperature": 0.7
+        }
+      }
+    },
+    {
+      "caseId": "reject.invalid_json",
+      "raw": "{\"top_k\": ",
+      "body": {
+        "model": "fixture-chat",
+        "messages": [
+          {
+            "role": "user",
+            "content": "hello"
+          }
+        ],
+        "temperature": 0.7
+      },
+      "expect": {
+        "accepted": false,
+        "reason": "invalid_json",
+        "body": {
+          "model": "fixture-chat",
+          "messages": [
+            {
+              "role": "user",
+              "content": "hello"
+            }
+          ],
+          "temperature": 0.7
+        },
+        "requestSent": false,
+        "marksConnectionFailed": false
+      }
+    },
+    {
+      "caseId": "reject.not_object",
+      "raw": "[1, 2]",
+      "body": {
+        "model": "fixture-chat",
+        "messages": [
+          {
+            "role": "user",
+            "content": "hello"
+          }
+        ],
+        "temperature": 0.7
+      },
+      "expect": {
+        "accepted": false,
+        "reason": "not_object",
+        "body": {
+          "model": "fixture-chat",
+          "messages": [
+            {
+              "role": "user",
+              "content": "hello"
+            }
+          ],
+          "temperature": 0.7
+        },
+        "requestSent": false,
+        "marksConnectionFailed": false
+      }
+    },
+    {
+      "caseId": "reject.blocked_segment_nested",
+      "raw": "{\"a\": {\"__proto__\": {\"x\": 1}}}",
+      "body": {
+        "model": "fixture-chat",
+        "messages": [
+          {
+            "role": "user",
+            "content": "hello"
+          }
+        ],
+        "temperature": 0.7
+      },
+      "expect": {
+        "accepted": false,
+        "reason": "blocked_segment",
+        "field": "__proto__",
+        "body": {
+          "model": "fixture-chat",
+          "messages": [
+            {
+              "role": "user",
+              "content": "hello"
+            }
+          ],
+          "temperature": 0.7
+        },
+        "requestSent": false,
+        "marksConnectionFailed": false
+      }
+    },
+    {
+      "caseId": "reject.protected.model",
+      "raw": "{\"model\": \"x\", \"top_k\": 1}",
+      "body": {
+        "model": "fixture-chat",
+        "messages": [
+          {
+            "role": "user",
+            "content": "hello"
+          }
+        ],
+        "temperature": 0.7
+      },
+      "expect": {
+        "accepted": false,
+        "reason": "protected_field",
+        "field": "model",
+        "body": {
+          "model": "fixture-chat",
+          "messages": [
+            {
+              "role": "user",
+              "content": "hello"
+            }
+          ],
+          "temperature": 0.7
+        },
+        "requestSent": false,
+        "marksConnectionFailed": false
+      }
+    },
+    {
+      "caseId": "reject.protected.messages",
+      "raw": "{\"messages\": \"x\", \"top_k\": 1}",
+      "body": {
+        "model": "fixture-chat",
+        "messages": [
+          {
+            "role": "user",
+            "content": "hello"
+          }
+        ],
+        "temperature": 0.7
+      },
+      "expect": {
+        "accepted": false,
+        "reason": "protected_field",
+        "field": "messages",
+        "body": {
+          "model": "fixture-chat",
+          "messages": [
+            {
+              "role": "user",
+              "content": "hello"
+            }
+          ],
+          "temperature": 0.7
+        },
+        "requestSent": false,
+        "marksConnectionFailed": false
+      }
+    },
+    {
+      "caseId": "reject.protected.input",
+      "raw": "{\"input\": \"x\", \"top_k\": 1}",
+      "body": {
+        "model": "fixture-chat",
+        "messages": [
+          {
+            "role": "user",
+            "content": "hello"
+          }
+        ],
+        "temperature": 0.7
+      },
+      "expect": {
+        "accepted": false,
+        "reason": "protected_field",
+        "field": "input",
+        "body": {
+          "model": "fixture-chat",
+          "messages": [
+            {
+              "role": "user",
+              "content": "hello"
+            }
+          ],
+          "temperature": 0.7
+        },
+        "requestSent": false,
+        "marksConnectionFailed": false
+      }
+    },
+    {
+      "caseId": "reject.protected.contents",
+      "raw": "{\"contents\": \"x\", \"top_k\": 1}",
+      "body": {
+        "model": "fixture-chat",
+        "messages": [
+          {
+            "role": "user",
+            "content": "hello"
+          }
+        ],
+        "temperature": 0.7
+      },
+      "expect": {
+        "accepted": false,
+        "reason": "protected_field",
+        "field": "contents",
+        "body": {
+          "model": "fixture-chat",
+          "messages": [
+            {
+              "role": "user",
+              "content": "hello"
+            }
+          ],
+          "temperature": 0.7
+        },
+        "requestSent": false,
+        "marksConnectionFailed": false
+      }
+    },
+    {
+      "caseId": "reject.protected.prompt",
+      "raw": "{\"prompt\": \"x\", \"top_k\": 1}",
+      "body": {
+        "model": "fixture-chat",
+        "messages": [
+          {
+            "role": "user",
+            "content": "hello"
+          }
+        ],
+        "temperature": 0.7
+      },
+      "expect": {
+        "accepted": false,
+        "reason": "protected_field",
+        "field": "prompt",
+        "body": {
+          "model": "fixture-chat",
+          "messages": [
+            {
+              "role": "user",
+              "content": "hello"
+            }
+          ],
+          "temperature": 0.7
+        },
+        "requestSent": false,
+        "marksConnectionFailed": false
+      }
+    },
+    {
+      "caseId": "reject.protected.attachments",
+      "raw": "{\"attachments\": \"x\", \"top_k\": 1}",
+      "body": {
+        "model": "fixture-chat",
+        "messages": [
+          {
+            "role": "user",
+            "content": "hello"
+          }
+        ],
+        "temperature": 0.7
+      },
+      "expect": {
+        "accepted": false,
+        "reason": "protected_field",
+        "field": "attachments",
+        "body": {
+          "model": "fixture-chat",
+          "messages": [
+            {
+              "role": "user",
+              "content": "hello"
+            }
+          ],
+          "temperature": 0.7
+        },
+        "requestSent": false,
+        "marksConnectionFailed": false
+      }
+    },
+    {
+      "caseId": "reject.protected.instructions",
+      "raw": "{\"instructions\": \"x\", \"top_k\": 1}",
+      "body": {
+        "model": "fixture-chat",
+        "messages": [
+          {
+            "role": "user",
+            "content": "hello"
+          }
+        ],
+        "temperature": 0.7
+      },
+      "expect": {
+        "accepted": false,
+        "reason": "protected_field",
+        "field": "instructions",
+        "body": {
+          "model": "fixture-chat",
+          "messages": [
+            {
+              "role": "user",
+              "content": "hello"
+            }
+          ],
+          "temperature": 0.7
+        },
+        "requestSent": false,
+        "marksConnectionFailed": false
+      }
+    },
+    {
+      "caseId": "reject.protected.system",
+      "raw": "{\"system\": \"x\", \"top_k\": 1}",
+      "body": {
+        "model": "fixture-chat",
+        "messages": [
+          {
+            "role": "user",
+            "content": "hello"
+          }
+        ],
+        "temperature": 0.7
+      },
+      "expect": {
+        "accepted": false,
+        "reason": "protected_field",
+        "field": "system",
+        "body": {
+          "model": "fixture-chat",
+          "messages": [
+            {
+              "role": "user",
+              "content": "hello"
+            }
+          ],
+          "temperature": 0.7
+        },
+        "requestSent": false,
+        "marksConnectionFailed": false
+      }
+    },
+    {
+      "caseId": "reject.protected.stream",
+      "raw": "{\"stream\": \"x\", \"top_k\": 1}",
+      "body": {
+        "model": "fixture-chat",
+        "messages": [
+          {
+            "role": "user",
+            "content": "hello"
+          }
+        ],
+        "temperature": 0.7
+      },
+      "expect": {
+        "accepted": false,
+        "reason": "protected_field",
+        "field": "stream",
+        "body": {
+          "model": "fixture-chat",
+          "messages": [
+            {
+              "role": "user",
+              "content": "hello"
+            }
+          ],
+          "temperature": 0.7
+        },
+        "requestSent": false,
+        "marksConnectionFailed": false
+      }
+    },
+    {
+      "caseId": "reject.protected.stream_options",
+      "raw": "{\"stream_options\": \"x\", \"top_k\": 1}",
+      "body": {
+        "model": "fixture-chat",
+        "messages": [
+          {
+            "role": "user",
+            "content": "hello"
+          }
+        ],
+        "temperature": 0.7
+      },
+      "expect": {
+        "accepted": false,
+        "reason": "protected_field",
+        "field": "stream_options",
+        "body": {
+          "model": "fixture-chat",
+          "messages": [
+            {
+              "role": "user",
+              "content": "hello"
+            }
+          ],
+          "temperature": 0.7
+        },
+        "requestSent": false,
+        "marksConnectionFailed": false
+      }
+    },
+    {
+      "caseId": "reject.protected.tools",
+      "raw": "{\"tools\": \"x\", \"top_k\": 1}",
+      "body": {
+        "model": "fixture-chat",
+        "messages": [
+          {
+            "role": "user",
+            "content": "hello"
+          }
+        ],
+        "temperature": 0.7
+      },
+      "expect": {
+        "accepted": false,
+        "reason": "protected_field",
+        "field": "tools",
+        "body": {
+          "model": "fixture-chat",
+          "messages": [
+            {
+              "role": "user",
+              "content": "hello"
+            }
+          ],
+          "temperature": 0.7
+        },
+        "requestSent": false,
+        "marksConnectionFailed": false
+      }
+    },
+    {
+      "caseId": "reject.protected.tool_choice",
+      "raw": "{\"tool_choice\": \"x\", \"top_k\": 1}",
+      "body": {
+        "model": "fixture-chat",
+        "messages": [
+          {
+            "role": "user",
+            "content": "hello"
+          }
+        ],
+        "temperature": 0.7
+      },
+      "expect": {
+        "accepted": false,
+        "reason": "protected_field",
+        "field": "tool_choice",
+        "body": {
+          "model": "fixture-chat",
+          "messages": [
+            {
+              "role": "user",
+              "content": "hello"
+            }
+          ],
+          "temperature": 0.7
+        },
+        "requestSent": false,
+        "marksConnectionFailed": false
+      }
+    },
+    {
+      "caseId": "reject.protected.plugins",
+      "raw": "{\"plugins\": \"x\", \"top_k\": 1}",
+      "body": {
+        "model": "fixture-chat",
+        "messages": [
+          {
+            "role": "user",
+            "content": "hello"
+          }
+        ],
+        "temperature": 0.7
+      },
+      "expect": {
+        "accepted": false,
+        "reason": "protected_field",
+        "field": "plugins",
+        "body": {
+          "model": "fixture-chat",
+          "messages": [
+            {
+              "role": "user",
+              "content": "hello"
+            }
+          ],
+          "temperature": 0.7
+        },
+        "requestSent": false,
+        "marksConnectionFailed": false
+      }
+    }
+  ],
+  "localEngineCases": [
+    {
+      "caseId": "llamacpp.chat.numeric_values_are_numbers",
+      "engine": "llamacpp",
+      "transport": "openai_chat_completions",
+      "overrides": {
+        "mirostat": {
+          "state": "value",
+          "value": 2
+        },
+        "mirostat_tau": {
+          "state": "value",
+          "value": 7.5
+        },
+        "mirostat_eta": {
+          "state": "value",
+          "value": 0.25
+        },
+        "dry_multiplier": {
+          "state": "value",
+          "value": 0.8
+        },
+        "dry_base": {
+          "state": "value",
+          "value": 2
+        },
+        "top_n_sigma": {
+          "state": "value",
+          "value": 2.5
+        },
+        "dynatemp_range": {
+          "state": "value",
+          "value": 0.3
+        },
+        "dynatemp_exponent": {
+          "state": "value",
+          "value": 1.5
+        },
+        "presence_penalty": {
+          "state": "value",
+          "value": 0.4
+        },
+        "frequency_penalty": {
+          "state": "value",
+          "value": 0.3
+        },
+        "max_output_tokens": {
+          "state": "value",
+          "value": 8
+        }
+      },
+      "expect": {
+        "bodyIncludes": {
+          "mirostat": 2,
+          "mirostat_tau": 7.5,
+          "mirostat_eta": 0.25,
+          "dry_multiplier": 0.8,
+          "dry_base": 2,
+          "top_n_sigma": 2.5,
+          "dynatemp_range": 0.3,
+          "dynatemp_exponent": 1.5,
+          "presence_penalty": 0.4,
+          "frequency_penalty": 0.3,
+          "max_tokens": 8
+        },
+        "numericFields": [
+          "mirostat",
+          "mirostat_tau",
+          "mirostat_eta",
+          "dry_multiplier",
+          "dry_base",
+          "top_n_sigma",
+          "dynatemp_range",
+          "dynatemp_exponent",
+          "presence_penalty",
+          "frequency_penalty",
+          "max_tokens"
+        ],
+        "bodyExcludes": [
+          "n_predict",
+          "prompt"
+        ],
+        "dropped": []
+      }
+    },
+    {
+      "caseId": "llamacpp.chat.string_number_is_dropped_alone",
+      "engine": "llamacpp",
+      "transport": "openai_chat_completions",
+      "overrides": {
+        "mirostat_tau": {
+          "state": "value",
+          "value": "7.5"
+        },
+        "top_k": {
+          "state": "value",
+          "value": 7
+        }
+      },
+      "expect": {
+        "bodyIncludes": {
+          "top_k": 7
+        },
+        "numericFields": [
+          "top_k"
+        ],
+        "bodyExcludes": [
+          "mirostat_tau"
+        ],
+        "dropped": [
+          {
+            "parameterId": "mirostat_tau",
+            "reason": "invalid_value"
+          }
+        ]
+      }
+    },
+    {
+      "caseId": "llamacpp.chat.lists_booleans_and_schema",
+      "engine": "llamacpp",
+      "transport": "openai_chat_completions",
+      "overrides": {
+        "samplers": {
+          "state": "value",
+          "value": [
+            "top_k",
+            "temperature"
+          ]
+        },
+        "dry_sequence_breakers": {
+          "state": "value",
+          "value": [
+            "#"
+          ]
+        },
+        "ignore_eos": {
+          "state": "value",
+          "value": true
+        },
+        "stop": {
+          "state": "value",
+          "value": [
+            "###"
+          ]
+        },
+        "json_schema": {
+          "state": "value",
+          "value": {
+            "type": "object"
+          }
+        },
+        "logprobs": {
+          "state": "value",
+          "value": true
+        },
+        "top_logprobs": {
+          "state": "value",
+          "value": 3
+        }
+      },
+      "expect": {
+        "bodyIncludes": {
+          "samplers": [
+            "top_k",
+            "temperature"
+          ],
+          "dry_sequence_breakers": [
+            "#"
+          ],
+          "ignore_eos": true,
+          "stop": [
+            "###"
+          ],
+          "logprobs": true,
+          "top_logprobs": 3,
+          "response_format": {
+            "type": "json_schema",
+            "json_schema": {
+              "name": "oriveo_response",
+              "strict": true,
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "numericFields": [
+          "top_logprobs"
+        ],
+        "bodyExcludes": [],
+        "dropped": []
+      }
+    },
+    {
+      "caseId": "llamacpp.native.wire_names",
+      "engine": "llamacpp",
+      "transport": "llamacpp_native",
+      "overrides": {
+        "max_output_tokens": {
+          "state": "value",
+          "value": 8
+        },
+        "mirostat_tau": {
+          "state": "value",
+          "value": 7.5
+        },
+        "json_schema": {
+          "state": "value",
+          "value": {
+            "type": "object"
+          }
+        },
+        "n_probs": {
+          "state": "value",
+          "value": 2
+        }
+      },
+      "expect": {
+        "bodyIncludes": {
+          "n_predict": 8,
+          "mirostat_tau": 7.5,
+          "json_schema": {
+            "type": "object"
+          },
+          "n_probs": 2
+        },
+        "numericFields": [
+          "n_predict",
+          "mirostat_tau",
+          "n_probs"
+        ],
+        "bodyExcludes": [
+          "max_tokens",
+          "response_format",
+          "messages"
+        ],
+        "dropped": []
+      }
+    },
+    {
+      "caseId": "ollama.chat.documented_fields_only",
+      "engine": "ollama",
+      "transport": "openai_chat_completions",
+      "overrides": {
+        "max_output_tokens": {
+          "state": "value",
+          "value": 8
+        },
+        "temperature": {
+          "state": "value",
+          "value": 0
+        },
+        "top_p": {
+          "state": "value",
+          "value": 0.5
+        },
+        "seed": {
+          "state": "value",
+          "value": 42
+        },
+        "stop": {
+          "state": "value",
+          "value": [
+            "###"
+          ]
+        },
+        "presence_penalty": {
+          "state": "value",
+          "value": 0.5
+        },
+        "top_k": {
+          "state": "value",
+          "value": 1
+        },
+        "repeat_penalty": {
+          "state": "value",
+          "value": 1.2
+        }
+      },
+      "expect": {
+        "bodyIncludes": {
+          "max_tokens": 8,
+          "temperature": 0,
+          "top_p": 0.5,
+          "seed": 42,
+          "stop": [
+            "###"
+          ],
+          "presence_penalty": 0.5
+        },
+        "numericFields": [
+          "max_tokens",
+          "temperature",
+          "top_p",
+          "seed",
+          "presence_penalty"
+        ],
+        "bodyExcludes": [
+          "top_k",
+          "repeat_penalty",
+          "options",
+          "num_ctx",
+          "keep_alive"
+        ],
+        "dropped": []
+      }
+    },
+    {
+      "caseId": "lmstudio.chat.documented_fields",
+      "engine": "lmstudio",
+      "transport": "openai_chat_completions",
+      "overrides": {
+        "max_output_tokens": {
+          "state": "value",
+          "value": 8
+        },
+        "temperature": {
+          "state": "value",
+          "value": 0
+        },
+        "top_k": {
+          "state": "value",
+          "value": 1
+        },
+        "repeat_penalty": {
+          "state": "value",
+          "value": 1.1
+        },
+        "seed": {
+          "state": "value",
+          "value": 42
+        },
+        "json_schema": {
+          "state": "value",
+          "value": {
+            "type": "object"
+          }
+        },
+        "min_p": {
+          "state": "value",
+          "value": 0.1
+        }
+      },
+      "expect": {
+        "bodyIncludes": {
+          "max_tokens": 8,
+          "temperature": 0,
+          "top_k": 1,
+          "repeat_penalty": 1.1,
+          "seed": 42,
+          "response_format": {
+            "type": "json_schema",
+            "json_schema": {
+              "name": "oriveo_response",
+              "strict": true,
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "numericFields": [
+          "max_tokens",
+          "temperature",
+          "top_k",
+          "repeat_penalty",
+          "seed"
+        ],
+        "bodyExcludes": [
+          "min_p"
+        ],
+        "dropped": []
+      }
+    },
+    {
+      "caseId": "vllm.chat.extensions_are_top_level",
+      "engine": "vllm",
+      "transport": "openai_chat_completions",
+      "overrides": {
+        "top_k": {
+          "state": "value",
+          "value": 20
+        },
+        "min_p": {
+          "state": "value",
+          "value": 0.05
+        },
+        "repeat_penalty": {
+          "state": "value",
+          "value": 1.1
+        },
+        "min_tokens": {
+          "state": "value",
+          "value": 4
+        },
+        "ignore_eos": {
+          "state": "value",
+          "value": true
+        },
+        "skip_special_tokens": {
+          "state": "value",
+          "value": false
+        },
+        "temperature": {
+          "state": "value",
+          "value": 0.7
+        },
+        "max_output_tokens": {
+          "state": "value",
+          "value": 64
+        },
+        "typical_p": {
+          "state": "value",
+          "value": 0.9
+        }
+      },
+      "expect": {
+        "bodyIncludes": {
+          "top_k": 20,
+          "min_p": 0.05,
+          "repetition_penalty": 1.1,
+          "min_tokens": 4,
+          "ignore_eos": true,
+          "skip_special_tokens": false,
+          "temperature": 0.7,
+          "max_tokens": 64
+        },
+        "numericFields": [
+          "top_k",
+          "min_p",
+          "repetition_penalty",
+          "min_tokens",
+          "temperature",
+          "max_tokens"
+        ],
+        "bodyExcludes": [
+          "extra_body",
+          "repeat_penalty",
+          "typical_p"
+        ],
+        "dropped": []
+      }
+    },
+    {
+      "caseId": "vllm.chat.out_of_range_dropped_alone",
+      "engine": "vllm",
+      "transport": "openai_chat_completions",
+      "overrides": {
+        "temperature": {
+          "state": "value",
+          "value": 2.5
+        },
+        "top_p": {
+          "state": "value",
+          "value": 0
+        },
+        "top_k": {
+          "state": "value",
+          "value": 20
+        }
+      },
+      "expect": {
+        "bodyIncludes": {
+          "top_k": 20
+        },
+        "numericFields": [
+          "top_k"
+        ],
+        "bodyExcludes": [
+          "temperature",
+          "top_p",
+          "extra_body"
+        ],
+        "dropped": [
+          {
+            "parameterId": "temperature",
+            "reason": "invalid_value"
+          },
+          {
+            "parameterId": "top_p",
+            "reason": "invalid_value"
+          }
+        ]
+      }
+    }
+  ],
+  "llamacppMigrationCases": [
+    {
+      "caseId": "stored_native_llamacpp_moves_to_chat",
+      "before": {
+        "engineProfile": "llamacpp",
+        "transport": "llamacpp_native",
+        "resolvedAPIBaseURL": "http://127.0.0.1:8080"
+      },
+      "alreadyMigrated": false,
+      "expect": {
+        "transport": "openai_chat_completions",
+        "resolvedAPIBaseURL": "http://127.0.0.1:8080/v1",
+        "changed": true
+      }
+    },
+    {
+      "caseId": "base_with_prefix_gets_v1_appended",
+      "before": {
+        "engineProfile": "llamacpp",
+        "transport": "llamacpp_native",
+        "resolvedAPIBaseURL": "https://box.example/llama/"
+      },
+      "alreadyMigrated": false,
+      "expect": {
+        "transport": "openai_chat_completions",
+        "resolvedAPIBaseURL": "https://box.example/llama/v1",
+        "changed": true
+      }
+    },
+    {
+      "caseId": "hand_picked_native_after_migration_is_kept",
+      "before": {
+        "engineProfile": "llamacpp",
+        "transport": "llamacpp_native",
+        "resolvedAPIBaseURL": "http://127.0.0.1:8080"
+      },
+      "alreadyMigrated": true,
+      "expect": {
+        "transport": "llamacpp_native",
+        "resolvedAPIBaseURL": "http://127.0.0.1:8080",
+        "changed": false
+      }
+    },
+    {
+      "caseId": "other_engines_untouched",
+      "before": {
+        "engineProfile": "ollama",
+        "transport": "openai_chat_completions",
+        "resolvedAPIBaseURL": "http://127.0.0.1:11434/v1"
+      },
+      "alreadyMigrated": false,
+      "expect": {
+        "transport": "openai_chat_completions",
+        "resolvedAPIBaseURL": "http://127.0.0.1:11434/v1",
+        "changed": false
+      }
+    },
+    {
+      "caseId": "native_without_engine_profile_untouched",
+      "before": {
+        "engineProfile": null,
+        "transport": "llamacpp_native",
+        "resolvedAPIBaseURL": "http://10.0.0.2:8080"
+      },
+      "alreadyMigrated": false,
+      "expect": {
+        "transport": "llamacpp_native",
+        "resolvedAPIBaseURL": "http://10.0.0.2:8080",
+        "changed": false
+      }
+    }
+  ]
+}

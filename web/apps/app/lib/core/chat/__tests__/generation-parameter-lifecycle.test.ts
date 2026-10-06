@@ -36,11 +36,19 @@ import {
 } from '../generation-parameter-settings';
 import { beginCapabilityEvidenceIdentityIfAbsent } from '../../providers/capability-evidence-identity';
 
-const contract = JSON.parse(readFileSync(resolve(
-  process.cwd(),
-  '../../..',
-  'shared/model-contracts/generation_parameter_contract.v1.json',
-), 'utf8')) as {
+// Rules and cases live in two files (cases in the sibling `.cases.json`); merge them here.
+const contract = {
+  ...JSON.parse(readFileSync(resolve(
+    process.cwd(),
+    '../../..',
+    'shared/model-contracts/generation_parameter_contract.v1.json',
+  ), 'utf8')),
+  ...JSON.parse(readFileSync(resolve(
+    process.cwd(),
+    '../../..',
+    'shared/model-contracts/generation_parameter_contract.v1.cases.json',
+  ), 'utf8')),
+} as {
   lifecycleRules: { outboundParity: string; lifecycle: string[]; presets: string[] };
   lifecycleCases: {
     caseId: string;

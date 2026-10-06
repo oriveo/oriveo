@@ -270,10 +270,10 @@ function loadContract(): Contract {
 function findContractPath(): string {
   let current = process.cwd();
   for (;;) {
-    const candidate = path.join(current, 'shared', 'model-contracts', 'generation_parameter_contract.v1.json');
+    const candidate = path.join(current, 'shared', 'model-contracts', 'generation_parameter_contract.v1.cases.json');
     if (existsSync(candidate)) return candidate;
     const parent = path.dirname(current);
-    if (parent === current) throw new Error('generation_parameter_contract.v1.json not found');
+    if (parent === current) throw new Error('generation_parameter_contract.v1.cases.json not found');
     current = parent;
   }
 }

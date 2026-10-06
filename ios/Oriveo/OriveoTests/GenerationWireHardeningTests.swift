@@ -210,12 +210,19 @@ struct GenerationWireHardeningTests {
     private static func loadContract() throws -> WireHardeningContract {
         var folder = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
         while folder.path != "/" {
-            let candidate = folder
+            let directory = folder
                 .appendingPathComponent("shared")
                 .appendingPathComponent("model-contracts")
-                .appendingPathComponent("generation_parameter_contract.v1.json")
+            let candidate = directory.appendingPathComponent("generation_parameter_contract.v1.json")
             if FileManager.default.fileExists(atPath: candidate.path) {
-                return try JSONDecoder().decode(WireHardeningContract.self, from: Data(contentsOf: candidate))
+                // Rules live in the contract file, cases in the sibling .cases.json.
+                struct RulesFile: Decodable { let wireHardening: WireHardeningContract.Rules }
+                struct CasesFile: Decodable { let wireHardeningCases: [WireHardeningContract.Case] }
+                let cases = directory.appendingPathComponent("generation_parameter_contract.v1.cases.json")
+                return WireHardeningContract(
+                    wireHardening: try JSONDecoder().decode(RulesFile.self, from: Data(contentsOf: candidate)).wireHardening,
+                    wireHardeningCases: try JSONDecoder().decode(CasesFile.self, from: Data(contentsOf: cases)).wireHardeningCases
+                )
             }
             folder.deleteLastPathComponent()
         }

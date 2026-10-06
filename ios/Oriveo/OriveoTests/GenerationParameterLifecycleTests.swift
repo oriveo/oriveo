@@ -672,11 +672,18 @@ struct GenerationParameterLifecycleTests {
     }
 
     private static func loadContract() throws -> LifecycleContract {
-        let url = try repositoryRoot()
+        let directory = try repositoryRoot()
             .appendingPathComponent("shared")
             .appendingPathComponent("model-contracts")
-            .appendingPathComponent("generation_parameter_contract.v1.json")
-        return try JSONDecoder().decode(LifecycleContract.self, from: Data(contentsOf: url))
+        // Rules live in the contract file, cases in the sibling .cases.json.
+        struct RulesFile: Decodable { let lifecycleRules: LifecycleContract.Rules }
+        struct CasesFile: Decodable { let lifecycleCases: [LifecycleContract.Case] }
+        let rules = directory.appendingPathComponent("generation_parameter_contract.v1.json")
+        let cases = directory.appendingPathComponent("generation_parameter_contract.v1.cases.json")
+        return LifecycleContract(
+            lifecycleCases: try JSONDecoder().decode(CasesFile.self, from: Data(contentsOf: cases)).lifecycleCases,
+            lifecycleRules: try JSONDecoder().decode(RulesFile.self, from: Data(contentsOf: rules)).lifecycleRules
+        )
     }
 
     private static func loadStringsTable(_ name: String) throws -> [String: [String: String]] {

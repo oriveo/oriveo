@@ -535,10 +535,12 @@ function valueAtPath(source: unknown, key: string): unknown {
   }, source);
 }
 
+/** Rules and cases live in two files (cases in the sibling `.cases.json`); merge them here. */
 function loadContract(): GenerationParameterContract {
-  return JSON.parse(
-    readFileSync(findSharedContract('generation_parameter_contract.v1.json'), 'utf8'),
-  ) as GenerationParameterContract;
+  return {
+    ...JSON.parse(readFileSync(findSharedContract('generation_parameter_contract.v1.json'), 'utf8')),
+    ...JSON.parse(readFileSync(findSharedContract('generation_parameter_contract.v1.cases.json'), 'utf8')),
+  } as GenerationParameterContract;
 }
 
 function loadRequestShapeMetadata(): RuntimeMetadataResponse {

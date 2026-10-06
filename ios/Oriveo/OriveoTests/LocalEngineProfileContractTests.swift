@@ -3,8 +3,9 @@ import Testing
 @testable import Oriveo
 
 /// Engines that run a model on the user's own hardware: transports and parameter tables. Source of
-/// truth is `localEngineRules` / `localEngineProfiles` / `localEngineCases` /
-/// `llamacppMigrationCases` in the shared contract `generation_parameter_contract.v1.json`.
+/// truth is `localEngineRules` / `localEngineProfiles` in the shared contract
+/// `generation_parameter_contract.v1.json`, with `localEngineCases` / `llamacppMigrationCases` in
+/// the sibling `generation_parameter_contract.v1.cases.json`.
 @Suite("local engine profile contract", .serialized)
 @MainActor
 struct LocalEngineProfileContractTests {

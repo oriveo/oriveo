@@ -28,6 +28,7 @@ import java.nio.file.Path
 import javax.xml.parsers.DocumentBuilderFactory
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.doubleOrNull
@@ -771,12 +772,16 @@ class GenerationParameterLifecycleTest {
         )
     }
 
+    /** Rules and cases live in two files (cases in the sibling `.cases.json`); merge them before decoding. */
     private fun contractText(): String {
         val path: Path = generateSequence(Path.of(System.getProperty("user.dir"))) { it.parent }
             .map { it.resolve("shared/model-contracts/generation_parameter_contract.v1.json") }
             .firstOrNull(Files::exists)
             ?: error("generation_parameter_contract.v1.json not found")
-        return String(Files.readAllBytes(path), Charsets.UTF_8)
+        val casesPath = path.resolveSibling("generation_parameter_contract.v1.cases.json")
+        val rules = json.parseToJsonElement(String(Files.readAllBytes(path), Charsets.UTF_8)).jsonObject
+        val cases = json.parseToJsonElement(String(Files.readAllBytes(casesPath), Charsets.UTF_8)).jsonObject
+        return JsonObject(rules + cases.filterKeys { it != "\$comment" }).toString()
     }
 
     private val androidRoot: File by lazy {

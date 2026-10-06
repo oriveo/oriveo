@@ -44,7 +44,7 @@ data class GenerationParameterPartition(
  * whitelist, with relay unknown specially permitted". If the read side copied its own
  * version of that rule, you would get a summary claiming three values were retained
  * while one went out. So this mirrors the same predicate line for line, and
- * `shared/model-contracts/generation_parameter_contract.v1.json#lifecycleCases` locks
+ * `shared/model-contracts/generation_parameter_contract.v1.cases.json#lifecycleCases` locks
  * the two together, with `GenerationParameterLifecycleTest` as the consumer here.
  *
  * Dormant is a derived state, not a stored one: it is what the current profile on this
