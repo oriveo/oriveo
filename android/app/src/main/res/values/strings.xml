@@ -1481,7 +1481,7 @@
         <item quantity="one">%1$d tool on. Its description is sent with every request, about %2$s tokens, billed at your model’s price.</item>
         <item quantity="other">%1$d tools on. Their descriptions are sent with every request, about %2$s tokens, billed at your model’s price.</item>
     </plurals>
-    <string name="mcp_panel_footer_truncated">More than %1$d tools are on. Only the first %2$d will be sent.</string>
+    <string name="mcp_panel_footer_truncated">More than %1$d tools are on. Only %2$d will be sent, taken in turn from each server.</string>
     <string name="mcp_panel_manage">Manage MCP servers</string>
     <string name="mcp_panel_empty_title">No tools yet</string>
     <string name="mcp_panel_empty_body">Connect an MCP server and the model can look things up in Linear, write to Notion, or use tools you host yourself, right in the chat.</string>

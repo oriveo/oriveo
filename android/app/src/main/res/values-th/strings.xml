@@ -1421,7 +1421,7 @@
     <plurals name="mcp_panel_footer">
         <item quantity="other">เปิดอยู่ %1$d เครื่องมือ คำอธิบายเครื่องมือจะส่งไปพร้อมกับทุกคำขอ ประมาณ %2$s โทเค็น โดยคิดค่าใช้จ่ายตามราคาของโมเดลที่คุณใช้</item>
     </plurals>
-    <string name="mcp_panel_footer_truncated">เปิดเครื่องมือไว้เกิน %1$d รายการ ระบบจะส่งเฉพาะ %2$d รายการแรก</string>
+    <string name="mcp_panel_footer_truncated">เปิดเครื่องมือไว้เกิน %1$d รายการ ระบบจะส่งเพียง %2$d รายการ โดยเลือกจากแต่ละเซิร์ฟเวอร์สลับกันไป</string>
     <string name="mcp_panel_manage">จัดการเซิร์ฟเวอร์ MCP</string>
     <string name="mcp_panel_empty_title">ยังไม่มีเครื่องมือ</string>
     <string name="mcp_panel_empty_body">เชื่อมต่อเซิร์ฟเวอร์ MCP แล้วโมเดลจะค้นข้อมูลใน Linear เขียนลง Notion หรือใช้เครื่องมือที่คุณโฮสต์เองได้จากในแชทเลย</string>

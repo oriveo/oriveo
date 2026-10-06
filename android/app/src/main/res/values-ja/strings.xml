@@ -1466,7 +1466,7 @@
     <plurals name="mcp_panel_footer">
         <item quantity="other">%1$d 個のツールがオンです。ツールの説明はリクエストのたびに送信され、約 %2$s トークン分がお使いのモデルの料金で課金されます。</item>
     </plurals>
-    <string name="mcp_panel_footer_truncated">オンのツールが %1$d 個を超えています。送信されるのは最初の %2$d 個だけです。</string>
+    <string name="mcp_panel_footer_truncated">オンのツールが %1$d 個を超えています。送信されるのは %2$d 個だけで、各サーバーから順番に選ばれます。</string>
     <string name="mcp_panel_manage">MCP サーバーを管理</string>
     <string name="mcp_panel_empty_title">使えるツールがまだありません</string>
     <string name="mcp_panel_empty_body">MCP サーバーを接続すると、モデルがチャットの中で Linear を調べたり、Notion に書き込んだり、自分で用意したツールを使ったりできます。</string>

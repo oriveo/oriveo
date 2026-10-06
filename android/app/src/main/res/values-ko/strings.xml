@@ -1467,7 +1467,7 @@
     <plurals name="mcp_panel_footer">
         <item quantity="other">도구 %1$d개가 켜져 있습니다. 도구 설명은 요청할 때마다 함께 전송되며, 약 %2$s 토큰이 사용 중인 모델의 요금으로 청구됩니다.</item>
     </plurals>
-    <string name="mcp_panel_footer_truncated">켜진 도구가 %1$d개를 넘었습니다. 앞의 %2$d개만 전송됩니다.</string>
+    <string name="mcp_panel_footer_truncated">켜진 도구가 %1$d개를 넘었습니다. %2$d개만 전송되며, 각 서버에서 돌아가며 고릅니다.</string>
     <string name="mcp_panel_manage">MCP 서버 관리</string>
     <string name="mcp_panel_empty_title">아직 사용할 수 있는 도구가 없습니다</string>
     <string name="mcp_panel_empty_body">MCP 서버를 연결하면 모델이 대화 중에 Linear를 조회하거나 Notion에 글을 쓰고, 직접 운영하는 도구도 사용할 수 있습니다.</string>

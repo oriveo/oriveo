@@ -1421,7 +1421,7 @@
     <plurals name="mcp_panel_footer">
         <item quantity="other">Đang bật %1$d công cụ. Phần mô tả công cụ được gửi kèm mỗi yêu cầu, khoảng %2$s token, tính phí theo giá của mô hình bạn dùng.</item>
     </plurals>
-    <string name="mcp_panel_footer_truncated">Đang bật hơn %1$d công cụ. Chỉ %2$d công cụ đầu tiên được gửi đi.</string>
+    <string name="mcp_panel_footer_truncated">Đang bật hơn %1$d công cụ. Chỉ %2$d công cụ được gửi đi, lấy lần lượt từ từng máy chủ.</string>
     <string name="mcp_panel_manage">Quản lý máy chủ MCP</string>
     <string name="mcp_panel_empty_title">Chưa có công cụ nào</string>
     <string name="mcp_panel_empty_body">Kết nối một máy chủ MCP để mô hình có thể tra cứu trong Linear, ghi vào Notion hoặc dùng công cụ do bạn tự vận hành, ngay trong cuộc trò chuyện.</string>

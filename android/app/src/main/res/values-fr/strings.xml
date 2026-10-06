@@ -1472,7 +1472,7 @@
         <item quantity="many">%1$d outils activés. Leurs descriptions sont envoyées à chaque requête, soit environ %2$s tokens facturés au tarif de votre modèle.</item>
         <item quantity="other">%1$d outils activés. Leurs descriptions sont envoyées à chaque requête, soit environ %2$s tokens facturés au tarif de votre modèle.</item>
     </plurals>
-    <string name="mcp_panel_footer_truncated">Plus de %1$d outils sont activés. Seuls les %2$d premiers seront envoyés.</string>
+    <string name="mcp_panel_footer_truncated">Plus de %1$d outils sont activés. Seuls %2$d seront envoyés, pris à tour de rôle sur chaque serveur.</string>
     <string name="mcp_panel_manage">Gérer les serveurs MCP</string>
     <string name="mcp_panel_empty_title">Aucun outil pour l’instant</string>
     <string name="mcp_panel_empty_body">Connectez un serveur MCP, et le modèle pourra chercher dans Linear, écrire dans Notion ou utiliser des outils que vous hébergez vous-même, directement dans la conversation.</string>

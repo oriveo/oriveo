@@ -1479,7 +1479,7 @@
     <plurals name="mcp_panel_footer">
         <item quantity="other">已开启 %1$d 个工具。工具说明会随每次请求一起发送，约占 %2$s tokens，按你所用模型的价格计费。</item>
     </plurals>
-    <string name="mcp_panel_footer_truncated">已开启的工具超过 %1$d 个，只会带上前 %2$d 个。</string>
+    <string name="mcp_panel_footer_truncated">已开启的工具超过 %1$d 个，只会带上其中 %2$d 个，从各服务器轮流选取。</string>
     <string name="mcp_panel_manage">管理 MCP 服务器</string>
     <string name="mcp_panel_empty_title">还没有可用的工具</string>
     <string name="mcp_panel_empty_body">连接一个 MCP 服务器，模型就能在聊天里查 Linear、写 Notion，或者使用你自己搭建的工具。</string>

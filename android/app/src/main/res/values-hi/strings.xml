@@ -1424,7 +1424,7 @@
         <item quantity="one">%1$d टूल चालू है। टूल का विवरण हर अनुरोध के साथ भेजा जाता है, जो लगभग %2$s टोकन का होता है और आपके मॉडल की दर से बिल होता है।</item>
         <item quantity="other">%1$d टूल चालू हैं। टूल का विवरण हर अनुरोध के साथ भेजा जाता है, जो लगभग %2$s टोकन का होता है और आपके मॉडल की दर से बिल होता है।</item>
     </plurals>
-    <string name="mcp_panel_footer_truncated">%1$d से ज़्यादा टूल चालू हैं। सिर्फ़ पहले %2$d भेजे जाएँगे।</string>
+    <string name="mcp_panel_footer_truncated">%1$d से ज़्यादा टूल चालू हैं। सिर्फ़ %2$d भेजे जाएँगे, जो हर सर्वर से बारी-बारी से लिए जाएँगे।</string>
     <string name="mcp_panel_manage">MCP सर्वर प्रबंधित करें</string>
     <string name="mcp_panel_empty_title">अभी कोई टूल नहीं है</string>
     <string name="mcp_panel_empty_body">कोई MCP सर्वर कनेक्ट करें, फिर मॉडल चैट के अंदर ही Linear में खोज सकेगा, Notion में लिख सकेगा या आपके अपने होस्ट किए टूल चला सकेगा।</string>

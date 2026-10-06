@@ -1469,7 +1469,7 @@
         <item quantity="one">%1$d Tool aktiv. Seine Beschreibung wird mit jeder Anfrage gesendet, etwa %2$s Token, abgerechnet zum Preis deines Modells.</item>
         <item quantity="other">%1$d Tools aktiv. Ihre Beschreibungen werden mit jeder Anfrage gesendet, etwa %2$s Token, abgerechnet zum Preis deines Modells.</item>
     </plurals>
-    <string name="mcp_panel_footer_truncated">Es sind mehr als %1$d Tools aktiv. Gesendet werden nur die ersten %2$d.</string>
+    <string name="mcp_panel_footer_truncated">Es sind mehr als %1$d Tools aktiv. Gesendet werden nur %2$d, reihum von jedem Server ausgewählt.</string>
     <string name="mcp_panel_manage">MCP-Server verwalten</string>
     <string name="mcp_panel_empty_title">Noch keine Tools</string>
     <string name="mcp_panel_empty_body">Verbinde einen MCP-Server, und das Modell kann direkt im Chat in Linear nachschlagen, in Notion schreiben oder Tools nutzen, die du selbst betreibst.</string>

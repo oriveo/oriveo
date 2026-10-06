@@ -1481,7 +1481,7 @@
         <item quantity="many">عدد الأدوات المفعّلة: %1$d. تُرسل أوصاف الأدوات مع كل طلب، بما يعادل نحو %2$s رمز تُحتسب بسعر نموذجك.</item>
         <item quantity="other">عدد الأدوات المفعّلة: %1$d. تُرسل أوصاف الأدوات مع كل طلب، بما يعادل نحو %2$s رمز تُحتسب بسعر نموذجك.</item>
     </plurals>
-    <string name="mcp_panel_footer_truncated">عدد الأدوات المفعّلة يتجاوز %1$d. لن يُرسل سوى أول %2$d منها.</string>
+    <string name="mcp_panel_footer_truncated">عدد الأدوات المفعّلة يتجاوز %1$d. لن يُرسل منها سوى %2$d، تُؤخذ بالتناوب من كل خادم.</string>
     <string name="mcp_panel_manage">إدارة خوادم MCP</string>
     <string name="mcp_panel_empty_title">لا توجد أدوات بعد</string>
     <string name="mcp_panel_empty_body">اربط خادم MCP ليتمكن النموذج من البحث في Linear أو الكتابة في Notion أو استخدام أدوات تستضيفها بنفسك، من داخل المحادثة مباشرة.</string>

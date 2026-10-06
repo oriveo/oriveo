@@ -1424,7 +1424,7 @@
         <item quantity="one">%1$d araç açık. Araç açıklamaları her istekle birlikte gönderilir; yaklaşık %2$s token tutar ve modelinizin fiyatı üzerinden ücretlendirilir.</item>
         <item quantity="other">%1$d araç açık. Araç açıklamaları her istekle birlikte gönderilir; yaklaşık %2$s token tutar ve modelinizin fiyatı üzerinden ücretlendirilir.</item>
     </plurals>
-    <string name="mcp_panel_footer_truncated">%1$d taneden fazla araç açık. Yalnızca ilk %2$d tanesi gönderilecek.</string>
+    <string name="mcp_panel_footer_truncated">%1$d taneden fazla araç açık. Yalnızca %2$d tanesi gönderilecek; bunlar her sunucudan sırayla seçilir.</string>
     <string name="mcp_panel_manage">MCP sunucularını yönet</string>
     <string name="mcp_panel_empty_title">Henüz araç yok</string>
     <string name="mcp_panel_empty_body">Bir MCP sunucusu bağlayın; model sohbetin içinde Linear’da arama yapabilsin, Notion’a yazabilsin veya kendi barındırdığınız araçları kullanabilsin.</string>

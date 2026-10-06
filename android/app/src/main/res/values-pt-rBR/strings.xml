@@ -1472,7 +1472,7 @@
         <item quantity="many">%1$d ferramentas ativadas. As descrições delas são enviadas a cada solicitação: cerca de %2$s tokens, cobrados pelo preço do seu modelo.</item>
         <item quantity="other">%1$d ferramentas ativadas. As descrições delas são enviadas a cada solicitação: cerca de %2$s tokens, cobrados pelo preço do seu modelo.</item>
     </plurals>
-    <string name="mcp_panel_footer_truncated">Há mais de %1$d ferramentas ativadas. Só as primeiras %2$d serão enviadas.</string>
+    <string name="mcp_panel_footer_truncated">Há mais de %1$d ferramentas ativadas. Só %2$d serão enviadas, escolhidas de cada servidor, em rodízio.</string>
     <string name="mcp_panel_manage">Gerenciar servidores MCP</string>
     <string name="mcp_panel_empty_title">Ainda não há ferramentas</string>
     <string name="mcp_panel_empty_body">Conecte um servidor MCP e o modelo poderá consultar o Linear, escrever no Notion ou usar ferramentas que você mesmo hospeda, direto no chat.</string>

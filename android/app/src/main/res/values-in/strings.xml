@@ -1421,7 +1421,7 @@
     <plurals name="mcp_panel_footer">
         <item quantity="other">%1$d alat aktif. Deskripsi alat dikirim bersama setiap permintaan, sekitar %2$s token, dan ditagih sesuai harga model Anda.</item>
     </plurals>
-    <string name="mcp_panel_footer_truncated">Lebih dari %1$d alat aktif. Hanya %2$d alat pertama yang akan dikirim.</string>
+    <string name="mcp_panel_footer_truncated">Lebih dari %1$d alat aktif. Hanya %2$d yang akan dikirim, diambil bergiliran dari setiap server.</string>
     <string name="mcp_panel_manage">Kelola server MCP</string>
     <string name="mcp_panel_empty_title">Belum ada alat</string>
     <string name="mcp_panel_empty_body">Hubungkan server MCP, lalu model bisa mencari di Linear, menulis ke Notion, atau memakai alat yang Anda kelola sendiri, langsung dari chat.</string>
