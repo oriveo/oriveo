@@ -178,7 +178,7 @@ export interface McpPlannedTool {
 /** The MCP tools and lookup table for this request. Empty = the request carries no MCP tools. */
 export interface McpToolPlan {
   tools: McpPlannedTool[];
-  /** More usable tools than `maxToolsPerRequest`; the tail was cut in server enable order. */
+  /** More usable tools than `maxToolsPerRequest`; servers took turns and the tools left over were dropped. */
   truncated: boolean;
   /** Lookup table. Names coming back from the model are resolved here only; a miss means "not in the registry". */
   nameTable: ReadonlyMap<string, McpToolBinding>;
@@ -188,7 +188,8 @@ export const EMPTY_MCP_TOOL_PLAN: McpToolPlan = Object.freeze({ tools: [], trunc
 
 /**
  * Assembles the tools usable right now: enabled servers (in enable order) ∩ usable connection, minus
- * tools that are set to "off", quarantined or oversized; truncated above `maxToolsPerRequest`. A server
+ * tools that are set to "off", quarantined or oversized. Above `maxToolsPerRequest` the budget is dealt
+ * out one tool per server per round, so every server keeps a share whatever its catalog size. A server
  * that needs a new sign-in (`needsAuth`) is excluded as a whole. Empty when `enabled` is false (master
  * switch off).
  */
@@ -196,13 +197,15 @@ export function planMcpTools(servers: readonly McpBridgeServerInput[], runtimeCo
   if (!runtimeConfig.enabled || servers.length === 0) return EMPTY_MCP_TOOL_PLAN;
   const tools: McpPlannedTool[] = [];
   const nameTable = new Map<string, McpToolBinding>();
-  let truncated = false;
-  serverLoop: for (const server of servers) {
+  const groups: McpPlannedTool[][] = [];
+  const taken = new Set<string>();
+  for (const server of servers) {
     if (server.connectionStatus === 'needsAuth') continue;
     // Only https URLs are accepted; stored records already passed validation, this guards the invariant.
     if (tryParseUrl(server.record.url)?.protocol !== 'https:') continue;
     const outbound = outboundToolSnapshots(server.snapshots, server.permissions);
     const names = outbound.map((snapshot) => snapshot.toolName);
+    const group: McpPlannedTool[] = [];
     for (const snapshot of outbound) {
       const name = outboundToolName({
         slug: server.record.slug,
@@ -212,15 +215,11 @@ export function planMcpTools(servers: readonly McpBridgeServerInput[], runtimeCo
       }).name;
       // Slugs are unique across servers so this should not collide; if it ever does, keep only the first
       // enabled one - a single name must never point at two targets.
-      if (nameTable.has(name)) continue;
-      if (tools.length >= runtimeConfig.maxToolsPerRequest) {
-        truncated = true;
-        break serverLoop;
-      }
+      if (taken.has(name)) continue;
+      taken.add(name);
       const stored = server.permissions[snapshot.toolName] ?? defaultPermissionFor(snapshot.readOnly);
       const binding: McpToolBinding = { outboundName: name, serverId: server.record.id, toolName: snapshot.toolName };
-      nameTable.set(name, binding);
-      tools.push({
+      group.push({
         binding,
         server: server.record,
         endpoint: server.record.url,
@@ -237,8 +236,22 @@ export function planMcpTools(servers: readonly McpBridgeServerInput[], runtimeCo
         },
       });
     }
+    if (group.length) groups.push(group);
   }
-  return { tools, truncated, nameTable };
+  // Each round takes one tool from every server, so a large catalog cannot use up the whole budget
+  // before a server enabled later gets a turn. Names are de-duplicated above, in enable order and
+  // before the budget applies, so which tool a colliding name is bound to never depends on the budget.
+  const eligibleCount = groups.reduce((sum, group) => sum + group.length, 0);
+  for (let round = 0; tools.length < Math.min(eligibleCount, runtimeConfig.maxToolsPerRequest); round += 1) {
+    for (const group of groups) {
+      const tool = group[round];
+      if (!tool) continue;
+      if (tools.length >= runtimeConfig.maxToolsPerRequest) break;
+      tools.push(tool);
+      nameTable.set(tool.binding.outboundName, tool.binding);
+    }
+  }
+  return { tools, truncated: eligibleCount > tools.length, nameTable };
 }
 
 // ── Revalidation before execution ────────────────────────────────────────

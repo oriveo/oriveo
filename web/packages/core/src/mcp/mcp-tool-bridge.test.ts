@@ -301,14 +301,30 @@ describe('assembling the tools available for this request', () => {
     expect(planMcpTools([input({ record: record({ url: 'http://mcp.example.com/mcp' }) })], MCP_RUNTIME_CONFIG_FALLBACK).tools).toEqual([]);
   });
 
-  it('beyond maxToolsPerRequest the list is truncated in the order servers were enabled', () => {
+  it('beyond maxToolsPerRequest the servers take turns, one tool each per round', () => {
     const second = '00000000-0000-4000-8000-0000000000b2';
     const plan = planMcpTools([
       input({ snapshots: [snapshot('a'), snapshot('b')] }),
       input({ record: record({ id: second, slug: 'second' }), snapshots: [snapshot('c', { serverId: second }), snapshot('d', { serverId: second })] }),
     ], { ...MCP_RUNTIME_CONFIG_FALLBACK, maxToolsPerRequest: 3 });
     expect(plan.truncated).toBe(true);
-    expect(plan.tools.map((tool) => tool.binding.outboundName)).toEqual(['mcp_weather_a', 'mcp_weather_b', 'mcp_second_c']);
+    expect(plan.tools.map((tool) => tool.binding.outboundName)).toEqual(['mcp_weather_a', 'mcp_second_c', 'mcp_weather_b']);
+  });
+
+  it('a large catalog does not starve a server enabled later; a server with no usable tools takes no share, and tools left out are not in the lookup table', () => {
+    const second = '00000000-0000-4000-8000-0000000000b2';
+    const large = input({ snapshots: Array.from({ length: 45 }, (_, i) => snapshot(`tool_${i}`)) });
+    const later = input({ record: record({ id: second, slug: 'notion' }), snapshots: [snapshot('search'), snapshot('fetch')] });
+    const empty = input({ snapshots: [snapshot('off')], permissions: { off: 'off' } });
+    const plan = planMcpTools([large, empty, later], { ...MCP_RUNTIME_CONFIG_FALLBACK, maxToolsPerRequest: 4 });
+    expect(plan.tools.map((tool) => tool.binding.toolName)).toEqual(['tool_0', 'search', 'tool_1', 'fetch']);
+    expect(plan.nameTable.size).toBe(4);
+    expect(plan.nameTable.has('mcp_weather_tool_2')).toBe(false);
+    expect(plan.truncated).toBe(true);
+    const full = planMcpTools([large, later], { ...MCP_RUNTIME_CONFIG_FALLBACK, maxToolsPerRequest: 47 });
+    expect(full.tools).toHaveLength(47);
+    expect(full.truncated).toBe(false);
+    expect(planMcpTools([large, later], { ...MCP_RUNTIME_CONFIG_FALLBACK, maxToolsPerRequest: 0 }).tools).toEqual([]);
   });
 
   it('tools of one server that collide after sanitizing each get a hash suffix; the lookup table points back to each original name', () => {
