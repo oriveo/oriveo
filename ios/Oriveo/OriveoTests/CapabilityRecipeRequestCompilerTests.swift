@@ -173,7 +173,7 @@ struct CapabilityRecipeRequestCompilerTests {
                     finalRequest: request, effectiveTransport: runtimeTransport
                 )
             }
-            #expect(applied, "\(item.caseId) resolver reported a conflict")
+            #expect(applied.isClean, "\(item.caseId) resolver reported a conflict")
             if item.expectInject {
                 #expect(
                     body["temperature"] as? Double == 0.31,

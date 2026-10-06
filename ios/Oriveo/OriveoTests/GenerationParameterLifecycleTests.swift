@@ -164,7 +164,7 @@ struct GenerationParameterLifecycleTests {
                 ),
                 finalRequest: request,
                 effectiveTransport: RelayTransport.openaiChatCompletions.rawValue
-            ))
+            ).isClean)
         }
         #expect(body["temperature"] == nil)
 
@@ -323,7 +323,7 @@ struct GenerationParameterLifecycleTests {
             finalRequest: URLRequest(url: URL(string: "https://relay.test/v1/messages")!),
             effectiveTransport: RelayTransport.anthropicMessages.rawValue
         ) }
-        #expect(applied)
+        #expect(applied.isClean)
         #expect(body["temperature"] as? Double == 0.4)
         #expect(body["frequency_penalty"] == nil)
 
@@ -426,7 +426,7 @@ struct GenerationParameterLifecycleTests {
             ),
             finalRequest: URLRequest(url: URL(string: "https://relay.test/v1/chat/completions")!),
             effectiveTransport: RelayTransport.openaiChatCompletions.rawValue
-        ) })
+        ) }.isClean)
         #expect(body["frequency_penalty"] as? Double == 0.5)
 
         #expect(presets.apply(
@@ -634,7 +634,7 @@ struct GenerationParameterLifecycleTests {
                 effectiveTransport: transport
             )
         }
-        #expect(applied)
+        #expect(applied.isClean)
         return body
     }
 

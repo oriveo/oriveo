@@ -31,6 +31,40 @@ enum GenerationWireDiagnostics {
     }
 }
 
+/// Per-item outcome of the generation-parameter writer. The rules live in the shared contract
+/// `generation_parameter_contract.v1.json#outboundRules`: an invalid item drops only itself, and
+/// the list is returned so the interface can point at it.
+struct GenerationParameterApplication: Equatable, Sendable {
+    enum DropReason: String, CaseIterable, Equatable, Sendable {
+        case invalidValue = "invalid_value"
+        case conflict
+        case requirementUnmet = "requirement_unmet"
+        case requiredField = "required_field"
+        case thinkingIncompatible = "thinking_incompatible"
+        case thinkingBudget = "thinking_budget"
+    }
+
+    struct Dropped: Equatable, Sendable {
+        let parameterID: String
+        let reason: DropReason
+    }
+
+    /// Sorted by parameterID, the same order every client and the contract cases use.
+    private(set) var dropped: [Dropped] = []
+    /// Wire path → parameter ID for values the user set explicitly in this request, so a later
+    /// guard can attribute a change back to its parameter.
+    var appliedWirePaths: [String: String] = [:]
+
+    /// Nothing was dropped.
+    var isClean: Bool { dropped.isEmpty }
+
+    mutating func drop(_ parameterID: String, _ reason: DropReason) {
+        guard !dropped.contains(where: { $0.parameterID == parameterID }) else { return }
+        dropped.append(.init(parameterID: parameterID, reason: reason))
+        dropped.sort { $0.parameterID < $1.parameterID }
+    }
+}
+
 enum ProfileParamsResolver {
     enum WireRejectionReason: String, Equatable, Sendable {
         case blockedSegment = "blocked_segment"
@@ -45,6 +79,16 @@ enum ProfileParamsResolver {
         "model", "messages", "input", "contents", "prompt", "attachments", "instructions", "system", "stream", "stream_options", "tools", "tool_choice", "plugins",
     ]
     private static let jsonSchemaMaxBytes = 64 * 1024
+    // Per-item evaluation constants (shared contract #outboundRules; reconciled by contract tests).
+    /// Presence keys the builder already wrote into the body: they take part in conflict
+    /// evaluation but are not user parameters.
+    static let builderPresenceKeys = ["tools"]
+    /// Wire fields the upstream requires: `omit` must not remove them, the builder default stays.
+    static let requiredWireFields: [String: Set<String>] = ["anthropic_messages": ["max_tokens"]]
+    static let anthropicThinkingActiveTypes: Set<String> = ["enabled", "adaptive"]
+    static let anthropicThinkingDroppedParameters = ["temperature", "top_k"]
+    static let anthropicThinkingTopPMin = 0.95
+    static let anthropicThinkingMaxTokensHeadroom = 4096
 
     static func wireRejectionReason(_ wirePath: String) -> WireRejectionReason? {
         let segments = wirePath.components(separatedBy: ".")
@@ -66,6 +110,9 @@ enum ProfileParamsResolver {
         ("a"..."z").contains(scalar) || ("A"..."Z").contains(scalar) || scalar == "_"
     }
 
+    /// The single writer for generation parameters. Evaluation is per item: a parameter with an
+    /// invalid value, a conflict or an unmet requirement drops only itself and the rest is still
+    /// written; the result lists what was dropped.
     @discardableResult
     static func applyGenerationParameters(
         to body: inout [String: Any],
@@ -73,8 +120,9 @@ enum ProfileParamsResolver {
         profile: GenerationProfileRef? = nil,
         finalRequest: URLRequest? = nil,
         effectiveTransport: String? = nil
-    ) -> Bool {
-        guard let overrides = options.generationParameters?.values else { return true }
+    ) -> GenerationParameterApplication {
+        var application = GenerationParameterApplication()
+        guard let overrides = options.generationParameters?.values else { return application }
 
         let requestedProfile = profile ?? options.generationProfile
         let transport = effectiveTransport ?? requestedProfile?.transport ?? ""
@@ -106,7 +154,7 @@ enum ProfileParamsResolver {
                    runtimeTemplate: authorization.template,
                    profileTemplate: finalProfile?.template
                ) {
-                return true
+                return application
             }
             runtimeGenerationAuthorized = authorization.runtimeDelivered
             runtimeGenerationRecipe = authorization.recipe
@@ -135,7 +183,7 @@ enum ProfileParamsResolver {
         guard let profile = (runtimeGenerationAuthorized ? finalProfile : projection.profile),
               let wire = profile.wire,
               !wire.isEmpty else {
-            return true
+            return application
         }
         func permitsOutbound(_ key: String) -> Bool {
             if runtimeGenerationAuthorized {
@@ -169,40 +217,20 @@ enum ProfileParamsResolver {
             recipeRef: runtimeGenerationRecipe?.id,
             runtimeRevision: runtimeGenerationEnvelope?.revision ?? "",
             descriptor: CapabilityRecipeResendContext.recoveryDescriptor
-        ) else { return true }
+        ) else { return application }
         func isOmitted(_ key: String) -> Bool {
             pointer(for: key).map(pointersToOmit.contains) ?? false
         }
 
-        var active = Set(overrides.compactMap { key, override in
-            override.state == .value && permitsOutbound(key) && !isOmitted(key) ? key : nil
-        })
-        if body["tools"] is [Any] { active.insert("tools") }
-        if profile.parameters?.contains(where: { parameter in
-            guard let id = parameter.id, active.contains(id) else { return false }
-            return parameter.conflictsWith?.contains(where: active.contains) == true
-        }) == true {
-            return false
+        let candidates = overrides.filter { key, override in
+            override.state == .value && permitsOutbound(key) && !isOmitted(key)
         }
-        if profile.parameters?.contains(where: { parameter in
-            guard let id = parameter.id, active.contains(id) else { return false }
-            return parameter.requires?.contains(where: { requirement in
-                guard case .string(let key)? = requirement["key"] else { return true }
-                guard active.contains(key) else { return true }
-                if let expected = requirement["value"],
-                   overrides[key]?.value != expected { return true }
-                return false
-            }) == true
-        }) == true { return false }
-
-        for (key, override) in overrides where override.state == .value {
-            guard permitsOutbound(key), !isOmitted(key) else { continue }
-            guard let value = override.value else {
-                return false
-            }
-            if let parameter = profile.parameters?.first(where: { $0.id == key }),
-               !isValidGenerationValue(value, for: parameter) { return false }
-        }
+        let presence = Set(builderPresenceKeys.filter { body[$0] is [Any] })
+        let evaluation = evaluateOutbound(candidates: candidates, profile: profile, builderPresence: presence)
+        for (key, reason) in evaluation.dropped { application.drop(key, reason) }
+        let kept = evaluation.kept
+        let active = kept.union(presence)
+        let required = requiredWireFields[profile.template ?? ""] ?? []
 
         var appliedPointers = Set<String>()
         for (key, override) in overrides {
@@ -218,9 +246,14 @@ enum ProfileParamsResolver {
             case .inherit:
                 break
             case .omit:
+                if required.contains(wirePath) {
+                    application.drop(key, .requiredField)
+                    continue
+                }
                 removeValue(in: &body, path: wirePath.split(separator: ".").map(String.init))
             case .value:
-                guard let rawValue = override.value else { continue }
+                guard kept.contains(key), let rawValue = override.value else { continue }
+                application.appliedWirePaths[wirePath] = key
                 applySpecializedOutputContract(
                     rawValue,
                     parameterID: key,
@@ -241,11 +274,107 @@ enum ProfileParamsResolver {
                     $0.dropFirst().split(separator: "/").first.map(String.init)
                 }),
                 ownedPointers: appliedPointers,
-                capabilityKeys: Set(active),
+                capabilityKeys: active,
                 includeExecutionFact: false
             )
         }
-        return true
+        return application
+    }
+
+    /// The pure part of per-item evaluation (it never touches the body, so the interface can reuse
+    /// it): invalid values go first, then items are admitted in the order the profile declares
+    /// them. A later item that conflicts with an admitted one or with a builder presence key is
+    /// dropped, and an item whose requirement is unmet drops only itself.
+    static func evaluateOutbound(
+        candidates: [String: GenerationParameterOverride],
+        profile: GenerationProfileRef,
+        builderPresence: Set<String>
+    ) -> (kept: Set<String>, dropped: [String: GenerationParameterApplication.DropReason]) {
+        var dropped: [String: GenerationParameterApplication.DropReason] = [:]
+        var definitions: [String: GenerationParameterRef] = [:]
+        var declaredOrder: [String] = []
+        for parameter in profile.parameters ?? [] {
+            guard let id = parameter.id, definitions[id] == nil else { continue }
+            definitions[id] = parameter
+            declaredOrder.append(id)
+        }
+        var valid: Set<String> = []
+        for (key, override) in candidates {
+            guard let value = override.value,
+                  definitions[key].map({ isValidGenerationValue(value, for: $0) }) ?? true else {
+                dropped[key] = .invalidValue
+                continue
+            }
+            valid.insert(key)
+        }
+        let order = declaredOrder.filter(valid.contains)
+            + valid.subtracting(declaredOrder).sorted()
+        var kept: [String] = []
+        for key in order {
+            let occupied = Set(kept).union(builderPresence)
+            let declaresConflict = definitions[key]?.conflictsWith?.contains(where: occupied.contains) == true
+            let isConflictedBy = kept.contains { definitions[$0]?.conflictsWith?.contains(key) == true }
+            if declaresConflict || isConflictedBy {
+                dropped[key] = .conflict
+            } else {
+                kept.append(key)
+            }
+        }
+        // Dropping one item can leave another item's requirement unmet, so iterate to a fixed
+        // point; a profile has at most a few dozen parameters, so the cost is negligible.
+        var changed = true
+        while changed {
+            changed = false
+            let active = Set(kept).union(builderPresence)
+            for key in kept {
+                let unmet = definitions[key]?.requires?.contains(where: { requirement in
+                    guard case .string(let required)? = requirement["key"], active.contains(required) else { return true }
+                    if let expected = requirement["value"], candidates[required]?.value != expected { return true }
+                    return false
+                }) == true
+                guard unmet else { continue }
+                dropped[key] = .requirementUnmet
+                kept.removeAll { $0 == key }
+                changed = true
+                break
+            }
+        }
+        return (Set(kept), dropped)
+    }
+
+    /// Keeps an Anthropic request valid while thinking is on (shared contract
+    /// #outboundRules.anthropicThinking). The capability writer adds the thinking fields after the
+    /// generation parameters, so call this once it has run; with thinking off nothing changes.
+    @discardableResult
+    static func applyAnthropicThinkingGuard(
+        to body: inout [String: Any],
+        application: GenerationParameterApplication,
+        builderDefaultMaxTokens: Int?
+    ) -> GenerationParameterApplication {
+        var application = application
+        guard let thinking = body["thinking"] as? [String: Any],
+              let type = thinking["type"] as? String,
+              anthropicThinkingActiveTypes.contains(type) else { return application }
+        func strip(_ wirePath: String) {
+            guard body[wirePath] != nil else { return }
+            body.removeValue(forKey: wirePath)
+            if let parameterID = application.appliedWirePaths.removeValue(forKey: wirePath) {
+                application.drop(parameterID, .thinkingIncompatible)
+            }
+        }
+        anthropicThinkingDroppedParameters.forEach(strip)
+        if let topP = (body["top_p"] as? NSNumber)?.doubleValue, topP < anthropicThinkingTopPMin {
+            strip("top_p")
+        }
+        guard let budget = (thinking["budget_tokens"] as? NSNumber)?.intValue,
+              let maxTokens = (body["max_tokens"] as? NSNumber)?.intValue,
+              maxTokens <= budget else { return application }
+        if let parameterID = application.appliedWirePaths.removeValue(forKey: "max_tokens") {
+            application.drop(parameterID, .thinkingBudget)
+        }
+        let fallback = builderDefaultMaxTokens ?? 0
+        body["max_tokens"] = fallback > budget ? fallback : budget + anthropicThinkingMaxTokensHeadroom
+        return application
     }
 
     private static func applySpecializedOutputContract(

@@ -2724,5 +2724,4423 @@
       "Neither saving nor applying a preset **filters values by the current device's active/dormant judgment**: dormancy is a locally derived state, and using it to trim a preset that gets synced elsewhere would let device A's profile turn off a value on device B that B could still send; also, when the profile can't be evaluated at all, every value is judged dormant, so filtering by active would save the preset as empty.",
       "Once applied, the values that land in a scope record are judged field by field by this same table as usual: the ones that don't take effect stay in storage and count toward the dormant-value summary the panel shows, with the outbound gate guaranteeing they are not sent."
     ]
-  }
+  },
+  "outboundRules": {
+    "$comment": "Per-item evaluation in the outbound writer. An invalid item drops only itself and everything else is still sent; the writer returns the list of dropped items (parameterId + reason) so the interface can mark them, instead of expressing the problem as a failure of the whole group. Every client's applyGenerationParameters implementation must pass each entry in outboundCases.",
+    "evaluation": "per_item",
+    "dropReasons": [
+      "invalid_value",
+      "conflict",
+      "requirement_unmet",
+      "required_field",
+      "thinking_incompatible",
+      "thinking_budget"
+    ],
+    "invalidValue": "state=value with no value, a type that does not match valueSchema, a value outside range, or one not in enumValues → reason=invalid_value, and only that item is dropped; numbers are never silently clamped or rounded (that would be a silent substitution)",
+    "conflict": {
+      "order": "profile_parameter_order",
+      "rule": "Items are admitted one by one in the order profile.parameters declares them; a later item that declares conflictsWith against an already admitted item or a presence key the builder already wrote (either direction counts) is dropped with reason=conflict",
+      "symmetric": true,
+      "builderPresenceKeys": [
+        "tools"
+      ],
+      "invalidItemsDoNotConflict": "An item already dropped for invalid_value takes no part in conflict evaluation and must not push any other item out"
+    },
+    "requires": "An item whose requires is not satisfied drops only itself, reason=requirement_unmet",
+    "requiredWireFields": {
+      "anthropic_messages": [
+        "max_tokens"
+      ]
+    },
+    "requiredField": "state=omit on one of this template's requiredWireFields does not remove the field: the default the builder wrote stays as is, reason=required_field; state=value is unaffected",
+    "anthropicThinking": {
+      "appliesToTemplate": "anthropic_messages",
+      "evaluatedAfter": "capability_writer",
+      "activeWhen": {
+        "path": "thinking.type",
+        "in": [
+          "enabled",
+          "adaptive"
+        ]
+      },
+      "dropParameters": [
+        "temperature",
+        "top_k"
+      ],
+      "topPMin": 0.95,
+      "maxTokensMustExceedPath": "thinking.budget_tokens",
+      "maxTokensRestore": "builder_default",
+      "maxTokensFloorHeadroom": 4096,
+      "notes": [
+        "While thinking is on, a user-set temperature or top_k is not sent, and a top_p below topPMin is not sent, reason=thinking_incompatible",
+        "A user-set max tokens that is not greater than the thinking budget is not sent (reason=thinking_budget) and max_tokens goes back to the builder default; if the default is still not greater than the budget, it becomes budget + maxTokensFloorHeadroom",
+        "Thinking is written by the capability writer after the generation parameters, so this rule must be evaluated once that writer has finished; with thinking off this rule changes no field"
+      ]
+    },
+    "valueSources": {
+      "$comment": "The resolved result carries its source so the conversation screen can show the value actually in effect. layer is the overridePriority layer name; presentation is one of the three source words the interface uses. An explicit omit carries its source layer too.",
+      "presentation": {
+        "single_send": "conversation",
+        "conversation_connection_model": "conversation",
+        "connection_model": "model_default",
+        "connection": "model_default",
+        "provider_default": "provider_decides"
+      }
+    },
+    "droppedOrder": "By code-point order of parameterId"
+  },
+  "outboundCases": [
+    {
+      "caseId": "per_item.out_of_range_drops_only_that_item",
+      "profile": {
+        "template": "openai_chat_completions",
+        "parameters": [
+          {
+            "id": "max_output_tokens",
+            "valueSchema": "integer",
+            "range": {
+              "min": 1,
+              "max": 4096
+            }
+          },
+          {
+            "id": "temperature",
+            "valueSchema": "number",
+            "range": {
+              "min": 0,
+              "max": 2
+            }
+          },
+          {
+            "id": "top_p",
+            "valueSchema": "number",
+            "range": {
+              "minExclusive": 0,
+              "max": 1
+            }
+          },
+          {
+            "id": "seed",
+            "valueSchema": "integer"
+          },
+          {
+            "id": "stop",
+            "valueSchema": "string-list"
+          },
+          {
+            "id": "logprobs",
+            "valueSchema": "boolean"
+          },
+          {
+            "id": "response_format",
+            "valueSchema": "enum",
+            "enumValues": [
+              "text",
+              "json"
+            ]
+          },
+          {
+            "id": "json_schema",
+            "valueSchema": "json-schema",
+            "conflictsWith": [
+              "tools",
+              "response_format"
+            ]
+          }
+        ],
+        "wire": {
+          "max_output_tokens": "max_tokens",
+          "temperature": "temperature",
+          "top_p": "top_p",
+          "seed": "seed",
+          "stop": "stop",
+          "logprobs": "logprobs",
+          "response_format": "response_format",
+          "json_schema": "response_format"
+        }
+      },
+      "body": {
+        "model": "fixture-chat",
+        "messages": [
+          {
+            "role": "user",
+            "content": "hello"
+          }
+        ]
+      },
+      "overrides": {
+        "temperature": {
+          "state": "value",
+          "value": 5
+        },
+        "top_p": {
+          "state": "value",
+          "value": 0.9
+        },
+        "seed": {
+          "state": "value",
+          "value": 42
+        }
+      },
+      "expect": {
+        "body": {
+          "model": "fixture-chat",
+          "messages": [
+            {
+              "role": "user",
+              "content": "hello"
+            }
+          ],
+          "top_p": 0.9,
+          "seed": 42
+        },
+        "dropped": [
+          {
+            "parameterId": "temperature",
+            "reason": "invalid_value"
+          }
+        ]
+      }
+    },
+    {
+      "caseId": "per_item.non_integer_drops_only_that_item",
+      "profile": {
+        "template": "openai_chat_completions",
+        "parameters": [
+          {
+            "id": "max_output_tokens",
+            "valueSchema": "integer",
+            "range": {
+              "min": 1,
+              "max": 4096
+            }
+          },
+          {
+            "id": "temperature",
+            "valueSchema": "number",
+            "range": {
+              "min": 0,
+              "max": 2
+            }
+          },
+          {
+            "id": "top_p",
+            "valueSchema": "number",
+            "range": {
+              "minExclusive": 0,
+              "max": 1
+            }
+          },
+          {
+            "id": "seed",
+            "valueSchema": "integer"
+          },
+          {
+            "id": "stop",
+            "valueSchema": "string-list"
+          },
+          {
+            "id": "logprobs",
+            "valueSchema": "boolean"
+          },
+          {
+            "id": "response_format",
+            "valueSchema": "enum",
+            "enumValues": [
+              "text",
+              "json"
+            ]
+          },
+          {
+            "id": "json_schema",
+            "valueSchema": "json-schema",
+            "conflictsWith": [
+              "tools",
+              "response_format"
+            ]
+          }
+        ],
+        "wire": {
+          "max_output_tokens": "max_tokens",
+          "temperature": "temperature",
+          "top_p": "top_p",
+          "seed": "seed",
+          "stop": "stop",
+          "logprobs": "logprobs",
+          "response_format": "response_format",
+          "json_schema": "response_format"
+        }
+      },
+      "body": {
+        "model": "fixture-chat",
+        "messages": [
+          {
+            "role": "user",
+            "content": "hello"
+          }
+        ]
+      },
+      "overrides": {
+        "max_output_tokens": {
+          "state": "value",
+          "value": 0.5
+        },
+        "temperature": {
+          "state": "value",
+          "value": 0.3
+        }
+      },
+      "expect": {
+        "body": {
+          "model": "fixture-chat",
+          "messages": [
+            {
+              "role": "user",
+              "content": "hello"
+            }
+          ],
+          "temperature": 0.3
+        },
+        "dropped": [
+          {
+            "parameterId": "max_output_tokens",
+            "reason": "invalid_value"
+          }
+        ]
+      }
+    },
+    {
+      "caseId": "per_item.wrong_type_drops_only_that_item",
+      "profile": {
+        "template": "openai_chat_completions",
+        "parameters": [
+          {
+            "id": "max_output_tokens",
+            "valueSchema": "integer",
+            "range": {
+              "min": 1,
+              "max": 4096
+            }
+          },
+          {
+            "id": "temperature",
+            "valueSchema": "number",
+            "range": {
+              "min": 0,
+              "max": 2
+            }
+          },
+          {
+            "id": "top_p",
+            "valueSchema": "number",
+            "range": {
+              "minExclusive": 0,
+              "max": 1
+            }
+          },
+          {
+            "id": "seed",
+            "valueSchema": "integer"
+          },
+          {
+            "id": "stop",
+            "valueSchema": "string-list"
+          },
+          {
+            "id": "logprobs",
+            "valueSchema": "boolean"
+          },
+          {
+            "id": "response_format",
+            "valueSchema": "enum",
+            "enumValues": [
+              "text",
+              "json"
+            ]
+          },
+          {
+            "id": "json_schema",
+            "valueSchema": "json-schema",
+            "conflictsWith": [
+              "tools",
+              "response_format"
+            ]
+          }
+        ],
+        "wire": {
+          "max_output_tokens": "max_tokens",
+          "temperature": "temperature",
+          "top_p": "top_p",
+          "seed": "seed",
+          "stop": "stop",
+          "logprobs": "logprobs",
+          "response_format": "response_format",
+          "json_schema": "response_format"
+        }
+      },
+      "body": {
+        "model": "fixture-chat",
+        "messages": [
+          {
+            "role": "user",
+            "content": "hello"
+          }
+        ]
+      },
+      "overrides": {
+        "temperature": {
+          "state": "value",
+          "value": "0.7"
+        },
+        "seed": {
+          "state": "value",
+          "value": 7
+        },
+        "logprobs": {
+          "state": "value",
+          "value": "true"
+        },
+        "stop": {
+          "state": "value",
+          "value": [
+            "###"
+          ]
+        }
+      },
+      "expect": {
+        "body": {
+          "model": "fixture-chat",
+          "messages": [
+            {
+              "role": "user",
+              "content": "hello"
+            }
+          ],
+          "seed": 7,
+          "stop": [
+            "###"
+          ]
+        },
+        "dropped": [
+          {
+            "parameterId": "logprobs",
+            "reason": "invalid_value"
+          },
+          {
+            "parameterId": "temperature",
+            "reason": "invalid_value"
+          }
+        ]
+      }
+    },
+    {
+      "caseId": "per_item.enum_outside_drops_only_that_item",
+      "profile": {
+        "template": "openai_chat_completions",
+        "parameters": [
+          {
+            "id": "max_output_tokens",
+            "valueSchema": "integer",
+            "range": {
+              "min": 1,
+              "max": 4096
+            }
+          },
+          {
+            "id": "temperature",
+            "valueSchema": "number",
+            "range": {
+              "min": 0,
+              "max": 2
+            }
+          },
+          {
+            "id": "top_p",
+            "valueSchema": "number",
+            "range": {
+              "minExclusive": 0,
+              "max": 1
+            }
+          },
+          {
+            "id": "seed",
+            "valueSchema": "integer"
+          },
+          {
+            "id": "stop",
+            "valueSchema": "string-list"
+          },
+          {
+            "id": "logprobs",
+            "valueSchema": "boolean"
+          },
+          {
+            "id": "response_format",
+            "valueSchema": "enum",
+            "enumValues": [
+              "text",
+              "json"
+            ]
+          },
+          {
+            "id": "json_schema",
+            "valueSchema": "json-schema",
+            "conflictsWith": [
+              "tools",
+              "response_format"
+            ]
+          }
+        ],
+        "wire": {
+          "max_output_tokens": "max_tokens",
+          "temperature": "temperature",
+          "top_p": "top_p",
+          "seed": "seed",
+          "stop": "stop",
+          "logprobs": "logprobs",
+          "response_format": "response_format",
+          "json_schema": "response_format"
+        }
+      },
+      "body": {
+        "model": "fixture-chat",
+        "messages": [
+          {
+            "role": "user",
+            "content": "hello"
+          }
+        ]
+      },
+      "overrides": {
+        "response_format": {
+          "state": "value",
+          "value": "yaml"
+        },
+        "seed": {
+          "state": "value",
+          "value": 1
+        }
+      },
+      "expect": {
+        "body": {
+          "model": "fixture-chat",
+          "messages": [
+            {
+              "role": "user",
+              "content": "hello"
+            }
+          ],
+          "seed": 1
+        },
+        "dropped": [
+          {
+            "parameterId": "response_format",
+            "reason": "invalid_value"
+          }
+        ]
+      }
+    },
+    {
+      "caseId": "per_item.value_state_without_value",
+      "profile": {
+        "template": "openai_chat_completions",
+        "parameters": [
+          {
+            "id": "max_output_tokens",
+            "valueSchema": "integer",
+            "range": {
+              "min": 1,
+              "max": 4096
+            }
+          },
+          {
+            "id": "temperature",
+            "valueSchema": "number",
+            "range": {
+              "min": 0,
+              "max": 2
+            }
+          },
+          {
+            "id": "top_p",
+            "valueSchema": "number",
+            "range": {
+              "minExclusive": 0,
+              "max": 1
+            }
+          },
+          {
+            "id": "seed",
+            "valueSchema": "integer"
+          },
+          {
+            "id": "stop",
+            "valueSchema": "string-list"
+          },
+          {
+            "id": "logprobs",
+            "valueSchema": "boolean"
+          },
+          {
+            "id": "response_format",
+            "valueSchema": "enum",
+            "enumValues": [
+              "text",
+              "json"
+            ]
+          },
+          {
+            "id": "json_schema",
+            "valueSchema": "json-schema",
+            "conflictsWith": [
+              "tools",
+              "response_format"
+            ]
+          }
+        ],
+        "wire": {
+          "max_output_tokens": "max_tokens",
+          "temperature": "temperature",
+          "top_p": "top_p",
+          "seed": "seed",
+          "stop": "stop",
+          "logprobs": "logprobs",
+          "response_format": "response_format",
+          "json_schema": "response_format"
+        }
+      },
+      "body": {
+        "model": "fixture-chat",
+        "messages": [
+          {
+            "role": "user",
+            "content": "hello"
+          }
+        ]
+      },
+      "overrides": {
+        "temperature": {
+          "state": "value"
+        },
+        "seed": {
+          "state": "value",
+          "value": 3
+        }
+      },
+      "expect": {
+        "body": {
+          "model": "fixture-chat",
+          "messages": [
+            {
+              "role": "user",
+              "content": "hello"
+            }
+          ],
+          "seed": 3
+        },
+        "dropped": [
+          {
+            "parameterId": "temperature",
+            "reason": "invalid_value"
+          }
+        ]
+      }
+    },
+    {
+      "caseId": "per_item.zero_is_a_value",
+      "profile": {
+        "template": "openai_chat_completions",
+        "parameters": [
+          {
+            "id": "max_output_tokens",
+            "valueSchema": "integer",
+            "range": {
+              "min": 1,
+              "max": 4096
+            }
+          },
+          {
+            "id": "temperature",
+            "valueSchema": "number",
+            "range": {
+              "min": 0,
+              "max": 2
+            }
+          },
+          {
+            "id": "top_p",
+            "valueSchema": "number",
+            "range": {
+              "minExclusive": 0,
+              "max": 1
+            }
+          },
+          {
+            "id": "seed",
+            "valueSchema": "integer"
+          },
+          {
+            "id": "stop",
+            "valueSchema": "string-list"
+          },
+          {
+            "id": "logprobs",
+            "valueSchema": "boolean"
+          },
+          {
+            "id": "response_format",
+            "valueSchema": "enum",
+            "enumValues": [
+              "text",
+              "json"
+            ]
+          },
+          {
+            "id": "json_schema",
+            "valueSchema": "json-schema",
+            "conflictsWith": [
+              "tools",
+              "response_format"
+            ]
+          }
+        ],
+        "wire": {
+          "max_output_tokens": "max_tokens",
+          "temperature": "temperature",
+          "top_p": "top_p",
+          "seed": "seed",
+          "stop": "stop",
+          "logprobs": "logprobs",
+          "response_format": "response_format",
+          "json_schema": "response_format"
+        }
+      },
+      "body": {
+        "model": "fixture-chat",
+        "messages": [
+          {
+            "role": "user",
+            "content": "hello"
+          }
+        ]
+      },
+      "overrides": {
+        "temperature": {
+          "state": "value",
+          "value": 0
+        },
+        "seed": {
+          "state": "value",
+          "value": 0
+        }
+      },
+      "expect": {
+        "body": {
+          "model": "fixture-chat",
+          "messages": [
+            {
+              "role": "user",
+              "content": "hello"
+            }
+          ],
+          "temperature": 0,
+          "seed": 0
+        },
+        "dropped": []
+      }
+    },
+    {
+      "caseId": "conflict.first_declared_wins",
+      "profile": {
+        "template": "openai_chat_completions",
+        "parameters": [
+          {
+            "id": "temperature",
+            "valueSchema": "number",
+            "range": {
+              "min": 0,
+              "max": 2
+            },
+            "conflictsWith": [
+              "top_p"
+            ]
+          },
+          {
+            "id": "top_p",
+            "valueSchema": "number",
+            "range": {
+              "minExclusive": 0,
+              "max": 1
+            },
+            "conflictsWith": [
+              "temperature"
+            ]
+          },
+          {
+            "id": "seed",
+            "valueSchema": "integer"
+          }
+        ],
+        "wire": {
+          "temperature": "temperature",
+          "top_p": "top_p",
+          "seed": "seed"
+        }
+      },
+      "body": {
+        "model": "fixture-chat",
+        "messages": [
+          {
+            "role": "user",
+            "content": "hello"
+          }
+        ]
+      },
+      "overrides": {
+        "temperature": {
+          "state": "value",
+          "value": 0.2
+        },
+        "top_p": {
+          "state": "value",
+          "value": 0.8
+        },
+        "seed": {
+          "state": "value",
+          "value": 9
+        }
+      },
+      "expect": {
+        "body": {
+          "model": "fixture-chat",
+          "messages": [
+            {
+              "role": "user",
+              "content": "hello"
+            }
+          ],
+          "temperature": 0.2,
+          "seed": 9
+        },
+        "dropped": [
+          {
+            "parameterId": "top_p",
+            "reason": "conflict"
+          }
+        ]
+      }
+    },
+    {
+      "caseId": "conflict.invalid_item_does_not_evict_peer",
+      "profile": {
+        "template": "openai_chat_completions",
+        "parameters": [
+          {
+            "id": "temperature",
+            "valueSchema": "number",
+            "range": {
+              "min": 0,
+              "max": 2
+            },
+            "conflictsWith": [
+              "top_p"
+            ]
+          },
+          {
+            "id": "top_p",
+            "valueSchema": "number",
+            "range": {
+              "minExclusive": 0,
+              "max": 1
+            },
+            "conflictsWith": [
+              "temperature"
+            ]
+          },
+          {
+            "id": "seed",
+            "valueSchema": "integer"
+          }
+        ],
+        "wire": {
+          "temperature": "temperature",
+          "top_p": "top_p",
+          "seed": "seed"
+        }
+      },
+      "body": {
+        "model": "fixture-chat",
+        "messages": [
+          {
+            "role": "user",
+            "content": "hello"
+          }
+        ]
+      },
+      "overrides": {
+        "temperature": {
+          "state": "value",
+          "value": 9
+        },
+        "top_p": {
+          "state": "value",
+          "value": 0.8
+        }
+      },
+      "expect": {
+        "body": {
+          "model": "fixture-chat",
+          "messages": [
+            {
+              "role": "user",
+              "content": "hello"
+            }
+          ],
+          "top_p": 0.8
+        },
+        "dropped": [
+          {
+            "parameterId": "temperature",
+            "reason": "invalid_value"
+          }
+        ]
+      }
+    },
+    {
+      "caseId": "conflict.builder_tools_drop_json_schema_only",
+      "profile": {
+        "template": "openai_chat_completions",
+        "parameters": [
+          {
+            "id": "max_output_tokens",
+            "valueSchema": "integer",
+            "range": {
+              "min": 1,
+              "max": 4096
+            }
+          },
+          {
+            "id": "temperature",
+            "valueSchema": "number",
+            "range": {
+              "min": 0,
+              "max": 2
+            }
+          },
+          {
+            "id": "top_p",
+            "valueSchema": "number",
+            "range": {
+              "minExclusive": 0,
+              "max": 1
+            }
+          },
+          {
+            "id": "seed",
+            "valueSchema": "integer"
+          },
+          {
+            "id": "stop",
+            "valueSchema": "string-list"
+          },
+          {
+            "id": "logprobs",
+            "valueSchema": "boolean"
+          },
+          {
+            "id": "response_format",
+            "valueSchema": "enum",
+            "enumValues": [
+              "text",
+              "json"
+            ]
+          },
+          {
+            "id": "json_schema",
+            "valueSchema": "json-schema",
+            "conflictsWith": [
+              "tools",
+              "response_format"
+            ]
+          }
+        ],
+        "wire": {
+          "max_output_tokens": "max_tokens",
+          "temperature": "temperature",
+          "top_p": "top_p",
+          "seed": "seed",
+          "stop": "stop",
+          "logprobs": "logprobs",
+          "response_format": "response_format",
+          "json_schema": "response_format"
+        }
+      },
+      "body": {
+        "model": "fixture-chat",
+        "messages": [
+          {
+            "role": "user",
+            "content": "hello"
+          }
+        ],
+        "tools": [
+          {
+            "type": "function",
+            "function": {
+              "name": "search_library"
+            }
+          }
+        ]
+      },
+      "overrides": {
+        "json_schema": {
+          "state": "value",
+          "value": {
+            "type": "object"
+          }
+        },
+        "temperature": {
+          "state": "value",
+          "value": 0.4
+        },
+        "max_output_tokens": {
+          "state": "value",
+          "value": 256
+        }
+      },
+      "expect": {
+        "body": {
+          "model": "fixture-chat",
+          "messages": [
+            {
+              "role": "user",
+              "content": "hello"
+            }
+          ],
+          "tools": [
+            {
+              "type": "function",
+              "function": {
+                "name": "search_library"
+              }
+            }
+          ],
+          "temperature": 0.4,
+          "max_tokens": 256
+        },
+        "dropped": [
+          {
+            "parameterId": "json_schema",
+            "reason": "conflict"
+          }
+        ]
+      }
+    },
+    {
+      "caseId": "conflict.symmetric_one_sided_declaration",
+      "profile": {
+        "template": "openai_chat_completions",
+        "parameters": [
+          {
+            "id": "max_output_tokens",
+            "valueSchema": "integer",
+            "range": {
+              "min": 1,
+              "max": 4096
+            }
+          },
+          {
+            "id": "temperature",
+            "valueSchema": "number",
+            "range": {
+              "min": 0,
+              "max": 2
+            }
+          },
+          {
+            "id": "top_p",
+            "valueSchema": "number",
+            "range": {
+              "minExclusive": 0,
+              "max": 1
+            }
+          },
+          {
+            "id": "seed",
+            "valueSchema": "integer"
+          },
+          {
+            "id": "stop",
+            "valueSchema": "string-list"
+          },
+          {
+            "id": "logprobs",
+            "valueSchema": "boolean"
+          },
+          {
+            "id": "response_format",
+            "valueSchema": "enum",
+            "enumValues": [
+              "text",
+              "json"
+            ]
+          },
+          {
+            "id": "json_schema",
+            "valueSchema": "json-schema",
+            "conflictsWith": [
+              "tools",
+              "response_format"
+            ]
+          }
+        ],
+        "wire": {
+          "max_output_tokens": "max_tokens",
+          "temperature": "temperature",
+          "top_p": "top_p",
+          "seed": "seed",
+          "stop": "stop",
+          "logprobs": "logprobs",
+          "response_format": "response_format",
+          "json_schema": "response_format"
+        }
+      },
+      "body": {
+        "model": "fixture-chat",
+        "messages": [
+          {
+            "role": "user",
+            "content": "hello"
+          }
+        ]
+      },
+      "overrides": {
+        "json_schema": {
+          "state": "value",
+          "value": {
+            "type": "object"
+          }
+        },
+        "response_format": {
+          "state": "value",
+          "value": "json"
+        }
+      },
+      "expect": {
+        "body": {
+          "model": "fixture-chat",
+          "messages": [
+            {
+              "role": "user",
+              "content": "hello"
+            }
+          ],
+          "response_format": {
+            "type": "json_object"
+          }
+        },
+        "dropped": [
+          {
+            "parameterId": "json_schema",
+            "reason": "conflict"
+          }
+        ]
+      }
+    },
+    {
+      "caseId": "required.anthropic_max_tokens_cannot_be_omitted",
+      "profile": {
+        "template": "anthropic_messages",
+        "parameters": [
+          {
+            "id": "max_output_tokens",
+            "valueSchema": "integer",
+            "range": {
+              "min": 1
+            }
+          },
+          {
+            "id": "temperature",
+            "valueSchema": "number",
+            "range": {
+              "min": 0,
+              "max": 1
+            }
+          },
+          {
+            "id": "top_p",
+            "valueSchema": "number",
+            "range": {
+              "min": 0,
+              "max": 1
+            }
+          },
+          {
+            "id": "top_k",
+            "valueSchema": "integer",
+            "range": {
+              "min": 0
+            }
+          },
+          {
+            "id": "stop",
+            "valueSchema": "string-list"
+          }
+        ],
+        "wire": {
+          "max_output_tokens": "max_tokens",
+          "temperature": "temperature",
+          "top_p": "top_p",
+          "top_k": "top_k",
+          "stop": "stop_sequences"
+        }
+      },
+      "body": {
+        "model": "fixture-chat",
+        "messages": [
+          {
+            "role": "user",
+            "content": "hello"
+          }
+        ],
+        "max_tokens": 8192
+      },
+      "overrides": {
+        "max_output_tokens": {
+          "state": "omit"
+        },
+        "temperature": {
+          "state": "value",
+          "value": 0.5
+        }
+      },
+      "expect": {
+        "body": {
+          "model": "fixture-chat",
+          "messages": [
+            {
+              "role": "user",
+              "content": "hello"
+            }
+          ],
+          "max_tokens": 8192,
+          "temperature": 0.5
+        },
+        "dropped": [
+          {
+            "parameterId": "max_output_tokens",
+            "reason": "required_field"
+          }
+        ]
+      }
+    },
+    {
+      "caseId": "required.anthropic_max_tokens_value_still_overrides",
+      "profile": {
+        "template": "anthropic_messages",
+        "parameters": [
+          {
+            "id": "max_output_tokens",
+            "valueSchema": "integer",
+            "range": {
+              "min": 1
+            }
+          },
+          {
+            "id": "temperature",
+            "valueSchema": "number",
+            "range": {
+              "min": 0,
+              "max": 1
+            }
+          },
+          {
+            "id": "top_p",
+            "valueSchema": "number",
+            "range": {
+              "min": 0,
+              "max": 1
+            }
+          },
+          {
+            "id": "top_k",
+            "valueSchema": "integer",
+            "range": {
+              "min": 0
+            }
+          },
+          {
+            "id": "stop",
+            "valueSchema": "string-list"
+          }
+        ],
+        "wire": {
+          "max_output_tokens": "max_tokens",
+          "temperature": "temperature",
+          "top_p": "top_p",
+          "top_k": "top_k",
+          "stop": "stop_sequences"
+        }
+      },
+      "body": {
+        "model": "fixture-chat",
+        "messages": [
+          {
+            "role": "user",
+            "content": "hello"
+          }
+        ],
+        "max_tokens": 8192
+      },
+      "overrides": {
+        "max_output_tokens": {
+          "state": "value",
+          "value": 1024
+        }
+      },
+      "expect": {
+        "body": {
+          "model": "fixture-chat",
+          "messages": [
+            {
+              "role": "user",
+              "content": "hello"
+            }
+          ],
+          "max_tokens": 1024
+        },
+        "dropped": []
+      }
+    },
+    {
+      "caseId": "required.optional_field_omit_still_removes",
+      "profile": {
+        "template": "anthropic_messages",
+        "parameters": [
+          {
+            "id": "max_output_tokens",
+            "valueSchema": "integer",
+            "range": {
+              "min": 1
+            }
+          },
+          {
+            "id": "temperature",
+            "valueSchema": "number",
+            "range": {
+              "min": 0,
+              "max": 1
+            }
+          },
+          {
+            "id": "top_p",
+            "valueSchema": "number",
+            "range": {
+              "min": 0,
+              "max": 1
+            }
+          },
+          {
+            "id": "top_k",
+            "valueSchema": "integer",
+            "range": {
+              "min": 0
+            }
+          },
+          {
+            "id": "stop",
+            "valueSchema": "string-list"
+          }
+        ],
+        "wire": {
+          "max_output_tokens": "max_tokens",
+          "temperature": "temperature",
+          "top_p": "top_p",
+          "top_k": "top_k",
+          "stop": "stop_sequences"
+        }
+      },
+      "body": {
+        "model": "fixture-chat",
+        "messages": [
+          {
+            "role": "user",
+            "content": "hello"
+          }
+        ],
+        "max_tokens": 8192,
+        "temperature": 1
+      },
+      "overrides": {
+        "temperature": {
+          "state": "omit"
+        }
+      },
+      "expect": {
+        "body": {
+          "model": "fixture-chat",
+          "messages": [
+            {
+              "role": "user",
+              "content": "hello"
+            }
+          ],
+          "max_tokens": 8192
+        },
+        "dropped": []
+      }
+    },
+    {
+      "caseId": "required.chat_max_tokens_is_optional",
+      "profile": {
+        "template": "openai_chat_completions",
+        "parameters": [
+          {
+            "id": "max_output_tokens",
+            "valueSchema": "integer",
+            "range": {
+              "min": 1,
+              "max": 4096
+            }
+          },
+          {
+            "id": "temperature",
+            "valueSchema": "number",
+            "range": {
+              "min": 0,
+              "max": 2
+            }
+          },
+          {
+            "id": "top_p",
+            "valueSchema": "number",
+            "range": {
+              "minExclusive": 0,
+              "max": 1
+            }
+          },
+          {
+            "id": "seed",
+            "valueSchema": "integer"
+          },
+          {
+            "id": "stop",
+            "valueSchema": "string-list"
+          },
+          {
+            "id": "logprobs",
+            "valueSchema": "boolean"
+          },
+          {
+            "id": "response_format",
+            "valueSchema": "enum",
+            "enumValues": [
+              "text",
+              "json"
+            ]
+          },
+          {
+            "id": "json_schema",
+            "valueSchema": "json-schema",
+            "conflictsWith": [
+              "tools",
+              "response_format"
+            ]
+          }
+        ],
+        "wire": {
+          "max_output_tokens": "max_tokens",
+          "temperature": "temperature",
+          "top_p": "top_p",
+          "seed": "seed",
+          "stop": "stop",
+          "logprobs": "logprobs",
+          "response_format": "response_format",
+          "json_schema": "response_format"
+        }
+      },
+      "body": {
+        "model": "fixture-chat",
+        "messages": [
+          {
+            "role": "user",
+            "content": "hello"
+          }
+        ],
+        "max_tokens": 512
+      },
+      "overrides": {
+        "max_output_tokens": {
+          "state": "omit"
+        }
+      },
+      "expect": {
+        "body": {
+          "model": "fixture-chat",
+          "messages": [
+            {
+              "role": "user",
+              "content": "hello"
+            }
+          ]
+        },
+        "dropped": []
+      }
+    },
+    {
+      "caseId": "thinking.sampling_dropped_when_enabled",
+      "profile": {
+        "template": "anthropic_messages",
+        "parameters": [
+          {
+            "id": "max_output_tokens",
+            "valueSchema": "integer",
+            "range": {
+              "min": 1
+            }
+          },
+          {
+            "id": "temperature",
+            "valueSchema": "number",
+            "range": {
+              "min": 0,
+              "max": 1
+            }
+          },
+          {
+            "id": "top_p",
+            "valueSchema": "number",
+            "range": {
+              "min": 0,
+              "max": 1
+            }
+          },
+          {
+            "id": "top_k",
+            "valueSchema": "integer",
+            "range": {
+              "min": 0
+            }
+          },
+          {
+            "id": "stop",
+            "valueSchema": "string-list"
+          }
+        ],
+        "wire": {
+          "max_output_tokens": "max_tokens",
+          "temperature": "temperature",
+          "top_p": "top_p",
+          "top_k": "top_k",
+          "stop": "stop_sequences"
+        }
+      },
+      "body": {
+        "model": "fixture-chat",
+        "messages": [
+          {
+            "role": "user",
+            "content": "hello"
+          }
+        ],
+        "max_tokens": 8192
+      },
+      "capabilityWrites": {
+        "thinking": {
+          "type": "enabled",
+          "budget_tokens": 4096
+        }
+      },
+      "overrides": {
+        "temperature": {
+          "state": "value",
+          "value": 0.3
+        },
+        "top_k": {
+          "state": "value",
+          "value": 40
+        },
+        "top_p": {
+          "state": "value",
+          "value": 0.5
+        },
+        "stop": {
+          "state": "value",
+          "value": [
+            "END"
+          ]
+        }
+      },
+      "expect": {
+        "body": {
+          "model": "fixture-chat",
+          "messages": [
+            {
+              "role": "user",
+              "content": "hello"
+            }
+          ],
+          "max_tokens": 8192,
+          "thinking": {
+            "type": "enabled",
+            "budget_tokens": 4096
+          },
+          "stop_sequences": [
+            "END"
+          ]
+        },
+        "dropped": [
+          {
+            "parameterId": "temperature",
+            "reason": "thinking_incompatible"
+          },
+          {
+            "parameterId": "top_k",
+            "reason": "thinking_incompatible"
+          },
+          {
+            "parameterId": "top_p",
+            "reason": "thinking_incompatible"
+          }
+        ]
+      }
+    },
+    {
+      "caseId": "thinking.top_p_at_or_above_floor_survives",
+      "profile": {
+        "template": "anthropic_messages",
+        "parameters": [
+          {
+            "id": "max_output_tokens",
+            "valueSchema": "integer",
+            "range": {
+              "min": 1
+            }
+          },
+          {
+            "id": "temperature",
+            "valueSchema": "number",
+            "range": {
+              "min": 0,
+              "max": 1
+            }
+          },
+          {
+            "id": "top_p",
+            "valueSchema": "number",
+            "range": {
+              "min": 0,
+              "max": 1
+            }
+          },
+          {
+            "id": "top_k",
+            "valueSchema": "integer",
+            "range": {
+              "min": 0
+            }
+          },
+          {
+            "id": "stop",
+            "valueSchema": "string-list"
+          }
+        ],
+        "wire": {
+          "max_output_tokens": "max_tokens",
+          "temperature": "temperature",
+          "top_p": "top_p",
+          "top_k": "top_k",
+          "stop": "stop_sequences"
+        }
+      },
+      "body": {
+        "model": "fixture-chat",
+        "messages": [
+          {
+            "role": "user",
+            "content": "hello"
+          }
+        ],
+        "max_tokens": 8192
+      },
+      "capabilityWrites": {
+        "thinking": {
+          "type": "adaptive"
+        }
+      },
+      "overrides": {
+        "top_p": {
+          "state": "value",
+          "value": 0.95
+        },
+        "temperature": {
+          "state": "value",
+          "value": 1
+        }
+      },
+      "expect": {
+        "body": {
+          "model": "fixture-chat",
+          "messages": [
+            {
+              "role": "user",
+              "content": "hello"
+            }
+          ],
+          "max_tokens": 8192,
+          "thinking": {
+            "type": "adaptive"
+          },
+          "top_p": 0.95
+        },
+        "dropped": [
+          {
+            "parameterId": "temperature",
+            "reason": "thinking_incompatible"
+          }
+        ]
+      }
+    },
+    {
+      "caseId": "thinking.max_tokens_not_above_budget_restores_default",
+      "profile": {
+        "template": "anthropic_messages",
+        "parameters": [
+          {
+            "id": "max_output_tokens",
+            "valueSchema": "integer",
+            "range": {
+              "min": 1
+            }
+          },
+          {
+            "id": "temperature",
+            "valueSchema": "number",
+            "range": {
+              "min": 0,
+              "max": 1
+            }
+          },
+          {
+            "id": "top_p",
+            "valueSchema": "number",
+            "range": {
+              "min": 0,
+              "max": 1
+            }
+          },
+          {
+            "id": "top_k",
+            "valueSchema": "integer",
+            "range": {
+              "min": 0
+            }
+          },
+          {
+            "id": "stop",
+            "valueSchema": "string-list"
+          }
+        ],
+        "wire": {
+          "max_output_tokens": "max_tokens",
+          "temperature": "temperature",
+          "top_p": "top_p",
+          "top_k": "top_k",
+          "stop": "stop_sequences"
+        }
+      },
+      "body": {
+        "model": "fixture-chat",
+        "messages": [
+          {
+            "role": "user",
+            "content": "hello"
+          }
+        ],
+        "max_tokens": 32000
+      },
+      "capabilityWrites": {
+        "thinking": {
+          "type": "enabled",
+          "budget_tokens": 16384
+        }
+      },
+      "overrides": {
+        "max_output_tokens": {
+          "state": "value",
+          "value": 8000
+        }
+      },
+      "expect": {
+        "body": {
+          "model": "fixture-chat",
+          "messages": [
+            {
+              "role": "user",
+              "content": "hello"
+            }
+          ],
+          "max_tokens": 32000,
+          "thinking": {
+            "type": "enabled",
+            "budget_tokens": 16384
+          }
+        },
+        "dropped": [
+          {
+            "parameterId": "max_output_tokens",
+            "reason": "thinking_budget"
+          }
+        ]
+      }
+    },
+    {
+      "caseId": "thinking.default_not_above_budget_uses_headroom",
+      "profile": {
+        "template": "anthropic_messages",
+        "parameters": [
+          {
+            "id": "max_output_tokens",
+            "valueSchema": "integer",
+            "range": {
+              "min": 1
+            }
+          },
+          {
+            "id": "temperature",
+            "valueSchema": "number",
+            "range": {
+              "min": 0,
+              "max": 1
+            }
+          },
+          {
+            "id": "top_p",
+            "valueSchema": "number",
+            "range": {
+              "min": 0,
+              "max": 1
+            }
+          },
+          {
+            "id": "top_k",
+            "valueSchema": "integer",
+            "range": {
+              "min": 0
+            }
+          },
+          {
+            "id": "stop",
+            "valueSchema": "string-list"
+          }
+        ],
+        "wire": {
+          "max_output_tokens": "max_tokens",
+          "temperature": "temperature",
+          "top_p": "top_p",
+          "top_k": "top_k",
+          "stop": "stop_sequences"
+        }
+      },
+      "body": {
+        "model": "fixture-chat",
+        "messages": [
+          {
+            "role": "user",
+            "content": "hello"
+          }
+        ],
+        "max_tokens": 8192
+      },
+      "capabilityWrites": {
+        "thinking": {
+          "type": "enabled",
+          "budget_tokens": 16384
+        }
+      },
+      "overrides": {
+        "max_output_tokens": {
+          "state": "value",
+          "value": 16384
+        }
+      },
+      "expect": {
+        "body": {
+          "model": "fixture-chat",
+          "messages": [
+            {
+              "role": "user",
+              "content": "hello"
+            }
+          ],
+          "max_tokens": 20480,
+          "thinking": {
+            "type": "enabled",
+            "budget_tokens": 16384
+          }
+        },
+        "dropped": [
+          {
+            "parameterId": "max_output_tokens",
+            "reason": "thinking_budget"
+          }
+        ]
+      }
+    },
+    {
+      "caseId": "thinking.max_tokens_above_budget_survives",
+      "profile": {
+        "template": "anthropic_messages",
+        "parameters": [
+          {
+            "id": "max_output_tokens",
+            "valueSchema": "integer",
+            "range": {
+              "min": 1
+            }
+          },
+          {
+            "id": "temperature",
+            "valueSchema": "number",
+            "range": {
+              "min": 0,
+              "max": 1
+            }
+          },
+          {
+            "id": "top_p",
+            "valueSchema": "number",
+            "range": {
+              "min": 0,
+              "max": 1
+            }
+          },
+          {
+            "id": "top_k",
+            "valueSchema": "integer",
+            "range": {
+              "min": 0
+            }
+          },
+          {
+            "id": "stop",
+            "valueSchema": "string-list"
+          }
+        ],
+        "wire": {
+          "max_output_tokens": "max_tokens",
+          "temperature": "temperature",
+          "top_p": "top_p",
+          "top_k": "top_k",
+          "stop": "stop_sequences"
+        }
+      },
+      "body": {
+        "model": "fixture-chat",
+        "messages": [
+          {
+            "role": "user",
+            "content": "hello"
+          }
+        ],
+        "max_tokens": 8192
+      },
+      "capabilityWrites": {
+        "thinking": {
+          "type": "enabled",
+          "budget_tokens": 4096
+        }
+      },
+      "overrides": {
+        "max_output_tokens": {
+          "state": "value",
+          "value": 6000
+        }
+      },
+      "expect": {
+        "body": {
+          "model": "fixture-chat",
+          "messages": [
+            {
+              "role": "user",
+              "content": "hello"
+            }
+          ],
+          "max_tokens": 6000,
+          "thinking": {
+            "type": "enabled",
+            "budget_tokens": 4096
+          }
+        },
+        "dropped": []
+      }
+    },
+    {
+      "caseId": "thinking.off_leaves_sampling_alone",
+      "profile": {
+        "template": "anthropic_messages",
+        "parameters": [
+          {
+            "id": "max_output_tokens",
+            "valueSchema": "integer",
+            "range": {
+              "min": 1
+            }
+          },
+          {
+            "id": "temperature",
+            "valueSchema": "number",
+            "range": {
+              "min": 0,
+              "max": 1
+            }
+          },
+          {
+            "id": "top_p",
+            "valueSchema": "number",
+            "range": {
+              "min": 0,
+              "max": 1
+            }
+          },
+          {
+            "id": "top_k",
+            "valueSchema": "integer",
+            "range": {
+              "min": 0
+            }
+          },
+          {
+            "id": "stop",
+            "valueSchema": "string-list"
+          }
+        ],
+        "wire": {
+          "max_output_tokens": "max_tokens",
+          "temperature": "temperature",
+          "top_p": "top_p",
+          "top_k": "top_k",
+          "stop": "stop_sequences"
+        }
+      },
+      "body": {
+        "model": "fixture-chat",
+        "messages": [
+          {
+            "role": "user",
+            "content": "hello"
+          }
+        ],
+        "max_tokens": 8192
+      },
+      "overrides": {
+        "temperature": {
+          "state": "value",
+          "value": 0.3
+        },
+        "top_k": {
+          "state": "value",
+          "value": 40
+        },
+        "top_p": {
+          "state": "value",
+          "value": 0.5
+        }
+      },
+      "expect": {
+        "body": {
+          "model": "fixture-chat",
+          "messages": [
+            {
+              "role": "user",
+              "content": "hello"
+            }
+          ],
+          "max_tokens": 8192,
+          "temperature": 0.3,
+          "top_k": 40,
+          "top_p": 0.5
+        },
+        "dropped": []
+      }
+    },
+    {
+      "caseId": "thinking.builder_default_not_above_budget_uses_headroom",
+      "profile": {
+        "template": "anthropic_messages",
+        "parameters": [
+          {
+            "id": "max_output_tokens",
+            "valueSchema": "integer",
+            "range": {
+              "min": 1
+            }
+          },
+          {
+            "id": "temperature",
+            "valueSchema": "number",
+            "range": {
+              "min": 0,
+              "max": 1
+            }
+          },
+          {
+            "id": "top_p",
+            "valueSchema": "number",
+            "range": {
+              "min": 0,
+              "max": 1
+            }
+          },
+          {
+            "id": "top_k",
+            "valueSchema": "integer",
+            "range": {
+              "min": 0
+            }
+          },
+          {
+            "id": "stop",
+            "valueSchema": "string-list"
+          }
+        ],
+        "wire": {
+          "max_output_tokens": "max_tokens",
+          "temperature": "temperature",
+          "top_p": "top_p",
+          "top_k": "top_k",
+          "stop": "stop_sequences"
+        }
+      },
+      "body": {
+        "model": "fixture-chat",
+        "messages": [
+          {
+            "role": "user",
+            "content": "hello"
+          }
+        ],
+        "max_tokens": 8192
+      },
+      "capabilityWrites": {
+        "thinking": {
+          "type": "enabled",
+          "budget_tokens": 16384
+        }
+      },
+      "overrides": {
+        "stop": {
+          "state": "value",
+          "value": [
+            "END"
+          ]
+        }
+      },
+      "expect": {
+        "body": {
+          "model": "fixture-chat",
+          "messages": [
+            {
+              "role": "user",
+              "content": "hello"
+            }
+          ],
+          "max_tokens": 20480,
+          "thinking": {
+            "type": "enabled",
+            "budget_tokens": 16384
+          },
+          "stop_sequences": [
+            "END"
+          ]
+        },
+        "dropped": []
+      }
+    }
+  ],
+  "additionalBodyRules": {
+    "$comment": "Additional request body. A user-supplied JSON object merged into the outgoing request, alongside the generation parameters the catalog declares; the declared custom fields of the web-search and thinking owners are unchanged. This table fixes the rules ahead of the client implementations.",
+    "appliesTo": "Every BYOK and custom LLM connection",
+    "input": "A single JSON object",
+    "protectedRootFields": [
+      "model",
+      "messages",
+      "input",
+      "contents",
+      "prompt",
+      "attachments",
+      "instructions",
+      "system",
+      "stream",
+      "stream_options",
+      "tools",
+      "tool_choice",
+      "plugins"
+    ],
+    "protectedRootFieldsSource": "wireHardening.builderOwnedRootFields",
+    "blockedSegments": [
+      "__proto__",
+      "prototype",
+      "constructor"
+    ],
+    "limits": {
+      "maxBytes": 65536,
+      "maxDepth": 32
+    },
+    "rejectReasons": [
+      "invalid_json",
+      "not_object",
+      "protected_field",
+      "blocked_segment",
+      "too_large",
+      "too_deep"
+    ],
+    "rejection": "Rejected on device: no request is sent and the connection is not marked as failing; protected_field and blocked_segment must name the offending field (the interface then points at the line)",
+    "merge": {
+      "order": "after_panel_parameters_and_capability_writers",
+      "objects": "deep_merge",
+      "arraysAndScalars": "replace",
+      "sameKey": "additional_body_wins",
+      "panelParameters": "Coexist: writing an additional request body does not clear the panel parameters"
+    },
+    "storage": "local_only: never part of the sync envelope, a backup export, telemetry or a diagnostics report",
+    "recovery": "\"Retry without the additional request body\" is offered only for an upstream 400 where the final request body really carried the additional body, no upstream event had arrived yet and no tool side effect happened; the action affects that one request and leaves the stored content untouched"
+  },
+  "additionalBodyCases": [
+    {
+      "caseId": "merge.coexists_with_panel_parameters",
+      "raw": "{\"top_k\": 40, \"chat_template_kwargs\": {\"enable_thinking\": false}}",
+      "body": {
+        "model": "fixture-chat",
+        "messages": [
+          {
+            "role": "user",
+            "content": "hello"
+          }
+        ],
+        "temperature": 0.7
+      },
+      "expect": {
+        "accepted": true,
+        "body": {
+          "model": "fixture-chat",
+          "messages": [
+            {
+              "role": "user",
+              "content": "hello"
+            }
+          ],
+          "temperature": 0.7,
+          "top_k": 40,
+          "chat_template_kwargs": {
+            "enable_thinking": false
+          }
+        }
+      }
+    },
+    {
+      "caseId": "merge.same_key_additional_body_wins",
+      "raw": "{\"temperature\": 0.2}",
+      "body": {
+        "model": "fixture-chat",
+        "messages": [
+          {
+            "role": "user",
+            "content": "hello"
+          }
+        ],
+        "temperature": 0.7
+      },
+      "expect": {
+        "accepted": true,
+        "body": {
+          "model": "fixture-chat",
+          "messages": [
+            {
+              "role": "user",
+              "content": "hello"
+            }
+          ],
+          "temperature": 0.2
+        }
+      }
+    },
+    {
+      "caseId": "merge.objects_deep_merge",
+      "raw": "{\"generationConfig\": {\"topK\": 3}}",
+      "body": {
+        "contents": [],
+        "generationConfig": {
+          "temperature": 0.5
+        }
+      },
+      "expect": {
+        "accepted": true,
+        "body": {
+          "contents": [],
+          "generationConfig": {
+            "temperature": 0.5,
+            "topK": 3
+          }
+        }
+      }
+    },
+    {
+      "caseId": "merge.arrays_replace",
+      "raw": "{\"stop\": [\"b\"]}",
+      "body": {
+        "model": "fixture-chat",
+        "messages": [
+          {
+            "role": "user",
+            "content": "hello"
+          }
+        ],
+        "stop": [
+          "a"
+        ]
+      },
+      "expect": {
+        "accepted": true,
+        "body": {
+          "model": "fixture-chat",
+          "messages": [
+            {
+              "role": "user",
+              "content": "hello"
+            }
+          ],
+          "stop": [
+            "b"
+          ]
+        }
+      }
+    },
+    {
+      "caseId": "merge.empty_object_is_noop",
+      "raw": "{}",
+      "body": {
+        "model": "fixture-chat",
+        "messages": [
+          {
+            "role": "user",
+            "content": "hello"
+          }
+        ],
+        "temperature": 0.7
+      },
+      "expect": {
+        "accepted": true,
+        "body": {
+          "model": "fixture-chat",
+          "messages": [
+            {
+              "role": "user",
+              "content": "hello"
+            }
+          ],
+          "temperature": 0.7
+        }
+      }
+    },
+    {
+      "caseId": "reject.invalid_json",
+      "raw": "{\"top_k\": ",
+      "body": {
+        "model": "fixture-chat",
+        "messages": [
+          {
+            "role": "user",
+            "content": "hello"
+          }
+        ],
+        "temperature": 0.7
+      },
+      "expect": {
+        "accepted": false,
+        "reason": "invalid_json",
+        "body": {
+          "model": "fixture-chat",
+          "messages": [
+            {
+              "role": "user",
+              "content": "hello"
+            }
+          ],
+          "temperature": 0.7
+        },
+        "requestSent": false,
+        "marksConnectionFailed": false
+      }
+    },
+    {
+      "caseId": "reject.not_object",
+      "raw": "[1, 2]",
+      "body": {
+        "model": "fixture-chat",
+        "messages": [
+          {
+            "role": "user",
+            "content": "hello"
+          }
+        ],
+        "temperature": 0.7
+      },
+      "expect": {
+        "accepted": false,
+        "reason": "not_object",
+        "body": {
+          "model": "fixture-chat",
+          "messages": [
+            {
+              "role": "user",
+              "content": "hello"
+            }
+          ],
+          "temperature": 0.7
+        },
+        "requestSent": false,
+        "marksConnectionFailed": false
+      }
+    },
+    {
+      "caseId": "reject.blocked_segment_nested",
+      "raw": "{\"a\": {\"__proto__\": {\"x\": 1}}}",
+      "body": {
+        "model": "fixture-chat",
+        "messages": [
+          {
+            "role": "user",
+            "content": "hello"
+          }
+        ],
+        "temperature": 0.7
+      },
+      "expect": {
+        "accepted": false,
+        "reason": "blocked_segment",
+        "field": "__proto__",
+        "body": {
+          "model": "fixture-chat",
+          "messages": [
+            {
+              "role": "user",
+              "content": "hello"
+            }
+          ],
+          "temperature": 0.7
+        },
+        "requestSent": false,
+        "marksConnectionFailed": false
+      }
+    },
+    {
+      "caseId": "reject.protected.model",
+      "raw": "{\"model\": \"x\", \"top_k\": 1}",
+      "body": {
+        "model": "fixture-chat",
+        "messages": [
+          {
+            "role": "user",
+            "content": "hello"
+          }
+        ],
+        "temperature": 0.7
+      },
+      "expect": {
+        "accepted": false,
+        "reason": "protected_field",
+        "field": "model",
+        "body": {
+          "model": "fixture-chat",
+          "messages": [
+            {
+              "role": "user",
+              "content": "hello"
+            }
+          ],
+          "temperature": 0.7
+        },
+        "requestSent": false,
+        "marksConnectionFailed": false
+      }
+    },
+    {
+      "caseId": "reject.protected.messages",
+      "raw": "{\"messages\": \"x\", \"top_k\": 1}",
+      "body": {
+        "model": "fixture-chat",
+        "messages": [
+          {
+            "role": "user",
+            "content": "hello"
+          }
+        ],
+        "temperature": 0.7
+      },
+      "expect": {
+        "accepted": false,
+        "reason": "protected_field",
+        "field": "messages",
+        "body": {
+          "model": "fixture-chat",
+          "messages": [
+            {
+              "role": "user",
+              "content": "hello"
+            }
+          ],
+          "temperature": 0.7
+        },
+        "requestSent": false,
+        "marksConnectionFailed": false
+      }
+    },
+    {
+      "caseId": "reject.protected.input",
+      "raw": "{\"input\": \"x\", \"top_k\": 1}",
+      "body": {
+        "model": "fixture-chat",
+        "messages": [
+          {
+            "role": "user",
+            "content": "hello"
+          }
+        ],
+        "temperature": 0.7
+      },
+      "expect": {
+        "accepted": false,
+        "reason": "protected_field",
+        "field": "input",
+        "body": {
+          "model": "fixture-chat",
+          "messages": [
+            {
+              "role": "user",
+              "content": "hello"
+            }
+          ],
+          "temperature": 0.7
+        },
+        "requestSent": false,
+        "marksConnectionFailed": false
+      }
+    },
+    {
+      "caseId": "reject.protected.contents",
+      "raw": "{\"contents\": \"x\", \"top_k\": 1}",
+      "body": {
+        "model": "fixture-chat",
+        "messages": [
+          {
+            "role": "user",
+            "content": "hello"
+          }
+        ],
+        "temperature": 0.7
+      },
+      "expect": {
+        "accepted": false,
+        "reason": "protected_field",
+        "field": "contents",
+        "body": {
+          "model": "fixture-chat",
+          "messages": [
+            {
+              "role": "user",
+              "content": "hello"
+            }
+          ],
+          "temperature": 0.7
+        },
+        "requestSent": false,
+        "marksConnectionFailed": false
+      }
+    },
+    {
+      "caseId": "reject.protected.prompt",
+      "raw": "{\"prompt\": \"x\", \"top_k\": 1}",
+      "body": {
+        "model": "fixture-chat",
+        "messages": [
+          {
+            "role": "user",
+            "content": "hello"
+          }
+        ],
+        "temperature": 0.7
+      },
+      "expect": {
+        "accepted": false,
+        "reason": "protected_field",
+        "field": "prompt",
+        "body": {
+          "model": "fixture-chat",
+          "messages": [
+            {
+              "role": "user",
+              "content": "hello"
+            }
+          ],
+          "temperature": 0.7
+        },
+        "requestSent": false,
+        "marksConnectionFailed": false
+      }
+    },
+    {
+      "caseId": "reject.protected.attachments",
+      "raw": "{\"attachments\": \"x\", \"top_k\": 1}",
+      "body": {
+        "model": "fixture-chat",
+        "messages": [
+          {
+            "role": "user",
+            "content": "hello"
+          }
+        ],
+        "temperature": 0.7
+      },
+      "expect": {
+        "accepted": false,
+        "reason": "protected_field",
+        "field": "attachments",
+        "body": {
+          "model": "fixture-chat",
+          "messages": [
+            {
+              "role": "user",
+              "content": "hello"
+            }
+          ],
+          "temperature": 0.7
+        },
+        "requestSent": false,
+        "marksConnectionFailed": false
+      }
+    },
+    {
+      "caseId": "reject.protected.instructions",
+      "raw": "{\"instructions\": \"x\", \"top_k\": 1}",
+      "body": {
+        "model": "fixture-chat",
+        "messages": [
+          {
+            "role": "user",
+            "content": "hello"
+          }
+        ],
+        "temperature": 0.7
+      },
+      "expect": {
+        "accepted": false,
+        "reason": "protected_field",
+        "field": "instructions",
+        "body": {
+          "model": "fixture-chat",
+          "messages": [
+            {
+              "role": "user",
+              "content": "hello"
+            }
+          ],
+          "temperature": 0.7
+        },
+        "requestSent": false,
+        "marksConnectionFailed": false
+      }
+    },
+    {
+      "caseId": "reject.protected.system",
+      "raw": "{\"system\": \"x\", \"top_k\": 1}",
+      "body": {
+        "model": "fixture-chat",
+        "messages": [
+          {
+            "role": "user",
+            "content": "hello"
+          }
+        ],
+        "temperature": 0.7
+      },
+      "expect": {
+        "accepted": false,
+        "reason": "protected_field",
+        "field": "system",
+        "body": {
+          "model": "fixture-chat",
+          "messages": [
+            {
+              "role": "user",
+              "content": "hello"
+            }
+          ],
+          "temperature": 0.7
+        },
+        "requestSent": false,
+        "marksConnectionFailed": false
+      }
+    },
+    {
+      "caseId": "reject.protected.stream",
+      "raw": "{\"stream\": \"x\", \"top_k\": 1}",
+      "body": {
+        "model": "fixture-chat",
+        "messages": [
+          {
+            "role": "user",
+            "content": "hello"
+          }
+        ],
+        "temperature": 0.7
+      },
+      "expect": {
+        "accepted": false,
+        "reason": "protected_field",
+        "field": "stream",
+        "body": {
+          "model": "fixture-chat",
+          "messages": [
+            {
+              "role": "user",
+              "content": "hello"
+            }
+          ],
+          "temperature": 0.7
+        },
+        "requestSent": false,
+        "marksConnectionFailed": false
+      }
+    },
+    {
+      "caseId": "reject.protected.stream_options",
+      "raw": "{\"stream_options\": \"x\", \"top_k\": 1}",
+      "body": {
+        "model": "fixture-chat",
+        "messages": [
+          {
+            "role": "user",
+            "content": "hello"
+          }
+        ],
+        "temperature": 0.7
+      },
+      "expect": {
+        "accepted": false,
+        "reason": "protected_field",
+        "field": "stream_options",
+        "body": {
+          "model": "fixture-chat",
+          "messages": [
+            {
+              "role": "user",
+              "content": "hello"
+            }
+          ],
+          "temperature": 0.7
+        },
+        "requestSent": false,
+        "marksConnectionFailed": false
+      }
+    },
+    {
+      "caseId": "reject.protected.tools",
+      "raw": "{\"tools\": \"x\", \"top_k\": 1}",
+      "body": {
+        "model": "fixture-chat",
+        "messages": [
+          {
+            "role": "user",
+            "content": "hello"
+          }
+        ],
+        "temperature": 0.7
+      },
+      "expect": {
+        "accepted": false,
+        "reason": "protected_field",
+        "field": "tools",
+        "body": {
+          "model": "fixture-chat",
+          "messages": [
+            {
+              "role": "user",
+              "content": "hello"
+            }
+          ],
+          "temperature": 0.7
+        },
+        "requestSent": false,
+        "marksConnectionFailed": false
+      }
+    },
+    {
+      "caseId": "reject.protected.tool_choice",
+      "raw": "{\"tool_choice\": \"x\", \"top_k\": 1}",
+      "body": {
+        "model": "fixture-chat",
+        "messages": [
+          {
+            "role": "user",
+            "content": "hello"
+          }
+        ],
+        "temperature": 0.7
+      },
+      "expect": {
+        "accepted": false,
+        "reason": "protected_field",
+        "field": "tool_choice",
+        "body": {
+          "model": "fixture-chat",
+          "messages": [
+            {
+              "role": "user",
+              "content": "hello"
+            }
+          ],
+          "temperature": 0.7
+        },
+        "requestSent": false,
+        "marksConnectionFailed": false
+      }
+    },
+    {
+      "caseId": "reject.protected.plugins",
+      "raw": "{\"plugins\": \"x\", \"top_k\": 1}",
+      "body": {
+        "model": "fixture-chat",
+        "messages": [
+          {
+            "role": "user",
+            "content": "hello"
+          }
+        ],
+        "temperature": 0.7
+      },
+      "expect": {
+        "accepted": false,
+        "reason": "protected_field",
+        "field": "plugins",
+        "body": {
+          "model": "fixture-chat",
+          "messages": [
+            {
+              "role": "user",
+              "content": "hello"
+            }
+          ],
+          "temperature": 0.7
+        },
+        "requestSent": false,
+        "marksConnectionFailed": false
+      }
+    }
+  ],
+  "localEngineRules": {
+    "$comment": "Transports and parameter tables for engines that run a model on the user's own hardware. The sources are each engine's official documentation and source code; the llama.cpp defaults were additionally checked against /props on a real local llama-server. The parameter tables are constants built into each client (wireHardening.relaySynthesizedWireSource) and every client reconciles them row by row with localEngineProfiles; support is always accepted_unverified and source is always user_declared.",
+    "sources": {
+      "llamacpp": "https://github.com/ggml-org/llama.cpp/blob/master/tools/server/README.md",
+      "ollama": "https://docs.ollama.com/api/openai-compatibility",
+      "lmstudio": "https://lmstudio.ai/docs/developer/openai-compat/chat-completions",
+      "vllm": "https://docs.vllm.ai/en/latest/serving/online_serving/openai_compatible_server/"
+    },
+    "channels": {
+      "llamacpp": {
+        "defaultTransport": "openai_chat_completions",
+        "selectableTransports": [
+          "openai_chat_completions",
+          "llamacpp_native"
+        ],
+        "apiBaseURL": {
+          "openai_chat_completions": "{origin}/v1",
+          "llamacpp_native": "{origin}"
+        }
+      },
+      "ollama": {
+        "defaultTransport": "openai_chat_completions",
+        "selectableTransports": [
+          "openai_chat_completions"
+        ],
+        "apiBaseURL": {
+          "openai_chat_completions": "{origin}/v1"
+        }
+      },
+      "lmstudio": {
+        "defaultTransport": "openai_chat_completions",
+        "selectableTransports": [
+          "openai_chat_completions"
+        ],
+        "apiBaseURL": {
+          "openai_chat_completions": "{origin}/v1"
+        }
+      },
+      "vllm": {
+        "defaultTransport": "openai_chat_completions",
+        "selectableTransports": [
+          "openai_chat_completions"
+        ],
+        "apiBaseURL": {
+          "openai_chat_completions": "{origin}/v1"
+        }
+      }
+    },
+    "llamacppChatByDefault": "A llama.cpp connection uses /v1/chat/completions by default, so llama-server applies the chat template that ships with the model; the native /completion endpoint flattens the conversation into plain text and bypasses the template, so it is only available as a manual choice",
+    "llamacppMigration": {
+      "rule": "An existing connection with engineProfile=llamacpp and transport=llamacpp_native switches once to openai_chat_completions after upgrading, and resolvedAPIBaseURL gains /v1; this runs once per device, and a native transport the user picks afterwards is never rewritten again",
+      "storedValues": "Stored parameter values are not deleted: parameters both transports declare keep working (the wire for max tokens changes from n_predict to max_tokens), and the ones only the native transport declares (n_probs) are treated as \"kept, currently not in effect\""
+    },
+    "numericTypes": "A parameter whose valueSchema is number / integer must go out as a JSON number; llama-server answers a numeric field sent as a string with a 400 (type must be number, but is string) rather than ignoring it silently",
+    "vllmTopLevel": "vLLM's extended sampling parameters (top_k, min_p, repetition_penalty, min_tokens, ignore_eos, skip_special_tokens) sit flat at the top level of the request body; extra_body is only an argument name of the OpenAI Python client, and that layer does not exist when sending HTTP directly",
+    "parameterGroups": "The sampling, repetition-penalty, budget and output-contract groups are available on every connection; these tables do not use the engine_runtime group",
+    "ollamaOpenAICompat": "Ollama goes through its OpenAI-compatible endpoint, and its table holds only the fields that endpoint's documentation lists; num_ctx and keep_alive are runtime resource settings and are not part of this table",
+    "notInTables": {
+      "runtime_items": [
+        "num_ctx",
+        "keep_alive",
+        "ttl",
+        "cache_prompt",
+        "n_cache_reuse",
+        "id_slot",
+        "lora"
+      ],
+      "additional_body_only": [
+        "logit_bias",
+        "chat_template_kwargs",
+        "reasoning_format",
+        "stop_token_ids",
+        "structured_outputs"
+      ],
+      "$comment": "runtime_items are runtime resource settings and stay out of the ordinary generation settings; the value shapes under additional_body_only have no matching panel control and are sent through the additional request body"
+    }
+  },
+  "localEngineProfiles": {
+    "llamacpp": {
+      "openai_chat_completions": {
+        "template": "openai_chat_completions",
+        "parameters": [
+          {
+            "id": "max_output_tokens",
+            "wire": "max_tokens",
+            "valueSchema": "integer",
+            "group": "budget",
+            "range": {
+              "min": 1
+            }
+          },
+          {
+            "id": "stop",
+            "wire": "stop",
+            "valueSchema": "string-list",
+            "group": "budget"
+          },
+          {
+            "id": "temperature",
+            "wire": "temperature",
+            "valueSchema": "number",
+            "group": "sampling",
+            "range": {
+              "min": 0
+            },
+            "default": 0.8
+          },
+          {
+            "id": "top_p",
+            "wire": "top_p",
+            "valueSchema": "number",
+            "group": "sampling",
+            "range": {
+              "min": 0,
+              "max": 1
+            },
+            "default": 0.95
+          },
+          {
+            "id": "top_k",
+            "wire": "top_k",
+            "valueSchema": "integer",
+            "group": "sampling",
+            "range": {
+              "min": 0
+            },
+            "default": 40
+          },
+          {
+            "id": "min_p",
+            "wire": "min_p",
+            "valueSchema": "number",
+            "group": "sampling",
+            "range": {
+              "min": 0,
+              "max": 1
+            },
+            "default": 0.05
+          },
+          {
+            "id": "typical_p",
+            "wire": "typical_p",
+            "valueSchema": "number",
+            "group": "sampling",
+            "range": {
+              "min": 0,
+              "max": 1
+            },
+            "default": 1
+          },
+          {
+            "id": "top_n_sigma",
+            "wire": "top_n_sigma",
+            "valueSchema": "number",
+            "group": "sampling",
+            "default": -1
+          },
+          {
+            "id": "presence_penalty",
+            "wire": "presence_penalty",
+            "valueSchema": "number",
+            "group": "repetition",
+            "default": 0
+          },
+          {
+            "id": "frequency_penalty",
+            "wire": "frequency_penalty",
+            "valueSchema": "number",
+            "group": "repetition",
+            "default": 0
+          },
+          {
+            "id": "repeat_penalty",
+            "wire": "repeat_penalty",
+            "valueSchema": "number",
+            "group": "repetition",
+            "range": {
+              "min": 0
+            },
+            "default": 1
+          },
+          {
+            "id": "repeat_last_n",
+            "wire": "repeat_last_n",
+            "valueSchema": "integer",
+            "group": "repetition",
+            "range": {
+              "min": 0
+            },
+            "default": 64
+          },
+          {
+            "id": "mirostat",
+            "wire": "mirostat",
+            "valueSchema": "integer",
+            "group": "sampling",
+            "range": {
+              "min": 0,
+              "max": 2
+            },
+            "default": 0
+          },
+          {
+            "id": "mirostat_tau",
+            "wire": "mirostat_tau",
+            "valueSchema": "number",
+            "group": "sampling",
+            "range": {
+              "min": 0
+            },
+            "default": 5
+          },
+          {
+            "id": "mirostat_eta",
+            "wire": "mirostat_eta",
+            "valueSchema": "number",
+            "group": "sampling",
+            "range": {
+              "min": 0
+            },
+            "default": 0.1
+          },
+          {
+            "id": "dry_multiplier",
+            "wire": "dry_multiplier",
+            "valueSchema": "number",
+            "group": "repetition",
+            "range": {
+              "min": 0
+            },
+            "default": 0
+          },
+          {
+            "id": "dry_base",
+            "wire": "dry_base",
+            "valueSchema": "number",
+            "group": "repetition",
+            "range": {
+              "min": 1
+            },
+            "default": 1.75
+          },
+          {
+            "id": "dry_allowed_length",
+            "wire": "dry_allowed_length",
+            "valueSchema": "integer",
+            "group": "repetition",
+            "range": {
+              "min": 0
+            },
+            "default": 2
+          },
+          {
+            "id": "dry_penalty_last_n",
+            "wire": "dry_penalty_last_n",
+            "valueSchema": "integer",
+            "group": "repetition",
+            "range": {
+              "min": -1
+            },
+            "default": -1
+          },
+          {
+            "id": "dry_sequence_breakers",
+            "wire": "dry_sequence_breakers",
+            "valueSchema": "string-list",
+            "group": "repetition"
+          },
+          {
+            "id": "xtc_probability",
+            "wire": "xtc_probability",
+            "valueSchema": "number",
+            "group": "sampling",
+            "range": {
+              "min": 0,
+              "max": 1
+            },
+            "default": 0
+          },
+          {
+            "id": "xtc_threshold",
+            "wire": "xtc_threshold",
+            "valueSchema": "number",
+            "group": "sampling",
+            "range": {
+              "min": 0,
+              "max": 1
+            },
+            "default": 0.1
+          },
+          {
+            "id": "dynatemp_range",
+            "wire": "dynatemp_range",
+            "valueSchema": "number",
+            "group": "sampling",
+            "range": {
+              "min": 0
+            },
+            "default": 0
+          },
+          {
+            "id": "dynatemp_exponent",
+            "wire": "dynatemp_exponent",
+            "valueSchema": "number",
+            "group": "sampling",
+            "default": 1
+          },
+          {
+            "id": "samplers",
+            "wire": "samplers",
+            "valueSchema": "string-list",
+            "group": "sampling"
+          },
+          {
+            "id": "min_keep",
+            "wire": "min_keep",
+            "valueSchema": "integer",
+            "group": "sampling",
+            "range": {
+              "min": 0
+            },
+            "default": 0
+          },
+          {
+            "id": "n_keep",
+            "wire": "n_keep",
+            "valueSchema": "integer",
+            "group": "sampling",
+            "range": {
+              "min": -1
+            },
+            "default": 0
+          },
+          {
+            "id": "n_indent",
+            "wire": "n_indent",
+            "valueSchema": "integer",
+            "group": "sampling",
+            "range": {
+              "min": 0
+            },
+            "default": 0
+          },
+          {
+            "id": "t_max_predict_ms",
+            "wire": "t_max_predict_ms",
+            "valueSchema": "integer",
+            "group": "budget",
+            "range": {
+              "min": 0
+            },
+            "default": 0
+          },
+          {
+            "id": "ignore_eos",
+            "wire": "ignore_eos",
+            "valueSchema": "boolean",
+            "group": "budget",
+            "default": false
+          },
+          {
+            "id": "seed",
+            "wire": "seed",
+            "valueSchema": "integer",
+            "group": "reproducibility"
+          },
+          {
+            "id": "grammar",
+            "wire": "grammar",
+            "valueSchema": "string",
+            "group": "output_contract"
+          },
+          {
+            "id": "json_schema",
+            "wire": "response_format",
+            "valueSchema": "json-schema",
+            "group": "output_contract"
+          },
+          {
+            "id": "logprobs",
+            "wire": "logprobs",
+            "valueSchema": "boolean",
+            "group": "output_contract",
+            "default": false
+          },
+          {
+            "id": "top_logprobs",
+            "wire": "top_logprobs",
+            "valueSchema": "integer",
+            "group": "output_contract",
+            "range": {
+              "min": 0
+            }
+          },
+          {
+            "id": "post_sampling_probs",
+            "wire": "post_sampling_probs",
+            "valueSchema": "boolean",
+            "group": "output_contract",
+            "default": false
+          }
+        ]
+      },
+      "llamacpp_native": {
+        "template": "llamacpp_native",
+        "parameters": [
+          {
+            "id": "max_output_tokens",
+            "wire": "n_predict",
+            "valueSchema": "integer",
+            "group": "budget",
+            "range": {
+              "min": 1
+            }
+          },
+          {
+            "id": "stop",
+            "wire": "stop",
+            "valueSchema": "string-list",
+            "group": "budget"
+          },
+          {
+            "id": "temperature",
+            "wire": "temperature",
+            "valueSchema": "number",
+            "group": "sampling",
+            "range": {
+              "min": 0
+            },
+            "default": 0.8
+          },
+          {
+            "id": "top_p",
+            "wire": "top_p",
+            "valueSchema": "number",
+            "group": "sampling",
+            "range": {
+              "min": 0,
+              "max": 1
+            },
+            "default": 0.95
+          },
+          {
+            "id": "top_k",
+            "wire": "top_k",
+            "valueSchema": "integer",
+            "group": "sampling",
+            "range": {
+              "min": 0
+            },
+            "default": 40
+          },
+          {
+            "id": "min_p",
+            "wire": "min_p",
+            "valueSchema": "number",
+            "group": "sampling",
+            "range": {
+              "min": 0,
+              "max": 1
+            },
+            "default": 0.05
+          },
+          {
+            "id": "typical_p",
+            "wire": "typical_p",
+            "valueSchema": "number",
+            "group": "sampling",
+            "range": {
+              "min": 0,
+              "max": 1
+            },
+            "default": 1
+          },
+          {
+            "id": "top_n_sigma",
+            "wire": "top_n_sigma",
+            "valueSchema": "number",
+            "group": "sampling",
+            "default": -1
+          },
+          {
+            "id": "presence_penalty",
+            "wire": "presence_penalty",
+            "valueSchema": "number",
+            "group": "repetition",
+            "default": 0
+          },
+          {
+            "id": "frequency_penalty",
+            "wire": "frequency_penalty",
+            "valueSchema": "number",
+            "group": "repetition",
+            "default": 0
+          },
+          {
+            "id": "repeat_penalty",
+            "wire": "repeat_penalty",
+            "valueSchema": "number",
+            "group": "repetition",
+            "range": {
+              "min": 0
+            },
+            "default": 1
+          },
+          {
+            "id": "repeat_last_n",
+            "wire": "repeat_last_n",
+            "valueSchema": "integer",
+            "group": "repetition",
+            "range": {
+              "min": 0
+            },
+            "default": 64
+          },
+          {
+            "id": "mirostat",
+            "wire": "mirostat",
+            "valueSchema": "integer",
+            "group": "sampling",
+            "range": {
+              "min": 0,
+              "max": 2
+            },
+            "default": 0
+          },
+          {
+            "id": "mirostat_tau",
+            "wire": "mirostat_tau",
+            "valueSchema": "number",
+            "group": "sampling",
+            "range": {
+              "min": 0
+            },
+            "default": 5
+          },
+          {
+            "id": "mirostat_eta",
+            "wire": "mirostat_eta",
+            "valueSchema": "number",
+            "group": "sampling",
+            "range": {
+              "min": 0
+            },
+            "default": 0.1
+          },
+          {
+            "id": "dry_multiplier",
+            "wire": "dry_multiplier",
+            "valueSchema": "number",
+            "group": "repetition",
+            "range": {
+              "min": 0
+            },
+            "default": 0
+          },
+          {
+            "id": "dry_base",
+            "wire": "dry_base",
+            "valueSchema": "number",
+            "group": "repetition",
+            "range": {
+              "min": 1
+            },
+            "default": 1.75
+          },
+          {
+            "id": "dry_allowed_length",
+            "wire": "dry_allowed_length",
+            "valueSchema": "integer",
+            "group": "repetition",
+            "range": {
+              "min": 0
+            },
+            "default": 2
+          },
+          {
+            "id": "dry_penalty_last_n",
+            "wire": "dry_penalty_last_n",
+            "valueSchema": "integer",
+            "group": "repetition",
+            "range": {
+              "min": -1
+            },
+            "default": -1
+          },
+          {
+            "id": "dry_sequence_breakers",
+            "wire": "dry_sequence_breakers",
+            "valueSchema": "string-list",
+            "group": "repetition"
+          },
+          {
+            "id": "xtc_probability",
+            "wire": "xtc_probability",
+            "valueSchema": "number",
+            "group": "sampling",
+            "range": {
+              "min": 0,
+              "max": 1
+            },
+            "default": 0
+          },
+          {
+            "id": "xtc_threshold",
+            "wire": "xtc_threshold",
+            "valueSchema": "number",
+            "group": "sampling",
+            "range": {
+              "min": 0,
+              "max": 1
+            },
+            "default": 0.1
+          },
+          {
+            "id": "dynatemp_range",
+            "wire": "dynatemp_range",
+            "valueSchema": "number",
+            "group": "sampling",
+            "range": {
+              "min": 0
+            },
+            "default": 0
+          },
+          {
+            "id": "dynatemp_exponent",
+            "wire": "dynatemp_exponent",
+            "valueSchema": "number",
+            "group": "sampling",
+            "default": 1
+          },
+          {
+            "id": "samplers",
+            "wire": "samplers",
+            "valueSchema": "string-list",
+            "group": "sampling"
+          },
+          {
+            "id": "min_keep",
+            "wire": "min_keep",
+            "valueSchema": "integer",
+            "group": "sampling",
+            "range": {
+              "min": 0
+            },
+            "default": 0
+          },
+          {
+            "id": "n_keep",
+            "wire": "n_keep",
+            "valueSchema": "integer",
+            "group": "sampling",
+            "range": {
+              "min": -1
+            },
+            "default": 0
+          },
+          {
+            "id": "n_indent",
+            "wire": "n_indent",
+            "valueSchema": "integer",
+            "group": "sampling",
+            "range": {
+              "min": 0
+            },
+            "default": 0
+          },
+          {
+            "id": "t_max_predict_ms",
+            "wire": "t_max_predict_ms",
+            "valueSchema": "integer",
+            "group": "budget",
+            "range": {
+              "min": 0
+            },
+            "default": 0
+          },
+          {
+            "id": "ignore_eos",
+            "wire": "ignore_eos",
+            "valueSchema": "boolean",
+            "group": "budget",
+            "default": false
+          },
+          {
+            "id": "seed",
+            "wire": "seed",
+            "valueSchema": "integer",
+            "group": "reproducibility"
+          },
+          {
+            "id": "grammar",
+            "wire": "grammar",
+            "valueSchema": "string",
+            "group": "output_contract"
+          },
+          {
+            "id": "json_schema",
+            "wire": "json_schema",
+            "valueSchema": "json-schema",
+            "group": "output_contract"
+          },
+          {
+            "id": "n_probs",
+            "wire": "n_probs",
+            "valueSchema": "integer",
+            "group": "output_contract",
+            "range": {
+              "min": 0
+            },
+            "default": 0
+          },
+          {
+            "id": "post_sampling_probs",
+            "wire": "post_sampling_probs",
+            "valueSchema": "boolean",
+            "group": "output_contract",
+            "default": false
+          }
+        ]
+      }
+    },
+    "ollama": {
+      "openai_chat_completions": {
+        "template": "openai_chat_completions",
+        "parameters": [
+          {
+            "id": "max_output_tokens",
+            "wire": "max_tokens",
+            "valueSchema": "integer",
+            "group": "budget",
+            "range": {
+              "min": 1
+            }
+          },
+          {
+            "id": "stop",
+            "wire": "stop",
+            "valueSchema": "string-list",
+            "group": "budget"
+          },
+          {
+            "id": "reasoning_effort",
+            "wire": "reasoning_effort",
+            "valueSchema": "string",
+            "group": "reasoning"
+          },
+          {
+            "id": "temperature",
+            "wire": "temperature",
+            "valueSchema": "number",
+            "group": "sampling",
+            "range": {
+              "min": 0
+            }
+          },
+          {
+            "id": "top_p",
+            "wire": "top_p",
+            "valueSchema": "number",
+            "group": "sampling",
+            "range": {
+              "min": 0,
+              "max": 1
+            }
+          },
+          {
+            "id": "presence_penalty",
+            "wire": "presence_penalty",
+            "valueSchema": "number",
+            "group": "repetition"
+          },
+          {
+            "id": "frequency_penalty",
+            "wire": "frequency_penalty",
+            "valueSchema": "number",
+            "group": "repetition"
+          },
+          {
+            "id": "seed",
+            "wire": "seed",
+            "valueSchema": "integer",
+            "group": "reproducibility"
+          },
+          {
+            "id": "response_format",
+            "wire": "response_format",
+            "valueSchema": "enum",
+            "group": "output_contract",
+            "enumValues": [
+              "text",
+              "json"
+            ]
+          },
+          {
+            "id": "json_schema",
+            "wire": "response_format",
+            "valueSchema": "json-schema",
+            "group": "output_contract"
+          }
+        ]
+      }
+    },
+    "lmstudio": {
+      "openai_chat_completions": {
+        "template": "openai_chat_completions",
+        "parameters": [
+          {
+            "id": "max_output_tokens",
+            "wire": "max_tokens",
+            "valueSchema": "integer",
+            "group": "budget",
+            "range": {
+              "min": 1
+            }
+          },
+          {
+            "id": "stop",
+            "wire": "stop",
+            "valueSchema": "string-list",
+            "group": "budget"
+          },
+          {
+            "id": "temperature",
+            "wire": "temperature",
+            "valueSchema": "number",
+            "group": "sampling",
+            "range": {
+              "min": 0
+            }
+          },
+          {
+            "id": "top_p",
+            "wire": "top_p",
+            "valueSchema": "number",
+            "group": "sampling",
+            "range": {
+              "min": 0,
+              "max": 1
+            }
+          },
+          {
+            "id": "top_k",
+            "wire": "top_k",
+            "valueSchema": "integer",
+            "group": "sampling",
+            "range": {
+              "min": 0
+            }
+          },
+          {
+            "id": "presence_penalty",
+            "wire": "presence_penalty",
+            "valueSchema": "number",
+            "group": "repetition"
+          },
+          {
+            "id": "frequency_penalty",
+            "wire": "frequency_penalty",
+            "valueSchema": "number",
+            "group": "repetition"
+          },
+          {
+            "id": "repeat_penalty",
+            "wire": "repeat_penalty",
+            "valueSchema": "number",
+            "group": "repetition",
+            "range": {
+              "min": 0
+            }
+          },
+          {
+            "id": "seed",
+            "wire": "seed",
+            "valueSchema": "integer",
+            "group": "reproducibility"
+          },
+          {
+            "id": "json_schema",
+            "wire": "response_format",
+            "valueSchema": "json-schema",
+            "group": "output_contract"
+          }
+        ]
+      }
+    },
+    "vllm": {
+      "openai_chat_completions": {
+        "template": "vllm_extra_body",
+        "parameters": [
+          {
+            "id": "max_output_tokens",
+            "wire": "max_tokens",
+            "valueSchema": "integer",
+            "group": "budget",
+            "range": {
+              "min": 1
+            }
+          },
+          {
+            "id": "min_tokens",
+            "wire": "min_tokens",
+            "valueSchema": "integer",
+            "group": "budget",
+            "range": {
+              "min": 0
+            },
+            "default": 0
+          },
+          {
+            "id": "stop",
+            "wire": "stop",
+            "valueSchema": "string-list",
+            "group": "budget"
+          },
+          {
+            "id": "ignore_eos",
+            "wire": "ignore_eos",
+            "valueSchema": "boolean",
+            "group": "budget",
+            "default": false
+          },
+          {
+            "id": "temperature",
+            "wire": "temperature",
+            "valueSchema": "number",
+            "group": "sampling",
+            "range": {
+              "min": 0,
+              "max": 2
+            },
+            "default": 1
+          },
+          {
+            "id": "top_p",
+            "wire": "top_p",
+            "valueSchema": "number",
+            "group": "sampling",
+            "range": {
+              "minExclusive": 0,
+              "max": 1
+            },
+            "default": 1
+          },
+          {
+            "id": "top_k",
+            "wire": "top_k",
+            "valueSchema": "integer",
+            "group": "sampling",
+            "range": {
+              "min": -1
+            },
+            "default": 0
+          },
+          {
+            "id": "min_p",
+            "wire": "min_p",
+            "valueSchema": "number",
+            "group": "sampling",
+            "range": {
+              "min": 0,
+              "max": 1
+            },
+            "default": 0
+          },
+          {
+            "id": "presence_penalty",
+            "wire": "presence_penalty",
+            "valueSchema": "number",
+            "group": "repetition",
+            "range": {
+              "min": -2,
+              "max": 2
+            },
+            "default": 0
+          },
+          {
+            "id": "frequency_penalty",
+            "wire": "frequency_penalty",
+            "valueSchema": "number",
+            "group": "repetition",
+            "range": {
+              "min": -2,
+              "max": 2
+            },
+            "default": 0
+          },
+          {
+            "id": "repeat_penalty",
+            "wire": "repetition_penalty",
+            "valueSchema": "number",
+            "group": "repetition",
+            "range": {
+              "minExclusive": 0
+            },
+            "default": 1
+          },
+          {
+            "id": "seed",
+            "wire": "seed",
+            "valueSchema": "integer",
+            "group": "reproducibility"
+          },
+          {
+            "id": "skip_special_tokens",
+            "wire": "skip_special_tokens",
+            "valueSchema": "boolean",
+            "group": "output_contract",
+            "default": true
+          },
+          {
+            "id": "response_format",
+            "wire": "response_format",
+            "valueSchema": "enum",
+            "group": "output_contract",
+            "enumValues": [
+              "text",
+              "json"
+            ]
+          },
+          {
+            "id": "json_schema",
+            "wire": "response_format",
+            "valueSchema": "json-schema",
+            "group": "output_contract"
+          },
+          {
+            "id": "logprobs",
+            "wire": "logprobs",
+            "valueSchema": "boolean",
+            "group": "output_contract",
+            "default": false
+          },
+          {
+            "id": "top_logprobs",
+            "wire": "top_logprobs",
+            "valueSchema": "integer",
+            "group": "output_contract",
+            "range": {
+              "min": 0
+            },
+            "default": 0
+          }
+        ]
+      }
+    }
+  },
+  "localEngineCases": [
+    {
+      "caseId": "llamacpp.chat.numeric_values_are_numbers",
+      "engine": "llamacpp",
+      "transport": "openai_chat_completions",
+      "overrides": {
+        "mirostat": {
+          "state": "value",
+          "value": 2
+        },
+        "mirostat_tau": {
+          "state": "value",
+          "value": 7.5
+        },
+        "mirostat_eta": {
+          "state": "value",
+          "value": 0.25
+        },
+        "dry_multiplier": {
+          "state": "value",
+          "value": 0.8
+        },
+        "dry_base": {
+          "state": "value",
+          "value": 2
+        },
+        "top_n_sigma": {
+          "state": "value",
+          "value": 2.5
+        },
+        "dynatemp_range": {
+          "state": "value",
+          "value": 0.3
+        },
+        "dynatemp_exponent": {
+          "state": "value",
+          "value": 1.5
+        },
+        "presence_penalty": {
+          "state": "value",
+          "value": 0.4
+        },
+        "frequency_penalty": {
+          "state": "value",
+          "value": 0.3
+        },
+        "max_output_tokens": {
+          "state": "value",
+          "value": 8
+        }
+      },
+      "expect": {
+        "bodyIncludes": {
+          "mirostat": 2,
+          "mirostat_tau": 7.5,
+          "mirostat_eta": 0.25,
+          "dry_multiplier": 0.8,
+          "dry_base": 2,
+          "top_n_sigma": 2.5,
+          "dynatemp_range": 0.3,
+          "dynatemp_exponent": 1.5,
+          "presence_penalty": 0.4,
+          "frequency_penalty": 0.3,
+          "max_tokens": 8
+        },
+        "numericFields": [
+          "mirostat",
+          "mirostat_tau",
+          "mirostat_eta",
+          "dry_multiplier",
+          "dry_base",
+          "top_n_sigma",
+          "dynatemp_range",
+          "dynatemp_exponent",
+          "presence_penalty",
+          "frequency_penalty",
+          "max_tokens"
+        ],
+        "bodyExcludes": [
+          "n_predict",
+          "prompt"
+        ],
+        "dropped": []
+      }
+    },
+    {
+      "caseId": "llamacpp.chat.string_number_is_dropped_alone",
+      "engine": "llamacpp",
+      "transport": "openai_chat_completions",
+      "overrides": {
+        "mirostat_tau": {
+          "state": "value",
+          "value": "7.5"
+        },
+        "top_k": {
+          "state": "value",
+          "value": 7
+        }
+      },
+      "expect": {
+        "bodyIncludes": {
+          "top_k": 7
+        },
+        "numericFields": [
+          "top_k"
+        ],
+        "bodyExcludes": [
+          "mirostat_tau"
+        ],
+        "dropped": [
+          {
+            "parameterId": "mirostat_tau",
+            "reason": "invalid_value"
+          }
+        ]
+      }
+    },
+    {
+      "caseId": "llamacpp.chat.lists_booleans_and_schema",
+      "engine": "llamacpp",
+      "transport": "openai_chat_completions",
+      "overrides": {
+        "samplers": {
+          "state": "value",
+          "value": [
+            "top_k",
+            "temperature"
+          ]
+        },
+        "dry_sequence_breakers": {
+          "state": "value",
+          "value": [
+            "#"
+          ]
+        },
+        "ignore_eos": {
+          "state": "value",
+          "value": true
+        },
+        "stop": {
+          "state": "value",
+          "value": [
+            "###"
+          ]
+        },
+        "json_schema": {
+          "state": "value",
+          "value": {
+            "type": "object"
+          }
+        },
+        "logprobs": {
+          "state": "value",
+          "value": true
+        },
+        "top_logprobs": {
+          "state": "value",
+          "value": 3
+        }
+      },
+      "expect": {
+        "bodyIncludes": {
+          "samplers": [
+            "top_k",
+            "temperature"
+          ],
+          "dry_sequence_breakers": [
+            "#"
+          ],
+          "ignore_eos": true,
+          "stop": [
+            "###"
+          ],
+          "logprobs": true,
+          "top_logprobs": 3,
+          "response_format": {
+            "type": "json_schema",
+            "json_schema": {
+              "name": "oriveo_response",
+              "strict": true,
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "numericFields": [
+          "top_logprobs"
+        ],
+        "bodyExcludes": [],
+        "dropped": []
+      }
+    },
+    {
+      "caseId": "llamacpp.native.wire_names",
+      "engine": "llamacpp",
+      "transport": "llamacpp_native",
+      "overrides": {
+        "max_output_tokens": {
+          "state": "value",
+          "value": 8
+        },
+        "mirostat_tau": {
+          "state": "value",
+          "value": 7.5
+        },
+        "json_schema": {
+          "state": "value",
+          "value": {
+            "type": "object"
+          }
+        },
+        "n_probs": {
+          "state": "value",
+          "value": 2
+        }
+      },
+      "expect": {
+        "bodyIncludes": {
+          "n_predict": 8,
+          "mirostat_tau": 7.5,
+          "json_schema": {
+            "type": "object"
+          },
+          "n_probs": 2
+        },
+        "numericFields": [
+          "n_predict",
+          "mirostat_tau",
+          "n_probs"
+        ],
+        "bodyExcludes": [
+          "max_tokens",
+          "response_format",
+          "messages"
+        ],
+        "dropped": []
+      }
+    },
+    {
+      "caseId": "ollama.chat.documented_fields_only",
+      "engine": "ollama",
+      "transport": "openai_chat_completions",
+      "overrides": {
+        "max_output_tokens": {
+          "state": "value",
+          "value": 8
+        },
+        "temperature": {
+          "state": "value",
+          "value": 0
+        },
+        "top_p": {
+          "state": "value",
+          "value": 0.5
+        },
+        "seed": {
+          "state": "value",
+          "value": 42
+        },
+        "stop": {
+          "state": "value",
+          "value": [
+            "###"
+          ]
+        },
+        "presence_penalty": {
+          "state": "value",
+          "value": 0.5
+        },
+        "top_k": {
+          "state": "value",
+          "value": 1
+        },
+        "repeat_penalty": {
+          "state": "value",
+          "value": 1.2
+        }
+      },
+      "expect": {
+        "bodyIncludes": {
+          "max_tokens": 8,
+          "temperature": 0,
+          "top_p": 0.5,
+          "seed": 42,
+          "stop": [
+            "###"
+          ],
+          "presence_penalty": 0.5
+        },
+        "numericFields": [
+          "max_tokens",
+          "temperature",
+          "top_p",
+          "seed",
+          "presence_penalty"
+        ],
+        "bodyExcludes": [
+          "top_k",
+          "repeat_penalty",
+          "options",
+          "num_ctx",
+          "keep_alive"
+        ],
+        "dropped": []
+      }
+    },
+    {
+      "caseId": "lmstudio.chat.documented_fields",
+      "engine": "lmstudio",
+      "transport": "openai_chat_completions",
+      "overrides": {
+        "max_output_tokens": {
+          "state": "value",
+          "value": 8
+        },
+        "temperature": {
+          "state": "value",
+          "value": 0
+        },
+        "top_k": {
+          "state": "value",
+          "value": 1
+        },
+        "repeat_penalty": {
+          "state": "value",
+          "value": 1.1
+        },
+        "seed": {
+          "state": "value",
+          "value": 42
+        },
+        "json_schema": {
+          "state": "value",
+          "value": {
+            "type": "object"
+          }
+        },
+        "min_p": {
+          "state": "value",
+          "value": 0.1
+        }
+      },
+      "expect": {
+        "bodyIncludes": {
+          "max_tokens": 8,
+          "temperature": 0,
+          "top_k": 1,
+          "repeat_penalty": 1.1,
+          "seed": 42,
+          "response_format": {
+            "type": "json_schema",
+            "json_schema": {
+              "name": "oriveo_response",
+              "strict": true,
+              "schema": {
+                "type": "object"
+              }
+            }
+          }
+        },
+        "numericFields": [
+          "max_tokens",
+          "temperature",
+          "top_k",
+          "repeat_penalty",
+          "seed"
+        ],
+        "bodyExcludes": [
+          "min_p"
+        ],
+        "dropped": []
+      }
+    },
+    {
+      "caseId": "vllm.chat.extensions_are_top_level",
+      "engine": "vllm",
+      "transport": "openai_chat_completions",
+      "overrides": {
+        "top_k": {
+          "state": "value",
+          "value": 20
+        },
+        "min_p": {
+          "state": "value",
+          "value": 0.05
+        },
+        "repeat_penalty": {
+          "state": "value",
+          "value": 1.1
+        },
+        "min_tokens": {
+          "state": "value",
+          "value": 4
+        },
+        "ignore_eos": {
+          "state": "value",
+          "value": true
+        },
+        "skip_special_tokens": {
+          "state": "value",
+          "value": false
+        },
+        "temperature": {
+          "state": "value",
+          "value": 0.7
+        },
+        "max_output_tokens": {
+          "state": "value",
+          "value": 64
+        },
+        "typical_p": {
+          "state": "value",
+          "value": 0.9
+        }
+      },
+      "expect": {
+        "bodyIncludes": {
+          "top_k": 20,
+          "min_p": 0.05,
+          "repetition_penalty": 1.1,
+          "min_tokens": 4,
+          "ignore_eos": true,
+          "skip_special_tokens": false,
+          "temperature": 0.7,
+          "max_tokens": 64
+        },
+        "numericFields": [
+          "top_k",
+          "min_p",
+          "repetition_penalty",
+          "min_tokens",
+          "temperature",
+          "max_tokens"
+        ],
+        "bodyExcludes": [
+          "extra_body",
+          "repeat_penalty",
+          "typical_p"
+        ],
+        "dropped": []
+      }
+    },
+    {
+      "caseId": "vllm.chat.out_of_range_dropped_alone",
+      "engine": "vllm",
+      "transport": "openai_chat_completions",
+      "overrides": {
+        "temperature": {
+          "state": "value",
+          "value": 2.5
+        },
+        "top_p": {
+          "state": "value",
+          "value": 0
+        },
+        "top_k": {
+          "state": "value",
+          "value": 20
+        }
+      },
+      "expect": {
+        "bodyIncludes": {
+          "top_k": 20
+        },
+        "numericFields": [
+          "top_k"
+        ],
+        "bodyExcludes": [
+          "temperature",
+          "top_p",
+          "extra_body"
+        ],
+        "dropped": [
+          {
+            "parameterId": "temperature",
+            "reason": "invalid_value"
+          },
+          {
+            "parameterId": "top_p",
+            "reason": "invalid_value"
+          }
+        ]
+      }
+    }
+  ],
+  "llamacppMigrationCases": [
+    {
+      "caseId": "stored_native_llamacpp_moves_to_chat",
+      "before": {
+        "engineProfile": "llamacpp",
+        "transport": "llamacpp_native",
+        "resolvedAPIBaseURL": "http://127.0.0.1:8080"
+      },
+      "alreadyMigrated": false,
+      "expect": {
+        "transport": "openai_chat_completions",
+        "resolvedAPIBaseURL": "http://127.0.0.1:8080/v1",
+        "changed": true
+      }
+    },
+    {
+      "caseId": "base_with_prefix_gets_v1_appended",
+      "before": {
+        "engineProfile": "llamacpp",
+        "transport": "llamacpp_native",
+        "resolvedAPIBaseURL": "https://box.example/llama/"
+      },
+      "alreadyMigrated": false,
+      "expect": {
+        "transport": "openai_chat_completions",
+        "resolvedAPIBaseURL": "https://box.example/llama/v1",
+        "changed": true
+      }
+    },
+    {
+      "caseId": "hand_picked_native_after_migration_is_kept",
+      "before": {
+        "engineProfile": "llamacpp",
+        "transport": "llamacpp_native",
+        "resolvedAPIBaseURL": "http://127.0.0.1:8080"
+      },
+      "alreadyMigrated": true,
+      "expect": {
+        "transport": "llamacpp_native",
+        "resolvedAPIBaseURL": "http://127.0.0.1:8080",
+        "changed": false
+      }
+    },
+    {
+      "caseId": "other_engines_untouched",
+      "before": {
+        "engineProfile": "ollama",
+        "transport": "openai_chat_completions",
+        "resolvedAPIBaseURL": "http://127.0.0.1:11434/v1"
+      },
+      "alreadyMigrated": false,
+      "expect": {
+        "transport": "openai_chat_completions",
+        "resolvedAPIBaseURL": "http://127.0.0.1:11434/v1",
+        "changed": false
+      }
+    },
+    {
+      "caseId": "native_without_engine_profile_untouched",
+      "before": {
+        "engineProfile": null,
+        "transport": "llamacpp_native",
+        "resolvedAPIBaseURL": "http://10.0.0.2:8080"
+      },
+      "alreadyMigrated": false,
+      "expect": {
+        "transport": "llamacpp_native",
+        "resolvedAPIBaseURL": "http://10.0.0.2:8080",
+        "changed": false
+      }
+    }
+  ]
 }

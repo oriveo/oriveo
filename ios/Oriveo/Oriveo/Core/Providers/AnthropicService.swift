@@ -583,7 +583,7 @@ final class AnthropicService: BaseAPIService, ProviderServiceProtocol {
             ProfileParamsResolver.deepMerge(&body, reasoningMerge)
         }
         ProfileParamsResolver.applyTemperatureGate(to: &body, resolved: resolved)
-        ProfileParamsResolver.applyGenerationParameters(
+        let generationApplication = ProfileParamsResolver.applyGenerationParameters(
             to: &body,
             options: requestOptions,
             profile: resolved?.generationProfile,
@@ -594,6 +594,11 @@ final class AnthropicService: BaseAPIService, ProviderServiceProtocol {
             to: &body, providerKind: .anthropic, modelID: modelID,
             transport: resolved?.transport ?? "", webSearchEnabled: webSearchEnabled,
             reasoningMode: reasoningMode, capabilityPreferences: requestOptions.capabilityPreferences
+        )
+        // The thinking fields are only complete at this point, so the guard has to run after the
+        // capability writer.
+        ProfileParamsResolver.applyAnthropicThinkingGuard(
+            to: &body, application: generationApplication, builderDefaultMaxTokens: defaultMaxTokens
         )
         if let blocks = replayBlocks {
             var requestMessages = body["messages"] as? [[String: Any]] ?? []
@@ -702,11 +707,14 @@ final class AnthropicService: BaseAPIService, ProviderServiceProtocol {
             messages: capabilityIntent.outboundMessages.map { Self.buildRequestMessage($0) }
         )
         var body = try JSONSerialization.jsonObject(with: JSONEncoder().encode(payload)) as? [String: Any] ?? [:]
-        ProfileParamsResolver.applyGenerationParameters(
+        let generationApplication = ProfileParamsResolver.applyGenerationParameters(
             to: &body,
             options: requestOptions,
             finalRequest: request,
             effectiveTransport: RelayTransport.anthropicMessages.rawValue
+        )
+        ProfileParamsResolver.applyAnthropicThinkingGuard(
+            to: &body, application: generationApplication, builderDefaultMaxTokens: resolvedMaxTokens
         )
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
         CapabilityExecutionRuntime.confirmFinalWireEncoded()

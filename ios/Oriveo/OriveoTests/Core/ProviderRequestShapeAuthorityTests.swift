@@ -247,7 +247,17 @@ struct ProviderRequestShapeAuthorityTests {
             (thinking["budget_tokens"] as? NSNumber)?.intValue
                 == (expectedThinking["budget_tokens"] as? NSNumber)?.intValue
         )
-        #expect((profileBody["max_tokens"] as? NSNumber)?.intValue == 8192)
+        // The recipe's request ops own only `/thinking`, so the capability recipe never rewrites
+        // `max_tokens`. This fixture's model declares no `maxOutputTokens`, so the builder falls
+        // back to 8192; that is not greater than the thinking budget, and the generation-parameter
+        // guard raises it to budget + headroom (shared contract outboundRules.anthropicThinking;
+        // the next test covers a model whose catalog entry carries a value).
+        let budget = try #require((thinking["budget_tokens"] as? NSNumber)?.intValue)
+        #expect(budget >= 8192, "fixture premise: the fallback must not exceed the budget, or this assertion never exercises the guard")
+        #expect(
+            (profileBody["max_tokens"] as? NSNumber)?.intValue
+                == budget + ProfileParamsResolver.anthropicThinkingMaxTokensHeadroom
+        )
 
         let noProfileBody = try #require(bodies.last)
         #expect(noProfileBody["thinking"] == nil)

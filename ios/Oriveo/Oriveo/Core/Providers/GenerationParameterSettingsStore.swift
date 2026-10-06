@@ -242,6 +242,50 @@ nonisolated enum CapabilityPreferenceValueResolver {
     }
 }
 
+/// The result of one resolution: each parameter's value and the layer it came from. The rules live
+/// in the shared contract `generation_parameter_contract.v1.json#outboundRules.valueSources`.
+nonisolated struct GenerationParameterResolution: Equatable, Sendable {
+    /// The raw value is the layer name in the contract's `overridePriority`.
+    enum Layer: String, CaseIterable, Sendable {
+        case singleSend = "single_send"
+        case conversation = "conversation_connection_model"
+        case connectionModel = "connection_model"
+        case connection
+    }
+
+    /// The three sources the interface shows: changed in this conversation, following the model
+    /// default, or left to the model.
+    enum Source: String, CaseIterable, Sendable {
+        case conversation
+        case modelDefault = "model_default"
+        case providerDecides = "provider_decides"
+    }
+
+    struct Entry: Equatable, Sendable {
+        let override: GenerationParameterOverride
+        let layer: Layer
+    }
+
+    var entries: [String: Entry] = [:]
+
+    var overrides: GenerationParameterOverrides? {
+        entries.isEmpty ? nil : GenerationParameterOverrides(values: entries.mapValues(\.override))
+    }
+
+    static func source(for layer: Layer?) -> Source {
+        switch layer {
+        case .singleSend, .conversation: return .conversation
+        case .connectionModel, .connection: return .modelDefault
+        case nil: return .providerDecides
+        }
+    }
+
+    /// A parameter no layer supplies a value for is left to the model.
+    func source(for parameterID: String) -> Source {
+        Self.source(for: entries[parameterID]?.layer)
+    }
+}
+
 final class GenerationParameterSettingsStore: @unchecked Sendable {
     static let shared = GenerationParameterSettingsStore()
 
@@ -1162,23 +1206,41 @@ final class GenerationParameterSettingsStore: @unchecked Sendable {
         reasoningMode: ReasoningMode? = nil,
         activeParameterIDs: Set<String>? = nil
     ) -> GenerationParameterOverrides? {
+        resolveWithSources(
+            transient: transient, providerID: providerID, modelID: modelID, conversationID: conversationID,
+            profileFingerprint: profileFingerprint, reasoningMode: reasoningMode,
+            activeParameterIDs: activeParameterIDs
+        ).overrides
+    }
+
+    /// The same resolution as `resolve`, with the layer each value came from, so the conversation
+    /// screen can show the value actually in effect and where it comes from.
+    func resolveWithSources(
+        transient: GenerationParameterOverrides?,
+        providerID: UUID,
+        modelID: String,
+        conversationID: UUID,
+        profileFingerprint: String? = nil,
+        reasoningMode: ReasoningMode? = nil,
+        activeParameterIDs: Set<String>? = nil
+    ) -> GenerationParameterResolution {
         let allowConnectionReasoning = (reasoningMode ?? .automatic) == .automatic
-        let layers: [(values: GenerationParameterOverrides?, allowsReasoning: Bool, filtersDormant: Bool)] = [
-            (transient, false, false),
-            (sessionOverrides(providerID: providerID, modelID: modelID, conversationID: conversationID, profileFingerprint: profileFingerprint), false, true),
-            (modelDefaults(providerID: providerID, modelID: modelID, profileFingerprint: profileFingerprint), allowConnectionReasoning, true),
-            (connectionDefaults(providerID: providerID), allowConnectionReasoning, true),
+        let layers: [(layer: GenerationParameterResolution.Layer, values: GenerationParameterOverrides?, allowsReasoning: Bool, filtersDormant: Bool)] = [
+            (.singleSend, transient, false, false),
+            (.conversation, sessionOverrides(providerID: providerID, modelID: modelID, conversationID: conversationID, profileFingerprint: profileFingerprint), false, true),
+            (.connectionModel, modelDefaults(providerID: providerID, modelID: modelID, profileFingerprint: profileFingerprint), allowConnectionReasoning, true),
+            (.connection, connectionDefaults(providerID: providerID), allowConnectionReasoning, true),
         ]
-        var resolved: [String: GenerationParameterOverride] = [:]
+        var resolved: [String: GenerationParameterResolution.Entry] = [:]
         for layer in layers {
             guard let values = layer.values?.values else { continue }
             for (key, value) in values where resolved[key] == nil && value.state != .inherit {
                 guard layer.allowsReasoning || !Self.reasoningParameterIDs.contains(key) else { continue }
                 if layer.filtersDormant, let activeParameterIDs, !activeParameterIDs.contains(key) { continue }
-                resolved[key] = value
+                resolved[key] = .init(override: value, layer: layer.layer)
             }
         }
-        return resolved.isEmpty ? nil : GenerationParameterOverrides(values: resolved)
+        return GenerationParameterResolution(entries: resolved)
     }
 
     private func replace(
