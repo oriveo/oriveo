@@ -194,3 +194,29 @@ extension AppState {
         return merged
     }
 }
+
+// Default-transport migration for llama.cpp connections: the native `/completion` endpoint
+// bypasses the model's chat template, so existing connections switch once to the chat transport
+// (the pure function and its rules live in `LlamaCppChannelMigration`). It goes through the same
+// update path as a user edit; the idempotency flag is kept per account, and a native transport the
+// user picks afterwards is never rewritten.
+extension AppState {
+    private static func llamaCppChannelMigrationKey(for uid: String) -> String {
+        "oriveo.providers.llamacppChatChannelMigrated.\(uid)"
+    }
+
+    func migrateLlamaCppConnectionsToChatChannelIfNeeded(uid: String, defaults: UserDefaults = .standard) {
+        let flagKey = Self.llamaCppChannelMigrationKey(for: uid)
+        let alreadyMigrated = defaults.bool(forKey: flagKey)
+        defer { defaults.set(true, forKey: flagKey) }
+        for provider in providers where provider.kind == .relay {
+            guard let requested = provider.relayRequested,
+                  let migrated = LlamaCppChannelMigration.migrated(requested, alreadyMigrated: alreadyMigrated) else {
+                continue
+            }
+            var copy = provider
+            copy.relayRequested = migrated
+            providerManager.updateProvider(copy)
+        }
+    }
+}

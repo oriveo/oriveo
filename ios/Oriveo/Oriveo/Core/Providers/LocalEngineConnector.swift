@@ -75,7 +75,7 @@ enum LocalEngineConnector {
             throw LocalEngineConnectionError.wrongEngine
         }
         let requested = RelayRequestedConfig(
-            transport: engine == .llamacpp ? .llamacppNative : .openaiChatCompletions,
+            transport: engine.defaultTransport,
             authMode: authPolicy.authMode,
             securityMode: securityMode,
             stream: true,
@@ -183,7 +183,7 @@ enum LocalEngineConnector {
             throw LocalEngineConnectionError.wrongEngine
         }
         let requested = RelayRequestedConfig(
-            transport: engine == .llamacpp ? .llamacppNative : .openaiChatCompletions,
+            transport: engine.defaultTransport,
             authMode: authPolicy.authMode,
             securityMode: securityMode,
             stream: true,
@@ -228,9 +228,8 @@ enum LocalEngineConnector {
         }
     }
 
-    private static func apiBaseURL(for endpoint: String, engine: LocalEngineKind) -> String {
+    nonisolated static func apiBaseURL(for endpoint: String, engine: LocalEngineKind) -> String {
         let trimmed = endpoint.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-        if engine == .llamacpp { return trimmed }
         if engine == .openwebui { return trimmed + "/api" }
         return trimmed.lowercased().hasSuffix("/v1") ? trimmed : "\(trimmed)/v1"
     }

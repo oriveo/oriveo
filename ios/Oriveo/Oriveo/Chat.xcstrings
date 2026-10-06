@@ -3399,6 +3399,125 @@
         }
       }
     },
+    "DRY allowed length" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "DRY allowed length"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "DRY 允许重复长度"
+          }
+        }
+      }
+    },
+    "DRY base" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "DRY base"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "DRY 底数"
+          }
+        }
+      }
+    },
+    "DRY multiplier" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "DRY multiplier"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "DRY 惩罚强度"
+          }
+        }
+      }
+    },
+    "DRY penalty window" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "DRY penalty window"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "DRY 惩罚窗口"
+          }
+        }
+      }
+    },
+    "DRY sequence breakers" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "DRY sequence breakers"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "DRY 序列中断符"
+          }
+        }
+      }
+    },
+    "Dynamic temperature exponent" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dynamic temperature exponent"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "动态温度指数"
+          }
+        }
+      }
+    },
+    "Dynamic temperature range" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Dynamic temperature range"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "动态温度浮动幅度"
+          }
+        }
+      }
+    },
     "Edit Message" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5496,6 +5615,23 @@
         }
       }
     },
+    "Grammar (GBNF)" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Grammar (GBNF)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "语法约束（GBNF）"
+          }
+        }
+      }
+    },
     "Hard questions, take more time." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -5789,6 +5925,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "檔位越高通常越慢，也可能更貴。實際執行由供應商和模型決定。"
+          }
+        }
+      }
+    },
+    "Ignore EOS token" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Ignore EOS token"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "忽略 EOS Token"
           }
         }
       }
@@ -6898,6 +7051,40 @@
         }
       }
     },
+    "Minimum line indentation" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Minimum line indentation"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最小行缩进"
+          }
+        }
+      }
+    },
+    "Minimum output tokens" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Minimum output tokens"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最少输出 Token 数"
+          }
+        }
+      }
+    },
     "Minimum tokens to keep" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -6995,6 +7182,57 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "最少保留 Token 數"
+          }
+        }
+      }
+    },
+    "Mirostat learning rate" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mirostat learning rate"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mirostat 学习率"
+          }
+        }
+      }
+    },
+    "Mirostat mode" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mirostat mode"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mirostat 模式"
+          }
+        }
+      }
+    },
+    "Mirostat target entropy" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mirostat target entropy"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mirostat 目标熵"
           }
         }
       }
@@ -8603,6 +8841,23 @@
         }
       }
     },
+    "Post-sampling probabilities" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Post-sampling probabilities"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "概率取自采样链之后"
+          }
+        }
+      }
+    },
     "Presence penalty" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -8700,6 +8955,23 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "存在懲罰"
+          }
+        }
+      }
+    },
+    "Prompt tokens kept on context overflow" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Prompt tokens kept on context overflow"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "上下文溢出时保留的提示词 Token 数"
           }
         }
       }
@@ -10712,6 +10984,23 @@
         }
       }
     },
+    "Samplers (in order)" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Samplers (in order)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "采样器及顺序"
+          }
+        }
+      }
+    },
     "Scope: this conversation, connection, model, and transport." : {
       "extractionState" : "manual",
       "localizations" : {
@@ -12016,6 +12305,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "簡單問題，幾秒出結果。"
+          }
+        }
+      }
+    },
+    "Skip special tokens" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Skip special tokens"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "输出中隐藏特殊 Token"
+          }
+        }
+      }
+    },
+    "Soft generation time limit (ms)" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Soft generation time limit (ms)"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "生成软时限（毫秒）"
           }
         }
       }
@@ -16410,6 +16733,23 @@
         }
       }
     },
+    "Top token probabilities" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Top token probabilities"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "返回概率的候选 Token 数"
+          }
+        }
+      }
+    },
     "Top-N Sigma" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -18319,6 +18659,40 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "要從哪裡開始呢？"
+          }
+        }
+      }
+    },
+    "XTC threshold" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "XTC threshold"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "XTC 阈值"
+          }
+        }
+      }
+    },
+    "XTC trigger probability" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "XTC trigger probability"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "XTC 触发概率"
           }
         }
       }

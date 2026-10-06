@@ -1256,7 +1256,9 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
         relayRequested: RelayRequestedConfig?,
         nPredictOverride: Int? = nil
     ) throws -> URLRequest {
-        let root = baseURL.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        // The native completion endpoint sits at the server root, so strip the chat `/v1` suffix if
+        // the connection's API base carries it.
+        let root = LlamaCppChannelMigration.nativeRoot(fromBase: baseURL)
         guard let url = URL(string: "\(root)/completion") else {
             throw ProviderServiceError.invalidConfiguration(detail: "Invalid llama.cpp endpoint.")
         }

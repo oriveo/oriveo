@@ -14,6 +14,36 @@ struct GenerationParameterVocabularyLocalizationTests {
         "ar", "de", "en", "es", "fr", "hi", "id", "ja", "ko", "pt-BR", "ru", "th", "tr", "vi", "zh-Hans", "zh-Hant",
     ]
 
+    private static let sourceLocales = ["en", "zh-Hans"]
+
+    /// Local-engine parameter names ship with the English source and Simplified Chinese first; the
+    /// other 14 languages follow once each has been written and reviewed by a native speaker. This
+    /// list may only shrink: any other new key needs all 16 languages before it enters the vocabulary.
+    private static let pendingFullLocalization: Set<String> = [
+        "Mirostat mode",
+        "Mirostat target entropy",
+        "Mirostat learning rate",
+        "DRY multiplier",
+        "DRY base",
+        "DRY allowed length",
+        "DRY penalty window",
+        "DRY sequence breakers",
+        "XTC trigger probability",
+        "XTC threshold",
+        "Dynamic temperature range",
+        "Dynamic temperature exponent",
+        "Samplers (in order)",
+        "Ignore EOS token",
+        "Prompt tokens kept on context overflow",
+        "Minimum line indentation",
+        "Soft generation time limit (ms)",
+        "Top token probabilities",
+        "Post-sampling probabilities",
+        "Grammar (GBNF)",
+        "Minimum output tokens",
+        "Skip special tokens",
+    ]
+
     @Test("min_keep no longer shows as the repeat penalty window")
     func minKeepHasItsOwnName() {
         let minKeep = GenerationParameterVocabulary.title("min_keep")
@@ -55,7 +85,14 @@ struct GenerationParameterVocabularyLocalizationTests {
         var problems: [String] = []
         for key in keys.sorted() {
             let localizations = (strings[key] as? [String: Any])?["localizations"] as? [String: Any] ?? [:]
-            for locale in Self.locales {
+            let pending = Self.pendingFullLocalization.contains(key)
+            if pending {
+                // Unlock rule: once a pending key has all 16 languages this turns red, forcing its
+                // removal from the list.
+                let missing = Self.locales.filter { localizations[$0] == nil }
+                if missing.isEmpty { problems.append("\(key) has all 16 languages; remove it from pendingFullLocalization") }
+            }
+            for locale in pending ? Self.sourceLocales : Self.locales {
                 let unit = (localizations[locale] as? [String: Any])?["stringUnit"] as? [String: Any]
                 guard let value = unit?["value"] as? String, !value.isEmpty else {
                     problems.append("\(key) [\(locale)] missing translation")

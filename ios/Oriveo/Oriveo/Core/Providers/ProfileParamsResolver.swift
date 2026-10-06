@@ -403,6 +403,10 @@ enum ProfileParamsResolver {
             case "gemini_generate_content":
                 setValue("application/json", in: &body, path: ["generationConfig", "responseMimeType"])
                 setValue(schema, in: &body, path: ["generationConfig", "responseJsonSchema"])
+            case "llamacpp_native":
+                // The native /completion endpoint takes a top-level `json_schema`; it has no
+                // response_format wrapper.
+                body["json_schema"] = schema
             default:
                 return
             }

@@ -2,6 +2,11 @@ import Foundation
 
 nonisolated enum LocalEngineKind: String, Codable, CaseIterable, Sendable {
     case llamacpp, ollama, lmstudio, vllm, openwebui
+
+    /// Transport for a new connection. llama.cpp uses the chat transport too, so the engine applies
+    /// the chat template that ships with the model; the native `/completion` endpoint stays
+    /// available as a manual choice.
+    var defaultTransport: RelayTransport { .openaiChatCompletions }
 }
 
 nonisolated struct LocalEngineAuthenticationPolicy: Equatable, Sendable {
@@ -107,31 +112,33 @@ enum LocalEngineContract {
     }
 }
 
+/// Parameter tables for engines running on the user's own hardware. The source of truth is
+/// `localEngineProfiles` in the shared contract `generation_parameter_contract.v1.json`, taken from
+/// each engine's official documentation; `LocalEngineProfileContractTests` reconciles the tables
+/// row by row, so a change here must change the contract too.
 enum LocalEngineGenerationProfiles {
     static func profile(for engineProfile: String?, transport: RelayTransport? = nil) -> GenerationProfileRef? {
+        let isChat = transport == nil || transport == .auto || transport == .openaiChatCompletions
         switch engineProfile {
         case "llamacpp":
-            return .init(
-                template: "llamacpp_native", parameters: llamaIDs.map { parameter($0) },
-                wire: Dictionary(uniqueKeysWithValues: llamaIDs.map { ($0, $0 == "max_output_tokens" ? "n_predict" : $0) }),
-                transport: "llamacpp_native"
-            )
+            // The chat endpoint accepts every native sampling field at the top level; the two
+            // transports differ in only three wire names.
+            if transport == .llamacppNative {
+                return makeProfile(template: "llamacpp_native", transport: "llamacpp_native", rows: llamaRows(native: true))
+            }
+            guard isChat else { return genericRelayProfile(transport: transport) }
+            return makeProfile(template: "openai_chat_completions", rows: llamaRows(native: false))
+        case "ollama":
+            guard isChat else { return genericRelayProfile(transport: transport) }
+            return makeProfile(template: "openai_chat_completions", rows: ollamaRows)
+        case "lmstudio":
+            guard isChat else { return genericRelayProfile(transport: transport) }
+            return makeProfile(template: "openai_chat_completions", rows: lmStudioRows)
         case "vllm":
-            return .init(
-                template: "vllm_extra_body", parameters: vllmIDs.map { id in
-                    var value = parameter(id)
-                    if id == "top_k" { value.group = "engine_runtime" }
-                    return value
-                },
-                wire: Dictionary(uniqueKeysWithValues: vllmIDs.map { id in
-                    if id == "max_output_tokens" { return (id, "max_tokens") }
-                    if ["top_k", "min_p", "typical_p", "repeat_penalty"].contains(id) {
-                        return (id, "extra_body." + (id == "repeat_penalty" ? "repetition_penalty" : id))
-                    }
-                    return (id, id)
-                }),
-                transport: "openai_chat_completions"
-            )
+            guard isChat else { return genericRelayProfile(transport: transport) }
+            // The template name is an identifier shared across clients; the extended parameters
+            // actually sit flat at the top level of the request body.
+            return makeProfile(template: "vllm_extra_body", rows: vllmRows)
         case "openwebui":
             let ids = ["max_output_tokens", "stop", "temperature", "top_p", "frequency_penalty", "presence_penalty", "seed", "response_format", "json_schema", "verbosity", "logprobs", "top_logprobs"]
             return .init(
@@ -177,19 +184,21 @@ enum LocalEngineGenerationProfiles {
         )
     }
 
+    /// Types and ranges for the generic tables (hosted custom endpoints, Open WebUI). A numeric
+    /// parameter must be declared numeric: the panel stores `.number` or `.string` by schema, so a
+    /// parameter declared as a string would be sent as one.
     private static func parameter(_ id: String, support: String = "accepted_unverified") -> GenerationParameterRef {
         let schema: String
         let range: GenerationParameterRange?
         switch id {
         case "max_output_tokens": schema = "integer"; range = .init(min: 1, max: nil)
-        case "top_k", "seed": schema = "integer"; range = id == "top_k" ? .init(min: 0, max: nil) : nil
-        case "top_p", "min_p", "typical_p", "xtc_probability", "xtc_threshold": schema = "number"; range = .init(min: 0, max: 1)
-        case "mirostat", "repeat_last_n", "dry_allowed_length", "dry_penalty_last_n", "min_keep", "n_keep", "n_indent", "t_max_predict_ms", "n_probs": schema = "integer"; range = nil
-        case "samplers": schema = "string-list"; range = nil
-        case "ignore_eos", "post_sampling_probs", "logprobs": schema = "boolean"; range = nil
-        case "json_schema": schema = "json-schema"; range = nil
-        case "temperature": schema = "number"; range = nil
+        case "top_k": schema = "integer"; range = .init(min: 0, max: nil)
+        case "seed", "top_logprobs", "reasoning_budget": schema = "integer"; range = nil
+        case "top_p", "min_p": schema = "number"; range = .init(min: 0, max: 1)
+        case "temperature", "frequency_penalty", "presence_penalty": schema = "number"; range = nil
         case "repeat_penalty": schema = "number"; range = .init(min: 0, max: nil)
+        case "logprobs": schema = "boolean"; range = nil
+        case "json_schema": schema = "json-schema"; range = nil
         case "stop": schema = "string-list"; range = nil
         default: schema = "string"; range = nil
         }
@@ -197,15 +206,15 @@ enum LocalEngineGenerationProfiles {
             id: id,
             support: support,
             source: "user_declared",
-            group: parameterGroup(id),
+            group: genericGroup(id),
             valueSchema: schema,
             range: range,
-            portability: ["top_k", "min_p", "repeat_penalty"].contains(id) ? "engine_scoped" : "transport_scoped",
-            risk: ["top_k", "min_p"].contains(id) ? "experimental" : "normal"
+            portability: portability(id),
+            risk: risk(id)
         )
     }
 
-    private static func parameterGroup(_ id: String) -> String {
+    private static func genericGroup(_ id: String) -> String {
         if ["max_output_tokens", "stop"].contains(id) { return "budget" }
         if ["reasoning_effort", "reasoning_budget", "reasoning_mode"].contains(id) { return "reasoning" }
         if ["frequency_penalty", "presence_penalty", "repeat_penalty"].contains(id) { return "repetition" }
@@ -214,18 +223,209 @@ enum LocalEngineGenerationProfiles {
         return "sampling"
     }
 
-    private static let llamaIDs = [
-        "max_output_tokens", "stop", "temperature", "top_p", "top_k", "min_p", "typical_p",
-        "repeat_penalty", "repeat_last_n", "mirostat", "mirostat_tau", "mirostat_eta",
-        "dry_multiplier", "dry_base", "dry_allowed_length", "dry_penalty_last_n",
-        "xtc_probability", "xtc_threshold", "samplers", "ignore_eos", "top_n_sigma",
-        "dynatemp_range", "dynatemp_exponent", "min_keep", "n_keep", "n_indent",
-        "t_max_predict_ms", "n_probs", "post_sampling_probs", "seed", "json_schema", "logprobs",
+    private static func portability(_ id: String) -> String {
+        ["top_k", "min_p", "repeat_penalty"].contains(id) ? "engine_scoped" : "transport_scoped"
+    }
+
+    private static func risk(_ id: String) -> String {
+        ["top_k", "min_p"].contains(id) ? "experimental" : "normal"
+    }
+
+    // MARK: - Engine tables
+
+    private struct Row {
+        let id: String
+        let wire: String
+        let schema: String
+        let group: String
+        var range: GenerationParameterRange? = nil
+        var enumValues: [GenerationParameterValue]? = nil
+        var defaultValue: GenerationParameterValue? = nil
+    }
+
+    private static func makeProfile(
+        template: String,
+        transport: String = "openai_chat_completions",
+        rows: [Row]
+    ) -> GenerationProfileRef {
+        .init(
+            template: template,
+            parameters: rows.map { row in
+                GenerationParameterRef(
+                    id: row.id,
+                    support: "accepted_unverified",
+                    source: "user_declared",
+                    group: row.group,
+                    valueSchema: row.schema,
+                    range: row.range,
+                    enumValues: row.enumValues,
+                    defaultDescription: row.defaultValue,
+                    portability: portability(row.id),
+                    risk: risk(row.id)
+                )
+            },
+            wire: Dictionary(uniqueKeysWithValues: rows.map { ($0.id, $0.wire) }),
+            transport: transport
+        )
+    }
+
+    private static func int(_ id: String, _ wire: String? = nil, _ group: String, min: Double? = nil, max: Double? = nil, default value: Double? = nil) -> Row {
+        Row(id: id, wire: wire ?? id, schema: "integer", group: group,
+            range: min == nil && max == nil ? nil : .init(min: min, max: max),
+            defaultValue: value.map(GenerationParameterValue.number))
+    }
+
+    private static func num(_ id: String, _ wire: String? = nil, _ group: String, min: Double? = nil, max: Double? = nil, minExclusive: Double? = nil, default value: Double? = nil) -> Row {
+        Row(id: id, wire: wire ?? id, schema: "number", group: group,
+            range: min == nil && max == nil && minExclusive == nil ? nil : .init(min: min, max: max, minExclusive: minExclusive),
+            defaultValue: value.map(GenerationParameterValue.number))
+    }
+
+    private static func bool(_ id: String, _ group: String, default value: Bool? = nil) -> Row {
+        Row(id: id, wire: id, schema: "boolean", group: group, defaultValue: value.map(GenerationParameterValue.boolean))
+    }
+
+    private static func list(_ id: String, _ group: String) -> Row {
+        Row(id: id, wire: id, schema: "string-list", group: group)
+    }
+
+    private static let responseFormatRow = Row(
+        id: "response_format", wire: "response_format", schema: "enum", group: "output_contract",
+        enumValues: [.string("text"), .string("json")]
+    )
+
+    private static func schemaRow(wire: String = "response_format") -> Row {
+        Row(id: "json_schema", wire: wire, schema: "json-schema", group: "output_contract")
+    }
+
+    /// Defaults come from `/props` on a real llama-server (the documented defaults for
+    /// repeat_penalty and dry_penalty_last_n differ from what the server reports).
+    private static func llamaRows(native: Bool) -> [Row] {
+        var rows: [Row] = [
+            int("max_output_tokens", native ? "n_predict" : "max_tokens", "budget", min: 1),
+            list("stop", "budget"),
+            num("temperature", nil, "sampling", min: 0, default: 0.8),
+            num("top_p", nil, "sampling", min: 0, max: 1, default: 0.95),
+            int("top_k", nil, "sampling", min: 0, default: 40),
+            num("min_p", nil, "sampling", min: 0, max: 1, default: 0.05),
+            num("typical_p", nil, "sampling", min: 0, max: 1, default: 1),
+            num("top_n_sigma", nil, "sampling", default: -1),
+            num("presence_penalty", nil, "repetition", default: 0),
+            num("frequency_penalty", nil, "repetition", default: 0),
+            num("repeat_penalty", nil, "repetition", min: 0, default: 1),
+            int("repeat_last_n", nil, "repetition", min: 0, default: 64),
+            int("mirostat", nil, "sampling", min: 0, max: 2, default: 0),
+            num("mirostat_tau", nil, "sampling", min: 0, default: 5),
+            num("mirostat_eta", nil, "sampling", min: 0, default: 0.1),
+            num("dry_multiplier", nil, "repetition", min: 0, default: 0),
+            num("dry_base", nil, "repetition", min: 1, default: 1.75),
+            int("dry_allowed_length", nil, "repetition", min: 0, default: 2),
+            int("dry_penalty_last_n", nil, "repetition", min: -1, default: -1),
+            list("dry_sequence_breakers", "repetition"),
+            num("xtc_probability", nil, "sampling", min: 0, max: 1, default: 0),
+            num("xtc_threshold", nil, "sampling", min: 0, max: 1, default: 0.1),
+            num("dynatemp_range", nil, "sampling", min: 0, default: 0),
+            num("dynatemp_exponent", nil, "sampling", default: 1),
+            list("samplers", "sampling"),
+            int("min_keep", nil, "sampling", min: 0, default: 0),
+            int("n_keep", nil, "sampling", min: -1, default: 0),
+            int("n_indent", nil, "sampling", min: 0, default: 0),
+            int("t_max_predict_ms", nil, "budget", min: 0, default: 0),
+            bool("ignore_eos", "budget", default: false),
+            int("seed", nil, "reproducibility"),
+            Row(id: "grammar", wire: "grammar", schema: "string", group: "output_contract"),
+            schemaRow(wire: native ? "json_schema" : "response_format"),
+        ]
+        if native {
+            rows.append(int("n_probs", nil, "output_contract", min: 0, default: 0))
+        } else {
+            rows.append(bool("logprobs", "output_contract", default: false))
+            rows.append(int("top_logprobs", nil, "output_contract", min: 0))
+        }
+        rows.append(bool("post_sampling_probs", "output_contract", default: false))
+        return rows
+    }
+
+    /// The fields the OpenAI-compatible endpoint documents; `num_ctx` / `keep_alive` are runtime
+    /// resource settings and are not part of this table.
+    private static let ollamaRows: [Row] = [
+        int("max_output_tokens", "max_tokens", "budget", min: 1),
+        list("stop", "budget"),
+        Row(id: "reasoning_effort", wire: "reasoning_effort", schema: "string", group: "reasoning"),
+        num("temperature", nil, "sampling", min: 0),
+        num("top_p", nil, "sampling", min: 0, max: 1),
+        num("presence_penalty", nil, "repetition"),
+        num("frequency_penalty", nil, "repetition"),
+        int("seed", nil, "reproducibility"),
+        responseFormatRow,
+        schemaRow(),
     ]
-    private static let vllmIDs = [
-        "max_output_tokens", "stop", "temperature", "top_p", "top_k", "min_p", "typical_p",
-        "presence_penalty", "frequency_penalty", "repeat_penalty", "seed", "json_schema", "logprobs", "top_logprobs",
+
+    /// The LM Studio documentation gives no defaults or ranges, so they are left empty.
+    private static let lmStudioRows: [Row] = [
+        int("max_output_tokens", "max_tokens", "budget", min: 1),
+        list("stop", "budget"),
+        num("temperature", nil, "sampling", min: 0),
+        num("top_p", nil, "sampling", min: 0, max: 1),
+        int("top_k", nil, "sampling", min: 0),
+        num("presence_penalty", nil, "repetition"),
+        num("frequency_penalty", nil, "repetition"),
+        num("repeat_penalty", nil, "repetition", min: 0),
+        int("seed", nil, "reproducibility"),
+        schemaRow(),
     ]
+
+    private static let vllmRows: [Row] = [
+        // max_tokens is deprecated upstream in favor of max_completion_tokens, but older servers
+        // ignore the new name (leaving output unbounded) while newer ones still accept the old.
+        int("max_output_tokens", "max_tokens", "budget", min: 1),
+        int("min_tokens", nil, "budget", min: 0, default: 0),
+        list("stop", "budget"),
+        bool("ignore_eos", "budget", default: false),
+        num("temperature", nil, "sampling", min: 0, max: 2, default: 1),
+        num("top_p", nil, "sampling", max: 1, minExclusive: 0, default: 1),
+        int("top_k", nil, "sampling", min: -1, default: 0),
+        num("min_p", nil, "sampling", min: 0, max: 1, default: 0),
+        num("presence_penalty", nil, "repetition", min: -2, max: 2, default: 0),
+        num("frequency_penalty", nil, "repetition", min: -2, max: 2, default: 0),
+        num("repeat_penalty", "repetition_penalty", "repetition", minExclusive: 0, default: 1),
+        int("seed", nil, "reproducibility"),
+        bool("skip_special_tokens", "output_contract", default: true),
+        responseFormatRow,
+        schemaRow(),
+        bool("logprobs", "output_contract", default: false),
+        int("top_logprobs", nil, "output_contract", min: 0, default: 0),
+    ]
+}
+
+/// One-time transport migration for existing llama.cpp connections (shared contract
+/// `llamacppMigrationCases`). The native `/completion` endpoint flattens the conversation into
+/// plain text and bypasses the model's chat template, so the default is now the chat transport;
+/// once migrated, a native transport the user picks is never rewritten.
+enum LlamaCppChannelMigration {
+    static func migrated(_ requested: RelayRequestedConfig, alreadyMigrated: Bool) -> RelayRequestedConfig? {
+        guard !alreadyMigrated,
+              requested.engineProfile == LocalEngineKind.llamacpp.rawValue,
+              requested.transport == .llamacppNative else { return nil }
+        var copy = requested
+        copy.transport = .openaiChatCompletions
+        if let base = requested.resolvedAPIBaseURL?.trimmingCharacters(in: .whitespacesAndNewlines), !base.isEmpty {
+            copy.resolvedAPIBaseURL = chatAPIBaseURL(fromOrigin: base)
+        }
+        return copy
+    }
+
+    /// llama-server serves its OpenAI-compatible endpoints under `/v1` and the native ones at the
+    /// server root.
+    static func chatAPIBaseURL(fromOrigin origin: String) -> String {
+        let trimmed = origin.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        return trimmed.lowercased().hasSuffix("/v1") ? trimmed : "\(trimmed)/v1"
+    }
+
+    static func nativeRoot(fromBase base: String) -> String {
+        let trimmed = base.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        return trimmed.lowercased().hasSuffix("/v1") ? String(trimmed.dropLast(3)) : trimmed
+    }
 }
 
 nonisolated enum GenerationParameterEntryScope: String, Sendable {

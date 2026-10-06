@@ -1626,6 +1626,7 @@ final class AppState {
         }
 
         migrateProvidersToDeterministicIDsIfNeeded(uid: activeUID)
+        migrateLlamaCppConnectionsToChatChannelIfNeeded(uid: activeUID)
 
         sanitizeStaleGeneratingMessages()
 
