@@ -142,7 +142,7 @@ class McpPlannedTool(
 /** The MCP tools of this request and the lookup table. Empty = the request carries no MCP tool. */
 class McpToolPlan(
     val tools: List<McpPlannedTool>,
-    /** More tools were usable than `maxToolsPerRequest`, so the trailing ones were cut off in server enable order. */
+    /** More tools were usable than `maxToolsPerRequest`, so the ones left after sharing the budget across servers were cut off. */
     val truncated: Boolean,
 ) {
     val isEmpty: Boolean get() = tools.isEmpty()
@@ -165,7 +165,8 @@ object McpToolBridge {
     /**
      * Assembles the tools usable this time: enabled servers (in enable order) whose connection is usable, minus
      * tools that are "do not use" / quarantined / oversized;
-     * the result is truncated beyond `maxToolsPerRequest`.
+     * beyond `maxToolsPerRequest` the budget is shared across servers one tool per server per round, so a
+     * server with a large catalog cannot crowd out the servers enabled after it.
      *
      * A whole server is excluded in two cases: it needs a new sign-in (`needsAuth`), or the full URL of a
      * localOnly server is not on this device
@@ -175,12 +176,13 @@ object McpToolBridge {
         if (!runtimeConfig.enabled) return McpToolPlan.Empty
         val tools = mutableListOf<McpPlannedTool>()
         val taken = mutableSetOf<String>()
-        var truncated = false
-        serverLoop@ for (server in servers) {
+        val groups = mutableListOf<List<McpPlannedTool>>()
+        for (server in servers) {
             val endpoint = server.endpoint.urlOrNull ?: continue
             if (server.connectionStatus == McpConnectionStatus.NeedsAuth) continue
             val outbound = McpToolCatalog.outboundSnapshots(server.snapshots, server.permissions)
             val names = outbound.map { it.toolName }
+            val group = mutableListOf<McpPlannedTool>()
             for (snapshot in outbound) {
                 val name = McpToolNaming.outboundName(
                     slug = server.record.slug,
@@ -191,11 +193,7 @@ object McpToolBridge {
                 // Slugs are unique across servers, so this normally cannot collide; if it does, only the server
                 // enabled first keeps the name, because one name must not point to two places.
                 if (!taken.add(name)) continue
-                if (tools.size >= runtimeConfig.maxToolsPerRequest) {
-                    truncated = true
-                    break@serverLoop
-                }
-                tools += McpPlannedTool(
+                group += McpPlannedTool(
                     binding = McpToolBinding(name, server.record.id, snapshot.toolName),
                     server = server.record,
                     endpoint = endpoint,
@@ -211,8 +209,20 @@ object McpToolBridge {
                     ),
                 )
             }
+            if (group.isNotEmpty()) groups += group
         }
-        return McpToolPlan(tools, truncated)
+        // Each round takes one tool from every server; name collisions are still resolved in server enable order.
+        val eligibleCount = groups.sumOf { it.size }
+        var round = 0
+        while (tools.size < minOf(eligibleCount, runtimeConfig.maxToolsPerRequest)) {
+            for (group in groups) {
+                val tool = group.getOrNull(round) ?: continue
+                if (tools.size >= runtimeConfig.maxToolsPerRequest) break
+                tools += tool
+            }
+            round += 1
+        }
+        return McpToolPlan(tools, eligibleCount > tools.size)
     }
 
     /** Reads the servers enabled for this conversation from local storage and assembles them (switches are per conversation and stored on this device only). Empty when the conversation has no server enabled. */

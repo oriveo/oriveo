@@ -389,7 +389,7 @@ class McpToolBridgeTest {
     }
 
     @Test
-    fun `servers needing sign-in or missing their full address are left out and tools are capped in enable order`() = runBlocking {
+    fun `servers needing sign-in or missing their full address are left out and tools are allocated in server rounds`() = runBlocking {
         seedServer(listOf(snapshot("a_tool")), id = SERVER_B, name = "Needs Auth", status = McpConnectionStatus.NeedsAuth)
         val full = "https://secret.example.com/mcp?token=sk-secret"
         seedServer(listOf(snapshot("b_tool")), id = SERVER_C, name = "Secret", url = full, localOnly = true)
@@ -404,10 +404,23 @@ class McpToolBridgeTest {
         assertEquals(full, plan.tools.single { it.binding.serverId == SERVER_C }.endpoint)
         assertFalse("the full address must not appear in the string description", plan.tools.joinToString().contains("sk-secret"))
 
-        // Over maxToolsPerRequest: the tail is cut in the order the servers were enabled.
+        // Over maxToolsPerRequest: the budget is handed out one tool per server per round.
         val capped = storedPlan(config = McpRuntimeConfig(maxToolsPerRequest = 2))
         assertEquals(listOf("mcp_secret_b_tool", WEATHER_OUTBOUND), capped.tools.map { it.binding.outboundName })
         assertTrue(capped.truncated)
+    }
+
+    @Test
+    fun `large catalogs do not starve later servers and empty catalogs consume no slots`() = runBlocking {
+        seedServer((0 until 45).map { snapshot("tool_$it") })
+        seedServer(listOf(snapshot("search"), snapshot("fetch")), id = SERVER_B, name = "Notion")
+        seedServer(listOf(snapshot("off")), id = SERVER_C, name = "Empty", permissions = mapOf("off" to McpToolPermission.Off))
+        val plan = storedPlan(config = McpRuntimeConfig(maxToolsPerRequest = 4))
+        assertEquals(listOf("tool_0", "fetch", "tool_1", "search"), plan.tools.map { it.binding.toolName })
+        assertTrue(plan.truncated)
+        val full = storedPlan(config = McpRuntimeConfig(maxToolsPerRequest = 47))
+        assertEquals(47, full.tools.size)
+        assertFalse(full.truncated)
     }
 
     @Test
