@@ -3031,6 +3031,7 @@
       }
     },
     "Report an Issue" : {
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -3131,6 +3132,7 @@
       }
     },
     "Source Code" : {
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {

@@ -32,6 +32,7 @@ struct XcstringsFormatTests {
     /// `Text("· \(x)")`, are added as empty entries, and keys reached through `L10n.tr` are
     /// marked stale because the extractor cannot see through that wrapper. Keys here are
     /// registered by hand, so extraction only produces uncommitted churn.
+    /// This switch only covers command-line builds; the next test covers builds from the IDE.
     @Test("the project does not extract Swift strings or generate catalog symbols")
     func projectDoesNotExtractSwiftStrings() throws {
         let project = try String(
@@ -47,9 +48,18 @@ struct XcstringsFormatTests {
         #expect(!project.contains("STRING_CATALOG_GENERATE_SYMBOLS = YES;"))
     }
 
-    /// Stale states and entries with no localizations can only come from Xcode's extraction sync.
-    @Test("catalogs carry no stale or empty entries")
-    func catalogsCarryNoExtractionResidue() throws {
+    /// Turning compiler extraction off does not stop Xcode: a build from the IDE still runs
+    /// "Sync Localizations", using Xcode's own source scanner instead. (A command-line
+    /// `xcodebuild` does not sync, so a check that only builds from the command line never sees it.)
+    /// The sync does two things to a catalog: it changes or removes entries that are not `manual`,
+    /// and it adds every literal it finds that the catalog does not have, as an empty entry. The
+    /// scanner has no type information, so it writes a `%lld` key as `%@`; what it produces must
+    /// not be committed as is.
+    /// The catalogs therefore stay at the fixed point of that sync: every entry is `manual`, and
+    /// literals that need no translation ("--", product names, `Text("\(n)%")`) are registered as
+    /// `manual` with `shouldTranslate` false, which leaves Xcode nothing to add.
+    @Test("catalogs sit at the fixed point of Xcode's sync: all manual, untranslated entries marked as such")
+    func catalogsSitAtTheSyncFixedPoint() throws {
         let catalogs = try FileManager.default.contentsOfDirectory(at: catalogsRoot, includingPropertiesForKeys: nil)
             // InfoPlist entries come from Info.plist, not from Swift string extraction.
             .filter { $0.pathExtension == "xcstrings" && $0.lastPathComponent != "InfoPlist.xcstrings" }
@@ -59,17 +69,24 @@ struct XcstringsFormatTests {
             let root = try JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any]
             let strings = root?["strings"] as? [String: [String: Any]] ?? [:]
             for (key, entry) in strings {
-                if entry["extractionState"] as? String == "stale" {
-                    residue.append("\(url.lastPathComponent): \"\(key)\" is stale")
+                let state = entry["extractionState"] as? String
+                if state != "manual" {
+                    residue.append("\(url.lastPathComponent): \"\(key)\" is \(state ?? "automatically extracted"), not manual")
                 }
-                if (entry["localizations"] as? [String: Any] ?? [:]).isEmpty {
-                    residue.append("\(url.lastPathComponent): \"\(key)\" has no localizations")
+                let untranslated = (entry["localizations"] as? [String: Any] ?? [:]).isEmpty
+                if untranslated, entry["shouldTranslate"] as? Bool != false {
+                    residue.append("\(url.lastPathComponent): \"\(key)\" has no localizations and is not marked as not translated")
                 }
             }
         }
         #expect(
             residue.isEmpty,
-            "Set stale keys back to manual and delete empty entries; use Text(verbatim:) for literals that need no translation: \(residue.sorted().prefix(20))"
+            """
+            These entries were written by Xcode's sync after an IDE build; do not commit them as they are. \
+            For a string that is translated, add the localizations and set extractionState to manual. \
+            For one that is not, make the entry { "extractionState": "manual", "shouldTranslate": false }, \
+            or use Text(verbatim:) and delete the entry. Keep the file in Xcode's serialization: \(residue.sorted().prefix(20))
+            """
         )
     }
 

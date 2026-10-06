@@ -103,6 +103,7 @@
       }
     },
     "Add an API Key" : {
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -304,6 +305,7 @@
       }
     },
     "Bring your own key" : {
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -802,6 +804,7 @@
       }
     },
     "No account. Your keys stay on this device." : {
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {

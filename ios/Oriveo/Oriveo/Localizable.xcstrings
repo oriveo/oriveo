@@ -1,7 +1,20 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "" : {
+      "extractionState" : "manual",
+      "shouldTranslate" : false
+    },
+    " " : {
+      "extractionState" : "manual",
+      "shouldTranslate" : false
+    },
+    "  •  " : {
+      "extractionState" : "manual",
+      "shouldTranslate" : false
+    },
     "?" : {
+      "extractionState" : "manual",
       "localizations" : {
         "hi" : {
           "stringUnit" : {
@@ -40,6 +53,46 @@
           }
         }
       },
+      "shouldTranslate" : false
+    },
+    "· %@" : {
+      "extractionState" : "manual",
+      "shouldTranslate" : false
+    },
+    "%@" : {
+      "extractionState" : "manual",
+      "shouldTranslate" : false
+    },
+    "%@ - %@" : {
+      "extractionState" : "manual",
+      "shouldTranslate" : false
+    },
+    "%@ · %@" : {
+      "extractionState" : "manual",
+      "shouldTranslate" : false
+    },
+    "%@ / %@" : {
+      "extractionState" : "manual",
+      "shouldTranslate" : false
+    },
+    "%@ / 2,000" : {
+      "extractionState" : "manual",
+      "shouldTranslate" : false
+    },
+    "%@ / 4000" : {
+      "extractionState" : "manual",
+      "shouldTranslate" : false
+    },
+    "%@ • %@" : {
+      "extractionState" : "manual",
+      "shouldTranslate" : false
+    },
+    "%@ chars" : {
+      "extractionState" : "manual",
+      "shouldTranslate" : false
+    },
+    "%@ tokens" : {
+      "extractionState" : "manual",
       "shouldTranslate" : false
     },
     "%d more" : {
@@ -833,6 +886,7 @@
       }
     },
     "•" : {
+      "extractionState" : "manual",
       "localizations" : {
         "hi" : {
           "stringUnit" : {
@@ -871,6 +925,10 @@
           }
         }
       },
+      "shouldTranslate" : false
+    },
+    "+%@" : {
+      "extractionState" : "manual",
       "shouldTranslate" : false
     },
     "✨" : {
@@ -958,6 +1016,7 @@
       "shouldTranslate" : false
     },
     "🤖" : {
+      "extractionState" : "manual",
       "localizations" : {
         "hi" : {
           "stringUnit" : {
@@ -996,6 +1055,10 @@
           }
         }
       },
+      "shouldTranslate" : false
+    },
+    "$" : {
+      "extractionState" : "manual",
       "shouldTranslate" : false
     },
     "200+ models" : {
@@ -1700,6 +1763,7 @@
       }
     },
     "Add a provider API key to send messages." : {
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -1800,6 +1864,7 @@
       }
     },
     "Add an API Key" : {
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -17678,6 +17743,7 @@
       }
     },
     "Oriveo" : {
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -41727,6 +41793,7 @@
       }
     },
     "This Skill could not be updated." : {
+      "extractionState" : "manual",
       "localizations" : {
         "ar" : {
           "stringUnit" : {
@@ -43506,6 +43573,14 @@
           }
         }
       }
+    },
+    "web_search" : {
+      "extractionState" : "manual",
+      "shouldTranslate" : false
+    },
+    "web_search_preview" : {
+      "extractionState" : "manual",
+      "shouldTranslate" : false
     },
     "What can I help with?" : {
       "extractionState" : "manual",
