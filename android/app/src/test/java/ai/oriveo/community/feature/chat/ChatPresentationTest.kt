@@ -579,6 +579,24 @@ class ChatPresentationTest {
         assertNull("hover or cancel events after the lift must not report again", tracker.consume(false))
     }
 
+    @Test
+    fun `subscription failures offer the model switch even though their stored copy has no rate limit keyword`() {
+        val error = ai.oriveo.community.core.model.ProviderServiceError.GrokSubscription(
+            ai.oriveo.community.core.model.GrokSubscriptionFailureReason.ClientVersionRejected,
+            "Your Grok CLI version (1.0.4) is outdated.",
+        )
+        val failed = message("failed", ChatRole.Assistant).copy(
+            state = ChatMessageState.Failed,
+            errorTitle = error.title,
+            errorDetail = ai.oriveo.community.core.data.repository.streaming.failedMessageDetail(error),
+        )
+
+        assertTrue(isRateLimitError(failed))
+        assertFalse(
+            isRateLimitError(failed.copy(errorTitle = "Server Error", errorDetail = "Internal server error 500")),
+        )
+    }
+
     private fun message(id: String, role: ChatRole) = ChatMessage(
         id = id,
         role = role,

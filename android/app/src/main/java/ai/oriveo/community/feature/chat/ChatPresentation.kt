@@ -404,6 +404,12 @@ private val rateLimitPattern = Regex(
 /** Whether a failed message is a rate limit error, which decides if "switch model" is offered. */
 internal fun isRateLimitError(message: ChatMessage): Boolean {
     if (message.state != ChatMessageState.Failed) return false
+    // Retrying does not help any subscription failure (expired, plan not eligible, client version
+    // rejected, quota used up); switching model is the way out. Their stored text is the sentence
+    // shown to the user rather than the upstream's wording, so the keyword match below misses it.
+    if (ai.oriveo.community.core.data.repository.streaming.isSubscriptionFailureDetail(message.errorDetail)) {
+        return true
+    }
     val combined = "${message.errorTitle.orEmpty()} ${message.errorDetail.orEmpty()}"
     return rateLimitPattern.containsMatchIn(combined)
 }

@@ -6,6 +6,8 @@ import ai.oriveo.community.core.data.attachment.AttachmentStore
 import ai.oriveo.community.core.data.remote.MetadataClient
 import ai.oriveo.community.core.data.repository.streaming.StreamingImageProcessor
 import ai.oriveo.community.core.data.repository.streaming.StreamingTokenBuffer
+import ai.oriveo.community.core.data.repository.streaming.failedMessageDetail
+import ai.oriveo.community.core.data.repository.streaming.isSubscriptionClientVersionRejection
 import ai.oriveo.community.core.error.isTransientNetworkFailure
 import ai.oriveo.community.core.model.Attachment
 import ai.oriveo.community.core.model.CapabilityExecutionCollector
@@ -19,7 +21,6 @@ import ai.oriveo.community.core.model.Conversation
 import ai.oriveo.community.core.model.ModelCapability
 import ai.oriveo.community.core.model.Provider
 import ai.oriveo.community.core.model.ProviderChatResult
-import ai.oriveo.community.core.model.GrokSubscriptionFailureReason
 import ai.oriveo.community.core.model.ProviderAuthMode
 import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.core.provider.grok.GrokSubscriptionRuntime
@@ -921,10 +922,10 @@ class ChatRepository(
             throw e
         } catch (e: Exception) {
             // A rejected client version usually means the catalog knows something this build does
-            // not, so refresh it before the user retries.
-            if (e is ProviderServiceError.GrokSubscription &&
-                e.reason == GrokSubscriptionFailureReason.ClientVersionRejected
-            ) {
+            // not, so refresh it before the user retries. This covers both subscriptions: a
+            // rejection that arrives while streaming would otherwise leave the stale version in
+            // place until the next cold start.
+            if (e is ProviderServiceError && e.isSubscriptionClientVersionRejection()) {
                 runCatching { MetadataClient.refresh() }
             }
             if (tokenBuffer.hasPendingText()) {
@@ -935,7 +936,7 @@ class ChatRepository(
                 is ProviderServiceError.RelayUpstream -> e.title to (
                     e.guidanceCode?.persistenceKey ?: e.userMessage
                     )
-                is ProviderServiceError -> e.title to e.technicalDetail
+                is ProviderServiceError -> e.title to failedMessageDetail(e)
                 // Anything else is either a transport failure or a defect. Transport failures get
                 // the network wording; a defect keeps its own message so the report is useful.
                 else -> if (e.isTransientNetworkFailure()) {
