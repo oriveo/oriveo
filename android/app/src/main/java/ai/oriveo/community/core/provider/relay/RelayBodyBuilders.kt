@@ -245,6 +245,7 @@ internal fun buildAnthropicBody(
         requestOptions,
         resolved,
         capabilityProjection,
+        outboundTemplate = "anthropic_messages",
     )
 }
 

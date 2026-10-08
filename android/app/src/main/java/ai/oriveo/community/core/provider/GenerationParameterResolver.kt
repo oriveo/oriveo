@@ -3,6 +3,7 @@ package ai.oriveo.community.core.provider
 import ai.oriveo.community.core.data.remote.MetadataClient
 import ai.oriveo.community.core.model.ChatRequestOptions
 import ai.oriveo.community.core.model.GenerationOverrideState
+import ai.oriveo.community.core.model.GenerationParameterOverride
 import ai.oriveo.community.core.model.GenerationParameterRef
 import ai.oriveo.community.core.model.GenerationProfileRef
 import ai.oriveo.community.core.model.ProviderKind
@@ -15,6 +16,7 @@ import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.doubleOrNull
 import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.longOrNull
 
 /** The runtime's legacy template must equal profile.template before anything is injected; a blank template never matches. */
 internal fun legacyGenerationTemplatesMatch(runtimeTemplate: String?, profileTemplate: String?): Boolean =
@@ -77,85 +79,204 @@ internal object GenerationParameterResolver {
         }
     }
 
+    enum class DropReason(val wireName: String) {
+        InvalidValue("invalid_value"),
+        Conflict("conflict"),
+        RequirementUnmet("requirement_unmet"),
+        RequiredField("required_field"),
+        ThinkingIncompatible("thinking_incompatible"),
+        ThinkingBudget("thinking_budget"),
+    }
+
+    data class DroppedParameter(val parameterId: String, val reason: DropReason)
+
+    data class Result(val body: String, val dropped: List<DroppedParameter>)
+
+    // Shared contract outboundRules.requiredWireFields / anthropicThinking.
+    private val requiredWireFields = mapOf("anthropic_messages" to setOf("max_tokens"))
+    private val thinkingIncompatibleParameters = setOf("temperature", "top_k")
+    private const val THINKING_TOP_P_MIN = 0.95
+    private const val THINKING_MAX_TOKENS_HEADROOM = 4096L
+
+    /** Compatibility entry point for callers that only need the body. */
     fun apply(
         body: String,
         options: ChatRequestOptions,
         resolved: MetadataClient.ResolvedModelMetadata?,
         capabilityProjection: CapabilityEvidenceProductionAdapter.Projection? = null,
-    ): String {
-        val overrides = options.generationParameters?.values ?: return body
+        outboundTemplate: String? = null,
+    ): String = applyWithResult(body, options, resolved, capabilityProjection, outboundTemplate).body
+
+    /**
+     * Evaluates each parameter on its own: an invalid, conflicting or unmet item drops only itself.
+     * [outboundTemplate] comes from a builder that knows its wire protocol, so the thinking guard
+     * still holds when no profile is available.
+     */
+    fun applyWithResult(
+        body: String,
+        options: ChatRequestOptions,
+        resolved: MetadataClient.ResolvedModelMetadata?,
+        capabilityProjection: CapabilityEvidenceProductionAdapter.Projection? = null,
+        outboundTemplate: String? = null,
+    ): Result {
+        val parsed = try {
+            json.parseToJsonElement(body).jsonObject
+        } catch (_: Exception) {
+            return Result(body, emptyList())
+        }
+        val profile = authorizedProfile(options, resolved, capabilityProjection)
+        val template = outboundTemplate ?: profile?.template
+        val dropped = mutableListOf<DroppedParameter>()
+        val builderMaxTokens = parsed["max_tokens"]
+        var root = parsed
+        val written = mutableMapOf<String, JsonElement>()
+        val overrides = options.generationParameters?.values
+        if (profile != null && overrides != null) {
+            val accepted = acceptValues(overrides, profile, toolsActive = root["tools"] is JsonArray, dropped)
+            for (key in orderedKeys(overrides, profile)) {
+                val override = overrides.getValue(key)
+                if (override.state == GenerationOverrideState.Inherit) continue
+                val wire = profile.wire[key] ?: continue
+                // The request boundary may only consume the projection from this same facade. A
+                // caller without a final dispatch scope must not resurrect a parameter through an
+                // older carrier or an allowUnknown escape hatch, and tests have to supply the
+                // projection explicitly.
+                val allowed = when (capabilityProjection?.generationRuntimeAuthorized) {
+                    true -> legacyGenerationTemplatesMatch(capabilityProjection.generationRuntimeTemplate, profile.template)
+                    false -> false
+                    null -> capabilityProjection?.permitsOutbound("generation_parameter/$key") == true
+                }
+                if (!allowed) continue
+                val rejection = wireRejectionReason(wire)
+                if (rejection != null) {
+                    recordWireRejection(key, wire, rejection)
+                    continue
+                }
+                when (override.state) {
+                    GenerationOverrideState.Omit -> if (wire in template?.let(requiredWireFields::get).orEmpty()) {
+                        dropped += DroppedParameter(key, DropReason.RequiredField)
+                    } else {
+                        root = remove(root, wire.split('.'))
+                    }
+                    GenerationOverrideState.Value -> accepted[key]?.let {
+                        root = applySpecializedOutputContract(root, profile.template, key, wire, it)
+                        written[key] = it
+                    }
+                    GenerationOverrideState.Inherit -> Unit
+                }
+            }
+        }
+        if (template == "anthropic_messages") {
+            root = guardAnthropicThinking(root, profile, written, builderMaxTokens, dropped)
+        }
+        if (root === parsed && dropped.isEmpty()) return Result(body, emptyList())
+        return Result(root.toString(), dropped.sortedBy { it.parameterId })
+    }
+
+    private fun authorizedProfile(
+        options: ChatRequestOptions,
+        resolved: MetadataClient.ResolvedModelMetadata?,
+        capabilityProjection: CapabilityEvidenceProductionAdapter.Projection?,
+    ): GenerationProfileRef? {
         val profile = if (capabilityProjection?.identity?.providerKind == ProviderKind.Relay.rawValue) {
             options.activeModel?.generationProfile ?: resolved?.profiles?.generation
         } else {
             resolved?.profiles?.generation
-        } ?: return body
+        } ?: return null
         // v2 exact recipe is the generation authorization source. Its legacy-template bridge
         // must match the profile that owns schema/wire; runtime miss/invalid is a hard zero delta.
         when (capabilityProjection?.generationRuntimeAuthorized) {
-            false -> return body
-            true -> if (!legacyGenerationTemplatesMatch(capabilityProjection.generationRuntimeTemplate, profile.template)) return body
+            false -> return null
+            true -> if (!legacyGenerationTemplatesMatch(capabilityProjection.generationRuntimeTemplate, profile.template)) return null
             null -> Unit // runtime genuinely absent: retain the legacy evidence compatibility path.
         }
-        if (profile.wire.isEmpty()) return body
-        if (overrides.any { (key, override) ->
-                override.state == GenerationOverrideState.Value &&
-                    override.value?.let { value ->
-                        profile.parameters.firstOrNull { it.id == key }?.let { parameter ->
-                            !isValidGenerationValue(value, parameter)
-                        } ?: false
-                    } == true
-            }) return body
-
-        var root = try {
-            json.parseToJsonElement(body).jsonObject
-        } catch (_: Exception) {
-            return body
-        }
-        if (hasConflict(overrides, profile, toolsActive = root["tools"] is JsonArray)) return body
-        val active = overrides.filterValues { it.state == GenerationOverrideState.Value }.keys
-        if (profile.parameters.any { parameter ->
-                parameter.id in active && parameter.requires.any { requirement ->
-                    val key = requirement["key"]?.let { (it as? JsonPrimitive)?.contentOrNull } ?: return@any true
-                    key !in active || requirement["value"]?.let { overrides[key]?.value != it } == true
-                }
-            }) return body
-        for ((key, override) in overrides) {
-            if (override.state == GenerationOverrideState.Inherit) continue
-            val wire = profile.wire[key] ?: continue
-            // The request boundary may only consume the projection from this same facade. A
-            // caller without a final dispatch scope must not resurrect a parameter through an
-            // older carrier or an allowUnknown escape hatch, and tests have to supply the
-            // projection explicitly.
-            val allowed = when (capabilityProjection?.generationRuntimeAuthorized) {
-                true -> legacyGenerationTemplatesMatch(capabilityProjection.generationRuntimeTemplate, profile.template)
-                false -> false
-                null -> capabilityProjection?.permitsOutbound("generation_parameter/$key") == true
-            }
-            if (!allowed) continue
-            val rejection = wireRejectionReason(wire)
-            if (rejection != null) {
-                recordWireRejection(key, wire, rejection)
-                continue
-            }
-            root = when (override.state) {
-                GenerationOverrideState.Omit -> remove(root, wire.split('.'))
-                GenerationOverrideState.Value -> override.value?.let {
-                    applySpecializedOutputContract(root, profile.template, key, wire, it)
-                } ?: root
-                GenerationOverrideState.Inherit -> root
-            }
-        }
-        return root.toString()
+        return profile.takeIf { it.wire.isNotEmpty() }
     }
 
-    private fun hasConflict(
-        overrides: Map<String, ai.oriveo.community.core.model.GenerationParameterOverride>,
+    /** Conflicts keep whichever item the profile declares first, so iteration follows declaration order. */
+    private fun orderedKeys(
+        overrides: Map<String, GenerationParameterOverride>,
+        profile: GenerationProfileRef,
+    ): List<String> {
+        val declared = profile.parameters.mapNotNull { it.id }.filter(overrides::containsKey)
+        return declared + overrides.keys.filterNot(declared::contains)
+    }
+
+    private fun acceptValues(
+        overrides: Map<String, GenerationParameterOverride>,
         profile: GenerationProfileRef,
         toolsActive: Boolean,
-    ): Boolean {
-        val active = overrides.filterValues { it.state == GenerationOverrideState.Value }.keys.toMutableSet()
-        if (toolsActive) active += "tools"
-        return profile.parameters.any { it.id in active && it.conflictsWith.any(active::contains) }
+        dropped: MutableList<DroppedParameter>,
+    ): Map<String, JsonElement> {
+        val parameters = profile.parameters.filter { it.id != null }.associateBy { it.id!! }
+        val valid = linkedMapOf<String, JsonElement>()
+        for (key in orderedKeys(overrides, profile)) {
+            val override = overrides.getValue(key)
+            if (override.state != GenerationOverrideState.Value) continue
+            val value = override.value
+            val parameter = parameters[key]
+            if (value == null || (parameter != null && !isValidGenerationValue(value, parameter))) {
+                dropped += DroppedParameter(key, DropReason.InvalidValue)
+            } else {
+                valid[key] = value
+            }
+        }
+        val satisfied = valid.filterKeys { key ->
+            val unmet = parameters[key]?.requires.orEmpty().any { requirement ->
+                val requiredKey = requirement["key"]?.let { (it as? JsonPrimitive)?.contentOrNull } ?: return@any true
+                requiredKey !in valid || requirement["value"]?.let { valid[requiredKey] != it } == true
+            }
+            if (unmet) dropped += DroppedParameter(key, DropReason.RequirementUnmet)
+            !unmet
+        }
+        val accepted = linkedMapOf<String, JsonElement>()
+        val present = if (toolsActive) mutableSetOf("tools") else mutableSetOf()
+        for ((key, value) in satisfied) {
+            val conflicts = parameters[key]?.conflictsWith.orEmpty().any(present::contains) ||
+                present.any { other -> parameters[other]?.conflictsWith?.contains(key) == true }
+            if (conflicts) {
+                dropped += DroppedParameter(key, DropReason.Conflict)
+            } else {
+                accepted[key] = value
+                present += key
+            }
+        }
+        return accepted
+    }
+
+    /** Thinking is written by the capability layer before this resolver runs, so the value seen here is final. */
+    private fun guardAnthropicThinking(
+        source: JsonObject,
+        profile: GenerationProfileRef?,
+        written: Map<String, JsonElement>,
+        builderMaxTokens: JsonElement?,
+        dropped: MutableList<DroppedParameter>,
+    ): JsonObject {
+        val thinking = source["thinking"] as? JsonObject ?: return source
+        val type = (thinking["type"] as? JsonPrimitive)?.contentOrNull
+        if (type != "enabled" && type != "adaptive") return source
+        var root = source
+        for ((key, value) in written) {
+            val wire = profile?.wire?.get(key) ?: continue
+            val incompatible = key in thinkingIncompatibleParameters ||
+                (key == "top_p" && ((value as? JsonPrimitive)?.doubleOrNull ?: 0.0) < THINKING_TOP_P_MIN)
+            if (incompatible) {
+                root = remove(root, wire.split('.'))
+                dropped += DroppedParameter(key, DropReason.ThinkingIncompatible)
+            }
+        }
+        val budget = (thinking["budget_tokens"] as? JsonPrimitive)?.longOrNull ?: return root
+        val maxTokensKey = profile?.wire?.entries?.firstOrNull { it.value == "max_tokens" }?.key
+        val userMaxTokens = maxTokensKey?.let(written::get)
+        if (userMaxTokens != null && ((userMaxTokens as? JsonPrimitive)?.doubleOrNull ?: 0.0) <= budget) {
+            root = if (builderMaxTokens != null) set(root, listOf("max_tokens"), builderMaxTokens) else remove(root, listOf("max_tokens"))
+            dropped += DroppedParameter(maxTokensKey, DropReason.ThinkingBudget)
+        }
+        val current = (root["max_tokens"] as? JsonPrimitive)?.doubleOrNull
+        if (current == null || current <= budget) {
+            root = set(root, listOf("max_tokens"), JsonPrimitive(budget + THINKING_MAX_TOKENS_HEADROOM))
+        }
+        return root
     }
 
     private fun applySpecializedOutputContract(
@@ -236,14 +357,15 @@ internal object GenerationParameterResolver {
 
     fun isValidGenerationValue(value: JsonElement, parameter: GenerationParameterRef): Boolean {
         val primitive = value as? JsonPrimitive
-        val number = primitive?.doubleOrNull
+        // doubleOrNull / booleanOrNull happily parse strings like "0.7" or "true"; reject strings first.
+        val number = primitive?.takeUnless { it.isString }?.doubleOrNull
         when (parameter.valueSchema) {
             "number" -> if (number == null || !number.isFinite()) return false
             "integer" -> if (number == null || !number.isFinite() || number % 1.0 != 0.0) return false
             "string-list" -> if (value !is JsonArray || value.any { item ->
                     (item as? JsonPrimitive)?.isString != true
                 }) return false
-            "boolean" -> if (primitive?.booleanOrNull == null) return false
+            "boolean" -> if (primitive == null || primitive.isString || primitive.booleanOrNull == null) return false
             "json-schema" -> if (value !is JsonObject ||
                 !isWithinJsonSchemaByteLimit(value) ||
                 !isValidJsonSchema(value)

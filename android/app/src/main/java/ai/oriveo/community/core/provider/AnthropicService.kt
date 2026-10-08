@@ -389,7 +389,8 @@ class AnthropicService(
         ),
         requestOptions,
         resolved,
-        projection)
+        projection,
+        outboundTemplate = TransportKind.AnthropicMessages.wireValue)
         return applyCapabilityRuntimeCustomFragment(
             generated, ProviderKind.Anthropic, modelID, TransportKind.AnthropicMessages.wireValue, requestOptions,
         )
