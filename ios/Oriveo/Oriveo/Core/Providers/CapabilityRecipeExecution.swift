@@ -240,14 +240,21 @@ enum CapabilityRecipeExecution {
             guard let authority = safeFragmentAuthority(
                 owner: fragment.owner, providerKind: providerKind, modelID: modelID, transport: transport
             ) else {
-                throw ProviderServiceError.invalidConfiguration(detail: "Rejected safe custom fragment: unknown_path")
+                // The field table for this section no longer exists (the recipe changed), so the stored fragment
+                // cannot be written to any path. The stored fields are wrong, not the connection.
+                throw ProviderServiceError.customFieldsRejected(.init(owner: fragment.owner, reason: .unknownPath))
             }
             switch SafeCustomFragmentCompiler.compile(
                 raw: fragment.raw, owner: fragment.owner, declaredOwners: authority.owners
             ) {
             case let .success(delta):
                 guard !delta.isEmpty, validateCustomValues(delta, definitions: authority.definitions) else {
-                    throw ProviderServiceError.invalidConfiguration(detail: "Rejected safe custom fragment: invalid_value")
+                    throw ProviderServiceError.customFieldsRejected(.init(
+                        owner: fragment.owner, reason: .invalidValue,
+                        allowedPaths: safeCustomAllowedPaths(
+                            owner: fragment.owner, providerKind: providerKind, modelID: modelID, transport: transport
+                        )
+                    ))
                 }
                 let activeDelta = activeCustomDelta(
                     delta,
@@ -264,7 +271,17 @@ enum CapabilityRecipeExecution {
                     finalTransport: transport
                 )
             case let .failure(reason):
-                throw ProviderServiceError.invalidConfiguration(detail: "Rejected safe custom fragment: \(reason.rawValue)")
+                // Same consequence as the additional request body: only this message is rejected and the connection is
+                // not marked as failing (`invalidConfiguration` would mark it).
+                throw ProviderServiceError.customFieldsRejected(.init(
+                    owner: fragment.owner, reason: reason,
+                    line: SafeCustomFragmentCompiler.line(of: reason, in: fragment.raw),
+                    allowedPaths: CustomFieldsRejection.listsAllowedPaths(reason)
+                        ? safeCustomAllowedPaths(
+                            owner: fragment.owner, providerKind: providerKind, modelID: modelID, transport: transport
+                        )
+                        : []
+                ))
             }
         }
     }
@@ -641,6 +658,75 @@ enum CapabilityRecipeExecution {
     }
 }
 
+/// A web-search or thinking custom field failed local validation, so no request was sent.
+///
+/// Carries closed-set information only: the section (owner), the reason, the line of a syntax error and the
+/// paths this section allows (from the field table delivered with the capability metadata). Keys and values the
+/// user wrote never appear here, so it is safe to show on the error card and to persist.
+nonisolated struct CustomFieldsRejection: Error, Equatable, Hashable, Sendable {
+    let owner: String
+    let reason: SafeCustomFragmentCompiler.Rejection
+    let line: Int?
+    let allowedPaths: [String]
+
+    init(owner: String, reason: SafeCustomFragmentCompiler.Rejection, line: Int? = nil, allowedPaths: [String] = []) {
+        self.owner = owner
+        self.reason = reason
+        self.line = line
+        self.allowedPaths = allowedPaths
+    }
+
+    var safeCode: String {
+        var code = "custom_request_fields_rejected:\(owner):\(reason.rawValue)"
+        if let line { code += "@\(line)" }
+        return code
+    }
+
+    /// A path rejection has to answer "what can I write then".
+    static func listsAllowedPaths(_ reason: SafeCustomFragmentCompiler.Rejection) -> Bool {
+        switch reason {
+        case .unknownPath, .crossOwner, .forbiddenRoot, .forbiddenChannel, .forbiddenKey, .invalidValue: return true
+        case .invalidJSON, .duplicateJSONKey, .tooLarge, .depthExceeded, .nodeLimitExceeded: return false
+        }
+    }
+
+    /// The one-sentence reason shared by the editor page and the error card. When the allowed set is empty (the field
+    /// table is gone) it reports the conflict as it is instead of listing nothing.
+    static func sentence(for reason: SafeCustomFragmentCompiler.Rejection, allowedPaths: [String]) -> String {
+        switch reason {
+        case .invalidJSON, .duplicateJSONKey:
+            return L10n.tr("Enter valid JSON with no duplicate keys.", table: .chat)
+        case .unknownPath, .crossOwner, .forbiddenRoot, .forbiddenChannel, .forbiddenKey, .invalidValue:
+            guard !allowedPaths.isEmpty else {
+                return L10n.tr(
+                    "This field conflicts with the managed request schema or is not allowed for this connection.",
+                    table: .chat
+                )
+            }
+            return String(
+                format: L10n.tr("This field isn’t allowed. Fields this model accepts: %@", table: .chat),
+                allowedPaths.joined(separator: " · ")
+            )
+        case .tooLarge, .depthExceeded, .nodeLimitExceeded:
+            return L10n.tr("This JSON fragment is too large or complex to apply.", table: .chat)
+        }
+    }
+
+    static func sectionName(owner: String) -> String {
+        owner == "web" ? L10n.tr("Web Search", table: .chat) : L10n.tr("Thinking Mode", table: .chat)
+    }
+
+    /// Error card body: which section, which line, the reason, then that this message was not sent.
+    var localizedMessage: String {
+        let section = Self.sectionName(owner: owner)
+        let reasonText = Self.sentence(for: reason, allowedPaths: allowedPaths)
+        let located = line.map {
+            String(format: L10n.tr("In the %1$@ fields, line %2$lld: %3$@", table: .chat), section, $0, reasonText)
+        } ?? String(format: L10n.tr("In the %1$@ fields: %2$@", table: .chat), section, reasonText)
+        return located + " " + L10n.tr("This message wasn’t sent.", table: .chat)
+    }
+}
+
 /// Lossless enough for the one security property JSONDecoder cannot offer: duplicate keys must be
 /// rejected *before* decoding. Accepted fragments are then constrained to catalog-declared body paths.
 enum SafeCustomFragmentCompiler {
@@ -648,6 +734,17 @@ enum SafeCustomFragmentCompiler {
         case duplicateJSONKey = "duplicate_json_key", forbiddenRoot = "forbidden_root", forbiddenChannel = "forbidden_channel"
         case forbiddenKey = "forbidden_key", tooLarge = "too_large", depthExceeded = "depth_exceeded", nodeLimitExceeded = "node_limit_exceeded", crossOwner = "cross_owner", unknownPath = "unknown_path", invalidJSON = "invalid_json"
         case invalidValue = "invalid_value"
+    }
+
+    /// The line (from 1) where a syntax rejection (half a JSON object, a duplicate key) occurred. Other reasons have
+    /// no definite line and return nil.
+    static func line(of reason: Rejection, in raw: String) -> Int? {
+        guard reason == .invalidJSON || reason == .duplicateJSONKey else { return nil }
+        var parser = LosslessJSONFragmentParser(raw)
+        switch parser.validate() {
+        case .invalid, .duplicateKey: return parser.line
+        default: return nil
+        }
     }
 
     static func compile(raw: String, owner: String, declaredOwners: [String: String]) -> Result<[String: Any], Rejection> {
@@ -727,6 +824,10 @@ nonisolated struct LosslessJSONFragmentParser {
     private static let maxNodes = 2_048
 
     init(_ raw: String) { bytes = Array(raw.utf8) }
+
+    /// The line (from 1) where parsing stopped. After `validate()` fails the cursor rests on the offending byte;
+    /// a JSON object cut off halfway stops at the end, i.e. the last line.
+    var line: Int { bytes[..<min(cursor, bytes.count)].reduce(1) { $1 == 10 ? $0 + 1 : $0 } }
 
     mutating func validate() -> Outcome {
         do {

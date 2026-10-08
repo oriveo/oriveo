@@ -258,9 +258,36 @@ enum AdvancedSettingsThinkingProbe {
         store: GenerationParameterSettingsStore
     ) -> GenerationParameterRowModel.ThinkingContext? {
         guard profile?.template == "anthropic_messages",
-              provider.kind != .relay,
               let identity = CapabilityPreferenceRuntimeIdentity.make(provider: provider, model: model)
         else { return nil }
+        if provider.kind == .relay {
+            // Whether a relay speaks the Anthropic protocol is decided by the connection's transport field alone,
+            // never by the model name.
+            guard provider.relayRequested?.transport == .anthropicMessages else { return nil }
+            // Reads the same ladder as the send path (`ChatManager`'s level resolution): when no layer has a
+            // stored value, or the stored value is "automatic" / "off", a relay has no official default level
+            // and sends no thinking.
+            let intent = CapabilityPreferenceValueResolver.displaySelection(
+                conversation: conversationID.flatMap {
+                    store.capabilityPreferences(
+                        providerID: provider.id, modelID: identity.canonicalModelID, conversationID: $0,
+                        transportIdentity: identity.wireValue
+                    )
+                },
+                skill: nil,
+                connectionModel: store.capabilityPreferences(
+                    providerID: provider.id, modelID: identity.canonicalModelID, conversationID: nil,
+                    transportIdentity: identity.wireValue
+                ),
+                connection: store.connectionCapabilityPreferences(
+                    providerID: provider.id, modelID: identity.canonicalModelID, transportIdentity: identity.wireValue
+                )
+            ).reasoningIntent
+            let mode = intent.flatMap(ReasoningMode.fromIntent).flatMap { $0 == .automatic ? nil : $0 }
+            return context(fromRequestFields: AnthropicService.relayThinkingRequestFields(
+                modelID: model.id, reasoningMode: mode
+            ))
+        }
         let preferences = store.resolvedCapabilityPreferences(
             providerID: provider.id, modelID: identity.canonicalModelID, conversationID: conversationID,
             skillID: nil, transportIdentity: identity.wireValue

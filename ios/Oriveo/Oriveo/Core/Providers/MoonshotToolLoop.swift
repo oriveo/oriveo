@@ -102,9 +102,21 @@ nonisolated final class MoonshotToolLoopLegRunner: ToolLoopLegRunning, @unchecke
                             }
                         }
                     }
+                    let credential = urlRequest.value(forHTTPHeaderField: "Authorization")
+                        .map { $0.replacingOccurrences(of: "Bearer ", with: "") } ?? ""
+                    var yieldedAnyEvent = false
                     for try await line in bytes.utf8Lines {
                         try Task.checkCancellation()
-                        forward(state.consume(try assembler.ingest(line)))
+                        // Same as DeepSeek: the shared assembler does not carry the upstream text, so recognize
+                        // the error frame here and redact credentials.
+                        if let frame = BaseAPIService.sseDataPayload(line) {
+                            try BaseAPIService.throwIfStreamErrorFrame(
+                                frame, beforeAnyContent: !yieldedAnyEvent, redacting: [credential]
+                            )
+                        }
+                        let events = state.consume(try assembler.ingest(line))
+                        if !events.isEmpty { yieldedAnyEvent = true }
+                        forward(events)
                         let payload = line.hasPrefix("data:")
                             ? String(line.dropFirst("data:".count)).trimmingCharacters(in: .whitespaces)
                             : line

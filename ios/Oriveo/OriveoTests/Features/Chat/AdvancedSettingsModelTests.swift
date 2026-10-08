@@ -835,7 +835,7 @@ struct AdvancedSettingsThinkingProbeTests {
         )
         #expect(probe() == nil)
 
-        // Uncertain cases are not marked: a relay's Anthropic-compatible endpoint, and non-Anthropic templates.
+        // Not marked: a relay connection without a protocol field (a relay's Anthropic-compatible endpoint has its own full send-chain case), and non-Anthropic templates.
         var relay = provider
         relay.kind = .relay
         #expect(AdvancedSettingsThinkingProbe.activeThinking(
@@ -1092,6 +1092,18 @@ struct AdvancedSettingsPresentationTests {
         )
         #expect(try #require(Self.rows(undeclared, session: [:])["max_output_tokens"]).trailingText
             == L10n.tr("Model default"))
+    }
+
+    @Test("both llama.cpp channels declare n_predict = -1 in their in-app parameter table, and the max tokens row reads \"No limit\"")
+    func llamaCppMaxTokensReadsAsNoLimit() throws {
+        for transport in [RelayTransport.openaiChatCompletions, .llamacppNative] {
+            let profile = try #require(LocalEngineGenerationProfiles.profile(for: "llamacpp", transport: transport))
+            let row = try #require(Self.rows(profile, session: [:])["max_output_tokens"], "\(transport)")
+            #expect(row.trailingText == L10n.tr("No limit", table: .chat), "\(transport)")
+            #expect(row.model.source == .providerDecides, "\(transport)")
+            // The placeholder after clearing the inline input must not show -1 either.
+            #expect(row.fallbackText == L10n.tr("No limit", table: .chat), "\(transport)")
+        }
     }
 
     @Test("member rows inside the Mirostat card use the short title; outside the card it is still the full vocabulary name")

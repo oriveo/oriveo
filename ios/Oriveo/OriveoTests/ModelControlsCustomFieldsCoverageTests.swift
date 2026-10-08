@@ -156,6 +156,64 @@ struct ModelControlsCustomFieldsCoverageTests {
         await MetadataClient.shared.resetForTesting()
     }
 
+    // MARK: - Consequences of a wrong field
+
+    /// A web-search or thinking custom field with half a JSON object used to throw `invalidConfiguration`, which
+    /// marked the whole connection as failing even though only that JSON was wrong. It now has the same consequence
+    /// as the additional request body: only this message is rejected, the section and line are named, the connection
+    /// is untouched and "Retry without custom fields" is offered. The declarative validation itself is not relaxed.
+    @Test("Malformed web/thinking custom fields reject only this message, name the section and line, and keep the connection")
+    func malformedFragmentRejectsOnlyThisMessage() async throws {
+        let cases: [(kind: ProviderKind, transport: String, owner: String, ref: String, raw: String, reason: SafeCustomFragmentCompiler.Rejection, line: Int?, section: String)] = [
+            (.qwen, "openai_chat", "web", "qwen.web.enable_search",
+             "{\n  \"enable_search\": ", .invalidJSON, 2, L10n.tr("Web Search", table: .chat)),
+            (.openAI, "openai_responses", "reasoning", "openai.reasoning.effort",
+             "{\"reasoning\": {\"effort\": \"low\",\n\n  \"effort\": \"high\"}}", .duplicateJSONKey, 3,
+             L10n.tr("Thinking Mode", table: .chat)),
+            (.qwen, "openai_chat", "web", "qwen.web.enable_search",
+             "{\"not_declared\": true}", .unknownPath, nil, L10n.tr("Web Search", table: .chat)),
+        ]
+        for item in cases {
+            let modelID = "\(item.kind.rawValue)-declared"
+            await MetadataClient.shared.resetForTesting()
+            try await MetadataClient.shared.loadForTesting(json: Self.metadata(
+                providerKind: item.kind, modelID: modelID, transport: item.transport,
+                customControlRefs: [item.owner: [item.ref]]
+            ))
+            var body: [String: Any] = ["model": modelID]
+            do {
+                try CapabilityRecipeExecution.applySafeCustomFragments(
+                    [SafeCustomBodyFragment(raw: item.raw, owner: item.owner, declaredOwners: [:])], to: &body,
+                    providerKind: item.kind, modelID: modelID, transport: item.transport
+                )
+                Issue.record("\(item.owner)/\(item.reason) was not rejected")
+            } catch let error as ProviderServiceError {
+                guard case let .customFieldsRejected(rejection) = error else {
+                    Issue.record("\(item.owner)/\(item.reason) threw \(error), which would mark the connection as failing")
+                    continue
+                }
+                #expect(rejection.owner == item.owner)
+                #expect(rejection.reason == item.reason)
+                #expect(rejection.line == item.line, "\(item.reason) line")
+                #expect(!error.marksConnectionFailed, "a wrong custom field marked the connection as failing")
+                #expect(error.message.contains(item.section), "the message does not name the section: \(error.message)")
+                if let line = item.line {
+                    #expect(error.message.contains("\(line)"), "the message does not name the line: \(error.message)")
+                }
+                #expect(error.message.contains(L10n.tr("This message wasn’t sent.", table: .chat)))
+                // What the user wrote (keys, values) stays out of the message and the technical detail.
+                #expect(!error.message.contains("not_declared") && !error.technicalDetail.contains("not_declared"))
+                #expect(error.technicalDetail.hasPrefix("custom_request_fields_rejected:\(item.owner):\(item.reason.rawValue)"))
+                // The title on the failed message is what identifies "Retry without custom fields".
+                #expect(LocalCustomFragmentDisposition.forExplicitRetry(
+                    errorTitle: error.titleKey, recoveryDescriptorCount: nil
+                ) == .omitForExplicitRetry)
+            }
+            #expect(body.count == 1, "a rejected fragment must not change the request body")
+        }
+        await MetadataClient.shared.resetForTesting()
+    }
+
     // MARK: - UI "in use" must equal outbound truth
 
     /// There is no developer master gate: whether custom fields go out depends only on

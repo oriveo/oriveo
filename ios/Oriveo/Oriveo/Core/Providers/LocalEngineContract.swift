@@ -312,7 +312,8 @@ enum LocalEngineGenerationProfiles {
     /// repeat_penalty and dry_penalty_last_n differ from what the server reports).
     private static func llamaRows(native: Bool) -> [Row] {
         var rows: [Row] = [
-            int("max_output_tokens", native ? "n_predict" : "max_tokens", "budget", min: 1),
+            // -1 is llama-server's "no limit" (the default of `n_predict`; the chat channel's `max_tokens` maps to the same field). Display only.
+            int("max_output_tokens", native ? "n_predict" : "max_tokens", "budget", min: 1, default: -1),
             list("stop", "budget"),
             num("temperature", nil, "sampling", min: 0, default: 0.8),
             num("top_p", nil, "sampling", min: 0, max: 1, default: 0.95),

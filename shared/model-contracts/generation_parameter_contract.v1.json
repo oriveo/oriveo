@@ -739,7 +739,8 @@
             "group": "budget",
             "range": {
               "min": 1
-            }
+            },
+            "default": -1
           },
           {
             "id": "stop",
@@ -1063,7 +1064,8 @@
             "group": "budget",
             "range": {
               "min": 1
-            }
+            },
+            "default": -1
           },
           {
             "id": "stop",

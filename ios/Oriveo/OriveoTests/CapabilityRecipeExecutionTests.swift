@@ -589,7 +589,12 @@ struct CapabilityRecipeExecutionTests {
         #expect(!page.contains("Configuration method"))
         // Rejecting a path-class field must list the allowed set, otherwise the user knows it is wrong but not how to fix it.
         #expect(page.contains("safeCustomAllowedPaths("))
-        #expect(page.contains("This field isn’t allowed. Fields this model accepts: %@"))
+        // The sentence is shared with the error card (`CustomFieldsRejection.sentence`); assert by behavior that it lists the allowed set.
+        #expect(page.contains("CustomFieldsRejection.sentence("))
+        let listed = CustomFieldsRejection.sentence(for: .unknownPath, allowedPaths: ["/enable_search"])
+        #expect(listed == String(
+            format: L10n.tr("This field isn’t allowed. Fields this model accepts: %@", table: .chat), "/enable_search"
+        ))
         // Footer copy is merged into one sentence; the old privacy-only sentence must not appear on its own.
         #expect(page.contains("Fields are added to the request exactly as written."))
         #expect(!page.contains("They are not synced, logged, sent to telemetry"))

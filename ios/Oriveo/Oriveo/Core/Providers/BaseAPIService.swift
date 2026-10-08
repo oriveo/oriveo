@@ -574,23 +574,101 @@ class BaseAPIService {
     /// In-stream errors (HTTP 200 SSE) have no finer status code, so triage by type/message.
     static func mapStreamError(type: String?, message: String) -> ProviderServiceError {
         let lower = "\(type ?? "") \(message)".lowercased()
+        // Keep the upstream text in the technical details even when the error is classified: the category
+        // decides what the user is offered to do, the original wording explains why.
+        let upstream = " Upstream: \(message)"
         if lower.range(of: "quota|daily limit|used up|insufficient quota|credit|billing hard limit|allowance|免费额度|额度已用完|额度耗尽|配额已用完", options: .regularExpression) != nil {
-            return .quotaExceeded(detail: "The provider stream reported that quota or credit is unavailable.")
+            return .quotaExceeded(detail: "The provider stream reported that quota or credit is unavailable." + upstream)
         }
         if isTransientOverloadBody(lower) {
-            return .rateLimited(detail: "The provider stream reported a rate limit.")
+            return .rateLimited(detail: "The provider stream reported a rate limit." + upstream)
         }
         if lower.contains("authentication") || lower.contains("permission") || lower.contains("api key") {
-            return .invalidAPIKey(detail: "The provider stream rejected authentication.")
+            return .invalidAPIKey(detail: "The provider stream rejected authentication." + upstream)
         }
         if lower.range(of: "temporarily unavailable|currently unavailable|not available|disabled|offline|maintenance|暂不可用|不可用|已停用|维护", options: .regularExpression) != nil {
-            return .modelUnavailable(detail: "The provider stream reported that the model is unavailable.")
+            return .modelUnavailable(detail: "The provider stream reported that the model is unavailable." + upstream)
         }
         return .upstream(statusCode: 200, detail: message)
     }
 
+    /// Whether a stream frame is an error the upstream reported in-band (the HTTP status is already 200).
+    /// The four protocol shapes follow each vendor's published documentation:
+    /// - Chat Completions (OpenAI-compatible services, OpenRouter, llama.cpp) and Gemini generateContent: a
+    ///   top-level `error`, either an object or a string. OpenRouter's mid-stream frame also carries `choices`
+    ///   and `finish_reason: "error"`, and may be the only frame in the stream.
+    /// - Anthropic Messages: `event: error` + `{"type":"error","error":{"type":"overloaded_error","message":...}}`.
+    /// - OpenAI Responses: `{"type":"error","code":...,"message":...}`, or `response.failed` with `response.error`.
+    /// - Gemini Interactions: `{"event_type":"error","error":{"code":...,"message":...}}`.
+    /// Most of these frames decode as ordinary chunks (every field is optional), so unless they are recognized
+    /// first they are skipped as empty frames and the message ends as "completed, no content".
+    ///
+    /// The upstream text is stripped of this request's credentials and truncated before it reaches the technical
+    /// details: some gateways echo the request headers back inside the error body.
+    static func streamErrorFrame(in data: Data, redacting credentials: [String] = []) -> ProviderServiceError? {
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }
+        let frameType = (json["type"] as? String) ?? (json["event_type"] as? String)
+        func sanitized(_ message: String) -> String {
+            RelayErrorSnippet.truncate(
+                RelayRequestSecurity.redactingCredentials(message, credentials: credentials), maxBytes: 2048
+            )
+        }
+        func responsesError(code: String?, message: String) -> ProviderServiceError {
+            let lower = (code ?? "").lowercased()
+            // Moderation blocks and image generation failures have dedicated plain-language explanations
+            // (the same mapping the Relay Responses stream uses).
+            if lower == "moderation_blocked" || lower.contains("image_generation") {
+                return OpenAIService.mapRelayStreamError(code: code, message: message)
+            }
+            return mapStreamError(type: code, message: message)
+        }
+        if frameType == "response.failed" {
+            let error = (json["response"] as? [String: Any])?["error"] as? [String: Any]
+            let message = (error?["message"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+                ?? "The provider reported that the response failed."
+            return responsesError(code: error?["code"] as? String, message: sanitized(message))
+        }
+        if frameType == "error", json["error"] == nil {
+            let message = (json["message"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+                ?? "The provider returned a streaming error."
+            return responsesError(code: json["code"] as? String, message: sanitized(message))
+        }
+        return mapOpenAICompatibleStreamError(from: data, sanitize: sanitized)
+    }
+
+    /// Recognizes an in-stream error frame before any decoding and throws it. When `beforeAnyContent` is true
+    /// (the stream has not produced any text yet) and the error was not classified as quota / rate limit /
+    /// authentication / model unavailable, it is recorded as "rejected before events": the same situation as a
+    /// 400 before any event, so the error card can offer "retry without the additional request body".
+    /// An error frame after content has been produced still throws: the message is recorded as failed and the
+    /// text already received is kept rather than treated as complete.
+    static func throwIfStreamErrorFrame(
+        _ data: Data, beforeAnyContent: Bool, redacting credentials: [String] = []
+    ) throws {
+        guard let streamError = streamErrorFrame(in: data, redacting: credentials) else { return }
+        if beforeAnyContent, case .upstream = streamError {
+            CapabilityExecutionRuntime.recordStreamRejectionBeforeEvents()
+        }
+        throw streamError
+    }
+
+    /// The payload of one SSE `data:` line (the space after the colon is optional). Returns nil for non-data
+    /// lines, `[DONE]` and empty payloads.
+    static func sseDataPayload(_ line: String) -> Data? {
+        guard line.hasPrefix("data:") else { return nil }
+        let payload = line.dropFirst("data:".count).trimmingCharacters(in: .whitespaces)
+        guard !payload.isEmpty, payload != "[DONE]" else { return nil }
+        return payload.data(using: .utf8)
+    }
+
     /// OpenAI-compatible in-stream error payload. Returns nil when the chunk is not an error.
     static func mapOpenAICompatibleStreamError(from data: Data) -> ProviderServiceError? {
+        mapOpenAICompatibleStreamError(from: data, sanitize: { $0 })
+    }
+
+    private static func mapOpenAICompatibleStreamError(
+        from data: Data, sanitize: (String) -> String
+    ) -> ProviderServiceError? {
         guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             return nil
         }
@@ -610,7 +688,7 @@ class BaseAPIService {
             type = json["code"] as? String
         }
         guard let message, !message.isEmpty else { return nil }
-        return mapStreamError(type: type, message: message)
+        return mapStreamError(type: type, message: sanitize(message))
     }
 
     private static func relayGuidanceFailure(

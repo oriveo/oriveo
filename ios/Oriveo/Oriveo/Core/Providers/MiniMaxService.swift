@@ -268,6 +268,7 @@ final class MiniMaxService: BaseAPIService, ProviderServiceProtocol, CustomBaseU
                             break
                         }
                         guard let chunkData = payload.data(using: .utf8) else { continue }
+                        try Self.throwIfStreamErrorFrame(chunkData, beforeAnyContent: accumulatedText.isEmpty, redacting: [apiKey])
                         replayAccumulator.ingest(chunkData)
                         let chunk: MiniMaxStreamChunk
                         do {
@@ -579,16 +580,22 @@ final class MiniMaxService: BaseAPIService, ProviderServiceProtocol, CustomBaseU
                     var inputFragments: [Int: String] = [:]
                     var terminal = false
                     var replayStateValid = true
+                    var yieldedAnyEvent = false
                     for try await line in bytes.utf8Lines {
                         if Task.isCancelled { break }
                         guard line.hasPrefix("data: ") else { continue }
                         let payload = String(line.dropFirst(6))
+                        if let frame = payload.data(using: .utf8) {
+                            try Self.throwIfStreamErrorFrame(frame, beforeAnyContent: !yieldedAnyEvent, redacting: [apiKey])
+                        }
                         guard let data = payload.data(using: .utf8),
                               let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                               let type = object["type"] as? String else { continue }
                         for event in strategy.parseStreamLine(payload, ctx: &context, shape: shape) {
                             switch event {
-                            case .delta, .reasoning, .toolCallDeltas, .activity: continuation.yield(event)
+                            case .delta, .reasoning, .toolCallDeltas, .activity:
+                                yieldedAnyEvent = true
+                                continuation.yield(event)
                             default: break
                             }
                         }

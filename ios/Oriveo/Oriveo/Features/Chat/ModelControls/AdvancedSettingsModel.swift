@@ -396,6 +396,13 @@ struct AdvancedParameterRow: Identifiable, Equatable {
         return model.displayValue ?? GenerationParameterPresentationFacts.unsetLabel(parameterID: id)
     }
 
+    /// Placeholder text when the input is cleared: the value it will fall back to. An engine default is shown the way
+    /// the parameter table words it (llama.cpp's -1 reads "No limit").
+    var fallbackText: String {
+        fallbackValue.map { GenerationParameterPresentationFacts.engineDefaultText($0, parameterID: id) }
+            ?? GenerationParameterPresentationFacts.unsetLabel(parameterID: id)
+    }
+
     /// The "why this will not be sent" sentence under the row. A validation error is the most specific and takes precedence over a general drop reason.
     var notice: (text: String, isError: Bool)? {
         if let error = model.validationError { return (error, true) }

@@ -595,6 +595,12 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
                         guard line.hasPrefix("data: ") else { continue }
                         let payload = String(line.dropFirst(6))
                         guard let jsonData = payload.data(using: .utf8) else { continue }
+                        // The Responses event name lives in the `event:` header and the data body may carry no
+                        // `type`; inject it first so error / response.failed are recognized.
+                        let framedData = currentEvent.isEmpty
+                            ? jsonData
+                            : (self.injectResponsesEventType(payload: payload, type: currentEvent).data(using: .utf8) ?? jsonData)
+                        try Self.throwIfStreamErrorFrame(framedData, beforeAnyContent: accumulatedText.isEmpty, redacting: [apiKey])
 
                         if !currentEvent.isEmpty {
                             let injected = self.injectResponsesEventType(payload: payload, type: currentEvent)
@@ -854,6 +860,7 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
             let payload = String(line.dropFirst(6))
             if payload == "[DONE]" { break }
             guard let chunkData = payload.data(using: .utf8) else { continue }
+            try Self.throwIfStreamErrorFrame(chunkData, beforeAnyContent: accumulatedText.isEmpty, redacting: [apiKey])
             let chunk: OpenAIStreamChunk
             do {
                 chunk = try decoder.decode(OpenAIStreamChunk.self, from: chunkData)
@@ -1364,6 +1371,7 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
                         let payload = line.hasPrefix("data: ") ? String(line.dropFirst(6)) : line
                         guard !payload.isEmpty, payload != "[DONE]" else { continue }
                         guard let data = payload.data(using: .utf8) else { continue }
+                        try Self.throwIfStreamErrorFrame(data, beforeAnyContent: accumulated.isEmpty, redacting: [apiKey])
                         let delta = try self.llamaCppContent(from: data)
                         guard !delta.isEmpty else { continue }
                         accumulated += delta
@@ -2396,12 +2404,7 @@ final class OpenAIService: BaseAPIService, ProviderServiceProtocol, CustomBaseUR
                         // decodes as an ordinary chunk because every field is optional, so unless
                         // it is recognized first it is skipped as an empty frame and the message
                         // ends as "completed, no content".
-                        if let streamError = Self.mapOpenAICompatibleStreamError(from: chunkData) {
-                            if !yieldedAnyEvent, case .upstream = streamError {
-                                CapabilityExecutionRuntime.recordStreamRejectionBeforeEvents()
-                            }
-                            throw streamError
-                        }
+                        try Self.throwIfStreamErrorFrame(chunkData, beforeAnyContent: !yieldedAnyEvent)
                         let chunk: OpenAIStreamChunk
                         do {
                             chunk = try self.decoder.decode(OpenAIStreamChunk.self, from: chunkData)

@@ -632,6 +632,8 @@ final class GeminiService: BaseAPIService, ProviderServiceProtocol {
                 ? String(line.dropFirst(5)).trimmingCharacters(in: .whitespaces)
                 : line
             guard !payload.isEmpty, payload != "[DONE]", let data = payload.data(using: .utf8) else { continue }
+            // Interactions reports in-stream errors as `{"event_type":"error","error":{...}}` (the ErrorEvent in the Interactions API reference).
+            try Self.throwIfStreamErrorFrame(data, beforeAnyContent: text.isEmpty, redacting: [apiKey])
             completedInteractionID = Self.completedInteractionID(from: data) ?? completedInteractionID
             // GA stream events carry nested `step.delta`; do not reuse the legacy
             // generateContent candidates/content parser.

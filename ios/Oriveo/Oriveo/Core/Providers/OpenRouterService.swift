@@ -37,6 +37,9 @@ enum ProviderServiceError: Error {
     /// misconfigured and marks it as failing. Here only a hand-written piece of JSON is wrong;
     /// the connection is fine and sending works again once that JSON is fixed.
     case additionalRequestBodyRejected(AdditionalRequestBodyRejection)
+    /// A web-search or thinking custom field failed local validation, so no request was sent. Same reasoning
+    /// as above: the field is wrong, not the connection.
+    case customFieldsRejected(CustomFieldsRejection)
     /// The user signed in with their own provider subscription (Codex, Grok) and that lane failed.
     case subscriptionFailure(
         lane: SubscriptionLane,
@@ -66,7 +69,8 @@ enum ProviderServiceError: Error {
 
     /// Whether a failed chat send should mark the connection as failing. Only an invalid key or a
     /// misconfigured connection does; network blips, rate limits, upstream errors and a mistake
-    /// in the additional request body (the JSON is wrong, not the connection) leave it alone.
+    /// in the additional request body or the web-search / thinking custom fields (the JSON is wrong, not the
+    /// connection) leave it alone.
     var marksConnectionFailed: Bool {
         switch self {
         case .invalidAPIKey, .invalidConfiguration: return true
@@ -100,6 +104,10 @@ enum ProviderServiceError: Error {
             return "Provider Request Failed"
         case .additionalRequestBodyRejected:
             return AdditionalRequestBody.localRejectionTitleKey
+        case .customFieldsRejected:
+            // Also the marker that identifies the "Retry without custom fields" action on a failed message
+            // (`LocalCustomFragmentDisposition`).
+            return "Custom request fields error"
         case let .subscriptionFailure(lane, _, _, _):
             return lane.titleKey
         }
@@ -111,6 +119,7 @@ enum ProviderServiceError: Error {
         if case let .additionalRequestBodyRejected(rejection) = self {
             return rejection.localizedMessage + " " + L10n.tr("This message wasn’t sent.", table: .chat)
         }
+        if case let .customFieldsRejected(rejection) = self { return rejection.localizedMessage }
         return L10n.tr(messageKey)
     }
 
@@ -134,7 +143,7 @@ enum ProviderServiceError: Error {
             return "The request did not complete successfully. Please check your network and try again."
         case .upstream:
             return "The provider returned an error for this request. Please retry or switch models."
-        case .additionalRequestBodyRejected:
+        case .additionalRequestBodyRejected, .customFieldsRejected:
             return "This message wasn’t sent."
         case let .subscriptionFailure(_, _, messageKey, _):
             return messageKey
@@ -154,6 +163,7 @@ enum ProviderServiceError: Error {
         case .network: return "network"
         case let .upstream(statusCode, _): return "upstream_\(statusCode)"
         case .additionalRequestBodyRejected: return "additional_request_body_rejected"
+        case .customFieldsRejected: return "custom_request_fields_rejected"
         case let .subscriptionFailure(lane, kind, _, _): return "\(lane.rawValue)_subscription_\(kind.rawValue)"
         }
     }
@@ -174,6 +184,8 @@ enum ProviderServiceError: Error {
         case let .upstream(statusCode, detail):
             return "Upstream HTTP \(statusCode): \(detail)"
         case let .additionalRequestBodyRejected(rejection):
+            return rejection.safeCode
+        case let .customFieldsRejected(rejection):
             return rejection.safeCode
         case let .subscriptionFailure(lane, kind, _, detail):
             return "\(lane.titleKey) \(kind.rawValue): \(detail)"
@@ -686,6 +698,7 @@ final class OpenRouterService: BaseAPIService, ProviderServiceProtocol, BalanceQ
                         }
 
                         guard let chunkData = payload.data(using: .utf8) else { continue }
+                        try Self.throwIfStreamErrorFrame(chunkData, beforeAnyContent: accumulatedText.isEmpty, redacting: [apiKey])
                         replayAccumulator.ingest(chunkData)
                         let chunk: OpenRouterStreamChunk
                         do {

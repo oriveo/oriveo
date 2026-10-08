@@ -1513,7 +1513,7 @@ final class ProviderManager {
             return false
         case .quotaExceeded, .modelUnavailable,
              .rateLimited, .emptyModelCatalog, .network, .upstream, .emptyResponse,
-             .additionalRequestBodyRejected:
+             .additionalRequestBodyRejected, .customFieldsRejected:
             return true
         case let .subscriptionFailure(_, kind, _, _):
             switch kind {

@@ -5083,6 +5083,32 @@
       }
     },
     {
+      "caseId": "llamacpp.chat.engine_default_is_display_only",
+      "$comment": "The parameter table's default is used for display only (a max_output_tokens of -1 reads as \"No limit\") and is never sent; when no layer supplies a value the request carries no max tokens and the engine applies its own n_predict = -1.",
+      "engine": "llamacpp",
+      "transport": "openai_chat_completions",
+      "overrides": {
+        "top_k": {
+          "state": "value",
+          "value": 7
+        }
+      },
+      "expect": {
+        "bodyIncludes": {
+          "top_k": 7
+        },
+        "numericFields": [
+          "top_k"
+        ],
+        "bodyExcludes": [
+          "max_tokens",
+          "n_predict",
+          "max_completion_tokens"
+        ],
+        "dropped": []
+      }
+    },
+    {
       "caseId": "llamacpp.native.wire_names",
       "engine": "llamacpp",
       "transport": "llamacpp_native",

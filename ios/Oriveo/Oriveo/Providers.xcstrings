@@ -9167,7 +9167,7 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "संबंध"
+            "value" : "कनेक्शन"
           }
         },
         "id" : {
@@ -9179,7 +9179,7 @@
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "繋がり"
+            "value" : "接続"
           }
         },
         "ko" : {
@@ -9215,7 +9215,7 @@
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Sự liên quan"
+            "value" : "Kết nối"
           }
         },
         "zh-Hans" : {

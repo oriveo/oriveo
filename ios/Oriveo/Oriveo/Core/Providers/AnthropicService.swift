@@ -246,6 +246,8 @@ final class AnthropicService: BaseAPIService, ProviderServiceProtocol {
                         guard line.hasPrefix("data: ") else { continue }
                         let payload = String(line.dropFirst(6))
                         guard let jsonData = payload.data(using: .utf8) else { continue }
+                        // Anthropic reports in-stream errors as `event: error` + `{"type":"error",...}`.
+                        try Self.throwIfStreamErrorFrame(jsonData, beforeAnyContent: accumulatedText.isEmpty, redacting: [apiKey])
 
                         for ev in antStrategy.parseStreamLine(payload, ctx: &antCtx, shape: antShape) {
                             switch ev {
@@ -409,6 +411,8 @@ final class AnthropicService: BaseAPIService, ProviderServiceProtocol {
                         guard line.hasPrefix("data: ") else { continue }
                         let payload = String(line.dropFirst(6))
                         guard let jsonData = payload.data(using: .utf8) else { continue }
+                        // Anthropic reports in-stream errors as `event: error` + `{"type":"error",...}`.
+                        try Self.throwIfStreamErrorFrame(jsonData, beforeAnyContent: accumulatedText.isEmpty, redacting: [apiKey])
 
                         for ev in relayStrategy.parseStreamLine(payload, ctx: &relayCtx, shape: relayShape) {
                             switch ev {
@@ -667,30 +671,13 @@ final class AnthropicService: BaseAPIService, ProviderServiceProtocol {
             webSearchEnabled: false
         )
 
-        let lowered = modelID.lowercased()
-        let usesAdaptiveThinking =
-            lowered.contains("sonnet-4-6") || lowered.contains("sonnet-4.6") // heuristic-allow: Relay Anthropic-compatible fallback only; official Anthropic uses metadata profiles.
-            || lowered.contains("opus-4-6") || lowered.contains("opus-4.6") // heuristic-allow: Relay Anthropic-compatible fallback only; official Anthropic uses metadata profiles.
         let shouldDropThinking = droppedParams.contains("thinking")
         let shouldDropOutputConfig = droppedParams.contains("output_config")
-        let thinking: AnthropicChatRequest.Thinking?
-        let outputConfig: AnthropicChatRequest.OutputConfig?
-        if shouldDropThinking {
-            thinking = nil
-            outputConfig = nil
-        } else if let allowedReasoningMode = capabilityIntent.reasoningMode,
-                  usesAdaptiveThinking,
-                  let effort = Self.relayAnthropicAdaptiveEffort(allowedReasoningMode, for: modelID) {
-            thinking = .init(type: "adaptive")
-            outputConfig = shouldDropOutputConfig ? nil : .init(effort: effort)
-        } else if let allowedReasoningMode = capabilityIntent.reasoningMode,
-                  let budgetTokens = Self.relayAnthropicBudgetTokens(allowedReasoningMode) {
-            thinking = .init(type: "enabled", budget_tokens: budgetTokens)
-            outputConfig = nil
-        } else {
-            thinking = nil
-            outputConfig = nil
-        }
+        let plan = shouldDropThinking
+            ? RelayThinkingPlan(thinking: nil, adaptiveEffort: nil)
+            : Self.relayThinkingPlan(modelID: modelID, reasoningMode: capabilityIntent.reasoningMode)
+        let thinking = plan.thinking
+        let outputConfig = shouldDropOutputConfig ? nil : plan.adaptiveEffort.map { AnthropicChatRequest.OutputConfig(effort: $0) }
 
         let systemPrompt = requestOptions.systemPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
         let resolvedMaxTokens = max(
@@ -721,6 +708,39 @@ final class AnthropicService: BaseAPIService, ProviderServiceProtocol {
         request.httpBody = try JSONSerialization.data(withJSONObject: body)
         CapabilityExecutionRuntime.confirmFinalWireEncoded()
         return request
+    }
+
+    fileprivate struct RelayThinkingPlan {
+        let thinking: AnthropicChatRequest.Thinking?
+        /// The adaptive thinking level, written to `output_config.effort`.
+        let adaptiveEffort: String?
+    }
+
+    /// What `thinking` a Relay Anthropic-compatible endpoint receives at this level. The send path and the
+    /// advanced-settings linkage prediction both read this, so the prediction never disagrees with what is
+    /// actually sent. `reasoningMode` is the level already allowed by capability evidence; nil means thinking is off.
+    fileprivate static func relayThinkingPlan(modelID: String, reasoningMode: ReasoningMode?) -> RelayThinkingPlan {
+        guard let reasoningMode else { return .init(thinking: nil, adaptiveEffort: nil) }
+        let lowered = modelID.lowercased()
+        let usesAdaptiveThinking =
+            lowered.contains("sonnet-4-6") || lowered.contains("sonnet-4.6") // heuristic-allow: Relay Anthropic-compatible fallback only; official Anthropic uses metadata profiles.
+            || lowered.contains("opus-4-6") || lowered.contains("opus-4.6") // heuristic-allow: Relay Anthropic-compatible fallback only; official Anthropic uses metadata profiles.
+        if usesAdaptiveThinking, let effort = relayAnthropicAdaptiveEffort(reasoningMode, for: modelID) {
+            return .init(thinking: .init(type: "adaptive"), adaptiveEffort: effort)
+        }
+        if let budgetTokens = relayAnthropicBudgetTokens(reasoningMode) {
+            return .init(thinking: .init(type: "enabled", budget_tokens: budgetTokens), adaptiveEffort: nil)
+        }
+        return .init(thinking: nil, adaptiveEffort: nil)
+    }
+
+    /// The request body shape of the same decision (`{"thinking": {...}}`), for predictions that do not build
+    /// a whole request.
+    static func relayThinkingRequestFields(modelID: String, reasoningMode: ReasoningMode?) -> [String: Any] {
+        guard let thinking = relayThinkingPlan(modelID: modelID, reasoningMode: reasoningMode).thinking else { return [:] }
+        var fields: [String: Any] = ["type": thinking.type]
+        if let budget = thinking.budget_tokens { fields["budget_tokens"] = budget }
+        return ["thinking": fields]
     }
 
     private static func relayAnthropicBudgetTokens(_ mode: ReasoningMode) -> Int? {

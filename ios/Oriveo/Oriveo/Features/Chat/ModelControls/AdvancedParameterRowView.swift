@@ -571,10 +571,7 @@ struct AdvancedParameterRowView: View {
         return nil
     }
 
-    private var fallbackPrompt: String {
-        row.fallbackValue.map { GenerationParameterValueText.display($0, parameterID: row.id) }
-            ?? GenerationParameterPresentationFacts.unsetLabel(parameterID: row.id)
-    }
+    private var fallbackPrompt: String { row.fallbackText }
 
     /// A slider is offered only when both ends are bounded and the span suits dragging; a parameter with just a lower bound, such as max tokens, gets none.
     private var sliderRange: ClosedRange<Double>? {

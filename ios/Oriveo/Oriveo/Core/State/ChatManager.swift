@@ -2963,6 +2963,8 @@ final class ChatManager {
                         }
 
                         let isCustomFieldError: Bool = {
+                            if case .customFieldsRejected = providerError { return true }
+                            // The two remaining internal invariants (duplicate owner, missing request context) are still configuration errors.
                             if case let .invalidConfiguration(detail) = providerError,
                                detail.hasPrefix("Rejected safe custom fragment:") {
                                 return true
@@ -2974,6 +2976,10 @@ final class ChatManager {
                                   customSourceRejected
                             else { return false }
                             return true
+                        }()
+                        let customFieldsRejection: CustomFieldsRejection? = {
+                            if case let .customFieldsRejected(rejection) = providerError { return rejection }
+                            return nil
                         }()
                         let isLocatedSettingRejection = terminalExecution?.states.values.contains(.rejected) == true
                         // Neither additional-request-body failure is a connection problem: a local
@@ -3009,7 +3015,7 @@ final class ChatManager {
                             detail: isCustomFieldError
                                 ? (customSourceRejected
                                     ? "model_control_setting_rejected"
-                                    : "custom_request_fields_rejected")
+                                    : customFieldsRejection?.safeCode ?? "custom_request_fields_rejected")
                                 : (isLocatedSettingRejection
                                     ? "model_control_setting_rejected"
                                     : providerError.technicalDetail),

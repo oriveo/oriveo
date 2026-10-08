@@ -133,9 +133,17 @@ final class DeepSeekService: BaseAPIService, ProviderServiceProtocol, BalanceQue
                     var assembler = OpenAICompatibleStreamAssembler(profile: .deepSeek)
                     var streamState = OpenAICompatibleStreamState()
 
+                    var yieldedAnyEvent = false
                     for try await line in bytes.utf8Lines {
                         try Task.checkCancellation()
+                        // The shared assembler recognizes an error frame but drops the upstream text (the wire layer has no key
+                        // to redact). The key is available here, so recognize the frame first and hand the redacted text
+                        // to the error card.
+                        if let frame = Self.sseDataPayload(line) {
+                            try Self.throwIfStreamErrorFrame(frame, beforeAnyContent: !yieldedAnyEvent, redacting: [apiKey])
+                        }
                         for event in streamState.consume(try assembler.ingest(line)) {
+                            yieldedAnyEvent = true
                             continuation.yield(event)
                         }
                         if assembler.isDone { break }

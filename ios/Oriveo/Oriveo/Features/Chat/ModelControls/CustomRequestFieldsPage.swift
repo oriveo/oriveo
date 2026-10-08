@@ -357,28 +357,15 @@ struct CustomRequestFieldsPage: View {
     /// A path rejection has to answer "what can I write then". Saying only "this field is not allowed" leaves the user guessing,
     /// while the allowed set is known on the device (the schema has been delivered) and there is no reason not to list it.
     private func errorMessage(owner: String, reason: SafeCustomFragmentCompiler.Rejection) -> String {
-        switch reason {
-        case .invalidJSON, .duplicateJSONKey:
-            return L10n.tr("Enter valid JSON with no duplicate keys.", table: .chat)
-        case .unknownPath, .crossOwner, .forbiddenRoot, .forbiddenChannel, .forbiddenKey, .invalidValue:
-            let allowed = CapabilityRecipeExecution.safeCustomAllowedPaths(
-                owner: owner, providerKind: provider.kind, modelID: model.id,
-                transport: transport(owner) ?? ""
-            )
-            // An existing owner whose schema is gone has no allowed set to list; report the conflict as it is rather than an empty list.
-            guard !allowed.isEmpty else {
-                return L10n.tr(
-                    "This field conflicts with the managed request schema or is not allowed for this connection.",
-                    table: .chat
+        CustomFieldsRejection.sentence(
+            for: reason,
+            allowedPaths: CustomFieldsRejection.listsAllowedPaths(reason)
+                ? CapabilityRecipeExecution.safeCustomAllowedPaths(
+                    owner: owner, providerKind: provider.kind, modelID: model.id,
+                    transport: transport(owner) ?? ""
                 )
-            }
-            return String(
-                format: L10n.tr("This field isn’t allowed. Fields this model accepts: %@", table: .chat),
-                allowed.joined(separator: " · ")
-            )
-        case .tooLarge, .depthExceeded, .nodeLimitExceeded:
-            return L10n.tr("This JSON fragment is too large or complex to apply.", table: .chat)
-        }
+                : []
+        )
     }
 
     // MARK: - Storage

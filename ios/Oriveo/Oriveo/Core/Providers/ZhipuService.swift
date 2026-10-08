@@ -146,6 +146,7 @@ final class ZhipuService: BaseAPIService, ProviderServiceProtocol {
                         let payload = String(line.dropFirst(6))
                         if payload == "[DONE]" { break }
                         guard let chunkData = payload.data(using: .utf8) else { continue }
+                        try Self.throwIfStreamErrorFrame(chunkData, beforeAnyContent: accumulatedText.isEmpty, redacting: [apiKey])
                         let chunk: ZhipuStreamChunk
                         do {
                             chunk = try self.decoder.decode(ZhipuStreamChunk.self, from: chunkData)

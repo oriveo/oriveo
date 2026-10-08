@@ -158,6 +158,7 @@ final class MistralService: BaseAPIService, ProviderServiceProtocol {
                             break
                         }
                         guard let chunkData = payload.data(using: .utf8) else { continue }
+                        try Self.throwIfStreamErrorFrame(chunkData, beforeAnyContent: accumulatedText.isEmpty, redacting: [apiKey])
                         // Capture provider-owned content/tool-call shapes before the display
                         // decoder folds them. A malformed or future block poisons only replay;
                         // ordinary response rendering can still use every valid later frame.

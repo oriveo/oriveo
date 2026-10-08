@@ -16,33 +16,9 @@ struct GenerationParameterVocabularyLocalizationTests {
 
     private static let sourceLocales = ["en", "zh-Hans"]
 
-    /// Local-engine parameter names ship with the English source and Simplified Chinese first; the
-    /// other 14 languages follow once each has been written and reviewed by a native speaker. This
-    /// list may only shrink: any other new key needs all 16 languages before it enters the vocabulary.
-    private static let pendingFullLocalization: Set<String> = [
-        "Mirostat mode",
-        "Mirostat target entropy",
-        "Mirostat learning rate",
-        "DRY multiplier",
-        "DRY base",
-        "DRY allowed length",
-        "DRY penalty window",
-        "DRY sequence breakers",
-        "XTC trigger probability",
-        "XTC threshold",
-        "Dynamic temperature range",
-        "Dynamic temperature exponent",
-        "Samplers (in order)",
-        "Ignore EOS token",
-        "Prompt tokens kept on context overflow",
-        "Minimum line indentation",
-        "Soft generation time limit (ms)",
-        "Top token probabilities",
-        "Post-sampling probabilities",
-        "Grammar (GBNF)",
-        "Minimum output tokens",
-        "Skip special tokens",
-    ]
+    /// Keys waiting for translation. This list may only shrink: any new key needs all 16 languages before it
+    /// enters the vocabulary.
+    private static let pendingFullLocalization: Set<String> = []
 
     @Test("min_keep no longer shows as the repeat penalty window")
     func minKeepHasItsOwnName() {

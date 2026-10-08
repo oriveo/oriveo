@@ -243,6 +243,75 @@ struct AdditionalRequestBodyProductionRequestTests {
         #expect(fixture.state.provider(for: fixture.providerID)?.status == .connected)
     }
 
+    @Test("Relay Anthropic-compatible connection: the advanced-settings thinking prediction matches the thinking this connection actually sends")
+    func relayAnthropicThinkingPredictionMatchesTheWire() async throws {
+        // A relay's preference identity needs the metadata runtime revision (always present on a device).
+        await MetadataClient.shared.resetForTesting()
+        try await MetadataClient.shared.loadForTesting(json: """
+        {"version": 1, "updatedAt": "2026-10-08T00:00:00Z",
+         "capabilityRuntime": \(try CapabilityRuntimeFixtures.runtimeEnvelopeJSON()), "providers": {}}
+        """)
+        let fixture = Fixture(connectionDefaults: [:], additionalBody: nil, transport: .anthropicMessages)
+        defer { fixture.cleanUp() }
+        let store = GenerationParameterSettingsStore.shared
+        let identity = try #require(CapabilityPreferenceRuntimeIdentity.make(provider: fixture.provider, model: fixture.model))
+        let profile = GenerationProfileRef(
+            template: "anthropic_messages",
+            parameters: [
+                GenerationParameterRef(id: "max_output_tokens", support: "supported", group: "budget", valueSchema: "integer"),
+                GenerationParameterRef(id: "temperature", support: "supported", group: "sampling", valueSchema: "number"),
+            ],
+            wire: ["max_output_tokens": "max_tokens", "temperature": "temperature"],
+            transport: "anthropic_messages"
+        )
+        func probe() -> GenerationParameterRowModel.ThinkingContext? {
+            AdvancedSettingsThinkingProbe.activeThinking(
+                provider: fixture.provider, model: fixture.model, conversationID: fixture.conversationID,
+                profile: profile, store: store
+            )
+        }
+        #expect(probe() == nil, "thinking was predicted on although no level was ever set")
+        let off = try await fixture.send()
+        #expect(AdditionalRequestBodyCaptureURLProtocol.captured.first?["thinking"] == nil, "precondition: no thinking is sent without a level")
+        _ = off
+
+        store.setCapabilityPreferences(
+            .init(web: .inherit, reasoningIntent: "deep"),
+            providerID: fixture.provider.id, modelID: identity.canonicalModelID,
+            conversationID: fixture.conversationID, transportIdentity: identity.wireValue
+        )
+        _ = try await fixture.send(text: "deep-probe")
+        let body = try #require(AdditionalRequestBodyCaptureURLProtocol.captured.last)
+        let sent = AdvancedSettingsThinkingProbe.context(fromRequestFields: body)
+        #expect(sent != nil, "precondition: with the Deep level stored, this connection does send thinking")
+        #expect(probe() == sent, "predicted \(String(describing: probe())) but sent \(String(describing: sent))")
+
+        // The criterion is the connection's protocol field alone: the same model name on the Chat Completions protocol is not predicted.
+        var chat = fixture.provider
+        chat.relayRequested = RelayRequestedConfig(transport: .openaiChatCompletions)
+        #expect(AdvancedSettingsThinkingProbe.activeThinking(
+            provider: chat, model: fixture.model, conversationID: fixture.conversationID, profile: profile, store: store
+        ) == nil)
+        await MetadataClient.shared.resetForTesting()
+    }
+
+    @Test("An error frame that arrives after some content was already streamed: the message fails, the received text stays, and no \"retry without the additional request body\" is offered")
+    func streamErrorAfterContentKeepsTheTextAndFails() async throws {
+        let fixture = Fixture(connectionDefaults: [:], additionalBody: #"{"top_k": 40}"#)
+        defer { fixture.cleanUp() }
+        AdditionalRequestBodyCaptureURLProtocol.reset(streams: [
+            #"data: {"choices":[{"index":0,"delta":{"content":"Partial answer"}}]}"# + "\n\n"
+                + #"data: {"error":{"code":"server_error","message":"Provider disconnected unexpectedly"},"choices":[{"index":0,"delta":{"content":""},"finish_reason":"error"}]}"# + "\n\n",
+        ])
+        let message = try await fixture.send(resetCapture: false)
+        #expect(message.state == .failed, "the failure was recorded as \(message.state.rawValue)")
+        #expect(message.text.contains("Partial answer"), "the received content was lost: \(message.text)")
+        #expect(message.errorDetail?.contains("Provider disconnected unexpectedly") == true, "\(message.errorDetail ?? "nil")")
+        // The upstream had already started answering, so this is not a rejection of the request body.
+        #expect(message.errorTitle != AdditionalRequestBody.upstreamRejectionTitleKey)
+        #expect(fixture.state.provider(for: fixture.providerID)?.status == .connected)
+    }
+
     @Test("In-stream error before any content, with an additional request body: same as an upstream 400, offers retry without it")
     func streamErrorBeforeContentOffersRetryWithoutAdditionalBody() async throws {
         let fixture = Fixture(connectionDefaults: [:], additionalBody: #"{"temperature": "hot"}"#)
@@ -314,13 +383,14 @@ struct AdditionalRequestBodyProductionRequestTests {
         let providerID = UUID()
         let state: AppState
         let conversationID: UUID
-        private let provider: Provider
-        private let model: AIModel
+        let provider: Provider
+        let model: AIModel
 
         init(
             connectionDefaults: [String: GenerationParameterOverride],
             additionalBody: String?,
-            sendsWithRequest: Bool = true
+            sendsWithRequest: Bool = true,
+            transport: RelayTransport = .openaiChatCompletions
         ) {
             AdditionalRequestBodyCaptureURLProtocol.reset()
             model = TestFactories.makeModel(id: Self.modelID, capabilities: [.text], isDefault: true)
@@ -329,7 +399,7 @@ struct AdditionalRequestBodyProductionRequestTests {
                 models: [model], catalogModels: [],
                 apiKey: "relay-key", apiKeyPreview: "...key",
                 baseURLText: "https://relay.test/v1",
-                relayRequested: RelayRequestedConfig(transport: .openaiChatCompletions)
+                relayRequested: RelayRequestedConfig(transport: transport)
             )
             GenerationParameterSettingsStore.shared.setConnectionDefaults(
                 GenerationParameterOverrides(values: connectionDefaults), providerID: providerID

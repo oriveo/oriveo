@@ -270,6 +270,7 @@ final class GrokService: BaseAPIService, ProviderServiceProtocol {
                             break
                         }
                         guard let chunkData = payload.data(using: .utf8) else { continue }
+                        try Self.throwIfStreamErrorFrame(chunkData, beforeAnyContent: accumulatedText.isEmpty, redacting: [apiKey])
                         let chunk: GrokStreamChunk
                         do {
                             chunk = try self.decoder.decode(GrokStreamChunk.self, from: chunkData)

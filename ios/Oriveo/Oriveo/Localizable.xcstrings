@@ -3366,7 +3366,7 @@
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Mobil"
+            "value" : "Otomatis"
           }
         },
         "ja" : {
@@ -17065,7 +17065,7 @@
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "حذف"
+            "value" : "لن يُرسَل"
           }
         },
         "de" : {
@@ -17089,7 +17089,7 @@
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "छोड़ें"
+            "value" : "नहीं भेजा जाएगा"
           }
         },
         "id" : {
