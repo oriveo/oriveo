@@ -855,6 +855,7 @@ final class ChatListViewController: UIViewController {
     }
 
     private func applyPrependUpdate(diff: ChatListDiff.Result, commit: @escaping () -> Void) {
+        releaseFirstResponderHeldOutsideViewport()
         collectionView.setNeedsLayout()
         collectionView.layoutIfNeeded()
 
@@ -884,6 +885,37 @@ final class ChatListViewController: UIViewController {
             restorePrependViewportAnchor(anchor)
         }
         stickController.invalidateOffsetBaseline()
+    }
+
+    /// Makes a cell that is far outside the viewport but still holds the first responder give it up, so UIKit
+    /// can reuse the cell.
+    ///
+    /// UICollectionView never reuses a cell that holds the first responder. Message text is a selectable
+    /// UITextView, so long-pressing to select text makes it first responder; scrolling back to the top to load
+    /// history afterwards leaves that cell in `visibleCells`, tens of thousands of points away from the
+    /// viewport, with a frame that matches its layout attributes. The geometry barrier then reports
+    /// `stale_viewport` and the whole list is reloaded, and because no anchor can be trusted before the batch,
+    /// the prepended rows push the reading position away.
+    ///
+    /// The barrier is right to reject that cell (carrying it into `restoreContentOffset` is exactly what the
+    /// barrier exists to prevent), so the criteria stay as they are and the cause is removed first instead: a
+    /// selection inside a cell nobody can see means nothing to the user, and once it resigns the next layout
+    /// pass reuses the cell normally, so the prepend takes the regular path and the reading position holds.
+    /// The responder chain stops at `ChatListCollectionView` (`canBecomeFirstResponder == true`), which makes
+    /// resigning here safe even inside a SwiftUI graph update.
+    private func releaseFirstResponderHeldOutsideViewport() {
+        let bounds = collectionView.bounds
+        let tolerance = max(bounds.height, 1)
+        for cell in collectionView.visibleCells {
+            guard let overflow = Self.viewportOverflow(cellFrame: cell.frame, viewport: bounds, tolerance: tolerance),
+                  overflow > 0,
+                  Self.containsFirstResponder(cell) else { continue }
+            cell.endEditing(true)
+        }
+    }
+
+    private static func containsFirstResponder(_ view: UIView) -> Bool {
+        view.isFirstResponder || view.subviews.contains { containsFirstResponder($0) }
     }
 
     private func reconvergeGeometry(stage: PrependGeometryStage) -> PrependGeometryVerdict {
@@ -922,6 +954,10 @@ final class ChatListViewController: UIViewController {
         let worstItem: Int?
         let worstCellMinY: CGFloat
         let worstAttributeMinY: CGFloat?
+        /// Whether the worst cell still contains the first responder. Expected to stay false now that
+        /// `releaseFirstResponderHeldOutsideViewport` runs first; if a recovery with matching cell and attribute
+        /// positions shows up again, this tells "focus was not released" from "UIKit kept the cell for another reason".
+        let worstCellHoldsFirstResponder: Bool
         var isConsistent: Bool { reason == nil }
     }
 
@@ -934,6 +970,7 @@ final class ChatListViewController: UIViewController {
         var offendingCount = 0
         var worstItem: Int?
         var worstCellMinY: CGFloat = 0
+        var worstCellHoldsFirstResponder = false
         for cell in visibleCells {
             guard let indexPath = collectionView.indexPath(for: cell) else {
                 reason = reason ?? .cellWithoutIndexPath
@@ -959,6 +996,7 @@ final class ChatListViewController: UIViewController {
                     worstOverflow = overflow
                     worstItem = indexPath.item
                     worstCellMinY = cell.frame.minY
+                    worstCellHoldsFirstResponder = Self.containsFirstResponder(cell)
                 }
             }
         }
@@ -977,7 +1015,8 @@ final class ChatListViewController: UIViewController {
                 offendingCount: max(offendingCount, 1),
                 worstItem: worstItem,
                 worstCellMinY: worstCellMinY,
-                worstAttributeMinY: worstAttributeMinY
+                worstAttributeMinY: worstAttributeMinY,
+                worstCellHoldsFirstResponder: worstCellHoldsFirstResponder
             )
         }
         #endif
@@ -991,7 +1030,8 @@ final class ChatListViewController: UIViewController {
             offendingCount: offendingCount,
             worstItem: worstItem,
             worstCellMinY: worstCellMinY,
-            worstAttributeMinY: worstAttributeMinY
+            worstAttributeMinY: worstAttributeMinY,
+            worstCellHoldsFirstResponder: worstCellHoldsFirstResponder
         )
     }
 
@@ -1070,6 +1110,7 @@ final class ChatListViewController: UIViewController {
                 "worst_item": verdict.worstItem.map(String.init) ?? "none",
                 "worst_cell_min_y": Self.metric(verdict.worstCellMinY),
                 "worst_attr_min_y": verdict.worstAttributeMinY.map(Self.metric) ?? "no_attributes",
+                "worst_cell_first_responder": verdict.worstCellHoldsFirstResponder ? "1" : "0",
                 "recovery_count": String(prependGeometryRecoveryCount),
                 "last_jump_source": lastLargeJump?.source ?? "none",
                 "last_jump_age_ms": lastLargeJump.map {

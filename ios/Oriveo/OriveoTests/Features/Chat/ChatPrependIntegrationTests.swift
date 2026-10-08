@@ -29,7 +29,9 @@ import UIKit
 ///    geometry: no crash and the reading position is preserved;
 /// 7. the geometry barrier itself, as a pure function: it compares positions, not empty rects;
 /// 8. the full-reload recovery taken when the barrier really does find an inconsistency: the reading
-///    position still holds.
+///    position still holds;
+/// 9. a prepend while a far-away cell holds the first responder (text was selected, then scrolled away):
+///    no full reload, and the reading position is preserved.
 ///
 /// Self-sizing rebounds asynchronously, so sub-pixel drift is normal; the tolerance is 6pt.
 @Suite("Prepend integration")
@@ -372,6 +374,59 @@ struct ChatPrependIntegrationTests {
         let drift = abs(posAfter - posBefore)
         #expect(drift <= Self.recoveryAnchorTolerance,
                 Comment(rawValue: "the reading position drifted \(drift)pt across the full reload recovery (before=\(posBefore) after=\(posAfter)), beyond \(Self.recoveryAnchorTolerance)pt"))
+    }
+
+
+    private func firstSelectableTextView(in view: UIView) -> UITextView? {
+        if let textView = view as? UITextView, textView.isSelectable { return textView }
+        for subview in view.subviews {
+            if let found = firstSelectableTextView(in: subview) { return found }
+        }
+        return nil
+    }
+
+    /// The viewport is at the top while the visible set still carries a cell tens of thousands of points away
+    /// whose frame matches its layout attributes: the layout is right, UIKit just does not reuse the cell,
+    /// because it holds the first responder. Message text is selectable, so selecting text and then scrolling
+    /// back to the top to load history is enough. Without releasing the first responder this step reports
+    /// `stale_viewport` and reloads the whole list (recovery count 1), and with no trusted anchor before the
+    /// batch the prepended rows push the reading position away (the offset stays at 0).
+    @Test("Prepend After Selecting Text In The Last Message And Scrolling To Top Keeps Anchor Without Full Reload")
+    func prependWithFirstResponderCellFarOffscreenKeepsAnchor() throws {
+        let (vc, window) = makeController()
+        defer { window.isHidden = true }
+        let convID = UUID()
+
+        let initial = makePairedMessages(count: 60, prefix: "")
+        update(vc, convID: convID, revision: 1, messages: initial, hasMoreAbove: true)
+        runLoop(seconds: 1.0, vc)
+
+        // The message text view inside a production cell takes the first responder, as it does when the user
+        // long-presses to select text.
+        let lastCell = try #require(vc._testCellForMessage(initial.last!.id), "the last cell should be on screen after settling at the bottom")
+        let textView = try #require(firstSelectableTextView(in: lastCell), "the last cell should contain a selectable message text view")
+        #expect(textView.becomeFirstResponder())
+        textView.selectedRange = NSRange(location: 0, length: 3)
+        #expect(textView.isFirstResponder)
+
+        vc._testSetContentOffset(0)
+        runLoop(seconds: 0.4, vc)
+        // Precondition: UIKit really keeps this cell, many screens away, in the visible set; otherwise this
+        // test would not exercise the path it is meant to lock.
+        #expect(vc._testCellForMessage(initial.last!.id) === lastCell, "UIKit should keep the cell that holds the first responder in the visible set")
+
+        let anchorID = initial.first!.id
+        let posBefore = try #require(vc._testVisualPosition(of: anchorID))
+        let prepended = makePairedMessages(count: 30, prefix: "H-")
+        update(vc, convID: convID, revision: 2, messages: prepended + initial, hasMoreAbove: false)
+        runLoop(seconds: 1.0, vc)
+
+        #expect(vc._testPrependGeometryRecoveryCount() == 0, "once the far-away cell gives up focus the prepend should take the regular path, not a full reload")
+        #expect(!textView.isFirstResponder, "a selection inside a cell nobody can see should have resigned first responder")
+        let posAfter = try #require(vc._testVisualPosition(of: anchorID))
+        let drift = abs(posAfter - posBefore)
+        #expect(drift <= Self.anchorTolerance,
+                Comment(rawValue: "the reading position drifted \(drift)pt (before=\(posBefore) after=\(posAfter))"))
     }
 
 
