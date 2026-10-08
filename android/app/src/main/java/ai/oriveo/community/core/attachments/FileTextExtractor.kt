@@ -8,6 +8,8 @@ import ai.oriveo.community.core.attachments.extractors.PdfTextExtractor
 import ai.oriveo.community.core.attachments.extractors.PlainTextExtractor
 import ai.oriveo.community.core.attachments.extractors.RtfTextExtractor
 import ai.oriveo.community.core.model.AIModel
+import android.util.Log
+import java.util.concurrent.atomic.AtomicBoolean
 
 data class ExtractedText(
     val content: String,
@@ -112,15 +114,50 @@ object FileTextExtractor {
         limits: FileExtractionLimits = FileExtractionLimits.DEFAULT,
         source: ExtractionSource = ExtractionSource.FilePicker,
     ): ExtractedText {
-        val startedAt = System.currentTimeMillis()
+        return guardExtraction(mimeType) { extractInner(data, fileName, mimeType, limits) }
+    }
 
+    /**
+     * The extractor's fault boundary: the only thing that leaves it is an [ExtractionException].
+     *
+     * Extractors run third-party parsers (PDFBox, SAX, jsoup) over arbitrary user files, and those
+     * can throw far more than `Exception`: [OutOfMemoryError] when the heap runs out,
+     * [LinkageError] (`NoClassDefFoundError`) once a class's static initializer has failed, and
+     * [StackOverflowError] on deeply nested malformed input. These are `Error`s, so a caller's
+     * `catch (Exception)` does not see them and one unreadable attachment would take the whole app
+     * down. Every allocation made during extraction is local and is reclaimed when the stack
+     * unwinds, so downgrading to "this file could not be processed" is safe.
+     *
+     * Kept as its own function so tests can feed each kind of failure through it.
+     */
+    @Throws(ExtractionException::class)
+    internal fun <T> guardExtraction(mimeType: String, block: () -> T): T =
         try {
-            val result = extractInner(data, fileName, mimeType, limits)
-            return result
+            block()
         } catch (e: ExtractionException) {
             throw e
+        } catch (e: kotlin.coroutines.cancellation.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            // What parsers throw on malformed input: SAXException, ZipException,
+            // IllegalArgumentException and the like.
+            throw ExtractionException(ExtractionErrorCode.CorruptedFile, e.javaClass.simpleName)
+        } catch (e: OutOfMemoryError) {
+            throw ExtractionException(ExtractionErrorCode.ExtractionError, "out_of_memory")
+        } catch (e: StackOverflowError) {
+            throw ExtractionException(ExtractionErrorCode.CorruptedFile, "stack_overflow")
+        } catch (e: LinkageError) {
+            // A parser class is unusable for the rest of this process. The import still degrades
+            // to an ordinary failure, but the cause is worth one log line: every later file of
+            // this type will fail the same way, so it is logged once rather than per file.
+            if (linkageFailureLogged.compareAndSet(false, true)) {
+                Log.w(TAG, "Extraction engine unavailable for $mimeType", e)
+            }
+            throw ExtractionException(ExtractionErrorCode.ExtractionError, e.javaClass.simpleName)
         }
-    }
+
+    private val linkageFailureLogged = AtomicBoolean(false)
+    private const val TAG = "FileTextExtractor"
 
     @Throws(ExtractionException::class)
     private fun extractInner(
@@ -138,7 +175,13 @@ object FileTextExtractor {
         val mime = mimeType.lowercase()
 
         val raw: String = when {
-            mime == "application/pdf" || ext == "pdf" -> PdfTextExtractor.extract(data)
+            // One character past maxBytes, so truncate() below still sees that the text ran over
+            // and produces the same result it would for the full text.
+            mime == "application/pdf" || ext == "pdf" ->
+                PdfTextExtractor.extract(
+                    data,
+                    maxOutputChars = (limits.maxBytes.toLong() + 1L).coerceAtMost(Int.MAX_VALUE.toLong()).toInt(),
+                )
             mime == "application/epub+zip" || ext == "epub" -> EpubTextExtractor.extract(data)
             mime == "text/html" || ext in setOf("html", "htm", "xhtml") -> HtmlTextExtractor.extract(data)
             mime == "application/rtf" || mime == "text/rtf" || ext == "rtf" -> RtfTextExtractor.extract(data)
@@ -163,15 +206,15 @@ object FileTextExtractor {
         sizeBytes: Int,
         limits: FileExtractionLimits = FileExtractionLimits.DEFAULT,
     ): ExtractedText {
-        val lines = raw.split("\n")
-        val totalLines = lines.size
+        // The full text is never split into a list of lines: for a 25 MB log that would put a
+        // second, line-by-line copy on the heap when only the first maxLines are wanted.
+        val totalLines = raw.count { it == '\n' } + 1
 
-        var pickedLines = lines
+        var pickedLines = raw.splitToSequence("\n").take(limits.maxLines).toList()
         var truncated = false
         var reason: ExtractedText.TruncationReason? = null
 
-        if (pickedLines.size > limits.maxLines) {
-            pickedLines = pickedLines.take(limits.maxLines)
+        if (totalLines > limits.maxLines) {
             truncated = true
             reason = ExtractedText.TruncationReason.Lines
         }

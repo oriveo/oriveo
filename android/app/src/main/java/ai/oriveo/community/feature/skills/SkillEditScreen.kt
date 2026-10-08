@@ -106,15 +106,12 @@ import ai.oriveo.community.ui.theme.opacity
 import ai.oriveo.community.ui.theme.OriveoSpacing
 import ai.oriveo.community.ui.theme.OriveoTheme
 import com.tom_roush.pdfbox.android.PDFBoxResourceLoader
-import com.tom_roush.pdfbox.pdmodel.PDDocument
-import com.tom_roush.pdfbox.text.PDFTextStripper
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.koin.androidx.compose.koinViewModel
-import java.io.ByteArrayInputStream
 import java.util.UUID
 
 private val colorPalette = listOf(
@@ -327,8 +324,20 @@ fun SkillEditScreen(
                     when {
                         isPdf -> {
                             PDFBoxResourceLoader.init(androidContext)
-                            PDDocument.load(ByteArrayInputStream(source.bytes)).use { document ->
-                                PDFTextStripper().getText(document)
+                            // Shares the chat attachment extractor: the PDF is not copied onto
+                            // the heap a second time, and an unavailable engine surfaces as an
+                            // ExtractionException instead of an Error that kills the process.
+                            try {
+                                ai.oriveo.community.core.attachments.extractors.PdfTextExtractor.extract(source.bytes)
+                            } catch (e: ai.oriveo.community.core.attachments.ExtractionException) {
+                                // No text layer: fall through to the "content is empty"
+                                // message below.
+                                if (e.code != ai.oriveo.community.core.attachments.ExtractionErrorCode.ScannedPdf) {
+                                    throw IllegalStateException(
+                                        context.getString(R.string.skills_knowledgeImportFailed),
+                                    )
+                                }
+                                ""
                             }
                         }
                         isOffice -> {
@@ -357,6 +366,11 @@ fun SkillEditScreen(
             } catch (error: Exception) {
                 android.util.Log.w("SkillEdit", "Reference file import failed", error)
                 errorMessage = error.message ?: context.getString(R.string.skills_knowledgeImportFailed)
+            } catch (error: OutOfMemoryError) {
+                // Every allocation made while parsing is local and is reclaimed as the stack
+                // unwinds, so this degrades to a failed import rather than taking the app down.
+                android.util.Log.w("SkillEdit", "Reference file import ran out of memory", error)
+                errorMessage = context.getString(R.string.skills_knowledgeImportFailed)
             }
         }
     }

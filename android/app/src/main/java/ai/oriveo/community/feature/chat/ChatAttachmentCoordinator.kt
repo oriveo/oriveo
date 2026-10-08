@@ -15,6 +15,8 @@ import ai.oriveo.community.core.model.AttachmentKind
 import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.feature.chat.attachments.AttachmentImportOutcome
 import ai.oriveo.community.feature.chat.attachments.AttachmentProcessor
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 internal class ChatAttachmentCoordinator(
     private val attachmentProcessor: AttachmentProcessor,
@@ -60,7 +62,23 @@ internal class ChatAttachmentCoordinator(
         )
     }
 
-    suspend fun processImage(context: Context, uri: Uri) {
+    /**
+     * Imports one attachment at a time.
+     *
+     * The picker is multi-select and the caller starts one coroutine per URI. Without a queue, N
+     * files are read into the heap in full at the same moment and handed to the parsers together,
+     * so peak memory is N files rather than one; a handful of large PDFs is enough to fill a
+     * 256 MB heap within seconds of the picker closing. Queueing also fixes two other things: the
+     * count limit is checked before the file is read, against how many are already attached, and
+     * concurrent imports all saw zero, which made the limit meaningless; and the order
+     * attachments land in no longer depends on which one finishes parsing first.
+     *
+     * The mutex is fair (first come, first served), so attachments reach the composer in the
+     * order they were picked.
+     */
+    private val importMutex = Mutex()
+
+    suspend fun processImage(context: Context, uri: Uri): Unit = importMutex.withLock {
         when (val outcome = attachmentProcessor.processImage(context, uri)) {
             is AttachmentImportOutcome.Success -> addAttachment(outcome.attachment, outcome.source)
             AttachmentImportOutcome.Oversized -> presentAttachmentSizeLimitDialog()
@@ -68,7 +86,7 @@ internal class ChatAttachmentCoordinator(
         }
     }
 
-    suspend fun processFile(context: Context, uri: Uri) {
+    suspend fun processFile(context: Context, uri: Uri): Unit = importMutex.withLock {
         val currentFileCount = pendingAttachments().count { it.kind == AttachmentKind.File }
         when (val outcome = attachmentProcessor.processFile(
             context = context,

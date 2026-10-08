@@ -8,6 +8,7 @@ import ai.oriveo.community.core.attachments.ExtractionException
 import ai.oriveo.community.core.attachments.FileExtractionLimits
 import ai.oriveo.community.core.attachments.FileTextExtractor
 import ai.oriveo.community.core.attachments.extractors.OfficeTextExtractor
+import ai.oriveo.community.core.attachments.extractors.PdfTextExtractor
 import ai.oriveo.community.core.attachments.shouldPersistOriginalBase64
 import ai.oriveo.community.core.data.attachment.AttachmentStore
 
@@ -168,6 +169,21 @@ class AttachmentProcessor(
 
             if (isExtractable && currentFileCount >= limits.maxFiles) {
                 return AttachmentImportOutcome.FileCountLimitExceeded(fileName)
+            }
+
+            // The PDF engine has to be initialized before the file's bytes are on the heap: if its
+            // static initializer fails under memory pressure, PDF extraction stays unavailable for
+            // the rest of the process (see PdfTextExtractor.warmUp).
+            if (isExtractable && (ext == "pdf" || mimeType.lowercase() == "application/pdf")) {
+                try {
+                    withContext(Dispatchers.IO) { PdfTextExtractor.warmUp() }
+                } catch (e: ExtractionException) {
+                    return AttachmentImportOutcome.FileExtractionError(
+                        code = e.code,
+                        fileName = fileName,
+                        partial = null,
+                    )
+                }
             }
 
             val readResult = withContext(Dispatchers.IO) {
