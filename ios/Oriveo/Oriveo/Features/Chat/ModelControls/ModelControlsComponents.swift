@@ -533,6 +533,13 @@ struct ModelOptionSegmentedControl: View {
                 .fill(OriveoTheme.Palette.textPrimary.opacity(Self.trackAlpha(isDark: colorScheme == .dark)))
         }
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.18), value: selection)
+        // The animation above is only meant for the highlight. Without this barrier SwiftUI pushes
+        // ancestor position and size changes down to the drawing leaves (track, pill, bars), each of
+        // which applies the current animation to its own frame: while the sheet is still settling its
+        // height and the selection changes in the same transaction, those shapes fly in from an
+        // earlier layout while the labels are already in place. With the barrier this layer resolves
+        // position and size first, and only the highlight animates inside it.
+        .geometryGroup()
         .accessibilityElement(children: .contain)
         .accessibilityLabel(Text(accessibilityTitle))
     }
