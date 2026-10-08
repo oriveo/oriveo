@@ -235,10 +235,8 @@ final class UIKitCodeBlockCard: UIView {
         setupCodeArea()
         setupLayout()
 
-        if #available(iOS 17.0, *) {
-            registerForTraitChanges([UITraitUserInterfaceStyle.self]) { (self: UIKitCodeBlockCard, _) in
-                self.updateTraitDependentColors()
-            }
+        registerForTraitChanges([UITraitUserInterfaceStyle.self]) { (self: UIKitCodeBlockCard, _) in
+            self.updateTraitDependentColors()
         }
     }
 
