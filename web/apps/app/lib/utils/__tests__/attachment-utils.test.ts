@@ -1,4 +1,5 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
+import * as Sentry from '@sentry/nextjs';
 
 vi.mock('../../utils/office-parser', () => ({
   parseOfficeFile: vi.fn(async () => 'Extracted office text'),
@@ -150,6 +151,7 @@ describe('validateAndConvertFiles', () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.mocked(Sentry.captureException).mockClear();
   });
 
   it.each(['NotFoundError', 'NotReadableError'])('skips only the unreadable file (%s), reports it, and converts the rest', async (name) => {
@@ -165,13 +167,64 @@ describe('validateAndConvertFiles', () => {
     expect(onUnreadable).toHaveBeenCalledWith(gone);
   });
 
-  it('still throws errors that are not file-read failures', async () => {
+  // These errors used to propagate while none of the three entry points caught them: one unhandled
+  // rejection, and the whole batch, converted files included, vanished without notice.
+  it('drops only the failing file on any other error, converts the rest, and reports the error explicitly', async () => {
     failReadsOf('bad.txt', new TypeError('boom'));
-    const onUnreadable = vi.fn();
+    const onFileFailed = vi.fn();
+    const before = new File(['a'], 'before.txt', { type: 'text/plain' });
+    const bad = new File(['x'], 'bad.txt', { type: 'text/plain' });
+    const after = new File(['b'], 'after.txt', { type: 'text/plain' });
 
+    const attachments = await validateAndConvertFiles([before, bad, after], 'file', undefined, onFileFailed);
+
+    expect(attachments.map((a) => a.fileName)).toEqual(['before.txt', 'after.txt']);
+    expect(onFileFailed).toHaveBeenCalledExactlyOnceWith(bad);
+    expect(Sentry.captureException).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({ message: 'boom' }),
+      expect.objectContaining({ tags: expect.objectContaining({ module: 'attachment.import' }) }),
+    );
+  });
+
+  it('does not report an unreadable file, which is an environment condition', async () => {
+    failReadsOf('gone.txt', new DOMException('gone', 'NotFoundError'));
+    await validateAndConvertFiles([new File(['x'], 'gone.txt', { type: 'text/plain' })], 'file', undefined, vi.fn());
+    expect(Sentry.captureException).not.toHaveBeenCalled();
+  });
+
+  // The picker, drag and drop, and paste can each start a batch while the previous one is still
+  // being read, and every file is read into memory in full.
+  it('queues two imports: the second does not start reading before the first has finished', async () => {
+    const order: string[] = [];
+    const original = FileReader.prototype.readAsDataURL;
+    vi.spyOn(FileReader.prototype, 'readAsDataURL').mockImplementation(function (this: FileReader, blob: Blob) {
+      const name = (blob as File).name;
+      order.push(`start:${name}`);
+      this.addEventListener('loadend', () => order.push(`end:${name}`));
+      return original.call(this, blob);
+    });
+    const batch = (...names: string[]) => names.map((name) => new File([name], name, { type: 'text/plain' }));
+
+    const [first, second] = await Promise.all([
+      validateAndConvertFiles(batch('a1.txt', 'a2.txt'), 'file'),
+      validateAndConvertFiles(batch('b1.txt'), 'paste'),
+    ]);
+
+    expect(first.map((a) => a.fileName)).toEqual(['a1.txt', 'a2.txt']);
+    expect(second.map((a) => a.fileName)).toEqual(['b1.txt']);
+    expect(order).toEqual([
+      'start:a1.txt', 'end:a1.txt', 'start:a2.txt', 'end:a2.txt', 'start:b1.txt', 'end:b1.txt',
+    ]);
+  });
+
+  it('does not let a batch that failed as a whole block later imports', async () => {
+    const telemetry = await import('../../core/telemetry');
+    vi.spyOn(telemetry, 'trackEvent').mockImplementationOnce(() => { throw new Error('telemetry down'); });
     await expect(
-      validateAndConvertFiles([new File(['x'], 'bad.txt', { type: 'text/plain' })], 'file', undefined, onUnreadable),
-    ).rejects.toThrow('boom');
-    expect(onUnreadable).not.toHaveBeenCalled();
+      validateAndConvertFiles([new File(['x'], 'one.txt', { type: 'text/plain' })], 'file'),
+    ).rejects.toThrow('telemetry down');
+
+    const next = await validateAndConvertFiles([new File(['y'], 'two.txt', { type: 'text/plain' })], 'file');
+    expect(next.map((a) => a.fileName)).toEqual(['two.txt']);
   });
 });

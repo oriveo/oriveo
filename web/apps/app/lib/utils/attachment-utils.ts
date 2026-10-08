@@ -1,3 +1,4 @@
+import * as Sentry from '@sentry/nextjs';
 import type { Attachment, AttachmentKind } from '@oriveo/shared';
 import { saveImage } from '../infra/storage/image-store';
 import { compressImage, createImageThumbnail, readFileAsBase64, base64ToBlob } from './image-utils';
@@ -309,11 +310,29 @@ export async function fileToAttachment(file: File): Promise<Attachment> {
  * conversation's provider.kind normalized to snake_case through `telemetryProviderKind()`, and
  * `unknown` is reported when it is missing.
  */
-export async function validateAndConvertFiles(
+export function validateAndConvertFiles(
   files: File[],
   source: 'file' | 'drag_drop' | 'paste' = 'file',
   providerKind?: string,
-  onUnreadable?: (file: File) => void,
+  onFileFailed?: (file: File) => void,
+): Promise<Attachment[]> {
+  // Imports are queued. The file picker, drag and drop, and paste are three entry points, and a
+  // user can start another batch while the previous one is still being read. Every file is read
+  // into memory in full (a base64 string, plus an ArrayBuffer read again by the extractor). Files
+  // within a batch were already handled one at a time; queueing batches as well keeps the peak at
+  // a single file.
+  const run = importQueue.then(() => convertFilesInOrder(files, source, providerKind, onFileFailed));
+  importQueue = run.then(() => undefined, () => undefined);
+  return run;
+}
+
+let importQueue: Promise<void> = Promise.resolve();
+
+async function convertFilesInOrder(
+  files: File[],
+  source: 'file' | 'drag_drop' | 'paste',
+  providerKind: string | undefined,
+  onFileFailed: ((file: File) => void) | undefined,
 ): Promise<Attachment[]> {
   const { trackEvent } = await import('../core/telemetry');
   const attachments: Attachment[] = [];
@@ -324,11 +343,26 @@ export async function validateAndConvertFiles(
     try {
       attachment = await fileToAttachment(file);
     } catch (err) {
-      // A File is only a handle to a file on disk. Files dragged out of an archive or a cloud-drive
-      // placeholder on Windows, or moved after being picked, fail only when their bytes are read
-      // (NotFoundError / NotReadableError). Skip that one file instead of failing the whole batch.
-      if (!isUnreadableFileError(err)) throw err;
-      onUnreadable?.(file);
+      // Per-file fault boundary: any failure drops only this file and notifies the caller, while
+      // files already converted in the batch and those still queued go through as usual.
+      //
+      // - A File is only a handle to a file on disk. Files dragged out of an archive or a
+      //   cloud-drive placeholder on Windows, or moved after being picked, fail only when their
+      //   bytes are read (NotFoundError / NotReadableError). That is an environment condition and
+      //   is not reported.
+      // - Everything else (an image that cannot be stored in IndexedDB, a huge file whose base64
+      //   exceeds the string length limit, a decoder throwing) used to propagate. None of the
+      //   three entry points catches it, so it became an unhandled rejection and the whole batch,
+      //   including files already converted, vanished without any notice. These are still
+      //   defects worth knowing about, so they are reported explicitly rather than by leaking.
+      if (!isUnreadableFileError(err)) {
+        Sentry.captureException(err, {
+          level: 'warning',
+          tags: { module: 'attachment.import', 'attachment.source': source },
+          extra: { mimeType: file.type || 'unknown', sizeBytes: file.size },
+        });
+      }
+      onFileFailed?.(file);
       continue;
     }
     attachments.push(attachment);
