@@ -368,11 +368,10 @@ struct AdditionalRequestBodyContractTests {
         "ar", "de", "en", "es", "fr", "hi", "id", "ja", "ko", "pt-BR", "ru", "th", "tr", "vi", "zh-Hans", "zh-Hant",
     ]
 
-    /// Additional-request-body copy ships with the English source and Simplified Chinese first; the
-    /// other 14 languages follow once each has been written and reviewed by a native speaker. The
-    /// copy of the advanced settings page and the additional request body editor is on this list as
-    /// well. This list may only shrink.
-    private static let pendingFullLocalization: Set<String> = [
+    /// Every string on the additional request body and advanced settings pages. Each one has been
+    /// written in all 16 languages and reviewed by a native speaker. A new string that production
+    /// code uses but this list does not name fails the test below.
+    private static let moduleCopy: Set<String> = [
         "%1$@ Remove line %2$lld to send.",
         "%@ is on, so this setting isn’t used.",
         "%lld adjusted",
@@ -472,20 +471,25 @@ struct AdditionalRequestBodyContractTests {
         "“%@” is filled in by Oriveo and can’t be set in the additional request body.",
     ]
 
-    /// Words used on the same pages that already have all 16 languages; they are not on the pending list.
+    /// Strings from `moduleCopy` that only have the English source and Simplified Chinese so far.
+    /// Empty today; it may only shrink. Anything not listed here must have all 16 languages.
+    private static let pendingFullLocalization: Set<String> = []
+
+    /// Words used on the same pages that already have all 16 languages; they are not part of this module's list.
     private static let alreadyFullyLocalized: Set<String> = [
         "More",
         "Output",
     ]
 
-    /// New copy on the provider detail page (the Providers table), also English source and Simplified Chinese first.
-    private static let pendingProvidersLocalization: Set<String> = [
+    /// New copy on the provider detail page (the Providers table), held to the same rule.
+    private static let providersCopy: Set<String> = [
         "Apply preset",
         "Apply this preset?",
         "“%1$@” replaces everything you’ve set for this model: %2$@.",
     ]
+    private static let pendingProvidersLocalization: Set<String> = []
 
-    @Test("Every additional-request-body string has an English source and Simplified Chinese; a key with all 16 languages must leave the pending list")
+    @Test("Every additional-request-body string has an English source and Simplified Chinese; anything off the pending list has all 16 languages")
     func copyHasSourceAndSimplifiedChinese() throws {
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
         let catalog = try #require(JSONSerialization.jsonObject(with: Data(
@@ -521,10 +525,12 @@ struct AdditionalRequestBodyContractTests {
         // (AssistantMessageRecoveryBuilder) and the closing sentence of the error message
         // (ProviderServiceError.message).
         used.formUnion(["Retry without additional request body", "This message wasn’t sent."])
-        #expect(used == Self.pendingFullLocalization, "keys used by production code differ from the pending list: \(used.symmetricDifference(Self.pendingFullLocalization))")
+        #expect(used == Self.moduleCopy, "keys used by production code differ from the module list: \(used.symmetricDifference(Self.moduleCopy))")
+        #expect(Self.pendingFullLocalization.isSubset(of: Self.moduleCopy))
+        #expect(Self.pendingProvidersLocalization.isSubset(of: Self.providersCopy))
 
         var problems: [String] = []
-        for key in Self.pendingFullLocalization.sorted() {
+        for key in Self.moduleCopy.sorted() {
             let localizations = (strings[key] as? [String: Any])?["localizations"] as? [String: Any] ?? [:]
             for locale in ["en", "zh-Hans"] {
                 let unit = (localizations[locale] as? [String: Any])?["stringUnit"] as? [String: Any]
@@ -535,16 +541,15 @@ struct AdditionalRequestBodyContractTests {
                 if locale == "en", value != key { problems.append("\(key) English source differs from the key") }
                 if locale != "en", value == key { problems.append("\(key) [\(locale)] repeats the English source") }
             }
-            // Once all 16 languages are present this fails, forcing the key off the list.
-            if Self.locales.allSatisfy({ localizations[$0] != nil }) {
-                problems.append("\(key) has all 16 languages; remove it from pendingFullLocalization")
-            }
+            problems += Self.completenessProblems(
+                key: key, localizations: localizations, pending: Self.pendingFullLocalization.contains(key)
+            )
         }
         let providers = try #require(JSONSerialization.jsonObject(with: Data(
             contentsOf: root.appendingPathComponent("Oriveo").appendingPathComponent("Providers.xcstrings")
         )) as? [String: Any])
         let providerStrings = try #require(providers["strings"] as? [String: Any])
-        for key in Self.pendingProvidersLocalization.sorted() {
+        for key in Self.providersCopy.sorted() {
             let localizations = (providerStrings[key] as? [String: Any])?["localizations"] as? [String: Any] ?? [:]
             for locale in ["en", "zh-Hans"] {
                 let unit = (localizations[locale] as? [String: Any])?["stringUnit"] as? [String: Any]
@@ -554,13 +559,24 @@ struct AdditionalRequestBodyContractTests {
                 }
                 if locale == "en", value != key { problems.append("\(key) English source differs from the key") }
             }
-            if Self.locales.allSatisfy({ localizations[$0] != nil }) {
-                problems.append("\(key) has all 16 languages; remove it from pendingProvidersLocalization")
-            }
+            problems += Self.completenessProblems(
+                key: key, localizations: localizations, pending: Self.pendingProvidersLocalization.contains(key)
+            )
         }
         let zhTerm = ((strings["Additional request body"] as? [String: Any])?["localizations"] as? [String: Any])?["zh-Hans"]
         #expect(((zhTerm as? [String: Any])?["stringUnit"] as? [String: Any])?["value"] as? String == "\u{9644}\u{52A0}\u{8BF7}\u{6C42}\u{4F53}")
         #expect(problems.isEmpty, "\n\(problems.joined(separator: "\n"))")
+    }
+
+    /// Both sides of the unlock rule: a pending string with all 16 languages must leave the pending
+    /// list, and a string off the list that misses any language fails.
+    private static func completenessProblems(key: String, localizations: [String: Any], pending: Bool) -> [String] {
+        let missing = locales.filter { locale in
+            let unit = (localizations[locale] as? [String: Any])?["stringUnit"] as? [String: Any]
+            return ((unit?["value"] as? String) ?? "").isEmpty
+        }
+        if pending { return missing.isEmpty ? ["\(key) has all 16 languages; remove it from the pending list"] : [] }
+        return missing.isEmpty ? [] : ["\(key) is missing \(missing.joined(separator: ", "))"]
     }
 
     // MARK: - Fixtures

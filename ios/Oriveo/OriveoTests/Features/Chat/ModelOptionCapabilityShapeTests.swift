@@ -649,16 +649,19 @@ struct ModelOptionCapabilityShapeTests {
     }
 }
 
-/// Copy carried by the shape function ships with the English source and Simplified Chinese first; the
-/// other 14 languages follow once each has been written and reviewed by a native speaker.
+/// Copy carried by the shape function. Every string has all 16 languages, each written and
+/// reviewed by a native speaker.
 @Suite("Capability card shape copy")
 struct ModelOptionCapabilityShapeCopyTests {
     private static let locales = [
         "ar", "de", "en", "es", "fr", "hi", "id", "ja", "ko", "pt-BR", "ru", "th", "tr", "vi", "zh-Hans", "zh-Hant",
     ]
 
-    /// Strings still waiting for the other languages. This list may only shrink.
-    private static let pendingFullLocalization: Set<String> = [
+    /// Strings still waiting for the other languages. Empty today; it may only shrink.
+    private static let pendingFullLocalization: Set<String> = []
+
+    /// This batch of strings: each keeps an English source and a Simplified Chinese translation.
+    private static let moduleCopy: Set<String> = [
         "Thinks it through first, so answers take a little longer",
         "Always thinks before answering",
         "Higher levels take longer and may cost more.",
@@ -721,14 +724,14 @@ struct ModelOptionCapabilityShapeCopyTests {
         )
 
         var problems: [String] = []
-        for key in Self.pendingFullLocalization.sorted() {
+        for key in Self.moduleCopy.sorted() {
             if value(key, "en") != key { problems.append("\(key) has no English source, or it differs from the key") }
             let simplifiedChinese = value(key, "zh-Hans") ?? ""
             if simplifiedChinese.isEmpty || simplifiedChinese == key {
                 problems.append("\(key) [zh-Hans] has no translation")
             }
             // Once all 16 languages are present this fails, forcing the key off the list.
-            if Self.locales.allSatisfy({ localizations(key)[$0] != nil }) {
+            if pending.contains(key), Self.locales.allSatisfy({ localizations(key)[$0] != nil }) {
                 problems.append("\(key) has all 16 languages; remove it from pendingFullLocalization")
             }
         }

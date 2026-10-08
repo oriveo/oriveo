@@ -408,16 +408,19 @@ struct ModelOptionsPanelModelTests {
     }
 }
 
-/// New copy on the panel ships with the English source and Simplified Chinese first; the
-/// other 14 languages follow once each has been written and reviewed by a native speaker.
+/// New copy on the panel. Every string has all 16 languages, each written and reviewed by a
+/// native speaker.
 @Suite("Model options panel copy")
 struct ModelOptionsPanelCopyTests {
     private static let locales = [
         "ar", "de", "en", "es", "fr", "hi", "id", "ja", "ko", "pt-BR", "ru", "th", "tr", "vi", "zh-Hans", "zh-Hant",
     ]
 
-    /// Strings still waiting for the other languages. This list may only shrink.
-    private static let pendingFullLocalization: Set<String> = [
+    /// Strings still waiting for the other languages. Empty today; it may only shrink.
+    private static let pendingFullLocalization: Set<String> = []
+
+    /// This batch of strings: each keeps an English source and a Simplified Chinese translation.
+    private static let moduleCopy: Set<String> = [
         "When needed",
         "Every message",
         "%lld more",
@@ -497,13 +500,13 @@ struct ModelOptionsPanelCopyTests {
         )
 
         var problems: [String] = []
-        for key in Self.pendingFullLocalization.sorted() {
+        for key in Self.moduleCopy.sorted() {
             if value(key, "en") != key { problems.append("\(key) has no English source, or it differs from the key") }
             let simplifiedChinese = value(key, "zh-Hans") ?? ""
             if simplifiedChinese.isEmpty || simplifiedChinese == key {
                 problems.append("\(key) [zh-Hans] has no translation")
             }
-            if isComplete(key) {
+            if pending.contains(key), isComplete(key) {
                 problems.append("\(key) has all 16 languages; remove it from pendingFullLocalization")
             }
         }
