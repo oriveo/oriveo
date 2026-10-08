@@ -128,6 +128,9 @@ describe("shouldReportProviderError", () => {
     // 426 or a missing local recipe means our own configuration is broken, so it must still come through
     expect(shouldReportProviderError({ kind: "grokSubscriptionUnavailable", source: "oriveo" })).toBe(true);
     expect(shouldReportProviderError({ kind: "openAISubscriptionUnavailable", source: "oriveo" })).toBe(true);
+    // What the gate already ruled out is not reported again: the configuration changed after the
+    // refresh, or the same configuration was already reported in this session
+    expect(shouldReportProviderError({ kind: "grokSubscriptionUnavailable", source: "oriveo", skipReport: true })).toBe(false);
   });
 
   it("drops a bare fetch transport failure that carries no provider kind at all", () => {

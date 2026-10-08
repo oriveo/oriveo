@@ -29,6 +29,7 @@ import { assertUrlNotSsrf, SsrfBlockedError } from "../../_shared/ssrf-guard";
 import { buildCapabilityResultContext, encodeCapabilityResultContext } from '../../../../lib/core/chat/capability-result-runtime';
 // errorKind shares one constant with the client: a literal written on each side drifts silently the moment one is changed.
 import { CUSTOM_FRAGMENT_ERROR_KIND } from '../../../../lib/core/chat/custom-fragment-rejection';
+import { subscriptionVersionRejectionHeaders } from './subscription-version-rejection-response';
 import { mergeExecutionResponse } from './execution-response';
 import { capabilityRecoveryHeaders } from './capability-recovery-response';
 
@@ -184,11 +185,19 @@ export async function POST(request: NextRequest) {
     }
     if (!upstream.ok) {
       const errorText = await upstream.text().catch(() => "");
+      // A 426 on the subscription path means the published version header is below the upstream
+      // minimum: refresh the server-side snapshot and return the configuration fingerprint.
+      const versionRejectionHeaders = await subscriptionVersionRejectionHeaders({
+        upstreamStatus: upstream.status,
+        sentConfig: subscriptionConfig ?? codexConfig,
+        resolveCurrentConfig: usesGrokSubscription ? resolveGrokSubscriptionConfig : resolveOpenAISubscriptionConfig,
+      });
       return new Response(errorText, {
         status: upstream.status,
         headers: {
           "Content-Type": upstream.headers.get("Content-Type") || "text/plain; charset=utf-8",
           [ERROR_SOURCE_HEADER]: "provider",
+          ...versionRejectionHeaders,
           ...capabilityResultHeaders(activeReq),
           ...capabilityRecoveryHeaders(activeReq, upstream.status, errorText),
         },

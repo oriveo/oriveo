@@ -65,6 +65,19 @@ export async function getRuntimeMetadata(providerKind?: string): Promise<Runtime
   return assembleFor(current, kind);
 }
 
+/**
+ * Re-checks the index with the backend right away instead of waiting for the TTL (a conditional
+ * request with the ETag, so an unchanged index costs one 304).
+ *
+ * Subscription version headers are resolved from this snapshot. An upstream 426 means the value
+ * in the snapshot is below the upstream minimum. Without this pull, every user on this instance
+ * keeps being rejected for up to one more TTL after the published value has been corrected.
+ * Joins a refresh that is already in flight.
+ */
+export async function refreshRuntimeMetadataNow(): Promise<void> {
+  await refreshSnapshot();
+}
+
 async function loadSnapshot(): Promise<SnapshotEntry | null> {
   if (snapshot && Date.now() < snapshot.expiresAt) return snapshot;
   return refreshSnapshot();

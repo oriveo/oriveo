@@ -9,6 +9,14 @@ describe('isRateLimitError', () => {
       expect(isRateLimitError('unavailable')).toBe(true);
     });
 
+    it('keeps the switch-model way out for every subscription sign-in failure of both vendors', () => {
+      for (const lane of ['grokSubscription', 'openAISubscription']) {
+        for (const reason of ['Unavailable', 'Ineligible', 'Expired', 'QuotaExhausted']) {
+          expect(isRateLimitError(`${lane}${reason}`)).toBe(true);
+        }
+      }
+    });
+
     it('returns false for kinds that switching models cannot fix', () => {
       expect(isRateLimitError('invalidKey')).toBe(false);
       expect(isRateLimitError('network')).toBe(false);

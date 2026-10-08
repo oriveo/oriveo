@@ -58,6 +58,9 @@ export function shouldReportProviderError(err: unknown): boolean {
   const pe = err as ProviderError | undefined;
   if (!pe || typeof pe !== 'object' || typeof pe.kind !== 'string') return true;
   if (pe.source === 'provider' || pe.source === 'network') return false;
+  // The subscription 426 gate already ruled this one out: the published configuration changed
+  // after the refresh, or the same configuration was already reported in this session.
+  if ((pe as { skipReport?: unknown }).skipReport === true) return false;
   if (NON_REPORTABLE_PROVIDER_ERROR_KINDS.has(pe.kind)) return false;
   return true;
 }

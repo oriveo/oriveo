@@ -1,11 +1,19 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { sendLibraryAgentLeg, sendStreamProxy } from '../proxy-client';
 import type { StreamEvent } from '../types';
+import { __resetSubscriptionVersionRejectionGateForTest } from '../subscription-version-rejection';
+import { shouldReportProviderError } from '../../chat/error-reporting';
 import * as metadataClient from '../../metadata/metadata-client';
 import {
   __resetMetadataClientForTest,
   initMetadata,
 } from '../../metadata/metadata-client';
+
+/** Same shape as the error object `collectStreamEvents` (chat-stream-utils) throws: the reporting rule reads exactly these fields. */
+function toThrownShape(event: StreamEvent | undefined) {
+  if (event?.type !== 'error') throw new Error('expected an error event');
+  return { kind: event.errorKind, source: event.source, ...(event.skipReport ? { skipReport: true } : {}) };
+}
 
 async function collectEvents(stream: ReadableStream<StreamEvent>): Promise<StreamEvent[]> {
   const reader = stream.getReader();
@@ -128,6 +136,57 @@ describe('proxy-client', () => {
       expect(events.find((event) => event.type === 'error')?.errorKind)
         .toBe('grokSubscriptionUnavailable');
       expect(refreshSpy).toHaveBeenCalledTimes(1);
+    });
+
+    // xAI's 426 text is written for CLI users and must not become the failure card body.
+    describe('upstream rejects the client version with 426', () => {
+      const XAI_426 = JSON.stringify({
+        code: 'ClientVersionRejected',
+        error: 'Your Grok CLI version (1.0.4) is outdated. Please update to version 1.0.13 or later via `grok update` or the installer.',
+      });
+      const reject = (headers: Record<string, string> = {}) => {
+        vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(new Response(XAI_426, {
+          status: 426,
+          headers: { 'Content-Type': 'application/json', 'X-Oriveo-Error-Source': 'provider', ...headers },
+        }));
+        return collectEvents(sendStreamProxy(
+          'grok', 'access-token', 'grok-4.6', [{ role: 'user', content: 'hi' }], undefined, { grokSubscriptionAuth: true },
+        ).stream);
+      };
+      const errorOf = (events: StreamEvent[]) => events.find((event) => event.type === 'error');
+
+      beforeEach(() => {
+        __resetSubscriptionVersionRejectionGateForTest();
+        vi.spyOn(metadataClient, 'refreshMetadata').mockResolvedValue(undefined);
+      });
+
+      it('is sourced from the app so the card localizes by kind, with the upstream text only in the detail', async () => {
+        const error = errorOf(await reject());
+        expect(error).toMatchObject({ errorKind: 'grokSubscriptionUnavailable', source: 'oriveo', status: 426 });
+        expect(error?.type === 'error' && error.error).not.toContain('grok update');
+        expect(error?.type === 'error' && error.errorDetail).toContain('grok update');
+      });
+
+      it('reports the same published configuration once per session, however often the user retries', async () => {
+        const first = errorOf(await reject({ 'X-Oriveo-Subscription-Config-Revision': 'rev-a' }));
+        const second = errorOf(await reject({ 'X-Oriveo-Subscription-Config-Revision': 'rev-a' }));
+        const changed = errorOf(await reject({ 'X-Oriveo-Subscription-Config-Revision': 'rev-b' }));
+
+        expect(shouldReportProviderError(toThrownShape(first))).toBe(true);
+        expect(shouldReportProviderError(toThrownShape(second))).toBe(false);
+        // A different configuration that is still rejected means the new value is not enough
+        // either, which is a separate thing to fix.
+        expect(shouldReportProviderError(toThrownShape(changed))).toBe(true);
+      });
+
+      it('does not report when the route found the published configuration changed after its refresh', async () => {
+        const error = errorOf(await reject({
+          'X-Oriveo-Subscription-Config-Revision': 'rev-old',
+          'X-Oriveo-Subscription-Config-Stale': '1',
+        }));
+        expect(error).toMatchObject({ errorKind: 'grokSubscriptionUnavailable', skipReport: true });
+        expect(shouldReportProviderError(toThrownShape(error))).toBe(false);
+      });
     });
 
     it('leaves 403 handling in API key mode exactly as it was', async () => {

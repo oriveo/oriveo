@@ -13,7 +13,7 @@
  */
 
 import type { TransportPort, TransportResponse } from '../ports';
-import { toProviderError } from './errors';
+import { isSubscriptionErrorKind, toProviderError } from './errors';
 import type { ProviderErrorSource } from './errors';
 import type { RelayErrorContext } from './relay-error-classifier';
 import type { StreamEvent } from './types';
@@ -274,7 +274,10 @@ export function createSSEStream(
           error: pe.message,
           errorDetail: pe.detail,
           errorKind: pe.kind,
-          source: options?.errorSource ?? pe.source,
+          // The classifier decides the source of a subscription failure (see toProviderError).
+          // The proxy route only knows that the upstream answered non-2xx and says `provider`,
+          // which must not override it.
+          source: isSubscriptionErrorKind(pe.kind) ? pe.source : options?.errorSource ?? pe.source,
           retryable: pe.retryable,
           status: pe.status,
           upstreamURL: pe.upstreamURL,

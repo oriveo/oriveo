@@ -195,6 +195,32 @@ describe("MessageRecoveryCard", () => {
       expect(screen.getByRole("button", { name: "retryBtn" })).toBeTruthy();
     });
 
+    // The upstream text of a subscription 426 is written for CLI users (`grok update`). The
+    // failure card shows the app's own actionable copy (use an API key, or switch models) and
+    // keeps the upstream text out of the body.
+    it("shows the localized subscription copy instead of the upstream CLI instruction", () => {
+      const { container } = render(
+        <MessageRecoveryCard
+          state="failed"
+          errorTitle="Grok Subscription Unavailable"
+          errorDetail="ClientVersionRejected | Your Grok CLI version (1.0.4) is outdated. Please update to version 1.0.13 or later via `grok update`"
+          errorKind="grokSubscriptionUnavailable"
+          errorSource="oriveo"
+          detailIsInternalTechnicalText
+          onRetry={vi.fn()}
+          onSwitchModel={vi.fn()}
+        />,
+      );
+      expect(screen.getByText("grokSubscriptionUnavailable.title")).toBeTruthy();
+      const body = container.querySelector("p.description")?.textContent ?? "";
+      expect(body).toBe("grokSubscriptionUnavailable.message");
+      expect(body).not.toContain("grok update");
+      // The upstream text stays only in the technical details, collapsed by default, for
+      // troubleshooting, the same way other app-sourced failures are handled.
+      expect(screen.getByText(/grok update/)).toBeTruthy();
+      expect(screen.getByRole("button", { name: "switchModelBtn" })).toBeTruthy();
+    });
+
     it("never localizes an upstream provider body away, even when asked", () => {
       const { container } = render(
         <MessageRecoveryCard

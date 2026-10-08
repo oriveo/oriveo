@@ -87,6 +87,11 @@ export type StreamEvent =
       status?: number;
       upstreamURL?: string;
       quotaSource?: ProviderQuotaSource;
+      /**
+       * This failure was already reported or needs nobody's attention (the subscription 426
+       * gate): it is shown as usual but no longer sent to error monitoring.
+       */
+      skipReport?: boolean;
       traceId?: string;
     };
 

@@ -8,6 +8,11 @@ import type { StreamEvent, ContentPart, StreamHandle, StreamOptions } from './ty
 import { createSSEStream } from '../../infra/sse-parser';
 import { networkError, toProviderError } from './errors';
 import type { RelayErrorContext } from './relay-error-classifier';
+import {
+  SUBSCRIPTION_CONFIG_REVISION_HEADER,
+  SUBSCRIPTION_CONFIG_STALE_HEADER,
+  shouldReportSubscriptionVersionRejection,
+} from './subscription-version-rejection';
 import { createProxyChunkParser, type ContinuationCaptureConfig } from '@oriveo/core/providers/proxy-chunk-parser';
 import type { ProxyMessage, ProxyToolDefinition } from '@oriveo/core/providers/request-builders/runtime';
 import type { ProviderErrorSource } from '@oriveo/core/providers/errors';
@@ -154,6 +159,7 @@ export function sendStreamProxy(
   const capabilityResultContextReady = new Promise<unknown>((resolve) => { resolveCapabilityContextReady = resolve; });
   let capabilityCustomRetryEligible = false;
   let capabilityRecoveryDescriptor: CapabilityRecoveryDescriptor | null = null;
+  let subscriptionVersionRejectionSkipReport = false;
   const endpoint = '/api/chat/stream';
   const body = JSON.stringify({
       providerKind, apiKey, modelID, messages, baseURL,
@@ -203,6 +209,14 @@ export function sendStreamProxy(
       // pulling once here a user could wait a day for a corrected value to take effect.
       if ((options?.grokSubscriptionAuth || options?.openAISubscriptionAuth) && res.status === 426) {
         void refreshMetadata().catch(() => {});
+        // The route has force refreshed its server-side snapshot and returned which configuration
+        // this request used and whether it changed. That decides whether this 426 is still worth
+        // reporting: not when the configuration changed, and once per session otherwise.
+        subscriptionVersionRejectionSkipReport = !shouldReportSubscriptionVersionRejection({
+          lane: options?.grokSubscriptionAuth ? 'grok' : 'openAI',
+          revision: res.headers.get(SUBSCRIPTION_CONFIG_REVISION_HEADER),
+          stale: res.headers.get(SUBSCRIPTION_CONFIG_STALE_HEADER) === '1',
+        });
       }
 
       // Custom request fields failing closed with 400: the request was never sent, so this is
@@ -275,7 +289,9 @@ export function sendStreamProxy(
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
-          ctrl.enqueue(value);
+          ctrl.enqueue(value.type === 'error' && subscriptionVersionRejectionSkipReport
+            ? { ...value, skipReport: true }
+            : value);
         }
       } catch {
         // The inner stream has already handled the error

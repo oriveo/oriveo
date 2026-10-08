@@ -349,6 +349,7 @@ export async function readStream(
           quotaSource: event.quotaSource,
           nextAction: event.nextAction,
           severity: event.severity,
+          ...(event.skipReport ? { skipReport: true } : {}),
           traceId: event.traceId,
         } as ProviderError;
       case 'done':

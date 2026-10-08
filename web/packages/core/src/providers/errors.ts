@@ -136,9 +136,17 @@ export function toProviderError(
     (classifyContext?.grokSubscriptionAuth && isGrokSubscriptionErrorKind(classified.kind)) ||
     (classifyContext?.openAISubscriptionAuth && isOpenAISubscriptionErrorKind(classified.kind))
   ) {
+    // The source is `oriveo`, not `provider`: on the subscription path the version headers,
+    // endpoints and credential exchange are all supplied and carried out by the app, while the
+    // upstream text is written for the vendor's own CLI users (xAI's 426 reads "Your Grok CLI
+    // version (1.0.4) is outdated… via `grok update`"), which an app user cannot act on. Marking
+    // it `provider` has two consequences: the failure card shows that text as its body and the
+    // localized subscription copy is never rendered, and the 426 signal that the published
+    // configuration needs updating is dropped by the rule that errors returned by a provider are
+    // not reported. The upstream text still travels in `detail`.
     return {
       ...classified,
-      source: 'provider',
+      source: 'oriveo',
       status,
       ...(upstreamURL ? { upstreamURL } : {}),
     };
@@ -218,6 +226,15 @@ const GROK_SUBSCRIPTION_ERROR_KINDS = new Set<ProviderErrorKind>([
   'grokSubscriptionExpired',
   'grokSubscriptionQuotaExhausted',
 ]);
+
+/**
+ * Failure kinds of the two subscription paths (Grok and ChatGPT). Their copy, source and recovery
+ * actions are decided by the app rather than passed through from upstream.
+ */
+export function isSubscriptionErrorKind(kind: string | undefined): boolean {
+  return typeof kind === 'string'
+    && (kind.startsWith('grokSubscription') || kind.startsWith('openAISubscription'));
+}
 
 export function isGrokSubscriptionErrorKind(kind: ProviderErrorKind): boolean {
   return GROK_SUBSCRIPTION_ERROR_KINDS.has(kind);
