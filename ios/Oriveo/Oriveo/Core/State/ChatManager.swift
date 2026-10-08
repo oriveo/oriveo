@@ -1278,7 +1278,9 @@ final class ChatManager {
                             expectedSendTaskID: sendTaskID,
                             userFacingText: error.userFacingMessage,
                             estimatedCost: 0,
-                            title: L10n.tr("Grok subscription", table: .providers),
+                            // Store the title key and translate on display, like a subscription failure
+                            // during streaming; the failure card recognizes subscription failures by it.
+                            title: ProviderServiceError.SubscriptionLane.grok.titleKey,
                             detail: error.userFacingMessage,
                             errorCode: "grok_subscription_unavailable"
                         )
@@ -1301,7 +1303,7 @@ final class ChatManager {
                             expectedSendTaskID: sendTaskID,
                             userFacingText: error.userFacingMessage,
                             estimatedCost: 0,
-                            title: L10n.tr("ChatGPT subscription", table: .providers),
+                            title: ProviderServiceError.SubscriptionLane.openAI.titleKey,
                             detail: error.userFacingMessage,
                             errorCode: "codex_subscription_unavailable"
                         )
@@ -2944,6 +2946,13 @@ final class ChatManager {
                 let canRetryWithoutAdditionalBody = sendExecutionTracker?.canOfferRetryWithoutAdditionalBody ?? false
                 let customSourceRejected = sendExecutionTracker?.hasRejectedSource(.custom) ?? false
                 let terminalExecution = sendExecutionTracker?.terminalResult()
+                // Subscription 426: the client version headers in the local metadata snapshot are below what
+                // the provider accepts. The snapshot is only refreshed in the background once a day, so wait
+                // for a refresh before the failure card lands; one tap on Retry then sends the current values.
+                if !Task.isCancelled,
+                   (error as? ProviderServiceError)?.subscriptionClientVersionRejectionLane != nil {
+                    await MetadataClient.shared.forceRefresh()
+                }
 
                 await MainActor.run {
                     if Task.isCancelled {
@@ -3018,7 +3027,7 @@ final class ChatManager {
                                     : customFieldsRejection?.safeCode ?? "custom_request_fields_rejected")
                                 : (isLocatedSettingRejection
                                     ? "model_control_setting_rejected"
-                                    : providerError.technicalDetail),
+                                    : ChatFailurePresentation.persistedDetail(for: providerError)),
                             errorCode: providerError.diagnosticCode,
                             terminalExecution: terminalExecution
                         )

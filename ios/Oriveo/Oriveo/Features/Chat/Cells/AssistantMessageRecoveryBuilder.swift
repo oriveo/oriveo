@@ -122,14 +122,11 @@ enum AssistantMessageRecoveryBuilder {
             isLastInConversation: model.isLastInConversation
         ), state == .failed, !isDismissed else { return nil }
 
-        let shouldOfferModelSwitch: Bool = {
-            let t = model.message.errorTitle?.lowercased() ?? ""
-            let d = model.message.errorDetail?.lowercased() ?? ""
-            let b = model.message.text.lowercased()
-            return t.contains("rate") || t.contains("quota")
-                || d.contains("429") || d.contains("insufficient")
-                || b.contains("switch models")
-        }()
+        let shouldOfferModelSwitch = ChatFailurePresentation.offersModelSwitch(
+            errorTitle: model.message.errorTitle,
+            errorDetail: model.message.errorDetail,
+            bodyText: model.message.text
+        )
 
         let actionLayout = resolveMessageRecoveryCardActionLayout(
             for: state,
