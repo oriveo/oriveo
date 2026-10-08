@@ -215,6 +215,18 @@ describe('InputComposer send clears draft', () => {
   });
 });
 
+/**
+ * An import writes back with a functional update based on the tray at merge time. This applies
+ * the last write-back to the given current state and returns the tray it would actually produce.
+ */
+function appliedAttachments(
+  onAttachmentsChange: ReturnType<typeof vi.fn>,
+  current: unknown[] = [],
+): unknown[] {
+  const next = onAttachmentsChange.mock.calls.at(-1)?.[0];
+  return typeof next === 'function' ? next(current) : next;
+}
+
 describe('InputComposer', () => {
   // ── "Model Options" panel ─────────────────────────────────────
   //
@@ -1095,10 +1107,10 @@ describe('InputComposer', () => {
 
     fireEvent.change(fileInput, { target: { files: [file] } });
 
-    expect(mockLoadAttachmentUtils).toHaveBeenCalledTimes(1);
     await vi.waitFor(() => {
+      expect(mockLoadAttachmentUtils).toHaveBeenCalledTimes(1);
       expect(mockValidateAndConvertFiles).toHaveBeenCalledWith([file], 'file', undefined, expect.any(Function));
-      expect(onAttachmentsChange).toHaveBeenCalledWith([
+      expect(appliedAttachments(onAttachmentsChange)).toEqual([
         expect.objectContaining({ id: 'attachment-1', kind: 'image' }),
       ]);
     });
@@ -1166,9 +1178,11 @@ describe('InputComposer', () => {
     await vi.waitFor(() => {
       expect(mockValidateAndConvertFiles).toHaveBeenCalledWith([file], 'file', undefined, expect.any(Function));
     });
-    expect(onAttachmentsChange).toHaveBeenCalledWith([
-      expect.objectContaining({ id: 'attachment-1', kind: 'image' }),
-    ]);
+    await vi.waitFor(() => {
+      expect(appliedAttachments(onAttachmentsChange)).toEqual([
+        expect.objectContaining({ id: 'attachment-1', kind: 'image' }),
+      ]);
+    });
   });
 
   it('shows related note suggestions and calls attach/dismiss actions', () => {

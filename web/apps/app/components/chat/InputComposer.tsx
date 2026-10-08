@@ -13,7 +13,7 @@ import { AttachmentSizeLimitDialog } from './AttachmentSizeLimitDialog';
 import { NoteReferencePreview } from './NoteReferencePreview';
 import { resolveAttachmentCapabilities, buildAcceptAttribute } from '../../lib/core/chat/attachment-policy';
 import { useAppStore } from '../../providers/StoreProvider';
-import { useAttachmentIntake } from '../../lib/hooks/useAttachmentIntake';
+import { useAttachmentIntake, type AttachmentsChange } from '../../lib/hooks/useAttachmentIntake';
 import type { ProviderAttachmentSupport } from '../../lib/core/metadata/metadata-client';
 import styles from './InputComposer.module.css';
 import type { LibraryDocumentRef } from '../../lib/core/library/types';
@@ -45,7 +45,8 @@ interface InputComposerProps {
   disabled?: boolean;
   /* Attachments */
   attachments?: Attachment[];
-  onAttachmentsChange?: (attachments: Attachment[]) => void;
+  /** Either the array itself or a function of the current state (`setAttachments` can be passed directly). */
+  onAttachmentsChange?: (next: AttachmentsChange) => void;
   /* Reasoning */
   /**
    * Single source of truth for the reasoning intent. `ReasoningMode` cannot express `off`, and

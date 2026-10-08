@@ -317,7 +317,10 @@
       "attachmentTooLargeAction": "OK",
       "fileExtraction": {
         "extractedLines": "{count, plural, other {# líneas extraídas}}",
+        "errorPasswordProtected": "Una contraseña bloquea {fileName}. Quita la contraseña y vuelve a subir el archivo.",
         "errorGeneric": "No se pudo procesar {fileName}. Inténtalo de nuevo o elige otro archivo.",
+        "errorCorrupted": "No se puede abrir {fileName}; parece dañado. Expórtalo o descárgalo otra vez y vuelve a adjuntarlo.",
+        "errorNoText": "{fileName} no tiene texto seleccionable; seguramente es un escaneo. Elige un modelo que lea imágenes o PDF directamente.",
         "tooManyFiles": "Puedes adjuntar hasta {maxFiles} archivos para este modelo.",
         "truncatedCtaKnowledge": "Archivo grande truncado. Agregar a Skill Knowledge para búsqueda completa →"
       },

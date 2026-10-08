@@ -317,7 +317,10 @@
       "attachmentTooLargeAction": "حسنًا",
       "fileExtraction": {
         "extractedLines": "{count, plural, other {تم استخراج # سطر}}",
+        "errorPasswordProtected": "{fileName} مقفل بكلمة مرور. يرجى إزالة كلمة المرور ثم إعادة رفع الملف.",
         "errorGeneric": "تعذّر معالجة {fileName}. حاول مجدداً أو اختر ملفاً آخر.",
+        "errorCorrupted": "تعذّر فتح {fileName}، وربما يكون الملف تالفًا. يرجى تصديره أو تنزيله من جديد ثم إرفاقه مرة أخرى.",
+        "errorNoText": "لا يحتوي {fileName} على نص يمكن تحديده، والأرجح أنه مستند ممسوح ضوئيًا. يرجى اختيار نموذج يقرأ الصور أو ملفات PDF مباشرة.",
         "tooManyFiles": "يمكنك إرفاق ما يصل إلى {maxFiles} ملفات لهذا النموذج.",
         "truncatedCtaKnowledge": "تم اقتطاع الملف الكبير. أضف إلى Skill Knowledge للبحث الكامل ←"
       },

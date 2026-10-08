@@ -317,7 +317,10 @@
       "attachmentTooLargeAction": "OK",
       "fileExtraction": {
         "extractedLines": "{count, plural, other {Извлечено # строк}}",
+        "errorPasswordProtected": "На {fileName} стоит пароль. Сними его и загрузи файл заново.",
         "errorGeneric": "Не удалось обработать {fileName}. Попробуйте снова или выберите другой файл.",
+        "errorCorrupted": "{fileName} не открывается: похоже, файл повреждён. Экспортируй или скачай его заново и прикрепи ещё раз.",
+        "errorNoText": "В {fileName} нет текста, который можно выделить, — скорее всего, это скан. Выбери модель, которая читает изображения или PDF напрямую.",
         "tooManyFiles": "Для этой модели можно прикрепить до {maxFiles} файлов.",
         "truncatedCtaKnowledge": "Большой файл обрезан. Добавьте в Skill Knowledge для полного поиска →"
       },

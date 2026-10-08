@@ -1,15 +1,17 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { useTranslations } from 'next-intl';
 import type { Attachment } from '@oriveo/shared';
-import { loadAttachmentUtils } from '../utils/attachment-utils-lazy';
-import { limitAttachmentCount, partitionFilesByAttachmentSize } from '../utils/attachment-size-policy';
-import { DEFAULT_LIMITS } from '../core/attachments/file-text-extractor';
-import { showToast } from '../../components/Toast';
-import { FALLBACK_ATTACHMENT_BYTES } from '../utils/attachment-size-policy';
+import { appendAttachmentsWithinLimit, importAttachmentFiles } from '../core/attachments/attachment-import';
+
+/**
+ * The next state of the attachment tray: either the array itself or a function of the current
+ * state. Importing and removing both use the latter; see attachment-import.
+ */
+export type AttachmentsChange = Attachment[] | ((current: Attachment[]) => Attachment[]);
 
 interface UseAttachmentIntakeParams {
   attachments: Attachment[];
-  onAttachmentsChange?: (attachments: Attachment[]) => void;
+  onAttachmentsChange?: (next: AttachmentsChange) => void;
   /** Whether images are supported, which decides if pasted images are accepted. */
   supportsImage: boolean;
   /** Normalized provider.kind, used for attachment_added reporting. */
@@ -30,35 +32,26 @@ export function useAttachmentIntake({
   const [showAttachmentSizeLimit, setShowAttachmentSizeLimit] = useState(false);
   const tfe = useTranslations('pages.chat.fileExtraction');
 
+  // Importing is asynchronous: the `attachments` captured when the callback was created may be
+  // stale by the time the files have been read, so the gate reads a ref.
+  const attachmentsRef = useRef(attachments);
+  attachmentsRef.current = attachments;
+
   const handleAddFiles = useCallback(
     async (files: File[]) => {
       if (!onAttachmentsChange) return;
-      const sized = partitionFilesByAttachmentSize(files, FALLBACK_ATTACHMENT_BYTES);
-      if (sized.oversized.length > 0) {
-        setShowAttachmentSizeLimit(true);
-      }
-      // Hard count limit: without a total cap, a few hundred images would push the message document past 1MiB.
-      const counted = limitAttachmentCount(attachments.length, sized.accepted, DEFAULT_LIMITS.maxFiles);
-      const accepted = counted.accepted;
-      if (counted.rejectedCount > 0) {
-        showToast(tfe('tooManyFiles', { maxFiles: DEFAULT_LIMITS.maxFiles }));
-      }
-      if (accepted.length === 0) {
-        return;
-      }
-
-      const { validateAndConvertFiles } = await loadAttachmentUtils();
-      const newAttachments = await validateAndConvertFiles(
-        accepted,
-        'file',
+      await importAttachmentFiles({
+        files,
+        source: 'file',
         providerKind,
-        (file) => showToast(tfe('errorGeneric', { fileName: file.name })),
-      );
-      if (newAttachments.length > 0) {
-        onAttachmentsChange([...attachments, ...newAttachments]);
-      }
+        getAttachments: () => attachmentsRef.current,
+        commit: (incoming, maxAttachments) =>
+          onAttachmentsChange((current) => appendAttachmentsWithinLimit(current, incoming, maxAttachments)),
+        onRejectedBySize: () => setShowAttachmentSizeLimit(true),
+        translate: tfe,
+      });
     },
-    [attachments, onAttachmentsChange, providerKind, tfe],
+    [onAttachmentsChange, providerKind, tfe],
   );
 
   const handleFileInput = useCallback(
@@ -88,9 +81,11 @@ export function useAttachmentIntake({
 
   const handleRemoveAttachment = useCallback(
     (id: string) => {
-      onAttachmentsChange?.(attachments.filter((a) => a.id !== id));
+      // Remove against the current state: while an import's write-back is in flight, filtering
+      // the captured array would drop the attachments that were just merged in.
+      onAttachmentsChange?.((current) => current.filter((a) => a.id !== id));
     },
-    [attachments, onAttachmentsChange],
+    [onAttachmentsChange],
   );
 
   return {

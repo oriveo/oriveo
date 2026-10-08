@@ -74,9 +74,11 @@ describe('useAttachmentDragDrop', () => {
       await result.current.dragHandlers.onDrop(fakeDropEvent);
     });
 
+    // The second argument is the count limit at merge time; the caller cuts to it in a functional
+    // update (see attachment-import).
     expect(onFilesAccepted).toHaveBeenCalledWith([
       expect.objectContaining({ id: 'att-1', kind: 'image' }),
-    ]);
+    ], 3);
     expect(mockLoadAttachmentUtils).toHaveBeenCalledTimes(1);
     expect(result.current.dragActive).toBe(false);
   });
@@ -107,7 +109,7 @@ describe('useAttachmentDragDrop', () => {
 
     expect(onFilesAccepted).toHaveBeenCalledWith([
       expect.objectContaining({ id: 'att-file', kind: 'file' }),
-    ]);
+    ], 3);
   });
 
   it('should report oversized dropped files without converting them', async () => {

@@ -317,7 +317,10 @@
       "attachmentTooLargeAction": "OK",
       "fileExtraction": {
         "extractedLines": "{count, plural, other {# linhas extraídas}}",
+        "errorPasswordProtected": "Uma senha trava {fileName}. Remova a senha e suba o arquivo de novo.",
         "errorGeneric": "Não foi possível processar {fileName}. Tente novamente ou escolha outro arquivo.",
+        "errorCorrupted": "Não deu para abrir {fileName}; o arquivo parece corrompido. Exporte ou baixe de novo e anexe outra vez.",
+        "errorNoText": "{fileName} não tem texto selecionável; deve ser uma digitalização. Escolha um modelo que leia imagens ou PDFs diretamente.",
         "tooManyFiles": "Você pode anexar até {maxFiles} arquivos para este modelo.",
         "truncatedCtaKnowledge": "Arquivo grande truncado. Adicionar ao Skill Knowledge para busca completa →"
       },

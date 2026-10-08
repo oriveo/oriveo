@@ -10,6 +10,7 @@ import { selectIsStreamingFor } from '../../lib/core/store/selectors';
 import { useNotifications } from '../../lib/hooks/useNotifications';
 import { useMediaQuery } from '../../lib/hooks/useMediaQuery';
 import { useAttachmentDragDrop } from '../../lib/hooks/useAttachmentDragDrop';
+import { appendAttachmentsWithinLimit } from '../../lib/core/attachments/attachment-import';
 import { useStreamChat } from '../../lib/hooks/useStreamChat';
 import { loadSyncCore } from '../../lib/core/sync-lazy';
 import { getVanillaStore } from '../../providers/StoreProvider';
@@ -225,8 +226,8 @@ export function ChatView({ conversationId, searchQuery }: ChatViewProps) {
   );
 
   // ── Drag & Drop + Global Paste ──
-  const handleFilesAccepted = useCallback((newAtts: Attachment[]) => {
-    setAttachments((prev) => [...prev, ...newAtts]);
+  const handleFilesAccepted = useCallback((newAtts: Attachment[], maxAttachments: number) => {
+    setAttachments((prev) => appendAttachmentsWithinLimit(prev, newAtts, maxAttachments));
   }, []);
   const handleOversizedFiles = useCallback(() => {
     setShowAttachmentSizeLimit(true);

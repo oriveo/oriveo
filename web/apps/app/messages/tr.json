@@ -317,7 +317,10 @@
       "attachmentTooLargeAction": "Tamam",
       "fileExtraction": {
         "extractedLines": "{count, plural, other {# satır çıkarıldı}}",
+        "errorPasswordProtected": "{fileName} parolayla kilitli. Parolayı kaldırıp dosyayı yeniden yükle.",
         "errorGeneric": "{fileName} işlenemedi. Tekrar deneyin veya başka bir dosya seçin.",
+        "errorCorrupted": "{fileName} açılamadı; dosya bozulmuş olabilir. Yeniden dışa aktar ya da indir, sonra tekrar ekle.",
+        "errorNoText": "{fileName} içinde seçilebilir metin yok; büyük olasılıkla taranmış bir belge. Görselleri veya PDF’leri doğrudan okuyabilen bir model seç.",
         "tooManyFiles": "Bu model için en fazla {maxFiles} dosya ekleyebilirsin.",
         "truncatedCtaKnowledge": "Büyük dosya kısaltıldı. Tam arama için Skill Knowledge'a ekleyin →"
       },

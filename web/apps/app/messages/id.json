@@ -317,7 +317,10 @@
       "attachmentTooLargeAction": "OK",
       "fileExtraction": {
         "extractedLines": "{count, plural, other {# baris diekstrak}}",
+        "errorPasswordProtected": "Kata sandi mengunci {fileName}. Kamu harus menghapus kata sandinya, lalu mengunggah berkas itu lagi.",
         "errorGeneric": "Tidak dapat memproses {fileName}. Coba lagi atau pilih file lain.",
+        "errorCorrupted": "{fileName} tidak bisa dibuka; berkasnya mungkin rusak. Ekspor atau unduh ulang, lalu lampirkan lagi.",
+        "errorNoText": "{fileName} tidak punya teks yang bisa dipilih; kemungkinan hasil pindaian. Pilih model yang bisa membaca gambar atau PDF secara langsung.",
         "tooManyFiles": "Anda dapat melampirkan hingga {maxFiles} berkas untuk model ini.",
         "truncatedCtaKnowledge": "File besar dipotong. Tambahkan ke Skill Knowledge untuk pencarian lengkap →"
       },

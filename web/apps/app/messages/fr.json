@@ -317,7 +317,10 @@
       "attachmentTooLargeAction": "OK",
       "fileExtraction": {
         "extractedLines": "{count, plural, other {# lignes extraites}}",
+        "errorPasswordProtected": "Un mot de passe bloque {fileName}. Retire-le, puis importe le fichier une nouvelle fois.",
         "errorGeneric": "Impossible de traiter {fileName}. Réessayez ou choisissez un autre fichier.",
+        "errorCorrupted": "Impossible d’ouvrir {fileName} : le fichier semble endommagé. Exporte-le ou télécharge-le de nouveau, puis rajoute-le.",
+        "errorNoText": "Aucun texte sélectionnable dans {fileName} : c’est sans doute un scan. Choisis un modèle qui lit directement les images ou les PDF.",
         "tooManyFiles": "Vous pouvez joindre jusqu’à {maxFiles} fichiers pour ce modèle.",
         "truncatedCtaKnowledge": "Fichier volumineux tronqué. Ajouter à Skill Knowledge pour une recherche complète →"
       },

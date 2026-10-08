@@ -1,18 +1,19 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
 import type { Attachment } from '@oriveo/shared';
-import { loadAttachmentUtils } from '../utils/attachment-utils-lazy';
-import { limitAttachmentCount, partitionFilesByAttachmentSize } from '../utils/attachment-size-policy';
-import { DEFAULT_LIMITS } from '../core/attachments/file-text-extractor';
-import { showToast } from '../../components/Toast';
-import { FALLBACK_ATTACHMENT_BYTES } from '../utils/attachment-size-policy';
+import { importAttachmentFiles } from '../core/attachments/attachment-import';
 
 /**
  * Hook handling drag-and-drop uploads and global image paste.
  * All the drag/drop/paste logic for ChatView lives here.
  */
 export function useAttachmentDragDrop(
-  onFilesAccepted: (files: Attachment[]) => void,
+  /**
+   * Merges new attachments into the tray. The caller must use a functional update and cut to the
+   * limit (`setAttachments((current) => appendAttachmentsWithinLimit(current, incoming, max))`);
+   * the second argument is that limit.
+   */
+  onFilesAccepted: (files: Attachment[], maxAttachments: number) => void,
   onOversizedFiles?: (files: File[]) => void,
   options: {
     enabled?: boolean;
@@ -28,11 +29,25 @@ export function useAttachmentDragDrop(
   const enabled = options.enabled ?? true;
   const canAcceptAttachment = options.canAcceptAttachment;
   const providerKind = options.providerKind;
-  const notifyUnreadable = useCallback(
-    (file: File) => showToast(tfe('errorGeneric', { fileName: file.name })),
-    [tfe],
-  );
   const existingAttachments = options.existingAttachments ?? [];
+  // Importing is asynchronous: the gate reads a ref rather than the array captured when the
+  // callback was created.
+  const existingAttachmentsRef = useRef(existingAttachments);
+  existingAttachmentsRef.current = existingAttachments;
+
+  const importFiles = useCallback(
+    (files: File[], source: 'drag_drop' | 'paste') => importAttachmentFiles({
+      files,
+      source,
+      providerKind,
+      getAttachments: () => existingAttachmentsRef.current,
+      commit: onFilesAccepted,
+      canAcceptAttachment,
+      onRejectedBySize: (rejected) => onOversizedFiles?.(rejected),
+      translate: tfe,
+    }),
+    [canAcceptAttachment, onFilesAccepted, onOversizedFiles, providerKind, tfe],
+  );
 
   const handleDragEnter = useCallback((e: React.DragEvent) => {
     if (!enabled) return;
@@ -63,28 +78,9 @@ export function useAttachmentDragDrop(
       dragCountRef.current = 0;
       setDragActive(false);
 
-      const sized = partitionFilesByAttachmentSize(Array.from(e.dataTransfer.files), FALLBACK_ATTACHMENT_BYTES);
-      if (sized.oversized.length > 0) {
-        onOversizedFiles?.(sized.oversized);
-      }
-      // Hard count limit, the same gate as the InputComposer entry point; see the limitAttachmentCount comment.
-      const counted = limitAttachmentCount(existingAttachments.length, sized.accepted, DEFAULT_LIMITS.maxFiles);
-      const accepted = counted.accepted;
-      if (counted.rejectedCount > 0) {
-        showToast(tfe('tooManyFiles', { maxFiles: DEFAULT_LIMITS.maxFiles }));
-      }
-      if (accepted.length === 0) {
-        return;
-      }
-
-      const { validateAndConvertFiles } = await loadAttachmentUtils();
-      const newAttachments = (await validateAndConvertFiles(accepted, 'drag_drop', providerKind, notifyUnreadable))
-        .filter((attachment) => canAcceptAttachment?.(attachment) ?? true);
-      if (newAttachments.length > 0) {
-        onFilesAccepted(newAttachments);
-      }
+      await importFiles(Array.from(e.dataTransfer.files), 'drag_drop');
     },
-    [canAcceptAttachment, enabled, existingAttachments, notifyUnreadable, onFilesAccepted, onOversizedFiles, providerKind, tfe],
+    [enabled, importFiles],
   );
 
   // Global paste (Cmd+V of an image outside the textarea).
@@ -101,33 +97,13 @@ export function useAttachmentDragDrop(
 
       if (imageFiles.length > 0) {
         e.preventDefault();
-        const sized = partitionFilesByAttachmentSize(imageFiles, FALLBACK_ATTACHMENT_BYTES);
-        if (sized.oversized.length > 0) {
-          onOversizedFiles?.(sized.oversized);
-        }
-        // Hard count limit, the same gate as the drag-and-drop and InputComposer entry points.
-        const counted = limitAttachmentCount(existingAttachments.length, sized.accepted, DEFAULT_LIMITS.maxFiles);
-        const accepted = counted.accepted;
-        if (counted.rejectedCount > 0) {
-          showToast(tfe('tooManyFiles', { maxFiles: DEFAULT_LIMITS.maxFiles }));
-        }
-        if (accepted.length === 0) {
-          return;
-        }
-
-        loadAttachmentUtils().then(({ validateAndConvertFiles }) => validateAndConvertFiles(accepted, 'paste', providerKind, notifyUnreadable)).then((newAttachments) => {
-          const filteredAttachments = newAttachments
-            .filter((attachment) => canAcceptAttachment?.(attachment) ?? true);
-          if (filteredAttachments.length > 0) {
-            onFilesAccepted(filteredAttachments);
-          }
-        });
+        void importFiles(imageFiles, 'paste');
       }
     };
 
     document.addEventListener('paste', handleGlobalPaste);
     return () => document.removeEventListener('paste', handleGlobalPaste);
-  }, [canAcceptAttachment, enabled, existingAttachments, notifyUnreadable, onFilesAccepted, onOversizedFiles, providerKind, tfe]);
+  }, [enabled, importFiles]);
 
   return {
     dragActive,

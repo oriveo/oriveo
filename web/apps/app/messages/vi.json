@@ -317,7 +317,10 @@
       "attachmentTooLargeAction": "OK",
       "fileExtraction": {
         "extractedLines": "{count, plural, other {Đã trích xuất # dòng}}",
+        "errorPasswordProtected": "{fileName} có mật khẩu. Bỏ mật khẩu rồi tải lên lại.",
         "errorGeneric": "Không thể xử lý {fileName}. Thử lại hoặc chọn tệp khác.",
+        "errorCorrupted": "Không mở được {fileName}, tệp có thể đã hỏng. Xuất hoặc tải lại rồi đính kèm lần nữa.",
+        "errorNoText": "{fileName} không có chữ chọn được, nhiều khả năng là bản quét. Hãy chọn mô hình đọc trực tiếp được ảnh hoặc PDF.",
         "tooManyFiles": "Bạn có thể đính kèm tối đa {maxFiles} tệp cho mô hình này.",
         "truncatedCtaKnowledge": "Tệp lớn đã bị cắt. Thêm vào Skill Knowledge để tìm kiếm đầy đủ →"
       },
