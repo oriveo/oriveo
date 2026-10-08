@@ -648,7 +648,19 @@ struct ModelControlsSheet: View {
     /// would open it and see "never chosen", which is worse than not showing it. The write-side guard stays in `persist()`.
     ///
     /// This only reads: opening the panel stores no value for the user.
+    ///
+    /// Restoring is not a user action, so it must not animate. The first frame is drawn as
+    /// "nothing chosen"; the restored tier then moves the highlight and adds a caption line that
+    /// pushes the content below it. The segmented control carries `.animation(value: selection)`,
+    /// which in the same transaction would also animate its own displacement, so that one row
+    /// would slide up on its own after the panel appears.
     private func restore() {
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction, restoreStoredSelection)
+    }
+
+    private func restoreStoredSelection() {
         // Reading and writing both use `effectiveTransportIdentity`: after an in-panel refetch unlocks the panel, the parameter passed in by the parent
         // is still nil, and using it would split "can tap" from "can store": the controls unlock, yet changes are silently lost.
         guard let transportIdentity = effectiveTransportIdentity else { return }
