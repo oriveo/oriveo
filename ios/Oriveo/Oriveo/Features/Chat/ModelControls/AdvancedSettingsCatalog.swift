@@ -75,6 +75,16 @@ struct AdvancedSettingsCatalog {
             )
         }
         let annotations = Self.applyAnnotations(annotationInputs, to: &facts)
+        // Reasoning-group rows are derived by the server from the model's thinking tiers, but this protocol's
+        // wire table has no write path for them. Without a note they are grey rows that can't be tapped and
+        // don't say why. Thinking on these protocols goes out only through the capability recipe.
+        let wire = GenerationParameterAvailability.profile(provider: provider, model: model, identity: identity)?.wire
+        for parameter in parameters where GenerationParameterAvailability.isReasoningParameter(parameter) {
+            guard let id = parameter.id, wire?[id]?.isEmpty != false else { continue }
+            facts[id]?.isEditable = false
+            facts[id]?.statusNote = reasoningSetByThinkingNoteText
+            facts[id]?.disabledActionTitle = nil
+        }
         // The header sentence is about "these parameters" and is said only when `showsUnverifiedGroupNote` holds and unverified really is the tone of the whole page.
         let showsGroupNote = annotations.showsPageNote
             && GenerationParameterPanelPresentation.showsUnverifiedGroupNote(
@@ -103,6 +113,13 @@ struct AdvancedSettingsCatalog {
 
     static let unverifiedGroupNoteText = L10n.tr(
         "These parameters are inferred from the protocol you chose. Oriveo hasn't verified they take effect on this connection.",
+        table: .providers
+    )
+
+    /// Reasoning-group parameters have no write path in this protocol's wire table (Anthropic, Gemini):
+    /// thinking there goes out only through the capability recipe, set from Thinking in Model Options.
+    static let reasoningSetByThinkingNoteText = L10n.tr(
+        "Thinking for this model is set under Thinking in Model Options. To keep a level as the default, pick it there and tap Set as default for this model. This row isn't sent.",
         table: .providers
     )
 

@@ -34635,6 +34635,107 @@
         }
       }
     },
+    "Thinking for this model is set under Thinking in Model Options. To keep a level as the default, pick it there and tap Set as default for this model. This row isn't sent." : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "يُضبط التفكير لهذا النموذج من «خيارات النموذج» › «التفكير». لاعتماد مستوى ما كإعداد افتراضي، يكفي اختياره هناك ثم الضغط على «تعيين كافتراضي لهذا النموذج». لا يُرسَل هذا الصف مع الطلب."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Das Nachdenken stellst du für dieses Modell unter „Modelloptionen“ › „Nachdenken“ ein. Um eine Stufe als Standard festzulegen, wähle sie dort aus und tippe auf „Als Standard für dieses Modell festlegen“. Diese Zeile wird nicht mitgesendet."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Thinking for this model is set under Thinking in Model Options. To keep a level as the default, pick it there and tap Set as default for this model. This row isn't sent."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "En este modelo, el razonamiento se ajusta en «Opciones del modelo» › «Razonamiento». Para dejar un nivel como predeterminado, elígelo allí y toca «Fijar como predeterminado para este modelo». Esta fila no se envía."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Sur ce modèle, la réflexion se règle dans « Options du modèle » › « Réflexion ». Pour définir un niveau par défaut, choisis-le à cet endroit et touche « Définir par défaut pour ce modèle ». Cette ligne n'est pas envoyée."
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "इस मॉडल की सोच \"मॉडल विकल्प\" › \"सोच\" में सेट होती है। किसी स्तर को डिफ़ॉल्ट रखने के लिए उसे वहीं चुनें और \"इस मॉडल के लिए डिफ़ॉल्ट बनाएं\" पर टैप करें। यह पंक्ति अनुरोध के साथ नहीं भेजी जाती।"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Untuk model ini, mode berpikir diatur di \"Opsi Model\" › \"Berpikir\". Agar satu level jadi default, pilih di sana lalu ketuk \"Jadikan default model ini\". Baris ini tidak ikut dikirim."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このモデルの思考は「モデルオプション」の「思考」で設定します。既定にしたいレベルはそこで選び、「このモデルの既定にする」をタップしてください。この項目はリクエストに含まれません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "이 모델은 '모델 옵션'의 '사고'에서 단계를 설정해요. 원하는 단계를 기본값으로 두려면 거기서 고른 뒤 '이 모델의 기본값으로 설정'을 탭하세요. 이 항목은 요청에 포함되지 않아요."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Neste modelo, o raciocínio é ajustado em \"Opções do modelo\" › \"Raciocínio\". Para manter um nível como padrão, escolha-o ali e toque em \"Definir como padrão para este modelo\". Esta linha não é enviada."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Для этой модели размышление настраивается в разделе «Параметры модели» › «Размышление». Чтобы сделать уровень значением по умолчанию, выбери его там и нажми «Сделать по умолчанию для этой модели». Этот параметр не отправляется с запросом."
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "การคิดของโมเดลนี้ตั้งค่าได้ที่ \"ตัวเลือกโมเดล\" › \"การคิด\" หากต้องการใช้ระดับใดเป็นค่าเริ่มต้น ให้เลือกระดับนั้นที่นั่นแล้วแตะ \"ตั้งเป็นค่าเริ่มต้นของโมเดลนี้\" แถวนี้จะไม่ถูกส่งไปกับคำขอ"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bu modelde düşünme, \"Model Seçenekleri\" › \"Düşünme\" bölümünden ayarlanır. Bir seviyeyi varsayılan yapmak için orada seç ve \"Bu model için varsayılan yap\" düğmesine dokun. Bu satır gönderilmez."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Với mô hình này, chế độ suy nghĩ được đặt trong \"Tùy chọn mô hình\" › \"Suy nghĩ\". Để đặt một mức làm mặc định, hãy chọn mức ấy tại đó rồi chạm \"Đặt làm mặc định cho mô hình này\". Dòng này không được gửi đi."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这个模型的思考在「模型选项」的「思考」里设置。想把某个档位设为默认，在那里选好后点「设为此模型的默认」。这一项不会随请求发送。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這個模型的思考在「模型選項」的「思考」裡設定。想把某個檔位設為預設，在那裡選好後點「設為此模型的預設」。這一項不會隨請求傳送。"
+          }
+        }
+      }
+    },
     "This address doesn't match the connection method. Change the connection method to continue." : {
       "extractionState" : "manual",
       "localizations" : {
