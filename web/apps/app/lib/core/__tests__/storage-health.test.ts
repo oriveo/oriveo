@@ -14,17 +14,20 @@ import 'fake-indexeddb/auto';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   detectStorageHealth,
+  isPersistenceBroken,
   reportStorageHealth,
   __resetStorageHealthForTest,
 } from '../storage-health';
 import { safeLocalStorage, LOCAL_STORAGE_QUOTA_CHARS } from '../../infra/storage/web-storage';
 
 // The @sentry/nextjs exports cannot be redefined, so the whole module is mocked, matching the existing convention in this repo
-const { mockCaptureMessage, mockSetContext } = vi.hoisted(() => ({
+const { mockCaptureMessage, mockSetContext, mockAddBreadcrumb } = vi.hoisted(() => ({
   mockCaptureMessage: vi.fn(),
   mockSetContext: vi.fn(),
+  mockAddBreadcrumb: vi.fn(),
 }));
 vi.mock('@sentry/nextjs', () => ({
+  addBreadcrumb: (...args: unknown[]) => mockAddBreadcrumb(...args),
   captureMessage: (...args: unknown[]) => mockCaptureMessage(...args),
   withScope: (fn: (scope: unknown) => void) => fn({
     setTag: () => {}, setContext: (...args: unknown[]) => mockSetContext(...args), setLevel: () => {},
@@ -45,6 +48,7 @@ beforeEach(() => {
   safeLocalStorage.resetForTest();
   mockCaptureMessage.mockReset();
   mockSetContext.mockReset();
+  mockAddBreadcrumb.mockReset();
   localStorage.clear();
 });
 
@@ -82,22 +86,105 @@ describe('detectStorageHealth', () => {
     expect(health.persistent).toBe(false);
   });
 
-  it('reports timeout rather than denied on a probe timeout, so a busy IDB is not passed off as a rejection', async () => {
-    vi.useFakeTimers();
-    try {
-      Object.defineProperty(globalThis, 'indexedDB', {
-        configurable: true,
-        // open returns a request that never fires any callback, simulating an IDB overwhelmed by a write storm
-        value: { open: () => ({}) },
-      });
-      const pending = detectStorageHealth();
-      await vi.advanceTimersByTimeAsync(3000);
-      const health = await pending;
-      expect(health.indexedDB).toBe('timeout');
-      expect(health.persistent).toBe(false);
-    } finally {
-      vi.useRealTimers();
+  /**
+   * No callback within 3s only means the result has not settled. A later callback of the same
+   * open() decides it, and only a confirmation window without any callback is a timeout.
+   */
+  describe('no callback within 3s yields slow, revised by what the same open() does next', () => {
+    type FakeRequest = { onsuccess?: () => void; onerror?: () => void; result: { close: () => void } };
+
+    function stallIndexedDB(): FakeRequest {
+      const request: FakeRequest = { result: { close: () => {} } };
+      Object.defineProperty(globalThis, 'indexedDB', { configurable: true, value: { open: () => request } });
+      return request;
     }
+
+    async function detectUntilSlow(onRevised = vi.fn()) {
+      const pending = detectStorageHealth({ onRevised });
+      await vi.advanceTimersByTimeAsync(3000);
+      return { health: await pending, onRevised };
+    }
+
+    beforeEach(() => { vi.useFakeTimers(); });
+    afterEach(() => { vi.useRealTimers(); });
+
+    it('hands back slow at the deadline: not broken, not reported, and startup stops waiting', async () => {
+      stallIndexedDB();
+      const { health, onRevised } = await detectUntilSlow();
+
+      expect(health.indexedDB).toBe('slow');
+      expect(health.persistent).toBe(false);
+      expect(isPersistenceBroken(health)).toBe(false);
+
+      reportStorageHealth(health);
+      expect(mockCaptureMessage).not.toHaveBeenCalled();
+      expect(onRevised).not.toHaveBeenCalled();
+    });
+
+    it('revises to available when the callback arrives late, leaving a breadcrumb and no issue', async () => {
+      const request = stallIndexedDB();
+      const { health, onRevised } = await detectUntilSlow();
+      reportStorageHealth(health);
+
+      await vi.advanceTimersByTimeAsync(185);
+      request.onsuccess?.();
+      await vi.advanceTimersByTimeAsync(0);
+
+      expect(onRevised).toHaveBeenCalledExactlyOnceWith(
+        expect.objectContaining({ indexedDB: 'available', persistent: true }),
+      );
+      expect(await detectStorageHealth()).toMatchObject({ indexedDB: 'available', persistent: true });
+      expect(mockAddBreadcrumb).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
+        message: 'storage.persistence_probe_slow',
+        data: { probeElapsedMs: 3185 },
+      }));
+
+      // The confirmation deadline does not flip a verdict that has already settled.
+      await vi.advanceTimersByTimeAsync(15000);
+      expect(onRevised).toHaveBeenCalledTimes(1);
+      expect(mockCaptureMessage).not.toHaveBeenCalled();
+    });
+
+    it('revises to denied when the late callback is a failure, and then reports persistence_unavailable', async () => {
+      const request = stallIndexedDB();
+      const { health, onRevised } = await detectUntilSlow();
+      reportStorageHealth(health);
+
+      await vi.advanceTimersByTimeAsync(2000);
+      request.onerror?.();
+      await vi.advanceTimersByTimeAsync(0);
+
+      const revised = onRevised.mock.calls[0]?.[0];
+      expect(revised).toMatchObject({ indexedDB: 'denied', persistent: false });
+      expect(isPersistenceBroken(revised)).toBe(true);
+      expect(mockCaptureMessage).toHaveBeenCalledExactlyOnceWith('storage.persistence_unavailable');
+    });
+
+    it('becomes timeout, not denied, only when the confirmation window passes without a callback', async () => {
+      stallIndexedDB();
+      const { health, onRevised } = await detectUntilSlow();
+      reportStorageHealth(health);
+
+      await vi.advanceTimersByTimeAsync(11999);
+      expect(onRevised).not.toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(1);
+
+      const revised = onRevised.mock.calls[0]?.[0];
+      expect(revised).toMatchObject({ indexedDB: 'timeout', persistent: false });
+      expect(isPersistenceBroken(revised)).toBe(true);
+      expect(mockCaptureMessage).toHaveBeenCalledExactlyOnceWith('storage.persistence_probe_timeout');
+      expect(reportedStorageContext()).toMatchObject({ indexedDB: 'timeout' });
+    });
+
+    it('reports the latest verdict when the revision landed before the report was requested with a stale slow snapshot', async () => {
+      stallIndexedDB();
+      const { health } = await detectUntilSlow();
+      await vi.advanceTimersByTimeAsync(12000);
+
+      reportStorageHealth(health);
+
+      expect(mockCaptureMessage).toHaveBeenCalledExactlyOnceWith('storage.persistence_probe_timeout');
+    });
   });
 
   it('probes only once per session, since storage permission does not change mid-session', async () => {

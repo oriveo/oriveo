@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useTranslations } from 'next-intl';
 import { DatabaseZap, X } from 'lucide-react';
 import { useAppStore } from '../providers/StoreProvider';
+import { isPersistenceBroken } from '../lib/core/storage-health';
 
 /**
  * Degraded-mode banner for "the browser has disabled site data".
@@ -13,9 +14,11 @@ import { useAppStore } from '../providers/StoreProvider';
  * are gone after a refresh. Without this notice the user simply concludes the product loses
  * data and leaves (one observed sample arrived from chatgpt.com and left after 42 seconds).
  *
- * Shown only when persistence is unavailable as a whole (IndexedDB cannot be opened). If only
- * localStorage fails while IDB still works, the user is not interrupted: their data is still stored,
- * only a few local preferences are missing.
+ * Shown only when persistence is confirmed broken (IndexedDB denied, unsupported or timed out). A
+ * probe that is merely `slow` does not count: it has not settled, the verdict comes from a later
+ * callback of the same open() or from the confirmation deadline, and the store's storageHealth is
+ * updated when it does. If only localStorage fails while IDB still works, the user is not
+ * interrupted: their data is still stored, only a few local preferences are missing.
  *
  * The dismissed flag is kept in memory only. This is not a one-off notice but a persistent
  * environment problem, so the next visit should warn again - and sessionStorage is equally broken
@@ -28,7 +31,7 @@ export function StoragePersistenceBanner() {
 
   if (dismissed) return null;
   // null means detection has not finished; do not alarm the user while it is unknown
-  if (!storageHealth || storageHealth.persistent) return null;
+  if (!storageHealth || !isPersistenceBroken(storageHealth)) return null;
 
   return (
     <div

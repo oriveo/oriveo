@@ -65,7 +65,12 @@ export async function bootstrapApp(
   installStreamLifecycleListeners();
 
   try {
-    const storageHealth = await detectStorageHealth().catch(() => null);
+    // When the probe gets no callback in time it returns `slow` so startup can continue; once the
+    // same open() settles, the revised result is written back and the degraded-mode banner
+    // follows the final verdict.
+    const storageHealth = await detectStorageHealth({
+      onRevised: (revised) => store.setState({ storageHealth: revised }),
+    }).catch(() => null);
     if (storageHealth) {
       store.setState({ storageHealth });
     }
