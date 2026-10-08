@@ -129,7 +129,16 @@ struct AdvancedParameterRowView: View {
             }
         }
         .onAppear(perform: syncDraft)
-        .onChange(of: isExpanded) { _, _ in syncDraft() }
+        .onChange(of: isExpanded) { _, expanded in
+            syncDraft()
+            // Opening a row means editing it, so the caret goes straight into the field. An empty field
+            // only shows a grey fallback note, and without a caret it does not read as an input. The field
+            // enters the hierarchy after the row expands, hence the deferred focus request. Rows with a
+            // switch or a menu have no field, so the request simply finds nothing. Stop sequences are a
+            // set of chips: opening them shows the list first instead of raising the keyboard.
+            guard expanded, isEditable, schema != "string-list" else { return }
+            Task { @MainActor in focus.wrappedValue = row.id }
+        }
         .onChange(of: row.ownValue) { _, _ in
             // Not read back while typing in this row: intermediate states such as `0.` or `-` would be overwritten by the stored value.
             if focus.wrappedValue != row.id { syncDraft() }

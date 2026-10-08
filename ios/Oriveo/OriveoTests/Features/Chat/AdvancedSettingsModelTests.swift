@@ -141,6 +141,29 @@ struct AdvancedSettingsModelTests {
         #expect(!row.model.isSentConversationOverride)
     }
 
+    @Test("Placeholder defaults from cloud tables are not values: the row reads as model default")
+    func placeholderDefaultsAreNotShownAsValues() throws {
+        let (store, defaults, suite) = Self.makeStore()
+        defer { defaults.removePersistentDomain(forName: suite) }
+        // Cloud parameter tables carry exactly these two words in this field.
+        let profile = Self.profile([
+            Self.parameter("temperature", range: .init(min: 0, max: 2), defaultValue: .string("provider_default")),
+            Self.parameter("top_p", range: .init(min: 0, max: 1), defaultValue: .string("unknown")),
+            Self.parameter("top_k", "integer", defaultValue: .number(40)),
+        ])
+        let rows = Self.rows(profile, store: store)
+        for id in ["temperature", "top_p"] {
+            let row = try #require(rows[id])
+            #expect(row.model.displayValue == nil, "\(id)")
+            #expect(row.engineDefaultText == nil, "\(id)")
+            #expect(row.fallbackValue == nil, "\(id)")
+            #expect(row.trailingText == L10n.tr("Model default"), "\(id)")
+            #expect(row.fallbackText == L10n.tr("Model default"), "\(id)")
+        }
+        // A real default still shows.
+        #expect(try #require(rows["top_k"]).trailingText == "40")
+    }
+
     @Test("do-not-send does not count as a value that will be sent")
     func omittedValuesAreNotSent() throws {
         let (store, defaults, suite) = Self.makeStore()

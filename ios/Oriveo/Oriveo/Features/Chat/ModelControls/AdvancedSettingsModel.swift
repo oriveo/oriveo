@@ -305,6 +305,15 @@ enum GenerationParameterPresentationFacts {
         }
     }
 
+    /// Whether the table's `defaultDescription` holds a real default or just says there is none to
+    /// state. Cloud parameter tables fill this field with the placeholder words `provider_default`
+    /// (the upstream decides) and `unknown`; only the built-in local engine tables carry real values.
+    /// A placeholder is not a value, and treating it as one prints it verbatim at the end of the row.
+    static func engineDefault(_ declared: GenerationParameterValue?) -> GenerationParameterValue? {
+        if case let .string(text) = declared, ["provider_default", "unknown"].contains(text) { return nil }
+        return declared
+    }
+
     /// How an engine default declared in the parameter table is shown. A negative default for the output limit means "no limit"
     /// (as with llama.cpp's `n_predict = -1`), and a bare -1 means nothing to a reader. The criterion is the table's value alone.
     static func engineDefaultText(_ value: GenerationParameterValue, parameterID: String) -> String {
@@ -522,7 +531,8 @@ struct AdvancedParameterRow: Identifiable, Equatable {
             let entry = entries[id]
             let isOmitted = entry?.override.state == .omit
             let effective = entry?.override.state == .value ? entry?.override.value : nil
-            let engineDefault = parameter.defaultDescription.map {
+            let declaredDefault = GenerationParameterPresentationFacts.engineDefault(parameter.defaultDescription)
+            let engineDefault = declaredDefault.map {
                 GenerationParameterPresentationFacts.engineDefaultText($0, parameterID: id)
             }
             let standing: Standing
@@ -562,7 +572,7 @@ struct AdvancedParameterRow: Identifiable, Equatable {
                 isOmitted: isOmitted,
                 effectiveValue: effective,
                 ownValue: own?.state == .value ? own?.value : (standing == .editedHere ? effective : nil),
-                fallbackValue: inputs.lowerLayerValues[id] ?? lower ?? parameter.defaultDescription,
+                fallbackValue: inputs.lowerLayerValues[id] ?? lower ?? declaredDefault,
                 modelDefaultValue: inputs.lowerLayerValues[id] ?? lower,
                 engineDefaultText: engineDefault,
                 conflictPartner: reason == .conflict ? conflictPartner(of: id) : nil,
