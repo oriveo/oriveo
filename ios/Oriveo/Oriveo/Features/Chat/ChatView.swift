@@ -1217,15 +1217,19 @@ struct ChatView: View {
         let extractionLimits = currentFileExtractionLimits
         isProcessingAttachment = true
         let byteLimit = currentAttachmentByteLimit
+        // The slots are counted before any file is read: files beyond them are not read at all
+        // (see `AttachmentImportLimiter.importSequentially`).
+        let availableSlots = max(extractionLimits.maxFiles - pendingAttachments.count, 0)
 
         Task(priority: .userInitiated) {
-            let (attachments, rejectedCount, oversizedCount) = await Self.processFileURLs(
+            let (attachments, rejectedCount, oversizedCount, overLimitCount) = await Self.processFileURLs(
                 urls,
+                availableSlots: availableSlots,
                 importContext: importContext,
                 byteLimit: byteLimit,
                 extractionLimits: extractionLimits
             )
-            applyImportedAttachments(attachments, source: "file")
+            applyImportedAttachments(attachments, source: "file", skippedOverLimit: overLimitCount)
             if oversizedCount > 0 {
                 await MainActor.run {
                     showAttachmentSizeLimitAlert = true
@@ -1269,14 +1273,14 @@ struct ChatView: View {
     nonisolated
     private static func processFileURLs(
         _ urls: [URL],
+        availableSlots: Int,
         importContext: ChatAttachmentPicker.ImportContext,
         byteLimit: Int,
         extractionLimits: FileExtractionLimits
-    ) async -> (attachments: [Attachment], rejectedCount: Int, oversizedCount: Int) {
-        var results: [Attachment] = []
+    ) async -> (attachments: [Attachment], rejectedCount: Int, oversizedCount: Int, overLimitCount: Int) {
         var rejected = 0
         var oversized = 0
-        for url in urls {
+        let batch = await AttachmentImportLimiter.importSequentially(urls, availableSlots: availableSlots) { url in
             switch await ChatAttachmentPicker.processFileURL(
                 url,
                 importContext: importContext,
@@ -1284,23 +1288,22 @@ struct ChatView: View {
                 extractionLimits: extractionLimits
             ) {
             case .imported(let attachment):
-                results.append(attachment)
+                return attachment
             case .oversized:
                 oversized += 1
             case .unsupported:
                 rejected += 1
             case .extractionFailed(let code, let fileName):
-                rejected += 1
-                let _fileName = fileName
+                // An extraction failure (corrupted, encrypted, scanned, ...) has its own message and is not
+                // counted as rejected: counting it would immediately show a second "unsupported file format"
+                // toast in the same spot, and that one usually wins although the format is supported.
                 Task { @MainActor in
-                    ToastManager.shared.show(
-                        String(format: L10n.tr("file_extraction_error_generic", table: .chat), _fileName)
-                    )
+                    ToastManager.shared.show(code.importFailureMessage(fileName: fileName))
                 }
-                _ = code
             }
+            return nil
         }
-        return (results, rejected, oversized)
+        return (batch.accepted, rejected, oversized, batch.skippedOverLimit)
     }
 
     private func pruneUnsupportedPendingAttachments() {
@@ -1321,7 +1324,11 @@ struct ChatView: View {
     }
 
     @MainActor
-    private func applyImportedAttachments(_ attachments: [Attachment], source: String = "unknown") {
+    private func applyImportedAttachments(
+        _ attachments: [Attachment],
+        source: String = "unknown",
+        skippedOverLimit: Int = 0
+    ) {
         let limited = AttachmentImportLimiter.limit(
             existing: pendingAttachments,
             incoming: attachments,
@@ -1332,7 +1339,7 @@ struct ChatView: View {
             pendingAttachments += limited.accepted
             pruneUnsupportedPendingAttachments()
         }
-        if limited.rejectedCount > 0 {
+        if limited.rejectedCount + skippedOverLimit > 0 {
             ToastManager.shared.show(
                 String(
                     format: L10n.tr("file_attachment_count_limit_reached", table: .chat),

@@ -25,6 +25,27 @@ enum ExtractionErrorCode: String, Equatable {
     case extractionError         = "extraction_error"
 }
 
+extension ExtractionErrorCode {
+    /// The key of the import failure message (Chat table, with one placeholder for the file name).
+    /// An encrypted Office document cannot be told apart from a damaged one when read, so it is reported as
+    /// "may be corrupted"; timeouts and unclassified failures use the generic sentence.
+    var importFailureMessageKey: String {
+        switch self {
+        case .scannedPdf: return "file_extraction_error_scanned_pdf"
+        case .encryptedPdf: return "file_extraction_error_encrypted_pdf"
+        case .passwordProtectedOffice, .corruptedFile: return "file_extraction_error_corrupted"
+        case .unsupportedFormat: return "file_extraction_error_unsupported"
+        case .fileTooLarge: return "file_extraction_error_too_large"
+        case .extractionTimeout, .extractionError: return "file_extraction_error_generic"
+        }
+    }
+
+    /// The import failure message shown to the user.
+    func importFailureMessage(fileName: String) -> String {
+        String(format: L10n.tr(importFailureMessageKey, table: .chat), fileName)
+    }
+}
+
 enum ExtractionSource: String {
     case filePicker = "file"
     case dragDrop = "drag_drop"
