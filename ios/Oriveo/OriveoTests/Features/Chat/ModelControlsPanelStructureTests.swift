@@ -128,16 +128,23 @@ struct ModelControlsPanelStructureTests {
 
     /// When a detent is set from measured content height, a lazy container in the content makes that height unusable,
     /// and the panel is silently clamped to full screen: no error, and every test stays green.
-    @Test("the panel is as tall as its content: one detent at any time, half the screen when it cannot be measured, no lazy containers in the content")
+    @Test("the panel is as tall as its content: one detent on the root page, the full-height detent joins only for a pushed page and the push follows one turn later, half the screen when it cannot be measured, no lazy containers in the content")
     func sheetHeightFollowsContent() throws {
         let sheet = try Self.source(Self.modelControls + ["ModelControlsSheet.swift"])
         let scaffold = try #require(sheet.range(of: "struct ModelOptionsSheetScaffold"))
         let scaffoldEnd = try #require(sheet.range(of: "// MARK: - Panel\n", range: scaffold.upperBound..<sheet.endIndex))
         let shell = String(sheet[scaffold.lowerBound..<scaffoldEnd.lowerBound])
-        #expect(shell.contains(".presentationDetents([detent])"))
+        // The root page has only the content-height detent; the full-height one joins when a page is pushed, and the
+        // sheet grows by changing the selection (replacing a lone detent gets no transition).
+        #expect(shell.contains("stackPath.isEmpty && selectedDetent != .large ? [fittedDetent] : [fittedDetent, .large]"))
+        #expect(shell.contains("selection: $selectedDetent"))
+        #expect(!shell.contains(".presentationDetents([detent])"))
+        // The stack follows its own path one turn behind the caller's: growing and pushing in the same turn leaves
+        // the incoming page clipped to the old height for about half a second.
+        #expect(shell.contains("NavigationStack(path: $stackPath)"))
+        #expect(!shell.contains("NavigationStack(path: $path)"))
         #expect(shell.contains("ModelOptionsSheetHeight.resolve("))
         #expect(shell.contains("case .half: return .medium"))
-        #expect(shell.contains("hasPushedPage: !path.isEmpty"))
         // The height is measured in place inside the hierarchy, not by a separate host outside it (which would not see the user's text size).
         #expect(shell.contains(".onGeometryChange(for: CGFloat.self) { $0.size.height }"))
         #expect(!shell.contains("UIHostingController"))

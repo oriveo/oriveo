@@ -17,6 +17,9 @@ import SwiftUI
 enum ModelOptionsSample {
     static let sampleArgument = "-OriveoModelOptionsSample"
     static let appearanceArgument = "-OriveoModelOptionsAppearance"
+    /// `-OriveoModelOptionsSamplePush <seconds>`: that long after a panel sample appears, push the advanced
+    /// settings sample from it, then pop back 2.5 seconds later. Records both transitions of the sheet.
+    static let pushArgument = "-OriveoModelOptionsSamplePush"
 
     /// Panel samples: two full pages plus the capability card shapes.
     static let panelNames = ["main", "local"] + (1...12).map { String(format: "states-%02d", $0) }
@@ -24,6 +27,8 @@ enum ModelOptionsSample {
     static let advancedNames = AdvancedSettingsSamples.Name.allCases.map(\.rawValue)
 
     static var requestedName: String? { value(after: sampleArgument) }
+
+    static var requestedPushDelay: Double? { value(after: pushArgument).flatMap(Double.init) }
 
     static var requestedColorScheme: ColorScheme? {
         switch value(after: appearanceArgument) {
@@ -208,7 +213,14 @@ struct ModelOptionsSampleHost: View {
                         ModelOptionsSheetScaffold(path: $path) {
                             ModelOptionsPanel(model: ModelOptionsPanelModel.make(facts)) { _ in }
                         } destination: { _ in
-                            EmptyView()
+                            AdvancedSettingsSamples.view(.advanced)
+                        }
+                        .task {
+                            guard let delay = ModelOptionsSample.requestedPushDelay else { return }
+                            try? await Task.sleep(for: .seconds(delay))
+                            path = [.modelBehavior]
+                            try? await Task.sleep(for: .seconds(2.5))
+                            path = []
                         }
                         .presentationDragIndicator(.visible)
                         .interactiveDismissDisabled()

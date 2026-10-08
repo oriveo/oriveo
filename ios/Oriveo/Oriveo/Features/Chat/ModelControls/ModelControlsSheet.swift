@@ -770,7 +770,15 @@ struct ModelControlsSheet: View {
 /// **How the height is decided**: the root content sits in a `ScrollView` and measures its own height in place (the view is in the hierarchy, at the user's
 /// current text size), and that height is the detent; the system reserves the bottom safe area separately, so it is not added again. The content holds no lazy containers, which
 /// cannot report a usable height under unbounded height; when measuring really fails it falls back to half the screen instead of letting the system clamp it to full height.
-/// One detent only: with several, dragging up inside the content is swallowed by the detent gesture and fights scrolling.
+/// The root page has one detent only: with several, dragging up inside the content is swallowed by the detent gesture and fights scrolling.
+///
+/// **How the sheet grows for a second-level page**:
+/// - It grows by changing the selected detent, not by swapping the only detent for another. Replacing a lone detent gets no
+///   transition and the sheet jumps. So the full-height detent joins the set when a page is about to be pushed, and the
+///   selection moves to it, which the system animates.
+/// - The navigation stack follows its own path, one turn behind the caller's `path`. When growing and pushing land in the
+///   same turn, the push positions the incoming page with the size from before the change, and the page stays clipped to the
+///   old sheet height for the whole slide, leaving its lower half blank for about half a second.
 struct ModelOptionsSheetScaffold<Root: View, Destination: View>: View {
     @Binding var path: [ModelControlsRoute]
     @ViewBuilder let root: () -> Root
@@ -778,9 +786,12 @@ struct ModelOptionsSheetScaffold<Root: View, Destination: View>: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var contentHeight: CGFloat = 0
+    @State private var selectedDetent: PresentationDetent = .medium
+    /// The path the navigation stack actually uses; see the type's notes.
+    @State private var stackPath: [ModelControlsRoute] = []
 
     var body: some View {
-        NavigationStack(path: $path) {
+        NavigationStack(path: $stackPath) {
             ScrollView {
                 root()
                     .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { contentHeight = $0 }
@@ -792,7 +803,19 @@ struct ModelOptionsSheetScaffold<Root: View, Destination: View>: View {
             .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(for: ModelControlsRoute.self, destination: destination)
         }
-        .presentationDetents([detent])
+        .presentationDetents(
+            stackPath.isEmpty && selectedDetent != .large ? [fittedDetent] : [fittedDetent, .large],
+            selection: $selectedDetent
+        )
+        .onChange(of: fittedDetent, initial: true) { _, fitted in
+            if path.isEmpty, stackPath.isEmpty { selectedDetent = fitted }
+        }
+        .onChange(of: path, initial: true) { _, next in follow(next) }
+        .onChange(of: stackPath) { _, next in
+            // The back gesture and the back button change the stack's own path; hand it back to the caller.
+            if path != next { path = next }
+            if next.isEmpty { selectedDetent = fittedDetent }
+        }
         .presentationCornerRadius(30)
         // Push and pop animations of second-level pages are dropped under Reduce Motion. The push animation of `NavigationStack` is driven by a system
         // transaction; `.animation(nil)` alone does not turn it off, `disablesAnimations` has to be set on the transaction.
@@ -803,8 +826,21 @@ struct ModelOptionsSheetScaffold<Root: View, Destination: View>: View {
         }
     }
 
-    private var detent: PresentationDetent {
-        switch ModelOptionsSheetHeight.resolve(contentHeight: contentHeight, hasPushedPage: !path.isEmpty) {
+    private func follow(_ next: [ModelControlsRoute]) {
+        guard next != stackPath else { return }
+        guard stackPath.isEmpty, !next.isEmpty else {
+            stackPath = next
+            return
+        }
+        selectedDetent = .large
+        Task { @MainActor in
+            // The caller may have changed its mind within this turn (closing right away, for example); use its path as of now.
+            if stackPath != path { stackPath = path }
+        }
+    }
+
+    private var fittedDetent: PresentationDetent {
+        switch ModelOptionsSheetHeight.resolve(contentHeight: contentHeight, hasPushedPage: false) {
         case let .fitted(height): return .height(height)
         case .half: return .medium
         case .full: return .large
