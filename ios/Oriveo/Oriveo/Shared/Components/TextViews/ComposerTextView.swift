@@ -18,6 +18,8 @@ import UIKit
 /// - Overlong paragraphs are split in the display string with U+2029 (`SoftParagraphBreaks`), so every paragraph
 ///   in the viewport is bounded, while the binding always holds the source text. Once split, TextKit 2 is faster
 ///   than TextKit 1: 32K of Arabic loads in 19 vs 56 ms and inserting one character takes 5.4 vs 13.6 ms;
+/// - Geometry queries over a large range (tap hit-testing after Select All, selection rects) are bounded by the
+///   viewport as well: the layout manager is a `ComposerTextLayoutManager`;
 /// - Height comes from a separate TextKit 2 measuring stack that only lays out the first few lines and is cached
 ///   by (content version, width), without touching the live view's geometry. Never touch the live view's
 ///   `layoutManager`: that drops it into TextKit 1 compatibility mode;
@@ -53,7 +55,9 @@ struct ComposerTextView: UIViewRepresentable {
     /// The single source of the production configuration, shared by makeUIView and the tests.
     static func makeContainer(coordinator: Coordinator) -> ComposerContainerView {
         // Ask for TextKit 2 explicitly: it lays out by viewport while scrolling, and it is the old TextField's engine.
-        let textView = ComposerUITextView(usingTextLayoutManager: true)
+        // The layout manager is our own subclass so selection geometry queries are bounded by the viewport too
+        // (see `ComposerTextLayoutManager`).
+        let textView = ComposerUITextView.makeBoundedTextKit2()
         textView.backgroundColor = .clear
         textView.isScrollEnabled = true
         textView.textContainerInset = .zero
@@ -581,6 +585,25 @@ final class ComposerUITextView: UITextView {
     weak var coordinator: ComposerTextView.Coordinator?
     /// Injected by tests; always the system pasteboard in production.
     var sourcePasteboard: UIPasteboard = .general
+    /// Nothing else holds the content storage strongly (the layout manager references it weakly), so the view
+    /// keeps it alive.
+    private var ownedContentStorage: NSTextContentStorage?
+    private(set) var boundedLayoutManager: ComposerTextLayoutManager?
+
+    /// The production constructor: TextKit 2 with a `ComposerTextLayoutManager`.
+    /// Equivalent to `UITextView(usingTextLayoutManager: true)` except for the layout manager subclass.
+    static func makeBoundedTextKit2() -> ComposerUITextView {
+        let contentStorage = NSTextContentStorage()
+        let layoutManager = ComposerTextLayoutManager()
+        contentStorage.addTextLayoutManager(layoutManager)
+        let container = NSTextContainer(size: CGSize(width: 0, height: CGFloat.greatestFiniteMagnitude))
+        container.widthTracksTextView = true
+        layoutManager.textContainer = container
+        let textView = ComposerUITextView(frame: .zero, textContainer: container)
+        textView.ownedContentStorage = contentStorage
+        textView.boundedLayoutManager = layoutManager
+        return textView
+    }
 
     override func layoutSubviews() {
         super.layoutSubviews()
@@ -651,5 +674,103 @@ final class ComposerUITextView: UITextView {
         let selected = (textStorage.string as NSString).substring(with: range)
         guard selected.utf16.contains(SoftParagraphBreaks.separator) else { return nil }
         return SoftParagraphBreaks.source(fromDisplay: selected)
+    }
+}
+
+/// The composer's TextKit 2 layout manager: keeps geometry queries over a large range near the viewport.
+///
+/// A scrollable TextKit 2 view normally lays out only the paragraphs in its viewport, but UIKit does not when it
+/// asks "where is this range":
+/// - every tap on the text runs the selection interaction's repeated-tap check, which asks whether the point is
+///   inside the selection and enumerates the **whole selection** segment by segment to get its bounding rect;
+/// - `selectionRects(for:)` and `firstRect(for:)` (selection highlight, edit menu placement) enumerate the whole
+///   range the same way.
+/// All of them end up in `enumerateTextSegments(in:type:options:using:)`, whose cost grows with the length of
+/// the range, and TextKit 2 keeps no layout outside the viewport, so every question lays the whole text out
+/// again. After Select All on a long text each tap is a full-document layout: about 420–490 ms per tap for
+/// 500K CJK characters on a simulator, and several seconds of main-thread hang on a device.
+///
+/// What happens here: when the range is longer than `passThroughUTF16`, only three pieces are enumerated — the
+/// head of the range, the intersection of the range with the area around the viewport, and the tail of the range.
+/// - The selection rects visible in the viewport are unchanged (the viewport piece is enumerated as usual);
+/// - The overall bounding rect still spans from the top of the first line to the bottom of the last one (both
+///   the head and the tail pieces are there), so "is this tap inside the selection" answers the same;
+/// - Highlights that scroll into view are requested again by UIKit with a small range near the viewport, so
+///   they are unaffected.
+/// Locked by `ComposerSelectionGeometryTests`.
+nonisolated final class ComposerTextLayoutManager: NSTextLayoutManager {
+    /// Ranges up to this length go to the system untouched (a few display paragraphs at most; already bounded).
+    static let passThroughUTF16 = 8_192
+    /// The length kept at the head and at the tail, and the padding added on each side of the viewport.
+    static let edgeUTF16 = 2_048
+
+    /// Observed by tests: how many queries were bounded, and the total length (UTF-16) handed to the system.
+    private(set) var boundedQueryCount = 0
+    private(set) var enumeratedUTF16 = 0
+    #if DEBUG
+    /// Test seam: turns bounding off to measure the system's own cost (the regression tests use it to show that
+    /// an unbounded query really covers the whole text).
+    var _testDisableBounding = false
+    #endif
+
+    override func enumerateTextSegments(
+        in textRange: NSTextRange,
+        type: NSTextLayoutManager.SegmentType,
+        options: NSTextLayoutManager.SegmentOptions = [],
+        using block: (NSTextRange?, CGRect, CGFloat, NSTextContainer) -> Bool
+    ) {
+        guard let pieces = boundedPieces(for: textRange) else {
+            enumeratedUTF16 &+= offset(from: textRange.location, to: textRange.endLocation)
+            super.enumerateTextSegments(in: textRange, type: type, options: options, using: block)
+            return
+        }
+        boundedQueryCount &+= 1
+        var keepGoing = true
+        for piece in pieces where keepGoing {
+            enumeratedUTF16 &+= offset(from: piece.location, to: piece.endLocation)
+            super.enumerateTextSegments(in: piece, type: type, options: options) { range, frame, baseline, container in
+                keepGoing = block(range, frame, baseline, container)
+                return keepGoing
+            }
+        }
+    }
+
+    /// nil when the range is short enough (no bounding); otherwise non-overlapping pieces in document order.
+    func boundedPieces(for textRange: NSTextRange) -> [NSTextRange]? {
+        let start = textRange.location
+        let end = textRange.endLocation
+        guard offset(from: start, to: end) > Self.passThroughUTF16 else { return nil }
+        #if DEBUG
+        if _testDisableBounding { return nil }
+        #endif
+        var candidates: [(NSTextLocation, NSTextLocation)] = []
+        if let headEnd = location(start, offsetBy: Self.edgeUTF16) {
+            candidates.append((start, headEnd))
+        }
+        if let viewport = textViewportLayoutController.viewportRange {
+            let lower = location(viewport.location, offsetBy: -Self.edgeUTF16) ?? documentRange.location
+            let upper = location(viewport.endLocation, offsetBy: Self.edgeUTF16) ?? documentRange.endLocation
+            let clampedLower = lower.compare(start) == .orderedAscending ? start : lower
+            let clampedUpper = upper.compare(end) == .orderedDescending ? end : upper
+            if clampedLower.compare(clampedUpper) == .orderedAscending {
+                candidates.append((clampedLower, clampedUpper))
+            }
+        }
+        if let tailStart = location(end, offsetBy: -Self.edgeUTF16) {
+            candidates.append((tailStart, end))
+        }
+        candidates.sort { $0.0.compare($1.0) == .orderedAscending }
+        var merged: [(NSTextLocation, NSTextLocation)] = []
+        for candidate in candidates {
+            if let last = merged.last, candidate.0.compare(last.1) != .orderedDescending {
+                if candidate.1.compare(last.1) == .orderedDescending {
+                    merged[merged.count - 1].1 = candidate.1
+                }
+            } else {
+                merged.append(candidate)
+            }
+        }
+        let pieces = merged.compactMap { NSTextRange(location: $0.0, end: $0.1) }
+        return pieces.isEmpty ? nil : pieces
     }
 }

@@ -42,6 +42,12 @@ High-level notes for the chat surface.
   text out again for every size proposal. Pastes go through the paste delegate; every other whole-block insertion is
   split at the `insertText` / `shouldChangeTextIn` entry points before it is written, so an overlong paragraph never
   reaches storage.
+- "Bounded" has to hold on three paths: paragraph length (soft breaks), height measurement (the separate measuring
+  stack) and **geometry queries over a large range**. After Select All on a long text, every tap makes UIKit enumerate
+  the whole selection to get its bounding rect, and TextKit 2 keeps no layout outside the viewport, so each tap would
+  be a full-document layout. The composer's layout manager is therefore `ComposerTextLayoutManager`
+  (`ComposerUITextView.makeBoundedTextKit2()`): a range above 8,192 UTF-16 units is enumerated as its head, the area
+  around the viewport and its tail only. Do not go back to `UITextView(usingTextLayoutManager: true)`.
 
 ## Debugging scroll jumps
 
@@ -55,4 +61,5 @@ High-level notes for the chat surface.
 - Streaming block chunker and table rendering tests
 - Scroll gesture + keyboard coordinator suites
 - Recovery card layout collapse tests
-- Long text: `ComposerTextViewTests`, `UserBubbleLongTextTests`, `UserMessageFoldTests`, `LongArabicTextHangCostTests`
+- Long text: `ComposerTextViewTests`, `UserBubbleLongTextTests`, `UserMessageFoldTests`, `LongArabicTextHangCostTests`,
+  `ComposerSelectionGeometryTests`
