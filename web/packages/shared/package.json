@@ -19,6 +19,11 @@
       "types": "./src/relay/*.ts",
       "import": "./src/relay/*.ts",
       "default": "./src/relay/*.ts"
+    },
+    "./browser/*": {
+      "types": "./src/browser/*.ts",
+      "import": "./src/browser/*.ts",
+      "default": "./src/browser/*.ts"
     }
   },
   "devDependencies": {

@@ -155,11 +155,13 @@ export {
 } from './telemetry';
 
 export {
+  isErrorThrownEntirelyByBrowserExtension,
   isIgnorableBrowserExtensionError,
   isIgnorableCloudflareChallengeError,
   isIgnorableMobileBrowserInjection,
   isHydrationErrorEvent,
   isRscNotFoundInvariantEvent,
+  type SentryEventHintLike,
   type SentryEventLike,
   type SentryExceptionLike,
   type SentryStackFrameLike,

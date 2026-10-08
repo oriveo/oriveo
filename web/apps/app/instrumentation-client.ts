@@ -1,8 +1,10 @@
 import {
+  isErrorThrownEntirelyByBrowserExtension,
   isIgnorableBrowserExtensionError,
   isIgnorableCloudflareChallengeError,
   isIgnorableMobileBrowserInjection,
 } from "@oriveo/shared";
+import { installDetachedHoistableGuard } from "@oriveo/shared/browser/detached-hoistable-guard";
 import * as Sentry from "@sentry/nextjs";
 import { isIgnorableNextDevHmrError } from "./lib/sentry/ignore-dev-hmr";
 import { isIgnorableBrowserNoiseError } from "./lib/sentry/ignore-browser-noise";
@@ -15,6 +17,12 @@ import { installLocalStorageQuotaGuard } from "./lib/infra/storage/quota-reclaim
 // most from a full localStorage quota is third-party SDK code we cannot reach into. The guard has
 // to already be in place when their first write fails.
 installLocalStorageQuotaGuard();
+
+// Also has to run before hydration. When a third-party script detaches a <meta>, <title> or
+// <link> that React hoisted into <head> (some mobile browsers rewrite the viewport tag in their
+// desktop mode), the next route change throws halfway through the commit and navigation stops
+// responding until a reload. See packages/shared/src/browser/detached-hoistable-guard.ts.
+installDetachedHoistableGuard();
 
 // Error reporting is opt-in: with no DSN configured, Sentry.init installs a client that sends
 // nothing, so a default deployment reports nowhere.
@@ -43,6 +51,10 @@ Sentry.init({
     if (isProviderResponseErrorHint(hint)) return null;
     if (isIgnorableNextDevHmrError(event, hint)) return null;
     if (isIgnorableBrowserExtensionError(event)) return null;
+    // By origin rather than wording: the whole call stack, cause chain included, sits inside an
+    // extension script. This has to read the raw stack on the hint, because the SDK rewrites the
+    // origin of extension frames to app:// before beforeSend runs.
+    if (isErrorThrownEntirelyByBrowserExtension(hint)) return null;
     // A bot-check script injected by a CDN can throw on its own internals, such as reading
     // contentWindow of an iframe it already removed. None of it is application code.
     if (isIgnorableCloudflareChallengeError(event)) return null;

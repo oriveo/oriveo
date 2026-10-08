@@ -41,3 +41,11 @@ export interface SentryStackFrameLike {
   abs_path?: string;
   function?: string;
 }
+
+/**
+ * Minimal structural subset of a Sentry EventHint. `originalException` is the object as it was
+ * thrown; its `stack` string has not been through any of the SDK's frame rewriting.
+ */
+export interface SentryEventHintLike {
+  originalException?: unknown;
+}

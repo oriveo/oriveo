@@ -1,5 +1,13 @@
-export type { SentryEventLike, SentryExceptionLike, SentryStackFrameLike } from './types';
-export { isIgnorableBrowserExtensionError } from './ignore-browser-extension-noise';
+export type {
+  SentryEventHintLike,
+  SentryEventLike,
+  SentryExceptionLike,
+  SentryStackFrameLike,
+} from './types';
+export {
+  isErrorThrownEntirelyByBrowserExtension,
+  isIgnorableBrowserExtensionError,
+} from './ignore-browser-extension-noise';
 export { isIgnorableCloudflareChallengeError } from './ignore-cloudflare-challenge';
 export {
   isIgnorableMobileBrowserInjection,
