@@ -1,4 +1,5 @@
-import { openDB } from 'idb';
+import { openDB, type IDBPDatabase } from 'idb';
+import { reportIDBUpgradeBlocked } from './idb-lifecycle';
 
 const META_DB = 'oriveo-meta';
 // v1: meta store (activeUID)
@@ -28,7 +29,8 @@ let currentActiveUID = 'guest';
  * blob-cache.ts reuses this function rather than opening its own.
  */
 export async function openMetaDB() {
-  return openDB(META_DB, META_VERSION, {
+  let opened: IDBPDatabase | null = null;
+  const openPromise = openDB(META_DB, META_VERSION, {
     upgrade(db) {
       if (!db.objectStoreNames.contains('meta')) {
         db.createObjectStore('meta');
@@ -37,7 +39,17 @@ export async function openMetaDB() {
         db.createObjectStore('blobs');
       }
     },
+    blocked: (currentVersion, blockedVersion) =>
+      reportIDBUpgradeBlocked(META_DB, currentVersion, blockedVersion),
+    // Every caller of this function closes the connection in finally, so it is short-lived
+    // anyway. But one hanging await is enough for another tab's open() to never settle when it
+    // bumps META_VERSION. The cost of making way is that the hanging read or write throws
+    // InvalidStateError (every caller swallows that and treats it as "nothing cached"), which
+    // beats both tabs being stuck.
+    blocking: () => opened?.close(),
   });
+  opened = await openPromise;
+  return opened;
 }
 
 async function getMetaDB() {

@@ -1,5 +1,6 @@
 import { openDB, type DBSchema, type IDBPDatabase } from 'idb';
 import { getActiveUID, getImageDBName } from './partition';
+import { reportIDBUpgradeBlocked } from './idb-lifecycle';
 
 /* ── Schema ──────────────────────────────────────────── */
 
@@ -40,14 +41,30 @@ async function getDB(expectedUID?: string) {
   }
 
   currentImageDBName = dbName;
-  dbPromise = openDB<ImageStoreSchema>(dbName, 1, {
+  let opened: IDBPDatabase<ImageStoreSchema> | null = null;
+  const openPromise = openDB<ImageStoreSchema>(dbName, 1, {
     upgrade(db) {
       if (!db.objectStoreNames.contains('images')) {
         db.createObjectStore('images', { keyPath: 'id' });
       }
     },
+    blocked: (currentVersion, blockedVersion) =>
+      reportIDBUpgradeBlocked(dbName, currentVersion, blockedVersion),
+    // Another tab wants to upgrade the image database schema: without making way, its open()
+    // never settles. The cache is cleared too, so the next getDB() reopens at the new version
+    // (otherwise a closed connection stays cached and every later transaction throws
+    // InvalidStateError).
+    blocking: () => {
+      opened?.close();
+      if (currentImageDBName === dbName) {
+        dbPromise = null;
+        currentImageDBName = null;
+      }
+    },
   });
-  return dbPromise;
+  dbPromise = openPromise;
+  opened = await openPromise;
+  return opened;
 }
 
 /** Reset the connection when the partition changes */

@@ -1,5 +1,6 @@
 import { openDB, type IDBPDatabase } from 'idb';
 import { setActiveUID, getDBName, getImageDBName, legacyDBExists } from './partition';
+import { reportIDBUpgradeBlocked } from './idb-lifecycle';
 import { safeLocalStorage } from './web-storage';
 
 const MIGRATED_KEY = 'oriveo.storage.partitioned';
@@ -41,9 +42,30 @@ export async function migrateToPartitionedStorage(): Promise<void> {
   safeLocalStorage.setItem(MIGRATED_KEY, 'true');
 }
 
+/**
+ * Why the connections in this module do not install `blocking` to make way automatically, unlike
+ * idb.ts and image-store.ts.
+ *
+ * Those two hold long-lived connections managed by a module-level cache that can be closed and
+ * reopened at any time, so making way for another tab's upgrade is pure gain. Here it is not:
+ * the migration is a one-off critical path with transactions open, moving conversations and
+ * images into the new partition. A `close()` in the middle makes the following transactions throw
+ * InvalidStateError and abandons the migration halfway. `MIGRATED_KEY` is only written after the
+ * whole run succeeds and the next startup reruns it idempotently, but that is one failure for
+ * nothing. These connections are closed in `finally` within seconds anyway, so the other side's
+ * open() waits those few seconds at most and never truly deadlocks.
+ *
+ * So only `blocked` is installed: when the migration is blocked by someone else, that open()
+ * really never settles (startup hangs on its first step and the user sees a skeleton screen
+ * that never finishes), and it has to be reported.
+ */
+
 /** Migrate the conversations, providers and session stores */
 async function migrateMainData(targetUID: string): Promise<void> {
-  const oldDB = await openDB('oriveo');
+  const oldDB = await openDB('oriveo', undefined, {
+    blocked: (currentVersion, blockedVersion) =>
+      reportIDBUpgradeBlocked('oriveo', currentVersion, blockedVersion),
+  });
   const newDB = await openPartitionDB(targetUID);
 
   try {
@@ -103,13 +125,19 @@ async function migrateImageData(targetUID: string): Promise<void> {
   const hasOldImages = (await indexedDB.databases()).some((db) => db.name === 'oriveo-images');
   if (!hasOldImages) return;
 
-  const oldImageDB = await openDB('oriveo-images');
-  const newImageDB = await openDB(getImageDBName(targetUID), 1, {
+  const oldImageDB = await openDB('oriveo-images', undefined, {
+    blocked: (currentVersion, blockedVersion) =>
+      reportIDBUpgradeBlocked('oriveo-images', currentVersion, blockedVersion),
+  });
+  const newImageDBName = getImageDBName(targetUID);
+  const newImageDB = await openDB(newImageDBName, 1, {
     upgrade(db) {
       if (!db.objectStoreNames.contains('images')) {
         db.createObjectStore('images', { keyPath: 'id' });
       }
     },
+    blocked: (currentVersion, blockedVersion) =>
+      reportIDBUpgradeBlocked(newImageDBName, currentVersion, blockedVersion),
   });
 
   try {
@@ -129,7 +157,10 @@ async function migrateImageData(targetUID: string): Promise<void> {
 
 /** Create the partitioned database */
 async function openPartitionDB(uid: string): Promise<IDBPDatabase> {
-  return openDB(getDBName(uid), PARTITION_DB_VERSION, {
+  const dbName = getDBName(uid);
+  return openDB(dbName, PARTITION_DB_VERSION, {
+    blocked: (currentVersion, blockedVersion) =>
+      reportIDBUpgradeBlocked(dbName, currentVersion, blockedVersion),
     upgrade(db) {
       if (!db.objectStoreNames.contains('conversations')) {
         const cs = db.createObjectStore('conversations', { keyPath: 'id' });
