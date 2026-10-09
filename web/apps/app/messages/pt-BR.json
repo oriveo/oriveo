@@ -313,13 +313,13 @@
       "copyCode": "Copiar código",
       "attachFile": "Anexar arquivo",
       "attachmentTooLargeTitle": "Arquivo muito grande",
-      "attachmentTooLargeMessage": "Arquivos e imagens acima de 50 MB não podem ser enviados. Uploads grandes são lentos na sua rede e difíceis para os modelos de IA lerem com confiabilidade.",
+      "attachmentTooLargeMessage": "Arquivos e imagens acima de {maxMb} MB não podem ser enviados. Uploads grandes são lentos na sua rede e difíceis para os modelos de IA lerem com confiabilidade.",
       "attachmentTooLargeAction": "OK",
       "fileExtraction": {
         "extractedLines": "{count, plural, other {# linhas extraídas}}",
-        "errorPasswordProtected": "Uma senha trava {fileName}. Remova a senha e suba o arquivo de novo.",
+        "errorPasswordProtected": "{fileName} está protegido por senha. Remova a senha e anexe o arquivo de novo.",
         "errorGeneric": "Não foi possível processar {fileName}. Tente novamente ou escolha outro arquivo.",
-        "errorCorrupted": "Não deu para abrir {fileName}; o arquivo parece corrompido. Exporte ou baixe de novo e anexe outra vez.",
+        "errorCorrupted": "Não foi possível abrir {fileName}; o arquivo parece corrompido. Exporte ou baixe de novo e anexe outra vez.",
         "errorNoText": "{fileName} não tem texto selecionável; deve ser uma digitalização. Escolha um modelo que leia imagens ou PDFs diretamente.",
         "tooManyFiles": "Você pode anexar até {maxFiles} arquivos para este modelo.",
         "truncatedCtaKnowledge": "Arquivo grande truncado. Adicionar ao Skill Knowledge para busca completa →"

@@ -313,7 +313,7 @@
       "copyCode": "कोड कॉपी करें",
       "attachFile": "फ़ाइल जोड़ें",
       "attachmentTooLargeTitle": "फ़ाइल बहुत बड़ी है",
-      "attachmentTooLargeMessage": "50 MB से बड़ी फ़ाइलें और इमेज अपलोड नहीं की जा सकतीं। बड़े अपलोड नेटवर्क को धीमा करते हैं और AI मॉडल उन्हें भरोसेमंद तरीके से पढ़ नहीं पाते।",
+      "attachmentTooLargeMessage": "{maxMb} MB से बड़ी फ़ाइलें और इमेज अपलोड नहीं की जा सकतीं। बड़े अपलोड नेटवर्क को धीमा करते हैं और AI मॉडल उन्हें भरोसेमंद तरीके से पढ़ नहीं पाते।",
       "attachmentTooLargeAction": "OK",
       "fileExtraction": {
         "extractedLines": "{count, plural, other {# पंक्तियाँ निकाली गईं}}",

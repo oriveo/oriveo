@@ -9,6 +9,11 @@
 
 export const FALLBACK_ATTACHMENT_BYTES = 50 * 1024 * 1024;
 
+/** The limit as shown in copy, in MB. Rounded down: better to understate than to promise a size that cannot be attached. */
+export function attachmentLimitMegabytes(limitBytes: number): number {
+  return Math.floor(limitBytes / (1024 * 1024));
+}
+
 /** @deprecated Use the runtime `limits.singleFileBytes`; kept only as a fallback for older imports. */
 export const MAX_CHAT_ATTACHMENT_BYTES = FALLBACK_ATTACHMENT_BYTES;
 

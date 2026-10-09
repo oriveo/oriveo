@@ -170,6 +170,29 @@ describe('importAttachmentFiles', () => {
       ]);
     });
 
+    // The toast has a single slot: shown one by one, only the last notice of a batch would be seen.
+    it('summarizes a batch with several failures and too many files into one toast that keeps every notice', async () => {
+      const composer = renderComposer();
+      const codes: Record<string, string> = { 'a.pdf': 'encrypted_pdf', 'c.pdf': 'scanned_pdf' };
+      mockValidateAndConvertFiles.mockImplementationOnce(async (files: File[]) =>
+        files.map((item) => toAttachment(item, codes[item.name] ? { extractionErrorCode: codes[item.name], base64Data: '' } : {})));
+
+      await act(async () => {
+        await composer.current.pickFiles([file('a.pdf'), file('b.txt'), file('c.pdf'), file('d.txt')]);
+      });
+      await settle();
+
+      const tooMany = 'tooManyFiles({"maxFiles":3})';
+      expect(mockShowToast.mock.calls.at(-1)?.[0]).toBe([
+        tooMany,
+        'errorPasswordProtected({"fileName":"a.pdf"})',
+        'errorNoText({"fileName":"c.pdf"})',
+      ].join('\n'));
+      // "Too many files" is shown once before the files are read; after that only the summary follows.
+      expect(mockShowToast.mock.calls.map(([message]) => message)).toEqual([tooMany, expect.stringContaining('\n')]);
+      expect(composer.current.attachments.map((item) => item.fileName)).toEqual(['a.pdf', 'b.txt', 'c.pdf']);
+    });
+
     it('shows nothing for an attachment that extracted successfully', async () => {
       const composer = renderComposer();
       await act(async () => { await composer.current.pickFiles([file('ok.txt')]); });

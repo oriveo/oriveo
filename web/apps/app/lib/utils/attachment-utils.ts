@@ -72,11 +72,13 @@ const ALLOWED_FILE_TYPES = [
 export interface ValidationResult {
   valid: boolean;
   error?: string;
+  /** Over the size limit: lets the caller show "file too large" rather than treat it as an unsupported type. */
+  tooLarge?: boolean;
 }
 
 export function validateFile(file: File): ValidationResult {
   if (isOversizedChatAttachment(file)) {
-    return { valid: false, error: `File too large (max ${MAX_CHAT_ATTACHMENT_BYTES / 1024 / 1024}MB)` };
+    return { valid: false, tooLarge: true, error: `File too large (max ${MAX_CHAT_ATTACHMENT_BYTES / 1024 / 1024}MB)` };
   }
   if (
     !ALLOWED_FILE_TYPES.includes(file.type) &&
@@ -315,13 +317,14 @@ export function validateAndConvertFiles(
   source: 'file' | 'drag_drop' | 'paste' = 'file',
   providerKind?: string,
   onFileFailed?: (file: File) => void,
+  onFileTooLarge?: (file: File) => void,
 ): Promise<Attachment[]> {
   // Imports are queued. The file picker, drag and drop, and paste are three entry points, and a
   // user can start another batch while the previous one is still being read. Every file is read
   // into memory in full (a base64 string, plus an ArrayBuffer read again by the extractor). Files
   // within a batch were already handled one at a time; queueing batches as well keeps the peak at
   // a single file.
-  const run = importQueue.then(() => convertFilesInOrder(files, source, providerKind, onFileFailed));
+  const run = importQueue.then(() => convertFilesInOrder(files, source, providerKind, onFileFailed, onFileTooLarge));
   importQueue = run.then(() => undefined, () => undefined);
   return run;
 }
@@ -333,12 +336,18 @@ async function convertFilesInOrder(
   source: 'file' | 'drag_drop' | 'paste',
   providerKind: string | undefined,
   onFileFailed: ((file: File) => void) | undefined,
+  onFileTooLarge: ((file: File) => void) | undefined,
 ): Promise<Attachment[]> {
   const { trackEvent } = await import('../core/telemetry');
   const attachments: Attachment[] = [];
   for (const file of files) {
     const result = validateFile(file);
-    if (!result.valid) continue;
+    if (!result.valid) {
+      // A file over the limit is not read, but the caller is told so it can explain why the
+      // attachment never reached the tray instead of the file vanishing without a word.
+      if (result.tooLarge) onFileTooLarge?.(file);
+      continue;
+    }
     let attachment: Attachment;
     try {
       attachment = await fileToAttachment(file);

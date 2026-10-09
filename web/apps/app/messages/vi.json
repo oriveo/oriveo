@@ -313,7 +313,7 @@
       "copyCode": "Sao chép mã",
       "attachFile": "Đính kèm tập tin",
       "attachmentTooLargeTitle": "Tệp quá lớn",
-      "attachmentTooLargeMessage": "Không thể tải lên tệp và hình ảnh lớn hơn 50 MB. Tệp lớn làm chậm mạng và khiến AI khó đọc ổn định.",
+      "attachmentTooLargeMessage": "Không thể tải lên tệp và hình ảnh lớn hơn {maxMb} MB. Tệp lớn làm chậm mạng và khiến AI khó đọc ổn định.",
       "attachmentTooLargeAction": "OK",
       "fileExtraction": {
         "extractedLines": "{count, plural, other {Đã trích xuất # dòng}}",

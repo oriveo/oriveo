@@ -313,14 +313,14 @@
       "copyCode": "複製程式碼",
       "attachFile": "附加檔案",
       "attachmentTooLargeTitle": "檔案太大",
-      "attachmentTooLargeMessage": "超過 50 MB 的檔案和圖片無法上傳。大型檔案會消耗網路，也很難讓 AI 穩定讀取。",
+      "attachmentTooLargeMessage": "超過 {maxMb} MB 的檔案和圖片無法上傳。大型檔案會消耗網路，也很難讓 AI 穩定讀取。",
       "attachmentTooLargeAction": "知道了",
       "fileExtraction": {
         "extractedLines": "{count, plural, other {已提取 # 行}}",
-        "errorPasswordProtected": "{fileName}有密碼保護，請移除密碼後再上傳一次。",
+        "errorPasswordProtected": "{fileName} 設有密碼，請移除密碼後重新加入。",
         "errorGeneric": "無法處理 {fileName}，請重試或選擇其他檔案。",
-        "errorCorrupted": "{fileName}打不開，可能已損毀。請重新匯出或下載後再加入。",
-        "errorNoText": "{fileName}裡沒有可選取的文字，多半是掃描檔。換一個能直接讀圖片或 PDF 的模型試試。",
+        "errorCorrupted": "{fileName} 打不開，可能已損毀。請重新匯出或下載後再加入。",
+        "errorNoText": "{fileName} 裡沒有可選取的文字，多半是掃描檔。換一個能直接讀圖片或 PDF 的模型試試。",
         "tooManyFiles": "這個模型最多可加入 {maxFiles} 個附件。",
         "truncatedCtaKnowledge": "大檔案已截斷。新增到 Skill Knowledge 取得完整檢索 →"
       },

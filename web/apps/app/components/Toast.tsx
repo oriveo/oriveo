@@ -124,6 +124,9 @@ export function ToastContainer() {
 
   const toastStyle: ToastStyle = message.variant ?? 'neutral';
   const hasAction = Boolean(message.onUndo);
+  // Notices summarized from one batch are shown one per line, split on newlines (for example the
+  // failure reason of each file in a multi-file import).
+  const multiline = typeof message.content === 'string' && message.content.includes('\n');
 
   return (
     <div className={styles.host}>
@@ -133,6 +136,7 @@ export function ToastContainer() {
         className={styles.capsule}
         data-variant={toastStyle}
         data-has-action={hasAction || undefined}
+        data-multiline={multiline || undefined}
         style={{ '--toast-accent': TOAST_ACCENT[toastStyle] } as CSSProperties}
         onClick={dismiss}
       >

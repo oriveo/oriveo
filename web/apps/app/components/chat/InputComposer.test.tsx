@@ -16,7 +16,7 @@ const localeMessages: Record<string, Messages> = Object.fromEntries(
 let activeLocale = 'en';
 const legacyEnglishTestCopy: Record<string, string> = {
   'pages.chat.placeholder': 'Type a message…', 'pages.chat.send': 'Send', 'pages.chat.stop': 'Stop generating', 'pages.chat.aiAnswering': 'AI is answering…',
-  'pages.chat.attachFile': 'Attach file', 'pages.chat.attachmentTooLargeTitle': 'File too large', 'pages.chat.attachmentTooLargeMessage': 'Files and images over 50 MB cannot be uploaded. Large uploads are slow on your network and are difficult for AI models to read reliably.', 'pages.chat.attachmentTooLargeAction': 'OK',
+  'pages.chat.attachFile': 'Attach file', 'pages.chat.attachmentTooLargeTitle': 'File too large', 'pages.chat.attachmentTooLargeMessage': 'Files and images over {maxMb} MB cannot be uploaded. Large uploads are slow on your network and are difficult for AI models to read reliably.', 'pages.chat.attachmentTooLargeAction': 'OK',
   'pages.chat.quoteSelectedContent': 'Selected content', 'pages.chat.quoteFullContext': 'Full quoted context', 'pages.chat.quoteRemove': 'Remove quote', 'pages.chat.relatedNotesTitle': 'Related notes', 'pages.chat.attachNoteContext': 'Attach', 'pages.chat.dismissNoteSuggestion': 'Dismiss',
   'pages.chat.reasoning.auto': 'Search when needed', 'pages.chat.reasoning.fast': 'Fast', 'pages.chat.reasoning.balanced': 'Balanced', 'pages.chat.reasoning.deep': 'Deep', 'pages.chat.reasoning.max': 'Max', 'pages.chat.reasoning.off': 'Off', 'pages.chat.reasoning.supplierDefault': 'Automatic', 'pages.chat.reasoning.force': 'Search every message', 'pages.chat.reasoning.unavailable': 'Unavailable',
   'capability.reasoning': 'Reasoning', 'capability.web': 'Web', 'common.modelBehavior': 'Advanced Settings', 'common.currentConversation': 'Current Conversation', 'common.capabilityControlFixedByConnection': 'Set by this connection',
@@ -1109,11 +1109,43 @@ describe('InputComposer', () => {
 
     await vi.waitFor(() => {
       expect(mockLoadAttachmentUtils).toHaveBeenCalledTimes(1);
-      expect(mockValidateAndConvertFiles).toHaveBeenCalledWith([file], 'file', undefined, expect.any(Function));
+      expect(mockValidateAndConvertFiles).toHaveBeenCalledWith([file], 'file', undefined, expect.any(Function), expect.any(Function));
       expect(appliedAttachments(onAttachmentsChange)).toEqual([
         expect.objectContaining({ id: 'attachment-1', kind: 'image' }),
       ]);
     });
+  });
+
+  it('shows the size-limit dialog with the enforced limit when a picked file is over the 50 MB cap', async () => {
+    render(
+      <InputComposer
+        value=""
+        onChange={vi.fn()}
+        onSend={vi.fn()}
+        isStreaming={false}
+        onAttachmentsChange={vi.fn()}
+        currentModel={{
+          id: 'model-1',
+          name: 'Model 1',
+          capabilities: ['text', 'image', 'file'],
+          reasoningModeAvailable: false,
+          isAvailable: true,
+          isDefault: true,
+          priceTier: '$',
+        }}
+        providerAttachmentSupport={{ image: true, nativeFile: true, textFileInline: true }}
+      />,
+    );
+
+    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+    const hugeFile = new File(['x'], 'huge.pdf', { type: 'application/pdf' });
+    Object.defineProperty(hugeFile, 'size', { value: 60 * 1024 * 1024 });
+
+    fireEvent.change(fileInput, { target: { files: [hugeFile] } });
+
+    const dialog = await screen.findByRole('alertdialog');
+    expect(dialog.textContent).toContain('over 50 MB');
+    expect(mockValidateAndConvertFiles).not.toHaveBeenCalled();
   });
 
   it('snapshots selected files before clearing a live file input', async () => {
@@ -1176,7 +1208,7 @@ describe('InputComposer', () => {
     fireEvent.change(fileInput);
 
     await vi.waitFor(() => {
-      expect(mockValidateAndConvertFiles).toHaveBeenCalledWith([file], 'file', undefined, expect.any(Function));
+      expect(mockValidateAndConvertFiles).toHaveBeenCalledWith([file], 'file', undefined, expect.any(Function), expect.any(Function));
     });
     await vi.waitFor(() => {
       expect(appliedAttachments(onAttachmentsChange)).toEqual([

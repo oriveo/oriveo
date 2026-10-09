@@ -36,6 +36,16 @@ describe('ToastContainer capsule', () => {
     expect(el.textContent).toContain('hello');
   });
 
+  it('marks newline-joined messages as multiline and leaves single-line ones alone', () => {
+    render(<ToastContainer />);
+    act(() => showToast('plain'));
+    expect(capsule().hasAttribute('data-multiline')).toBe(false);
+
+    act(() => showToast('first\nsecond\nthird'));
+    expect(capsule().getAttribute('data-multiline')).toBe('true');
+    expect(capsule().textContent).toBe('first\nsecond\nthird');
+  });
+
   it('has no always-visible close button', () => {
     render(<ToastContainer />);
     act(() => showToast('plain'));

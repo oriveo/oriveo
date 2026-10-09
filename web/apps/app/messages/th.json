@@ -313,7 +313,7 @@
       "copyCode": "คัดลอกรหัส",
       "attachFile": "แนบไฟล์",
       "attachmentTooLargeTitle": "ไฟล์ใหญ่เกินไป",
-      "attachmentTooLargeMessage": "ไม่สามารถอัปโหลดไฟล์หรือรูปภาพที่เกิน 50 MB ได้ ไฟล์ขนาดใหญ่ใช้เครือข่ายมากและทำให้ AI อ่านได้ไม่เสถียร",
+      "attachmentTooLargeMessage": "ไม่สามารถอัปโหลดไฟล์หรือรูปภาพที่เกิน {maxMb} MB ได้ ไฟล์ขนาดใหญ่ใช้เครือข่ายมากและทำให้ AI อ่านได้ไม่เสถียร",
       "attachmentTooLargeAction": "ตกลง",
       "fileExtraction": {
         "extractedLines": "{count, plural, other {แยก # บรรทัด}}",

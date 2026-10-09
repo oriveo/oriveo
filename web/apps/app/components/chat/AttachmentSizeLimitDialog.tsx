@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, type KeyboardEvent } from 'react';
 import { useTranslations } from 'next-intl';
+import { FALLBACK_ATTACHMENT_BYTES, attachmentLimitMegabytes } from '../../lib/utils/attachment-size-policy';
 import styles from './AttachmentSizeLimitDialog.module.css';
 
 interface AttachmentSizeLimitDialogProps {
@@ -73,7 +74,7 @@ export function AttachmentSizeLimitDialog({
           {t('attachmentTooLargeTitle')}
         </h2>
         <p id="attachment-size-limit-message" className={styles.message}>
-          {t('attachmentTooLargeMessage')}
+          {t('attachmentTooLargeMessage', { maxMb: attachmentLimitMegabytes(FALLBACK_ATTACHMENT_BYTES) })}
         </p>
         <button type="button" className={styles.action} onClick={onClose} autoFocus>
           {t('attachmentTooLargeAction')}

@@ -167,6 +167,35 @@ describe('validateAndConvertFiles', () => {
     expect(onUnreadable).toHaveBeenCalledWith(gone);
   });
 
+  // A file over the limit used to be skipped here without a word: nothing reached the tray and no
+  // notice was shown.
+  it('does not read a file over the limit and reports it as too large instead of dropping it silently', async () => {
+    const onFailed = vi.fn();
+    const onTooLarge = vi.fn();
+    const huge = new File(['x'], 'huge.txt', { type: 'text/plain' });
+    Object.defineProperty(huge, 'size', { value: 60 * 1024 * 1024 });
+    const ok = new File(['hello'], 'ok.txt', { type: 'text/plain' });
+    const read = vi.spyOn(FileReader.prototype, 'readAsDataURL');
+
+    const attachments = await validateAndConvertFiles([huge, ok], 'file', undefined, onFailed, onTooLarge);
+
+    expect(attachments.map((a) => a.fileName)).toEqual(['ok.txt']);
+    expect(onTooLarge).toHaveBeenCalledTimes(1);
+    expect(onTooLarge).toHaveBeenCalledWith(huge);
+    expect(onFailed).not.toHaveBeenCalled();
+    expect(read.mock.calls.some(([blob]) => (blob as File).name === 'huge.txt')).toBe(false);
+  });
+
+  it('does not report a file of an unsupported type as too large', async () => {
+    const onTooLarge = vi.fn();
+    const exe = new File(['x'], 'tool.exe', { type: 'application/x-msdownload' });
+
+    const attachments = await validateAndConvertFiles([exe], 'file', undefined, undefined, onTooLarge);
+
+    expect(attachments).toEqual([]);
+    expect(onTooLarge).not.toHaveBeenCalled();
+  });
+
   // These errors used to propagate while none of the three entry points caught them: one unhandled
   // rejection, and the whole batch, converted files included, vanished without notice.
   it('drops only the failing file on any other error, converts the rest, and reports the error explicitly', async () => {

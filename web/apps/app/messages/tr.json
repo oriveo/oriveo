@@ -313,14 +313,14 @@
       "copyCode": "Kodu kopyala",
       "attachFile": "Dosya ekle",
       "attachmentTooLargeTitle": "Dosya çok büyük",
-      "attachmentTooLargeMessage": "50 MB üzerindeki dosya ve görseller yüklenemez. Büyük yüklemeler ağınızı yavaşlatır ve AI modellerinin güvenilir şekilde okumasını zorlaştırır.",
+      "attachmentTooLargeMessage": "{maxMb} MB üzerindeki dosya ve görseller yüklenemez. Büyük yüklemeler ağınızı yavaşlatır ve AI modellerinin güvenilir şekilde okumasını zorlaştırır.",
       "attachmentTooLargeAction": "Tamam",
       "fileExtraction": {
         "extractedLines": "{count, plural, other {# satır çıkarıldı}}",
-        "errorPasswordProtected": "{fileName} parolayla kilitli. Parolayı kaldırıp dosyayı yeniden yükle.",
+        "errorPasswordProtected": "{fileName} parola korumalı. Parolayı kaldırıp dosyayı yeniden ekleyin.",
         "errorGeneric": "{fileName} işlenemedi. Tekrar deneyin veya başka bir dosya seçin.",
-        "errorCorrupted": "{fileName} açılamadı; dosya bozulmuş olabilir. Yeniden dışa aktar ya da indir, sonra tekrar ekle.",
-        "errorNoText": "{fileName} içinde seçilebilir metin yok; büyük olasılıkla taranmış bir belge. Görselleri veya PDF’leri doğrudan okuyabilen bir model seç.",
+        "errorCorrupted": "{fileName} açılamadı; dosya bozulmuş olabilir. Yeniden dışa aktarın ya da indirin, sonra tekrar ekleyin.",
+        "errorNoText": "{fileName} içinde seçilebilir metin yok; büyük olasılıkla taranmış bir belge. Görselleri veya PDF’leri doğrudan okuyabilen bir model seçin.",
         "tooManyFiles": "Bu model için en fazla {maxFiles} dosya ekleyebilirsin.",
         "truncatedCtaKnowledge": "Büyük dosya kısaltıldı. Tam arama için Skill Knowledge'a ekleyin →"
       },

@@ -82,6 +82,15 @@ export function extractionFailureCopyKey(errorCode: string | undefined): string 
   return EXTRACTION_FAILURE_COPY[errorCode] ?? 'errorGeneric';
 }
 
+/** Shows the notices of one import batch as a single toast, one per line; each extra line adds reading time. */
+function showImportNotices(lines: string[]): void {
+  if (lines.length === 1) {
+    showToast(lines[0]);
+    return;
+  }
+  showToast(lines.join('\n'), Math.min(8000, 3000 + 1500 * (lines.length - 1)));
+}
+
 let importQueue: Promise<void> = Promise.resolve();
 
 /**
@@ -121,22 +130,35 @@ async function runImport(request: AttachmentImportRequest): Promise<void> {
   // Hard count limit: without a total cap, a few hundred images would push the message document
   // past 1MiB.
   const counted = limitAttachmentCount(existing.length, sized.accepted, maxAttachments);
-  if (counted.rejectedCount > 0) showToast(translate('tooManyFiles', { maxFiles: maxAttachments }));
+  // The toast has a single slot, so a later one replaces an earlier one. This batch's notices are
+  // collected here and shown as one toast after the files have been read. "Too many files" is also
+  // shown once before reading (large files take a while) and repeated in the summary when a file fails.
+  const notices: string[] = [];
+  if (counted.rejectedCount > 0) {
+    notices.push(translate('tooManyFiles', { maxFiles: maxAttachments }));
+    showToast(notices[0]);
+  }
   if (counted.accepted.length === 0) return;
 
+  const failures: string[] = [];
+  const tooLarge: File[] = [];
   const { validateAndConvertFiles } = await loadAttachmentUtils();
   const converted = await validateAndConvertFiles(
     counted.accepted,
     request.source,
     request.providerKind,
-    (file) => showToast(translate('errorGeneric', { fileName: file.name })),
+    (file) => failures.push(translate('errorGeneric', { fileName: file.name })),
+    (file) => tooLarge.push(file),
   );
+  // A file found to be over the limit only at conversion time still gets the "file too large" notice.
+  if (tooLarge.length > 0) request.onRejectedBySize(tooLarge);
   const incoming = converted.filter((attachment) => request.canAcceptAttachment?.(attachment) ?? true);
 
   for (const attachment of incoming) {
     const copyKey = extractionFailureCopyKey(attachment.extractionErrorCode);
-    if (copyKey) showToast(translate(copyKey, { fileName: attachment.fileName ?? '' }));
+    if (copyKey) failures.push(translate(copyKey, { fileName: attachment.fileName ?? '' }));
   }
+  if (failures.length > 0) showImportNotices([...notices, ...failures]);
 
   if (incoming.length === 0) return;
   const seen = request.getAttachments();

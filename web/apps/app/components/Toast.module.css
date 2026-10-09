@@ -57,6 +57,17 @@
   overflow-wrap: anywhere;
 }
 
+/* Multi-line summary: one notice per line, not clamped to two lines; the capsule radius is reduced so several lines fit. */
+.capsule[data-multiline] {
+  border-radius: 20px;
+}
+
+.capsule[data-multiline] .message {
+  white-space: pre-line;
+  -webkit-line-clamp: 6;
+  line-clamp: 6;
+}
+
 .divider {
   flex: none;
   width: 1px;

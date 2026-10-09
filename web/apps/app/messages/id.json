@@ -313,14 +313,14 @@
       "copyCode": "Salin kode",
       "attachFile": "Lampirkan berkas",
       "attachmentTooLargeTitle": "File terlalu besar",
-      "attachmentTooLargeMessage": "File dan gambar di atas 50 MB tidak dapat diunggah. Unggahan besar lambat di jaringan Anda dan sulit dibaca AI secara andal.",
+      "attachmentTooLargeMessage": "File dan gambar di atas {maxMb} MB tidak dapat diunggah. Unggahan besar lambat di jaringan Anda dan sulit dibaca AI secara andal.",
       "attachmentTooLargeAction": "OK",
       "fileExtraction": {
         "extractedLines": "{count, plural, other {# baris diekstrak}}",
-        "errorPasswordProtected": "Kata sandi mengunci {fileName}. Kamu harus menghapus kata sandinya, lalu mengunggah berkas itu lagi.",
+        "errorPasswordProtected": "{fileName} dilindungi kata sandi. Hapus kata sandinya, lalu lampirkan lagi.",
         "errorGeneric": "Tidak dapat memproses {fileName}. Coba lagi atau pilih file lain.",
         "errorCorrupted": "{fileName} tidak bisa dibuka; berkasnya mungkin rusak. Ekspor atau unduh ulang, lalu lampirkan lagi.",
-        "errorNoText": "{fileName} tidak punya teks yang bisa dipilih; kemungkinan hasil pindaian. Pilih model yang bisa membaca gambar atau PDF secara langsung.",
+        "errorNoText": "{fileName} tidak berisi teks yang bisa dipilih; kemungkinan hasil pindaian. Pilih model yang bisa membaca gambar atau PDF secara langsung.",
         "tooManyFiles": "Anda dapat melampirkan hingga {maxFiles} berkas untuk model ini.",
         "truncatedCtaKnowledge": "File besar dipotong. Tambahkan ke Skill Knowledge untuk pencarian lengkap →"
       },

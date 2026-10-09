@@ -313,14 +313,14 @@
       "copyCode": "コードをコピー",
       "attachFile": "ファイルを添付",
       "attachmentTooLargeTitle": "ファイルが大きすぎます",
-      "attachmentTooLargeMessage": "50 MB を超えるファイルや画像はアップロードできません。大きなアップロードは通信に負担がかかり、AI も安定して読み取れません。",
+      "attachmentTooLargeMessage": "{maxMb} MB を超えるファイルや画像はアップロードできません。大きなアップロードは通信に負担がかかり、AI も安定して読み取れません。",
       "attachmentTooLargeAction": "OK",
       "fileExtraction": {
         "extractedLines": "{count, plural, other {# 行を抽出しました}}",
-        "errorPasswordProtected": "{fileName}にはパスワードがかかっています。パスワードを解除してから、ファイルをアップロードし直してください。",
+        "errorPasswordProtected": "{fileName} にはパスワードがかかっています。パスワードを解除してから、もう一度追加してください。",
         "errorGeneric": "{fileName} を処理できませんでした。もう一度試すか、別のファイルを選択してください。",
-        "errorCorrupted": "{fileName}を開けませんでした。ファイルが破損している可能性があります。書き出しやダウンロードをやり直してから、もう一度追加してください。",
-        "errorNoText": "{fileName}には選択できるテキストがなく、スキャンした書類のようです。画像やPDFをそのまま読めるモデルに切り替えてください。",
+        "errorCorrupted": "{fileName} を開けませんでした。ファイルが破損している可能性があります。書き出しやダウンロードをやり直してから、もう一度追加してください。",
+        "errorNoText": "{fileName} には選択できるテキストがなく、スキャンした書類のようです。画像や PDF をそのまま読めるモデルに切り替えてください。",
         "tooManyFiles": "このモデルには最大 {maxFiles} 件のファイルを添付できます。",
         "truncatedCtaKnowledge": "大きなファイルが切り詰められました。完全な検索のために Skill Knowledge に追加 →"
       },

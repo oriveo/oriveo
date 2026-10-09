@@ -313,14 +313,14 @@
       "copyCode": "Code kopieren",
       "attachFile": "Datei anhängen",
       "attachmentTooLargeTitle": "Datei zu groß",
-      "attachmentTooLargeMessage": "Dateien und Bilder über 50 MB können nicht hochgeladen werden. Große Uploads belasten dein Netzwerk und sind für KI-Modelle schwer zuverlässig zu lesen.",
+      "attachmentTooLargeMessage": "Dateien und Bilder über {maxMb} MB können nicht hochgeladen werden. Große Uploads belasten dein Netzwerk und sind für KI-Modelle schwer zuverlässig zu lesen.",
       "attachmentTooLargeAction": "OK",
       "fileExtraction": {
         "extractedLines": "{count, plural, other {# Zeilen extrahiert}}",
         "errorPasswordProtected": "{fileName} ist passwortgeschützt. Entferne das Passwort und lade die Datei erneut hoch.",
         "errorGeneric": "{fileName} konnte nicht verarbeitet werden. Versuchen Sie es erneut oder wählen Sie eine andere Datei.",
-        "errorCorrupted": "{fileName} lässt sich nicht öffnen und ist vermutlich beschädigt. Exportiere oder lade die Datei neu und hänge sie noch einmal an.",
-        "errorNoText": "{fileName} enthält keinen markierbaren Text, vermutlich ein Scan. Wähle ein Modell, das Bilder oder PDFs direkt lesen kann.",
+        "errorCorrupted": "{fileName} lässt sich nicht öffnen und ist vermutlich beschädigt. Exportiere die Datei neu oder lade sie noch einmal herunter und hänge sie dann wieder an.",
+        "errorNoText": "{fileName} enthält keinen markierbaren Text – vermutlich ist es ein Scan. Wähle ein Modell, das Bilder oder PDFs direkt lesen kann.",
         "tooManyFiles": "Für dieses Modell kannst du bis zu {maxFiles} Dateien anhängen.",
         "truncatedCtaKnowledge": "Große Datei abgeschnitten. Zu Skill Knowledge hinzufügen für vollständige Suche →"
       },
