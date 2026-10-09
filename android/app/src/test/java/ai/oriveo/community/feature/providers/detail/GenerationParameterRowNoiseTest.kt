@@ -87,9 +87,7 @@ class GenerationParameterRowNoiseTest {
             .orEmpty()
             .mapNotNull { it.id }
         assertTrue("production profile must exercise the mapping", productionIds.isNotEmpty())
-        // These three ids have no localized title yet; drop the exemption once their strings exist.
-        val titlePending = setOf("grammar", "min_tokens", "skip_special_tokens")
-        productionIds.filterNot { it in titlePending }.forEach { id ->
+        productionIds.forEach { id ->
             assertNotEquals("production id leaked into the generic fallback: $id", R.string.generation_parameter_name_other, generationParameterTitleRes(id))
         }
         assertEquals(R.string.generation_parameter_source_official, generationParameterSourceTitleRes("authoritative_metadata"))

@@ -277,7 +277,7 @@ internal fun applyCapabilityRuntimeCustomFragment(
             // An unknown field carries the same official declaration the validation used (shared with the editor's
             // safeCustomAllowedPaths), and never the key the user wrote.
             val allowed = if (reason == "unknown_path") authority.owners.keys.sorted() else emptyList()
-            throw ProviderServiceError.LocalRequestRejected(owner, reason, allowedPaths = allowed)
+            throw ProviderServiceError.LocalRequestRejected(owner, reason, line = custom.line, allowedPaths = allowed)
         }
         if ((custom.delta.leafPointers() intersect body.leafPointers()).isNotEmpty()) {
             throw ProviderServiceError.LocalRequestRejected(owner, "typed_field_conflict")

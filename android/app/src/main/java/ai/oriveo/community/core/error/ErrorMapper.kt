@@ -138,6 +138,8 @@ object ErrorMapper {
     fun localizeProviderErrorMessage(error: ProviderServiceError, context: Context): String =
         if (error is ProviderServiceError.RelayUpstream) {
             localizeRelayGuidance(error, context)
+        } else if (error is ProviderServiceError.LocalRequestRejected) {
+            localizeProviderErrorMessage(error.technicalDetail, context)
         } else {
             localizeProviderErrorMessage(error.userMessage, context)
         }
@@ -146,6 +148,10 @@ object ErrorMapper {
         RelayGuidanceCode.fromPersistenceKey(rawMessage)?.let { code ->
             return context.getString(relayGuidanceResource(code))
         }
+        // What is stored for a local rejection is a safe code (see the failure branch in ChatRepository); turn it back into a sentence.
+        LocalRequestRejectionCopy.parse(rawMessage)?.let { code ->
+            return LocalRequestRejectionCopy.render(LocalRequestRejectionCopy.body(code), context)
+        }
         val resId = MESSAGE_TO_RES[rawMessage] ?: return rawMessage
         return context.getString(resId)
     }
@@ -153,6 +159,7 @@ object ErrorMapper {
     fun hasLocalizedProviderMessage(rawMessage: String?): Boolean =
         rawMessage != null && (
             RelayGuidanceCode.fromPersistenceKey(rawMessage) != null ||
+                LocalRequestRejectionCopy.isCode(rawMessage) ||
                 MESSAGE_TO_RES.containsKey(rawMessage)
             )
 
@@ -166,6 +173,8 @@ object ErrorMapper {
         "Empty Provider Response" to R.string.error_empty_response,
         "Provider Configuration Error" to R.string.error_config,
         "Custom request fields" to R.string.model_control_custom_request_fields,
+        "Check the additional request body" to R.string.additional_body_check,
+        ai.oriveo.community.core.data.repository.ADDITIONAL_BODY_REJECTED_UPSTREAM_TITLE to R.string.additional_body_rejected_upstream,
         "Provider Request Failed" to R.string.error_request_failed,
         "Request Failed" to R.string.message_failed,
         "Grok subscription" to R.string.grok_subscription_title,
