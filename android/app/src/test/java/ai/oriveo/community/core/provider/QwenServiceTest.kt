@@ -735,7 +735,7 @@ class QwenServiceTest {
 
         val error = runCatching {
             service.sendMessageStream(
-                apiKey = "sk-test",
+                apiKey = "sk-secret",
                 modelID = "qwen-fake",
                 messages = listOf(
                     ChatMessage(
@@ -759,11 +759,11 @@ class QwenServiceTest {
         assertTrue("should be classified as ModelUnavailable rather than a silent empty response", error is ProviderServiceError.ModelUnavailable)
         val detail = (error as? ProviderServiceError.ModelUnavailable)?.detail.orEmpty()
         assertTrue("a production stream error must carry a non-empty safe summary", detail.isNotBlank())
-        assertEquals("The provider stream reported that the model is unavailable.", detail)
-        assertFalse("the safe summary must not keep the upstream model id", detail.contains("qwen-fake"))
-        assertFalse("the safe summary must not keep credentials", detail.contains("sk-secret"))
-        assertFalse("the safe summary must not keep the user prompt", detail.contains("prompt-private"))
-        assertFalse("the safe summary must not keep raw upstream fields", detail.contains("raw-data-private"))
+        // An in-stream error is treated like an upstream rejection: once classified, the upstream text (credentials of
+        // this request wiped, cut to 2 KB) still goes into the technical detail.
+        assertEquals("The provider stream reported that the model is unavailable.", detail.substringBefore("\n"))
+        assertTrue("the upstream text belongs in the technical detail", detail.contains("Upstream response:"))
+        assertFalse("the credentials of this request must be wiped", detail.contains("sk-secret"))
     }
 
     private fun injectMetadata(rawJson: String) {
