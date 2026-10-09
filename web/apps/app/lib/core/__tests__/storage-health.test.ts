@@ -114,6 +114,8 @@ describe('detectStorageHealth', () => {
 
       expect(health.indexedDB).toBe('slow');
       expect(health.persistent).toBe(false);
+      expect(health.probeStarved).toBe(false);
+      expect(health.probeElapsedMs).toBe(3000);
       expect(isPersistenceBroken(health)).toBe(false);
 
       reportStorageHealth(health);
@@ -131,7 +133,7 @@ describe('detectStorageHealth', () => {
       await vi.advanceTimersByTimeAsync(0);
 
       expect(onRevised).toHaveBeenCalledExactlyOnceWith(
-        expect.objectContaining({ indexedDB: 'available', persistent: true }),
+        expect.objectContaining({ indexedDB: 'available', persistent: true, probeElapsedMs: 3185, probeStarved: false }),
       );
       expect(await detectStorageHealth()).toMatchObject({ indexedDB: 'available', persistent: true });
       expect(mockAddBreadcrumb).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
@@ -170,10 +172,10 @@ describe('detectStorageHealth', () => {
       await vi.advanceTimersByTimeAsync(1);
 
       const revised = onRevised.mock.calls[0]?.[0];
-      expect(revised).toMatchObject({ indexedDB: 'timeout', persistent: false });
+      expect(revised).toMatchObject({ indexedDB: 'timeout', persistent: false, probeElapsedMs: 15000, probeStarved: false });
       expect(isPersistenceBroken(revised)).toBe(true);
       expect(mockCaptureMessage).toHaveBeenCalledExactlyOnceWith('storage.persistence_probe_timeout');
-      expect(reportedStorageContext()).toMatchObject({ indexedDB: 'timeout' });
+      expect(reportedStorageContext()).toMatchObject({ indexedDB: 'timeout', probeElapsedMs: 15000 });
     });
 
     it('reports the latest verdict when the revision landed before the report was requested with a stale slow snapshot', async () => {
@@ -185,6 +187,81 @@ describe('detectStorageHealth', () => {
 
       expect(mockCaptureMessage).toHaveBeenCalledExactlyOnceWith('storage.persistence_probe_timeout');
     });
+
+    it('becomes unknown when the page goes to the background while waiting, since throttled timers cannot measure the confirmation window either', async () => {
+      stallIndexedDB();
+      const { health, onRevised } = await detectUntilSlow();
+      reportStorageHealth(health);
+
+      const visibility = vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('hidden');
+      document.dispatchEvent(new Event('visibilitychange'));
+      visibility.mockRestore();
+      await vi.advanceTimersByTimeAsync(12000);
+
+      const revised = onRevised.mock.calls[0]?.[0];
+      expect(revised).toMatchObject({ indexedDB: 'unknown', probeStarved: true });
+      expect(isPersistenceBroken(revised)).toBe(false);
+      expect(mockCaptureMessage).toHaveBeenCalledExactlyOnceWith('storage.persistence_probe_starved');
+    });
+  });
+
+  /**
+   * The probe deadline is measured with the host's timer queue, and when that queue is starved
+   * the ruler itself is broken. A load whose 8s startup timer runs after 23s has its 3s probe
+   * fallback running many seconds late as well. That proves the main thread stalled, not that
+   * IDB is broken, and must never be judged a timeout that raises the storage banner.
+   */
+  it('reports unknown with probeStarved, not timeout, when the fallback callback is starved (a 3s timer running after 23s)', async () => {
+    vi.useFakeTimers();
+    // Fake timers only fire a callback at the instant it is due, so they cannot model a late
+    // callback. Lateness is host behaviour: the wall clock has to run ahead by 23s before the
+    // callback is scheduled, hence Date.now is controlled separately here.
+    const base = Date.now();
+    let wallClock = base;
+    const nowSpy = vi.spyOn(Date, 'now').mockImplementation(() => wallClock);
+    try {
+      Object.defineProperty(globalThis, 'indexedDB', {
+        configurable: true,
+        value: { open: () => ({}) },
+      });
+      const pending = detectStorageHealth();
+      wallClock = base + 23_276;
+      await vi.advanceTimersByTimeAsync(3000);
+      const health = await pending;
+      expect(health.indexedDB).toBe('unknown');
+      expect(health.probeStarved).toBe(true);
+      expect(health.probeElapsedMs).toBe(23_276);
+      // Not measured is not the same as measured broken: the banner criterion must be false.
+      expect(isPersistenceBroken(health)).toBe(false);
+    } finally {
+      nowSpy.mockRestore();
+      vi.useRealTimers();
+    }
+  });
+
+  it('reports unknown when the page went hidden during the probe, since no deadline holds under background throttling', async () => {
+    vi.useFakeTimers();
+    try {
+      Object.defineProperty(globalThis, 'indexedDB', {
+        configurable: true,
+        value: { open: () => ({}) },
+      });
+      const pending = detectStorageHealth();
+      // jsdom defines visibilityState on Document.prototype; an own property on the instance shadows it.
+      Object.defineProperty(document, 'visibilityState', {
+        configurable: true,
+        get: () => 'hidden',
+      });
+      document.dispatchEvent(new Event('visibilitychange'));
+      await vi.advanceTimersByTimeAsync(3000);
+      const health = await pending;
+      // The timer fired on time (elapsed = 3000) but the page was backgrounded, so the criterion still fails.
+      expect(health.indexedDB).toBe('unknown');
+      expect(health.probeStarved).toBe(true);
+    } finally {
+      delete (document as unknown as Record<string, unknown>).visibilityState;
+      vi.useRealTimers();
+    }
   });
 
   it('probes only once per session, since storage permission does not change mid-session', async () => {
@@ -198,22 +275,44 @@ describe('detectStorageHealth', () => {
 describe('reportStorageHealth', () => {
   it('sends an error-level captureMessage when persistence is unavailable', () => {
     reportStorageHealth({
-      local: 'denied', indexedDB: 'denied', localUsage: 0, persistent: false,
+      local: 'denied', indexedDB: 'denied', localUsage: 0, persistent: false, probeElapsedMs: 12, probeStarved: false,
     });
     expect(mockCaptureMessage).toHaveBeenCalledWith('storage.persistence_unavailable');
   });
 
   it('sends a probe timeout as its own warning signal rather than as a denied error', () => {
     reportStorageHealth({
-      local: 'available', indexedDB: 'timeout', localUsage: 0, persistent: false,
+      local: 'available', indexedDB: 'timeout', localUsage: 0, persistent: false, probeElapsedMs: 12, probeStarved: false,
     });
     expect(mockCaptureMessage).toHaveBeenCalledWith('storage.persistence_probe_timeout');
     expect(mockCaptureMessage).not.toHaveBeenCalledWith('storage.persistence_unavailable');
   });
 
+  /**
+   * The two edges left once "worth reporting" and "worth interrupting the user" are separate:
+   * unknown must still be reported (it is the only place main-thread stalls are observed), but
+   * under its own message rather than posing as a storage fault.
+   */
+  it('sends a starved probe as its own probe_starved signal, carrying the elapsed time and the starved flag', () => {
+    reportStorageHealth({
+      local: 'available',
+      indexedDB: 'unknown',
+      localUsage: 0,
+      persistent: false,
+      probeElapsedMs: 23_276,
+      probeStarved: true,
+    });
+    expect(mockCaptureMessage).toHaveBeenCalledWith('storage.persistence_probe_starved');
+    expect(mockCaptureMessage).not.toHaveBeenCalledWith('storage.persistence_probe_timeout');
+    expect(mockCaptureMessage).not.toHaveBeenCalledWith('storage.persistence_unavailable');
+    const context = reportedStorageContext();
+    expect(context['probeElapsedMs']).toBe(23_276);
+    expect(context['probeStarved']).toBe(true);
+  });
+
   it('sends a warning when IDB still works and only localStorage is gone, without inflating it into an incident', () => {
     reportStorageHealth({
-      local: 'denied', indexedDB: 'available', localUsage: null, persistent: true,
+      local: 'denied', indexedDB: 'available', localUsage: null, persistent: true, probeElapsedMs: 12, probeStarved: false,
     });
     expect(mockCaptureMessage).toHaveBeenCalledWith('storage.local_unavailable');
   });
@@ -225,19 +324,24 @@ describe('reportStorageHealth', () => {
       // This is the order of magnitude seen in production: a 3.3MB metadata snapshot taking 66%
       localUsage: Math.floor(LOCAL_STORAGE_QUOTA_CHARS * 0.66),
       persistent: true,
+      probeElapsedMs: 12,
+      probeStarved: false,
     });
     expect(mockCaptureMessage).toHaveBeenCalledWith('storage.local_pressure');
   });
 
   it('stays quiet when everything is fine', () => {
     reportStorageHealth({
-      local: 'available', indexedDB: 'available', localUsage: 1024, persistent: true,
+      local: 'available', indexedDB: 'available', localUsage: 1024, persistent: true, probeElapsedMs: 12, probeStarved: false,
     });
     expect(mockCaptureMessage).not.toHaveBeenCalled();
   });
 
   it('reports at most once per session instead of flooding', () => {
-    const bad = { local: 'denied', indexedDB: 'denied', localUsage: 0, persistent: false } as const;
+    const bad = {
+      local: 'denied', indexedDB: 'denied', localUsage: 0, persistent: false,
+      probeElapsedMs: 12, probeStarved: false,
+    } as const;
     reportStorageHealth(bad);
     reportStorageHealth(bad);
     reportStorageHealth(bad);
@@ -262,6 +366,8 @@ describe('actionable context on storage.local_pressure', () => {
       indexedDB: 'available',
       localUsage: Math.round(LOCAL_STORAGE_QUOTA_CHARS * 0.66),
       persistent: true,
+      probeElapsedMs: 12,
+      probeStarved: false,
     });
 
     expect(mockCaptureMessage).toHaveBeenCalledWith('storage.local_pressure');
@@ -282,6 +388,8 @@ describe('actionable context on storage.local_pressure', () => {
       indexedDB: 'available',
       localUsage: Math.round(LOCAL_STORAGE_QUOTA_CHARS * 0.8),
       persistent: true,
+      probeElapsedMs: 12,
+      probeStarved: false,
     });
 
     const serialized = JSON.stringify(reportedStorageContext()['topGroups']);
@@ -305,6 +413,8 @@ describe('actionable context on storage.local_pressure', () => {
       indexedDB: 'available',
       localUsage: Math.round(LOCAL_STORAGE_QUOTA_CHARS * 0.7),
       persistent: true,
+      probeElapsedMs: 12,
+      probeStarved: false,
     });
 
     const serialized = JSON.stringify(reportedStorageContext()['topGroups']);

@@ -20,6 +20,11 @@ import { isPersistenceBroken } from '../lib/core/storage-health';
  * updated when it does. If only localStorage fails while IDB still works, the user is not
  * interrupted: their data is still stored, only a few local preferences are missing.
  *
+ * The criterion is {@link isPersistenceBroken}, not `!persistent`. When the probe is starved by
+ * the host the verdict is `unknown` (nothing was measured) and `persistent` is false as well, but
+ * a red "browser storage is blocked" notice would be plainly misleading there: it would be shown
+ * to someone in the middle of adding a key whose localStorage is working fine.
+ *
  * The dismissed flag is kept in memory only. This is not a one-off notice but a persistent
  * environment problem, so the next visit should warn again - and sessionStorage is equally broken
  * in this situation anyway.
@@ -30,7 +35,8 @@ export function StoragePersistenceBanner() {
   const t = useTranslations('storage');
 
   if (dismissed) return null;
-  // null means detection has not finished; do not alarm the user while it is unknown
+  // null means detection has not finished; do not alarm the user while the answer is uncertain
+  // (the same goes for `unknown`, see the comment above)
   if (!storageHealth || !isPersistenceBroken(storageHealth)) return null;
 
   return (

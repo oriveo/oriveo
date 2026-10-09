@@ -2,6 +2,7 @@ import { openDB, deleteDB, type DBSchema, type IDBPDatabase } from 'idb';
 import type { Conversation, Provider, Folder, Note, NoteFolder } from '@oriveo/shared';
 import { sanitizeMessageQuoteContext } from '@oriveo/shared';
 import { getActiveUID, getActiveUIDSync, getDBName } from './partition';
+import { reportIDBUpgradeBlocked } from './idb-lifecycle';
 import { normalizeUUID } from '../../utils/id-utils';
 
 /* ── DB Schema ───────────────────────────────────────── */
@@ -90,8 +91,13 @@ let dbPromise: Promise<IDBPDatabase<OriveoDBSchema>> | null = null;
 async function openPartitionDB(dbName: string) {
   // Detect an empty DB (no stores) accidentally created by hasPartitionData: delete and
   // recreate it, otherwise opening at the same version never runs upgrade.
+  let probe: IDBPDatabase | null = null;
   try {
-    const probe = await openDB(dbName);
+    probe = await openDB(dbName, undefined, {
+      // This probe connection lives for only a few lines, but it can still block another tab's
+      // upgrade, and the `await deleteDB` below is exactly what never settles when blocked.
+      blocking: () => probe?.close(),
+    });
     if (probe.objectStoreNames.length === 0) {
       probe.close();
       await deleteDB(dbName);
@@ -100,7 +106,21 @@ async function openPartitionDB(dbName: string) {
     }
   } catch { /* No such DB, which is normal */ }
 
-  return openDB<OriveoDBSchema>(dbName, DB_VERSION, {
+  let opened: IDBPDatabase<OriveoDBSchema> | null = null;
+  const openPromise = openDB<OriveoDBSchema>(dbName, DB_VERSION, {
+    blocked: (currentVersion, blockedVersion) =>
+      reportIDBUpgradeBlocked(dbName, currentVersion, blockedVersion),
+    // Another tab wants to upgrade the schema: unless this connection closes, its open() stays
+    // stuck on blocked forever. The module-level cache is cleared as well, so the next getDB()
+    // reopens at the new version (otherwise a closed connection stays cached and every later
+    // transaction throws InvalidStateError).
+    blocking: () => {
+      opened?.close();
+      if (currentDBName === dbName) {
+        dbPromise = null;
+        currentDBName = null;
+      }
+    },
     upgrade(db, oldVersion, _newVersion, tx) {
       // v0 -> v4: create every store on first run.
       if (!db.objectStoreNames.contains('conversations')) {
@@ -176,6 +196,8 @@ async function openPartitionDB(dbName: string) {
       }
     },
   });
+  opened = await openPromise;
+  return opened;
 }
 
 async function getDB(expectedUID?: string) {
