@@ -11,7 +11,7 @@ describe('sanitizeUpstreamErrorText', () => {
   });
 
   it('truncates to 2 KB by bytes without leaving half a multi-byte character at the cut', () => {
-    const out = sanitizeUpstreamErrorText('a' + '错'.repeat(1000));
+    const out = sanitizeUpstreamErrorText('a' + '\u9519'.repeat(1000));
     expect(bytes(out)).toBeLessThanOrEqual(UPSTREAM_ERROR_TEXT_MAX_BYTES);
     expect(out).not.toContain('�');
     expect(out.length).toBe(1 + Math.floor((UPSTREAM_ERROR_TEXT_MAX_BYTES - 1) / 3));

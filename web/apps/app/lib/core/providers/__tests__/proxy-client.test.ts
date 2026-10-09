@@ -488,7 +488,7 @@ describe('proxy-client', () => {
   });
 
   it('redacts the request key from the raw in-stream error frame and truncates it to 2 KB', async () => {
-    const raw = `invalid key sk_live_secret_123 ${'错'.repeat(1500)}`;
+    const raw = `invalid key sk_live_secret_123 ${'\u9519'.repeat(1500)}`;
     vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(
       `data: ${JSON.stringify({ error: { message: raw } })}\n\ndata: [DONE]\n\n`,
       { status: 200, headers: { 'Content-Type': 'text/event-stream' } },

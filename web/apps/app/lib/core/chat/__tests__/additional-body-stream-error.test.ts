@@ -208,7 +208,7 @@ describe('official stream (proxy parser)', () => {
 
 describe('raw in-stream error frame: redacted and truncated into the body and the technical detail', () => {
   it('Relay: credentials never appear, output is at most 2 KB, and classified errors still keep the technical detail', async () => {
-    const long = `quota exceeded for key relay-secret-key ${'错'.repeat(1500)}`;
+    const long = `quota exceeded for key relay-secret-key ${'\u9519'.repeat(1500)}`;
     mocks.sendStream.mockImplementation((...args: unknown[]) => relayHandle(args, () => sse(
       `data: ${JSON.stringify({ error: { message: long, type: 'insufficient_quota' } })}`,
     )));

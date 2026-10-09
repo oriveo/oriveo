@@ -64,7 +64,7 @@ describe('additional body decision details', () => {
   });
 
   it('counts 64 KiB in UTF-8 bytes', () => {
-    const raw = `{"a": "${'中'.repeat(22_000)}"}`;
+    const raw = `{"a": "${'\u4e2d'.repeat(22_000)}"}`;
     expect(raw.length).toBeLessThan(65_536);
     const result = mergeAdditionalBody(base, raw);
     expect(!result.accepted && result.rejection.reason).toBe('too_large');
