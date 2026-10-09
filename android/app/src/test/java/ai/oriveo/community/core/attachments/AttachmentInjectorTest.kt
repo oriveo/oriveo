@@ -1,7 +1,11 @@
 package ai.oriveo.community.core.attachments
 
+import ai.oriveo.community.core.model.Attachment
+import ai.oriveo.community.core.model.AttachmentKind
+import ai.oriveo.community.core.provider.MessageBuilder
 import org.junit.Assert.*
 import org.junit.Test
+import java.util.Base64
 
 class AttachmentInjectorTest {
 
@@ -111,5 +115,63 @@ class AttachmentInjectorTest {
         val r = AttachmentInjector.injectAll("hello", emptyList())
         assertEquals("hello", r.text)
         assertTrue(r.skipped.isEmpty())
+    }
+
+    @Test
+    fun aTruncatedFileRebuiltAtSendTimeStillTellsTheModelItWasTruncated() {
+        // Goes through real import truncation and the send-time rebuild: a persisted attachment records only "truncated" and the total line count, not the reason.
+        val extracted = FileTextExtractor.truncate((1..700).joinToString("\n") { "L$it" }, sizeBytes = 4_000)
+        val attachment = Attachment(
+            id = "1",
+            kind = AttachmentKind.File,
+            fileName = "big.md",
+            mimeType = "text/markdown",
+            base64Data = Base64.getEncoder().encodeToString(extracted.content.toByteArray()),
+            extractedTotalLines = extracted.totalLines,
+            extractedTruncated = extracted.truncated,
+            extractedSizeBytes = extracted.sizeBytes,
+        )
+        val payload = MessageBuilder.toAttachmentPayloads(listOf(attachment)).single()
+        assertNull(payload.extracted?.truncationReason)
+
+        val xml = AttachmentInjector.formatAttachmentXml(1, payload)
+        assertTrue(xml, xml.contains("<TRUNCATED>showing first 500 of 700 lines</TRUNCATED>"))
+
+        val markdown = AttachmentInjector.formatAttachmentMarkdown(1, payload)
+        assertTrue(markdown, markdown.contains("- Lines: 700 (showing first 500"))
+    }
+
+    @Test
+    fun totalCapCountsFileContentOnlyNotTheWrapper() {
+        val limits = FileExtractionLimits.DEFAULT
+        val half = "x".repeat(limits.totalCap / 2)
+        for (wrapper in AttachmentWrapperVersion.entries) {
+            val r = AttachmentInjector.injectAll(
+                "prompt",
+                listOf(
+                    makePayload(fileName = "a.txt", content = half, sizeBytes = half.length),
+                    makePayload(fileName = "b.txt", content = half, sizeBytes = half.length),
+                ),
+                limits,
+                wrapper,
+            )
+            assertTrue("$wrapper skipped ${r.skipped}", r.skipped.isEmpty())
+            assertTrue(r.text.contains("a.txt") && r.text.contains("b.txt"))
+        }
+    }
+
+    @Test
+    fun oneByteOfContentOverTheTotalCapIsStillSkipped() {
+        val limits = FileExtractionLimits.DEFAULT
+        val half = "x".repeat(limits.totalCap / 2)
+        val r = AttachmentInjector.injectAll(
+            "prompt",
+            listOf(
+                makePayload(fileName = "a.txt", content = half),
+                makePayload(fileName = "b.txt", content = half + "x"),
+            ),
+            limits,
+        )
+        assertEquals(listOf(AttachmentInjector.SkippedAttachment("b.txt", AttachmentInjector.SkipReason.TotalCapExceeded)), r.skipped)
     }
 }

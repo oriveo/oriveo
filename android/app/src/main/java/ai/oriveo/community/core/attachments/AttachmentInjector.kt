@@ -97,9 +97,11 @@ object AttachmentInjector {
                     "showing first $n of $total lines (size cap 200KB)"
                 ExtractedText.TruncationReason.Bytes ->
                     "showing first $n of $total lines (truncated to fit 200KB cap)"
-                null -> null
+                // The reason is not persisted, so an attachment rebuilt at send time has none;
+                // the model must still be told the file was truncated.
+                null -> "showing first $n of $total lines"
             }
-            text?.let { appendLine("<TRUNCATED>$it</TRUNCATED>") }
+            appendLine("<TRUNCATED>$text</TRUNCATED>")
         }
         append("</ATTACHMENT_FILE>")
     }
@@ -159,15 +161,15 @@ object AttachmentInjector {
                 skipped.add(SkippedAttachment(att.fileName, SkipReason.TooManyFiles))
                 continue
             }
-            val block = formatAttachment(wrapper, emittedIndex + 1, att)
-            val blockBytes = block.toByteArray(Charsets.UTF_8).size
-
-            if (consumed + blockBytes > limits.totalCap) {
+            // The total cap counts body text only. The wrapper and truncation marker do not use budget, or a file
+            // pair whose bodies sum exactly to the cap would silently lose one file to a few hundred bytes of wrapper.
+            val contentBytes = att.extracted?.content?.toByteArray(Charsets.UTF_8)?.size ?: 0
+            if (consumed + contentBytes > limits.totalCap) {
                 skipped.add(SkippedAttachment(att.fileName, SkipReason.TotalCapExceeded))
                 continue
             }
-            parts.add(block)
-            consumed += blockBytes
+            parts.add(formatAttachment(wrapper, emittedIndex + 1, att))
+            consumed += contentBytes
             emittedIndex += 1
         }
 
