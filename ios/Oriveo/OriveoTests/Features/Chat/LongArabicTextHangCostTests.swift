@@ -104,6 +104,10 @@ struct LongArabicTextHangCostTests {
         try await yieldMainActor(for: 0.6)
 
         let paste = Self.arabic(utf16: Self.longUTF16)
+        // The composer has a length cap (`ChatInputLimit.maxUTF16`): a 200,000-character paste keeps only the leading part that fits, cut back to a grapheme boundary.
+        // The whole 200,000 characters still go in, because truncation happens before the text reaches storage, so main-thread cost on this path must still be bounded.
+        let kept = ComposerTextView.Coordinator.prefix(of: paste as NSString, fittingUTF16: ChatInputLimit.maxUTF16)
+        #expect(kept.utf16.count < paste.utf16.count && kept.utf16.count > ChatInputLimit.maxUTF16 - 16, "the fixture must exceed the cap, and truncation may only back up to a grapheme boundary")
         let probe = MainThreadStallProbe()
 
         // System paste menu / Cmd-V / drop: the paste delegate hands out the display string first, which then replaces the selection.
@@ -116,13 +120,17 @@ struct LongArabicTextHangCostTests {
         try await yieldMainActor(for: 1.5)
         probe.stop()
         let pasteStall = probe.maxStall
-        #expect(coordinator.publishedSource == paste, "after a paste the draft must be the source text")
+        #expect(coordinator.publishedSource == kept, "after a paste the draft must be the source text truncated to the length cap")
 
+        // The draft is at the cap, so typing would be blocked and no real edit could be measured; step back one character to make room, then the typed character is actually written to storage.
         probe.start()
+        input.deleteBackward()
+        try await yieldMainActor(for: 0.2)
         input.insertText("x")
         try await yieldMainActor(for: 0.8)
         probe.stop()
         let keyStall = probe.maxStall
+        #expect(coordinator.publishedSource.hasSuffix("x"), "the typed character must actually reach the draft")
 
         probe.start()
         input.resignFirstResponder()
@@ -142,10 +150,10 @@ struct LongArabicTextHangCostTests {
         try await yieldMainActor(for: 1.5)
         probe.stop()
         let foreignInsertStall = probe.maxStall
-        #expect(coordinator.publishedSource == paste, "after a foreign insertion the draft must be the source text")
+        #expect(coordinator.publishedSource == kept, "after a foreign insertion the draft must be the source text truncated to the length cap")
 
         print("""
-        [HANG-COST] composer · single Arabic paragraph of \(paste.utf16.count) UTF-16 (real ChatView, longest main-thread stall)
+        [HANG-COST] composer · single Arabic paragraph of \(paste.utf16.count) UTF-16, \(kept.utf16.count) kept under the cap (real ChatView, longest main-thread stall)
           paste (paste delegate path) \(ms(pasteStall)); type one more character \(ms(keyStall)); dismiss and reopen keyboard \(ms(focusStall))
           foreign insertText (bypassing the paste delegate) \(ms(foreignInsertStall))
         """)
