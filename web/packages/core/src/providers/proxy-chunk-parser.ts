@@ -105,6 +105,8 @@ export function createProxyChunkParser(providerKind?: ProviderKind, continuation
   // Anthropic web-result, Gemini grounding and OpenRouter citations are normalized by this same
   // parser, but must not be mixed with the Responses annotation stream.
   const protocolCitations: Citation[] = [];
+  // Chat Completions web citations can arrive before the answer; hold them until the answer starts or the final frame (see the parsing below).
+  let openRouterCitationsPending = false;
   const pickUsage = pickProxyUsageParser(providerKind);
   // /api/chat/stream only forwards for BYOK providers, so ownership of in-stream provider errors
   // has to be pinned at this single parsing entry point rather than guessed at the reporting layer.
@@ -401,6 +403,34 @@ export function createProxyChunkParser(providerKind?: ProviderKind, continuation
         }) || changed;
       }
       if (changed) events.push({ type: 'citations', citations: protocolCitations.slice() });
+    }
+    // Web citations on Chat Completions: the OpenRouter web plugin and OpenAI search models both put them in
+    // `choices[0].delta.annotations` / `message.annotations` (url_citation). OpenRouter searches first and
+    // answers after, so the whole batch arrives at the very start of the stream. Emit it when the answer starts
+    // (or on the final frame): a row of sources appearing while the model is still thinking reads as if it were done.
+    if ((providerKind === 'openRouter' || providerKind === 'openAI')
+      && !_eventType && Array.isArray(chunk.choices) && isRecord(chunk.choices[0])) {
+      const openRouterChoice = chunk.choices[0];
+      for (const holder of [openRouterChoice.delta, openRouterChoice.message]) {
+        if (!isRecord(holder) || !Array.isArray(holder.annotations)) continue;
+        for (const raw of holder.annotations) {
+          const cited = isRecord(raw) && raw.type === 'url_citation' && isRecord(raw.url_citation) ? raw.url_citation : null;
+          if (!cited || typeof cited.url !== 'string') continue;
+          const snippet = typeof cited.content === 'string' ? cited.content
+            : typeof cited.snippet === 'string' ? cited.snippet : undefined;
+          openRouterCitationsPending = mergeCitation(protocolCitations, {
+            url: cited.url,
+            title: typeof cited.title === 'string' ? cited.title : undefined,
+            snippet,
+          }) || openRouterCitationsPending;
+        }
+      }
+      const answerStarted = isRecord(openRouterChoice.delta)
+        && typeof openRouterChoice.delta.content === 'string' && openRouterChoice.delta.content.length > 0;
+      if (openRouterCitationsPending && (answerStarted || openRouterChoice.finish_reason != null)) {
+        openRouterCitationsPending = false;
+        events.push({ type: 'citations', citations: protocolCitations.slice() });
+      }
     }
     if (providerKind === 'openRouter' && Array.isArray(chunk.citations)) {
       let changed = false;

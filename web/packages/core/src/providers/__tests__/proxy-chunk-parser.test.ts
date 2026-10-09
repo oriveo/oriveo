@@ -743,3 +743,59 @@ describe('createProxyChunkParser - in-stream overload classification', () => {
     }))[0]).toMatchObject({ errorKind: 'quotaExceeded' });
   });
 });
+
+/**
+ * The OpenRouter web plugin puts its sources in `choices[0].delta.annotations` (`url_citation`) and
+ * searches before it answers: the annotations arrive at the very start of the stream, ahead of
+ * thinking and answer text (contract `or_web.citationsArrayPath`). The parser used to read only a
+ * top-level `chunk.citations`, so no sources were shown and web results stayed "unconfirmed" even
+ * though the answer used the search results.
+ */
+describe('createProxyChunkParser - OpenRouter web sources', () => {
+  const annotation = (url: string, title: string, content?: string) => ({
+    type: 'url_citation', url_citation: { url, title, ...(content ? { content } : {}) },
+  });
+  const citationsOf = (events: StreamEvent[]) => events.filter((event) => event.type === 'citations');
+
+  it('normalizes url_citation entries in delta.annotations into one citations event, emitted when the answer starts and not during thinking', () => {
+    const parser = createProxyChunkParser('openRouter');
+    const first = feed(parser, null, JSON.stringify({ choices: [{ delta: { content: '', annotations: [
+      annotation('https://www.bom.gov.au/vic/observations/melbourne.shtml', 'Melbourne observations', 'Latest weather observations'),
+    ] } }] }));
+    const second = feed(parser, null, JSON.stringify({ choices: [{ delta: { content: '', annotations: [
+      annotation('https://open-meteo.com/', 'Open-Meteo'),
+    ] } }] }));
+    const thinking = feed(parser, null, JSON.stringify({ choices: [{ delta: { reasoning: 'checking the forecast' } }] }));
+    expect(citationsOf([...first, ...second, ...thinking])).toEqual([]);
+
+    const answer = feed(parser, null, JSON.stringify({ choices: [{ delta: { content: 'Melbourne today' } }] }));
+    expect(citationsOf(answer)).toEqual([{ type: 'citations', citations: [
+      { url: 'https://www.bom.gov.au/vic/observations/melbourne.shtml', title: 'Melbourne observations', snippet: 'Latest weather observations' },
+      { url: 'https://open-meteo.com/', title: 'Open-Meteo' },
+    ] }]);
+    // No repeat once there are no new sources.
+    expect(citationsOf(feed(parser, null, JSON.stringify({ choices: [{ delta: { content: '12°C' } }] })))).toEqual([]);
+  });
+
+  it('emits the held sources on the final frame when there is no answer text (tool-only or truncated turns)', () => {
+    const parser = createProxyChunkParser('openRouter');
+    feed(parser, null, JSON.stringify({ choices: [{ delta: { annotations: [annotation('https://example.com/a', 'A')] } }] }));
+    const done = feed(parser, null, JSON.stringify({ choices: [{ delta: {}, finish_reason: 'stop' }] }));
+    expect(citationsOf(done)).toEqual([{ type: 'citations', citations: [{ url: 'https://example.com/a', title: 'A' }] }]);
+  });
+
+  it('OpenAI Chat Completions web models use the same shape: sources that arrive after the answer are emitted on the final frame', () => {
+    const parser = createProxyChunkParser('openAI');
+    expect(citationsOf(feed(parser, null, JSON.stringify({ choices: [{ delta: { content: 'Melbourne is 12°C' } }] })))).toEqual([]);
+    const tail = feed(parser, null, JSON.stringify({ choices: [{ delta: { annotations: [
+      annotation('https://www.bom.gov.au/', 'Bureau of Meteorology'),
+    ] }, finish_reason: 'stop' }] }));
+    expect(citationsOf(tail)).toEqual([{ type: 'citations', citations: [{ url: 'https://www.bom.gov.au/', title: 'Bureau of Meteorology' }] }]);
+  });
+
+  it('does not treat a same-named field in other providers\' Chat Completions streams as sources', () => {
+    const parser = createProxyChunkParser('deepseek');
+    const events = feed(parser, null, JSON.stringify({ choices: [{ delta: { content: 'hi', annotations: [annotation('https://example.com/a', 'A')] } }] }));
+    expect(citationsOf(events)).toEqual([]);
+  });
+});

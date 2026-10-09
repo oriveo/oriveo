@@ -80,7 +80,12 @@ function parseProductionEvents(coverage: Coverage): StreamEvent[] {
     case 'gemini':
       return emit(null, { candidates: [{ groundingMetadata: { groundingChunks: [{ web: { uri: 'https://source.example/gemini', title: 'Source' } }] } }] });
     case 'openRouter':
-      return emit(null, { citations: [{ url: 'https://source.example/openrouter', title: 'Source' }] });
+      // The shape the OpenRouter web plugin really sends: sources in delta.annotations (url_citation), arriving before the answer.
+      // This used to feed a top-level `citations`, which the upstream never sends, so this cell could never reach "confirmed" in production.
+      return [
+        ...emit(null, { choices: [{ delta: { content: '', annotations: [{ type: 'url_citation', url_citation: { url: 'https://source.example/openrouter', title: 'Source', content: 'evidence' } }] } }] }),
+        ...emit(null, { choices: [{ delta: { content: 'answer' } }] }),
+      ];
     default:
       return emit(null, { choices: [{ delta: { reasoning_content: 'production parser evidence' } }] });
   }
