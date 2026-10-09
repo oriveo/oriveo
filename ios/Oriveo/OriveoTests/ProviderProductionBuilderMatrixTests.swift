@@ -273,8 +273,11 @@ struct ProviderProductionBuilderMatrixTests {
                 registry: registry, row: metadataRow, capabilityRecipeRefs: [owner: row.recipeRef],
                 webSearchProfile: Self.p5WebSearchProfile[row.providerKind]
             ))
-            ProviderMatrixURLProtocol.responder = { _, _ in
-                Self.p5RawStream(providerKind: row.providerKind, transport: row.transport, events: row.producerEvents)
+            ProviderMatrixURLProtocol.responder = { _, body in
+                Self.p5RawStream(
+                    providerKind: row.providerKind, transport: row.transport, events: row.producerEvents,
+                    requestBody: body
+                )
             }
             defer { ProviderMatrixURLProtocol.responder = nil }
             let message = ChatMessage(id: UUID(), role: .user, text: "proof", providerKind: kind,
@@ -295,7 +298,10 @@ struct ProviderProductionBuilderMatrixTests {
             let identity = Self.matrixIdentity(providerKind: kind, modelID: row.modelId, transport: row.transport)
             let stream = try await CapabilityExecutionRuntime.$current.withValue(tracker) {
                 CapabilityEvidenceRequestContext.$current.withValue(identity) {
-                    Self.sendStream(provider: kind, session: session, modelID: row.modelId, messages: [message], options: options)
+                    // Production rule: `webSearchEnabled = typed.web != .off`. Moonshot only registers an executor for
+                    // `$web_search` when web search is on; with it off the tool_result producer is never reached.
+                    Self.sendStream(provider: kind, session: session, modelID: row.modelId, messages: [message],
+                                    options: options, webSearchEnabled: owner == "web")
                 }
             }
             // The body encoder/URLProtocol dispatch occur during stream iteration, so retain the
@@ -310,6 +316,8 @@ struct ProviderProductionBuilderMatrixTests {
                         CapabilityExecutionRuntime.recordParserEvent(.citations, nonEmpty: !citations.isEmpty)
                     case let .reasoning(text):
                         CapabilityExecutionRuntime.recordParserEvent(.reasoning, nonEmpty: !text.isEmpty)
+                    // tool_result is not reported here: it has no matching StreamEvent and can only be reported by the
+                    // production service when it parses the upstream search result. Adding a line here would be a hand-made event.
                     default: break
                     }
                 }
@@ -324,6 +332,283 @@ struct ProviderProductionBuilderMatrixTests {
             #expect(!tracker.canOfferExplicitCustomRetry,
                     "\(row.providerKind) parser output must close the pre-token custom retry gate")
         }
+    }
+
+    // MARK: - Web search "observed" criteria (Moonshot / Zhipu / Gemini Interactions / Qwen)
+
+    @Test("replaying the recorded Moonshot sample reports one tool_result and web search is observed")
+    func moonshotRecordedWebSearchIsObserved() async throws {
+        let leg1 = try Self.fixtureData(named: [
+            "shared", "test-fixtures", "provider-toolcall", "recorded", "moonshot_web_search.leg1.sse",
+        ])
+        var chatLegs = 0
+        let outcome = try await Self.webEvidenceOutcome(
+            providerKind: "moonshot", transport: "openai_chat", recipeRef: "moonshot.chat.web.v1", modelID: "kimi-k2.6"
+        ) { _, body in
+            chatLegs += 1
+            return Self.bodyCarriesToolResult(body) ? Self.plainChatAnswer : leg1
+        }
+        #expect(chatLegs == 2, "builtin search: leg 1 yields $web_search, leg 2 feeds the arguments back and produces the text")
+        #expect(outcome.text == "ok")
+        #expect(outcome.tracker.terminalResult().states["web"] == .observed)
+    }
+
+    @Test("Moonshot `$web_search` arguments that are invalid JSON or lack a search_id are not reported", arguments: [
+        #"not json"#,
+        #"{\"search_result\":{},\"usage\":{\"total_tokens\":1}}"#,
+        #"{\"search_result\":{\"search_id\":\"\"}}"#,
+    ])
+    func moonshotWebSearchWithoutSearchIDStaysUnconfirmed(escapedArguments: String) async throws {
+        let leg1 = Data("""
+        data: {"choices":[{"index":0,"delta":{"tool_calls":[{"index":0,"id":"t-web_search-1","type":"builtin_function","function":{"name":"$web_search","arguments":"\(escapedArguments)"}}]},"finish_reason":null}]}
+
+        data: {"choices":[{"index":0,"delta":{},"finish_reason":"tool_calls"}]}
+
+        data: [DONE]
+
+        """.utf8)
+        let outcome = try await Self.webEvidenceOutcome(
+            providerKind: "moonshot", transport: "openai_chat", recipeRef: "moonshot.chat.web.v1", modelID: "kimi-k2.6"
+        ) { _, body in
+            Self.bodyCarriesToolResult(body) ? Self.plainChatAnswer : leg1
+        }
+        #expect(outcome.text == "ok")
+        #expect(outcome.tracker.terminalResult().states["web"] == .unconfirmed)
+    }
+
+    @Test("a non-empty Moonshot Formula fiber result reports tool_result and web search is observed")
+    func moonshotFormulaFiberResultIsObserved() async throws {
+        var fiberCalls = 0
+        let outcome = try await Self.webEvidenceOutcome(
+            providerKind: "moonshot", transport: "openai_chat", recipeRef: "moonshot.formula.web.v1", modelID: "kimi-k2.6"
+        ) { request, body in
+            let path = request.url?.path ?? ""
+            if path.hasSuffix("/tools") {
+                return Data(#"{"tools":[{"type":"function","function":{"name":"web_search","parameters":{"type":"object"}}}]}"#.utf8)
+            }
+            if path.hasSuffix("/fibers") {
+                fiberCalls += 1
+                return Data(#"{"context":{"encrypted_output":"opaque-result"}}"#.utf8)
+            }
+            if Self.bodyCarriesToolResult(body) { return Self.plainChatAnswer }
+            return Data("""
+            data: {"choices":[{"delta":{"tool_calls":[{"index":0,"id":"call_1","type":"function","function":{"name":"web_search","arguments":"{\\"query\\":\\"news\\"}"}}]}}]}
+
+            data: {"choices":[{"delta":{},"finish_reason":"tool_calls"}]}
+
+            data: [DONE]
+
+            """.utf8)
+        }
+        #expect(fiberCalls == 1)
+        #expect(outcome.text == "ok")
+        #expect(outcome.tracker.terminalResult().states["web"] == .observed)
+    }
+
+    @Test("two top-level Zhipu web_search entries yield two sources (link/title/content mapped correctly) and web search is observed")
+    func zhipuTopLevelWebSearchYieldsCitationsAndObserved() async throws {
+        let outcome = try await Self.webEvidenceOutcome(
+            providerKind: "zhipu", transport: "openai_chat", recipeRef: "zhipu.chat.web.v1", modelID: "glm-5"
+        ) { _, _ in
+            Data("""
+            data: {"choices":[{"index":0,"delta":{"role":"assistant","content":"ok"}}]}
+
+            data: {"choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"web_search":[{"title":"First","link":"https://a.example/1","content":"alpha","media":"A","icon":"https://a.example/icon.png","refer":"ref_1","publish_date":"2026-10-01"},{"title":"Second","link":"https://b.example/2","content":"beta","media":"B","icon":"","refer":"ref_2","publish_date":"2026-10-02"}]}
+
+            data: [DONE]
+
+            """.utf8)
+        }
+        #expect(outcome.citations.map(\.url) == ["https://a.example/1", "https://b.example/2"])
+        #expect(outcome.citations.map(\.title) == ["First", "Second"])
+        #expect(outcome.citations.map(\.snippet) == ["alpha", "beta"])
+        #expect(outcome.tracker.terminalResult().states["web"] == .observed)
+    }
+
+    @Test("the legacy Zhipu search_result path yields sources")
+    func zhipuLegacySearchResultYieldsCitations() async throws {
+        // This case attaches no webSearch profile: the legacy path must not be recognised only when metadata happens to supply a streamShape.
+        let outcome = try await Self.webEvidenceOutcome(
+            providerKind: "zhipu", transport: "openai_chat", recipeRef: "zhipu.chat.web.v1", modelID: "glm-5"
+        ) { _, _ in
+            Data("""
+            data: {"choices":[{"index":0,"delta":{"role":"assistant","tool_calls":[{"index":0,"id":"ws_1","type":"web_search","web_search":{"search_result":[{"title":"Legacy","link":"https://legacy.example/1","content":"gamma"}]}}]}}]}
+
+            data: {"choices":[{"index":0,"delta":{"content":"ok"},"finish_reason":"stop"}],"web_search":[{"title":"Legacy","link":"https://legacy.example/1","content":"gamma"}]}
+
+            data: [DONE]
+
+            """.utf8)
+        }
+        #expect(outcome.citations.map(\.url) == ["https://legacy.example/1"], "the same source from both paths is deduplicated")
+        #expect(outcome.citations.first?.title == "Legacy")
+        #expect(outcome.citations.first?.snippet == "gamma")
+        #expect(outcome.tracker.terminalResult().states["web"] == .observed)
+    }
+
+    @Test("a plain Zhipu answer (no web_search) is not reported and stays unconfirmed")
+    func zhipuPlainAnswerStaysUnconfirmed() async throws {
+        let outcome = try await Self.webEvidenceOutcome(
+            providerKind: "zhipu", transport: "openai_chat", recipeRef: "zhipu.chat.web.v1", modelID: "glm-5"
+        ) { _, _ in Self.plainChatAnswer }
+        #expect(outcome.text == "ok")
+        #expect(outcome.citations.isEmpty)
+        #expect(outcome.tracker.terminalResult().states["web"] == .unconfirmed)
+    }
+
+    @Test("a non-empty Gemini Interactions google_search_result yields tool_result, and a url_citation in text_annotation_delta yields a source")
+    func geminiInteractionsSearchResultAndAnnotations() async throws {
+        // Each signal stands on its own: a stream with only google_search_result shows that tool_result alone is enough.
+        let searchOnly = try await Self.webEvidenceOutcome(
+            providerKind: "gemini", transport: "gemini_generate_content",
+            recipeRef: "gemini.interactions.web.v1", modelID: "gemini-3-flash"
+        ) { _, _ in
+            Data("""
+            data: {"event_type":"step.delta","index":0,"delta":{"type":"google_search_result","call_id":"c1","is_error":false,"result":[{"url":"https://g.example/1","title":"G"}]}}
+
+            data: {"event_type":"step.delta","index":1,"delta":{"type":"text","text":"ok"}}
+
+            data: {"event_type":"interaction.complete","interaction":{"id":"i1","status":"completed"}}
+
+            """.utf8)
+        }
+        #expect(searchOnly.text == "ok")
+        #expect(searchOnly.citations.isEmpty, "google_search_result is evidence the search ran, not a body citation")
+        #expect(searchOnly.tracker.terminalResult().states["web"] == .observed)
+
+        let annotated = try await Self.webEvidenceOutcome(
+            providerKind: "gemini", transport: "gemini_generate_content",
+            recipeRef: "gemini.interactions.web.v1", modelID: "gemini-3-flash"
+        ) { _, _ in
+            Data("""
+            data: {"event_type":"step.delta","index":0,"delta":{"type":"text","text":"ok"}}
+
+            data: {"event_type":"step.delta","index":0,"delta":{"type":"text_annotation_delta","annotations":[{"type":"url_citation","url":"https://g.example/1","title":"G","start_index":0,"end_index":2},{"type":"file_citation","document_uri":"files/x"}]}}
+
+            data: {"event_type":"interaction.complete","interaction":{"id":"i2","status":"completed"}}
+
+            """.utf8)
+        }
+        #expect(annotated.citations.map(\.url) == ["https://g.example/1"])
+        #expect(annotated.citations.first?.title == "G")
+        #expect(annotated.tracker.terminalResult().states["web"] == .observed)
+
+        // A failed or empty search and plain body text are not evidence.
+        let failed = try await Self.webEvidenceOutcome(
+            providerKind: "gemini", transport: "gemini_generate_content",
+            recipeRef: "gemini.interactions.web.v1", modelID: "gemini-3-flash"
+        ) { _, _ in
+            Data("""
+            data: {"event_type":"step.delta","index":0,"delta":{"type":"google_search_result","is_error":true,"result":[{"url":"https://g.example/1"}]}}
+
+            data: {"event_type":"step.delta","index":0,"delta":{"type":"google_search_result","result":[]}}
+
+            data: {"event_type":"step.delta","index":1,"delta":{"type":"text","text":"ok"}}
+
+            """.utf8)
+        }
+        #expect(failed.text == "ok")
+        #expect(failed.tracker.terminalResult().states["web"] == .unconfirmed)
+    }
+
+    @Test("a plain Qwen answer with web search on is still unconfirmed")
+    func qwenPlainAnswerWithWebStaysUnconfirmed() async throws {
+        let outcome = try await Self.webEvidenceOutcome(
+            providerKind: "qwen", transport: "openai_chat", recipeRef: "qwen.chat.web.v1", modelID: "qwen3.7-plus"
+        ) { _, _ in Self.plainChatAnswer }
+        #expect(outcome.text == "ok")
+        #expect(outcome.tracker.terminalResult().states["web"] == .unconfirmed)
+    }
+
+    private struct WebEvidenceOutcome {
+        let tracker: CapabilityExecutionTracker
+        let citations: [Citation]
+        let text: String
+    }
+
+    private static let plainChatAnswer = Data("""
+    data: {"choices":[{"index":0,"delta":{"content":"ok"}}]}
+
+    data: {"choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}
+
+    data: [DONE]
+
+    """.utf8)
+
+    /// Only the feed-back leg's request body carries `role: tool` messages.
+    private static func bodyCarriesToolResult(_ body: Data?) -> Bool {
+        guard let body, let object = try? JSONSerialization.jsonObject(with: body) as? [String: Any],
+              let messages = object["messages"] as? [[String: Any]] else { return false }
+        return messages.contains { $0["role"] as? String == "tool" }
+    }
+
+    /// Feeds raw upstream bytes to the production service with web search on, and returns the execution facts of
+    /// this send together with the parsed sources. The consuming side does only the one thing ChatManager does
+    /// (report citations on `.citations`); tool_result has no matching StreamEvent and can only come from the
+    /// service's own parsing path.
+    private static func webEvidenceOutcome(
+        providerKind: String, transport: String, recipeRef: String, modelID: String,
+        responder: @escaping (URLRequest, Data?) -> Data
+    ) async throws -> WebEvidenceOutcome {
+        let kind = try #require(localProviderKind(forServerKey: providerKind))
+        let registry = try capabilityRuntimeRegistry()
+        let baseRow = try #require(try executionFixture().providerCoverage.first {
+            $0.providerKind == providerKind && $0.transport == transport
+        })
+        let recipeObject = try #require((registry["recipes"] as? [String: Any])?[recipeRef] as? [String: Any])
+        #expect(recipeObject["capability"] as? String == "web")
+        let declaredIntents = ((recipeObject["requestOps"] as? [[String: Any]]) ?? []).compactMap { $0["intent"] as? String }
+        await MetadataClient.shared.resetForTesting()
+        try await MetadataClient.shared.loadForTesting(json: try runtimeGenerationMetadata(
+            registry: registry,
+            row: ProviderCoverage(
+                providerKind: baseRow.providerKind, transport: baseRow.transport,
+                selectorTransport: baseRow.selectorTransport, recipeRef: baseRow.recipeRef, modelId: modelID
+            ),
+            capabilityRecipeRefs: ["web": recipeRef]
+        ))
+        ProviderMatrixURLProtocol.responder = responder
+        defer { ProviderMatrixURLProtocol.responder = nil }
+        let message = ChatMessage(id: UUID(), role: .user, text: "proof", providerKind: kind,
+                                  providerName: kind.displayName, modelID: modelID, modelName: modelID, state: .delivered)
+        var options = ChatRequestOptions()
+        options.capabilityPreferences = .init(
+            web: declaredIntents.contains("force") ? .force : .automatic, reasoningIntent: nil
+        )
+        let tracker = CapabilityExecutionTracker()
+        let identity = matrixIdentity(providerKind: kind, modelID: modelID, transport: transport)
+        let session = providerMatrixSession()
+        let stream = try await CapabilityExecutionRuntime.$current.withValue(tracker) {
+            CapabilityEvidenceRequestContext.$current.withValue(identity) {
+                sendStream(provider: kind, session: session, modelID: modelID, messages: [message],
+                           options: options, webSearchEnabled: true)
+            }
+        }
+        var citations: [Citation] = []
+        var text = ""
+        try await CapabilityExecutionRuntime.$current.withValue(tracker) {
+            for try await event in stream {
+                CapabilityExecutionRuntime.recordUpstreamResponse()
+                switch event {
+                case let .citations(incoming):
+                    citations = incoming
+                    CapabilityExecutionRuntime.recordParserEvent(.citations, nonEmpty: !incoming.isEmpty)
+                case let .delta(delta): text += delta
+                default: break
+                }
+            }
+        }
+        return WebEvidenceOutcome(tracker: tracker, citations: citations, text: text)
+    }
+
+    private static func fixtureData(named suffix: [String]) throws -> Data {
+        var folder = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+        while folder.path != folder.deletingLastPathComponent().path {
+            let file = suffix.reduce(folder) { $0.appendingPathComponent($1) }
+            if FileManager.default.fileExists(atPath: file.path) { return try Data(contentsOf: file) }
+            folder.deleteLastPathComponent()
+        }
+        throw CocoaError(.fileNoSuchFile)
     }
 
     private static let p5WebSearchProfile: [String: String] = ["openRouter": "or_web"]
@@ -1706,9 +1991,22 @@ struct ProviderProductionBuilderMatrixTests {
         ))
     }
 
-    private static func p5RawStream(providerKind: String, transport: String, events: [String]) -> Data {
+    private static func p5RawStream(
+        providerKind: String, transport: String, events: [String], requestBody: Data? = nil
+    ) -> Data {
         guard let event = events.first else {
             return Data("data: {\"choices\":[{\"delta\":{\"content\":\"ok\"}}]}\n\ndata: [DONE]\n".utf8)
+        }
+        // Zhipu's sources are in the top-level `web_search` of the response (official API reference), not OpenRouter-style annotations.
+        if providerKind == "zhipu", event == "citations" {
+            return Data("data: {\"choices\":[{\"delta\":{\"content\":\"ok\"}}],\"web_search\":[{\"title\":\"Proof\",\"link\":\"https://example.com\",\"content\":\"proof\"}]}\n\ndata: [DONE]\n".utf8)
+        }
+        // Moonshot builtin search: leg 1 replays the real recorded sample, the feed-back leg returns the body text.
+        if providerKind == "moonshot", event == "tool_result" {
+            if bodyCarriesToolResult(requestBody) { return plainChatAnswer }
+            return (try? fixtureData(named: [
+                "shared", "test-fixtures", "provider-toolcall", "recorded", "moonshot_web_search.leg1.sse",
+            ])) ?? Data()
         }
         if providerKind == "mistral", event == "reasoning" {
             return Data("data: {\"choices\":[{\"delta\":{\"content\":[{\"type\":\"thinking\",\"thinking\":[{\"type\":\"text\",\"text\":\"proof\"}]}]}}]}\n\ndata: {\"choices\":[{\"delta\":{\"content\":\"ok\"}}]}\n\ndata: [DONE]\n".utf8)

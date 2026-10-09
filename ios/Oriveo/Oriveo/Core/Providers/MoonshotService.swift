@@ -174,6 +174,13 @@ final class MoonshotService: BaseAPIService, ProviderServiceProtocol, CustomBase
                         )
                         initialRequest = prepared.request
                         formulaToolRegistrations = prepared.registrations
+                        // A Formula recipe has no requestOps; the request delta is the tool declarations just merged into the body.
+                        if let activeRecipe, !prepared.registrations.isEmpty {
+                            CapabilityRecipeRequestCompiler.recordBuilderOwnedDelta(
+                                recipe: activeRecipe, providerKind: .moonshot, modelID: modelID,
+                                transport: "openai_chat", deltaRootKeys: ["tools"]
+                            )
+                        }
                     }
 
                     let resolved = MetadataClient.shared.syncResolveCatalogModel(
@@ -208,13 +215,20 @@ final class MoonshotService: BaseAPIService, ProviderServiceProtocol, CustomBase
                                 name: registration.name,
                                 wireType: registration.wireType,
                                 executeCall: { [self] call in
-                                    try await self.runFormulaFiber(
+                                    let output = try await self.runFormulaFiber(
                                         call: ProviderToolCall(
                                             providerCallID: call.id, name: call.function.name,
                                             rawArguments: call.function.arguments
                                         ),
                                         apiKey: apiKey, baseURL: baseURL, formula: formula
                                     )
+                                    // Web search counts as confirmed only when the Formula tool actually produced a result in the fiber.
+                                    if !output.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                        await MainActor.run {
+                                            CapabilityExecutionRuntime.recordParserEvent(.toolResult, nonEmpty: true)
+                                        }
+                                    }
+                                    return output
                                 }
                             )
                         })
@@ -255,6 +269,12 @@ final class MoonshotService: BaseAPIService, ProviderServiceProtocol, CustomBase
                             // in the next leg.
                             if let activity = MoonshotWebSearchTool.streamActivity(forAcceptedCalls: calls) {
                                 continuation.yield(.activity(activity))
+                            }
+                            // Confirmation relies solely on the search_id in the upstream frame, not on a declared tool or on the model issuing a call.
+                            if MoonshotWebSearchTool.acceptedCallsCarrySearchResult(calls) {
+                                await MainActor.run {
+                                    CapabilityExecutionRuntime.recordParserEvent(.toolResult, nonEmpty: true)
+                                }
                             }
                         }
                     }

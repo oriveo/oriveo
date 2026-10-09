@@ -221,6 +221,35 @@ enum CapabilityRecipeRequestCompiler {
         )
     }
 
+    /// Two recipe kinds produce their request delta without going through `apply`: `endpoint_route`
+    /// (Gemini Interactions, compiled directly by the route's own builder) and Moonshot Formula
+    /// (`requestOps` is empty; tool declarations are fetched dynamically from `/tools` and merged into
+    /// the body by the service). Once they have really changed the request body, the same candidate fact
+    /// is recorded here; otherwise these two channels would never have any execution fact, being neither
+    /// confirmed nor unconfirmed. Whether it becomes requested is still decided by the final wire
+    /// encoding and the real dispatch.
+    static func recordBuilderOwnedDelta(
+        recipe: MetadataClient.CapabilityRecipe,
+        providerKind: ProviderKind,
+        modelID: String,
+        transport: String,
+        deltaRootKeys: Set<String>
+    ) {
+        guard let capability = RequestPreferenceOwner(rawValue: recipe.capability),
+              case let .active(runtime, controls) = runtimeMode(providerKind: providerKind, modelID: modelID),
+              runtime.schemaVersion == RequestPreferenceResolver.runtimeSchemaVersion,
+              controls?[capability.rawValue]?.recipeRef == recipe.id else { return }
+        CapabilityExecutionRuntime.freezeRuntimeEnvelope(runtime, controls: controls)
+        CapabilityExecutionRuntime.recordCompiledDelta(
+            recipe: recipe,
+            runtime: runtime,
+            finalTransport: transport,
+            deltaIsNonEmpty: !deltaRootKeys.isEmpty,
+            deltaRootKeys: deltaRootKeys,
+            capabilityKeys: capabilityEvidenceKeys(capability: capability, selectedIntent: nil)
+        )
+    }
+
     private static func runtimeMode(
         providerKind: ProviderKind,
         modelID: String

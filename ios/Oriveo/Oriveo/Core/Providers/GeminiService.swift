@@ -63,6 +63,10 @@ final class GeminiService: BaseAPIService, ProviderServiceProtocol {
         guard compilation.applied else {
             throw ProviderServiceError.invalidConfiguration(detail: "Gemini Interactions recipe rejected: \(compilation.reason ?? "unknown")")
         }
+        CapabilityRecipeRequestCompiler.recordBuilderOwnedDelta(
+            recipe: recipe, providerKind: .gemini, modelID: modelID, transport: "gemini_interactions",
+            deltaRootKeys: Set(compilation.redactedPreview.keys)
+        )
         // `redactedPreview` is audit-only. The inout body above is the sole production wire.
         body.merge(CapabilityRecipeExecution.geminiInteractionsPreviousID(previousResponseID)) { _, latest in latest }
         try CapabilityRecipeExecution.applySafeCustomFragments(
@@ -580,6 +584,8 @@ final class GeminiService: BaseAPIService, ProviderServiceProtocol {
             previousResponseID: previousID, systemPrompt: systemPrompt, safeCustomBodyFragments: safeCustomBodyFragments,
             additionalRequestBody: additionalRequestBody
         )
+        // This route uses the session directly, bypassing BaseAPIService's send wrapper, so it records the requested fact itself.
+        CapabilityExecutionRuntime.confirmRequestDispatched()
         let (data, response) = try await session.data(for: request)
         guard let http = response as? HTTPURLResponse else {
             throw ProviderServiceError.network(detail: "Missing HTTPURLResponse.")
@@ -588,6 +594,10 @@ final class GeminiService: BaseAPIService, ProviderServiceProtocol {
             throw mapHTTPError(statusCode: http.statusCode, data: data)
         }
         let text = Self.interactionsText(from: data).trimmingCharacters(in: .whitespacesAndNewlines)
+        let webEvidence = Self.interactionsWebEvidence(from: data)
+        if webEvidence.searchExecuted {
+            CapabilityExecutionRuntime.recordParserEvent(.toolResult, nonEmpty: true)
+        }
         // A completed interaction ID is valid opaque continuation state even if this leg contains
         // no displayable text (for example a tool-only completion).
         if let messageID = producerMessageID, let interactionID = Self.completedInteractionID(from: data) {
@@ -600,7 +610,8 @@ final class GeminiService: BaseAPIService, ProviderServiceProtocol {
             breakdown: UsageBreakdown(), modelID: modelID, providerKind: .gemini
         )
         return ProviderChatResult(text: text, promptTokens: 0, completionTokens: 0,
-                                  estimatedCost: cost, usageBreakdown: UsageBreakdown(), costSource: source)
+                                  estimatedCost: cost, usageBreakdown: UsageBreakdown(), costSource: source,
+                                  citations: webEvidence.citations.isEmpty ? nil : webEvidence.citations)
     }
 
     private func streamInteractions(
@@ -616,6 +627,8 @@ final class GeminiService: BaseAPIService, ProviderServiceProtocol {
             previousResponseID: previousID, systemPrompt: systemPrompt, safeCustomBodyFragments: safeCustomBodyFragments,
             additionalRequestBody: additionalRequestBody
         )
+        // Same as above: this route confirms the dispatch itself because it uses the session directly.
+        CapabilityExecutionRuntime.confirmRequestDispatched()
         let (bytes, response) = try await session.bytes(for: request)
         guard let http = response as? HTTPURLResponse else {
             throw ProviderServiceError.network(detail: "Missing HTTPURLResponse.")
@@ -626,6 +639,7 @@ final class GeminiService: BaseAPIService, ProviderServiceProtocol {
         }
         var text = ""
         var completedInteractionID: String?
+        var citations = CitationAccumulator()
         for try await line in bytes.utf8Lines {
             guard !Task.isCancelled else { return }
             let payload = line.hasPrefix("data:")
@@ -635,6 +649,17 @@ final class GeminiService: BaseAPIService, ProviderServiceProtocol {
             // Interactions reports in-stream errors as `{"event_type":"error","error":{...}}` (the ErrorEvent in the Interactions API reference).
             try Self.throwIfStreamErrorFrame(data, beforeAnyContent: text.isEmpty, redacting: [apiKey])
             completedInteractionID = Self.completedInteractionID(from: data) ?? completedInteractionID
+            // Web evidence and body text arrive in different deltas: google_search_result means the search
+            // ran, while text_annotation_delta carries the sources attached to the body text.
+            let webEvidence = Self.interactionsWebEvidence(from: data)
+            if webEvidence.searchExecuted {
+                CapabilityExecutionRuntime.recordParserEvent(.toolResult, nonEmpty: true)
+            }
+            if !webEvidence.citations.isEmpty {
+                let before = citations.citations
+                citations.ingest(webEvidence.citations)
+                if citations.citations != before { continuation.yield(.citations(citations.citations)) }
+            }
             // GA stream events carry nested `step.delta`; do not reuse the legacy
             // generateContent candidates/content parser.
             let delta = Self.interactionsText(from: data)
@@ -691,6 +716,51 @@ final class GeminiService: BaseAPIService, ProviderServiceProtocol {
             }.joined()
         }
         return ""
+    }
+
+    struct InteractionsWebEvidence {
+        var citations: [Citation] = []
+        var searchExecuted = false
+    }
+
+    /// Web evidence in Interactions (official Interactions API reference):
+    /// - `google_search_result`: a non-empty `result` with `is_error` not true means the search really ran and returned results;
+    /// - `{url, title}` of an annotation with `type: "url_citation"` in the body text is a source.
+    /// When streaming, both live in the `delta` of `step.delta` (the latter has type `text_annotation_delta`);
+    /// when not streaming, they are in the completed `steps`. Other annotation types (file / place) are not web sources.
+    static func interactionsWebEvidence(from data: Data) -> InteractionsWebEvidence {
+        guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return .init() }
+        var evidence = InteractionsWebEvidence()
+        func isExecutedSearch(_ node: [String: Any]) -> Bool {
+            node["type"] as? String == "google_search_result"
+                && node["is_error"] as? Bool != true
+                && (node["result"] as? [Any])?.isEmpty == false
+        }
+        func collectURLCitations(_ value: Any) {
+            if let array = value as? [Any] { array.forEach(collectURLCitations); return }
+            guard let dictionary = value as? [String: Any] else { return }
+            for annotation in (dictionary["annotations"] as? [[String: Any]]) ?? [] {
+                guard annotation["type"] as? String == "url_citation",
+                      let url = annotation["url"] as? String,
+                      !url.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { continue }
+                evidence.citations.append(Citation(
+                    url: url, title: annotation["title"] as? String, snippet: nil, faviconUrl: nil, index: nil,
+                    startIndex: annotation["start_index"] as? Int, endIndex: annotation["end_index"] as? Int
+                ))
+            }
+            for key in ["content", "parts", "output"] {
+                if let nested = dictionary[key] { collectURLCitations(nested) }
+            }
+        }
+        if object["event_type"] as? String == "step.delta", let delta = object["delta"] as? [String: Any] {
+            if isExecutedSearch(delta) { evidence.searchExecuted = true }
+            if delta["type"] as? String == "text_annotation_delta" { collectURLCitations(delta) }
+        }
+        for step in (object["steps"] as? [[String: Any]]) ?? [] {
+            if isExecutedSearch(step) { evidence.searchExecuted = true }
+            if step["type"] as? String == "model_output" { collectURLCitations(step) }
+        }
+        return evidence
     }
 
     private static func completedInteractionID(from data: Data) -> String? {

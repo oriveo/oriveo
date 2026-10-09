@@ -166,6 +166,9 @@ final class ZhipuService: BaseAPIService, ProviderServiceProtocol {
                             default: break
                             }
                         }
+                        // Zhipu's own two source shapes do not depend on whether metadata supplied a streamShape;
+                        // a source also parsed by shape above is deduplicated by the accumulator.
+                        zhipuCtx.citationsAccumulator.ingest(Self.webSearchCitations(inStreamPayload: payload))
                         let snapshot = zhipuCtx.citationsAccumulator.citations
                         if snapshot.count > zhipuLastCitationsCount {
                             zhipuLastCitationsCount = snapshot.count
@@ -328,6 +331,36 @@ final class ZhipuService: BaseAPIService, ProviderServiceProtocol {
 
 private struct ZhipuRemoteModel {
     var id: String
+}
+
+extension ZhipuService {
+    /// The two upstream shapes of Zhipu web-search sources:
+    /// - a top-level `web_search` array in the response (official API reference; each entry is
+    ///   `{title, link, content, media, icon, refer, publish_date}`);
+    /// - the older shape `choices[].delta.tool_calls[].web_search.search_result`.
+    /// Mapping: url = link, title = title, snippet = content. Entries without a link are not displayable sources and are dropped.
+    static func webSearchCitations(inStreamPayload payload: String) -> [Citation] {
+        // Most frames carry only text deltas; a substring check avoids an extra JSON parse per frame.
+        guard payload.contains("web_search"),
+              let data = payload.data(using: .utf8),
+              let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return [] }
+        var entries = (object["web_search"] as? [[String: Any]]) ?? []
+        for choice in (object["choices"] as? [[String: Any]]) ?? [] {
+            let toolCalls = ((choice["delta"] as? [String: Any])?["tool_calls"] as? [[String: Any]]) ?? []
+            for call in toolCalls {
+                entries += ((call["web_search"] as? [String: Any])?["search_result"] as? [[String: Any]]) ?? []
+            }
+        }
+        return entries.compactMap { entry in
+            guard let link = entry["link"] as? String,
+                  !link.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
+            let icon = (entry["icon"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+            return Citation(
+                url: link, title: entry["title"] as? String, snippet: entry["content"] as? String,
+                faviconUrl: icon, index: nil, startIndex: nil, endIndex: nil
+            )
+        }
+    }
 }
 
 private struct ZhipuChatCompletionResponse: Decodable {

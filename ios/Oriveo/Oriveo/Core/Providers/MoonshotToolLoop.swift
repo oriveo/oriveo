@@ -37,6 +37,21 @@ nonisolated struct MoonshotWebSearchTool: ToolRegistryEntry {
         calls.contains { $0.function.name == builtinToolName } ? .webSearch : nil
     }
 
+    /// Evidence that the builtin search really ran: an accepted `$web_search` call whose arguments are the
+    /// `{"search_result":{"search_id":…}}` that Kimi's server filled in. A call that was merely issued, or
+    /// whose arguments do not parse to a non-empty search_id, does not count: that only shows the model
+    /// wanted to search, not that a search happened.
+    static func acceptedCallsCarrySearchResult(_ calls: [ToolLoopToolCall]) -> Bool {
+        calls.contains { call in
+            guard call.function.name == builtinToolName,
+                  let data = call.function.arguments.data(using: .utf8),
+                  let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let result = object["search_result"] as? [String: Any],
+                  let searchID = result["search_id"] as? String else { return false }
+            return !searchID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
+    }
+
     static func builtinResultContent(for call: ToolLoopToolCall) -> String {
         call.function.arguments.isEmpty ? "{}" : call.function.arguments
     }

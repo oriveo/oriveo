@@ -641,10 +641,13 @@ struct CapabilityRecipeExecutionTests {
             "ios", "Oriveo", "Oriveo", "Features", "Chat", "ChatComposerBar.swift",
         ]), encoding: .utf8)
         #expect(!composer.contains(".presentationDetents("))
-        // The panel is as tall as its content, but there is **only one detent at any time**. Extra detents let
+        // The panel is as tall as its content, and the root page has **only one detent**. Extra detents let
         // the sheet's expand recognizer swallow an upward drag inside the content area and fight the
         // ScrollView, which clips the bottom of the page and makes it unreachable.
-        #expect(sheet.contains(".presentationDetents([detent])"))
+        // Pushing a secondary page additionally offers .large (the panel is filled first, then the page is
+        // pushed, so the lower half of the page is not blank for half a second), so the criterion is that the
+        // root-page branch offers only the content-height detent.
+        #expect(sheet.contains("stackPath.isEmpty && selectedDetent != .large ? [fittedDetent] : [fittedDetent, .large]"))
         #expect(!sheet.contains(".fraction("), "multi-detent came back; upward drags will be eaten by the expand gesture")
     }
 
