@@ -74,23 +74,33 @@ struct ComposerTextViewTests {
         var focused = false
     }
 
-    private func representable(_ box: Box, isEnabled: Bool = true, font: UIFont = .systemFont(ofSize: 16)) -> ComposerTextView {
+    private func representable(
+        _ box: Box,
+        isEnabled: Bool = true,
+        font: UIFont = .systemFont(ofSize: 16),
+        maxLength: Int? = nil,
+        onLengthLimitExceeded: (@MainActor () -> Void)? = nil
+    ) -> ComposerTextView {
         ComposerTextView(
             text: Binding(get: { box.text }, set: { box.text = $0 }),
             isFocused: Binding(get: { box.focused }, set: { box.focused = $0 }),
             placeholder: "Type a message...",
             font: font,
             textColor: .label,
-            isEnabled: isEnabled
+            isEnabled: isEnabled,
+            maxLength: maxLength,
+            onLengthLimitExceeded: onLengthLimitExceeded
         )
     }
 
     private func makeView(
         box: Box,
         width: CGFloat = 320,
-        font: UIFont = .systemFont(ofSize: 16)
+        font: UIFont = .systemFont(ofSize: 16),
+        maxLength: Int? = nil,
+        onLengthLimitExceeded: (@MainActor () -> Void)? = nil
     ) -> (ComposerUITextView, ComposerTextView.Coordinator, UIWindow) {
-        let representable = representable(box, font: font)
+        let representable = representable(box, font: font, maxLength: maxLength, onLengthLimitExceeded: onLengthLimitExceeded)
         let coordinator = representable.makeCoordinator()
         let container = ComposerTextView.makeContainer(coordinator: coordinator)
         coordinator.applyStyle(representable, to: container, force: true)
@@ -407,6 +417,335 @@ struct ComposerTextViewTests {
         return nil
     }
 
+    // MARK: - Length limit
+
+    private final class LimitProbe {
+        var notices = 0
+    }
+
+    private static let limit = ChatInputLimit.maxUTF16
+
+    private func makeLimitedView(
+        box: Box,
+        probe: LimitProbe
+    ) -> (ComposerUITextView, ComposerTextView.Coordinator, UIWindow) {
+        makeView(box: box, maxLength: Self.limit, onLengthLimitExceeded: { probe.notices += 1 })
+    }
+
+    /// The production paste chain: paste delegate (truncate + split) -> shouldChangeTextIn -> the system writes the returned string into the selection -> textViewDidChange.
+    private func paste(_ source: String, into textView: ComposerUITextView, _ coordinator: ComposerTextView.Coordinator) throws {
+        let selection = try #require(textView.selectedTextRange)
+        let combined = coordinator.textPasteConfigurationSupporting(
+            textView,
+            combineItemAttributedStrings: [NSAttributedString(string: source)],
+            for: selection
+        )
+        let range = textView.selectedRange
+        guard !combined.string.isEmpty || range.length > 0 else { return }
+        guard coordinator.textView(textView, shouldChangeTextIn: range, replacementText: combined.string) else { return }
+        textView.textStorage.replaceCharacters(in: range, with: combined)
+        textView.selectedRange = NSRange(location: range.location + combined.length, length: 0)
+        coordinator.textViewDidChange(textView)
+    }
+
+    private func type(_ text: String, into textView: ComposerUITextView, _ coordinator: ComposerTextView.Coordinator) {
+        textView.insertText(text)
+        coordinator.textViewDidChange(textView)
+    }
+
+    private func deleteBackward(in textView: ComposerUITextView, _ coordinator: ComposerTextView.Coordinator) {
+        textView.deleteBackward()
+        coordinator.textViewDidChange(textView)
+    }
+
+    private func count(of character: Character, in text: String) -> Int {
+        text.reduce(0) { $0 + ($1 == character ? 1 : 0) }
+    }
+
+    @Test("a paste within the limit passes through unchanged without a notice")
+    func limit_pasteWithinLimit_passesThrough() throws {
+        let box = Box()
+        let probe = LimitProbe()
+        let (textView, coordinator, window) = makeLimitedView(box: box, probe: probe)
+        defer { window.isHidden = true }
+        try paste("hello \u{4F60}\u{597D} 👋🏽", into: textView, coordinator)
+        #expect(box.text == "hello \u{4F60}\u{597D} 👋🏽")
+        textView.selectedRange = NSRange(location: 0, length: textView.textStorage.length)
+        let exact = String(repeating: "a", count: Self.limit)
+        try paste(exact, into: textView, coordinator)
+        #expect(box.text == exact, "a paste exactly at the limit is kept whole")
+        #expect(probe.notices == 0)
+    }
+
+    @Test("a paste over the limit keeps the part that fits and shows one notice")
+    func limit_pasteOverflow_keepsPrefixAndToastsOnce() throws {
+        let box = Box()
+        let probe = LimitProbe()
+        let (textView, coordinator, window) = makeLimitedView(box: box, probe: probe)
+        defer { window.isHidden = true }
+        try paste(String(repeating: "a", count: 60_000), into: textView, coordinator)
+        #expect(box.text == String(repeating: "a", count: Self.limit), "pasting 60,000 a's into an empty field leaves 50,000")
+        #expect(probe.notices == 1)
+        #expect(textView.textStorage.string.utf16.contains(SoftParagraphBreaks.separator), "the truncated text is still split into paragraphs")
+        #expect(Self.longestParagraphUTF16(textView.textStorage.string) <= SoftParagraphBreaks.maxParagraphUTF16 + 1)
+        #expect(textView.selectedRange.location == textView.textStorage.length)
+
+        try paste("more", into: textView, coordinator)
+        #expect(box.text.utf16.count == Self.limit)
+        #expect(probe.notices == 1, "no repeat notice while the length has not dropped below the limit")
+    }
+
+    @Test("an overflowing paste in the middle leaves the text around it alone and puts the caret after the kept part")
+    func limit_pasteInMiddle_keepsSurroundingTextAndCaret() throws {
+        let head = String(repeating: "h", count: 30_000)
+        let tail = String(repeating: "t", count: 19_990)
+        let box = Box()
+        box.text = head + tail
+        let probe = LimitProbe()
+        let (textView, coordinator, window) = makeLimitedView(box: box, probe: probe)
+        defer { window.isHidden = true }
+        let insertion = (textView.textStorage.string as NSString).range(of: "t").location
+        textView.selectedRange = NSRange(location: insertion, length: 0)
+        try paste("0123456789ABCDEFGHIJ", into: textView, coordinator)
+        #expect(box.text == head + "0123456789" + tail, "only the tail of this insertion is cut")
+        let display = textView.textStorage.string as NSString
+        let caret = textView.selectedRange.location
+        #expect(textView.selectedRange.length == 0)
+        #expect(SoftParagraphBreaks.source(fromDisplay: display.substring(from: caret)) == tail, "what follows the caret should be exactly the original second half")
+        #expect(display.substring(to: caret).hasSuffix("0123456789"))
+        #expect(probe.notices == 1)
+    }
+
+    @Test("replacing a selection counts the removed source length as room (soft breaks excluded)")
+    func limit_replaceSelection_countsRemovedRange() throws {
+        let box = Box()
+        box.text = String(repeating: "a", count: Self.limit)
+        let probe = LimitProbe()
+        let (textView, coordinator, window) = makeLimitedView(box: box, probe: probe)
+        defer { window.isHidden = true }
+
+        // Paste path: 100 display code units selected, one of them a soft break -> 99 source code units are freed.
+        let first = NSRange(location: 2_000, length: 100)
+        #expect((textView.textStorage.string as NSString).substring(with: first).utf16.contains(SoftParagraphBreaks.separator))
+        textView.selectedRange = first
+        try paste(String(repeating: "b", count: 150), into: textView, coordinator)
+        #expect(count(of: "b", in: box.text) == 99)
+        #expect(box.text.utf16.count == Self.limit)
+        #expect(probe.notices == 1)
+
+        // Keyboard, dictation and other whole-string insertion paths use the same rule.
+        let second = NSRange(location: 6_100, length: 100)
+        let removed = SoftParagraphBreaks.source(fromDisplay: (textView.textStorage.string as NSString).substring(with: second))
+        #expect(removed.utf16.count == 99, "the selection should contain one soft break; actual source length \(removed.utf16.count)")
+        textView.selectedRange = second
+        type(String(repeating: "c", count: 150), into: textView, coordinator)
+        #expect(count(of: "c", in: box.text) == 99)
+        #expect(box.text.utf16.count == Self.limit)
+
+        // Replacing with shorter content is not limited.
+        textView.selectedRange = NSRange(location: 10, length: 5)
+        type("dd", into: textView, coordinator)
+        #expect(count(of: "d", in: box.text) == 2)
+        #expect(box.text.utf16.count == Self.limit - 3)
+    }
+
+    @Test("typing at the limit is blocked with one notice, and re-arms only after dropping below the limit")
+    func limit_typingAtLimit_blockedToastOnceUntilRearmed() {
+        let box = Box()
+        let full = String(repeating: "a", count: Self.limit)
+        box.text = full
+        let probe = LimitProbe()
+        let (textView, coordinator, window) = makeLimitedView(box: box, probe: probe)
+        defer { window.isHidden = true }
+        for _ in 0..<3 { type("b", into: textView, coordinator) }
+        #expect(box.text == full)
+        #expect(coordinator.publishedSource == full)
+        #expect(probe.notices == 1, "repeated typing shows only one notice")
+
+        deleteBackward(in: textView, coordinator)
+        #expect(box.text.utf16.count == Self.limit - 1)
+        type("b", into: textView, coordinator)
+        #expect(box.text.hasSuffix("ab") && box.text.utf16.count == Self.limit, "after dropping back, the field can be filled up to the limit again")
+        #expect(probe.notices == 1)
+        type("c", into: textView, coordinator)
+        #expect(!box.text.contains("c"))
+        #expect(probe.notices == 2, "re-armed after dropping below the limit")
+    }
+
+    @Test("IME composition is not truncated; the overflow is cut after commit")
+    func limit_imeComposition_notCutWhileComposing_cutOnCommit() {
+        let box = Box()
+        let base = String(repeating: "a", count: Self.limit - 2)
+        box.text = base
+        let probe = LimitProbe()
+        let (textView, coordinator, window) = makeLimitedView(box: box, probe: probe)
+        defer { window.isHidden = true }
+        textView.setMarkedText("nihaoma", selectedRange: NSRange(location: 7, length: 0))
+        coordinator.textViewDidChange(textView)
+        #expect(textView.markedTextRange != nil, "precondition: composition is in progress")
+        #expect(box.text == base + "nihaoma", "the limit is not judged during composition")
+        #expect(probe.notices == 0)
+
+        textView.insertText("\u{4F60}\u{597D}\u{5417}")
+        coordinator.textViewDidChange(textView)
+        #expect(textView.markedTextRange == nil)
+        #expect(box.text == base + "\u{4F60}\u{597D}", "the tail that does not fit is cut after commit")
+        #expect(textView.selectedRange.location == textView.textStorage.length)
+        #expect(probe.notices == 1)
+    }
+
+    @Test("the cut backs off to a grapheme boundary: no split surrogate pairs or ZWJ sequences, so the result may fall slightly under the limit")
+    func limit_cutPoint_neverSplitsSurrogateOrGraphemeCluster() throws {
+        let prefix = String(repeating: "a", count: Self.limit - 1)
+        let family = "👨‍👩‍👧"
+        // Paste
+        do {
+            let box = Box()
+            let probe = LimitProbe()
+            let (textView, coordinator, window) = makeLimitedView(box: box, probe: probe)
+            defer { window.isHidden = true }
+            try paste(prefix + family, into: textView, coordinator)
+            #expect(box.text == prefix, "a grapheme crossing the limit is dropped whole, leaving 49,999")
+            #expect(probe.notices == 1)
+        }
+        // Whole-string insertion (keyboard clipboard / dictation)
+        do {
+            let box = Box()
+            let probe = LimitProbe()
+            let (textView, coordinator, window) = makeLimitedView(box: box, probe: probe)
+            defer { window.isHidden = true }
+            type(prefix + "😀", into: textView, coordinator)
+            #expect(box.text == prefix, "a surrogate pair must not keep only its first half")
+            #expect(probe.notices == 1)
+        }
+        // After-the-fact truncation (IME commit)
+        do {
+            let box = Box()
+            box.text = prefix
+            let probe = LimitProbe()
+            let (textView, coordinator, window) = makeLimitedView(box: box, probe: probe)
+            defer { window.isHidden = true }
+            textView.setMarkedText("x", selectedRange: NSRange(location: 1, length: 0))
+            coordinator.textViewDidChange(textView)
+            textView.insertText(family)
+            coordinator.textViewDidChange(textView)
+            #expect(box.text == prefix)
+            #expect(probe.notices == 1)
+        }
+    }
+
+    @Test("deletion is always allowed at or above the limit, without a notice")
+    func limit_deleteAtOrAboveLimit_alwaysAllowed() {
+        for length in [Self.limit, 60_000] {
+            let box = Box()
+            box.text = String(repeating: "a", count: length)
+            let probe = LimitProbe()
+            let (textView, coordinator, window) = makeLimitedView(box: box, probe: probe)
+            defer { window.isHidden = true }
+            deleteBackward(in: textView, coordinator)
+            #expect(box.text.utf16.count == length - 1)
+            textView.selectedRange = NSRange(location: 0, length: 10)
+            deleteBackward(in: textView, coordinator)
+            #expect(box.text.utf16.count == length - 11)
+            #expect(probe.notices == 0)
+        }
+    }
+
+    @Test("an overlong legacy draft is restored as is without truncation or notice, and can only be shortened afterwards")
+    func limit_legacyOverlongDraft_restoredIntact_onlyShrinkAllowed() throws {
+        let legacy = Self.arabic(utf16: 60_000)
+        let length = legacy.utf16.count
+        let box = Box()
+        box.text = legacy
+        let probe = LimitProbe()
+        let (textView, coordinator, window) = makeLimitedView(box: box, probe: probe)
+        defer { window.isHidden = true }
+        #expect(coordinator.publishedSource == legacy, "programmatic writes are accepted as is")
+        #expect(SoftParagraphBreaks.source(fromDisplay: textView.textStorage.string) == legacy)
+        #expect(probe.notices == 0)
+
+        type("x", into: textView, coordinator)
+        #expect(box.text == legacy, "an overlong draft must not grow")
+        #expect(probe.notices == 1)
+
+        // Replacements of equal or shorter length still work: select 5 source code units, paste 8, keep only 5.
+        let storageLength = textView.textStorage.length
+        let selected = NSRange(location: storageLength - 5, length: 5)
+        #expect(!(textView.textStorage.string as NSString).substring(with: selected).utf16.contains(SoftParagraphBreaks.separator))
+        textView.selectedRange = selected
+        try paste("12345678", into: textView, coordinator)
+        #expect(box.text.utf16.count == length)
+        #expect(box.text.hasSuffix("12345"))
+
+        // After shortening, the new length is the ceiling.
+        textView.selectedRange = NSRange(location: textView.textStorage.length - 10, length: 10)
+        deleteBackward(in: textView, coordinator)
+        #expect(box.text.utf16.count == length - 10)
+        type("yyyyyyyyyyyy", into: textView, coordinator)
+        #expect(!box.text.contains("y"), "still above the limit: freed room cannot be filled back in")
+        #expect(box.text.utf16.count == length - 10)
+    }
+
+    @Test("Home input: same component, same limit, same notice")
+    func limit_homeComposer_sameRule() throws {
+        #expect(ChatInputLimit.maxUTF16 == 50_000)
+        // Both hosts pass the shared constant and the shared notice to ComposerTextView.
+        let sources = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("Oriveo/Features")
+        for path in ["Home/HomeView.swift", "Chat/ChatComposerBar.swift"] {
+            let source = try String(contentsOf: sources.appendingPathComponent(path), encoding: .utf8)
+            let call = try #require(source.range(of: "ComposerTextView("), "\(path) should use ComposerTextView")
+            let arguments = source[call.upperBound...].prefix(900)
+            #expect(arguments.contains("maxLength: ChatInputLimit.maxUTF16"), "\(path) does not pass the length limit")
+            #expect(arguments.contains("onLengthLimitExceeded: ChatInputLimit.showLimitReachedToast"), "\(path) does not wire the over-limit notice")
+        }
+
+        // Built with the Home configuration (no placeholder, explicit accessibility name): the same rule applies and the notice goes through the single-slot toast.
+        let box = Box()
+        let home = ComposerTextView(
+            text: Binding(get: { box.text }, set: { box.text = $0 }),
+            isFocused: Binding(get: { box.focused }, set: { box.focused = $0 }),
+            font: .systemFont(ofSize: 17),
+            textColor: .label,
+            accessibilityLabel: "Ask anything",
+            maxLength: ChatInputLimit.maxUTF16,
+            onLengthLimitExceeded: ChatInputLimit.showLimitReachedToast
+        )
+        let coordinator = home.makeCoordinator()
+        let container = ComposerTextView.makeContainer(coordinator: coordinator)
+        coordinator.applyStyle(home, to: container, force: true)
+        coordinator.apply(box.text, to: container.textView)
+        let message = ChatInputLimit.limitReachedMessage()
+        #expect(!message.contains("%") && !message.contains("chat_input_length_limit_reached"), "the text is missing or the placeholder was not filled: \(message)")
+        #expect(message.filter(\.isNumber).count == 5, "the number should be written out in full: \(message)")
+        try paste(String(repeating: "a", count: 49_999) + "👨‍👩‍👧", into: container.textView, coordinator)
+        #expect(box.text == String(repeating: "a", count: 49_999))
+        #expect(ToastManager.shared.current?.message == message)
+    }
+
+    @Test("Writing Tools rewrites are not truncated while running; the tail of the rewritten span is cut at the end")
+    func limit_writingTools_notCutWhileRewriting_cutOnEnd() {
+        let box = Box()
+        let head = String(repeating: "h", count: 10)
+        let tail = String(repeating: "t", count: Self.limit - 40)
+        box.text = head + "0123456789" + tail
+        let probe = LimitProbe()
+        let (textView, coordinator, window) = makeLimitedView(box: box, probe: probe)
+        defer { window.isHidden = true }
+        coordinator.textViewWritingToolsWillBegin(textView)
+        textView.textStorage.replaceCharacters(in: NSRange(location: 10, length: 10), with: String(repeating: "W", count: 100))
+        textView.selectedRange = NSRange(location: 110, length: 0)
+        coordinator.textViewDidChange(textView)
+        #expect(box.text.utf16.count == Self.limit + 70, "no truncation while the rewrite is running")
+        #expect(probe.notices == 0)
+
+        coordinator.textViewWritingToolsDidEnd(textView)
+        #expect(box.text == head + String(repeating: "W", count: 30) + tail, "only the tail of the rewritten span is cut; the text before and after is untouched")
+        #expect(probe.notices == 1)
+    }
+
     @Test("real chat screen: after pasting a 32K single Arabic paragraph, typing and refocusing stay bounded and the draft is the source")
     func productionChatViewLongPaste() async throws {
         let previousUID = AppSessionStore.activeUID
@@ -450,6 +789,7 @@ struct ComposerTextViewTests {
         try await yieldMainActor(for: 2.0)
         let input = try #require(firstEditableTextView(in: host.view) as? ComposerUITextView, "the chat input should be a ComposerUITextView")
         let coordinator = try #require(input.coordinator)
+        #expect(coordinator.parent.maxLength == ChatInputLimit.maxUTF16, "the chat input must carry the length limit")
         #expect(input.textLayoutManager != nil, "the input must stay on TextKit 2 (touching layoutManager downgrades it)")
         input.becomeFirstResponder()
         try await yieldMainActor(for: 0.6)

@@ -941,7 +941,9 @@ struct ChatComposerBar: View {
                     : L10n.tr("Type a message...", table: .chat),
                 font: Self.inputFont,
                 textColor: controlsDisabled ? Self.inputDisabledColor : Self.inputTextColor,
-                isEnabled: !controlsDisabled
+                isEnabled: !controlsDisabled,
+                maxLength: ChatInputLimit.maxUTF16,
+                onLengthLimitExceeded: ChatInputLimit.showLimitReachedToast
             )
             .padding(.vertical, 8)
             .frame(minHeight: 44, alignment: .center)

@@ -809,7 +809,9 @@ struct HomeView: View {
                 // The system caret uses the same colour as the decorative cursor (dark #C4B5FD / light #8B5CF6)
                 tintColor: Self.heroInputTint,
                 // The placeholder is drawn by the decorative layer below, so VoiceOver needs an explicit name
-                accessibilityLabel: composerPlaceholder
+                accessibilityLabel: composerPlaceholder,
+                maxLength: ChatInputLimit.maxUTF16,
+                onLengthLimitExceeded: ChatInputLimit.showLimitReachedToast
             )
             .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
 

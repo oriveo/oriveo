@@ -1,6 +1,31 @@
 import SwiftUI
 import UIKit
 
+/// The source-text length limit for the chat and Home inputs (each passes it to `ComposerTextView`).
+enum ChatInputLimit {
+    /// A single message holds at most 50,000 UTF-16 code units of source text (display-layer soft breaks do not
+    /// count); the value is the same on every platform.
+    /// Rationale: the Android input re-lays out the whole text on every change. On an emulator, typing one
+    /// character into 50K characters of non-repeating text costs up to 40 ms for the slowest frame, and 100 ms or
+    /// more at 500K characters; all platforms share this limit.
+    static let maxUTF16 = 50_000
+
+    static func limitReachedMessage(limit: Int = maxUTF16) -> String {
+        String(
+            format: L10n.tr("chat_input_length_limit_reached", table: .chat),
+            locale: AppLocalization.currentLocale,
+            Int64(limit)
+        )
+    }
+
+    /// The over-limit notice shared by both inputs. Deduplication happens in `ComposerTextView.Coordinator`; every
+    /// call here shows the toast once.
+    @MainActor
+    static func showLimitReachedToast() {
+        ToastManager.shared.show(limitReachedMessage())
+    }
+}
+
 /// The multi-line input shared by the chat composer and the Home hero (height grows with the text from one to
 /// `maxLines` lines, then the text scrolls inside the field).
 ///
@@ -40,6 +65,12 @@ struct ComposerTextView: UIViewRepresentable {
     var maxLines: Int = 5
     /// nil = use the placeholder as the VoiceOver label.
     var accessibilityLabel: String?
+    /// Source-text length limit (UTF-16, soft breaks excluded); nil = unlimited. It only constrains user edits:
+    /// a string pushed in from outside is accepted as is and can only be shortened afterwards.
+    var maxLength: Int?
+    /// Called when a user edit is shortened or blocked by the limit; it fires once per over-limit episode and
+    /// re-arms only after the length drops below the limit.
+    var onLengthLimitExceeded: (@MainActor () -> Void)?
 
     func makeCoordinator() -> Coordinator {
         Coordinator(parent: self)
@@ -113,6 +144,19 @@ struct ComposerTextView: UIViewRepresentable {
         /// Display length after the last change was processed: some insert paths skip shouldChangeTextIn, and the
         /// inserted range is then inferred from the length delta and the caret.
         private var lastDisplayLength = 0
+        /// The length user edits may not push the source text past: max(limit, source length at the last settle).
+        /// An overlong draft pushed in from outside can therefore only be shortened.
+        private var lengthCeiling = 0
+        /// Whether the over-limit notice may fire: set to false after it fires, back to true once the source text
+        /// drops below the limit.
+        private var limitNoticeArmed = true
+        /// Where IME composition started (display-string offset): the limit is not enforced while composing, and
+        /// after commit the span from here to the caret is what was just committed.
+        private var compositionStart: Int?
+        /// The display string when a Writing Tools rewrite began: nothing is truncated during the rewrite; afterwards
+        /// it is diffed against this to find the rewritten span, which is then truncated if needed.
+        private var writingToolsBaseline: String?
+        private var isWritingToolsRunning = false
         private var lastMeasuredHeight: CGFloat?
         private var measureCache: [MeasureKey: CGFloat] = [:]
         /// For tests: how many times the measuring stack actually laid text out (cache hits not counted).
@@ -130,6 +174,7 @@ struct ComposerTextView: UIViewRepresentable {
 
         init(parent: ComposerTextView) {
             self.parent = parent
+            self.lengthCeiling = parent.maxLength ?? 0
             super.init()
             measureContainer.lineFragmentPadding = 0
             measureLayoutManager.textContainer = measureContainer
@@ -155,6 +200,15 @@ struct ComposerTextView: UIViewRepresentable {
             pendingPasteDisplay = nil
             lastDisplayLength = textView.textStorage.length
             publishedSource = source
+            // Content pushed in from outside is neither truncated nor announced (truncating would silently destroy
+            // what the user already has); if it is overlong its length becomes the ceiling, so it can only be shortened.
+            compositionStart = nil
+            writingToolsBaseline = nil
+            isWritingToolsRunning = false
+            limitNoticeArmed = true
+            if let limit = parent.maxLength {
+                lengthCeiling = max(limit, Self.sourceLength(of: textView.textStorage.string as NSString))
+            }
             contentDidChange(in: textView)
         }
 
@@ -165,8 +219,9 @@ struct ComposerTextView: UIViewRepresentable {
             // right after inserting, 17s on the main thread for a single 200K-character Arabic paragraph, too late for
             // the after-the-fact split. Intercept before the insertion and write the split display string into
             // storage ourselves, so an overlong paragraph never reaches storage.
+            // The length limit is also checked here first: the part that does not fit is cut before it reaches storage.
             if let composer = textView as? ComposerUITextView,
-               replaceIfOverlong(text, in: range, of: composer) {
+               interceptInsertion(text, in: range, of: composer) {
                 return false
             }
             // This replacement follows right after the paste delegate handed out its display string; don't compare
@@ -178,6 +233,7 @@ struct ComposerTextView: UIViewRepresentable {
 
         func textViewDidChange(_ textView: UITextView) {
             guard !isApplying, let textView = textView as? ComposerUITextView else { return }
+            enforceLengthLimitAfterEdit(in: textView)
             normalizeAndSplitEditedRange(in: textView)
             let source = SoftParagraphBreaks.source(fromDisplay: textView.textStorage.string)
             publishedSource = source
@@ -185,6 +241,205 @@ struct ComposerTextView: UIViewRepresentable {
             if parent.text != source {
                 parent.text = source
             }
+        }
+
+        // MARK: Length limit
+
+        /// The source-text length (UTF-16) of a range of the display string: soft breaks are excluded. There is only
+        /// one soft break per couple of thousand code units, so very few lookups are needed.
+        static func sourceLength(of text: NSString, in range: NSRange? = nil) -> Int {
+            let range = range ?? NSRange(location: 0, length: text.length)
+            var separators = 0
+            var search = range
+            while search.length > 0 {
+                let found = text.range(of: SoftParagraphBreaks.separatorString, options: .literal, range: search)
+                guard found.location != NSNotFound else { break }
+                separators += 1
+                search = NSRange(location: NSMaxRange(found), length: NSMaxRange(range) - NSMaxRange(found))
+            }
+            return range.length - separators
+        }
+
+        private func noteLengthLimitExceeded() {
+            guard limitNoticeArmed else { return }
+            limitNoticeArmed = false
+            parent.onLengthLimitExceeded?()
+        }
+
+        private func isLengthLimitSuspended(for textView: UITextView) -> Bool {
+            isWritingToolsRunning || textView.isWritingToolsActive
+        }
+
+        /// The pre-insertion entry point (shared by shouldChangeTextIn and the insertText override): truncate to the
+        /// length limit first, then split overlong paragraphs.
+        /// Returns true when this insertion has been handled here (written to storage or blocked outright) and the
+        /// caller must drop the original insertion.
+        func interceptInsertion(_ text: String, in range: NSRange, of textView: ComposerUITextView) -> Bool {
+            guard let kept = lengthLimitedInsertion(text, in: range, of: textView) else {
+                return replaceIfOverlong(text, in: range, of: textView)
+            }
+            if !kept.isEmpty {
+                replaceWithSoftBrokenDisplay(SoftParagraphBreaks.display(forSource: kept), in: range, of: textView)
+            }
+            return true
+        }
+
+        /// When this insertion would push the source text past the ceiling, returns the leading part that fits
+        /// ("" = not even one grapheme fits); returns nil when it does not overflow.
+        /// Composition, display strings the paste delegate already truncated, and Writing Tools rewrites are not
+        /// judged here; they are left to textViewDidChange.
+        private func lengthLimitedInsertion(_ text: String, in range: NSRange, of textView: ComposerUITextView) -> String? {
+            guard parent.maxLength != nil,
+                  pendingPasteDisplay == nil,
+                  !text.isEmpty,
+                  textView.markedTextRange == nil,
+                  !isLengthLimitSuspended(for: textView) else { return nil }
+            let incoming = text as NSString
+            let room = roomForInsertion(replacing: range, in: textView, upperBoundIncoming: incoming.length)
+            guard incoming.length > room else { return nil }
+            noteLengthLimitExceeded()
+            return Self.prefix(of: incoming, fittingUTF16: room)
+        }
+
+        /// How many source code units still fit after `range` is replaced. Storage holds the display string with soft
+        /// breaks, so both the remainder and the replaced range are measured in source text.
+        /// `upperBoundIncoming` is only a shortcut: the display string is never shorter than the source text, so if it
+        /// fits when measured on the display string there is no need to count soft breaks.
+        private func roomForInsertion(replacing range: NSRange, in textView: UITextView, upperBoundIncoming: Int) -> Int {
+            let storage = textView.textStorage
+            let location = min(range.location, storage.length)
+            let safeRange = NSRange(location: location, length: min(range.length, storage.length - location))
+            if storage.length - safeRange.length + upperBoundIncoming <= lengthCeiling {
+                return Int.max
+            }
+            let text = storage.string as NSString
+            let remaining = Self.sourceLength(of: text) - Self.sourceLength(of: text, in: safeRange)
+            return lengthCeiling - remaining
+        }
+
+        /// The longest prefix of at most `room` code units, with the cut moved back to a grapheme boundary (never
+        /// splitting a surrogate pair, combining sequence or ZWJ sequence).
+        static func prefix(of text: NSString, fittingUTF16 room: Int) -> String {
+            guard room > 0 else { return "" }
+            guard room < text.length else { return text as String }
+            return text.substring(to: text.rangeOfComposedCharacterSequence(at: room).location)
+        }
+
+        /// After-the-fact truncation: when a path that skips the pre-insertion entry point (IME commit, Writing Tools,
+        /// some system services, spaces added by smart insert) pushes the source text past the ceiling, the tail of
+        /// the span just edited is cut. Undo and redo only return to content that was once accepted and are not truncated.
+        private func enforceLengthLimitAfterEdit(in textView: ComposerUITextView, rewritten: NSRange? = nil) {
+            guard parent.maxLength != nil else { return }
+            let storage = textView.textStorage
+            if let marked = textView.markedTextRange {
+                if compositionStart == nil {
+                    compositionStart = textView.offset(from: textView.beginningOfDocument, to: marked.start)
+                }
+                return
+            }
+            guard rewritten != nil || !isLengthLimitSuspended(for: textView) else { return }
+            let composedFrom = compositionStart
+            compositionStart = nil
+            defer { settleLength(in: textView) }
+            guard storage.length > lengthCeiling else { return }
+            let text = storage.string as NSString
+            let overflow = Self.sourceLength(of: text) - lengthCeiling
+            guard overflow > 0 else { return }
+            if let undoManager = textView.undoManager, undoManager.isUndoing || undoManager.isRedoing { return }
+
+            let caret = min(textView.selectedRange.location, text.length)
+            // The span just edited, [floor, end): rewritten range > composition range > the range shouldChangeTextIn
+            // recorded > inferred from the length delta.
+            let fromPasteDelegate = pendingEdit?.fromPasteDelegate ?? (pendingPasteDisplay != nil)
+            let floor: Int
+            let end: Int
+            if let rewritten {
+                floor = min(rewritten.location, text.length)
+                end = min(NSMaxRange(rewritten), text.length)
+            } else if let composedFrom, composedFrom <= caret {
+                (floor, end) = (composedFrom, caret)
+            } else if let edit = pendingEdit ?? inferredEdit(caret: caret, length: text.length) {
+                floor = min(edit.range.location, text.length)
+                end = min(NSMaxRange(edit.range), text.length)
+            } else {
+                (floor, end) = (0, caret)
+            }
+            // Count overflow source code units back from the end of the span (soft breaks do not count), then back off
+            // to a grapheme boundary; never go past the span start, so text before the span is untouched.
+            var cut = end
+            var remaining = overflow
+            while remaining > 0, cut > floor {
+                cut -= 1
+                if text.character(at: cut) != SoftParagraphBreaks.separator { remaining -= 1 }
+            }
+            if cut > floor, cut < text.length {
+                cut = max(floor, text.rangeOfComposedCharacterSequence(at: cut).location)
+            }
+            guard cut < end else { return }
+            textView.inputDelegate?.textWillChange(textView)
+            storage.replaceCharacters(in: NSRange(location: cut, length: end - cut), with: "")
+            textView.selectedRange = NSRange(location: cut, length: 0)
+            textView.inputDelegate?.textDidChange(textView)
+            // Storage edits bypass the undo stack and older steps would point at shifted ranges (the same trade-off as
+            // the fallback split).
+            textView.undoManager?.removeAllActions()
+            if rewritten == nil {
+                pendingEdit = (NSRange(location: floor, length: cut - floor), fromPasteDelegate)
+            } else {
+                // The soft breaks inside the rewritten range were inserted by us and must not be handled below as
+                // foreign insertions.
+                pendingEdit = nil
+                lastDisplayLength = storage.length
+            }
+            noteLengthLimitExceeded()
+        }
+
+        /// After an edit settles: update the ceiling (it only comes down, never below the limit) and re-arm the
+        /// notice once the source text is back under the limit.
+        private func settleLength(in textView: UITextView) {
+            guard let limit = parent.maxLength else { return }
+            let storage = textView.textStorage
+            // The display string is never shorter than the source text: when it is under the limit, soft breaks need not be counted.
+            let length = storage.length < limit ? storage.length : Self.sourceLength(of: storage.string as NSString)
+            lengthCeiling = max(limit, length)
+            if length < limit { limitNoticeArmed = true }
+        }
+
+        // MARK: Writing Tools
+
+        func textViewWritingToolsWillBegin(_ textView: UITextView) {
+            isWritingToolsRunning = true
+            writingToolsBaseline = textView.textStorage.string
+        }
+
+        /// Nothing is truncated during a rewrite (that would interrupt the system's inline animation and its own range
+        /// bookkeeping); once it ends, the rewritten span is found by diffing and any overflowing tail is cut here.
+        func textViewWritingToolsDidEnd(_ textView: UITextView) {
+            isWritingToolsRunning = false
+            let baseline = writingToolsBaseline
+            writingToolsBaseline = nil
+            guard !isApplying, let textView = textView as? ComposerUITextView, textView.markedTextRange == nil else { return }
+            let current = textView.textStorage.string as NSString
+            let rewritten = baseline.map { Self.changedRange(from: $0 as NSString, to: current) }
+                ?? NSRange(location: 0, length: current.length)
+            enforceLengthLimitAfterEdit(
+                in: textView,
+                rewritten: rewritten.length > 0 ? rewritten : NSRange(location: 0, length: current.length)
+            )
+            textViewDidChange(textView)
+        }
+
+        /// The span of the new string that differs from the old one: the common prefix and common suffix are removed.
+        static func changedRange(from old: NSString, to new: NSString) -> NSRange {
+            let limit = min(old.length, new.length)
+            var prefix = 0
+            while prefix < limit, old.character(at: prefix) == new.character(at: prefix) { prefix += 1 }
+            var suffix = 0
+            while suffix < limit - prefix,
+                  old.character(at: old.length - 1 - suffix) == new.character(at: new.length - 1 - suffix) {
+                suffix += 1
+            }
+            return NSRange(location: prefix, length: new.length - prefix - suffix)
         }
 
         /// Rewrites an insertion containing an overlong paragraph into the split display string and returns true
@@ -222,6 +477,15 @@ struct ComposerTextView: UIViewRepresentable {
             textView.scrollRangeToVisible(textView.selectedRange)
         }
 
+        /// Infers, from the length delta, an insertion that never went through shouldChangeTextIn: the inserted
+        /// content ends at the caret.
+        private func inferredEdit(caret: Int, length: Int) -> (range: NSRange, fromPasteDelegate: Bool)? {
+            let delta = length - lastDisplayLength
+            guard delta > 0 else { return nil }
+            let location = max(0, caret - delta)
+            return (NSRange(location: location, length: min(delta, length - location)), pendingPasteDisplay != nil)
+        }
+
         private func contentDidChange(in textView: ComposerUITextView) {
             contentVersion &+= 1
             let container = textView.superview as? ComposerContainerView
@@ -252,13 +516,7 @@ struct ComposerTextView: UIViewRepresentable {
             let caret = min(textView.selectedRange.location, text.length)
             // Some insert paths (programmatic insertText, some system services) skip shouldChangeTextIn:
             // infer the insert from the length delta, ending at the caret.
-            let inferred: (range: NSRange, fromPasteDelegate: Bool)? = {
-                let delta = text.length - lastDisplayLength
-                guard delta > 0 else { return nil }
-                let location = max(0, caret - delta)
-                return (NSRange(location: location, length: min(delta, text.length - location)), pendingPasteDisplay != nil)
-            }()
-            let edit = pendingEdit ?? inferred
+            let edit = pendingEdit ?? inferredEdit(caret: caret, length: text.length)
             pendingEdit = nil
             pendingPasteDisplay = nil
             // A deletion has a zero-length replacement, so the edited range is the caret; don't use
@@ -332,9 +590,27 @@ struct ComposerTextView: UIViewRepresentable {
             combineItemAttributedStrings itemStrings: [NSAttributedString],
             for textRange: UITextRange
         ) -> NSAttributedString {
-            let joined = itemStrings.map(\.string).joined(separator: "\n")
+            var joined = itemStrings.map(\.string).joined(separator: "\n")
+            // Length limit: truncate first, then split into paragraphs, still letting the system do the insertion (the
+            // undo stack is kept). The part that does not fit never enters storage.
+            if parent.maxLength != nil,
+               let textView = textPasteConfigurationSupporting as? ComposerUITextView,
+               textView.markedTextRange == nil {
+                let incoming = joined as NSString
+                let range = NSRange(
+                    location: textView.offset(from: textView.beginningOfDocument, to: textRange.start),
+                    length: textView.offset(from: textRange.start, to: textRange.end)
+                )
+                let room = roomForInsertion(replacing: range, in: textView, upperBoundIncoming: incoming.length)
+                if incoming.length > room {
+                    noteLengthLimitExceeded()
+                    joined = Self.prefix(of: incoming, fittingUTF16: room)
+                }
+            }
             let display = SoftParagraphBreaks.display(forSource: joined)
-            pendingPasteDisplay = display
+            // An empty string will not trigger shouldChangeTextIn again: leave no marker behind, or the next unrelated
+            // insertion would be mistaken for a paste.
+            pendingPasteDisplay = display.isEmpty ? nil : display
             return NSAttributedString(string: display, attributes: textAttributes(parent))
         }
 
@@ -639,9 +915,10 @@ final class ComposerUITextView: UITextView {
     }
 
     /// The keyboard (including a third-party keyboard's clipboard), dictation and programmatic insertion all land
-    /// here, and some of those paths never ask shouldChangeTextIn first, so intercept at the entry point too.
+    /// here, and some of those paths never ask shouldChangeTextIn first, so intercept at the entry point too
+    /// (overlong-paragraph splitting and the length limit share this entry point).
     override func insertText(_ text: String) {
-        if let coordinator, coordinator.replaceIfOverlong(text, in: selectedRange, of: self) { return }
+        if let coordinator, coordinator.interceptInsertion(text, in: selectedRange, of: self) { return }
         super.insertText(text)
     }
 

@@ -3227,6 +3227,107 @@
         }
       }
     },
+    "chat_input_length_limit_reached" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "ar" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "يمكن أن تحتوي الرسالة الواحدة على %lld حرف كحد أقصى. لم يُضَف ما زاد على ذلك."
+          }
+        },
+        "de" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Eine Nachricht kann höchstens %lld Zeichen lang sein. Der Rest wurde nicht übernommen."
+          }
+        },
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Messages can be up to %lld characters. Anything past that was left out."
+          }
+        },
+        "es" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Un mensaje admite hasta %lld caracteres. El resto no se agregó."
+          }
+        },
+        "fr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Un message peut contenir jusqu’à %lld caractères. Le reste n’a pas été ajouté."
+          }
+        },
+        "hi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "एक संदेश में अधिकतम %lld अक्षर हो सकते हैं। इससे आगे का हिस्सा नहीं जोड़ा गया।"
+          }
+        },
+        "id" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Satu pesan maksimal %lld karakter. Sisanya tidak dimasukkan."
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "1 件のメッセージは最大 %lld 文字です。超えた分は入力されていません。"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "메시지 하나에 최대 %lld자까지 입력할 수 있습니다. 넘는 부분은 들어가지 않았습니다."
+          }
+        },
+        "pt-BR" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Uma mensagem pode ter até %lld caracteres. O restante não foi incluído."
+          }
+        },
+        "ru" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "В одном сообщении может быть до %lld символов. Остальное не добавлено."
+          }
+        },
+        "th" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "แต่ละข้อความพิมพ์ได้สูงสุด %lld ตัวอักษร ส่วนที่เกินไม่ได้ถูกใส่เข้ามา"
+          }
+        },
+        "tr" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Bir mesaj en fazla %lld karakter olabilir. Fazlası eklenmedi."
+          }
+        },
+        "vi" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Mỗi tin nhắn tối đa %lld ký tự. Phần vượt quá chưa được thêm vào."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "单条消息最多 %lld 个字符，超出的部分没有加入。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "單則訊息最多 %lld 個字元，超出的部分沒有加入。"
+          }
+        }
+      }
+    },
     "Check the additional request body" : {
       "extractionState" : "manual",
       "localizations" : {
