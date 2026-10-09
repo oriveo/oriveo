@@ -4,6 +4,7 @@ import ai.oriveo.community.core.data.remote.MetadataClient
 import ai.oriveo.community.core.model.ChatRequestOptions
 import ai.oriveo.community.core.model.GenerationOverrideState
 import ai.oriveo.community.core.model.GenerationParameterOverride
+import ai.oriveo.community.core.model.GenerationParameterOverrides
 import ai.oriveo.community.core.model.GenerationParameterRef
 import ai.oriveo.community.core.model.GenerationProfileRef
 import ai.oriveo.community.core.model.ProviderKind
@@ -261,35 +262,82 @@ internal object GenerationParameterResolver {
         builderMaxTokens: JsonElement?,
         dropped: MutableList<DroppedParameter>,
     ): JsonObject {
-        val thinking = source["thinking"] as? JsonObject ?: return source
-        val type = (thinking["type"] as? JsonPrimitive)?.contentOrNull
-        if (type != "enabled" && type != "adaptive") return source
+        val thinking = activeAnthropicThinking(source) ?: return source
         var root = source
-        for ((key, value) in written) {
-            val wire = profile?.wire?.get(key) ?: continue
-            val incompatible = key in thinkingIncompatibleParameters ||
-                (key == "top_p" && ((value as? JsonPrimitive)?.doubleOrNull ?: 0.0) < THINKING_TOP_P_MIN)
-            if (incompatible) {
-                root = remove(root, wire.split('.'))
-                dropped += DroppedParameter(key, DropReason.ThinkingIncompatible)
+        for (drop in anthropicThinkingDrops(thinking, written, profile)) {
+            when (drop.reason) {
+                DropReason.ThinkingIncompatible -> root = remove(root, profile!!.wire.getValue(drop.parameterId).split('.'))
+                DropReason.ThinkingBudget -> root = if (builderMaxTokens != null) {
+                    set(root, listOf("max_tokens"), builderMaxTokens)
+                } else {
+                    remove(root, listOf("max_tokens"))
+                }
+                else -> Unit
             }
+            dropped += drop
         }
         // Decided on the request body: values the builder wrote itself (a legacy temperature and the like) are dropped too, but they are not panel values and stay off the dropped list.
         for (field in thinkingIncompatibleParameters) {
             if (field in root) root = JsonObject(root - field)
         }
         val budget = (thinking["budget_tokens"] as? JsonPrimitive)?.longOrNull ?: return root
-        val maxTokensKey = profile?.wire?.entries?.firstOrNull { it.value == "max_tokens" }?.key
-        val userMaxTokens = maxTokensKey?.let(written::get)
-        if (userMaxTokens != null && ((userMaxTokens as? JsonPrimitive)?.doubleOrNull ?: 0.0) <= budget) {
-            root = if (builderMaxTokens != null) set(root, listOf("max_tokens"), builderMaxTokens) else remove(root, listOf("max_tokens"))
-            dropped += DroppedParameter(maxTokensKey, DropReason.ThinkingBudget)
-        }
         val current = (root["max_tokens"] as? JsonPrimitive)?.doubleOrNull
         if (current == null || current <= budget) {
             root = set(root, listOf("max_tokens"), JsonPrimitive(budget + THINKING_MAX_TOKENS_HEADROOM))
         }
         return root
+    }
+
+    private fun activeAnthropicThinking(body: JsonObject): JsonObject? {
+        val thinking = body["thinking"] as? JsonObject ?: return null
+        val type = (thinking["type"] as? JsonPrimitive)?.contentOrNull
+        return thinking.takeIf { type == "enabled" || type == "adaptive" }
+    }
+
+    /**
+     * Which written parameters are not sent while thinking is on. The outbound guard and the advanced-settings
+     * preview both ask only this function, so the rows the preview flags and the items actually dropped from the
+     * request body can never disagree.
+     */
+    private fun anthropicThinkingDrops(
+        thinking: JsonObject,
+        written: Map<String, JsonElement>,
+        profile: GenerationProfileRef?,
+    ): List<DroppedParameter> {
+        val drops = mutableListOf<DroppedParameter>()
+        for ((key, value) in written) {
+            if (profile?.wire?.get(key) == null) continue
+            val incompatible = key in thinkingIncompatibleParameters ||
+                (key == "top_p" && ((value as? JsonPrimitive)?.doubleOrNull ?: 0.0) < THINKING_TOP_P_MIN)
+            if (incompatible) drops += DroppedParameter(key, DropReason.ThinkingIncompatible)
+        }
+        val budget = (thinking["budget_tokens"] as? JsonPrimitive)?.longOrNull ?: return drops
+        val maxTokensKey = profile?.wire?.entries?.firstOrNull { it.value == "max_tokens" }?.key
+        val userMaxTokens = maxTokensKey?.let(written::get)
+        if (userMaxTokens != null && ((userMaxTokens as? JsonPrimitive)?.doubleOrNull ?: 0.0) <= budget) {
+            drops += DroppedParameter(maxTokensKey, DropReason.ThinkingBudget)
+        }
+        return drops
+    }
+
+    /**
+     * Preview of the thinking interplay for the advanced settings: [thinkingBody] is what the same thinking writer
+     * as the send path produced, the parameters first go through the same per-item decision as the outbound path,
+     * and then [anthropicThinkingDrops] is asked. Only the two thinking-related reasons are returned.
+     */
+    fun previewAnthropicThinkingDrops(
+        thinkingBody: JsonObject,
+        overrides: GenerationParameterOverrides?,
+        profile: GenerationProfileRef?,
+    ): List<DroppedParameter> {
+        val thinking = activeAnthropicThinking(thinkingBody) ?: return emptyList()
+        if (profile == null || overrides == null) return emptyList()
+        val accepted = acceptValues(overrides.values, profile, toolsActive = false, mutableListOf())
+        val written = accepted.filterKeys { key ->
+            val wire = profile.wire[key]
+            wire != null && wireRejectionReason(wire) == null
+        }
+        return anthropicThinkingDrops(thinking, written, profile).sortedBy { it.parameterId }
     }
 
     /**
