@@ -16,6 +16,7 @@ import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.core.model.RelayRequestedConfig
 import ai.oriveo.community.core.model.RelayTransport
 import ai.oriveo.community.core.provider.CapabilityEvidenceProductionAdapter
+import ai.oriveo.community.core.provider.GenerationParameterPanelPresentation
 import ai.oriveo.community.core.provider.GenerationParameterResolver
 import ai.oriveo.community.core.provider.GenerationParameterResolver.DropReason
 import ai.oriveo.community.core.provider.LocalEngineGenerationProfiles
@@ -81,8 +82,11 @@ class GenerationParameterRowModelTest {
     fun `string fixed value is shown without json quotes`() {
         val parameter = GenerationParameterRef(id = "verbosity", support = "supported", fixedValue = JsonPrimitive("low"))
         assertEquals(DisplayValue.Value("low"), GenerationParameterRowModel.display(parameter, null))
-        val placeholder = GenerationParameterRef(id = "seed", defaultDescription = JsonPrimitive("provider_default"))
+        val placeholder = GenerationParameterRef(id = "top_p", defaultDescription = JsonPrimitive("provider_default"))
         assertEquals(DisplayValue.Fallback(FallbackKind.ModelDecides), GenerationParameterRowModel.display(placeholder, null))
+        // When no layer gives a seed value the wording is more specific: random every time.
+        val seed = GenerationParameterRef(id = "seed", defaultDescription = JsonPrimitive("provider_default"))
+        assertEquals(DisplayValue.Fallback(FallbackKind.RandomEachTime), GenerationParameterRowModel.display(seed, null))
     }
 
     @Test
@@ -165,15 +169,50 @@ class GenerationParameterRowModelTest {
     @Test
     fun `unverified as page baseline marks only rows that differ`() {
         val local = LocalEngineGenerationProfiles.profile("llamacpp", RelayTransport.OpenAIChatCompletions)!!
-        val allUnverified = GenerationParameterRowModel.page(local, emptyMap())
+        val allUnverified = GenerationParameterRowModel.page(local, emptyMap(), isUnverified = { true })
         assertEquals(Verification.Unverified, allUnverified.baseline)
         assertTrue(allUnverified.rows.all { it.inlineVerification == null })
-        val mixed = local.copy(parameters = local.parameters.mapIndexed { index, parameter ->
-            if (index == 0) parameter.copy(support = "supported") else parameter
-        })
-        val page = GenerationParameterRowModel.page(mixed, emptyMap())
+        val firstId = local.parameters.first().id
+        val page = GenerationParameterRowModel.page(local, emptyMap(), isUnverified = { it.id != firstId })
         assertEquals(listOf(Verification.Verified), page.rows.mapNotNull { it.inlineVerification })
         assertEquals(Verification.Verified, GenerationParameterRowModel.page(profile(), emptyMap()).baseline)
+    }
+
+    @Test
+    fun `official no data rows are not unverified because the shared badge function says so`() {
+        // On an official connection "no data" has its own presentation and is not the relay's locally declared "unverified"; the criterion is the function the panel shares.
+        val profile = GenerationProfileRef(
+            template = "openai_chat_completions",
+            parameters = listOf("temperature", "top_p", "max_output_tokens").map {
+                GenerationParameterRef(id = it, support = "unknown", valueSchema = "number")
+            },
+            wire = mapOf("temperature" to "temperature", "top_p" to "top_p", "max_output_tokens" to "max_tokens"),
+        )
+        val provider = Provider(id = "official-rows", kind = ProviderKind.OpenAI)
+        val model = AIModel(id = "gpt-x", name = "gpt-x", generationProfile = profile)
+        val projection = CapabilityEvidenceProductionAdapter.generationParameterUiProjection(
+            provider = provider,
+            model = model,
+            localIdentity = null,
+            parameters = profile.parameters,
+            values = GenerationParameterOverrides(),
+        )
+        assertFalse(profile.parameters.any { GenerationParameterPanelPresentation.showsUnverifiedBadge(it, projection) })
+        val page = GenerationParameterRowModel.page(
+            profile,
+            emptyMap(),
+            isUnverified = { GenerationParameterPanelPresentation.showsUnverifiedBadge(it, projection) },
+        )
+        assertEquals(Verification.Verified, page.baseline)
+        assertTrue(page.rows.all { it.inlineVerification == null })
+    }
+
+    @Test
+    fun `unverified judgment ignores support strings when the shared function marks the row`() {
+        // The support says supported but the shared function judges it unverified (a relay's local declaration): the function decides, not the string.
+        val page = GenerationParameterRowModel.page(profile(), emptyMap(), isUnverified = { it.id == "temperature" })
+        assertEquals(Verification.Verified, page.baseline)
+        assertEquals(listOf("temperature"), page.rows.filter { it.inlineVerification != null }.map { it.id })
     }
 
     @Test

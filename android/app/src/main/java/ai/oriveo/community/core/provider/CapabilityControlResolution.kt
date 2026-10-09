@@ -34,6 +34,8 @@ object CapabilityControlResolution {
         val intents: List<String> = emptyList(),
         val reasonCode: String? = null,
         val viaLegacyProfile: Boolean = false,
+        /** Tiers the upstream has rejected: only these are removed from the segments, the rest stay selectable. */
+        val rejectedIntents: Set<String> = emptySet(),
     ) {
         /** Whether the user can actually use this capability in the UI - the shared predicate
          * behind both the badge and the control. */
@@ -74,14 +76,14 @@ object CapabilityControlResolution {
             ?.copy(finalTransport = canonicalCapabilityTransport(finalTransport))
         val control = finalTransport
             ?.let { metadata.capabilityControlPresentation(provider.kind, model.id, it)[capability] }
-        if (
-            runtimeIdentity != null && control?.recipeRef != null &&
-            ModelControlRejectionCache.rejectedSettings(
-                runtimeIdentity,
-                capability,
-                "provider_recipe",
-                recipeRef = control.recipeRef,
-            ).isNotEmpty()
+        val rejections = if (runtimeIdentity != null && control?.recipeRef != null) {
+            ModelControlRejectionCache.tierRejections(runtimeIdentity, capability, "provider_recipe", control.recipeRef)
+        } else null
+        // A tiered rejection removes only that tier; the whole group goes dormant only for an untiered rejection (legacy entries, web search) or when every tier that carries the setting was rejected.
+        // "Automatic" and "off" carry no such setting, cannot be rejected, and do not count toward "every tier".
+        val settingTiers = control?.availableIntents.orEmpty().filterNot { it == "automatic" || it == "off" }
+        if (rejections != null && !rejections.isEmpty &&
+            (rejections.untiered || settingTiers.isEmpty() || rejections.tiers.containsAll(settingTiers))
         ) {
             return Verdict(state = STATE_UNKNOWN, reasonCode = "upstream_setting_dormant")
         }
@@ -92,6 +94,7 @@ object CapabilityControlResolution {
                 state = state,
                 intents = control.availableIntents,
                 reasonCode = control.reasonCode ?: control.reason,
+                rejectedIntents = rejections?.tiers.orEmpty().intersect(control.availableIntents.toSet()),
             )
         }
         return Verdict(state = STATE_UNKNOWN, reasonCode = control?.reasonCode ?: control?.reason)

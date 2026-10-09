@@ -1294,8 +1294,6 @@
     <string name="generation_parameter_name_llamacpp_native">Нативный режим llama.cpp</string>
     <string name="generation_parameter_name_min_keep">Минимум сохраняемых токенов</string>
     <string name="generation_parameter_name_mirostat">Mirostat</string>
-    <string name="generation_parameter_name_mirostat_eta">Mirostat eta</string>
-    <string name="generation_parameter_name_mirostat_tau">Mirostat tau</string>
     <string name="generation_parameter_name_n_indent">Минимальный отступ</string>
     <string name="generation_parameter_name_n_keep">Сохраняемые токены</string>
     <string name="generation_parameter_name_n_probabilities">Вероятности токенов</string>
@@ -1337,8 +1335,6 @@
     <string name="model_control_custom_fields_active_note">Для этого элемента включены пользовательские поля, поэтому настройка выше не отправляется.</string>
     <string name="model_control_custom_only_reason">Автоматическая настройка недоступна для этого подключения.</string>
     <string name="model_control_state_not_ready">Не готово</string>
-    <string name="model_control_state_unavailable">Недоступно</string>
-    <string name="model_control_advanced_settings_subtitle">Максимум токенов, температура и другие параметры запроса</string>
     <string name="generation_parameter_developer">Разработчик</string>
     <string name="generation_parameter_custom_fields_not_in_use">Не используется</string>
     <string name="generation_parameter_custom_fields_in_use">Используется</string>
@@ -1349,7 +1345,6 @@
     <!-- A1 model controls panel rebuild (2026-08-16): ported verbatim from the iOS golden standard. -->
     <string name="model_control_capability_unavailable_here">Эта возможность недоступна для данного подключения.</string>
     <string name="model_control_upstream_rejected">Провайдер отклонил эту настройку для данной модели. Отправьте снова без неё или выберите другую модель.</string>
-    <string name="model_control_state_manual">Вручную</string>
     <string name="model_control_state_custom">Пользовательский</string>
     <string name="model_control_status_pending">Автоматическая настройка пока недоступна для этого маршрута запроса.</string>
     <string name="model_control_status_unknown_route">Эта модель или транспорт не поддерживает автоматическую настройку для этого запроса.</string>
@@ -1760,14 +1755,12 @@
     <string name="model_options_more_count">Ещё: %1$d</string>
     <string name="model_options_needs_manual_setup">Нужна ручная настройка</string>
     <string name="model_options_no_thinking_mode">У этой модели нет режима размышления</string>
-    <string name="model_options_not_available_connection">Недоступно для этого подключения</string>
     <string name="model_options_not_available_yet">Пока недоступно</string>
     <string name="model_options_open_additional_body">Открыть дополнительное тело запроса</string>
     <string name="model_options_protocol_auto_note">Протокол всё ещё «Авто», поэтому Oriveo не знает, как отправлять настройки поиска в интернете и размышления.</string>
     <string name="model_options_reasoning_no_generic_switch">У этого провайдера нет стандартного переключателя размышления. Добавьте его поля в дополнительное тело запроса.</string>
     <string name="model_options_reasoning_not_catalogued">В Oriveo пока нет настроек размышления для этой модели, поэтому она работает со своими значениями по умолчанию.</string>
     <string name="model_options_see_adjustable_models">Какие модели можно настроить</string>
-    <string name="model_options_switch_connection">Сменить подключение</string>
     <string name="model_options_template_thinking_note">Включает и выключает размышление через шаблон чата. Сработает ли это, зависит от вашего сервера.</string>
     <string name="model_options_thinks_first_note">Сначала обдумывает ответ, поэтому отвечает чуть дольше</string>
     <string name="model_options_tier_rejected_body">Эта модель сейчас не принимает «%1$s», поэтому снова выбран уровень «%2$s». Прежний уровень вернётся сам, как только модель снова начнёт его поддерживать.</string>
@@ -1779,4 +1772,6 @@
     <string name="model_options_web_not_catalogued">В Oriveo пока нет настроек поиска в интернете для этой модели, поэтому включить его здесь нельзя.</string>
     <string name="model_options_web_note">Сначала ищет в интернете, если вопрос этого требует</string>
     <string name="model_options_web_when_needed">При необходимости</string>
+    <string name="additional_body_tools_managed">Инструментами управляет Oriveo.</string>
+    <string name="additional_body_streaming_by_oriveo">Как передавать ответ потоком, решает Oriveo.</string>
 </resources>

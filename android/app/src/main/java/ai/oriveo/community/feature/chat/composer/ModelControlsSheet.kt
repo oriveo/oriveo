@@ -107,7 +107,25 @@ import ai.oriveo.community.core.provider.ModelControlRuntimeIdentity
 import ai.oriveo.community.core.provider.ModelControlRuntimeIdentityResolver
 import ai.oriveo.community.core.provider.capabilityCustomFragmentAvailable
 import ai.oriveo.community.feature.chat.ChatModelCapabilityResolver
-import ai.oriveo.community.feature.providers.detail.GenerationParameterDefaultsSheet
+import ai.oriveo.community.core.model.LocalCapabilityCustomFragmentStore
+import ai.oriveo.community.core.model.ProviderKind
+import ai.oriveo.community.feature.chat.modelcontrols.AdvancedSettingsPage
+import ai.oriveo.community.feature.chat.modelcontrols.AdditionalBodyEditor
+import ai.oriveo.community.feature.chat.modelcontrols.AdvancedSectionLabel
+import ai.oriveo.community.feature.chat.modelcontrols.AdvancedSubPage
+import ai.oriveo.community.feature.chat.modelcontrols.CapabilityRowActions
+import ai.oriveo.community.feature.chat.modelcontrols.ChatTemplateThinking
+import ai.oriveo.community.feature.chat.modelcontrols.GenerationParameterRowModel
+import ai.oriveo.community.feature.chat.modelcontrols.ModelOptionCapabilityCard
+import ai.oriveo.community.feature.chat.modelcontrols.ModelOptionCapabilityRow
+import ai.oriveo.community.feature.chat.modelcontrols.ModelOptionCapabilityShape
+import ai.oriveo.community.feature.chat.modelcontrols.ModelOptionParameterCard
+import ai.oriveo.community.feature.chat.modelcontrols.ModelOptionsHeader
+import ai.oriveo.community.feature.chat.modelcontrols.ModelOptionsPanelInput
+import ai.oriveo.community.feature.chat.modelcontrols.ModelOptionsProtocolCard
+import ai.oriveo.community.feature.chat.modelcontrols.ModelOptionsRender
+import ai.oriveo.community.feature.chat.modelcontrols.ModelOptionsStatusMark
+import ai.oriveo.community.feature.chat.modelcontrols.rememberAdvancedSettingsLoaded
 import ai.oriveo.community.ui.component.ProviderBadgeIcon
 import ai.oriveo.community.ui.component.isReduceMotionEnabled
 import ai.oriveo.community.ui.theme.OriveoMotion
@@ -143,7 +161,6 @@ internal fun ModelControlsEntrySheet(
     reasoningIntent: String?,
     customOwners: Set<String>,
     generationOverrideCount: Int,
-
     onSelectionChange: (CapabilityWebPreference, String?, Boolean) -> Unit,
     onPersist: (CapabilityPreferenceValues) -> Unit,
     onPromoteToModelDefault: (CapabilityPreferenceValues) -> Unit,
@@ -157,9 +174,7 @@ internal fun ModelControlsEntrySheet(
     val colors = OriveoTheme.colors
     OriveoModalBottomSheet(
         onDismissRequest = onDismiss,
-
         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-
         containerColor = colors.background,
         contentColor = colors.textPrimary,
         contentWindowInsets = { WindowInsets(0) },
@@ -167,7 +182,6 @@ internal fun ModelControlsEntrySheet(
         if (provider == null || model == null) {
             ModelControlsMissingModelPanel(
                 providerName = provider?.displayName,
-
                 onChooseConnection = { onDismiss(); onNavigateToProviderSetup() },
                 onClose = onDismiss,
             )
@@ -252,12 +266,13 @@ private fun ModelControlsMissingModelPanel(
 private fun ModelControlsScaffold(
     onClose: () -> Unit,
     bottomExtra: (@Composable () -> Unit)?,
+    showsCloseBar: Boolean = true,
     content: @Composable () -> Unit,
 ) {
-    Column(modifier = Modifier.fillMaxSize().safeDrawingPadding()) {
-        Box(modifier = Modifier.weight(1f)) { content() }
+    Column(modifier = Modifier.fillMaxWidth().safeDrawingPadding()) {
+        Box(modifier = Modifier.weight(1f, fill = false)) { content() }
         bottomExtra?.invoke()
-        ModelControlsCloseBar(onClose = onClose)
+        if (showsCloseBar) ModelControlsCloseBar(onClose = onClose)
     }
 }
 
@@ -290,11 +305,8 @@ private fun ModelControlsPanel(
     val metadata = MetadataClient.instance
 
     var route by remember { mutableStateOf<ModelControlsRoute?>(null) }
-
     var routeOrigin by remember { mutableStateOf<ModelControlsRoute?>(null) }
-
     var routeIsForward by remember { mutableStateOf(true) }
-
     var behaviorSubPageOpen by remember { mutableStateOf(false) }
 
     fun openRoute(next: ModelControlsRoute) {
@@ -310,13 +322,11 @@ private fun ModelControlsPanel(
     }
 
     var explanation by remember { mutableStateOf<CapabilityExplanation?>(null) }
-
     var refreshedIdentity by remember(provider.id, model.id, metadataRevision) {
         mutableStateOf<ModelControlRuntimeIdentity?>(null)
     }
     var isRefreshingRuntime by remember { mutableStateOf(false) }
     var runtimeRefreshFailed by remember { mutableStateOf(false) }
-
     var showsScopeUpgrade by remember { mutableStateOf(false) }
     var scopeUpgradeConfirmed by remember { mutableStateOf(false) }
     var scopeUpgradeConfirmations by remember { mutableIntStateOf(0) }
@@ -346,7 +356,6 @@ private fun ModelControlsPanel(
     val activeGenerationProfile = remember(provider, model, metadataRevision) {
         GenerationParameterAvailability.profile(provider, model)
     }
-
     val hasSafeCustomSchema = remember(provider, model, customTransport, activeGenerationProfile, metadataRevision) {
         modelControlOwnerOrder.any { owner ->
             customTransport != null && capabilityCustomFragmentAvailable(
@@ -372,9 +381,10 @@ private fun ModelControlsPanel(
             ?.let { metadata.capabilityControlPresentation(provider.kind, model.id, it)["web"] }
         modelControlWebAvailableIntents(control)
     }
-    val reasoningIntents = remember(provider, model, finalTransport, metadataRevision, capabilityObservationRevision) {
-        CapabilityControlResolution.resolve(provider, model, "reasoning", metadata, finalTransport).intents
+    val reasoningVerdict = remember(provider, model, finalTransport, metadataRevision, capabilityObservationRevision) {
+        CapabilityControlResolution.resolve(provider, model, "reasoning", metadata, finalTransport)
     }
+    val reasoningIntents = reasoningVerdict.intents
 
     fun isCustomActive(owner: String): Boolean = owner in customOwners
 
@@ -390,14 +400,15 @@ private fun ModelControlsPanel(
 
     fun upstreamRejected(owner: String): Boolean =
         identity != null && owner != "generation" &&
-            ModelControlRejectionCache.isRejectedByAnySource(identity, owner)
+            ModelControlRejectionCache.isRejectedByAnySource(
+                identity,
+                owner,
+                selectedTier = reasoningIntent.takeIf { owner == "reasoning" },
+            )
 
     fun persist(nextWeb: CapabilityWebPreference, nextIntent: String?) {
-
         scopeUpgradeConfirmed = false
-
         val clamped = ModelControlWebLayout.clamp(nextWeb, presentation("web"), webIntents)
-
         onSelectionChange(
             clamped,
             nextIntent,
@@ -405,7 +416,6 @@ private fun ModelControlsPanel(
         )
         if (!editability.canPersist || identity == null) return
         onPersist(CapabilityPreferenceValues(clamped, nextIntent))
-
         if (!showsScopeUpgrade) showsScopeUpgrade = true
     }
 
@@ -476,15 +486,123 @@ private fun ModelControlsPanel(
         )
     }
 
+    val optionsConnection = ModelOptionsPanelInput.connectionCategory(provider.kind)
+    val protocolUndecided = ModelOptionsPanelInput.protocolUndecided(provider)
+    val customProtocol = ModelOptionsPanelInput.customProtocol(provider)
+    val statusMark = ModelOptionsStatusMark.resolve(optionsConnection, listOf(presentation("web"), presentation("reasoning")))
+    val additionalBodyStore = remember(context) { LocalCapabilityCustomFragmentStore.from(context) }
+    var additionalBodyRevision by remember { mutableIntStateOf(0) }
+    val additionalBody = remember(provider, model, conversationId, additionalBodyRevision, route) {
+        AdditionalBodyEditor.load(additionalBodyStore, provider, model, conversationId)
+    }
+    val templateThinking = ChatTemplateThinking.state(additionalBody)
+    var behaviorInitialSubPage by remember { mutableStateOf<AdvancedSubPage?>(null) }
+    var summaryRevision by remember { mutableIntStateOf(0) }
+    val behaviorData = rememberAdvancedSettingsLoaded(
+        provider = provider,
+        model = model,
+        conversationId = conversationId,
+        reasoningMode = ai.oriveo.community.core.model.ReasoningMode.fromIntent(reasoningIntent),
+        revision = summaryRevision + generationOverrideCount,
+    )
+    val parameterSummary = GenerationParameterRowModel.summary(behaviorData?.page?.rows.orEmpty())
+    val webShape = ModelOptionCapabilityShape.resolve(
+        ModelOptionCapabilityShape.Input(
+            capability = ModelOptionCapabilityShape.Capability.Web,
+            presentation = presentation("web"),
+            availableIntents = webIntents,
+            selectedIntent = ModelOptionsPanelInput.webIntent(web),
+            connection = optionsConnection,
+            isWritable = editability.canPersist && !isCustomActive("web"),
+            protocolUndecided = protocolUndecided,
+            customProtocol = customProtocol,
+        ),
+    )
+    val reasoningShape = ModelOptionCapabilityShape.resolve(
+        ModelOptionCapabilityShape.Input(
+            capability = ModelOptionCapabilityShape.Capability.Reasoning,
+            presentation = presentation("reasoning"),
+            availableIntents = reasoningIntents,
+            selectedIntent = reasoningIntent
+                ?: ModelOptionCapabilityShape.AUTOMATIC.takeIf { it in reasoningIntents },
+            connection = optionsConnection,
+            isWritable = editability.canPersist && !isCustomActive("reasoning"),
+            protocolUndecided = protocolUndecided,
+            customProtocol = customProtocol,
+            chatTemplateThinking = templateThinking == ChatTemplateThinking.State.On,
+            rejectedIntents = reasoningVerdict.rejectedIntents,
+        ),
+    )
+
+    fun openSupportedModels(capability: String, @StringRes messageRes: Int) {
+        if (candidates(capability).isNotEmpty()) {
+            openRoute(ModelControlsRoute.SupportedModels(capability))
+        } else {
+            presentExplanation(capability, context.getString(messageRes), ModelControlCapabilityEscape.SupportedModels)
+        }
+    }
+
+    fun escapeAction(capability: String, shape: ModelOptionCapabilityShape): (ModelOptionCapabilityShape.Escape) -> Unit = { escape ->
+        when (escape) {
+            ModelOptionCapabilityShape.Escape.SupportedModels -> openSupportedModels(
+                capability,
+                (shape as? ModelOptionCapabilityShape.Notice)?.let { ModelOptionsRender.noticeBodyRes(it.body) }
+                    ?: R.string.model_control_no_supported_models,
+            )
+            ModelOptionCapabilityShape.Escape.AdditionalBody -> {
+                behaviorInitialSubPage = AdvancedSubPage.AdditionalBody
+                openRoute(ModelControlsRoute.ModelBehavior)
+            }
+        }
+    }
+
+    fun disclosureAction(capability: String, shape: ModelOptionCapabilityShape): (() -> Unit)? =
+        (shape as? ModelOptionCapabilityShape.Disclosure)
+            ?.takeIf { ModelOptionsRender.disclosureOffersSupportedModels(it.status) }
+            ?.let { disclosure -> { openSupportedModels(capability, ModelOptionsRender.disclosureRes(disclosure.status)) } }
+
+    val webActions = CapabilityRowActions(
+        onToggle = { enabled -> persist(if (enabled) CapabilityWebPreference.Automatic else CapabilityWebPreference.Off, reasoningIntent) },
+        onSelectTier = {},
+        onSelectTiming = { id -> persist(ModelOptionsPanelInput.webPreference(id), reasoningIntent) },
+        onEscape = escapeAction("web", webShape),
+        onDisclosure = disclosureAction("web", webShape),
+    )
+    val isTemplateToggle = (reasoningShape as? ModelOptionCapabilityShape.Toggle)?.kind ==
+        ModelOptionCapabilityShape.ToggleKind.ChatTemplateThinking
+    val templateThinkingWritable = templateThinking != ChatTemplateThinking.State.Blocked &&
+        templateThinking != ChatTemplateThinking.State.NotSending
+    val reasoningActions = CapabilityRowActions(
+        onToggle = { on ->
+            if (isTemplateToggle) {
+                (ChatTemplateThinking.write(additionalBody, on) as? ChatTemplateThinking.Write.Written)?.let { written ->
+                    AdditionalBodyEditor.save(additionalBodyStore, provider, model, conversationId, written.body)
+                    additionalBodyRevision += 1
+                }
+            } else {
+                val tier = reasoningIntents.firstOrNull {
+                    it != ModelOptionCapabilityShape.OFF && it != ModelOptionCapabilityShape.AUTOMATIC
+                }
+                persist(web, if (on) tier else ModelOptionCapabilityShape.OFF)
+            }
+        },
+        onSelectTier = { intent -> persist(web, intent.takeIf { it != ModelOptionCapabilityShape.AUTOMATIC }) },
+        onSelectTiming = {},
+        onEscape = escapeAction("reasoning", reasoningShape),
+        onDisclosure = disclosureAction("reasoning", reasoningShape),
+        toggleEnabled = !isTemplateToggle || (templateThinkingWritable && editability.canPersist),
+        toggleEscape = ModelOptionCapabilityShape.Escape.AdditionalBody.takeIf { isTemplateToggle && !templateThinkingWritable },
+        toggleBlockedNoteRes = ModelOptionsRender.templateThinkingBlockedNoteRes(templateThinking).takeIf { isTemplateToggle },
+    )
+
     val reduceMotion = remember(context) { isReduceMotionEnabled(context) }
     val pageMillis = OriveoMotion.modelControlPageMillis(reduceMotion)
     val layoutDirection = LocalLayoutDirection.current
-
     BackHandler(enabled = route != null && !behaviorSubPageOpen) { popRoute() }
     ModelControlsScaffold(
         onClose = onDismiss,
+        showsCloseBar = route != null,
         bottomExtra = {
-
             AnimatedVisibility(
                 visible = showsScopeUpgrade && route == null,
                 enter = fadeIn(tween(pageMillis)),
@@ -500,9 +618,7 @@ private fun ModelControlsPanel(
         AnimatedContent(
             targetState = route,
             transitionSpec = {
-
                 val forward = routeIsForward
-
                 val direction = if (layoutDirection == LayoutDirection.Rtl) -1 else 1
                 val slide = tween<IntOffset>(pageMillis)
                 val fade = tween<Float>(pageMillis)
@@ -518,53 +634,31 @@ private fun ModelControlsPanel(
             },
             label = "model-controls-page",
         ) { current ->
-
             key(current) {
                 when (current) {
                     null -> {
                         Column(
                             modifier = Modifier
-                                .fillMaxSize()
+                                .fillMaxWidth()
                                 .verticalScroll(rememberScrollState())
                                 .padding(horizontal = 16.dp)
-                                .padding(top = 14.dp, bottom = 32.dp),
-                            verticalArrangement = Arrangement.spacedBy(24.dp),
+                                .padding(bottom = 30.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp),
                         ) {
+                            ModelOptionsHeader(
+                                modelName = model.name,
+                                subtitleParts = subjectSubtitle(provider, customTransport, context),
+                                isLocal = provider.relayRequested?.engineProfile != null,
+                                mark = statusMark,
+                                onClose = onDismiss,
+                            )
 
-                            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    ProviderBadgeIcon(
-                                        kind = provider.kind,
-                                        size = 20.dp,
-                                        relayKind = provider.relayKind,
-                                    )
-                                    Spacer(Modifier.width(8.dp))
-                                    Text(
-                                        text = model.name,
-                                        style = MaterialTheme.typography.titleSmall,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = colors.textPrimary,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                    )
-                                }
-                                Text(
-                                    text = subjectSubtitle(provider, customTransport, context),
-                                    style = MaterialTheme.typography.bodySmall.copy(
-                                        fontSize = 12.sp, lineHeight = 16.sp,
-                                    ),
-                                    color = colors.textSecondary,
-                                )
-
-                            }
-
-                            readOnlyReasonRes?.let { reasonRes ->
+                            readOnlyReasonRes?.takeUnless { protocolUndecided }?.let { reasonRes ->
                                 Column(
                                     modifier = Modifier.fillMaxWidth().modelControlSurface().padding(16.dp),
                                     verticalArrangement = Arrangement.spacedBy(12.dp),
                                 ) {
                                     ModelControlNote(reasonRes, Icons.Outlined.Lock)
-
                                     when (editability) {
                                         ModelControlsEditability.RuntimeIdentityUnavailable ->
                                             when (identityGap.recoveryAction) {
@@ -590,7 +684,6 @@ private fun ModelControlsPanel(
                                                         },
                                                     )
                                                     if (runtimeRefreshFailed) {
-
                                                         ModelControlNote(R.string.model_control_refresh_failed)
                                                     }
                                                 }
@@ -616,62 +709,45 @@ private fun ModelControlsPanel(
                                 }
                             }
 
-                            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                                ModelControlWebCard(
-                                    status = presentation("web"),
-                                    overridden = isCustomActive("web"),
-                                    canPersist = editability.canPersist,
-                                    availableIntents = webIntents,
-                                    selection = web,
-                                    hasCustomSchema = hasSafeCustomSchema,
-                                    readOnlyReasonRes = readOnlyReasonRes,
-                                    upstreamRejected = upstreamRejected("web"),
-                                    riskTiers = riskTiers("web"),
-                                    hasCandidates = candidatesByCapability["web"]?.isNotEmpty() == true,
-                                    onSelect = { next -> persist(next, reasoningIntent) },
-                                    onExplain = ::presentExplanation,
-                                    onRoute = ::openRoute,
-                                )
-                                ModelControlReasoningCard(
-                                    status = presentation("reasoning"),
-                                    overridden = isCustomActive("reasoning"),
-                                    canPersist = editability.canPersist,
-                                    intents = reasoningIntents,
-                                    selectedIntent = reasoningIntent,
-                                    hasCustomSchema = hasSafeCustomSchema,
-                                    readOnlyReasonRes = readOnlyReasonRes,
-                                    upstreamRejected = upstreamRejected("reasoning"),
-                                    riskTiers = riskTiers("reasoning"),
-                                    hasCandidates = candidatesByCapability["reasoning"]?.isNotEmpty() == true,
-                                    onSelect = { intent -> persist(web, intent) },
-                                    onExplain = ::presentExplanation,
-                                    onRoute = ::openRoute,
-                                )
-                                ModelControlNavigationRow(
-                                    icon = Icons.Outlined.Tune,
-                                    title = stringResource(R.string.generation_model_behavior),
-
-                                    subtitle = stringResource(R.string.model_control_advanced_settings_subtitle),
-                                    trailingText = generationOverrideCount
-                                        .takeIf { it > 0 }
-                                        ?.let { stringResource(R.string.model_control_behavior_adjusted, it) },
-
-                                    badge = modelControlBadge(
-                                        ModelControlBadgeClassification.advancedSettingsCard(
-                                            presentation("generation"),
-                                        ),
-                                        overridden = isCustomActive("generation"),
+                            AdvancedSectionLabel(stringResource(R.string.model_options_capabilities))
+                            if (protocolUndecided) {
+                                ModelOptionsProtocolCard(onChooseProtocol = { onDismiss(); onOpenConnectionSettings() })
+                            } else {
+                                ModelOptionCapabilityCard(
+                                    listOf(
+                                        { ModelOptionCapabilityRow(ModelOptionCapabilityShape.Capability.Web, webShape, webActions) },
+                                        { ModelOptionCapabilityRow(ModelOptionCapabilityShape.Capability.Reasoning, reasoningShape, reasoningActions) },
                                     ),
-                                    onClick = { openRoute(ModelControlsRoute.ModelBehavior) },
                                 )
                             }
+                            listOf("web", "reasoning").forEach { capability ->
+                                val entries = ModelControlCapabilityFooter.entries(
+                                    ModelControlCapabilityFooter.Input(
+                                        context = ModelControlCapabilityFooter.Context.PanelCard,
+                                        overridden = isCustomActive(capability),
+                                        upstreamRejected = upstreamRejected(capability),
+                                        riskTiers = riskTiers(capability),
+                                        showsAdvancedSettingsAction = isCustomActive(capability),
+                                    ),
+                                )
+                                if (entries.isNotEmpty()) {
+                                    ModelControlCapabilityFooterView(capability = capability, entries = entries, onRoute = ::openRoute)
+                                }
+                            }
+                            AdvancedSectionLabel(stringResource(R.string.generation_parameters_section))
+                            ModelOptionParameterCard(
+                                summary = parameterSummary,
+                                onClick = {
+                                    behaviorInitialSubPage = null
+                                    openRoute(ModelControlsRoute.ModelBehavior)
+                                },
+                            )
                         }
                     }
                     is ModelControlsRoute.SupportedModels -> CapabilitySupportedModelsPage(
                         provider = provider,
                         capability = current.capability,
                         candidates = candidates(current.capability),
-
                         onBack = ::popRoute,
                         onSelect = { candidate ->
                             onSelectModel(provider.id, candidate.id)
@@ -679,17 +755,13 @@ private fun ModelControlsPanel(
                         },
                     )
                     ModelControlsRoute.ModelBehavior -> Column(modifier = Modifier.fillMaxSize()) {
-
                         val notifyAdvancedSettingsClosed by rememberUpdatedState(onAdvancedSettingsClosed)
-                        DisposableEffect(Unit) { onDispose { notifyAdvancedSettingsClosed() } }
-
-                        if (!behaviorSubPageOpen) {
-                            ModelControlsPageHeader(
-                                title = stringResource(R.string.generation_model_behavior),
-                                onBack = ::popRoute,
-                            )
+                        DisposableEffect(Unit) {
+                            onDispose {
+                                summaryRevision += 1
+                                notifyAdvancedSettingsClosed()
+                            }
                         }
-
                         val headerEntries = ModelControlCapabilityFooter.entries(
                             ModelControlCapabilityFooter.Input(
                                 context = ModelControlCapabilityFooter.Context.BehaviorPageHeader,
@@ -705,22 +777,22 @@ private fun ModelControlsPanel(
                                 hasSupportedModelCandidates = modelControlShowsSupportedModelsAction(
                                     presentation("generation"),
                                 ) && candidates("generation").isNotEmpty(),
-
                                 showsAdvancedSettingsAction = false,
                             ),
                         )
-
-                        GenerationParameterDefaultsSheet(
+                        AdvancedSettingsPage(
                             provider = provider,
-                            initialModelId = model.id,
+                            model = model,
                             conversationId = conversationId,
-
-                            modifier = Modifier.weight(1f).padding(bottom = 24.dp),
-
+                            reasoningMode = ai.oriveo.community.core.model.ReasoningMode.fromIntent(reasoningIntent),
                             isReadOnly = !editability.canPersist,
-
-                            containerProvidesTitle = true,
+                            onBack = ::popRoute,
                             onSubPageVisibleChange = { behaviorSubPageOpen = it },
+                            initialSubPage = behaviorInitialSubPage,
+                            onSelectCandidateModel = { candidate ->
+                                onSelectModel(provider.id, candidate.id)
+                                onDismiss()
+                            },
                             capabilityHeader = if (headerEntries.isEmpty()) {
                                 null
                             } else {
@@ -732,11 +804,7 @@ private fun ModelControlsPanel(
                                     )
                                 }
                             },
-
-                            onSelectCandidateModel = { candidate ->
-                                onSelectModel(provider.id, candidate.id)
-                                onDismiss()
-                            },
+                            modifier = Modifier.weight(1f),
                         )
                     }
                 }
@@ -751,7 +819,10 @@ private fun ModelControlsPageHeader(title: String, onBack: () -> Unit) {
         modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        TextButton(colors = modelControlTextButtonColors(), onClick = onBack) {
+        TextButton(
+            colors = modelControlTextButtonColors(),
+            onClick = onBack,
+        ) {
             Text(stringResource(R.string.back))
         }
         Text(
@@ -780,7 +851,6 @@ private fun CapabilitySupportedModelsPage(
             title = stringResource(modelControlCapabilityTitleRes(capability)),
             onBack = onBack,
         )
-
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 28.dp),
@@ -911,183 +981,6 @@ private data class SupportedModelsShadowShape(
 }
 
 @Composable
-private fun ModelControlWebCard(
-    status: CapabilityControlPresentation,
-    overridden: Boolean,
-    canPersist: Boolean,
-    availableIntents: List<String>,
-    selection: CapabilityWebPreference,
-    hasCustomSchema: Boolean,
-    @StringRes readOnlyReasonRes: Int?,
-    upstreamRejected: Boolean,
-    riskTiers: List<String>,
-    hasCandidates: Boolean,
-    onSelect: (CapabilityWebPreference) -> Unit,
-    onExplain: (String, String, ModelControlCapabilityEscape) -> Unit,
-    onRoute: (ModelControlsRoute) -> Unit,
-) {
-    val layout = ModelControlWebLayout.layout(
-        status = status,
-        availableIntents = availableIntents,
-        rawSelection = selection,
-        isEditable = canPersist && !overridden,
-        hasCustomSchema = hasCustomSchema,
-    )
-    val title = stringResource(R.string.model_control_web_search)
-    ModelControlCard(
-        icon = Icons.Outlined.Language,
-        title = title,
-        badge = modelControlBadge(
-            ModelControlBadgeClassification.capabilityCard(status), overridden = overridden,
-        ),
-        toggle = layout.isOn.takeIf { layout.form == ModelControlWebLayout.Form.Toggle },
-        onToggle = if (layout.form == ModelControlWebLayout.Form.Toggle) {
-            { enabled ->
-
-                onSelect(if (enabled) CapabilityWebPreference.Automatic else CapabilityWebPreference.Off)
-            }
-        } else {
-            null
-        },
-    ) {
-        when (layout.form) {
-            ModelControlWebLayout.Form.Toggle -> {
-                layout.captionRes?.let { ModelControlNote(it) }
-                if (layout.timingOptions.isNotEmpty()) {
-                    ModelControlIntentPicker(
-                        options = layout.timingOptions,
-                        selection = layout.timingSelection,
-                    ) { id -> onSelect(ModelControlWebLayout.preferenceFor(id)) }
-                }
-            }
-            ModelControlWebLayout.Form.StatusRow -> ModelControlStatusRowFor(
-                capability = "web",
-                statusTextRes = layout.statusTextRes,
-                explanationRes = layout.explanationRes,
-                escape = layout.escape,
-                onExplain = onExplain,
-            )
-        }
-        ModelControlCapabilityFooterView(
-            capability = "web",
-            entries = ModelControlCapabilityFooter.entries(
-                ModelControlCapabilityFooter.Input(
-                    context = ModelControlCapabilityFooter.Context.PanelCard,
-                    overridden = overridden,
-                    readOnlyReasonRes = readOnlyReasonRes,
-                    isConfigurable = status.isConfigurable,
-                    statusTextRes = modelControlStatusTextRes(status),
-                    upstreamRejected = upstreamRejected,
-                    riskTiers = riskTiers,
-                    showsSupportedModelsAction = modelControlShowsSupportedModelsAction(status),
-                    hasSupportedModelCandidates = modelControlShowsSupportedModelsAction(status) && hasCandidates,
-                    showsAdvancedSettingsAction = overridden,
-
-                    statusRowEscape = if (layout.form == ModelControlWebLayout.Form.StatusRow) {
-                        layout.escape
-                    } else {
-                        ModelControlCapabilityEscape.None
-                    },
-                ),
-            ),
-            onRoute = onRoute,
-        )
-    }
-}
-
-@Composable
-private fun ModelControlReasoningCard(
-    status: CapabilityControlPresentation,
-    overridden: Boolean,
-    canPersist: Boolean,
-    intents: List<String>,
-    selectedIntent: String?,
-    hasCustomSchema: Boolean,
-    @StringRes readOnlyReasonRes: Int?,
-    upstreamRejected: Boolean,
-    riskTiers: List<String>,
-    hasCandidates: Boolean,
-    onSelect: (String?) -> Unit,
-    onExplain: (String, String, ModelControlCapabilityEscape) -> Unit,
-    onRoute: (ModelControlsRoute) -> Unit,
-) {
-    val layout = ModelControlReasoningLayout.layout(
-        status = status,
-        intents = intents,
-        selectedIntent = selectedIntent,
-        isEditable = canPersist && !overridden,
-        hasCustomSchema = hasCustomSchema,
-    )
-    ModelControlCard(
-        icon = Icons.Outlined.Psychology,
-        title = stringResource(R.string.model_control_thinking),
-        badge = modelControlBadge(
-            ModelControlBadgeClassification.capabilityCard(status), overridden = overridden,
-        ),
-        toggle = null,
-        onToggle = null,
-    ) {
-        when (layout.form) {
-            ModelControlReasoningLayout.Form.PillRow -> {
-                ModelControlIntentPicker(options = layout.options, selection = layout.selection) { intent ->
-
-                    onSelect(intent.takeIf { it != ModelControlReasoningLayout.AUTOMATIC_INTENT })
-                }
-
-                layout.selectedAnnotationRes?.let { ModelControlNote(it) }
-            }
-            ModelControlReasoningLayout.Form.StatusRow -> ModelControlStatusRowFor(
-                capability = "reasoning",
-                statusTextRes = layout.statusTextRes,
-                explanationRes = layout.explanationRes,
-                escape = layout.escape,
-                onExplain = onExplain,
-            )
-        }
-        layout.footnoteRes?.let { ModelControlNote(it) }
-        ModelControlCapabilityFooterView(
-            capability = "reasoning",
-            entries = ModelControlCapabilityFooter.entries(
-                ModelControlCapabilityFooter.Input(
-                    context = ModelControlCapabilityFooter.Context.PanelCard,
-                    overridden = overridden,
-                    readOnlyReasonRes = readOnlyReasonRes,
-                    isConfigurable = status.isConfigurable,
-                    statusTextRes = modelControlStatusTextRes(status),
-                    upstreamRejected = upstreamRejected,
-                    riskTiers = riskTiers,
-                    showsSupportedModelsAction = modelControlShowsSupportedModelsAction(status),
-                    hasSupportedModelCandidates = modelControlShowsSupportedModelsAction(status) && hasCandidates,
-                    showsAdvancedSettingsAction = overridden,
-                    statusRowEscape = if (layout.form == ModelControlReasoningLayout.Form.StatusRow) {
-                        layout.escape
-                    } else {
-                        ModelControlCapabilityEscape.None
-                    },
-                ),
-            ),
-            onRoute = onRoute,
-        )
-    }
-}
-
-@Composable
-private fun ModelControlStatusRowFor(
-    capability: String,
-    @StringRes statusTextRes: Int?,
-    @StringRes explanationRes: Int?,
-    escape: ModelControlCapabilityEscape,
-    onExplain: (String, String, ModelControlCapabilityEscape) -> Unit,
-) {
-    if (statusTextRes == null) return
-    val explanation = explanationRes?.let { stringResource(it) }
-    ModelControlStatusRow(
-        text = stringResource(statusTextRes),
-        onClick = explanation?.let { message -> { onExplain(capability, message, escape) } },
-    )
-}
-
-@Composable
 private fun ModelControlCapabilityFooterView(
     capability: String,
     entries: List<ModelControlCapabilityFooter.Entry>,
@@ -1102,7 +995,6 @@ private fun ModelControlCapabilityFooterView(
                     textRes = entry.textRes,
                     icon = entry.icon?.let(::modelControlNoteIcon),
                     tone = when (entry.tone) {
-
                         ModelControlCapabilityFooter.Tone.Tertiary -> colors.textSecondary
                         ModelControlCapabilityFooter.Tone.Warning -> colors.warningText
                     },
@@ -1131,36 +1023,18 @@ private fun modelControlNoteIcon(icon: ModelControlCapabilityFooter.NoteIcon): I
     ModelControlCapabilityFooter.NoteIcon.Cost -> Icons.Filled.CreditCard
 }
 
-@Composable
-private fun modelControlBadge(
-    classification: ModelControlBadgeClassification,
-    overridden: Boolean,
-): Pair<ModelControlStatusTone, String>? {
-    if (overridden) {
-        return ModelControlStatusTone.Manual to stringResource(R.string.model_control_state_custom)
-    }
-    return when (classification) {
-        ModelControlBadgeClassification.None -> null
-        ModelControlBadgeClassification.Manual ->
-            ModelControlStatusTone.Manual to stringResource(R.string.model_control_state_manual)
-        ModelControlBadgeClassification.NotReady ->
-            ModelControlStatusTone.Manual to stringResource(R.string.model_control_state_not_ready)
-        ModelControlBadgeClassification.Unavailable ->
-            ModelControlStatusTone.Unavailable to stringResource(R.string.model_control_state_unavailable)
-    }
-}
-
 private fun subjectSubtitle(
     provider: Provider,
     transport: String?,
     context: android.content.Context,
-): String {
+): List<String> {
     val parts = mutableListOf(provider.displayName)
     if (!transport.isNullOrBlank()) {
         parts += CapabilityTransportLabel.display(transport)
             ?: context.getString(R.string.relay_section_protocol)
     }
-    return parts.joinToString(" · ")
+    return parts
 }
 
 internal val modelControlOwnerOrder: List<String> = listOf("web", "reasoning", "generation")
+

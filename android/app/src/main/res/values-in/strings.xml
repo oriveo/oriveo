@@ -1294,8 +1294,6 @@
     <string name="generation_parameter_name_llamacpp_native">Mode bawaan llama.cpp</string>
     <string name="generation_parameter_name_min_keep">Minimum token yang dipertahankan</string>
     <string name="generation_parameter_name_mirostat">Mirostat</string>
-    <string name="generation_parameter_name_mirostat_eta">Mirostat eta</string>
-    <string name="generation_parameter_name_mirostat_tau">Mirostat tau</string>
     <string name="generation_parameter_name_n_indent">Indentasi minimum</string>
     <string name="generation_parameter_name_n_keep">Token yang dipertahankan</string>
     <string name="generation_parameter_name_n_probabilities">Probabilitas token</string>
@@ -1337,8 +1335,6 @@
     <string name="model_control_custom_fields_active_note">Bidang permintaan kustom aktif untuk kontrol ini, jadi preferensi di atas tidak dikirim.</string>
     <string name="model_control_custom_only_reason">Konfigurasi otomatis tidak tersedia untuk koneksi ini.</string>
     <string name="model_control_state_not_ready">Belum siap</string>
-    <string name="model_control_state_unavailable">Tidak tersedia</string>
-    <string name="model_control_advanced_settings_subtitle">Token maksimum, suhu, dan parameter permintaan lainnya</string>
     <string name="generation_parameter_developer">Pengembang</string>
     <string name="generation_parameter_custom_fields_not_in_use">Tidak dipakai</string>
     <string name="generation_parameter_custom_fields_in_use">Sedang dipakai</string>
@@ -1349,7 +1345,6 @@
     <!-- A1 model controls panel rebuild (2026-08-16): ported verbatim from the iOS golden standard. -->
     <string name="model_control_capability_unavailable_here">Kemampuan ini tidak tersedia untuk koneksi ini.</string>
     <string name="model_control_upstream_rejected">Penyedia menolak pengaturan ini untuk model tersebut. Kirim lagi tanpanya atau pilih model lain.</string>
-    <string name="model_control_state_manual">Manual</string>
     <string name="model_control_state_custom">Kustom</string>
     <string name="model_control_status_pending">Konfigurasi otomatis belum tersedia untuk rute permintaan ini.</string>
     <string name="model_control_status_unknown_route">Model atau transport ini tidak mendukung konfigurasi otomatis untuk permintaan ini.</string>
@@ -1736,14 +1731,12 @@
     <string name="model_options_more_count">%1$d lainnya</string>
     <string name="model_options_needs_manual_setup">Perlu diatur manual</string>
     <string name="model_options_no_thinking_mode">Model ini tidak punya mode berpikir</string>
-    <string name="model_options_not_available_connection">Tidak tersedia untuk koneksi ini</string>
     <string name="model_options_not_available_yet">Belum tersedia</string>
     <string name="model_options_open_additional_body">Buka isi permintaan tambahan</string>
     <string name="model_options_protocol_auto_note">Protokol masih “Otomatis”, jadi Oriveo tidak tahu cara mengirim pengaturan pencarian web dan berpikir.</string>
     <string name="model_options_reasoning_no_generic_switch">Penyedia ini tidak punya sakelar standar untuk berpikir. Tambahkan kolomnya di isi permintaan tambahan.</string>
     <string name="model_options_reasoning_not_catalogued">Oriveo belum punya pengaturan berpikir untuk model ini, jadi model memakai bawaannya sendiri.</string>
     <string name="model_options_see_adjustable_models">Lihat model yang bisa diatur</string>
-    <string name="model_options_switch_connection">Ganti koneksi</string>
     <string name="model_options_template_thinking_note">Menyalakan atau mematikan berpikir lewat template chat. Berhasil atau tidaknya tergantung server Anda.</string>
     <string name="model_options_thinks_first_note">Berpikir matang dulu, jadi jawabannya sedikit lebih lama</string>
     <string name="model_options_tier_rejected_body">Model ini sedang tidak menerima “%1$s”, jadi kembali ke “%2$s”. Tingkat tersebut akan kembali sendiri saat model mendukungnya lagi.</string>
@@ -1755,4 +1748,6 @@
     <string name="model_options_web_not_catalogued">Oriveo belum punya pengaturan pencarian web untuk model ini, jadi belum bisa diaktifkan di sini.</string>
     <string name="model_options_web_note">Mencari di web dulu jika pertanyaannya memerlukan</string>
     <string name="model_options_web_when_needed">Saat diperlukan</string>
+    <string name="additional_body_tools_managed">Alat dikelola oleh Oriveo.</string>
+    <string name="additional_body_streaming_by_oriveo">Cara balasan dialirkan ditentukan oleh Oriveo.</string>
 </resources>

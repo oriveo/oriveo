@@ -9,7 +9,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.activity.compose.BackHandler
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.DataObject
 import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.PanTool
 import androidx.compose.material.icons.outlined.Book
@@ -57,7 +59,9 @@ import ai.oriveo.community.core.provider.previewCapabilityRuntimeCustomFragment
 import ai.oriveo.community.core.provider.safeCustomAllowedPaths
 import ai.oriveo.community.core.util.openExternalUrl
 import ai.oriveo.community.feature.chat.composer.ModelControlInlineAction
+import ai.oriveo.community.feature.chat.composer.ModelControlNavigationRow
 import ai.oriveo.community.feature.chat.composer.ModelControlNote
+import ai.oriveo.community.feature.chat.modelcontrols.AdditionalRequestBodyPage
 import ai.oriveo.community.feature.chat.composer.modelControlOwnerOrder
 import ai.oriveo.community.feature.chat.composer.modelControlSurface
 import ai.oriveo.community.ui.component.rememberGlobalSnackbarManager
@@ -96,6 +100,19 @@ internal fun CustomRequestFieldsPage(
 
     var legacyEmptyCustomOwners by remember(snapshot) { mutableStateOf(snapshot.legacyEmptyCustomOwners) }
     var pendingRemovalOwner by remember(snapshot) { mutableStateOf<String?>(null) }
+    var showsAdditionalBody by remember { mutableStateOf(false) }
+    BackHandler(enabled = showsAdditionalBody) { showsAdditionalBody = false }
+    if (showsAdditionalBody) {
+        AdditionalRequestBodyPage(
+            provider = provider,
+            model = model,
+            conversationId = conversationId,
+            isReadOnly = false,
+            onBack = { showsAdditionalBody = false },
+            modifier = modifier,
+        )
+        return
+    }
 
     fun persist(owner: String) {
         val namespace = LocalCapabilityCustomFragmentStore.namespaceForOwner(owner) ?: return
@@ -180,6 +197,17 @@ internal fun CustomRequestFieldsPage(
                 }
             } else {
                 snapshot.sections.forEach { owner ->
+                    if (customRequestFieldSectionOpensAdditionalBody(owner)) {
+                        ModelControlNavigationRow(
+                            icon = Icons.Outlined.DataObject,
+                            title = stringResource(R.string.additional_body_title),
+                            subtitle = stringResource(R.string.advanced_additional_body_subtitle),
+                            trailingText = null,
+                            badge = null,
+                            onClick = { showsAdditionalBody = true },
+                        )
+                        return@forEach
+                    }
                     CustomRequestFieldsOwnerCard(
                         provider = provider,
                         model = model,
@@ -206,6 +234,13 @@ internal fun CustomRequestFieldsPage(
         }
     }
 }
+
+/**
+ * The generation section is taken over by the additional request body: its entry opens the new page and reads and
+ * writes the new storage. The old namespace is migrated away on the next read, so writing into the old editor would
+ * only produce "saved, but empty when reopened". Web search and thinking still use the old editor.
+ */
+internal fun customRequestFieldSectionOpensAdditionalBody(owner: String): Boolean = owner == "generation"
 
 @androidx.annotation.StringRes
 internal fun customRequestFieldSectionTitleRes(owner: String): Int = when (owner) {

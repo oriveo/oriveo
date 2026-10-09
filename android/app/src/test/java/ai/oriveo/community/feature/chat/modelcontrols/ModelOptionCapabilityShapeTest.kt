@@ -1,5 +1,6 @@
 package ai.oriveo.community.feature.chat.modelcontrols
 
+import ai.oriveo.community.R
 import ai.oriveo.community.core.model.AIModel
 import ai.oriveo.community.core.model.Provider
 import ai.oriveo.community.core.model.ProviderKind
@@ -82,6 +83,18 @@ class ModelOptionCapabilityShapeTest {
             ModelOptionCapabilityShape.Notice(NoticeStatus.FollowsModelDefault, NoticeBody.ReasoningNotCatalogued, Escape.SupportedModels),
             shape,
         )
+    }
+
+    @Test
+    fun `card 04 web without official config says not available yet`() {
+        val shape = ModelOptionCapabilityShape.resolve(input(Capability.Web, CapabilityControlPresentation.Unknown))
+        assertEquals(
+            ModelOptionCapabilityShape.Notice(NoticeStatus.NotAvailableYet, NoticeBody.WebNotCatalogued, Escape.SupportedModels),
+            shape,
+        )
+        // The status wording says web search cannot be turned on for now, and thinking still follows the model default.
+        assertEquals(R.string.model_options_not_available_yet, ModelOptionsRender.noticeStatusRes(NoticeStatus.NotAvailableYet))
+        assertEquals(R.string.model_options_uses_model_default, ModelOptionsRender.noticeStatusRes(NoticeStatus.FollowsModelDefault))
     }
 
     @Test

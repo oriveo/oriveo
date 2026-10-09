@@ -99,12 +99,24 @@ object GenerationParameterDiagnosticStore {
     @Synchronized
     fun list(modelId: String? = null): List<GenerationParameterDiagnosticEntry> = prefs()?.getString(KEY, null)?.let {
         runCatching { json.decodeFromString<List<GenerationParameterDiagnosticEntry>>(it) }.getOrDefault(emptyList())
-    }?.filter { modelId == null || it.modelId == null || it.modelId == modelId }?.sortedByDescending { it.createdAt } ?: emptyList()
+    }?.filter { inScope(it, modelId) }?.sortedByDescending { it.createdAt } ?: emptyList()
 
+    /** Showing, exporting and deleting share one scope: with a [modelId] only what [list] lists for it is deleted. */
     @Synchronized
-    fun clear() { prefs()?.edit()?.remove(KEY)?.apply() }
+    fun clear(modelId: String? = null) {
+        val prefs = prefs() ?: return
+        val remaining = remainingAfterClear(list(), modelId)
+        if (remaining.isEmpty()) prefs.edit().remove(KEY).apply() else prefs.edit().putString(KEY, json.encodeToString(remaining)).apply()
+    }
 
-    fun redactedJSON(): String = exportJson.encodeToString(list().map { it.copy(modelId = null) })
+    /** The records left after deleting the scope of [modelId]; the scope is the same filter as [list]. */
+    internal fun remainingAfterClear(entries: List<GenerationParameterDiagnosticEntry>, modelId: String?): List<GenerationParameterDiagnosticEntry> =
+        if (modelId == null) emptyList() else entries.filterNot { inScope(it, modelId) }
+
+    private fun inScope(entry: GenerationParameterDiagnosticEntry, modelId: String?): Boolean =
+        modelId == null || entry.modelId == null || entry.modelId == modelId
+
+    fun redactedJSON(modelId: String? = null): String = exportJson.encodeToString(list(modelId).map { it.copy(modelId = null) })
 
     private fun prefs() = context?.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 }

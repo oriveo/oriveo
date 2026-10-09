@@ -34,6 +34,8 @@ object ModelControlRejectionCache {
         val setting: String,
         val observedAt: Long,
         val expiresAt: Long,
+        /** The thinking tier actually selected when it was rejected; null means untiered (legacy entries, the automatic tier, capabilities without tiers). */
+        val tier: String? = null,
     ) {
         val identity: ModelControlRuntimeIdentity get() = ModelControlRuntimeIdentity(
             connectionId,
@@ -89,6 +91,7 @@ object ModelControlRejectionCache {
         setting: String,
         recipeRef: String? = null,
         nowMillis: Long = System.currentTimeMillis(),
+        tier: String? = null,
     ) {
         if (owner !in setOf("web", "reasoning", "generation") || source !in setOf("custom", "provider_recipe") ||
             !setting.startsWith('/') || (source == "provider_recipe" && recipeRef.isNullOrBlank())
@@ -104,17 +107,20 @@ object ModelControlRejectionCache {
             setting.take(160),
             nowMillis,
             nowMillis + TTL_MILLIS,
+            tier?.take(40),
         )
-        entries[key(identity, owner, source, entry.recipeRef, entry.setting)] = entry
+        entries[key(identity, owner, source, entry.recipeRef, entry.setting, entry.tier)] = entry
         prune(nowMillis)
         persist()
     }
 
+    /** A tiered entry counts only when [selectedTier] is exactly that tier; an untiered entry always counts. */
     fun isRejected(
         identity: ModelControlRuntimeIdentity,
         owner: String,
         source: String,
         nowMillis: Long = System.currentTimeMillis(),
+        selectedTier: String? = null,
     ): Boolean {
         var changed = false
         val rejected = entries.entries.any { (key, entry) ->
@@ -122,7 +128,8 @@ object ModelControlRejectionCache {
                 changed = entries.remove(key, entry) || changed
                 false
             } else {
-                entry.identity == identity && entry.owner == owner && entry.source == source
+                entry.identity == identity && entry.owner == owner && entry.source == source &&
+                    (entry.tier == null || entry.tier == selectedTier)
             }
         }
         if (changed) persist()
@@ -151,12 +158,77 @@ object ModelControlRejectionCache {
         return values
     }
 
+    /** Rejections on one owner plus recipe grouped by tier: [untiered] means an untiered entry exists (a legacy entry or a capability without tiers). */
+    data class TierRejections(val untiered: Boolean, val tiers: Set<String>) {
+        val isEmpty: Boolean get() = !untiered && tiers.isEmpty()
+    }
+
+    fun tierRejections(
+        identity: ModelControlRuntimeIdentity,
+        owner: String,
+        source: String,
+        recipeRef: String? = null,
+        nowMillis: Long = System.currentTimeMillis(),
+    ): TierRejections {
+        val matching = liveEntries(identity, owner, source, recipeRef, nowMillis)
+        return TierRejections(
+            untiered = matching.any { it.tier == null },
+            tiers = matching.mapNotNullTo(linkedSetOf()) { it.tier },
+        )
+    }
+
+    /** Send side: whether the tier selected for this send (null means automatic or no tier) has been rejected; if so the setting is left out as dormant. */
+    fun blocksSelection(
+        identity: ModelControlRuntimeIdentity,
+        owner: String,
+        source: String,
+        recipeRef: String? = null,
+        selectedTier: String?,
+        nowMillis: Long = System.currentTimeMillis(),
+    ): Boolean = liveEntries(identity, owner, source, recipeRef, nowMillis).any { it.tier == null || it.tier == selectedTier }
+
+    /** Only a recipe's thinking setting is recorded per tier; custom fields and web search are untiered and the automatic tier has no tier. */
+    fun rejectedTier(located: LocatedModelControlRejection, reasoningIntent: String?): String? =
+        reasoningIntent?.takeIf {
+            located.owner == "reasoning" && located.source == "provider_recipe" && it.isNotBlank() && it != "automatic"
+        }
+
+    /** Persists a rejection the upstream located; see [rejectedTier] for [tier]. */
+    fun recordLocated(identity: ModelControlRuntimeIdentity, located: LocatedModelControlRejection, tier: String?) {
+        located.locatedPointers.forEach { pointer ->
+            record(identity, located.owner, located.source, pointer, located.recipeRef, tier = tier)
+        }
+    }
+
+    private fun liveEntries(
+        identity: ModelControlRuntimeIdentity,
+        owner: String,
+        source: String,
+        recipeRef: String?,
+        nowMillis: Long,
+    ): List<Entry> {
+        var changed = false
+        val values = entries.entries.mapNotNull { (key, entry) ->
+            if (entry.expiresAt <= nowMillis) {
+                changed = entries.remove(key, entry) || changed
+                return@mapNotNull null
+            }
+            entry.takeIf {
+                entry.identity == identity && entry.owner == owner && entry.source == source &&
+                    (source != "provider_recipe" || entry.recipeRef == recipeRef)
+            }
+        }
+        if (changed) persist()
+        return values
+    }
+
     fun isRejectedByAnySource(
         identity: ModelControlRuntimeIdentity,
         owner: String,
         nowMillis: Long = System.currentTimeMillis(),
+        selectedTier: String? = null,
     ): Boolean = isRejected(identity, owner, "custom", nowMillis) ||
-        isRejected(identity, owner, "provider_recipe", nowMillis)
+        isRejected(identity, owner, "provider_recipe", nowMillis, selectedTier)
 
     /** Provider deletion invalidates every model/transport/revision variant atomically. */
     @Synchronized
@@ -212,7 +284,7 @@ object ModelControlRejectionCache {
                 entry.source in setOf("custom", "provider_recipe") && entry.setting.startsWith('/') &&
                 (entry.source != "provider_recipe" || !entry.recipeRef.isNullOrBlank())
         }.sortedByDescending(Entry::observedAt).take(MAX_ENTRIES).forEach { entry ->
-            entries[key(entry.identity, entry.owner, entry.source, entry.recipeRef, entry.setting)] = entry
+            entries[key(entry.identity, entry.owner, entry.source, entry.recipeRef, entry.setting, entry.tier)] = entry
         }
     }
 
@@ -236,6 +308,7 @@ object ModelControlRejectionCache {
         source: String,
         recipeRef: String?,
         setting: String,
+        tier: String?,
     ): String = listOf(
         identity.connectionId.lowercase(),
         identity.canonicalModelId,
@@ -245,5 +318,6 @@ object ModelControlRejectionCache {
         source,
         recipeRef.orEmpty(),
         setting,
+        tier.orEmpty(),
     ).joinToString("\u001f")
 }

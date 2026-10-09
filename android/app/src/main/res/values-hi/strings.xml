@@ -1294,8 +1294,6 @@
     <string name="generation_parameter_name_llamacpp_native">llama.cpp नेटिव मोड</string>
     <string name="generation_parameter_name_min_keep">कम से कम रखे जाने वाले टोकन</string>
     <string name="generation_parameter_name_mirostat">Mirostat</string>
-    <string name="generation_parameter_name_mirostat_eta">Mirostat eta</string>
-    <string name="generation_parameter_name_mirostat_tau">Mirostat tau</string>
     <string name="generation_parameter_name_n_indent">न्यूनतम इंडेंटेशन</string>
     <string name="generation_parameter_name_n_keep">रखे जाने वाले टोकन</string>
     <string name="generation_parameter_name_n_probabilities">टोकन संभावनाएँ</string>
@@ -1337,8 +1335,6 @@
     <string name="model_control_custom_fields_active_note">इस नियंत्रण के लिए कस्टम फ़ील्ड चालू हैं, इसलिए ऊपर की प्राथमिकता नहीं भेजी जाती।</string>
     <string name="model_control_custom_only_reason">इस कनेक्शन के लिए स्वचालित कॉन्फ़िगरेशन उपलब्ध नहीं है।</string>
     <string name="model_control_state_not_ready">तैयार नहीं</string>
-    <string name="model_control_state_unavailable">अनुपलब्ध</string>
-    <string name="model_control_advanced_settings_subtitle">अधिकतम टोकन, तापमान और अन्य अनुरोध पैरामीटर</string>
     <string name="generation_parameter_developer">डेवलपर</string>
     <string name="generation_parameter_custom_fields_not_in_use">उपयोग में नहीं</string>
     <string name="generation_parameter_custom_fields_in_use">उपयोग में</string>
@@ -1349,7 +1345,6 @@
     <!-- A1 model controls panel rebuild (2026-08-16): ported verbatim from the iOS golden standard. -->
     <string name="model_control_capability_unavailable_here">यह क्षमता इस कनेक्शन के लिए उपलब्ध नहीं है।</string>
     <string name="model_control_upstream_rejected">प्रोवाइडर ने इस मॉडल के लिए यह सेटिंग अस्वीकार कर दी। इसके बिना फिर से भेजें या कोई दूसरा मॉडल चुनें।</string>
-    <string name="model_control_state_manual">मैनुअल</string>
     <string name="model_control_state_custom">कस्टम</string>
     <string name="model_control_status_pending">इस अनुरोध मार्ग के लिए स्वचालित कॉन्फ़िगरेशन अभी उपलब्ध नहीं है।</string>
     <string name="model_control_status_unknown_route">यह मॉडल या ट्रांसपोर्ट इस अनुरोध के लिए स्वचालित कॉन्फ़िगरेशन समर्थित नहीं करता।</string>
@@ -1744,14 +1739,12 @@
     <string name="model_options_more_count">और %1$d</string>
     <string name="model_options_needs_manual_setup">मैन्युअल सेटअप ज़रूरी</string>
     <string name="model_options_no_thinking_mode">इस मॉडल में सोच मोड नहीं है</string>
-    <string name="model_options_not_available_connection">इस कनेक्शन के लिए उपलब्ध नहीं</string>
     <string name="model_options_not_available_yet">अभी उपलब्ध नहीं</string>
     <string name="model_options_open_additional_body">अतिरिक्त अनुरोध बॉडी खोलें</string>
     <string name="model_options_protocol_auto_note">प्रोटोकॉल अभी भी “ऑटो” पर है, इसलिए Oriveo तय नहीं कर पा रहा कि वेब खोज और सोच की सेटिंग्स कैसे भेजे।</string>
     <string name="model_options_reasoning_no_generic_switch">इस प्रोवाइडर के पास सोच का कोई मानक स्विच नहीं है। इसके फ़ील्ड अतिरिक्त अनुरोध बॉडी में जोड़ें।</string>
     <string name="model_options_reasoning_not_catalogued">Oriveo में इस मॉडल की सोच सेटिंग्स अभी नहीं हैं, इसलिए यह अपने डिफ़ॉल्ट पर चलता है।</string>
     <string name="model_options_see_adjustable_models">देखें कौन-से मॉडल समायोजित हो सकते हैं</string>
-    <string name="model_options_switch_connection">कनेक्शन बदलें</string>
     <string name="model_options_template_thinking_note">चैट टेम्पलेट के ज़रिए सोच चालू या बंद करता है। यह काम करेगा या नहीं, यह आपके सर्वर पर निर्भर है।</string>
     <string name="model_options_thinks_first_note">पहले अच्छी तरह सोचता है, इसलिए जवाब में थोड़ा ज़्यादा समय लगता है</string>
     <string name="model_options_tier_rejected_body">यह मॉडल अभी “%1$s” स्वीकार नहीं कर रहा, इसलिए इसे “%2$s” पर वापस कर दिया गया है। मॉडल के फिर से सपोर्ट करने पर यह स्तर अपने आप लौट आएगा।</string>
@@ -1763,4 +1756,6 @@
     <string name="model_options_web_not_catalogued">Oriveo में इस मॉडल की वेब खोज सेटिंग्स अभी नहीं हैं, इसलिए इसे यहाँ चालू नहीं किया जा सकता।</string>
     <string name="model_options_web_note">ज़रूरत होने पर जवाब से पहले वेब पर खोजता है</string>
     <string name="model_options_web_when_needed">ज़रूरत होने पर</string>
+    <string name="additional_body_tools_managed">टूल Oriveo मैनेज करता है।</string>
+    <string name="additional_body_streaming_by_oriveo">जवाब किस तरह स्ट्रीम होगा, यह Oriveo तय करता है।</string>
 </resources>

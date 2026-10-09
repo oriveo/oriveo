@@ -1,6 +1,7 @@
 package ai.oriveo.community.core.provider
 
 import ai.oriveo.community.core.model.ProviderServiceError
+import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -69,6 +70,51 @@ object AdditionalRequestBody {
         }
     }
 
+    /** One line of the "when sent" list: the leaf path (objects are expanded level by level, arrays and scalars count as leaves), whether it can be sent, and its line number. */
+    data class PreviewEntry(val path: String, val status: PreviewStatus, val line: Int?)
+
+    enum class PreviewStatus { Included, Protected, BlockedName }
+
+    /** For the editor page: the production validation verdict (the error line highlight uses it too) plus a per-field list. The list is empty for a syntax error. */
+    data class Preview(val validation: Validation, val entries: List<PreviewEntry>)
+
+    fun preview(raw: String?): Preview {
+        val validation = validate(raw)
+        val root = when (validation) {
+            Validation.Empty -> return Preview(validation, emptyList())
+            is Validation.Accepted -> validation.patch
+            // Rejections for segment names and protected fields happen after parsing: the object is complete, so the list shows which entries have to go.
+            is Validation.Rejected -> if (validation.reason == "blocked_segment" || validation.reason == "protected_field") {
+                parser.parseToJsonElement(raw!!) as JsonObject
+            } else {
+                return Preview(validation, emptyList())
+            }
+        }
+        val lines = KeyLineScanner(raw!!).scan()
+        val entries = mutableListOf<PreviewEntry>()
+        fun walk(node: JsonObject, prefix: String?) {
+            node.forEach { (key, value) ->
+                val path = prefix?.let { "$it.$key" } ?: key
+                val status = when {
+                    key in blockedSegments || (value !is JsonObject && blockedSegment(value) != null) -> PreviewStatus.BlockedName
+                    prefix == null && key in protectedRootFields -> PreviewStatus.Protected
+                    value is JsonObject && value.isNotEmpty() -> return@forEach walk(value, path)
+                    else -> PreviewStatus.Included
+                }
+                entries += PreviewEntry(path, status, lines[path])
+            }
+        }
+        walk(root, null)
+        return Preview(validation, entries)
+    }
+
+    @OptIn(kotlinx.serialization.ExperimentalSerializationApi::class)
+    private val pretty = Json { prettyPrint = true; prettyPrintIndent = "  " }
+
+    /** "Tidy": re-indents valid JSON; returns null for invalid JSON so the caller leaves the content alone. */
+    fun tidy(raw: String): String? =
+        runCatching { pretty.encodeToString(JsonElement.serializer(), parser.parseToJsonElement(raw)) }.getOrNull()
+
     fun merge(base: JsonObject, patch: JsonObject): JsonObject = buildJsonObject {
         (base.keys + patch.keys).forEach { key ->
             val b = base[key]
@@ -92,6 +138,68 @@ object AdditionalRequestBody {
             ?: element.values.firstNotNullOfOrNull(::blockedSegment)
         is JsonArray -> element.firstNotNullOfOrNull(::blockedSegment)
         else -> null
+    }
+
+    /** The line of the first occurrence of every object key in valid JSON (joined into a dotted path; keys inside arrays are not recorded). */
+    private class KeyLineScanner(private val text: String) {
+        private var index = 0
+        private var line = 1
+        private val lines = linkedMapOf<String, Int>()
+
+        fun scan(): Map<String, Int> {
+            runCatching { value(path = "", record = true) }
+            return lines
+        }
+
+        private fun skipSpace() {
+            while (index < text.length && text[index] in " \t\r\n") {
+                if (text[index] == '\n') line++
+                index++
+            }
+        }
+
+        private fun value(path: String, record: Boolean) {
+            skipSpace()
+            when (text[index]) {
+                '{' -> {
+                    index++
+                    skipSpace()
+                    if (text[index] == '}') { index++; return }
+                    while (true) {
+                        skipSpace()
+                        val keyLine = line
+                        val key = string()
+                        val child = if (path.isEmpty()) key else "$path.$key"
+                        if (record) lines.putIfAbsent(child, keyLine)
+                        skipSpace()
+                        index++ // ':'
+                        value(child, record)
+                        skipSpace()
+                        if (text[index++] == '}') return
+                    }
+                }
+                '[' -> {
+                    index++
+                    skipSpace()
+                    if (text[index] == ']') { index++; return }
+                    while (true) {
+                        value(path, record = false)
+                        skipSpace()
+                        if (text[index++] == ']') return
+                    }
+                }
+                '"' -> string()
+                else -> while (index < text.length && text[index] !in ",]} \t\r\n") index++
+            }
+        }
+
+        private fun string(): String {
+            val start = index
+            index++
+            while (text[index] != '"') index += if (text[index] == '\\') 2 else 1
+            index++
+            return parser.decodeFromString(String.serializer(), text.substring(start, index))
+        }
     }
 
     /** Only used to locate the offset of the first syntax error; kotlinx parses the value itself. */

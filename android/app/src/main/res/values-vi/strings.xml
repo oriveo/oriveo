@@ -1294,8 +1294,6 @@
     <string name="generation_parameter_name_llamacpp_native">Chế độ gốc llama.cpp</string>
     <string name="generation_parameter_name_min_keep">Số token giữ lại tối thiểu</string>
     <string name="generation_parameter_name_mirostat">Mirostat</string>
-    <string name="generation_parameter_name_mirostat_eta">Mirostat eta</string>
-    <string name="generation_parameter_name_mirostat_tau">Mirostat tau</string>
     <string name="generation_parameter_name_n_indent">Thụt lề tối thiểu</string>
     <string name="generation_parameter_name_n_keep">Số token giữ lại</string>
     <string name="generation_parameter_name_n_probabilities">Xác suất token</string>
@@ -1337,8 +1335,6 @@
     <string name="model_control_custom_fields_active_note">Trường yêu cầu tùy chỉnh đang bật cho điều khiển này, nên tùy chọn ở trên không được gửi.</string>
     <string name="model_control_custom_only_reason">Cấu hình tự động không khả dụng cho kết nối này.</string>
     <string name="model_control_state_not_ready">Chưa sẵn sàng</string>
-    <string name="model_control_state_unavailable">Không khả dụng</string>
-    <string name="model_control_advanced_settings_subtitle">Số token tối đa, nhiệt độ và các tham số yêu cầu khác</string>
     <string name="generation_parameter_developer">Nhà phát triển</string>
     <string name="generation_parameter_custom_fields_not_in_use">Chưa dùng</string>
     <string name="generation_parameter_custom_fields_in_use">Đang dùng</string>
@@ -1349,7 +1345,6 @@
     <!-- A1 model controls panel rebuild (2026-08-16): ported verbatim from the iOS golden standard. -->
     <string name="model_control_capability_unavailable_here">Tính năng này không khả dụng cho kết nối này.</string>
     <string name="model_control_upstream_rejected">Nhà cung cấp đã từ chối cài đặt này cho mô hình. Hãy gửi lại mà không có cài đặt đó hoặc chọn mô hình khác.</string>
-    <string name="model_control_state_manual">Thủ công</string>
     <string name="model_control_state_custom">Tùy chỉnh</string>
     <string name="model_control_status_pending">Cấu hình tự động chưa có cho tuyến yêu cầu này.</string>
     <string name="model_control_status_unknown_route">Mô hình hoặc phương thức truyền này không hỗ trợ cấu hình tự động cho yêu cầu này.</string>
@@ -1736,14 +1731,12 @@
     <string name="model_options_more_count">Còn %1$d mục khác</string>
     <string name="model_options_needs_manual_setup">Cần thiết lập thủ công</string>
     <string name="model_options_no_thinking_mode">Mô hình này không có chế độ suy nghĩ</string>
-    <string name="model_options_not_available_connection">Không khả dụng với kết nối này</string>
     <string name="model_options_not_available_yet">Chưa khả dụng</string>
     <string name="model_options_open_additional_body">Mở nội dung yêu cầu bổ sung</string>
     <string name="model_options_protocol_auto_note">Giao thức vẫn đang là “Tự động” nên Oriveo không biết cách gửi cài đặt tìm kiếm web và suy nghĩ.</string>
     <string name="model_options_reasoning_no_generic_switch">Nhà cung cấp này không có công tắc chuẩn cho suy nghĩ. Hãy thêm các trường riêng của nhà cung cấp vào nội dung yêu cầu bổ sung.</string>
     <string name="model_options_reasoning_not_catalogued">Oriveo chưa có cài đặt suy nghĩ cho mô hình này nên mô hình chạy theo mặc định riêng.</string>
     <string name="model_options_see_adjustable_models">Xem mô hình nào điều chỉnh được</string>
-    <string name="model_options_switch_connection">Đổi kết nối</string>
     <string name="model_options_template_thinking_note">Bật hoặc tắt suy nghĩ qua mẫu trò chuyện. Có hiệu lực hay không tùy vào máy chủ của bạn.</string>
     <string name="model_options_thinks_first_note">Suy nghĩ kỹ trước nên câu trả lời sẽ lâu hơn một chút</string>
     <string name="model_options_tier_rejected_body">Mô hình này hiện không chấp nhận “%1$s” nên đã chuyển về “%2$s”. Mức này sẽ tự quay lại khi mô hình hỗ trợ trở lại.</string>
@@ -1755,4 +1748,6 @@
     <string name="model_options_web_not_catalogued">Oriveo chưa có cài đặt tìm kiếm web cho mô hình này nên chưa thể bật ở đây.</string>
     <string name="model_options_web_note">Tìm kiếm web trước khi trả lời khi câu hỏi cần đến</string>
     <string name="model_options_web_when_needed">Khi cần</string>
+    <string name="additional_body_tools_managed">Oriveo quản lý công cụ.</string>
+    <string name="additional_body_streaming_by_oriveo">Oriveo quyết định cách truyền phát câu trả lời.</string>
 </resources>

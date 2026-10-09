@@ -56,7 +56,8 @@ sealed interface ModelOptionCapabilityShape {
     enum class CustomProtocol { ChatCompletions, Other }
     enum class ToggleKind { Capability, ChatTemplateThinking }
     enum class TrailingNote { AlwaysThinks }
-    enum class NoticeStatus { FollowsModelDefault, NeedsOwnConfiguration }
+    /** Without an official configuration web search says it cannot be turned on for now; thinking says it follows the model default (it thinks by the model's default even when nothing is chosen). */
+    enum class NoticeStatus { FollowsModelDefault, NeedsOwnConfiguration, NotAvailableYet }
     enum class NoticeBody {
         ReasoningNotCatalogued,
         WebNotCatalogued,
@@ -174,7 +175,7 @@ sealed interface ModelOptionCapabilityShape {
             CapabilityControlPresentation.CustomOnly ->
                 Notice(NoticeStatus.NeedsOwnConfiguration, NoticeBody.WebNoGenericSwitch, Escape.AdditionalBody)
             CapabilityControlPresentation.Pending, CapabilityControlPresentation.Unknown ->
-                Notice(NoticeStatus.FollowsModelDefault, NoticeBody.WebNotCatalogued, Escape.SupportedModels)
+                Notice(NoticeStatus.NotAvailableYet, NoticeBody.WebNotCatalogued, Escape.SupportedModels)
             CapabilityControlPresentation.AutomaticAvailable, CapabilityControlPresentation.ForceUnsupported -> {
                 val supportsForce = FORCE in input.availableIntents && FORCE !in input.rejectedIntents
                 // The stored "search on every message" no longer exists in the current recipe: show "search when needed" and leave the stored value alone.
