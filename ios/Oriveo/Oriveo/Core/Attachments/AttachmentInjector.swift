@@ -87,7 +87,10 @@ enum AttachmentInjector {
                 lines.append("<TRUNCATED>showing first \(n) of \(extracted.totalLines) lines (size cap 200KB)</TRUNCATED>")
             case .bytes:
                 lines.append("<TRUNCATED>showing first \(n) of \(extracted.totalLines) lines (truncated to fit 200KB cap)</TRUNCATED>")
-            case .none: break
+            case .none:
+                // An ExtractedText rebuilt from a persisted attachment at send time has no reason;
+                // the marker must not disappear with it, or the model reads the truncated head as the whole file.
+                lines.append("<TRUNCATED>showing first \(n) of \(extracted.totalLines) lines</TRUNCATED>")
             }
         }
         lines.append("</ATTACHMENT_FILE>")
@@ -115,7 +118,11 @@ enum AttachmentInjector {
         if let extracted = extracted {
             if extracted.truncated {
                 let n = extracted.content.components(separatedBy: "\n").count
-                lines.append("- Lines: \(extracted.totalLines) (showing first \(n), size cap 200KB)")
+                if extracted.truncationReason == nil {
+                    lines.append("- Lines: \(extracted.totalLines) (showing first \(n))")
+                } else {
+                    lines.append("- Lines: \(extracted.totalLines) (showing first \(n), size cap 200KB)")
+                }
             } else {
                 lines.append("- Lines: \(extracted.totalLines)")
             }
@@ -187,14 +194,16 @@ enum AttachmentInjector {
                 extracted: extracted,
                 errorCode: code
             )
-            let blockBytes = block.utf8.count
+            // The total cap counts body text only. The per-file cap applied at extraction time measures the
+            // body, so adding the wrapper and truncation marker here would skip a file that was cut to exactly the cap.
+            let contentBytes = extracted?.content.utf8.count ?? 0
 
-            if consumed + blockBytes > limits.totalCap {
+            if consumed + contentBytes > limits.totalCap {
                 skipped.append((fileName, .totalCapExceeded))
                 continue
             }
             parts.append(block)
-            consumed += blockBytes
+            consumed += contentBytes
             emittedIndex += 1
         }
 

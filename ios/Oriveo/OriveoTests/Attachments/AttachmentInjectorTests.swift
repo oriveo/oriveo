@@ -123,6 +123,62 @@ final class AttachmentInjectorTests: XCTestCase {
         XCTAssertFalse(result.text.contains("b.txt"))
     }
 
+    /// An ExtractedText rebuilt from a persisted attachment at send time has no reason (`BaseAPIService` hard-codes nil); the marker must still be emitted.
+    func testTruncatedWithoutReasonStillEmitsMarker() {
+        let content = (1...500).map { "L\($0)" }.joined(separator: "\n")
+        let extracted = ExtractedText(
+            content: content, totalLines: 700, truncated: true, truncationReason: nil, sizeBytes: 9_000
+        )
+        let xml = AttachmentInjector.formatAttachment(
+            wrapper: .xmlV1, index: 1, fileName: "big.txt", mimeType: "text/plain",
+            sizeBytes: 9_000, extracted: extracted
+        )
+        XCTAssertTrue(xml.contains("<TRUNCATED>showing first 500 of 700 lines</TRUNCATED>"), xml.suffix(200).description)
+
+        let markdown = AttachmentInjector.formatAttachment(
+            wrapper: .markdownV1, index: 1, fileName: "big.txt", mimeType: "text/plain",
+            sizeBytes: 9_000, extracted: extracted
+        )
+        XCTAssertTrue(markdown.contains("- Lines: 700 (showing first 500)"), markdown.prefix(200).description)
+    }
+
+    /// The total budget counts body text only: two bodies summing exactly to totalCap are both injected; the wrapper does not use budget.
+    func testTotalCapCountsContentBytesOnly() {
+        let limits = FileExtractionLimits.default
+        let half = limits.totalCap / 2
+        let first = String(repeating: "a", count: half)
+        let second = String(repeating: "b", count: limits.totalCap - half)
+        for wrapper in [AttachmentWrapperVersion.xmlV1, .markdownV1] {
+            let result = AttachmentInjector.injectAll(
+                intoUserText: "prompt",
+                fileAttachments: [
+                    ("first.txt", "text/plain", first.utf8.count,
+                     ExtractedText(content: first, totalLines: 1, truncated: false, truncationReason: nil, sizeBytes: first.utf8.count), nil),
+                    ("second.txt", "text/plain", second.utf8.count,
+                     ExtractedText(content: second, totalLines: 1, truncated: false, truncationReason: nil, sizeBytes: second.utf8.count), nil),
+                ],
+                limits: limits,
+                wrapper: wrapper
+            )
+            XCTAssertTrue(result.skipped.isEmpty, "\(wrapper.rawValue) skipped \(result.skipped.map(\.fileName))")
+            XCTAssertTrue(result.text.contains("first.txt"))
+            XCTAssertTrue(result.text.contains("second.txt"))
+        }
+
+        // One byte more exceeds the cap: the budget still applies.
+        let over = AttachmentInjector.injectAll(
+            intoUserText: "prompt",
+            fileAttachments: [
+                ("first.txt", "text/plain", first.utf8.count,
+                 ExtractedText(content: first, totalLines: 1, truncated: false, truncationReason: nil, sizeBytes: first.utf8.count), nil),
+                ("second.txt", "text/plain", second.utf8.count + 1,
+                 ExtractedText(content: second + "b", totalLines: 1, truncated: false, truncationReason: nil, sizeBytes: second.utf8.count + 1), nil),
+            ],
+            limits: limits
+        )
+        XCTAssertEqual(over.skipped.map(\.fileName), ["second.txt"])
+    }
+
     func testWrapperVersionResolve() {
         XCTAssertEqual(AttachmentWrapperVersion.resolve(provider: .deepseek), .markdownV1)
         XCTAssertEqual(AttachmentWrapperVersion.resolve(provider: .qwen), .markdownV1)
