@@ -8437,13 +8437,13 @@
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "تعذّر قراءة %@ — قد يكون الملف تالفًا."
+            "value" : "تعذّر قراءة %@؛ قد يكون الملف تالفًا."
           }
         },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ konnte nicht gelesen werden — die Datei ist möglicherweise beschädigt."
+            "value" : "%@ konnte nicht gelesen werden – die Datei ist möglicherweise beschädigt."
           }
         },
         "en" : {
@@ -8455,25 +8455,25 @@
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "No se pudo leer %@ — el archivo puede estar dañado."
+            "value" : "No se pudo leer %@: es posible que el archivo esté dañado."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Impossible de lire %@ — le fichier est peut-être corrompu."
+            "value" : "Impossible de lire %@ : le fichier est peut-être endommagé."
           }
         },
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ पढ़ा नहीं जा सका — फ़ाइल खराब हो सकती है."
+            "value" : "%@ पढ़ा नहीं जा सका। फ़ाइल ख़राब हो सकती है।"
           }
         },
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Tidak dapat membaca %@ — berkas mungkin rusak."
+            "value" : "Tidak dapat membaca %@; berkasnya mungkin rusak."
           }
         },
         "ja" : {
@@ -8485,7 +8485,7 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@을(를) 읽을 수 없습니다. 파일이 손상되었을 수 있습니다."
+            "value" : "%@ 파일을 읽을 수 없습니다. 손상되었을 수 있습니다."
           }
         },
         "pt-BR" : {
@@ -8509,7 +8509,7 @@
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ okunamadı — dosya bozuk olabilir."
+            "value" : "%@ okunamadı; dosya bozuk olabilir."
           }
         },
         "vi" : {
@@ -8538,97 +8538,97 @@
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ محمي بكلمة مرور. فُك حماية ملف PDF أولاً."
+            "value" : "الملف %@ محمي بكلمة مرور. يرجى إزالة كلمة المرور ثم إرفاقه مرة أخرى."
           }
         },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ ist kennwortgeschützt. Entschlüssle das PDF zuerst."
+            "value" : "%@ ist passwortgeschützt. Entferne das Passwort und lade die Datei erneut hoch."
           }
         },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ is password-protected. Decrypt the PDF first."
+            "value" : "%@ is password-protected. Remove the password, then attach it again."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ está protegido con contraseña. Descifra el PDF primero."
+            "value" : "%@ está protegido con contraseña. Quítala y vuelve a adjuntar el archivo."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ est protégé par mot de passe. Déchiffrez d'abord le PDF."
+            "value" : "%@ est protégé par un mot de passe. Retirez-le, puis joignez à nouveau le fichier."
           }
         },
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ पासवर्ड से सुरक्षित है. पहले PDF को अनलॉक करें."
+            "value" : "%@ पर पासवर्ड लगा है। पासवर्ड हटाएँ, फिर फ़ाइल दोबारा अपलोड करें।"
           }
         },
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ dilindungi kata sandi. Dekripsi PDF terlebih dahulu."
+            "value" : "%@ dilindungi kata sandi. Hapus kata sandinya, lalu lampirkan lagi."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ はパスワードで保護されています。先に PDF の保護を解除してください。"
+            "value" : "%@ にはパスワードがかかっています。パスワードを解除してから、もう一度追加してください。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@은(는) 비밀번호로 보호되어 있습니다. PDF 보호를 먼저 해제하세요."
+            "value" : "%@ 파일에 비밀번호가 걸려 있습니다. 비밀번호를 해제한 뒤 다시 첨부해 주세요."
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ está protegido por senha. Descriptografe o PDF primeiro."
+            "value" : "%@ está protegido por senha. Remova a senha e anexe o arquivo de novo."
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ защищён паролем. Сначала снимите защиту с PDF."
+            "value" : "Файл %@ защищён паролем. Снимите пароль и прикрепите файл заново."
           }
         },
         "th" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ มีการป้องกันด้วยรหัสผ่าน โปรดปลดล็อก PDF ก่อน"
+            "value" : "%@ ติดรหัสผ่าน เอาออกแล้วอัปโหลดอีกครั้ง"
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ parola korumalı. Önce PDF'in şifresini çözün."
+            "value" : "%@ parola korumalı. Parolayı kaldırıp dosyayı yeniden ekleyin."
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ được bảo vệ bằng mật khẩu. Hãy giải mã PDF trước."
+            "value" : "%@ có mật khẩu. Bỏ mật khẩu rồi tải lên lại."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ 已加密，请先解密 PDF。"
+            "value" : "%@ 设有密码，请去掉密码后重新添加。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ 已加密，請先解密 PDF。"
+            "value" : "%@ 設有密碼，請移除密碼後重新加入。"
           }
         }
       }
@@ -8746,7 +8746,7 @@
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Text konnte nicht aus %@ extrahiert werden (sieht wie ein gescanntes PDF aus)."
+            "value" : "Aus %@ ließ sich kein Text auslesen (vermutlich ein gescanntes PDF)."
           }
         },
         "en" : {
@@ -8764,13 +8764,13 @@
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Impossible d'extraire le texte de %@ (semble être un PDF numérisé)."
+            "value" : "Impossible d'extraire le texte de %@ (il s'agit sans doute d'un PDF numérisé)."
           }
         },
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ से टेक्स्ट नहीं निकाला जा सका (यह स्कैन किया गया PDF लगता है)."
+            "value" : "%@ से टेक्स्ट नहीं निकाला जा सका (यह स्कैन किया गया PDF लगता है)।"
           }
         },
         "id" : {
@@ -8841,97 +8841,97 @@
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ كبير جدًا (الحد الأقصى 50 ميجابايت)."
+            "value" : "الملف %1$@ كبير جدًا (الحد الأقصى %2$lld ميجابايت)."
           }
         },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ ist zu groß (max. 50 MB)."
+            "value" : "%1$@ ist zu groß (max. %2$lld MB)."
           }
         },
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ is too large (max 50 MB)."
+            "value" : "%1$@ is too large (max %2$lld MB)."
           }
         },
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ es demasiado grande (máx. 50 MB)."
+            "value" : "%1$@ es demasiado grande (máx. %2$lld MB)."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ est trop volumineux (50 Mo max.)."
+            "value" : "%1$@ est trop volumineux (%2$lld Mo max.)."
           }
         },
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ बहुत बड़ी है (अधिकतम 50 MB)."
+            "value" : "%1$@ बहुत बड़ी है (अधिकतम %2$lld MB)।"
           }
         },
         "id" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ terlalu besar (maks. 50 MB)."
+            "value" : "%1$@ terlalu besar (maks. %2$lld MB)."
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ は大きすぎます（最大 50 MB）。"
+            "value" : "%1$@ は大きすぎます（最大 %2$lld MB）。"
           }
         },
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@이(가) 너무 큽니다(최대 50 MB)."
+            "value" : "%1$@ 파일이 너무 큽니다(최대 %2$lldMB)."
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ é muito grande (máx. 50 MB)."
+            "value" : "%1$@ é muito grande (máx. %2$lld MB)."
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ слишком большой (максимум 50 МБ)."
+            "value" : "Файл %1$@ слишком большой (максимум %2$lld МБ)."
           }
         },
         "th" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ มีขนาดใหญ่เกินไป (สูงสุด 50 MB)"
+            "value" : "%1$@ มีขนาดใหญ่เกินไป (สูงสุด %2$lld MB)"
           }
         },
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ çok büyük (en fazla 50 MB)."
+            "value" : "%1$@ çok büyük (en fazla %2$lld MB)."
           }
         },
         "vi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ quá lớn (tối đa 50 MB)."
+            "value" : "%1$@ quá lớn (tối đa %2$lld MB)."
           }
         },
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ 太大（最大 50 MB）。"
+            "value" : "%1$@ 太大，不能超过 %2$lld MB。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ 太大（最大 50 MB）。"
+            "value" : "%1$@ 太大，不能超過 %2$lld MB。"
           }
         }
       }
@@ -8942,13 +8942,13 @@
         "ar" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ ليس نوع ملف مدعوم."
+            "value" : "نوع الملف %@ غير مدعوم."
           }
         },
         "de" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ ist kein unterstützter Dateityp."
+            "value" : "Der Dateityp von %@ wird nicht unterstützt."
           }
         },
         "en" : {
@@ -8960,19 +8960,19 @@
         "es" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ no es un tipo de archivo compatible."
+            "value" : "El tipo de archivo de %@ no es compatible."
           }
         },
         "fr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ n'est pas un type de fichier pris en charge."
+            "value" : "Le type de fichier de %@ n'est pas pris en charge."
           }
         },
         "hi" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ समर्थित फ़ाइल प्रकार नहीं है."
+            "value" : "%@ समर्थित फ़ाइल प्रकार नहीं है।"
           }
         },
         "id" : {
@@ -8990,19 +8990,19 @@
         "ko" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@은(는) 지원되지 않는 파일 형식입니다."
+            "value" : "%@ 파일은 지원되지 않는 형식입니다."
           }
         },
         "pt-BR" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ não é um tipo de arquivo compatível."
+            "value" : "O tipo de arquivo de %@ não é compatível."
           }
         },
         "ru" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ — неподдерживаемый тип файла."
+            "value" : "Тип файла %@ не поддерживается."
           }
         },
         "th" : {
@@ -9014,7 +9014,7 @@
         "tr" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ desteklenen bir dosya türü değil."
+            "value" : "%@ dosyasının türü desteklenmiyor."
           }
         },
         "vi" : {
@@ -9026,13 +9026,13 @@
         "zh-Hans" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ 不是受支持的文件类型。"
+            "value" : "暂不支持 %@ 这种文件类型。"
           }
         },
         "zh-Hant" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "%@ 不是支援的檔案類型。"
+            "value" : "不支援 %@ 這種檔案類型。"
           }
         }
       }

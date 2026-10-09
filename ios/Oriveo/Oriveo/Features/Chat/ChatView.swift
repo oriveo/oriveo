@@ -1298,7 +1298,10 @@ struct ChatView: View {
                 // counted as rejected: counting it would immediately show a second "unsupported file format"
                 // toast in the same spot, and that one usually wins although the format is supported.
                 Task { @MainActor in
-                    ToastManager.shared.show(code.importFailureMessage(fileName: fileName))
+                    ToastManager.shared.show(code.importFailureMessage(
+                        fileName: fileName,
+                        maxInputFileBytes: extractionLimits.maxInputFileBytes
+                    ))
                 }
             }
             return nil

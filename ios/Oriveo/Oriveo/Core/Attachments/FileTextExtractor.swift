@@ -26,14 +26,15 @@ enum ExtractionErrorCode: String, Equatable {
 }
 
 extension ExtractionErrorCode {
-    /// The key of the import failure message (Chat table, with one placeholder for the file name).
-    /// An encrypted Office document cannot be told apart from a damaged one when read, so it is reported as
-    /// "may be corrupted"; timeouts and unclassified failures use the generic sentence.
+    /// The key of the import failure message (Chat table, with one placeholder for the file name; "file too
+    /// large" also takes the limit in whole megabytes). Password-protected PDFs and Office documents share the
+    /// "password-protected" sentence (the key keeps its encrypted_pdf name); timeouts and unclassified failures
+    /// use the generic sentence.
     var importFailureMessageKey: String {
         switch self {
         case .scannedPdf: return "file_extraction_error_scanned_pdf"
-        case .encryptedPdf: return "file_extraction_error_encrypted_pdf"
-        case .passwordProtectedOffice, .corruptedFile: return "file_extraction_error_corrupted"
+        case .encryptedPdf, .passwordProtectedOffice: return "file_extraction_error_encrypted_pdf"
+        case .corruptedFile: return "file_extraction_error_corrupted"
         case .unsupportedFormat: return "file_extraction_error_unsupported"
         case .fileTooLarge: return "file_extraction_error_too_large"
         case .extractionTimeout, .extractionError: return "file_extraction_error_generic"
@@ -41,8 +42,12 @@ extension ExtractionErrorCode {
     }
 
     /// The import failure message shown to the user.
-    func importFailureMessage(fileName: String) -> String {
-        String(format: L10n.tr(importFailureMessageKey, table: .chat), fileName)
+    /// - Parameter maxInputFileBytes: The input limit in effect for this extraction (a model override can
+    ///   lower it). Only "file too large" uses it; it is rounded down to whole megabytes and shown as at least 1.
+    func importFailureMessage(fileName: String, maxInputFileBytes: Int) -> String {
+        let format = L10n.tr(importFailureMessageKey, table: .chat)
+        guard self == .fileTooLarge else { return String(format: format, fileName) }
+        return String(format: format, fileName, max(1, maxInputFileBytes / (1024 * 1024)))
     }
 }
 
@@ -167,6 +172,9 @@ enum FileTextExtractor {
                  ("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", _),
                  ("application/vnd.openxmlformats-officedocument.presentationml.presentation", _),
                  (_, "docx"), (_, "xlsx"), (_, "pptx"):
+                guard !OfficeTextExtractor.isPasswordProtected(data, fileExtension: ext) else {
+                    throw ExtractionError(code: .passwordProtectedOffice)
+                }
                 guard let officeText = try OfficeTextExtractor.extractText(
                     from: data,
                     fileExtension: ext,

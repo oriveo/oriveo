@@ -9,6 +9,16 @@ nonisolated enum OfficeTextExtractor {
         supportedExtensions.contains(ext.lowercased())
     }
 
+    private static let oleCompoundFileSignature: [UInt8] = [0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1]
+
+    /// A password-protected docx/xlsx/pptx is not a zip but an OLE compound document container; opening it as a
+    /// zip only yields "file is damaged". The header is compared for OOXML extensions only: legacy
+    /// .doc/.xls/.ppt files are OLE containers themselves and must not be taken for encrypted ones.
+    static func isPasswordProtected(_ data: Data, fileExtension ext: String) -> Bool {
+        guard supportedExtensions.contains(ext.lowercased()) else { return false }
+        return data.prefix(oleCompoundFileSignature.count).elementsEqual(oleCompoundFileSignature)
+    }
+
     static func extractText(
         from data: Data,
         fileExtension ext: String,

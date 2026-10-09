@@ -96,14 +96,14 @@ struct AttachmentImportBoundaryTests {
         }
         #expect(reason == .corruptedFile)
         #expect(reason.importFailureMessageKey == "file_extraction_error_corrupted")
-        let message = reason.importFailureMessage(fileName: name)
+        let message = reason.importFailureMessage(fileName: name, maxInputFileBytes: FileExtractionLimits.default.maxInputFileBytes)
         #expect(message.contains("report.pdf"))
         #expect(message == String(format: L10n.tr("file_extraction_error_corrupted", table: .chat), "report.pdf"))
         #expect(message != String(format: L10n.tr("file_extraction_error_generic", table: .chat), "report.pdf"))
         #expect(!message.contains("file_extraction_error"), "No translation found for the message key: \(message)")
     }
 
-    @Test("A password-protected PDF shows the encrypted message with the file name")
+    @Test("A password-protected PDF shows the password-protected message with the file name")
     @MainActor
     func encryptedPdfShowsEncryptedMessage() async throws {
         // Build a PDF that really carries a user password with the system PDF context.
@@ -124,18 +124,78 @@ struct AttachmentImportBoundaryTests {
             return
         }
         #expect(reason == .encryptedPdf)
-        let message = reason.importFailureMessage(fileName: name)
+        let message = reason.importFailureMessage(fileName: name, maxInputFileBytes: FileExtractionLimits.default.maxInputFileBytes)
         #expect(message.contains("contract.pdf"))
         #expect(message == String(format: L10n.tr("file_extraction_error_encrypted_pdf", table: .chat), "contract.pdf"))
         #expect(!message.contains("file_extraction_error"), "No translation found for the message key: \(message)")
     }
 
-    @Test("Every failure reason maps to its message; all six messages exist in 16 languages with one file name placeholder each")
+    /// A password-protected OOXML file is an OLE compound document container, not a zip: production entry
+    /// point → failure reason → production message function.
+    @Test("A password-protected docx shows the password-protected message, not the generic or corrupted one")
+    @MainActor
+    func passwordProtectedDocxShowsPasswordMessage() async throws {
+        let bytes = Data([0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1]) + Data(repeating: 0, count: 4_096)
+        let file = try temporaryFile(named: "plan.docx", data: bytes)
+        defer { file.cleanup() }
+        guard case let .extractionFailed(reason, name) = await ChatAttachmentPicker.processFileURL(
+            file.url, importContext: .init(provider: nil)
+        ) else {
+            Issue.record("A password-protected docx should end in an extraction failure")
+            return
+        }
+        #expect(reason == .passwordProtectedOffice)
+        let message = reason.importFailureMessage(fileName: name, maxInputFileBytes: FileExtractionLimits.default.maxInputFileBytes)
+        #expect(message == String(format: L10n.tr("file_extraction_error_encrypted_pdf", table: .chat), "plan.docx"))
+        #expect(message.contains("plan.docx"))
+        #expect(!message.contains("PDF"), "This message is also used for Office documents and must not single out PDF: \(message)")
+    }
+
+    @Test("File too large: the limit in the message is the extractor's effective maxInputFileBytes, not a fixed 50 MB")
+    @MainActor
+    func tooLargeMessageShowsEffectiveLimit() async throws {
+        let limits = FileExtractionLimits(
+            maxLines: 500, maxBytes: 204_800, totalCap: 204_800,
+            maxInputFileBytes: 2 * 1024 * 1024, maxFiles: 3
+        )
+        let file = try temporaryFile(named: "big.txt", data: Data(repeating: 0x61, count: limits.maxInputFileBytes + 1))
+        defer { file.cleanup() }
+        guard case let .extractionFailed(reason, name) = await ChatAttachmentPicker.processFileURL(
+            file.url, importContext: .init(provider: nil), extractionLimits: limits
+        ) else {
+            Issue.record("A file over the extractor limit should end in an extraction failure")
+            return
+        }
+        #expect(reason == .fileTooLarge)
+        let message = reason.importFailureMessage(fileName: name, maxInputFileBytes: limits.maxInputFileBytes)
+        #expect(message.contains("big.txt"))
+        #expect(message == String(format: L10n.tr("file_extraction_error_too_large", table: .chat), "big.txt", 2))
+        #expect(message.contains("2"), "\(message)")
+        #expect(!message.contains("50"), "\(message)")
+        #expect(!message.contains("%"), "A placeholder was not replaced: \(message)")
+    }
+
+    @Test("File too large: the limit is rounded down to whole megabytes and is never below 1")
+    func tooLargeLimitRoundsDownButNeverBelowOne() {
+        let megabyte = 1024 * 1024
+        let format = L10n.tr("file_extraction_error_too_large", table: .chat)
+        let cases: [(bytes: Int, shown: Int)] = [
+            (50 * megabyte, 50), (20 * megabyte, 20), (megabyte * 5 / 2, 2), (megabyte - 1, 1), (10, 1),
+        ]
+        for (bytes, shown) in cases {
+            let message = ExtractionErrorCode.fileTooLarge.importFailureMessage(fileName: "a.pdf", maxInputFileBytes: bytes)
+            #expect(message == String(format: format, "a.pdf", shown), "\(bytes) bytes: \(message)")
+            #expect(message.contains("\(shown)"), "\(bytes) bytes: \(message)")
+            #expect(!message.contains("%"), "A placeholder was not replaced: \(message)")
+        }
+    }
+
+    @Test("Every failure reason maps to its message; all six messages exist in 16 languages with all their placeholders")
     func importFailureCopyIsComplete() throws {
         let expected: [ExtractionErrorCode: String] = [
             .scannedPdf: "file_extraction_error_scanned_pdf",
             .encryptedPdf: "file_extraction_error_encrypted_pdf",
-            .passwordProtectedOffice: "file_extraction_error_corrupted",
+            .passwordProtectedOffice: "file_extraction_error_encrypted_pdf",
             .corruptedFile: "file_extraction_error_corrupted",
             .unsupportedFormat: "file_extraction_error_unsupported",
             .fileTooLarge: "file_extraction_error_too_large",
@@ -157,7 +217,16 @@ struct AttachmentImportBoundaryTests {
             #expect(localizations.count == 16, "\(key) has only \(localizations.count) languages")
             for (language, value) in localizations {
                 let text = ((value as? [String: Any])?["stringUnit"] as? [String: Any])?["value"] as? String ?? ""
-                #expect(text.components(separatedBy: "%@").count == 2, "\(key) [\(language)] should contain exactly one %@: \(text)")
+                if key == "file_extraction_error_too_large" {
+                    // File name plus the limit in whole megabytes; the unit stays in each language's string.
+                    #expect(text.components(separatedBy: "%1$@").count == 2, "\(key) [\(language)] should contain exactly one %1$@: \(text)")
+                    #expect(text.components(separatedBy: "%2$lld").count == 2, "\(key) [\(language)] should contain exactly one %2$lld: \(text)")
+                    #expect(text.components(separatedBy: "%").count == 3, "\(key) [\(language)] should have no other placeholder: \(text)")
+                    #expect(!text.contains("50"), "\(key) [\(language)] must not hard-code the limit: \(text)")
+                } else {
+                    #expect(text.components(separatedBy: "%@").count == 2, "\(key) [\(language)] should contain exactly one %@: \(text)")
+                    #expect(text.components(separatedBy: "%").count == 2, "\(key) [\(language)] should have no other placeholder: \(text)")
+                }
             }
         }
     }

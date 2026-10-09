@@ -86,4 +86,73 @@ final class FileTextExtractorTests: XCTestCase {
             XCTAssertEqual(extractionError.code, .corruptedFile)
         }
     }
+
+    // MARK: - Password-protected OOXML (OLE compound document container)
+
+    private static let oleHeader = Data([0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1])
+
+    private func officeExtractionCode(data: Data, fileName: String, mimeType: String) -> ExtractionErrorCode? {
+        do {
+            _ = try FileTextExtractor.extract(data: data, fileName: fileName, mimeType: mimeType)
+            return nil
+        } catch {
+            return (error as? ExtractionError)?.code ?? .extractionError
+        }
+    }
+
+    func testPasswordProtectedOOXMLIsReportedAsPasswordProtected() {
+        let data = Self.oleHeader + Data(repeating: 0, count: 2_048)
+        let cases = [
+            ("a.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
+            ("a.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
+            ("a.PPTX", "application/vnd.openxmlformats-officedocument.presentationml.presentation"),
+        ]
+        for (name, mime) in cases {
+            XCTAssertEqual(officeExtractionCode(data: data, fileName: name, mimeType: mime), .passwordProtectedOffice, name)
+        }
+    }
+
+    func testOLEHeaderShorterThanSignatureIsNotPasswordProtected() {
+        let mime = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        for count in [0, 4, 7] {
+            let code = officeExtractionCode(data: Self.oleHeader.prefix(count), fileName: "short.docx", mimeType: mime)
+            XCTAssertNotNil(code, "\(count) bytes are not a valid docx")
+            XCTAssertNotEqual(code, .passwordProtectedOffice, "\(count) bytes are too few to compare the header")
+        }
+    }
+
+    // Legacy .doc/.xls/.ppt files are OLE containers themselves and must not be reported as password-protected.
+    func testLegacyOLEOfficeFormatsAreNotPasswordProtected() {
+        let data = Self.oleHeader + Data(repeating: 0, count: 2_048)
+        let cases = [
+            ("old.doc", "application/msword"),
+            ("old.xls", "application/vnd.ms-excel"),
+            ("old.ppt", "application/vnd.ms-powerpoint"),
+            // A legacy format mislabelled with an OOXML MIME type is not compared either
+            ("old.doc", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
+        ]
+        for (name, mime) in cases {
+            XCTAssertEqual(officeExtractionCode(data: data, fileName: name, mimeType: mime), .unsupportedFormat, "\(name) \(mime)")
+        }
+    }
+
+    func testRegularZipDocxStillExtracts() throws {
+        guard let archive = Archive(accessMode: .create) else {
+            return XCTFail("unable to create archive")
+        }
+        let xml = Data("<w:document><w:body><w:p><w:r><w:t>hello docx</w:t></w:r></w:p></w:body></w:document>".utf8)
+        try archive.addEntry(
+            with: "word/document.xml",
+            type: .file,
+            uncompressedSize: UInt32(xml.count),
+            provider: { position, size in xml[position..<(position + size)] }
+        )
+        let zip = try XCTUnwrap(archive.data)
+        let extracted = try FileTextExtractor.extract(
+            data: zip,
+            fileName: "plain.docx",
+            mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        )
+        XCTAssertTrue(extracted.content.contains("hello docx"), extracted.content)
+    }
 }
