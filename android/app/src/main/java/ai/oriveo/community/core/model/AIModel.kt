@@ -34,6 +34,10 @@ data class GenerationParameterRef(
     val constraints: List<kotlinx.serialization.json.JsonObject> = emptyList(),
     val portability: String? = null,
     val risk: String? = null,
+    /** Model-level write path; replaces the template wire for this one model only, the template's applies when absent. */
+    val wire: String? = null,
+    /** Only meaningful for json_schema: `strict` is written only when true and omitted otherwise (the catalog never publishes false). */
+    val strict: Boolean? = null,
 )
 
 @Serializable

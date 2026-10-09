@@ -164,6 +164,8 @@ object LocalEngineGenerationProfiles {
             range = range,
             portability = if (id in setOf("top_k", "min_p", "repeat_penalty")) "engine_scoped" else "transport_scoped",
             risk = if (id in setOf("top_k", "min_p")) "experimental" else "normal",
+            // Profiles synthesized on device never pass through the server, so this table declares strict itself.
+            strict = if (id == "json_schema") true else null,
         )
     }
 
