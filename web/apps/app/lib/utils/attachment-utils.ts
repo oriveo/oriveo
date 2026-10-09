@@ -5,7 +5,7 @@ import { compressImage, createImageThumbnail, readFileAsBase64, base64ToBlob } f
 import { parseOfficeFile } from './office-parser';
 import { createCanonicalUUID } from './id-utils';
 import { MAX_CHAT_ATTACHMENT_BYTES, isOversizedChatAttachment } from './attachment-size-policy';
-import { type ExtractedText, FileTextExtractor } from '../core/attachments/file-text-extractor';
+import { DEFAULT_LIMITS, type ExtractedText, type FileExtractionLimits, FileTextExtractor } from '../core/attachments/file-text-extractor';
 const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
 const ALLOWED_VIDEO_TYPES = [
   'video/mp4',
@@ -141,20 +141,25 @@ function fileToKind(file: File): AttachmentKind {
 /**
  * Plain text and Office-extracted text are truncated at import by the extractor's own rules (the same as PDF / EPUB / HTML).
  *
- * Exception: when no whole line survives truncation (the file is a single line over the byte cap, such as minified
- * JSON), the original text is returned and not marked truncated. The extractor keeps whole lines only, so such a file
- * would come out empty; keeping the original lets the import-time total-size gate reject it and explain why, which
- * beats adding an empty attachment.
+ * A file that is a single line over the byte cap (minified JSON and the like) is cut inside that line at a
+ * character boundary by the extractor, keeping the start.
+ * Exception: when the result is still empty (the text starts with a logical separator and the fallback backed
+ * off over all of it), the original text is returned and not marked truncated, so the import-time total-size
+ * gate rejects it the usual way and explains why, which beats adding an empty attachment.
  */
-function truncateImportedText(raw: string, fileSizeBytes: number): ExtractedText {
-  const extracted = FileTextExtractor.truncate(raw, fileSizeBytes);
+function truncateImportedText(raw: string, fileSizeBytes: number, limits: FileExtractionLimits): ExtractedText {
+  const extracted = FileTextExtractor.truncate(raw, fileSizeBytes, limits);
   if (extracted.truncated && extracted.content.length === 0 && raw.length > 0) {
     return { content: raw, totalLines: extracted.totalLines, truncated: false, sizeBytes: fileSizeBytes };
   }
   return extracted;
 }
 
-export async function fileToAttachment(file: File): Promise<Attachment> {
+/** `limits`: the truncation limits for extracted text. The import pipeline passes the current model's; defaults otherwise. */
+export async function fileToAttachment(
+  file: File,
+  limits: FileExtractionLimits = DEFAULT_LIMITS,
+): Promise<Attachment> {
   const rawBase64 = await readFileAsBase64(file);
   const kind = fileToKind(file);
 
@@ -204,7 +209,7 @@ export async function fileToAttachment(file: File): Promise<Attachment> {
   // Text files: decoded to UTF-8 plain text and sent as a text content part. HTML is excluded
   // deliberately; it is extracted further down instead of being forwarded as markup.
   if (isTextFile(file) && !isHtmlFile(file)) {
-    const extracted = truncateImportedText(await file.text(), file.size);
+    const extracted = truncateImportedText(await file.text(), file.size, limits);
     return {
       id: createCanonicalUUID(),
       kind,
@@ -221,7 +226,7 @@ export async function fileToAttachment(file: File): Promise<Attachment> {
   // Office binary formats: plain text is extracted with officeParser.
   if (isOfficeFile(file)) {
     try {
-      const extracted = truncateImportedText(await parseOfficeFile(file), file.size);
+      const extracted = truncateImportedText(await parseOfficeFile(file), file.size, limits);
       return {
         id: createCanonicalUUID(),
         kind,
@@ -269,7 +274,7 @@ export async function fileToAttachment(file: File): Promise<Attachment> {
   if (isPdf || isEpub || isHtml) {
     try {
       const { FileTextExtractor, ExtractionError } = await import('../core/attachments/file-text-extractor');
-      const extracted = await FileTextExtractor.extract(file);
+      const extracted = await FileTextExtractor.extract(file, limits);
       return {
         id: createCanonicalUUID(),
         kind,
@@ -338,13 +343,14 @@ export function validateAndConvertFiles(
   providerKind?: string,
   onFileFailed?: (file: File) => void,
   onFileTooLarge?: (file: File) => void,
+  limits: FileExtractionLimits = DEFAULT_LIMITS,
 ): Promise<Attachment[]> {
   // Imports are queued. The file picker, drag and drop, and paste are three entry points, and a
   // user can start another batch while the previous one is still being read. Every file is read
   // into memory in full (a base64 string, plus an ArrayBuffer read again by the extractor). Files
   // within a batch were already handled one at a time; queueing batches as well keeps the peak at
   // a single file.
-  const run = importQueue.then(() => convertFilesInOrder(files, source, providerKind, onFileFailed, onFileTooLarge));
+  const run = importQueue.then(() => convertFilesInOrder(files, source, providerKind, onFileFailed, onFileTooLarge, limits));
   importQueue = run.then(() => undefined, () => undefined);
   return run;
 }
@@ -357,6 +363,7 @@ async function convertFilesInOrder(
   providerKind: string | undefined,
   onFileFailed: ((file: File) => void) | undefined,
   onFileTooLarge: ((file: File) => void) | undefined,
+  limits: FileExtractionLimits,
 ): Promise<Attachment[]> {
   const { trackEvent } = await import('../core/telemetry');
   const attachments: Attachment[] = [];
@@ -370,7 +377,7 @@ async function convertFilesInOrder(
     }
     let attachment: Attachment;
     try {
-      attachment = await fileToAttachment(file);
+      attachment = await fileToAttachment(file, limits);
     } catch (err) {
       // Per-file fault boundary: any failure drops only this file and notifies the caller, while
       // files already converted in the batch and those still queued go through as usual.

@@ -20,7 +20,7 @@
  *     the result can only accept fewer files, never exceed the limit or overwrite.
  *  3. The gate runs before any bytes are read. Files over the size or count limit are not read.
  */
-import type { Attachment } from '@oriveo/shared';
+import type { AIModel, Attachment } from '@oriveo/shared';
 import { loadAttachmentUtils } from '../../utils/attachment-utils-lazy';
 import {
   FALLBACK_ATTACHMENT_BYTES,
@@ -29,7 +29,7 @@ import {
 } from '../../utils/attachment-size-policy';
 import { showToast } from '../../../components/Toast';
 import { attachmentTextBudgetBytes } from './attachment-injector';
-import { DEFAULT_LIMITS } from './file-text-extractor';
+import { DEFAULT_LIMITS, type FileExtractionLimits, resolveFileExtractionLimits } from './file-text-extractor';
 
 export interface AttachmentImportRequest {
   files: File[];
@@ -44,6 +44,12 @@ export interface AttachmentImportRequest {
    * moment of merging.
    */
   commit: (incoming: Attachment[], maxAttachments: number) => void;
+  /**
+   * The currently selected model: extracted text is truncated to the line and byte limits it declares,
+   * and the total-budget gate uses its text budget. Defaults apply when omitted. Any mismatch from
+   * switching models afterwards is caught by the pre-send check.
+   */
+  model?: AIModel | null;
   /** Whether the current model and provider can take this attachment (drag and drop and global paste have no picker type filter). */
   canAcceptAttachment?: (attachment: Attachment) => boolean;
   /** Some files were rejected for their size. */
@@ -66,21 +72,46 @@ export function appendAttachmentsWithinLimit(
 }
 
 /**
- * Notice shown at import time when text extraction failed. The attachment keeps its error code as
- * before (on send the injector has the model explain the reason, and a scanned PDF can fall back
- * to native upload); this only spares the user from finding out after sending that the file could
- * not be read.
+ * Text limits used at import: the current model's line count, per-file bytes and total text budget; the
+ * rest keep their defaults (the file count and input file size have their own gates in the import
+ * pipeline and do not follow the model here).
+ */
+export function resolveImportTextLimits(
+  model: AIModel | null | undefined,
+): FileExtractionLimits {
+  const resolved = resolveFileExtractionLimits(model);
+  return {
+    ...DEFAULT_LIMITS,
+    maxLines: resolved.maxLines,
+    maxBytes: resolved.maxBytes,
+    totalCap: resolved.totalCap,
+  };
+}
+
+/**
+ * Notice shown at import time when text extraction failed (worded identically on iOS, Android and web).
  */
 const EXTRACTION_FAILURE_COPY: Record<string, string> = {
   encrypted_pdf: 'errorPasswordProtected',
   password_protected_office: 'errorPasswordProtected',
   corrupted_file: 'errorCorrupted',
   scanned_pdf: 'errorNoText',
+  unsupported_format: 'errorUnsupported',
+  file_too_large: 'errorTooLarge',
 };
 
 export function extractionFailureCopyKey(errorCode: string | undefined): string | null {
   if (!errorCode) return null;
   return EXTRACTION_FAILURE_COPY[errorCode] ?? 'errorGeneric';
+}
+
+/**
+ * Whether an attachment whose extraction failed still goes into the tray: only scanned PDFs do (they
+ * can still fall back to native upload, or the user can switch to a model that reads PDFs directly).
+ * Any other unreadable file would only make the model repeat an error, so it is not added, just explained.
+ */
+export function keepsFailedExtraction(errorCode: string | undefined): boolean {
+  return !errorCode || errorCode === 'scanned_pdf';
 }
 
 /**
@@ -134,13 +165,14 @@ export function importAttachmentFiles(request: AttachmentImportRequest): Promise
 async function runImport(request: AttachmentImportRequest): Promise<void> {
   const { translate } = request;
   const existing = currentAttachments(request);
-  const maxAttachments = DEFAULT_LIMITS.maxFiles;
+  const maxAttachments = resolveFileExtractionLimits(request.model).maxFiles;
+  const textLimits = resolveImportTextLimits(request.model);
 
   const sized = partitionFilesByAttachmentSize(request.files, FALLBACK_ATTACHMENT_BYTES);
   if (sized.oversized.length > 0) request.onRejectedBySize(sized.oversized);
 
-  // Hard count limit: without a total cap, a few hundred images would push the message document
-  // past 1MiB.
+  // Count limit: without a total cap, a few hundred images would push the message document past 1MiB.
+  // It is resolved the same way as at send time: the model's maxAttachments, or 3 when absent.
   const counted = limitAttachmentCount(existing.length, sized.accepted, maxAttachments);
   // The toast has a single slot, so a later one replaces an earlier one. This batch's notices are
   // collected here and shown as one toast after the files have been read. "Too many files" is also
@@ -161,10 +193,25 @@ async function runImport(request: AttachmentImportRequest): Promise<void> {
     request.providerKind,
     (file) => failures.push(translate('errorGeneric', { fileName: file.name })),
     (file) => tooLarge.push(file),
+    textLimits,
   );
   // A file found to be over the limit only at conversion time still gets the "file too large" notice.
   if (tooLarge.length > 0) request.onRejectedBySize(tooLarge);
-  const acceptable = converted.filter((attachment) => request.canAcceptAttachment?.(attachment) ?? true);
+  const readable = converted.filter((attachment) => request.canAcceptAttachment?.(attachment) ?? true);
+  // Files whose extraction failed (scanned PDFs aside) are not added, only explained.
+  const maxInputMB = Math.max(1, Math.floor(resolveFileExtractionLimits(request.model).maxInputFileBytes / (1024 * 1024)));
+  const acceptable: Attachment[] = [];
+  for (const attachment of readable) {
+    if (keepsFailedExtraction(attachment.extractionErrorCode)) {
+      acceptable.push(attachment);
+      continue;
+    }
+    const copyKey = extractionFailureCopyKey(attachment.extractionErrorCode) ?? 'errorGeneric';
+    failures.push(translate(copyKey, {
+      fileName: attachment.fileName ?? '',
+      ...(copyKey === 'errorTooLarge' ? { maxMB: maxInputMB } : {}),
+    }));
+  }
 
   // Text budget: on send, the injector adds up content bytes in attachment order and skips a file
   // that does not fit, whole and without telling the user. Check here with the same measure and
@@ -173,7 +220,7 @@ async function runImport(request: AttachmentImportRequest): Promise<void> {
   let textBytes = currentAttachments(request).reduce((sum, attachment) => sum + injectedTextBytes(attachment), 0);
   for (const attachment of acceptable) {
     const bytes = injectedTextBytes(attachment);
-    if (bytes > 0 && textBytes + bytes > DEFAULT_LIMITS.totalCap) {
+    if (bytes > 0 && textBytes + bytes > textLimits.totalCap) {
       failures.push(translate('textBudgetExceeded', { fileName: attachment.fileName ?? '' }));
       continue;
     }
@@ -181,6 +228,7 @@ async function runImport(request: AttachmentImportRequest): Promise<void> {
     incoming.push(attachment);
   }
 
+  // Added but no text could be read (scanned PDFs): say so on the spot too, so the user does not find out after sending.
   for (const attachment of incoming) {
     const copyKey = extractionFailureCopyKey(attachment.extractionErrorCode);
     if (copyKey) failures.push(translate(copyKey, { fileName: attachment.fileName ?? '' }));

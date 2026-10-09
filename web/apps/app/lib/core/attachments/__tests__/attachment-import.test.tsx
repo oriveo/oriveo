@@ -10,11 +10,12 @@
 import { act, render } from '@testing-library/react';
 import { useCallback, useState } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Attachment } from '@oriveo/shared';
+import type { AIModel, Attachment } from '@oriveo/shared';
 import {
   __resetAttachmentImportQueueForTest,
   appendAttachmentsWithinLimit,
   extractionFailureCopyKey,
+  resolveImportTextLimits,
 } from '../attachment-import';
 import { DEFAULT_LIMITS } from '../file-text-extractor';
 import { useAttachmentIntake } from '../../../hooks/useAttachmentIntake';
@@ -64,15 +65,25 @@ interface Harness {
   remove: (id: string) => void;
 }
 
-function renderComposer(): { current: Harness } {
+function renderComposer(
+  options: { model?: AIModel | null } = {},
+): { current: Harness } {
   const handle = { current: null as unknown as Harness };
   function Composer() {
     const [attachments, setAttachments] = useState<Attachment[]>([]);
-    const intake = useAttachmentIntake({ attachments, onAttachmentsChange: setAttachments, supportsImage: true });
+    const intake = useAttachmentIntake({
+      attachments,
+      onAttachmentsChange: setAttachments,
+      supportsImage: true,
+      currentModel: options.model,
+    });
     const onFilesAccepted = useCallback((incoming: Attachment[], max: number) => {
       setAttachments((current) => appendAttachmentsWithinLimit(current, incoming, max));
     }, []);
-    const { dragHandlers } = useAttachmentDragDrop(onFilesAccepted, undefined, { existingAttachments: attachments });
+    const { dragHandlers } = useAttachmentDragDrop(onFilesAccepted, undefined, {
+      existingAttachments: attachments,
+      currentModel: options.model,
+    });
     handle.current = {
       attachments,
       pickFiles: intake.handleAddFiles,
@@ -198,17 +209,22 @@ describe('importAttachmentFiles', () => {
       expect(mockShowToast).toHaveBeenCalledExactlyOnceWith('textBudgetExceeded({"fileName":"big.txt"})');
     });
 
-    // A multi-line oversized text is now added truncated (see "long text is added truncated" below); the only case the
-    // total gate still rejects is one that cannot be truncated to any content: a single line that is itself over the
-    // budget. Run the real conversion to confirm it does not become an empty attachment.
-    it('rejects a single-line file that is over the budget (nothing can be kept), with a notice', async () => {
+    // A multi-line oversized text is added truncated (see "long text is added truncated" below). A single line
+    // that is itself over the budget is cut inside the line and added too. Run the real conversion to confirm it
+    // does not become an empty attachment.
+    it('keeps the start of a single-line file that is over the budget and says it was truncated', async () => {
       const composer = renderComposer();
       mockValidateAndConvertFiles.mockImplementationOnce(realValidateAndConvertFiles);
       const huge = new File(['x'.repeat(CAP + 1)], 'huge.txt', { type: 'text/plain' });
       await act(async () => { await composer.current.pickFiles([huge]); });
       await settle();
-      expect(composer.current.attachments).toEqual([]);
-      expect(mockShowToast).toHaveBeenCalledExactlyOnceWith('textBudgetExceeded({"fileName":"huge.txt"})');
+      const [attachment] = composer.current.attachments;
+      expect(attachment?.fileName).toBe('huge.txt');
+      expect(attachment?.extractedTruncated).toBe(true);
+      expect(attachment?.base64Data).toHaveLength(CAP);
+      expect(mockShowToast).toHaveBeenCalledExactlyOnceWith(
+        'truncatedNotice({"fileName":"huge.txt","shown":1,"total":1})',
+      );
     });
 
     // Files with original bytes (PDF / Office) may be uploaded natively instead of injected as text;
@@ -288,25 +304,102 @@ describe('importAttachmentFiles', () => {
     });
   });
 
-  describe('an extraction failure is announced at import time while the attachment keeps its error code', () => {
+  // This group also runs the real conversion: the line and byte counts are cut by the production import path to the model's limits.
+  describe('import truncates and checks the total against the limits the current model declares', () => {
+    const lines = (count: number, width = 8) =>
+      Array.from({ length: count }, (_, i) => `${i + 1}`.padEnd(width, '.')).join('\n');
+    const textFile = (name: string, content: string) => new File([content], name, { type: 'text/plain' });
+    const modelWith = (attachmentExtraction: AIModel['attachmentExtraction']) =>
+      ({ id: 'm', name: 'm', attachmentExtraction }) as AIModel;
+    const MB = 1024 * 1024;
+
+    beforeEach(() => { mockValidateAndConvertFiles.mockImplementation(realValidateAndConvertFiles); });
+
+    it('a model that tightens the line cap to 100: both the picker and drag and drop truncate at 100 lines and say so', async () => {
+      const composer = renderComposer({ model: modelWith({ maxLines: 100 }) });
+      await act(async () => { await composer.current.pickFiles([textFile('picked.txt', lines(600))]); });
+      await settle();
+      await act(async () => { await composer.current.dropFiles([textFile('dropped.txt', lines(300))]); });
+      await settle();
+      expect(composer.current.attachments.map((item) => item.base64Data?.split('\n').length)).toEqual([100, 100]);
+      expect(mockShowToast.mock.calls.map(([text]) => text)).toEqual([
+        'truncatedNotice({"fileName":"picked.txt","shown":100,"total":600})',
+        'truncatedNotice({"fileName":"dropped.txt","shown":100,"total":300})',
+      ]);
+    });
+
+    it('a model that relaxes the per-file bytes and the total to 1MB: a 300KB text is added whole, without truncation or a notice', async () => {
+      const composer = renderComposer({ model: modelWith({ maxBytes: MB, totalCap: MB }) });
+      const big = textFile('big.txt', lines(300, 1023));
+      expect(big.size).toBeGreaterThan(DEFAULT_LIMITS.totalCap);
+      await act(async () => { await composer.current.pickFiles([big]); });
+      await settle();
+      const [attachment] = composer.current.attachments;
+      expect(attachment?.extractedTruncated).toBe(false);
+      expect(attachment?.base64Data?.split('\n')).toHaveLength(300);
+      expect(mockShowToast).not.toHaveBeenCalled();
+    });
+
+    it('a model that tightens the total to 50KB: the second 30KB file is not added, with an explanation', async () => {
+      const composer = renderComposer({ model: modelWith({ totalCap: 50 * 1024 }) });
+      await act(async () => {
+        await composer.current.pickFiles([textFile('a.txt', lines(30, 1023)), textFile('b.txt', lines(30, 1023))]);
+      });
+      await settle();
+      expect(composer.current.attachments.map((item) => item.fileName)).toEqual(['a.txt']);
+      expect(mockShowToast).toHaveBeenCalledExactlyOnceWith('textBudgetExceeded({"fileName":"b.txt"})');
+    });
+
+    // The count cap accepts the maxAttachments declared by the model.
+    it('a model that declares maxAttachments=2: the third file is not added, and the limit in the notice is 2', async () => {
+      const composer = renderComposer({
+        model: { id: 'm', name: 'M', capabilities: ['text'], attachmentExtraction: { maxAttachments: 2 } } as unknown as AIModel,
+      });
+      await act(async () => { await composer.current.pickFiles([file('a.txt'), file('b.txt'), file('c.txt')]); });
+      await settle();
+      expect(composer.current.attachments.map((item) => item.fileName)).toEqual(['a.txt', 'b.txt']);
+      expect(mockShowToast).toHaveBeenCalledExactlyOnceWith('tooManyFiles({"maxFiles":2})');
+    });
+
+    it('without a model: the same as the default limits', () => {
+      expect(resolveImportTextLimits(undefined)).toEqual(DEFAULT_LIMITS);
+      expect(resolveImportTextLimits(null)).toEqual(DEFAULT_LIMITS);
+    });
+  });
+
+  describe('an extraction failure is announced at import time; apart from scanned PDFs the file does not enter the tray', () => {
     it.each([
-      ['encrypted_pdf', 'errorPasswordProtected'],
-      ['password_protected_office', 'errorPasswordProtected'],
-      ['corrupted_file', 'errorCorrupted'],
-      ['scanned_pdf', 'errorNoText'],
-      ['extraction_timeout', 'errorGeneric'],
-      ['extraction_error', 'errorGeneric'],
-    ])('%s shows %s', async (errorCode, copyKey) => {
+      ['encrypted_pdf', 'errorPasswordProtected({"fileName":"report.pdf"})'],
+      ['password_protected_office', 'errorPasswordProtected({"fileName":"report.pdf"})'],
+      ['corrupted_file', 'errorCorrupted({"fileName":"report.pdf"})'],
+      ['unsupported_format', 'errorUnsupported({"fileName":"report.pdf"})'],
+      // The limit is the input file size actually in effect (50MB by default), rounded down
+      ['file_too_large', 'errorTooLarge({"fileName":"report.pdf","maxMB":50})'],
+      ['extraction_timeout', 'errorGeneric({"fileName":"report.pdf"})'],
+      ['extraction_error', 'errorGeneric({"fileName":"report.pdf"})'],
+    ])('%s: only a notice, not added', async (errorCode, toast) => {
       const composer = renderComposer();
       mockValidateAndConvertFiles.mockImplementationOnce(async (files: File[]) =>
-        files.map((item) => toAttachment(item, { extractionErrorCode: errorCode, base64Data: '' })));
+        files.map((item) => toAttachment(item, { extractionErrorCode: errorCode, base64Data: '', originalBase64Data: 'raw' })));
 
       await act(async () => { await composer.current.pickFiles([file('report.pdf')]); });
       await settle();
 
-      expect(mockShowToast).toHaveBeenCalledExactlyOnceWith(`${copyKey}({"fileName":"report.pdf"})`);
+      expect(mockShowToast).toHaveBeenCalledExactlyOnceWith(toast);
+      expect(composer.current.attachments).toEqual([]);
+    });
+
+    it('scanned_pdf: still added with its error code kept (it can fall back to native upload), with a notice', async () => {
+      const composer = renderComposer();
+      mockValidateAndConvertFiles.mockImplementationOnce(async (files: File[]) =>
+        files.map((item) => toAttachment(item, { extractionErrorCode: 'scanned_pdf', base64Data: '' })));
+
+      await act(async () => { await composer.current.pickFiles([file('report.pdf')]); });
+      await settle();
+
+      expect(mockShowToast).toHaveBeenCalledExactlyOnceWith('errorNoText({"fileName":"report.pdf"})');
       expect(composer.current.attachments).toEqual([
-        expect.objectContaining({ fileName: 'report.pdf', extractionErrorCode: errorCode }),
+        expect.objectContaining({ fileName: 'report.pdf', extractionErrorCode: 'scanned_pdf' }),
       ]);
     });
 
@@ -330,7 +423,8 @@ describe('importAttachmentFiles', () => {
       ].join('\n'));
       // "Too many files" is shown once before the files are read; after that only the summary follows.
       expect(mockShowToast.mock.calls.map(([message]) => message)).toEqual([tooMany, expect.stringContaining('\n')]);
-      expect(composer.current.attachments.map((item) => item.fileName)).toEqual(['a.pdf', 'b.txt', 'c.pdf']);
+      // The password-protected a.pdf is not added; the scanned c.pdf is added as usual
+      expect(composer.current.attachments.map((item) => item.fileName)).toEqual(['b.txt', 'c.pdf']);
     });
 
     it('shows nothing for an attachment that extracted successfully', async () => {

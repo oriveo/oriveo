@@ -12,6 +12,7 @@ interface AttachmentExtractionOverride {
   maxBytes?: number;
   totalCap?: number;
   maxInputFileBytes?: number;
+  maxAttachments?: number;
 }
 
 interface ModelWithExtraction {
@@ -56,7 +57,7 @@ export interface FileExtractionLimits {
   maxBytes: number;
   totalCap: number;          // 200KB (CJK text stays around 33K tokens)
   maxInputFileBytes: number;
-  maxFiles: number;          // Hard cap against Lost in the Middle across many files
+  maxFiles: number;          // Attachments allowed on one message (default 3, a model can override it)
 }
 
 export const DEFAULT_LIMITS: FileExtractionLimits = {
@@ -64,7 +65,7 @@ export const DEFAULT_LIMITS: FileExtractionLimits = {
   maxBytes: 204_800,                   // 200KB UTF-8 per file (2026 mainstream models have context >= 200K; DeepSeek at 128K can be tightened by an override)
   totalCap: 204_800,                   // 200KB total (CJK worst case around 66K tokens, still 62K of headroom on DeepSeek 128K)
   maxInputFileBytes: 50 * 1024 * 1024, // 50MB hard input cap
-  maxFiles: 3,                         // Hard cap
+  maxFiles: 3,                         // Default
 };
 
 /**
@@ -80,7 +81,10 @@ export function resolveFileExtractionLimits(
     maxBytes: o.maxBytes ?? DEFAULT_LIMITS.maxBytes,
     totalCap: o.totalCap ?? DEFAULT_LIMITS.totalCap,
     maxInputFileBytes: o.maxInputFileBytes ?? DEFAULT_LIMITS.maxInputFileBytes,
-    maxFiles: DEFAULT_LIMITS.maxFiles, // Product constraint, no model override accepted
+    // The count cap accepts the model's maxAttachments; a missing or non-positive-integer value falls back to the default.
+    maxFiles: typeof o.maxAttachments === 'number' && Number.isInteger(o.maxAttachments) && o.maxAttachments > 0
+      ? o.maxAttachments
+      : DEFAULT_LIMITS.maxFiles,
   };
 }
 
@@ -244,10 +248,16 @@ export const FileTextExtractor = {
           hi = mid - 1;
         }
       }
-      pickedLines = pickedLines.slice(0, lo);
-      // Fall back to a logical separator (XLSX sheet / PPTX slide)
-      pickedLines = alignToLogicalBoundary(pickedLines);
-      joined = pickedLines.join('\n');
+      if (lo === 0) {
+        // Not even one line fits (minified JSON, a single-line log, PDF text without newlines): picking whole
+        // lines would truncate to empty content. Cut inside that line at a UTF-8 character boundary and keep the start.
+        joined = sliceUtf8Prefix(encoder.encode(pickedLines[0] ?? ''), limits.maxBytes);
+      } else {
+        pickedLines = pickedLines.slice(0, lo);
+        // Fall back to a logical separator (XLSX sheet / PPTX slide)
+        pickedLines = alignToLogicalBoundary(pickedLines);
+        joined = pickedLines.join('\n');
+      }
       truncated = true;
       if (!reason) reason = 'bytes';
     }
@@ -261,6 +271,15 @@ export const FileTextExtractor = {
     };
   },
 };
+
+/** Takes the first `maxBytes` bytes, backing off to a complete UTF-8 character boundary (a multi-byte character is never split). */
+function sliceUtf8Prefix(bytes: Uint8Array, maxBytes: number): string {
+  if (bytes.byteLength <= maxBytes) return new TextDecoder().decode(bytes);
+  let end = Math.max(0, maxBytes);
+  // Continuation bytes are 10xxxxxx: when the cut lands inside a character, back off before that character's first byte.
+  while (end > 0 && (bytes[end] & 0xc0) === 0x80) end -= 1;
+  return new TextDecoder().decode(bytes.subarray(0, end));
+}
 
 /**
  * If the truncation lands in the middle of a structural separator (===Sheet: / ===Slide / ## heading),

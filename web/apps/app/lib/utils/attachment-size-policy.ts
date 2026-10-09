@@ -31,10 +31,8 @@ export function isOversizedChatAttachment(file: File, limitBytes: number = FALLB
  *    rejected. The whole batch is never rejected.
  *  - A limit of 0 or less rejects everything.
  *
- * The limit comes from `resolveFileExtractionLimits(model).maxFiles`, which is always 3 here: see
- * that function's comment for why maxFiles is a product constraint that deliberately does not accept
- * a model override. The managed path has its own equivalent gate in
- * `partitionManagedAttachmentFiles`.
+ * The limit comes from `resolveFileExtractionLimits(model).maxFiles`: the `maxAttachments` the model
+ * declares, or 3 when it declares none. Before raising it, check the single-document limit described below.
  *
  * Beyond the "lost in the middle" problem with many files, this gate also protects the sync backend:
  * hundreds of attachments on one message push the attachments array, which carries a base64

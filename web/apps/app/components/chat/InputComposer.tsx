@@ -444,6 +444,7 @@ export function InputComposer({
     onAttachmentsChange,
     supportsImage,
     providerKind,
+    currentModel,
   });
 
   // Keep controlled updates, draft restore, and send/reset in sync with the textarea height.

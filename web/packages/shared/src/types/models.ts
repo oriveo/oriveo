@@ -26,11 +26,12 @@ import type {
 export interface AttachmentExtractionLimits {
   maxLines?: number;
   maxBytes?: number;
+  /** Cap on the text extracted from attachments and injected into one message (UTF-8 bytes). Not a cap on raw attachment bytes. */
   totalCap?: number;
   maxInputFileBytes?: number;
   /** Managed: max raw attachment bytes for a whole request including history. Unused by BYOK. */
   maxRequestAttachmentBytes?: number;
-  /** Managed: server-issued max attachment count per message. Unused by BYOK. */
+  /** Max attachment count per message. Unset falls back to the client default (3). */
   maxAttachments?: number;
 }
 

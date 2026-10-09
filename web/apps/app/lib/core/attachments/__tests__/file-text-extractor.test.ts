@@ -20,6 +20,34 @@ describe('FileTextExtractor.truncate', () => {
     expect(r.content.split('\n').length).toBe(500);
   });
 
+  // Bisecting by whole lines yields empty content when not even one line fits; it cuts inside the line at a UTF-8 character boundary instead.
+  it('a single line over the byte cap: keeps the start instead of truncating to empty content', () => {
+    const raw = 'a'.repeat(DEFAULT_LIMITS.maxBytes + 100);
+    const r = FileTextExtractor.truncate(raw, raw.length);
+    expect(r.truncated).toBe(true);
+    expect(r.truncationReason).toBe('bytes');
+    expect(r.totalLines).toBe(1);
+    expect(r.content).toBe('a'.repeat(DEFAULT_LIMITS.maxBytes));
+  });
+
+  it('the in-line hard cut never splits a multi-byte character', () => {
+    const limits: FileExtractionLimits = { ...DEFAULT_LIMITS, maxBytes: 10 };
+    // Each CJK character is 3 bytes: 10 bytes hold 3 whole characters (9 bytes), and the 4th cannot be cut in half
+    const r = FileTextExtractor.truncate('中文字符截断', 18, limits);
+    expect(r.content).toBe('中文字');
+    expect(r.truncated).toBe(true);
+    // A 4-byte emoji works the same way
+    expect(FileTextExtractor.truncate('ab😀😀😀', 14, { ...DEFAULT_LIMITS, maxBytes: 7 }).content).toBe('ab😀');
+  });
+
+  it('the first line does not fit and more lines follow: the start of the first line is kept as well', () => {
+    const limits: FileExtractionLimits = { ...DEFAULT_LIMITS, maxBytes: 8 };
+    const r = FileTextExtractor.truncate('0123456789\nsecond', 17, limits);
+    expect(r.content).toBe('01234567');
+    expect(r.totalLines).toBe(2);
+    expect(r.truncated).toBe(true);
+  });
+
   it('truncates by bytes (100KB cap)', () => {
     const big = 'a'.repeat(5000);
     const raw = Array.from({ length: 50 }, () => big).join('\n');
@@ -56,13 +84,18 @@ describe('resolveFileExtractionLimits', () => {
     expect(r.maxLines).toBe(2000);
     expect(r.maxBytes).toBe(400_000);
     expect(r.totalCap).toBe(DEFAULT_LIMITS.totalCap); // not overridden
-    expect(r.maxFiles).toBe(3); // always DEFAULT
+    expect(r.maxFiles).toBe(3); // maxAttachments not delivered
   });
 
-  it('maxFiles is always 3 regardless of model override', () => {
-    // maxFiles is a business invariant, not overrideable
-    const r = resolveFileExtractionLimits({ attachmentExtraction: { maxLines: 5000 } });
-    expect(r.maxFiles).toBe(3);
+  // The count cap accepts the model's maxAttachments; a missing or invalid value gives 3.
+  it('maxFiles accepts the maxAttachments delivered by the model and is 3 when absent', () => {
+    expect(resolveFileExtractionLimits({ attachmentExtraction: { maxAttachments: 5 } }).maxFiles).toBe(5);
+    expect(resolveFileExtractionLimits({ attachmentExtraction: { maxAttachments: 2 } }).maxFiles).toBe(2);
+    expect(resolveFileExtractionLimits({ attachmentExtraction: { totalCap: 1 } }).maxFiles).toBe(3);
+    expect(resolveFileExtractionLimits(undefined).maxFiles).toBe(3);
+    for (const bad of [0, -1, 2.5, Number.NaN]) {
+      expect(resolveFileExtractionLimits({ attachmentExtraction: { maxAttachments: bad } }).maxFiles).toBe(3);
+    }
   });
 });
 

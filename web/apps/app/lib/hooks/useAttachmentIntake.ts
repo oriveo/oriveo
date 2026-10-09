@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef } from 'react';
 import { useTranslations } from 'next-intl';
-import type { Attachment } from '@oriveo/shared';
+import type { AIModel, Attachment } from '@oriveo/shared';
 import { appendAttachmentsWithinLimit, importAttachmentFiles } from '../core/attachments/attachment-import';
 
 /**
@@ -16,6 +16,8 @@ interface UseAttachmentIntakeParams {
   supportsImage: boolean;
   /** Normalized provider.kind, used for attachment_added reporting. */
   providerKind?: string;
+  /** The currently selected model: import truncates and checks the total against its text limits; defaults apply when omitted. */
+  currentModel?: AIModel | null;
 }
 
 /**
@@ -28,6 +30,7 @@ export function useAttachmentIntake({
   onAttachmentsChange,
   supportsImage,
   providerKind,
+  currentModel,
 }: UseAttachmentIntakeParams) {
   const [showAttachmentSizeLimit, setShowAttachmentSizeLimit] = useState(false);
   const tfe = useTranslations('pages.chat.fileExtraction');
@@ -47,11 +50,12 @@ export function useAttachmentIntake({
         getAttachments: () => attachmentsRef.current,
         commit: (incoming, maxAttachments) =>
           onAttachmentsChange((current) => appendAttachmentsWithinLimit(current, incoming, maxAttachments)),
+        model: currentModel,
         onRejectedBySize: () => setShowAttachmentSizeLimit(true),
         translate: tfe,
       });
     },
-    [onAttachmentsChange, providerKind, tfe],
+    [currentModel, onAttachmentsChange, providerKind, tfe],
   );
 
   const handleFileInput = useCallback(

@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
 import { useTranslations } from 'next-intl';
-import type { Attachment } from '@oriveo/shared';
+import type { AIModel, Attachment } from '@oriveo/shared';
 import { importAttachmentFiles } from '../core/attachments/attachment-import';
 
 /**
@@ -21,6 +21,8 @@ export function useAttachmentDragDrop(
     /** The conversation's provider.kind, normalized to snake_case by telemetryProviderKind(). */
     providerKind?: string;
     existingAttachments?: Attachment[];
+    /** The currently selected model: import truncates and checks the total against its text limits; defaults apply when omitted. */
+    currentModel?: AIModel | null;
   } = {},
 ) {
   const [dragActive, setDragActive] = useState(false);
@@ -29,6 +31,7 @@ export function useAttachmentDragDrop(
   const enabled = options.enabled ?? true;
   const canAcceptAttachment = options.canAcceptAttachment;
   const providerKind = options.providerKind;
+  const currentModel = options.currentModel;
   const existingAttachments = options.existingAttachments ?? [];
   // Importing is asynchronous: the gate reads a ref rather than the array captured when the
   // callback was created.
@@ -42,11 +45,12 @@ export function useAttachmentDragDrop(
       providerKind,
       getAttachments: () => existingAttachmentsRef.current,
       commit: onFilesAccepted,
+      model: currentModel,
       canAcceptAttachment,
       onRejectedBySize: (rejected) => onOversizedFiles?.(rejected),
       translate: tfe,
     }),
-    [canAcceptAttachment, onFilesAccepted, onOversizedFiles, providerKind, tfe],
+    [canAcceptAttachment, currentModel, onFilesAccepted, onOversizedFiles, providerKind, tfe],
   );
 
   const handleDragEnter = useCallback((e: React.DragEvent) => {

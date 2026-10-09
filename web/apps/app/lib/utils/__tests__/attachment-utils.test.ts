@@ -100,14 +100,14 @@ describe('fileToAttachment', () => {
       expect(attachment.base64Data?.split('\n')).toHaveLength(200);
     });
 
-    // The extractor keeps whole lines only: a single-line file over the byte cap yields no content.
-    // Such a file keeps its original text and is not marked truncated, so the import-time total gate rejects it
-    // rather than adding an empty attachment.
-    it('a single line over the byte cap: keeps the original text, not marked truncated', async () => {
+    // A single-line file over the byte cap is cut inside the line at a character boundary, keeping the start
+    // (it used to be truncated to empty content).
+    it('a single line over the byte cap: keeps the start up to the cap and is marked truncated', async () => {
       const text = 'x'.repeat(DEFAULT_LIMITS.maxBytes + 1);
       const attachment = await fileToAttachment(new File([text], 'min.json', { type: 'application/json' }));
-      expect(attachment.base64Data).toHaveLength(text.length);
-      expect(attachment.extractedTruncated).toBe(false);
+      expect(attachment.base64Data).toHaveLength(DEFAULT_LIMITS.maxBytes);
+      expect(attachment.extractedTruncated).toBe(true);
+      expect(attachment.extractedTotalLines).toBe(1);
     });
 
     it('over-long Office-extracted text is truncated while the original bytes are kept', async () => {

@@ -240,6 +240,7 @@ export function ChatView({ conversationId, searchQuery }: ChatViewProps) {
       canAcceptAttachment: canAcceptDropped,
       providerKind: telemetryProviderKind(provider?.kind),
       existingAttachments: attachments,
+      currentModel,
     },
   );
 

@@ -5,6 +5,7 @@ import { act, cleanup, fireEvent, render, screen, within } from '@testing-librar
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { AIModel, Provider } from '@oriveo/shared';
 import { InputComposer } from './InputComposer';
+import { DEFAULT_LIMITS } from '../../lib/core/attachments/file-text-extractor';
 
 type Messages = Record<string, unknown>;
 const messagesRoot = resolve(process.cwd(), 'messages');
@@ -1291,7 +1292,7 @@ describe('InputComposer', () => {
 
     await vi.waitFor(() => {
       expect(mockLoadAttachmentUtils).toHaveBeenCalledTimes(1);
-      expect(mockValidateAndConvertFiles).toHaveBeenCalledWith([file], 'file', undefined, expect.any(Function), expect.any(Function));
+      expect(mockValidateAndConvertFiles).toHaveBeenCalledWith([file], 'file', undefined, expect.any(Function), expect.any(Function), DEFAULT_LIMITS);
       expect(appliedAttachments(onAttachmentsChange)).toEqual([
         expect.objectContaining({ id: 'attachment-1', kind: 'image' }),
       ]);
@@ -1390,7 +1391,7 @@ describe('InputComposer', () => {
     fireEvent.change(fileInput);
 
     await vi.waitFor(() => {
-      expect(mockValidateAndConvertFiles).toHaveBeenCalledWith([file], 'file', undefined, expect.any(Function), expect.any(Function));
+      expect(mockValidateAndConvertFiles).toHaveBeenCalledWith([file], 'file', undefined, expect.any(Function), expect.any(Function), DEFAULT_LIMITS);
     });
     await vi.waitFor(() => {
       expect(appliedAttachments(onAttachmentsChange)).toEqual([
