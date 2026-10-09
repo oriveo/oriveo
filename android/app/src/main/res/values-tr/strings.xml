@@ -254,7 +254,7 @@
     <string name="attachment_conflict_title">Ek Desteklenmiyor</string>
     <string name="attachment_conflict_message">Mevcut model bu bağlantı türünü desteklemiyor. Uyumlu bir modele geçin veya eklentiyi kaldırın.</string>
     <string name="attachment_too_large_title">Dosya çok büyük</string>
-    <string name="attachment_too_large_message">50 MB üzerindeki dosya ve görseller yüklenemez. Büyük yüklemeler ağınızı yavaşlatır ve AI modellerinin güvenilir şekilde okumasını zorlaştırır.</string>
+    <string name="attachment_too_large_message">%1$d MB üzerindeki dosya ve görseller yüklenemez. Büyük yüklemeler ağınızı yavaşlatır ve AI modellerinin güvenilir şekilde okumasını zorlaştırır.</string>
     <string name="remove_attachment">Kaldır</string>
     <string name="manual_model_entry_title">Geri Dönüş Modeli</string>
     <string name="manual_model_entry_headline">Model kimliğini manuel olarak girin</string>
@@ -897,10 +897,10 @@
 
     <!-- File extraction strings (Phase 6, pending iOS xcstrings ground truth) -->
     <string name="file_extraction_error_scanned_pdf">%1$s dosyasından metin çıkarılamadı (taranmış bir PDF gibi görünüyor).</string>
-    <string name="file_extraction_error_encrypted_pdf">%1$s parola korumalı. Önce PDF\'in şifresini çözün.</string>
-    <string name="file_extraction_error_corrupted">%1$s okunamadı — dosya bozuk olabilir.</string>
-    <string name="file_extraction_error_unsupported">%1$s desteklenen bir dosya türü değil.</string>
-    <string name="file_extraction_error_too_large">%1$s çok büyük (en fazla 50 MB).</string>
+    <string name="file_extraction_error_encrypted_pdf">%1$s parola korumalı. Parolayı kaldırıp dosyayı yeniden ekleyin.</string>
+    <string name="file_extraction_error_corrupted">%1$s okunamadı; dosya bozuk olabilir.</string>
+    <string name="file_extraction_error_unsupported">%1$s dosyasının türü desteklenmiyor.</string>
+    <string name="file_extraction_error_too_large">%1$s çok büyük (en fazla %2$d MB).</string>
     <string name="file_extraction_error_generic">%1$s işlenemedi. Yeniden deneyin veya başka bir dosya seçin.</string>
     <string name="file_extraction_chip_extracted_lines">%1$d satır çıkarıldı</string>
     <string name="file_attachment_count_limit_reached">Bu model için en fazla %1$d dosya ekleyebilirsin.</string>

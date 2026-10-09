@@ -20,6 +20,14 @@ object OfficeTextExtractor {
         supportedExtensions.contains(extension.lowercase())
 
     fun extractText(data: ByteArray, fileExtension: String): String? {
+        // A password-protected docx/xlsx/pptx is not a zip: the ciphertext is wrapped in an OLE
+        // compound document. Unless it is recognized first, the zip reader below finds no entry
+        // and a docx is treated as "extracted successfully, empty content". Only these three
+        // extensions are checked: legacy .doc/.xls/.ppt files are OLE themselves and must not be
+        // reported as encrypted.
+        if (isOfficeFile(fileExtension) && hasOleCompoundHeader(data)) {
+            throw ExtractionException(ExtractionErrorCode.PasswordProtectedOffice)
+        }
         return when (fileExtension.lowercase()) {
             "docx" -> extractDocxText(data)
             "xlsx" -> extractXlsxText(data)
@@ -27,6 +35,14 @@ object OfficeTextExtractor {
             else -> null
         }
     }
+
+    private val OLE_COMPOUND_HEADER = byteArrayOf(
+        0xD0.toByte(), 0xCF.toByte(), 0x11, 0xE0.toByte(), 0xA1.toByte(), 0xB1.toByte(), 0x1A, 0xE1.toByte(),
+    )
+
+    private fun hasOleCompoundHeader(data: ByteArray): Boolean =
+        data.size >= OLE_COMPOUND_HEADER.size &&
+            OLE_COMPOUND_HEADER.indices.all { data[it] == OLE_COMPOUND_HEADER[it] }
 
     // region DOCX
 

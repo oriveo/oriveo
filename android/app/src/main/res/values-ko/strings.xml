@@ -193,7 +193,7 @@
     <string name="attachment_conflict_title">첨부 파일 미지원</string>
     <string name="attachment_conflict_message">현재 모델은 이 첨부 파일 유형을 지원하지 않습니다. 호환되는 모델로 전환하거나 첨부 파일을 제거하세요.</string>
     <string name="attachment_too_large_title">파일이 너무 큽니다</string>
-    <string name="attachment_too_large_message">50MB를 초과하는 파일과 이미지는 업로드할 수 없습니다. 큰 업로드는 네트워크에 부담이 되며 AI가 안정적으로 읽기 어렵습니다.</string>
+    <string name="attachment_too_large_message">%1$dMB를 초과하는 파일과 이미지는 업로드할 수 없습니다. 큰 업로드는 네트워크에 부담이 되며 AI가 안정적으로 읽기 어렵습니다.</string>
     <string name="remove_attachment">제거</string>
     <string name="attachment_checksum_warning">이 백업의 일부 이미지 파일이 불완전하거나 손상되었을 수 있습니다. 복원 가능한 메시지는 계속 가져옵니다.</string>
     <string name="result_restored_preferences">테마와 언어 설정을 복원했습니다</string>
@@ -935,10 +935,10 @@
 
     <!-- File extraction strings (Phase 6, pending iOS xcstrings ground truth) -->
     <string name="file_extraction_error_scanned_pdf">%1$s에서 텍스트를 추출할 수 없습니다(스캔한 PDF로 보입니다).</string>
-    <string name="file_extraction_error_encrypted_pdf">%1$s은(는) 비밀번호로 보호되어 있습니다. PDF 보호를 먼저 해제하세요.</string>
-    <string name="file_extraction_error_corrupted">%1$s을(를) 읽을 수 없습니다. 파일이 손상되었을 수 있습니다.</string>
-    <string name="file_extraction_error_unsupported">%1$s은(는) 지원되지 않는 파일 형식입니다.</string>
-    <string name="file_extraction_error_too_large">%1$s이(가) 너무 큽니다(최대 50 MB).</string>
+    <string name="file_extraction_error_encrypted_pdf">%1$s 파일에 비밀번호가 걸려 있습니다. 비밀번호를 해제한 뒤 다시 첨부해 주세요.</string>
+    <string name="file_extraction_error_corrupted">%1$s 파일을 읽을 수 없습니다. 손상되었을 수 있습니다.</string>
+    <string name="file_extraction_error_unsupported">%1$s 파일은 지원되지 않는 형식입니다.</string>
+    <string name="file_extraction_error_too_large">%1$s 파일이 너무 큽니다(최대 %2$dMB).</string>
     <string name="file_extraction_error_generic">%1$s을(를) 처리할 수 없습니다. 다시 시도하거나 다른 파일을 선택하세요.</string>
     <string name="file_extraction_chip_extracted_lines">%1$d줄 추출됨</string>
     <string name="file_attachment_count_limit_reached">이 모델에는 최대 %1$d개의 파일을 첨부할 수 있습니다.</string>

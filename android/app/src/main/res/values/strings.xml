@@ -300,7 +300,7 @@
     <string name="attachment_conflict_title">Attachment Not Supported</string>
     <string name="attachment_conflict_message">The current model does not support this attachment type. Switch to a compatible model or remove the attachment.</string>
     <string name="attachment_too_large_title">File too large</string>
-    <string name="attachment_too_large_message">Files and images over 50 MB cannot be uploaded. Large uploads are slow on your network and are difficult for AI models to read reliably.</string>
+    <string name="attachment_too_large_message">Files and images over %1$d MB cannot be uploaded. Large uploads are slow on your network and are difficult for AI models to read reliably.</string>
     <string name="remove_attachment">Remove</string>
 
     <!-- Manual Model Entry -->
@@ -1007,10 +1007,10 @@
 
     <!-- File extraction strings -->
     <string name="file_extraction_error_scanned_pdf">Couldn\'t extract text from %1$s (looks like a scanned PDF).</string>
-    <string name="file_extraction_error_encrypted_pdf">%1$s is password-protected. Decrypt the PDF first.</string>
+    <string name="file_extraction_error_encrypted_pdf">%1$s is password-protected. Remove the password, then attach it again.</string>
     <string name="file_extraction_error_corrupted">Couldn\'t read %1$s — the file may be corrupted.</string>
     <string name="file_extraction_error_unsupported">%1$s is not a supported file type.</string>
-    <string name="file_extraction_error_too_large">%1$s is too large (max 50 MB).</string>
+    <string name="file_extraction_error_too_large">%1$s is too large (max %2$d MB).</string>
     <string name="file_extraction_error_generic">Couldn\'t process %1$s. Try again or pick another file.</string>
     <string name="file_extraction_chip_extracted_lines">%1$d lines extracted</string>
     <string name="file_attachment_count_limit_reached">You can attach up to %1$d files for this model.</string>

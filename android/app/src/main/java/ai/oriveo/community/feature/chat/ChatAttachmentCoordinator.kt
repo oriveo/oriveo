@@ -14,6 +14,7 @@ import ai.oriveo.community.core.model.Attachment
 import ai.oriveo.community.core.model.AttachmentKind
 import ai.oriveo.community.core.model.ProviderKind
 import ai.oriveo.community.feature.chat.attachments.AttachmentImportOutcome
+import ai.oriveo.community.feature.chat.attachments.AttachmentImportPolicy
 import ai.oriveo.community.feature.chat.attachments.AttachmentProcessor
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -119,7 +120,7 @@ internal class ChatAttachmentCoordinator(
                 outcome.partial?.let { addAttachment(it, "file") }
                 globalSnackbarManager.show(
                     GlobalSnackbarMessage(
-                        message = UiText.Resource(errorMessageResFor(outcome.code), listOf(outcome.fileName)),
+                        message = UiText.Resource(errorMessageResFor(outcome.code), errorMessageArgsFor(outcome)),
                     ),
                 )
             }
@@ -127,10 +128,22 @@ internal class ChatAttachmentCoordinator(
         }
     }
 
+    // "File too large" states the limit the extractor actually used this time: a model override
+    // can lower it below the 50 MB default.
+    private fun errorMessageArgsFor(outcome: AttachmentImportOutcome.FileExtractionError): List<Any> =
+        if (outcome.code == ExtractionErrorCode.FileTooLarge) {
+            listOf(
+                outcome.fileName,
+                AttachmentImportPolicy.sizeLimitMegabytes(FileExtractionLimits.resolve(activeModel()).maxInputFileBytes),
+            )
+        } else {
+            listOf(outcome.fileName)
+        }
+
     private fun errorMessageResFor(code: ExtractionErrorCode): Int = when (code) {
         ExtractionErrorCode.ScannedPdf -> R.string.file_extraction_error_scanned_pdf
         ExtractionErrorCode.EncryptedPdf -> R.string.file_extraction_error_encrypted_pdf
-        ExtractionErrorCode.PasswordProtectedOffice -> R.string.file_extraction_error_corrupted
+        ExtractionErrorCode.PasswordProtectedOffice -> R.string.file_extraction_error_encrypted_pdf
         ExtractionErrorCode.CorruptedFile -> R.string.file_extraction_error_corrupted
         ExtractionErrorCode.UnsupportedFormat -> R.string.file_extraction_error_unsupported
         ExtractionErrorCode.FileTooLarge -> R.string.file_extraction_error_too_large

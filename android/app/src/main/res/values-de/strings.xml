@@ -193,7 +193,7 @@
     <string name="attachment_conflict_title">Anhang nicht unterstützt</string>
     <string name="attachment_conflict_message">Das aktuelle Modell unterstützt diesen Anhangstyp nicht. Wechsle zu einem kompatiblen Modell oder entferne den Anhang.</string>
     <string name="attachment_too_large_title">Datei zu groß</string>
-    <string name="attachment_too_large_message">Dateien und Bilder über 50 MB können nicht hochgeladen werden. Große Uploads belasten dein Netzwerk und sind für KI-Modelle schwer zuverlässig zu lesen.</string>
+    <string name="attachment_too_large_message">Dateien und Bilder über %1$d MB können nicht hochgeladen werden. Große Uploads belasten dein Netzwerk und sind für KI-Modelle schwer zuverlässig zu lesen.</string>
     <string name="remove_attachment">Entfernen</string>
     <string name="attachment_checksum_warning">Einige Bilddateien in diesem Backup sind möglicherweise unvollständig oder beschädigt. Wiederherstellbare Nachrichten werden trotzdem importiert.</string>
     <string name="result_restored_preferences">Theme und Sprache wurden wiederhergestellt</string>
@@ -932,11 +932,11 @@
     <!-- Usage Insights v4 Quartz -->
 
     <!-- File extraction strings (Phase 6, pending iOS xcstrings ground truth) -->
-    <string name="file_extraction_error_scanned_pdf">Text konnte nicht aus %1$s extrahiert werden (sieht wie ein gescanntes PDF aus).</string>
-    <string name="file_extraction_error_encrypted_pdf">%1$s ist kennwortgeschützt. Entschlüssle das PDF zuerst.</string>
-    <string name="file_extraction_error_corrupted">%1$s konnte nicht gelesen werden — die Datei ist möglicherweise beschädigt.</string>
-    <string name="file_extraction_error_unsupported">%1$s ist kein unterstützter Dateityp.</string>
-    <string name="file_extraction_error_too_large">%1$s ist zu groß (max. 50 MB).</string>
+    <string name="file_extraction_error_scanned_pdf">Aus %1$s ließ sich kein Text auslesen (vermutlich ein gescanntes PDF).</string>
+    <string name="file_extraction_error_encrypted_pdf">%1$s ist passwortgeschützt. Entferne das Passwort und lade die Datei erneut hoch.</string>
+    <string name="file_extraction_error_corrupted">%1$s konnte nicht gelesen werden – die Datei ist möglicherweise beschädigt.</string>
+    <string name="file_extraction_error_unsupported">Der Dateityp von %1$s wird nicht unterstützt.</string>
+    <string name="file_extraction_error_too_large">%1$s ist zu groß (max. %2$d MB).</string>
     <string name="file_extraction_error_generic">%1$s konnte nicht verarbeitet werden. Versuche es erneut oder wähle eine andere Datei.</string>
     <string name="file_extraction_chip_extracted_lines">%1$d Zeilen extrahiert</string>
     <string name="file_attachment_count_limit_reached">Für dieses Modell kannst du bis zu %1$d Dateien anhängen.</string>

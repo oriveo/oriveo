@@ -254,7 +254,7 @@
     <string name="attachment_conflict_title">Вложение не поддерживается</string>
     <string name="attachment_conflict_message">Текущая модель не поддерживает этот тип вложения. Переключитесь на совместимую модель или удалите вложение.</string>
     <string name="attachment_too_large_title">Файл слишком большой</string>
-    <string name="attachment_too_large_message">Файлы и изображения больше 50 МБ нельзя загрузить. Большие загрузки нагружают сеть и плохо читаются моделями ИИ.</string>
+    <string name="attachment_too_large_message">Файлы и изображения больше %1$d МБ нельзя загрузить. Большие загрузки нагружают сеть и плохо читаются моделями ИИ.</string>
     <string name="remove_attachment">Удалить</string>
     <string name="manual_model_entry_title">Резервная модель</string>
     <string name="manual_model_entry_headline">Введите идентификатор модели вручную</string>
@@ -897,10 +897,10 @@
 
     <!-- File extraction strings (Phase 6, pending iOS xcstrings ground truth) -->
     <string name="file_extraction_error_scanned_pdf">Не удалось извлечь текст из %1$s (похоже на отсканированный PDF).</string>
-    <string name="file_extraction_error_encrypted_pdf">%1$s защищён паролем. Сначала снимите защиту с PDF.</string>
+    <string name="file_extraction_error_encrypted_pdf">Файл %1$s защищён паролем. Снимите пароль и прикрепите файл заново.</string>
     <string name="file_extraction_error_corrupted">Не удалось прочитать %1$s — возможно, файл повреждён.</string>
-    <string name="file_extraction_error_unsupported">%1$s — неподдерживаемый тип файла.</string>
-    <string name="file_extraction_error_too_large">%1$s слишком большой (максимум 50 МБ).</string>
+    <string name="file_extraction_error_unsupported">Тип файла %1$s не поддерживается.</string>
+    <string name="file_extraction_error_too_large">Файл %1$s слишком большой (максимум %2$d МБ).</string>
     <string name="file_extraction_error_generic">Не удалось обработать %1$s. Повторите попытку или выберите другой файл.</string>
     <string name="file_extraction_chip_extracted_lines">Извлечено строк: %1$d</string>
     <string name="file_attachment_count_limit_reached">Для этой модели можно прикрепить до %1$d файлов.</string>

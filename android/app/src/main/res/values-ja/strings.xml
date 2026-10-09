@@ -193,7 +193,7 @@
     <string name="attachment_conflict_title">添付ファイル非対応</string>
     <string name="attachment_conflict_message">現在のモデルはこの添付ファイルの種類に対応していません。対応するモデルに切り替えるか、添付ファイルを削除してください。</string>
     <string name="attachment_too_large_title">ファイルが大きすぎます</string>
-    <string name="attachment_too_large_message">50 MB を超えるファイルや画像はアップロードできません。大きなアップロードは通信に負担がかかり、AI も安定して読み取れません。</string>
+    <string name="attachment_too_large_message">%1$d MB を超えるファイルや画像はアップロードできません。大きなアップロードは通信に負担がかかり、AI も安定して読み取れません。</string>
     <string name="remove_attachment">削除</string>
     <string name="attachment_checksum_warning">このバックアップ内の一部画像ファイルは不完全または破損している可能性があります。復元できるメッセージは引き続き読み込まれます。</string>
     <string name="result_restored_preferences">テーマと言語の設定を復元しました</string>
@@ -935,10 +935,10 @@
 
     <!-- File extraction strings (Phase 6, pending iOS xcstrings ground truth) -->
     <string name="file_extraction_error_scanned_pdf">%1$s からテキストを抽出できませんでした（スキャンされた PDF のようです）。</string>
-    <string name="file_extraction_error_encrypted_pdf">%1$s はパスワードで保護されています。先に PDF の保護を解除してください。</string>
+    <string name="file_extraction_error_encrypted_pdf">%1$s にはパスワードがかかっています。パスワードを解除してから、もう一度追加してください。</string>
     <string name="file_extraction_error_corrupted">%1$s を読み取れませんでした。ファイルが破損している可能性があります。</string>
     <string name="file_extraction_error_unsupported">%1$s はサポートされていないファイル形式です。</string>
-    <string name="file_extraction_error_too_large">%1$s は大きすぎます（最大 50 MB）。</string>
+    <string name="file_extraction_error_too_large">%1$s は大きすぎます（最大 %2$d MB）。</string>
     <string name="file_extraction_error_generic">%1$s を処理できませんでした。もう一度試すか、別のファイルを選んでください。</string>
     <string name="file_extraction_chip_extracted_lines">%1$d 行を抽出しました</string>
     <string name="file_attachment_count_limit_reached">このモデルには最大 %1$d 件のファイルを添付できます。</string>

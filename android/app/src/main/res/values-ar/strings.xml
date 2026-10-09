@@ -193,7 +193,7 @@
     <string name="attachment_conflict_title">المرفق غير مدعوم</string>
     <string name="attachment_conflict_message">النموذج الحالي لا يدعم هذا النوع من المرفقات. انتقل إلى نموذج متوافق أو أزل المرفق.</string>
     <string name="attachment_too_large_title">الملف كبير جدًا</string>
-    <string name="attachment_too_large_message">لا يمكن رفع الملفات أو الصور التي يزيد حجمها عن 50 MB. الرفع الكبير يبطئ الشبكة ويصعب على نماذج الذكاء الاصطناعي قراءته بثبات.</string>
+    <string name="attachment_too_large_message">لا يمكن رفع الملفات أو الصور التي يزيد حجمها عن %1$d MB. الرفع الكبير يبطئ الشبكة ويصعب على نماذج الذكاء الاصطناعي قراءته بثبات.</string>
     <string name="remove_attachment">إزالة</string>
     <string name="attachment_checksum_warning">قد تكون بعض ملفات الصور في هذه النسخة الاحتياطية غير مكتملة أو تالفة. ستتم متابعة استيراد الرسائل القابلة للاستعادة.</string>
     <string name="result_restored_preferences">تمت استعادة إعدادات المظهر واللغة</string>
@@ -933,10 +933,10 @@
 
     <!-- File extraction strings (Phase 6, pending iOS xcstrings ground truth) -->
     <string name="file_extraction_error_scanned_pdf">تعذّر استخراج النص من %1$s (يبدو أنه ملف PDF ممسوح ضوئيًا).</string>
-    <string name="file_extraction_error_encrypted_pdf">%1$s محمي بكلمة مرور. فُك حماية ملف PDF أولاً.</string>
-    <string name="file_extraction_error_corrupted">تعذّر قراءة %1$s — قد يكون الملف تالفًا.</string>
-    <string name="file_extraction_error_unsupported">%1$s ليس نوع ملف مدعوم.</string>
-    <string name="file_extraction_error_too_large">%1$s كبير جدًا (الحد الأقصى 50 ميجابايت).</string>
+    <string name="file_extraction_error_encrypted_pdf">الملف %1$s محمي بكلمة مرور. يرجى إزالة كلمة المرور ثم إرفاقه مرة أخرى.</string>
+    <string name="file_extraction_error_corrupted">تعذّر قراءة %1$s؛ قد يكون الملف تالفًا.</string>
+    <string name="file_extraction_error_unsupported">نوع الملف %1$s غير مدعوم.</string>
+    <string name="file_extraction_error_too_large">الملف %1$s كبير جدًا (الحد الأقصى %2$d ميجابايت).</string>
     <string name="file_extraction_error_generic">تعذّر معالجة %1$s. حاول مرة أخرى أو اختر ملفًا آخر.</string>
     <string name="file_extraction_chip_extracted_lines">تم استخراج %1$d سطر</string>
     <string name="file_attachment_count_limit_reached">يمكنك إرفاق ما يصل إلى %1$d ملفات لهذا النموذج.</string>

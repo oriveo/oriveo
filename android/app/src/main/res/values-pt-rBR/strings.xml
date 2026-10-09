@@ -193,7 +193,7 @@
     <string name="attachment_conflict_title">Anexo não suportado</string>
     <string name="attachment_conflict_message">O modelo atual não suporta este tipo de anexo. Troque para um modelo compatível ou remova o anexo.</string>
     <string name="attachment_too_large_title">Arquivo muito grande</string>
-    <string name="attachment_too_large_message">Arquivos e imagens acima de 50 MB não podem ser enviados. Uploads grandes são lentos na sua rede e difíceis para os modelos de IA lerem com confiabilidade.</string>
+    <string name="attachment_too_large_message">Arquivos e imagens acima de %1$d MB não podem ser enviados. Uploads grandes são lentos na sua rede e difíceis para os modelos de IA lerem com confiabilidade.</string>
     <string name="remove_attachment">Remover</string>
     <string name="attachment_checksum_warning">Alguns arquivos de imagem neste backup podem estar incompletos ou corrompidos. As mensagens que puderem ser recuperadas ainda serão importadas.</string>
     <string name="result_restored_preferences">Tema e idioma restaurados</string>
@@ -933,10 +933,10 @@
 
     <!-- File extraction strings (Phase 6, pending iOS xcstrings ground truth) -->
     <string name="file_extraction_error_scanned_pdf">Não foi possível extrair texto de %1$s (parece ser um PDF digitalizado).</string>
-    <string name="file_extraction_error_encrypted_pdf">%1$s está protegido por senha. Descriptografe o PDF primeiro.</string>
+    <string name="file_extraction_error_encrypted_pdf">%1$s está protegido por senha. Remova a senha e anexe o arquivo de novo.</string>
     <string name="file_extraction_error_corrupted">Não foi possível ler %1$s — o arquivo pode estar corrompido.</string>
-    <string name="file_extraction_error_unsupported">%1$s não é um tipo de arquivo compatível.</string>
-    <string name="file_extraction_error_too_large">%1$s é muito grande (máx. 50 MB).</string>
+    <string name="file_extraction_error_unsupported">O tipo de arquivo de %1$s não é compatível.</string>
+    <string name="file_extraction_error_too_large">%1$s é muito grande (máx. %2$d MB).</string>
     <string name="file_extraction_error_generic">Não foi possível processar %1$s. Tente novamente ou escolha outro arquivo.</string>
     <string name="file_extraction_chip_extracted_lines">%1$d linhas extraídas</string>
     <string name="file_attachment_count_limit_reached">Você pode anexar até %1$d arquivos para este modelo.</string>

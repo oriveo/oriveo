@@ -429,7 +429,7 @@
     <string name="attachment_conflict_title">不支援此附件</string>
     <string name="attachment_conflict_message">目前的模型不支援此附件類型。請切換至相容的模型或移除附件。</string>
     <string name="attachment_too_large_title">檔案太大</string>
-    <string name="attachment_too_large_message">超過 50 MB 的檔案和圖片無法上傳。大型檔案會消耗網路，也很難讓 AI 穩定讀取。</string>
+    <string name="attachment_too_large_message">超過 %1$d MB 的檔案和圖片無法上傳。大型檔案會消耗網路，也很難讓 AI 穩定讀取。</string>
     <string name="remove_attachment">移除</string>
     <string name="file">檔案</string>
     <string name="file_unavailable">僅在原始裝置上可用</string>
@@ -962,10 +962,10 @@
 
     <!-- Usage Insights v4 Quartz -->
     <string name="file_extraction_error_scanned_pdf">無法從 %1$s 中提取文字（看起來是掃描版 PDF）。</string>
-    <string name="file_extraction_error_encrypted_pdf">%1$s 已加密，請先解密 PDF。</string>
+    <string name="file_extraction_error_encrypted_pdf">%1$s 設有密碼，請移除密碼後重新加入。</string>
     <string name="file_extraction_error_corrupted">無法讀取 %1$s，檔案可能已損毀。</string>
-    <string name="file_extraction_error_unsupported">%1$s 不是支援的檔案類型。</string>
-    <string name="file_extraction_error_too_large">%1$s 太大（最大 50 MB）。</string>
+    <string name="file_extraction_error_unsupported">不支援 %1$s 這種檔案類型。</string>
+    <string name="file_extraction_error_too_large">%1$s 太大，不能超過 %2$d MB。</string>
     <string name="file_extraction_error_generic">無法處理 %1$s，請重試或選擇其他檔案。</string>
     <string name="file_extraction_chip_extracted_lines">已提取 %1$d 行</string>
     <string name="file_attachment_count_limit_reached">這個模型最多可加入 %1$d 個附件。</string>

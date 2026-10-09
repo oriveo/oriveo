@@ -96,6 +96,55 @@ class FileTextExtractorTest {
     }
 
     @Test
+    fun encryptedOoxmlIsReportedAsPasswordProtected() {
+        // A password-protected docx/xlsx/pptx is an OLE compound document, not a zip. ZipInputStream
+        // used to find no entry at all, so a docx was attached as "extracted successfully, empty
+        // content" and the user saw no notice.
+        val oleHeader = byteArrayOf(
+            0xD0.toByte(), 0xCF.toByte(), 0x11, 0xE0.toByte(), 0xA1.toByte(), 0xB1.toByte(), 0x1A, 0xE1.toByte(),
+        )
+        val mimes = mapOf(
+            "docx" to "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "xlsx" to "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "pptx" to "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+        )
+
+        for ((ext, mime) in mimes) {
+            val error = runCatching {
+                FileTextExtractor.extract(oleHeader + ByteArray(504), "locked.$ext", mime)
+            }.exceptionOrNull()
+
+            assertEquals(ext, ExtractionErrorCode.PasswordProtectedOffice, (error as? ExtractionException)?.code)
+        }
+    }
+
+    @Test
+    fun ordinaryDocxIsStillExtracted() {
+        val docx = zipOf("word/document.xml" to "<w:document><w:p><w:t>hello</w:t></w:p></w:document>")
+
+        val extracted = FileTextExtractor.extract(
+            docx,
+            "plain.docx",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        )
+
+        assertEquals("hello", extracted.content.trim())
+    }
+
+    @Test
+    fun aFileShorterThanTheOleHeaderIsNotMistakenForAnEncryptedOne() {
+        val error = runCatching {
+            FileTextExtractor.extract(
+                byteArrayOf(0xD0.toByte(), 0xCF.toByte(), 0x11),
+                "tiny.docx",
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            )
+        }.exceptionOrNull()
+
+        assertNotEquals(ExtractionErrorCode.PasswordProtectedOffice, (error as? ExtractionException)?.code)
+    }
+
+    @Test
     fun errorsFromParsingLibrariesNeverLeaveTheExtractorAsErrors() {
         // Once a class's static initializer has failed, every later use is a
         // NoClassDefFoundError (a LinkageError). It is not an Exception, so callers cannot catch

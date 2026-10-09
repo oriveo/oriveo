@@ -254,7 +254,7 @@
     <string name="attachment_conflict_title">Lampiran Tidak Didukung</string>
     <string name="attachment_conflict_message">Model saat ini tidak mendukung jenis lampiran ini. Beralih ke model yang kompatibel atau lepaskan lampirannya.</string>
     <string name="attachment_too_large_title">File terlalu besar</string>
-    <string name="attachment_too_large_message">File dan gambar di atas 50 MB tidak dapat diunggah. Unggahan besar lambat di jaringan Anda dan sulit dibaca AI secara andal.</string>
+    <string name="attachment_too_large_message">File dan gambar di atas %1$d MB tidak dapat diunggah. Unggahan besar lambat di jaringan Anda dan sulit dibaca AI secara andal.</string>
     <string name="remove_attachment">Menghapus</string>
     <string name="manual_model_entry_title">Model Pengganti</string>
     <string name="manual_model_entry_headline">Masukkan ID model secara manual</string>
@@ -897,10 +897,10 @@
 
     <!-- File extraction strings (Phase 6, pending iOS xcstrings ground truth) -->
     <string name="file_extraction_error_scanned_pdf">Tidak dapat mengekstrak teks dari %1$s (sepertinya PDF hasil pindaian).</string>
-    <string name="file_extraction_error_encrypted_pdf">%1$s dilindungi kata sandi. Dekripsi PDF terlebih dahulu.</string>
-    <string name="file_extraction_error_corrupted">Tidak dapat membaca %1$s — berkas mungkin rusak.</string>
+    <string name="file_extraction_error_encrypted_pdf">%1$s dilindungi kata sandi. Hapus kata sandinya, lalu lampirkan lagi.</string>
+    <string name="file_extraction_error_corrupted">Tidak dapat membaca %1$s; berkasnya mungkin rusak.</string>
     <string name="file_extraction_error_unsupported">%1$s bukan jenis berkas yang didukung.</string>
-    <string name="file_extraction_error_too_large">%1$s terlalu besar (maks. 50 MB).</string>
+    <string name="file_extraction_error_too_large">%1$s terlalu besar (maks. %2$d MB).</string>
     <string name="file_extraction_error_generic">Tidak dapat memproses %1$s. Coba lagi atau pilih berkas lain.</string>
     <string name="file_extraction_chip_extracted_lines">%1$d baris diekstrak</string>
     <string name="file_attachment_count_limit_reached">Anda dapat melampirkan hingga %1$d berkas untuk model ini.</string>

@@ -137,6 +137,15 @@ object AttachmentImportPolicy {
     fun isWithinSizeLimit(byteCount: Long): Boolean =
         byteCount <= MAX_ATTACHMENT_BYTES
 
+    /**
+     * The megabyte figure shown in a size limit message. The unit stays in each language's string
+     * (fr "Mo", ru "МБ"); only the number comes from here. A limit that is not a whole megabyte is
+     * rounded down, since rounding up would state a size that cannot actually be attached, and the
+     * result is at least 1.
+     */
+    fun sizeLimitMegabytes(bytes: Long): Int =
+        (bytes / (1024L * 1024L)).coerceIn(1L, Int.MAX_VALUE.toLong()).toInt()
+
     fun isWithinSizeLimit(byteCount: Int): Boolean =
         isWithinSizeLimit(byteCount.toLong())
 

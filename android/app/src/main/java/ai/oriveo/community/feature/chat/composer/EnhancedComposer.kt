@@ -703,7 +703,14 @@ internal fun EnhancedComposer(
         AlertDialog(
             onDismissRequest = onDismissAttachmentSizeLimitDialog,
             title = { Text(stringResource(R.string.attachment_too_large_title)) },
-            text = { Text(stringResource(R.string.attachment_too_large_message)) },
+            text = {
+                Text(
+                    stringResource(
+                        R.string.attachment_too_large_message,
+                        AttachmentImportPolicy.sizeLimitMegabytes(AttachmentImportPolicy.MAX_ATTACHMENT_BYTES),
+                    ),
+                )
+            },
             confirmButton = {
                 TextButton(onClick = onDismissAttachmentSizeLimitDialog) {
                     Text(stringResource(R.string.ok))

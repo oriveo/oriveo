@@ -254,7 +254,7 @@
     <string name="attachment_conflict_title">अनुलग्नक समर्थित नहीं है</string>
     <string name="attachment_conflict_message">वर्तमान मॉडल इस अनुलग्नक प्रकार का समर्थन नहीं करता है. किसी संगत मॉडल पर स्विच करें या अनुलग्नक हटा दें।</string>
     <string name="attachment_too_large_title">फ़ाइल बहुत बड़ी है</string>
-    <string name="attachment_too_large_message">50 MB से बड़ी फ़ाइलें और इमेज अपलोड नहीं की जा सकतीं। बड़े अपलोड नेटवर्क को धीमा करते हैं और AI मॉडल उन्हें भरोसेमंद तरीके से पढ़ नहीं पाते।</string>
+    <string name="attachment_too_large_message">%1$d MB से बड़ी फ़ाइलें और इमेज अपलोड नहीं की जा सकतीं। बड़े अपलोड नेटवर्क को धीमा करते हैं और AI मॉडल उन्हें भरोसेमंद तरीके से पढ़ नहीं पाते।</string>
     <string name="remove_attachment">हटाएँ</string>
     <string name="manual_model_entry_title">फ़ॉलबैक मॉडल</string>
     <string name="manual_model_entry_headline">मॉडल आईडी मैन्युअल रूप से दर्ज करें</string>
@@ -896,11 +896,11 @@
     <!-- Usage Insights v4 Quartz -->
 
     <!-- File extraction strings (Phase 6, pending iOS xcstrings ground truth) -->
-    <string name="file_extraction_error_scanned_pdf">%1$s से टेक्स्ट नहीं निकाला जा सका (यह स्कैन किया गया PDF लगता है).</string>
-    <string name="file_extraction_error_encrypted_pdf">%1$s पासवर्ड से सुरक्षित है. पहले PDF को अनलॉक करें.</string>
-    <string name="file_extraction_error_corrupted">%1$s पढ़ा नहीं जा सका — फ़ाइल खराब हो सकती है.</string>
-    <string name="file_extraction_error_unsupported">%1$s समर्थित फ़ाइल प्रकार नहीं है.</string>
-    <string name="file_extraction_error_too_large">%1$s बहुत बड़ी है (अधिकतम 50 MB).</string>
+    <string name="file_extraction_error_scanned_pdf">%1$s से टेक्स्ट नहीं निकाला जा सका (यह स्कैन किया गया PDF लगता है)।</string>
+    <string name="file_extraction_error_encrypted_pdf">%1$s पर पासवर्ड लगा है। पासवर्ड हटाएँ, फिर फ़ाइल दोबारा अपलोड करें।</string>
+    <string name="file_extraction_error_corrupted">%1$s पढ़ा नहीं जा सका। फ़ाइल ख़राब हो सकती है।</string>
+    <string name="file_extraction_error_unsupported">%1$s समर्थित फ़ाइल प्रकार नहीं है।</string>
+    <string name="file_extraction_error_too_large">%1$s बहुत बड़ी है (अधिकतम %2$d MB)।</string>
     <string name="file_extraction_error_generic">%1$s को प्रोसेस नहीं किया जा सका. फिर कोशिश करें या दूसरी फ़ाइल चुनें.</string>
     <string name="file_extraction_chip_extracted_lines">%1$d पंक्तियाँ निकाली गईं</string>
     <string name="file_attachment_count_limit_reached">इस मॉडल के लिए आप अधिकतम %1$d फ़ाइलें जोड़ सकते हैं।</string>

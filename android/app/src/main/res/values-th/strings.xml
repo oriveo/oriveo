@@ -254,7 +254,7 @@
     <string name="attachment_conflict_title">ไม่รองรับไฟล์แนบ</string>
     <string name="attachment_conflict_message">รุ่นปัจจุบันไม่รองรับไฟล์แนบประเภทนี้ เปลี่ยนไปใช้รุ่นที่เข้ากันได้หรือนำไฟล์แนบออก</string>
     <string name="attachment_too_large_title">ไฟล์ใหญ่เกินไป</string>
-    <string name="attachment_too_large_message">ไม่สามารถอัปโหลดไฟล์หรือรูปภาพที่เกิน 50 MB ได้ ไฟล์ขนาดใหญ่ใช้เครือข่ายมากและทำให้ AI อ่านได้ไม่เสถียร</string>
+    <string name="attachment_too_large_message">ไม่สามารถอัปโหลดไฟล์หรือรูปภาพที่เกิน %1$d MB ได้ ไฟล์ขนาดใหญ่ใช้เครือข่ายมากและทำให้ AI อ่านได้ไม่เสถียร</string>
     <string name="remove_attachment">ลบ</string>
     <string name="manual_model_entry_title">โมเดลทางเลือก</string>
     <string name="manual_model_entry_headline">ป้อนรหัสรุ่นด้วยตนเอง</string>
@@ -897,10 +897,10 @@
 
     <!-- File extraction strings (Phase 6, pending iOS xcstrings ground truth) -->
     <string name="file_extraction_error_scanned_pdf">ไม่สามารถแยกข้อความจาก %1$s ได้ (ดูเหมือนเป็น PDF ที่สแกนมา)</string>
-    <string name="file_extraction_error_encrypted_pdf">%1$s มีการป้องกันด้วยรหัสผ่าน โปรดปลดล็อก PDF ก่อน</string>
+    <string name="file_extraction_error_encrypted_pdf">%1$s ติดรหัสผ่าน เอาออกแล้วอัปโหลดอีกครั้ง</string>
     <string name="file_extraction_error_corrupted">อ่าน %1$s ไม่ได้ — ไฟล์อาจเสียหาย</string>
     <string name="file_extraction_error_unsupported">%1$s ไม่ใช่ชนิดไฟล์ที่รองรับ</string>
-    <string name="file_extraction_error_too_large">%1$s มีขนาดใหญ่เกินไป (สูงสุด 50 MB)</string>
+    <string name="file_extraction_error_too_large">%1$s มีขนาดใหญ่เกินไป (สูงสุด %2$d MB)</string>
     <string name="file_extraction_error_generic">ประมวลผล %1$s ไม่ได้ ลองอีกครั้งหรือเลือกไฟล์อื่น</string>
     <string name="file_extraction_chip_extracted_lines">แยกได้ %1$d บรรทัด</string>
     <string name="file_attachment_count_limit_reached">คุณแนบไฟล์ได้สูงสุด %1$d ไฟล์สำหรับโมเดลนี้</string>
