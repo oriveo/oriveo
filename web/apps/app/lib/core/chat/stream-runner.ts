@@ -34,7 +34,6 @@ import {
   refreshMetadataOnCodexClientVersionRejected,
 } from '../providers/openai-subscription';
 import { persistGrokSubscriptionCredential, persistOpenAISubscriptionCredential } from '../provider-ops';
-import { shouldReportSubscriptionVersionRejection } from '../providers/subscription-version-rejection';
 import type { GrokSubscriptionErrorKind } from '@oriveo/core/providers/grok-subscription';
 import type { OpenAISubscriptionErrorKind } from '@oriveo/core/providers/openai-subscription';
 import {
@@ -68,12 +67,6 @@ function grokSubscriptionFailureHandle(kind: GrokSubscriptionErrorKind): {
           error: upstreamCopy?.message ?? 'Grok subscription sign-in is unavailable right now.',
           errorKind,
           source: 'oriveo',
-          // A version rejection detected before sending goes through the same gate as a 426
-          // during streaming, so the same fact is reported once per session.
-          ...(kind === 'clientVersionRejected'
-            && !shouldReportSubscriptionVersionRejection({ lane: 'grok', revision: null, stale: false })
-            ? { skipReport: true }
-            : {}),
         });
         controller.close();
       },
@@ -109,12 +102,6 @@ function openAISubscriptionFailureHandle(kind: OpenAISubscriptionErrorKind): {
           error: upstreamCopy?.message ?? 'ChatGPT subscription sign-in is unavailable right now.',
           errorKind,
           source: 'oriveo',
-          // A version rejection detected before sending goes through the same gate as a 426
-          // during streaming, so the same fact is reported once per session.
-          ...(kind === 'clientVersionRejected'
-            && !shouldReportSubscriptionVersionRejection({ lane: 'openAI', revision: null, stale: false })
-            ? { skipReport: true }
-            : {}),
         });
         controller.close();
       },
