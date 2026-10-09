@@ -35,8 +35,8 @@ final class FileTextExtractorTests: XCTestCase {
     func testSingleOversizedLineIsCutInsideTheLine() throws {
         let limits = FileExtractionLimits(maxLines: 500, maxBytes: 10, totalCap: 204_800, maxInputFileBytes: 1_000_000, maxFiles: 3)
         // Each CJK character is 3 bytes: 10 bytes fit 3 characters, and the 4th must not be cut in half.
-        let r = FileTextExtractor.truncate(rawText: "一二三四五六", sizeBytes: 18, limits: limits)
-        XCTAssertEqual(r.content, "一二三")
+        let r = FileTextExtractor.truncate(rawText: "\u{4E00}\u{4E8C}\u{4E09}\u{56DB}\u{4E94}\u{516D}", sizeBytes: 18, limits: limits)
+        XCTAssertEqual(r.content, "\u{4E00}\u{4E8C}\u{4E09}")
         XCTAssertTrue(r.truncated)
         XCTAssertEqual(r.truncationReason, .bytes)
         XCTAssertEqual(r.totalLines, 1)

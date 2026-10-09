@@ -33,8 +33,8 @@ describe('FileTextExtractor.truncate', () => {
   it('the in-line hard cut never splits a multi-byte character', () => {
     const limits: FileExtractionLimits = { ...DEFAULT_LIMITS, maxBytes: 10 };
     // Each CJK character is 3 bytes: 10 bytes hold 3 whole characters (9 bytes), and the 4th cannot be cut in half
-    const r = FileTextExtractor.truncate('中文字符截断', 18, limits);
-    expect(r.content).toBe('中文字');
+    const r = FileTextExtractor.truncate('\u4e2d\u6587\u5b57\u7b26\u622a\u65ad', 18, limits);
+    expect(r.content).toBe('\u4e2d\u6587\u5b57');
     expect(r.truncated).toBe(true);
     // A 4-byte emoji works the same way
     expect(FileTextExtractor.truncate('ab😀😀😀', 14, { ...DEFAULT_LIMITS, maxBytes: 7 }).content).toBe('ab😀');
