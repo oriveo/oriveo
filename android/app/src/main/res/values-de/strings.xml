@@ -938,6 +938,7 @@
     <string name="file_extraction_error_unsupported">Der Dateityp von %1$s wird nicht unterstützt.</string>
     <string name="file_extraction_error_too_large">%1$s ist zu groß (max. %2$d MB).</string>
     <string name="file_extraction_error_generic">%1$s konnte nicht verarbeitet werden. Versuche es erneut oder wähle eine andere Datei.</string>
+    <string name="file_extraction_truncated_notice">%1$s ist lang, daher wurden nur die ersten %2$d von %3$d Zeilen hinzugefügt.</string>
     <string name="file_extraction_chip_extracted_lines">%1$d Zeilen extrahiert</string>
     <string name="file_attachment_count_limit_reached">Für dieses Modell kannst du bis zu %1$d Dateien anhängen.</string>
     <string name="chat_input_length_limit_reached">Eine Nachricht kann höchstens %1$,d Zeichen lang sein. Der Rest wurde nicht übernommen.</string>

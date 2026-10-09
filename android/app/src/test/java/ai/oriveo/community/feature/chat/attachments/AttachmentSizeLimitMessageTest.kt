@@ -112,4 +112,27 @@ class AttachmentSizeLimitMessageTest {
             assertFalse("$locale: $text", text.contains("PDF"))
         }
     }
+
+    @Test
+    fun `arabic messages isolate the file name so a latin name cannot reorder the sentence`() {
+        // File names are mostly Latin letters, digits and dots; without isolation the bidi algorithm reorders them with the surrounding punctuation and digits.
+        val isolated = Regex("""\\u2066%\d+\${'$'}s\\u2069""")
+        val placeholder = Regex("""%\d+\${'$'}s""")
+        val names = listOf(
+            "file_extraction_error_scanned_pdf",
+            "file_extraction_error_encrypted_pdf",
+            "file_extraction_error_corrupted",
+            "file_extraction_error_unsupported",
+            "file_extraction_error_too_large",
+            "file_extraction_error_generic",
+            "file_extraction_truncated_notice",
+        )
+
+        for (name in names) {
+            val text = stringsByLocale(name).getValue("values-ar")
+            val total = placeholder.findAll(text).count()
+            assertTrue("$name has no file name placeholder: $text", total > 0)
+            assertEquals("$name: $text", total, isolated.findAll(text).count())
+        }
+    }
 }

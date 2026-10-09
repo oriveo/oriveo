@@ -5,6 +5,7 @@ import android.net.Uri
 import ai.oriveo.community.R
 import ai.oriveo.community.core.app.GlobalSnackbarManager
 import ai.oriveo.community.core.app.GlobalSnackbarMessage
+import ai.oriveo.community.core.app.GlobalToastStyle
 import ai.oriveo.community.core.app.UiText
 import ai.oriveo.community.core.attachments.AttachmentImportLimiter
 import ai.oriveo.community.core.attachments.ExtractionErrorCode
@@ -96,7 +97,10 @@ internal class ChatAttachmentCoordinator(
             activeModel = activeModel(),
             currentFileCount = currentFileCount,
         )) {
-            is AttachmentImportOutcome.Success -> addAttachment(outcome.attachment, outcome.source)
+            is AttachmentImportOutcome.Success -> {
+                addAttachment(outcome.attachment, outcome.source)
+                outcome.truncation?.let { showTruncatedNotice(outcome.attachment, it) }
+            }
             AttachmentImportOutcome.Oversized -> presentAttachmentSizeLimitDialog()
             AttachmentImportOutcome.UnsupportedFile ->
                 globalSnackbarManager.show(
@@ -126,6 +130,21 @@ internal class ChatAttachmentCoordinator(
             }
             AttachmentImportOutcome.Silent -> Unit
         }
+    }
+
+    // Only say "the first N lines were added" when the attachment really entered the composer: a file turned away by
+    // the count limit already got the limit message, and must not be followed by a statement that contradicts it.
+    private fun showTruncatedNotice(attachment: Attachment, truncation: AttachmentImportOutcome.Truncation) {
+        if (pendingAttachments().none { it.id == attachment.id }) return
+        globalSnackbarManager.show(
+            GlobalSnackbarMessage(
+                message = UiText.Resource(
+                    R.string.file_extraction_truncated_notice,
+                    listOf(attachment.fileName, truncation.shownLines, truncation.totalLines),
+                ),
+                style = GlobalToastStyle.Warning,
+            ),
+        )
     }
 
     // "File too large" states the limit the extractor actually used this time: a model override

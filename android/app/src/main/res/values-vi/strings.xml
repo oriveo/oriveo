@@ -902,6 +902,7 @@
     <string name="file_extraction_error_unsupported">%1$s không phải là loại tệp được hỗ trợ.</string>
     <string name="file_extraction_error_too_large">%1$s quá lớn (tối đa %2$d MB).</string>
     <string name="file_extraction_error_generic">Không thể xử lý %1$s. Hãy thử lại hoặc chọn tệp khác.</string>
+    <string name="file_extraction_truncated_notice">%1$s khá dài nên chỉ thêm %2$d dòng đầu trong tổng số %3$d dòng.</string>
     <string name="file_extraction_chip_extracted_lines">Đã trích xuất %1$d dòng</string>
     <string name="file_attachment_count_limit_reached">Bạn có thể đính kèm tối đa %1$d tệp cho mô hình này.</string>
     <string name="chat_input_length_limit_reached">Mỗi tin nhắn tối đa %1$,d ký tự. Phần vượt quá chưa được thêm vào.</string>

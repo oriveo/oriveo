@@ -902,6 +902,7 @@
     <string name="file_extraction_error_unsupported">Тип файла %1$s не поддерживается.</string>
     <string name="file_extraction_error_too_large">Файл %1$s слишком большой (максимум %2$d МБ).</string>
     <string name="file_extraction_error_generic">Не удалось обработать %1$s. Повторите попытку или выберите другой файл.</string>
+    <string name="file_extraction_truncated_notice">Файл %1$s длинный, добавлено только начало (строк: %2$d из %3$d).</string>
     <string name="file_extraction_chip_extracted_lines">Извлечено строк: %1$d</string>
     <string name="file_attachment_count_limit_reached">Для этой модели можно прикрепить до %1$d файлов.</string>
     <string name="chat_input_length_limit_reached">В одном сообщении может быть до %1$,d символов. Остальное не добавлено.</string>

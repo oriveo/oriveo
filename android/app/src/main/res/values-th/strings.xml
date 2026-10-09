@@ -902,6 +902,7 @@
     <string name="file_extraction_error_unsupported">%1$s ไม่ใช่ชนิดไฟล์ที่รองรับ</string>
     <string name="file_extraction_error_too_large">%1$s มีขนาดใหญ่เกินไป (สูงสุด %2$d MB)</string>
     <string name="file_extraction_error_generic">ประมวลผล %1$s ไม่ได้ ลองอีกครั้งหรือเลือกไฟล์อื่น</string>
+    <string name="file_extraction_truncated_notice">%1$s ยาวเกินไป จึงเพิ่มเฉพาะ %2$d บรรทัดแรกจากทั้งหมด %3$d บรรทัด</string>
     <string name="file_extraction_chip_extracted_lines">แยกได้ %1$d บรรทัด</string>
     <string name="file_attachment_count_limit_reached">คุณแนบไฟล์ได้สูงสุด %1$d ไฟล์สำหรับโมเดลนี้</string>
     <string name="chat_input_length_limit_reached">แต่ละข้อความยาวได้สูงสุด %1$,d ตัวอักษร ส่วนที่เกินไม่ได้ถูกเพิ่มเข้ามา</string>

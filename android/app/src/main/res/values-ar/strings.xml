@@ -932,12 +932,13 @@
     <!-- Usage Insights v4 Quartz -->
 
     <!-- File extraction strings (Phase 6, pending iOS xcstrings ground truth) -->
-    <string name="file_extraction_error_scanned_pdf">تعذّر استخراج النص من %1$s (يبدو أنه ملف PDF ممسوح ضوئيًا).</string>
-    <string name="file_extraction_error_encrypted_pdf">الملف %1$s محمي بكلمة مرور. يرجى إزالة كلمة المرور ثم إرفاقه مرة أخرى.</string>
-    <string name="file_extraction_error_corrupted">تعذّر قراءة %1$s؛ قد يكون الملف تالفًا.</string>
-    <string name="file_extraction_error_unsupported">نوع الملف %1$s غير مدعوم.</string>
-    <string name="file_extraction_error_too_large">الملف %1$s كبير جدًا (الحد الأقصى %2$d ميجابايت).</string>
-    <string name="file_extraction_error_generic">تعذّر معالجة %1$s. حاول مرة أخرى أو اختر ملفًا آخر.</string>
+    <string name="file_extraction_error_scanned_pdf">تعذّر استخراج النص من \u2066%1$s\u2069 (يبدو أنه ملف PDF ممسوح ضوئيًا).</string>
+    <string name="file_extraction_error_encrypted_pdf">الملف \u2066%1$s\u2069 محمي بكلمة مرور. يرجى إزالة كلمة المرور ثم إرفاقه مرة أخرى.</string>
+    <string name="file_extraction_error_corrupted">تعذّر قراءة \u2066%1$s\u2069؛ قد يكون الملف تالفًا.</string>
+    <string name="file_extraction_error_unsupported">نوع الملف \u2066%1$s\u2069 غير مدعوم.</string>
+    <string name="file_extraction_error_too_large">الملف \u2066%1$s\u2069 كبير جدًا (الحد الأقصى %2$d ميجابايت).</string>
+    <string name="file_extraction_error_generic">تعذّر معالجة \u2066%1$s\u2069. حاول مرة أخرى أو اختر ملفًا آخر.</string>
+    <string name="file_extraction_truncated_notice">الملف \u2066%1$s\u2069 طويل، فأُضيف أوله فقط (الأسطر: %2$d من أصل %3$d).</string>
     <string name="file_extraction_chip_extracted_lines">تم استخراج %1$d سطر</string>
     <string name="file_attachment_count_limit_reached">يمكنك إرفاق ما يصل إلى %1$d ملفات لهذا النموذج.</string>
     <string name="chat_input_length_limit_reached">الحد الأقصى للرسالة الواحدة %1$,d حرف. لم تتم إضافة ما زاد على ذلك.</string>

@@ -1012,6 +1012,7 @@
     <string name="file_extraction_error_unsupported">%1$s is not a supported file type.</string>
     <string name="file_extraction_error_too_large">%1$s is too large (max %2$d MB).</string>
     <string name="file_extraction_error_generic">Couldn\'t process %1$s. Try again or pick another file.</string>
+    <string name="file_extraction_truncated_notice">%1$s is long, so only the first %2$d of %3$d lines were added.</string>
     <string name="file_extraction_chip_extracted_lines">%1$d lines extracted</string>
     <string name="file_attachment_count_limit_reached">You can attach up to %1$d files for this model.</string>
     <string name="chat_input_length_limit_reached">Messages can be up to %1$,d characters. Anything past that was left out.</string>

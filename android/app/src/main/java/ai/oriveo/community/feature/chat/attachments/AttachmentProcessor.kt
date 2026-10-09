@@ -31,7 +31,13 @@ import kotlinx.coroutines.withContext
  * to map an outcome onto a UI effect such as a snackbar or a dialog.
  */
 sealed class AttachmentImportOutcome {
-    data class Success(val attachment: Attachment, val source: String) : AttachmentImportOutcome()
+    data class Success(
+        val attachment: Attachment,
+        val source: String,
+        /** Non-null when only the head of the text was added; the reason is not persisted, so the line counts are carried out at import time. */
+        val truncation: Truncation? = null,
+    ) : AttachmentImportOutcome()
+    data class Truncation(val shownLines: Int, val totalLines: Int)
     data object Oversized : AttachmentImportOutcome()
     data object UnsupportedFile : AttachmentImportOutcome()
     data object AttachmentConflict : AttachmentImportOutcome()
@@ -251,6 +257,12 @@ class AttachmentProcessor(
                             rawContentRef = rawContentRef,
                         ),
                         source = "file",
+                        truncation = if (extracted.truncated) {
+                            AttachmentImportOutcome.Truncation(
+                                shownLines = extracted.content.count { it == '\n' } + 1,
+                                totalLines = extracted.totalLines,
+                            )
+                        } else null,
                     )
                 } catch (e: ExtractionException) {
 
