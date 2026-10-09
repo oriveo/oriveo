@@ -1,5 +1,6 @@
 package ai.oriveo.community.core.provider.relay
 
+import ai.oriveo.community.core.provider.AdditionalRequestBody
 import ai.oriveo.community.core.data.remote.MetadataClient
 import ai.oriveo.community.core.model.ChatMessage
 import ai.oriveo.community.core.model.ChatRequestOptions
@@ -131,7 +132,7 @@ internal fun buildResponsesBody(
         requestOptions,
         resolved,
         capabilityProjection,
-    )
+    ).let { AdditionalRequestBody.apply(it, requestOptions.additionalRequestBody) }
 }
 
 internal fun buildOpenAIChatBody(
@@ -173,7 +174,7 @@ internal fun buildOpenAIChatBody(
         requestOptions,
         resolved,
         capabilityProjection,
-    )
+    ).let { AdditionalRequestBody.apply(it, requestOptions.additionalRequestBody) }
 }
 
 /** llama.cpp native `/completion` uses a plain prompt and `n_predict`, not OpenAI messages/model. */
@@ -200,7 +201,7 @@ internal fun buildLlamaCppNativeBody(
         requestOptions,
         MetadataClient.resolveCatalogModelAcrossProviders(""),
         capabilityProjection,
-    )
+    ).let { AdditionalRequestBody.apply(it, requestOptions.additionalRequestBody) }
 }
 
 internal fun buildLlamaCppPrompt(messages: List<ChatMessage>, requestOptions: ChatRequestOptions): String =
@@ -246,7 +247,7 @@ internal fun buildAnthropicBody(
         resolved,
         capabilityProjection,
         outboundTemplate = "anthropic_messages",
-    )
+    ).let { AdditionalRequestBody.apply(it, requestOptions.additionalRequestBody) }
 }
 
 internal fun buildGeminiBody(
@@ -290,7 +291,7 @@ internal fun buildGeminiBody(
         requestOptions,
         resolved,
         capabilityProjection,
-    )
+    ).let { AdditionalRequestBody.apply(it, requestOptions.additionalRequestBody) }
 }
 
 /** A projection must exist in production Relay dispatch; an absent final scope is fail-closed. */

@@ -46,6 +46,7 @@ object ErrorMapper {
         is ProviderServiceError.EmptyModelCatalog -> context.getString(R.string.retry)
         is ProviderServiceError.EmptyResponse -> context.getString(R.string.retry)
         is ProviderServiceError.InvalidConfiguration -> context.getString(R.string.fix_now)
+        is ProviderServiceError.LocalRequestRejected -> context.getString(R.string.edit)
         is ProviderServiceError.Network -> context.getString(R.string.retry)
         is ProviderServiceError.Upstream -> context.getString(R.string.switch_model)
         is ProviderServiceError.RelayUpstream -> context.getString(R.string.fix_now)
@@ -164,6 +165,7 @@ object ErrorMapper {
         "No Models Found" to R.string.error_no_models,
         "Empty Provider Response" to R.string.error_empty_response,
         "Provider Configuration Error" to R.string.error_config,
+        "Custom request fields" to R.string.model_control_custom_request_fields,
         "Provider Request Failed" to R.string.error_request_failed,
         "Request Failed" to R.string.message_failed,
         "Grok subscription" to R.string.grok_subscription_title,

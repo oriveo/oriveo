@@ -34,7 +34,7 @@ internal object GenerationParameterResolver {
     private val blockedWireSegments = setOf("__proto__", "prototype", "constructor")
     private const val MAX_WIRE_SEGMENTS = 4
     /** Root fields the request builder owns. The request skeleton belongs to the builder, and a wire path may never overwrite it. */
-    private val builderOwnedRootFields = setOf(
+    internal val builderOwnedRootFields = setOf(
         "model", "messages", "input", "contents", "prompt", "attachments", "instructions", "system", "stream", "stream_options", "tools", "tool_choice", "plugins",
     )
     private const val JSON_SCHEMA_MAX_BYTES = 64 * 1024

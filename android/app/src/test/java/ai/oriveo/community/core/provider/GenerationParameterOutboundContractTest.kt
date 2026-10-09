@@ -203,7 +203,8 @@ class GenerationParameterOutboundContractTest {
         )
     }
 
-    private fun officialMetadata(): JsonObject {
+    /** Also reused by AdditionalRequestBodySendChainTest for the official Anthropic send chain. */
+    internal fun officialMetadata(): JsonObject {
         val registry = json.parseToJsonElement(repoText(
             "shared/capabilityrecipe/capability_runtime.v1.json",
         )).jsonObject
@@ -285,7 +286,7 @@ class GenerationParameterOutboundContractTest {
         return String(Files.readAllBytes(path), Charsets.UTF_8)
     }
 
-    private companion object {
+    internal companion object {
         const val OFFICIAL_MODEL = "claude-sonnet-4-5"
     }
 }

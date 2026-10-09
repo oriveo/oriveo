@@ -32,6 +32,13 @@ internal fun interface ChatSendLauncher {
     )
 }
 
+/** A local way out does not depend on the rejection cache: the whole section is omitted, not a field the upstream named. */
+internal fun localFieldsResendMarker(failureCode: String?): String? =
+    failureCode?.takeIf { it.startsWith(ai.oriveo.community.core.data.repository.LOCAL_FIELDS_RETRY_OFFER_PREFIX) }
+        ?.removePrefix(ai.oriveo.community.core.data.repository.LOCAL_FIELDS_RETRY_OFFER_PREFIX)
+        ?.let { "$OMIT_LOCAL_FIELDS_ONCE_PREFIX$it" }
+        ?.takeIf { omitLocalFieldsOnceOwner(it) != null }
+
 /** Converts a saved failure descriptor into a one-send latch only on the exact cached runtime. */
 internal fun validatedModelControlResendMarker(
     failureCode: String?,
@@ -276,7 +283,10 @@ internal class ChatRetryCoordinator(
         val assistantMsg = conv.messages.find {
             it.id == messageId && it.role == ChatRole.Assistant &&
                 it.state == ChatMessageState.Failed && it.customRetryWithoutFieldsAvailable &&
-                it.customRetryWithoutFieldsCode?.startsWith("capability_setting_pre_token_400:") == true
+                it.customRetryWithoutFieldsCode?.let { code ->
+                    code.startsWith("capability_setting_pre_token_400:") ||
+                        code.startsWith(ai.oriveo.community.core.data.repository.LOCAL_FIELDS_RETRY_OFFER_PREFIX)
+                } == true
         } ?: return
         val lastUser = conv.messages.take(conv.messages.indexOf(assistantMsg))
             .lastOrNull { it.role == ChatRole.User } ?: return
@@ -289,10 +299,11 @@ internal class ChatRetryCoordinator(
             val modelId = activeModelId() ?: return@launch
             val runtimeModelId = ProviderSelectionSnapshot.runtimeModelId(provider, modelId) ?: modelId
             val selectedModel = ProviderSelectionSnapshot.selectedModel(provider, runtimeModelId) ?: return@launch
-            val resendMarker = validatedModelControlResendMarker(
-                assistantMsg.customRetryWithoutFieldsCode,
-                modelControlRuntimeIdentity(provider, selectedModel),
-            ) ?: return@launch
+            val resendMarker = localFieldsResendMarker(assistantMsg.customRetryWithoutFieldsCode)
+                ?: validatedModelControlResendMarker(
+                    assistantMsg.customRetryWithoutFieldsCode,
+                    modelControlRuntimeIdentity(provider, selectedModel),
+                ) ?: return@launch
             requestPin()
             // One request-carried marker only. Unlike ordinary retry this target retains every
             // generated text/reasoning/citation/attachment and ChatRepository appends new output.

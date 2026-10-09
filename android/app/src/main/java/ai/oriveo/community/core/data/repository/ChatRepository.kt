@@ -1,5 +1,6 @@
 package ai.oriveo.community.core.data.repository
 
+import ai.oriveo.community.feature.chat.OMIT_LOCAL_FIELDS_ONCE_PREFIX
 import ai.oriveo.community.core.attachments.AttachmentHydrator
 import ai.oriveo.community.core.attachments.OutboundAttachmentBudget
 import ai.oriveo.community.core.data.attachment.AttachmentStore
@@ -85,6 +86,34 @@ internal fun canOfferExplicitModelControlResend(
     ).action == "user_confirmed_resend_without_located_setting"
 }
 
+internal const val LOCAL_FIELDS_RETRY_OFFER_PREFIX = "local_fields_retry_offer:"
+
+/**
+ * Decides the "retry without the additional request body / without this custom-fields section" way out and returns the owner to omit.
+ *
+ * - Web-search or thinking custom fields failed local validation: no request was sent, so offer a way out for that section (not for a local rejection of the additional request body, which has to be fixed and resent).
+ * - The request really carried the additional request body, no upstream event had arrived yet and there was no tool side effect, and the failure is an HTTP 400 or an in-stream error frame
+ *   that is not classified as quota / rate limit / auth / model unavailable (`mapStreamError` maps it to `Upstream(200)`).
+ *   An error after content has already arrived means the upstream started answering and is not a rejection of the request body, so no way out is offered.
+ */
+internal fun localFieldsRetryOwner(
+    error: Throwable,
+    sentAdditionalBody: String?,
+    receivedUpstreamEvent: Boolean,
+    hadToolSideEffects: Boolean,
+): String? {
+    if (error is ProviderServiceError.LocalRequestRejected) {
+        return error.owner.takeIf { it == "web" || it == "reasoning" }
+    }
+    if (sentAdditionalBody.isNullOrBlank() || receivedUpstreamEvent || hadToolSideEffects) return null
+    val rejectsBody = when (error) {
+        is ProviderServiceError.Upstream -> error.statusCode == 400 || error.statusCode == 200
+        is ProviderServiceError.RelayUpstream -> error.statusCode == 400
+        else -> false
+    }
+    return ai.oriveo.community.core.provider.AdditionalRequestBody.OWNER.takeIf { rejectsBody }
+}
+
 /**
  * Sends a message and drives the stream that answers it.
  *
@@ -166,7 +195,7 @@ class ChatRepository(
         }
 
         val preservesGeneratedContent = appendToAssistant?.customRetryWithoutFieldsCode
-            ?.startsWith("omit_capability_setting_once:") == true
+            ?.let { it.startsWith("omit_capability_setting_once:") || it.startsWith(OMIT_LOCAL_FIELDS_ONCE_PREFIX) } == true
 
         val assistantMessageId: String
         val assistantPlaceholder: ChatMessage
@@ -984,7 +1013,14 @@ class ChatRepository(
                     CapabilityEvidenceObservationBridge.invalidate()
                 }
             }
-            val resendCode = locatedRejection?.takeIf { canExplicitlyResend }?.let { located ->
+            val localFieldsRetryOwner = if (canExplicitlyResend) null else localFieldsRetryOwner(
+                error = e,
+                sentAdditionalBody = effectiveRequestOptions.additionalRequestBody,
+                receivedUpstreamEvent = receivedUpstreamEvent,
+                hadToolSideEffects = mcpToolSteps.isNotEmpty(),
+            )
+            val resendCode = localFieldsRetryOwner?.let { "$LOCAL_FIELDS_RETRY_OFFER_PREFIX$it" }
+                ?: locatedRejection?.takeIf { canExplicitlyResend }?.let { located ->
                 fun encode(value: String) = java.util.Base64.getUrlEncoder().withoutPadding()
                     .encodeToString(value.toByteArray(Charsets.UTF_8))
                 val pointers = encode(located.locatedPointers.sorted().joinToString("\u001f"))
@@ -1002,7 +1038,7 @@ class ChatRepository(
                 // No provider-text heuristic is permitted here. This is only an explicit user
                 // affordance for the production-located recipe/custom + pre-token HTTP 400 shape;
                 // auth/rate-limit/5xx/network/stream failures keep the ordinary recovery card.
-                customRetryWithoutFieldsAvailable = canExplicitlyResend,
+                customRetryWithoutFieldsAvailable = canExplicitlyResend || localFieldsRetryOwner != null,
                 customRetryWithoutFieldsCode = resendCode,
                 reasoningText = tokenBuffer.accumulatedReasoningText.trim().takeIf { it.isNotEmpty() },
                 attachments = streamingAttachments.ifEmpty { assistantPlaceholder.attachments },

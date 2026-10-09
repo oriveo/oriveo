@@ -603,15 +603,16 @@ class CapabilityRecipeRequestCompilerTest {
                 // at temperature. So a temperature fragment with a perfectly valid shape must be rejected before the socket
                 // is opened, for every provider alike. The positive side of those three coordinates is covered by
                 // `three frozen custom controls ...`, which pulls its caseIds from the shared fixture.
+                // A local rejection is its own error type and is not presented as a connection configuration fault.
                 val unauthorizedFragment = if (kind == ProviderKind.Gemini) "{\"generationConfig\":{\"temperature\":0.2}}" else "{\"temperature\":0.2}"
                 val unauthorized = captureMatrix(kind, modelID, streaming, ChatRequestOptions(localCustomFragment = unauthorizedFragment))
                 assertEquals("$kind stream=$streaming unauthorized custom must not open socket", null, unauthorized.body)
                 assertTrue("$kind stream=$streaming unauthorized custom must fail explicitly",
-                    unauthorized.error is ai.oriveo.community.core.model.ProviderServiceError.InvalidConfiguration)
+                    unauthorized.error is ai.oriveo.community.core.model.ProviderServiceError.LocalRequestRejected)
 
                 val rejected = captureMatrix(kind, modelID, streaming, ChatRequestOptions(localCustomFragment = "{\"model\":\"evil\"}"))
                 assertEquals("$kind rejected custom must not open socket", null, rejected.body)
-                assertTrue("$kind rejected custom must fail explicitly", rejected.error is ai.oriveo.community.core.model.ProviderServiceError.InvalidConfiguration)
+                assertTrue("$kind rejected custom must fail explicitly", rejected.error is ai.oriveo.community.core.model.ProviderServiceError.LocalRequestRejected)
 
                 val conflict = captureMatrix(kind, modelID, streaming, ChatRequestOptions(
                     temperature = 0.7f,

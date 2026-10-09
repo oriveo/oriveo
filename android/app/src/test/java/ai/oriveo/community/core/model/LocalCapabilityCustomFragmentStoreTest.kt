@@ -10,12 +10,13 @@ class LocalCapabilityCustomFragmentStoreTest {
     private val identity = "openai_responses|model-a"
 
     /** A missing legacy key means a fresh install or an already-migrated state: do nothing, and don't backfill the marker key either. */
+    // Generation records are migrated into the additional request body (contract: migration of existing content), so the master-switch migration semantics are verified with the web owner.
     @Test
     fun retiredGateMigrationIsANoOpWhenTheLegacyKeyIsAbsent() {
         var raw: String? = null
         var cleared = false
         val seed = LocalCapabilityCustomFragmentStore({ raw }, { raw = it })
-        seed.setFragment("{\"temperature\":0.2}", "provider-a", "model-a", "conversation-a", identity)
+        seed.setFragment("{\"temperature\":0.2}", "provider-a", "model-a", "conversation-a", identity, LocalCapabilityCustomFragmentStore.WEB_NAMESPACE)
         val before = raw
 
         LocalCapabilityCustomFragmentStore(
@@ -34,7 +35,7 @@ class LocalCapabilityCustomFragmentStoreTest {
         var raw: String? = null
         var gate: Boolean? = true
         val seed = LocalCapabilityCustomFragmentStore({ raw }, { raw = it })
-        seed.setFragment("{\"temperature\":0.2}", "provider-a", "model-a", "conversation-a", identity)
+        seed.setFragment("{\"temperature\":0.2}", "provider-a", "model-a", "conversation-a", identity, LocalCapabilityCustomFragmentStore.WEB_NAMESPACE)
 
         val store = LocalCapabilityCustomFragmentStore(
             { raw }, { raw = it },
@@ -45,7 +46,7 @@ class LocalCapabilityCustomFragmentStoreTest {
         assertNull("the legacy key must be cleared", gate)
         assertEquals(
             "{\"temperature\":0.2}",
-            store.fragment("provider-a", "model-a", "conversation-a", identity),
+            store.fragment("provider-a", "model-a", "conversation-a", identity, LocalCapabilityCustomFragmentStore.WEB_NAMESPACE),
         )
     }
 
@@ -63,7 +64,7 @@ class LocalCapabilityCustomFragmentStoreTest {
         var raw: String? = null
         var gate: Boolean? = false
         val seed = LocalCapabilityCustomFragmentStore({ raw }, { raw = it })
-        seed.setFragment("{\"temperature\":0.2}", "provider-a", "model-a", "conversation-a", identity)
+        seed.setFragment("{\"temperature\":0.2}", "provider-a", "model-a", "conversation-a", identity, LocalCapabilityCustomFragmentStore.WEB_NAMESPACE)
 
         val store = LocalCapabilityCustomFragmentStore(
             { raw }, { raw = it },
@@ -72,8 +73,8 @@ class LocalCapabilityCustomFragmentStoreTest {
         )
 
         assertNull(gate)
-        assertNull("must not go out once disabled", store.fragment("provider-a", "model-a", "conversation-a", identity))
-        val configuration = store.configuration("provider-a", "model-a", "conversation-a", identity)
+        assertNull("must not go out once disabled", store.fragment("provider-a", "model-a", "conversation-a", identity, LocalCapabilityCustomFragmentStore.WEB_NAMESPACE))
+        val configuration = store.configuration("provider-a", "model-a", "conversation-a", identity, LocalCapabilityCustomFragmentStore.WEB_NAMESPACE)
         assertFalse(configuration.enabled)
         assertEquals("the draft must be preserved as-is", "{\"temperature\":0.2}", configuration.rawJSON)
     }
@@ -84,7 +85,7 @@ class LocalCapabilityCustomFragmentStoreTest {
         var raw: String? = null
         var gate: Boolean? = false
         val seed = LocalCapabilityCustomFragmentStore({ raw }, { raw = it })
-        seed.setFragment("{\"temperature\":0.2}", "provider-a", "model-a", "conversation-a", identity)
+        seed.setFragment("{\"temperature\":0.2}", "provider-a", "model-a", "conversation-a", identity, LocalCapabilityCustomFragmentStore.WEB_NAMESPACE)
         LocalCapabilityCustomFragmentStore(
             { raw }, { raw = it },
             readRetiredDeveloperGate = { gate },
@@ -92,7 +93,7 @@ class LocalCapabilityCustomFragmentStoreTest {
         )
         // the user re-enabled it.
         val reenabled = LocalCapabilityCustomFragmentStore({ raw }, { raw = it })
-        reenabled.setFragment("{\"temperature\":0.9}", "provider-a", "model-a", "conversation-a", identity)
+        reenabled.setFragment("{\"temperature\":0.9}", "provider-a", "model-a", "conversation-a", identity, LocalCapabilityCustomFragmentStore.WEB_NAMESPACE)
 
         val store = LocalCapabilityCustomFragmentStore(
             { raw }, { raw = it },
@@ -102,7 +103,7 @@ class LocalCapabilityCustomFragmentStoreTest {
 
         assertEquals(
             "{\"temperature\":0.9}",
-            store.fragment("provider-a", "model-a", "conversation-a", identity),
+            store.fragment("provider-a", "model-a", "conversation-a", identity, LocalCapabilityCustomFragmentStore.WEB_NAMESPACE),
         )
     }
 

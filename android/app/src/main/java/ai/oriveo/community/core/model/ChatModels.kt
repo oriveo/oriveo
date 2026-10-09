@@ -333,6 +333,8 @@ data class ChatRequestOptions(
     @kotlinx.serialization.Transient val localCustomOwner: String = "generation",
     /** P4c owner-scoped local fragments.  Never serialized; Auto/Custom is mutually exclusive per owner. */
     @kotlinx.serialization.Transient val localCustomFragments: Map<String, String> = emptyMap(),
+    /** The additional request body text that actually went out with this request; stays in process, never serialized or sent to telemetry. */
+    @kotlinx.serialization.Transient val additionalRequestBody: String? = null,
     /** Local request lifecycle carrier; never persisted, synced, logged, or serialized. */
     @kotlinx.serialization.Transient val capabilityExecutionCollector: CapabilityExecutionCollector? = null,
     /** Typed UI intent. Process-local only; the recipe compiler remains the wire authority. */

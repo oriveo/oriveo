@@ -264,17 +264,19 @@ internal fun applyCapabilityRuntimeCustomFragment(
     val fragments = requestOptions.allLocalCustomFragments().filterKeys { owner ->
         owner !in requestOptions.dormantCapabilityOwners && owner !in requestOptions.rejectedCustomSettings
     }
-    if (fragments.isEmpty()) return bodyJson
-    var body = parseJsonObjectOrNull(bodyJson) ?: return bodyJson
+    // The additional request body is merged after the capability writers (contract merge.order), so every exit path ends with it.
+    val additionalBody = requestOptions.additionalRequestBody
+    if (fragments.isEmpty()) return AdditionalRequestBody.apply(bodyJson, additionalBody)
+    var body = parseJsonObjectOrNull(bodyJson) ?: return AdditionalRequestBody.apply(bodyJson, additionalBody)
     fragments.toSortedMap().forEach { (owner, raw) ->
         val authority = safeCustomFragmentAuthority(providerKind, modelID, finalTransport, requestOptions.activeModel?.generationProfile, owner)
-            ?: throw ProviderServiceError.InvalidConfiguration("Custom request fragment does not match this model transport.")
+            ?: throw ProviderServiceError.LocalRequestRejected(owner, "transport_or_schema_mismatch")
         val custom = ProviderRecipeExecution.compileSafeCustom(raw, owner, authority.owners)
         if (!custom.accepted || custom.delta == null) {
-            throw ProviderServiceError.InvalidConfiguration("Custom request fragment rejected: ${custom.reason ?: "invalid_fragment"}.")
+            throw ProviderServiceError.LocalRequestRejected(owner, custom.reason ?: "invalid_fragment")
         }
         if ((custom.delta.leafPointers() intersect body.leafPointers()).isNotEmpty()) {
-            throw ProviderServiceError.InvalidConfiguration("Custom request fragment conflicts with a typed request field.")
+            throw ProviderServiceError.LocalRequestRejected(owner, "typed_field_conflict")
         }
         body = deepMergeJsonObject(body, custom.delta)
         // Authorization comes from this one snapshot read of `authority`, so revision and owners are
@@ -290,7 +292,7 @@ internal fun applyCapabilityRuntimeCustomFragment(
             custom.delta.leafPointers(),
         )
     }
-    return body.toString()
+    return AdditionalRequestBody.apply(body.toString(), additionalBody)
 }
 
 /** The developer editor calls this production authorization path before it writes local-only JSON.
